@@ -59,3 +59,8 @@ omaseed_add_test(tst_qbtclient_live
     SOURCES tst_qbtclient_live.cpp
     LIBRARIES omaseed::core
 )
+
+omaseed_add_test(tst_format
+    SOURCES tst_format.cpp
+    LIBRARIES omaseed::core
+)

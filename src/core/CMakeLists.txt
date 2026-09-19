@@ -6,6 +6,8 @@ qt_add_library(omaseed-core STATIC
     ApiError.hpp
     Bencode.cpp
     Bencode.hpp
+    Format.cpp
+    Format.hpp
     MagnetLink.cpp
     MagnetLink.hpp
     PathMap.cpp
