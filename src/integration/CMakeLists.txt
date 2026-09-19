@@ -8,6 +8,8 @@ qt_add_library(omaseed-integration STATIC
     Theme.hpp
     ThemeReader.cpp
     ThemeReader.hpp
+    Tray.cpp
+    Tray.hpp
     Xdg.cpp
     Xdg.hpp
 )
@@ -20,9 +22,21 @@ qt_add_resources(omaseed-integration "omaseed-theme-fallback"
     FILES resources/theme/tokyo-night/colors.toml
 )
 
+# The five tray icon states, SVG templates tinted from the theme at render time.
+qt_add_resources(omaseed-integration "omaseed-tray-icons"
+    PREFIX "/omaseed"
+    BASE resources
+    FILES
+        resources/tray/altspeed.svg
+        resources/tray/disconnected.svg
+        resources/tray/downloading.svg
+        resources/tray/error.svg
+        resources/tray/idle.svg
+)
+
 target_include_directories(omaseed-integration PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/..")
 
 target_link_libraries(omaseed-integration
-    PUBLIC omaseed::core Qt6::Core Qt6::DBus Qt6::Gui Qt6::Qml
+    PUBLIC omaseed::core Qt6::Core Qt6::DBus Qt6::Gui Qt6::Qml Qt6::Svg Qt6::Widgets
     PRIVATE omaseed::warnings
 )

@@ -22,3 +22,8 @@ omaseed_add_test(tst_themeresolver
     SOURCES tst_themeresolver.cpp
     LIBRARIES omaseed::integration
 )
+
+omaseed_add_test(tst_tray
+    SOURCES tst_tray.cpp
+    LIBRARIES omaseed::integration Qt6::Svg Qt6::Widgets
+)
