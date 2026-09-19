@@ -4,6 +4,14 @@ configure_file(BuildConfig.hpp.in "${CMAKE_CURRENT_BINARY_DIR}/omaseed/core/Buil
 qt_add_library(omaseed-core STATIC
     ApiError.cpp
     ApiError.hpp
+    Bencode.cpp
+    Bencode.hpp
+    MagnetLink.cpp
+    MagnetLink.hpp
+    PathMap.cpp
+    PathMap.hpp
+    TorrentFile.cpp
+    TorrentFile.hpp
     Version.cpp
     Version.hpp
 )
