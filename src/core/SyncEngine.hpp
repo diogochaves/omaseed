@@ -80,6 +80,14 @@ public:
     qint64 lowDiskThreshold() const { return m_lowDiskThreshold; }
     void setLowDiskThreshold(qint64 bytes);
 
+    /// Applies one sync/maindata-shaped object straight into the models, with no network
+    /// and no poll loop behind it: `--demo table` and the tests fill the views with
+    /// fictional data through this. Everything a real poll does to the models happens
+    /// (firstSyncFinished included, on the first full update); nothing that belongs to the
+    /// loop does — the engine stays stopped, no client is needed, and `rid` only moves if
+    /// the object carries one.
+    void applyDemoData(const QJsonObject &data);
+
     /// Shortens every interval; the tests use it to watch the cadence without waiting.
     void setIntervals(std::chrono::milliseconds visible,
                       std::chrono::milliseconds hidden,

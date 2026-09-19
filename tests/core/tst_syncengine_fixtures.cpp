@@ -178,6 +178,7 @@ private slots:
     void diskAlmostFullFiresOncePerCrossing();
     void serverLostOnceThenBackWithAFullUpdate();
     void forbiddenStopsThePollLoop();
+    void applyDemoDataFillsTheModelsWithNoClient();
 
 private:
     QByteArray m_full;
@@ -519,6 +520,28 @@ void TestSyncEngineFixtures::forbiddenStopsThePollLoop()
     QCOMPARE(engine.isRunning(), false);
     QCOMPARE(engine.globalState()->connected(), false);
     QCOMPARE(auth.first().at(0).value<ApiError>().kind(), ApiError::Kind::Forbidden);
+}
+
+void TestSyncEngineFixtures::applyDemoDataFillsTheModelsWithNoClient()
+{
+    // `--demo table` has no server at all: applyDemoData() must do everything a poll does to
+    // the models, and nothing the poll loop does (no client, no timer, never running).
+    SyncEngine engine;
+    QSignalSpy firstSync(&engine, &SyncEngine::firstSyncFinished);
+    QSignalSpy synced(&engine, &SyncEngine::synced);
+
+    engine.applyDemoData(QJsonDocument::fromJson(m_full).object());
+
+    QVERIFY(!engine.isRunning());
+    QCOMPARE(engine.client(), nullptr);
+    QCOMPARE(firstSync.count(), 1);
+    QCOMPARE(synced.count(), 1);
+    QCOMPARE(synced.first().at(0).toBool(), true);
+    QCOMPARE(engine.torrents()->count(), 4);
+    QCOMPARE(engine.counts()->total(), 4);
+    QCOMPARE(engine.categories()->names(),
+             QStringList({QStringLiteral("fixtures"), QStringLiteral("linux")}));
+    QVERIFY(engine.globalState()->freeSpaceOnDisk() > 0);
 }
 
 QTEST_MAIN(TestSyncEngineFixtures)

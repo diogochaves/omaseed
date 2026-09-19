@@ -4,10 +4,12 @@ qt_add_executable(omaseed
     main.cpp
 )
 
+add_subdirectory(app)
 add_subdirectory(qml)
 
 target_link_libraries(omaseed
     PRIVATE
+        omaseed::app
         omaseed::core
         omaseed::integration
         omaseed::warnings

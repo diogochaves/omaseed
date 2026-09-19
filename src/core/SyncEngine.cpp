@@ -269,6 +269,11 @@ void SyncEngine::tickCountdown()
         m_countdownTimer->stop();
 }
 
+void SyncEngine::applyDemoData(const QJsonObject &data)
+{
+    applyData(data);
+}
+
 void SyncEngine::applyData(const QJsonObject &data)
 {
     const bool fullUpdate = data.value(key("full_update")).toBool(false);
