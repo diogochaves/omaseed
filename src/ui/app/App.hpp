@@ -29,6 +29,7 @@
 #include "core/QbtClient.hpp"
 #include "core/SecretStore.hpp"
 #include "core/Server.hpp"
+#include "core/ServerDetector.hpp"
 #include "core/ServerListModel.hpp"
 #include "core/ServerStore.hpp"
 #include "core/SyncEngine.hpp"
@@ -43,6 +44,7 @@
 #include <QJsonObject>
 #include <QObject>
 #include <QPointer>
+#include <QProcess>
 #include <QString>
 #include <QStringList>
 #include <QTimer>
@@ -639,6 +641,47 @@ private:
     QMetaObject::Connection m_addWatch;
     int m_nextAddableToken = 0;
     // --- end T4.2 ------------------------------------------------------------------------
+
+    // --- T4.6: first run -------------------------------------------------------------------
+    // Everything `Views/FirstRunPage.qml` (spec v2 §5 Fig. 15) needs from App: whether the
+    // page should show at all, the async local-server detection `ServerDetector` performs,
+    // and the "install qbittorrent-nox here" step's command text and `pkexec` run. Adding a
+    // server, testing it and making it the default are already T4.5's `addServer`/
+    // `testServer`/`setDefaultServer` above; this block only adds what is new for first run.
+public:
+    /// True while the server store is empty — nothing was ever configured, so MainView shows
+    /// the first-run page instead of `EmptyState`. Independent of the environment-variable
+    /// fallback (`OMASEED_SERVER_URL`): an env-only session still has an empty store and
+    /// would show first run again next time it runs without the env set, which is correct.
+    Q_PROPERTY(bool firstRunNeeded READ firstRunNeeded NOTIFY serverChanged)
+    bool firstRunNeeded() const { return m_servers->count() == 0; }
+
+    /// Starts `ServerDetector` (a TCP probe of 127.0.0.1:8080 — connect-and-close only, never
+    /// an HTTP request — plus a `docker ps` and a `pgrep` check). Answers with
+    /// `serversDetected()`, always exactly once. Safe to call again while a previous run is
+    /// still in flight; only the last one's answer is emitted.
+    Q_INVOKABLE void detectServers();
+
+    /// The exact shell commands the install step's copyable field shows, one per line: the
+    /// package, then enabling the per-user template unit qbittorrent-nox ships
+    /// (`qbittorrent-nox@.service`, `pacman -Ql qbittorrent-nox | grep service`).
+    Q_INVOKABLE QString installCommandsText() const;
+    /// Runs `pkexec pacman -S --noconfirm qbittorrent-nox` — never `sudo` from inside the
+    /// app. Answers with `installFinished()`. Does not enable the service: that needs a user
+    /// systemd instance the installer cannot assume is the one running this session.
+    Q_INVOKABLE void runInstallWithPkexec();
+
+Q_SIGNALS:
+    /// One `detectServers()` answer: each candidate is `{kind: "port"|"docker"|"process",
+    /// url, label, detail}` per `ServerDetector::DetectedServer`.
+    void serversDetected(QVariantList candidates);
+    /// One `runInstallWithPkexec()` answer.
+    void installFinished(bool ok, QString message);
+
+private:
+    QPointer<omaseed::core::ServerDetector> m_serverDetector;
+    QPointer<QProcess> m_installProcess;
+    // --- end T4.6 ------------------------------------------------------------------------
 };
 
 } // namespace omaseed::app
