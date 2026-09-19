@@ -28,6 +28,8 @@ qt_add_library(omaseed-core STATIC
     SecretStore.hpp
     Server.cpp
     Server.hpp
+    ServerListModel.cpp
+    ServerListModel.hpp
     ServerStore.cpp
     ServerStore.hpp
     StateFile.cpp
