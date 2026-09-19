@@ -2,6 +2,8 @@
 qt_add_library(omaseed-integration STATIC
     AppIdentity.cpp
     AppIdentity.hpp
+    Xdg.cpp
+    Xdg.hpp
 )
 add_library(omaseed::integration ALIAS omaseed-integration)
 
