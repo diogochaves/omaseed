@@ -38,6 +38,48 @@
 //   GET  transfer/info               transferInfo()
 //   GET  transfer/speedLimitsMode    transferSpeedLimitsMode()
 //   POST transfer/toggleSpeedLimitsMode  transferToggleSpeedLimitsMode()
+//   POST transfer/setDownloadLimit   transferSetDownloadLimit(bytesPerSec)
+//   POST transfer/setUploadLimit     transferSetUploadLimit(bytesPerSec)
+//
+// Torrent actions (T2.5). Verified by hand with curl against the 5.2.3 playground; see the
+// report on task/T2.5 for the session. All hashes parameters are QStringList joined with
+// '|' (also accepts the literal "all"). Every POST goes through post()/postMultipart(),
+// which are never retried for a transient failure — only once after a re-login.
+//   POST torrents/start                 torrentsStart(hashes)          -- 5.x name (was resume)
+//   POST torrents/stop                  torrentsStop(hashes)           -- 5.x name (was pause)
+//   POST torrents/setForceStart         torrentsSetForceStart(hashes, value)
+//   POST torrents/recheck               torrentsRecheck(hashes)
+//   POST torrents/reannounce            torrentsReannounce(hashes)
+//   POST torrents/setCategory           torrentsSetCategory(hashes, category)
+//   POST torrents/createCategory        torrentsCreateCategory(name, savePath)
+//   POST torrents/editCategory          torrentsEditCategory(name, savePath)
+//   POST torrents/removeCategories      torrentsRemoveCategories(names)
+//   POST torrents/addTags               torrentsAddTags(hashes, tags)
+//   POST torrents/removeTags            torrentsRemoveTags(hashes, tags)
+//   POST torrents/createTags            torrentsCreateTags(tags)
+//   POST torrents/deleteTags            torrentsDeleteTags(tags)
+//   POST torrents/setLocation           torrentsSetLocation(hashes, location)
+//   POST torrents/setDownloadLimit      torrentsSetDownloadLimit(hashes, bytesPerSec)
+//   POST torrents/setUploadLimit        torrentsSetUploadLimit(hashes, bytesPerSec)
+//   POST torrents/setShareLimits        torrentsSetShareLimits(hashes, ratio, seedingTime,
+//                                          inactiveSeedingTime, shareLimitAction) -- 5.2.3
+//                                          requires shareLimitAction; the wiki does not
+//                                          document it. -2 = global default, -1 = none.
+//   POST torrents/rename                torrentsRename(hash, name)
+//   POST torrents/renameFile            torrentsRenameFile(hash, oldPath, newPath)
+//   POST torrents/renameFolder          torrentsRenameFolder(hash, oldPath, newPath)
+//   POST torrents/increasePrio          torrentsIncreasePrio(hashes)
+//   POST torrents/decreasePrio          torrentsDecreasePrio(hashes)
+//   POST torrents/topPrio               torrentsTopPrio(hashes)
+//   POST torrents/bottomPrio            torrentsBottomPrio(hashes)
+//   POST torrents/filePrio              torrentsSetFilePrio(hash, fileIds, priority)
+//   POST torrents/toggleSequentialDownload    torrentsToggleSequentialDownload(hashes)
+//   POST torrents/toggleFirstLastPiecePrio    torrentsToggleFirstLastPiecePrio(hashes)
+//   POST torrents/setAutoManagement     torrentsSetAutoManagement(hashes, enable)
+//   POST torrents/setSuperSeeding       torrentsSetSuperSeeding(hashes, value)
+//   POST torrents/delete                torrentsDelete(hashes, deleteFiles)
+//   POST torrents/add (urls=)           torrentsAddUrls(urls, options)
+//   POST torrents/add (multipart file)  torrentsAddFile(fileName, bytes, options)
 // Anything else goes through the generic get() / post().
 
 #include "core/ApiError.hpp"
@@ -56,6 +98,7 @@
 #include <optional>
 
 class QNetworkAccessManager;
+class QHttpMultiPart;
 
 namespace omaseed::core {
 
@@ -158,6 +201,103 @@ public:
     /// app/version + app/webapiVersion; emits serverInfoChanged() when both arrive.
     QbtReply<ServerInfo> *probe();
 
+    // --- torrent actions (T2.5) ----------------------------------------------------------
+    QbtReply<QByteArray> *torrentsStart(const QStringList &hashes);
+    QbtReply<QByteArray> *torrentsStop(const QStringList &hashes);
+    QbtReply<QByteArray> *torrentsSetForceStart(const QStringList &hashes, bool value);
+    QbtReply<QByteArray> *torrentsRecheck(const QStringList &hashes);
+    QbtReply<QByteArray> *torrentsReannounce(const QStringList &hashes);
+
+    QbtReply<QByteArray> *torrentsSetCategory(const QStringList &hashes, const QString &category);
+    QbtReply<QByteArray> *torrentsCreateCategory(const QString &name,
+                                                 const QString &savePath = QString());
+    QbtReply<QByteArray> *torrentsEditCategory(const QString &name, const QString &savePath);
+    QbtReply<QByteArray> *torrentsRemoveCategories(const QStringList &names);
+
+    QbtReply<QByteArray> *torrentsAddTags(const QStringList &hashes, const QStringList &tags);
+    QbtReply<QByteArray> *torrentsRemoveTags(const QStringList &hashes, const QStringList &tags);
+    QbtReply<QByteArray> *torrentsCreateTags(const QStringList &tags);
+    QbtReply<QByteArray> *torrentsDeleteTags(const QStringList &tags);
+
+    QbtReply<QByteArray> *torrentsSetLocation(const QStringList &hashes, const QString &location);
+    QbtReply<QByteArray> *torrentsSetDownloadLimit(const QStringList &hashes, qint64 bytesPerSec);
+    QbtReply<QByteArray> *torrentsSetUploadLimit(const QStringList &hashes, qint64 bytesPerSec);
+    /// ratioLimit/seedingTimeLimit/inactiveSeedingTimeLimit: -2 = global default, -1 = none,
+    /// >=0 the limit itself. 5.2.3 requires shareLimitAction too, undocumented in the older
+    /// wiki text; "Default" reproduces the historical behaviour (stop seeding).
+    QbtReply<QByteArray> *
+    torrentsSetShareLimits(const QStringList &hashes,
+                           double ratioLimit,
+                           qint64 seedingTimeLimit,
+                           qint64 inactiveSeedingTimeLimit,
+                           const QString &shareLimitAction = QStringLiteral("Default"));
+
+    QbtReply<QByteArray> *torrentsRename(const QString &hash, const QString &name);
+    QbtReply<QByteArray> *
+    torrentsRenameFile(const QString &hash, const QString &oldPath, const QString &newPath);
+    QbtReply<QByteArray> *
+    torrentsRenameFolder(const QString &hash, const QString &oldPath, const QString &newPath);
+
+    QbtReply<QByteArray> *torrentsIncreasePrio(const QStringList &hashes);
+    QbtReply<QByteArray> *torrentsDecreasePrio(const QStringList &hashes);
+    QbtReply<QByteArray> *torrentsTopPrio(const QStringList &hashes);
+    QbtReply<QByteArray> *torrentsBottomPrio(const QStringList &hashes);
+    /// priority: 0 = do not download, 1 = normal, 6 = high, 7 = maximal.
+    QbtReply<QByteArray> *
+    torrentsSetFilePrio(const QString &hash, const QList<int> &fileIds, int priority);
+
+    QbtReply<QByteArray> *torrentsToggleSequentialDownload(const QStringList &hashes);
+    QbtReply<QByteArray> *torrentsToggleFirstLastPiecePrio(const QStringList &hashes);
+    QbtReply<QByteArray> *torrentsSetAutoManagement(const QStringList &hashes, bool enable);
+    QbtReply<QByteArray> *torrentsSetSuperSeeding(const QStringList &hashes, bool value);
+
+    QbtReply<QByteArray> *torrentsDelete(const QStringList &hashes, bool deleteFiles);
+
+    /// Matches qBittorrent's `contentLayout` values for a newly added torrent.
+    enum class ContentLayout { Original, Subfolder, NoSubfolder };
+
+    /// Options for torrentsAddUrls / torrentsAddFile. An unset optional is left off the
+    /// request entirely, so the server falls back to its own default (or the category's,
+    /// for the TMM-managed fields) instead of an explicit override.
+    struct AddOptions
+    {
+        std::optional<QString> savepath;
+        std::optional<QString> category;
+        QStringList tags;
+        /// Sent as `stopped` (5.x). `paused` (the pre-5.0 name) is sent alongside it too;
+        /// a 5.2.3 server ignores the unknown extra parameter.
+        std::optional<bool> stopped;
+        std::optional<bool> skipChecking;
+        std::optional<ContentLayout> contentLayout;
+        std::optional<QString> rename;
+        std::optional<qint64> upLimit;
+        std::optional<qint64> dlLimit;
+        std::optional<double> ratioLimit;
+        std::optional<qint64> seedingTimeLimit;
+        std::optional<bool> autoTMM;
+        std::optional<bool> sequentialDownload;
+        std::optional<bool> firstLastPiecePrio;
+        std::optional<QString> cookie;
+    };
+
+    /// POST torrents/add with one or more magnet links or .torrent URLs (the server fetches
+    /// them itself), newline-separated.
+    QbtReply<QByteArray> *torrentsAddUrls(const QStringList &urls,
+                                          const AddOptions &options = AddOptions());
+    /// POST torrents/add, multipart, with the raw bytes of a .torrent file.
+    QbtReply<QByteArray> *torrentsAddFile(const QString &fileName,
+                                          const QByteArray &bytes,
+                                          const AddOptions &options = AddOptions());
+
+    QbtReply<QByteArray> *transferSetDownloadLimit(qint64 bytesPerSec);
+    QbtReply<QByteArray> *transferSetUploadLimit(qint64 bytesPerSec);
+
+    /// A POST whose body is a caller-built multipart form (e.g. torrentsAddFile). Takes
+    /// ownership of `multiPart`. Never retried, including the one-shot re-login retry:
+    /// a QHttpMultiPart holding file bytes cannot be safely replayed, so an auth failure
+    /// here is reported straight to the caller instead.
+    QbtReply<QByteArray> *postMultipart(const QString &path, QHttpMultiPart *multiPart);
+
     /// Drops every queued and in-flight request; each reply finishes with Kind::Cancelled.
     void cancelAll();
 
@@ -178,6 +318,10 @@ private:
         QUrlQuery form;
         bool retryOnTransient = true;
         bool isLogin = false;
+        bool allowReloginRetry = true;
+        /// Set instead of `form` for a multipart POST. Owned by the spec (and so by the
+        /// job): never rebuilt or resent, see postMultipart().
+        std::shared_ptr<QHttpMultiPart> multiPart;
     };
 
     template<class T, class Fn>
