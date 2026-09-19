@@ -1,0 +1,42 @@
+[
+  {
+    "file": "single_file_v1.torrent",
+    "infoHashV1": "857ddb9df19f876e5a5e3f5b9c4f3991cbce1b04",
+    "infoHashV2": "",
+    "isPrivate": false,
+    "metaVersion": 1,
+    "name": "Single.bin",
+    "pieceLength": 16384,
+    "totalSize": 50000
+  },
+  {
+    "file": "multi_file_v1_unicode.torrent",
+    "infoHashV1": "6f04b6c7642d15dc5cfa6cd2478e7f128a0e556f",
+    "infoHashV2": "",
+    "isPrivate": false,
+    "metaVersion": 1,
+    "name": "Unicode Pack",
+    "pieceLength": 16384,
+    "totalSize": 4226
+  },
+  {
+    "file": "private_announce_list.torrent",
+    "infoHashV1": "c17b97fa616921f257168545fb160e02123efa91",
+    "infoHashV2": "",
+    "isPrivate": true,
+    "metaVersion": 1,
+    "name": "Private.iso",
+    "pieceLength": 32768,
+    "totalSize": 100000
+  },
+  {
+    "file": "v2_stub.torrent",
+    "infoHashV1": "0e69ae9c9d30a02477940d9e419230d6de4ec373",
+    "infoHashV2": "0703e91a4e92560200a851c3f8e8283077f2333510bd3723bbaa367577fff0af",
+    "isPrivate": false,
+    "metaVersion": 2,
+    "name": "V2Stub.bin",
+    "pieceLength": 16384,
+    "totalSize": 16384
+  }
+]
