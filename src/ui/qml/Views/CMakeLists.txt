@@ -17,6 +17,7 @@ qt_add_qml_module(omaseed-views
         DemoDetails.qml
         DemoOverlays.qml
         DemoRail.qml
+        DemoFirstrun.qml
         DemoStates.qml
         DemoTorrents.qml
         Details.qml
@@ -29,6 +30,7 @@ qt_add_qml_module(omaseed-views
         DuplicateSheet.qml
         EmptyState.qml
         FilteredEmpty.qml
+        FirstRunPage.qml
         HelpSheet.qml
         JumpPalette.qml
         LimitsSheet.qml

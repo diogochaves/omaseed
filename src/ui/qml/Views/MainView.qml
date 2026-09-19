@@ -622,7 +622,7 @@ Item {
         // §7's whole-body states
         EmptyState {
             anchors.centerIn: parent
-            visible: root.libraryEmpty
+            visible: root.libraryEmpty && !root.firstRun // T4.6: first run replaces this state
 
             onAddRequested: App.addRequested()
             onHelpRequested: root.helpOpen = true
@@ -1086,4 +1086,29 @@ Item {
         value: App.windowAlphaOverride > 0 ? App.windowAlphaOverride / 100 : 0.90
     }
     // --- end T4.5 ---
+
+    // --- T4.6: first run ---
+    // The full-window page of spec v2 §5 Fig. 15, shown instead of the body's rail/table/
+    // details/EmptyState while nothing is configured yet. It sits above everything else
+    // (`z` higher than the settings modal, which is 11: first run pre-empts settings too —
+    // there is nothing to configure servers *of* yet) and closes itself once step 3 is
+    // answered; `App.hasServer`/`App.firstRunNeeded` already flip the moment `addServer()`
+    // and `setDefaultServer()` run, so the table underneath is already filling in by then.
+    readonly property bool firstRun: !App.hasServer && !App.demoMode
+
+    // A `Loader` rather than a plain child: `FirstRunPage` starts a real `ServerDetector`
+    // (a TCP probe of 127.0.0.1:8080) from `Component.onCompleted`, and that must only ever
+    // run while first run is actually showing — never for every other window state (demo,
+    // qmltestrunner, a configured server) a plain `visible: root.firstRun` child would still
+    // instantiate and complete once.
+    Loader {
+        active: root.firstRun
+        anchors.fill: parent
+        z: 20
+
+        sourceComponent: FirstRunPage {
+            onFinished: table.forceActiveFocus()
+        }
+    }
+    // --- end T4.6 ---
 }

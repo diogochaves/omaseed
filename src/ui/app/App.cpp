@@ -1886,4 +1886,79 @@ void App::applyAppearance()
 
 // --- end T4.5 --------------------------------------------------------------------------------
 
+// --- T4.6: first run ---------------------------------------------------------------------
+
+void App::detectServers()
+{
+    if (m_serverDetector) {
+        m_serverDetector->disconnect(this);
+        m_serverDetector->deleteLater();
+    }
+
+    m_serverDetector = new ServerDetector(this);
+    connect(m_serverDetector,
+            &ServerDetector::finished,
+            this,
+            [this](const QList<DetectedServer> &candidates) {
+                QVariantList list;
+                for (const DetectedServer &candidate : candidates) {
+                    QVariantMap map;
+                    map.insert(QStringLiteral("kind"), candidate.kind);
+                    map.insert(QStringLiteral("url"), candidate.url);
+                    map.insert(QStringLiteral("label"), candidate.label);
+                    map.insert(QStringLiteral("detail"), candidate.detail);
+                    list.append(map);
+                }
+                Q_EMIT serversDetected(list);
+            });
+    m_serverDetector->start();
+}
+
+QString App::installCommandsText() const
+{
+    // `qbittorrent-nox` ships two units (`pacman -Ql qbittorrent-nox | grep service`):
+    // `qbittorrent-nox.service` (system-wide, one shared instance) and the per-user template
+    // `qbittorrent-nox@.service`. The template is what first run wants: it runs as the
+    // person who installed it, with their own config and download directories.
+    return QStringLiteral("sudo pacman -S qbittorrent-nox\n"
+                          "systemctl --user enable --now qbittorrent-nox@$USER");
+}
+
+void App::runInstallWithPkexec()
+{
+    if (m_installProcess) {
+        Q_EMIT installFinished(false, tr("an install is already running"));
+        return;
+    }
+
+    m_installProcess = new QProcess(this);
+    connect(m_installProcess,
+            &QProcess::finished,
+            this,
+            [this](int exitCode, QProcess::ExitStatus status) {
+                const bool ok = status == QProcess::NormalExit && exitCode == 0;
+                const QString message =
+                    ok ? QString() : QString::fromUtf8(m_installProcess->readAllStandardError());
+                m_installProcess->deleteLater();
+                m_installProcess = nullptr;
+                Q_EMIT installFinished(ok, message);
+            });
+    connect(m_installProcess, &QProcess::errorOccurred, this, [this](QProcess::ProcessError) {
+        const QString message = m_installProcess->errorString();
+        m_installProcess->deleteLater();
+        m_installProcess = nullptr;
+        Q_EMIT installFinished(false, message);
+    });
+
+    // Never `sudo` from inside the app (CLAUDE.md): `pkexec` is the polkit-mediated
+    // equivalent, and it is the user who authorizes it, not this process.
+    m_installProcess->start(QStringLiteral("pkexec"),
+                            {QStringLiteral("pacman"),
+                             QStringLiteral("-S"),
+                             QStringLiteral("--noconfirm"),
+                             QStringLiteral("qbittorrent-nox")});
+}
+
+// --- end T4.6 ------------------------------------------------------------------------------
+
 } // namespace omaseed::app

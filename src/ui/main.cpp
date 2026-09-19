@@ -43,6 +43,7 @@ const QStringList &reservedDemoNames()
 {
     static const QStringList names{
         QStringLiteral("details"),
+        QStringLiteral("firstrun"),
         QStringLiteral("gallery"),
         QStringLiteral("notify"),
         QStringLiteral("overlays"),
