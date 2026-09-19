@@ -1,11 +1,15 @@
 #include "core/Version.hpp"
 #include "integration/AppIdentity.hpp"
+#include "integration/Notifier.hpp"
 
 #include <QCommandLineOption>
 #include <QCommandLineParser>
+#include <QCoreApplication>
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
+#include <QSet>
 #include <QStringList>
+#include <QTimer>
 #include <QtGlobal>
 
 using omaseed::integration::AppIdentity::applicationId;
@@ -23,6 +27,63 @@ const QStringList &reservedDemoNames()
         QStringLiteral("table"),
     };
     return names;
+}
+
+/// `--demo notify`: sends the three notices of spec §6 through the real Notifier and keeps
+/// the event loop alive (no window) until NotificationClosed arrived for all three or 30 s
+/// passed. Every ActionInvoked is logged as "action: <class> <subject> <key>".
+int runNotifyDemo()
+{
+    using omaseed::integration::Notifier;
+
+    Notifier notifier;
+
+    const QString hash = QStringLiteral("2f1e9c7a4b6d8e0f1a2b3c4d5e6f7089abcdef01");
+    const QString trackerHost = QStringLiteral("tracker.opentrackr.org");
+    const QString serverId = QStringLiteral("home");
+
+    QSet<QString> pending{
+        QStringLiteral("completed|%1").arg(hash),
+        QStringLiteral("tracker-error|%1").arg(trackerHost),
+        QStringLiteral("server|%1").arg(serverId),
+    };
+
+    QObject::connect(
+        &notifier,
+        &Notifier::actionInvoked,
+        [](const QString &eventClass, const QString &subjectId, const QString &actionKey) {
+            qInfo().noquote()
+                << QStringLiteral("action: %1 %2 %3").arg(eventClass, subjectId, actionKey);
+        });
+    QObject::connect(&notifier,
+                     &Notifier::noticeClosed,
+                     [&pending](const QString &eventClass, const QString &subjectId) {
+                         pending.remove(QStringLiteral("%1|%2").arg(eventClass, subjectId));
+                         if (pending.isEmpty())
+                             QCoreApplication::quit();
+                     });
+
+    const quint32 completedId =
+        notifier.notifyCompleted(hash,
+                                 QStringLiteral("archlinux-2026.09.01-x86_64.iso"),
+                                 QStringLiteral("1.31 GB"),
+                                 QStringLiteral("linux"),
+                                 /*hasFolder=*/true);
+    qInfo().noquote() << QStringLiteral("notified completed id=%1").arg(completedId);
+
+    const quint32 trackerId = notifier.notifyTrackerError(trackerHost, 3);
+    qInfo().noquote() << QStringLiteral("notified tracker-error id=%1").arg(trackerId);
+
+    const quint32 serverLostId = notifier.notifyServerLost(serverId,
+                                                           QStringLiteral("home"),
+                                                           QStringLiteral("127.0.0.1:8080"),
+                                                           QStringLiteral("connection refused"),
+                                                           10);
+    qInfo().noquote() << QStringLiteral("notified server id=%1").arg(serverLostId);
+
+    QTimer::singleShot(30000, &notifier, []() { QCoreApplication::quit(); });
+
+    return QCoreApplication::exec();
 }
 
 } // namespace
@@ -62,6 +123,9 @@ int main(int argc, char *argv[])
 
     if (parser.isSet(demoOption)) {
         const QString demo = parser.value(demoOption);
+        if (demo == QStringLiteral("notify"))
+            return runNotifyDemo();
+
         qInfo().noquote() << QStringLiteral("demo %1 not implemented yet").arg(demo);
         if (!reservedDemoNames().contains(demo)) {
             qInfo().noquote() << QStringLiteral("(%1 is not one of the reserved names: %2)")
