@@ -7,6 +7,8 @@ qt_add_library(omaseed-qml STATIC)
 qt_add_qml_module(omaseed-qml
     URI Omaseed
     VERSION 1.0
+    SOURCES
+        XdgForeign.hpp
     QML_FILES
         Main.qml
 )
@@ -15,6 +17,7 @@ target_link_libraries(omaseed-qml
     PRIVATE
         omaseed-kitplugin
         omaseed-viewsplugin
+        omaseed::integration
         omaseed::warnings
         Qt6::Quick
 )

@@ -7,6 +7,10 @@
 #include <QStringList>
 #include <QUrl>
 
+QT_BEGIN_NAMESPACE
+class QQmlEngine;
+QT_END_NAMESPACE
+
 namespace omaseed::integration {
 
 /// What a dropped file, a pasted clipboard line, or a bit of dropped text resolves to. A
@@ -48,6 +52,13 @@ class Xdg : public QObject
 public:
     explicit Xdg(QDBusConnection connection = QDBusConnection::sessionBus(),
                  QObject *parent = nullptr);
+
+    /// The instance the QML `Xdg` singleton hands out. main() creates the one real `Xdg` and
+    /// sets it here before the engine exists, the same way `Theme::setDefaultReader` works.
+    static void setDefaultInstance(Xdg *instance);
+    /// Factory for the QML singleton registration: returns the instance main() set, or (the
+    /// QML tests, a tool) a fresh one owned by the engine.
+    static Xdg *createForEngine(QQmlEngine *engine);
 
     /// Pure parser: what does this one line of text look like? No I/O except `QFile::exists`
     /// for a bare local path ending in `.torrent`.

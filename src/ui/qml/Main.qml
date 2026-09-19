@@ -1,4 +1,5 @@
 import QtQuick
+import Omaseed
 import Omaseed.Kit
 
 // The shell window. Phase 1 shows only the identity half of the hero row (spec v2 §1, Fig. 1);
@@ -15,7 +16,7 @@ Window {
     // T1.5: closing the window hides it instead of quitting (charter §2, "one process is
     // window + tray-resident"). Only the tray menu's "quit" (main.cpp, QCoreApplication::quit)
     // really ends the process.
-    onClosing: (close) => {
+    onClosing: close => {
         close.accepted = false;
         window.hide();
     }
@@ -111,7 +112,7 @@ Window {
     DropArea {
         anchors.fill: parent
 
-        onDropped: (drop) => {
+        onDropped: drop => {
             const addables = Xdg.addablesFromDrop(drop.urls, drop.text);
             for (const addable of addables)
                 console.log("drop:", addable.kind, addable.value);

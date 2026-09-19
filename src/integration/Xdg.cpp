@@ -14,12 +14,15 @@
 #include <QGuiApplication>
 #include <QJsonDocument>
 #include <QProcess>
+#include <QQmlEngine>
 #include <QRegularExpression>
 #include <QStandardPaths>
 
 namespace omaseed::integration {
 
 namespace {
+
+Xdg *s_defaultInstance = nullptr;
 
 const QLatin1String kFileManagerService("org.freedesktop.FileManager1");
 const QLatin1String kFileManagerPath("/org/freedesktop/FileManager1");
@@ -49,6 +52,21 @@ Xdg::Xdg(QDBusConnection connection, QObject *parent)
     : QObject(parent)
     , m_connection(std::move(connection))
 {}
+
+void Xdg::setDefaultInstance(Xdg *instance)
+{
+    s_defaultInstance = instance;
+}
+
+Xdg *Xdg::createForEngine(QQmlEngine *engine)
+{
+    if (s_defaultInstance) {
+        QQmlEngine::setObjectOwnership(s_defaultInstance, QQmlEngine::CppOwnership);
+        return s_defaultInstance;
+    }
+    // Nobody wired one up (the QML tests, a tool): give the engine one of its own.
+    return new Xdg(QDBusConnection::sessionBus(), engine);
+}
 
 Addable Xdg::parseAddable(const QString &textIn)
 {

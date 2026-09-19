@@ -20,7 +20,6 @@
 #include <QGuiApplication>
 #include <QProcessEnvironment>
 #include <QQmlApplicationEngine>
-#include <QQmlContext>
 #include <QQuickWindow>
 #include <QSet>
 #include <QStringList>
@@ -354,9 +353,10 @@ int main(int argc, char *argv[])
     if (!singleInstance->start(uris))
         return 0;
 
-    // Exposed to QML as a plain context property until a proper bootstrap owns it (T1.7);
-    // the DropArea in Main.qml is its only caller for now.
+    // Exposed to QML as the `Xdg` singleton (XdgForeign.hpp); the DropArea in Main.qml is its
+    // only caller for now.
     omaseed::integration::Xdg xdg;
+    omaseed::integration::Xdg::setDefaultInstance(&xdg);
 
     // The theme is read before the engine exists, so the first frame is already themed. The
     // Theme singleton the QML engine creates binds to this reader.
@@ -367,7 +367,6 @@ int main(int argc, char *argv[])
                              .arg(theme.themeName(), theme.mode(), theme.source());
 
     QQmlApplicationEngine engine;
-    engine.rootContext()->setContextProperty(QStringLiteral("Xdg"), &xdg);
     QObject::connect(
         &engine,
         &QQmlApplicationEngine::objectCreationFailed,
