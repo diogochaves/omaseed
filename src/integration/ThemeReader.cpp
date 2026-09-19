@@ -183,13 +183,36 @@ QString ThemeReader::bundledColorsPath()
     return QStringLiteral(":/omaseed/theme/tokyo-night/colors.toml");
 }
 
+void ThemeReader::setFollowOmarchy(bool follow)
+{
+    if (m_followOmarchy == follow)
+        return;
+    m_followOmarchy = follow;
+    reload();
+}
+
+void ThemeReader::setBaseSizeOverride(int pixels)
+{
+    const int clamped = pixels > 0 ? pixels : 0;
+    if (m_baseSizeOverride == clamped)
+        return;
+    m_baseSizeOverride = clamped;
+    reload();
+}
+
 QString ThemeReader::findColorsFile(bool *lightModeFile) const
 {
-    const QStringList candidates{
-        m_paths.stateCurrentDir + QStringLiteral("/theme/colors.toml"),
-        m_paths.configOmarchyDir + QStringLiteral("/current/theme/colors.toml"),
-        bundledColorsPath(),
-    };
+    // "Follow the Omarchy theme" off: the bundled Tokyo Night is the only candidate, so the
+    // app keeps its own look whatever `omarchy-theme-set` does.
+    const QStringList candidates = m_followOmarchy
+                                       ? QStringList{
+                                             m_paths.stateCurrentDir
+                                                 + QStringLiteral("/theme/colors.toml"),
+                                             m_paths.configOmarchyDir
+                                                 + QStringLiteral("/current/theme/colors.toml"),
+                                             bundledColorsPath(),
+                                         }
+                                       : QStringList{bundledColorsPath()};
     for (const QString &candidate : candidates) {
         if (!QFileInfo::exists(candidate))
             continue;
@@ -218,7 +241,13 @@ void ThemeReader::reload()
     for (auto it = overlay.constBegin(); it != overlay.constEnd(); ++it)
         shell.insert(it.key(), it.value());
 
-    QString name = readTextFile(m_paths.stateCurrentDir + QStringLiteral("/theme.name")).trimmed();
+    if (m_baseSizeOverride > 0)
+        shell.insert(QStringLiteral("font.base-size"), QString::number(m_baseSizeOverride));
+
+    QString name =
+        m_followOmarchy
+            ? readTextFile(m_paths.stateCurrentDir + QStringLiteral("/theme.name")).trimmed()
+            : QString();
     if (name.isEmpty() && !colorsPath.isEmpty())
         name = QFileInfo(colorsPath).absolutePath().section(QLatin1Char('/'), -1);
     if (name.isEmpty())
