@@ -38,6 +38,7 @@
 #include "core/TrackerModel.hpp"
 #include "integration/Tray.hpp"
 
+#include <QHash>
 #include <QJsonObject>
 #include <QObject>
 #include <QPointer>
@@ -49,6 +50,11 @@
 QT_BEGIN_NAMESPACE
 class QQmlEngine;
 QT_END_NAMESPACE
+
+namespace omaseed::integration {
+class Notifier;
+class Xdg;
+} // namespace omaseed::integration
 
 namespace omaseed::app {
 
@@ -243,6 +249,63 @@ public:
 Q_SIGNALS:
     void torrentActionRequested(const QString &action, const QStringList &hashes);
     // --- end T3.5 ------------------------------------------------------------------------
+
+    // --- T4.7: notifications ---------------------------------------------------------------
+    // Wires SyncEngine's five events (spec §6) to the real Notifier, handles the shell's
+    // ActionInvoked for them, and keeps the per-event enable/disable toggles the Notifications
+    // pane (T4.5) reads and writes. Everything this adds to App sits in this one block, at the
+    // end of the class and at the end of App.cpp, the same arrangement T3.4 and T3.5 use.
+public:
+    /// Every notice from here on goes through `notifier`; not owned. Safe to call once, from
+    /// main.cpp, right after the tray. A null pointer only stops wiring; nothing else changes.
+    void attachNotifier(omaseed::integration::Notifier *notifier);
+    /// `xdg` reveals a completed torrent's folder ("open folder"). Not owned.
+    void attachXdg(omaseed::integration::Xdg *xdg);
+
+    /// Four booleans QML can read as `enabled.completed`, `.trackerError`, `.serverLost`,
+    /// `.diskFull`; `serverLost` covers both the lost and the back notice. Persisted under
+    /// `"notifications"` in `~/.config/omaseed/state.json`, default true.
+    Q_PROPERTY(QVariantMap notificationsEnabled READ notificationsEnabled NOTIFY
+                   notificationsEnabledChanged)
+    QVariantMap notificationsEnabled() const;
+    /// `key` is one of "completed", "trackerError", "serverLost", "diskFull".
+    Q_INVOKABLE void setNotificationEnabled(const QString &key, bool enabled);
+
+Q_SIGNALS:
+    void notificationsEnabledChanged();
+    /// "show": raise the window and move the table cursor to this hash. MainView's
+    /// `Connections { target: App }` block, when it has one, is where this lands.
+    void showTorrentRequested(const QString &hash);
+    /// "show trackers": as above, plus open the details pane's Trackers tab.
+    void showTrackersRequested(const QString &hash);
+
+private:
+    void loadNotificationToggles();
+    void saveNotificationToggles();
+    void onNotifierActionInvoked(const QString &eventClass,
+                                 const QString &subjectId,
+                                 const QString &actionKey);
+    /// The chosen server's PathMap applied to a server-side content path; the input unchanged
+    /// (and unusable as a local path) when no mapping applies.
+    QString mapContentPathToLocal(const QString &remotePath) const;
+    /// "host:port" of the chosen server, for the server-lost body (spec §6 Fig. 21).
+    QString serverHostPortText() const;
+    /// Strips a `serverLost` ApiError down to the reason text the notice wants.
+    static QString serverLostReasonText(const omaseed::core::ApiError &error);
+
+    QPointer<omaseed::integration::Notifier> m_notifier;
+    QPointer<omaseed::integration::Xdg> m_xdg;
+
+    /// hash -> local content path, filled by every "completed" notice, read back by its
+    /// "open folder" action.
+    QHash<QString, QString> m_completedContentPaths;
+
+    bool m_notifyCompletedEnabled = true;
+    bool m_notifyTrackerErrorEnabled = true;
+    bool m_notifyServerLostEnabled = true;
+    bool m_notifyDiskFullEnabled = true;
+    bool m_notificationTogglesLoaded = false;
+    // --- end T4.7 ----------------------------------------------------------------------------
 };
 
 } // namespace omaseed::app

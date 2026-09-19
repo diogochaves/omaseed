@@ -113,6 +113,11 @@ omaseed_add_test(tst_filtercounts
     DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
 )
 
+omaseed_add_test(tst_statefile
+    SOURCES tst_statefile.cpp
+    LIBRARIES omaseed::core
+)
+
 omaseed_add_test(tst_syncengine_fixtures
     SOURCES tst_syncengine_fixtures.cpp
     LIBRARIES omaseed::core

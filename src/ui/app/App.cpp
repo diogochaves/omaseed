@@ -1,9 +1,15 @@
 #include "ui/app/App.hpp"
 
 #include "core/Format.hpp"
+#include "core/PathMap.hpp"
+#include "core/StateFile.hpp"
+#include "integration/Notifier.hpp"
+#include "integration/Xdg.hpp"
 #include "ui/app/DemoData.hpp"
 
 #include <QDebug>
+#include <QFileInfo>
+#include <QJsonObject>
 #include <QProcessEnvironment>
 #include <QQmlEngine>
 #include <QUrl>
@@ -555,5 +561,209 @@ QString App::sizeText(qint64 bytes) const
 }
 
 // --- end T3.5 -------------------------------------------------------------------------------
+
+// --- T4.7: notifications ---------------------------------------------------------------------
+//
+// SyncEngine already decides *when* something is notice-worthy (one torrentCompleted per
+// torrent, one trackerError per host, diskAlmostFull/serverLost/serverBack each exactly once
+// per crossing); this block only turns those events into the words Notifier sends and answers
+// what the shell reports back.
+
+void App::attachNotifier(omaseed::integration::Notifier *notifier)
+{
+    m_notifier = notifier;
+    loadNotificationToggles();
+    if (notifier == nullptr)
+        return;
+
+    connect(m_engine,
+            &SyncEngine::torrentCompleted,
+            this,
+            [this](const QString &hash,
+                   const QString &name,
+                   qint64 sizeBytes,
+                   const QString &category,
+                   const QString &contentPath) {
+                if (m_notifier.isNull() || !m_notifyCompletedEnabled)
+                    return;
+                const QString localPath = mapContentPathToLocal(contentPath);
+                const bool hasFolder = !localPath.isEmpty() && QFileInfo::exists(localPath);
+                m_completedContentPaths.insert(hash, localPath);
+                m_notifier->notifyCompleted(
+                    hash, name, Format::size(sizeBytes), category, hasFolder);
+            });
+
+    connect(m_engine,
+            &SyncEngine::trackerError,
+            this,
+            [this](const QString &host, const QStringList &hashes) {
+                if (m_notifier.isNull() || !m_notifyTrackerErrorEnabled)
+                    return;
+                m_notifier->notifyTrackerError(host, int(hashes.size()));
+            });
+
+    connect(m_engine, &SyncEngine::diskAlmostFull, this, [this](qint64 freeBytes) {
+        if (m_notifier.isNull() || !m_notifyDiskFullEnabled)
+            return;
+        m_notifier->notifyDiskAlmostFull(m_server.id, Format::size(freeBytes));
+    });
+
+    connect(m_engine, &SyncEngine::serverLost, this, [this](const ApiError &error) {
+        if (m_notifier.isNull() || !m_notifyServerLostEnabled)
+            return;
+        const QString reason = serverLostReasonText(error);
+        const int retrySeconds = m_engine->globalState()->retryInSeconds();
+        m_notifier->notifyServerLost(
+            m_server.id, m_server.name, serverHostPortText(), reason, retrySeconds);
+    });
+
+    connect(m_engine, &SyncEngine::serverBack, this, [this]() {
+        if (m_notifier.isNull() || !m_notifyServerLostEnabled)
+            return;
+        m_notifier->notifyServerBack(m_server.id, m_server.name);
+    });
+
+    connect(notifier,
+            &omaseed::integration::Notifier::actionInvoked,
+            this,
+            &App::onNotifierActionInvoked);
+}
+
+void App::attachXdg(omaseed::integration::Xdg *xdg)
+{
+    m_xdg = xdg;
+}
+
+QVariantMap App::notificationsEnabled() const
+{
+    QVariantMap map;
+    map.insert(QStringLiteral("completed"), m_notifyCompletedEnabled);
+    map.insert(QStringLiteral("trackerError"), m_notifyTrackerErrorEnabled);
+    map.insert(QStringLiteral("serverLost"), m_notifyServerLostEnabled);
+    map.insert(QStringLiteral("diskFull"), m_notifyDiskFullEnabled);
+    return map;
+}
+
+void App::setNotificationEnabled(const QString &key, bool enabled)
+{
+    bool *flag = nullptr;
+    if (key == QStringLiteral("completed"))
+        flag = &m_notifyCompletedEnabled;
+    else if (key == QStringLiteral("trackerError"))
+        flag = &m_notifyTrackerErrorEnabled;
+    else if (key == QStringLiteral("serverLost"))
+        flag = &m_notifyServerLostEnabled;
+    else if (key == QStringLiteral("diskFull"))
+        flag = &m_notifyDiskFullEnabled;
+    else
+        return;
+
+    if (*flag == enabled)
+        return;
+    *flag = enabled;
+    saveNotificationToggles();
+    Q_EMIT notificationsEnabledChanged();
+}
+
+void App::loadNotificationToggles()
+{
+    if (m_notificationTogglesLoaded)
+        return;
+    m_notificationTogglesLoaded = true;
+
+    const QJsonObject section = StateFile::readSection(QStringLiteral("notifications"));
+    m_notifyCompletedEnabled = section.value(QStringLiteral("completed")).toBool(true);
+    m_notifyTrackerErrorEnabled = section.value(QStringLiteral("trackerError")).toBool(true);
+    m_notifyServerLostEnabled = section.value(QStringLiteral("serverLost")).toBool(true);
+    m_notifyDiskFullEnabled = section.value(QStringLiteral("diskFull")).toBool(true);
+}
+
+void App::saveNotificationToggles()
+{
+    QJsonObject section;
+    section.insert(QStringLiteral("completed"), m_notifyCompletedEnabled);
+    section.insert(QStringLiteral("trackerError"), m_notifyTrackerErrorEnabled);
+    section.insert(QStringLiteral("serverLost"), m_notifyServerLostEnabled);
+    section.insert(QStringLiteral("diskFull"), m_notifyDiskFullEnabled);
+    StateFile::writeSection(QStringLiteral("notifications"), section);
+}
+
+QString App::mapContentPathToLocal(const QString &remotePath) const
+{
+    if (remotePath.isEmpty())
+        return QString();
+
+    PathMap map;
+    for (const PathMapping &mapping : m_server.pathMap)
+        map.addMapping(mapping.remote, mapping.local);
+    return map.toLocal(remotePath);
+}
+
+QString App::serverHostPortText() const
+{
+    const QUrl &url = m_server.url;
+    if (!url.isValid() || url.host().isEmpty())
+        return QString();
+    return url.port() > 0 ? QStringLiteral("%1:%2").arg(url.host()).arg(url.port()) : url.host();
+}
+
+QString App::serverLostReasonText(const ApiError &error)
+{
+    // ApiError::message() for a network failure reads "GET sync/maindata: Connection refused"
+    // (QbtClient::mapError prefixes the request that failed); the notice wants just the
+    // underlying reason, the way spec §6 Fig. 21 prints it ("connection refused").
+    QString reason = error.message();
+    const qsizetype colon = reason.indexOf(QStringLiteral(": "));
+    if (colon >= 0)
+        reason = reason.mid(colon + 2);
+    if (reason.isEmpty())
+        reason = error.toString();
+    if (!reason.isEmpty())
+        reason.replace(0, 1, reason.at(0).toLower());
+    return reason;
+}
+
+void App::onNotifierActionInvoked(const QString &eventClass,
+                                  const QString &subjectId,
+                                  const QString &actionKey)
+{
+    if (eventClass == QStringLiteral("completed")) {
+        if (actionKey == QStringLiteral("open-folder")) {
+            const QString path = m_completedContentPaths.value(subjectId);
+            if (!path.isEmpty() && !m_xdg.isNull())
+                m_xdg->showInFileManager(path);
+        } else if (actionKey == QStringLiteral("show")) {
+            Q_EMIT showTorrentRequested(subjectId);
+        }
+        return;
+    }
+
+    if (eventClass == QStringLiteral("tracker-error")) {
+        const QStringList hashes = m_engine->trackers()->hashesFor(subjectId);
+        if (actionKey == QStringLiteral("show-trackers")) {
+            if (!hashes.isEmpty()) {
+                Q_EMIT showTorrentRequested(hashes.constFirst());
+                Q_EMIT showTrackersRequested(hashes.constFirst());
+            }
+        } else if (actionKey == QStringLiteral("reannounce")) {
+            if (!m_demoMode && m_hasServer && !hashes.isEmpty()) {
+                m_client->torrentsReannounce(hashes)->then(
+                    this, [](const QbtResult<QByteArray> &result) {
+                        if (result.isError())
+                            qWarning().noquote() << QStringLiteral("reannounce failed: %1")
+                                                        .arg(result.error().toString());
+                    });
+            }
+        }
+        return;
+    }
+
+    if (eventClass == QStringLiteral("server") || eventClass == QStringLiteral("disk")) {
+        if (actionKey == QStringLiteral("settings"))
+            Q_EMIT openSettings();
+    }
+}
+
+// --- end T4.7 ----------------------------------------------------------------------------------
 
 } // namespace omaseed::app

@@ -1,85 +1,13 @@
 #include "integration/Notifier.hpp"
 
-#include <QDBusConnection>
-#include <QList>
-#include <QProcess>
+#include "FakeNotificationServer.hpp"
+
 #include <QSignalSpy>
 #include <QString>
 #include <QStringList>
 #include <QTest>
-#include <QVariant>
-#include <QVariantMap>
 
 using omaseed::integration::Notifier;
-
-namespace {
-
-/// Stands in for the shell's org.freedesktop.Notifications service on a private session bus,
-/// so the test never touches whatever notification daemon runs on the real desktop.
-class FakeNotificationServer : public QObject
-{
-    Q_OBJECT
-    Q_CLASSINFO("D-Bus Interface", "org.freedesktop.Notifications")
-
-public:
-    struct Call
-    {
-        QString appName;
-        uint replacesId = 0;
-        QString appIcon;
-        QString summary;
-        QString body;
-        QStringList actions;
-        QVariantMap hints;
-        int expireTimeout = 0;
-    };
-
-    explicit FakeNotificationServer(QObject *parent = nullptr)
-        : QObject(parent)
-    {}
-
-    QList<Call> calls;
-    uint nextId = 1;
-
-public slots:
-    uint Notify(const QString &appName,
-                uint replacesId,
-                const QString &appIcon,
-                const QString &summary,
-                const QString &body,
-                const QStringList &actions,
-                const QVariantMap &hints,
-                int expireTimeout)
-    {
-        calls.append(
-            Call{appName, replacesId, appIcon, summary, body, actions, hints, expireTimeout});
-        return replacesId != 0 ? replacesId : nextId++;
-    }
-
-    QString GetServerInformation(QString &vendor, QString &version, QString &specVersion)
-    {
-        vendor = QStringLiteral("omaseed-test");
-        version = QStringLiteral("1.0");
-        specVersion = QStringLiteral("1.2");
-        return QStringLiteral("fake-notify");
-    }
-
-    QStringList GetCapabilities() { return {QStringLiteral("actions"), QStringLiteral("body")}; }
-
-    /// Test-only helpers: emitting a signal from outside the class it is declared on is not
-    /// otherwise possible, so the test drives the shell's side of the protocol through these.
-    void triggerActionInvoked(uint id, const QString &actionKey)
-    {
-        emit ActionInvoked(id, actionKey);
-    }
-    void triggerNotificationClosed(uint id, uint reason) { emit NotificationClosed(id, reason); }
-
-signals:
-    void ActionInvoked(uint id, const QString &actionKey);
-    void NotificationClosed(uint id, uint reason);
-};
-
-} // namespace
 
 class TestNotifier : public QObject
 {
@@ -102,71 +30,29 @@ private slots:
     void notificationClosedForgetsTheKey();
 
 private:
-    bool startPrivateBus();
-
-    QProcess m_daemon;
-    QString m_address;
-    QDBusConnection m_connection{QStringLiteral("uninitialised")};
+    FakeNotificationBus m_bus;
     FakeNotificationServer *m_server = nullptr;
     Notifier *m_notifier = nullptr;
 };
 
-bool TestNotifier::startPrivateBus()
-{
-    m_daemon.setProgram(QStringLiteral("dbus-daemon"));
-    m_daemon.setArguments({QStringLiteral("--session"),
-                           QStringLiteral("--print-address"),
-                           QStringLiteral("--nofork")});
-    m_daemon.start();
-    if (!m_daemon.waitForStarted(5000))
-        return false;
-
-    QByteArray line;
-    for (int i = 0; i < 50 && !line.contains('\n'); ++i) {
-        if (m_daemon.waitForReadyRead(200))
-            line += m_daemon.readAllStandardOutput();
-    }
-    if (!line.contains('\n'))
-        return false;
-
-    m_address = QString::fromUtf8(line.split('\n').constFirst()).trimmed();
-    return !m_address.isEmpty();
-}
-
 void TestNotifier::initTestCase()
 {
-    QVERIFY2(startPrivateBus(), "could not start a private session dbus-daemon for the test");
-
-    m_connection = QDBusConnection::connectToBus(m_address, QStringLiteral("omaseedNotifierTest"));
-    QVERIFY(m_connection.isConnected());
-
-    m_server = new FakeNotificationServer(this);
-    QVERIFY(m_connection.registerObject(QStringLiteral("/org/freedesktop/Notifications"),
-                                        QStringLiteral("org.freedesktop.Notifications"),
-                                        m_server,
-                                        QDBusConnection::ExportAllSlots |
-                                            QDBusConnection::ExportAllSignals));
-    QVERIFY(m_connection.registerService(QStringLiteral("org.freedesktop.Notifications")));
+    QVERIFY2(m_bus.start(), "could not start a private session dbus-daemon for the test");
+    m_server = m_bus.server();
+    QVERIFY(m_server != nullptr);
 }
 
 void TestNotifier::cleanupTestCase()
 {
-    if (m_connection.isConnected()) {
-        m_connection.unregisterService(QStringLiteral("org.freedesktop.Notifications"));
-        m_connection.unregisterObject(QStringLiteral("/org/freedesktop/Notifications"));
-    }
-    QDBusConnection::disconnectFromBus(QStringLiteral("omaseedNotifierTest"));
-
-    m_daemon.terminate();
-    if (!m_daemon.waitForFinished(2000))
-        m_daemon.kill();
+    m_bus.stop();
+    m_server = nullptr;
 }
 
 void TestNotifier::init()
 {
     m_server->calls.clear();
     m_server->nextId = 1;
-    m_notifier = new Notifier(m_connection, this);
+    m_notifier = new Notifier(m_bus.connection(), this);
 }
 
 void TestNotifier::cleanup()

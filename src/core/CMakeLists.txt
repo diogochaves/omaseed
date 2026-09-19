@@ -30,6 +30,8 @@ qt_add_library(omaseed-core STATIC
     Server.hpp
     ServerStore.cpp
     ServerStore.hpp
+    StateFile.cpp
+    StateFile.hpp
     SyncEngine.cpp
     SyncEngine.hpp
     TagModel.cpp
