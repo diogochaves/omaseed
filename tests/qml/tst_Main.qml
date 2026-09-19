@@ -306,6 +306,19 @@ TestCase {
                                       "the settings modal");
     }
 
+    function test_the_window_footer_teaches_the_overlay_that_is_up() {
+        App.addRequested();
+        compare(view.hintModel.area, "overlay");
+        compare(view.overlayHints, view.addSheet.hints);
+        compare(view.hintModel.hints[0].key, "esc");
+        compare(view.hintModel.hints[0].label, "close");
+        compare(view.hintModel.hints.length, view.addSheet.hints.length + 1);
+        compare(view.hintModel.pinned, null);
+
+        keyClick(Qt.Key_Escape);
+        compare(view.hintModel.area, "table");
+    }
+
     // ---- one Connections block, and the jump palette's `tab` (T4.8) --------------------------
     function test_show_actions_requested_opens_the_menu_on_that_row() {
         const hash = App.filtered.hashAt(3);

@@ -774,6 +774,9 @@ Item {
         filterText: App.filtered.text
         filteredCount: App.filtered.count
         focusArea: root.focusArea
+        // T4.8: while an overlay is up the footer teaches its keys, not the table's.
+        overlayHints: root.overlayHints
+        overlayOpen: root.overlayOpen
         // Fig. 1 keeps the table's line while row 3 is being renamed, because its cursor is
         // elsewhere; a rename the user started is always on the cursor row.
         renaming: table.renaming && table.renameIndex === table.cursorIndex
