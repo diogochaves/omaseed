@@ -9,9 +9,11 @@
 
 #include <QDebug>
 #include <QFileInfo>
+#include <QJsonArray>
 #include <QJsonObject>
 #include <QProcessEnvironment>
 #include <QQmlEngine>
+#include <QRegularExpression>
 #include <QUrl>
 #include <QtGlobal>
 
@@ -765,5 +767,194 @@ void App::onNotifierActionInvoked(const QString &eventClass,
 }
 
 // --- end T4.7 ----------------------------------------------------------------------------------
+
+// --- T4.4: palettes ------------------------------------------------------------------------
+
+bool App::matchesQuery(const QString &text, const QString &query)
+{
+    // The same rule as `Kit/Fuzzy.qml`'s `match()`, reimplemented here because the jump
+    // palette searches the whole library (App.torrents), not something a QML delegate can
+    // hand a JS array of in one binding: every whitespace-separated word of `query` is
+    // either a substring of `text` or hits it as a subsequence, case-insensitive.
+    const QString haystack = text.toLower();
+    const QStringList words =
+        query.toLower().split(QRegularExpression(QStringLiteral("\\s+")), Qt::SkipEmptyParts);
+    for (const QString &word : words) {
+        if (haystack.contains(word))
+            continue;
+        qsizetype at = 0;
+        bool hit = true;
+        for (const QChar ch : word) {
+            const qsizetype found = haystack.indexOf(ch, at);
+            if (found < 0) {
+                hit = false;
+                break;
+            }
+            at = found + 1;
+        }
+        if (!hit)
+            return false;
+    }
+    return true;
+}
+
+QVariantList App::jumpMatches(const QString &query, int limit) const
+{
+    QVariantList rows;
+    const TorrentModel *model = m_engine->torrents();
+    for (int i = 0; i < model->count() && rows.size() < limit; ++i) {
+        const Torrent &torrent = model->torrentAt(i);
+        if (!matchesQuery(torrent.name, query) && !matchesQuery(torrent.infohashV1, query) &&
+            !matchesQuery(torrent.infohashV2, query) &&
+            !matchesQuery(torrent.trackerHostKey(), query))
+            continue;
+
+        const QString category =
+            torrent.category.isEmpty() ? QStringLiteral("none") : torrent.category;
+        const QString third = torrent.progress >= 1.0
+                                  ? QStringLiteral("ratio %1").arg(Format::ratio(torrent.ratio))
+                                  : Format::percent(torrent.progress);
+        QVariantMap row;
+        row.insert(QStringLiteral("key"), torrent.hash);
+        row.insert(QStringLiteral("title"), torrent.name);
+        row.insert(QStringLiteral("meta"), torrent.stateText());
+        row.insert(QStringLiteral("detail"),
+                   QStringLiteral("%1 · %2 · %3").arg(category, Format::size(torrent.size), third));
+        rows.append(row);
+    }
+    return rows;
+}
+
+int App::jumpMatchCount(const QString &query) const
+{
+    const TorrentModel *model = m_engine->torrents();
+    int total = 0;
+    for (int i = 0; i < model->count(); ++i) {
+        const Torrent &torrent = model->torrentAt(i);
+        if (matchesQuery(torrent.name, query) || matchesQuery(torrent.infohashV1, query) ||
+            matchesQuery(torrent.infohashV2, query) ||
+            matchesQuery(torrent.trackerHostKey(), query))
+            ++total;
+    }
+    return total;
+}
+
+void App::createCategory(const QString &name)
+{
+    if (name.isEmpty())
+        return;
+    if (m_demoMode || !m_hasServer) {
+        qInfo().noquote() << QStringLiteral("demo: create category %1").arg(name);
+        return;
+    }
+    m_client->torrentsCreateCategory(name)->then(this, [name](const QbtResult<QByteArray> &result) {
+        if (result.isError())
+            qWarning().noquote() << QStringLiteral("create category %1 failed: %2")
+                                        .arg(name, result.error().toString());
+    });
+}
+
+void App::applyCategory(const QStringList &hashes, const QString &name)
+{
+    if (hashes.isEmpty())
+        return;
+    if (m_demoMode || !m_hasServer) {
+        qInfo().noquote()
+            << QStringLiteral("demo: set category %1 on %2 torrents").arg(name).arg(hashes.size());
+        return;
+    }
+    m_client->torrentsSetCategory(hashes, name)
+        ->then(this, [name](const QbtResult<QByteArray> &result) {
+            if (result.isError())
+                qWarning().noquote() << QStringLiteral("set category %1 failed: %2")
+                                            .arg(name, result.error().toString());
+        });
+}
+
+void App::createTag(const QString &name)
+{
+    if (name.isEmpty())
+        return;
+    if (m_demoMode || !m_hasServer) {
+        qInfo().noquote() << QStringLiteral("demo: create tag %1").arg(name);
+        return;
+    }
+    m_client->torrentsCreateTags({name})->then(this, [name](const QbtResult<QByteArray> &result) {
+        if (result.isError())
+            qWarning().noquote()
+                << QStringLiteral("create tag %1 failed: %2").arg(name, result.error().toString());
+    });
+}
+
+void App::applyTags(const QStringList &hashes, const QStringList &added, const QStringList &removed)
+{
+    if (hashes.isEmpty() || (added.isEmpty() && removed.isEmpty()))
+        return;
+    if (m_demoMode || !m_hasServer) {
+        qInfo().noquote() << QStringLiteral("demo: +%1 tags -%2 tags on %3 torrents")
+                                 .arg(added.size())
+                                 .arg(removed.size())
+                                 .arg(hashes.size());
+        return;
+    }
+    if (!added.isEmpty())
+        m_client->torrentsAddTags(hashes, added)
+            ->then(this, [](const QbtResult<QByteArray> &result) {
+                if (result.isError())
+                    qWarning().noquote()
+                        << QStringLiteral("add tags failed: %1").arg(result.error().toString());
+            });
+    if (!removed.isEmpty())
+        m_client->torrentsRemoveTags(hashes, removed)
+            ->then(this, [](const QbtResult<QByteArray> &result) {
+                if (result.isError())
+                    qWarning().noquote()
+                        << QStringLiteral("remove tags failed: %1").arg(result.error().toString());
+            });
+}
+
+QStringList App::tagsOf(const QString &hash) const
+{
+    const TorrentModel *model = m_engine->torrents();
+    if (hash.isEmpty() || model->indexOfHash(hash) < 0)
+        return {};
+    const QStringList tags = model->torrent(hash).tags;
+    QStringList trimmed;
+    trimmed.reserve(tags.size());
+    for (const QString &tag : tags) {
+        const QString value = tag.trimmed();
+        if (!value.isEmpty())
+            trimmed.append(value);
+    }
+    return trimmed;
+}
+
+QString App::tableStateKey() const
+{
+    if (m_demoMode)
+        return QStringLiteral("demo");
+    if (!m_hasServer || m_server.id.isEmpty())
+        return QString();
+    return m_server.id;
+}
+
+void App::saveTableState(const QString &key, const QVariantMap &state)
+{
+    if (key.isEmpty())
+        return;
+    QJsonObject section = StateFile::readSection(QStringLiteral("tables"));
+    section.insert(key, QJsonObject::fromVariantMap(state));
+    StateFile::writeSection(QStringLiteral("tables"), section);
+}
+
+QVariantMap App::tableState(const QString &key) const
+{
+    if (key.isEmpty())
+        return {};
+    const QJsonObject section = StateFile::readSection(QStringLiteral("tables"));
+    return section.value(key).toObject().toVariantMap();
+}
+
+// --- end T4.4 --------------------------------------------------------------------------------
 
 } // namespace omaseed::app

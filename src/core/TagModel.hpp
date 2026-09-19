@@ -28,7 +28,7 @@ public:
     QHash<int, QByteArray> roleNames() const override;
 
     int count() const { return int(m_tags.size()); }
-    QStringList tags() const { return m_tags; }
+    Q_INVOKABLE QStringList tags() const { return m_tags; }
     Q_INVOKABLE bool contains(const QString &tag) const { return m_tags.contains(tag); }
 
     void applyFullUpdate(const QJsonArray &tags);

@@ -23,7 +23,26 @@ hyprctl dispatch 'hl.dsp.window.move({ workspace = "9", follow = true, window = 
 if [[ -n "${SHOT_SIZE:-}" ]]; then hyprctl dispatch 'hl.dsp.window.resize({ x = '${SHOT_SIZE%x*}', y = '${SHOT_SIZE#*x}', window = "address:'$A'" })' >/dev/null; fi
 hyprctl dispatch 'hl.dsp.window.move({ x = 40, y = 60, window = "address:'$A'" })' >/dev/null
 sleep 1
-if [[ -n "${SHOT_KEYS:-}" ]]; then for k in $SHOT_KEYS; do wtype -k "$k"; sleep 0.3; done; sleep 0.7; fi
+# SHOT_KEYS="ctrl+k f e d" sends a chord for a token with a `+` (every part but the last is
+# a modifier held with `-M`, released with `-m` after the key: `wtype -M ctrl -k k -m ctrl`)
+# and a bare key otherwise (`wtype -k k`), one wtype call per space-separated token.
+if [[ -n "${SHOT_KEYS:-}" ]]; then
+  for k in $SHOT_KEYS; do
+    if [[ "$k" == *+* ]]; then
+      mods=${k%+*}; key=${k##*+}
+      args=()
+      IFS='+' read -ra modlist <<<"$mods"
+      for m in "${modlist[@]}"; do args+=(-M "$m"); done
+      args+=(-k "$key")
+      for m in "${modlist[@]}"; do args+=(-m "$m"); done
+      wtype "${args[@]}"
+    else
+      wtype -k "$k"
+    fi
+    sleep 0.3
+  done
+  sleep 0.7
+fi
 G=$(hyprctl -j clients | python3 -c "import json,sys; c=[c for c in json.load(sys.stdin) if 'omaseed' in c['class']][0]; print('%d,%d %dx%d'%(c['at'][0]-20,c['at'][1]-20,c['size'][0]+40,c['size'][1]+40))")
 grim -g "$G" "$out"
 hyprctl dispatch 'hl.dsp.window.close("address:'$A'")' >/dev/null

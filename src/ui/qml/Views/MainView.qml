@@ -3,6 +3,7 @@ import QtQuick
 import QtQuick.Layouts
 import Omaseed
 import Omaseed.Kit
+import Omaseed.Views
 
 // The whole main window, minus the window (spec v2 §1 Fig. 1 and the `.win.main` grid:
 // hero row, then rail | table | details, then footer). `Main.qml` is a `Window` that holds
@@ -195,11 +196,6 @@ Item {
         App.requestTorrentAction(action, hashes);
     }
 
-    /// The three palettes Phase 4 owns (`ctrl+k` jump, `s` sort, `ctrl+,` columns).
-    function notYet(action: string): void {
-        console.log("not yet:", action);
-    }
-
     /// The details pane follows the table's cursor. It is a snapshot, not a binding, so it
     /// is taken again on every sync (see the Connections below).
     function refreshDetails(): void {
@@ -233,10 +229,10 @@ Item {
                 root.quitRequested();
                 break;
             case Qt.Key_K:
-                root.notYet("jump");
+                jumpPalette.open();
                 break;
             case Qt.Key_Comma:
-                root.notYet("columns");
+                columnsPalette.open();
                 break;
             default:
                 return;
@@ -262,7 +258,7 @@ Item {
                 App.addRequested();
             break;
         case Qt.Key_S:
-            root.notYet("sort");
+            sortPalette.open();
             break;
         case Qt.Key_Comma:
             App.openSettings();
@@ -690,4 +686,143 @@ Item {
             onCloseRequested: root.helpOpen = false
         }
     }
+
+    // --- T4.4: palettes ---------------------------------------------------------------------
+    // Jump (`ctrl+k`), category (`C`), tags (`t`), sort (`s`) and columns (`ctrl+,`), plus the
+    // table-state round trip through `state.json`. `App.categoryPickerRequested` /
+    // `tagPickerRequested` are T4.3's seam (its `C`/`t` actions, and the AddSheet's chips);
+    // this block is what answers them.
+    JumpPalette {
+        id: jumpPalette
+
+        anchors.fill: parent
+        table: table
+        z: 10
+    }
+
+    CategoryPalette {
+        id: categoryPalette
+
+        anchors.fill: parent
+        z: 10
+    }
+
+    TagPalette {
+        id: tagPalette
+
+        anchors.fill: parent
+        z: 10
+    }
+
+    SortPalette {
+        id: sortPalette
+
+        anchors.fill: parent
+        table: table
+        z: 10
+    }
+
+    ColumnsPalette {
+        id: columnsPalette
+
+        anchors.fill: parent
+        table: table
+        z: 10
+    }
+
+    Connections {
+        function onCategoryPickerRequested(hashes) {
+            categoryPalette.openFor(hashes);
+        }
+
+        function onTagPickerRequested(hashes) {
+            tagPalette.openFor(hashes);
+        }
+
+        // Until T4.3 lands its own actions menu, the jump palette's `tab` has nowhere real
+        // to go; this logs so the seam is visibly wired rather than silently dropped.
+        function onShowActionsRequested(hash) {
+            console.log("actions:", hash);
+        }
+
+        target: App
+    }
+
+    Connections {
+        function onSortOrderChanged() {
+            root.saveTableState();
+        }
+
+        function onSortRoleChanged() {
+            root.saveTableState();
+        }
+
+        target: App.filtered
+    }
+
+    Connections {
+        function onVisibleColumnsChanged() {
+            root.saveTableState();
+        }
+
+        target: table
+    }
+
+    // The columns palette toggles `table.visibleColumns` live and the header (and every
+    // other sort trigger, including a click) can change `App.filtered`'s sort at any time;
+    // both round-trip through `state.json`, keyed by the chosen server (or "demo").
+    function saveTableState(): void {
+        const key = App.tableStateKey();
+        if (key.length === 0)
+            return;
+        App.saveTableState(key, {
+                               "columns": table.visibleColumns,
+                               "sortRole": App.filtered.sortRoleName,
+                               "sortOrder": App.filtered.sortOrder
+                           });
+    }
+
+    function restoreTableState(): void {
+        const state = App.tableState(App.tableStateKey());
+        if (state.columns !== undefined && state.columns.length > 0)
+            table.visibleColumns = state.columns;
+        if (state.sortRole !== undefined && String(state.sortRole).length > 0) {
+            App.filtered.setSortByRoleName(state.sortRole);
+            App.filtered.sortOrder = state.sortOrder !== undefined ? state.sortOrder : Qt.DescendingOrder;
+        }
+    }
+
+    /// `OMASEED_DEMO_PALETTE=jump|category|tags|sort|columns` opens one palette on top of
+    /// `--demo table` for the phase's screenshot procedure; no production path reads it.
+    function _openDemoPalette(): void {
+        switch (DemoEnv.value("OMASEED_DEMO_PALETTE")) {
+        case "jump":
+            jumpPalette.open();
+            break;
+        case "category":
+            categoryPalette.openFor(root.actionHashes());
+            break;
+        case "tags":
+            tagPalette.openFor(root.actionHashes());
+            break;
+        case "sort":
+            sortPalette.open();
+            break;
+        case "columns":
+            columnsPalette.open();
+            break;
+        default:
+            break;
+        }
+    }
+
+    Item {
+        id: paletteStartup
+
+        Component.onCompleted: Qt.callLater(() => {
+                                                 root.restoreTableState();
+                                                 root._openDemoPalette();
+                                             })
+    }
+    // --- end T4.4 ------------------------------------------------------------------------
 }
