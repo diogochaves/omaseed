@@ -251,6 +251,10 @@ public:
     /// `Format::size` for QML (the loading state prints how much of the first sync arrived).
     Q_INVOKABLE QString sizeText(qint64 bytes) const;
 
+    /// A client error ("network: GET sync/maindata: Connection refused") stripped to the
+    /// reason Fig. 21's notice and Fig. 23's banner print ("connection refused").
+    Q_INVOKABLE static QString errorReasonText(const QString &text);
+
 Q_SIGNALS:
     void torrentActionRequested(const QString &action, const QStringList &hashes);
     // --- end T3.5 ------------------------------------------------------------------------

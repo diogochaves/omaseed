@@ -611,7 +611,8 @@ Item {
         anchors.rightMargin: Theme.space(16)
         anchors.top: hero.bottom
         anchors.topMargin: Theme.space(10)
-        errorText: App.globalState.lastError.length > 0 ? App.globalState.lastError : qsTr(
+        errorText: App.globalState.lastError.length > 0 ? App.errorReasonText(
+                                                              App.globalState.lastError) : qsTr(
                                                               "connection refused")
         retryInSeconds: App.globalState.retryInSeconds
         visible: root.serverLost

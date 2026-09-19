@@ -25,6 +25,7 @@ private slots:
     void saveThenLoadRoundTrips();
     void unknownKeyGivesEmptyMap();
     void jumpMatchesFindsByNameHashAndTracker();
+    void errorReasonTextKeepsOnlyTheReason();
     void tagsOfSplitsTheJoinedText();
     void demoModeCategoryAndTagCallsDoNotCrash();
 
@@ -151,6 +152,18 @@ void TestAppTableState::jumpMatchesFindsByNameHashAndTracker()
         QVERIFY2(subsequence(title, QStringLiteral("fed")), qPrintable(title));
     }
     QCOMPARE(app.jumpMatchCount(QStringLiteral("fed")), fed.size());
+}
+
+void TestAppTableState::errorReasonTextKeepsOnlyTheReason()
+{
+    // Fig. 23's banner and Fig. 21's notice print the reason alone.
+    QCOMPARE(App::errorReasonText(QStringLiteral("network: GET sync/maindata: Connection refused")),
+             QStringLiteral("connection refused"));
+    QCOMPARE(App::errorReasonText(QStringLiteral("GET sync/maindata: Host not found")),
+             QStringLiteral("host not found"));
+    QCOMPARE(App::errorReasonText(QStringLiteral("Connection refused")),
+             QStringLiteral("connection refused"));
+    QCOMPARE(App::errorReasonText(QString()), QString());
 }
 
 void TestAppTableState::tagsOfSplitsTheJoinedText()

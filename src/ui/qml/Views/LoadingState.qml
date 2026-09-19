@@ -7,6 +7,11 @@ import Omaseed.Kit
 // gaps, then the note `<n> torrents · <received> received` (small dim). `animate` (default
 // true) pulses the rules' opacity between 0.6 and 1 over 1200 ms; tests set it false to keep
 // the rendered state still.
+//
+// The pulse only runs while the state is actually on screen. An infinite animation in Qt
+// Quick keeps the render thread awake whether or not its item is visible, and this component
+// is a plain child of the main view (alive, `visible: false`, for the whole session once the
+// first sync has landed): left running it cost ~3 % of a core, forever, on an idle window.
 Item {
     id: root
 
@@ -36,6 +41,9 @@ Item {
 
                 required property real modelData
 
+                /// The pulse, exposed so a test can assert it stops when the state hides.
+                readonly property alias pulse: pulse
+
                 // Named so tst_States.qml can pick the four skeleton rules out of the
                 // Column's children without depending on QML's object-toString format.
                 objectName: "skeletonRule"
@@ -46,7 +54,9 @@ Item {
                 width: parent.width * rule.modelData
 
                 SequentialAnimation on opacity {
-                    running: root.animate
+                    id: pulse
+
+                    running: root.animate && root.visible
                     loops: Animation.Infinite
 
                     NumberAnimation {

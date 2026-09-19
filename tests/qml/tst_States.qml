@@ -152,12 +152,38 @@ TestCase {
         }
     }
 
+    Component {
+        id: animatedLoadingComponent
+
+        LoadingState {
+            animate: true
+            width: 400
+        }
+    }
+
     function test_loading_note_text() {
         const loading = createTemporaryObject(loadingComponent, testCase, {
                                                   "torrentCount": 8400,
                                                   "receivedText": "1.2 MB"
                                               });
         compare(loading.note, "8400 torrents · 1.2 MB received");
+    }
+
+    // T5.4: an infinite animation keeps Qt Quick's render thread awake even when its item is
+    // invisible, and MainView keeps one LoadingState alive for the whole session. The pulse
+    // must stop the moment the state leaves the screen.
+    function test_loading_pulse_stops_while_the_state_is_hidden() {
+        const loading = createTemporaryObject(animatedLoadingComponent, testCase);
+        const rules = findRects(loading);
+        compare(rules.length, 4);
+        for (let i = 0; i < rules.length; i++)
+            verify(rules[i].pulse.running, "the pulse is not running while visible");
+        loading.visible = false;
+        for (let i = 0; i < rules.length; i++)
+            verify(!rules[i].pulse.running, "the pulse kept running while hidden");
+        loading.visible = true;
+        for (let i = 0; i < rules.length; i++)
+            verify(rules[i].pulse.running, "the pulse did not come back");
     }
 
     function test_loading_four_rule_widths_relative_to_parent() {

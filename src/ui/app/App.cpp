@@ -736,20 +736,24 @@ QString App::serverHostPortText() const
     return url.port() > 0 ? QStringLiteral("%1:%2").arg(url.host()).arg(url.port()) : url.host();
 }
 
-QString App::serverLostReasonText(const ApiError &error)
+QString App::errorReasonText(const QString &text)
 {
-    // ApiError::message() for a network failure reads "GET sync/maindata: Connection refused"
-    // (QbtClient::mapError prefixes the request that failed); the notice wants just the
-    // underlying reason, the way spec §6 Fig. 21 prints it ("connection refused").
-    QString reason = error.message();
-    const qsizetype colon = reason.indexOf(QStringLiteral(": "));
+    // A client error reads "network: GET sync/maindata: Connection refused": the kind, the
+    // request that failed, then the reason. Fig. 21's notice and Fig. 23's banner both print
+    // only the reason ("connection refused"), so everything before the last ": " goes.
+    QString reason = text;
+    const qsizetype colon = reason.lastIndexOf(QStringLiteral(": "));
     if (colon >= 0)
         reason = reason.mid(colon + 2);
-    if (reason.isEmpty())
-        reason = error.toString();
     if (!reason.isEmpty())
         reason.replace(0, 1, reason.at(0).toLower());
     return reason;
+}
+
+QString App::serverLostReasonText(const ApiError &error)
+{
+    const QString reason = errorReasonText(error.message());
+    return reason.isEmpty() ? errorReasonText(error.toString()) : reason;
 }
 
 void App::onNotifierActionInvoked(const QString &eventClass,
