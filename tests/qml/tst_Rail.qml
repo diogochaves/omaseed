@@ -77,6 +77,30 @@ TestCase {
         compare(App.filtered.count, App.counts.downloading);
     }
 
+    // Spec Fig. 1's RAIL array gives every "all" row no "sel" class, even the one whose group
+    // is logically the active filter — only a real narrowing filter (a specific status,
+    // category, tag or tracker) draws the selected fill. Otherwise "downloading" selected
+    // would light up four grey "all" bands alongside it instead of standing alone.
+    function test_all_rows_never_show_the_selected_fill() {
+        const rail = createTemporaryObject(railComponent, testCase);
+
+        compare(rail._rowMap[rail.statusBase].item.selected, false); // status "all"
+        compare(rail._rowMap[rail.categoriesBase].item.selected, false);
+        compare(rail._rowMap[rail.tagsBase].item.selected, false);
+        compare(rail._rowMap[rail.trackersBase].item.selected, false);
+
+        rail.selectStatus(1); // downloading
+        compare(rail._rowMap[rail.statusBase].item.selected, false);
+        compare(rail._rowMap[rail.statusBase + 1].item.selected, true);
+
+        rail._rowMap[rail.categoriesBase + 2].select(); // movies
+        compare(rail._rowMap[rail.categoriesBase].item.selected, false);
+        compare(rail._rowMap[rail.categoriesBase + 2].item.selected, true);
+
+        rail.selectStatus(0); // back to "all": still plain, not selected
+        compare(rail._rowMap[rail.statusBase].item.selected, false);
+    }
+
     function test_selecting_a_category_sets_filtered_category() {
         const rail = createTemporaryObject(railComponent, testCase);
         const moviesIndex = rail.categoriesBase + 2; // all, linux, movies

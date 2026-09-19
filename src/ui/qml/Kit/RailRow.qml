@@ -7,7 +7,11 @@ import Omaseed.Kit
 // selected alpha and brightens both the name and the glyph (accent for the glyph, matching
 // `.rail .row.sel .g { color:var(--accent) }`); `hasCursor` and plain hover both fill at the
 // hover alpha. The row takes its width from the parent (it is anchored inside, not
-// self-sizing), so only `implicitHeight` matters here.
+// self-sizing), so only `implicitHeight` matters here. The name `Text` is given an explicit
+// width (the label `Row`'s own width, itself anchored clear of the count column, minus the
+// glyph column and the spacing between them) so `elide: Text.ElideRight` has something to
+// elide against — a `Row` does not clip or shrink its children on its own, so without a width
+// a long name would simply run into the count column instead of eliding.
 Rectangle {
     id: root
 
@@ -20,6 +24,11 @@ Rectangle {
     signal clicked
 
     readonly property bool hot: root.hasCursor || mouseArea.containsMouse
+    /// True once the name no longer fits its column and Text.ElideRight has cut it — for
+    /// tests; the count column's own position (`countText`) is unaffected either way, since
+    /// the name's width is computed clear of it rather than by clipping after the fact.
+    readonly property bool truncated: nameText.truncated
+    readonly property real countRight: countText.x + countText.width
 
     Accessible.name: root.text
     Accessible.role: Accessible.ListItem
@@ -36,6 +45,8 @@ Rectangle {
     }
 
     Row {
+        id: label
+
         anchors.left: parent.left
         anchors.leftMargin: Theme.space(16)
         anchors.right: countText.visible ? countText.left : parent.right
@@ -44,6 +55,8 @@ Rectangle {
         spacing: Theme.space(8)
 
         Text {
+            id: glyphText
+
             anchors.verticalCenter: parent.verticalCenter
             color: root.selected ? Theme.accent : Theme.dimForeground
             font.family: Theme.fontFamily
@@ -54,12 +67,15 @@ Rectangle {
         }
 
         Text {
+            id: nameText
+
             anchors.verticalCenter: parent.verticalCenter
             color: root.selected ? Theme.brightForeground : Theme.foreground
             elide: Text.ElideRight
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.body
             text: root.text
+            width: Math.max(0, label.width - glyphText.width - label.spacing)
         }
     }
 

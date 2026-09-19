@@ -241,7 +241,11 @@ Item {
                         count: statusDelegate.modelData.count
                         glyph: statusDelegate.modelData.glyph
                         hasCursor: root.cursorIndex === (root.statusBase + statusDelegate.index)
-                        selected: root.filtered.statusFilter === statusDelegate.index
+                        // "all" (index 0) is never a real narrowing filter — the figure's
+                        // RAIL[0][0] carries no "sel" class — so it stays plain even while it
+                        // is logically the active status filter.
+                        selected: statusDelegate.index !== 0 && root.filtered.statusFilter
+                                  === statusDelegate.index
                         text: statusDelegate.modelData.text
                         width: content.width
 
@@ -268,7 +272,9 @@ Item {
 
                     count: root.counts.total
                     hasCursor: root.cursorIndex === root.categoriesBase
-                    selected: root.filtered.category === undefined
+                    // "all" is never a real narrowing filter (spec RAIL's "all" rows carry no
+                    // "sel" class), so it stays plain even while it is the active filter.
+                    selected: false
                     text: qsTr("all")
                     width: content.width
 
@@ -343,7 +349,8 @@ Item {
 
                     count: root.counts.total
                     hasCursor: root.cursorIndex === root.tagsBase
-                    selected: root.filtered.tag === undefined
+                    // "all" is never a real narrowing filter — see the categories "all" row.
+                    selected: false
                     text: qsTr("all")
                     width: content.width
 
@@ -416,7 +423,8 @@ Item {
 
                     count: root.counts.total
                     hasCursor: root.cursorIndex === root.trackersBase
-                    selected: root.filtered.tracker === undefined
+                    // "all" is never a real narrowing filter — see the categories "all" row.
+                    selected: false
                     text: qsTr("all")
                     width: content.width
 
