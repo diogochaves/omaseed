@@ -21,6 +21,9 @@ Window {
         window.hide();
     }
 
+    // The poll cadence follows the window: 1.5 s while it is on screen, 5 s while it is not.
+    onVisibleChanged: App.setVisible(window.visible)
+
     // The 1 px window edge: accent while active, muted otherwise.
     Rectangle {
         anchors.fill: parent
@@ -86,13 +89,21 @@ Window {
                         width: Theme.space(7)
                     }
 
+                    // T3.5 rewrites this whole hero; for now it is the live server line.
                     Text {
                         color: Theme.dimForeground
                         font.capitalization: Font.AllUppercase
                         font.family: Theme.fontFamily
                         font.letterSpacing: Theme.font.caption * 0.1
                         font.pixelSize: Theme.font.caption
-                        text: qsTr("home · qBittorrent")
+                        text: {
+                            if (!App.hasServer)
+                                return qsTr("no server");
+                            const version = App.globalState.serverVersion;
+                            return version.length > 0 ? qsTr("%1 · qBittorrent %2").arg(
+                                                            App.serverName).arg(version) :
+                                                        App.serverName;
+                        }
                     }
                 }
             }

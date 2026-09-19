@@ -4,6 +4,7 @@
 #include "core/QbtClient.hpp"
 #include "core/SyncEngine.hpp"
 #include "core/TorrentModel.hpp"
+#include "core/TrackerModel.hpp"
 #include "core/Version.hpp"
 #include "integration/AppIdentity.hpp"
 #include "integration/Notifier.hpp"
@@ -12,11 +13,13 @@
 #include "integration/ThemeReader.hpp"
 #include "integration/Tray.hpp"
 #include "integration/Xdg.hpp"
+#include "ui/app/App.hpp"
 
 #include <QApplication>
 #include <QCommandLineOption>
 #include <QCommandLineParser>
 #include <QCoreApplication>
+#include <QElapsedTimer>
 #include <QGuiApplication>
 #include <QProcessEnvironment>
 #include <QQmlApplicationEngine>
@@ -251,6 +254,39 @@ int runSyncDemo()
     return exitCode;
 }
 
+/// `--headless --demo table`: builds the whole app object graph with fictional data and no
+/// server, prints what landed in the models, and exits. This is the cheap way to check that
+/// a 10 000-row library still loads (and how fast) without opening a window.
+int runHeadlessTableDemo(int rows)
+{
+    using namespace omaseed::core;
+
+    QElapsedTimer timer;
+    timer.start();
+
+    omaseed::app::App app;
+    app.startDemo(rows);
+
+    const qint64 elapsed = timer.elapsed();
+    const GlobalState *state = app.globalState();
+    qInfo().noquote() << QStringLiteral("demo table: %1 torrents in %2 ms")
+                             .arg(app.torrents()->count())
+                             .arg(elapsed);
+    qInfo().noquote()
+        << QStringLiteral(
+               "filtered %1 · %2 downloading · %3 seeding · %4 errored · %5 categories · "
+               "%6 tags · %7 trackers · ↓ %8 ↑ %9 · %10 free")
+               .arg(app.filtered()->count())
+               .arg(app.counts()->downloading())
+               .arg(app.counts()->seeding())
+               .arg(app.counts()->errored())
+               .arg(app.categories()->count())
+               .arg(app.tags()->count())
+               .arg(app.trackers()->count())
+               .arg(state->dlSpeedText(), state->upSpeedText(), state->freeSpaceText());
+    return 0;
+}
+
 } // namespace
 
 int main(int argc, char *argv[])
@@ -275,9 +311,18 @@ int main(int argc, char *argv[])
                                   QStringLiteral("name"));
     parser.addOption(demoOption);
 
+    QCommandLineOption rowsOption(
+        QStringList{QStringLiteral("rows")},
+        QStringLiteral("How many fictional torrents `--demo table` builds (default 16, the "
+                       "16 rows of the spec's Fig. 1)."),
+        QStringLiteral("n"),
+        QStringLiteral("16"));
+    parser.addOption(rowsOption);
+
     QCommandLineOption headlessOption(
         QStringList{QStringLiteral("headless")},
-        QStringLiteral("Run without a window (reserved; not implemented yet)."));
+        QStringLiteral("Run without a window. Implemented for --demo table, which prints "
+                       "what it loaded and exits."));
     parser.addOption(headlessOption);
 
     parser.addPositionalArgument(QStringLiteral("uris"),
@@ -289,20 +334,29 @@ int main(int argc, char *argv[])
     qInfo().noquote() << omaseed::core::versionLine() << QStringLiteral("as") << applicationId();
 
     const QString demo = parser.isSet(demoOption) ? parser.value(demoOption) : QString();
+    const bool headless = parser.isSet(headlessOption);
+
+    bool rowsOk = true;
+    const int demoRows = parser.value(rowsOption).toInt(&rowsOk);
+    if (!rowsOk || demoRows < 1) {
+        qWarning().noquote() << QStringLiteral("--rows needs a positive number, not %1")
+                                    .arg(parser.value(rowsOption));
+        return 2;
+    }
+
+    // The demos that never open a window: each one owns the event loop and ends the process.
     if (demo == QStringLiteral("notify"))
         return runNotifyDemo();
     if (demo == QStringLiteral("tray"))
         return runTrayDemo();
-    if (!demo.isEmpty() && demo != QStringLiteral("gallery")) {
-    }
+    if (demo == QStringLiteral("sync"))
+        return runSyncDemo();
+    if (demo == QStringLiteral("table") && headless)
+        return runHeadlessTableDemo(demoRows);
 
-    if (parser.isSet(demoOption)) {
-        const QString demo = parser.value(demoOption);
-        if (demo == QStringLiteral("notify"))
-            return runNotifyDemo();
-        if (demo == QStringLiteral("sync"))
-            return runSyncDemo();
-
+    // What is left goes on to the window: `gallery` swaps the QML root, `table` fills the
+    // models with fictional data, anything else is still only a name.
+    if (!demo.isEmpty() && demo != QStringLiteral("gallery") && demo != QStringLiteral("table")) {
         qInfo().noquote() << QStringLiteral("demo %1 not implemented yet").arg(demo);
         if (!reservedDemoNames().contains(demo)) {
             qInfo().noquote() << QStringLiteral("(%1 is not one of the reserved names: %2)")
@@ -310,8 +364,8 @@ int main(int argc, char *argv[])
         }
     }
 
-    if (parser.isSet(headlessOption))
-        qInfo().noquote() << QStringLiteral("headless requested; not implemented yet");
+    if (headless)
+        qInfo().noquote() << QStringLiteral("headless is implemented for --demo table only");
 
     const QStringList uris = parser.positionalArguments();
 
@@ -366,6 +420,15 @@ int main(int argc, char *argv[])
     qInfo().noquote() << QStringLiteral("theme: %1 (%2) from %3")
                              .arg(theme.themeName(), theme.mode(), theme.source());
 
+    // The composition root. Everything QML reads hangs off it, and it is the `App` singleton
+    // of module `Omaseed` (src/ui/qml/AppForeign.hpp) from here on.
+    omaseed::app::App omaseedApp;
+    omaseed::app::App::setDefaultInstance(&omaseedApp);
+    if (demo == QStringLiteral("table"))
+        omaseedApp.startDemo(demoRows);
+    else
+        omaseedApp.start();
+
     QQmlApplicationEngine engine;
     QObject::connect(
         &engine,
@@ -412,26 +475,28 @@ int main(int argc, char *argv[])
     });
     QObject::connect(
         &tray, &omaseed::integration::Tray::quitRequested, &app, &QCoreApplication::quit);
-    QObject::connect(&tray, &omaseed::integration::Tray::addRequested, &app, []() {
-        qInfo().noquote() << QStringLiteral("tray: add");
+
+    // Everything else in the menu is an App action now: alt-speed, stop all and start all go
+    // out as real requests, the icon state, tooltip and stats follow GlobalState and
+    // FilterCounts, and the alt-speed checkbox follows the server rather than the last click.
+    omaseedApp.attachTray(&tray);
+    QObject::connect(&omaseedApp, &omaseed::app::App::addRequested, &app, []() {
+        qInfo().noquote() << QStringLiteral("add requested"); // T4.1 opens the add sheet
     });
-    QObject::connect(
-        &tray, &omaseed::integration::Tray::altSpeedToggled, &app, [&tray](bool checked) {
-            qInfo().noquote() << QStringLiteral("tray: alt-speed %1")
-                                     .arg(checked ? QStringLiteral("on") : QStringLiteral("off"));
-            // Phase 3 reports the server's actual state back; until then, the
-            // menu reflects whatever was last requested.
-            tray.setAltSpeedChecked(checked);
-        });
-    QObject::connect(&tray, &omaseed::integration::Tray::stopAllRequested, &app, []() {
-        qInfo().noquote() << QStringLiteral("tray: stop all");
-    });
-    QObject::connect(&tray, &omaseed::integration::Tray::startAllRequested, &app, []() {
-        qInfo().noquote() << QStringLiteral("tray: start all");
-    });
-    QObject::connect(&tray, &omaseed::integration::Tray::settingsRequested, &app, []() {
-        qInfo().noquote() << QStringLiteral("tray: settings");
+    QObject::connect(&omaseedApp, &omaseed::app::App::openSettings, &app, []() {
+        qInfo().noquote() << QStringLiteral("settings requested"); // T4.4 opens the modal
     });
 
-    return QApplication::exec();
+    // The window's visibility drives the poll cadence (1.5 s shown, 5 s hidden). Main.qml
+    // forwards its own `visible`; this catches the tray's hide/show of the same window.
+    if (rootWindow) {
+        QObject::connect(rootWindow,
+                         &QWindow::visibleChanged,
+                         &omaseedApp,
+                         [&omaseedApp](bool shown) { omaseedApp.setVisible(shown); });
+    }
+
+    const int code = QApplication::exec();
+    omaseedApp.engine()->stop();
+    return code;
 }
