@@ -52,6 +52,16 @@ TestCase {
         compare(row.count, -1);
     }
 
+    function test_long_name_elides_and_keeps_the_count_inside_the_row() {
+        const row = createTemporaryObject(railRowComponent, testCase, {
+                                              "width": Theme.space(200),
+                                              "text": "tracker.example.net-with-a-very-long-hostname-indeed",
+                                              "count": 8
+                                          });
+        compare(row.truncated, true);
+        verify(row.countRight <= row.width);
+    }
+
     function test_click_emits_clicked() {
         const row = createTemporaryObject(railRowComponent, testCase, {
                                               "text": "downloading"
