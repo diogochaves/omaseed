@@ -2,6 +2,7 @@
 
 #include "core/Version.hpp"
 
+#include <QHttpMultiPart>
 #include <QJsonDocument>
 #include <QJsonParseError>
 #include <QLoggingCategory>
@@ -78,6 +79,63 @@ QbtResult<QJsonArray> parseArray(const QByteArray &body, const QString &path)
         return ApiError(ApiError::Kind::Parse,
                         QStringLiteral("%1: expected a JSON array").arg(path));
     return document.array();
+}
+
+QString contentLayoutName(QbtClient::ContentLayout layout)
+{
+    switch (layout) {
+    case QbtClient::ContentLayout::Original:
+        return QStringLiteral("Original");
+    case QbtClient::ContentLayout::Subfolder:
+        return QStringLiteral("Subfolder");
+    case QbtClient::ContentLayout::NoSubfolder:
+        return QStringLiteral("NoSubfolder");
+    }
+    return QStringLiteral("Original");
+}
+
+void addBoolItem(QUrlQuery &query, const QString &key, bool value)
+{
+    addItem(query, key, value ? QStringLiteral("true") : QStringLiteral("false"));
+}
+
+/// Shared between torrentsAddUrls and torrentsAddFile.
+void applyAddOptions(QUrlQuery &form, const QbtClient::AddOptions &options)
+{
+    if (options.savepath)
+        addItem(form, QStringLiteral("savepath"), *options.savepath);
+    if (options.category)
+        addItem(form, QStringLiteral("category"), *options.category);
+    if (!options.tags.isEmpty())
+        addItem(form, QStringLiteral("tags"), options.tags.join(QLatin1Char(',')));
+    if (options.stopped) {
+        // 5.x renamed `paused` to `stopped`; sending both keeps this working on either.
+        addBoolItem(form, QStringLiteral("stopped"), *options.stopped);
+        addBoolItem(form, QStringLiteral("paused"), *options.stopped);
+    }
+    if (options.skipChecking)
+        addBoolItem(form, QStringLiteral("skip_checking"), *options.skipChecking);
+    if (options.contentLayout)
+        addItem(form, QStringLiteral("contentLayout"), contentLayoutName(*options.contentLayout));
+    if (options.rename)
+        addItem(form, QStringLiteral("rename"), *options.rename);
+    if (options.upLimit)
+        addItem(form, QStringLiteral("upLimit"), QString::number(*options.upLimit));
+    if (options.dlLimit)
+        addItem(form, QStringLiteral("dlLimit"), QString::number(*options.dlLimit));
+    if (options.ratioLimit)
+        addItem(form, QStringLiteral("ratioLimit"), QString::number(*options.ratioLimit));
+    if (options.seedingTimeLimit)
+        addItem(
+            form, QStringLiteral("seedingTimeLimit"), QString::number(*options.seedingTimeLimit));
+    if (options.autoTMM)
+        addBoolItem(form, QStringLiteral("autoTMM"), *options.autoTMM);
+    if (options.sequentialDownload)
+        addBoolItem(form, QStringLiteral("sequentialDownload"), *options.sequentialDownload);
+    if (options.firstLastPiecePrio)
+        addBoolItem(form, QStringLiteral("firstLastPiecePrio"), *options.firstLastPiecePrio);
+    if (options.cookie)
+        addItem(form, QStringLiteral("cookie"), *options.cookie);
 }
 
 bool isNetworkFailure(QNetworkReply::NetworkError error)
@@ -290,9 +348,14 @@ void QbtClient::send(const JobPtr &job)
 
     QNetworkReply *networkReply = nullptr;
     if (job->spec.verb == QLatin1String("POST")) {
-        request.setHeader(QNetworkRequest::ContentTypeHeader,
-                          QStringLiteral("application/x-www-form-urlencoded"));
-        networkReply = m_nam->post(request, job->spec.form.query(QUrl::FullyEncoded).toUtf8());
+        if (job->spec.multiPart) {
+            // QNetworkAccessManager sets its own Content-Type (with the boundary) for us.
+            networkReply = m_nam->post(request, job->spec.multiPart.get());
+        } else {
+            request.setHeader(QNetworkRequest::ContentTypeHeader,
+                              QStringLiteral("application/x-www-form-urlencoded"));
+            networkReply = m_nam->post(request, job->spec.form.query(QUrl::FullyEncoded).toUtf8());
+        }
     } else {
         networkReply = m_nam->get(request);
     }
@@ -340,7 +403,8 @@ void QbtClient::onJobReplyFinished(const JobPtr &job)
 
     const bool authFailure =
         error.kind() == ApiError::Kind::Unauthorized || error.kind() == ApiError::Kind::Forbidden;
-    if (authFailure && !job->spec.isLogin && !job->relogged && hasCredentials()) {
+    if (authFailure && !job->spec.isLogin && !job->relogged && hasCredentials() &&
+        job->spec.allowReloginRetry) {
         job->relogged = true;
         m_waitingForLogin.append(job);
         qCDebug(lcQbt) << "auth failure on" << job->spec.path << "- logging in and retrying";
@@ -717,6 +781,304 @@ QbtReply<ServerInfo> *QbtClient::probe()
         step(result.error());
     });
     return reply;
+}
+
+// --- torrent actions (T2.5) ---------------------------------------------------------------
+
+namespace {
+
+QUrlQuery hashesForm(const QStringList &hashes)
+{
+    QUrlQuery form;
+    addItem(form, QStringLiteral("hashes"), hashes.join(QLatin1Char('|')));
+    return form;
+}
+
+} // namespace
+
+QbtReply<QByteArray> *QbtClient::torrentsStart(const QStringList &hashes)
+{
+    return post(QStringLiteral("torrents/start"), hashesForm(hashes));
+}
+
+QbtReply<QByteArray> *QbtClient::torrentsStop(const QStringList &hashes)
+{
+    return post(QStringLiteral("torrents/stop"), hashesForm(hashes));
+}
+
+QbtReply<QByteArray> *QbtClient::torrentsSetForceStart(const QStringList &hashes, bool value)
+{
+    QUrlQuery form = hashesForm(hashes);
+    addBoolItem(form, QStringLiteral("value"), value);
+    return post(QStringLiteral("torrents/setForceStart"), form);
+}
+
+QbtReply<QByteArray> *QbtClient::torrentsRecheck(const QStringList &hashes)
+{
+    return post(QStringLiteral("torrents/recheck"), hashesForm(hashes));
+}
+
+QbtReply<QByteArray> *QbtClient::torrentsReannounce(const QStringList &hashes)
+{
+    return post(QStringLiteral("torrents/reannounce"), hashesForm(hashes));
+}
+
+QbtReply<QByteArray> *QbtClient::torrentsSetCategory(const QStringList &hashes,
+                                                     const QString &category)
+{
+    QUrlQuery form = hashesForm(hashes);
+    addItem(form, QStringLiteral("category"), category);
+    return post(QStringLiteral("torrents/setCategory"), form);
+}
+
+QbtReply<QByteArray> *QbtClient::torrentsCreateCategory(const QString &name,
+                                                        const QString &savePath)
+{
+    QUrlQuery form;
+    addItem(form, QStringLiteral("category"), name);
+    addItem(form, QStringLiteral("savePath"), savePath);
+    return post(QStringLiteral("torrents/createCategory"), form);
+}
+
+QbtReply<QByteArray> *QbtClient::torrentsEditCategory(const QString &name, const QString &savePath)
+{
+    QUrlQuery form;
+    addItem(form, QStringLiteral("category"), name);
+    addItem(form, QStringLiteral("savePath"), savePath);
+    return post(QStringLiteral("torrents/editCategory"), form);
+}
+
+QbtReply<QByteArray> *QbtClient::torrentsRemoveCategories(const QStringList &names)
+{
+    QUrlQuery form;
+    addItem(form, QStringLiteral("categories"), names.join(QLatin1Char('\n')));
+    return post(QStringLiteral("torrents/removeCategories"), form);
+}
+
+QbtReply<QByteArray> *QbtClient::torrentsAddTags(const QStringList &hashes, const QStringList &tags)
+{
+    QUrlQuery form = hashesForm(hashes);
+    addItem(form, QStringLiteral("tags"), tags.join(QLatin1Char(',')));
+    return post(QStringLiteral("torrents/addTags"), form);
+}
+
+QbtReply<QByteArray> *QbtClient::torrentsRemoveTags(const QStringList &hashes,
+                                                    const QStringList &tags)
+{
+    QUrlQuery form = hashesForm(hashes);
+    addItem(form, QStringLiteral("tags"), tags.join(QLatin1Char(',')));
+    return post(QStringLiteral("torrents/removeTags"), form);
+}
+
+QbtReply<QByteArray> *QbtClient::torrentsCreateTags(const QStringList &tags)
+{
+    QUrlQuery form;
+    addItem(form, QStringLiteral("tags"), tags.join(QLatin1Char(',')));
+    return post(QStringLiteral("torrents/createTags"), form);
+}
+
+QbtReply<QByteArray> *QbtClient::torrentsDeleteTags(const QStringList &tags)
+{
+    QUrlQuery form;
+    addItem(form, QStringLiteral("tags"), tags.join(QLatin1Char(',')));
+    return post(QStringLiteral("torrents/deleteTags"), form);
+}
+
+QbtReply<QByteArray> *QbtClient::torrentsSetLocation(const QStringList &hashes,
+                                                     const QString &location)
+{
+    QUrlQuery form = hashesForm(hashes);
+    addItem(form, QStringLiteral("location"), location);
+    return post(QStringLiteral("torrents/setLocation"), form);
+}
+
+QbtReply<QByteArray> *QbtClient::torrentsSetDownloadLimit(const QStringList &hashes,
+                                                          qint64 bytesPerSec)
+{
+    QUrlQuery form = hashesForm(hashes);
+    addItem(form, QStringLiteral("limit"), QString::number(bytesPerSec));
+    return post(QStringLiteral("torrents/setDownloadLimit"), form);
+}
+
+QbtReply<QByteArray> *QbtClient::torrentsSetUploadLimit(const QStringList &hashes,
+                                                        qint64 bytesPerSec)
+{
+    QUrlQuery form = hashesForm(hashes);
+    addItem(form, QStringLiteral("limit"), QString::number(bytesPerSec));
+    return post(QStringLiteral("torrents/setUploadLimit"), form);
+}
+
+QbtReply<QByteArray> *QbtClient::torrentsSetShareLimits(const QStringList &hashes,
+                                                        double ratioLimit,
+                                                        qint64 seedingTimeLimit,
+                                                        qint64 inactiveSeedingTimeLimit,
+                                                        const QString &shareLimitAction)
+{
+    QUrlQuery form = hashesForm(hashes);
+    addItem(form, QStringLiteral("ratioLimit"), QString::number(ratioLimit));
+    addItem(form, QStringLiteral("seedingTimeLimit"), QString::number(seedingTimeLimit));
+    addItem(form,
+            QStringLiteral("inactiveSeedingTimeLimit"),
+            QString::number(inactiveSeedingTimeLimit));
+    addItem(form, QStringLiteral("shareLimitAction"), shareLimitAction);
+    return post(QStringLiteral("torrents/setShareLimits"), form);
+}
+
+QbtReply<QByteArray> *QbtClient::torrentsRename(const QString &hash, const QString &name)
+{
+    QUrlQuery form;
+    addItem(form, QStringLiteral("hash"), hash);
+    addItem(form, QStringLiteral("name"), name);
+    return post(QStringLiteral("torrents/rename"), form);
+}
+
+QbtReply<QByteArray> *
+QbtClient::torrentsRenameFile(const QString &hash, const QString &oldPath, const QString &newPath)
+{
+    QUrlQuery form;
+    addItem(form, QStringLiteral("hash"), hash);
+    addItem(form, QStringLiteral("oldPath"), oldPath);
+    addItem(form, QStringLiteral("newPath"), newPath);
+    return post(QStringLiteral("torrents/renameFile"), form);
+}
+
+QbtReply<QByteArray> *
+QbtClient::torrentsRenameFolder(const QString &hash, const QString &oldPath, const QString &newPath)
+{
+    QUrlQuery form;
+    addItem(form, QStringLiteral("hash"), hash);
+    addItem(form, QStringLiteral("oldPath"), oldPath);
+    addItem(form, QStringLiteral("newPath"), newPath);
+    return post(QStringLiteral("torrents/renameFolder"), form);
+}
+
+QbtReply<QByteArray> *QbtClient::torrentsIncreasePrio(const QStringList &hashes)
+{
+    return post(QStringLiteral("torrents/increasePrio"), hashesForm(hashes));
+}
+
+QbtReply<QByteArray> *QbtClient::torrentsDecreasePrio(const QStringList &hashes)
+{
+    return post(QStringLiteral("torrents/decreasePrio"), hashesForm(hashes));
+}
+
+QbtReply<QByteArray> *QbtClient::torrentsTopPrio(const QStringList &hashes)
+{
+    return post(QStringLiteral("torrents/topPrio"), hashesForm(hashes));
+}
+
+QbtReply<QByteArray> *QbtClient::torrentsBottomPrio(const QStringList &hashes)
+{
+    return post(QStringLiteral("torrents/bottomPrio"), hashesForm(hashes));
+}
+
+QbtReply<QByteArray> *
+QbtClient::torrentsSetFilePrio(const QString &hash, const QList<int> &fileIds, int priority)
+{
+    QStringList ids;
+    ids.reserve(fileIds.size());
+    for (int id : fileIds)
+        ids.append(QString::number(id));
+
+    QUrlQuery form;
+    addItem(form, QStringLiteral("hash"), hash);
+    addItem(form, QStringLiteral("id"), ids.join(QLatin1Char('|')));
+    addItem(form, QStringLiteral("priority"), QString::number(priority));
+    return post(QStringLiteral("torrents/filePrio"), form);
+}
+
+QbtReply<QByteArray> *QbtClient::torrentsToggleSequentialDownload(const QStringList &hashes)
+{
+    return post(QStringLiteral("torrents/toggleSequentialDownload"), hashesForm(hashes));
+}
+
+QbtReply<QByteArray> *QbtClient::torrentsToggleFirstLastPiecePrio(const QStringList &hashes)
+{
+    return post(QStringLiteral("torrents/toggleFirstLastPiecePrio"), hashesForm(hashes));
+}
+
+QbtReply<QByteArray> *QbtClient::torrentsSetAutoManagement(const QStringList &hashes, bool enable)
+{
+    QUrlQuery form = hashesForm(hashes);
+    addBoolItem(form, QStringLiteral("enable"), enable);
+    return post(QStringLiteral("torrents/setAutoManagement"), form);
+}
+
+QbtReply<QByteArray> *QbtClient::torrentsSetSuperSeeding(const QStringList &hashes, bool value)
+{
+    QUrlQuery form = hashesForm(hashes);
+    addBoolItem(form, QStringLiteral("value"), value);
+    return post(QStringLiteral("torrents/setSuperSeeding"), form);
+}
+
+QbtReply<QByteArray> *QbtClient::torrentsDelete(const QStringList &hashes, bool deleteFiles)
+{
+    QUrlQuery form = hashesForm(hashes);
+    addBoolItem(form, QStringLiteral("deleteFiles"), deleteFiles);
+    return post(QStringLiteral("torrents/delete"), form);
+}
+
+QbtReply<QByteArray> *QbtClient::torrentsAddUrls(const QStringList &urls, const AddOptions &options)
+{
+    QUrlQuery form;
+    addItem(form, QStringLiteral("urls"), urls.join(QLatin1Char('\n')));
+    applyAddOptions(form, options);
+    return post(QStringLiteral("torrents/add"), form);
+}
+
+QbtReply<QByteArray> *QbtClient::torrentsAddFile(const QString &fileName,
+                                                 const QByteArray &bytes,
+                                                 const AddOptions &options)
+{
+    auto *multiPart = new QHttpMultiPart(QHttpMultiPart::FormDataType);
+
+    QHttpPart filePart;
+    filePart.setHeader(QNetworkRequest::ContentTypeHeader,
+                       QStringLiteral("application/x-bittorrent"));
+    filePart.setHeader(
+        QNetworkRequest::ContentDispositionHeader,
+        QStringLiteral("form-data; name=\"torrents\"; filename=\"%1\"").arg(fileName));
+    filePart.setBody(bytes);
+    multiPart->append(filePart);
+
+    QUrlQuery optionsForm;
+    applyAddOptions(optionsForm, options);
+    const QList<QPair<QString, QString>> items = optionsForm.queryItems(QUrl::FullyDecoded);
+    for (const auto &[key, value] : items) {
+        QHttpPart part;
+        part.setHeader(QNetworkRequest::ContentDispositionHeader,
+                       QStringLiteral("form-data; name=\"%1\"").arg(key));
+        part.setBody(value.toUtf8());
+        multiPart->append(part);
+    }
+
+    return postMultipart(QStringLiteral("torrents/add"), multiPart);
+}
+
+QbtReply<QByteArray> *QbtClient::transferSetDownloadLimit(qint64 bytesPerSec)
+{
+    QUrlQuery form;
+    addItem(form, QStringLiteral("limit"), QString::number(bytesPerSec));
+    return post(QStringLiteral("transfer/setDownloadLimit"), form);
+}
+
+QbtReply<QByteArray> *QbtClient::transferSetUploadLimit(qint64 bytesPerSec)
+{
+    QUrlQuery form;
+    addItem(form, QStringLiteral("limit"), QString::number(bytesPerSec));
+    return post(QStringLiteral("transfer/setUploadLimit"), form);
+}
+
+QbtReply<QByteArray> *QbtClient::postMultipart(const QString &path, QHttpMultiPart *multiPart)
+{
+    RequestSpec spec;
+    spec.verb = QStringLiteral("POST");
+    spec.path = path;
+    spec.retryOnTransient = false;
+    spec.allowReloginRetry = false;
+    spec.multiPart = std::shared_ptr<QHttpMultiPart>(multiPart);
+    return submit<QByteArray>(std::move(spec),
+                              [](const QByteArray &body) { return QbtResult<QByteArray>(body); });
 }
 
 } // namespace omaseed::core
