@@ -244,13 +244,19 @@ void ThemeReader::reload()
     m_source = colorsPath;
     rewatch();
 
-    if (fingerprint == m_fingerprint)
+    if (fingerprint == m_fingerprint) {
+        // Reached from both the file watcher and the theme-set hook's D-Bus Reload() call
+        // (T1.8); logging the skip is what lets a coalesced reload be told apart from one
+        // that never ran at all.
+        qCDebug(lcTheme) << "reload: fingerprint unchanged, not reapplying" << m_themeName;
         return;
+    }
 
     m_fingerprint = fingerprint;
     m_palette = std::move(palette);
     m_shell = std::move(shell);
     m_themeName = name;
+    qCInfo(lcTheme) << "theme changed:" << m_themeName;
     Q_EMIT changed();
 }
 
