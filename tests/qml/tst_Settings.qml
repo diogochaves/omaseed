@@ -267,6 +267,27 @@ TestCase {
         App.trayIconMode = tray;
     }
 
+    // T4.8: T4.5 could not wire this row, because T4.3 (which owns the flag) had not landed.
+    function test_the_general_pane_remembers_delete_files_by_default() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        compare(modal.paneIndex, 0);
+        compare(modal.paneRowCount, 4);
+
+        const row = testCase.childNamed(modal, "deleteFilesRow");
+        verify(row, "the General pane has no delete-files row");
+        compare(row.title, "Delete files by default");
+
+        const was = App.deleteFilesDefault;
+        modal.area = "pane";
+        modal.paneCursor = 2;
+        compare(row.hasCursor, true);
+        modal.activateRow();
+        compare(App.deleteFilesDefault, !was);
+        modal.activateRow();
+        compare(App.deleteFilesDefault, was);
+    }
+
     function test_the_keybindings_pane_is_the_help_sheets_own_rows() {
         const modal = createTemporaryObject(modalComponent, testCase);
         modal.open();
