@@ -43,15 +43,17 @@ NOTES="$CLONE/dist/RELEASE_NOTES.md"
 [[ -f "$SUMS" ]] || fail "SHA256SUMS not created: $SUMS"
 [[ -f "$NOTES" ]] || fail "RELEASE_NOTES.md not created: $NOTES"
 
+TAR_LISTING="$(tar tf "$TARBALL")"
+
 echo "==> Checking the tarball name and prefix"
-FIRST_ENTRY="$(tar tf "$TARBALL" | head -n1)"
+FIRST_ENTRY="$(printf '%s\n' "$TAR_LISTING" | head -n1)"
 case "$FIRST_ENTRY" in
     omaseed-0.1.0/*) ;;
     *) fail "tarball's first entry is not prefixed omaseed-0.1.0/: $FIRST_ENTRY" ;;
 esac
 
 echo "==> Checking docs/evidence and build*/ are excluded"
-if tar tf "$TARBALL" | grep -qE '^omaseed-0\.1\.0/(docs/evidence/|build)'; then
+if printf '%s\n' "$TAR_LISTING" | grep -qE '^omaseed-0\.1\.0/(docs/evidence/|build)'; then
     fail "docs/evidence or a build*/ directory leaked into the tarball"
 fi
 
