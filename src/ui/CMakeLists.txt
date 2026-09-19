@@ -26,3 +26,9 @@ set_target_properties(omaseed PROPERTIES
     WIN32_EXECUTABLE FALSE
     MACOSX_BUNDLE FALSE
 )
+
+# The binary itself (T1.4 left this for T5.1's packaging work; data/CMakeLists.txt installs
+# the desktop integration files that go with it).
+install(TARGETS omaseed
+    RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
+)

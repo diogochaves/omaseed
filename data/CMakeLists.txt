@@ -22,6 +22,67 @@ install(
     DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps"
 )
 
+# hicolor also wants fixed-size PNGs (some launchers/panels do not rasterise SVG icons, and
+# icon caches key off the size directories). Rendered from the SVG at build time rather than
+# committed, so the repo carries one source-of-truth icon; requires rsvg-convert (preferred,
+# librsvg) or ImageMagick's `magick`/`convert` (T5.1). If neither tool is present the PNGs are
+# simply not built/installed -- the SVG alone is still a valid hicolor icon -- and a warning
+# is printed once at configure time so a packaging build notices.
+find_program(OMASEED_RSVG_CONVERT rsvg-convert)
+find_program(OMASEED_MAGICK NAMES magick convert)
+
+set(omaseed_icon_sizes 16 24 32 48 64 128 256)
+set(omaseed_icon_svg "${CMAKE_CURRENT_SOURCE_DIR}/icons/hicolor/scalable/apps/${omaseed_app_id}.svg")
+set(omaseed_icon_pngs "")
+
+if(OMASEED_RSVG_CONVERT OR OMASEED_MAGICK)
+    foreach(size IN LISTS omaseed_icon_sizes)
+        set(out_dir "${CMAKE_CURRENT_BINARY_DIR}/icons/hicolor/${size}x${size}/apps")
+        set(out_png "${out_dir}/${omaseed_app_id}.png")
+        if(OMASEED_RSVG_CONVERT)
+            add_custom_command(
+                OUTPUT "${out_png}"
+                COMMAND "${CMAKE_COMMAND}" -E make_directory "${out_dir}"
+                COMMAND "${OMASEED_RSVG_CONVERT}" -w "${size}" -h "${size}" "${omaseed_icon_svg}" -o "${out_png}"
+                DEPENDS "${omaseed_icon_svg}"
+                COMMENT "Rendering ${size}x${size} app icon with rsvg-convert"
+                VERBATIM
+            )
+        else()
+            add_custom_command(
+                OUTPUT "${out_png}"
+                COMMAND "${CMAKE_COMMAND}" -E make_directory "${out_dir}"
+                COMMAND "${OMASEED_MAGICK}" -background none -resize "${size}x${size}" "${omaseed_icon_svg}" "${out_png}"
+                DEPENDS "${omaseed_icon_svg}"
+                COMMENT "Rendering ${size}x${size} app icon with ImageMagick"
+                VERBATIM
+            )
+        endif()
+        list(APPEND omaseed_icon_pngs "${out_png}")
+    endforeach()
+
+    add_custom_target(omaseed-icons ALL DEPENDS ${omaseed_icon_pngs})
+
+    foreach(size IN LISTS omaseed_icon_sizes)
+        install(
+            FILES "${CMAKE_CURRENT_BINARY_DIR}/icons/hicolor/${size}x${size}/apps/${omaseed_app_id}.png"
+            DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/${size}x${size}/apps"
+        )
+    endforeach()
+else()
+    message(WARNING
+        "Neither rsvg-convert nor ImageMagick (magick/convert) found: hicolor PNG app icons "
+        "will not be built. The scalable SVG is still installed. Install librsvg (preferred) "
+        "or imagemagick to get the fixed-size icons.")
+endif()
+
+# MIT licence text (T5.1): every package under this prefix ships its own copy, per Arch
+# convention (share/licenses/<pkgname>/LICENSE).
+install(
+    FILES "${CMAKE_SOURCE_DIR}/LICENSE"
+    DESTINATION "${CMAKE_INSTALL_DATADIR}/licenses/omaseed"
+)
+
 # Install rules for the Omarchy integration extras (T1.8). One line per file: T5.1's
 # PKGBUILD places/documents the user-level copies (hook dir, hypr module, menu fragment);
 # this only stages the packaged copies under the data prefix.

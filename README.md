@@ -82,6 +82,76 @@ Packaged copies are staged for T5.1's PKGBUILD under
 `${CMAKE_INSTALL_DATADIR}/omaseed/{hyprland,hooks/theme-set.d}/` and
 `${CMAKE_INSTALL_DATADIR}/omaseed/omarchy-menu.jsonc` (see `data/CMakeLists.txt`).
 
+## Packaging
+
+`cmake --install` lays out a full FHS tree under its prefix: the `omaseed` binary,
+`.desktop`, D-Bus service file, hicolor icons (the scalable SVG plus PNGs at 16–256 px,
+rendered from it at build time by `rsvg-convert` or ImageMagick — see `data/CMakeLists.txt`;
+if neither is installed the PNGs are skipped and only the SVG lands, with a configure-time
+warning), the MIT `LICENSE` under `share/licenses/omaseed/`, and the three Omarchy extras
+above under `share/omaseed/`. `packaging/arch/PKGBUILD` wraps exactly that install with
+`DESTDIR`; nothing in `package()` reaches outside what CMake already installs.
+
+**`makepkg -si` is Diogo's own step** (installs with pacman, needs root) — agents build
+without installing, per `CLAUDE.md` ("no sudo").
+
+Two PKGBUILDs live in `packaging/arch/`:
+
+- **`PKGBUILD`** — the real recipe, the one that eventually goes to the `omarchy-pkgs` PR.
+  Builds from the tagged GitHub release source tarball
+  (`https://github.com/diogochaves/omaseed/archive/refs/tags/v$pkgver.tar.gz`); needs a
+  pushed tag to resolve, so it only works once T5.3's release script has cut one.
+  `sha256sums=('SKIP')` is a placeholder T5.3 replaces with the real digest.
+- **`PKGBUILD.local`** — builds from the working tree instead (`prepare()` copies the repo
+  two directories up via `rsync`, excluding `.git` and build directories), so the package can
+  be built and tried before any tag exists, or while iterating on packaging itself. Otherwise
+  identical to `PKGBUILD` (kept in sync by hand — makepkg has no templating).
+
+Build the local package (no `-i`, no `sudo`; run from a scratch copy so `makepkg`'s own
+`src/`/`pkg/` litter stays out of the repo):
+
+```
+mkdir -p build/makepkg-scratch && cp packaging/arch/PKGBUILD.local build/makepkg-scratch/PKGBUILD
+cd build/makepkg-scratch && makepkg -f
+tar tf omaseed-*.pkg.tar.zst        # inspect what would be installed
+namcap PKGBUILD *.pkg.tar.zst       # lint the recipe and the built package
+```
+
+To try the built package without installing it system-wide:
+
+```
+bsdtar -xf build/makepkg-scratch/omaseed-*.pkg.tar.zst -C /tmp/pkgroot
+QT_QPA_PLATFORM=offscreen /tmp/pkgroot/usr/bin/omaseed --help
+```
+
+Once installed for real (`makepkg -si` from `packaging/arch/`, Diogo's step), two of the
+three Omarchy extras still need one command each to activate — the package only stages them
+under `/usr/share/omaseed/`, since a package must never silently edit a user's own config:
+
+```
+ln -sf /usr/share/omaseed/hooks/theme-set.d/omaseed ~/.config/omarchy/hooks/theme-set.d/omaseed
+```
+
+and add, next to the other personal `require("hypr...")` lines in
+`~/.config/hypr/hyprland.lua`:
+
+```
+require("hypr.omaseed")
+```
+
+(`/usr/share/omaseed/hyprland/omaseed.lua` is on Lua's `require` path once Omarchy's own
+`hypr.*` module search includes `/usr/share/omaseed/hyprland` — same shape as
+`scripts/dev/install-omarchy-extras.sh` sets up for a source checkout, just pointed at the
+package's paths instead of `data/`. The `omarchy-menu.jsonc` row under
+`/usr/share/omaseed/omarchy-menu.jsonc` is copy-paste, same as the README section above.)
+A future `omaseed --install-omarchy-extras` flag to automate both is worth adding later
+(T5.1 does not implement it — see `docs/06-implementation-plan.md`).
+
+**`packaging/omarchy/`** holds `package.json` (and a `package.json.md` explaining every
+field), the `.omarchy/package.json` shape the `omarchy-pkgs` PR needs alongside
+`packaging/arch/PKGBUILD` (charter §6). T5.3's release script fills in the real source
+tarball once a tag exists; opening the PR itself is Diogo's step, after that.
+
 ## Documents
 
 - [CLAUDE.md](CLAUDE.md) — standing instructions for agents working in this repo (read first)
