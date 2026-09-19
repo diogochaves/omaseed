@@ -12,6 +12,10 @@ qt_add_library(omaseed-core STATIC
     PathMap.hpp
     Paths.cpp
     Paths.hpp
+    QbtClient.cpp
+    QbtClient.hpp
+    QbtReply.cpp
+    QbtReply.hpp
     SecretStore.cpp
     SecretStore.hpp
     Server.cpp

@@ -21,6 +21,7 @@ public:
         Conflict,     ///< 409: qBittorrent refused the operation
         Server,       ///< 5xx
         Parse,        ///< the reply was not what the API documents
+        Cancelled,    ///< the caller (or QbtClient::cancelAll) dropped the request
         Unknown,
     };
 

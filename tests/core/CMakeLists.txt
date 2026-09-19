@@ -49,3 +49,13 @@ omaseed_add_test(tst_secretstore
     SOURCES tst_secretstore.cpp
     LIBRARIES omaseed::core Qt6Keychain::Qt6Keychain
 )
+
+omaseed_add_test(tst_qbtclient_fake
+    SOURCES tst_qbtclient_fake.cpp
+    LIBRARIES omaseed::core
+)
+
+omaseed_add_test(tst_qbtclient_live
+    SOURCES tst_qbtclient_live.cpp
+    LIBRARIES omaseed::core
+)
