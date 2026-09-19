@@ -36,8 +36,10 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 include(cmake/OmaseedWarnings.cmake)
+include(GNUInstallDirs)
 
 add_subdirectory(src)
+add_subdirectory(data)
 
 if(BUILD_TESTING)
     enable_testing()

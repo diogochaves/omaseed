@@ -4,6 +4,8 @@ qt_add_library(omaseed-integration STATIC
     AppIdentity.hpp
     Notifier.cpp
     Notifier.hpp
+    SingleInstance.cpp
+    SingleInstance.hpp
     Theme.cpp
     Theme.hpp
     ThemeReader.cpp
@@ -23,6 +25,6 @@ qt_add_resources(omaseed-integration "omaseed-theme-fallback"
 target_include_directories(omaseed-integration PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/..")
 
 target_link_libraries(omaseed-integration
-    PUBLIC omaseed::core Qt6::Core Qt6::DBus Qt6::Gui Qt6::Qml
+    PUBLIC omaseed::core Qt6::Core Qt6::DBus Qt6::Gui Qt6::Network Qt6::Qml
     PRIVATE omaseed::warnings
 )

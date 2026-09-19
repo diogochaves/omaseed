@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=omaseed
+GenericName=Torrent client
+Comment=Torrents for Omarchy, powered by qBittorrent
+Exec=omaseed %U
+Icon=io.github.diogochaves.omaseed
+Terminal=false
+Categories=Network;FileTransfer;P2P;Qt;
+MimeType=x-scheme-handler/magnet;application/x-bittorrent;
+DBusActivatable=true
+StartupNotify=true
+Keywords=torrent;magnet;qbittorrent;

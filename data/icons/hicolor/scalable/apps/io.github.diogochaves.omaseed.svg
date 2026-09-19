@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Placeholder app icon: an outlined square with a diamond, plain shapes only. T1.5 refines
+     this into the real tray/app icon set; this one just gives the .desktop file something to
+     point at during development. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <rect x="8" y="8" width="112" height="112" rx="24" fill="#1a1b26" stroke="#7aa2f7" stroke-width="6"/>
+  <path d="M64 32 L96 64 L64 96 L32 64 Z" fill="#7aa2f7"/>
+</svg>

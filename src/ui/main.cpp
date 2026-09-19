@@ -1,6 +1,7 @@
 #include "core/Version.hpp"
 #include "integration/AppIdentity.hpp"
 #include "integration/Notifier.hpp"
+#include "integration/SingleInstance.hpp"
 #include "integration/Theme.hpp"
 #include "integration/ThemeReader.hpp"
 #include "integration/Xdg.hpp"
@@ -14,6 +15,7 @@
 #include <QSet>
 #include <QStringList>
 #include <QTimer>
+#include <QWindow>
 #include <QtGlobal>
 
 using omaseed::integration::AppIdentity::applicationId;
@@ -140,8 +142,44 @@ int main(int argc, char *argv[])
         qInfo().noquote() << QStringLiteral("headless requested; not implemented yet");
 
     const QStringList uris = parser.positionalArguments();
-    for (const QString &uri : uris)
-        qInfo().noquote() << QStringLiteral("uri: %1").arg(uri);
+
+    // SingleInstance: one omaseed per session. A second launch forwards its URIs (or a plain
+    // activation, if none) to the running process over D-Bus (org.freedesktop.Application) —
+    // or a QLocalServer when the session bus is unreachable — and exits here, before any QML
+    // engine or window is created. The URIs this very process was started with travel the
+    // same openRequested() path, so there is exactly one place that logs a URI and raises the
+    // window (wired up below, once that window exists).
+    auto *singleInstance = new omaseed::integration::SingleInstance(&app);
+    QWindow *window = nullptr;
+    auto raiseWindow = [&window](omaseed::integration::SingleInstance *instance) {
+        if (!window)
+            return;
+        // Best-effort Wayland focus hand-off: Qt 6.11 has no public API to apply an XDG
+        // activation token to an already-mapped window, so this only helps on platforms
+        // where requestActivate() alone is enough (notably X11); on Wayland compositors
+        // that require a fresh token per activation, the window still raises but may not
+        // receive focus until the user clicks it.
+        const QString token = instance->takeLastActivationToken();
+        if (!token.isEmpty())
+            qputenv("XDG_ACTIVATION_TOKEN", token.toUtf8());
+        window->show();
+        window->raise();
+        window->requestActivate();
+    };
+    QObject::connect(singleInstance,
+                     &omaseed::integration::SingleInstance::activateRequested,
+                     &app,
+                     [singleInstance, raiseWindow]() { raiseWindow(singleInstance); });
+    QObject::connect(singleInstance,
+                     &omaseed::integration::SingleInstance::openRequested,
+                     &app,
+                     [singleInstance, raiseWindow](const QStringList &openedUris) {
+                         for (const QString &uri : openedUris)
+                             qInfo().noquote() << QStringLiteral("uri: %1").arg(uri);
+                         raiseWindow(singleInstance);
+                     });
+    if (!singleInstance->start(uris))
+        return 0;
 
     // Exposed to QML as a plain context property until a proper bootstrap owns it (T1.7);
     // the DropArea in Main.qml is its only caller for now.
@@ -169,6 +207,7 @@ int main(int argc, char *argv[])
         engine.loadFromModule("Omaseed", "Main");
     if (engine.rootObjects().isEmpty())
         return 1;
+    window = qobject_cast<QWindow *>(engine.rootObjects().constFirst());
 
     return QGuiApplication::exec();
 }
