@@ -231,7 +231,7 @@ void TestNotifier::serverLostBodyAndActionsMatchSpec()
 {
     m_notifier->notifyServerLost(QStringLiteral("home"),
                                  QStringLiteral("home"),
-                                 QStringLiteral("127.0.0.1:8080"),
+                                 QStringLiteral("nas.local:9090"),
                                  QStringLiteral("connection refused"),
                                  10);
     QCOMPARE(m_server->calls.size(), 1);
@@ -239,7 +239,7 @@ void TestNotifier::serverLostBodyAndActionsMatchSpec()
     const auto &call = m_server->calls.first();
     QCOMPARE(call.summary, QStringLiteral("home is unreachable"));
     QCOMPARE(call.body,
-             QStringLiteral("127.0.0.1:8080 · connection refused · retrying every 10 s"));
+             QStringLiteral("nas.local:9090 · connection refused · retrying every 10 s"));
     QCOMPARE(call.actions, QStringList({QStringLiteral("settings"), QStringLiteral("settings")}));
     QCOMPARE(call.hints.value(QStringLiteral("category")).toString(),
              QStringLiteral("network.disconnected"));
@@ -249,7 +249,7 @@ void TestNotifier::serverBackReplacesTheServerLostNotice()
 {
     const quint32 lostId = m_notifier->notifyServerLost(QStringLiteral("home"),
                                                         QStringLiteral("home"),
-                                                        QStringLiteral("127.0.0.1:8080"),
+                                                        QStringLiteral("nas.local:9090"),
                                                         QStringLiteral("connection refused"),
                                                         10);
     QVERIFY(lostId != 0);

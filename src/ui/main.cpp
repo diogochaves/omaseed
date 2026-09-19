@@ -76,7 +76,7 @@ int runNotifyDemo()
 
     const quint32 serverLostId = notifier.notifyServerLost(serverId,
                                                            QStringLiteral("home"),
-                                                           QStringLiteral("127.0.0.1:8080"),
+                                                           QStringLiteral("nas.local:9090"),
                                                            QStringLiteral("connection refused"),
                                                            10);
     qInfo().noquote() << QStringLiteral("notified server id=%1").arg(serverLostId);
