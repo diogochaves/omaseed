@@ -1,12 +1,14 @@
 #include "core/Version.hpp"
 #include "integration/AppIdentity.hpp"
 #include "integration/Notifier.hpp"
+#include "integration/Xdg.hpp"
 
 #include <QCommandLineOption>
 #include <QCommandLineParser>
 #include <QCoreApplication>
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
+#include <QQmlContext>
 #include <QSet>
 #include <QStringList>
 #include <QTimer>
@@ -140,7 +142,12 @@ int main(int argc, char *argv[])
     for (const QString &uri : uris)
         qInfo().noquote() << QStringLiteral("uri: %1").arg(uri);
 
+    // Exposed to QML as a plain context property until a proper bootstrap owns it (T1.7);
+    // the DropArea in Main.qml is its only caller for now.
+    omaseed::integration::Xdg xdg;
+
     QQmlApplicationEngine engine;
+    engine.rootContext()->setContextProperty(QStringLiteral("Xdg"), &xdg);
     QObject::connect(
         &engine,
         &QQmlApplicationEngine::objectCreationFailed,

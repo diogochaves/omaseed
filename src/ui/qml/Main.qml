@@ -97,4 +97,16 @@ Window {
         color: Theme.fill(Theme.hairlineAlpha)
         height: 1
     }
+
+    // Magnet text and .torrent files dropped anywhere on the window. T4.2 routes these into
+    // the add sheet; for now they are only logged (charter §2 "Drag and drop").
+    DropArea {
+        anchors.fill: parent
+
+        onDropped: (drop) => {
+            const addables = Xdg.addablesFromDrop(drop.urls, drop.text);
+            for (const addable of addables)
+                console.log("drop:", addable.kind, addable.value);
+        }
+    }
 }
