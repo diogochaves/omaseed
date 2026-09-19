@@ -69,3 +69,18 @@ omaseed_add_test(tst_torrentmodel
     SOURCES tst_torrentmodel.cpp
     LIBRARIES omaseed::core
 )
+
+omaseed_add_test(tst_categorymodel
+    SOURCES tst_categorymodel.cpp
+    LIBRARIES omaseed::core
+)
+
+omaseed_add_test(tst_tagmodel
+    SOURCES tst_tagmodel.cpp
+    LIBRARIES omaseed::core
+)
+
+omaseed_add_test(tst_trackermodel
+    SOURCES tst_trackermodel.cpp
+    LIBRARIES omaseed::core
+)

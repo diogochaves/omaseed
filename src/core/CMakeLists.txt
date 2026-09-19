@@ -6,6 +6,8 @@ qt_add_library(omaseed-core STATIC
     ApiError.hpp
     Bencode.cpp
     Bencode.hpp
+    CategoryModel.cpp
+    CategoryModel.hpp
     Format.cpp
     Format.hpp
     MagnetLink.cpp
@@ -24,12 +26,16 @@ qt_add_library(omaseed-core STATIC
     Server.hpp
     ServerStore.cpp
     ServerStore.hpp
+    TagModel.cpp
+    TagModel.hpp
     Torrent.cpp
     Torrent.hpp
     TorrentFile.cpp
     TorrentFile.hpp
     TorrentModel.cpp
     TorrentModel.hpp
+    TrackerModel.cpp
+    TrackerModel.hpp
     Version.cpp
     Version.hpp
 )
