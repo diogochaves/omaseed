@@ -335,7 +335,7 @@ TestCase {
         testCase.cellProbe = findChild(table, "eta_0");
         compare(testCase.cellProbe.visible, false);
         // The Name column grows by the hidden column's width.
-        const fixed = testCase.fixedWidth([72, 118, 104, 62, 84, 84]);
+        const fixed = testCase.fixedWidth([72, 118, 116, 62, 84, 84]);
         compare(header("name").width, table.width - fixed);
     }
 
