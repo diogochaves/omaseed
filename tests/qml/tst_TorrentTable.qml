@@ -79,6 +79,13 @@ TestCase {
         }
     }
 
+    function fixedWidth(widths: var): int {
+        let total = 0;
+        for (const width of widths)
+            total += Theme.space(width);
+        return total;
+    }
+
     function cellText(objectName: string): string {
         testCase.cellProbe = findChild(table, objectName);
         verify(testCase.cellProbe, "no cell " + objectName);
@@ -134,8 +141,9 @@ TestCase {
         compare(header("dlspeed").width, Theme.space(84));
         compare(header("upspeed").width, Theme.space(84));
         compare(header("eta").width, Theme.space(62));
-        // The Name column takes the rest.
-        const fixed = Theme.space(72 + 118 + 104 + 62 + 84 + 84 + 62);
+        // The Name column takes the rest. Each column is rounded on its own, so the sum is
+        // of the rounded widths, not `Theme.space()` of the sum.
+        const fixed = testCase.fixedWidth([72, 118, 104, 62, 84, 84, 62]);
         compare(header("name").width, table.width - fixed);
     }
 
@@ -206,6 +214,21 @@ TestCase {
         compare(hashes.length, 2);
         compare(hashes[0], App.filtered.hashAt(0));
         compare(hashes[1], App.filtered.hashAt(1));
+    }
+
+    // The `ItemSelectionModel` tracks the proxy's `layoutChanged`, so a selection made
+    // before a re-sort still names the same torrents afterwards.
+    function test_selection_survives_a_resort() {
+        table.toggleCursorSelection();
+        table.moveCursor(1);
+        table.toggleCursorSelection();
+        const before = table.selectedHashes();
+        compare(before.length, 2);
+        table.sortBy("name");
+        const after = table.selectedHashes();
+        compare(after.length, 2);
+        compare(after.indexOf(before[0]) >= 0, true);
+        compare(after.indexOf(before[1]) >= 0, true);
     }
 
     function test_select_all_and_clear() {
@@ -312,7 +335,7 @@ TestCase {
         testCase.cellProbe = findChild(table, "eta_0");
         compare(testCase.cellProbe.visible, false);
         // The Name column grows by the hidden column's width.
-        const fixed = Theme.space(72 + 118 + 104 + 62 + 84 + 84);
+        const fixed = testCase.fixedWidth([72, 118, 104, 62, 84, 84]);
         compare(header("name").width, table.width - fixed);
     }
 
