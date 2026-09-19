@@ -1,0 +1,41 @@
+{
+  "rid": 5,
+  "server_state": {
+    "dl_info_data": 704643072,
+    "dl_info_speed": 4414997,
+    "free_space_on_disk": 723595538432,
+    "total_peer_connections": 63,
+    "up_info_data": 103180697,
+    "up_info_speed": 831488
+  },
+  "torrents": {
+    "4a4e3b1d2d0c1a8d1e6a9f0b3c2d4e5f6a7b8c9d": {
+      "amount_left": 717225165,
+      "availability": 38.2,
+      "completed": 687107476,
+      "downloaded": 704643072,
+      "dlspeed": 1929379,
+      "eta": 160,
+      "num_complete": 1204,
+      "num_incomplete": 88,
+      "num_leechs": 42,
+      "num_seeds": 21,
+      "progress": 0.489,
+      "ratio": 0.15,
+      "size": 1404304589,
+      "state": "downloading",
+      "time_active": 862,
+      "total_size": 1404304589,
+      "upspeed": 114688
+    },
+    "b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0": {
+      "dlspeed": 0,
+      "num_leechs": 3,
+      "num_seeds": 0,
+      "progress": 1,
+      "ratio": 4.1,
+      "state": "uploading",
+      "upspeed": 491520
+    }
+  }
+}
