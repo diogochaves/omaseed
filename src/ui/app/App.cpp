@@ -1,17 +1,23 @@
 #include "ui/app/App.hpp"
 
 #include "core/Format.hpp"
+#include "core/MagnetLink.hpp"
 #include "core/PathMap.hpp"
 #include "core/StateFile.hpp"
+#include "core/TorrentFile.hpp"
 #include "integration/Notifier.hpp"
 #include "integration/Xdg.hpp"
 #include "ui/app/DemoData.hpp"
 
 #include <QDebug>
+#include <QFile>
+#include <QFileDialog>
 #include <QFileInfo>
 #include <QJsonObject>
+#include <QPointer>
 #include <QProcessEnvironment>
 #include <QQmlEngine>
+#include <QThreadPool>
 #include <QUrl>
 #include <QtGlobal>
 
@@ -765,5 +771,341 @@ void App::onNotifierActionInvoked(const QString &eventClass,
 }
 
 // --- end T4.7 ----------------------------------------------------------------------------------
+
+// --- T4.2: add flow -----------------------------------------------------------------------------
+// The add sheet's whole server-facing half (spec §3 Fig. 5 and Fig. 10). Parsing is local and
+// never blocks the GUI thread for a .torrent; the POST is QbtClient's typed torrentsAddUrls /
+// torrentsAddFile; the duplicate test reads the model that is already in memory.
+
+namespace {
+
+/// The last path segment of an http(s) URL, percent-decoded: what Fig. 5's subtitle shows for
+/// a URL, since nothing is parsed for one until the server has fetched it.
+QString urlDisplayName(const QString &text)
+{
+    const QUrl url(text);
+    const QString path = url.path();
+    const int slash = path.lastIndexOf(QLatin1Char('/'));
+    const QString last = slash >= 0 ? path.mid(slash + 1) : path;
+    return last.isEmpty() ? url.host() : QUrl::fromPercentEncoding(last.toUtf8());
+}
+
+QbtClient::ContentLayout contentLayoutFrom(const QString &name)
+{
+    if (name == QLatin1String("Subfolder"))
+        return QbtClient::ContentLayout::Subfolder;
+    if (name == QLatin1String("NoSubfolder"))
+        return QbtClient::ContentLayout::NoSubfolder;
+    return QbtClient::ContentLayout::Original;
+}
+
+} // namespace
+
+QVariantMap App::parseAddable(const QString &textIn)
+{
+    const QString text = textIn.trimmed();
+
+    QVariantMap map{
+        {QStringLiteral("kind"), QStringLiteral("none")},
+        {QStringLiteral("valid"), false},
+        {QStringLiteral("pending"), false},
+        {QStringLiteral("name"), QString()},
+        {QStringLiteral("sizeText"), QString()},
+        {QStringLiteral("infoHashV1"), QString()},
+        {QStringLiteral("infoHashV2"), QString()},
+        {QStringLiteral("value"), text},
+        {QStringLiteral("token"), QString()},
+        {QStringLiteral("error"), QString()},
+    };
+    if (text.isEmpty())
+        return map;
+
+    const integration::Addable addable = integration::Xdg::parseAddable(text);
+    switch (addable.kind) {
+    case integration::Addable::Kind::Magnet: {
+        const MagnetLink link = MagnetLink::parse(addable.value);
+        map[QStringLiteral("kind")] = QStringLiteral("magnet");
+        map[QStringLiteral("value")] = addable.value;
+        if (!link.isValid()) {
+            map[QStringLiteral("error")] = tr("this magnet link carries no info hash");
+            return map;
+        }
+        map[QStringLiteral("valid")] = true;
+        map[QStringLiteral("infoHashV1")] = link.infoHashV1;
+        map[QStringLiteral("infoHashV2")] = link.infoHashV2;
+        map[QStringLiteral("name")] =
+            link.displayName.isEmpty() ? link.infoHashV1 : link.displayName;
+        if (link.exactLength > 0)
+            map[QStringLiteral("sizeText")] = Format::size(link.exactLength);
+        return map;
+    }
+    case integration::Addable::Kind::HttpUrl:
+        map[QStringLiteral("kind")] = QStringLiteral("url");
+        map[QStringLiteral("valid")] = true;
+        map[QStringLiteral("value")] = addable.value;
+        map[QStringLiteral("name")] = urlDisplayName(addable.value);
+        return map;
+    case integration::Addable::Kind::TorrentFile: {
+        const QString token =
+            QStringLiteral("file-%1").arg(++m_nextAddableToken, 4, 10, QLatin1Char('0'));
+        QFile file(addable.value);
+        if (!file.open(QIODevice::ReadOnly)) {
+            map[QStringLiteral("kind")] = QStringLiteral("file");
+            map[QStringLiteral("value")] = addable.value;
+            map[QStringLiteral("error")] = tr("cannot read %1").arg(addable.value);
+            return map;
+        }
+        const QByteArray bytes = file.readAll();
+        file.close();
+        map[QStringLiteral("kind")] = QStringLiteral("file");
+        map[QStringLiteral("value")] = addable.value;
+        map[QStringLiteral("token")] = token;
+        map[QStringLiteral("pending")] = true;
+        map[QStringLiteral("name")] = QFileInfo(addable.value).fileName();
+        parseTorrentBytes(token, QFileInfo(addable.value).fileName(), addable.value, bytes);
+        return map;
+    }
+    case integration::Addable::Kind::None:
+        break;
+    }
+
+    map[QStringLiteral("error")] = tr("not a magnet link, a URL or a .torrent file");
+    return map;
+}
+
+QVariantMap App::torrentFileMap(const QString &token,
+                                const QString &fileName,
+                                const QString &value,
+                                const QByteArray &bytes) const
+{
+    QVariantMap map{
+        {QStringLiteral("kind"), QStringLiteral("file")},
+        {QStringLiteral("valid"), false},
+        {QStringLiteral("pending"), false},
+        {QStringLiteral("name"), fileName},
+        {QStringLiteral("sizeText"), QString()},
+        {QStringLiteral("infoHashV1"), QString()},
+        {QStringLiteral("infoHashV2"), QString()},
+        {QStringLiteral("value"), value},
+        {QStringLiteral("token"), token},
+        {QStringLiteral("error"), QString()},
+    };
+
+    QString error;
+    const TorrentFile parsed = TorrentFile::parse(bytes, &error);
+    if (!parsed.isValid()) {
+        map[QStringLiteral("error")] = error.isEmpty() ? tr("this file is not a .torrent") : error;
+        return map;
+    }
+    map[QStringLiteral("valid")] = true;
+    map[QStringLiteral("name")] = parsed.name;
+    map[QStringLiteral("sizeText")] = Format::size(parsed.totalSize);
+    map[QStringLiteral("infoHashV1")] = parsed.infoHashV1;
+    map[QStringLiteral("infoHashV2")] = parsed.infoHashV2;
+    return map;
+}
+
+void App::parseTorrentBytes(const QString &token,
+                            const QString &fileName,
+                            const QString &value,
+                            const QByteArray &bytes)
+{
+    // SHA-1 of a large .torrent is the one piece of parsing worth keeping off the GUI thread
+    // (plan §4 T4.2). QThreadPool rather than QtConcurrent so omaseed-app keeps its current
+    // link line; the hop back is an ordinary queued call onto this object's thread.
+    QPointer<App> self(this);
+    QThreadPool::globalInstance()->start([self, token, fileName, value, bytes]() {
+        if (self.isNull())
+            return;
+        QMetaObject::invokeMethod(
+            self,
+            [self, token, fileName, value, bytes]() {
+                if (self.isNull())
+                    return;
+                const QVariantMap map = self->torrentFileMap(token, fileName, value, bytes);
+                if (map.value(QStringLiteral("valid")).toBool())
+                    self->m_pendingTorrentFiles.insert(token, PendingTorrentFile{fileName, bytes});
+                Q_EMIT self->addableParsed(map);
+            },
+            Qt::QueuedConnection);
+    });
+}
+
+void App::pickTorrentFile()
+{
+    // getOpenFileContent never maps a widget window of ours: on Wayland Qt's
+    // xdgdesktopportal platform theme serves the dialog, so the picker is the portal's.
+    QFileDialog::getOpenFileContent(tr("Torrent files (*.torrent);;All files (*)"),
+                                    [this](const QString &fileName, const QByteArray &bytes) {
+                                        if (fileName.isEmpty())
+                                            return; // cancelled
+                                        const QString token = QStringLiteral("file-%1").arg(
+                                            ++m_nextAddableToken, 4, 10, QLatin1Char('0'));
+                                        parseTorrentBytes(token, fileName, fileName, bytes);
+                                    });
+}
+
+QVariantMap App::findDuplicate(const QString &hashV1, const QString &hashV2) const
+{
+    const auto lower = [](const QString &hash) { return hash.trimmed().toLower(); };
+    const QString v1 = lower(hashV1);
+    const QString v2 = lower(hashV2);
+    if (v1.isEmpty() && v2.isEmpty())
+        return QVariantMap();
+
+    TorrentModel *model = torrents();
+    for (const QString &candidate : {v1, v2}) {
+        if (!candidate.isEmpty() && model->indexOfHash(candidate) >= 0)
+            return torrentRow(candidate);
+    }
+    // A hybrid torrent is keyed by its v1 hash, so a v2-only magnet has to be looked up in
+    // the rows' own infohash fields.
+    for (int row = 0; row < model->count(); ++row) {
+        const QModelIndex index = model->index(row);
+        const QString rowV1 = lower(model->data(index, TorrentModel::InfohashV1Role).toString());
+        const QString rowV2 = lower(model->data(index, TorrentModel::InfohashV2Role).toString());
+        if ((!v1.isEmpty() && (rowV1 == v1 || rowV2 == v1)) ||
+            (!v2.isEmpty() && (rowV1 == v2 || rowV2 == v2))) {
+            return torrentRow(model->data(index, TorrentModel::HashRole).toString());
+        }
+    }
+    return QVariantMap();
+}
+
+QbtClient::AddOptions App::addOptionsFrom(const QVariantMap &request) const
+{
+    QbtClient::AddOptions options;
+
+    const QString category = request.value(QStringLiteral("category")).toString();
+    if (!category.isEmpty())
+        options.category = category;
+
+    const QStringList tags = request.value(QStringLiteral("tags")).toStringList();
+    if (!tags.isEmpty())
+        options.tags = tags;
+
+    const QString savePath = request.value(QStringLiteral("savePath")).toString();
+    if (!savePath.isEmpty())
+        options.savepath = savePath;
+
+    if (request.contains(QStringLiteral("autoTMM")))
+        options.autoTMM = request.value(QStringLiteral("autoTMM")).toBool();
+
+    if (request.value(QStringLiteral("stopped")).toBool())
+        options.stopped = true;
+    if (request.value(QStringLiteral("skipChecking")).toBool())
+        options.skipChecking = true;
+    if (request.value(QStringLiteral("sequentialDownload")).toBool())
+        options.sequentialDownload = true;
+
+    const QString layout = request.value(QStringLiteral("contentLayout")).toString();
+    if (!layout.isEmpty())
+        options.contentLayout = contentLayoutFrom(layout);
+
+    const qint64 upLimitKb = request.value(QStringLiteral("upLimitKb")).toLongLong();
+    if (upLimitKb > 0)
+        options.upLimit = upLimitKb * 1024;
+
+    return options;
+}
+
+void App::addTorrent(const QVariantMap &request)
+{
+    const QString kind = request.value(QStringLiteral("kind")).toString();
+    const QString value = request.value(QStringLiteral("value")).toString();
+    const QString token = request.value(QStringLiteral("token")).toString();
+    const QString hash = request.value(QStringLiteral("infoHashV1")).toString().toLower();
+
+    if (kind != QLatin1String("magnet") && kind != QLatin1String("url") &&
+        kind != QLatin1String("file")) {
+        Q_EMIT addFinished(false, tr("nothing to add"), QString());
+        return;
+    }
+
+    if (m_demoMode) {
+        qInfo().noquote() << QStringLiteral("demo: would add %1 (%2)").arg(value, kind);
+        Q_EMIT addFinished(true, QString(), hash);
+        return;
+    }
+    if (!m_hasServer) {
+        Q_EMIT addFinished(false, tr("no server is configured"), QString());
+        return;
+    }
+
+    const QbtClient::AddOptions options = addOptionsFrom(request);
+
+    QbtReply<QByteArray> *reply = nullptr;
+    if (kind == QLatin1String("file")) {
+        const PendingTorrentFile file = m_pendingTorrentFiles.value(token);
+        if (file.bytes.isEmpty()) {
+            Q_EMIT addFinished(false, tr("the .torrent was not read; pick it again"), QString());
+            return;
+        }
+        reply = m_client->torrentsAddFile(file.fileName, file.bytes, options);
+    } else {
+        reply = m_client->torrentsAddUrls(QStringList{value}, options);
+    }
+
+    reply->then(this, [this, hash, token](const QbtResult<QByteArray> &result) {
+        if (result.isError()) {
+            qWarning().noquote() << QStringLiteral("add failed: %1").arg(result.error().toString());
+            Q_EMIT addFinished(false, result.error().message(), QString());
+            return;
+        }
+        // qBittorrent answers "Fails." with 200 when it refuses the payload outright.
+        const QString body = QString::fromUtf8(result.value()).trimmed();
+        if (body.compare(QStringLiteral("Fails."), Qt::CaseInsensitive) == 0) {
+            Q_EMIT addFinished(false, tr("the server refused this torrent"), QString());
+            return;
+        }
+        if (!token.isEmpty())
+            m_pendingTorrentFiles.remove(token);
+        watchForAddedHash(hash);
+        Q_EMIT addFinished(true, QString(), hash);
+    });
+}
+
+void App::watchForAddedHash(const QString &hash)
+{
+    if (hash.isEmpty())
+        return;
+
+    QObject::disconnect(m_addWatch);
+    m_awaitedAddHash = hash;
+
+    if (!m_addWatchTimer) {
+        m_addWatchTimer = new QTimer(this);
+        m_addWatchTimer->setSingleShot(true);
+        m_addWatchTimer->setInterval(10000);
+        connect(m_addWatchTimer, &QTimer::timeout, this, [this]() {
+            m_awaitedAddHash.clear();
+            QObject::disconnect(m_addWatch);
+        });
+    }
+
+    m_addWatch = connect(torrents(), &TorrentModel::updated, this, [this]() {
+        if (m_awaitedAddHash.isEmpty() || torrents()->indexOfHash(m_awaitedAddHash) < 0)
+            return;
+        const QString found = m_awaitedAddHash;
+        m_awaitedAddHash.clear();
+        m_addWatchTimer->stop();
+        QObject::disconnect(m_addWatch);
+        Q_EMIT showTorrentRequested(found);
+    });
+    m_addWatchTimer->start();
+}
+
+QString App::demoAddText() const
+{
+    return m_demoMode ? env("OMASEED_DEMO_ADD") : QString();
+}
+
+void App::openUris(const QStringList &uris)
+{
+    if (uris.isEmpty())
+        return;
+    Q_EMIT addUrisRequested(uris);
+}
+// --- end T4.2 -----------------------------------------------------------------------------------
 
 } // namespace omaseed::app

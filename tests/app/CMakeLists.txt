@@ -9,3 +9,9 @@ omaseed_add_test(tst_app_notifications
     SOURCES tst_app_notifications.cpp ../integration/FakeNotificationServer.hpp
     LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::DBus
 )
+
+omaseed_add_test(tst_app_add
+    SOURCES tst_app_add.cpp
+    LIBRARIES omaseed::app omaseed::core omaseed::integration
+    DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
+)

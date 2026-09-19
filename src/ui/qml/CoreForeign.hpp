@@ -225,3 +225,28 @@ Q_NAMESPACE
 QML_FOREIGN_NAMESPACE(omaseed::core)
 QML_NAMED_ELEMENT(Torrent)
 } // namespace TorrentEnumsForeign
+
+// ---------------------------------------------------------------------------------------
+// T4.2, the add flow (spec §3 Fig. 5 and Fig. 10). Nothing new is registered here; these are
+// the shapes the `App` singleton's add methods pass through QML, documented next to the
+// model roles because `Views/AddSheet.qml` reads them the same way a delegate reads a role.
+//
+// `App.parseAddable(text)` -> QVariantMap, and the same map again through
+// `App.addableParsed(map)` when a `.torrent` finishes hashing on its worker thread:
+//   kind         string   "magnet" | "url" | "file" | "none"
+//   valid        bool     false when nothing usable was found (see `error`)
+//   pending      bool     true while a `.torrent` is still being read and hashed
+//   name         string   the magnet's `dn`, the torrent's name, a URL's last path segment
+//   sizeText     string   "2.34 GB"; empty when the source does not say
+//   infoHashV1   string   lowercase hex; infoHashV2 string, for a v2/hybrid torrent
+//   value        string   what goes to the server (the magnet, the URL, the file path)
+//   token        string   the key `App.addTorrent` uses to find a picked file's bytes
+//   error        string   why `valid` is false
+//
+// `App.addTorrent(request)` takes that map plus the sheet's rows: `category` string, `tags`
+// list<string>, `savePath` string, `autoTMM` bool, `contentLayout` "Original" | "Subfolder" |
+// "NoSubfolder", `upLimitKb` int (0 = unlimited), `sequentialDownload`, `skipChecking` and
+// `stopped` bools. It answers with `App.addFinished(ok, message, hash)`.
+//
+// `App.findDuplicate(hashV1, hashV2)` -> `App.torrentRow`'s map for the torrent already in
+// the library, or an empty map.
