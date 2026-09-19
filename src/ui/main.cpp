@@ -42,10 +42,15 @@ namespace {
 const QStringList &reservedDemoNames()
 {
     static const QStringList names{
+        QStringLiteral("details"),
         QStringLiteral("gallery"),
         QStringLiteral("notify"),
+        QStringLiteral("overlays"),
+        QStringLiteral("rail"),
+        QStringLiteral("states"),
         QStringLiteral("sync"),
         QStringLiteral("table"),
+        QStringLiteral("torrents"),
         QStringLiteral("tray"),
     };
     return names;
@@ -430,6 +435,9 @@ int main(int argc, char *argv[])
     // of module `Omaseed` (src/ui/qml/AppForeign.hpp) from here on.
     omaseed::app::App omaseedApp;
     omaseed::app::App::setDefaultInstance(&omaseedApp);
+    // The Appearance pane's "follow the Omarchy theme" and base-size override live in
+    // state.json; App applies them to the reader here, before the first frame (T4.5).
+    omaseedApp.attachTheme(&theme);
     if (windowDemo)
         omaseedApp.startDemo(demoRows);
     else

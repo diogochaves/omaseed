@@ -225,3 +225,30 @@ Q_NAMESPACE
 QML_FOREIGN_NAMESPACE(omaseed::core)
 QML_NAMED_ELEMENT(Torrent)
 } // namespace TorrentEnumsForeign
+
+// --- T4.5: the settings modal's server list -----------------------------------------------
+// `App.serverList`, a `QAbstractListModel` over `App.servers` (ServerStore). Role names a
+// delegate over it gets:
+//
+//   id              string  the stable server id, the key of everything (secrets included)
+//   name            string  "home"
+//   url             string  "http://127.0.0.1:8080"
+//   urlText         string  "127.0.0.1:8080" — host:port for the dim line
+//   authMode        string  "apiKey" | "cookie" | "none"
+//   authModeText    string  "API key" | "cookie" | "none"
+//   username        string  "" unless authMode is "cookie"
+//   isDefault       bool    the store's defaultId points here
+//   pathMapText     string  "/downloads → /data/torrents", "" when there is none
+//   reachable       bool    the last App.testServer() verdict; false until one ran
+//   reachableText   string  "yes · 3 ms" / "no · connection refused"; "" until one ran
+//   torrentCount    int     -1 until a test counted them
+//   lastError       string  the last failed test's message
+#include "core/ServerListModel.hpp"
+
+struct ServerListModelForeign
+{
+    Q_GADGET
+    QML_FOREIGN(omaseed::core::ServerListModel)
+    QML_NAMED_ELEMENT(ServerListModel)
+    QML_UNCREATABLE("ServerListModel is App.serverList; it is not created from QML.")
+};
