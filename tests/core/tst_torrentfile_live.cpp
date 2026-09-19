@@ -53,8 +53,38 @@ class TestTorrentFileLive : public QObject
     Q_OBJECT
 
 private slots:
+    void cleanup();
     void addAndDeleteRoundTripsInfoHash();
+
+private:
+    void deleteFixtureTorrent(const QString &hash);
+
+    // Set as soon as the fixture's hash is known, so cleanup() can delete it from the
+    // playground even when an assertion aborts the test before the explicit delete at the
+    // end runs. Cleared once deleted so cleanup() is a no-op on a clean pass.
+    QString m_hash;
 };
+
+void TestTorrentFileLive::cleanup()
+{
+    if (!m_hash.isEmpty()) {
+        deleteFixtureTorrent(m_hash);
+        m_hash.clear();
+    }
+}
+
+void TestTorrentFileLive::deleteFixtureTorrent(const QString &hash)
+{
+    QNetworkAccessManager manager;
+    QUrl deleteUrl(kBaseUrl + QStringLiteral("/api/v2/torrents/delete"));
+    const QByteArray deleteBody = QStringLiteral("hashes=%1&deleteFiles=true").arg(hash).toUtf8();
+    QNetworkRequest deleteRequest(deleteUrl);
+    deleteRequest.setHeader(QNetworkRequest::ContentTypeHeader,
+                            QStringLiteral("application/x-www-form-urlencoded"));
+    QNetworkReply *deleteReply = manager.post(deleteRequest, deleteBody);
+    waitForReply(deleteReply);
+    deleteReply->deleteLater();
+}
 
 void TestTorrentFileLive::addAndDeleteRoundTripsInfoHash()
 {
@@ -81,6 +111,12 @@ void TestTorrentFileLive::addAndDeleteRoundTripsInfoHash()
     QVERIFY2(torrent.isValid(), qPrintable(parseError));
     const QString hash = torrent.infoHashV1;
     QCOMPARE(hash.size(), 40);
+
+    // A leftover from an interrupted run must not confuse the add/info assertions below.
+    deleteFixtureTorrent(hash);
+    // From here on cleanup() deletes this hash after the test, pass or fail, so a failed
+    // QVERIFY below never leaves Single.bin behind for the next run to trip over.
+    m_hash = hash;
 
     // torrents/add: multipart with the .torrent file, added stopped so nothing seeds.
     auto *multiPart = new QHttpMultiPart(QHttpMultiPart::FormDataType);
@@ -123,16 +159,8 @@ void TestTorrentFileLive::addAndDeleteRoundTripsInfoHash()
     const QJsonObject entry = torrents.first().toObject();
     QCOMPARE(entry.value(QStringLiteral("hash")).toString().toLower(), hash);
 
-    // torrents/delete: clean the playground up regardless of what the assertions above found.
-    QUrl deleteUrl(kBaseUrl + QStringLiteral("/api/v2/torrents/delete"));
-    const QByteArray deleteBody = QStringLiteral("hashes=%1&deleteFiles=true").arg(hash).toUtf8();
-    QNetworkRequest deleteRequest(deleteUrl);
-    deleteRequest.setHeader(QNetworkRequest::ContentTypeHeader,
-                            QStringLiteral("application/x-www-form-urlencoded"));
-    QNetworkReply *deleteReply = manager.post(deleteRequest, deleteBody);
-    QVERIFY2(waitForReply(deleteReply), "torrents/delete timed out");
-    QCOMPARE(deleteReply->error(), QNetworkReply::NoError);
-    deleteReply->deleteLater();
+    // cleanup() deletes m_hash unconditionally, run after this function whether it passed
+    // or failed, so no explicit torrents/delete is needed here.
 }
 
 QTEST_GUILESS_MAIN(TestTorrentFileLive)

@@ -5,15 +5,23 @@ qt_add_library(omaseed-views STATIC)
 qt_add_qml_module(omaseed-views
     URI Omaseed.Views
     VERSION 1.0
+    SOURCES
+        DemoEnvForeign.hpp
     QML_FILES
         DemoDetails.qml
         DemoRail.qml
+        DemoStates.qml
         DemoTorrents.qml
         Details.qml
         DetailsFilesTab.qml
         DetailsGeneralTab.qml
         DetailsPeersTab.qml
         DetailsTrackersTab.qml
+        DimmedOverlay.qml
+        DisconnectedBanner.qml
+        EmptyState.qml
+        FilteredEmpty.qml
+        LoadingState.qml
         Rail.qml
         RailGroup.qml
         ThemeGallery.qml
