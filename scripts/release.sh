@@ -181,19 +181,8 @@ else
     log "packaging/arch/PKGBUILD not present yet (T5.1), skipping"
 fi
 
-PACKAGE_JSON_PATH="$ROOT/packaging/omarchy/package.json"
-if [[ -f "$PACKAGE_JSON_PATH" ]]; then
-    if command -v jq >/dev/null 2>&1; then
-        log "Rewriting the checksum in packaging/omarchy/package.json"
-        JQ_TMP="$(mktemp)"
-        jq --arg sum "$TARBALL_SHA" '.sha256 = $sum' "$PACKAGE_JSON_PATH" > "$JQ_TMP"
-        mv "$JQ_TMP" "$PACKAGE_JSON_PATH"
-    else
-        log "jq not installed, leaving packaging/omarchy/package.json alone"
-    fi
-else
-    log "packaging/omarchy/package.json not present yet (T5.1), skipping"
-fi
+# packaging/omarchy/package.json follows the live omarchy-pkgs schema (docs/QUESTIONS.md Q18):
+# the repo's own sync derives the checksum from the PKGBUILD, so nothing is written there.
 
 log "Writing release notes"
 {
