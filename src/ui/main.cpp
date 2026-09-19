@@ -23,6 +23,7 @@
 #include <QGuiApplication>
 #include <QProcessEnvironment>
 #include <QQmlApplicationEngine>
+#include <QQmlComponent>
 #include <QQuickWindow>
 #include <QSet>
 #include <QStringList>
@@ -354,15 +355,14 @@ int main(int argc, char *argv[])
     if (demo == QStringLiteral("table") && headless)
         return runHeadlessTableDemo(demoRows);
 
-    // What is left goes on to the window: `gallery` swaps the QML root, `table` fills the
-    // models with fictional data, anything else is still only a name.
-    if (!demo.isEmpty() && demo != QStringLiteral("gallery") && demo != QStringLiteral("table")) {
-        qInfo().noquote() << QStringLiteral("demo %1 not implemented yet").arg(demo);
-        if (!reservedDemoNames().contains(demo)) {
-            qInfo().noquote() << QStringLiteral("(%1 is not one of the reserved names: %2)")
-                                     .arg(demo, reservedDemoNames().join(QStringLiteral(", ")));
-        }
-    }
+    // What is left goes on to the window. `gallery` swaps the QML root for the theme gallery.
+    // Every other name fills the models with fictional data (`--rows`) and then looks for a
+    // host view `Demo<Name>` in Omaseed.Views (`--demo rail` -> DemoRail, `--demo details` ->
+    // DemoDetails); when there is none, Main.qml is the host (`--demo table`).
+    const bool windowDemo = !demo.isEmpty() && demo != QStringLiteral("gallery");
+    QString demoHost;
+    if (windowDemo && demo != QStringLiteral("table"))
+        demoHost = QStringLiteral("Demo") + demo.at(0).toUpper() + demo.mid(1);
 
     if (headless)
         qInfo().noquote() << QStringLiteral("headless is implemented for --demo table only");
@@ -424,7 +424,7 @@ int main(int argc, char *argv[])
     // of module `Omaseed` (src/ui/qml/AppForeign.hpp) from here on.
     omaseed::app::App omaseedApp;
     omaseed::app::App::setDefaultInstance(&omaseedApp);
-    if (demo == QStringLiteral("table"))
+    if (windowDemo)
         omaseedApp.startDemo(demoRows);
     else
         omaseedApp.start();
@@ -438,8 +438,16 @@ int main(int argc, char *argv[])
         Qt::QueuedConnection);
     if (demo == QStringLiteral("gallery"))
         engine.loadFromModule("Omaseed.Views", "ThemeGallery");
-    else
+    else if (!demoHost.isEmpty() &&
+             QQmlComponent(&engine, "Omaseed.Views", demoHost).status() == QQmlComponent::Ready)
+        engine.loadFromModule("Omaseed.Views", demoHost);
+    else {
+        if (!demoHost.isEmpty())
+            qInfo().noquote() << QStringLiteral(
+                                     "demo %1: no Omaseed.Views/%2 host yet, showing Main")
+                                     .arg(demo, demoHost);
         engine.loadFromModule("Omaseed", "Main");
+    }
     if (engine.rootObjects().isEmpty())
         return 1;
     window = qobject_cast<QWindow *>(engine.rootObjects().constFirst());
