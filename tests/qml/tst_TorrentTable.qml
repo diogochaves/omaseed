@@ -133,17 +133,17 @@ TestCase {
         compare(header("upspeed").text, Glyphs.arrowUp);
         compare(header("eta").text, "ETA");
 
-        // `grid-template-columns: minmax(0,1fr) 72px 118px 104px 62px 84px 84px 62px`.
+        // `grid-template-columns: minmax(0,1fr) 72px 118px 104px 62px 84px 84px 62px`, status widened to 116 (Q17).
         compare(header("size").width, Theme.space(72));
         compare(header("progress").width, Theme.space(118));
-        compare(header("status").width, Theme.space(104));
+        compare(header("status").width, Theme.space(116));
         compare(header("seedsPeers").width, Theme.space(62));
         compare(header("dlspeed").width, Theme.space(84));
         compare(header("upspeed").width, Theme.space(84));
         compare(header("eta").width, Theme.space(62));
         // The Name column takes the rest. Each column is rounded on its own, so the sum is
         // of the rounded widths, not `Theme.space()` of the sum.
-        const fixed = testCase.fixedWidth([72, 118, 104, 62, 84, 84, 62]);
+        const fixed = testCase.fixedWidth([72, 118, 116, 62, 84, 84, 62]);
         compare(header("name").width, table.width - fixed);
     }
 
