@@ -220,6 +220,41 @@ TestCase {
         compare(view.deleteConfirmPanel.body.children[0].checked, true);
     }
 
+    // ---- one Connections block, and the jump palette's `tab` (T4.8) --------------------------
+    function test_show_actions_requested_opens_the_menu_on_that_row() {
+        const hash = App.filtered.hashAt(3);
+        verify(hash.length > 0);
+        verify(view.table.cursorHash !== hash);
+
+        // What `JumpPalette`'s `tab` raises once it has closed itself.
+        App.showActionsRequested(hash);
+
+        compare(view.table.cursorHash, hash, "the cursor did not land on the row");
+        compare(view.actionsMenuPanel.opened, true, "the actions menu did not open");
+        // Fig. 11's first row reads "start" or "stop" for that very torrent.
+        compare(view.actionsMenuPanel.cursorStopped, App.torrentRow(hash).stopped === true);
+
+        keyClick(Qt.Key_Escape);
+        compare(view.actionsMenuPanel.opened, false);
+        verify(view.table.activeFocus, "the table did not get the keyboard back");
+    }
+
+    function test_show_torrent_requested_moves_the_cursor_once() {
+        const hash = App.filtered.hashAt(2);
+        App.showTorrentRequested(hash);
+        compare(view.table.cursorHash, hash);
+    }
+
+    function test_show_torrent_requested_clears_a_filter_that_hides_the_row() {
+        const hash = App.filtered.hashAt(2);
+        App.filtered.text = "archlinux";
+        verify(App.filtered.rowOfHash(hash) < 0 || App.filtered.hashAt(0) === hash);
+
+        App.showTorrentRequested(hash);
+        compare(App.filtered.text, "");
+        compare(view.table.cursorHash, hash);
+    }
+
     // ---- the add sheet's `…` chips open T4.4's palettes over it (T4.8) ------------------------
     function test_the_category_chip_opens_the_palette_over_the_sheet_and_comes_back() {
         App.addRequested();

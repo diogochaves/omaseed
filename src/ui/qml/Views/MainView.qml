@@ -439,6 +439,63 @@ Item {
         target: App.torrents
     }
 
+    // Everything `App` asks the window for, in one place. Each Phase 4 task had declared its
+    // own `Connections { target: App }`; two of them handled `showTorrentRequested`, so the
+    // table's cursor moved twice for one notification click. One block also makes it plain
+    // which signal is answered where.
+    Connections {
+        /// `a`, the hero's `+`, the tray.
+        function onAddRequested(): void {
+            addSheet.openBlank();
+        }
+
+        /// The browser's `magnet:` / `.torrent` hand-off (T1.4's second instance).
+        function onAddUrisRequested(uris: list<string>): void {
+            addSheet.openList(uris, "browser");
+        }
+
+        /// `,`, the hero's gear, the tray's `settings…`, the disconnected banner.
+        function onOpenSettings(): void {
+            settingsModal.open();
+        }
+
+        /// T4.3's seam: an action the server refused, on the footer for a few seconds.
+        function onActionFailed(action: string, message: string): void {
+            root.flashFooterNote(qsTr("%1 failed: %2").arg(action).arg(message));
+        }
+
+        /// T4.7's "show" notification action, and the duplicate sheet's `show it`.
+        function onShowTorrentRequested(hash: string): void {
+            root.showTorrent(hash);
+        }
+
+        /// T4.7's tracker-error notification.
+        function onShowTrackersRequested(hash: string): void {
+            if (!details.collapsed)
+                details.activateTab(2); // Trackers
+        }
+
+        /// The jump palette's `tab` (Fig. 12's "tab actions"): jump there, then open Fig. 11
+        /// on that row. The palette has already moved the cursor and closed itself.
+        function onShowActionsRequested(hash: string): void {
+            root.showTorrent(hash);
+            if (root.cursorHash === hash)
+                table.requestActions();
+        }
+
+        /// `C` / the menu's category row.
+        function onCategoryPickerRequested(hashes: list<string>): void {
+            categoryPalette.openFor(hashes);
+        }
+
+        /// `t` / the menu's tags row.
+        function onTagPickerRequested(hashes: list<string>): void {
+            tagPalette.openFor(hashes);
+        }
+
+        target: App
+    }
+
     // hero (spec `.hero`)
     Hero {
         id: hero
@@ -790,29 +847,6 @@ Item {
         onTriggered: root.footerNote = ""
     }
 
-    Connections {
-        function onActionFailed(action, message) {
-            root.flashFooterNote(qsTr("%1 failed: %2").arg(action).arg(message));
-        }
-        function onShowTorrentRequested(hash) {
-            let row = App.filtered.rowOfHash(hash);
-            if (row < 0) {
-                root.clearFilter(); // the row may be hidden behind the current filter
-                row = App.filtered.rowOfHash(hash);
-            }
-            if (row >= 0) {
-                table.moveCursorTo(row);
-                table.forceActiveFocus();
-            }
-        }
-        function onShowTrackersRequested(hash) {
-            if (!details.collapsed)
-                details.activateTab(2); // Trackers
-        }
-
-        target: App
-    }
-
     Row {
         id: footerNoteRow
 
@@ -919,24 +953,6 @@ Item {
         anchors.fill: parent
         table: table
         z: 14
-    }
-
-    Connections {
-        function onCategoryPickerRequested(hashes) {
-            categoryPalette.openFor(hashes);
-        }
-
-        function onTagPickerRequested(hashes) {
-            tagPalette.openFor(hashes);
-        }
-
-        // Until T4.3 lands its own actions menu, the jump palette's `tab` has nowhere real
-        // to go; this logs so the seam is visibly wired rather than silently dropped.
-        function onShowActionsRequested(hash) {
-            console.log("actions:", hash);
-        }
-
-        target: App
     }
 
     Connections {
@@ -1057,30 +1073,20 @@ Item {
     }
 
     /// Move the table's cursor to `hash` and let the details pane follow. Used by the add
-    /// flow once a new torrent turns up, and by T4.7's "show" notification action.
+    /// flow once a new torrent turns up, and by T4.7's "show" notification action, which may
+    /// well name a row the filter of the moment hides.
     function showTorrent(hash: string): void {
-        const row = App.filtered.rowOfHash(hash);
+        let row = App.filtered.rowOfHash(hash);
+        if (row < 0) {
+            root.clearFilter();
+            row = App.filtered.rowOfHash(hash);
+        }
         if (row < 0)
             return;
         table.moveCursorTo(row);
         table.forceActiveFocus();
     }
 
-    Connections {
-        function onAddRequested(): void {
-            addSheet.openBlank();
-        }
-
-        function onAddUrisRequested(uris: list<string>): void {
-            addSheet.openList(uris, "browser");
-        }
-
-        function onShowTorrentRequested(hash: string): void {
-            root.showTorrent(hash);
-        }
-
-        target: App
-    }
     // --- end T4.2 ---
 
     // --- T4.5: settings ---
@@ -1094,14 +1100,6 @@ Item {
         z: 11
 
         onClosed: table.forceActiveFocus()
-    }
-
-    Connections {
-        function onOpenSettings(): void {
-            settingsModal.open();
-        }
-
-        target: App
     }
 
     // The Appearance pane's transparency override; 0 keeps the default 0.90 of QUESTIONS Q1.
