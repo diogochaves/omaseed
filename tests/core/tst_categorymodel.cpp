@@ -1,0 +1,122 @@
+// CategoryModel: the `categories` map of sync/maindata, its partial merges and
+// `categories_removed`, kept sorted for the rail (spec §1) and the picker (spec §4 Fig. 13).
+
+#include "core/CategoryModel.hpp"
+
+#include <QJsonArray>
+#include <QJsonObject>
+#include <QSignalSpy>
+#include <QTest>
+
+using namespace omaseed::core;
+
+namespace {
+
+QJsonObject category(const QString &name, const QString &savePath)
+{
+    return QJsonObject{{QStringLiteral("name"), name}, {QStringLiteral("savePath"), savePath}};
+}
+
+} // namespace
+
+class TestCategoryModel : public QObject
+{
+    Q_OBJECT
+
+private slots:
+    void fullUpdateSortsByName();
+    void rolesCarryNameAndSavePath();
+    void partialAddsAndRemoves();
+    void partialSavePathChangeKeepsTheRows();
+    void clearEmptiesIt();
+};
+
+void TestCategoryModel::fullUpdateSortsByName()
+{
+    CategoryModel model;
+    QSignalSpy countSpy(&model, &CategoryModel::countChanged);
+
+    model.applyFullUpdate(QJsonObject{
+        {QStringLiteral("tv"), category(QStringLiteral("tv"), QStringLiteral("/data/tv"))},
+        {QStringLiteral("Linux"), category(QStringLiteral("Linux"), QStringLiteral("/data/linux"))},
+        {QStringLiteral("movies"),
+         category(QStringLiteral("movies"), QStringLiteral("/data/movies"))},
+    });
+
+    QCOMPARE(model.count(), 3);
+    QCOMPARE(model.names(),
+             QStringList({QStringLiteral("Linux"),
+                          QStringLiteral("movies"),
+                          QStringLiteral("tv")})); // case-insensitive order
+    QCOMPARE(countSpy.count(), 1);
+}
+
+void TestCategoryModel::rolesCarryNameAndSavePath()
+{
+    CategoryModel model;
+    model.applyFullUpdate(
+        QJsonObject{{QStringLiteral("linux"),
+                     category(QStringLiteral("linux"), QStringLiteral("/data/linux"))}});
+
+    const QModelIndex first = model.index(0);
+    QCOMPARE(model.data(first, CategoryModel::NameRole).toString(), QStringLiteral("linux"));
+    QCOMPARE(model.data(first, CategoryModel::SavePathRole).toString(),
+             QStringLiteral("/data/linux"));
+    QCOMPARE(model.roleNames().value(CategoryModel::NameRole), QByteArray("name"));
+    QCOMPARE(model.roleNames().value(CategoryModel::SavePathRole), QByteArray("savePath"));
+    QCOMPARE(model.savePathOf(QStringLiteral("linux")), QStringLiteral("/data/linux"));
+    QCOMPARE(model.savePathOf(QStringLiteral("nope")), QString());
+}
+
+void TestCategoryModel::partialAddsAndRemoves()
+{
+    CategoryModel model;
+    model.applyFullUpdate(
+        QJsonObject{{QStringLiteral("fixtures"), category(QStringLiteral("fixtures"), QString())},
+                    {QStringLiteral("linux"),
+                     category(QStringLiteral("linux"), QStringLiteral("/tmp/linux"))}});
+
+    model.applyPartial(QJsonObject{{QStringLiteral("music"),
+                                    category(QStringLiteral("music"), QStringLiteral("/data/m"))}},
+                       QJsonArray({QStringLiteral("linux")}));
+
+    QCOMPARE(model.names(), QStringList({QStringLiteral("fixtures"), QStringLiteral("music")}));
+
+    // An empty diff must not disturb anything.
+    QSignalSpy countSpy(&model, &CategoryModel::countChanged);
+    model.applyPartial(QJsonObject(), QJsonArray());
+    QCOMPARE(countSpy.count(), 0);
+    QCOMPARE(model.count(), 2);
+}
+
+void TestCategoryModel::partialSavePathChangeKeepsTheRows()
+{
+    CategoryModel model;
+    model.applyFullUpdate(QJsonObject{
+        {QStringLiteral("linux"), category(QStringLiteral("linux"), QStringLiteral("/old"))}});
+
+    QSignalSpy changed(&model, &QAbstractItemModel::dataChanged);
+    QSignalSpy reset(&model, &QAbstractItemModel::modelReset);
+    model.applyPartial(QJsonObject{{QStringLiteral("linux"),
+                                    category(QStringLiteral("linux"), QStringLiteral("/new"))}},
+                       QJsonArray());
+
+    QCOMPARE(model.savePathOf(QStringLiteral("linux")), QStringLiteral("/new"));
+    QCOMPARE(changed.count(), 1);
+    QCOMPARE(reset.count(), 0);
+    QCOMPARE(changed.first().at(2).value<QList<int>>(),
+             QList<int>({int(CategoryModel::SavePathRole)}));
+}
+
+void TestCategoryModel::clearEmptiesIt()
+{
+    CategoryModel model;
+    model.applyFullUpdate(
+        QJsonObject{{QStringLiteral("linux"), category(QStringLiteral("linux"), QString())}});
+    model.clear();
+    QCOMPARE(model.count(), 0);
+    QCOMPARE(model.names(), QStringList());
+}
+
+QTEST_MAIN(TestCategoryModel)
+#include "tst_categorymodel.moc"

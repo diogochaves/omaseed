@@ -1,0 +1,10 @@
+{
+  "rid": 7,
+  "torrents": {
+    "d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1": {
+      "has_tracker_error": true,
+      "state": "stalledDL",
+      "tracker": ""
+    }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "rid": 4,
+  "torrents": {
+    "d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1": {
+      "priority": 3
+    }
+  },
+  "torrents_removed": [
+    "c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00"
+  ]
+}

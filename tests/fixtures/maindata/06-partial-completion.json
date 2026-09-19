@@ -1,0 +1,19 @@
+{
+  "rid": 6,
+  "torrents": {
+    "4a4e3b1d2d0c1a8d1e6a9f0b3c2d4e5f6a7b8c9d": {
+      "amount_left": 0,
+      "completed": 1404304589,
+      "completion_on": 1789834338,
+      "content_path": "/home/chaves/.local/share/omaseed-test/downloads/fixture-one",
+      "dlspeed": 0,
+      "downloaded": 1412693197,
+      "eta": 8640000,
+      "progress": 1,
+      "size": 1404304589,
+      "state": "uploading",
+      "total_size": 1404304589,
+      "upspeed": 262144
+    }
+  }
+}
