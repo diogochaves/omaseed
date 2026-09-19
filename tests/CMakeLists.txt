@@ -19,4 +19,5 @@ endfunction()
 
 add_subdirectory(core)
 add_subdirectory(integration)
+add_subdirectory(manual)
 add_subdirectory(qml)
