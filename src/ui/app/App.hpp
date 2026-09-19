@@ -92,6 +92,9 @@ public:
     /// Fills the models with `rows` fictional torrents (DemoData) and turns `demoMode` on.
     /// No client is configured and the engine stays stopped.
     void startDemo(int rows);
+    /// The same from QML, for the qmltestrunner tests of the views: the engine-owned fallback
+    /// `App` of a test has no server and no data until a test calls `App.loadDemo(16)`.
+    Q_INVOKABLE void loadDemo(int rows) { startDemo(rows); }
     /// The demo path for anything that has its own JSON: tests build a maindata object,
     /// change a row, and apply it here.
     void applyDemoData(const QJsonObject &maindata);
