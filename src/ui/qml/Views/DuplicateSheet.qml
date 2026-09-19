@@ -35,12 +35,9 @@ Sheet {
     /// Open on one `App.torrentRow` map.
     function openFor(duplicate: var): void {
     sheet.row = duplicate;
+    // There is no form row here, so `open()` puts the keyboard on the primary action by
+    // itself (Kit/Sheet, since T4.8): Fig. 10's default is `show it`.
     sheet.open();
-    // There is no form row here, so `open()` would leave the keyboard on `close`. Fig. 10's
-    // default is the primary action, which is the last button.
-    const buttons = sheet.actionButtons();
-    if (buttons.length > 0)
-    sheet._focus(buttons[buttons.length - 1]);
 }
 
     actions: [

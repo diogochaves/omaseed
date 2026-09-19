@@ -35,9 +35,10 @@ Sheet {
     property string errorText: ""
     /// False once the save path has been typed into: the add then carries `autoTMM: false`.
     property bool autoTMM: true
-    /// The `…` chips revealed their fallback field (T4.4 replaces them with the palettes).
-    property bool categoryOther: false
-    property bool tagsOther: false
+    /// Names the category/tag palette answered with that the server does not list (yet):
+    /// they join the chip rows so the choice is visible in the sheet.
+    property var extraCategories: []
+    property var extraTags: []
 
     /// The form, exposed for the host and the tests.
     readonly property alias sourceField: sourceField
@@ -54,18 +55,21 @@ Sheet {
     /// when the server's category or tag list changes.
     readonly property var categoryNames: {
         const known = App.categories.count;
-        return known > 0 ? App.categories.names() : [];
+        const base = known > 0 ? App.categories.names() : [];
+        return base.concat(sheet.extraCategories.filter(name => base.indexOf(name) < 0));
     }
     readonly property var tagNames: {
         const known = App.tags.count;
-        return known > 0 ? App.tags.tags() : [];
+        const base = known > 0 ? App.tags.tags() : [];
+        return base.concat(sheet.extraTags.filter(name => base.indexOf(name) < 0));
     }
 
     /// `add` / `add stopped`: the map `App.addTorrent` takes.
     signal addRequested(var request)
     /// This infohash is already on the server: `row` is `App.torrentRow`'s map. Fig. 10.
     signal duplicateFound(var row)
-    /// The `…` chips, until T4.4's palettes exist.
+    /// The `…` chips: the host opens T4.4's palette in its `openForChoice` mode and hands the
+    /// answer back through `applyChosenCategory` / `applyChosenTags`.
     signal categoryPaletteRequested
     signal tagPaletteRequested
 
@@ -180,24 +184,37 @@ Sheet {
     return map;
 }
 
-    /// The chip, or what was typed into the `…` fallback field when no chip is on.
+    /// The chip that is on, or "" for no category.
     function chosenCategory(): string {
-        if (categoryChips.current.length > 0)
         return categoryChips.current;
-        return categoryOtherField.text.trim();
     }
 
-        /// The chips plus whatever the `…` fallback field lists, comma separated.
+        /// The chips that are on.
         function chosenTags(): var {
-                                   const out = tagChips.selected.slice();
-                                   const typed = tagsOtherField.text.split(",");
-                                   for (let i = 0; i < typed.length; ++i) {
-                                       const tag = typed[i].trim();
-                                       if (tag.length > 0 && out.indexOf(tag) < 0)
-                                       out.push(tag);
-                                   }
-                                   return out;
+                                   return tagChips.selected.slice();
                                }
+
+        /// The category palette's answer (`chosen(name)`): pick it, and keep it as a chip
+        /// when the server's own list does not carry it yet.
+        function applyChosenCategory(name: string): void {
+        if (name.length > 0 && sheet.categoryNames.indexOf(name) < 0)
+        sheet.extraCategories = sheet.extraCategories.concat([name]);
+        categoryChips.current = name;
+        categoryChips.cursorIndex = Math.max(0, sheet.categoryNames.indexOf(name));
+        sheet._applyCategorySavePath();
+    }
+
+        /// The tag palette's answer (`chosen(tags)`).
+        function applyChosenTags(tags: var): void {
+                                                  const extra = [];
+                                                  for (const tag of tags) {
+                                                      if (sheet.tagNames.indexOf(tag) < 0)
+                                                      extra.push(tag);
+                                                  }
+                                                  if (extra.length > 0)
+                                                  sheet.extraTags = sheet.extraTags.concat(extra);
+                                                  tagChips.selected = tags.slice();
+                                              }
 
         /// "Original" | "Subfolder" | "NoSubfolder", whatever the chips are labelled.
         function layoutValue(): string {
@@ -255,6 +272,8 @@ Sheet {
                 sheet._savePathEdited = false;
                 sheet._pendingToken = "";
                 sheet._awaitingPick = false;
+                sheet.extraCategories = [];
+                sheet.extraTags = [];
                 categoryChips.current = "";
                 categoryChips.cursorIndex = 0;
                 tagChips.selected = [];
@@ -419,23 +438,7 @@ Sheet {
                                 options: sheet.categoryNames
 
                                 onChanged: sheet._applyCategorySavePath()
-                                onMoreRequested: {
-                                    sheet.categoryOther = true;
-                                    categoryOtherField.focusInput();
-                                    sheet.categoryPaletteRequested();
-                                }
-                            }
-
-                            // The `…` chip's stand-in until T4.4's category palette exists: a
-                            // plain field for a category the server does not list yet.
-                            Field {
-                                id: categoryOtherField
-
-                                Layout.fillWidth: true
-                                placeholder: qsTr("another category")
-                                visible: sheet.categoryOther
-
-                                onAccepted: sheet.triggerPrimary()
+                                onMoreRequested: sheet.categoryPaletteRequested()
                             }
                         }
 
@@ -452,22 +455,7 @@ Sheet {
                                 multiple: true
                                 options: sheet.tagNames
 
-                                onMoreRequested: {
-                                    sheet.tagsOther = true;
-                                    tagsOtherField.focusInput();
-                                    sheet.tagPaletteRequested();
-                                }
-                            }
-
-                            // Same stand-in for tags, comma separated.
-                            Field {
-                                id: tagsOtherField
-
-                                Layout.fillWidth: true
-                                placeholder: qsTr("more tags, comma separated")
-                                visible: sheet.tagsOther
-
-                                onAccepted: sheet.triggerPrimary()
+                                onMoreRequested: sheet.tagPaletteRequested()
                             }
                         }
                     }

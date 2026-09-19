@@ -70,7 +70,7 @@ Item {
     readonly property int paneRowCount: {
         switch (root.paneIndex) {
         case 0:
-            return 3;
+            return 4;
         case 1:
             return App.serverList.count + 1; // the servers, then "+ add a server"
         case 2:
@@ -108,6 +108,8 @@ Item {
             else if (root.paneCursor === 1)
                 App.pathMapEnabled = !App.pathMapEnabled;
             else if (root.paneCursor === 2)
+                App.deleteFilesDefault = !App.deleteFilesDefault;
+            else if (root.paneCursor === 3)
                 Xdg.registerAsDefaultHandler();
             return;
         }
@@ -514,6 +516,30 @@ Item {
                                 }
                             }
 
+                            // T4.8: T4.5 left this out because T4.3, which owns the flag,
+                            // was not merged yet. It is the delete confirm's remembered
+                            // default (Fig. 8's "also delete the files" toggle).
+                            SettingsRow {
+                                Layout.fillWidth: true
+                                description: qsTr("The delete confirm opens with \"also delete the files\" already on.")
+                                glyph: Glyphs.statusErrored
+                                hasCursor: root.area === "pane" && root.paneCursor === 2
+                                objectName: "deleteFilesRow"
+                                title: qsTr("Delete files by default")
+
+                                onClicked: {
+                                    root.paneCursor = 2;
+                                    root.area = "pane";
+                                    App.deleteFilesDefault = !App.deleteFilesDefault;
+                                }
+
+                                Toggle {
+                                    checked: App.deleteFilesDefault
+
+                                    onToggled: App.deleteFilesDefault = checked
+                                }
+                            }
+
                             SettingsRow {
                                 id: handlerRow
 
@@ -525,11 +551,11 @@ Item {
                                 description: handlerRow.isDefault ? qsTr("omaseed already opens magnet links and .torrent files.") : handlerRow.currentHandler.length
                                                                     > 0 ? qsTr("Currently %1.").arg(handlerRow.currentHandler) : qsTr("Makes omaseed open magnet links and .torrent files.")
                                 glyph: Glyphs.add
-                                hasCursor: root.area === "pane" && root.paneCursor === 2
+                                hasCursor: root.area === "pane" && root.paneCursor === 3
                                 title: qsTr("Register as the magnet and .torrent handler")
 
                                 onClicked: {
-                                    root.paneCursor = 2;
+                                    root.paneCursor = 3;
                                     root.area = "pane";
                                     Xdg.registerAsDefaultHandler();
                                 }

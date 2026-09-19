@@ -29,8 +29,10 @@ import Omaseed.Kit
 //   shift+enter      the action flagged `secondary` (Fig. 5's `add stopped`)
 //   tab / shift+tab  cycle the focusable rows and the action buttons, never leaving the sheet
 // `open()` remembers what had the focus and gives it to the first focusable thing in the
-// body (or, when nothing in the body takes tab focus, to the body's first child, so a sheet
-// of plain content still owns the keyboard); `close()` gives the focus back.
+// body; when the body has nothing focusable it goes to the `primary` action's button (so
+// `enter` runs the primary and not the first button, which is usually `cancel`), else to the
+// first button, else to the body's first child, so a sheet of plain content still owns the
+// keyboard. `close()` gives the focus back.
 Item {
     id: root
 
@@ -105,17 +107,18 @@ Item {
     /// sheet takes `activeFocusOnTab` off what it finds and cycles the list itself; `_known`
     /// keeps recognising those items afterwards.
     function focusables(): var {
+    return root.bodyFocusables().concat(root.actionButtons());
+}
+
+    /// Only the caller's rows, in tab order. `focusFirst()` needs to tell "the body has
+    /// something to type in" from "this sheet is a question with buttons and nothing else".
+    function bodyFocusables(): var {
     const out = [];
     root._collect(bodyColumn, out);
-    for (let i = 0; i < actionsRow.children.length; ++i) {
-        const child = actionsRow.children[i];
-        if (child.enabled && root._isFocusable(child))
-        out.push(child);
-    }
-        for (let i = 0; i < out.length; ++i)
-        root._claim(out[i]);
-        return out;
-    }
+    for (let i = 0; i < out.length; ++i)
+    root._claim(out[i]);
+    return out;
+}
 
         /// The foot's buttons, in the order `actions` lists them. The row also holds the
         /// `Repeater` that made them, so its `children` cannot be used directly.
@@ -130,6 +133,16 @@ Item {
                                       root._claim(out[i]);
                                       return out;
                                   }
+
+        /// The button of the action flagged `primary`, or null when there is none.
+        function primaryButton(): var {
+                                     const buttons = root.actionButtons();
+                                     for (let i = 0; i < buttons.length; ++i) {
+                                         if (buttons[i].primary === true)
+                                         return buttons[i];
+                                     }
+                                     return null;
+                                 }
 
         function _isFocusable(item: var): bool {
             return item.activeFocusOnTab === true || typeof item.focusInput === "function"
@@ -159,9 +172,23 @@ Item {
 
                 /// Put the keyboard inside the sheet (see the class comment for the fallbacks).
                 function focusFirst(): void {
-                                           const list = root.focusables();
-                                           if (list.length > 0) {
-                                               root._focus(list[0]);
+                                           const rows = root.bodyFocusables();
+                                           if (rows.length > 0) {
+                                               root._focus(rows[0]);
+                                               return;
+                                           }
+                                           // A sheet whose body is plain content (Fig. 10, a
+                                           // confirm) has only its buttons. `enter` must run
+                                           // the primary one, so that is what the keyboard
+                                           // lands on — not `cancel`, which is drawn first.
+                                           const primary = root.primaryButton();
+                                           if (primary) {
+                                               root._focus(primary);
+                                               return;
+                                           }
+                                           const buttons = root.actionButtons();
+                                           if (buttons.length > 0) {
+                                               root._focus(buttons[0]);
                                                return;
                                            }
                                            for (let i = 0; i < bodyColumn.children.length; ++i) {

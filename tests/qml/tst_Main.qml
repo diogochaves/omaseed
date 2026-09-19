@@ -49,6 +49,25 @@ TestCase {
     }
 
     function init() {
+        // The add sheet prefills itself from the real clipboard, which another test file may
+        // have filled with a magnet (`y` copies one): prose parses as nothing, so the sheet
+        // opens empty and its first `esc` closes it instead of clearing the field.
+        App.copyToClipboard("omaseed test: nothing to add here");
+        // Every overlay: a case that leaves one up would swallow the next case's keys, since
+        // the whole file shares one `MainView`.
+        view.addSheet.dismiss();
+        view.duplicateSheet.close();
+        view.settingsModal.close();
+        view.actionsMenuPanel.close();
+        view.deleteConfirmPanel.close();
+        view.locationSheetPanel.close();
+        view.limitsSheetPanel.close();
+        view.renameSheetPanel.close();
+        view.jumpPalette.close();
+        view.categoryPalette.close();
+        view.tagPalette.close();
+        view.sortPalette.close();
+        view.columnsPalette.close();
         view.helpOpen = false;
         view.details.collapsed = false;
         view.details.activateTab(0);
@@ -203,6 +222,179 @@ TestCase {
         compare(view.deleteConfirmPanel.opened, true);
         // `D` forces the "also delete files" toggle on, regardless of the remembered default.
         compare(view.deleteConfirmPanel.body.children[0].checked, true);
+    }
+
+    // ---- overlays are modal, and give the keyboard back (T4.8) -------------------------------
+    function test_an_overlay_keeps_the_windows_keys_to_itself() {
+        keyClick("s"); // the sort palette
+        compare(view.sortPalette.opened, true);
+        compare(view.overlayOpen, true);
+        compare(view.activeOverlay, view.sortPalette);
+
+        // `Kit/Palette` leaves ctrl chords and `i` unaccepted; they used to travel on to the
+        // window and open a second overlay underneath the first.
+        keyClick(Qt.Key_K, Qt.ControlModifier);
+        compare(view.jumpPalette.opened, false, "ctrl+k opened a palette under the palette");
+        const collapsed = view.details.collapsed;
+        keyClick("i");
+        compare(view.details.collapsed, collapsed, "`i` reached the window under the palette");
+
+        keyClick(Qt.Key_Escape);
+        compare(view.sortPalette.opened, false);
+        compare(view.overlayOpen, false);
+    }
+
+    function test_escape_closes_the_topmost_overlay_only() {
+        App.openSettings();
+        compare(view.settingsModal.opened, true);
+
+        // A modal keeps the window's keys: `a` must not open the add sheet underneath it.
+        addSpy.clear();
+        keyClick("a");
+        compare(addSpy.count, 0);
+        compare(view.addSheet.opened, false);
+
+        // A hand-off from the browser or the tray does stack over it, and is drawn on top.
+        App.addRequested();
+        compare(view.addSheet.opened, true);
+        verify(view.addSheet.z > view.settingsModal.z);
+        compare(view.activeOverlay, view.addSheet);
+
+        keyClick(Qt.Key_Escape);
+        compare(view.addSheet.opened, false);
+        compare(view.settingsModal.opened, true, "esc closed more than the topmost overlay");
+        compare(view.activeOverlay, view.settingsModal);
+
+        keyClick(Qt.Key_Escape);
+        compare(view.settingsModal.opened, false);
+        compare(view.overlayOpen, false);
+        verify(view.table.activeFocus, "the table did not get the keyboard back");
+    }
+
+    /// Open the overlay `open()` opens, close it with `esc`, and check `j` moves the table's
+    /// cursor straight afterwards. `escapes` is 2 for a sheet whose field opens prefilled:
+    /// Fig. 26's escape ladder clears the field first and closes the sheet second.
+    function _checkFocusComesBack(open, overlay, what, escapes) {
+        const row = view.table.cursorIndex;
+        open();
+        compare(overlay.opened, true, what + " did not open");
+        for (let i = 0; i < (escapes === undefined ? 1 : escapes); ++i)
+            keyClick(Qt.Key_Escape);
+        compare(overlay.opened, false, what + " did not close on esc");
+        verify(view.table.activeFocus, what + " did not give the keyboard back");
+        keyClick("j");
+        compare(view.table.cursorIndex, row + 1, "`j` did not move after " + what);
+        view.table.moveCursorTo(row);
+    }
+
+    function test_every_overlay_gives_the_keyboard_back_to_the_table() {
+        testCase._checkFocusComesBack(() => keyClick(Qt.Key_Return), view.actionsMenuPanel,
+                                      "the actions menu");
+        testCase._checkFocusComesBack(() => keyClick("s"), view.sortPalette, "the sort palette");
+        testCase._checkFocusComesBack(() => keyClick(Qt.Key_K, Qt.ControlModifier),
+                                      view.jumpPalette, "the jump palette");
+        testCase._checkFocusComesBack(() => keyClick("d"), view.deleteConfirmPanel,
+                                      "the delete confirm");
+        // The location sheet opens with the torrent's save path already in its field.
+        testCase._checkFocusComesBack(() => keyClick("m"), view.locationSheetPanel,
+                                      "the location sheet", 2);
+        testCase._checkFocusComesBack(() => keyClick(Qt.Key_C, Qt.ShiftModifier),
+                                      view.categoryPalette, "the category palette");
+        testCase._checkFocusComesBack(() => keyClick("t"), view.tagPalette, "the tag palette");
+        testCase._checkFocusComesBack(() => App.addRequested(), view.addSheet, "the add sheet");
+        testCase._checkFocusComesBack(() => App.openSettings(), view.settingsModal,
+                                      "the settings modal");
+    }
+
+    function test_the_window_footer_teaches_the_overlay_that_is_up() {
+        App.addRequested();
+        compare(view.hintModel.area, "overlay");
+        compare(view.overlayHints, view.addSheet.hints);
+        compare(view.hintModel.hints[0].key, "esc");
+        compare(view.hintModel.hints[0].label, "close");
+        compare(view.hintModel.hints.length, view.addSheet.hints.length + 1);
+        compare(view.hintModel.pinned, null);
+
+        keyClick(Qt.Key_Escape);
+        compare(view.hintModel.area, "table");
+    }
+
+    // ---- one Connections block, and the jump palette's `tab` (T4.8) --------------------------
+    function test_show_actions_requested_opens_the_menu_on_that_row() {
+        const hash = App.filtered.hashAt(3);
+        verify(hash.length > 0);
+        verify(view.table.cursorHash !== hash);
+
+        // What `JumpPalette`'s `tab` raises once it has closed itself.
+        App.showActionsRequested(hash);
+
+        compare(view.table.cursorHash, hash, "the cursor did not land on the row");
+        compare(view.actionsMenuPanel.opened, true, "the actions menu did not open");
+        // Fig. 11's first row reads "start" or "stop" for that very torrent.
+        compare(view.actionsMenuPanel.cursorStopped, App.torrentRow(hash).stopped === true);
+
+        keyClick(Qt.Key_Escape);
+        compare(view.actionsMenuPanel.opened, false);
+        verify(view.table.activeFocus, "the table did not get the keyboard back");
+    }
+
+    function test_show_torrent_requested_moves_the_cursor_once() {
+        const hash = App.filtered.hashAt(2);
+        App.showTorrentRequested(hash);
+        compare(view.table.cursorHash, hash);
+    }
+
+    function test_show_torrent_requested_clears_a_filter_that_hides_the_row() {
+        const hash = App.filtered.hashAt(2);
+        App.filtered.text = "archlinux";
+        verify(App.filtered.rowOfHash(hash) < 0 || App.filtered.hashAt(0) === hash);
+
+        App.showTorrentRequested(hash);
+        compare(App.filtered.text, "");
+        compare(view.table.cursorHash, hash);
+    }
+
+    // ---- the add sheet's `…` chips open T4.4's palettes over it (T4.8) ------------------------
+    function test_the_category_chip_opens_the_palette_over_the_sheet_and_comes_back() {
+        App.addRequested();
+        verify(view.addSheet.opened, "`a` did not open the add sheet");
+
+        const chips = view.addSheet.categoryChips;
+        chips.cursorIndex = chips.options.length; // the `…` chip
+        chips.activateCursor();
+        verify(view.categoryPalette.opened, "the `…` chip did not open the palette");
+        verify(view.categoryPalette.choiceMode, "the palette is applying to torrents");
+        verify(view.categoryPalette.z > view.addSheet.z, "the palette is drawn under the sheet");
+        verify(view.addSheet.opened, "the sheet went away under the palette");
+
+        view.categoryPalette.query = "movies";
+        const row = view.categoryPalette.items.find(item => item.key === "movies");
+        view.categoryPalette.activated(view.categoryPalette.items.indexOf(row), row);
+
+        verify(!view.categoryPalette.opened);
+        compare(view.addSheet.categoryChips.current, "movies");
+        verify(view.addSheet.opened, "the sheet closed with the palette");
+        view.addSheet.dismiss();
+    }
+
+    function test_the_tags_chip_opens_the_tag_palette_with_what_the_sheet_carries() {
+        App.addRequested();
+        view.addSheet.tagChips.pick("keep");
+
+        const chips = view.addSheet.tagChips;
+        chips.cursorIndex = chips.options.length;
+        chips.activateCursor();
+        verify(view.tagPalette.opened);
+        const keep = view.tagPalette.items.find(item => item.key === "keep");
+        compare(keep.checked, true, "the sheet's own chip is not checked in the palette");
+
+        const other = view.tagPalette.items.find(item => item.key === "private");
+        view.tagPalette.toggled(view.tagPalette.items.indexOf(other), other);
+        view.tagPalette.activated(0, view.tagPalette.items[0]);
+
+        compare(view.addSheet.tagChips.selected.length, 2);
+        verify(view.addSheet.tagChips.selected.indexOf("private") >= 0);
+        view.addSheet.dismiss();
     }
 
     // ---- the details pane follows the table's cursor -------------------------------------------

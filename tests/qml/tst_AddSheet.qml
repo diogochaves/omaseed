@@ -63,6 +63,22 @@ TestCase {
         }
     }
 
+    Component {
+        id: categoryPaletteSpy
+
+        SignalSpy {
+            signalName: "categoryPaletteRequested"
+        }
+    }
+
+    Component {
+        id: tagPaletteSpy
+
+        SignalSpy {
+            signalName: "tagPaletteRequested"
+        }
+    }
+
     function initTestCase() {
         App.loadDemo(16);
     }
@@ -182,6 +198,72 @@ TestCase {
         compare(sheet.tagChips.selected, ["keep", "private"]);
         sheet.tagChips.pick("keep");
         compare(sheet.tagChips.selected, ["private"]);
+    }
+
+    // ---- the `…` chips and T4.4's palettes (T4.8) ---------------------------------------
+
+    function test_the_more_chip_asks_for_the_palette_and_reveals_no_field() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        const wanted = createTemporaryObject(categoryPaletteSpy, testCase, {
+                                                 "target": sheet
+                                             });
+        sheet.open();
+        // The `…` chip is the last one in the row.
+        sheet.categoryChips.cursorIndex = sheet.categoryChips.options.length;
+        sheet.categoryChips.activateCursor();
+        compare(wanted.count, 1);
+        // The plain-Field fallback is gone: the sheet has exactly the rows of Fig. 5.
+        compare(sheet.chosenCategory(), "");
+    }
+
+    function test_the_tags_more_chip_asks_for_the_tag_palette() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        const wanted = createTemporaryObject(tagPaletteSpy, testCase, {
+                                                 "target": sheet
+                                             });
+        sheet.open();
+        sheet.tagChips.cursorIndex = sheet.tagChips.options.length;
+        sheet.tagChips.activateCursor();
+        compare(wanted.count, 1);
+    }
+
+    function test_a_category_chosen_in_the_palette_becomes_the_chip() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        sheet.open();
+        sheet.applyChosenCategory("movies");
+        compare(sheet.categoryChips.current, "movies");
+        compare(sheet.chosenCategory(), "movies");
+        compare(sheet.savePathField.text, "/data/torrents/movies");
+    }
+
+    function test_a_category_created_in_the_palette_becomes_a_new_chip() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        sheet.open();
+        const before = sheet.categoryChips.options.length;
+
+        sheet.applyChosenCategory("anime");
+        compare(sheet.categoryChips.options.length, before + 1);
+        verify(sheet.categoryChips.options.indexOf("anime") >= 0,
+               "the created name is not a chip");
+        compare(sheet.categoryChips.current, "anime");
+        compare(sheet.chosenCategory(), "anime");
+
+        // And it is gone again on the next sheet.
+        sheet.reset();
+        compare(sheet.categoryChips.options.length, before);
+    }
+
+    function test_tags_chosen_in_the_palette_become_the_chips() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        sheet.open();
+        const before = sheet.tagChips.options.length;
+
+        // "keep" is one of the demo library's tags; "anime" is not, so the palette created it.
+        sheet.applyChosenTags(["keep", "anime"]);
+        compare(sheet.tagChips.selected, ["keep", "anime"]);
+        compare(sheet.chosenTags(), ["keep", "anime"]);
+        compare(sheet.tagChips.options.length, before + 1);
+        verify(sheet.tagChips.options.indexOf("anime") >= 0);
     }
 
     function test_the_layout_row_has_the_three_values() {

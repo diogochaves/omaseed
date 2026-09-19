@@ -172,6 +172,8 @@ void TestAppActions::cleanupTestCase()
     // torrent it added itself.
     await(this, m_app->client()->torrentsSetCategory({kFixtureOne}, QStringLiteral("fixtures")));
     await(this, m_app->client()->torrentsRemoveTags({kFixtureOne}, {QStringLiteral("t43")}));
+    // Taking a tag off a torrent leaves the tag itself defined on the server.
+    await(this, m_app->client()->torrentsDeleteTags({QStringLiteral("t43")}));
     await(this,
           m_app->client()->torrentsSetLocation(
               {kFixtureOne},
@@ -268,8 +270,14 @@ void TestAppActions::limitsRoundTripThroughTorrentsInfo()
     // dl/ul in KB/s-ish bytes/s, ratio 1.5, seeding time 100 minutes (the API's own unit —
     // App::setLimits() passes it straight through, see the class comment there).
     m_app->setLimits({kFixtureTwo}, 20480, 10240, 1.5, 100);
+    // The speed limits and the share limits travel as two separate API calls, so the first
+    // snapshot that carries one of them need not carry the other yet: wait for all four
+    // (T4.8 — polling on `dl_limit` alone failed on a freshly reset playground).
     const QJsonObject info = pollUntil(kFixtureTwo, [](const QJsonObject &t) {
-        return t.value(QStringLiteral("dl_limit")).toInteger() == 20480;
+        return t.value(QStringLiteral("dl_limit")).toInteger() == 20480 &&
+               t.value(QStringLiteral("up_limit")).toInteger() == 10240 &&
+               qFuzzyCompare(t.value(QStringLiteral("ratio_limit")).toDouble(), 1.5) &&
+               t.value(QStringLiteral("seeding_time_limit")).toInteger() == 100;
     });
     QCOMPARE(info.value(QStringLiteral("dl_limit")).toInteger(), qint64(20480));
     QCOMPARE(info.value(QStringLiteral("up_limit")).toInteger(), qint64(10240));
@@ -279,7 +287,9 @@ void TestAppActions::limitsRoundTripThroughTorrentsInfo()
     // 0 = unlimited for a speed, -2 = the global default for ratio/time.
     m_app->setLimits({kFixtureTwo}, 0, 0, -2, -2);
     const QJsonObject reset = pollUntil(kFixtureTwo, [](const QJsonObject &t) {
-        return t.value(QStringLiteral("dl_limit")).toInteger() == 0;
+        return t.value(QStringLiteral("dl_limit")).toInteger() == 0 &&
+               t.value(QStringLiteral("up_limit")).toInteger() == 0 &&
+               qFuzzyCompare(t.value(QStringLiteral("ratio_limit")).toDouble(), -2.0);
     });
     QCOMPARE(reset.value(QStringLiteral("dl_limit")).toInteger(), qint64(0));
     QCOMPARE(reset.value(QStringLiteral("up_limit")).toInteger(), qint64(0));

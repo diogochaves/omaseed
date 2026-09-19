@@ -45,9 +45,68 @@ Item {
     readonly property alias locationSheetPanel: locationSheetPanel
     readonly property alias limitsSheetPanel: limitsSheetPanel
     readonly property alias renameSheetPanel: renameSheetPanel
+    // T4.8: the rest of the overlays, for the stacking and focus cases of `tst_Main`.
+    readonly property alias addSheet: addSheet
+    readonly property alias duplicateSheet: duplicateSheet
+    readonly property alias settingsModal: settingsModal
+    readonly property alias jumpPalette: jumpPalette
+    readonly property alias categoryPalette: categoryPalette
+    readonly property alias tagPalette: tagPalette
+    readonly property alias sortPalette: sortPalette
+    readonly property alias columnsPalette: columnsPalette
 
     /// The `?` sheet.
     property bool helpOpen: false
+
+    // ---- overlays (T4.8) -----------------------------------------------------------------
+    // Sheets, palettes and the actions menu are all modal: while one is up it owns the
+    // keyboard, `esc` closes that one and nothing else, and the footer teaches its keys
+    // instead of the table's. They are listed topmost-first, by the `z` each one is given
+    // further down, so the one the user is actually looking at is the one that answers.
+    /// The overlay on top, or null.
+    readonly property var activeOverlay: {
+        if (categoryPalette.opened)
+            return categoryPalette;
+        if (tagPalette.opened)
+            return tagPalette;
+        if (jumpPalette.opened)
+            return jumpPalette;
+        if (sortPalette.opened)
+            return sortPalette;
+        if (columnsPalette.opened)
+            return columnsPalette;
+        if (duplicateSheet.opened)
+            return duplicateSheet;
+        if (addSheet.opened)
+            return addSheet;
+        if (settingsModal.opened)
+            return settingsModal;
+        if (helpSheetPanel.opened)
+            return helpSheetPanel;
+        if (renameSheetPanel.opened)
+            return renameSheetPanel;
+        if (limitsSheetPanel.opened)
+            return limitsSheetPanel;
+        if (locationSheetPanel.opened)
+            return locationSheetPanel;
+        if (deleteConfirmPanel.opened)
+            return deleteConfirmPanel;
+        if (actionsMenuPanel.opened)
+            return actionsMenuPanel;
+        return null;
+    }
+
+    /// True while anything is over the window.
+    readonly property bool overlayOpen: root.activeOverlay !== null
+
+    /// The `[{key, label}]` the overlay on top teaches, for the window's footer. A menu has
+    /// none of its own: its rows print their keys themselves.
+    readonly property var overlayHints: {
+        const overlay = root.activeOverlay;
+        if (!overlay || overlay.hints === undefined)
+            return [];
+        return overlay.hints;
+    }
 
     // the window's state (spec §7)
     /// A configured, non-demo server that stopped answering: Fig. 23.
@@ -277,8 +336,12 @@ Item {
     Keys.onPressed: event => root._route(event)
 
     function _route(event) {
-        if (root.helpOpen)
-            return; // the sheet traps `esc` and `?`; nothing else applies while it is up
+        // An overlay is modal: what it does not handle itself dies here rather than reaching
+        // the window underneath. `Kit/Menu` and `Kit/Palette` deliberately leave keys they
+        // have no use for unaccepted (a palette's `ctrl+k`, a menu's `i`), and without this
+        // guard those went on to open a second overlay under the first.
+        if (root.overlayOpen)
+            return;
 
         const ctrl = (event.modifiers & Qt.ControlModifier) !== 0;
         const shift = (event.modifiers & Qt.ShiftModifier) !== 0;
@@ -430,6 +493,63 @@ Item {
         target: App.torrents
     }
 
+    // Everything `App` asks the window for, in one place. Each Phase 4 task had declared its
+    // own `Connections { target: App }`; two of them handled `showTorrentRequested`, so the
+    // table's cursor moved twice for one notification click. One block also makes it plain
+    // which signal is answered where.
+    Connections {
+        /// `a`, the hero's `+`, the tray.
+        function onAddRequested(): void {
+            addSheet.openBlank();
+        }
+
+        /// The browser's `magnet:` / `.torrent` hand-off (T1.4's second instance).
+        function onAddUrisRequested(uris: list<string>): void {
+            addSheet.openList(uris, "browser");
+        }
+
+        /// `,`, the hero's gear, the tray's `settings…`, the disconnected banner.
+        function onOpenSettings(): void {
+            settingsModal.open();
+        }
+
+        /// T4.3's seam: an action the server refused, on the footer for a few seconds.
+        function onActionFailed(action: string, message: string): void {
+            root.flashFooterNote(qsTr("%1 failed: %2").arg(action).arg(message));
+        }
+
+        /// T4.7's "show" notification action, and the duplicate sheet's `show it`.
+        function onShowTorrentRequested(hash: string): void {
+            root.showTorrent(hash);
+        }
+
+        /// T4.7's tracker-error notification.
+        function onShowTrackersRequested(hash: string): void {
+            if (!details.collapsed)
+                details.activateTab(2); // Trackers
+        }
+
+        /// The jump palette's `tab` (Fig. 12's "tab actions"): jump there, then open Fig. 11
+        /// on that row. The palette has already moved the cursor and closed itself.
+        function onShowActionsRequested(hash: string): void {
+            root.showTorrent(hash);
+            if (root.cursorHash === hash)
+                table.requestActions();
+        }
+
+        /// `C` / the menu's category row.
+        function onCategoryPickerRequested(hashes: list<string>): void {
+            categoryPalette.openFor(hashes);
+        }
+
+        /// `t` / the menu's tags row.
+        function onTagPickerRequested(hashes: list<string>): void {
+            tagPalette.openFor(hashes);
+        }
+
+        target: App
+    }
+
     // hero (spec `.hero`)
     Hero {
         id: hero
@@ -510,11 +630,14 @@ Item {
             servers: App.servers
             // T4.5: the SERVERS group is off unless the General pane asks for it.
             serverCount: App.showServersGroup ? App.serverCount : 0
+            // T4.8: the group draws the real names, and picking one switches server.
+            serverList: App.serverList
             tags: App.tags
             trackers: App.trackers
             visible: !root.libraryEmpty && !root.firstSync
 
             onFocusTable: table.forceActiveFocus()
+            onServerActivated: id => App.setDefaultServer(id)
         }
 
         SplitLayout {
@@ -651,6 +774,9 @@ Item {
         filterText: App.filtered.text
         filteredCount: App.filtered.count
         focusArea: root.focusArea
+        // T4.8: while an overlay is up the footer teaches its keys, not the table's.
+        overlayHints: root.overlayHints
+        overlayOpen: root.overlayOpen
         // Fig. 1 keeps the table's line while row 3 is being renamed, because its cursor is
         // elsewhere; a rename the user started is always on the cursor row.
         renaming: table.renaming && table.renameIndex === table.cursorIndex
@@ -778,29 +904,6 @@ Item {
         onTriggered: root.footerNote = ""
     }
 
-    Connections {
-        function onActionFailed(action, message) {
-            root.flashFooterNote(qsTr("%1 failed: %2").arg(action).arg(message));
-        }
-        function onShowTorrentRequested(hash) {
-            let row = App.filtered.rowOfHash(hash);
-            if (row < 0) {
-                root.clearFilter(); // the row may be hidden behind the current filter
-                row = App.filtered.rowOfHash(hash);
-            }
-            if (row >= 0) {
-                table.moveCursorTo(row);
-                table.forceActiveFocus();
-            }
-        }
-        function onShowTrackersRequested(hash) {
-            if (!details.collapsed)
-                details.activateTab(2); // Trackers
-        }
-
-        target: App
-    }
-
     Row {
         id: footerNoteRow
 
@@ -859,28 +962,38 @@ Item {
     // --- T4.4: palettes ---------------------------------------------------------------------
     // Jump (`ctrl+k`), category (`C`), tags (`t`), sort (`s`) and columns (`ctrl+,`), plus the
     // table-state round trip through `state.json`. `App.categoryPickerRequested` /
-    // `tagPickerRequested` are T4.3's seam (its `C`/`t` actions, and the AddSheet's chips);
-    // this block is what answers them.
+    // `tagPickerRequested` are T4.3's seam (its `C`/`t` actions); the add sheet's `…` chips
+    // open the same two palettes in `openForChoice` mode, which answers the caller instead of
+    // touching torrents.
+    //
+    // Every palette sits above every sheet (`z: 14` against the add sheet's 12 and the
+    // duplicate's 13), because the category and tag ones can be opened from inside the add
+    // sheet. `Kit/Palette.open()` remembers `Window.activeFocusItem`, so closing one hands the
+    // keyboard back to the chip row it came from.
     JumpPalette {
         id: jumpPalette
 
         anchors.fill: parent
         table: table
-        z: 10
+        z: 14
     }
 
     CategoryPalette {
         id: categoryPalette
 
         anchors.fill: parent
-        z: 10
+        z: 14
+
+        onChosen: name => addSheet.applyChosenCategory(name)
     }
 
     TagPalette {
         id: tagPalette
 
         anchors.fill: parent
-        z: 10
+        z: 14
+
+        onChosen: tags => addSheet.applyChosenTags(tags)
     }
 
     SortPalette {
@@ -888,7 +1001,7 @@ Item {
 
         anchors.fill: parent
         table: table
-        z: 10
+        z: 14
     }
 
     ColumnsPalette {
@@ -896,25 +1009,7 @@ Item {
 
         anchors.fill: parent
         table: table
-        z: 10
-    }
-
-    Connections {
-        function onCategoryPickerRequested(hashes) {
-            categoryPalette.openFor(hashes);
-        }
-
-        function onTagPickerRequested(hashes) {
-            tagPalette.openFor(hashes);
-        }
-
-        // Until T4.3 lands its own actions menu, the jump palette's `tab` has nowhere real
-        // to go; this logs so the seam is visibly wired rather than silently dropped.
-        function onShowActionsRequested(hash) {
-            console.log("actions:", hash);
-        }
-
-        target: App
+        z: 14
     }
 
     Connections {
@@ -1004,17 +1099,20 @@ Item {
         id: addSheet
 
         anchors.fill: parent
-        z: 11
+        z: 12
 
         onAddRequested: request => App.addTorrent(request)
         onDuplicateFound: duplicate => duplicateSheet.openFor(duplicate)
+        // The `…` chips: T4.4's palettes, asked to answer instead of to act.
+        onCategoryPaletteRequested: categoryPalette.openForChoice()
+        onTagPaletteRequested: tagPalette.openForChoice(addSheet.tagChips.selected)
     }
 
     DuplicateSheet {
         id: duplicateSheet
 
         anchors.fill: parent
-        z: 12
+        z: 13
 
         // `show it` gives up on the add: the sheet behind this one goes away with it.
         onShowRequested: hash => {
@@ -1032,30 +1130,20 @@ Item {
     }
 
     /// Move the table's cursor to `hash` and let the details pane follow. Used by the add
-    /// flow once a new torrent turns up, and by T4.7's "show" notification action.
+    /// flow once a new torrent turns up, and by T4.7's "show" notification action, which may
+    /// well name a row the filter of the moment hides.
     function showTorrent(hash: string): void {
-        const row = App.filtered.rowOfHash(hash);
+        let row = App.filtered.rowOfHash(hash);
+        if (row < 0) {
+            root.clearFilter();
+            row = App.filtered.rowOfHash(hash);
+        }
         if (row < 0)
             return;
         table.moveCursorTo(row);
         table.forceActiveFocus();
     }
 
-    Connections {
-        function onAddRequested(): void {
-            addSheet.openBlank();
-        }
-
-        function onAddUrisRequested(uris: list<string>): void {
-            addSheet.openList(uris, "browser");
-        }
-
-        function onShowTorrentRequested(hash: string): void {
-            root.showTorrent(hash);
-        }
-
-        target: App
-    }
     // --- end T4.2 ---
 
     // --- T4.5: settings ---
@@ -1069,14 +1157,6 @@ Item {
         z: 11
 
         onClosed: table.forceActiveFocus()
-    }
-
-    Connections {
-        function onOpenSettings(): void {
-            settingsModal.open();
-        }
-
-        target: App
     }
 
     // The Appearance pane's transparency override; 0 keeps the default 0.90 of QUESTIONS Q1.

@@ -34,6 +34,7 @@ Window {
         counts: App.counts
         filtered: App.filtered
         serverCount: App.serverCount
+        serverList: App.serverList
         tags: App.tags
         trackers: App.trackers
 

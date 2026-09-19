@@ -7,7 +7,9 @@ import Omaseed
 //
 // The lists are the ones the spec draws: §1 Fig. 1 for the table, §2 Fig. 2-4 for the
 // details pane's three list tabs, §7 Fig. 22 for the empty state, Fig. 23 for a lost server
-// and Fig. 24 for a filter with no result. `? help` is pinned to the right edge everywhere
+// and Fig. 24 for a filter with no result. While an overlay is up (T4.8) the footer prints
+// `esc close` and that overlay's own hints instead, because the window underneath answers
+// no key at all. `? help` is pinned to the right edge everywhere
 // the window is usable (Fig. 1 and Fig. 22); Fig. 23 and Fig. 24 print no pinned hint.
 //
 // Every key and every word comes out of `Keymap`, so a key can never be taught here and
@@ -29,12 +31,20 @@ QtObject {
     property int filteredCount: 0
     /// Details.currentTab: 0 General, 1 Files, 2 Trackers, 3 Peers.
     property int detailsTab: 0
+    /// A sheet, palette or menu is over the window (MainView's `overlayOpen`). The spec
+    /// draws an overlay's hints inside the overlay, and the window underneath is modal, so
+    /// the footer must stop teaching table keys that nothing will answer.
+    property bool overlayOpen: false
+    /// The overlay's own `[{key, label}]`, which the footer prints after `esc close`.
+    property var overlayHints: []
 
     // what the footer reads ---------------------------------------------------------
     /// The state the hints describe. A window-wide state (lost server, empty library,
     /// filter with no result) outranks whatever holds the focus, because that is what the
     /// figures show.
     readonly property string area: {
+        if (root.overlayOpen)
+            return "overlay";
         if (!root.connected)
             return "disconnected";
         if (root.torrentCount === 0)
@@ -52,6 +62,10 @@ QtObject {
 
     readonly property var hints: {
         switch (root.area) {
+        case "overlay":
+            // `close` rather than Keymap's own "clear" for the global `esc`: over an overlay
+            // that key closes it, which is the last rung of the same escape ladder.
+            return [root._hint("global", "esc", qsTr("close"))].concat(root.overlayHints);
         case "disconnected":
             // Fig. 23. `R retry` is the one hint with no Keymap entry: retrying is not a
             // table action, it only exists while the server is gone (App.retryNow()).
@@ -79,8 +93,8 @@ QtObject {
     }
 
     /// The `? help` pair `KeyHints` pushes to the right edge, or null.
-    readonly property var pinned: (root.area === "disconnected" || root.area === "filteredEmpty")
-                                  ? null : root._hint("global", "?")
+    readonly property var pinned: (root.area === "disconnected" || root.area === "filteredEmpty"
+                                   || root.area === "overlay") ? null : root._hint("global", "?")
 
     // internals ----------------------------------------------------------------------
     /// One `{key, label}` pair. `keys` is what the footer prints ("j k", "+ -"); the label

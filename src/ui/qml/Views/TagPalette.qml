@@ -13,6 +13,12 @@ Palette {
 
     /// The torrents `enter` applies the tag diff to.
     property var hashes: []
+    /// `openForChoice()`: the palette answers with `chosen(tags)` instead of applying a diff
+    /// to torrents — the add sheet's `…` chip, whose torrent does not exist yet.
+    property bool choiceMode: false
+
+    /// The tags checked when `enter` was pressed, as a list of names.
+    signal chosen(var tags)
 
     footerRight: qsTr("new name creates it")
     glyph: Glyphs.tag
@@ -28,8 +34,9 @@ Palette {
     ]
     items: root._rows
     multi: true
-    title: root.hashes.length === 1 ? qsTr("tags for 1 torrent") : qsTr(
-                                          "tags for %1 torrents").arg(root.hashes.length)
+    title: root.choiceMode ? qsTr("tags for the new torrent") : root.hashes.length
+                             === 1 ? qsTr("tags for 1 torrent") : qsTr(
+                                         "tags for %1 torrents").arg(root.hashes.length)
 
     /// tag name -> bool, the state as it was when the palette opened.
     property var _original: ({})
@@ -47,6 +54,15 @@ Palette {
         const q = root.query;
         const rows = [];
         const names = App.tags.tags();
+        // In choice mode a tag the caller already carries may not be on the server yet (it
+        // was created in this very palette a moment ago): it still needs a row, or it could
+        // never be unchecked again.
+        if (root.choiceMode) {
+            for (const chosen of Object.keys(root._state)) {
+                if (root._state[chosen] === true && names.indexOf(chosen) < 0)
+                    names.push(chosen);
+            }
+        }
         for (const name of names) {
             if (!Fuzzy.match(name, q))
                 continue;
@@ -85,13 +101,42 @@ Palette {
     /// Opens the palette for `newHashes` (the seam `App.tagPickerRequested` drives).
     function openFor(newHashes: var): void {
         root.hashes = newHashes;
+        root.choiceMode = false;
         const seed = {};
         for (const name of App.tags.tags())
             seed[name] = root._everyHasTag(name);
         root._original = seed;
         root._state = Object.assign({}, seed);
+        root._rev += 1;
         root.query = "";
         root.open();
+    }
+
+    /// Opens the palette to answer one caller (the add sheet) with `chosen(tags)`, starting
+    /// from the tags it already carries.
+    function openForChoice(current: var): void {
+        root.hashes = [];
+        root.choiceMode = true;
+        const seed = {};
+        for (const name of App.tags.tags())
+            seed[name] = false;
+        for (const name of current)
+            seed[name] = true;
+        root._original = seed;
+        root._state = Object.assign({}, seed);
+        root._rev += 1;
+        root.query = "";
+        root.open();
+    }
+
+    /// The names checked right now, in the palette's own row order.
+    function checkedTags(): var {
+        const out = [];
+        for (const name of Object.keys(root._state)) {
+            if (root._state[name] === true)
+                out.push(name);
+        }
+        return out;
     }
 
     /// `enter`: the tags now checked that were not, and vice versa.
@@ -114,6 +159,13 @@ Palette {
         if (item.isCreate === true) {
             App.createTag(item.key);
             root._toggle(item.key);
+        }
+        if (root.choiceMode) {
+            const picked = root.checkedTags();
+            // close() first: the keyboard goes back to the caller before it hears the answer.
+            root.close();
+            root.chosen(picked);
+            return;
         }
         root._applyDiff();
         root.close();

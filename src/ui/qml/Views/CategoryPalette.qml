@@ -15,6 +15,14 @@ Palette {
 
     /// The torrents `enter` applies the chosen category to.
     property var hashes: []
+    /// `openForChoice()`: the palette answers with `chosen(name)` instead of applying the
+    /// category to torrents. That is what the add sheet's `…` chip needs — the torrent it is
+    /// about does not exist yet.
+    property bool choiceMode: false
+
+    /// The name picked (or created) in choice mode. A `create` row still creates it on the
+    /// server first, so the next sheet and the rail see it.
+    signal chosen(string name)
 
     footerRight: qsTr("new name creates it")
     glyph: Glyphs.category
@@ -29,8 +37,9 @@ Palette {
         }
     ]
     items: root._rows
-    title: root.hashes.length === 1 ? qsTr("category for 1 torrent") : qsTr(
-                                          "category for %1 torrents").arg(root.hashes.length)
+    title: root.choiceMode ? qsTr("category for the new torrent") : root.hashes.length
+                             === 1 ? qsTr("category for 1 torrent") : qsTr(
+                                         "category for %1 torrents").arg(root.hashes.length)
 
     readonly property var _rows: {
         // `App.categories.count` is a real NOTIFY-backed dependency, unlike the invokable
@@ -66,6 +75,15 @@ Palette {
     /// Opens the palette for `newHashes` (the seam `App.categoryPickerRequested` drives).
     function openFor(newHashes: var): void {
         root.hashes = newHashes;
+        root.choiceMode = false;
+        root.query = "";
+        root.open();
+    }
+
+    /// Opens the palette to answer one caller (the add sheet) with `chosen(name)`.
+    function openForChoice(): void {
+        root.hashes = [];
+        root.choiceMode = true;
         root.query = "";
         root.open();
     }
@@ -73,6 +91,13 @@ Palette {
     onActivated: (index, item) => {
         if (item.isCreate === true)
             App.createCategory(item.key);
+        if (root.choiceMode) {
+            // close() first: it gives the keyboard back to the caller before the caller
+            // hears the answer, so a sheet underneath keeps its own focus order.
+            root.close();
+            root.chosen(item.key);
+            return;
+        }
         App.applyCategory(root.hashes, item.key);
         root.close();
     }

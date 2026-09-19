@@ -18,9 +18,29 @@ TestCase {
             categories: App.categories
             counts: App.counts
             filtered: App.filtered
+            serverList: App.serverList
             tags: App.tags
             trackers: App.trackers
         }
+    }
+
+    Component {
+        id: serverActivatedSpy
+
+        SignalSpy {
+            signalName: "serverActivated"
+        }
+    }
+
+    /// A server that exists only for one case, at a URL nothing on this machine answers.
+    /// `App.addServer` is the real path the settings modal uses; in demo mode it only writes
+    /// the store, so nothing connects.
+    function addTestServer(name, url) {
+        return App.addServer({
+            "name": name,
+            "url": url,
+            "authMode": "none"
+        }, "");
     }
 
     function init() {
@@ -29,6 +49,12 @@ TestCase {
         App.filtered.clearCategory();
         App.filtered.clearTag();
         App.filtered.clearTracker();
+    }
+
+    function cleanup() {
+        // Leave no server behind: App is a singleton shared with every other test file.
+        while (App.serverList.count > 0)
+            App.serverList.remove(App.serverList.idAt(0));
     }
 
     function test_status_group_has_nine_rows_with_the_demo_counts() {
@@ -155,18 +181,63 @@ TestCase {
     }
 
     function test_servers_group_absent_with_one_server() {
+        testCase.addTestServer("home", "http://10.99.0.2:8080");
         const rail = createTemporaryObject(railComponent, testCase, {
-                                               "serverCount": 1
+                                               "serverCount": App.serverCount
+                                           });
+        compare(App.serverCount, 1);
+        compare(rail.serversRowCount, 0);
+    }
+
+    // T4.8: the group used to print `server 1` / `server 2`, because `ServerStore` had no
+    // QML-readable list. `App.serverList` is that list now.
+    function test_the_servers_group_lists_the_real_names() {
+        const first = testCase.addTestServer("home", "http://10.99.0.2:8080");
+        testCase.addTestServer("seedbox", "http://10.99.0.3:8080");
+        const rail = createTemporaryObject(railComponent, testCase, {
+                                               "serverCount": App.serverCount
+                                           });
+        compare(rail.serversRowCount, 2);
+        compare(rail.totalRowCount, rail.serversBase + 2);
+        compare(rail._rowMap[rail.serversBase].item.text, "home");
+        compare(rail._rowMap[rail.serversBase + 1].item.text, "seedbox");
+
+        // The first server added is the default one, and only its row draws the fill.
+        compare(App.serverList.defaultId, first);
+        compare(rail._rowMap[rail.serversBase].item.selected, true);
+        compare(rail._rowMap[rail.serversBase + 1].item.selected, false);
+    }
+
+    function test_the_group_stays_hidden_while_the_host_gates_it() {
+        testCase.addTestServer("home", "http://10.99.0.2:8080");
+        testCase.addTestServer("seedbox", "http://10.99.0.3:8080");
+        // What MainView passes when the General pane's toggle is off.
+        const rail = createTemporaryObject(railComponent, testCase, {
+                                               "serverCount": 0
                                            });
         compare(rail.serversRowCount, 0);
     }
 
-    function test_servers_group_present_with_two_servers() {
+    function test_enter_on_another_server_row_asks_for_the_switch() {
+        testCase.addTestServer("home", "http://10.99.0.2:8080");
+        const second = testCase.addTestServer("seedbox", "http://10.99.0.3:8080");
         const rail = createTemporaryObject(railComponent, testCase, {
-                                               "serverCount": 2
+                                               "serverCount": App.serverCount
                                            });
-        compare(rail.serversRowCount, 2);
-        compare(rail.totalRowCount, rail.serversBase + 2);
+        const asked = createTemporaryObject(serverActivatedSpy, testCase, {
+                                                "target": rail
+                                            });
+
+        rail.cursorIndex = rail.serversBase + 1;
+        rail.selectCursor();
+        compare(asked.count, 1);
+        compare(asked.signalArguments[0][0], second);
+
+        // What MainView does with it. The rail then follows the store.
+        App.setDefaultServer(asked.signalArguments[0][0]);
+        compare(App.serverList.defaultId, second);
+        compare(rail._rowMap[rail.serversBase + 1].item.selected, true);
+        compare(rail._rowMap[rail.serversBase].item.selected, false);
     }
 
     function test_width_is_the_spec_column() {

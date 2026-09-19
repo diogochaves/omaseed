@@ -103,6 +103,30 @@ TestCase {
         }
     }
 
+    // Fig. 10's shape: buttons, and a body that holds nothing the keyboard can reach.
+    Component {
+        id: confirmSheetComponent
+
+        Sheet {
+            actions: [
+                {
+                    "text": "close",
+                    "cancel": true
+                },
+                {
+                    "text": "show it",
+                    "primary": true
+                }
+            ]
+            anchors.fill: parent
+            title: "Already on home"
+
+            Text {
+                text: "This infohash is already in your list."
+            }
+        }
+    }
+
     // Fig. 26: a sheet with no buttons at all.
     Component {
         id: plainSheetComponent
@@ -267,6 +291,40 @@ TestCase {
 
         sheet.close();
         verify(probe.activeFocus, "the focus was not restored on close");
+    }
+
+    // T4.8: `open()` used to land on the first action button, which is `cancel` in every
+    // figure, so `enter` cancelled the sheet it had just opened.
+    function test_a_body_with_nothing_focusable_puts_the_keyboard_on_the_primary_action() {
+        const sheet = createTemporaryObject(confirmSheetComponent, testCase);
+        sheet.open();
+        compare(sheet.bodyFocusables().length, 0);
+        const primary = sheet.primaryButton();
+        verify(primary, "the sheet found no primary button");
+        compare(primary.text, "show it");
+        compare(sheet.focusedIndex(), 1, "the keyboard did not land on the primary action");
+    }
+
+    function test_enter_on_such_a_sheet_runs_the_primary_and_not_the_cancel() {
+        const sheet = createTemporaryObject(confirmSheetComponent, testCase);
+        const triggered = createTemporaryObject(triggeredSpy, testCase, {
+                                                    "target": sheet
+                                                });
+        const rejected = createTemporaryObject(rejectedSpy, testCase, {
+                                                   "target": sheet
+                                               });
+        sheet.open();
+        keyClick(Qt.Key_Return);
+        compare(triggered.count, 1);
+        compare(triggered.signalArguments[0][0], "show it");
+        compare(rejected.count, 0, "enter cancelled the sheet");
+    }
+
+    function test_a_body_with_a_field_still_wins_over_the_primary_action() {
+        const sheet = createTemporaryObject(formSheetComponent, testCase);
+        sheet.open();
+        verify(sheet.bodyFocusables().length > 0);
+        compare(sheet.focusedIndex(), 0);
     }
 
     function test_a_sheet_of_plain_content_still_owns_the_keyboard() {

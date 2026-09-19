@@ -26,10 +26,16 @@ Item {
     required property TrackerModel trackers
     property int serverCount: 1
     property ServerStore servers: null
+    /// The rows of the SERVERS group (roles `name`, `isDefault`). The host gates the group
+    /// with `serverCount`, which it sets to 0 when the General pane hides it.
+    property ServerListModel serverList: null
 
     property int cursorIndex: 0
 
     signal focusTable
+    /// `enter` or a click on a server row: that server should become the default one. The
+    /// rail never switches servers itself — the host calls `App.setDefaultServer(id)`.
+    signal serverActivated(string id)
 
     // ---- row bookkeeping -----------------------------------------------------------
     // Each visible row registers itself here (global cursor index -> {item, select}) so
@@ -112,7 +118,8 @@ Item {
     readonly property int tagsRowCount: 1 + root.tagsNamedCount + (root.tagsUntaggedVisible ? 1 : 0)
     readonly property int trackersNamedCount: root.trackers ? root.trackers.count : 0
     readonly property int trackersRowCount: 1 + root.trackersNamedCount
-    readonly property int serversRowCount: root.serverCount > 1 ? root.serverCount : 0
+    readonly property int serversRowCount: root.serverCount > 1
+                                           && root.serverList ? root.serverList.count : 0
 
     readonly property int statusBase: 0
     readonly property int categoriesBase: root.statusBase + root.statusRowCount
@@ -469,33 +476,43 @@ Item {
             }
 
             // ---- servers -------------------------------------------------------------
-            // ServerStore has no QML-readable server list yet (no Q_PROPERTY/Q_INVOKABLE on
-            // it besides signals), so this group can only show how many servers are
-            // configured, not their names. Real per-server rows need that gap closed first
-            // (see the report's findings for the orchestrator).
+            // One row per configured server, named, with the default one drawn selected the
+            // way a status or category row is. `id` is a QML keyword, so the row's id comes
+            // from `idAt(index)` rather than from a required property.
             RailGroup {
                 label: qsTr("servers")
                 visible: root.serversRowCount > 0
                 width: content.width
 
                 Repeater {
-                    model: root.serversRowCount
+                    model: root.serverList
 
                     RailRow {
                         id: serverDelegate
 
                         required property int index
+                        required property string name
+                        required property bool isDefault
+
+                        readonly property int globalIndex: root.serversBase + serverDelegate.index
 
                         count: -1
-                        hasCursor: root.cursorIndex === (root.serversBase + serverDelegate.index)
-                        text: qsTr("server %1").arg(serverDelegate.index + 1)
+                        glyph: Glyphs.server
+                        hasCursor: root.cursorIndex === serverDelegate.globalIndex
+                        selected: serverDelegate.isDefault
+                        text: serverDelegate.name
                         width: content.width
 
-                        Component.onCompleted: root._registerRow(root.serversBase
-                                                                 + serverDelegate.index,
-                                                                 serverDelegate, () => {})
-                        Component.onDestruction: root._unregisterRow(root.serversBase
-                                                                     + serverDelegate.index)
+                        onClicked: root.serverActivated(root.serverList.idAt(
+                                                            serverDelegate.index))
+
+                        Component.onCompleted: root._registerRow(serverDelegate.globalIndex,
+                                                                 serverDelegate, () => {
+                                                                     root.serverActivated(
+                                                                         root.serverList.idAt(
+                                                                             serverDelegate.index));
+                                                                 })
+                        Component.onDestruction: root._unregisterRow(serverDelegate.globalIndex)
                     }
                 }
             }
