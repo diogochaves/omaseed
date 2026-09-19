@@ -19,6 +19,9 @@ qt_add_qml_module(omaseed-kit
         Field.qml
         Glyphs.qml
         Hairline.qml
+        Hero.qml
+        IconButton.qml
+        KeyHints.qml
         Label.qml
         Stat.qml
         Toggle.qml
@@ -29,4 +32,6 @@ target_link_libraries(omaseed-kit
         omaseed::integration
         omaseed::warnings
         Qt6::Quick
+        Qt6::QuickControls2
+        Qt6::QuickLayouts
 )
