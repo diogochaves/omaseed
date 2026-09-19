@@ -6,7 +6,9 @@ qt_add_qml_module(omaseed-views
     URI Omaseed.Views
     VERSION 1.0
     QML_FILES
+        DemoTorrents.qml
         ThemeGallery.qml
+        TorrentTable.qml
 )
 
 target_link_libraries(omaseed-views
