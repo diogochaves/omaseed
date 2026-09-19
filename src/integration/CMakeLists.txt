@@ -2,12 +2,14 @@
 qt_add_library(omaseed-integration STATIC
     AppIdentity.cpp
     AppIdentity.hpp
+    SingleInstance.cpp
+    SingleInstance.hpp
 )
 add_library(omaseed::integration ALIAS omaseed-integration)
 
 target_include_directories(omaseed-integration PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/..")
 
 target_link_libraries(omaseed-integration
-    PUBLIC omaseed::core Qt6::Core Qt6::DBus Qt6::Gui Qt6::Qml
+    PUBLIC omaseed::core Qt6::Core Qt6::DBus Qt6::Gui Qt6::Network Qt6::Qml
     PRIVATE omaseed::warnings
 )
