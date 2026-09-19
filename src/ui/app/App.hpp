@@ -44,6 +44,7 @@
 #include <QPointer>
 #include <QString>
 #include <QStringList>
+#include <QTimer>
 #include <QVariantList>
 #include <QVariantMap>
 
@@ -360,6 +361,94 @@ Q_SIGNALS:
 private:
     static bool matchesQuery(const QString &text, const QString &query);
     // --- end T4.4 ------------------------------------------------------------------------
+    // --- T4.2: add flow ---------------------------------------------------------------------
+    // Everything the add sheet (spec §3 Fig. 5) and the duplicate sheet (Fig. 10) need from
+    // App: local parsing of what the user pasted, dropped, picked or handed over on the
+    // command line, the duplicate test, and the POST itself. Same arrangement as the blocks
+    // above: one block at the end of the class and one at the end of App.cpp.
+public:
+    /// What one line of "magnet / http(s) URL / .torrent path" is, as the sheet draws it:
+    ///   kind         "magnet" | "url" | "file" | "none"
+    ///   valid        bool, false when nothing recognisable was in `text`
+    ///   pending      bool, true while a .torrent is still being read and hashed
+    ///   name         the parsed name, or a URL's last path segment
+    ///   sizeText     "2.34 GB", empty when the source does not say
+    ///   infoHashV1 / infoHashV2   lowercase hex, empty when unknown
+    ///   value        what goes to the server (the magnet, the URL, the file path)
+    ///   token        the key `addTorrent` uses to find a picked file's bytes again
+    ///   error        why `valid` is false
+    /// A magnet and a URL are answered in the return value. A `.torrent` is read and hashed
+    /// on a worker thread (plan §4: never on the GUI thread) and answered a second time
+    /// through `addableParsed`; the returned map has `pending: true` until then.
+    Q_INVOKABLE QVariantMap parseAddable(const QString &text);
+
+    /// `ctrl+o` in the add sheet: the file chooser for one `.torrent`. Uses
+    /// QFileDialog::getOpenFileContent, so no widget window of our own is ever mapped and
+    /// the XDG portal serves the dialog under Wayland. The chosen file is parsed like any
+    /// other and reported through `addableParsed` (with `source: "file"`).
+    Q_INVOKABLE void pickTorrentFile();
+
+    /// Fig. 10's test: the library row either infohash already occupies (`torrentRow`'s
+    /// fields), or an empty map. v2 is matched against the maindata `infohash_v2` field as
+    /// well as the key, because a hybrid torrent is keyed by its v1 hash.
+    Q_INVOKABLE QVariantMap findDuplicate(const QString &hashV1, const QString &hashV2) const;
+
+    /// Adds what the sheet holds: `parseAddable`'s map plus `category`, `tags` (list),
+    /// `savePath`, `autoTMM`, `contentLayout` ("Original" | "Subfolder" | "NoSubfolder"),
+    /// `upLimitKb` (KB/s, 0 or absent = unlimited), `sequentialDownload`, `skipChecking` and
+    /// `stopped`. Answers with `addFinished`; on success the new hash, once the next sync
+    /// brings it, also travels as `showTorrentRequested` so the table's cursor lands on it.
+    /// In demo mode nothing is sent: the add is logged and reported as a success.
+    Q_INVOKABLE void addTorrent(const QVariantMap &request);
+
+    /// `OMASEED_DEMO_ADD`: the text a `--demo` run drops into the sheet when it opens, so
+    /// Fig. 5 and Fig. 10 can be screenshot reproducibly. Empty everywhere else.
+    Q_INVOKABLE QString demoAddText() const;
+
+    /// The URI hand-off: this process's own argv and every `SingleInstance::openRequested`
+    /// from a second launch. Re-emitted as `addUrisRequested` for the sheet to queue.
+    void openUris(const QStringList &uris);
+
+Q_SIGNALS:
+    /// The second half of `parseAddable` for a `.torrent`, and the whole answer of
+    /// `pickTorrentFile()`. Same map, with `pending: false`.
+    void addableParsed(QVariantMap result);
+    /// `openUris` reached QML: the first one opens the sheet, the rest queue behind it.
+    void addUrisRequested(QStringList uris);
+    /// `ok` false: `message` is what the sheet prints in red while staying open. `ok` true:
+    /// `hash` is the new torrent's infohash, or empty when the source did not say.
+    void addFinished(bool ok, QString message, QString hash);
+
+private:
+    /// A `.torrent`'s bytes, kept between the parse and the POST because the portal's file
+    /// chooser hands over content, not a path. Keyed by the map's `token`.
+    struct PendingTorrentFile
+    {
+        QString fileName;
+        QByteArray bytes;
+    };
+
+    /// Parses `bytes` on the global thread pool and emits `addableParsed` back here.
+    void parseTorrentBytes(const QString &token,
+                           const QString &fileName,
+                           const QString &value,
+                           const QByteArray &bytes);
+    /// Turns a finished TorrentFile into the map above and remembers its bytes.
+    QVariantMap torrentFileMap(const QString &token,
+                               const QString &fileName,
+                               const QString &value,
+                               const QByteArray &bytes) const;
+    /// Builds the client's options from the sheet's payload.
+    omaseed::core::QbtClient::AddOptions addOptionsFrom(const QVariantMap &request) const;
+    /// Waits up to 10 s for `hash` to turn up in the model, then asks for the cursor.
+    void watchForAddedHash(const QString &hash);
+
+    QHash<QString, PendingTorrentFile> m_pendingTorrentFiles;
+    QString m_awaitedAddHash;
+    QTimer *m_addWatchTimer = nullptr;
+    QMetaObject::Connection m_addWatch;
+    int m_nextAddableToken = 0;
+    // --- end T4.2 ------------------------------------------------------------------------
 };
 
 } // namespace omaseed::app

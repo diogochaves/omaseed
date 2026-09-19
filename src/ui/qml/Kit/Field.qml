@@ -115,6 +115,15 @@ Rectangle {
             input.text = "";
             root.cleared();
         }
-        Keys.onReturnPressed: root.accepted()
+        // `enter` accepts. `shift+enter` is deliberately left alone: inside a Sheet it is the
+        // secondary action (Fig. 5's `add stopped`), and a TextInput that swallowed it would
+        // never let the sheet see it (T4.2).
+        Keys.onReturnPressed: event => {
+            if (event.modifiers & Qt.ShiftModifier) {
+                event.accepted = false;
+                return;
+            }
+            root.accepted();
+        }
     }
 }

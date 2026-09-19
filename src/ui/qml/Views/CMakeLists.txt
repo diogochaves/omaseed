@@ -8,7 +8,9 @@ qt_add_qml_module(omaseed-views
     SOURCES
         DemoEnvForeign.hpp
     QML_FILES
+        AddSheet.qml
         CategoryPalette.qml
+        ChipSelect.qml
         ColumnsPalette.qml
         DemoDetails.qml
         DemoOverlays.qml
@@ -22,6 +24,7 @@ qt_add_qml_module(omaseed-views
         DetailsTrackersTab.qml
         DimmedOverlay.qml
         DisconnectedBanner.qml
+        DuplicateSheet.qml
         EmptyState.qml
         FilteredEmpty.qml
         HelpSheet.qml

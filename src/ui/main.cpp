@@ -494,9 +494,6 @@ int main(int argc, char *argv[])
     // out as real requests, the icon state, tooltip and stats follow GlobalState and
     // FilterCounts, and the alt-speed checkbox follows the server rather than the last click.
     omaseedApp.attachTray(&tray);
-    QObject::connect(&omaseedApp, &omaseed::app::App::addRequested, &app, []() {
-        qInfo().noquote() << QStringLiteral("add requested"); // T4.1 opens the add sheet
-    });
     QObject::connect(&omaseedApp, &omaseed::app::App::openSettings, &app, []() {
         qInfo().noquote() << QStringLiteral("settings requested"); // T4.4 opens the modal
     });
@@ -541,6 +538,20 @@ int main(int argc, char *argv[])
             qInfo().noquote()
                 << QStringLiteral("torrent action: %1 on %2").arg(action).arg(hashes.size());
         });
+
+    // --- T4.2: add flow ---
+    // The URI hand-off. `SingleInstance` emits openRequested for the URIs this process was
+    // started with as well as for every one a second launch forwards, always through a queued
+    // singleShot, so connecting here — after the App exists — still catches our own argv. QML
+    // picks them up as `App.addUrisRequested` and queues them into the add sheet.
+    QObject::connect(
+        singleInstance,
+        &omaseed::integration::SingleInstance::openRequested,
+        &omaseedApp,
+        [&omaseedApp](const QStringList &openedUris) { omaseedApp.openUris(openedUris); });
+    // `App::addRequested` (the tray, the hero's `+`, `a`) no longer needs a log line here:
+    // MainView opens `Views/AddSheet.qml` on it.
+    // --- end T4.2 ---
 
     const int code = QApplication::exec();
     omaseedApp.engine()->stop();
