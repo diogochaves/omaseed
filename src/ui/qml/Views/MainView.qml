@@ -209,10 +209,12 @@ Item {
 
     onCursorHashChanged: root.refreshDetails()
     onHelpOpenChanged: {
-        if (root.helpOpen)
-            helpSheet.forceActiveFocus();
-        else
+        if (root.helpOpen) {
+            helpSheetPanel.open(); // the sheet hands the keyboard to HelpSheet and remembers
+        } else {                   // what had it, so `esc` lands back on the table
+            helpSheetPanel.close();
             table.forceActiveFocus();
+        }
     }
 
     // Key routing. Only what no focused view claimed arrives here.
@@ -667,39 +669,25 @@ Item {
         }
     }
 
-    // the `?` sheet
-    // T4.1 replaces this with Kit/Sheet (scrim, panel, focus trap and the close animation).
-    Rectangle {
+    // the `?` sheet (spec §7 Fig. 26: 760 wide, no buttons — a sheet may have none)
+    Sheet {
+        id: helpSheetPanel
+
         anchors.fill: parent
-        color: Qt.rgba(Theme.background.r, Theme.background.g, Theme.background.b, 0.7)
-        visible: root.helpOpen
+        glyph: Glyphs.help
+        sheetWidth: Theme.space(760)
+        subtitle: qsTr("single letters act on the table \u00b7 capitals are the stronger variant \u00b7 ctrl is app-level")
+        title: qsTr("Shortcuts")
         z: 10
 
-        MouseArea {
-            anchors.fill: parent
+        onRejected: root.helpOpen = false
 
-            onClicked: root.helpOpen = false
-        }
+        HelpSheet {
+            id: helpSheet
 
-        Rectangle {
-            anchors.centerIn: parent
-            border.color: Theme.accent
-            border.width: 1
-            color: Theme.background
-            height: Math.min(parent.height - Theme.space(32),
-                             helpSheet.implicitHeight + 2 * Theme.space(16))
+            Layout.fillWidth: true
 
-            radius: Theme.cornerRadius
-            width: Math.min(parent.width - Theme.space(32), Theme.space(760))
-
-            HelpSheet {
-                id: helpSheet
-
-                anchors.fill: parent
-                anchors.margins: Theme.space(16)
-
-                onCloseRequested: root.helpOpen = false
-            }
+            onCloseRequested: root.helpOpen = false
         }
     }
 }

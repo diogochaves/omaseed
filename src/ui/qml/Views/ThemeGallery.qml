@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Layouts
 import Omaseed.Kit
 
 // Every token the Theme singleton exposes, on one scrollable page (spec v2 §8). This is the
@@ -1335,6 +1336,180 @@ Window {
                                     }
                                 }
                             }
+                        }
+                    }
+                }
+            }
+
+            // ---- overlays (T4.1) -------------------------------------------------------
+            // The four overlay components of spec v2 §3-§4, drawn inline (`inline: true`
+            // drops the scrim and the centring) so they can be compared with Fig. 6, 7, 11
+            // and 12 side by side instead of one at a time over the window.
+            Column {
+                spacing: Theme.space(14)
+                width: parent.width
+
+                GalleryLabel {
+                    text: qsTr("overlays")
+                }
+
+                Flow {
+                    spacing: Theme.space(22)
+                    width: parent.width
+
+                    Captioned {
+                        caption: qsTr("Sheet \u00b7 Fig. 7")
+
+                        Sheet {
+                            actions: [
+                                {
+                                    "text": qsTr("cancel"),
+                                    "cancel": true
+                                },
+                                {
+                                    "text": qsTr("move"),
+                                    "primary": true
+                                }
+                            ]
+                            footerRight: qsTr("server: home")
+                            glyph: Glyphs.folder
+                            hints: [
+                                {
+                                    "key": "tab",
+                                    "label": qsTr("fields")
+                                },
+                                {
+                                    "key": "enter",
+                                    "label": qsTr("move")
+                                }
+                            ]
+                            inline: true
+                            sheetWidth: Theme.space(420)
+                            subtitle: qsTr("1 torrent \u00b7 1.31 GB moves with it")
+                            title: qsTr("Set location")
+
+                            FormRow {
+                                Layout.fillWidth: true
+                                label: qsTr("New path on home")
+
+                                Field {
+                                    Layout.fillWidth: true
+                                    text: "/data/torrents/archive/"
+                                    trailing: "ctrl+o"
+                                }
+                            }
+                        }
+                    }
+
+                    Captioned {
+                        caption: qsTr("ConfirmDialog \u00b7 Fig. 6")
+
+                        ConfirmDialog {
+                            cancelText: qsTr("Cancel")
+                            confirmText: qsTr("Delete")
+                            cursor: 1
+                            destructive: true
+                            inline: true
+                            message: qsTr("Delete 2 torrents and their files?")
+                            subtitle: qsTr(
+                                          "archlinux-2026.09.01-x86_64.iso, debian-13.1.0-amd64-DVD-1.iso \u00b7 5.29 GB on disk")
+
+                            Toggle {
+                                checked: true
+                                text: qsTr("also delete files from disk")
+                            }
+                        }
+                    }
+
+                    Captioned {
+                        caption: qsTr("Palette \u00b7 Fig. 12")
+
+                        Palette {
+                            counter: qsTr("2 of 142")
+                            footerRight: qsTr("also matches hash and tracker")
+                            glyph: Glyphs.search
+                            hints: [
+                                {
+                                    "key": "\u2191\u2193",
+                                    "label": qsTr("move")
+                                },
+                                {
+                                    "key": "enter",
+                                    "label": qsTr("jump")
+                                },
+                                {
+                                    "key": "tab",
+                                    "label": qsTr("actions")
+                                }
+                            ]
+                            inline: true
+                            items: [
+                                {
+                                    "title": "Fedora-Workstation-Live-44-1.6.x86_64.iso",
+                                    "meta": qsTr("downloading"),
+                                    "detail": "linux \u00b7 2.34 GB \u00b7 12.4 %"
+                                },
+                                {
+                                    "title": "Fedora-Server-44-1.6.x86_64.iso",
+                                    "meta": qsTr("seeding"),
+                                    "detail": "linux \u00b7 2.9 GB \u00b7 ratio 4.1"
+                                }
+                            ]
+                            query: "fed"
+                        }
+                    }
+
+                    Captioned {
+                        caption: qsTr("Menu \u00b7 Fig. 11")
+
+                        Menu {
+                            cursorIndex: 4
+                            inline: true
+                            items: [
+                                {
+                                    "text": qsTr("start"),
+                                    "key": "p"
+                                },
+                                {
+                                    "text": qsTr("force start"),
+                                    "key": "P"
+                                },
+                                {
+                                    "separator": true
+                                },
+                                {
+                                    "text": qsTr("recheck"),
+                                    "key": "c"
+                                },
+                                {
+                                    "text": qsTr("reannounce"),
+                                    "key": "R"
+                                },
+                                {
+                                    "separator": true
+                                },
+                                {
+                                    "text": qsTr("category"),
+                                    "key": "C"
+                                },
+                                {
+                                    "text": qsTr("set location"),
+                                    "key": "m"
+                                },
+                                {
+                                    "text": qsTr("rename"),
+                                    "key": "r",
+                                    "disabled": true
+                                },
+                                {
+                                    "separator": true
+                                },
+                                {
+                                    "text": qsTr("delete"),
+                                    "key": "d",
+                                    "danger": true
+                                }
+                            ]
                         }
                     }
                 }

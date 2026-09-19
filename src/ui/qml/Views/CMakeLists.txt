@@ -9,6 +9,7 @@ qt_add_qml_module(omaseed-views
         DemoEnvForeign.hpp
     QML_FILES
         DemoDetails.qml
+        DemoOverlays.qml
         DemoRail.qml
         DemoStates.qml
         DemoTorrents.qml
