@@ -1,0 +1,7 @@
+// Generated from BuildConfig.hpp.in by CMake. Do not edit the generated copy.
+#pragma once
+
+#define OMASEED_VERSION_STRING "@PROJECT_VERSION@"
+#define OMASEED_VERSION_MAJOR @PROJECT_VERSION_MAJOR@
+#define OMASEED_VERSION_MINOR @PROJECT_VERSION_MINOR@
+#define OMASEED_VERSION_PATCH @PROJECT_VERSION_PATCH@
