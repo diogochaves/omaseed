@@ -23,7 +23,7 @@ QVariantMap homeFields()
 {
     return QVariantMap{
         {QStringLiteral("name"), QStringLiteral("home")},
-        {QStringLiteral("url"), QStringLiteral("http://127.0.0.1:8080")},
+        {QStringLiteral("url"), QStringLiteral("http://nas.invalid:9090")},
         {QStringLiteral("authMode"), QStringLiteral("apiKey")},
         {QStringLiteral("pathMapRemote"), QStringLiteral("/downloads")},
         {QStringLiteral("pathMapLocal"), QStringLiteral("/data/torrents")},
@@ -75,8 +75,8 @@ void TestServerListModel::pureHelpers()
     QCOMPARE(ServerListModel::authModeText(AuthMode::Cookie), QStringLiteral("cookie"));
     QCOMPARE(ServerListModel::authModeText(AuthMode::None), QStringLiteral("none"));
 
-    QCOMPARE(ServerListModel::urlText(QUrl(QStringLiteral("http://127.0.0.1:8080"))),
-             QStringLiteral("127.0.0.1:8080"));
+    QCOMPARE(ServerListModel::urlText(QUrl(QStringLiteral("http://nas.invalid:9090"))),
+             QStringLiteral("nas.invalid:9090"));
     QCOMPARE(ServerListModel::urlText(QUrl(QStringLiteral("https://sb.example.net"))),
              QStringLiteral("sb.example.net"));
     QCOMPARE(ServerListModel::urlText(QUrl()), QString());
@@ -109,9 +109,9 @@ void TestServerListModel::rolesOfOneServer()
     QCOMPARE(roleOf(model, 0, ServerListModel::IdRole).toString(), id);
     QCOMPARE(roleOf(model, 0, ServerListModel::NameRole).toString(), QStringLiteral("home"));
     QCOMPARE(roleOf(model, 0, ServerListModel::UrlRole).toString(),
-             QStringLiteral("http://127.0.0.1:8080"));
+             QStringLiteral("http://nas.invalid:9090"));
     QCOMPARE(roleOf(model, 0, ServerListModel::UrlTextRole).toString(),
-             QStringLiteral("127.0.0.1:8080"));
+             QStringLiteral("nas.invalid:9090"));
     QCOMPARE(roleOf(model, 0, ServerListModel::AuthModeRole).toString(), QStringLiteral("apiKey"));
     QCOMPARE(roleOf(model, 0, ServerListModel::AuthModeTextRole).toString(),
              QStringLiteral("API key"));
