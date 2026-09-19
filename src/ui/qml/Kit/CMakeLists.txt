@@ -5,7 +5,7 @@ qt_add_library(omaseed-kit STATIC)
 
 # `pragma Singleton` alone builds fine, but qmllint only trusts the type if qmldir says so too;
 # this must be set before qt_add_qml_module reads the source list.
-set_source_files_properties(Glyphs.qml PROPERTIES QT_QML_SINGLETON_TYPE true)
+set_source_files_properties(Glyphs.qml Fuzzy.qml PROPERTIES QT_QML_SINGLETON_TYPE true)
 
 qt_add_qml_module(omaseed-kit
     URI Omaseed.Kit
@@ -16,7 +16,10 @@ qt_add_qml_module(omaseed-kit
         Banner.qml
         Button.qml
         Chip.qml
+        ConfirmDialog.qml
         Field.qml
+        FormRow.qml
+        Fuzzy.qml
         Glyphs.qml
         Hairline.qml
         Hero.qml
@@ -24,8 +27,12 @@ qt_add_qml_module(omaseed-kit
         KeyHints.qml
         KeyValue.qml
         Label.qml
+        Menu.qml
+        Palette.qml
         ProgressLine.qml
         RailRow.qml
+        Scrim.qml
+        Sheet.qml
         SplitLayout.qml
         Stat.qml
         Strip.qml
