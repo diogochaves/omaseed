@@ -1,0 +1,74 @@
+[
+    {
+        "msg": "This torrent is private",
+        "num_downloaded": 0,
+        "num_leeches": 0,
+        "num_peers": 0,
+        "num_seeds": 0,
+        "status": 0,
+        "tier": -1,
+        "url": "** [DHT] **"
+    },
+    {
+        "msg": "This torrent is private",
+        "num_downloaded": 0,
+        "num_leeches": 0,
+        "num_peers": 0,
+        "num_seeds": 0,
+        "status": 0,
+        "tier": -1,
+        "url": "** [PeX] **"
+    },
+    {
+        "msg": "This torrent is private",
+        "num_downloaded": 0,
+        "num_leeches": 0,
+        "num_peers": 0,
+        "num_seeds": 0,
+        "status": 0,
+        "tier": -1,
+        "url": "** [LSD] **"
+    },
+    {
+        "endpoints": [],
+        "min_announce": 0,
+        "msg": "",
+        "next_announce": 0,
+        "num_downloaded": -1,
+        "num_leeches": -1,
+        "num_peers": -1,
+        "num_seeds": -1,
+        "status": 1,
+        "tier": 0,
+        "updating": false,
+        "url": "http://tracker1.example.com/announce"
+    },
+    {
+        "endpoints": [],
+        "min_announce": 0,
+        "msg": "",
+        "next_announce": 0,
+        "num_downloaded": -1,
+        "num_leeches": -1,
+        "num_peers": -1,
+        "num_seeds": -1,
+        "status": 1,
+        "tier": 1,
+        "updating": false,
+        "url": "http://tracker2.example.com/announce"
+    },
+    {
+        "endpoints": [],
+        "min_announce": 0,
+        "msg": "",
+        "next_announce": 0,
+        "num_downloaded": -1,
+        "num_leeches": -1,
+        "num_peers": -1,
+        "num_seeds": -1,
+        "status": 1,
+        "tier": 1,
+        "updating": false,
+        "url": "http://tracker3.example.com/announce"
+    }
+]

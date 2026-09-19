@@ -1,0 +1,52 @@
+[
+    {
+        "availability": 1,
+        "index": 0,
+        "is_seed": true,
+        "name": "Big Buck Bunny 4K/bbb_sunflower_2160p_60fps.mp4",
+        "piece_range": [0, 3859],
+        "priority": 6,
+        "progress": 1,
+        "size": 4144855449
+    },
+    {
+        "availability": 1,
+        "index": 1,
+        "is_seed": true,
+        "name": "Big Buck Bunny 4K/bbb_sunflower_1080p_30fps.mp4",
+        "piece_range": [3860, 3911],
+        "priority": 1,
+        "progress": 1,
+        "size": 54627532
+    },
+    {
+        "availability": 0,
+        "index": 2,
+        "is_seed": false,
+        "name": "Big Buck Bunny 4K/subs/bbb.en.srt",
+        "piece_range": [3912, 3912],
+        "priority": 0,
+        "progress": 0,
+        "size": 9216
+    },
+    {
+        "availability": 0,
+        "index": 3,
+        "is_seed": false,
+        "name": "Big Buck Bunny 4K/subs/bbb.pt.srt",
+        "piece_range": [3912, 3912],
+        "priority": 0,
+        "progress": 0,
+        "size": 9216
+    },
+    {
+        "availability": 1,
+        "index": 4,
+        "is_seed": true,
+        "name": "Big Buck Bunny 4K/LICENSE.txt",
+        "piece_range": [3912, 3912],
+        "priority": 1,
+        "progress": 1,
+        "size": 1024
+    }
+]

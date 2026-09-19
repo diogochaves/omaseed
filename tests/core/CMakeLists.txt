@@ -123,3 +123,22 @@ omaseed_add_test(tst_syncengine_live
     SOURCES tst_syncengine_live.cpp
     LIBRARIES omaseed::core
 )
+
+# --- T3.4: the details pane ---------------------------------------------------------------
+omaseed_add_test(tst_torrentfilesmodel
+    SOURCES tst_torrentfilesmodel.cpp
+    LIBRARIES omaseed::core
+    DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
+)
+
+omaseed_add_test(tst_torrenttrackersmodel
+    SOURCES tst_torrenttrackersmodel.cpp
+    LIBRARIES omaseed::core
+    DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
+)
+
+omaseed_add_test(tst_torrentpeersmodel
+    SOURCES tst_torrentpeersmodel.cpp
+    LIBRARIES omaseed::core
+    DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
+)

@@ -1,0 +1,68 @@
+[
+    {
+        "msg": "",
+        "next_announce": 1620,
+        "num_downloaded": 41028,
+        "num_leeches": 88,
+        "num_peers": 91,
+        "num_seeds": 1204,
+        "status": 2,
+        "tier": 0,
+        "updating": false,
+        "url": "https://tracker.example.org:443/announce"
+    },
+    {
+        "msg": "timed out",
+        "next_announce": 240,
+        "num_downloaded": -1,
+        "num_leeches": -1,
+        "num_peers": -1,
+        "num_seeds": -1,
+        "status": 4,
+        "tier": 1,
+        "updating": false,
+        "url": "udp://tracker.example.net:1337/announce"
+    },
+    {
+        "msg": "",
+        "next_announce": 0,
+        "num_downloaded": 9006,
+        "num_leeches": 41,
+        "num_peers": 44,
+        "num_seeds": 640,
+        "status": 2,
+        "tier": 2,
+        "updating": false,
+        "url": "udp://open.example.si:80/announce"
+    },
+    {
+        "msg": "",
+        "num_downloaded": 0,
+        "num_leeches": 0,
+        "num_peers": 0,
+        "num_seeds": 22,
+        "status": 2,
+        "tier": -1,
+        "url": "** [DHT] **"
+    },
+    {
+        "msg": "",
+        "num_downloaded": 0,
+        "num_leeches": 0,
+        "num_peers": 0,
+        "num_seeds": 9,
+        "status": 2,
+        "tier": -1,
+        "url": "** [PeX] **"
+    },
+    {
+        "msg": "",
+        "num_downloaded": 0,
+        "num_leeches": 0,
+        "num_peers": 0,
+        "num_seeds": 0,
+        "status": 0,
+        "tier": -1,
+        "url": "** [LSD] **"
+    }
+]

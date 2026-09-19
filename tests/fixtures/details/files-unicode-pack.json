@@ -1,0 +1,39 @@
+[
+    {
+        "availability": 0,
+        "index": 0,
+        "is_seed": false,
+        "name": "Unicode Pack/caf\u00e9/notes.txt",
+        "piece_range": [
+            0,
+            0
+        ],
+        "priority": 1,
+        "progress": 0,
+        "size": 120
+    },
+    {
+        "availability": 0,
+        "index": 1,
+        "name": "Unicode Pack/\u65e5\u672c\u8a9e/sub \u30d5\u30a9\u30eb\u30c0/\u30d5\u30a1\u30a4\u30eb.bin",
+        "piece_range": [
+            0,
+            0
+        ],
+        "priority": 1,
+        "progress": 0,
+        "size": 4096
+    },
+    {
+        "availability": 0,
+        "index": 2,
+        "name": "Unicode Pack/root.txt",
+        "piece_range": [
+            0,
+            0
+        ],
+        "priority": 1,
+        "progress": 0,
+        "size": 10
+    }
+]

@@ -1,0 +1,30 @@
+[
+    {
+        "availability": 1,
+        "index": 0,
+        "is_seed": false,
+        "name": "Unicode Pack/café/notes.txt",
+        "piece_range": [0, 0],
+        "priority": 6,
+        "progress": 1,
+        "size": 120
+    },
+    {
+        "availability": 0.5,
+        "index": 1,
+        "name": "Unicode Pack/日本語/sub フォルダ/ファイル.bin",
+        "piece_range": [0, 0],
+        "priority": 0,
+        "progress": 0.5,
+        "size": 4096
+    },
+    {
+        "availability": 1,
+        "index": 2,
+        "name": "Unicode Pack/root.txt",
+        "piece_range": [0, 0],
+        "priority": 1,
+        "progress": 1,
+        "size": 10
+    }
+]
