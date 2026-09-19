@@ -519,11 +519,14 @@ Item {
             servers: App.servers
             // T4.5: the SERVERS group is off unless the General pane asks for it.
             serverCount: App.showServersGroup ? App.serverCount : 0
+            // T4.8: the group draws the real names, and picking one switches server.
+            serverList: App.serverList
             tags: App.tags
             trackers: App.trackers
             visible: !root.libraryEmpty && !root.firstSync
 
             onFocusTable: table.forceActiveFocus()
+            onServerActivated: id => App.setDefaultServer(id)
         }
 
         SplitLayout {
