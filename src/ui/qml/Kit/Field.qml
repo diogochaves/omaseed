@@ -104,7 +104,14 @@ Rectangle {
             visible: input.text.length === 0 && !input.activeFocus
         }
 
-        Keys.onEscapePressed: {
+        // Escape clears the field; with nothing left to clear it is passed on, so the
+        // sheet, palette or view around the field still gets its turn (spec §7 Fig. 26's
+        // escape ladder: "clear, then filter, then close").
+        Keys.onEscapePressed: event => {
+            if (input.text.length === 0) {
+                event.accepted = false;
+                return;
+            }
             input.text = "";
             root.cleared();
         }

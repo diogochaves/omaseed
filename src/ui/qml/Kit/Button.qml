@@ -25,6 +25,9 @@ Rectangle {
     property bool hasCursor: false
     property bool selected: false
     property bool bordered: false
+    // The label's type size. Body everywhere (spec `.btn`), except the confirm dialog's two
+    // buttons, which the spec prints at caption (`.confirm .bts .btn`).
+    property int fontSize: Theme.font.body
     // Debug-only override so the ThemeGallery can show the pressed fill without a held mouse
     // button; a real press (mouseArea.pressed) always wins over this.
     property bool pressed: false
@@ -103,7 +106,7 @@ Rectangle {
             anchors.verticalCenter: parent.verticalCenter
             color: root._textColor
             font.family: Theme.fontFamily
-            font.pixelSize: Theme.font.body
+            font.pixelSize: root.fontSize
             text: root.text
             visible: root.text.length > 0
         }
