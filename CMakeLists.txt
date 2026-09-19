@@ -14,7 +14,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 option(OMASEED_WERROR "Treat compiler warnings as errors (CI turns this on)" OFF)
 option(BUILD_TESTING "Build the unit and QML tests" ON)
 
-find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Network Qml Quick DBus Svg Widgets)
+find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Network Qml Quick QuickControls2 QuickLayouts DBus Svg Widgets)
 if(BUILD_TESTING)
     find_package(Qt6 6.8 REQUIRED COMPONENTS Test QuickTest)
 endif()
