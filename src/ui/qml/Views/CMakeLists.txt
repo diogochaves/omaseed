@@ -8,6 +8,8 @@ qt_add_qml_module(omaseed-views
     SOURCES
         DemoEnvForeign.hpp
     QML_FILES
+        ActionsMenu.qml
+        DeleteConfirm.qml
         DemoDetails.qml
         DemoOverlays.qml
         DemoRail.qml
@@ -23,10 +25,13 @@ qt_add_qml_module(omaseed-views
         EmptyState.qml
         FilteredEmpty.qml
         HelpSheet.qml
+        LimitsSheet.qml
         LoadingState.qml
+        LocationSheet.qml
         MainView.qml
         Rail.qml
         RailGroup.qml
+        RenameSheet.qml
         ThemeGallery.qml
         TorrentTable.qml
 )

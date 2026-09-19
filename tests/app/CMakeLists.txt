@@ -9,3 +9,9 @@ omaseed_add_test(tst_app_notifications
     SOURCES tst_app_notifications.cpp ../integration/FakeNotificationServer.hpp
     LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::DBus
 )
+
+# T4.3, against the :8081 playground; QSKIPs the whole file when it is not running.
+omaseed_add_test(tst_app_actions
+    SOURCES tst_app_actions.cpp
+    LIBRARIES omaseed::app omaseed::core omaseed::integration
+)

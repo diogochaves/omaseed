@@ -12,5 +12,6 @@ target_include_directories(omaseed-app PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../..
 
 target_link_libraries(omaseed-app
     PUBLIC omaseed::core omaseed::integration Qt6::Core Qt6::Qml
-    PRIVATE omaseed::warnings
+    # T4.3: App::copyToClipboard (QClipboard) and App::pickDirectory (QFileDialog).
+    PRIVATE omaseed::warnings Qt6::Gui Qt6::Widgets
 )
