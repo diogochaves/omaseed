@@ -10,6 +10,10 @@ Private during development; public with v1.
 
 ## Documents
 
+- [CLAUDE.md](CLAUDE.md) — standing instructions for agents working in this repo (read first)
+- [docs/06-implementation-plan.md](docs/06-implementation-plan.md) — the work breakdown: phases, tasks, acceptance criteria
+- [docs/05-ui-spec-v2.html](docs/05-ui-spec-v2.html) — **approved UI spec** (open in a browser; theme and base-size toggles)
+- [docs/04-ui-spec.html](docs/04-ui-spec.html) — first UI draft, kept for comparison
 - [docs/03-charter.md](docs/03-charter.md) — what we are building, decisions, milestones (start here)
 - [docs/02-exploration.md](docs/02-exploration.md) — research: landscape, bases evaluated, Omarchy-native mechanisms, sources
 - [docs/01-plan-draft.md](docs/01-plan-draft.md) — the earlier omarqui-based draft, kept for the API notes and history

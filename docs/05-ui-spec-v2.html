@@ -1,0 +1,720 @@
+<title>omaseed UI Spec v2</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<style>
+/* ------------------------------------------------------------------
+   v2 — the "Workstation" direction: flea + omamail + Strata layout,
+   omarqui's headline numbers. Colours from the selected theme's
+   colors.toml through the shell's token rules; sizes from base-size.
+   ------------------------------------------------------------------ */
+:root {
+  --accent:#7aa2f7; --selection:#292e42; --muted:#414868;
+  --bg:#1a1b26; --bg-dark:#13141c; --bg-darker:#0e0e14; --bg-light:#24283b;
+  --fg:#a9b1d6; --fg-dark:#565f89; --fg-light:#b4bee6; --fg-bright:#c0caf5;
+  --red:#f7768e; --yellow:#e0af68; --orange:#eb927b; --green:#9ece6a;
+  --cyan:#449dab; --blue:#7aa2f7; --magenta:#ad8ee6; --brown:#75493d;
+
+  --fill-normal: color-mix(in srgb, var(--fg) 4%, transparent);
+  --fill-hover:  color-mix(in srgb, var(--fg) 8%, transparent);
+  --fill-selected: color-mix(in srgb, var(--fg) 18%, transparent);
+  --fill-pressed: color-mix(in srgb, var(--fg) 22%, transparent);
+  --border-normal: color-mix(in srgb, var(--fg) 40%, transparent);
+  --border-hover: color-mix(in srgb, var(--fg) 25%, transparent);
+  --hairline: color-mix(in srgb, var(--fg) 12%, transparent);
+  --scrim: color-mix(in srgb, var(--bg) 70%, transparent);
+  --glass: color-mix(in srgb, var(--bg) 90%, transparent);
+
+  --st-down: var(--blue); --st-seed: var(--green); --st-stop: var(--fg-dark);
+  --st-err: var(--red); --st-check: var(--yellow); --st-queue: var(--magenta); --st-stall: var(--orange);
+
+  --mono: "JetBrains Mono", "JetBrainsMono Nerd Font", ui-monospace, monospace;
+  --radius: 0px;
+  --base: 12px;
+  --caption: calc(var(--base) * 0.833); --small: calc(var(--base) * 0.917); --body: var(--base);
+  --subtitle: calc(var(--base) * 1.083); --title: calc(var(--base) * 1.167); --heading: calc(var(--base) * 1.333); --display: calc(var(--base) * 2);
+  --u: calc(var(--base) / 12);              /* spacing unit: 1px at base 12 */
+  --row: calc(var(--base) * 2.4);           /* table row height */
+  --ctl: calc(var(--base) * 2.333);         /* control height 28 at 12 */
+  color-scheme: dark;
+}
+:root[data-mode="light"] { color-scheme: light; }
+:root[data-base="14"] { --base: 14px; }
+
+* { box-sizing:border-box; }
+html, body { height:100%; }
+body { margin:0; background:var(--bg-dark); color:var(--fg); font:400 13px/1.55 var(--mono); -webkit-font-smoothing:antialiased; }
+a { color:var(--accent); }
+h1,h2,h3 { margin:0; font-weight:600; color:var(--fg-bright); text-wrap:balance; }
+h1 { font-size:24px; letter-spacing:-.01em; } h2 { font-size:16px; } h3 { font-size:14px; }
+p { margin:0; max-width:72ch; }
+code { font-family:var(--mono); color:var(--fg-bright); background:var(--fill-normal); padding:0 4px; }
+kbd { font-family:var(--mono); font-size:11px; color:var(--fg-bright); }
+.eyebrow { font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--fg-dark); }
+.dim { color:var(--fg-dark); } .bright { color:var(--fg-bright); }
+.note { color:var(--fg-dark); font-size:11.5px; }
+
+/* ---------- page chrome ---------- */
+.topbar { position:sticky; top:env(safe-area-inset-top,0px); z-index:10; display:flex; align-items:center; gap:14px; flex-wrap:wrap; padding:8px 16px; background:var(--bg); border-bottom:1px solid var(--hairline); }
+.topbar .brand { display:flex; align-items:center; gap:8px; color:var(--fg-bright); font-weight:600; }
+.topbar .brand .glyph { color:var(--accent); }
+.topbar nav { display:flex; gap:2px; flex-wrap:wrap; }
+.topbar nav a { color:var(--fg-dark); text-decoration:none; font-size:11px; padding:4px 8px; }
+.topbar nav a:hover { color:var(--fg-bright); background:var(--fill-hover); }
+.segs { margin-left:auto; display:flex; gap:10px; flex-wrap:wrap; }
+.seg { display:flex; border:1px solid var(--border-normal); }
+.seg button { font:inherit; font-size:11px; color:var(--fg); background:var(--fill-normal); border:0; border-right:1px solid var(--border-normal); padding:5px 10px; cursor:pointer; display:flex; gap:6px; align-items:center; }
+.seg button:last-child { border-right:0; }
+.seg button:hover { background:var(--fill-hover); }
+.seg button[aria-pressed="true"] { background:var(--fill-selected); color:var(--fg-bright); }
+.seg button:focus-visible { outline:1px solid var(--accent); outline-offset:-1px; }
+.seg .sw { width:10px; height:10px; border:1px solid var(--border-normal); }
+.page { padding:28px 16px 64px; max-width:1400px; margin:0 auto; display:grid; gap:56px; }
+header.lead { display:grid; gap:14px; }
+.lead .meta { display:flex; gap:18px; flex-wrap:wrap; font-size:11px; color:var(--fg-dark); }
+.lead .meta b { color:var(--fg); font-weight:500; }
+section { display:grid; gap:18px; scroll-margin-top:64px; }
+.sec-head { display:grid; gap:6px; } .sec-head .eyebrow { color:var(--accent); }
+.grid2 { display:grid; grid-template-columns:repeat(auto-fit,minmax(360px,1fr)); gap:18px; align-items:start; }
+.grid3 { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:18px; align-items:start; }
+.figure { display:grid; gap:8px; min-width:0; }
+.figure > .cap { font-size:11.5px; color:var(--fg-dark); } .figure > .cap b { color:var(--fg); font-weight:500; }
+.scroller { overflow-x:auto; }
+
+/* ---------- desktop + window ---------- */
+.desk { padding:24px; background:
+  radial-gradient(ellipse at 18% 8%, color-mix(in srgb, var(--accent) 38%, var(--bg-darker)) 0%, transparent 52%),
+  radial-gradient(ellipse at 84% 92%, color-mix(in srgb, var(--magenta) 34%, var(--bg-darker)) 0%, transparent 55%),
+  radial-gradient(ellipse at 60% 40%, color-mix(in srgb, var(--cyan) 14%, var(--bg-darker)) 0%, transparent 60%),
+  var(--bg-darker); display:grid; place-items:center; }
+.desk.tight { padding:16px; }
+.win { background:var(--glass); color:var(--fg); border:1px solid var(--accent); border-radius:var(--radius); font-size:var(--body); line-height:1.4; display:grid; min-width:0; backdrop-filter:blur(2px); }
+.win.inactive { border-color:var(--muted); }
+
+/* ---------- controls (shell kit) ---------- */
+.btn { display:inline-flex; align-items:center; justify-content:center; gap:calc(6*var(--u)); height:var(--ctl); padding:0 calc(10*var(--u)); font-size:var(--body); color:var(--fg); background:transparent; border:1px solid transparent; white-space:nowrap; }
+.btn.b { border-color:var(--border-normal); background:var(--fill-normal); }
+.btn.hover { background:var(--fill-hover); border-color:var(--border-hover); }
+.btn.sel { background:var(--fill-selected); color:var(--fg-bright); }
+.btn.pressed { background:var(--fill-pressed); }
+.btn.focus { outline:1px solid var(--accent); outline-offset:-1px; }
+.btn.primary { border-color:var(--accent); color:var(--accent); }
+.btn.danger { color:var(--red); } .btn.danger.sel { border-color:var(--red); background:color-mix(in srgb, var(--red) 10%, transparent); }
+.btn.icon { width:var(--ctl); padding:0; color:var(--fg-dark); font-size:var(--subtitle); }
+.btn.icon.on { color:var(--accent); }
+.field { display:flex; align-items:center; gap:calc(8*var(--u)); height:var(--ctl); padding:0 calc(10*var(--u)); font-size:var(--body); color:var(--fg-bright); background:var(--fill-normal); border:1px solid var(--border-normal); min-width:0; }
+.field .ph { color:var(--fg-dark); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.field .k { margin-left:auto; color:var(--fg-dark); font-size:var(--caption); white-space:nowrap; flex:none; }
+.field.focus { border-color:var(--accent); }
+.field.quiet { border-color:transparent; background:transparent; padding-left:0; }
+.chip { display:inline-flex; align-items:center; gap:5px; height:calc(var(--ctl) - 6*var(--u)); padding:0 calc(8*var(--u)); font-size:var(--small); border:1px solid var(--border-normal); color:var(--fg); background:var(--fill-normal); }
+.chip.on { background:var(--fill-selected); color:var(--fg-bright); border-color:transparent; }
+.toggle { display:inline-flex; align-items:center; gap:8px; font-size:var(--body); }
+.toggle .sw { width:calc(26*var(--u)); height:calc(14*var(--u)); border:1px solid var(--border-normal); background:var(--fill-normal); position:relative; }
+.toggle .sw::after { content:""; position:absolute; top:2px; left:2px; width:calc(8*var(--u)); height:calc(8*var(--u)); background:var(--fg-dark); }
+.toggle.on .sw { background:var(--fill-selected); border-color:transparent; }
+.toggle.on .sw::after { left:auto; right:2px; background:var(--fg-bright); }
+.lbl { font-size:var(--caption); letter-spacing:.1em; text-transform:uppercase; color:var(--fg-dark); }
+.sep { height:1px; background:var(--hairline); }
+.dot { display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--green); vertical-align:middle; }
+.dot.warn { background:var(--yellow); } .dot.err { background:var(--red); } .dot.off { background:var(--fg-dark); }
+.hints { display:flex; gap:calc(18*var(--u)); align-items:center; font-size:var(--small); color:var(--fg-dark); white-space:nowrap; overflow:hidden; }
+.hints .h { display:inline-flex; gap:calc(6*var(--u)); } .hints .h b { color:var(--fg); font-weight:500; }
+.hints .help { margin-left:auto; }
+
+/* ---------- main window ---------- */
+.main { width:calc(1360*var(--u)); height:calc(800*var(--u)); grid-template-rows:auto 1fr auto; }
+.hero { display:flex; align-items:center; gap:calc(14*var(--u)); padding:calc(12*var(--u)) calc(16*var(--u)); border-bottom:1px solid var(--hairline); }
+.hero .mark { width:calc(28*var(--u)); height:calc(28*var(--u)); border:1px solid var(--accent); color:var(--accent); display:grid; place-items:center; font-size:var(--title); }
+.hero .name { display:grid; gap:1px; }
+.hero .name b { color:var(--fg-bright); font-size:var(--subtitle); font-weight:600; }
+.hero .name .lbl { display:flex; gap:6px; align-items:center; }
+.hero .stat { display:grid; gap:0; margin-left:calc(20*var(--u)); font-variant-numeric:tabular-nums; }
+.hero .stat .v { color:var(--fg-bright); font-size:var(--heading); font-weight:500; line-height:1.15; }
+.hero .stat .v i { font-style:normal; font-size:var(--body); margin-right:4px; }
+.hero .stat.d .v i { color:var(--st-down); } .hero .stat.u .v i { color:var(--st-seed); }
+.hero .stat .lbl { letter-spacing:.08em; }
+.hero .grow { flex:1; }
+.hero .search { width:calc(260*var(--u)); }
+.hero .acts { display:flex; gap:calc(2*var(--u)); }
+.body { display:grid; grid-template-columns:calc(190*var(--u)) 1fr calc(340*var(--u)); min-height:0; }
+.rail { padding:calc(10*var(--u)) 0; overflow:hidden; display:grid; align-content:start; gap:calc(14*var(--u)); border-right:1px solid var(--hairline); }
+.rail .grp { display:grid; gap:0; }
+.rail .grp .lbl { padding:0 calc(16*var(--u)) calc(4*var(--u)); }
+.rail .row { display:flex; gap:calc(8*var(--u)); align-items:center; height:calc(var(--base)*2.1); padding:0 calc(16*var(--u)); font-size:var(--body); color:var(--fg); }
+.rail .row .g { width:calc(14*var(--u)); color:var(--fg-dark); text-align:center; font-size:var(--small); }
+.rail .row .n { margin-left:auto; color:var(--fg-dark); font-variant-numeric:tabular-nums; font-size:var(--small); }
+.rail .row.sel { background:var(--fill-selected); color:var(--fg-bright); } .rail .row.sel .g { color:var(--accent); }
+.rail .row.cur { background:var(--fill-hover); }
+.content { display:grid; grid-template-rows:auto 1fr; min-height:0; min-width:0; }
+.tbl { display:grid; grid-template-columns:minmax(0,1fr) 72px 118px 104px 62px 84px 84px 62px; font-variant-numeric:tabular-nums; align-content:start; }
+:root[data-base="14"] .tbl { grid-template-columns:minmax(0,1fr) 84px 134px 120px 70px 96px 96px 70px; }
+.tbl > div { height:var(--row); display:flex; align-items:center; padding:0 calc(8*var(--u)); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
+.tbl > div.h { height:calc(var(--base)*2); font-size:var(--caption); color:var(--fg-dark); border-bottom:1px solid var(--hairline); letter-spacing:.04em; }
+.tbl > div.h.sort { color:var(--fg); }
+.tbl .num { justify-content:flex-end; }
+.tbl .r { display:contents; }
+.tbl .r > div { border-bottom:1px solid color-mix(in srgb, var(--fg) 5%, transparent); }
+.tbl .r.sel > div { background:var(--fill-selected); color:var(--fg-bright); }
+.tbl .r.cur > div { background:var(--fill-hover); box-shadow:inset 0 1px 0 var(--border-hover), inset 0 -1px 0 var(--border-hover); }
+.tbl .r.cur > div:first-child { box-shadow:inset 1px 1px 0 var(--border-hover), inset 0 -1px 0 var(--border-hover); }
+.tbl .r.cur > div:last-child { box-shadow:inset -1px 1px 0 var(--border-hover), inset 0 -1px 0 var(--border-hover); }
+.tbl .r.sel.cur > div { background:color-mix(in srgb, var(--fg) 24%, transparent); }
+.tbl > div.nm { display:grid; grid-template-columns:minmax(0,auto) auto; justify-content:start; gap:calc(8*var(--u)); } .tbl .nm span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; } .tbl .nm em { font-style:normal; color:var(--fg-dark); font-size:var(--small); }
+.tbl > div.pg { display:grid; grid-template-columns:1fr calc(40*var(--u)); gap:calc(8*var(--u)); } .tbl .pg .bar { height:2px; background:var(--hairline); position:relative; } .tbl .pg .bar b { position:absolute; inset:0; width:var(--p); background:var(--st); }
+.tbl .pg span { text-align:right; color:var(--fg-dark); font-size:var(--small); }
+.tbl .st { gap:calc(6*var(--u)); } .tbl .st i { font-style:normal; width:calc(12*var(--u)); text-align:center; }
+.tbl .rn .ren { flex:1; height:calc(var(--row) - 8*var(--u)); display:flex; align-items:center; padding:0 6px; border:1px solid var(--accent); background:var(--fill-normal); color:var(--fg-bright); }
+.tbl .rn .ren u { text-decoration:none; background:color-mix(in srgb, var(--accent) 35%, transparent); }
+.details { border-left:1px solid var(--hairline); display:grid; grid-template-rows:auto auto auto 1fr; min-height:0; overflow:hidden; }
+.details .head { padding:calc(12*var(--u)) calc(16*var(--u)) calc(8*var(--u)); display:grid; gap:2px; }
+.details .head b { color:var(--fg-bright); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.details .head .m { color:var(--fg-dark); font-size:var(--small); }
+.strip { display:grid; grid-template-columns:repeat(4,1fr); padding:calc(6*var(--u)) calc(16*var(--u)) calc(10*var(--u)); border-bottom:1px solid var(--hairline); }
+.strip div { display:grid; gap:1px; } .strip .lbl { font-size:calc(var(--caption) - 1px); } .strip .v { color:var(--fg-bright); font-size:var(--small); white-space:nowrap; }
+.tabs { display:flex; gap:0; padding:0 calc(10*var(--u)); border-bottom:1px solid var(--hairline); }
+.tabs .tab { height:calc(var(--base)*2.2); display:flex; align-items:center; gap:6px; padding:0 calc(8*var(--u)); font-size:var(--small); color:var(--fg-dark); }
+.tabs .tab.on { color:var(--fg-bright); box-shadow:inset 0 -1px 0 var(--fg-bright); }
+.tabs .tab .k { font-size:var(--caption); }
+.kv { padding:calc(10*var(--u)) calc(16*var(--u)); display:grid; grid-template-columns:calc(92*var(--u)) 1fr; gap:0 calc(10*var(--u)); align-content:start; font-size:var(--small); }
+.kv .k { color:var(--fg-dark); font-size:calc(var(--caption) - 1px); letter-spacing:.08em; text-transform:uppercase; padding:calc(5*var(--u)) 0; border-bottom:1px solid color-mix(in srgb, var(--fg) 6%, transparent); }
+.kv .v { color:var(--fg-bright); padding:calc(5*var(--u)) 0; border-bottom:1px solid color-mix(in srgb, var(--fg) 6%, transparent); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.kv .sp { grid-column:1/-1; height:calc(8*var(--u)); }
+.foot { display:flex; align-items:center; gap:calc(16*var(--u)); padding:0 calc(16*var(--u)); height:calc(var(--base)*2.2); border-top:1px solid var(--hairline); font-size:var(--small); color:var(--fg-dark); }
+.foot .facts { display:flex; gap:calc(10*var(--u)); white-space:nowrap; }
+.foot .facts b { color:var(--fg); font-weight:500; }
+.foot .hints { flex:1; justify-content:flex-end; }
+
+/* files / trackers / peers panes */
+.list { display:grid; font-size:var(--small); font-variant-numeric:tabular-nums; }
+.list > div { height:calc(var(--base)*2.1); display:flex; align-items:center; padding:0 calc(8*var(--u)); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; border-bottom:1px solid color-mix(in srgb, var(--fg) 5%, transparent); }
+.list > div.h { font-size:calc(var(--caption) - 1px); letter-spacing:.06em; text-transform:uppercase; color:var(--fg-dark); }
+.list > div.g { color:var(--fg-dark); font-size:var(--caption); letter-spacing:.06em; text-transform:uppercase; border-bottom:0; padding-top:calc(6*var(--u)); }
+.list .num { justify-content:flex-end; }
+.list .cur { background:var(--fill-hover); }
+.files { grid-template-columns:1fr 70px 56px 72px; } .files .i1 { padding-left:calc(22*var(--u)); } .files .i2 { padding-left:calc(38*var(--u)); }
+.pri.hi { color:var(--yellow); } .pri.skip { color:var(--fg-dark); text-decoration:line-through; }
+.trk { grid-template-columns:14px minmax(0,1fr) 50px 44px 150px; }
+.peers { grid-template-columns:1fr 40px 1fr 64px 64px 52px; }
+
+/* ---------- overlays ---------- */
+.stage { position:relative; overflow:hidden; display:grid; place-items:center; padding:24px; min-height:320px; }
+.stage .win-bg { position:absolute; inset:16px; background:var(--glass); border:1px solid var(--muted); }
+.stage .ghost { position:absolute; inset:16px; padding:14px; font-size:var(--small); color:var(--fg-dark); opacity:.5; display:grid; gap:6px; align-content:start; overflow:hidden; }
+.stage .scrim { position:absolute; inset:16px; background:var(--scrim); }
+.sheet { position:relative; background:var(--bg); border:1px solid var(--accent); width:100%; max-width:520px; display:grid; gap:calc(12*var(--u)); padding:calc(16*var(--u)); font-size:var(--body); }
+.sheet .hd { display:flex; gap:calc(10*var(--u)); align-items:center; }
+.sheet .hd .ic { width:calc(30*var(--u)); height:calc(30*var(--u)); border:1px solid var(--border-normal); display:grid; place-items:center; color:var(--fg); font-size:var(--subtitle); }
+.sheet .hd .t { display:grid; gap:1px; min-width:0; flex:1; } .sheet .hd .t b { color:var(--fg-bright); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; } .sheet .hd .t .m { color:var(--fg-dark); font-size:var(--small); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sheet .hd .x { margin-left:auto; color:var(--fg-dark); }
+.sheet .row { display:grid; gap:calc(4*var(--u)); }
+.sheet .cols { display:grid; grid-template-columns:1fr 1fr; gap:calc(10*var(--u)); }
+.sheet .chips { display:flex; gap:6px; flex-wrap:wrap; }
+.sheet .acts { display:grid; grid-auto-flow:column; grid-auto-columns:1fr; gap:calc(8*var(--u)); padding-top:calc(4*var(--u)); }
+.sheet .acts .btn { width:100%; }
+.sheet .ft { display:flex; align-items:center; gap:calc(14*var(--u)); font-size:var(--caption); color:var(--fg-dark); border-top:1px solid var(--hairline); padding-top:calc(8*var(--u)); }
+.sheet .ft .r { margin-left:auto; }
+.banner { display:flex; gap:8px; align-items:flex-start; padding:calc(6*var(--u)) calc(10*var(--u)); font-size:var(--small); border-left:2px solid var(--yellow); color:var(--yellow); background:color-mix(in srgb, var(--yellow) 6%, transparent); }
+.banner.err { border-color:var(--red); color:var(--red); background:color-mix(in srgb, var(--red) 6%, transparent); }
+.banner.ok { border-color:var(--green); color:var(--green); background:color-mix(in srgb, var(--green) 6%, transparent); }
+.confirm { position:relative; background:var(--bg); border:1px solid var(--accent); width:100%; max-width:370px; padding:calc(18*var(--u)); display:grid; gap:calc(16*var(--u)); }
+.confirm .msg { color:var(--fg-bright); font-size:var(--title); line-height:1.35; }
+.confirm .sub { color:var(--fg-dark); font-size:var(--small); }
+.confirm .bts { display:flex; gap:calc(8*var(--u)); justify-content:flex-end; }
+.confirm .bts .btn { width:calc(88*var(--u)); font-size:var(--caption); }
+.palette { position:relative; background:var(--bg); border:1px solid var(--accent); width:100%; max-width:480px; display:grid; font-size:var(--body); }
+.palette .q { display:flex; gap:10px; align-items:center; height:calc(var(--ctl) + 8*var(--u)); padding:0 calc(14*var(--u)); border-bottom:1px solid var(--hairline); color:var(--fg-bright); }
+.palette .q .g { color:var(--fg-dark); } .palette .q .c { margin-left:auto; color:var(--fg-dark); font-size:var(--caption); }
+.palette .it { display:grid; gap:1px; padding:calc(6*var(--u)) calc(14*var(--u)); border-bottom:1px solid color-mix(in srgb, var(--fg) 5%, transparent); }
+.palette .it b { color:var(--fg-bright); font-weight:500; display:flex; gap:8px; } .palette .it b .n { margin-left:auto; color:var(--fg-dark); font-weight:400; font-size:var(--small); }
+.palette .it .p { color:var(--fg-dark); font-size:var(--small); }
+.palette .it.cur { background:var(--fill-hover); box-shadow:inset 0 0 0 1px var(--border-hover); }
+.palette .ft { display:flex; gap:calc(14*var(--u)); padding:calc(6*var(--u)) calc(14*var(--u)); font-size:var(--caption); color:var(--fg-dark); }
+.palette .ft .r { margin-left:auto; }
+.actions { position:relative; background:var(--bg); border:1px solid var(--accent); width:100%; max-width:300px; padding:calc(6*var(--u)) 0; font-size:var(--body); }
+.actions .it { display:flex; gap:10px; align-items:center; height:calc(var(--base)*2.1); padding:0 calc(14*var(--u)); color:var(--fg); }
+.actions .it .k { margin-left:auto; color:var(--fg-dark); font-size:var(--caption); }
+.actions .it.cur { background:var(--fill-hover); color:var(--accent); }
+.actions .it.danger { color:var(--red); }
+.actions .sep { margin:calc(4*var(--u)) calc(14*var(--u)); }
+.settings { position:relative; background:var(--bg); border:1px solid var(--accent); width:100%; max-width:720px; display:grid; grid-template-columns:calc(170*var(--u)) 1fr; min-height:380px; font-size:var(--body); }
+.settings .nav { border-right:1px solid var(--hairline); padding:calc(14*var(--u)) 0; display:grid; align-content:start; gap:1px; }
+.settings .nav .lbl { padding:0 calc(16*var(--u)) calc(8*var(--u)); }
+.settings .nav .it { display:flex; gap:8px; align-items:center; height:calc(var(--base)*2.2); padding:0 calc(16*var(--u)); color:var(--fg); }
+.settings .nav .it .g { color:var(--fg-dark); width:14px; text-align:center; }
+.settings .nav .it.on { background:var(--fill-selected); color:var(--fg-bright); }
+.settings .pane { padding:calc(14*var(--u)) calc(18*var(--u)); display:grid; gap:calc(12*var(--u)); align-content:start; }
+.settings .pane .t { display:flex; align-items:center; color:var(--fg-bright); font-weight:600; font-size:var(--subtitle); }
+.settings .pane .t .x { margin-left:auto; color:var(--fg-dark); font-weight:400; }
+.trow { display:flex; gap:12px; align-items:center; padding:calc(8*var(--u)) calc(12*var(--u)); border:1px solid var(--hairline); }
+.trow .g { color:var(--fg-dark); width:16px; text-align:center; }
+.trow .t { display:grid; gap:1px; flex:1; min-width:0; } .trow .t b { color:var(--fg-bright); font-weight:500; } .trow .t .d { color:var(--fg-dark); font-size:var(--small); }
+.trow .toggle { margin-left:auto; }
+.srv { display:grid; gap:6px; }
+.srv .it { display:flex; gap:10px; align-items:center; padding:calc(8*var(--u)) calc(12*var(--u)); border:1px solid var(--hairline); }
+.srv .it .t { display:grid; gap:1px; flex:1; } .srv .it .t b { color:var(--fg-bright); font-weight:500; } .srv .it .t .d { color:var(--fg-dark); font-size:var(--small); }
+.srv .it .s { font-size:var(--small); color:var(--fg-dark); }
+.pagev { position:relative; width:100%; max-width:760px; display:grid; gap:calc(14*var(--u)); padding:calc(24*var(--u)); font-size:var(--body); }
+.pagev .back { display:inline-flex; gap:8px; align-items:center; height:var(--ctl); padding:0 calc(10*var(--u)); border:1px solid var(--border-normal); width:max-content; color:var(--fg); }
+.pagev h3 { font-size:var(--heading); font-weight:600; }
+.pagev .q { color:var(--fg-dark); }
+.choice { display:flex; gap:14px; align-items:center; padding:calc(12*var(--u)) calc(14*var(--u)); border:1px solid var(--border-normal); background:var(--fill-normal); }
+.choice.cur { border-color:var(--accent); }
+.choice .g { font-size:var(--heading); color:var(--fg); width:calc(28*var(--u)); text-align:center; }
+.choice .t { display:grid; gap:2px; } .choice .t b { color:var(--fg-bright); font-weight:600; } .choice .t .d { color:var(--fg-dark); font-size:var(--small); }
+.choice .k { margin-left:auto; color:var(--fg-dark); font-size:var(--caption); }
+.helpsheet { display:grid; grid-template-columns:auto 1fr; gap:calc(6*var(--u)) calc(14*var(--u)); font-size:var(--small); align-content:start; }
+.helpsheet .k { text-align:right; color:var(--fg-bright); } .helpsheet .d { color:var(--fg-dark); }
+.helpsheet .g { grid-column:1/-1; padding-top:calc(8*var(--u)); }
+
+/* ---------- tray & notifications ---------- */
+.trayline { display:flex; align-items:center; gap:12px; padding:0 10px; height:calc(var(--base)*2.6); background:var(--bg); color:var(--fg); font-size:var(--small); border:1px solid var(--hairline); }
+.trayline .grow { flex:1; } .trayline .ico { display:inline-flex; align-items:center; gap:3px; } .trayline .ico.act { color:var(--accent); }
+.menu { background:var(--bg); border:1px solid var(--accent); width:100%; max-width:280px; padding:calc(6*var(--u)) 0; display:grid; font-size:var(--body); }
+.menu .it { display:flex; gap:8px; align-items:center; height:calc(var(--base)*2.1); padding:0 calc(14*var(--u)); }
+.menu .it .g { width:14px; text-align:center; color:var(--fg-dark); }
+.menu .it.cur { background:var(--fill-hover); color:var(--accent); }
+.menu .it.dis { color:var(--fg-dark); }
+.menu .sep { margin:calc(4*var(--u)) calc(14*var(--u)); }
+.notif { background:var(--bg); border:1px solid var(--accent); width:100%; max-width:400px; padding:calc(10*var(--u)) calc(14*var(--u)); display:grid; gap:calc(6*var(--u)); font-size:var(--body); position:relative; overflow:hidden; }
+.notif .t { display:flex; gap:8px; align-items:center; color:var(--fg-bright); font-weight:600; } .notif .t .g { color:var(--accent); }
+.notif .t .app { margin-left:auto; color:var(--fg-dark); font-size:var(--caption); font-weight:400; }
+.notif .b { color:var(--fg); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:var(--small); }
+.notif .a { display:flex; gap:calc(14*var(--u)); font-size:var(--small); } .notif .a span { color:var(--accent); }
+.notif .cd { position:absolute; left:0; bottom:0; height:2px; background:var(--accent); width:62%; }
+.notif.err { border-color:var(--red); } .notif.err .t, .notif.err .t .g { color:var(--red); } .notif.err .cd { background:var(--red); }
+.notif.warn { border-color:var(--yellow); } .notif.warn .t, .notif.warn .t .g { color:var(--yellow); } .notif.warn .cd { background:var(--yellow); }
+.icons { display:flex; gap:18px; flex-wrap:wrap; }
+.icons .ic { display:grid; gap:6px; justify-items:center; font-size:10px; color:var(--fg-dark); }
+.icons .ic .g { width:26px; height:26px; display:grid; place-items:center; font-size:16px; color:var(--fg); background:var(--bg); border:1px solid var(--hairline); position:relative; }
+.icons .ic .g.act { color:var(--accent); } .icons .ic .g.off { color:var(--fg-dark); } .icons .ic .g.err { color:var(--red); }
+.icons .ic .g .bd { position:absolute; right:-4px; bottom:-4px; font-size:9px; padding:0 3px; background:var(--accent); color:var(--bg); font-weight:600; }
+
+/* ---------- tokens ---------- */
+.swatches { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:8px; }
+.swatch { display:grid; gap:4px; font-size:10px; } .swatch .c { height:34px; border:1px solid var(--hairline); } .swatch .n { color:var(--fg-bright); } .swatch .v { color:var(--fg-dark); } .swatch .r { color:var(--fg-dark); }
+.states { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+.states .lab { font-size:10px; color:var(--fg-dark); display:grid; gap:4px; justify-items:center; }
+.type { display:grid; gap:6px; } .type .l { display:flex; gap:12px; align-items:baseline; } .type .l .n { width:130px; font-size:10px; color:var(--fg-dark); } .type .l .s { color:var(--fg-bright); }
+.delta { display:grid; gap:8px; }
+.dec { display:grid; grid-template-columns:22px 1fr; gap:10px; align-items:start; padding:8px 10px; border:1px solid var(--hairline); font-size:12px; }
+.dec .m { color:var(--accent); } .dec .t { color:var(--fg-bright); font-weight:600; } .dec .d { color:var(--fg); }
+
+@media (max-width:640px) { .sheet .cols { grid-template-columns:1fr; } .settings { grid-template-columns:1fr; } .strip { grid-template-columns:1fr 1fr; } }
+</style>
+
+<div class="topbar">
+  <div class="brand"><span class="glyph">◆</span> omaseed <span class="dim" style="font-weight:400">/ UI spec v2</span></div>
+  <nav><a href="#window">Window</a><a href="#details">Details</a><a href="#sheets">Sheets</a><a href="#palettes">Palettes</a><a href="#pages">Pages</a><a href="#tray">Tray</a><a href="#states">States</a><a href="#tokens">Tokens</a><a href="#delta">Delta</a></nav>
+  <div class="segs">
+    <div class="seg" role="group" aria-label="Base size" id="baseSeg"><button type="button" data-base="12" aria-pressed="true">base 12</button><button type="button" data-base="14" aria-pressed="false">base 14</button></div>
+    <div class="seg" role="group" aria-label="Omarchy theme" id="themeSeg">
+      <button type="button" data-theme="tokyo-night" aria-pressed="true"><span class="sw" style="background:#7aa2f7"></span>Tokyo Night</button>
+      <button type="button" data-theme="hackerman" aria-pressed="false"><span class="sw" style="background:#82FB9C"></span>Hackerman</button>
+      <button type="button" data-theme="lupine" aria-pressed="false"><span class="sw" style="background:#3264eb"></span>Lupine</button>
+    </div>
+  </div>
+</div>
+
+<div class="page">
+<header class="lead">
+  <div class="eyebrow">Design spec v2 · Workstation direction</div>
+  <h1>omaseed, drawn the way flea, omamail and Strata draw</h1>
+  <p>Second draft, built from the reference board. Same scope as v1: main window, details, every sheet and palette, pages, tray, notifications, states, keys and tokens. What changed: a hero row with headline speeds, a borderless rail with tracked labels, taller rows with an outlined cursor, details docked on the right, unboxed key hints, sheets with three equal buttons, centred palettes for pickers, and a translucent ground over the wallpaper. Switch theme and base size above; the wallpaper behind the mocks is a stand-in painted from the theme.</p>
+  <div class="meta">
+    <span>theme <b id="metaTheme">Tokyo Night</b></span><span>mode <b id="metaMode">dark</b></span><span>base <b id="metaBase">12</b></span>
+    <span>font <b>JetBrainsMono Nerd Font</b></span><span>rounding <b>0</b></span><span>window <b>1360 × 800</b></span><span>ground <b>90 % background over wallpaper</b></span>
+  </div>
+</header>
+
+<!-- ================= MAIN WINDOW ================= -->
+<section id="window">
+  <div class="sec-head"><div class="eyebrow">1 · Main window</div><h2>Hero, rail, table, details, footer</h2>
+  <p>The hero carries identity and the two numbers that matter. The rail filters. The table is the work surface. Details dock right at this width and drop below the table under 1100 px. The footer states facts on the left and teaches keys on the right.</p></div>
+  <div class="figure">
+    <div class="scroller"><div class="desk"><div class="win main">
+      <div class="hero">
+        <div class="mark">◆</div>
+        <div class="name"><b>omaseed</b><span class="lbl"><span class="dot"></span> home · qBittorrent 5.2.3</span></div>
+        <div class="stat d"><span class="v"><i>↓</i>4.21 MB/s</span><span class="lbl">download</span></div>
+        <div class="stat u"><span class="v"><i>↑</i>812 KB/s</span><span class="lbl">upload</span></div>
+        <div class="grow"></div>
+        <div class="field search"><span class="dim">/</span><span class="ph">filter torrents</span><span class="k">142</span></div>
+        <div class="acts"><span class="btn icon on" title="add">+</span><span class="btn icon" title="alt-speed">⏷&#xFE0E;</span><span class="btn icon" title="settings">⚙&#xFE0E;</span><span class="btn icon" title="help">?</span></div>
+      </div>
+      <div class="body">
+        <aside class="rail" id="rail"></aside>
+        <div class="content"><div class="tbl" id="table"></div><div></div></div>
+        <aside class="details">
+          <div class="head"><b>archlinux-2026.09.01-x86_64.iso</b><span class="m">linux · keep · added today 10:41</span></div>
+          <div class="strip"><div><span class="lbl">size</span><span class="v">1.31 GB</span></div><div><span class="lbl">done</span><span class="v">48.9 %</span></div><div><span class="lbl">ratio</span><span class="v">0.15</span></div><div><span class="lbl">eta</span><span class="v">2 min 40 s</span></div></div>
+          <div class="tabs"><span class="tab on">General <span class="k">1</span></span><span class="tab">Files <span class="k">2</span></span><span class="tab">Trackers <span class="k">3</span> <span class="dot warn"></span></span><span class="tab">Peers <span class="k">4</span></span></div>
+          <div class="kv">
+            <span class="k">Save path</span><span class="v">/data/torrents/linux/</span>
+            <span class="k">Hash v1</span><span class="v">3f6c9a1b7e2d4c8f0a5b6e7d8c9f0a1b2c3d4e5f</span>
+            <span class="k">Status</span><span class="v" style="color:var(--st-down)">downloading</span>
+            <span class="sp"></span>
+            <span class="k">Downloaded</span><span class="v">641.2 MB of 1.31 GB</span>
+            <span class="k">Uploaded</span><span class="v">98.4 MB</span>
+            <span class="k">Wasted</span><span class="v">2.1 MB</span>
+            <span class="k">Pieces</span><span class="v">1 264 × 1 MiB · 617 have</span>
+            <span class="k">Availability</span><span class="v">38.20</span>
+            <span class="sp"></span>
+            <span class="k">Seeds</span><span class="v">21 connected · 1 204 total</span>
+            <span class="k">Peers</span><span class="v">42 connected · 88 total</span>
+            <span class="k">Time active</span><span class="v">14 min 22 s</span>
+            <span class="k">Share limit</span><span class="v">global · ratio 2.0</span>
+            <span class="k">Created by</span><span class="v">mktorrent 1.1</span>
+            <span class="k">Comment</span><span class="v">Arch Linux 2026.09.01 release</span>
+          </div>
+        </aside>
+      </div>
+      <div class="foot">
+        <div class="facts"><span><b>142</b> torrents</span><span>·</span><span><b>6</b> downloading</span><span>·</span><span><b>1.8 TB</b> free</span><span>·</span><span>2 selected</span></div>
+        <div class="hints"><span class="h"><b>j k</b> move</span><span class="h"><b>space</b> select</span><span class="h"><b>enter</b> actions</span><span class="h"><b>p</b> stop/start</span><span class="h"><b>d</b> delete</span><span class="h"><b>o</b> folder</span><span class="h"><b>/</b> filter</span><span class="h help"><b>?</b> help</span></div>
+      </div>
+    </div></div></div>
+    <div class="cap"><b>Fig. 1</b> — Main window, filter Downloading, cursor on row 1, rows 1 and 2 selected. The cursor is an outlined band, the selection a filled band, both together a darker band. Category appears dimmed after the name instead of owning a column. Row 3 shows inline rename with the accent outline, as flea does. The search field shows its shortcut and the live count.</div>
+  </div>
+</section>
+
+<!-- ================= DETAILS ================= -->
+<section id="details">
+  <div class="sec-head"><div class="eyebrow">2 · Details tabs</div><h2>Files, trackers and peers in the docked column</h2>
+  <p>Each tab keeps the head and the strip and swaps the block below. Files fold with <kbd>h</kbd> and <kbd>l</kbd>, priorities with <kbd>+</kbd> <kbd>-</kbd> <kbd>x</kbd>. Trackers carry a health dot; a failing one badges the tab in the main window.</p></div>
+  <div class="grid3">
+    <div class="figure"><div class="win inactive" style="width:100%;max-width:400px">
+      <div class="head" style="padding:12px 16px 8px;display:grid;gap:2px"><b class="bright">Big Buck Bunny 4K (CC-BY)</b><span class="dim" style="font-size:var(--small)">movies · 3.92 GB · seeding</span></div>
+      <div class="tabs"><span class="tab">General</span><span class="tab on">Files <span class="k">2</span></span><span class="tab">Trackers</span><span class="tab">Peers</span></div>
+      <div class="list files">
+        <div class="h">Name</div><div class="h num">Size</div><div class="h num">Done</div><div class="h">Priority</div>
+        <div>▾ Big Buck Bunny 4K/</div><div class="num">3.92 GB</div><div class="num">100 %</div><div class="dim">normal</div>
+        <div class="i1 cur">bbb_sunflower_2160p_60fps.mp4</div><div class="num cur">3.86 GB</div><div class="num cur">100 %</div><div class="pri hi cur">high</div>
+        <div class="i1">bbb_sunflower_1080p_30fps.mp4</div><div class="num">52.1 MB</div><div class="num">100 %</div><div class="dim">normal</div>
+        <div class="i1">▾ subs/</div><div class="num">18 KB</div><div class="num">0 %</div><div class="pri skip">skip</div>
+        <div class="i2">bbb.en.srt</div><div class="num">9 KB</div><div class="num">0 %</div><div class="pri skip">skip</div>
+        <div class="i2">bbb.pt.srt</div><div class="num">9 KB</div><div class="num">0 %</div><div class="pri skip">skip</div>
+        <div class="i1">LICENSE.txt</div><div class="num">1 KB</div><div class="num">100 %</div><div class="dim">normal</div>
+      </div>
+      <div class="foot"><div class="hints"><span class="h"><b>+ -</b> priority</span><span class="h"><b>x</b> skip</span><span class="h"><b>h l</b> fold</span><span class="h"><b>o</b> open</span></div></div>
+    </div><div class="cap"><b>Fig. 2</b> — Files.</div></div>
+    <div class="figure"><div class="win inactive" style="width:100%;max-width:400px">
+      <div class="head" style="padding:12px 16px 8px;display:grid;gap:2px"><b class="bright">archlinux-2026.09.01-x86_64.iso</b><span class="dim" style="font-size:var(--small)">linux · 1.31 GB · downloading</span></div>
+      <div class="tabs"><span class="tab">General</span><span class="tab">Files</span><span class="tab on">Trackers <span class="k">3</span></span><span class="tab">Peers</span></div>
+      <div class="list trk">
+        <div class="h"></div><div class="h">Tracker</div><div class="h num">Seeds</div><div class="h num">Peers</div><div class="h">Status</div>
+        <div><span class="dot"></span></div><div>tracker.archlinux.org</div><div class="num">1 204</div><div class="num">88</div><div>working · 27 min</div>
+        <div><span class="dot warn"></span></div><div class="cur">tracker.opentrackr.org</div><div class="num">—</div><div class="num">—</div><div style="color:var(--yellow)">timed out · retry 4 min</div>
+        <div><span class="dot"></span></div><div>open.stealth.si</div><div class="num">640</div><div class="num">41</div><div>working</div>
+        <div><span class="dot off"></span></div><div class="dim">DHT</div><div class="num">22</div><div class="num">0</div><div class="dim">working</div>
+        <div><span class="dot off"></span></div><div class="dim">PeX</div><div class="num">9</div><div class="num">0</div><div class="dim">working</div>
+      </div>
+      <div class="foot"><div class="hints"><span class="h"><b>a</b> add</span><span class="h"><b>d</b> remove</span><span class="h"><b>R</b> reannounce</span><span class="h"><b>y</b> copy</span></div></div>
+    </div><div class="cap"><b>Fig. 3</b> — Trackers. Protocol prefixes drop; the full URL sits in a tooltip and on copy.</div></div>
+    <div class="figure"><div class="win inactive" style="width:100%;max-width:400px">
+      <div class="head" style="padding:12px 16px 8px;display:grid;gap:2px"><b class="bright">archlinux-2026.09.01-x86_64.iso</b><span class="dim" style="font-size:var(--small)">42 peers · 21 seeds</span></div>
+      <div class="tabs"><span class="tab">General</span><span class="tab">Files</span><span class="tab">Trackers</span><span class="tab on">Peers <span class="k">4</span></span></div>
+      <div class="list peers">
+        <div class="h">Address</div><div class="h">CC</div><div class="h">Client</div><div class="h num">↓</div><div class="h num">↑</div><div class="h num">Done</div>
+        <div>185.21.216.140</div><div>DE</div><div>qBittorrent 5.2.3</div><div class="num">1.02 M</div><div class="num">0</div><div class="num">100 %</div>
+        <div>2a01:4f8:c0c::1</div><div>FI</div><div>Transmission 4.1.1</div><div class="num">744 K</div><div class="num">12 K</div><div class="num">100 %</div>
+        <div>91.121.58.7</div><div>FR</div><div>libtorrent 2.0.14</div><div class="num">402 K</div><div class="num">0</div><div class="num">88.4 %</div>
+        <div>77.54.113.202</div><div>PT</div><div>Deluge 2.2.0</div><div class="num">118 K</div><div class="num">98 K</div><div class="num">64.0 %</div>
+      </div>
+      <div class="foot"><div class="hints"><span class="h"><b>b</b> ban</span><span class="h"><b>a</b> add peer</span><span class="h"><b>y</b> copy</span></div></div>
+    </div><div class="cap"><b>Fig. 4</b> — Peers. Speeds abbreviate to fit; the full figure is in the tooltip.</div></div>
+  </div>
+</section>
+
+<!-- ================= SHEETS ================= -->
+<section id="sheets">
+  <div class="sec-head"><div class="eyebrow">3 · Sheets</div><h2>Centred sheets over a 70 % scrim, three equal buttons</h2>
+  <p>Strata's properties sheet is the model: icon, title, dim subtitle, tracked labels over fields, and equal-width outlined buttons along the foot. The confirm is the shell's own card, 370 wide, with two 88-wide buttons and the destructive one in red when it has the cursor.</p></div>
+  <div class="figure"><div class="desk"><div class="stage" style="width:100%;max-width:900px;min-height:520px">
+    <div class="win-bg"></div><div class="ghost"><span>◆ omaseed · home · ↓ 4.21 MB/s ↑ 812 KB/s</span><span>archlinux-2026.09.01-x86_64.iso …… 48.9 %  downloading</span><span>ubuntu-26.04.1-desktop-amd64.iso …… 100 %  seeding</span><span>debian-13.1.0-amd64-DVD-1.iso …… 12.4 %  downloading</span></div><div class="scrim"></div>
+    <div class="sheet" style="max-width:600px">
+      <div class="hd"><div class="ic">+</div><div class="t"><b>Add torrent</b><span class="m">Fedora-Workstation-Live-44-1.6.x86_64.iso · 2.34 GB · from clipboard</span></div><span class="x">esc</span></div>
+      <div class="row"><span class="lbl">Magnet, URL or file</span><div class="field focus"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">magnet:?xt=urn:btih:9a4f6c…e21b&amp;dn=Fedora-Workstation-Live-44-1.6.x86_64.iso</span><span class="k">ctrl+o browse</span></div></div>
+      <div class="cols">
+        <div class="row"><span class="lbl">Category</span><div class="chips"><span class="chip on">linux</span><span class="chip">movies</span><span class="chip">tv</span><span class="chip">music</span><span class="chip dim">…</span></div></div>
+        <div class="row"><span class="lbl">Tags</span><div class="chips"><span class="chip on">keep</span><span class="chip">private</span><span class="chip">4k</span><span class="chip dim">…</span></div></div>
+      </div>
+      <div class="row"><span class="lbl">Save to</span><div class="field">/data/torrents/linux/<span class="k">from category</span></div></div>
+      <div class="cols">
+        <div class="row"><span class="lbl">Layout</span><div class="field">Original<span class="k">▾</span></div></div>
+        <div class="row"><span class="lbl">Upload limit</span><div class="field">500<span class="k">KB/s</span></div></div>
+      </div>
+      <div class="cols">
+        <div class="row"><span class="toggle on"><span class="sw"></span>sequential download</span></div>
+        <div class="row"><span class="toggle"><span class="sw"></span>skip hash check</span></div>
+      </div>
+      <div class="acts"><span class="btn b">cancel</span><span class="btn b">add stopped</span><span class="btn b primary">add</span></div>
+      <div class="ft"><span>tab fields</span><span>enter add</span><span>shift+enter add stopped</span><span class="r">server: home</span></div>
+    </div>
+  </div></div><div class="cap"><b>Fig. 5</b> — Add torrent. The subtitle already shows the parsed name and size, so the sheet confirms instead of asking. Rename and paused start moved into buttons and keys; the rarely used options sit behind the layout dropdown.</div></div>
+
+  <div class="grid3">
+    <div class="figure"><div class="desk tight"><div class="stage" style="min-height:260px"><div class="win-bg"></div><div class="scrim"></div>
+      <div class="confirm"><div class="msg">Delete 2 torrents and their files?</div><div class="sub">archlinux-2026.09.01-x86_64.iso, debian-13.1.0-amd64-DVD-1.iso · 5.29 GB on disk</div><span class="toggle on"><span class="sw"></span>also delete files from disk</span><div class="bts"><span class="btn b">Cancel</span><span class="btn b danger sel">Delete</span></div></div>
+    </div></div><div class="cap"><b>Fig. 6</b> — Confirm, the shell's ConfirmDialog. <kbd>h</kbd> <kbd>l</kbd> move between the two buttons.</div></div>
+    <div class="figure"><div class="desk tight"><div class="stage" style="min-height:260px"><div class="win-bg"></div><div class="scrim"></div>
+      <div class="sheet" style="max-width:420px"><div class="hd"><div class="ic">⌂</div><div class="t"><b>Set location</b><span class="m">1 torrent · 1.31 GB moves with it</span></div><span class="x">esc</span></div>
+        <div class="row"><span class="lbl">New path on home</span><div class="field focus">/data/torrents/archive/<span class="k">ctrl+o</span></div></div>
+        <div class="acts"><span class="btn b">cancel</span><span class="btn b primary">move</span></div></div>
+    </div></div><div class="cap"><b>Fig. 7</b> — Set location. Two buttons when there are only two choices.</div></div>
+    <div class="figure"><div class="desk tight"><div class="stage" style="min-height:260px"><div class="win-bg"></div><div class="scrim"></div>
+      <div class="sheet" style="max-width:420px"><div class="hd"><div class="ic">⇅</div><div class="t"><b>Limits</b><span class="m">2 torrents</span></div><span class="x">esc</span></div>
+        <div class="cols"><div class="row"><span class="lbl">Download</span><div class="field"><span class="ph">∞</span><span class="k">KB/s</span></div></div><div class="row"><span class="lbl">Upload</span><div class="field focus">500<span class="k">KB/s</span></div></div>
+        <div class="row"><span class="lbl">Share ratio</span><div class="field">2.0<span class="k">global ▾</span></div></div><div class="row"><span class="lbl">Seeding time</span><div class="field">14<span class="k">days</span></div></div></div>
+        <div class="acts"><span class="btn b">cancel</span><span class="btn b">reset</span><span class="btn b primary">apply</span></div></div>
+    </div></div><div class="cap"><b>Fig. 8</b> — Limits.</div></div>
+    <div class="figure"><div class="desk tight"><div class="stage" style="min-height:300px"><div class="win-bg"></div><div class="scrim"></div>
+      <div class="sheet" style="max-width:460px"><div class="hd"><div class="ic">⛁</div><div class="t"><b>home</b><span class="m">http://127.0.0.1:8080 · qBittorrent 5.2.3 · API 2.15.1</span></div><span class="x">esc</span></div>
+        <div class="kv" style="padding:0"><span class="k">Auth</span><span class="v">API key · stored in libsecret</span><span class="k">Key</span><span class="v">qbt_••••••••••••••••••</span><span class="k">Path map</span><span class="v">/downloads → /data/torrents</span><span class="k">Torrents</span><span class="v">142 · 1.8 TB free</span><span class="k">Reachable</span><span class="v" style="color:var(--green)">yes · 3 ms</span></div>
+        <div class="acts"><span class="btn b">test</span><span class="btn b danger">remove</span><span class="btn b primary">edit</span></div></div>
+    </div></div><div class="cap"><b>Fig. 9</b> — Server sheet, Strata's properties shape. Edit opens the fields in place.</div></div>
+    <div class="figure"><div class="desk tight"><div class="stage" style="min-height:300px"><div class="win-bg"></div><div class="scrim"></div>
+      <div class="sheet" style="max-width:460px"><div class="hd"><div class="ic">!</div><div class="t"><b>Already on home</b><span class="m">Fedora-Workstation-Live-44-1.6.x86_64.iso</span></div><span class="x">esc</span></div>
+        <div class="banner">⚠ <span>This infohash is already in your list, seeding since 2026-09-12. qBittorrent rejects duplicates.</span></div>
+        <div class="acts"><span class="btn b">close</span><span class="btn b primary">show it</span></div></div>
+    </div></div><div class="cap"><b>Fig. 10</b> — Duplicate. SHA-1 computed locally for files before upload.</div></div>
+    <div class="figure"><div class="desk tight"><div class="stage" style="min-height:300px"><div class="win-bg"></div><div class="scrim"></div>
+      <div class="actions">
+        <div class="it"><span>start</span><span class="k">p</span></div><div class="it"><span>stop</span><span class="k">p</span></div><div class="it"><span>force start</span><span class="k">P</span></div>
+        <div class="sep"></div>
+        <div class="it cur"><span>recheck</span><span class="k">c</span></div><div class="it"><span>reannounce</span><span class="k">R</span></div>
+        <div class="sep"></div>
+        <div class="it"><span>category</span><span class="k">C</span></div><div class="it"><span>tags</span><span class="k">t</span></div><div class="it"><span>set location</span><span class="k">m</span></div><div class="it"><span>limits</span><span class="k">L</span></div><div class="it"><span>rename</span><span class="k">r</span></div>
+        <div class="sep"></div>
+        <div class="it"><span>queue up · down</span><span class="k">[ ]</span></div><div class="it"><span>copy magnet</span><span class="k">y</span></div><div class="it"><span>open folder</span><span class="k">o</span></div>
+        <div class="sep"></div>
+        <div class="it danger"><span>delete</span><span class="k">d</span></div>
+      </div>
+    </div></div><div class="cap"><b>Fig. 11</b> — Actions, omaroll's list: verb left, key right. Anchored to the cursor row on <kbd>enter</kbd> or right-click.</div></div>
+  </div>
+</section>
+
+<!-- ================= PALETTES ================= -->
+<section id="palettes">
+  <div class="sec-head"><div class="eyebrow">4 · Palettes</div><h2>One centred palette for jumping, picking and sorting</h2>
+  <p>Strata's search palette, reused for every list you type into. The query row, rows with a title and a dim second line, an outlined cursor, and a hint footer inside the palette.</p></div>
+  <div class="grid3">
+    <div class="figure"><div class="desk tight"><div class="stage" style="min-height:300px;align-items:start"><div class="win-bg"></div><div class="scrim"></div>
+      <div class="palette"><div class="q"><span class="g">⌕</span>fed<span class="c">2 of 142</span></div>
+        <div class="it cur"><b>Fedora-Workstation-Live-44-1.6.x86_64.iso<span class="n">downloading</span></b><span class="p">linux · 2.34 GB · 12.4 %</span></div>
+        <div class="it"><b>Fedora-Server-44-1.6.x86_64.iso<span class="n">seeding</span></b><span class="p">linux · 2.9 GB · ratio 4.1</span></div>
+        <div class="ft"><span>↑↓ move</span><span>enter jump</span><span>tab actions</span><span class="r">also matches hash and tracker</span></div></div>
+    </div></div><div class="cap"><b>Fig. 12</b> — Jump to torrent from <kbd>ctrl+k</kbd>. The <kbd>/</kbd> filter in the hero narrows the table instead.</div></div>
+    <div class="figure"><div class="desk tight"><div class="stage" style="min-height:300px;align-items:start"><div class="win-bg"></div><div class="scrim"></div>
+      <div class="palette"><div class="q"><span class="g">▤</span><span class="dim">category for 2 torrents</span></div>
+        <div class="it"><b>none</b></div>
+        <div class="it cur"><b>linux<span class="n">8</span></b><span class="p">/data/torrents/linux</span></div>
+        <div class="it"><b>movies<span class="n">41</span></b><span class="p">/data/torrents/movies</span></div>
+        <div class="it"><b>tv<span class="n">63</span></b><span class="p">/data/torrents/tv</span></div>
+        <div class="ft"><span>type to filter</span><span>enter set</span><span class="r">new name creates it</span></div></div>
+    </div></div><div class="cap"><b>Fig. 13</b> — Category picker. Tags use the same palette with <kbd>space</kbd> toggling several.</div></div>
+    <div class="figure"><div class="desk tight"><div class="stage" style="min-height:300px;align-items:start"><div class="win-bg"></div><div class="scrim"></div>
+      <div class="palette"><div class="q"><span class="g">⇅</span><span class="dim">sort by</span></div>
+        <div class="it"><b>name</b></div><div class="it"><b>size</b></div><div class="it"><b>progress</b></div>
+        <div class="it cur"><b>download speed<span class="n">▾ current</span></b></div>
+        <div class="it"><b>upload speed</b></div><div class="it"><b>ratio</b></div><div class="it"><b>eta</b></div><div class="it"><b>added</b></div>
+        <div class="ft"><span>enter sort</span><span>enter again reverses</span><span class="r">or click a header</span></div></div>
+    </div></div><div class="cap"><b>Fig. 14</b> — Sort from <kbd>s</kbd>. Columns are chosen the same way from <kbd>ctrl+,</kbd>.</div></div>
+  </div>
+</section>
+
+<!-- ================= PAGES ================= -->
+<section id="pages">
+  <div class="sec-head"><div class="eyebrow">5 · Pages and settings</div><h2>Setup as a page, settings as one modal with a left nav</h2></div>
+  <div class="grid2">
+    <div class="figure"><div class="desk"><div class="win inactive" style="width:100%;max-width:720px;min-height:420px;align-content:start">
+      <div class="pagev">
+        <span class="lbl">first run</span>
+        <h3>Which qBittorrent should omaseed talk to?</h3>
+        <p class="q">omaseed is a client. It found one server on this machine.</p>
+        <div class="choice cur"><span class="g">⛁</span><div class="t"><b>Use the server on this machine</b><span class="d">127.0.0.1:8080 · Docker container qbittorrent · qBittorrent 5.2.3</span></div><span class="k">enter</span></div>
+        <div class="choice"><span class="g">⇢</span><div class="t"><b>Connect to a remote server</b><span class="d">A seedbox, a NAS, or qui's proxy. You will enter a URL and an API key.</span></div></div>
+        <div class="choice"><span class="g">+</span><div class="t"><b>Install qbittorrent-nox here</b><span class="d">Adds the package and a user service. Offered because you can, not because you must.</span></div></div>
+        <div class="foot" style="border:0;padding:0;margin-top:8px"><div class="facts"><span>step 1 of 3</span></div><div class="hints"><span class="h"><b>j k</b> choose</span><span class="h"><b>enter</b> continue</span><span class="h help"><b>esc</b> quit</span></div></div>
+      </div>
+    </div></div><div class="cap"><b>Fig. 15</b> — First run, omamail's page shape. Steps 2 and 3 are the API key (with an "open web UI" button and a paste field) and the magnet handler registration.</div></div>
+    <div class="figure"><div class="desk"><div class="stage" style="width:100%;min-height:420px"><div class="win-bg"></div><div class="scrim"></div>
+      <div class="settings">
+        <div class="nav"><span class="lbl">settings</span>
+          <div class="it"><span class="g">⚙&#xFE0E;</span>General</div><div class="it on"><span class="g">⛁</span>Servers</div><div class="it"><span class="g">◔</span>Notifications</div><div class="it"><span class="g">⌨</span>Keybindings</div><div class="it"><span class="g">◐</span>Appearance</div><div class="it"><span class="g">i</span>About</div></div>
+        <div class="pane">
+          <div class="t">Servers<span class="x">esc</span></div>
+          <div class="srv">
+            <div class="it"><span class="dot"></span><div class="t"><b>home</b><span class="d">http://127.0.0.1:8080 · API key · 142 torrents</span></div><span class="s">default</span></div>
+            <div class="it"><span class="dot err"></span><div class="t"><b>seedbox</b><span class="d">https://sb.example.net · API key · unreachable since 09:12</span></div><span class="s">retrying</span></div>
+            <div class="it" style="border-style:dashed"><span class="dim">+</span><div class="t"><b class="dim" style="font-weight:400">add a server</b></div><span class="s">a</span></div>
+          </div>
+          <span class="lbl">behaviour</span>
+          <div class="trow"><span class="g">◆</span><div class="t"><b>Show the Servers group in the rail</b><span class="d">Only useful with two or more servers. Off hides the multi-server chrome.</span></div><span class="toggle on"><span class="sw"></span></span></div>
+          <div class="trow"><span class="g">⌂</span><div class="t"><b>Open folder through path mapping</b><span class="d">Rewrites remote paths to local mounts before asking the file manager.</span></div><span class="toggle on"><span class="sw"></span></span></div>
+        </div>
+      </div>
+    </div></div><div class="cap"><b>Fig. 16</b> — Settings from <kbd>,</kbd>, Strata's shape. Servers live here; the sheet in Fig. 9 opens from a row.</div></div>
+  </div>
+</section>
+
+<!-- ================= TRAY ================= -->
+<section id="tray">
+  <div class="sec-head"><div class="eyebrow">6 · Tray and notifications</div><h2>Resident in the bar, loud only when it matters</h2></div>
+  <div class="grid2">
+    <div class="figure"><div style="display:grid;gap:10px">
+      <div class="trayline"><span>1 2 <b>3</b> 4</span><span class="grow"></span><span class="dim">Sat 19 Sep 12:48</span><span class="ico act">◆<span style="font-size:10px">↓4.2M</span></span><span class="ico"></span><span class="ico"></span><span class="ico"></span></div>
+      <div class="icons"><div class="ic"><span class="g off">◆</span>disconnected</div><div class="ic"><span class="g">◆</span>idle</div><div class="ic"><span class="g act">◆<span class="bd">6</span></span>downloading</div><div class="ic"><span class="g act">◆<span class="bd" style="background:var(--yellow)">⏷</span></span>alt-speed</div><div class="ic"><span class="g err">◆</span>error</div></div>
+      <div class="note">Tooltip: <code>home · ↓ 4.21 MB/s ↑ 812 KB/s · 6 downloading · 118 seeding</code>. Left click toggles the window, middle click toggles alt-speed, drop adds.</div>
+    </div><div class="cap"><b>Fig. 17</b> — Tray states, unchanged from v1.</div></div>
+    <div class="figure"><div class="menu">
+      <div class="it cur"><span class="g">◆</span>show omaseed</div><div class="it"><span class="g">+</span>add torrent…</div>
+      <div class="sep"></div><div class="it dis"><span class="g"></span>↓ 4.21 MB/s · ↑ 812 KB/s</div><div class="it dis"><span class="g"></span>6 downloading · 118 seeding · 1.8 TB free</div>
+      <div class="sep"></div><div class="it"><span class="g">☐</span>alternative speed limits</div><div class="it"><span class="g">■</span>stop all</div><div class="it"><span class="g">▶</span>start all</div>
+      <div class="sep"></div><div class="it"><span class="g">⚙&#xFE0E;</span>settings…</div><div class="it"><span class="g">⏻</span>quit</div>
+    </div><div class="cap"><b>Fig. 18</b> — Tray menu, 1px border like every popup.</div></div>
+  </div>
+  <div class="grid3">
+    <div class="figure"><div class="notif"><div class="t"><span class="g">✓</span>Download complete<span class="app">omaseed</span></div><div class="b">archlinux-2026.09.01-x86_64.iso · 1.31 GB · linux</div><div class="a"><span>open folder</span><span>show</span></div><div class="cd"></div></div><div class="cap"><b>Fig. 19</b> — Completion. Actions are accent text, the shell's notice style.</div></div>
+    <div class="figure"><div class="notif err"><div class="t"><span class="g">!</span>Tracker error<span class="app">omaseed</span></div><div class="b">tracker.opentrackr.org · timed out for 3 torrents</div><div class="a"><span>show trackers</span><span>reannounce</span></div><div class="cd"></div></div><div class="cap"><b>Fig. 20</b> — Tracker errors grouped by tracker.</div></div>
+    <div class="figure"><div class="notif warn"><div class="t"><span class="g">◌</span>home is unreachable<span class="app">omaseed</span></div><div class="b">127.0.0.1:8080 · connection refused · retrying every 10 s</div><div class="a"><span>settings</span></div><div class="cd"></div></div><div class="cap"><b>Fig. 21</b> — Server lost, and a matching toast when it returns.</div></div>
+  </div>
+</section>
+
+<!-- ================= STATES ================= -->
+<section id="states">
+  <div class="sec-head"><div class="eyebrow">7 · States</div><h2>Empty is the help screen</h2></div>
+  <div class="grid2">
+    <div class="figure"><div class="win inactive" style="width:100%;height:280px;grid-template-rows:auto 1fr auto">
+      <div class="hero" style="padding:10px 16px"><div class="mark">◆</div><div class="name"><b>omaseed</b><span class="lbl"><span class="dot"></span> home</span></div></div>
+      <div style="display:grid;place-items:center;padding:12px"><div style="display:grid;gap:10px;justify-items:center;text-align:center"><div class="bright" style="font-size:var(--subtitle);font-weight:600">No torrents yet</div><div class="note">Press <kbd>a</kbd>, drop a file here, or click a magnet link anywhere.</div>
+        <div class="helpsheet" style="text-align:left"><span class="k">a</span><span class="d">add a torrent</span><span class="k">,</span><span class="d">settings and servers</span><span class="k">?</span><span class="d">every shortcut</span></div></div></div>
+      <div class="foot"><div class="facts"><span><b>0</b> torrents</span><span>·</span><span><b>1.8 TB</b> free</span></div><div class="hints"><span class="h"><b>a</b> add</span><span class="h help"><b>?</b> help</span></div></div>
+    </div><div class="cap"><b>Fig. 22</b> — Empty server, omamail's teaching empty state.</div></div>
+    <div class="figure"><div class="win inactive" style="width:100%;height:280px;grid-template-rows:auto auto 1fr auto">
+      <div class="hero" style="padding:10px 16px"><div class="mark" style="border-color:var(--red);color:var(--red)">◆</div><div class="name"><b>omaseed</b><span class="lbl"><span class="dot err"></span> home · unreachable</span></div><div class="stat d"><span class="v"><i>↓</i>—</span><span class="lbl">download</span></div><div class="stat u"><span class="v"><i>↑</i>—</span><span class="lbl">upload</span></div></div>
+      <div class="banner err" style="margin:10px 16px 0">✕ <span>connection refused · retrying in 7 s · <a href="#">retry now</a> · <a href="#">settings</a></span></div>
+      <div style="padding:10px 16px;opacity:.45;font-size:var(--small)"><div>archlinux-2026.09.01-x86_64.iso … 48.9 % · last known</div><div>ubuntu-26.04.1-desktop-amd64.iso … 100 %</div></div>
+      <div class="foot"><div class="facts"><span>last sync 09:12</span></div><div class="hints"><span class="h"><b>R</b> retry</span><span class="h"><b>,</b> settings</span></div></div>
+    </div><div class="cap"><b>Fig. 23</b> — Disconnected: the last list stays, dimmed and read-only.</div></div>
+    <div class="figure"><div class="win inactive" style="width:100%;height:280px;grid-template-rows:auto 1fr auto">
+      <div class="hero" style="padding:10px 16px"><div class="mark">◆</div><div class="name"><b>omaseed</b><span class="lbl"><span class="dot"></span> home</span></div><div class="grow"></div><div class="field search" style="width:220px"><span class="dim">/</span>fedora 45<span class="k">0 of 142</span></div></div>
+      <div style="display:grid;place-items:center;text-align:center;gap:6px;padding:12px"><div><div class="bright">Nothing matches "fedora 45" in Downloading</div><div class="note"><kbd>esc</kbd> clears the filter · <kbd>0</kbd> shows all statuses</div></div></div>
+      <div class="foot"><div class="facts"><span><b>0</b> of 142</span></div><div class="hints"><span class="h"><b>esc</b> clear</span></div></div>
+    </div><div class="cap"><b>Fig. 24</b> — Filter with no result.</div></div>
+    <div class="figure"><div class="win inactive" style="width:100%;height:280px;grid-template-rows:auto 1fr auto">
+      <div class="hero" style="padding:10px 16px"><div class="mark">◆</div><div class="name"><b>omaseed</b><span class="lbl"><span class="dot warn"></span> seedbox · first sync</span></div></div>
+      <div style="display:grid;gap:8px;padding:12px 16px;align-content:start"><div style="height:2px;background:var(--fill-hover)"></div><div style="height:2px;background:var(--fill-hover);width:80%"></div><div style="height:2px;background:var(--fill-hover);width:90%"></div><div style="height:2px;background:var(--fill-hover);width:70%"></div><div class="note">8 400 torrents · 1.2 MB received</div></div>
+      <div class="foot"><div class="facts"><span>syncing</span></div></div>
+    </div><div class="cap"><b>Fig. 25</b> — Loading. Skeleton rules, then incremental diffs only.</div></div>
+  </div>
+  <div class="figure"><div class="desk"><div class="stage" style="width:100%;max-width:900px;min-height:360px"><div class="win-bg"></div><div class="scrim"></div>
+    <div class="sheet" style="max-width:760px"><div class="hd"><div class="ic">?</div><div class="t"><b>Shortcuts</b><span class="m">single letters act on the table · capitals are the stronger variant · ctrl is app-level</span></div><span class="x">esc</span></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:18px">
+        <div class="helpsheet"><span class="g lbl">navigate</span><span class="k">j k</span><span class="d">move</span><span class="k">g G</span><span class="d">first · last</span><span class="k">h l</span><span class="d">rail · table · details</span><span class="k">/</span><span class="d">filter</span><span class="k">0–9</span><span class="d">status filter</span><span class="k">i</span><span class="d">details</span><span class="k">1–4</span><span class="d">details tab</span><span class="k">ctrl+k</span><span class="d">jump</span></div>
+        <div class="helpsheet"><span class="g lbl">select</span><span class="k">space</span><span class="d">toggle</span><span class="k">v</span><span class="d">range</span><span class="k">ctrl+a</span><span class="d">all visible</span><span class="k">esc</span><span class="d">clear, then filter, then close</span></div>
+        <div class="helpsheet"><span class="g lbl">act</span><span class="k">a</span><span class="d">add</span><span class="k">enter</span><span class="d">actions</span><span class="k">p P</span><span class="d">stop/start · force</span><span class="k">d D</span><span class="d">delete · with files</span><span class="k">c R</span><span class="d">recheck · reannounce</span><span class="k">C t m L r</span><span class="d">category · tags · location · limits · rename</span><span class="k">[ ]</span><span class="d">queue</span><span class="k">o</span><span class="d">open folder</span><span class="k">y Y</span><span class="d">copy magnet · hash</span></div>
+        <div class="helpsheet"><span class="g lbl">app</span><span class="k">s</span><span class="d">sort</span><span class="k">A</span><span class="d">alt-speed</span><span class="k">,</span><span class="d">settings</span><span class="k">ctrl+,</span><span class="d">columns</span><span class="k">q</span><span class="d">hide to tray</span><span class="k">ctrl+q</span><span class="d">quit</span><span class="k">super+t</span><span class="d">suggested Hyprland bind</span></div>
+      </div></div>
+  </div></div><div class="cap"><b>Fig. 26</b> — The <kbd>?</kbd> sheet, same map as v1.</div></div>
+</section>
+
+<!-- ================= TOKENS ================= -->
+<section id="tokens">
+  <div class="sec-head"><div class="eyebrow">8 · Tokens</div><h2>What the Theme singleton exposes</h2></div>
+  <div class="swatches" id="swatches"></div>
+  <div class="grid2">
+    <div class="figure"><div class="states">
+      <div class="lab"><span class="btn">idle</span>no chrome</div><div class="lab"><span class="btn b">bordered</span>4 % · 40 %</div><div class="lab"><span class="btn b hover">hover / cursor</span>8 % · 25 %</div><div class="lab"><span class="btn b focus">focus</span>accent ring</div><div class="lab"><span class="btn sel">selected</span>18 %</div><div class="lab"><span class="btn b pressed">pressed</span>22 %</div><div class="lab"><span class="btn b primary">primary</span>accent outline</div><div class="lab"><span class="btn b danger sel">danger</span>red</div>
+    </div><div class="cap"><b>Control states</b> — v2 follows the kit exactly: idle buttons have no chrome, the primary is an accent outline rather than a fill, danger is red text with a red outline when selected.</div></div>
+    <div class="figure"><div class="type">
+      <div class="l"><span class="n">caption ×0.833</span><span class="s" style="font-size:var(--caption)">tracked labels, column headers, hint keys</span></div>
+      <div class="l"><span class="n">body-small ×0.917</span><span class="s" style="font-size:var(--small)">meta lines, chips, footer, details values</span></div>
+      <div class="l"><span class="n">body ×1</span><span class="s" style="font-size:var(--body)">table rows, fields, menus</span></div>
+      <div class="l"><span class="n">subtitle ×1.083</span><span class="s" style="font-size:var(--subtitle)">app name, sheet titles</span></div>
+      <div class="l"><span class="n">title ×1.167</span><span class="s" style="font-size:var(--title)">confirm message</span></div>
+      <div class="l"><span class="n">heading ×1.333</span><span class="s" style="font-size:var(--heading)">headline speeds, page titles</span></div>
+    </div><div class="cap"><b>Type scale</b> — the shell's multipliers on <code>base-size</code>. Rows are 2.4× body, controls 2.33×, rail rows 2.1×.</div></div>
+  </div>
+</section>
+
+<!-- ================= DELTA ================= -->
+<section id="delta">
+  <div class="sec-head"><div class="eyebrow">9 · v1 → v2</div><h2>What changed and where it comes from</h2></div>
+  <div class="delta">
+    <div class="dec"><span class="m">01</span><div><div class="t">Hero row replaces the chip header.</div><div class="d">Mark, name, tracked server line, two headline speeds, search with count, four glyph actions. From omalink, omarqui, omaroll, Strata.</div></div></div>
+    <div class="dec"><span class="m">02</span><div><div class="t">Rail without borders, tracked labels, counts in small dim type.</div><div class="d">From flea and Strata.</div></div></div>
+    <div class="dec"><span class="m">03</span><div><div class="t">Rows 2.4× body, category dimmed after the name, cursor outlined, selection filled.</div><div class="d">From flea's table and Strata's outlined cursor. Fewer columns: peers merged, category folded into the name.</div></div></div>
+    <div class="dec"><span class="m">04</span><div><div class="t">Details dock on the right, open with a four-value strip.</div><div class="d">From Strata's preview pane and flea's key/value block. Below 1100 px they drop under the table.</div></div></div>
+    <div class="dec"><span class="m">05</span><div><div class="t">Footer: facts left, unboxed hints right, help pinned.</div><div class="d">From flea, omaroll, Strata. No boxed keys anywhere except the tokens page.</div></div></div>
+    <div class="dec"><span class="m">06</span><div><div class="t">Sheets with an icon-title-subtitle head and equal buttons.</div><div class="d">From Strata's properties sheet. Confirm stays the shell's ConfirmDialog.</div></div></div>
+    <div class="dec"><span class="m">07</span><div><div class="t">Palettes for jump, pickers and sort.</div><div class="d">From Strata's search. Replaces three menu styles in v1.</div></div></div>
+    <div class="dec"><span class="m">08</span><div><div class="t">First run as a page; settings as one modal with a left nav.</div><div class="d">From omamail and Strata. Servers live in settings; the server sheet opens from a row.</div></div></div>
+    <div class="dec"><span class="m">09</span><div><div class="t">Translucent ground, 1px window edge.</div><div class="d">From omaroll and omakade. Requires the Hyprland opt-out rule for default opacity.</div></div></div>
+    <div class="dec"><span class="m">10</span><div><div class="t">Primary buttons are accent outlines, not fills.</div><div class="d">The kit has no filled button; omakade's Play and Strata's sheet buttons agree.</div></div></div>
+  </div>
+</section>
+</div>
+
+<script>
+(function () {
+  const THEMES = {
+    "tokyo-night": { label:"Tokyo Night", mode:"dark", accent:"#7aa2f7", selection:"#292e42", muted:"#414868", background:"#1a1b26", dark_background:"#13141c", darker_background:"#0e0e14", lighter_background:"#24283b", foreground:"#a9b1d6", dark_foreground:"#565f89", light_foreground:"#b4bee6", bright_foreground:"#c0caf5", red:"#f7768e", yellow:"#e0af68", orange:"#eb927b", green:"#9ece6a", cyan:"#449dab", blue:"#7aa2f7", magenta:"#ad8ee6", brown:"#75493d" },
+    "hackerman": { label:"Hackerman", mode:"dark", accent:"#82FB9C", selection:"#1f253a", muted:"#2d3450", background:"#0B0C16", dark_background:"#080910", darker_background:"#06060c", lighter_background:"#151828", foreground:"#ddf7ff", dark_foreground:"#6a6e95", light_foreground:"#b5c5db", bright_foreground:"#ddf7ff", red:"#50f872", yellow:"#50f7d4", orange:"#50f7a3", green:"#4fe88f", cyan:"#7cf8f7", blue:"#829dd4", magenta:"#86a7df", brown:"#287b51" },
+    "lupine": { label:"Lupine", mode:"light", accent:"#3264eb", selection:"#d0d0d0", muted:"#9e9e9e", background:"#fafafa", dark_background:"#ececec", darker_background:"#dedede", lighter_background:"#f5f5f5", foreground:"#212121", dark_foreground:"#757575", light_foreground:"#424242", bright_foreground:"#000000", red:"#c900c4", yellow:"#026fde", orange:"#026fde", green:"#4a2fd0", cyan:"#0c67de", blue:"#3264eb", magenta:"#8a4ad7", brown:"#013a6f" }
+  };
+  const MAP = { accent:"--accent", selection:"--selection", muted:"--muted", background:"--bg", dark_background:"--bg-dark", darker_background:"--bg-darker", lighter_background:"--bg-light", foreground:"--fg", dark_foreground:"--fg-dark", light_foreground:"--fg-light", bright_foreground:"--fg-bright", red:"--red", yellow:"--yellow", orange:"--orange", green:"--green", cyan:"--cyan", blue:"--blue", magenta:"--magenta", brown:"--brown" };
+  const ROLES = { accent:"window edge, focus, primary outline, links", background:"window at 90 %", dark_background:"page ground", foreground:"text, fills at 4/8/18/22 %", dark_foreground:"meta, labels, stopped", bright_foreground:"titles, values, selected", muted:"inactive window edge", blue:"downloading", green:"seeding, ok", red:"error, delete", yellow:"checking, warning", magenta:"queued", orange:"stalled", cyan:"—", brown:"—", selection:"—", lighter_background:"—", darker_background:"wallpaper stand-in" };
+  function setTheme(name) {
+    const t = THEMES[name]; if (!t) return; const r = document.documentElement.style;
+    for (const k in MAP) r.setProperty(MAP[k], t[k]);
+    document.documentElement.dataset.mode = t.mode;
+    document.querySelectorAll("#themeSeg button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.theme === name)));
+    document.getElementById("metaTheme").textContent = t.label; document.getElementById("metaMode").textContent = t.mode;
+    const order = ["accent","background","dark_background","foreground","dark_foreground","bright_foreground","muted","blue","green","red","yellow","magenta","orange","cyan","brown","selection","lighter_background","darker_background"];
+    document.getElementById("swatches").innerHTML = order.map(k => `<div class="swatch"><div class="c" style="background:${t[k]}"></div><div class="n">${k}</div><div class="v">${t[k]}</div><div class="r">${ROLES[k]||"—"}</div></div>`).join("");
+    try { localStorage.setItem("omaseed-spec2-theme", name); } catch (e) {}
+  }
+  function setBase(b) {
+    document.documentElement.dataset.base = b;
+    document.querySelectorAll("#baseSeg button").forEach(x => x.setAttribute("aria-pressed", String(x.dataset.base === b)));
+    document.getElementById("metaBase").textContent = b;
+    try { localStorage.setItem("omaseed-spec2-base", b); } catch (e) {}
+  }
+  const RAIL = [
+    ["status", [["all",142,"◆"],["downloading",6,"↓","sel"],["seeding",118,"↑"],["completed",121,"✓"],["stopped",12,"■"],["active",9,"●"],["stalled",3,"◌"],["checking",1,"⟳"],["errored",2,"!"]]],
+    ["categories", [["all",142,""],["linux",8,"▤"],["movies",41,"▤","cur"],["tv",63,"▤"],["music",20,"▤"],["none",10,"·"]]],
+    ["tags", [["all",142,""],["private",97,"#"],["keep",30,"#"],["4k",12,"#"]]],
+    ["trackers", [["all",142,""],["opentrackr.org",88,"◦"],["archlinux.org",8,"◦"],["trackerless",4,"·"]]]
+  ];
+  document.getElementById("rail").innerHTML = RAIL.map(([t, rows]) => `<div class="grp"><div class="lbl">${t}</div>` + rows.map(([n,c,g,s]) => `<div class="row ${s||""}"><span class="g">${g}</span><span>${n}</span><span class="n">${c}</span></div>`).join("") + `</div>`).join("");
+  const ST = { down:["downloading","var(--st-down)","↓"], seed:["seeding","var(--st-seed)","↑"], stop:["stopped","var(--st-stop)","■"], err:["error","var(--st-err)","!"], check:["checking","var(--st-check)","⟳"], queue:["queued","var(--st-queue)","≡"], stall:["stalled","var(--st-stall)","◌"], done:["completed","var(--st-seed)","✓"] };
+  const ROWS = [
+    ["archlinux-2026.09.01-x86_64.iso","linux","1.31 GB",48.9,"down","21 / 42","1.84 MB/s","112 KB/s","2m 40s","cur sel"],
+    ["Fedora-Workstation-Live-44-1.6.x86_64.iso","linux","2.34 GB",12.4,"down","8 / 19","1.02 MB/s","0","19m","sel"],
+    ["Cosmos Laundromat 2K (CC-BY)","movies","3.12 GB",87.2,"down","40 / 12","940 KB/s","220 KB/s","7m 05s","rename"],
+    ["debian-13.1.0-amd64-DVD-1.iso","linux","3.98 GB",3.1,"down","3 / 6","410 KB/s","0","2h 41m",""],
+    ["Wikipedia enwiki-20260901-pages-articles.xml.bz2","—","24.7 GB",61.0,"down","14 / 9","0","0","∞",""],
+    ["Blender 5.1 LTS linux-x64.tar.xz","linux","412 MB",100,"seed","0 / 3","0","480 KB/s","—",""],
+    ["Sintel 1080p (CC-BY)","movies","1.09 GB",100,"seed","0 / 1","0","0","—",""],
+    ["Big Buck Bunny 4K (CC-BY)","movies","3.92 GB",100,"seed","0 / 7","0","0","—",""],
+    ["Tears of Steel 4K (CC-BY)","movies","6.20 GB",100,"seed","0 / 0","0","0","—",""],
+    ["ubuntu-26.04.1-desktop-amd64.iso","linux","6.11 GB",100,"seed","0 / 12","0","0","—",""],
+    ["OpenStreetMap planet-260908.osm.pbf","—","81.4 GB",100,"stop","0 / 0","0","0","—",""],
+    ["NixOS minimal 26.05 x86_64.iso","linux","1.02 GB",22.7,"stall","0 / 2","0","0","∞",""],
+    ["LibreOffice 26.8.1 Linux x86_64 rpm.tar.gz","linux","330 MB",100,"check","0 / 0","0","0","—",""],
+    ["Elephants Dream 1080p (CC-BY)","movies","2.03 GB",0,"err","0 / 0","0","0","—",""],
+    ["omarchy-4.0.4-x86_64.iso","linux","1.95 GB",0,"queue","0 / 0","0","0","—",""],
+    ["Spring (2019) 4K (CC-BY)","movies","4.61 GB",100,"done","0 / 4","0","0","—",""]
+  ];
+  const H = `<div class="h">Name</div><div class="h num">Size</div><div class="h">Progress</div><div class="h">Status</div><div class="h num">S / P</div><div class="h num sort">↓ ▾</div><div class="h num">↑</div><div class="h num">ETA</div>`;
+  document.getElementById("table").innerHTML = H + ROWS.map(r => {
+    const s = ST[r[4]]; const cls = r[9].replace("rename","");
+    const name = r[9] === "rename" ? `<div class="nm rn"><div class="ren"><u>Cosmos Laundromat 2K (CC-BY)</u></div></div>` : `<div class="nm"><span>${r[0]}</span><em>${r[1]}</em></div>`;
+    return `<div class="r ${cls}">${name}<div class="num">${r[2]}</div><div class="pg"><div class="bar" style="--p:${r[3]}%;--st:${s[1]}"><b></b></div><span>${r[3]===100?"100":r[3].toFixed(1)}%</span></div><div class="st"><i style="color:${s[1]}">${s[2]}</i><span>${s[0]}</span></div><div class="num">${r[5]}</div><div class="num">${r[6]}</div><div class="num">${r[7]}</div><div class="num">${r[8]}</div></div>`;
+  }).join("");
+  document.getElementById("themeSeg").addEventListener("click", e => { const b = e.target.closest("button[data-theme]"); if (b) setTheme(b.dataset.theme); });
+  document.getElementById("baseSeg").addEventListener("click", e => { const b = e.target.closest("button[data-base]"); if (b) setBase(b.dataset.base); });
+  let t = "tokyo-night", b = "12";
+  try { const s = localStorage.getItem("omaseed-spec2-theme"); if (s && THEMES[s]) t = s; const z = localStorage.getItem("omaseed-spec2-base"); if (z === "14") b = z; } catch (e) {}
+  setTheme(t); setBase(b);
+})();
+</script>

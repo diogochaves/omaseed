@@ -1,3 +1,5 @@
 build/
 .cache/
 *.user
+.qmlls.ini
+/docs/QUESTIONS.md.bak
