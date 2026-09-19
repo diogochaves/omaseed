@@ -10,6 +10,10 @@ Rectangle {
     property string text: ""
     property bool selected: false
     property bool hasCursor: false
+    /// Opt into the keyboard: the chip joins the tab order and `space`/`enter` picks it
+    /// (spec §3 Fig. 9's auth row, where the three chips are the only way to choose). Off by
+    /// default, so a chip that is only ever clicked stays out of everyone's tab order.
+    property bool focusable: false
 
     signal clicked
 
@@ -18,8 +22,10 @@ Rectangle {
     Accessible.name: root.text
     Accessible.role: Accessible.Button
 
-    border.color: root.hot ? Theme.fill(Theme.borderHover) : Theme.fill(Theme.borderIdle)
-    border.width: root.selected ? 0 : 1
+    activeFocusOnTab: root.focusable && root.enabled
+    border.color: root.activeFocus ? Theme.accent : root.hot ? Theme.fill(Theme.borderHover) :
+                                                               Theme.fill(Theme.borderIdle)
+    border.width: (root.selected && !root.activeFocus) ? 0 : 1
     color: root.selected ? Theme.fill(Theme.fillSelected) : root.hot ? Theme.fill(Theme.fillHover) :
                                                                        Theme.fill(Theme.fillIdle)
     height: Theme.space(22)
@@ -49,6 +55,13 @@ Rectangle {
         cursorShape: Qt.PointingHandCursor
         hoverEnabled: true
 
-        onClicked: root.clicked()
+        onClicked: {
+            if (root.focusable)
+                root.forceActiveFocus();
+            root.clicked();
+        }
     }
+
+    Keys.onReturnPressed: root.clicked()
+    Keys.onSpacePressed: root.clicked()
 }

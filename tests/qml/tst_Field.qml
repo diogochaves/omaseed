@@ -42,4 +42,15 @@ TestCase {
         field.accepted();
         compare(accepted, 1);
     }
+
+    // T4.5: a field that holds a secret (spec §3 Fig. 9's `Key`) draws bullets instead of the
+    // characters, and `text` still carries the real value for the caller.
+    function test_echo_mode_hides_a_secret() {
+        const field = createTemporaryObject(fieldComponent, testCase);
+        compare(field.echoMode, TextInput.Normal);
+        field.echoMode = TextInput.Password;
+        field.text = "qbt_secret";
+        compare(field.text, "qbt_secret");
+        compare(field.echoMode, TextInput.Password);
+    }
 }

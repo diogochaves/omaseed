@@ -54,4 +54,30 @@ TestCase {
         chip.clicked();
         compare(clicks, 1);
     }
+
+    // T4.5: `focusable` opts a chip into the keyboard (spec §3 Fig. 9's auth row, where the
+    // three chips are the only way to choose). Off by default, so no other chip's tab order
+    // moves.
+    function test_focusable_joins_the_tab_order_and_space_picks() {
+        const plain = createTemporaryObject(chipComponent, testCase, {
+                                                "text": "linux"
+                                            });
+        compare(plain.activeFocusOnTab, false);
+
+        const chip = createTemporaryObject(chipComponent, testCase, {
+                                               "text": "API key",
+                                               "focusable": true
+                                           });
+        compare(chip.activeFocusOnTab, true);
+        let clicks = 0;
+        chip.clicked.connect(() => clicks++);
+        chip.forceActiveFocus();
+        verify(chip.activeFocus);
+        // Focused, the chip carries the accent ring even while selected.
+        compare(chip.border.color, Theme.accent);
+        keyClick(Qt.Key_Space);
+        compare(clicks, 1);
+        keyClick(Qt.Key_Return);
+        compare(clicks, 2);
+    }
 }

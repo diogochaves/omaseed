@@ -16,6 +16,8 @@ Rectangle {
     property string hint: ""
     property string trailing: ""
     property bool hasCursor: false
+    /// `TextInput.Password` for a secret (spec §3 Fig. 9's `Key` field). Normal by default.
+    property int echoMode: TextInput.Normal
 
     /// True while the caret is in the field: the caller (Main) reads it to know that the
     /// search box, not the table, owns the keyboard.
@@ -90,6 +92,8 @@ Rectangle {
             color: Theme.accent
             width: 1
         }
+        echoMode: root.echoMode
+        passwordCharacter: "\u2022"
         font.family: Theme.fontFamily
         font.pixelSize: Theme.font.body
         selectByMouse: true
