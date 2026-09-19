@@ -264,8 +264,10 @@ extra meaning the widget must carry: download activity.
 7. **Footer key hints** — unboxed, keys bright, words dim.
    *Mirrors v2 Fig. 1's footer and delta 05: no boxed keys anywhere.*
    The shell kit has **no key-hint component** (I grepped; there is none), so this is one
-   `Text` at `Style.font.caption` in the dim colour, elided right, the way `chaves.omagauge`
-   ends its card: `j k move · ↵ folder · s show · A alt-speed · o omaseed · esc close`.
+   `Text` at `Style.font.caption` in the dim colour, the way `chaves.omagauge` ends its card:
+   `j k move · ↵ folder · s show · A alt-speed · o omaseed · esc close`. It **wraps** to a
+   second line rather than eliding — at 380 px it does not fit on one, and a hidden `esc`
+   teaches nothing.
    That is also why the brief does not promise the app's two-part "facts left, help right"
    footer here: at 380 px there is room for one line, and it should be the keys.
 
