@@ -12,6 +12,14 @@ Window {
     title: qsTr("omaseed")
     color: Qt.rgba(Theme.background.r, Theme.background.g, Theme.background.b, Theme.windowAlpha)
 
+    // T1.5: closing the window hides it instead of quitting (charter §2, "one process is
+    // window + tray-resident"). Only the tray menu's "quit" (main.cpp, QCoreApplication::quit)
+    // really ends the process.
+    onClosing: (close) => {
+        close.accepted = false;
+        window.hide();
+    }
+
     // The 1 px window edge: accent while active, muted otherwise.
     Rectangle {
         anchors.fill: parent

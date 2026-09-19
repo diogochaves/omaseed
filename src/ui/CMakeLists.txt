@@ -17,6 +17,7 @@ target_link_libraries(omaseed
         Qt6::Gui
         Qt6::Qml
         Qt6::Quick
+        Qt6::Widgets
 )
 
 set_target_properties(omaseed PROPERTIES
