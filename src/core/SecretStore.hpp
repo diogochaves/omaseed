@@ -1,7 +1,10 @@
 #pragma once
 
+#include <QList>
 #include <QObject>
 #include <QString>
+
+#include <functional>
 #include <optional>
 
 namespace omaseed::core {
@@ -81,6 +84,8 @@ private:
     QString m_service;
     std::optional<Backend> m_detectedBackend;
     std::optional<Backend> m_forcedBackend;
+    QList<std::function<void()>> m_queue;
+    bool m_draining = false;
 
     Backend resolveBackend();
     Backend probeKeychain() const;
@@ -91,6 +96,11 @@ private:
     void runKeychainWrite(Job *job, const QString &serverId, Kind kind, const QString &value) const;
     void runKeychainRead(Job *job, const QString &serverId, Kind kind) const;
     void runKeychainRemove(Job *job, const QString &serverId, Kind kind) const;
+
+    /// One queue for every operation: the keychain backend blocks in a nested event loop,
+    /// so two operations must never overlap (see the note in SecretStore.cpp).
+    void enqueue(std::function<void()> operation);
+    void drain();
 
     void runFileWrite(Job *job, const QString &serverId, Kind kind, const QString &value) const;
     void runFileRead(Job *job, const QString &serverId, Kind kind) const;

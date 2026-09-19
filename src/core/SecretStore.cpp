@@ -9,6 +9,8 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonParseError>
+#include <QPointer>
+#include <QProcessEnvironment>
 #include <QTimer>
 
 #include <qt6keychain/keychain.h>
@@ -46,7 +48,12 @@ QKeychain::Error runSync(QKeychain::Job &job)
 
 QString SecretStore::defaultServiceName()
 {
-    return QStringLiteral("io.github.diogochaves.omaseed");
+    // OMASEED_SECRET_SERVICE lets a test point the whole process — including the one
+    // `SecretStore` App builds for itself — at a keychain service of its own, so a test
+    // never writes an entry beside the user's real ones. Unset in normal runs (T4.5).
+    const QString override =
+        QProcessEnvironment::systemEnvironment().value(QStringLiteral("OMASEED_SECRET_SERVICE"));
+    return override.isEmpty() ? QStringLiteral("io.github.diogochaves.omaseed") : override;
 }
 
 SecretStore::SecretStore(QString service, QObject *parent)
@@ -265,15 +272,43 @@ void SecretStore::runFileRemove(Job *job, const QString &serverId, Kind kind) co
 
 // --- public API, dispatch to the resolved backend -------------------------------------------
 
+// The keychain backend runs each qtkeychain job in a nested event loop, which delivers the
+// zero-timers of everything queued behind it — so a plain `singleShot` per operation let a
+// read start *inside* the write it was queued after, and miss the entry that write had not
+// finished storing yet (found in T4.5: "add a server, then use it" read back nothing). Every
+// operation therefore goes through one queue, drained one at a time, re-entrancy guarded.
+void SecretStore::enqueue(std::function<void()> operation)
+{
+    m_queue.append(std::move(operation));
+    if (m_draining)
+        return;
+    QTimer::singleShot(0, this, [this]() { drain(); });
+}
+
+void SecretStore::drain()
+{
+    if (m_draining)
+        return;
+    m_draining = true;
+    while (!m_queue.isEmpty()) {
+        const std::function<void()> operation = m_queue.takeFirst();
+        operation();
+    }
+    m_draining = false;
+}
+
 SecretStore::Job *
 SecretStore::setSecret(const QString &serverId, Kind kind, const QString &value, QObject *parent)
 {
     auto *job = new Job(parent ? parent : this);
-    QTimer::singleShot(0, job, [this, job, serverId, kind, value]() {
+    QPointer<Job> alive(job);
+    enqueue([this, alive, serverId, kind, value]() {
+        if (!alive)
+            return;
         if (resolveBackend() == Backend::Keychain)
-            runKeychainWrite(job, serverId, kind, value);
+            runKeychainWrite(alive, serverId, kind, value);
         else
-            runFileWrite(job, serverId, kind, value);
+            runFileWrite(alive, serverId, kind, value);
     });
     return job;
 }
@@ -281,11 +316,14 @@ SecretStore::setSecret(const QString &serverId, Kind kind, const QString &value,
 SecretStore::Job *SecretStore::secret(const QString &serverId, Kind kind, QObject *parent)
 {
     auto *job = new Job(parent ? parent : this);
-    QTimer::singleShot(0, job, [this, job, serverId, kind]() {
+    QPointer<Job> alive(job);
+    enqueue([this, alive, serverId, kind]() {
+        if (!alive)
+            return;
         if (resolveBackend() == Backend::Keychain)
-            runKeychainRead(job, serverId, kind);
+            runKeychainRead(alive, serverId, kind);
         else
-            runFileRead(job, serverId, kind);
+            runFileRead(alive, serverId, kind);
     });
     return job;
 }
@@ -293,11 +331,14 @@ SecretStore::Job *SecretStore::secret(const QString &serverId, Kind kind, QObjec
 SecretStore::Job *SecretStore::removeSecret(const QString &serverId, Kind kind, QObject *parent)
 {
     auto *job = new Job(parent ? parent : this);
-    QTimer::singleShot(0, job, [this, job, serverId, kind]() {
+    QPointer<Job> alive(job);
+    enqueue([this, alive, serverId, kind]() {
+        if (!alive)
+            return;
         if (resolveBackend() == Backend::Keychain)
-            runKeychainRemove(job, serverId, kind);
+            runKeychainRemove(alive, serverId, kind);
         else
-            runFileRemove(job, serverId, kind);
+            runFileRemove(alive, serverId, kind);
     });
     return job;
 }
