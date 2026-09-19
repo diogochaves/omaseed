@@ -235,6 +235,623 @@ Window {
                 }
             }
 
+            // ---- kit (T1.3) ------------------------------------------------------------
+            // Every Kit/*.qml component in every state, side by side, matching spec v2 §8's
+            // control-states table: idle (no chrome unless bordered), bordered, hover/cursor,
+            // focus, selected, pressed, primary, danger, disabled.
+            Column {
+                spacing: Theme.space(14)
+                width: parent.width
+
+                GalleryLabel {
+                    text: qsTr("kit")
+                }
+
+                // Glyphs (Kit/Glyphs.qml): every stand-in the spec's figures use.
+                Column {
+                    spacing: Theme.space(6)
+                    width: parent.width
+
+                    KitGroupLabel {
+                        text: qsTr("glyphs")
+                    }
+
+                    Flow {
+                        spacing: Theme.space(10)
+                        width: parent.width
+
+                        Repeater {
+                            model: [
+                                {
+                                    "name": "mark",
+                                    "glyph": Glyphs.mark
+                                },
+                                {
+                                    "name": "arrowDown",
+                                    "glyph": Glyphs.arrowDown
+                                },
+                                {
+                                    "name": "arrowUp",
+                                    "glyph": Glyphs.arrowUp
+                                },
+                                {
+                                    "name": "add",
+                                    "glyph": Glyphs.add
+                                },
+                                {
+                                    "name": "altSpeed",
+                                    "glyph": Glyphs.altSpeed
+                                },
+                                {
+                                    "name": "settings",
+                                    "glyph": Glyphs.settings
+                                },
+                                {
+                                    "name": "help",
+                                    "glyph": Glyphs.help
+                                },
+                                {
+                                    "name": "search",
+                                    "glyph": Glyphs.search
+                                },
+                                {
+                                    "name": "folder",
+                                    "glyph": Glyphs.folder
+                                },
+                                {
+                                    "name": "trayIdle",
+                                    "glyph": Glyphs.trayIdle
+                                },
+                                {
+                                    "name": "trayDownloading",
+                                    "glyph": Glyphs.trayDownloading
+                                },
+                                {
+                                    "name": "trayAltSpeed",
+                                    "glyph": Glyphs.trayAltSpeed
+                                },
+                                {
+                                    "name": "trayError",
+                                    "glyph": Glyphs.trayError
+                                },
+                                {
+                                    "name": "trayDisconnected",
+                                    "glyph": Glyphs.trayDisconnected
+                                },
+                                {
+                                    "name": "statusAll",
+                                    "glyph": Glyphs.statusAll
+                                },
+                                {
+                                    "name": "statusDownloading",
+                                    "glyph": Glyphs.statusDownloading
+                                },
+                                {
+                                    "name": "statusSeeding",
+                                    "glyph": Glyphs.statusSeeding
+                                },
+                                {
+                                    "name": "statusCompleted",
+                                    "glyph": Glyphs.statusCompleted
+                                },
+                                {
+                                    "name": "statusStopped",
+                                    "glyph": Glyphs.statusStopped
+                                },
+                                {
+                                    "name": "statusActive",
+                                    "glyph": Glyphs.statusActive
+                                },
+                                {
+                                    "name": "statusStalled",
+                                    "glyph": Glyphs.statusStalled
+                                },
+                                {
+                                    "name": "statusChecking",
+                                    "glyph": Glyphs.statusChecking
+                                },
+                                {
+                                    "name": "statusErrored",
+                                    "glyph": Glyphs.statusErrored
+                                },
+                                {
+                                    "name": "statusQueued",
+                                    "glyph": Glyphs.statusQueued
+                                },
+                                {
+                                    "name": "category",
+                                    "glyph": Glyphs.category
+                                },
+                                {
+                                    "name": "tag",
+                                    "glyph": Glyphs.tag
+                                },
+                                {
+                                    "name": "tracker",
+                                    "glyph": Glyphs.tracker
+                                },
+                                {
+                                    "name": "chevronRight",
+                                    "glyph": Glyphs.chevronRight
+                                },
+                                {
+                                    "name": "chevronDown",
+                                    "glyph": Glyphs.chevronDown
+                                },
+                                {
+                                    "name": "check",
+                                    "glyph": Glyphs.check
+                                },
+                                {
+                                    "name": "close",
+                                    "glyph": Glyphs.close
+                                },
+                                {
+                                    "name": "dot",
+                                    "glyph": Glyphs.dot
+                                }
+                            ]
+
+                            Column {
+                                id: glyphSample
+
+                                required property var modelData
+
+                                spacing: Theme.space(2)
+                                width: Theme.space(72)
+
+                                Text {
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                    color: Theme.foreground
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: Theme.font.icon
+                                    text: glyphSample.modelData.glyph
+                                }
+
+                                Text {
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                    color: Theme.dimForeground
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: Theme.font.caption
+                                    text: glyphSample.modelData.name
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Button + IconButton: idle, bordered, hover/cursor, focus, selected, pressed,
+                // primary, danger, disabled.
+                Column {
+                    spacing: Theme.space(6)
+                    width: parent.width
+
+                    KitGroupLabel {
+                        text: qsTr("button")
+                    }
+
+                    Flow {
+                        spacing: Theme.space(10)
+                        width: parent.width
+
+                        Captioned {
+                            caption: qsTr("idle")
+
+                            Button {
+                                text: qsTr("Button")
+                            }
+                        }
+
+                        Captioned {
+                            caption: qsTr("bordered")
+
+                            Button {
+                                bordered: true
+                                text: qsTr("Button")
+                            }
+                        }
+
+                        Captioned {
+                            caption: qsTr("hover / cursor")
+
+                            Button {
+                                hasCursor: true
+                                text: qsTr("Button")
+                            }
+                        }
+
+                        Captioned {
+                            caption: qsTr("focus")
+
+                            Button {
+                                text: qsTr("Button")
+
+                                Component.onCompleted: forceActiveFocus()
+                            }
+                        }
+
+                        Captioned {
+                            caption: qsTr("selected")
+
+                            Button {
+                                selected: true
+                                text: qsTr("Button")
+                            }
+                        }
+
+                        Captioned {
+                            caption: qsTr("pressed")
+
+                            Button {
+                                pressed: true
+                                text: qsTr("Button")
+                            }
+                        }
+
+                        Captioned {
+                            caption: qsTr("primary")
+
+                            Button {
+                                primary: true
+                                text: qsTr("Button")
+                            }
+                        }
+
+                        Captioned {
+                            caption: qsTr("danger")
+
+                            Button {
+                                danger: true
+                                text: qsTr("Button")
+                            }
+                        }
+
+                        Captioned {
+                            caption: qsTr("danger selected")
+
+                            Button {
+                                danger: true
+                                selected: true
+                                text: qsTr("Button")
+                            }
+                        }
+
+                        Captioned {
+                            caption: qsTr("disabled")
+
+                            Button {
+                                enabled: false
+                                text: qsTr("Button")
+                            }
+                        }
+                    }
+
+                    Flow {
+                        spacing: Theme.space(10)
+                        width: parent.width
+
+                        Captioned {
+                            caption: qsTr("idle")
+
+                            IconButton {
+                                glyph: Glyphs.add
+                            }
+                        }
+
+                        Captioned {
+                            caption: qsTr("bordered")
+
+                            IconButton {
+                                bordered: true
+                                glyph: Glyphs.add
+                            }
+                        }
+
+                        Captioned {
+                            caption: qsTr("hover / cursor")
+
+                            IconButton {
+                                glyph: Glyphs.add
+                                hasCursor: true
+                            }
+                        }
+
+                        Captioned {
+                            caption: qsTr("selected")
+
+                            IconButton {
+                                glyph: Glyphs.settings
+                                selected: true
+                            }
+                        }
+
+                        Captioned {
+                            caption: qsTr("pressed")
+
+                            IconButton {
+                                glyph: Glyphs.settings
+                                pressed: true
+                            }
+                        }
+
+                        Captioned {
+                            caption: qsTr("primary")
+
+                            IconButton {
+                                glyph: Glyphs.add
+                                primary: true
+                            }
+                        }
+
+                        Captioned {
+                            caption: qsTr("danger")
+
+                            IconButton {
+                                danger: true
+                                glyph: Glyphs.close
+                            }
+                        }
+
+                        Captioned {
+                            caption: qsTr("disabled")
+
+                            IconButton {
+                                enabled: false
+                                glyph: Glyphs.settings
+                            }
+                        }
+                    }
+                }
+
+                // Field: empty, with text, with a live count.
+                Column {
+                    spacing: Theme.space(6)
+                    width: parent.width
+
+                    KitGroupLabel {
+                        text: qsTr("field")
+                    }
+
+                    Flow {
+                        spacing: Theme.space(10)
+                        width: parent.width
+
+                        Captioned {
+                            caption: qsTr("empty")
+
+                            Field {
+                                hint: Glyphs.search
+                                placeholder: qsTr("filter torrents")
+                            }
+                        }
+
+                        Captioned {
+                            caption: qsTr("with text")
+
+                            Field {
+                                hint: Glyphs.search
+                                text: qsTr("fedora 45")
+                            }
+                        }
+
+                        Captioned {
+                            caption: qsTr("with count")
+
+                            Field {
+                                hint: Glyphs.search
+                                text: qsTr("fedora 45")
+                                trailing: qsTr("0 of 142")
+                            }
+                        }
+                    }
+                }
+
+                // Chip: idle, hover/cursor, selected.
+                Column {
+                    spacing: Theme.space(6)
+                    width: parent.width
+
+                    KitGroupLabel {
+                        text: qsTr("chip")
+                    }
+
+                    Flow {
+                        spacing: Theme.space(10)
+                        width: parent.width
+
+                        Captioned {
+                            caption: qsTr("idle")
+
+                            Chip {
+                                text: qsTr("linux")
+                            }
+                        }
+
+                        Captioned {
+                            caption: qsTr("hover / cursor")
+
+                            Chip {
+                                hasCursor: true
+                                text: qsTr("linux")
+                            }
+                        }
+
+                        Captioned {
+                            caption: qsTr("selected")
+
+                            Chip {
+                                selected: true
+                                text: qsTr("linux")
+                            }
+                        }
+                    }
+                }
+
+                // Toggle: off, on.
+                Column {
+                    spacing: Theme.space(6)
+                    width: parent.width
+
+                    KitGroupLabel {
+                        text: qsTr("toggle")
+                    }
+
+                    Row {
+                        spacing: Theme.space(18)
+
+                        Toggle {
+                            checked: false
+                            text: qsTr("off")
+                        }
+
+                        Toggle {
+                            checked: true
+                            text: qsTr("on")
+                        }
+                    }
+                }
+
+                // Stat: the two hero headline numbers.
+                Column {
+                    spacing: Theme.space(6)
+                    width: parent.width
+
+                    KitGroupLabel {
+                        text: qsTr("stat")
+                    }
+
+                    Row {
+                        spacing: Theme.space(24)
+
+                        Stat {
+                            glyph: Glyphs.arrowDown
+                            glyphColor: Theme.stateDownloading
+                            label: qsTr("download")
+                            value: qsTr("4.21 MB/s")
+                        }
+
+                        Stat {
+                            glyph: Glyphs.arrowUp
+                            glyphColor: Theme.stateSeeding
+                            label: qsTr("upload")
+                            value: qsTr("812 KB/s")
+                        }
+                    }
+                }
+
+                // KeyHints: unboxed, pinned help hint pushed right.
+                Column {
+                    spacing: Theme.space(6)
+                    width: parent.width
+
+                    KitGroupLabel {
+                        text: qsTr("key hints")
+                    }
+
+                    KeyHints {
+                        model: [
+                            {
+                                "key": "j k",
+                                "label": qsTr("move")
+                            },
+                            {
+                                "key": "space",
+                                "label": qsTr("select")
+                            },
+                            {
+                                "key": "enter",
+                                "label": qsTr("actions")
+                            },
+                            {
+                                "key": "/",
+                                "label": qsTr("filter")
+                            }
+                        ]
+                        pinned: ({
+                                     "key": "?",
+                                     "label": qsTr("help")
+                                 })
+                        width: parent.width
+                    }
+                }
+
+                // Banner: error, warning, info.
+                Column {
+                    spacing: Theme.space(6)
+                    width: parent.width
+
+                    KitGroupLabel {
+                        text: qsTr("banner")
+                    }
+
+                    Column {
+                        spacing: Theme.space(4)
+                        width: parent.width
+
+                        Banner {
+                            actions: [
+                                {
+                                    "label": qsTr("retry now"),
+                                    "key": "retry"
+                                },
+                                {
+                                    "label": qsTr("settings"),
+                                    "key": "settings"
+                                }
+                            ]
+                            kind: "error"
+                            text: qsTr("connection refused · retrying in 7 s")
+                        }
+
+                        Banner {
+                            actions: [
+                                {
+                                    "label": qsTr("settings"),
+                                    "key": "settings"
+                                }
+                            ]
+                            kind: "warning"
+                            text: qsTr("home is unreachable")
+                        }
+
+                        Banner {
+                            kind: "info"
+                            text: qsTr("theme switched to %1").arg(Theme.themeName)
+                        }
+                    }
+                }
+
+                // Hero: the full row, sample data (spec v2 §1 Fig. 1).
+                Column {
+                    spacing: Theme.space(6)
+                    width: parent.width
+
+                    KitGroupLabel {
+                        text: qsTr("hero")
+                    }
+
+                    Rectangle {
+                        border.color: Theme.accent
+                        border.width: 1
+                        color: Theme.background
+                        height: heroSample.implicitHeight
+                        width: parent.width
+
+                        Hero {
+                            id: heroSample
+
+                            appName: "omaseed"
+                            connected: true
+                            downSpeed: qsTr("4.21 MB/s")
+                            searchCount: 142
+                            serverLine: qsTr("home · qBittorrent 5.2.3")
+                            upSpeed: qsTr("812 KB/s")
+                            width: parent.width
+                        }
+                    }
+                }
+            }
+
             // ---- colour roles --------------------------------------------------------
             Column {
                 spacing: Theme.space(10)
@@ -444,6 +1061,39 @@ Window {
                     }
                 }
             }
+        }
+    }
+
+    // A small dim sub-heading inside the Kit section (e.g. "button", "field"), lighter than
+    // GalleryLabel's hairline-ruled section heading.
+    component KitGroupLabel: Text {
+        color: Theme.dimForeground
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.font.small
+    }
+
+    // Wraps one Kit component sample with a caption beneath it, so every state in the Kit
+    // section reads like a small labelled swatch.
+    component Captioned: Column {
+        id: captioned
+
+        default property alias content: inner.data
+        property string caption: ""
+
+        spacing: Theme.space(4)
+
+        Item {
+            id: inner
+
+            height: childrenRect.height
+            width: childrenRect.width
+        }
+
+        Text {
+            color: Theme.dimForeground
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.font.caption
+            text: captioned.caption
         }
     }
 
