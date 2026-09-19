@@ -1,0 +1,29 @@
+#!/bin/bash
+# omaseed theme-set hook (T1.8).
+#
+# Installed by scripts/dev/install-omarchy-extras.sh into
+# ~/.config/omarchy/hooks/theme-set.d/omaseed (Omarchy runs every executable in that
+# directory after omarchy-theme-set has moved the new theme's colors.toml/shell.toml into
+# place, passing the new theme's slug as $1). We poke the running app over D-Bus so the
+# palette flips together with the rest of the desktop instead of waiting out
+# ThemeReader's own file-watcher debounce (~750ms; see kDebounceMs in
+# src/integration/ThemeReader.cpp). The two paths -- this hook and the watcher -- race to
+# call Reload(); ThemeReader fingerprints the palette it reads and only emits changed()
+# once, so the second, redundant reload is a silent no-op.
+#
+# busctl is systemd's D-Bus client and is always present on Omarchy, unlike gdbus or
+# dbus-send, so it needs no extra dependency.
+#
+# omaseed may not be running. A call to a bus name with no owner fails immediately and
+# cheaply (activation is not requested: T1.4 has not wired D-Bus activation up yet), so we
+# do not probe for the name first -- we just swallow the failure and always exit 0. A theme
+# switch must never be held up, or fail, because omaseed happens to be closed.
+set -u
+
+busctl --user call \
+    io.github.diogochaves.omaseed \
+    /io/github/diogochaves/omaseed/Theme \
+    io.github.diogochaves.omaseed.Theme \
+    Reload >/dev/null 2>&1
+
+exit 0
