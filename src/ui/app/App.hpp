@@ -306,6 +306,79 @@ private:
     bool m_notifyServerLostEnabled = true;
     bool m_notifyDiskFullEnabled = true;
     bool m_notificationTogglesLoaded = false;
+
+    // --- T4.3: torrent actions ---
+    // Every action of spec §3 Fig. 6/7/8/11 and Fig. 26's "act" column that touches the
+    // server lives here, over `QbtClient`. Each one no-ops in demo mode (logging
+    // "demo: <action> <n>") and otherwise reports a failure through `actionFailed` rather
+    // than throwing it away, the way `toggleAltSpeed`/`stopAll` do above.
+public:
+    /// The remembered state of Fig. 6's "also delete files from disk" toggle. Persisted under
+    /// the `"deleteFiles"` section of `~/.config/omaseed/state.json`.
+    Q_PROPERTY(bool deleteFilesDefault READ deleteFilesDefault WRITE setDeleteFilesDefault NOTIFY
+                   deleteFilesDefaultChanged)
+    bool deleteFilesDefault() const;
+    void setDeleteFilesDefault(bool value);
+
+    /// `p`/`P`: stop/start decided from the cursor torrent's own state (the first hash of
+    /// `hashes`), applied to every hash in the selection; `forceStart` always starts with the
+    /// force flag set.
+    Q_INVOKABLE void stopStart(const QStringList &hashes);
+    Q_INVOKABLE void forceStart(const QStringList &hashes);
+    Q_INVOKABLE void recheck(const QStringList &hashes);
+    Q_INVOKABLE void reannounce(const QStringList &hashes);
+
+    Q_INVOKABLE void setCategory(const QStringList &hashes, const QString &name);
+    Q_INVOKABLE void addTags(const QStringList &hashes, const QStringList &tags);
+    Q_INVOKABLE void removeTags(const QStringList &hashes, const QStringList &tags);
+
+    Q_INVOKABLE void setLocation(const QStringList &hashes, const QString &path);
+    /// `dl`/`ul` in bytes/s, -1 = unchanged, 0 = unlimited. `ratio` and `seedingMinutes`
+    /// always go together through torrents/setShareLimits: -2 = use the global default,
+    /// -1 = no limit, >=0 the limit itself (`seedingMinutes` is the API's own unit).
+    Q_INVOKABLE void
+    setLimits(const QStringList &hashes, qint64 dl, qint64 ul, double ratio, qint64 seedingMinutes);
+
+    /// The sheet's fallback rename (the table's inline editor is the primary one).
+    Q_INVOKABLE void rename(const QString &hash, const QString &name);
+
+    Q_INVOKABLE void queueUp(const QStringList &hashes);
+    Q_INVOKABLE void queueDown(const QStringList &hashes);
+
+    Q_INVOKABLE void remove(const QStringList &hashes, bool deleteFiles);
+
+    /// `y`/`Y`: no server round trip, so it runs in demo mode too.
+    Q_INVOKABLE void copyToClipboard(const QString &text) const;
+    /// `o`: the cursor torrent's `contentPath`, mapped through the server's `PathMap` and
+    /// handed to `Xdg::showInFileManager`.
+    Q_INVOKABLE void openFolder(const QString &hash);
+    /// `ctrl+o` in the location sheet: `QFileDialog::getExistingDirectory`, starting at
+    /// `startDir`. An empty result means the picker was cancelled or no portal answered; the
+    /// caller keeps whatever was typed.
+    Q_INVOKABLE QString pickDirectory(const QString &startDir) const;
+
+Q_SIGNALS:
+    void deleteFilesDefaultChanged();
+    /// A server action from this block came back with an error. MainView shows it in the
+    /// footer facts for a few seconds.
+    void actionFailed(const QString &action, const QString &message);
+    /// `C`/`t`: T4.4's category/tag palettes answer these; this block only raises them.
+    void categoryPickerRequested(const QStringList &hashes);
+    void tagPickerRequested(const QStringList &hashes);
+
+private:
+    /// True (and logged) in demo mode, where none of these actions may touch a network.
+    bool demoGuard(const QString &action, int count);
+    void reportActionResult(const QString &action,
+                            const omaseed::core::QbtResult<QByteArray> &result);
+    void loadDeleteFilesDefault();
+    /// StoppedDownload/StoppedUpload/PausedDownload/PausedUpload: what `stopStart()` and
+    /// `torrentRow()`'s `stopped` field both call "stopped".
+    static bool isStoppedState(omaseed::core::TorrentState state);
+
+    bool m_deleteFilesDefault = false;
+    bool m_deleteFilesDefaultLoaded = false;
+    // --- end T4.3 ------------------------------------------------------------------------
     // --- end T4.7 ----------------------------------------------------------------------------
 
     // --- T4.4: palettes ---------------------------------------------------------------------
@@ -355,8 +428,6 @@ Q_SIGNALS:
     /// T4.3's `C`/`t` (or the AddSheet's chips) ask App for the category/tag picker; this
     /// block's `Connections { target: App }` in MainView opens `CategoryPalette`/`TagPalette`
     /// on `hashes` in response.
-    void categoryPickerRequested(const QStringList &hashes);
-    void tagPickerRequested(const QStringList &hashes);
 
 private:
     static bool matchesQuery(const QString &text, const QString &query);

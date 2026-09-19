@@ -9,10 +9,12 @@
 #include "integration/Xdg.hpp"
 #include "ui/app/DemoData.hpp"
 
+#include <QClipboard>
 #include <QDebug>
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QGuiApplication>
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QPointer>
@@ -539,6 +541,16 @@ QVariantMap App::torrentRow(const QString &hash) const
     row.insert(QStringLiteral("category"), torrent.category);
     row.insert(QStringLiteral("tagsText"), torrent.tags.join(QStringLiteral(" · ")));
     row.insert(QStringLiteral("addedOnText"), Format::added(torrent.addedOn));
+    // T4.3: the raw byte count, for the delete/location sheets' "N on disk" line — every
+    // other field above is already text, this is the one a caller sums across a selection.
+    row.insert(QStringLiteral("size"), torrent.size);
+    row.insert(QStringLiteral("savePath"), torrent.savePath);
+    row.insert(QStringLiteral("magnetUri"), torrent.magnetUri);
+    row.insert(QStringLiteral("infohashV1"), torrent.infohashV1);
+    row.insert(QStringLiteral("dlLimit"), torrent.dlLimit);
+    row.insert(QStringLiteral("upLimit"), torrent.upLimit);
+    row.insert(QStringLiteral("ratioLimit"), torrent.ratioLimit);
+    row.insert(QStringLiteral("seedingTimeLimit"), torrent.seedingTimeLimit);
     row.insert(QStringLiteral("sizeText"), Format::size(torrent.size));
     row.insert(QStringLiteral("progressText"), Format::percent(torrent.progress));
     row.insert(QStringLiteral("ratioText"), Format::ratio(torrent.ratio));
@@ -546,6 +558,9 @@ QVariantMap App::torrentRow(const QString &hash) const
     row.insert(QStringLiteral("stateText"), torrent.stateText());
     row.insert(QStringLiteral("stateRole"), torrent.stateRole());
     row.insert(QStringLiteral("hasTrackerError"), torrent.hasTrackerError);
+    // T4.3: exactly the check `stopStart()` makes, so the actions menu's "start"/"stop" row
+    // and the delete sheet agree with what a bulk stop/start would actually do.
+    row.insert(QStringLiteral("stopped"), isStoppedState(torrent.state));
     return row;
 }
 
@@ -1297,5 +1312,232 @@ void App::openUris(const QStringList &uris)
     Q_EMIT addUrisRequested(uris);
 }
 // --- end T4.2 -----------------------------------------------------------------------------------
+
+// --- T4.3: torrent actions ----------------------------------------------------------------
+
+bool App::deleteFilesDefault() const
+{
+    const_cast<App *>(this)->loadDeleteFilesDefault();
+    return m_deleteFilesDefault;
+}
+
+void App::setDeleteFilesDefault(bool value)
+{
+    loadDeleteFilesDefault();
+    if (m_deleteFilesDefault == value)
+        return;
+    m_deleteFilesDefault = value;
+    QJsonObject section;
+    section.insert(QStringLiteral("value"), value);
+    StateFile::writeSection(QStringLiteral("deleteFiles"), section);
+    Q_EMIT deleteFilesDefaultChanged();
+}
+
+void App::loadDeleteFilesDefault()
+{
+    if (m_deleteFilesDefaultLoaded)
+        return;
+    m_deleteFilesDefaultLoaded = true;
+    const QJsonObject section = StateFile::readSection(QStringLiteral("deleteFiles"));
+    m_deleteFilesDefault = section.value(QStringLiteral("value")).toBool(false);
+}
+
+bool App::isStoppedState(TorrentState state)
+{
+    return state == TorrentState::StoppedDownload || state == TorrentState::StoppedUpload ||
+           state == TorrentState::PausedDownload || state == TorrentState::PausedUpload;
+}
+
+bool App::demoGuard(const QString &action, int count)
+{
+    if (!m_demoMode)
+        return false;
+    qInfo().noquote() << QStringLiteral("demo: %1 %2").arg(action).arg(count);
+    return true;
+}
+
+void App::reportActionResult(const QString &action, const QbtResult<QByteArray> &result)
+{
+    if (result.isError())
+        Q_EMIT actionFailed(action, result.error().toString());
+}
+
+void App::stopStart(const QStringList &hashes)
+{
+    if (hashes.isEmpty() || demoGuard(QStringLiteral("stopStart"), hashes.size()) || !m_hasServer)
+        return;
+
+    const int index = m_engine->torrents()->indexOfHash(hashes.constFirst());
+    const bool stopped =
+        index >= 0 && isStoppedState(m_engine->torrents()->torrent(hashes.constFirst()).state);
+
+    auto *reply = stopped ? m_client->torrentsStart(hashes) : m_client->torrentsStop(hashes);
+    reply->then(this, [this](const QbtResult<QByteArray> &result) {
+        reportActionResult(QStringLiteral("stopStart"), result);
+    });
+}
+
+void App::forceStart(const QStringList &hashes)
+{
+    if (hashes.isEmpty() || demoGuard(QStringLiteral("forceStart"), hashes.size()) || !m_hasServer)
+        return;
+    m_client->torrentsSetForceStart(hashes, true)
+        ->then(this, [this](const QbtResult<QByteArray> &result) {
+            reportActionResult(QStringLiteral("forceStart"), result);
+        });
+}
+
+void App::recheck(const QStringList &hashes)
+{
+    if (hashes.isEmpty() || demoGuard(QStringLiteral("recheck"), hashes.size()) || !m_hasServer)
+        return;
+    m_client->torrentsRecheck(hashes)->then(this, [this](const QbtResult<QByteArray> &result) {
+        reportActionResult(QStringLiteral("recheck"), result);
+    });
+}
+
+void App::reannounce(const QStringList &hashes)
+{
+    if (hashes.isEmpty() || demoGuard(QStringLiteral("reannounce"), hashes.size()) || !m_hasServer)
+        return;
+    m_client->torrentsReannounce(hashes)->then(this, [this](const QbtResult<QByteArray> &result) {
+        reportActionResult(QStringLiteral("reannounce"), result);
+    });
+}
+
+void App::setCategory(const QStringList &hashes, const QString &name)
+{
+    if (hashes.isEmpty() || demoGuard(QStringLiteral("category"), hashes.size()) || !m_hasServer)
+        return;
+    m_client->torrentsSetCategory(hashes, name)
+        ->then(this, [this](const QbtResult<QByteArray> &result) {
+            reportActionResult(QStringLiteral("category"), result);
+        });
+}
+
+void App::addTags(const QStringList &hashes, const QStringList &tags)
+{
+    if (hashes.isEmpty() || tags.isEmpty() || demoGuard(QStringLiteral("addTags"), hashes.size()) ||
+        !m_hasServer)
+        return;
+    m_client->torrentsAddTags(hashes, tags)
+        ->then(this, [this](const QbtResult<QByteArray> &result) {
+            reportActionResult(QStringLiteral("addTags"), result);
+        });
+}
+
+void App::removeTags(const QStringList &hashes, const QStringList &tags)
+{
+    if (hashes.isEmpty() || tags.isEmpty() ||
+        demoGuard(QStringLiteral("removeTags"), hashes.size()) || !m_hasServer)
+        return;
+    m_client->torrentsRemoveTags(hashes, tags)
+        ->then(this, [this](const QbtResult<QByteArray> &result) {
+            reportActionResult(QStringLiteral("removeTags"), result);
+        });
+}
+
+void App::setLocation(const QStringList &hashes, const QString &path)
+{
+    if (hashes.isEmpty() || path.isEmpty() ||
+        demoGuard(QStringLiteral("location"), hashes.size()) || !m_hasServer)
+        return;
+    m_client->torrentsSetLocation(hashes, path)
+        ->then(this, [this](const QbtResult<QByteArray> &result) {
+            reportActionResult(QStringLiteral("location"), result);
+        });
+}
+
+void App::setLimits(
+    const QStringList &hashes, qint64 dl, qint64 ul, double ratio, qint64 seedingMinutes)
+{
+    if (hashes.isEmpty() || demoGuard(QStringLiteral("limits"), hashes.size()) || !m_hasServer)
+        return;
+
+    if (dl != -1) {
+        m_client->torrentsSetDownloadLimit(hashes, dl)
+            ->then(this, [this](const QbtResult<QByteArray> &result) {
+                reportActionResult(QStringLiteral("limits"), result);
+            });
+    }
+    if (ul != -1) {
+        m_client->torrentsSetUploadLimit(hashes, ul)
+            ->then(this, [this](const QbtResult<QByteArray> &result) {
+                reportActionResult(QStringLiteral("limits"), result);
+            });
+    }
+
+    // torrents/setShareLimits takes seedingTimeLimit in minutes (qBittorrent's own unit); the
+    // caller (LimitsSheet) has already converted its days field, so this is passed straight
+    // through, sentinels (-2 global, -1 none) included.
+    m_client->torrentsSetShareLimits(hashes, ratio, seedingMinutes, -2)
+        ->then(this, [this](const QbtResult<QByteArray> &result) {
+            reportActionResult(QStringLiteral("limits"), result);
+        });
+}
+
+void App::rename(const QString &hash, const QString &name)
+{
+    if (hash.isEmpty() || name.isEmpty() || demoGuard(QStringLiteral("rename"), 1) || !m_hasServer)
+        return;
+    m_client->torrentsRename(hash, name)->then(this, [this](const QbtResult<QByteArray> &result) {
+        reportActionResult(QStringLiteral("rename"), result);
+    });
+}
+
+void App::queueUp(const QStringList &hashes)
+{
+    if (hashes.isEmpty() || demoGuard(QStringLiteral("queueUp"), hashes.size()) || !m_hasServer)
+        return;
+    m_client->torrentsIncreasePrio(hashes)->then(this, [this](const QbtResult<QByteArray> &result) {
+        reportActionResult(QStringLiteral("queueUp"), result);
+    });
+}
+
+void App::queueDown(const QStringList &hashes)
+{
+    if (hashes.isEmpty() || demoGuard(QStringLiteral("queueDown"), hashes.size()) || !m_hasServer)
+        return;
+    m_client->torrentsDecreasePrio(hashes)->then(this, [this](const QbtResult<QByteArray> &result) {
+        reportActionResult(QStringLiteral("queueDown"), result);
+    });
+}
+
+void App::remove(const QStringList &hashes, bool deleteFiles)
+{
+    if (hashes.isEmpty() || demoGuard(QStringLiteral("delete"), hashes.size()) || !m_hasServer)
+        return;
+    m_client->torrentsDelete(hashes, deleteFiles)
+        ->then(this, [this](const QbtResult<QByteArray> &result) {
+            reportActionResult(QStringLiteral("delete"), result);
+        });
+}
+
+void App::copyToClipboard(const QString &text) const
+{
+    if (text.isEmpty())
+        return;
+    if (QClipboard *clipboard = QGuiApplication::clipboard())
+        clipboard->setText(text);
+}
+
+void App::openFolder(const QString &hash)
+{
+    if (hash.isEmpty() || m_xdg.isNull())
+        return;
+    if (m_engine->torrents()->indexOfHash(hash) < 0)
+        return;
+    const QString local = mapContentPathToLocal(m_engine->torrents()->torrent(hash).contentPath);
+    if (!local.isEmpty())
+        m_xdg->showInFileManager(local);
+}
+
+QString App::pickDirectory(const QString &startDir) const
+{
+    return QFileDialog::getExistingDirectory(
+        nullptr, tr("Choose a location"), startDir, QFileDialog::ShowDirsOnly);
+}
+
+// --- end T4.3 ------------------------------------------------------------------------------
 
 } // namespace omaseed::app

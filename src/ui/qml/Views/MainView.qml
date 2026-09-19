@@ -39,6 +39,12 @@ Item {
     readonly property alias split: split
     readonly property alias hintModel: hintModel
     readonly property alias helpSheet: helpSheet
+    // T4.3
+    readonly property alias actionsMenuPanel: actionsMenuPanel
+    readonly property alias deleteConfirmPanel: deleteConfirmPanel
+    readonly property alias locationSheetPanel: locationSheetPanel
+    readonly property alias limitsSheetPanel: limitsSheetPanel
+    readonly property alias renameSheetPanel: renameSheetPanel
 
     /// The `?` sheet.
     property bool helpOpen: false
@@ -186,14 +192,68 @@ Item {
         return root.cursorHash.length > 0 ? [root.cursorHash] : [];
     }
 
-    /// Everything on the table that Phase 4 will really perform. It leaves as one App signal
-    /// so the sheets, the confirm dialog and the tray can all hang off the same place.
+    /// Every action of Fig. 11/26: the direct ones call straight through to `App`, the ones
+    /// that need a question or a form open the matching overlay of the T4.3 block below.
+    /// `category`/`tags` are T4.4's palettes to answer; this only raises the request.
     function torrentAction(action: string): void {
         const hashes = root.actionHashes();
         if (hashes.length === 0)
             return;
-        console.log("action:", action, hashes.length, "torrents");
-        App.requestTorrentAction(action, hashes);
+        switch (action) {
+        case "stopStart":
+            App.stopStart(hashes);
+            break;
+        case "forceStart":
+            App.forceStart(hashes);
+            break;
+        case "recheck":
+            App.recheck(hashes);
+            break;
+        case "reannounce":
+            App.reannounce(hashes);
+            break;
+        case "delete":
+            deleteConfirmPanel.openFor(hashes, App.deleteFilesDefault);
+            break;
+        case "deleteWithFiles":
+            deleteConfirmPanel.openFor(hashes, true);
+            break;
+        case "location":
+            locationSheetPanel.openFor(hashes);
+            break;
+        case "limits":
+            limitsSheetPanel.openFor(hashes);
+            break;
+        case "rename":
+            renameSheetPanel.openFor(root.cursorHash);
+            break;
+        case "category":
+            App.categoryPickerRequested(hashes);
+            break;
+        case "tags":
+            App.tagPickerRequested(hashes);
+            break;
+        case "queueUp":
+            App.queueUp(hashes);
+            break;
+        case "queueDown":
+            App.queueDown(hashes);
+            break;
+        case "copyMagnet":
+            App.copyToClipboard(App.torrentRow(root.cursorHash).magnetUri || "");
+            root.flashFooterNote(qsTr("copied"));
+            break;
+        case "copyHash":
+            App.copyToClipboard(App.torrentRow(root.cursorHash).infohashV1 || "");
+            root.flashFooterNote(qsTr("copied"));
+            break;
+        case "openFolder":
+            App.openFolder(root.cursorHash);
+            break;
+        default:
+            console.log("action:", action, hashes.length, "torrents");
+            break;
+        }
     }
 
     /// The details pane follows the table's cursor. It is a snapshot, not a binding, so it
@@ -489,7 +549,15 @@ Item {
                 opacity: root.serverLost ? 0.45 : 1.0
                 visible: !root.filterEmpty
 
-                onActionsRequested: (hash, x, y) => console.log("actions:", hash, x, y)
+                // T4.3: `enter` and right-click already moved the cursor (and, for a
+                // right-click outside the selection, the selection) onto `hash` before this
+                // fires, so the menu's own `activated` can go straight through
+                // `torrentAction()` without carrying `hash` along.
+                onActionsRequested: (hash, x, y) => {
+                    const point = table.mapToItem(root, x, y);
+                    actionsMenuPanel.cursorStopped = App.torrentRow(hash).stopped === true;
+                    actionsMenuPanel.openAt(point.x, point.y);
+                }
                 onActivated: hash => console.log("activated:", hash)
                 onEscapePressed: root.handleEscape()
                 onFocusDetails: {
@@ -497,10 +565,9 @@ Item {
                         details.forceActiveFocus();
                 }
                 onFocusRail: rail.forceActiveFocus()
-                onRenameRequested: (hash, name) => {
-                    console.log("rename:", hash, "->", name);
-                    App.requestTorrentAction("rename", [hash]);
-                }
+                // The inline editor is the primary rename; the sheet (`renameSheetPanel`) is
+                // only the menu/multi-selection fallback.
+                onRenameRequested: (hash, name) => App.rename(hash, name)
             }
 
             FilteredEmpty {
@@ -685,6 +752,107 @@ Item {
 
             onCloseRequested: root.helpOpen = false
         }
+    }
+
+    // --- T4.3: actions ---
+    // The overlays `torrentAction()` opens, a short-lived footer note for "copied" and for
+    // `App.actionFailed`, and the two notices `App.showTorrentRequested`/
+    // `showTrackersRequested` (T4.7's seam) land on.
+
+    /// A few words shown next to the footer's facts for `_footerNoteSeconds`, then cleared.
+    property string footerNote: ""
+    readonly property int _footerNoteSeconds: 5
+
+    /// `y`/`Y`'s "copied", and (through `Connections` below) `App.actionFailed`.
+    function flashFooterNote(text: string): void {
+        root.footerNote = text;
+        footerNoteTimer.restart();
+    }
+
+    Timer {
+        id: footerNoteTimer
+
+        interval: root._footerNoteSeconds * 1000
+
+        onTriggered: root.footerNote = ""
+    }
+
+    Connections {
+        function onActionFailed(action, message) {
+            root.flashFooterNote(qsTr("%1 failed: %2").arg(action).arg(message));
+        }
+        function onShowTorrentRequested(hash) {
+            let row = App.filtered.rowOfHash(hash);
+            if (row < 0) {
+                root.clearFilter(); // the row may be hidden behind the current filter
+                row = App.filtered.rowOfHash(hash);
+            }
+            if (row >= 0) {
+                table.moveCursorTo(row);
+                table.forceActiveFocus();
+            }
+        }
+        function onShowTrackersRequested(hash) {
+            if (!details.collapsed)
+                details.activateTab(2); // Trackers
+        }
+
+        target: App
+    }
+
+    Row {
+        id: footerNoteRow
+
+        anchors.bottom: footer.top
+        anchors.bottomMargin: Theme.space(4)
+        anchors.left: parent.left
+        anchors.leftMargin: Theme.space(16)
+        visible: root.footerNote.length > 0
+        z: 8
+
+        Text {
+            color: Theme.accent
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.font.small
+            text: root.footerNote
+        }
+    }
+
+    ActionsMenu {
+        id: actionsMenuPanel
+
+        anchors.fill: parent
+        z: 9
+
+        onActivated: action => root.torrentAction(action)
+    }
+
+    DeleteConfirm {
+        id: deleteConfirmPanel
+
+        anchors.fill: parent
+        z: 9
+    }
+
+    LocationSheet {
+        id: locationSheetPanel
+
+        anchors.fill: parent
+        z: 9
+    }
+
+    LimitsSheet {
+        id: limitsSheetPanel
+
+        anchors.fill: parent
+        z: 9
+    }
+
+    RenameSheet {
+        id: renameSheetPanel
+
+        anchors.fill: parent
+        z: 9
     }
 
     // --- T4.4: palettes ---------------------------------------------------------------------

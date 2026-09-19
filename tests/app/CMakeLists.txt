@@ -27,3 +27,9 @@ omaseed_add_test(tst_app_add
     LIBRARIES omaseed::app omaseed::core omaseed::integration
     DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
 )
+
+# T4.3, against the :8081 playground; QSKIPs the whole file when it is not running.
+omaseed_add_test(tst_app_actions
+    SOURCES tst_app_actions.cpp
+    LIBRARIES omaseed::app omaseed::core omaseed::integration
+)

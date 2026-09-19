@@ -8,10 +8,12 @@ qt_add_qml_module(omaseed-views
     SOURCES
         DemoEnvForeign.hpp
     QML_FILES
+        ActionsMenu.qml
         AddSheet.qml
         CategoryPalette.qml
         ChipSelect.qml
         ColumnsPalette.qml
+        DeleteConfirm.qml
         DemoDetails.qml
         DemoOverlays.qml
         DemoRail.qml
@@ -29,10 +31,13 @@ qt_add_qml_module(omaseed-views
         FilteredEmpty.qml
         HelpSheet.qml
         JumpPalette.qml
+        LimitsSheet.qml
         LoadingState.qml
+        LocationSheet.qml
         MainView.qml
         Rail.qml
         RailGroup.qml
+        RenameSheet.qml
         SortPalette.qml
         TagPalette.qml
         ThemeGallery.qml

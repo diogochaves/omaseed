@@ -183,25 +183,26 @@ TestCase {
         compare(hideSpy.count, 1);
     }
 
-    // ---- Fig. 26's "act" column travels as one App signal ------------------------------------
+    // ---- Fig. 26's "act" column: T4.3 wired every one of these to the real thing -------------
     function test_a_table_action_carries_the_cursor_row() {
+        // `p` in demo mode: no server to touch, so it is a no-op — the point of this case is
+        // that it does not crash and does not open anything (unlike `d`, below).
         keyClick("p");
-        compare(actionSpy.count, 1);
-        compare(actionSpy.signalArguments[0][0], "stopStart");
-        compare(actionSpy.signalArguments[0][1], [view.table.cursorHash]);
+        compare(view.deleteConfirmPanel.opened, false);
     }
 
     function test_a_table_action_carries_the_whole_selection() {
         view.table.selectAll();
         keyClick("d");
-        compare(actionSpy.count, 1);
-        compare(actionSpy.signalArguments[0][0], "delete");
-        compare(actionSpy.signalArguments[0][1].length, App.filtered.count);
+        compare(view.deleteConfirmPanel.opened, true);
+        compare(view.deleteConfirmPanel.hashes.length, App.filtered.count);
     }
 
     function test_the_capital_is_the_stronger_variant() {
         keyClick(Qt.Key_D, Qt.ShiftModifier);
-        compare(actionSpy.signalArguments[0][0], "deleteWithFiles");
+        compare(view.deleteConfirmPanel.opened, true);
+        // `D` forces the "also delete files" toggle on, regardless of the remembered default.
+        compare(view.deleteConfirmPanel.body.children[0].checked, true);
     }
 
     // ---- the details pane follows the table's cursor -------------------------------------------
