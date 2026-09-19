@@ -1,0 +1,212 @@
+// The four GETs the details pane lives on, against a minimal HTTP/1.1 server of our own:
+// the exact query the client sends and the typed value it parses back. `sync/torrentPeers`
+// is the one that matters most here, because the playground never has a peer to answer with
+// (tst_qbtclient_live only proves it answers at all).
+
+#include "core/QbtClient.hpp"
+
+#include <QEventLoop>
+#include <QJsonArray>
+#include <QJsonObject>
+#include <QTcpServer>
+#include <QTcpSocket>
+#include <QTest>
+#include <QTimer>
+#include <QUrl>
+#include <QUrlQuery>
+
+#include <functional>
+#include <memory>
+
+using omaseed::core::ApiError;
+using omaseed::core::QbtClient;
+using omaseed::core::QbtReply;
+using omaseed::core::QbtResult;
+
+namespace {
+
+QByteArray jsonResponse(const QByteArray &body)
+{
+    QByteArray response = "HTTP/1.1 200 OK\r\n";
+    response += "Content-Type: application/json\r\n";
+    response += "Content-Length: " + QByteArray::number(body.size()) + "\r\n";
+    response += "Connection: close\r\n\r\n";
+    response += body;
+    return response;
+}
+
+/// Speaks just enough HTTP to answer QNetworkAccessManager, and remembers the targets.
+class FakeServer : public QTcpServer
+{
+public:
+    using Handler = std::function<QByteArray(const QByteArray &target)>;
+
+    explicit FakeServer(QObject *parent = nullptr)
+        : QTcpServer(parent)
+    {
+        [this]() { QVERIFY(listen(QHostAddress::LocalHost)); }();
+    }
+
+    QUrl url() const { return QUrl(QStringLiteral("http://127.0.0.1:%1").arg(serverPort())); }
+    void setHandler(Handler handler) { m_handler = std::move(handler); }
+
+    QList<QByteArray> targets;
+
+protected:
+    void incomingConnection(qintptr socketDescriptor) override
+    {
+        auto *socket = new QTcpSocket(this);
+        socket->setSocketDescriptor(socketDescriptor);
+        connect(socket, &QTcpSocket::disconnected, socket, &QObject::deleteLater);
+
+        auto buffer = std::make_shared<QByteArray>();
+        connect(socket, &QTcpSocket::readyRead, socket, [this, socket, buffer]() {
+            buffer->append(socket->readAll());
+            const qsizetype headerEnd = buffer->indexOf("\r\n\r\n");
+            if (headerEnd < 0)
+                return;
+
+            const QByteArray requestLine = buffer->left(buffer->indexOf('\n')).trimmed();
+            const QByteArray target = requestLine.split(' ').value(1);
+            targets.append(target);
+            buffer->clear();
+
+            socket->write(m_handler ? m_handler(target) : jsonResponse("{}"));
+            socket->flush();
+            socket->disconnectFromHost();
+        });
+    }
+
+private:
+    Handler m_handler;
+};
+
+template<class T>
+QbtResult<T> await(QObject *context, QbtReply<T> *reply, int timeoutMs = 10000)
+{
+    QbtResult<T> result{ApiError(ApiError::Kind::Unknown, QStringLiteral("test never finished"))};
+    QEventLoop loop;
+    reply->then(context, [&](const QbtResult<T> &finished) {
+        result = finished;
+        loop.quit();
+    });
+    QTimer::singleShot(timeoutMs, &loop, [&loop]() { loop.quit(); });
+    loop.exec();
+    return result;
+}
+
+} // namespace
+
+class TestQbtClientDetailsFake : public QObject
+{
+    Q_OBJECT
+
+private Q_SLOTS:
+    void syncTorrentPeersSendsHashAndRid();
+    void torrentPeersParsesTheDiffShape();
+    void filesTrackersAndPropertiesSendTheHash();
+    void filePrioPostsTheIdList();
+};
+
+void TestQbtClientDetailsFake::syncTorrentPeersSendsHashAndRid()
+{
+    FakeServer server;
+    server.setHandler([](const QByteArray &) {
+        return jsonResponse(R"({"full_update":true,"rid":3,"peers":{}})");
+    });
+
+    QbtClient client;
+    client.setBaseUrl(server.url());
+    const QbtResult<QJsonObject> result =
+        await(this, client.torrentsPeers(QStringLiteral("abc123"), 12));
+
+    QVERIFY2(!result.isError(), qPrintable(result.error().toString()));
+    QCOMPARE(server.targets.size(), 1);
+
+    const QUrlQuery query(QUrl(QString::fromLatin1(server.targets.first())).query());
+    QVERIFY(server.targets.first().startsWith("/api/v2/sync/torrentPeers?"));
+    QCOMPARE(query.queryItemValue(QStringLiteral("hash")), QStringLiteral("abc123"));
+    QCOMPARE(query.queryItemValue(QStringLiteral("rid")), QStringLiteral("12"));
+    QCOMPARE(result.value().value(QStringLiteral("rid")).toInt(), 3);
+}
+
+void TestQbtClientDetailsFake::torrentPeersParsesTheDiffShape()
+{
+    FakeServer server;
+    server.setHandler([](const QByteArray &) {
+        return jsonResponse(R"({"rid":4,"peers":{"1.2.3.4:6881":{"client":"qBittorrent 5.2.3",)"
+                            R"("dl_speed":1069547}},"peers_removed":["5.6.7.8:6881"]})");
+    });
+
+    QbtClient client;
+    client.setBaseUrl(server.url());
+    const QbtResult<QJsonObject> result =
+        await(this, client.torrentsPeers(QStringLiteral("abc123"), 3));
+
+    QVERIFY2(!result.isError(), qPrintable(result.error().toString()));
+    const QJsonObject answer = result.value();
+    QCOMPARE(answer.value(QStringLiteral("rid")).toInt(), 4);
+    QCOMPARE(answer.value(QStringLiteral("peers_removed")).toArray().size(), 1);
+    QCOMPARE(answer.value(QStringLiteral("peers"))
+                 .toObject()
+                 .value(QStringLiteral("1.2.3.4:6881"))
+                 .toObject()
+                 .value(QStringLiteral("dl_speed"))
+                 .toDouble(),
+             1069547.0);
+}
+
+void TestQbtClientDetailsFake::filesTrackersAndPropertiesSendTheHash()
+{
+    FakeServer server;
+    server.setHandler([](const QByteArray &target) {
+        if (target.contains("torrents/properties"))
+            return jsonResponse(R"({"name":"Fixture","total_size":4226})");
+        if (target.contains("torrents/files"))
+            return jsonResponse(R"([{"index":0,"name":"a/b.bin","size":10,"progress":1}])");
+        return jsonResponse(R"([{"url":"** [DHT] **","status":2}])");
+    });
+
+    QbtClient client;
+    client.setBaseUrl(server.url());
+
+    const QbtResult<QJsonObject> properties =
+        await(this, client.torrentsProperties(QStringLiteral("abc123")));
+    QVERIFY2(!properties.isError(), qPrintable(properties.error().toString()));
+    QCOMPARE(properties.value().value(QStringLiteral("name")).toString(),
+             QStringLiteral("Fixture"));
+
+    const QbtResult<QJsonArray> files = await(this, client.torrentsFiles(QStringLiteral("abc123")));
+    QVERIFY2(!files.isError(), qPrintable(files.error().toString()));
+    QCOMPARE(files.value().size(), 1);
+
+    const QbtResult<QJsonArray> trackers =
+        await(this, client.torrentsTrackers(QStringLiteral("abc123")));
+    QVERIFY2(!trackers.isError(), qPrintable(trackers.error().toString()));
+    QCOMPARE(trackers.value().size(), 1);
+
+    QCOMPARE(server.targets.size(), 3);
+    for (const QByteArray &target : server.targets) {
+        const QUrlQuery query(QUrl(QString::fromLatin1(target)).query());
+        QCOMPARE(query.queryItemValue(QStringLiteral("hash")), QStringLiteral("abc123"));
+    }
+}
+
+void TestQbtClientDetailsFake::filePrioPostsTheIdList()
+{
+    // The one action the details pane needs in Phase 3 (spec §2 Fig. 2's `+ - x`).
+    FakeServer server;
+    server.setHandler([](const QByteArray &) { return jsonResponse("ok"); });
+
+    QbtClient client;
+    client.setBaseUrl(server.url());
+    const QbtResult<QByteArray> result =
+        await(this, client.torrentsSetFilePrio(QStringLiteral("abc123"), {2, 3}, 0));
+
+    QVERIFY2(!result.isError(), qPrintable(result.error().toString()));
+    QCOMPARE(server.targets.size(), 1);
+    QVERIFY(server.targets.first().endsWith("/api/v2/torrents/filePrio"));
+}
+
+QTEST_MAIN(TestQbtClientDetailsFake)
+#include "tst_qbtclient_details_fake.moc"

@@ -125,6 +125,11 @@ omaseed_add_test(tst_syncengine_live
 )
 
 # --- T3.4: the details pane ---------------------------------------------------------------
+omaseed_add_test(tst_qbtclient_details_fake
+    SOURCES tst_qbtclient_details_fake.cpp
+    LIBRARIES omaseed::core
+)
+
 omaseed_add_test(tst_torrentfilesmodel
     SOURCES tst_torrentfilesmodel.cpp
     LIBRARIES omaseed::core
@@ -140,5 +145,17 @@ omaseed_add_test(tst_torrenttrackersmodel
 omaseed_add_test(tst_torrentpeersmodel
     SOURCES tst_torrentpeersmodel.cpp
     LIBRARIES omaseed::core
+    DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
+)
+
+omaseed_add_test(tst_torrentdetails
+    SOURCES tst_torrentdetails.cpp
+    LIBRARIES omaseed::core
+    DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
+)
+
+omaseed_add_test(tst_torrentdetails_live
+    SOURCES tst_torrentdetails_live.cpp
+    LIBRARIES omaseed::core Qt6::Network
     DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
 )
