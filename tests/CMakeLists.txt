@@ -22,3 +22,16 @@ add_subdirectory(core)
 add_subdirectory(integration)
 add_subdirectory(manual)
 add_subdirectory(qml)
+
+if(NOT WIN32)
+    # scripts/release.sh, exercised end to end in a throwaway git clone. See
+    # tests/release/test_release.sh; it never touches this checkout's git state or network.
+    add_test(
+        NAME release
+        COMMAND bash "${CMAKE_SOURCE_DIR}/tests/release/test_release.sh"
+    )
+    set_tests_properties(release PROPERTIES
+        LABELS "release"
+        TIMEOUT 120
+    )
+endif()
