@@ -70,6 +70,8 @@ QString ApiError::kindName(Kind kind)
         return QStringLiteral("server");
     case Kind::Parse:
         return QStringLiteral("parse");
+    case Kind::Cancelled:
+        return QStringLiteral("cancelled");
     case Kind::Unknown:
         break;
     }
