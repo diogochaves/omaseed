@@ -10,6 +10,14 @@ qt_add_library(omaseed-core STATIC
     MagnetLink.hpp
     PathMap.cpp
     PathMap.hpp
+    Paths.cpp
+    Paths.hpp
+    SecretStore.cpp
+    SecretStore.hpp
+    Server.cpp
+    Server.hpp
+    ServerStore.cpp
+    ServerStore.hpp
     TorrentFile.cpp
     TorrentFile.hpp
     Version.cpp
@@ -25,5 +33,5 @@ target_include_directories(omaseed-core
 
 target_link_libraries(omaseed-core
     PUBLIC Qt6::Core Qt6::Network
-    PRIVATE omaseed::warnings
+    PRIVATE omaseed::warnings Qt6Keychain::Qt6Keychain
 )

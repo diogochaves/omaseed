@@ -33,4 +33,18 @@ omaseed_add_test(tst_torrentfile_live
     SOURCES tst_torrentfile_live.cpp
     LIBRARIES omaseed::core Qt6::Network
     DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
+
+omaseed_add_test(tst_server
+    SOURCES tst_server.cpp
+    LIBRARIES omaseed::core
+)
+
+omaseed_add_test(tst_serverstore
+    SOURCES tst_serverstore.cpp
+    LIBRARIES omaseed::core
+)
+
+omaseed_add_test(tst_secretstore
+    SOURCES tst_secretstore.cpp
+    LIBRARIES omaseed::core Qt6Keychain::Qt6Keychain
 )
