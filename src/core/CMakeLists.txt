@@ -8,6 +8,8 @@ qt_add_library(omaseed-core STATIC
     Paths.hpp
     Server.cpp
     Server.hpp
+    ServerStore.cpp
+    ServerStore.hpp
     Version.cpp
     Version.hpp
 )

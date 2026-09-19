@@ -12,3 +12,8 @@ omaseed_add_test(tst_server
     SOURCES tst_server.cpp
     LIBRARIES omaseed::core
 )
+
+omaseed_add_test(tst_serverstore
+    SOURCES tst_serverstore.cpp
+    LIBRARIES omaseed::core
+)
