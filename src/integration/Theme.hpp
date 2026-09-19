@@ -1,0 +1,227 @@
+#pragma once
+
+#include <QColor>
+#include <QHash>
+#include <QObject>
+#include <QPointer>
+#include <QProcess>
+#include <QString>
+
+QT_BEGIN_NAMESPACE
+class QQmlEngine;
+QT_END_NAMESPACE
+
+namespace omaseed::integration {
+
+class ThemeReader;
+
+/// The type scale, grouped under `Theme.font`. Every token is `base-size` times the shell's
+/// multiplier, unless `[font]` in shell.toml pins that token to a pixel size.
+class ThemeFont : public QObject
+{
+    Q_OBJECT
+
+    Q_PROPERTY(int baseSize READ baseSize NOTIFY changed FINAL)
+    Q_PROPERTY(int caption READ caption NOTIFY changed FINAL)
+    Q_PROPERTY(int small READ small NOTIFY changed FINAL)
+    Q_PROPERTY(int body READ body NOTIFY changed FINAL)
+    Q_PROPERTY(int subtitle READ subtitle NOTIFY changed FINAL)
+    Q_PROPERTY(int title READ title NOTIFY changed FINAL)
+    Q_PROPERTY(int heading READ heading NOTIFY changed FINAL)
+    Q_PROPERTY(int display READ display NOTIFY changed FINAL)
+    Q_PROPERTY(int iconSmall READ iconSmall NOTIFY changed FINAL)
+    Q_PROPERTY(int icon READ icon NOTIFY changed FINAL)
+
+public:
+    using QObject::QObject;
+
+    int baseSize() const { return m_baseSize; }
+    int caption() const { return m_caption; }
+    int small() const { return m_small; }
+    int body() const { return m_body; }
+    int subtitle() const { return m_subtitle; }
+    int title() const { return m_title; }
+    int heading() const { return m_heading; }
+    int display() const { return m_display; }
+    int iconSmall() const { return m_iconSmall; }
+    int icon() const { return m_icon; }
+
+    /// Recompute from `[font]` in the merged shell values. Emits changed() when anything moved.
+    void apply(const QHash<QString, QString> &shell);
+
+Q_SIGNALS:
+    void changed();
+
+private:
+    int m_baseSize = 12;
+    int m_caption = 10;
+    int m_small = 11;
+    int m_body = 12;
+    int m_subtitle = 13;
+    int m_title = 14;
+    int m_heading = 16;
+    int m_display = 24;
+    int m_iconSmall = 11;
+    int m_icon = 13;
+};
+
+/// The one source of every colour, size and alpha in the QML. Imported as `Omaseed.Kit`'s
+/// `Theme` singleton; every value is a binding target, so a theme change repaints without a
+/// restart. No QML file outside this class may hold a colour literal or a pixel size.
+class Theme : public QObject
+{
+    Q_OBJECT
+
+    // ---- colour roles ------------------------------------------------------------------
+    Q_PROPERTY(QColor background READ background NOTIFY changed FINAL)
+    Q_PROPERTY(QColor foreground READ foreground NOTIFY changed FINAL)
+    Q_PROPERTY(QColor dimForeground READ dimForeground NOTIFY changed FINAL)
+    Q_PROPERTY(QColor brightForeground READ brightForeground NOTIFY changed FINAL)
+    Q_PROPERTY(QColor accent READ accent NOTIFY changed FINAL)
+    Q_PROPERTY(QColor muted READ muted NOTIFY changed FINAL)
+    Q_PROPERTY(QColor selection READ selection NOTIFY changed FINAL)
+    Q_PROPERTY(QColor red READ red NOTIFY changed FINAL)
+    Q_PROPERTY(QColor yellow READ yellow NOTIFY changed FINAL)
+    Q_PROPERTY(QColor orange READ orange NOTIFY changed FINAL)
+    Q_PROPERTY(QColor green READ green NOTIFY changed FINAL)
+    Q_PROPERTY(QColor cyan READ cyan NOTIFY changed FINAL)
+    Q_PROPERTY(QColor blue READ blue NOTIFY changed FINAL)
+    Q_PROPERTY(QColor magenta READ magenta NOTIFY changed FINAL)
+    Q_PROPERTY(QColor brown READ brown NOTIFY changed FINAL)
+    Q_PROPERTY(QColor darkBackground READ darkBackground NOTIFY changed FINAL)
+    Q_PROPERTY(QColor darkerBackground READ darkerBackground NOTIFY changed FINAL)
+    Q_PROPERTY(QColor lighterBackground READ lighterBackground NOTIFY changed FINAL)
+
+    // ---- semantic state roles ----------------------------------------------------------
+    Q_PROPERTY(QColor stateDownloading READ blue NOTIFY changed FINAL)
+    Q_PROPERTY(QColor stateSeeding READ green NOTIFY changed FINAL)
+    Q_PROPERTY(QColor stateStopped READ dimForeground NOTIFY changed FINAL)
+    Q_PROPERTY(QColor stateError READ red NOTIFY changed FINAL)
+    Q_PROPERTY(QColor stateChecking READ yellow NOTIFY changed FINAL)
+    Q_PROPERTY(QColor stateQueued READ magenta NOTIFY changed FINAL)
+    Q_PROPERTY(QColor stateStalled READ orange NOTIFY changed FINAL)
+
+    // ---- sizes and states --------------------------------------------------------------
+    Q_PROPERTY(omaseed::integration::ThemeFont *font READ font CONSTANT FINAL)
+    Q_PROPERTY(int rowHeight READ rowHeight NOTIFY changed FINAL)
+    Q_PROPERTY(int controlHeight READ controlHeight NOTIFY changed FINAL)
+    Q_PROPERTY(int railRowHeight READ railRowHeight NOTIFY changed FINAL)
+    Q_PROPERTY(qreal fillIdle READ fillIdle NOTIFY changed FINAL)
+    Q_PROPERTY(qreal fillHover READ fillHover NOTIFY changed FINAL)
+    Q_PROPERTY(qreal fillSelected READ fillSelected NOTIFY changed FINAL)
+    Q_PROPERTY(qreal fillPressed READ fillPressed NOTIFY changed FINAL)
+    Q_PROPERTY(qreal borderIdle READ borderIdle NOTIFY changed FINAL)
+    Q_PROPERTY(qreal borderHover READ borderHover NOTIFY changed FINAL)
+    Q_PROPERTY(qreal hairlineAlpha READ hairlineAlpha NOTIFY changed FINAL)
+
+    // ---- identity and window -----------------------------------------------------------
+    Q_PROPERTY(QString mode READ mode NOTIFY changed FINAL)
+    Q_PROPERTY(QString themeName READ themeName NOTIFY changed FINAL)
+    Q_PROPERTY(QString fontFamily READ fontFamily NOTIFY changed FINAL)
+    Q_PROPERTY(int cornerRadius READ cornerRadius NOTIFY cornerRadiusChanged FINAL)
+    Q_PROPERTY(
+        qreal windowAlpha READ windowAlpha WRITE setWindowAlpha NOTIFY windowAlphaChanged FINAL)
+
+public:
+    explicit Theme(ThemeReader *reader, QObject *parent = nullptr);
+    ~Theme() override;
+
+    /// The reader a QML-engine-created Theme binds to. main() sets this before the engine
+    /// exists; anything else (the QML tests, a tool) gets a reader on the default paths.
+    static void setDefaultReader(ThemeReader *reader);
+    /// Factory for the QML singleton registration. The engine takes ownership.
+    static Theme *createForEngine(QQmlEngine *engine);
+
+    QColor background() const { return m_background; }
+    QColor foreground() const { return m_foreground; }
+    QColor dimForeground() const { return m_dimForeground; }
+    QColor brightForeground() const { return m_brightForeground; }
+    QColor accent() const { return m_accent; }
+    QColor muted() const { return m_muted; }
+    QColor selection() const { return m_selection; }
+    QColor red() const { return m_red; }
+    QColor yellow() const { return m_yellow; }
+    QColor orange() const { return m_orange; }
+    QColor green() const { return m_green; }
+    QColor cyan() const { return m_cyan; }
+    QColor blue() const { return m_blue; }
+    QColor magenta() const { return m_magenta; }
+    QColor brown() const { return m_brown; }
+    QColor darkBackground() const { return m_darkBackground; }
+    QColor darkerBackground() const { return m_darkerBackground; }
+    QColor lighterBackground() const { return m_lighterBackground; }
+
+    ThemeFont *font() const { return m_font; }
+    int rowHeight() const;
+    int controlHeight() const;
+    int railRowHeight() const;
+    qreal fillIdle() const { return m_fillIdle; }
+    qreal fillHover() const { return m_fillHover; }
+    qreal fillSelected() const { return m_fillSelected; }
+    qreal fillPressed() const { return m_fillPressed; }
+    qreal borderIdle() const { return m_borderIdle; }
+    qreal borderHover() const { return m_borderHover; }
+    qreal hairlineAlpha() const { return m_hairlineAlpha; }
+
+    QString mode() const { return m_mode; }
+    QString themeName() const { return m_themeName; }
+    QString fontFamily() const { return m_fontFamily; }
+    int cornerRadius() const { return m_cornerRadius; }
+    qreal windowAlpha() const { return m_windowAlpha; }
+    void setWindowAlpha(qreal alpha);
+
+    /// Spacing in spec pixels, scaled by `[spacing] scale` and the base size.
+    Q_INVOKABLE int space(qreal px) const;
+    /// The foreground at an alpha: 0.04 idle, 0.08 hover, 0.18 selected, 0.22 pressed.
+    Q_INVOKABLE QColor fill(qreal alpha) const;
+
+Q_SIGNALS:
+    void changed();
+    void windowAlphaChanged();
+    void cornerRadiusChanged();
+
+private:
+    void adopt();
+    void readCornerRadius();
+
+    ThemeReader *m_reader = nullptr;
+    ThemeFont *m_font = nullptr;
+    QPointer<QProcess> m_hyprctl;
+
+    QColor m_background{QStringLiteral("#1a1b26")};
+    QColor m_foreground{QStringLiteral("#a9b1d6")};
+    QColor m_dimForeground{QStringLiteral("#565f89")};
+    QColor m_brightForeground{QStringLiteral("#c0caf5")};
+    QColor m_accent{QStringLiteral("#7aa2f7")};
+    QColor m_muted{QStringLiteral("#414868")};
+    QColor m_selection{QStringLiteral("#292e42")};
+    QColor m_red{QStringLiteral("#f7768e")};
+    QColor m_yellow{QStringLiteral("#e0af68")};
+    QColor m_orange{QStringLiteral("#eb927b")};
+    QColor m_green{QStringLiteral("#9ece6a")};
+    QColor m_cyan{QStringLiteral("#449dab")};
+    QColor m_blue{QStringLiteral("#7aa2f7")};
+    QColor m_magenta{QStringLiteral("#ad8ee6")};
+    QColor m_brown{QStringLiteral("#75493d")};
+    QColor m_darkBackground{QStringLiteral("#13141c")};
+    QColor m_darkerBackground{QStringLiteral("#0e0e14")};
+    QColor m_lighterBackground{QStringLiteral("#24283b")};
+
+    qreal m_spacingScale = 1.0;
+    bool m_spacingScaleWithFont = true;
+    qreal m_fillIdle = 0.04;
+    qreal m_fillHover = 0.08;
+    qreal m_fillSelected = 0.18;
+    qreal m_fillPressed = 0.22;
+    qreal m_borderIdle = 0.40;
+    qreal m_borderHover = 0.25;
+    qreal m_hairlineAlpha = 0.12;
+
+    QString m_mode = QStringLiteral("dark");
+    QString m_themeName = QStringLiteral("tokyo-night");
+    QString m_fontFamily = QStringLiteral("monospace");
+    int m_cornerRadius = 0;
+    qreal m_windowAlpha = 0.90;
+};
+
+} // namespace omaseed::integration

@@ -24,6 +24,16 @@ QString dbusObjectPath()
     return path;
 }
 
+QString dbusThemeObjectPath()
+{
+    return dbusObjectPath() + QStringLiteral("/Theme");
+}
+
+QString dbusThemeInterface()
+{
+    return applicationId() + QStringLiteral(".Theme");
+}
+
 QString applicationName()
 {
     return QStringLiteral("omaseed");
