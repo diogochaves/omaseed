@@ -342,11 +342,14 @@ Item {
         // guard those went on to open a second overlay under the first.
         // The first-run page (T4.6) is a full-window page rather than an overlay, but the
         // window underneath it must stay just as deaf.
-        if (root.overlayOpen || root.firstRun)
-            return;
-
         const ctrl = (event.modifiers & Qt.ControlModifier) !== 0;
         const shift = (event.modifiers & Qt.ShiftModifier) !== 0;
+
+        if (root.overlayOpen || root.firstRun) {
+            if (ctrl && event.key === Qt.Key_Q) // quitting is never modal
+                root.quitRequested();
+            return;
+        }
 
         if (ctrl) {
             switch (event.key) {
@@ -459,7 +462,8 @@ Item {
     /// The startup state. `Component.onCompleted` of a Window runs before its composite
     /// children's, so this is deferred a frame (T3.3's finding).
     function _applyStartupState(): void {
-        table.forceActiveFocus();
+        if (!root.firstRun) // the first-run page (T4.6) already asked for the keyboard
+            table.forceActiveFocus();
         root.refreshDetails();
         App.setDetailsVisible(!details.collapsed);
         if (!App.demoMode || App.torrents.count !== 16)
@@ -484,7 +488,12 @@ Item {
         table.forceActiveFocus();
     }
 
-    Component.onCompleted: Qt.callLater(root._applyStartupState)
+    Component.onCompleted: {
+        // Latched, not bound: `App.hasServer` flips the moment the first-run page saves the
+        // server, and the page must survive that to show its last step (T4.6).
+        root.firstRun = !App.hasServer && !App.demoMode;
+        Qt.callLater(root._applyStartupState);
+    }
 
     // A sync brings new numbers for the row the details pane is showing.
     Connections {
@@ -614,6 +623,8 @@ Item {
     Item {
         id: body
 
+        // The first-run page (T4.6) stands in for the whole body, not over it.
+        visible: !root.firstRun
         anchors.bottom: footer.top
         anchors.left: parent.left
         anchors.right: parent.right
@@ -721,7 +732,7 @@ Item {
                 onVisibleChanged: {
                     if (dimmed.visible)
                         dimmed.forceActiveFocus();
-                    else
+                    else if (!root.firstRun) // the first-run page owns the keyboard until it is done
                         table.forceActiveFocus();
                 }
             }
@@ -1175,8 +1186,21 @@ Item {
     // (`z` higher than the settings modal, which is 11: first run pre-empts settings too —
     // there is nothing to configure servers *of* yet) and closes itself once step 3 is
     // answered; `App.hasServer`/`App.firstRunNeeded` already flip the moment `addServer()`
-    // and `setDefaultServer()` run, so the table underneath is already filling in by then.
-    readonly property bool firstRun: !App.hasServer && !App.demoMode
+    // and `setDefaultServer()` run, so the table underneath is already filling in by then —
+    // which is why this is latched at startup and only released by `finished()`: a plain
+    // binding unloaded the page the moment step 2 saved the server, and step 3 never showed.
+    property bool firstRun: false // latched below in Component.onCompleted, never a binding
+
+    // The one release besides `finished()`: a demo library arriving later (the QML tests
+    // create MainView first and `App.loadDemo()` afterwards) is never a first run.
+    Connections {
+        function onDemoModeChanged(): void {
+            if (App.demoMode)
+                root.firstRun = false;
+        }
+
+        target: App
+    }
 
     // A `Loader` rather than a plain child: `FirstRunPage` starts a real `ServerDetector`
     // (a TCP probe of 127.0.0.1:8080) from `Component.onCompleted`, and that must only ever
@@ -1189,8 +1213,14 @@ Item {
         z: 20
 
         sourceComponent: FirstRunPage {
-            onFinished: table.forceActiveFocus()
+            onFinished: {
+                root.firstRun = false;
+                table.forceActiveFocus();
+            }
         }
+        // Whatever the window focused while starting up, the page gets the keyboard once it
+        // exists (FirstRunPage also asks for it itself; this covers a later re-appearance).
+        onLoaded: (item as Item).forceActiveFocus()
     }
     // --- end T4.6 ---
 }

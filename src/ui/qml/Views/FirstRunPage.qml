@@ -41,24 +41,26 @@ Item {
         const rows = [];
         if (root.hasLocal)
             rows.push({
-                "kind": "local",
-                "glyph": "⛁",
-                "title": qsTr("Use the server on this machine"),
-                "detail": root._localCandidate.detail || ""
-            });
+                          "kind": "local",
+                          "glyph": "⛁",
+                          "title": qsTr("Use the server on this machine"),
+                          "detail": root._localCandidate.detail || ""
+                      });
         rows.push({
-            "kind": "remote",
-            "glyph": "⇢",
-            "title": qsTr("Connect to a remote server"),
-            "detail": qsTr("A seedbox, a NAS, or qui's proxy. You will enter a URL and an API key.")
-        });
+                      "kind": "remote",
+                      "glyph": "⇢",
+                      "title": qsTr("Connect to a remote server"),
+                      "detail": qsTr(
+                                    "A seedbox, a NAS, or qui's proxy. You will enter a URL and an API key.")
+                  });
         if (!root.hasLocal)
             rows.push({
-                "kind": "install",
-                "glyph": "+",
-                "title": qsTr("Install qbittorrent-nox here"),
-                "detail": qsTr("Adds the package and a user service. Offered because you can, not because you must.")
-            });
+                          "kind": "install",
+                          "glyph": "+",
+                          "title": qsTr("Install qbittorrent-nox here"),
+                          "detail": qsTr(
+                                        "Adds the package and a user service. Offered because you can, not because you must.")
+                      });
         return rows;
     }
 
@@ -67,6 +69,19 @@ Item {
     // ---- the page's state machine --------------------------------------------------------
     /// "choose" | "install" | "apikey" | "handler"
     property string page: "choose"
+
+    // Each step puts the keyboard where typing starts: the page root's own `Keys` only
+    // serve the choose step, and the window's tab chain starts at the hero, not here.
+    onPageChanged: Qt.callLater(() => {
+        if (root.page === "apikey")
+            urlField.focusInput();
+        else if (root.page === "handler")
+            registerButton.forceActiveFocus();
+        else if (root.page === "install")
+            commandsField.focusInput();
+        else
+            root.forceActiveFocus();
+    })
     readonly property int stepNumber: root.page === "choose" ? 1 : root.page === "handler" ? 3 : 2
 
     // ---- step 2 buffers --------------------------------------------------------------------
@@ -84,537 +99,599 @@ Item {
     readonly property string _newServerId: ""
 
     function _fieldMap(): var {
-        return {
-            "id": "",
-            "name": root.editName,
-            "url": root.editUrl,
-            "authMode": root.editAuthMode,
-            "username": ""
-        };
+    return {
+    "id": "",
+    "name": root.editName,
+    "url": root.editUrl,
+    "authMode": root.editAuthMode,
+    "username": ""
+};
+}
+
+function _resetTest(): void {
+    root.tested = false;
+    root.testOk = false;
+    root.testResultText = "";
+    root.testing = false;
+}
+
+function openRow(kind: string, url: string): void {
+    root.chosenKind = kind;
+    root._resetTest();
+    if (kind === "install") {
+        root.page = "install";
+        return;
+    }
+    root.editUrl = url;
+    root.editName = kind === "local" ? qsTr("home") : "";
+    root.editAuthMode = "none";
+    root.editSecret = "";
+    // Written imperatively, not bound: a Kit `Field`'s `text` is a plain alias over its
+    // TextInput (see the component's own header comment), so a declarative `text:
+    // root.editUrl` binding would fight every keystroke. These buffers are filled *from*
+    // the fields (`onTextChanged`) and pushed *into* them only here.
+    urlField.text = root.editUrl;
+    nameField.text = root.editName;
+    keyField.text = "";
+    root.page = "apikey";
+}
+
+function chooseCursor(): void {
+    const row = root._rows[root.cursorIndex];
+    if (!row)
+        return;
+    root.openRow(row.kind, row.kind === "remote" ? "" : root._localCandidate.url || "");
+}
+
+function moveCursor(delta: int): void {
+    if (root._rows.length === 0)
+        return;
+    root.cursorIndex = Math.max(0, Math.min(root._rows.length - 1, root.cursorIndex + delta));
+}
+
+function runTest(): void {
+    root.testing = true;
+    App.testServer(root._fieldMap(), root.editSecret);
+}
+
+function continueFromApiKey(): void {
+    const id = App.addServer(root._fieldMap(), root.editSecret);
+    if (id.length === 0)
+        return;
+    App.setDefaultServer(id);
+    root._openHandlerStep();
+}
+
+function _openHandlerStep(): void {
+    root.page = "handler";
+    Xdg.isDefaultMagnetHandler();
+}
+
+property string currentHandlerText: ""
+
+function registerHandler(): void {
+    Xdg.registerAsDefaultHandler();
+    Xdg.setFirstRunPromptAsked();
+    root.finished();
+}
+
+function skipHandler(): void {
+    Xdg.setFirstRunPromptAsked();
+    root.finished();
+}
+
+Component.onCompleted: {
+    if (root.autoDetect)
+    App.detectServers();
+    // The page has no sheet/scrim wrapping it to grab focus for it (unlike Kit/Sheet's
+    // overlays): it must ask for it itself, or `j`/`k`/`enter` land on whatever the
+    // window focused before first run showed (nothing, on a fresh launch).
+    root.forceActiveFocus();
+}
+
+Connections {
+    function onServersDetected(list: var): void {
+        root.candidates = list;
+        root.cursorIndex = 0;
     }
 
-    function _resetTest(): void {
-        root.tested = false;
-        root.testOk = false;
-        root.testResultText = "";
+    target: App
+}
+
+Connections {
+    function onServerTested(id: string, ok: bool, version: string, apiVersion: string, torrentCount: int,
+                            latencyMs: int, error: string): void {
+        if (id.length > 0)
+        return; // a saved server's own test, not first run's throwaway probe
         root.testing = false;
+        root.tested = true;
+        root.testOk = ok;
+        root.testResultText = ok ? qsTr("qBittorrent %1 · API %2 · %3 torrents").arg(version.replace(
+                                                                                         /^v/, "")).arg(
+                                       apiVersion).arg(torrentCount) : error;
     }
 
-    function openRow(kind: string, url: string): void {
-        root.chosenKind = kind;
-        root._resetTest();
-        if (kind === "install") {
-            root.page = "install";
-            return;
-        }
-        root.editUrl = url;
-        root.editName = kind === "local" ? qsTr("home") : "";
-        root.editAuthMode = "none";
-        root.editSecret = "";
-        // Written imperatively, not bound: a Kit `Field`'s `text` is a plain alias over its
-        // TextInput (see the component's own header comment), so a declarative `text:
-        // root.editUrl` binding would fight every keystroke. These buffers are filled *from*
-        // the fields (`onTextChanged`) and pushed *into* them only here.
-        urlField.text = root.editUrl;
-        nameField.text = root.editName;
-        keyField.text = "";
-        root.page = "apikey";
+    target: App
+}
+
+Connections {
+    function onIsDefaultMagnetHandlerResult(isDefault: bool, currentHandler: string): void {
+        root.currentHandlerText = isDefault ? qsTr("omaseed") : currentHandler;
     }
 
-    function chooseCursor(): void {
-        const row = root._rows[root.cursorIndex];
-        if (!row)
-            return;
-        root.openRow(row.kind, row.kind === "remote" ? "" : root._localCandidate.url || "");
+    target: Xdg
+}
+
+/// The api-key step's tab order. Kit `Field`s are not in Qt's own tab chain (the sheets
+/// cycle by hand too), and the window's chain would wander off to the hero.
+function _apiKeyTabOrder(): list<Item> {
+    const order = [urlField, nameField];
+    for (let i = 0; i < authChips.count; ++i)
+        order.push(authChips.itemAt(i));
+    if (keyField.visible)
+        order.push(keyField);
+    order.push(openWebUiButton, testButton, skipTestButton);
+    if (continueButton.enabled)
+        order.push(continueButton);
+    return order;
+}
+
+function _cycleApiKeyFocus(delta: int): void {
+    const order = root.page === "handler" ? [notNowButton, registerButton] : root._apiKeyTabOrder();
+    let current = -1;
+    for (let i = 0; i < order.length; ++i) {
+        const item = order[i];
+        if (item.activeFocus || item.editing === true)
+            current = i;
+    }
+    const next = order[(current + delta + order.length) % order.length];
+    if (typeof next.focusInput === "function")
+        next.focusInput();
+    else
+        next.forceActiveFocus();
+}
+
+Keys.onPressed: event => {
+    if ((root.page === "apikey" || root.page === "handler") && (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab)) {
+        root._cycleApiKeyFocus(event.key === Qt.Key_Tab ? 1 : -1);
+        event.accepted = true;
+        return;
+    }
+    if (root.page !== "choose")
+        return;
+    if (event.key === Qt.Key_J || event.key === Qt.Key_Down) {
+        root.moveCursor(1);
+        event.accepted = true;
+    } else if (event.key === Qt.Key_K || event.key === Qt.Key_Up) {
+        root.moveCursor(-1);
+        event.accepted = true;
+    } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+        root.chooseCursor();
+        event.accepted = true;
+    }
+}
+
+focus: true
+
+// ---- layout -----------------------------------------------------------------------
+ColumnLayout {
+    anchors.horizontalCenter: parent.horizontalCenter
+    anchors.top: parent.top
+    anchors.topMargin: Theme.space(72)
+    spacing: Theme.space(18)
+    width: Theme.space(520)
+
+    Label {
+        text: qsTr("first run")
+        tracked: true
     }
 
-    function moveCursor(delta: int): void {
-        if (root._rows.length === 0)
-            return;
-        root.cursorIndex = Math.max(0, Math.min(root._rows.length - 1, root.cursorIndex + delta));
+    Label {
+        Layout.fillWidth: true
+        size: "heading"
+        bright: true
+        text: qsTr("Which qBittorrent should omaseed talk to?")
+        wrapMode: Text.WordWrap
     }
 
-    function runTest(): void {
-        root.testing = true;
-        App.testServer(root._fieldMap(), root.editSecret);
+    Label {
+        Layout.fillWidth: true
+        dim: true
+        text: root.hasLocal ? qsTr("omaseed is a client. It found one server on this machine.") :
+                              qsTr("omaseed is a client. It found no server on this machine.")
+        visible: root.page === "choose"
+        wrapMode: Text.WordWrap
     }
 
-    function continueFromApiKey(): void {
-        const id = App.addServer(root._fieldMap(), root.editSecret);
-        if (id.length === 0)
-            return;
-        App.setDefaultServer(id);
-        root._openHandlerStep();
-    }
-
-    function _openHandlerStep(): void {
-        root.page = "handler";
-        Xdg.isDefaultMagnetHandler();
-    }
-
-    property string currentHandlerText: ""
-
-    function registerHandler(): void {
-        Xdg.registerAsDefaultHandler();
-        Xdg.setFirstRunPromptAsked();
-        root.finished();
-    }
-
-    function skipHandler(): void {
-        Xdg.setFirstRunPromptAsked();
-        root.finished();
-    }
-
-    Component.onCompleted: {
-        if (root.autoDetect)
-            App.detectServers();
-        // The page has no sheet/scrim wrapping it to grab focus for it (unlike Kit/Sheet's
-        // overlays): it must ask for it itself, or `j`/`k`/`enter` land on whatever the
-        // window focused before first run showed (nothing, on a fresh launch).
-        root.forceActiveFocus();
-    }
-
-    Connections {
-        function onServersDetected(list: var): void {
-            root.candidates = list;
-            root.cursorIndex = 0;
-        }
-
-        target: App
-    }
-
-    Connections {
-        function onServerTested(id: string, ok: bool, version: string, apiVersion: string, torrentCount: int, latencyMs: int, error: string): void {
-            if (id.length > 0)
-                return; // a saved server's own test, not first run's throwaway probe
-            root.testing = false;
-            root.tested = true;
-            root.testOk = ok;
-            root.testResultText = ok ? qsTr("qBittorrent %1 · API %2 · %3 torrents")
-                                          .arg(version.replace(/^v/, "")).arg(apiVersion).arg(
-                                              torrentCount) : error;
-        }
-
-        target: App
-    }
-
-    Connections {
-        function onIsDefaultMagnetHandlerResult(isDefault: bool, currentHandler: string): void {
-            root.currentHandlerText = isDefault ? qsTr("omaseed") : currentHandler;
-        }
-
-        target: Xdg
-    }
-
-    Keys.onPressed: event => {
-        if (root.page !== "choose")
-            return;
-        if (event.key === Qt.Key_J || event.key === Qt.Key_Down) {
-            root.moveCursor(1);
-            event.accepted = true;
-        } else if (event.key === Qt.Key_K || event.key === Qt.Key_Up) {
-            root.moveCursor(-1);
-            event.accepted = true;
-        } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-            root.chooseCursor();
-            event.accepted = true;
-        }
-    }
-
-    focus: true
-
-    // ---- layout -----------------------------------------------------------------------
+    // ---- step 1: choose --------------------------------------------------------------
     ColumnLayout {
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.top: parent.top
-        anchors.topMargin: Theme.space(72)
-        spacing: Theme.space(18)
-        width: Theme.space(520)
+        id: chooseColumn
+
+        Layout.fillWidth: true
+        spacing: Theme.space(6)
+        visible: root.page === "choose"
+
+        Repeater {
+            model: root._rows
+
+            Rectangle {
+                id: optionRow
+
+                required property int index
+                required property var modelData
+
+                readonly property bool hasCursor: optionRow.index === root.cursorIndex
+                readonly property bool hot: optionRow.hasCursor || hoverHandler.hovered
+
+                Layout.fillWidth: true
+                color: optionRow.hot ? Theme.fill(Theme.fillHover) : "transparent"
+                implicitHeight: rowLayout.implicitHeight + Theme.space(16)
+                radius: Theme.cornerRadius
+
+                HoverHandler {
+                    id: hoverHandler
+                }
+
+                TapHandler {
+                    onTapped: {
+                        root.cursorIndex = optionRow.index;
+                        root.chooseCursor();
+                    }
+                }
+
+                RowLayout {
+                    id: rowLayout
+
+                    anchors.left: parent.left
+                    anchors.leftMargin: Theme.space(12)
+                    anchors.right: parent.right
+                    anchors.rightMargin: Theme.space(12)
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: Theme.space(12)
+
+                    Rectangle {
+                        color: "transparent"
+                        border.color: Theme.fill(Theme.borderIdle)
+                        border.width: 1
+                        implicitHeight: Theme.space(28)
+                        implicitWidth: Theme.space(28)
+                        radius: Theme.cornerRadius
+
+                        Text {
+                            anchors.centerIn: parent
+                            color: Theme.accent
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.font.body
+                            text: optionRow.modelData.glyph
+                        }
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: Theme.space(2)
+
+                        Label {
+                            Layout.fillWidth: true
+                            bright: true
+                            text: optionRow.modelData.title
+                        }
+
+                        Label {
+                            Layout.fillWidth: true
+                            dim: true
+                            size: "small"
+                            text: optionRow.modelData.detail
+                            wrapMode: Text.WordWrap
+                        }
+                    }
+
+                    Label {
+                        color: Theme.accent
+                        size: "caption"
+                        text: qsTr("enter")
+                        tracked: true
+                        visible: optionRow.hasCursor
+                    }
+                }
+            }
+        }
+    }
+
+    // ---- step 2: install ---------------------------------------------------------------
+    ColumnLayout {
+        Layout.fillWidth: true
+        spacing: Theme.space(12)
+        visible: root.page === "install"
 
         Label {
-            text: qsTr("first run")
-            tracked: true
+            Layout.fillWidth: true
+            text: qsTr(
+                      "Two commands: install the package, then enable the user service so it starts with your session.")
+            wrapMode: Text.WordWrap
+        }
+
+        Field {
+            id: commandsField
+
+            Layout.fillWidth: true
+            objectName: "commandsField"
+            text: App.installCommandsText()
+        }
+
+        RowLayout {
+            spacing: Theme.space(8)
+
+            Button {
+                text: qsTr("copy")
+
+                onClicked: App.copyToClipboard(commandsField.text)
+            }
+
+            Button {
+                primary: true
+                text: qsTr("run with pkexec")
+
+                onClicked: App.runInstallWithPkexec()
+            }
+
+            Item {
+                Layout.fillWidth: true
+            }
+
+            Button {
+                text: qsTr("continue")
+
+                onClicked: root.openRow("local", "http://127.0.0.1:8080")
+            }
+        }
+
+        Connections {
+            function onInstallFinished(ok: bool, message: string): void {
+                installResultLabel.text = ok ? qsTr("installed") : message;
+            }
+
+            target: App
+        }
+
+        Label {
+            id: installResultLabel
+
+            Layout.fillWidth: true
+            color: Theme.red
+            wrapMode: Text.WordWrap
+        }
+    }
+
+    // ---- step 2: api key -----------------------------------------------------------------
+    ColumnLayout {
+        Layout.fillWidth: true
+        spacing: Theme.space(12)
+        visible: root.page === "apikey"
+
+        FormRow {
+            Layout.fillWidth: true
+            label: qsTr("URL")
+
+            Field {
+                id: urlField
+
+                Layout.fillWidth: true
+                placeholder: qsTr("http://127.0.0.1:8080")
+
+                onTextChanged: root.editUrl = text
+            }
+        }
+
+        FormRow {
+            Layout.fillWidth: true
+            label: qsTr("Server name")
+
+            Field {
+                id: nameField
+
+                Layout.fillWidth: true
+                placeholder: qsTr("home")
+
+                onTextChanged: root.editName = text
+            }
+        }
+
+        FormRow {
+            Layout.fillWidth: true
+            label: qsTr("Auth")
+
+            RowLayout {
+                spacing: Theme.space(6)
+
+                Repeater {
+                    id: authChips
+
+                    model: [
+                        {
+                            "mode": "apiKey",
+                            "text": qsTr("API key")
+                        },
+                        {
+                            "mode": "cookie",
+                            "text": qsTr("cookie")
+                        },
+                        {
+                            "mode": "none",
+                            "text": qsTr("none")
+                        }
+                    ]
+
+                    Chip {
+                        id: authChip
+
+                        activeFocusOnTab: false
+
+                        required property var modelData
+
+                        focusable: true
+                        selected: root.editAuthMode === authChip.modelData.mode
+                        text: authChip.modelData.text
+
+                        onClicked: root.editAuthMode = authChip.modelData.mode
+                    }
+                }
+
+                Item {
+                    Layout.fillWidth: true
+                }
+            }
+        }
+
+        FormRow {
+            Layout.fillWidth: true
+            label: qsTr("Key")
+            visible: root.editAuthMode !== "none"
+
+            Field {
+                id: keyField
+
+                Layout.fillWidth: true
+                echoMode: TextInput.Password
+                placeholder: qsTr("paste the API key")
+
+                onTextChanged: root.editSecret = text
+            }
+        }
+
+        RowLayout {
+            spacing: Theme.space(8)
+
+            Button {
+                id: openWebUiButton
+
+                activeFocusOnTab: false // the page cycles tab itself (see _cycleApiKeyFocus)
+
+                text: qsTr("open web UI")
+
+                onClicked: Qt.openUrlExternally(root.editUrl)
+            }
+
+            Button {
+                id: testButton
+
+                activeFocusOnTab: false // the page cycles tab itself (see _cycleApiKeyFocus)
+
+                text: root.testing ? qsTr("testing…") : qsTr("test")
+
+                onClicked: root.runTest()
+            }
+
+            Item {
+                Layout.fillWidth: true
+            }
+
+            Button {
+                id: skipTestButton
+
+                activeFocusOnTab: false // the page cycles tab itself (see _cycleApiKeyFocus)
+
+                text: qsTr("skip test")
+
+                onClicked: root.continueFromApiKey()
+            }
+
+            Button {
+                id: continueButton
+
+                activeFocusOnTab: false // the page cycles tab itself (see _cycleApiKeyFocus)
+
+                enabled: root.tested && root.testOk
+                objectName: "continueButton"
+                primary: true
+                text: qsTr("continue")
+
+                onClicked: root.continueFromApiKey()
+            }
         }
 
         Label {
             Layout.fillWidth: true
-            size: "heading"
+            color: root.tested && !root.testOk ? Theme.red : Theme.foreground
+            text: root.testResultText
+            visible: root.testResultText.length > 0
+            wrapMode: Text.WordWrap
+        }
+    }
+
+    // ---- step 3: magnet handler -----------------------------------------------------------
+    ColumnLayout {
+        Layout.fillWidth: true
+        spacing: Theme.space(12)
+        visible: root.page === "handler"
+
+        Label {
+            Layout.fillWidth: true
             bright: true
-            text: qsTr("Which qBittorrent should omaseed talk to?")
+            text: qsTr("Make omaseed the handler for magnet links and .torrent files?")
             wrapMode: Text.WordWrap
         }
 
         Label {
             Layout.fillWidth: true
             dim: true
-            text: root.hasLocal ? qsTr(
-                                       "omaseed is a client. It found one server on this machine.") : qsTr(
-                                       "omaseed is a client. It found no server on this machine.")
-            visible: root.page === "choose"
-            wrapMode: Text.WordWrap
+            text: root.currentHandlerText.length > 0 ? qsTr("currently: %1").arg(
+                                                           root.currentHandlerText) : ""
+            visible: root.currentHandlerText.length > 0
         }
 
-        // ---- step 1: choose --------------------------------------------------------------
-        ColumnLayout {
-            id: chooseColumn
+        RowLayout {
+            spacing: Theme.space(8)
 
-            Layout.fillWidth: true
-            spacing: Theme.space(6)
-            visible: root.page === "choose"
+            Button {
+                id: notNowButton
 
-            Repeater {
-                model: root._rows
+                activeFocusOnTab: false // the page cycles tab itself (see _cycleApiKeyFocus)
 
-                Rectangle {
-                    id: optionRow
+                text: qsTr("not now")
 
-                    required property int index
-                    required property var modelData
-
-                    readonly property bool hasCursor: optionRow.index === root.cursorIndex
-                    readonly property bool hot: optionRow.hasCursor || hoverHandler.hovered
-
-                    Layout.fillWidth: true
-                    color: optionRow.hot ? Theme.fill(Theme.fillHover) : "transparent"
-                    implicitHeight: rowLayout.implicitHeight + Theme.space(16)
-                    radius: Theme.cornerRadius
-
-                    HoverHandler {
-                        id: hoverHandler
-                    }
-
-                    TapHandler {
-                        onTapped: {
-                            root.cursorIndex = optionRow.index;
-                            root.chooseCursor();
-                        }
-                    }
-
-                    RowLayout {
-                        id: rowLayout
-
-                        anchors.left: parent.left
-                        anchors.leftMargin: Theme.space(12)
-                        anchors.right: parent.right
-                        anchors.rightMargin: Theme.space(12)
-                        anchors.verticalCenter: parent.verticalCenter
-                        spacing: Theme.space(12)
-
-                        Rectangle {
-                            color: "transparent"
-                            border.color: Theme.fill(Theme.borderIdle)
-                            border.width: 1
-                            implicitHeight: Theme.space(28)
-                            implicitWidth: Theme.space(28)
-                            radius: Theme.cornerRadius
-
-                            Text {
-                                anchors.centerIn: parent
-                                color: Theme.accent
-                                font.family: Theme.fontFamily
-                                font.pixelSize: Theme.font.body
-                                text: optionRow.modelData.glyph
-                            }
-                        }
-
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            spacing: Theme.space(2)
-
-                            Label {
-                                Layout.fillWidth: true
-                                bright: true
-                                text: optionRow.modelData.title
-                            }
-
-                            Label {
-                                Layout.fillWidth: true
-                                dim: true
-                                size: "small"
-                                text: optionRow.modelData.detail
-                                wrapMode: Text.WordWrap
-                            }
-                        }
-
-                        Label {
-                            color: Theme.accent
-                            size: "caption"
-                            text: qsTr("enter")
-                            tracked: true
-                            visible: optionRow.hasCursor
-                        }
-                    }
-                }
+                onClicked: root.skipHandler()
             }
-        }
 
-        // ---- step 2: install ---------------------------------------------------------------
-        ColumnLayout {
-            Layout.fillWidth: true
-            spacing: Theme.space(12)
-            visible: root.page === "install"
+            Button {
+                id: registerButton
 
-            Label {
+                activeFocusOnTab: false // the page cycles tab itself (see _cycleApiKeyFocus)
+
+                primary: true
+                text: qsTr("register")
+
+                onClicked: root.registerHandler()
+            }
+
+            Item {
                 Layout.fillWidth: true
-                text: qsTr(
-                          "Two commands: install the package, then enable the user service so it starts with your session.")
-                wrapMode: Text.WordWrap
             }
-
-            Field {
-                id: commandsField
-
-                Layout.fillWidth: true
-                objectName: "commandsField"
-                text: App.installCommandsText()
-            }
-
-            RowLayout {
-                spacing: Theme.space(8)
-
-                Button {
-                    text: qsTr("copy")
-
-                    onClicked: App.copyToClipboard(commandsField.text)
-                }
-
-                Button {
-                    primary: true
-                    text: qsTr("run with pkexec")
-
-                    onClicked: App.runInstallWithPkexec()
-                }
-
-                Item {
-                    Layout.fillWidth: true
-                }
-
-                Button {
-                    text: qsTr("continue")
-
-                    onClicked: root.openRow("local", "http://127.0.0.1:8080")
-                }
-            }
-
-            Connections {
-                function onInstallFinished(ok: bool, message: string): void {
-                    installResultLabel.text = ok ? qsTr("installed") : message;
-                }
-
-                target: App
-            }
-
-            Label {
-                id: installResultLabel
-
-                Layout.fillWidth: true
-                color: Theme.red
-                wrapMode: Text.WordWrap
-            }
-        }
-
-        // ---- step 2: api key -----------------------------------------------------------------
-        ColumnLayout {
-            Layout.fillWidth: true
-            spacing: Theme.space(12)
-            visible: root.page === "apikey"
-
-            FormRow {
-                Layout.fillWidth: true
-                label: qsTr("URL")
-
-                Field {
-                    id: urlField
-
-                    Layout.fillWidth: true
-                    placeholder: qsTr("http://127.0.0.1:8080")
-
-                    onTextChanged: root.editUrl = text
-                }
-            }
-
-            FormRow {
-                Layout.fillWidth: true
-                label: qsTr("Server name")
-
-                Field {
-                    id: nameField
-
-                    Layout.fillWidth: true
-                    placeholder: qsTr("home")
-
-                    onTextChanged: root.editName = text
-                }
-            }
-
-            FormRow {
-                Layout.fillWidth: true
-                label: qsTr("Auth")
-
-                RowLayout {
-                    spacing: Theme.space(6)
-
-                    Repeater {
-                        model: [
-                            {
-                                "mode": "apiKey",
-                                "text": qsTr("API key")
-                            },
-                            {
-                                "mode": "cookie",
-                                "text": qsTr("cookie")
-                            },
-                            {
-                                "mode": "none",
-                                "text": qsTr("none")
-                            }
-                        ]
-
-                        Chip {
-                            id: authChip
-
-                            required property var modelData
-
-                            focusable: true
-                            selected: root.editAuthMode === authChip.modelData.mode
-                            text: authChip.modelData.text
-
-                            onClicked: root.editAuthMode = authChip.modelData.mode
-                        }
-                    }
-
-                    Item {
-                        Layout.fillWidth: true
-                    }
-                }
-            }
-
-            FormRow {
-                Layout.fillWidth: true
-                label: qsTr("Key")
-                visible: root.editAuthMode !== "none"
-
-                Field {
-                    id: keyField
-
-                    Layout.fillWidth: true
-                    echoMode: TextInput.Password
-                    placeholder: qsTr("paste the API key")
-
-                    onTextChanged: root.editSecret = text
-                }
-            }
-
-            RowLayout {
-                spacing: Theme.space(8)
-
-                Button {
-                    text: qsTr("open web UI")
-
-                    onClicked: Qt.openUrlExternally(root.editUrl)
-                }
-
-                Button {
-                    text: root.testing ? qsTr("testing…") : qsTr("test")
-
-                    onClicked: root.runTest()
-                }
-
-                Item {
-                    Layout.fillWidth: true
-                }
-
-                Button {
-                    text: qsTr("skip test")
-
-                    onClicked: root.continueFromApiKey()
-                }
-
-                Button {
-                    enabled: root.tested && root.testOk
-                    objectName: "continueButton"
-                    primary: true
-                    text: qsTr("continue")
-
-                    onClicked: root.continueFromApiKey()
-                }
-            }
-
-            Label {
-                Layout.fillWidth: true
-                color: root.tested && !root.testOk ? Theme.red : Theme.foreground
-                text: root.testResultText
-                visible: root.testResultText.length > 0
-                wrapMode: Text.WordWrap
-            }
-        }
-
-        // ---- step 3: magnet handler -----------------------------------------------------------
-        ColumnLayout {
-            Layout.fillWidth: true
-            spacing: Theme.space(12)
-            visible: root.page === "handler"
-
-            Label {
-                Layout.fillWidth: true
-                bright: true
-                text: qsTr("Make omaseed the handler for magnet links and .torrent files?")
-                wrapMode: Text.WordWrap
-            }
-
-            Label {
-                Layout.fillWidth: true
-                dim: true
-                text: root.currentHandlerText.length > 0 ? qsTr("currently: %1").arg(
-                                                                 root.currentHandlerText) : ""
-                visible: root.currentHandlerText.length > 0
-            }
-
-            RowLayout {
-                spacing: Theme.space(8)
-
-                Button {
-                    text: qsTr("not now")
-
-                    onClicked: root.skipHandler()
-                }
-
-                Button {
-                    primary: true
-                    text: qsTr("register")
-
-                    onClicked: root.registerHandler()
-                }
-
-                Item {
-                    Layout.fillWidth: true
-                }
-            }
-        }
-
-        KeyHints {
-            Layout.fillWidth: true
-            Layout.topMargin: Theme.space(18)
-            model: [
-                {
-                    "key": "",
-                    "label": qsTr("step %1 of 3").arg(root.stepNumber)
-                }
-            ].concat(root.page === "choose" ? [
-                {
-                    "key": "j k",
-                    "label": qsTr("choose")
-                },
-                {
-                    "key": "enter",
-                    "label": qsTr("continue")
-                }
-            ] : [])
-            pinned: {
-                "key": "esc",
-                "label": qsTr("quit")
-            }
-            size: "caption"
         }
     }
+
+    KeyHints {
+        Layout.fillWidth: true
+        Layout.topMargin: Theme.space(18)
+        model: [
+            {
+                "key": "",
+                "label": qsTr("step %1 of 3").arg(root.stepNumber)
+            }
+        ].concat(root.page === "choose" ? [
+                                              {
+                                                  "key": "j k",
+                                                  "label": qsTr("choose")
+                                              },
+                                              {
+                                                  "key": "enter",
+                                                  "label": qsTr("continue")
+                                              }
+                                          ] : [])
+        pinned: {
+            "key": "esc",
+            "label": qsTr("quit")
+        }
+        size: "caption"
+    }
+}
 }

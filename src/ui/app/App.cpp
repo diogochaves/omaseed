@@ -1533,9 +1533,17 @@ void App::openFolder(const QString &hash)
         return;
     if (m_engine->torrents()->indexOfHash(hash) < 0)
         return;
-    const QString local = mapContentPathToLocal(m_engine->torrents()->torrent(hash).contentPath);
-    if (!local.isEmpty())
-        m_xdg->showInFileManager(local);
+    // A torrent without metadata yet (a stopped magnet) has no content path; the save
+    // folder is the next best thing to show.
+    const Torrent torrent = m_engine->torrents()->torrent(hash);
+    const QString remote = torrent.contentPath.isEmpty() ? torrent.savePath : torrent.contentPath;
+    const QString local = mapContentPathToLocal(remote);
+    if (local.isEmpty()) {
+        qInfo().noquote() << QStringLiteral("open folder: no path known for %1").arg(hash);
+        return;
+    }
+    qInfo().noquote() << QStringLiteral("open folder: %1").arg(local);
+    m_xdg->showInFileManager(local);
 }
 
 QString App::pickDirectory(const QString &startDir) const
