@@ -6,8 +6,14 @@ qt_add_qml_module(omaseed-views
     URI Omaseed.Views
     VERSION 1.0
     QML_FILES
+        DemoDetails.qml
         DemoRail.qml
         DemoTorrents.qml
+        Details.qml
+        DetailsFilesTab.qml
+        DetailsGeneralTab.qml
+        DetailsPeersTab.qml
+        DetailsTrackersTab.qml
         Rail.qml
         RailGroup.qml
         ThemeGallery.qml

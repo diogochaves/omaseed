@@ -32,6 +32,7 @@
 #include "core/ServerStore.hpp"
 #include "core/SyncEngine.hpp"
 #include "core/TagModel.hpp"
+#include "core/TorrentDetails.hpp"
 #include "core/TorrentFilterModel.hpp"
 #include "core/TorrentModel.hpp"
 #include "core/TrackerModel.hpp"
@@ -41,6 +42,8 @@
 #include <QObject>
 #include <QPointer>
 #include <QString>
+#include <QVariantList>
+#include <QVariantMap>
 
 QT_BEGIN_NAMESPACE
 class QQmlEngine;
@@ -73,6 +76,9 @@ class App : public QObject
     /// True under `--demo table`: the views must not offer anything that would touch a
     /// network, because there is no server behind the numbers.
     Q_PROPERTY(bool demoMode READ isDemoMode NOTIFY demoModeChanged)
+
+    // --- T3.4: details ---
+    Q_PROPERTY(omaseed::core::TorrentDetails *details READ details CONSTANT)
 
 public:
     explicit App(QObject *parent = nullptr);
@@ -172,6 +178,52 @@ private:
     bool m_hasServer = false;
     bool m_demoMode = false;
     bool m_serverLost = false;
+
+    // --- T3.4: details -------------------------------------------------------------------
+    // Everything the details pane (spec §2) adds to App lives in this one block, at the end
+    // of the class and at the end of App.cpp, so the three parallel Phase 3 branches merge
+    // without touching each other's lines.
+public:
+    /// The details pane's controller: the three tab models and the General tab's strings.
+    /// Never swapped out, so QML binds straight through it.
+    omaseed::core::TorrentDetails *details() const { return m_details; }
+
+    /// The table's cursor drives this. An empty hash clears the pane. In demo mode the
+    /// models are filled from DemoData instead of from the server.
+    Q_INVOKABLE void selectTorrent(const QString &hash);
+    /// The pane's own visibility (`i` collapses it): the detail polls stop while it is off.
+    Q_INVOKABLE void setDetailsVisible(bool visible);
+    /// The Peers tab is the one on show, so sync/torrentPeers is worth polling.
+    Q_INVOKABLE void setPeersTabActive(bool active);
+
+    /// POST torrents/filePrio. `fileIndexes` is a list of ints (the `fileIndexes` role of a
+    /// TorrentFilesModel row); a no-op in demo mode, where there is no server to tell.
+    Q_INVOKABLE void
+    setFilePriority(const QString &hash, const QVariantList &fileIndexes, int priority);
+
+    /// The fields `Details.qml`'s `torrent` property expects, for one hash: name, category,
+    /// tagsText, addedOnText, sizeText, progressText, ratioText, etaLongText, stateText,
+    /// stateRole, hasTrackerError. An unknown hash gives an empty map. It is a snapshot, not
+    /// a binding — rebind it on `App.torrents.updated` to follow a live torrent.
+    Q_INVOKABLE QVariantMap torrentRow(const QString &hash) const;
+
+    /// `OMASEED_DEMO_TAB` — which tab `--demo details` opens on ("", "files", "trackers",
+    /// "peers"). Only the demo host reads it.
+    Q_INVOKABLE QString demoTab() const;
+
+Q_SIGNALS:
+    /// Phase 4 wires these to the tracker and peer endpoints; Phase 3 only emits them, so
+    /// the details pane's `a`/`d`/`R`/`b` keys already have somewhere to go.
+    /// `action` is one of "add", "remove", "reannounce" / "ban", "add".
+    void trackerActionRequested(const QString &hash, const QString &action, const QString &url);
+    void peerActionRequested(const QString &hash, const QString &action, const QString &address);
+
+private:
+    /// Created here rather than in App's constructor so that all of T3.4 stays inside this
+    /// block; `this` in a default member initializer is the Qt parent, as everywhere else.
+    /// The client and the torrent model are handed over on the first selectTorrent().
+    omaseed::core::TorrentDetails *m_details = new omaseed::core::TorrentDetails(this);
+    // --- end T3.4 ------------------------------------------------------------------------
 };
 
 } // namespace omaseed::app

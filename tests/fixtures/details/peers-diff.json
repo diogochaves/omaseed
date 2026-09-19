@@ -1,0 +1,30 @@
+{
+    "rid": 2,
+    "show_flags": true,
+    "peers": {
+        "91.121.58.7:41221": {
+            "dl_speed": 0,
+            "progress": 1,
+            "up_speed": 4096
+        },
+        "203.0.113.9:6881": {
+            "client": "Deluge 2.1.1",
+            "connection": "BT",
+            "country": "Japan",
+            "country_code": "JP",
+            "dl_speed": 2048,
+            "downloaded": 4096,
+            "files": "archlinux-2026.09.01-x86_64.iso",
+            "flags": "I",
+            "flags_desc": "I: Peer is an incoming connection",
+            "ip": "203.0.113.9",
+            "peer_id_client": "Deluge 2.1.1",
+            "port": 6881,
+            "progress": 0.02,
+            "relevance": 0.01,
+            "up_speed": 0,
+            "uploaded": 0
+        }
+    },
+    "peers_removed": ["2a01:4f8:c0c::1:6881"]
+}

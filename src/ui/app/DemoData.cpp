@@ -4,6 +4,7 @@
 #include <QDate>
 #include <QDateTime>
 #include <QJsonArray>
+#include <QJsonValue>
 #include <QRandomGenerator>
 #include <QString>
 #include <QTime>
@@ -502,6 +503,331 @@ QJsonObject maindata(int rows)
     data.insert(QStringLiteral("trackers"), trackers);
     data.insert(QStringLiteral("server_state"), serverState());
     return data;
+}
+
+// --- the details pane (spec §2 Fig. 1-4) ---------------------------------------------------
+
+namespace {
+
+/// The spec's own three figures, by the name of the torrent they belong to.
+const char *const kBbbName = "Big Buck Bunny 4K (CC-BY)";
+const char *const kArchName = "archlinux-2026.09.01-x86_64.iso";
+
+QJsonObject fileJson(int index, const QString &name, qint64 size, double progress, int priority)
+{
+    QJsonObject file;
+    file.insert(QStringLiteral("index"), index);
+    file.insert(QStringLiteral("name"), name);
+    file.insert(QStringLiteral("size"), size);
+    file.insert(QStringLiteral("progress"), progress);
+    file.insert(QStringLiteral("priority"), priority);
+    file.insert(QStringLiteral("availability"), progress >= 1.0 ? 1.0 : progress);
+    return file;
+}
+
+QJsonObject trackerJson(const QString &url,
+                        int tier,
+                        int status,
+                        int seeds,
+                        int peers,
+                        qint64 nextAnnounce,
+                        const QString &msg = QString())
+{
+    QJsonObject tracker;
+    tracker.insert(QStringLiteral("url"), url);
+    tracker.insert(QStringLiteral("tier"), tier);
+    tracker.insert(QStringLiteral("status"), status);
+    tracker.insert(QStringLiteral("num_seeds"), seeds);
+    tracker.insert(QStringLiteral("num_peers"), peers);
+    tracker.insert(QStringLiteral("num_leeches"), peers);
+    tracker.insert(QStringLiteral("num_downloaded"), seeds > 0 ? seeds * 34 : -1);
+    tracker.insert(QStringLiteral("next_announce"), nextAnnounce);
+    tracker.insert(QStringLiteral("msg"), msg);
+    return tracker;
+}
+
+QJsonObject peerJson(const QString &ip,
+                     int port,
+                     const QString &countryCode,
+                     const QString &country,
+                     const QString &client,
+                     qint64 dlSpeed,
+                     qint64 upSpeed,
+                     double progress)
+{
+    QJsonObject peer;
+    peer.insert(QStringLiteral("ip"), ip);
+    peer.insert(QStringLiteral("port"), port);
+    peer.insert(QStringLiteral("country_code"), countryCode);
+    peer.insert(QStringLiteral("country"), country);
+    peer.insert(QStringLiteral("client"), client);
+    peer.insert(QStringLiteral("connection"), QStringLiteral("BT"));
+    peer.insert(QStringLiteral("flags"), upSpeed > 0 ? QStringLiteral("D U") : QStringLiteral("D"));
+    peer.insert(QStringLiteral("flags_desc"), QStringLiteral("D: currently downloading"));
+    peer.insert(QStringLiteral("dl_speed"), dlSpeed);
+    peer.insert(QStringLiteral("up_speed"), upSpeed);
+    peer.insert(QStringLiteral("downloaded"), dlSpeed * 200);
+    peer.insert(QStringLiteral("uploaded"), upSpeed * 200);
+    peer.insert(QStringLiteral("progress"), progress);
+    peer.insert(QStringLiteral("relevance"), progress * 0.5);
+    return peer;
+}
+
+/// Spec §2 Fig. 2's file tree, to the byte the figure prints for each row. The root folder's
+/// aggregate comes out one hundredth under the table's 3.92 GB, because the figure's own
+/// per-file numbers do not add up to its folder total; the per-file values win, since those
+/// are the rows a reader compares.
+QJsonArray bigBuckBunnyFiles()
+{
+    const QString root = QStringLiteral("Big Buck Bunny 4K/");
+    QJsonArray files;
+    files.append(
+        fileJson(0, root + QStringLiteral("bbb_sunflower_2160p_60fps.mp4"), 4144855449LL, 1.0, 6));
+    files.append(
+        fileJson(1, root + QStringLiteral("bbb_sunflower_1080p_30fps.mp4"), 54627532LL, 1.0, 1));
+    files.append(fileJson(2, root + QStringLiteral("subs/bbb.en.srt"), 9216LL, 0.0, 0));
+    files.append(fileJson(3, root + QStringLiteral("subs/bbb.pt.srt"), 9216LL, 0.0, 0));
+    files.append(fileJson(4, root + QStringLiteral("LICENSE.txt"), 1024LL, 1.0, 1));
+    return files;
+}
+
+/// Spec §2 Fig. 3: three announce URLs (the middle one timing out) and DHT/PeX. The hosts
+/// are the fictional ones the rest of the demo library announces to.
+QJsonArray archTrackers()
+{
+    QJsonArray trackers;
+    trackers.append(trackerJson(
+        QStringLiteral("https://tracker.example.net:443/announce"), 0, 2, 1204, 88, 1620));
+    trackers.append(trackerJson(QStringLiteral("udp://tracker.example.org:1337/announce"),
+                                1,
+                                4,
+                                -1,
+                                -1,
+                                240,
+                                QStringLiteral("timed out")));
+    trackers.append(
+        trackerJson(QStringLiteral("udp://open.example.si:80/announce"), 2, 2, 640, 41, 0));
+    trackers.append(trackerJson(QStringLiteral("** [DHT] **"), -1, 2, 22, 0, 0));
+    trackers.append(trackerJson(QStringLiteral("** [PeX] **"), -1, 2, 9, 0, 0));
+    return trackers;
+}
+
+/// Spec §2 Fig. 4, with the figure's own speeds and progress.
+QJsonObject archPeers()
+{
+    QJsonObject peers;
+    peers.insert(QStringLiteral("185.21.216.140:51413"),
+                 peerJson(QStringLiteral("185.21.216.140"),
+                          51413,
+                          QStringLiteral("DE"),
+                          QStringLiteral("Germany"),
+                          QStringLiteral("qBittorrent 5.2.3"),
+                          1069547,
+                          0,
+                          1.0));
+    peers.insert(QStringLiteral("2a01:4f8:c0c::1:6881"),
+                 peerJson(QStringLiteral("2a01:4f8:c0c::1"),
+                          6881,
+                          QStringLiteral("FI"),
+                          QStringLiteral("Finland"),
+                          QStringLiteral("Transmission 4.1.1"),
+                          761856,
+                          12288,
+                          1.0));
+    peers.insert(QStringLiteral("91.121.58.7:41221"),
+                 peerJson(QStringLiteral("91.121.58.7"),
+                          41221,
+                          QStringLiteral("FR"),
+                          QStringLiteral("France"),
+                          QStringLiteral("libtorrent 2.0.14"),
+                          411648,
+                          0,
+                          0.884));
+    peers.insert(QStringLiteral("77.54.113.202:6889"),
+                 peerJson(QStringLiteral("77.54.113.202"),
+                          6889,
+                          QStringLiteral("PT"),
+                          QStringLiteral("Portugal"),
+                          QStringLiteral("Deluge 2.2.0"),
+                          120832,
+                          100352,
+                          0.640));
+
+    QJsonObject answer;
+    answer.insert(QStringLiteral("full_update"), true);
+    answer.insert(QStringLiteral("rid"), 1);
+    answer.insert(QStringLiteral("show_flags"), true);
+    answer.insert(QStringLiteral("peers"), peers);
+    return answer;
+}
+
+bool looksLikeOneFile(const QString &name)
+{
+    static const QStringList suffixes{QStringLiteral(".iso"),
+                                      QStringLiteral(".gz"),
+                                      QStringLiteral(".xz"),
+                                      QStringLiteral(".bz2"),
+                                      QStringLiteral(".pbf"),
+                                      QStringLiteral(".zip"),
+                                      QStringLiteral(".img")};
+    for (const QString &suffix : suffixes) {
+        if (name.endsWith(suffix, Qt::CaseInsensitive))
+            return true;
+    }
+    return false;
+}
+
+/// A plausible file list for a row the spec does not draw: one file for anything that looks
+/// like an image or an archive, a small folder tree otherwise.
+QJsonArray generatedFiles(const omaseed::core::Torrent &torrent)
+{
+    QJsonArray files;
+    if (looksLikeOneFile(torrent.name) || torrent.size <= 0) {
+        files.append(fileJson(0, torrent.name, torrent.size, torrent.progress, 1));
+        return files;
+    }
+
+    const QString root = torrent.name + QLatin1Char('/');
+    const qint64 extras = 1024LL * 1024;
+    const qint64 main = std::max(qint64(1), torrent.size - 3 * extras);
+    files.append(
+        fileJson(0, root + torrent.name + QStringLiteral(".mkv"), main, torrent.progress, 1));
+    files.append(fileJson(
+        1, root + QStringLiteral("extras/behind-the-scenes.mkv"), 2 * extras, torrent.progress, 1));
+    files.append(fileJson(2, root + QStringLiteral("extras/poster.png"), extras / 4, 1.0, 1));
+    files.append(fileJson(3, root + QStringLiteral("LICENSE.txt"), 1024, 1.0, 1));
+    return files;
+}
+
+QJsonArray generatedTrackers(const omaseed::core::Torrent &torrent)
+{
+    QJsonArray trackers;
+    if (!torrent.tracker.isEmpty()) {
+        trackers.append(
+            trackerJson(torrent.tracker,
+                        0,
+                        torrent.hasTrackerError ? 4 : 2,
+                        torrent.hasTrackerError ? -1 : torrent.numComplete,
+                        torrent.hasTrackerError ? -1 : torrent.numIncomplete,
+                        torrent.hasTrackerError ? 240 : 1620,
+                        torrent.hasTrackerError ? QStringLiteral("timed out") : QString()));
+    }
+    trackers.append(trackerJson(QStringLiteral("** [DHT] **"), -1, 2, torrent.numSeeds, 0, 0));
+    trackers.append(trackerJson(QStringLiteral("** [PeX] **"), -1, 2, 0, 0, 0));
+    trackers.append(trackerJson(QStringLiteral("** [LSD] **"), -1, 0, 0, 0, 0));
+    return trackers;
+}
+
+QJsonObject generatedPeers(const omaseed::core::Torrent &torrent)
+{
+    // Seeded from the torrent's own hash, so the same row always shows the same swarm.
+    QRandomGenerator random(quint32(qHash(torrent.hash)));
+    static const char *const kClients[] = {"qBittorrent 5.2.3",
+                                           "Transmission 4.1.1",
+                                           "libtorrent 2.0.14",
+                                           "Deluge 2.2.0",
+                                           "rTorrent 0.15.3"};
+    static const char *const kCodes[] = {"DE", "FI", "FR", "PT", "NL", "US", "JP", "BR"};
+    static const char *const kCountries[] = {"Germany",
+                                             "Finland",
+                                             "France",
+                                             "Portugal",
+                                             "Netherlands",
+                                             "United States",
+                                             "Japan",
+                                             "Brazil"};
+
+    const int wanted = std::clamp(torrent.numLeechs, 0, 8);
+    QJsonObject peers;
+    for (int i = 0; i < wanted; ++i) {
+        const int which = int(random.bounded(quint32(std::size(kCodes))));
+        // 198.51.100.0/24 and 203.0.113.0/24 are RFC 5737 documentation ranges.
+        const QString ip =
+            QStringLiteral("%1.%2")
+                .arg(i % 2 == 0 ? QStringLiteral("198.51.100") : QStringLiteral("203.0.113"))
+                .arg(random.bounded(1u, 254u));
+        const int port = int(random.bounded(6881u, 65000u));
+        const qint64 dl =
+            torrent.dlspeed > 0 ? qint64(random.bounded(quint32(kKb), quint32(2 * kMb))) : 0;
+        const qint64 up = torrent.upspeed > 0 ? qint64(random.bounded(quint32(64 * kKb))) : 0;
+        peers.insert(
+            QStringLiteral("%1:%2").arg(ip).arg(port),
+            peerJson(ip,
+                     port,
+                     QString::fromLatin1(kCodes[which]),
+                     QString::fromLatin1(kCountries[which]),
+                     QString::fromLatin1(kClients[random.bounded(quint32(std::size(kClients)))]),
+                     dl,
+                     up,
+                     double(random.bounded(1000u)) / 1000.0));
+    }
+
+    QJsonObject answer;
+    answer.insert(QStringLiteral("full_update"), true);
+    answer.insert(QStringLiteral("rid"), 1);
+    answer.insert(QStringLiteral("show_flags"), true);
+    answer.insert(QStringLiteral("peers"), peers);
+    return answer;
+}
+
+} // namespace
+
+QJsonObject details(const omaseed::core::Torrent &torrent)
+{
+    QJsonObject result;
+    if (torrent.hash.isEmpty())
+        return result;
+
+    const bool isArch = torrent.name == QLatin1StringView(kArchName);
+    const bool isBbb = torrent.name == QLatin1StringView(kBbbName);
+
+    // Pieces: a power-of-two piece size that lands in the few-thousand range a real torrent
+    // of this size would use. Spec §2 Fig. 1 prints "1 264 × 1 MiB · 617 have"; the figure's
+    // own numbers are kept for that one row.
+    qint64 pieceSize = 1024 * kKb;
+    while (pieceSize > 16 * kKb && torrent.size / pieceSize < 512)
+        pieceSize /= 2;
+    int pieceCount = int(std::max(qint64(1), (torrent.size + pieceSize - 1) / pieceSize));
+    int piecesHave = int(double(pieceCount) * torrent.progress);
+    if (isArch) {
+        pieceSize = 1024 * kKb;
+        pieceCount = 1264;
+        piecesHave = 617;
+    }
+
+    QJsonObject properties;
+    properties.insert(QStringLiteral("name"), torrent.name);
+    properties.insert(QStringLiteral("save_path"), torrent.savePath + QLatin1Char('/'));
+    properties.insert(QStringLiteral("infohash_v1"), torrent.infohashV1);
+    properties.insert(QStringLiteral("infohash_v2"), torrent.infohashV2);
+    properties.insert(QStringLiteral("total_size"), torrent.size);
+    properties.insert(QStringLiteral("total_downloaded"), torrent.downloaded);
+    properties.insert(QStringLiteral("total_uploaded"), torrent.uploaded);
+    properties.insert(QStringLiteral("total_wasted"), isArch ? 2202009LL : torrent.size / 640);
+    properties.insert(QStringLiteral("piece_size"), pieceSize);
+    properties.insert(QStringLiteral("pieces_num"), pieceCount);
+    properties.insert(QStringLiteral("pieces_have"), piecesHave);
+    // The API's availability is the number of distributed copies, not a fraction.
+    properties.insert(QStringLiteral("availability"),
+                      isArch ? 38.2 : double(torrent.numComplete) + torrent.progress);
+    properties.insert(QStringLiteral("seeds"), torrent.numSeeds);
+    properties.insert(QStringLiteral("seeds_total"), isArch ? 1204 : torrent.numComplete);
+    properties.insert(QStringLiteral("peers"), torrent.numLeechs);
+    properties.insert(QStringLiteral("peers_total"), isArch ? 88 : torrent.numIncomplete);
+    properties.insert(QStringLiteral("time_elapsed"), isArch ? 862 : torrent.timeActive);
+    properties.insert(QStringLiteral("created_by"), QStringLiteral("mktorrent 1.1"));
+    properties.insert(QStringLiteral("comment"),
+                      isArch ? QStringLiteral("Arch Linux 2026.09.01 release")
+                             : QStringLiteral("%1 · shared with omaseed").arg(torrent.name));
+    // Spec §2 Fig. 1 has no "Created on" row, so the demo leaves the date out.
+    properties.insert(QStringLiteral("creation_date"), -1);
+
+    result.insert(QStringLiteral("hash"), torrent.hash);
+    result.insert(QStringLiteral("properties"), properties);
+    result.insert(QStringLiteral("files"), isBbb ? bigBuckBunnyFiles() : generatedFiles(torrent));
+    result.insert(QStringLiteral("trackers"), isArch ? archTrackers() : generatedTrackers(torrent));
+    result.insert(QStringLiteral("peers"), isArch ? archPeers() : generatedPeers(torrent));
+    return result;
 }
 
 } // namespace omaseed::app::DemoData

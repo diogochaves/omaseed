@@ -31,6 +31,13 @@ private slots:
     void relativeTimeOlder();
     void addedPrefixesRelativeTime();
     void seedsPeers();
+    void speedShort_data();
+    void speedShort();
+    void percentRoundingTo100();
+    void countGroupsWithSpaces();
+    void piecesRow();
+    void connectedTotalRow();
+    void shareLimitRow();
 };
 
 void TestFormat::speed_data()
@@ -206,6 +213,80 @@ void TestFormat::seedsPeers()
 {
     QCOMPARE(Format::seedsPeers(21, 42), QStringLiteral("21 / 42"));
     QCOMPARE(Format::seedsPeers(0, 0), QStringLiteral("0 / 0"));
+}
+
+void TestFormat::speedShort_data()
+{
+    QTest::addColumn<qint64>("bytesPerSecond");
+    QTest::addColumn<QString>("text");
+
+    // Spec §2 Fig. 4's ↓ and ↑ columns, value for value.
+    QTest::newRow("fig4 1.02 M") << qint64(1069547) << QStringLiteral("1.02 M");
+    QTest::newRow("fig4 744 K") << qint64(761856) << QStringLiteral("744 K");
+    QTest::newRow("fig4 402 K") << qint64(411648) << QStringLiteral("402 K");
+    QTest::newRow("fig4 118 K") << qint64(120832) << QStringLiteral("118 K");
+    QTest::newRow("fig4 98 K") << qint64(100352) << QStringLiteral("98 K");
+    QTest::newRow("fig4 12 K") << qint64(12288) << QStringLiteral("12 K");
+    QTest::newRow("fig4 zero") << qint64(0) << QStringLiteral("0");
+    QTest::newRow("negative is zero") << qint64(-1) << QStringLiteral("0");
+    QTest::newRow("bare bytes") << qint64(512) << QStringLiteral("512");
+    QTest::newRow("tens of megabytes") << qint64(48LL * 1024 * 1024) << QStringLiteral("48.0 M");
+    QTest::newRow("gigabytes") << qint64(3LL * 1024 * 1024 * 1024) << QStringLiteral("3.00 G");
+}
+
+void TestFormat::speedShort()
+{
+    QFETCH(qint64, bytesPerSecond);
+    QFETCH(QString, text);
+    QCOMPARE(Format::speedShort(bytesPerSecond), text);
+}
+
+void TestFormat::percentRoundingTo100()
+{
+    // A folder whose only missing bytes are two 9 KB subtitles out of 3.9 GB is 99.9995 %
+    // done; the spec prints that as "100 %" (spec §2 Fig. 2's root row), not "100.0 %".
+    QCOMPARE(Format::percentCompact(0.9999956), QStringLiteral("100%"));
+    QCOMPARE(Format::percent(0.9999956), QStringLiteral("100 %"));
+    QCOMPARE(Format::percentCompact(0.9994), QStringLiteral("99.9%"));
+}
+
+void TestFormat::countGroupsWithSpaces()
+{
+    // Spec §2 Fig. 1: "1 264 × 1 MiB", "1 204 total".
+    QCOMPARE(Format::count(1264), QStringLiteral("1 264"));
+    QCOMPARE(Format::count(1204), QStringLiteral("1 204"));
+    QCOMPARE(Format::count(617), QStringLiteral("617"));
+    QCOMPARE(Format::count(0), QStringLiteral("0"));
+    QCOMPARE(Format::count(1000000), QStringLiteral("1 000 000"));
+    QCOMPARE(Format::count(-4200), QStringLiteral("-4 200"));
+}
+
+void TestFormat::piecesRow()
+{
+    QCOMPARE(Format::pieces(1264, 1024 * 1024, 617), QStringLiteral("1 264 × 1 MiB · 617 have"));
+    QCOMPARE(Format::pieces(1, 16 * 1024, 0), QStringLiteral("1 × 16 KiB · 0 have"));
+    QCOMPARE(Format::pieces(4096, 512 * 1024, 4096),
+             QStringLiteral("4 096 × 512 KiB · 4 096 have"));
+    // A magnet with no metadata yet has no pieces to print.
+    QCOMPARE(Format::pieces(-1, -1, 0), QString());
+    QCOMPARE(Format::pieces(0, 1024, 0), QString());
+}
+
+void TestFormat::connectedTotalRow()
+{
+    QCOMPARE(Format::connectedTotal(21, 1204), QStringLiteral("21 connected · 1 204 total"));
+    QCOMPARE(Format::connectedTotal(42, 88), QStringLiteral("42 connected · 88 total"));
+    QCOMPARE(Format::connectedTotal(-1, -1), QStringLiteral("0 connected · 0 total"));
+}
+
+void TestFormat::shareLimitRow()
+{
+    // qBittorrent's sentinels: -2 global, -1 unlimited, anything else a real limit.
+    QCOMPARE(Format::shareLimit(-2.0, -2), QStringLiteral("global"));
+    QCOMPARE(Format::shareLimit(2.0, -2), QStringLiteral("global · ratio 2.0"));
+    QCOMPARE(Format::shareLimit(2.0, -1), QStringLiteral("ratio 2.0"));
+    QCOMPARE(Format::shareLimit(-1.0, -1), QStringLiteral("unlimited"));
+    QCOMPARE(Format::shareLimit(1.5, 10080), QStringLiteral("ratio 1.5 · seeding 7d 0h"));
 }
 
 QTEST_MAIN(TestFormat)

@@ -52,6 +52,39 @@
 //
 // CategoryModel: name, savePath. TagModel: name.
 // TrackerModel: host, urls, hashes, torrentCount, isTrackerless.
+//
+// ---------------------------------------------------------------------------------------
+// The details pane (T3.4, spec §2 Fig. 1-4). `App.details` is a TorrentDetails; its three
+// models are `App.details.files`, `.trackers` and `.peers`, and the General tab reads the
+// ready strings of `App.details.properties` (a QVariantMap: name, savePath, hashV1, hashV2,
+// totalSizeText, downloaded, uploaded, wasted, pieces, availability, seeds, peers,
+// timeActive, shareLimit, createdBy, comment, createdOn - an empty value means the server
+// sent nothing and the row is left out).
+//
+// TorrentFilesModel (visible rows of the file tree; folded folders drop their subtree):
+//   name         string   leaf name, folders with a trailing "/"
+//   path         string   full path inside the torrent (the `o` open action)
+//   size         qint64   sizeText string "3.86 GB"   (a folder sums its files)
+//   progress     double   progressText string "100 %" (a folder weights by size)
+//   priority     int      0 skip, 1 normal, 6 high, 7 maximal, -1 mixed
+//   priorityText string   "skip" / "normal" / "high" / "maximal" / "mixed"
+//   isFolder     bool     depth int    expanded bool
+//   fileIndexes  list     the API file ids under this row, for torrents/filePrio
+//   availability double   -1 on a folder
+//
+// TorrentTrackersModel:
+//   url string (full announce URL)      host string ("tracker.example.org", "DHT")
+//   tier int      status int            statusText string ("working · 27 min")
+//   healthy bool                        dotRole string ("green"/"yellow"/"dimForeground")
+//   seeds int  seedsText string ("1 204" or an em dash)   peers int
+//   leeches int  leechesText string   downloaded int   msg string   isPseudo bool
+//
+// TorrentPeersModel:
+//   address string ("ip:port", the ban/copy key)   ip string   port int
+//   country string  countryCode string  client string  connection string
+//   dlSpeed qint64  dlSpeedText string "1.02 M"    upSpeed qint64  upSpeedText string
+//   progress double  progressText string  flags string  flagsDesc string
+//   downloaded qint64  uploaded qint64  relevance double
 // ---------------------------------------------------------------------------------------
 
 #include "core/CategoryModel.hpp"
@@ -61,8 +94,12 @@
 #include "core/SyncEngine.hpp"
 #include "core/TagModel.hpp"
 #include "core/Torrent.hpp"
+#include "core/TorrentDetails.hpp"
+#include "core/TorrentFilesModel.hpp"
 #include "core/TorrentFilterModel.hpp"
 #include "core/TorrentModel.hpp"
+#include "core/TorrentPeersModel.hpp"
+#include "core/TorrentTrackersModel.hpp"
 #include "core/TrackerModel.hpp"
 
 #include <QQmlEngine>
@@ -140,6 +177,40 @@ struct ServerStoreForeign
     QML_FOREIGN(omaseed::core::ServerStore)
     QML_NAMED_ELEMENT(ServerStore)
     QML_UNCREATABLE("ServerStore is App.servers; it is not created from QML.")
+};
+
+/// The details pane's controller and its three tab models (T3.4). `App.details` owns them;
+/// nothing here is created from QML.
+struct TorrentDetailsForeign
+{
+    Q_GADGET
+    QML_FOREIGN(omaseed::core::TorrentDetails)
+    QML_NAMED_ELEMENT(TorrentDetails)
+    QML_UNCREATABLE("TorrentDetails is App.details; it is not created from QML.")
+};
+
+struct TorrentFilesModelForeign
+{
+    Q_GADGET
+    QML_FOREIGN(omaseed::core::TorrentFilesModel)
+    QML_NAMED_ELEMENT(TorrentFilesModel)
+    QML_UNCREATABLE("TorrentFilesModel is App.details.files; it is not created from QML.")
+};
+
+struct TorrentTrackersModelForeign
+{
+    Q_GADGET
+    QML_FOREIGN(omaseed::core::TorrentTrackersModel)
+    QML_NAMED_ELEMENT(TorrentTrackersModel)
+    QML_UNCREATABLE("TorrentTrackersModel is App.details.trackers; it is not created from QML.")
+};
+
+struct TorrentPeersModelForeign
+{
+    Q_GADGET
+    QML_FOREIGN(omaseed::core::TorrentPeersModel)
+    QML_NAMED_ELEMENT(TorrentPeersModel)
+    QML_UNCREATABLE("TorrentPeersModel is App.details.peers; it is not created from QML.")
 };
 
 /// The `omaseed::core` namespace enums, as the QML namespace `Torrent`. Both enums are

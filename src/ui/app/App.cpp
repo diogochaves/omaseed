@@ -1,5 +1,6 @@
 #include "ui/app/App.hpp"
 
+#include "core/Format.hpp"
 #include "ui/app/DemoData.hpp"
 
 #include <QDebug>
@@ -448,5 +449,97 @@ void App::updateTrayNumbers()
                      filterCounts->seeding(),
                      state->freeSpaceText());
 }
+
+// --- T3.4: details -------------------------------------------------------------------------
+//
+// The details pane of spec §2. `App.details` is the controller; the table's cursor calls
+// selectTorrent(), `i` calls setDetailsVisible(), and the pane tells App which tab is on
+// show so peers are only polled while somebody is looking at them.
+
+void App::selectTorrent(const QString &hash)
+{
+    if (hash.isEmpty()) {
+        m_details->setHash(QString());
+        return;
+    }
+
+    if (m_demoMode) {
+        // No server: the pane is filled from the same fictional library the table draws.
+        m_details->applyDemo(DemoData::details(m_engine->torrents()->torrent(hash)));
+        return;
+    }
+
+    m_details->setTorrentModel(m_engine->torrents());
+    m_details->setClient(m_hasServer ? m_client : nullptr);
+    m_details->setHash(hash);
+}
+
+void App::setDetailsVisible(bool visible)
+{
+    m_details->setVisible(visible);
+}
+
+void App::setPeersTabActive(bool active)
+{
+    m_details->setPeersActive(active);
+}
+
+void App::setFilePriority(const QString &hash, const QVariantList &fileIndexes, int priority)
+{
+    if (m_demoMode || !m_hasServer || hash.isEmpty() || fileIndexes.isEmpty())
+        return;
+
+    QList<int> ids;
+    ids.reserve(fileIndexes.size());
+    for (const QVariant &value : fileIndexes) {
+        bool ok = false;
+        const int id = value.toInt(&ok);
+        if (ok)
+            ids.append(id);
+    }
+    if (ids.isEmpty())
+        return;
+
+    m_client->torrentsSetFilePrio(hash, ids, priority)
+        ->then(this, [this](const QbtResult<QByteArray> &result) {
+            if (result.isError()) {
+                qWarning().noquote() << QStringLiteral("set file priority failed: %1")
+                                            .arg(result.error().toString());
+                return;
+            }
+            // The file list is polled every 2 s anyway, but the pane should not look stuck
+            // for a whole tick after a key press.
+            m_details->refreshNow();
+        });
+}
+
+QVariantMap App::torrentRow(const QString &hash) const
+{
+    QVariantMap row;
+    if (hash.isEmpty() || m_engine->torrents()->indexOfHash(hash) < 0)
+        return row;
+
+    const Torrent &torrent = m_engine->torrents()->torrent(hash);
+    row.insert(QStringLiteral("hash"), torrent.hash);
+    row.insert(QStringLiteral("name"), torrent.name);
+    row.insert(QStringLiteral("category"), torrent.category);
+    row.insert(QStringLiteral("tagsText"), torrent.tags.join(QStringLiteral(" · ")));
+    row.insert(QStringLiteral("addedOnText"), Format::added(torrent.addedOn));
+    row.insert(QStringLiteral("sizeText"), Format::size(torrent.size));
+    row.insert(QStringLiteral("progressText"), Format::percent(torrent.progress));
+    row.insert(QStringLiteral("ratioText"), Format::ratio(torrent.ratio));
+    row.insert(QStringLiteral("etaLongText"), Format::eta(torrent.eta));
+    row.insert(QStringLiteral("stateText"), torrent.stateText());
+    row.insert(QStringLiteral("stateRole"), torrent.stateRole());
+    row.insert(QStringLiteral("hasTrackerError"), torrent.hasTrackerError);
+    return row;
+}
+
+QString App::demoTab() const
+{
+    return env("OMASEED_DEMO_TAB");
+}
+
+// --- end T3.4 ------------------------------------------------------------------------------
 
 } // namespace omaseed::app

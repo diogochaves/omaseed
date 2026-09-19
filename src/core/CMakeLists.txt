@@ -36,12 +36,20 @@ qt_add_library(omaseed-core STATIC
     TagModel.hpp
     Torrent.cpp
     Torrent.hpp
+    TorrentDetails.cpp
+    TorrentDetails.hpp
     TorrentFile.cpp
     TorrentFile.hpp
+    TorrentFilesModel.cpp
+    TorrentFilesModel.hpp
     TorrentFilterModel.cpp
     TorrentFilterModel.hpp
     TorrentModel.cpp
     TorrentModel.hpp
+    TorrentPeersModel.cpp
+    TorrentPeersModel.hpp
+    TorrentTrackersModel.cpp
+    TorrentTrackersModel.hpp
     TrackerModel.cpp
     TrackerModel.hpp
     Version.cpp
