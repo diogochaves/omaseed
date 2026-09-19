@@ -55,6 +55,8 @@ App::App(QObject *parent)
     connect(m_engine->counts(), &FilterCounts::changed, this, &App::updateTray);
 
     connect(m_engine, &SyncEngine::firstSyncFinished, this, [this]() {
+        if (m_demoMode)
+            return; // the demo has no server to name; applyDemoData() logs its own line
         const GlobalState *state = m_engine->globalState();
         qInfo().noquote() << QStringLiteral("first sync: %1 torrents · qBittorrent %2 · API %3")
                                  .arg(m_engine->torrents()->count())
@@ -318,6 +320,9 @@ void App::applyDemoData(const QJsonObject &maindata)
     state->setLastSyncTime(QDateTime::currentDateTime());
 
     m_engine->applyDemoData(maindata);
+
+    qInfo().noquote() << QStringLiteral("demo: %1 fictional torrents, no server")
+                             .arg(m_engine->torrents()->count());
 
     if (!wasDemo)
         Q_EMIT demoModeChanged();
