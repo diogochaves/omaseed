@@ -340,7 +340,9 @@ Item {
         // the window underneath. `Kit/Menu` and `Kit/Palette` deliberately leave keys they
         // have no use for unaccepted (a palette's `ctrl+k`, a menu's `i`), and without this
         // guard those went on to open a second overlay under the first.
-        if (root.overlayOpen)
+        // The first-run page (T4.6) is a full-window page rather than an overlay, but the
+        // window underneath it must stay just as deaf.
+        if (root.overlayOpen || root.firstRun)
             return;
 
         const ctrl = (event.modifiers & Qt.ControlModifier) !== 0;
