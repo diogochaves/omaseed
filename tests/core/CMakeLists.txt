@@ -50,6 +50,17 @@ omaseed_add_test(tst_secretstore
     LIBRARIES omaseed::core Qt6Keychain::Qt6Keychain
 )
 
+omaseed_add_test(tst_qbtclient_actions_fake
+    SOURCES tst_qbtclient_actions_fake.cpp
+    LIBRARIES omaseed::core
+)
+
+omaseed_add_test(tst_qbtclient_actions_live
+    SOURCES tst_qbtclient_actions_live.cpp
+    LIBRARIES omaseed::core
+    DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
+)
+
 omaseed_add_test(tst_qbtclient_fake
     SOURCES tst_qbtclient_fake.cpp
     LIBRARIES omaseed::core
