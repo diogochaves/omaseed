@@ -23,7 +23,10 @@ qt_add_qml_module(omaseed-kit
         IconButton.qml
         KeyHints.qml
         Label.qml
+        RailRow.qml
         Stat.qml
+        TableHeader.qml
+        TableRow.qml
         Toggle.qml
 )
 

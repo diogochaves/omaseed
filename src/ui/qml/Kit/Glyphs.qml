@@ -49,6 +49,7 @@ QtObject {
     // ---- generic chrome ---------------------------------------------------------------
     readonly property string chevronRight: "›"
     readonly property string chevronDown: "▾"
+    readonly property string chevronUp: "▴" // table header sort-ascending, spec §2 `.tbl > div.h.sort`
     readonly property string check: "✓"
     readonly property string close: "✕"
     readonly property string dot: "●"
