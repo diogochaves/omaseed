@@ -45,6 +45,15 @@ Item {
     readonly property alias locationSheetPanel: locationSheetPanel
     readonly property alias limitsSheetPanel: limitsSheetPanel
     readonly property alias renameSheetPanel: renameSheetPanel
+    // T4.8: the rest of the overlays, for the stacking and focus cases of `tst_Main`.
+    readonly property alias addSheet: addSheet
+    readonly property alias duplicateSheet: duplicateSheet
+    readonly property alias settingsModal: settingsModal
+    readonly property alias jumpPalette: jumpPalette
+    readonly property alias categoryPalette: categoryPalette
+    readonly property alias tagPalette: tagPalette
+    readonly property alias sortPalette: sortPalette
+    readonly property alias columnsPalette: columnsPalette
 
     /// The `?` sheet.
     property bool helpOpen: false
@@ -859,28 +868,38 @@ Item {
     // --- T4.4: palettes ---------------------------------------------------------------------
     // Jump (`ctrl+k`), category (`C`), tags (`t`), sort (`s`) and columns (`ctrl+,`), plus the
     // table-state round trip through `state.json`. `App.categoryPickerRequested` /
-    // `tagPickerRequested` are T4.3's seam (its `C`/`t` actions, and the AddSheet's chips);
-    // this block is what answers them.
+    // `tagPickerRequested` are T4.3's seam (its `C`/`t` actions); the add sheet's `…` chips
+    // open the same two palettes in `openForChoice` mode, which answers the caller instead of
+    // touching torrents.
+    //
+    // Every palette sits above every sheet (`z: 14` against the add sheet's 12 and the
+    // duplicate's 13), because the category and tag ones can be opened from inside the add
+    // sheet. `Kit/Palette.open()` remembers `Window.activeFocusItem`, so closing one hands the
+    // keyboard back to the chip row it came from.
     JumpPalette {
         id: jumpPalette
 
         anchors.fill: parent
         table: table
-        z: 10
+        z: 14
     }
 
     CategoryPalette {
         id: categoryPalette
 
         anchors.fill: parent
-        z: 10
+        z: 14
+
+        onChosen: name => addSheet.applyChosenCategory(name)
     }
 
     TagPalette {
         id: tagPalette
 
         anchors.fill: parent
-        z: 10
+        z: 14
+
+        onChosen: tags => addSheet.applyChosenTags(tags)
     }
 
     SortPalette {
@@ -888,7 +907,7 @@ Item {
 
         anchors.fill: parent
         table: table
-        z: 10
+        z: 14
     }
 
     ColumnsPalette {
@@ -896,7 +915,7 @@ Item {
 
         anchors.fill: parent
         table: table
-        z: 10
+        z: 14
     }
 
     Connections {
@@ -1004,17 +1023,20 @@ Item {
         id: addSheet
 
         anchors.fill: parent
-        z: 11
+        z: 12
 
         onAddRequested: request => App.addTorrent(request)
         onDuplicateFound: duplicate => duplicateSheet.openFor(duplicate)
+        // The `…` chips: T4.4's palettes, asked to answer instead of to act.
+        onCategoryPaletteRequested: categoryPalette.openForChoice()
+        onTagPaletteRequested: tagPalette.openForChoice(addSheet.tagChips.selected)
     }
 
     DuplicateSheet {
         id: duplicateSheet
 
         anchors.fill: parent
-        z: 12
+        z: 13
 
         // `show it` gives up on the add: the sheet behind this one goes away with it.
         onShowRequested: hash => {

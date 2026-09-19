@@ -49,6 +49,21 @@ TestCase {
     }
 
     function init() {
+        // Every overlay: a case that leaves one up would swallow the next case's keys, since
+        // the whole file shares one `MainView`.
+        view.addSheet.dismiss();
+        view.duplicateSheet.close();
+        view.settingsModal.close();
+        view.actionsMenuPanel.close();
+        view.deleteConfirmPanel.close();
+        view.locationSheetPanel.close();
+        view.limitsSheetPanel.close();
+        view.renameSheetPanel.close();
+        view.jumpPalette.close();
+        view.categoryPalette.close();
+        view.tagPalette.close();
+        view.sortPalette.close();
+        view.columnsPalette.close();
         view.helpOpen = false;
         view.details.collapsed = false;
         view.details.activateTab(0);
@@ -203,6 +218,49 @@ TestCase {
         compare(view.deleteConfirmPanel.opened, true);
         // `D` forces the "also delete files" toggle on, regardless of the remembered default.
         compare(view.deleteConfirmPanel.body.children[0].checked, true);
+    }
+
+    // ---- the add sheet's `…` chips open T4.4's palettes over it (T4.8) ------------------------
+    function test_the_category_chip_opens_the_palette_over_the_sheet_and_comes_back() {
+        App.addRequested();
+        verify(view.addSheet.opened, "`a` did not open the add sheet");
+
+        const chips = view.addSheet.categoryChips;
+        chips.cursorIndex = chips.options.length; // the `…` chip
+        chips.activateCursor();
+        verify(view.categoryPalette.opened, "the `…` chip did not open the palette");
+        verify(view.categoryPalette.choiceMode, "the palette is applying to torrents");
+        verify(view.categoryPalette.z > view.addSheet.z, "the palette is drawn under the sheet");
+        verify(view.addSheet.opened, "the sheet went away under the palette");
+
+        view.categoryPalette.query = "movies";
+        const row = view.categoryPalette.items.find(item => item.key === "movies");
+        view.categoryPalette.activated(view.categoryPalette.items.indexOf(row), row);
+
+        verify(!view.categoryPalette.opened);
+        compare(view.addSheet.categoryChips.current, "movies");
+        verify(view.addSheet.opened, "the sheet closed with the palette");
+        view.addSheet.dismiss();
+    }
+
+    function test_the_tags_chip_opens_the_tag_palette_with_what_the_sheet_carries() {
+        App.addRequested();
+        view.addSheet.tagChips.pick("keep");
+
+        const chips = view.addSheet.tagChips;
+        chips.cursorIndex = chips.options.length;
+        chips.activateCursor();
+        verify(view.tagPalette.opened);
+        const keep = view.tagPalette.items.find(item => item.key === "keep");
+        compare(keep.checked, true, "the sheet's own chip is not checked in the palette");
+
+        const other = view.tagPalette.items.find(item => item.key === "private");
+        view.tagPalette.toggled(view.tagPalette.items.indexOf(other), other);
+        view.tagPalette.activated(0, view.tagPalette.items[0]);
+
+        compare(view.addSheet.tagChips.selected.length, 2);
+        verify(view.addSheet.tagChips.selected.indexOf("private") >= 0);
+        view.addSheet.dismiss();
     }
 
     // ---- the details pane follows the table's cursor -------------------------------------------

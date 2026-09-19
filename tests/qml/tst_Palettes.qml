@@ -64,6 +64,14 @@ TestCase {
         target: App
     }
 
+    Component {
+        id: chosenSpy
+
+        SignalSpy {
+            signalName: "chosen"
+        }
+    }
+
     function init() {
         if (App.torrents.count !== 16)
             App.loadDemo(16);
@@ -154,6 +162,77 @@ TestCase {
     function test_category_title_counts_the_torrents() {
         categoryPalette.openFor([App.filtered.hashAt(0), App.filtered.hashAt(1)]);
         compare(categoryPalette.title, "category for 2 torrents");
+    }
+
+    // ---- choice mode: the add sheet's `…` chips (T4.8) ----------------------------------
+    function test_category_choice_mode_answers_the_caller_instead_of_the_torrents() {
+        const chosen = createTemporaryObject(chosenSpy, testCase, {
+                                                 "target": categoryPalette
+                                             });
+        categoryPalette.openForChoice();
+        verify(categoryPalette.choiceMode);
+        compare(categoryPalette.hashes.length, 0, "choice mode acts on no torrent");
+        compare(categoryPalette.title, "category for the new torrent");
+
+        categoryPalette.query = "movies";
+        const row = categoryPalette.items.find(item => item.key === "movies");
+        categoryPalette.activated(categoryPalette.items.indexOf(row), row);
+
+        compare(chosen.count, 1);
+        compare(chosen.signalArguments[0][0], "movies");
+        verify(!categoryPalette.opened, "the palette stayed up");
+    }
+
+    function test_category_choice_mode_hands_back_a_created_name() {
+        const chosen = createTemporaryObject(chosenSpy, testCase, {
+                                                 "target": categoryPalette
+                                             });
+        categoryPalette.openForChoice();
+        categoryPalette.query = "brand-new-category";
+        const last = categoryPalette.items[categoryPalette.items.length - 1];
+        verify(last.isCreate === true);
+        categoryPalette.activated(categoryPalette.items.length - 1, last);
+
+        compare(chosen.count, 1);
+        compare(chosen.signalArguments[0][0], "brand-new-category");
+    }
+
+    function test_openFor_puts_the_palette_back_into_apply_mode() {
+        categoryPalette.openForChoice();
+        verify(categoryPalette.choiceMode);
+        categoryPalette.close();
+        categoryPalette.openFor([App.filtered.hashAt(0)]);
+        verify(!categoryPalette.choiceMode);
+        compare(categoryPalette.title, "category for 1 torrent");
+    }
+
+    function test_tag_choice_mode_starts_from_the_callers_tags_and_answers_with_them() {
+        const chosen = createTemporaryObject(chosenSpy, testCase, {
+                                                 "target": tagPalette
+                                             });
+        tagPalette.openForChoice(["keep"]);
+        verify(tagPalette.choiceMode);
+        compare(tagPalette.title, "tags for the new torrent");
+        const keep = tagPalette.items.find(item => item.key === "keep");
+        compare(keep.checked, true, "the caller's tag is not checked");
+
+        const other = tagPalette.items.find(item => item.key === "private");
+        tagPalette.toggled(tagPalette.items.indexOf(other), other);
+        tagPalette.activated(0, tagPalette.items[0]);
+
+        compare(chosen.count, 1);
+        const answer = chosen.signalArguments[0][0];
+        compare(answer.length, 2);
+        verify(answer.indexOf("keep") >= 0);
+        verify(answer.indexOf("private") >= 0);
+        verify(!tagPalette.opened);
+    }
+
+    function test_tag_choice_mode_keeps_a_created_tag_as_a_row() {
+        tagPalette.openForChoice(["not-on-the-server"]);
+        const row = tagPalette.items.find(item => item.key === "not-on-the-server");
+        verify(row, "a tag the server does not list still needs a row");
+        compare(row.checked, true);
     }
 
     // ---- tags --------------------------------------------------------------------------
