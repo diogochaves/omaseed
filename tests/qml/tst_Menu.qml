@@ -224,6 +224,20 @@ TestCase {
         verify(probe.activeFocus, "the focus was not restored");
     }
 
+    // ---- inline (the gallery) ---------------------------------------------------------
+    function test_inline_drops_the_scrim_and_the_anchor() {
+        const menu = createTemporaryObject(menuComponent, testCase, {
+                                               "inline": true,
+                                               "anchorX": 300,
+                                               "anchorY": 300
+                                           });
+        compare(menu.visible, true);
+        compare(menu.panel.x, 0);
+        compare(menu.panel.y, 0);
+        compare(menu.panel.width, Theme.space(280));
+        verify(menu.panel.height > 0, "the inline menu has no height");
+    }
+
     Component {
         id: activatedSpy
 

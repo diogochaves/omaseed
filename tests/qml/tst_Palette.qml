@@ -277,6 +277,18 @@ TestCase {
         verify(!palette.match("Fedora-Workstation-Live", "ubuntu"));
     }
 
+    // ---- inline (the gallery) ---------------------------------------------------------
+    function test_inline_drops_the_scrim_and_the_centring() {
+        const palette = createTemporaryObject(paletteComponent, testCase, {
+                                                  "inline": true
+                                              });
+        compare(palette.visible, true);
+        compare(palette.panel.x, 0);
+        compare(palette.panel.y, 0);
+        compare(palette.panel.width, Theme.space(480));
+        verify(palette.panel.height > 0, "the inline palette has no height");
+    }
+
     Component {
         id: activatedSpy
 

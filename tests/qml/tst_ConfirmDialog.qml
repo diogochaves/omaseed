@@ -197,6 +197,18 @@ TestCase {
         verify(probe.activeFocus, "the focus was not restored");
     }
 
+    // ---- inline (the gallery) ---------------------------------------------------------
+    function test_inline_drops_the_scrim_and_the_centring() {
+        const dialog = createTemporaryObject(deleteComponent, testCase, {
+                                                 "inline": true
+                                             });
+        compare(dialog.visible, true);
+        compare(dialog.panel.x, 0);
+        compare(dialog.panel.y, 0);
+        compare(dialog.panel.width, Theme.space(370));
+        verify(dialog.panel.height > 0, "the inline card has no height");
+    }
+
     Component {
         id: acceptedSpy
 

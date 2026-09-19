@@ -284,6 +284,20 @@ TestCase {
         compare(sheet.footerRight, "server: home");
     }
 
+    // ---- inline (the gallery) ---------------------------------------------------------
+    function test_inline_drops_the_scrim_and_the_centring() {
+        const sheet = createTemporaryObject(formSheetComponent, testCase, {
+                                                "inline": true
+                                            });
+        compare(sheet.visible, true, "an inline sheet needs no open()");
+        compare(sheet.panel.x, 0);
+        compare(sheet.panel.y, 0);
+        compare(sheet.panel.width, Theme.space(420));
+        verify(sheet.panel.height > 0, "the inline panel has no height");
+        compare(sheet.implicitWidth, Theme.space(420));
+        compare(sheet.implicitHeight, sheet.panel.implicitHeight);
+    }
+
     Component {
         id: triggeredSpy
 
