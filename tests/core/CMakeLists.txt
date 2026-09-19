@@ -95,3 +95,9 @@ omaseed_add_test(tst_filtermodel
     SOURCES tst_filtermodel.cpp
     LIBRARIES omaseed::core
 )
+
+omaseed_add_test(tst_filtercounts
+    SOURCES tst_filtercounts.cpp
+    LIBRARIES omaseed::core
+    DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
+)
