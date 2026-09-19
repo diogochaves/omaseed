@@ -49,6 +49,10 @@ TestCase {
     }
 
     function init() {
+        // The add sheet prefills itself from the real clipboard, which another test file may
+        // have filled with a magnet (`y` copies one): prose parses as nothing, so the sheet
+        // opens empty and its first `esc` closes it instead of clearing the field.
+        App.copyToClipboard("omaseed test: nothing to add here");
         // Every overlay: a case that leaves one up would swallow the next case's keys, since
         // the whole file shares one `MainView`.
         view.addSheet.dismiss();
@@ -218,6 +222,88 @@ TestCase {
         compare(view.deleteConfirmPanel.opened, true);
         // `D` forces the "also delete files" toggle on, regardless of the remembered default.
         compare(view.deleteConfirmPanel.body.children[0].checked, true);
+    }
+
+    // ---- overlays are modal, and give the keyboard back (T4.8) -------------------------------
+    function test_an_overlay_keeps_the_windows_keys_to_itself() {
+        keyClick("s"); // the sort palette
+        compare(view.sortPalette.opened, true);
+        compare(view.overlayOpen, true);
+        compare(view.activeOverlay, view.sortPalette);
+
+        // `Kit/Palette` leaves ctrl chords and `i` unaccepted; they used to travel on to the
+        // window and open a second overlay underneath the first.
+        keyClick(Qt.Key_K, Qt.ControlModifier);
+        compare(view.jumpPalette.opened, false, "ctrl+k opened a palette under the palette");
+        const collapsed = view.details.collapsed;
+        keyClick("i");
+        compare(view.details.collapsed, collapsed, "`i` reached the window under the palette");
+
+        keyClick(Qt.Key_Escape);
+        compare(view.sortPalette.opened, false);
+        compare(view.overlayOpen, false);
+    }
+
+    function test_escape_closes_the_topmost_overlay_only() {
+        App.openSettings();
+        compare(view.settingsModal.opened, true);
+
+        // A modal keeps the window's keys: `a` must not open the add sheet underneath it.
+        addSpy.clear();
+        keyClick("a");
+        compare(addSpy.count, 0);
+        compare(view.addSheet.opened, false);
+
+        // A hand-off from the browser or the tray does stack over it, and is drawn on top.
+        App.addRequested();
+        compare(view.addSheet.opened, true);
+        verify(view.addSheet.z > view.settingsModal.z);
+        compare(view.activeOverlay, view.addSheet);
+
+        keyClick(Qt.Key_Escape);
+        compare(view.addSheet.opened, false);
+        compare(view.settingsModal.opened, true, "esc closed more than the topmost overlay");
+        compare(view.activeOverlay, view.settingsModal);
+
+        keyClick(Qt.Key_Escape);
+        compare(view.settingsModal.opened, false);
+        compare(view.overlayOpen, false);
+        verify(view.table.activeFocus, "the table did not get the keyboard back");
+    }
+
+    /// Open the overlay `open()` opens, close it with `esc`, and check `j` moves the table's
+    /// cursor straight afterwards. `escapes` is 2 for a sheet whose field opens prefilled:
+    /// Fig. 26's escape ladder clears the field first and closes the sheet second.
+    function _checkFocusComesBack(open, overlay, what, escapes) {
+        const row = view.table.cursorIndex;
+        open();
+        compare(overlay.opened, true, what + " did not open");
+        for (let i = 0; i < (escapes === undefined ? 1 : escapes); ++i)
+            keyClick(Qt.Key_Escape);
+        compare(overlay.opened, false, what + " did not close on esc");
+        verify(view.table.activeFocus, what + " did not give the keyboard back");
+        keyClick("j");
+        compare(view.table.cursorIndex, row + 1, "`j` did not move after " + what);
+        view.table.moveCursorTo(row);
+    }
+
+    function test_every_overlay_gives_the_keyboard_back_to_the_table() {
+        testCase._checkFocusComesBack(() => keyClick(Qt.Key_Return), view.actionsMenuPanel,
+                                      "the actions menu");
+        testCase._checkFocusComesBack(() => keyClick("s"), view.sortPalette, "the sort palette");
+        testCase._checkFocusComesBack(() => keyClick(Qt.Key_K, Qt.ControlModifier),
+                                      view.jumpPalette, "the jump palette");
+        testCase._checkFocusComesBack(() => keyClick("d"), view.deleteConfirmPanel,
+                                      "the delete confirm");
+        // The location sheet opens with the torrent's save path already in its field.
+        testCase._checkFocusComesBack(() => keyClick("m"), view.locationSheetPanel,
+                                      "the location sheet", 2);
+        testCase._checkFocusComesBack(() => keyClick(Qt.Key_C, Qt.ShiftModifier),
+                                      view.categoryPalette, "the category palette");
+        testCase._checkFocusComesBack(() => keyClick("t"), view.tagPalette, "the tag palette");
+        testCase._checkFocusComesBack(() => App.addRequested(), view.addSheet, "the add sheet");
+        testCase._checkFocusComesBack(() => App.openSettings(), view.settingsModal,
+                                      "the settings modal");
     }
 
     // ---- one Connections block, and the jump palette's `tab` (T4.8) --------------------------

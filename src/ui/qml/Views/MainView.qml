@@ -58,6 +58,56 @@ Item {
     /// The `?` sheet.
     property bool helpOpen: false
 
+    // ---- overlays (T4.8) -----------------------------------------------------------------
+    // Sheets, palettes and the actions menu are all modal: while one is up it owns the
+    // keyboard, `esc` closes that one and nothing else, and the footer teaches its keys
+    // instead of the table's. They are listed topmost-first, by the `z` each one is given
+    // further down, so the one the user is actually looking at is the one that answers.
+    /// The overlay on top, or null.
+    readonly property var activeOverlay: {
+        if (categoryPalette.opened)
+            return categoryPalette;
+        if (tagPalette.opened)
+            return tagPalette;
+        if (jumpPalette.opened)
+            return jumpPalette;
+        if (sortPalette.opened)
+            return sortPalette;
+        if (columnsPalette.opened)
+            return columnsPalette;
+        if (duplicateSheet.opened)
+            return duplicateSheet;
+        if (addSheet.opened)
+            return addSheet;
+        if (settingsModal.opened)
+            return settingsModal;
+        if (helpSheetPanel.opened)
+            return helpSheetPanel;
+        if (renameSheetPanel.opened)
+            return renameSheetPanel;
+        if (limitsSheetPanel.opened)
+            return limitsSheetPanel;
+        if (locationSheetPanel.opened)
+            return locationSheetPanel;
+        if (deleteConfirmPanel.opened)
+            return deleteConfirmPanel;
+        if (actionsMenuPanel.opened)
+            return actionsMenuPanel;
+        return null;
+    }
+
+    /// True while anything is over the window.
+    readonly property bool overlayOpen: root.activeOverlay !== null
+
+    /// The `[{key, label}]` the overlay on top teaches, for the window's footer. A menu has
+    /// none of its own: its rows print their keys themselves.
+    readonly property var overlayHints: {
+        const overlay = root.activeOverlay;
+        if (!overlay || overlay.hints === undefined)
+            return [];
+        return overlay.hints;
+    }
+
     // the window's state (spec §7)
     /// A configured, non-demo server that stopped answering: Fig. 23.
     readonly property bool serverLost: App.hasServer && !App.demoMode
@@ -286,8 +336,12 @@ Item {
     Keys.onPressed: event => root._route(event)
 
     function _route(event) {
-        if (root.helpOpen)
-            return; // the sheet traps `esc` and `?`; nothing else applies while it is up
+        // An overlay is modal: what it does not handle itself dies here rather than reaching
+        // the window underneath. `Kit/Menu` and `Kit/Palette` deliberately leave keys they
+        // have no use for unaccepted (a palette's `ctrl+k`, a menu's `i`), and without this
+        // guard those went on to open a second overlay under the first.
+        if (root.overlayOpen)
+            return;
 
         const ctrl = (event.modifiers & Qt.ControlModifier) !== 0;
         const shift = (event.modifiers & Qt.ShiftModifier) !== 0;
