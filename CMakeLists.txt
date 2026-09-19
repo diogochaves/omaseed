@@ -18,6 +18,7 @@ find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Network Qml Quick DBus)
 if(BUILD_TESTING)
     find_package(Qt6 6.8 REQUIRED COMPONENTS Test QuickTest)
 endif()
+find_package(Qt6Keychain REQUIRED)
 
 qt_standard_project_setup(REQUIRES 6.8)
 

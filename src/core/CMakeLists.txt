@@ -6,6 +6,8 @@ qt_add_library(omaseed-core STATIC
     ApiError.hpp
     Paths.cpp
     Paths.hpp
+    SecretStore.cpp
+    SecretStore.hpp
     Server.cpp
     Server.hpp
     ServerStore.cpp
@@ -23,5 +25,5 @@ target_include_directories(omaseed-core
 
 target_link_libraries(omaseed-core
     PUBLIC Qt6::Core Qt6::Network
-    PRIVATE omaseed::warnings
+    PRIVATE omaseed::warnings Qt6Keychain::Qt6Keychain
 )
