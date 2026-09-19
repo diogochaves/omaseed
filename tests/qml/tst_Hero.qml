@@ -32,6 +32,22 @@ TestCase {
         compare(cleared, 1);
     }
 
+    // T5.4: with no server configured the dot is absent-looking (spec `.dot.off`), not the
+    // green of a healthy connection.
+    function test_the_status_dot_follows_the_connection_state() {
+        const hero = createTemporaryObject(heroComponent, testCase);
+        compare(hero.statusDot.color, Theme.green);
+        hero.connected = false;
+        compare(hero.statusDot.color, Theme.red);
+        hero.syncing = true;
+        compare(hero.statusDot.color, Theme.yellow);
+        hero.serverConfigured = false;
+        compare(hero.statusDot.color, Theme.dimForeground);
+        hero.connected = true;
+        hero.syncing = false;
+        compare(hero.statusDot.color, Theme.dimForeground, "no server still drew a live dot");
+    }
+
     function test_action_signals_fire() {
         const hero = createTemporaryObject(heroComponent, testCase);
         let addClicks = 0;

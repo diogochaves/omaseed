@@ -41,7 +41,7 @@ Item {
         anchors.right: parent.right
         anchors.rightMargin: Theme.space(8)
         anchors.top: parent.top
-        spacing: Theme.space(4)
+        spacing: Theme.space(8)
 
         TableHeader {
             Layout.fillWidth: true
@@ -113,7 +113,7 @@ Item {
                 anchors.right: parent.right
                 anchors.rightMargin: Theme.space(8)
                 anchors.verticalCenter: parent.verticalCenter
-                spacing: Theme.space(4)
+                spacing: Theme.space(8)
 
                 Text {
                     Layout.fillWidth: true

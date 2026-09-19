@@ -22,6 +22,7 @@ QtObject {
     readonly property string settings: "⚙"
     readonly property string help: "?"
     readonly property string search: "/" // spec §1 `.field.search .dim`
+    readonly property string jump: "\u2315" // ⌕, spec §4 Fig. 12 `.palette .q .g`
     readonly property string folder: "▤" // spec Fig. 13 category glyph
 
     // ---- tray states, spec §6 Fig. 17 -------------------------------------------------

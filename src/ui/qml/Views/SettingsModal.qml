@@ -377,11 +377,16 @@ Item {
             }
 
             Layout.fillWidth: true
-            implicitHeight: Theme.space(470)
+            // As tall as the pane on show, never shorter than Fig. 16's own body: the fixed
+            // height padded the short panes (About, Appearance) with dead space and would
+            // have clipped a pane that grew past it.
+            implicitHeight: Math.max(Theme.space(470), bodyRow.implicitHeight)
 
             Keys.onPressed: event => root._onKey(event)
 
             RowLayout {
+                id: bodyRow
+
                 anchors.fill: parent
                 spacing: 0
 
@@ -465,10 +470,20 @@ Item {
                         }
                     }
 
-                    // The panes. Only one is ever visible; each fills what is left.
+                    // The panes. Only one is ever visible; each fills what is left, and the
+                    // visible one's implicit height is what sizes the modal.
                     Item {
+                        id: paneStack
+
                         Layout.fillHeight: true
                         Layout.fillWidth: true
+                        implicitHeight: {
+                            for (let i = 0; i < paneStack.children.length; ++i) {
+                                if (paneStack.children[i].visible)
+                                    return paneStack.children[i].implicitHeight;
+                            }
+                            return 0;
+                        }
 
                         // ---- General ---------------------------------------------------
                         ColumnLayout {

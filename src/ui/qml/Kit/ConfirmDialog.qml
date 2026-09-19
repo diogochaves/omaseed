@@ -193,6 +193,8 @@ Item {
                     id: cancelButton
 
                     Layout.preferredWidth: Theme.space(88)
+                    // Fig. 6 draws both buttons as `.btn b` — a hairline outline at idle.
+                    bordered: true
                     fontSize: Theme.font.caption
                     hasCursor: root.cursor === 0
                     text: root.cancelText
@@ -204,6 +206,7 @@ Item {
                     id: confirmButton
 
                     Layout.preferredWidth: Theme.space(88)
+                    bordered: true
                     danger: root.destructive
                     fontSize: Theme.font.caption
                     hasCursor: root.cursor === 1

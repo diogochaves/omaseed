@@ -30,7 +30,8 @@ Sheet {
     ]
     glyph: "⇅" // ⇅
     sheetWidth: Theme.space(420)
-    subtitle: qsTr("%1 torrents").arg(root.hashes.length)
+    subtitle: root.hashes.length === 1 ? qsTr("1 torrent") : qsTr("%1 torrents").arg(
+                                             root.hashes.length)
     title: qsTr("Limits")
 
     /// Opens on `hashes`, prefilling from the cursor torrent (`hashes[0]`)'s own limits.
@@ -89,74 +90,87 @@ Sheet {
         root.close();
     }
 
-    FormRow {
+    // Spec §3 Fig. 8 lays the four rows out as `.sheet .cols`
+    // (`grid-template-columns: 1fr 1fr`), two by two, not as one column.
+    GridLayout {
         Layout.fillWidth: true
-        label: qsTr("Download")
+        columnSpacing: Theme.space(10)
+        columns: 2
+        rowSpacing: Theme.space(10)
 
-        Field {
-            id: dlField
-
+        FormRow {
             Layout.fillWidth: true
-            placeholder: "∞" // ∞
-            trailing: qsTr("KB/s")
-
-            onAccepted: root.triggerPrimary()
-        }
-    }
-
-    FormRow {
-        Layout.fillWidth: true
-        label: qsTr("Upload")
-
-        Field {
-            id: ulField
-
-            Layout.fillWidth: true
-            placeholder: "∞"
-            trailing: qsTr("KB/s")
-
-            onAccepted: root.triggerPrimary()
-        }
-    }
-
-    FormRow {
-        Layout.fillWidth: true
-        label: qsTr("Share ratio")
-
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: Theme.space(8)
+            Layout.preferredWidth: 1
+            label: qsTr("Download")
 
             Field {
-                id: ratioField
+                id: dlField
 
                 Layout.fillWidth: true
-                enabled: !root._ratioGlobal
+                placeholder: "∞" // ∞
+                trailing: qsTr("KB/s")
 
                 onAccepted: root.triggerPrimary()
             }
+        }
 
-            Chip {
-                selected: root._ratioGlobal
-                text: qsTr("global ▾")
+        FormRow {
+            Layout.fillWidth: true
+            Layout.preferredWidth: 1
+            label: qsTr("Upload")
 
-                onClicked: root._ratioGlobal = !root._ratioGlobal
+            Field {
+                id: ulField
+
+                Layout.fillWidth: true
+                placeholder: "∞"
+                trailing: qsTr("KB/s")
+
+                onAccepted: root.triggerPrimary()
             }
         }
-    }
 
-    FormRow {
-        Layout.fillWidth: true
-        label: qsTr("Seeding time")
-
-        Field {
-            id: seedingField
-
+        FormRow {
             Layout.fillWidth: true
-            placeholder: "∞"
-            trailing: qsTr("days")
+            Layout.preferredWidth: 1
+            label: qsTr("Share ratio")
 
-            onAccepted: root.triggerPrimary()
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: Theme.space(8)
+
+                Field {
+                    id: ratioField
+
+                    Layout.fillWidth: true
+                    enabled: !root._ratioGlobal
+
+                    onAccepted: root.triggerPrimary()
+                }
+
+                Chip {
+                    selected: root._ratioGlobal
+                    text: qsTr("global ▾")
+
+                    onClicked: root._ratioGlobal = !root._ratioGlobal
+                }
+            }
+        }
+
+        FormRow {
+            Layout.fillWidth: true
+            Layout.preferredWidth: 1
+            label: qsTr("Seeding time")
+
+            Field {
+                id: seedingField
+
+                Layout.fillWidth: true
+                placeholder: "∞"
+                trailing: qsTr("days")
+
+                onAccepted: root.triggerPrimary()
+            }
         }
     }
 }

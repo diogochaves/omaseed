@@ -433,6 +433,13 @@ Item {
 
                                                                 Layout.fillWidth: true
                                                                 Layout.preferredWidth: 1
+                                                                // Spec §3 draws every sheet
+                                                                // action as `.btn b`: a
+                                                                // hairline outline at idle.
+                                                                // §8's "idle buttons have no
+                                                                // chrome" is about the hero's
+                                                                // bare glyph buttons.
+                                                                bordered: true
                                                                 danger: actionButton.modelData.danger
                                                                         === true
                                                                 primary: actionButton.modelData.primary

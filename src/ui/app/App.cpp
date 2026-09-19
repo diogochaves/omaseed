@@ -825,15 +825,40 @@ bool App::matchesQuery(const QString &text, const QString &query)
     return true;
 }
 
+bool App::matchesHashPrefix(const QString &hash, const QString &query)
+{
+    // A hash is 40 (v1) or 64 (v2) hex characters, so a subsequence match on it is almost
+    // free: "fed" finds an f, then an e, then a d somewhere in nearly every hash in the
+    // library (spec §4 Fig. 12 promises "also matches hash", not "matches noise"). Only a
+    // prefix counts, which is how a hash is ever typed or pasted-and-trimmed.
+    if (hash.isEmpty() || query.isEmpty())
+        return false;
+    const QString word = query.trimmed().toLower();
+    if (word.isEmpty() || word.contains(QLatin1Char(' ')))
+        return false;
+    for (const QChar ch : word) {
+        const bool hex = (ch >= QLatin1Char('0') && ch <= QLatin1Char('9')) ||
+                         (ch >= QLatin1Char('a') && ch <= QLatin1Char('f'));
+        if (!hex)
+            return false;
+    }
+    return hash.toLower().startsWith(word);
+}
+
+bool App::matchesTorrent(const core::Torrent &torrent, const QString &query)
+{
+    return matchesQuery(torrent.name, query) || matchesHashPrefix(torrent.infohashV1, query) ||
+           matchesHashPrefix(torrent.infohashV2, query) ||
+           matchesQuery(torrent.trackerHostKey(), query);
+}
+
 QVariantList App::jumpMatches(const QString &query, int limit) const
 {
     QVariantList rows;
     const TorrentModel *model = m_engine->torrents();
     for (int i = 0; i < model->count() && rows.size() < limit; ++i) {
         const Torrent &torrent = model->torrentAt(i);
-        if (!matchesQuery(torrent.name, query) && !matchesQuery(torrent.infohashV1, query) &&
-            !matchesQuery(torrent.infohashV2, query) &&
-            !matchesQuery(torrent.trackerHostKey(), query))
+        if (!matchesTorrent(torrent, query))
             continue;
 
         const QString category =
@@ -857,10 +882,7 @@ int App::jumpMatchCount(const QString &query) const
     const TorrentModel *model = m_engine->torrents();
     int total = 0;
     for (int i = 0; i < model->count(); ++i) {
-        const Torrent &torrent = model->torrentAt(i);
-        if (matchesQuery(torrent.name, query) || matchesQuery(torrent.infohashV1, query) ||
-            matchesQuery(torrent.infohashV2, query) ||
-            matchesQuery(torrent.trackerHostKey(), query))
+        if (matchesTorrent(model->torrentAt(i), query))
             ++total;
     }
     return total;

@@ -386,7 +386,7 @@ Item {
                 App.addRequested();
             break;
         case Qt.Key_S:
-            sortPalette.open();
+            sortPalette.openOnCurrent();
             break;
         case Qt.Key_Comma:
             App.openSettings();
@@ -571,6 +571,7 @@ Item {
         altSpeedActive: App.globalState.useAltSpeedLimits
         appName: qsTr("omaseed")
         connected: !root.serverLost
+        serverConfigured: App.hasServer
         downSpeed: root.live ? App.globalState.dlSpeedText : "—"
         searchCount: App.filtered.count
         searchCountText: App.filtered.text.length > 0 ? qsTr("%1 of %2").arg(
@@ -1083,7 +1084,7 @@ Item {
             tagPalette.openFor(root.actionHashes());
             break;
         case "sort":
-            sortPalette.open();
+            sortPalette.openOnCurrent();
             break;
         case "columns":
             columnsPalette.open();

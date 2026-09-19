@@ -85,6 +85,13 @@ Palette {
         return rows;
     }
 
+    /// Opens with the cursor on the role the table is already sorted by — Fig. 14 draws it
+    /// on "download speed · ▾ current" — instead of on row 0.
+    function openOnCurrent(): void {
+        root.query = "";
+        root.openOn(root.table !== null ? root.table.sortRoleName : "");
+    }
+
     onActivated: (index, item) => {
         if (root.table !== null)
             root.table.sortBy(item.key);

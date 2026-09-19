@@ -508,9 +508,11 @@ private:
     // `TorrentTable`); this is only the parts that need the client, the models App already
     // owns, or `StateFile` (the columns/sort round trip, keyed by server id).
 public:
-    /// The jump palette's rows: every torrent whose name, hash (v1/v2) or tracker host
-    /// matches `query` (case-insensitive substring-or-subsequence per whitespace-separated
-    /// word, empty query matches everything), newest match first is NOT guaranteed — the
+    /// The jump palette's rows: every torrent whose name or tracker host matches `query`
+    /// (case-insensitive substring-or-subsequence per whitespace-separated word, empty query
+    /// matches everything), or whose v1/v2 infohash *starts with* it (a hex-only query, no
+    /// subsequence: 40 hex characters match almost any subsequence). Newest match first is
+    /// NOT guaranteed — the
     /// library's own order is kept. Capped at `limit` rows; `jumpMatchCount()` is the true
     /// count. Each row is `{key: hash, title: name, meta: stateText, detail: "<category> ·
     /// <sizeText> · <progressText or "ratio X.X">"}` (spec §4 Fig. 12).
@@ -552,6 +554,10 @@ Q_SIGNALS:
 
 private:
     static bool matchesQuery(const QString &text, const QString &query);
+    /// True when `query` is a non-empty hex string and `hash` starts with it.
+    static bool matchesHashPrefix(const QString &hash, const QString &query);
+    /// The jump palette's whole per-torrent test: name/tracker fuzzy, hash by prefix.
+    static bool matchesTorrent(const core::Torrent &torrent, const QString &query);
     // --- end T4.4 ------------------------------------------------------------------------
     // --- T4.2: add flow ---------------------------------------------------------------------
     // Everything the add sheet (spec §3 Fig. 5) and the duplicate sheet (Fig. 10) need from

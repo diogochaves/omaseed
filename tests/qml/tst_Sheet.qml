@@ -196,6 +196,16 @@ TestCase {
         compare(buttons[0].primary, false);
     }
 
+    // T5.4: spec §3 draws every `.sheet .acts .btn` as `.btn b` — an idle hairline outline.
+    function test_every_action_carries_the_idle_outline() {
+        const sheet = createTemporaryObject(formSheetComponent, testCase);
+        const buttons = sheet.actionButtons();
+        for (let i = 0; i < buttons.length; ++i) {
+            compare(buttons[i].bordered, true);
+            compare(buttons[i].border.width, 1);
+        }
+    }
+
     function test_a_sheet_may_have_no_actions_at_all() {
         const sheet = createTemporaryObject(plainSheetComponent, testCase);
         compare(sheet.actions.length, 0);

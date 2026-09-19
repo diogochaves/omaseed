@@ -81,6 +81,25 @@ Item {
                           previous.forceActiveFocus();
                       }
 
+    /// Open with the cursor on the row whose `key` is `key` (the current value) instead of
+    /// on row 0 — spec §4 Fig. 14 draws the cursor on "download speed · ▾ current". Falls
+    /// back to row 0 when no row carries that key.
+    function openOn(key: var): void {
+        root.open();
+        root.cursorToKey(key);
+    }
+
+    /// Move the cursor onto the row carrying `key`. A no-op when there is none.
+    function cursorToKey(key: var): void {
+        for (let i = 0; i < root.items.length; ++i) {
+            if (root.items[i].key === key) {
+                root.cursorIndex = i;
+                list.positionViewAtIndex(i, ListView.Contain);
+                return;
+            }
+        }
+    }
+
     /// Put the caret in the query row.
     function focusQuery(): void {
     input.forceActiveFocus();

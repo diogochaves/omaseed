@@ -25,7 +25,8 @@ Sheet {
     ]
     glyph: "⌂" // ⌂, spec Fig. 7
     sheetWidth: Theme.space(420)
-    subtitle: qsTr("%1 torrent(s) · %2 moves with it").arg(root.hashes.length).arg(
+    subtitle: qsTr("%1 · %2 moves with it").arg(root.hashes.length === 1 ? qsTr("1 torrent") : qsTr(
+                                                    "%1 torrents").arg(root.hashes.length)).arg(
                  App.sizeText(root._totalSize))
     title: qsTr("Set location")
 

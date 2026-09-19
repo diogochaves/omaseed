@@ -77,6 +77,15 @@ TestCase {
         compare(dialog.confirmButton.fontSize, Theme.font.caption);
     }
 
+    // T5.4: Fig. 6 draws both as `.btn b` — an idle hairline outline, not bare text.
+    function test_both_buttons_carry_the_idle_outline() {
+        const dialog = createTemporaryObject(deleteComponent, testCase);
+        compare(dialog.cancelButton.bordered, true);
+        compare(dialog.confirmButton.bordered, true);
+        compare(dialog.cancelButton.border.width, 1);
+        compare(dialog.confirmButton.border.width, 1);
+    }
+
     function test_the_caller_row_sits_between_the_message_and_the_buttons() {
         const dialog = createTemporaryObject(deleteComponent, testCase);
         dialog.open();

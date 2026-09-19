@@ -11,6 +11,9 @@ Item {
 
     property string appName: "omaseed"
     property bool connected: true
+    /// No server is configured at all. The dot then reads as absent — the spec's `.dot.off`,
+    /// the dim foreground — instead of the green `connected: true` would otherwise draw.
+    property bool serverConfigured: true
     /// The first sync has not landed yet (spec §7 Fig. 25): the mark stays accent, the dot
     /// goes yellow and the caller writes "… · first sync" into `serverLine`.
     property bool syncing: false
@@ -20,6 +23,8 @@ Item {
     // Exposed read-only so `tst_Hero.qml` can drive the inner Field directly instead of
     // simulating keystrokes.
     property alias searchField: searchField
+    /// The connection dot (spec `.dot`), exposed so a test can read the colour it resolved to.
+    readonly property alias statusDot: statusDot
     property int searchCount: 0
     /// What the field's trailing count prints. Fig. 1 shows the bare count, Fig. 24 shows
     /// "0 of 142"; the caller decides, and the plain count is the default.
@@ -57,7 +62,8 @@ Item {
             Layout.alignment: Qt.AlignVCenter
             Layout.preferredHeight: Theme.space(28)
             Layout.preferredWidth: Theme.space(28)
-            border.color: (root.connected || root.syncing) ? Theme.accent : Theme.red
+            border.color: (root.connected || root.syncing
+                           || !root.serverConfigured) ? Theme.accent : Theme.red
             border.width: 1
             color: "transparent"
 
@@ -86,8 +92,10 @@ Item {
                 spacing: Theme.space(6)
 
                 Rectangle {
+                    id: statusDot
+
                     anchors.verticalCenter: parent.verticalCenter
-                    color: root.syncing ? Theme.yellow : root.connected ? Theme.green : Theme.red
+                    color: !root.serverConfigured ? Theme.dimForeground : root.syncing ? Theme.yellow : root.connected ? Theme.green : Theme.red
                     height: Theme.space(7)
                     radius: width / 2
                     width: Theme.space(7)

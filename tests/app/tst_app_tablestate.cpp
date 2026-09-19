@@ -118,6 +118,39 @@ void TestAppTableState::jumpMatchesFindsByNameHashAndTracker()
     // The tracker host is searchable too: every "movies"-categorised row shares
     // tracker.example.org (DemoData.cpp's kMoviesTracker).
     QVERIFY(app.jumpMatchCount(QStringLiteral("example.org")) > 1);
+
+    // A hash is matched by PREFIX only (spec §4 Fig. 12 "also matches hash"): a subsequence
+    // test over 40 hex characters matched almost the whole library for a query like "fed".
+    const QString hash = row.value(QStringLiteral("key")).toString();
+    QCOMPARE(hash.size(), 40);
+    QCOMPARE(app.jumpMatchCount(hash), 1);
+    QCOMPARE(app.jumpMatches(hash, 50).first().toMap().value(QStringLiteral("key")).toString(),
+             hash);
+    QCOMPARE(app.jumpMatchCount(hash.left(12)), 1);
+    // The same 12 characters taken from the middle of the hash are no longer a hash hit.
+    const QVariantList middle = app.jumpMatches(hash.mid(14, 12), 50);
+    for (const QVariant &candidate : middle)
+        QVERIFY(candidate.toMap().value(QStringLiteral("key")).toString() != hash);
+    // "fed" is hex, but no demo hash starts with it, and neither demo tracker host holds an
+    // "f", so every row it still returns has to hit on the NAME as a subsequence. Before the
+    // prefix rule it matched 6 of the 16 rows through their hashes.
+    const auto subsequence = [](const QString &text, const QString &word) {
+        qsizetype at = 0;
+        for (const QChar ch : word) {
+            const qsizetype found = text.toLower().indexOf(ch, at);
+            if (found < 0)
+                return false;
+            at = found + 1;
+        }
+        return true;
+    };
+    const QVariantList fed = app.jumpMatches(QStringLiteral("fed"), 50);
+    QVERIFY(!fed.isEmpty());
+    for (const QVariant &candidate : fed) {
+        const QString title = candidate.toMap().value(QStringLiteral("title")).toString();
+        QVERIFY2(subsequence(title, QStringLiteral("fed")), qPrintable(title));
+    }
+    QCOMPARE(app.jumpMatchCount(QStringLiteral("fed")), fed.size());
 }
 
 void TestAppTableState::tagsOfSplitsTheJoinedText()

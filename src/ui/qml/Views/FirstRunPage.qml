@@ -386,10 +386,12 @@ ColumnLayout {
                     }
 
                     Label {
-                        color: Theme.accent
+                        // Spec Fig. 15 `.choice .k`: a dim caption in the key's own case —
+                        // case is meaningful in every key chip (T3.5/T3.6), and `tracked`
+                        // would print it as "ENTER".
+                        dim: true
                         size: "caption"
                         text: qsTr("enter")
-                        tracked: true
                         visible: optionRow.hasCursor
                     }
                 }

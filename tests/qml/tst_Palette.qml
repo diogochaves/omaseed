@@ -277,6 +277,62 @@ TestCase {
         verify(!palette.match("Fedora-Workstation-Live", "ubuntu"));
     }
 
+    // ---- opening on the current value (T5.4) --------------------------------------------
+    function test_open_on_puts_the_cursor_on_the_row_carrying_that_key() {
+        const palette = createTemporaryObject(paletteComponent, testCase, {
+                                                  "items": [
+                                                      {
+                                                          "title": "name",
+                                                          "key": "name"
+                                                      },
+                                                      {
+                                                          "title": "size",
+                                                          "key": "size"
+                                                      },
+                                                      {
+                                                          "title": "download speed",
+                                                          "key": "dlspeed"
+                                                      }
+                                                  ]
+                                              });
+        palette.openOn("dlspeed");
+        compare(palette.cursorIndex, 2);
+        compare(palette.currentItem.title, "download speed");
+        palette.close();
+    }
+
+    function test_open_on_an_unknown_key_stays_on_the_first_row() {
+        const palette = createTemporaryObject(paletteComponent, testCase, {
+                                                  "items": testCase.categoryRows
+                                              });
+        // categoryRows carry no `key` at all, so nothing can match.
+        palette.openOn("movies");
+        compare(palette.cursorIndex, 0);
+        palette.close();
+    }
+
+    function test_cursor_to_key_moves_an_already_open_palette() {
+        const palette = createTemporaryObject(paletteComponent, testCase, {
+                                                  "items": [
+                                                      {
+                                                          "title": "a",
+                                                          "key": "a"
+                                                      },
+                                                      {
+                                                          "title": "b",
+                                                          "key": "b"
+                                                      }
+                                                  ]
+                                              });
+        palette.open();
+        compare(palette.cursorIndex, 0);
+        palette.cursorToKey("b");
+        compare(palette.cursorIndex, 1);
+        palette.cursorToKey("nope");
+        compare(palette.cursorIndex, 1, "an unknown key moved the cursor");
+        palette.close();
+    }
+
     // ---- inline (the gallery) ---------------------------------------------------------
     function test_inline_drops_the_scrim_and_the_centring() {
         const palette = createTemporaryObject(paletteComponent, testCase, {

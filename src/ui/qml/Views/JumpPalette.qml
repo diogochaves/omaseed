@@ -20,7 +20,7 @@ Palette {
 
     counter: qsTr("%1 of %2").arg(App.jumpMatchCount(root.query)).arg(App.torrents.count)
     footerRight: qsTr("also matches hash and tracker")
-    glyph: Glyphs.search
+    glyph: Glyphs.jump
     hints: [
         {
             "key": "↑↓",

@@ -73,11 +73,26 @@ Palette {
     }
 
     /// Opens the palette for `newHashes` (the seam `App.categoryPickerRequested` drives).
+    /// The cursor starts on the category those torrents already share (Fig. 13/14's rule:
+    /// a picker opens on the current value), not on row 0.
     function openFor(newHashes: var): void {
         root.hashes = newHashes;
         root.choiceMode = false;
         root.query = "";
-        root.open();
+        root.openOn(root._sharedCategory());
+    }
+
+    /// The category every hash already has, or `undefined` when they disagree.
+    function _sharedCategory(): var {
+        let shared;
+        for (let i = 0; i < root.hashes.length; ++i) {
+            const value = App.torrentRow(root.hashes[i]).category;
+            if (i === 0)
+                shared = value;
+            else if (shared !== value)
+                return undefined;
+        }
+        return shared;
     }
 
     /// Opens the palette to answer one caller (the add sheet) with `chosen(name)`.
