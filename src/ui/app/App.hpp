@@ -306,6 +306,60 @@ private:
     bool m_notifyDiskFullEnabled = true;
     bool m_notificationTogglesLoaded = false;
     // --- end T4.7 ----------------------------------------------------------------------------
+
+    // --- T4.4: palettes ---------------------------------------------------------------------
+    // Jump (`ctrl+k`), category, tags, sort and columns are all `Kit/Palette` over data this
+    // block hands them. None of it is view state (that stays in the QML palettes and in
+    // `TorrentTable`); this is only the parts that need the client, the models App already
+    // owns, or `StateFile` (the columns/sort round trip, keyed by server id).
+public:
+    /// The jump palette's rows: every torrent whose name, hash (v1/v2) or tracker host
+    /// matches `query` (case-insensitive substring-or-subsequence per whitespace-separated
+    /// word, empty query matches everything), newest match first is NOT guaranteed — the
+    /// library's own order is kept. Capped at `limit` rows; `jumpMatchCount()` is the true
+    /// count. Each row is `{key: hash, title: name, meta: stateText, detail: "<category> ·
+    /// <sizeText> · <progressText or "ratio X.X">"}` (spec §4 Fig. 12).
+    Q_INVOKABLE QVariantList jumpMatches(const QString &query, int limit = 50) const;
+    /// The true number of matches `jumpMatches()` would find without the cap.
+    Q_INVOKABLE int jumpMatchCount(const QString &query) const;
+
+    /// POST torrents/createCategory with no save path (Fig. 13's "new name creates it").
+    Q_INVOKABLE void createCategory(const QString &name);
+    /// POST torrents/setCategory. A no-op in demo mode beyond a log line.
+    Q_INVOKABLE void applyCategory(const QStringList &hashes, const QString &name);
+
+    /// POST torrents/createTags with one tag.
+    Q_INVOKABLE void createTag(const QString &name);
+    /// torrents/addTags for `added`, torrents/removeTags for `removed`. A no-op in demo mode
+    /// beyond a log line.
+    Q_INVOKABLE void
+    applyTags(const QStringList &hashes, const QStringList &added, const QStringList &removed);
+    /// The tags of one torrent, split the way `torrentRow()`'s `tagsText` joins them, for the
+    /// tag palette's per-row `checked` state.
+    Q_INVOKABLE QStringList tagsOf(const QString &hash) const;
+
+    /// The key `saveTableState()`/`tableState()` persist under: the chosen server's id, or
+    /// `"demo"` under `--demo`, or an empty string with no server (nothing persists then).
+    Q_INVOKABLE QString tableStateKey() const;
+    /// Writes `{"columns": [...], "sortRole": "...", "sortOrder": int}` under
+    /// `"tables"."<key>"` of `state.json`. A no-op when `tableStateKey()` is empty.
+    Q_INVOKABLE void saveTableState(const QString &key, const QVariantMap &state);
+    /// The map `saveTableState()` wrote for `key`, or an empty map.
+    Q_INVOKABLE QVariantMap tableState(const QString &key) const;
+
+Q_SIGNALS:
+    /// The jump palette's `tab` (Fig. 12's "tab actions"): jump to `hash`, then open the
+    /// actions menu on it. `MainView`'s `Connections` block answers it.
+    void showActionsRequested(const QString &hash);
+    /// T4.3's `C`/`t` (or the AddSheet's chips) ask App for the category/tag picker; this
+    /// block's `Connections { target: App }` in MainView opens `CategoryPalette`/`TagPalette`
+    /// on `hashes` in response.
+    void categoryPickerRequested(const QStringList &hashes);
+    void tagPickerRequested(const QStringList &hashes);
+
+private:
+    static bool matchesQuery(const QString &text, const QString &query);
+    // --- end T4.4 ------------------------------------------------------------------------
 };
 
 } // namespace omaseed::app

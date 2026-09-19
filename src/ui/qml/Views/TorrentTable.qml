@@ -352,6 +352,9 @@ Item {
             root.moveCursor(1);
             break;
         case Qt.Key_K:
+            // `ctrl+k` is the jump palette (T4.4); plain `k` moves the cursor up.
+            if (event.modifiers & Qt.ControlModifier)
+                return;
             root.moveCursor(-1);
             break;
         case Qt.Key_G:

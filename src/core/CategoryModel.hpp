@@ -38,7 +38,7 @@ public:
     QHash<int, QByteArray> roleNames() const override;
 
     int count() const { return int(m_categories.size()); }
-    QStringList names() const;
+    Q_INVOKABLE QStringList names() const;
     Q_INVOKABLE QString savePathOf(const QString &name) const;
 
     void applyFullUpdate(const QJsonObject &categories);
