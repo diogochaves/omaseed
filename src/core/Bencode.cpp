@@ -292,12 +292,23 @@ void encodeInto(const Value &value, QByteArray &out)
         out += 'e';
         break;
     case Value::Type::Dict: {
-        Dict entries = value.toDict();
-        std::sort(entries.begin(), entries.end(), [](const DictEntry &a, const DictEntry &b) {
-            return a.first < b.first;
+        // Sort a list of indices by key rather than sorting `entries` in place: std::sort
+        // swaps elements, and swapping a DictEntry move-assigns a Value, which GCC 16's
+        // libstdc++ <variant> mis-analyses as reading uninitialised storage under -O2
+        // (-Werror=maybe-uninitialized false positive; the variant holds only Qt's
+        // implicitly-shared types plus qint64/monostate, so nothing is ever actually
+        // uninitialised). Indexing instead never move-assigns a Value, so it sidesteps the
+        // bug entirely rather than papering over it.
+        const Dict entries = value.toDict();
+        QList<qsizetype> order(entries.size());
+        for (qsizetype i = 0; i < entries.size(); ++i)
+            order[i] = i;
+        std::sort(order.begin(), order.end(), [&entries](qsizetype a, qsizetype b) {
+            return entries.at(a).first < entries.at(b).first;
         });
         out += 'd';
-        for (const auto &entry : entries) {
+        for (qsizetype idx : order) {
+            const auto &entry = entries.at(idx);
             out += QByteArray::number(static_cast<qint64>(entry.first.size()));
             out += ':';
             out += entry.first;
