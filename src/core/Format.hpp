@@ -48,4 +48,29 @@ QString duration(qint64 seconds);
 /// "21 / 42" — connected seeds over connected peers (spec §1 S / P column).
 QString seedsPeers(int seeds, int peers);
 
+// --- the details pane (spec §2 Fig. 1-4) ---------------------------------------------
+
+/// The peers table's abbreviated speed: "1.02 M", "744 K", "12 K", "0" (spec §2 Fig. 4,
+/// "Speeds abbreviate to fit"). Same three-significant-digit rule as size(), with one-letter
+/// units and no "/s"; bytes per second under 1 KB print as a bare number.
+QString speedShort(qint64 bytesPerSecond);
+
+/// A count with the spec's space as the thousands separator: 1264 -> "1 264" (spec §2 Fig. 1
+/// "1 264 × 1 MiB", "1 204 total").
+QString count(qint64 value);
+
+/// "1 264 × 1 MiB · 617 have" — the General tab's Pieces row (spec §2 Fig. 1). Piece sizes
+/// are powers of two, so this one row prints proper binary units (KiB/MiB/GiB) rather than
+/// qBittorrent's KB/MB/GB labels. Empty when there are no pieces yet (a magnet without
+/// metadata).
+QString pieces(int pieceCount, qint64 pieceSize, int piecesHave);
+
+/// "21 connected · 1 204 total" — the General tab's Seeds and Peers rows (spec §2 Fig. 1).
+QString connectedTotal(int connected, int total);
+
+/// "global · ratio 2.0", "unlimited", "ratio 2.0 · 7d" — the General tab's Share limit row
+/// (spec §2 Fig. 1). `ratioLimit` and `seedingTimeLimit` follow qBittorrent's sentinels:
+/// -2 means "use the global limit", -1 "no limit"; the time limit is in minutes.
+QString shareLimit(double ratioLimit, qint64 seedingTimeLimit);
+
 } // namespace omaseed::core::Format

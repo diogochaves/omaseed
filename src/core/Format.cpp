@@ -1,7 +1,9 @@
 #include "core/Format.hpp"
 
 #include <QLocale>
+#include <QStringList>
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 
@@ -149,7 +151,12 @@ QString percentCompact(double fraction)
         return QStringLiteral("0%");
     if (value >= 100.0)
         return QStringLiteral("100%");
-    return QStringLiteral("%1%").arg(QString::number(value, 'f', 1));
+    // 99.9995 % renders as "100.0", which reads like a stray decimal on a finished item;
+    // the spec's own figures print "100 %" there (spec §2 Fig. 2's folder rows).
+    const QString rendered = QString::number(value, 'f', 1);
+    if (rendered == QLatin1String("100.0"))
+        return QStringLiteral("100%");
+    return rendered + QLatin1Char('%');
 }
 
 QString relativeTime(const QDateTime &when)
@@ -179,6 +186,78 @@ QString added(const QDateTime &when)
 QString seedsPeers(int seeds, int peers)
 {
     return QStringLiteral("%1 / %2").arg(seeds).arg(peers);
+}
+
+QString speedShort(qint64 bytesPerSecond)
+{
+    if (bytesPerSecond <= 0)
+        return QStringLiteral("0");
+
+    static const std::array<const char *, 5> units{"", "K", "M", "G", "T"};
+
+    double value = double(bytesPerSecond);
+    size_t unit = 0;
+    while (value >= kUnit && unit + 1 < units.size()) {
+        value /= kUnit;
+        ++unit;
+    }
+    if (unit == 0)
+        return QString::number(qint64(value));
+
+    const int decimals = unit == 1 ? 0 : (value < 10.0 ? 2 : (value < 100.0 ? 1 : 0));
+    return QStringLiteral("%1 %2").arg(QString::number(value, 'f', decimals),
+                                       QString::fromLatin1(units.at(unit)));
+}
+
+QString count(qint64 value)
+{
+    // The spec's figures group with a plain space ("1 264", "1 204 total"), not with the
+    // locale's separator: the window is monospaced and must read the same in every locale.
+    const bool negative = value < 0;
+    QString digits = QString::number(negative ? -value : value);
+    for (int at = digits.size() - 3; at > 0; at -= 3)
+        digits.insert(at, QLatin1Char(' '));
+    return negative ? QLatin1Char('-') + digits : digits;
+}
+
+QString pieces(int pieceCount, qint64 pieceSize, int piecesHave)
+{
+    if (pieceCount <= 0 || pieceSize <= 0)
+        return QString();
+
+    static const std::array<const char *, 5> units{"B", "KiB", "MiB", "GiB", "TiB"};
+    double value = double(pieceSize);
+    size_t unit = 0;
+    while (value >= kUnit && unit + 1 < units.size()) {
+        value /= kUnit;
+        ++unit;
+    }
+    const int decimals = value < 10.0 && value != std::floor(value) ? 1 : 0;
+    const QString each = QStringLiteral("%1 %2").arg(QString::number(value, 'f', decimals),
+                                                     QString::fromLatin1(units.at(unit)));
+
+    return QStringLiteral("%1 × %2 · %3 have")
+        .arg(count(pieceCount), each, count(std::max(0, piecesHave)));
+}
+
+QString connectedTotal(int connected, int total)
+{
+    return QStringLiteral("%1 connected · %2 total")
+        .arg(count(std::max(0, connected)), count(std::max(0, total)));
+}
+
+QString shareLimit(double ratioLimit, qint64 seedingTimeLimit)
+{
+    QStringList parts;
+    if (ratioLimit <= -2.0 || seedingTimeLimit <= -2)
+        parts.append(QStringLiteral("global"));
+    if (ratioLimit >= 0.0)
+        parts.append(QStringLiteral("ratio %1").arg(QString::number(ratioLimit, 'f', 1)));
+    if (seedingTimeLimit >= 0)
+        parts.append(QStringLiteral("seeding %1").arg(duration(seedingTimeLimit * 60)));
+    if (parts.isEmpty())
+        parts.append(QStringLiteral("unlimited"));
+    return parts.join(QStringLiteral(" · "));
 }
 
 } // namespace omaseed::core::Format
