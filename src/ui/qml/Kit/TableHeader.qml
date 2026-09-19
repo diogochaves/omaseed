@@ -22,13 +22,15 @@ Item {
     height: root.implicitHeight
     implicitHeight: Theme.font.body * 2
 
+    // T3.3: the row is anchored to one side rather than stretched with a reversed
+    // `layoutDirection`. Reversing it also reversed the two children, so a sorted numeric
+    // header read `▾ ↓` where the spec's Fig. 1 header reads `↓ ▾`.
     Row {
-        anchors.left: parent.left
+        anchors.left: root.alignRight ? undefined : parent.left
         anchors.leftMargin: Theme.space(8)
-        anchors.right: parent.right
+        anchors.right: root.alignRight ? parent.right : undefined
         anchors.rightMargin: Theme.space(8)
         anchors.verticalCenter: parent.verticalCenter
-        layoutDirection: root.alignRight ? Qt.RightToLeft : Qt.LeftToRight
         spacing: Theme.space(4)
 
         Text {
