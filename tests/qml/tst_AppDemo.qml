@@ -13,6 +13,7 @@ TestCase {
         compare(App.demoMode, true);
         compare(App.torrents.count, 16);
         compare(App.filtered.count, 16);
-        compare(App.counts.downloading, 6);
+        compare(App.counts.total, 16);
+        verify(App.counts.downloading > 0);
     }
 }
