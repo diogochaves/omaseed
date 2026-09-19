@@ -4,6 +4,10 @@ add_subdirectory(Views)
 
 qt_add_library(omaseed-qml STATIC)
 
+# `Keymap` is the single table of keys; it must be one object, not one per import. The
+# property has to be set before the module is declared or the qmldir loses the `singleton`.
+set_source_files_properties(Keymap.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
+
 qt_add_qml_module(omaseed-qml
     URI Omaseed
     VERSION 1.0
@@ -12,6 +16,8 @@ qt_add_qml_module(omaseed-qml
         CoreForeign.hpp
         XdgForeign.hpp
     QML_FILES
+        HintModel.qml
+        Keymap.qml
         Main.qml
 )
 

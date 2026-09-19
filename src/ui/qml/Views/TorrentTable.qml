@@ -127,6 +127,9 @@ Item {
     readonly property string cursorHash: internal.cursorHash
     readonly property alias selectedCount: internal.selectedCount
     readonly property bool renaming: internal.renameIndex >= 0
+    /// The row being renamed, or -1. Main compares it with the cursor to decide whether the
+    /// footer should teach `enter apply · esc cancel` instead of the table's usual line.
+    readonly property alias renameIndex: internal.renameIndex
 
     /// The live text of the inline editor, so a caller (and the test) can read or replace
     /// what `commitRename()` will emit.
@@ -387,6 +390,9 @@ Item {
             root.focusRail();
             break;
         case Qt.Key_L:
+            // Plain `l` hands the focus right; `L` is the limits action and belongs to Main.
+            if (event.modifiers & Qt.ShiftModifier)
+                return;
             root.focusDetails();
             break;
         default:

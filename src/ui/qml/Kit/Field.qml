@@ -17,8 +17,18 @@ Rectangle {
     property string trailing: ""
     property bool hasCursor: false
 
+    /// True while the caret is in the field: the caller (Main) reads it to know that the
+    /// search box, not the table, owns the keyboard.
+    readonly property alias editing: input.activeFocus
+
     signal accepted
     signal cleared
+
+    /// Puts the caret in the field. `forceActiveFocus()` on the Rectangle itself would stop
+    /// at the root and never reach the inner TextInput.
+    function focusInput(): void {
+    input.forceActiveFocus();
+}
 
     readonly property bool hot: root.hasCursor || hoverHandler.hovered || input.activeFocus
 

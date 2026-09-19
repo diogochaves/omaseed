@@ -21,7 +21,9 @@ qt_add_qml_module(omaseed-views
         DisconnectedBanner.qml
         EmptyState.qml
         FilteredEmpty.qml
+        HelpSheet.qml
         LoadingState.qml
+        MainView.qml
         Rail.qml
         RailGroup.qml
         ThemeGallery.qml
