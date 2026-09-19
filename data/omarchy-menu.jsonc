@@ -1,0 +1,16 @@
+{
+  // omaseed menu row (T1.8).
+  //
+  // Merge this into ~/.config/omarchy/extensions/omarchy-menu.jsonc yourself (see the
+  // README "Omarchy integration" section), or run
+  // `scripts/dev/install-omarchy-extras.sh --menu`, which appends it only if the
+  // "torrents" id is not already present. This file is never read by Omarchy directly --
+  // extensions/omarchy-menu.jsonc is the only file the menu loads.
+  //
+  // Top-level id so the row shows on the root menu without digging into "Apps". omaseed's
+  // own .desktop file (T1.4) already makes it discoverable under Apps via the built-in
+  // "apps" provider; this is a direct shortcut for people who drive the menu a lot.
+  // `uwsm-app --` is the same launch wrapper Omarchy's own GUI-app rows use (see
+  // "trigger.share.receive" in /usr/share/omarchy/default/omarchy/omarchy-menu.jsonc).
+  "torrents": {"icon":"󰇚","label":"Torrents","action":"uwsm-app -- omaseed"},
+}

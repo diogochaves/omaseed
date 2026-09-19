@@ -38,6 +38,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 include(cmake/OmaseedWarnings.cmake)
 
 add_subdirectory(src)
+add_subdirectory(data)
 
 if(BUILD_TESTING)
     enable_testing()
