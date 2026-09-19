@@ -850,6 +850,494 @@ Window {
                         }
                     }
                 }
+
+                // RailRow (T3.1): idle, hover/cursor, selected, both together.
+                Column {
+                    spacing: Theme.space(6)
+                    width: parent.width
+
+                    KitGroupLabel {
+                        text: qsTr("rail row")
+                    }
+
+                    Flow {
+                        spacing: Theme.space(10)
+                        width: parent.width
+
+                        Captioned {
+                            caption: qsTr("idle")
+
+                            Rectangle {
+                                border.color: Theme.fill(Theme.hairlineAlpha)
+                                border.width: 1
+                                color: Theme.background
+                                height: railIdle.implicitHeight
+                                width: Theme.space(180)
+
+                                RailRow {
+                                    id: railIdle
+
+                                    count: 12
+                                    glyph: Glyphs.statusDownloading
+                                    text: qsTr("downloading")
+                                    width: parent.width
+                                }
+                            }
+                        }
+
+                        Captioned {
+                            caption: qsTr("hover / cursor")
+
+                            Rectangle {
+                                border.color: Theme.fill(Theme.hairlineAlpha)
+                                border.width: 1
+                                color: Theme.background
+                                height: railCursor.implicitHeight
+                                width: Theme.space(180)
+
+                                RailRow {
+                                    id: railCursor
+
+                                    count: 3
+                                    glyph: Glyphs.statusSeeding
+                                    hasCursor: true
+                                    text: qsTr("seeding")
+                                    width: parent.width
+                                }
+                            }
+                        }
+
+                        Captioned {
+                            caption: qsTr("selected")
+
+                            Rectangle {
+                                border.color: Theme.fill(Theme.hairlineAlpha)
+                                border.width: 1
+                                color: Theme.background
+                                height: railSelected.implicitHeight
+                                width: Theme.space(180)
+
+                                RailRow {
+                                    id: railSelected
+
+                                    count: 142
+                                    glyph: Glyphs.statusAll
+                                    selected: true
+                                    text: qsTr("all")
+                                    width: parent.width
+                                }
+                            }
+                        }
+
+                        Captioned {
+                            caption: qsTr("selected + cursor")
+
+                            Rectangle {
+                                border.color: Theme.fill(Theme.hairlineAlpha)
+                                border.width: 1
+                                color: Theme.background
+                                height: railBoth.implicitHeight
+                                width: Theme.space(180)
+
+                                RailRow {
+                                    id: railBoth
+
+                                    count: -1
+                                    glyph: Glyphs.category
+                                    hasCursor: true
+                                    selected: true
+                                    text: qsTr("linux")
+                                    width: parent.width
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // TableHeader (T3.1): unsorted, sorted ascending, sorted descending, num column.
+                Column {
+                    spacing: Theme.space(6)
+                    width: parent.width
+
+                    KitGroupLabel {
+                        text: qsTr("table header")
+                    }
+
+                    Row {
+                        spacing: 0
+                        width: parent.width
+
+                        TableHeader {
+                            text: qsTr("name")
+                            width: Theme.space(260)
+                        }
+
+                        TableHeader {
+                            alignRight: true
+                            sorted: true
+                            descending: true
+                            text: qsTr("size")
+                            width: Theme.space(100)
+                        }
+
+                        TableHeader {
+                            alignRight: true
+                            sorted: true
+                            descending: false
+                            text: qsTr("eta")
+                            width: Theme.space(100)
+                        }
+                    }
+                }
+
+                // TableRow (T3.1): idle, hover/cursor, selected, both together — two text
+                // cells stand in for the columns TorrentTable (T3.3) will place there.
+                Column {
+                    spacing: Theme.space(6)
+                    width: parent.width
+
+                    KitGroupLabel {
+                        text: qsTr("table row")
+                    }
+
+                    Column {
+                        spacing: 0
+                        width: Theme.space(360)
+
+                        Repeater {
+                            model: [
+                                {
+                                    "caption": "idle",
+                                    "selected": false,
+                                    "hasCursor": false,
+                                    "name": "ubuntu-24.04.iso"
+                                },
+                                {
+                                    "caption": "hover / cursor",
+                                    "selected": false,
+                                    "hasCursor": true,
+                                    "name": "fedora-42-workstation.iso"
+                                },
+                                {
+                                    "caption": "selected",
+                                    "selected": true,
+                                    "hasCursor": false,
+                                    "name": "debian-13-netinst.iso"
+                                },
+                                {
+                                    "caption": "selected + cursor",
+                                    "selected": true,
+                                    "hasCursor": true,
+                                    "name": "archlinux-2026.09.01.iso"
+                                }
+                            ]
+
+                            TableRow {
+                                id: tableRowSample
+
+                                required property var modelData
+
+                                hasCursor: tableRowSample.modelData.hasCursor
+                                selected: tableRowSample.modelData.selected
+                                width: Theme.space(360)
+
+                                Row {
+                                    anchors.fill: parent
+                                    anchors.leftMargin: Theme.space(8)
+                                    spacing: Theme.space(8)
+
+                                    Text {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        color: tableRowSample.textColor
+                                        font.family: Theme.fontFamily
+                                        font.pixelSize: Theme.font.body
+                                        text: tableRowSample.modelData.name
+                                    }
+
+                                    Text {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        color: Theme.dimForeground
+                                        font.family: Theme.fontFamily
+                                        font.pixelSize: Theme.font.caption
+                                        text: tableRowSample.modelData.caption
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // ProgressLine (T3.1): 0 %, 48.9 %, 100 %.
+                Column {
+                    spacing: Theme.space(6)
+                    width: parent.width
+
+                    KitGroupLabel {
+                        text: qsTr("progress line")
+                    }
+
+                    Column {
+                        spacing: Theme.space(8)
+                        width: Theme.space(200)
+
+                        ProgressLine {
+                            color: Theme.stateStalled
+                            value: 0
+                            width: parent.width
+                        }
+
+                        ProgressLine {
+                            color: Theme.stateDownloading
+                            value: 0.489
+                            width: parent.width
+                        }
+
+                        ProgressLine {
+                            color: Theme.stateSeeding
+                            value: 1
+                            width: parent.width
+                        }
+                    }
+                }
+
+                // Strip (T3.1): the details head's four-up fact row.
+                Column {
+                    spacing: Theme.space(6)
+                    width: parent.width
+
+                    KitGroupLabel {
+                        text: qsTr("strip")
+                    }
+
+                    Rectangle {
+                        border.color: Theme.fill(Theme.hairlineAlpha)
+                        border.width: 1
+                        color: Theme.background
+                        height: stripSample.implicitHeight
+                        width: Theme.space(420)
+
+                        Strip {
+                            id: stripSample
+
+                            items: [
+                                {
+                                    "label": qsTr("size"),
+                                    "value": "4.21 GB"
+                                },
+                                {
+                                    "label": qsTr("ratio"),
+                                    "value": "1.42"
+                                },
+                                {
+                                    "label": qsTr("added"),
+                                    "value": qsTr("2 days ago")
+                                },
+                                {
+                                    "label": qsTr("eta"),
+                                    "value": "12m"
+                                }
+                            ]
+                            width: parent.width
+                        }
+                    }
+                }
+
+                // KeyValue (T3.1): a status row coloured by state, plain rows beneath.
+                Column {
+                    spacing: Theme.space(6)
+                    width: parent.width
+
+                    KitGroupLabel {
+                        text: qsTr("key value")
+                    }
+
+                    Rectangle {
+                        border.color: Theme.fill(Theme.hairlineAlpha)
+                        border.width: 1
+                        color: Theme.background
+                        height: keyValueSample.implicitHeight
+                        width: Theme.space(340)
+
+                        KeyValue {
+                            id: keyValueSample
+
+                            items: [
+                                {
+                                    "key": qsTr("status"),
+                                    "value": qsTr("downloading"),
+                                    "color": Theme.stateDownloading
+                                },
+                                {
+                                    "key": qsTr("size"),
+                                    "value": "4.21 GB"
+                                },
+                                {
+                                    "key": qsTr("save path"),
+                                    "value": "/home/diogo/downloads/linux-isos"
+                                }
+                            ]
+                            width: parent.width
+                        }
+                    }
+                }
+
+                // Tabs (T3.1): the details tab strip, current tab and a tracker-error badge.
+                Column {
+                    spacing: Theme.space(6)
+                    width: parent.width
+
+                    KitGroupLabel {
+                        text: qsTr("tabs")
+                    }
+
+                    Rectangle {
+                        border.color: Theme.fill(Theme.hairlineAlpha)
+                        border.width: 1
+                        color: Theme.background
+                        height: tabsSample.implicitHeight
+                        width: Theme.space(340)
+
+                        Tabs {
+                            id: tabsSample
+
+                            currentIndex: 2
+                            model: [
+                                {
+                                    "text": qsTr("General"),
+                                    "key": "1"
+                                },
+                                {
+                                    "text": qsTr("Files"),
+                                    "key": "2"
+                                },
+                                {
+                                    "text": qsTr("Trackers"),
+                                    "key": "3",
+                                    "badge": true
+                                },
+                                {
+                                    "text": qsTr("Peers"),
+                                    "key": "4"
+                                }
+                            ]
+                            width: parent.width
+                        }
+                    }
+                }
+
+                // SplitLayout (T3.1): docked (right column) above the breakpoint, dropped
+                // (side under main) below it.
+                Column {
+                    spacing: Theme.space(6)
+                    width: parent.width
+
+                    KitGroupLabel {
+                        text: qsTr("split layout")
+                    }
+
+                    Column {
+                        spacing: Theme.space(14)
+
+                        Captioned {
+                            caption: qsTr("wide · docked (>= breakpoint %1 px)").arg(Theme.space(
+                                                                                         1100))
+
+                            Rectangle {
+                                border.color: Theme.accent
+                                border.width: 1
+                                color: Theme.background
+                                height: Theme.space(160)
+                                width: Theme.space(1105)
+
+                                SplitLayout {
+                                    id: splitWide
+
+                                    anchors.fill: parent
+                                    main: splitWideMain
+                                    side: splitWideSide
+
+                                    Rectangle {
+                                        id: splitWideMain
+
+                                        color: Theme.fill(Theme.fillIdle)
+
+                                        Text {
+                                            anchors.centerIn: parent
+                                            color: Theme.dimForeground
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: Theme.font.small
+                                            text: splitWide.docked ? qsTr("main · docked") : qsTr(
+                                                                         "main")
+                                        }
+                                    }
+
+                                    Rectangle {
+                                        id: splitWideSide
+
+                                        color: Theme.fill(Theme.fillHover)
+
+                                        Text {
+                                            anchors.centerIn: parent
+                                            color: Theme.dimForeground
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: Theme.font.small
+                                            text: qsTr("side")
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Captioned {
+                            caption: qsTr("narrow · dropped (< breakpoint)")
+
+                            Rectangle {
+                                border.color: Theme.accent
+                                border.width: 1
+                                color: Theme.background
+                                height: Theme.space(260)
+                                width: Theme.space(480)
+
+                                SplitLayout {
+                                    id: splitNarrow
+
+                                    anchors.fill: parent
+                                    main: splitNarrowMain
+                                    side: splitNarrowSide
+
+                                    Rectangle {
+                                        id: splitNarrowMain
+
+                                        color: Theme.fill(Theme.fillIdle)
+
+                                        Text {
+                                            anchors.centerIn: parent
+                                            color: Theme.dimForeground
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: Theme.font.small
+                                            text: splitNarrow.docked ? qsTr("main · docked") : qsTr(
+                                                                           "main")
+                                        }
+                                    }
+
+                                    Rectangle {
+                                        id: splitNarrowSide
+
+                                        color: Theme.fill(Theme.fillHover)
+
+                                        Text {
+                                            anchors.centerIn: parent
+                                            color: Theme.dimForeground
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: Theme.font.small
+                                            text: qsTr("side")
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             // ---- colour roles --------------------------------------------------------

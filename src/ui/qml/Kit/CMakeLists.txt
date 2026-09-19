@@ -22,8 +22,16 @@ qt_add_qml_module(omaseed-kit
         Hero.qml
         IconButton.qml
         KeyHints.qml
+        KeyValue.qml
         Label.qml
+        ProgressLine.qml
+        RailRow.qml
+        SplitLayout.qml
         Stat.qml
+        Strip.qml
+        TableHeader.qml
+        TableRow.qml
+        Tabs.qml
         Toggle.qml
 )
 
