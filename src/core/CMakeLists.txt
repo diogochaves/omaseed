@@ -24,8 +24,12 @@ qt_add_library(omaseed-core STATIC
     Server.hpp
     ServerStore.cpp
     ServerStore.hpp
+    Torrent.cpp
+    Torrent.hpp
     TorrentFile.cpp
     TorrentFile.hpp
+    TorrentModel.cpp
+    TorrentModel.hpp
     Version.cpp
     Version.hpp
 )

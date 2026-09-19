@@ -64,3 +64,8 @@ omaseed_add_test(tst_format
     SOURCES tst_format.cpp
     LIBRARIES omaseed::core
 )
+
+omaseed_add_test(tst_torrentmodel
+    SOURCES tst_torrentmodel.cpp
+    LIBRARIES omaseed::core
+)

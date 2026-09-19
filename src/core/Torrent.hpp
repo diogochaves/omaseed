@@ -1,0 +1,156 @@
+#pragma once
+
+// Torrent — the value behind one row of sync/maindata's `torrents` map.
+//
+// The API sends the whole object on a full update and only the changed keys afterwards, so
+// applyJson() merges key by key and reports which keys really moved; TorrentModel turns that
+// list into the role list of a narrow dataChanged().
+//
+// Field names follow the JSON (snake_case) turned into camelCase; nothing here is renamed,
+// so the mapping to the API docs stays obvious.
+
+#include <QDateTime>
+#include <QJsonObject>
+#include <QObject>
+#include <QString>
+#include <QStringList>
+
+namespace omaseed::core {
+
+Q_NAMESPACE
+
+/// Every `state` string qBittorrent 5.x can send, plus the pre-5.0 paused* spellings it
+/// still emits when an older server is on the other end.
+enum class TorrentState {
+    Unknown,
+    Downloading,
+    StalledDownload,
+    MetaDownload,
+    ForcedDownload,
+    QueuedDownload,
+    CheckingDownload,
+    Uploading,
+    StalledUpload,
+    ForcedUpload,
+    QueuedUpload,
+    CheckingUpload,
+    StoppedDownload,
+    StoppedUpload,
+    PausedDownload,
+    PausedUpload,
+    Error,
+    MissingFiles,
+    CheckingResumeData,
+    Moving,
+    Allocating,
+};
+Q_ENUM_NS(TorrentState)
+
+/// The rail's status groups (spec §1 Fig. 1). A torrent belongs to several at once, so this
+/// is a flag set, not a single value.
+enum class StatusGroup {
+    NoGroup = 0x000,
+    Downloading = 0x001,
+    Seeding = 0x002,
+    Completed = 0x004,
+    Stopped = 0x008,
+    Active = 0x010,
+    Stalled = 0x020,
+    Checking = 0x040,
+    Errored = 0x080,
+};
+Q_DECLARE_FLAGS(StatusGroups, StatusGroup)
+Q_FLAG_NS(StatusGroups)
+
+/// The state string as the API spells it, e.g. "stalledUP"; "unknown" for Unknown.
+QString torrentStateKey(TorrentState state);
+/// The reverse; an unknown string gives TorrentState::Unknown.
+TorrentState torrentStateFromKey(QStringView key);
+
+/// The host the rail groups a tracker under: "tracker.opentrackr.org" for a URL, "DHT",
+/// "PeX" or "LSD" for qBittorrent's pseudo-trackers, "trackerless" for an empty string.
+QString trackerHost(const QString &trackerUrl);
+
+/// The name of the bucket a torrent with no working tracker falls into.
+QString trackerlessKey();
+
+struct Torrent
+{
+    QString hash; ///< the key of the torrents map, not a field of the object
+
+    QString name;
+    qint64 size = 0;      ///< bytes of the selected files
+    qint64 totalSize = 0; ///< bytes of every file, -1 before the metadata arrives
+    double progress = 0.0;
+    TorrentState state = TorrentState::Unknown;
+
+    qint64 dlspeed = 0;
+    qint64 upspeed = 0;
+    qint64 eta = 8640000; ///< seconds; 8640000 means "no estimate"
+
+    int numSeeds = 0;      ///< seeds connected
+    int numComplete = 0;   ///< seeds in the swarm
+    int numLeechs = 0;     ///< peers connected
+    int numIncomplete = 0; ///< peers in the swarm
+    double ratio = 0.0;
+
+    QString category;
+    QStringList tags; ///< the comma list, split and trimmed
+    QString savePath;
+    QString contentPath;
+
+    QDateTime addedOn;
+    QDateTime completionOn; ///< invalid while the torrent is incomplete
+
+    QString tracker; ///< URL of the tracker currently in use, empty when there is none
+    int trackersCount = 0;
+    bool hasTrackerError = false; ///< qBittorrent 5.x reports this per torrent in maindata
+
+    int priority = 0; ///< queue position, -1 when queueing is off
+    bool seqDl = false;
+    bool firstLastPiecePrio = false;
+    qint64 dlLimit = 0;
+    qint64 upLimit = 0;
+    double ratioLimit = -2.0;     ///< -2 global, -1 unlimited
+    qint64 seedingTimeLimit = -2; ///< minutes; -2 global, -1 unlimited
+
+    double availability = 0.0;
+    qint64 amountLeft = 0;
+    qint64 completed = 0;
+    qint64 downloaded = 0;
+    qint64 uploaded = 0;
+    qint64 timeActive = 0;
+    qint64 seedingTime = 0;
+
+    QString infohashV1;
+    QString infohashV2;
+    QString magnetUri;
+
+    /// Merges the keys present in `json` and returns the JSON keys whose value changed.
+    /// A full object and a partial diff go through the same path.
+    QStringList applyJson(const QJsonObject &json);
+
+    /// The rail groups this torrent shows up under.
+    StatusGroups statusGroups() const;
+    bool inGroup(StatusGroup group) const;
+
+    /// One of downloading, seeding, stopped, stalled, checking, queued, error, completed,
+    /// moving, metadata, unknown (spec §1 Status column).
+    QString stateText() const;
+    /// The Theme colour role for that state: stateDownloading, stateSeeding, stateStopped,
+    /// stateStalled, stateChecking, stateQueued, stateError (plan §3).
+    QString stateRole() const;
+    /// "21 / 42" — connected seeds over connected peers (spec §1 S / P column).
+    QString seedsPeersText() const;
+    /// The rail bucket for this torrent's tracker.
+    QString trackerHostKey() const;
+    /// True once the payload is on disk.
+    bool isComplete() const;
+
+    bool operator==(const Torrent &other) const = default;
+};
+
+} // namespace omaseed::core
+
+Q_DECLARE_OPERATORS_FOR_FLAGS(omaseed::core::StatusGroups)
+Q_DECLARE_METATYPE(omaseed::core::Torrent)
