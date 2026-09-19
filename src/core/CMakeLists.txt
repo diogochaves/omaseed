@@ -10,6 +10,8 @@ qt_add_library(omaseed-core STATIC
     CategoryModel.hpp
     Format.cpp
     Format.hpp
+    GlobalState.cpp
+    GlobalState.hpp
     MagnetLink.cpp
     MagnetLink.hpp
     PathMap.cpp

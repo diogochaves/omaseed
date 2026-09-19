@@ -84,3 +84,9 @@ omaseed_add_test(tst_trackermodel
     SOURCES tst_trackermodel.cpp
     LIBRARIES omaseed::core
 )
+
+omaseed_add_test(tst_globalstate
+    SOURCES tst_globalstate.cpp
+    LIBRARIES omaseed::core
+    DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
+)
