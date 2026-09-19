@@ -1,0 +1,909 @@
+pragma ComponentBehavior: Bound
+import QtQuick
+import QtQuick.Layouts
+import Omaseed
+import Omaseed.Kit
+
+// Settings (spec v2 §5 Fig. 16, opened with `,`, from the tray's `settings…` and from the
+// hero's gear). One `Kit/Sheet` in the figure's "modal" form: no icon head, the whole body a
+// two-column layout of a left nav and a pane, the pane's own title carrying the `esc` chip.
+//
+// This is an `Item` rather than a `Sheet` subclass because two more overlays belong with it
+// and must sit *over* the modal rather than inside its body: the server sheet of Fig. 9 and
+// the confirm dialog that guards a removal. `open()`/`close()` forward to the sheet.
+//
+// Keyboard (Fig. 16's own footer):
+//   j k / 1–6   move the nav
+//   tab         hand the keyboard to the pane, and back
+//   j k         inside a pane, move the row cursor
+//   enter space act on the cursor row (toggle, open the server sheet, copy)
+//   a x d       Servers pane only: add, remove (confirmed), make default
+//   esc         close — or, while the server sheet is up, close that first, because the
+//               sheet has the keyboard and traps the key itself.
+Item {
+    id: root
+
+    /// True between `open()` and `close()`.
+    readonly property alias opened: sheet.opened
+    readonly property alias sheet: sheet
+    readonly property alias serverSheet: serverSheet
+    readonly property alias confirm: confirm
+
+    /// Which pane is on show, 0–5 (General, Servers, Notifications, Keybindings, Appearance,
+    /// About) — the order of `navRows`.
+    property int paneIndex: 0
+    /// The row cursor inside the pane, -1 when the pane has no rows.
+    property int paneCursor: 0
+    /// "nav" or "pane": which half of the modal the keyboard is in.
+    property string area: "nav"
+
+    signal closed
+
+    readonly property var navRows: [
+        {
+            "glyph": Glyphs.settings,
+            "text": qsTr("General")
+        },
+        {
+            "glyph": Glyphs.server,
+            "text": qsTr("Servers")
+        },
+        {
+            "glyph": Glyphs.notifications,
+            "text": qsTr("Notifications")
+        },
+        {
+            "glyph": Glyphs.keyboard,
+            "text": qsTr("Keybindings")
+        },
+        {
+            "glyph": Glyphs.appearance,
+            "text": qsTr("Appearance")
+        },
+        {
+            "glyph": Glyphs.about,
+            "text": qsTr("About")
+        }
+    ]
+
+    /// How many cursor rows the pane on show has. Keybindings is a read-only list in v1.
+    readonly property int paneRowCount: {
+        switch (root.paneIndex) {
+        case 0:
+            return 3;
+        case 1:
+            return App.serverList.count + 1; // the servers, then "+ add a server"
+        case 2:
+            return 4;
+        case 4:
+            return 4;
+        case 5:
+            return 1; // the copyable `omarchy plugin add` line
+        default:
+            return 0;
+        }
+    }
+
+    function open(): void {
+        sheet.open();
+    }
+
+    function close(): void {
+        sheet.close();
+    }
+
+    /// Go to a pane by index and put the cursor on its first row.
+    function showPane(index: int): void {
+        if (index < 0 || index >= root.navRows.length)
+            return;
+        root.paneIndex = index;
+        root.paneCursor = 0;
+    }
+
+    /// `enter` / `space` on the cursor row of the pane on show.
+    function activateRow(): void {
+        if (root.paneIndex === 0) {
+            if (root.paneCursor === 0)
+                App.showServersGroup = !App.showServersGroup;
+            else if (root.paneCursor === 1)
+                App.pathMapEnabled = !App.pathMapEnabled;
+            else if (root.paneCursor === 2)
+                Xdg.registerAsDefaultHandler();
+            return;
+        }
+        if (root.paneIndex === 1) {
+            if (root.paneCursor >= App.serverList.count) {
+                serverSheet.openNew();
+                return;
+            }
+            const map = App.serverList.serverMap(root.cursorServerId());
+            if (map.id !== undefined)
+                serverSheet.openFor(map);
+            return;
+        }
+        if (root.paneIndex === 2) {
+            const keys = ["completed", "trackerError", "serverLost", "diskFull"];
+            const key = keys[root.paneCursor];
+            App.setNotificationEnabled(key, !App.notificationsEnabled[key]);
+            return;
+        }
+        if (root.paneIndex === 4) {
+            if (root.paneCursor === 0)
+                App.followOmarchyTheme = !App.followOmarchyTheme;
+            else if (root.paneCursor === 1)
+                baseSizeField.focusInput();
+            else if (root.paneCursor === 2)
+                alphaField.focusInput();
+            else if (root.paneCursor === 3)
+                App.trayIconMode = root._nextTrayMode();
+            return;
+        }
+        if (root.paneIndex === 5)
+            root.copyPluginLine();
+    }
+
+    /// The id of the server the Servers pane's cursor is on, or "" on the add row.
+    function cursorServerId(): string {
+        if (root.paneIndex !== 1 || root.paneCursor < 0
+                || root.paneCursor >= App.serverList.count)
+            return "";
+        return App.serverList.idAt(root.paneCursor);
+    }
+
+    /// `x` / `delete` in the Servers pane, through the shell's confirm (spec §3 Fig. 6).
+    function removeCursorServer(): void {
+        const id = root.cursorServerId();
+        if (id.length === 0)
+            return;
+        const map = App.serverList.serverMap(id);
+        confirm.pendingId = id;
+        confirm.message = qsTr("Remove the server %1?").arg(map.name);
+        confirm.subtitle = qsTr("%1 · the stored secret goes with it. Nothing on the server is touched.").arg(map.url);
+        confirm.open();
+    }
+
+    /// The About pane's copyable `omarchy plugin add …` line.
+    function copyPluginLine(): void {
+        clipboard.text = App.pluginAddCommand;
+        clipboard.selectAll();
+        clipboard.copy();
+        clipboard.deselect();
+    }
+
+    function _nextTrayMode(): string {
+        const modes = ["auto", "always", "never"];
+        return modes[(modes.indexOf(App.trayIconMode) + 1) % modes.length];
+    }
+
+    function _moveNav(delta: int): void {
+        root.showPane((root.paneIndex + delta + root.navRows.length) % root.navRows.length);
+    }
+
+    function _movePane(delta: int): void {
+        if (root.paneRowCount <= 0)
+            return;
+        root.paneCursor = (root.paneCursor + delta + root.paneRowCount) % root.paneRowCount;
+    }
+
+    /// Every key the modal owns. `esc` is deliberately left alone — the Sheet closes on it —
+    /// and everything else is swallowed, so nothing typed over the modal reaches the window
+    /// behind it.
+    function _onKey(event: var): void {
+        if (event.key === Qt.Key_Escape)
+            return;
+        if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
+            root.area = root.area === "nav" ? "pane" : "nav";
+            if (root.area === "pane" && root.paneCursor < 0)
+                root.paneCursor = 0;
+            event.accepted = true;
+            return;
+        }
+        if (event.key >= Qt.Key_1 && event.key <= Qt.Key_6) {
+            root.showPane(event.key - Qt.Key_1);
+            event.accepted = true;
+            return;
+        }
+        if (root.area === "nav") {
+            switch (event.key) {
+            case Qt.Key_J:
+            case Qt.Key_Down:
+                root._moveNav(1);
+                break;
+            case Qt.Key_K:
+            case Qt.Key_Up:
+                root._moveNav(-1);
+                break;
+            case Qt.Key_L:
+            case Qt.Key_Right:
+            case Qt.Key_Return:
+            case Qt.Key_Enter:
+                root.area = "pane";
+                break;
+            default:
+                break;
+            }
+            event.accepted = true;
+            return;
+        }
+
+        switch (event.key) {
+        case Qt.Key_J:
+        case Qt.Key_Down:
+            root._movePane(1);
+            break;
+        case Qt.Key_K:
+        case Qt.Key_Up:
+            root._movePane(-1);
+            break;
+        case Qt.Key_H:
+        case Qt.Key_Left:
+            root.area = "nav";
+            break;
+        case Qt.Key_Return:
+        case Qt.Key_Enter:
+        case Qt.Key_Space:
+            root.activateRow();
+            break;
+        case Qt.Key_A:
+            if (root.paneIndex === 1)
+                serverSheet.openNew();
+            break;
+        case Qt.Key_X:
+        case Qt.Key_Delete:
+            if (root.paneIndex === 1)
+                root.removeCursorServer();
+            break;
+        case Qt.Key_D:
+            if (root.paneIndex === 1)
+                App.setDefaultServer(root.cursorServerId());
+            break;
+        default:
+            break;
+        }
+        event.accepted = true;
+    }
+
+    /// Take the keyboard back. A server switch tears the main window's state down and back
+    /// up — the table hides, the empty state appears — and MainView hands the focus back to
+    /// the table as it does; the modal is on top, so it takes it back (found in the T4.5
+    /// manual run: `d` in the Servers pane left the modal on screen but deaf).
+    function refocus(): void {
+        if (confirm.opened)
+            confirm.forceActiveFocus();
+        else if (serverSheet.opened)
+            serverSheet.focusFirst();
+        else if (sheet.opened)
+            sheet.focusFirst();
+    }
+
+    Connections {
+        function onServerChanged(): void {
+            if (sheet.opened)
+                Qt.callLater(root.refocus);
+        }
+
+        target: App
+    }
+
+    // Nothing typed while any of the three overlays is up may reach the window behind them:
+    // what the sheet, the server sheet and the confirm leave unhandled stops here.
+    Keys.onPressed: event => {
+        if (event.key !== Qt.Key_Escape
+                && (sheet.opened || serverSheet.opened || confirm.opened))
+            event.accepted = true;
+    }
+
+    // The clipboard, for the About pane's install line. QML has no clipboard API of its own;
+    // an off-screen TextEdit is the standard way to reach it.
+    TextEdit {
+        id: clipboard
+
+        visible: false
+    }
+
+    Sheet {
+        id: sheet
+
+        anchors.fill: parent
+        // The head belongs to the pane in this figure, not to the sheet: no glyph, no title,
+        // and no `esc` chip up there either.
+        escText: ""
+        hints: [
+            {
+                "key": "j k",
+                "label": qsTr("move")
+            },
+            {
+                "key": "tab",
+                "label": qsTr("pane")
+            },
+            {
+                "key": "enter",
+                "label": qsTr("act")
+            }
+        ]
+        sheetWidth: Theme.space(760)
+        title: ""
+
+        onRejected: root.closed()
+
+        Item {
+            id: bodyItem
+
+            /// The Sheet's focus trap recognises anything with a `focusInput()`; this item is
+            /// the one focusable thing in the body, and it owns every key the modal handles.
+            function focusInput(): void {
+                bodyItem.forceActiveFocus();
+            }
+
+            Layout.fillWidth: true
+            implicitHeight: Theme.space(470)
+
+            Keys.onPressed: event => root._onKey(event)
+
+            RowLayout {
+                anchors.fill: parent
+                spacing: 0
+
+                // ---- the nav (`.settings .nav`) ---------------------------------------
+                // A nested Layout fills by default, so the nav has to say it does not: the
+                // pane is the one that takes what is left.
+                ColumnLayout {
+                    Layout.fillHeight: true
+                    Layout.fillWidth: false
+                    Layout.maximumWidth: Theme.space(150)
+                    Layout.preferredWidth: Theme.space(150)
+                    spacing: 1
+
+                    Label {
+                        Layout.bottomMargin: Theme.space(8)
+                        Layout.fillWidth: true
+                        Layout.leftMargin: Theme.space(4)
+                        text: qsTr("settings")
+                        tracked: true
+                    }
+
+                    Repeater {
+                        model: root.navRows
+
+                        RailRow {
+                            id: navRow
+
+                            required property int index
+                            required property var modelData
+
+                            Layout.fillWidth: true
+                            objectName: "navRow" + navRow.index
+                            glyph: navRow.modelData.glyph
+                            hasCursor: root.area === "nav" && root.paneIndex === navRow.index
+                            selected: root.paneIndex === navRow.index
+                            text: navRow.modelData.text
+
+                            onClicked: {
+                                root.showPane(navRow.index);
+                                root.area = "nav";
+                                bodyItem.forceActiveFocus();
+                            }
+                        }
+                    }
+
+                    Item {
+                        Layout.fillHeight: true
+                    }
+                }
+
+                Hairline {
+                    Layout.fillHeight: true
+                    Layout.leftMargin: Theme.space(10)
+                    Layout.rightMargin: Theme.space(18)
+                    vertical: true
+                }
+
+                // ---- the pane (`.settings .pane`) --------------------------------------
+                ColumnLayout {
+                    Layout.fillHeight: true
+                    Layout.fillWidth: true
+                    spacing: Theme.space(12)
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: Theme.space(10)
+
+                        Label {
+                            Layout.fillWidth: true
+                            bright: true
+                            elide: Text.ElideRight
+                            font.weight: Font.DemiBold
+                            size: "subtitle"
+                            text: root.navRows[root.paneIndex].text
+                        }
+
+                        Label {
+                            dim: true
+                            size: "caption"
+                            text: qsTr("esc")
+                        }
+                    }
+
+                    // The panes. Only one is ever visible; each fills what is left.
+                    Item {
+                        Layout.fillHeight: true
+                        Layout.fillWidth: true
+
+                        // ---- General ---------------------------------------------------
+                        ColumnLayout {
+                            anchors.fill: parent
+                            spacing: Theme.space(8)
+                            visible: root.paneIndex === 0
+
+                            SettingsRow {
+                                Layout.fillWidth: true
+                                description: qsTr("Only useful with two or more servers. Off hides the multi-server chrome.")
+                                glyph: Glyphs.mark
+                                hasCursor: root.area === "pane" && root.paneCursor === 0
+                                title: qsTr("Show the Servers group in the rail")
+
+                                onClicked: {
+                                    root.paneCursor = 0;
+                                    root.area = "pane";
+                                    App.showServersGroup = !App.showServersGroup;
+                                }
+
+                                Toggle {
+                                    checked: App.showServersGroup
+
+                                    onToggled: App.showServersGroup = checked
+                                }
+                            }
+
+                            SettingsRow {
+                                Layout.fillWidth: true
+                                description: qsTr("Rewrites remote paths to local mounts before asking the file manager.")
+                                glyph: Glyphs.home
+                                hasCursor: root.area === "pane" && root.paneCursor === 1
+                                title: qsTr("Open folder through path mapping")
+
+                                onClicked: {
+                                    root.paneCursor = 1;
+                                    root.area = "pane";
+                                    App.pathMapEnabled = !App.pathMapEnabled;
+                                }
+
+                                Toggle {
+                                    checked: App.pathMapEnabled
+
+                                    onToggled: App.pathMapEnabled = checked
+                                }
+                            }
+
+                            SettingsRow {
+                                id: handlerRow
+
+                                /// Filled by Xdg's answer; "" until the first check lands.
+                                property string currentHandler: ""
+                                property bool isDefault: false
+
+                                Layout.fillWidth: true
+                                description: handlerRow.isDefault ? qsTr("omaseed already opens magnet links and .torrent files.") : handlerRow.currentHandler.length
+                                                                    > 0 ? qsTr("Currently %1.").arg(handlerRow.currentHandler) : qsTr("Makes omaseed open magnet links and .torrent files.")
+                                glyph: Glyphs.add
+                                hasCursor: root.area === "pane" && root.paneCursor === 2
+                                title: qsTr("Register as the magnet and .torrent handler")
+
+                                onClicked: {
+                                    root.paneCursor = 2;
+                                    root.area = "pane";
+                                    Xdg.registerAsDefaultHandler();
+                                }
+
+                                Button {
+                                    enabled: !handlerRow.isDefault
+                                    text: qsTr("register")
+
+                                    onClicked: Xdg.registerAsDefaultHandler()
+                                }
+
+                                Connections {
+                                    function onIsDefaultMagnetHandlerResult(isDefault: bool, currentHandler: string): void {
+                                        handlerRow.isDefault = isDefault;
+                                        handlerRow.currentHandler = currentHandler;
+                                    }
+
+                                    function onRegistrationFinished(success: bool): void {
+                                        if (success)
+                                            Xdg.isDefaultMagnetHandler();
+                                    }
+
+                                    target: Xdg
+                                }
+
+                                Component.onCompleted: Xdg.isDefaultMagnetHandler()
+                            }
+
+                            Item {
+                                Layout.fillHeight: true
+                            }
+                        }
+
+                        // ---- Servers (the figure's own pane) ---------------------------
+                        ColumnLayout {
+                            anchors.fill: parent
+                            spacing: Theme.space(6)
+                            visible: root.paneIndex === 1
+
+                            Repeater {
+                                model: App.serverList
+
+                                SettingsServerRow {
+                                    id: serverRow
+
+                                    required property string authModeText
+                                    required property int index
+                                    required property bool isDefault
+                                    required property string lastError
+                                    required property string name
+                                    required property bool reachable
+                                    required property string reachableText
+                                    required property int torrentCount
+                                    required property string url
+
+                                    Layout.fillWidth: true
+                                    objectName: "serverRow" + serverRow.index
+                                    description: {
+                                        const parts = [serverRow.url, serverRow.authModeText];
+                                        if (serverRow.torrentCount >= 0)
+                                            parts.push(qsTr("%1 torrents").arg(serverRow.torrentCount));
+                                        else if (serverRow.lastError.length > 0)
+                                            parts.push(serverRow.lastError);
+                                        return parts.join(" · ");
+                                    }
+                                    failing: serverRow.reachableText.length > 0
+                                             && !serverRow.reachable
+                                    hasCursor: root.area === "pane"
+                                               && root.paneCursor === serverRow.index
+                                    title: serverRow.name
+                                    status: serverRow.isDefault ? qsTr("default") : (serverRow.reachableText.length
+                                                                                     > 0 && !serverRow.reachable ? qsTr("retrying") : "")
+
+                                    onClicked: {
+                                        root.paneCursor = serverRow.index;
+                                        root.area = "pane";
+                                        bodyItem.forceActiveFocus();
+                                        root.activateRow();
+                                    }
+                                }
+                            }
+
+                            SettingsServerRow {
+                                Layout.fillWidth: true
+                                objectName: "serverRowAdd"
+                                dashed: true
+                                glyph: Glyphs.plus
+                                hasCursor: root.area === "pane"
+                                           && root.paneCursor === App.serverList.count
+                                status: qsTr("a")
+                                title: qsTr("add a server")
+
+                                onClicked: {
+                                    root.paneCursor = App.serverList.count;
+                                    root.area = "pane";
+                                    serverSheet.openNew();
+                                }
+                            }
+
+                            Item {
+                                Layout.fillHeight: true
+                            }
+                        }
+
+                        // ---- Notifications ---------------------------------------------
+                        ColumnLayout {
+                            anchors.fill: parent
+                            spacing: Theme.space(8)
+                            visible: root.paneIndex === 2
+
+                            Repeater {
+                                model: [
+                                    {
+                                        "key": "completed",
+                                        "glyph": Glyphs.check,
+                                        "title": qsTr("Torrent completed"),
+                                        "description": qsTr("One notice per finished torrent, with open folder and show.")
+                                    },
+                                    {
+                                        "key": "trackerError",
+                                        "glyph": Glyphs.statusErrored,
+                                        "title": qsTr("Tracker errors"),
+                                        "description": qsTr("Grouped per tracker host, with reannounce.")
+                                    },
+                                    {
+                                        "key": "serverLost",
+                                        "glyph": Glyphs.trayDisconnected,
+                                        "title": qsTr("Server lost and back"),
+                                        "description": qsTr("One notice when the server stops answering, one when it returns.")
+                                    },
+                                    {
+                                        "key": "diskFull",
+                                        "glyph": Glyphs.folder,
+                                        "title": qsTr("Disk almost full"),
+                                        "description": qsTr("From the server's own free-space figure.")
+                                    }
+                                ]
+
+                                SettingsRow {
+                                    id: notifyRow
+
+                                    required property int index
+                                    required property var modelData
+
+                                    Layout.fillWidth: true
+                                    description: notifyRow.modelData.description
+                                    glyph: notifyRow.modelData.glyph
+                                    hasCursor: root.area === "pane"
+                                               && root.paneCursor === notifyRow.index
+                                    title: notifyRow.modelData.title
+
+                                    onClicked: {
+                                        root.paneCursor = notifyRow.index;
+                                        root.area = "pane";
+                                        App.setNotificationEnabled(notifyRow.modelData.key,
+                                                                   !App.notificationsEnabled[notifyRow.modelData.key]);
+                                    }
+
+                                    Toggle {
+                                        checked: App.notificationsEnabled[notifyRow.modelData.key] === true
+
+                                        onToggled: App.setNotificationEnabled(notifyRow.modelData.key, checked)
+                                    }
+                                }
+                            }
+
+                            Item {
+                                Layout.fillHeight: true
+                            }
+                        }
+
+                        // ---- Keybindings (read-only in v1) -----------------------------
+                        Flickable {
+                            anchors.fill: parent
+                            boundsBehavior: Flickable.StopAtBounds
+                            clip: true
+                            contentHeight: keysBody.implicitHeight
+                            contentWidth: width
+                            visible: root.paneIndex === 3
+
+                            // The `?` sheet's own body: the same rows, from the same Keymap,
+                            // so the two can never drift apart.
+                            HelpSheet {
+                                id: keysBody
+
+                                width: parent.width
+
+                                onCloseRequested: root.close()
+                            }
+                        }
+
+                        // ---- Appearance -------------------------------------------------
+                        ColumnLayout {
+                            anchors.fill: parent
+                            spacing: Theme.space(8)
+                            visible: root.paneIndex === 4
+
+                            SettingsRow {
+                                Layout.fillWidth: true
+                                description: qsTr("Off keeps the bundled Tokyo Night whatever the desktop does.")
+                                glyph: Glyphs.appearance
+                                hasCursor: root.area === "pane" && root.paneCursor === 0
+                                title: qsTr("Follow the Omarchy theme")
+
+                                onClicked: {
+                                    root.paneCursor = 0;
+                                    root.area = "pane";
+                                    App.followOmarchyTheme = !App.followOmarchyTheme;
+                                }
+
+                                Toggle {
+                                    checked: App.followOmarchyTheme
+
+                                    onToggled: App.followOmarchyTheme = checked
+                                }
+                            }
+
+                            SettingsRow {
+                                Layout.fillWidth: true
+                                description: qsTr("Everything scales from it. Empty follows shell.toml.")
+                                glyph: Glyphs.mark
+                                hasCursor: root.area === "pane" && root.paneCursor === 1
+                                title: qsTr("Base size")
+
+                                onClicked: {
+                                    root.paneCursor = 1;
+                                    root.area = "pane";
+                                    baseSizeField.focusInput();
+                                }
+
+                                Field {
+                                    id: baseSizeField
+
+                                    implicitWidth: Theme.space(110)
+                                    placeholder: qsTr("follow")
+                                    trailing: qsTr("px")
+
+                                    onAccepted: {
+                                        App.baseSizeOverride = parseInt(text, 10) || 0;
+                                        bodyItem.forceActiveFocus();
+                                    }
+                                    onCleared: {
+                                        App.baseSizeOverride = 0;
+                                        bodyItem.forceActiveFocus();
+                                    }
+                                }
+                            }
+
+                            SettingsRow {
+                                Layout.fillWidth: true
+                                description: qsTr("How much wallpaper shows through the window, 50–100. Empty is 90.")
+                                glyph: Glyphs.altSpeed
+                                hasCursor: root.area === "pane" && root.paneCursor === 2
+                                title: qsTr("Window transparency")
+
+                                onClicked: {
+                                    root.paneCursor = 2;
+                                    root.area = "pane";
+                                    alphaField.focusInput();
+                                }
+
+                                Field {
+                                    id: alphaField
+
+                                    implicitWidth: Theme.space(110)
+                                    placeholder: qsTr("90")
+                                    trailing: qsTr("%")
+
+                                    onAccepted: {
+                                        App.windowAlphaOverride = parseInt(text, 10) || 0;
+                                        bodyItem.forceActiveFocus();
+                                    }
+                                    onCleared: {
+                                        App.windowAlphaOverride = 0;
+                                        bodyItem.forceActiveFocus();
+                                    }
+                                }
+                            }
+
+                            SettingsRow {
+                                Layout.fillWidth: true
+                                description: qsTr("auto hides the icon once the bar widget is running. It behaves as always until then.")
+                                glyph: Glyphs.trayIdle
+                                hasCursor: root.area === "pane" && root.paneCursor === 3
+                                title: qsTr("Tray icon")
+
+                                onClicked: {
+                                    root.paneCursor = 3;
+                                    root.area = "pane";
+                                    App.trayIconMode = root._nextTrayMode();
+                                }
+
+                                RowLayout {
+                                    spacing: Theme.space(6)
+
+                                    Repeater {
+                                        model: ["auto", "always", "never"]
+
+                                        Chip {
+                                            id: trayChip
+
+                                            required property string modelData
+
+                                            selected: App.trayIconMode === trayChip.modelData
+                                            text: trayChip.modelData
+
+                                            onClicked: App.trayIconMode = trayChip.modelData
+                                        }
+                                    }
+                                }
+                            }
+
+                            Item {
+                                Layout.fillHeight: true
+                            }
+                        }
+
+                        // ---- About -------------------------------------------------------
+                        ColumnLayout {
+                            anchors.fill: parent
+                            spacing: Theme.space(10)
+                            visible: root.paneIndex === 5
+
+                            KeyValue {
+                                Layout.fillWidth: true
+                                items: [
+                                    {
+                                        "key": qsTr("Version"),
+                                        "value": App.versionText
+                                    },
+                                    {
+                                        "key": qsTr("Qt"),
+                                        "value": App.qtVersionText
+                                    },
+                                    {
+                                        "key": qsTr("Licence"),
+                                        "value": qsTr("MIT")
+                                    },
+                                    {
+                                        "key": qsTr("Repository"),
+                                        "value": App.repoUrl
+                                    }
+                                ]
+                            }
+
+                            FormRow {
+                                Layout.fillWidth: true
+                                label: qsTr("Companion bar widget")
+
+                                RowLayout {
+                                    spacing: Theme.space(8)
+
+                                    Field {
+                                        id: pluginField
+
+                                        Layout.fillWidth: true
+                                        hasCursor: root.area === "pane" && root.paneCursor === 0
+                                        text: App.pluginAddCommand
+                                    }
+
+                                    Button {
+                                        bordered: true
+                                        text: qsTr("copy")
+
+                                        onClicked: root.copyPluginLine()
+                                    }
+                                }
+                            }
+
+                            Item {
+                                Layout.fillHeight: true
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // The server sheet of Fig. 9, over the modal: it takes the keyboard, so `esc` closes it
+    // first and the modal stays up behind it.
+    ServerSheet {
+        id: serverSheet
+
+        anchors.fill: parent
+        z: 1
+
+        onRemoveRequested: id => {
+            root.paneCursor = Math.max(0, App.serverList.indexOfId(id));
+            root.removeCursorServer();
+        }
+        onSaved: id => {
+            root.showPane(1);
+            root.paneCursor = Math.max(0, App.serverList.indexOfId(id));
+            root.area = "pane";
+        }
+    }
+
+    ConfirmDialog {
+        id: confirm
+
+        property string pendingId: ""
+
+        anchors.fill: parent
+        confirmText: qsTr("Remove")
+        destructive: true
+        z: 2
+
+        onAccepted: {
+            App.removeServer(confirm.pendingId);
+            confirm.pendingId = "";
+            root.paneCursor = Math.min(root.paneCursor, Math.max(0, App.serverList.count));
+        }
+    }
+}

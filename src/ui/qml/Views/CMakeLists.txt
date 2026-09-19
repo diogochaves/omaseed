@@ -27,6 +27,10 @@ qt_add_qml_module(omaseed-views
         MainView.qml
         Rail.qml
         RailGroup.qml
+        ServerSheet.qml
+        SettingsModal.qml
+        SettingsRow.qml
+        SettingsServerRow.qml
         ThemeGallery.qml
         TorrentTable.qml
 )
