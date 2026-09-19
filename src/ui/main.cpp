@@ -1,5 +1,7 @@
 #include "core/Version.hpp"
 #include "integration/AppIdentity.hpp"
+#include "integration/Theme.hpp"
+#include "integration/ThemeReader.hpp"
 
 #include <QCommandLineOption>
 #include <QCommandLineParser>
@@ -60,8 +62,8 @@ int main(int argc, char *argv[])
 
     qInfo().noquote() << omaseed::core::versionLine() << QStringLiteral("as") << applicationId();
 
-    if (parser.isSet(demoOption)) {
-        const QString demo = parser.value(demoOption);
+    const QString demo = parser.isSet(demoOption) ? parser.value(demoOption) : QString();
+    if (!demo.isEmpty() && demo != QStringLiteral("gallery")) {
         qInfo().noquote() << QStringLiteral("demo %1 not implemented yet").arg(demo);
         if (!reservedDemoNames().contains(demo)) {
             qInfo().noquote() << QStringLiteral("(%1 is not one of the reserved names: %2)")
@@ -76,6 +78,14 @@ int main(int argc, char *argv[])
     for (const QString &uri : uris)
         qInfo().noquote() << QStringLiteral("uri: %1").arg(uri);
 
+    // The theme is read before the engine exists, so the first frame is already themed. The
+    // Theme singleton the QML engine creates binds to this reader.
+    omaseed::integration::ThemeReader theme;
+    omaseed::integration::Theme::setDefaultReader(&theme);
+    theme.exportToDBus();
+    qInfo().noquote() << QStringLiteral("theme: %1 (%2) from %3")
+                             .arg(theme.themeName(), theme.mode(), theme.source());
+
     QQmlApplicationEngine engine;
     QObject::connect(
         &engine,
@@ -83,7 +93,10 @@ int main(int argc, char *argv[])
         &app,
         []() { QCoreApplication::exit(1); },
         Qt::QueuedConnection);
-    engine.loadFromModule("Omaseed", "Main");
+    if (demo == QStringLiteral("gallery"))
+        engine.loadFromModule("Omaseed.Views", "ThemeGallery");
+    else
+        engine.loadFromModule("Omaseed", "Main");
     if (engine.rootObjects().isEmpty())
         return 1;
 
