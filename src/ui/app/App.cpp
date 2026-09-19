@@ -542,4 +542,18 @@ QString App::demoTab() const
 
 // --- end T3.4 ------------------------------------------------------------------------------
 
+// --- T3.5: the keymap's actions -------------------------------------------------------------
+
+void App::requestTorrentAction(const QString &action, const QStringList &hashes)
+{
+    Q_EMIT torrentActionRequested(action, hashes);
+}
+
+QString App::sizeText(qint64 bytes) const
+{
+    return Format::size(bytes);
+}
+
+// --- end T3.5 -------------------------------------------------------------------------------
+
 } // namespace omaseed::app

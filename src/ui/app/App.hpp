@@ -42,6 +42,7 @@
 #include <QObject>
 #include <QPointer>
 #include <QString>
+#include <QStringList>
 #include <QVariantList>
 #include <QVariantMap>
 
@@ -224,6 +225,24 @@ private:
     /// The client and the torrent model are handed over on the first selectTorrent().
     omaseed::core::TorrentDetails *m_details = new omaseed::core::TorrentDetails(this);
     // --- end T3.4 ------------------------------------------------------------------------
+
+    // --- T3.5: the keymap's actions ------------------------------------------------------
+    // Same arrangement as the T3.4 block: everything the main window adds to App sits at the
+    // end of the class so the parallel Phase 3 branches merge without touching each other.
+public:
+    /// Every key of spec §7 Fig. 26's "act" column that still needs Phase 4 leaves through
+    /// here (`p P d D c R C t m L r [ ] o y Y`, plus `rename` from the table's inline
+    /// editor). `MainView` collects the hashes — the selection, or the cursor row alone —
+    /// and calls this; Phase 4 connects the signal to the real endpoints, the confirm dialog
+    /// and the sheets. QML cannot emit a C++ signal, hence the invokable.
+    Q_INVOKABLE void requestTorrentAction(const QString &action, const QStringList &hashes);
+
+    /// `Format::size` for QML (the loading state prints how much of the first sync arrived).
+    Q_INVOKABLE QString sizeText(qint64 bytes) const;
+
+Q_SIGNALS:
+    void torrentActionRequested(const QString &action, const QStringList &hashes);
+    // --- end T3.5 ------------------------------------------------------------------------
 };
 
 } // namespace omaseed::app
