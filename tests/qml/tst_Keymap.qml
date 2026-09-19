@@ -1,0 +1,113 @@
+import QtQuick
+import QtTest
+import Omaseed
+
+// T3.5. `Keymap` is the contract of spec v2 §7 Fig. 26, so these cases check the data, not a
+// drawing: every key the figure prints exists, no area binds one key twice, and the help
+// sheet's four columns come back in the figure's order with the figure's words.
+TestCase {
+    id: testCase
+
+    name: "Keymap"
+
+    /// Every key of Fig. 26, in the figure's reading order.
+    readonly property list<string> figureKeys: ["j", "k", "g", "G", "h", "l", "/", "0–9", "i", "1–4",
+        "ctrl+k", "space", "v", "ctrl+a", "esc", "a", "enter", "p", "P", "d", "D", "c", "R", "C",
+        "t", "m", "L", "r", "[", "]", "o", "y", "Y", "s", "A", ",", "ctrl+,", "q", "ctrl+q", "?"]
+
+    function test_every_figure_key_is_bound() {
+        const bound = Keymap.entries.map(entry => entry.key);
+        for (const key of testCase.figureKeys)
+            verify(bound.indexOf(key) >= 0, "Fig. 26 key not in the keymap: " + key);
+    }
+
+    function test_every_area_binds_a_key_at_most_once() {
+        for (const area of Keymap.areas) {
+            const keys = Keymap.forArea(area).map(entry => entry.key);
+            for (const key of keys) {
+                compare(keys.filter(other => other === key).length, 1, "key bound twice in " + area
+                        + ": " + key);
+            }
+        }
+    }
+
+    function test_every_entry_has_a_known_area() {
+        for (const entry of Keymap.entries)
+            verify(Keymap.areas.indexOf(entry.area) >= 0, "unknown area: " + entry.area);
+    }
+
+    function test_help_and_escape_are_global() {
+        const help = Keymap.find("global", "?");
+        verify(help !== null);
+        compare(help.action, "help");
+        compare(help.label, "help");
+
+        const escape = Keymap.find("global", "esc");
+        verify(escape !== null);
+        compare(escape.action, "escape");
+    }
+
+    function test_case_separates_the_stronger_variant() {
+        compare(Keymap.find("table", "p").action, "stopStart");
+        compare(Keymap.find("table", "P").action, "forceStart");
+        compare(Keymap.find("table", "d").action, "delete");
+        compare(Keymap.find("table", "D").action, "deleteWithFiles");
+        compare(Keymap.find("table", "y").action, "copyMagnet");
+        compare(Keymap.find("table", "Y").action, "copyHash");
+    }
+
+    function test_find_returns_null_for_an_unbound_key() {
+        compare(Keymap.find("table", "§"), null);
+        compare(Keymap.find("search", "j"), null);
+    }
+
+    function test_label_falls_back_to_the_global_entry() {
+        // `/` is not a table key; the footer still prints "filter" beside it.
+        compare(Keymap.labelOf("table", "/"), "filter");
+        compare(Keymap.labelOf("table", "j"), "move");
+        compare(Keymap.labelOf("details", "a"), "add");
+        compare(Keymap.labelOf("global", "a"), "add");
+    }
+
+    function test_the_help_sheet_is_figure_26() {
+        compare(Keymap.columns, ["navigate", "select", "act", "app"]);
+
+        const navigate = Keymap.helpRows("navigate");
+        compare(navigate.map(row => row.helpKeys), ["j k", "g G", "h l", "/", "0–9", "i", "1–4",
+                                                    "ctrl+k"]);
+        compare(navigate.map(row => row.help), ["move", "first · last", "rail · table · details",
+                                                "filter", "status filter", "details", "details tab",
+                                                "jump"]);
+
+        const select = Keymap.helpRows("select");
+        compare(select.map(row => row.helpKeys), ["space", "v", "ctrl+a", "esc"]);
+        compare(select.map(row => row.help), ["toggle", "range", "all visible",
+                                              "clear, then filter, then close"]);
+
+        const act = Keymap.helpRows("act");
+        compare(act.map(row => row.helpKeys), ["a", "enter", "p P", "d D", "c R", "C t m L r", "[ ]",
+                                               "o", "y Y"]);
+        compare(act.map(row => row.help), ["add", "actions", "stop/start · force",
+                                           "delete · with files", "recheck · reannounce",
+                                           "category · tags · location · limits · rename", "queue",
+                                           "open folder", "copy magnet · hash"]);
+
+        const application = Keymap.helpRows("app");
+        compare(application.map(row => row.helpKeys), ["s", "A", ",", "ctrl+,", "q", "ctrl+q",
+                                                       "super+t"]);
+        compare(application.map(row => row.help), ["sort", "alt-speed", "settings", "columns",
+                                                   "hide to tray", "quit",
+                                                   "suggested Hyprland bind"]);
+    }
+
+    function test_every_sheet_row_names_a_real_entry() {
+        for (const column of Keymap.columns) {
+            for (const row of Keymap.helpRows(column)) {
+                verify(row.helpKeys.length > 0);
+                verify(row.help.length > 0);
+                // The row's chip always starts with the key the entry itself binds.
+                compare(row.helpKeys.split(" ")[0], row.key);
+            }
+        }
+    }
+}
