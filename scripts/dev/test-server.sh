@@ -12,13 +12,30 @@
 #   scripts/dev/test-server.sh seed     # add a few stopped fixture torrents
 #   scripts/dev/test-server.sh log      # tail the server log
 #
-# Auth: localhost is auth-bypassed (WebUI\LocalHostAuth=false), so plain requests
-# work with no key. Cookie login also works with omaseed / omaseed-test for the
-# cookie-fallback code path. Bearer keys are created in the WebUI only.
+# Two profiles, chosen with --strict as the LAST argument:
+#   default  :8081  localhost auth-bypassed. Plain requests need no credential. The
+#                   playground: add, delete, reset at will. A wrong Bearer token is
+#                   still rejected here (403), so a valid key can be tested too.
+#   --strict :8082  localhost NOT bypassed. Cookie login (omaseed / omaseed-test) and
+#                   Bearer keys behave exactly like a real server. Diogo creates the
+#                   key here once (web UI → Options → Web UI → API keys) and puts it
+#                   in ~/.config/omaseed/dev.env as QBT_STRICT_API_KEY. Do not reset
+#                   this profile casually: the key lives in it.
 set -euo pipefail
 
-PROFILE="${OMASEED_TEST_PROFILE:-$HOME/.local/share/omaseed-test}"
-PORT="${OMASEED_TEST_PORT:-8081}"
+STRICT=0
+if [ "${@: -1}" = "--strict" ]; then STRICT=1; set -- "${@:1:$(($#-1))}"; fi
+if [ "$STRICT" = 1 ]; then
+  PROFILE="${OMASEED_STRICT_PROFILE:-$HOME/.local/share/omaseed-test-strict}"
+  PORT="${OMASEED_STRICT_PORT:-8082}"
+  LOCALHOST_AUTH=true
+  BT_PORT=26998
+else
+  PROFILE="${OMASEED_TEST_PROFILE:-$HOME/.local/share/omaseed-test}"
+  PORT="${OMASEED_TEST_PORT:-8081}"
+  LOCALHOST_AUTH=false
+  BT_PORT=26999
+fi
 WEBUI_USER="omaseed"
 WEBUI_PASS="omaseed-test"
 BASE="http://127.0.0.1:$PORT"
@@ -27,6 +44,18 @@ LOGFILE="$PROFILE/qbt.log"
 CONF="$PROFILE/qBittorrent/config/qBittorrent.conf"
 
 need() { command -v "$1" >/dev/null 2>&1 || { echo "missing: $1 (sudo pacman -S $2)" >&2; exit 1; }; }
+
+# api <path> [curl args…]: GET with a session cookie when strict, plain otherwise.
+JAR="$PROFILE/.cookie"
+api() {
+  local path="$1"; shift
+  if [ "$STRICT" = 1 ]; then
+    curl -fs -c "$JAR" -d "username=$WEBUI_USER&password=$WEBUI_PASS" "$BASE/api/v2/auth/login" >/dev/null 2>&1 || return 1
+    curl -fs -b "$JAR" "$@" "$BASE$path"
+  else
+    curl -fs "$@" "$BASE$path"
+  fi
+}
 
 write_conf() {
   mkdir -p "$(dirname "$CONF")" "$PROFILE/downloads"
@@ -48,13 +77,13 @@ WebUI\\Address=127.0.0.1
 WebUI\\Port=$PORT
 WebUI\\Username=$WEBUI_USER
 WebUI\\Password_PBKDF2="@ByteArray($hash)"
-WebUI\\LocalHostAuth=false
+WebUI\\LocalHostAuth=$LOCALHOST_AUTH
 WebUI\\CSRFProtection=false
 WebUI\\HostHeaderValidation=false
 General\\Locale=en
 
 [BitTorrent]
-Session\\Port=26999
+Session\\Port=$BT_PORT
 Session\\DHTEnabled=false
 Session\\PeXEnabled=false
 Session\\LSDEnabled=false
@@ -69,7 +98,7 @@ is_running() { [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; }
 
 wait_up() {
   for _ in $(seq 1 60); do
-    if curl -fs "$BASE/api/v2/app/version" >/dev/null 2>&1; then return 0; fi
+    if api /api/v2/app/version >/dev/null 2>&1; then return 0; fi
     sleep 0.25
   done
   echo "server did not answer on $BASE within 15 s; see $LOGFILE" >&2
@@ -84,7 +113,7 @@ cmd_start() {
     >"$LOGFILE" 2>&1 &
   echo $! > "$PIDFILE"
   wait_up
-  echo "qBittorrent $(curl -fs "$BASE/api/v2/app/version") · API $(curl -fs "$BASE/api/v2/app/webapiVersion") · $BASE · profile $PROFILE"
+  echo "qBittorrent $(api /api/v2/app/version) · API $(api /api/v2/app/webapiVersion) · $BASE · profile $PROFILE$([ "$STRICT" = 1 ] && echo ' · strict auth')"
 }
 
 cmd_stop() {
@@ -102,8 +131,8 @@ cmd_stop() {
 cmd_status() {
   if is_running; then
     echo "running (pid $(cat "$PIDFILE"))"
-    curl -fs "$BASE/api/v2/app/version" && echo " on $BASE" || echo "process alive but WebUI not answering"
-    curl -fs "$BASE/api/v2/torrents/info" | python3 -c 'import json,sys; t=json.load(sys.stdin); print(len(t), "torrents")'
+    api /api/v2/app/version && echo " on $BASE" || echo "process alive but WebUI not answering"
+    api /api/v2/torrents/info | python3 -c 'import json,sys; t=json.load(sys.stdin); print(len(t), "torrents")'
   else
     echo "not running"
   fi
@@ -111,6 +140,7 @@ cmd_status() {
 
 cmd_seed() {
   is_running || cmd_start
+  [ "$STRICT" = 1 ] && { echo "seed only targets the :8081 playground" >&2; exit 2; }
   # Public, legal, well-seeded fixtures. Added stopped so the test box never downloads.
   local magnets=(
     "magnet:?xt=urn:btih:4a4e3b1d2d0c1a8d1e6a9f0b3c2d4e5f6a7b8c9d&dn=fixture-one"
@@ -118,13 +148,17 @@ cmd_seed() {
     "magnet:?xt=urn:btih:c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00&dn=fixture-three"
   )
   for m in "${magnets[@]}"; do
-    curl -fs -X POST "$BASE/api/v2/torrents/add" \
-      -F "urls=$m" -F "stopped=true" -F "category=fixtures" >/dev/null && echo "added ${m##*dn=}"
+    api /api/v2/torrents/add -X POST -F "urls=$m" -F "stopped=true" -F "category=fixtures" >/dev/null && echo "added ${m##*dn=}"
   done
   cmd_status
 }
 
-cmd_reset() { cmd_stop; rm -rf "$PROFILE"; cmd_start; }
+cmd_reset() {
+  if [ "$STRICT" = 1 ]; then
+    echo "reset --strict wipes the API key Diogo created. Type YES to continue:"; read -r a; [ "$a" = YES ] || exit 2
+  fi
+  cmd_stop; rm -rf "$PROFILE"; cmd_start
+}
 
 case "${1:-}" in
   start) cmd_start ;;
@@ -133,5 +167,5 @@ case "${1:-}" in
   reset) cmd_reset ;;
   seed) cmd_seed ;;
   log) tail -n 50 -f "$LOGFILE" ;;
-  *) sed -n '2,17p' "$0"; exit 2 ;;
+  *) sed -n '2,25p' "$0"; exit 2 ;;
 esac

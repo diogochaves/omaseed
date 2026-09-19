@@ -16,9 +16,11 @@ a browser) → `docs/03-charter.md` (scope and decisions). `docs/01` and `02` ar
   - `http://127.0.0.1:8080` is Diogo's real library ("home"). **Agents never talk to it.**
     No credential for it exists in the dev environment on purpose. The only permitted contact
     is the first-run detector's TCP port probe (T4.6), which never authenticates.
-  - `http://127.0.0.1:8081` is the disposable test server: `scripts/dev/test-server.sh start`.
-    Do anything you like there. `reset` wipes it. Its Bearer key is `QBT_TEST_API_KEY` in
-    `dev.env`; localhost is also auth-bypassed there, and cookie login works.
+  - `http://127.0.0.1:8081` is the playground: `scripts/dev/test-server.sh start`. Localhost
+    is auth-bypassed, so no credential is needed. Add, delete, `reset` at will.
+  - `http://127.0.0.1:8082` is the strict twin: `scripts/dev/test-server.sh start --strict`.
+    Real auth: cookie login with `QBT_STRICT_USER`/`QBT_STRICT_PASS`, Bearer with
+    `QBT_STRICT_API_KEY` from `dev.env`. Never `reset --strict`: the key lives in that profile.
 - Credentials live in `~/.config/omaseed/dev.env` (0600, outside the repo). Load with
   `set -a; . ~/.config/omaseed/dev.env; set +a`. Never print the key, never commit it.
 - No `sudo`. Everything needed is installed; if something is missing, stop and report it.
@@ -49,7 +51,7 @@ ctest --test-dir build --output-on-failure        # unit + qml tests
 QT_QPA_PLATFORM=offscreen ./build/omaseed --help  # headless smoke
 ./build/omaseed                                   # real run under Hyprland
 qmllint src/ui/qml/**/*.qml && qmlformat -i <file>
-scripts/dev/test-server.sh start|stop|status|reset|seed
+scripts/dev/test-server.sh start|stop|status|reset|seed [--strict]
 ```
 
 Visual checks under Hyprland: run the app, find it with `hyprctl -j clients`, screenshot with
