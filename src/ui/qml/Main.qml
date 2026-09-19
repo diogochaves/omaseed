@@ -1,21 +1,24 @@
 import QtQuick
 import Omaseed
 import Omaseed.Kit
+import Omaseed.Views
 
-// The shell window. Phase 1 shows only the identity half of the hero row (spec v2 §1, Fig. 1);
-// speeds, search, actions, rail, table, details and footer arrive in phase 3.
+// The shell window (spec v2 §1 Fig. 1, `.win.main`: 1360 × 800 at base 12). It owns the
+// window and nothing else — the translucent ground, the 1 px edge, the drop target, the
+// close-hides-to-tray rule and the poll cadence that follows visibility. Everything drawn
+// inside it is `MainView`, which the qmltestrunner can build on its own.
 Window {
     id: window
 
-    width: 1360
-    height: 800
+    width: Theme.space(1360)
+    height: Theme.space(800)
     visible: true
     title: qsTr("omaseed")
     color: Qt.rgba(Theme.background.r, Theme.background.g, Theme.background.b, Theme.windowAlpha)
 
     // T1.5: closing the window hides it instead of quitting (charter §2, "one process is
-    // window + tray-resident"). Only the tray menu's "quit" (main.cpp, QCoreApplication::quit)
-    // really ends the process.
+    // window + tray-resident"). Only the tray menu's "quit" and `ctrl+q` (main.cpp,
+    // QCoreApplication::quit) really end the process.
     onClosing: close => {
         close.accepted = false;
         window.hide();
@@ -23,6 +26,16 @@ Window {
 
     // The poll cadence follows the window: 1.5 s while it is on screen, 5 s while it is not.
     onVisibleChanged: App.setVisible(window.visible)
+
+    MainView {
+        id: view
+
+        anchors.fill: parent
+        focus: true
+
+        onHideRequested: window.hide()
+        onQuitRequested: Qt.quit()
+    }
 
     // The 1 px window edge: accent while active, muted otherwise.
     Rectangle {
@@ -32,90 +45,6 @@ Window {
         color: "transparent"
         radius: Theme.cornerRadius
         z: 1
-    }
-
-    Item {
-        id: hero
-
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: parent.top
-        height: Theme.space(28) + 2 * Theme.space(12)
-
-        Row {
-            anchors.left: parent.left
-            anchors.leftMargin: Theme.space(16)
-            anchors.verticalCenter: parent.verticalCenter
-            spacing: Theme.space(14)
-
-            Rectangle {
-                anchors.verticalCenter: parent.verticalCenter
-                border.color: Theme.accent
-                border.width: 1
-                color: "transparent"
-                height: Theme.space(28)
-                radius: Theme.cornerRadius
-                width: Theme.space(28)
-
-                Text {
-                    anchors.centerIn: parent
-                    color: Theme.accent
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.font.title
-                    text: "◆"
-                }
-            }
-
-            Column {
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: Theme.space(1)
-
-                Text {
-                    color: Theme.brightForeground
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.font.subtitle
-                    font.weight: Font.DemiBold
-                    text: qsTr("omaseed")
-                }
-
-                Row {
-                    spacing: Theme.space(6)
-
-                    Rectangle {
-                        anchors.verticalCenter: parent.verticalCenter
-                        color: Theme.green
-                        height: Theme.space(7)
-                        radius: height / 2
-                        width: Theme.space(7)
-                    }
-
-                    // T3.5 rewrites this whole hero; for now it is the live server line.
-                    Text {
-                        color: Theme.dimForeground
-                        font.capitalization: Font.AllUppercase
-                        font.family: Theme.fontFamily
-                        font.letterSpacing: Theme.font.caption * 0.1
-                        font.pixelSize: Theme.font.caption
-                        text: {
-                            if (!App.hasServer)
-                                return qsTr("no server");
-                            const version = App.globalState.serverVersion;
-                            return version.length > 0 ? qsTr("%1 · qBittorrent %2").arg(
-                                                            App.serverName).arg(version) :
-                                                        App.serverName;
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    Rectangle {
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: hero.bottom
-        color: Theme.fill(Theme.hairlineAlpha)
-        height: 1
     }
 
     // Magnet text and .torrent files dropped anywhere on the window. T4.2 routes these into

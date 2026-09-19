@@ -29,6 +29,14 @@ Item {
     /// `i` in Main: the pane folds away entirely.
     property bool collapsed: false
 
+    /// The pane's own left border. Inside the main window `SplitLayout` already draws the
+    /// divider between the table and the pane, so Main turns this off to avoid a 2 px rule.
+    property bool showEdge: true
+    /// The tab's key hints along the pane's foot (Fig. 2-4). The main window teaches every
+    /// tab from its own footer (`HintModel`), so Main turns this off too; the standalone
+    /// figures keep it.
+    property bool showHints: true
+
     /// Where the cursor sits inside the current tab's list. General has no list, so it is -1.
     readonly property int cursorIndex: root.currentTab === 1 ? root.filesCursor : root.currentTab
                                                                === 2 ? root.trackersCursor :
@@ -214,6 +222,7 @@ Item {
         anchors.left: parent.left
         anchors.top: parent.top
         vertical: true
+        visible: root.showEdge
     }
 
     Item {
@@ -389,8 +398,8 @@ Item {
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.right: parent.right
-        height: root.currentTab === 0 ? 0 : Math.round(Theme.font.body * 2.2)
-        visible: root.currentTab !== 0
+        height: (root.currentTab === 0 || !root.showHints) ? 0 : Math.round(Theme.font.body * 2.2)
+        visible: root.currentTab !== 0 && root.showHints
 
         Hairline {
             anchors.left: parent.left

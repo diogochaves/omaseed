@@ -404,8 +404,14 @@ int main(int argc, char *argv[])
                              qInfo().noquote() << QStringLiteral("uri: %1").arg(uri);
                          raiseWindow(singleInstance);
                      });
-    if (!singleInstance->start(uris))
-        return 0;
+    // A `--demo` run never receives URIs and must never take the name: two agents' demos
+    // (and a demo beside a real omaseed) have to coexist on one session bus.
+    if (demo.isEmpty()) {
+        if (!singleInstance->start(uris))
+            return 0;
+    } else {
+        qInfo().noquote() << QStringLiteral("demo: single-instance skipped");
+    }
 
     // Exposed to QML as the `Xdg` singleton (XdgForeign.hpp); the DropArea in Main.qml is its
     // only caller for now.
@@ -496,13 +502,28 @@ int main(int argc, char *argv[])
     });
 
     // The window's visibility drives the poll cadence (1.5 s shown, 5 s hidden). Main.qml
-    // forwards its own `visible`; this catches the tray's hide/show of the same window.
+    // forwards its own `visible`; this catches the tray's hide/show of the same window, and
+    // the first call states where the window started (its `onVisibleChanged` fired while the
+    // component was still being built).
     if (rootWindow) {
+        omaseedApp.setVisible(rootWindow->isVisible());
         QObject::connect(rootWindow,
                          &QWindow::visibleChanged,
                          &omaseedApp,
                          [&omaseedApp](bool shown) { omaseedApp.setVisible(shown); });
     }
+
+    // Everything spec §7 Fig. 26's "act" column promises but Phase 4 implements. MainView
+    // already logs the key and the row count; this is the one place that will grow into the
+    // real calls.
+    QObject::connect(
+        &omaseedApp,
+        &omaseed::app::App::torrentActionRequested,
+        &app,
+        [](const QString &action, const QStringList &hashes) {
+            qInfo().noquote()
+                << QStringLiteral("torrent action: %1 on %2").arg(action).arg(hashes.size());
+        });
 
     const int code = QApplication::exec();
     omaseedApp.engine()->stop();
