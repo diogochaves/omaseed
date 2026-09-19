@@ -11,11 +11,19 @@ Item {
 
     property string appName: "omaseed"
     property bool connected: true
+    /// The first sync has not landed yet (spec §7 Fig. 25): the mark stays accent, the dot
+    /// goes yellow and the caller writes "… · first sync" into `serverLine`.
+    property bool syncing: false
+    /// The server is on its alternative speed limits: the glyph turns accent (`.btn.icon.on`).
+    property bool altSpeedActive: false
     property string downSpeed: "—"
     // Exposed read-only so `tst_Hero.qml` can drive the inner Field directly instead of
     // simulating keystrokes.
     property alias searchField: searchField
     property int searchCount: 0
+    /// What the field's trailing count prints. Fig. 1 shows the bare count, Fig. 24 shows
+    /// "0 of 142"; the caller decides, and the plain count is the default.
+    property string searchCountText: String(root.searchCount)
     property string searchText: ""
     property string serverLine: ""
     property string upSpeed: "—"
@@ -49,7 +57,7 @@ Item {
             Layout.alignment: Qt.AlignVCenter
             Layout.preferredHeight: Theme.space(28)
             Layout.preferredWidth: Theme.space(28)
-            border.color: root.connected ? Theme.accent : Theme.red
+            border.color: (root.connected || root.syncing) ? Theme.accent : Theme.red
             border.width: 1
             color: "transparent"
 
@@ -79,7 +87,7 @@ Item {
 
                 Rectangle {
                     anchors.verticalCenter: parent.verticalCenter
-                    color: root.connected ? Theme.green : Theme.red
+                    color: root.syncing ? Theme.yellow : root.connected ? Theme.green : Theme.red
                     height: Theme.space(7)
                     radius: width / 2
                     width: Theme.space(7)
@@ -122,7 +130,7 @@ Item {
             hint: Glyphs.search
             placeholder: qsTr("filter torrents")
             text: root.searchText
-            trailing: String(root.searchCount)
+            trailing: root.searchCountText
 
             onAccepted: root.searchChanged(searchField.text)
             onCleared: root.searchCleared()
@@ -134,6 +142,7 @@ Item {
             spacing: Theme.space(2)
 
             IconButton {
+                accent: true // `.btn.icon.on` in Fig. 1: adding is the hero's one bright action
                 glyph: Glyphs.add
                 tooltip: qsTr("add")
 
@@ -141,6 +150,7 @@ Item {
             }
 
             IconButton {
+                accent: root.altSpeedActive
                 glyph: Glyphs.altSpeed
                 tooltip: qsTr("alt-speed")
 

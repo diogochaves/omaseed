@@ -15,6 +15,9 @@ Rectangle {
     property bool hasCursor: false
     property bool selected: false
     property bool bordered: false
+    /// Spec `.btn.icon.on`: the glyph alone turns accent, with no border or fill (the hero's
+    /// `+`, and its alt-speed glyph while the server is on alternative limits).
+    property bool accent: false
     // Debug-only override so the ThemeGallery can show the pressed fill without a held mouse
     // button; a real press (mouseArea.pressed) always wins over this.
     property bool pressed: false
@@ -22,8 +25,9 @@ Rectangle {
     signal clicked
 
     readonly property bool hot: root.hasCursor || mouseArea.containsMouse
-    readonly property color _glyphColor: root.danger ? Theme.red : (root.primary || root.selected)
-                                                       ? Theme.accent : Theme.dimForeground
+    readonly property color _glyphColor: root.danger ? Theme.red : (root.primary || root.selected
+                                                                    || root.accent) ? Theme.accent :
+                                                                                      Theme.dimForeground
     readonly property color _borderColor: (root.danger && (root.selected || root.primary))
                                           ? Theme.red : root.primary ? Theme.accent :
                                                                        root.activeFocus

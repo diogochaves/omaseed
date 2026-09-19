@@ -77,7 +77,6 @@ Item {
 
             Text {
                 color: Theme.foreground
-                font.capitalization: Font.AllUppercase
                 font.family: Theme.fontFamily
                 font.letterSpacing: Math.max(1, Math.round(Theme.font.caption * 0.08))
                 font.pixelSize: Theme.font.caption
