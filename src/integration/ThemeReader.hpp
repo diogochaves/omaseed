@@ -87,6 +87,24 @@ public:
     /// The bundled Tokyo Night fallback, as a Qt resource path.
     static QString bundledColorsPath();
 
+    // ---- the Appearance pane's overrides (T4.5, spec v2 §5 Fig. 16) ---------------------
+    //
+    // Both are process-level overrides the settings modal writes; `App` persists them under
+    // `"appearance"` in state.json and re-applies them at startup. Neither touches the files
+    // on disk, and both go through the same `reload()` path, so a change repaints exactly
+    // like a real theme change does.
+
+    /// False pins the bundled Tokyo Night palette and ignores the Omarchy theme on disk
+    /// ("Follow the Omarchy theme", off). True (the default) is the normal lookup order.
+    bool followOmarchy() const { return m_followOmarchy; }
+    void setFollowOmarchy(bool follow);
+
+    /// A pixel size that replaces `[font] base-size` from `shell.toml`; 0 (the default)
+    /// follows the shell. Everything in the QML scales from it, so this is the one knob the
+    /// Appearance pane's "Base size" field turns.
+    int baseSizeOverride() const { return m_baseSizeOverride; }
+    void setBaseSizeOverride(int pixels);
+
 Q_SIGNALS:
     /// The palette, the shell values or the theme name changed. Never emitted for a rewrite
     /// that resolves to the same thing.
@@ -105,6 +123,8 @@ private:
     QByteArray m_fingerprint;
     QFileSystemWatcher m_watcher;
     QTimer m_debounce;
+    bool m_followOmarchy = true;
+    int m_baseSizeOverride = 0;
 };
 
 } // namespace omaseed::integration

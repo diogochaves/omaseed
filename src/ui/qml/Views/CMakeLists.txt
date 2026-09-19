@@ -38,6 +38,10 @@ qt_add_qml_module(omaseed-views
         Rail.qml
         RailGroup.qml
         RenameSheet.qml
+        ServerSheet.qml
+        SettingsModal.qml
+        SettingsRow.qml
+        SettingsServerRow.qml
         SortPalette.qml
         TagPalette.qml
         ThemeGallery.qml

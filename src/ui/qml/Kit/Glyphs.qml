@@ -55,4 +55,13 @@ QtObject {
     readonly property string middot: "·" // unchecked row of a multi-select palette, spec §4
     readonly property string close: "✕"
     readonly property string dot: "●"
+
+    // ---- settings nav, spec §5 Fig. 16 `.settings .nav .it .g` ------------------------
+    readonly property string server: "⛁" // also the server sheet's head, Fig. 9
+    readonly property string notifications: "◔"
+    readonly property string keyboard: "⌨"
+    readonly property string appearance: "◐"
+    readonly property string about: "i"
+    readonly property string home: "⌂" // Fig. 16's path-mapping row, Fig. 7's head
+    readonly property string plus: "+"
 }

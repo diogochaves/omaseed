@@ -45,6 +45,11 @@ omaseed_add_test(tst_serverstore
     LIBRARIES omaseed::core
 )
 
+omaseed_add_test(tst_serverlistmodel
+    SOURCES tst_serverlistmodel.cpp
+    LIBRARIES omaseed::core Qt6Keychain::Qt6Keychain
+)
+
 omaseed_add_test(tst_secretstore
     SOURCES tst_secretstore.cpp
     LIBRARIES omaseed::core Qt6Keychain::Qt6Keychain

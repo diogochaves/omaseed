@@ -33,3 +33,9 @@ omaseed_add_test(tst_app_actions
     SOURCES tst_app_actions.cpp
     LIBRARIES omaseed::app omaseed::core omaseed::integration
 )
+
+# T4.5 — the settings half of App, live against the strict server on :8082.
+omaseed_add_test(tst_app_servers
+    SOURCES tst_app_servers.cpp
+    LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::Network
+)

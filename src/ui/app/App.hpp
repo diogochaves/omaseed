@@ -29,6 +29,7 @@
 #include "core/QbtClient.hpp"
 #include "core/SecretStore.hpp"
 #include "core/Server.hpp"
+#include "core/ServerListModel.hpp"
 #include "core/ServerStore.hpp"
 #include "core/SyncEngine.hpp"
 #include "core/TagModel.hpp"
@@ -54,6 +55,7 @@ QT_END_NAMESPACE
 
 namespace omaseed::integration {
 class Notifier;
+class ThemeReader;
 class Xdg;
 } // namespace omaseed::integration
 
@@ -307,6 +309,123 @@ private:
     bool m_notifyDiskFullEnabled = true;
     bool m_notificationTogglesLoaded = false;
 
+    // --- T4.5: settings ------------------------------------------------------------------
+    // Everything the settings modal (spec v2 §5 Fig. 16) and the server sheet (§3 Fig. 9)
+    // need from App: the server list as a model, the four mutations that go with it, a
+    // throwaway connection test, and the handful of persisted flags the General and
+    // Appearance panes turn. Same arrangement as the T3.4/T3.5/T4.7 blocks: one delimited
+    // region at the end of the class and at the end of App.cpp.
+public:
+    /// The server list as a `QAbstractListModel` for the Servers pane. Never swapped out.
+    Q_PROPERTY(omaseed::core::ServerListModel *serverList READ serverList CONSTANT)
+    omaseed::core::ServerListModel *serverList() const { return m_serverList; }
+
+    /// The theme reader the Appearance pane's two overrides drive. main.cpp calls this once,
+    /// before the QML engine exists; not owned. Applies whatever state.json remembers.
+    void attachTheme(omaseed::integration::ThemeReader *reader);
+
+    /// Adds a server (`fields` is `ServerListModel::serverFromMap`'s shape) and returns its
+    /// id, or an empty string when the fields are unusable. `secret` is the API key or the
+    /// password; it goes to `SecretStore`, never to `servers.json`.
+    Q_INVOKABLE QString addServer(const QVariantMap &fields, const QString &secret = QString());
+    /// Edits one. An empty `secret` keeps the stored one.
+    Q_INVOKABLE bool updateServer(const QVariantMap &fields, const QString &secret = QString());
+    /// Removes one, and its secrets with it.
+    Q_INVOKABLE bool removeServer(const QString &id);
+    /// Makes `id` the default and moves the live engine onto it: stop, reconfigure the
+    /// client (including its secret), start. The hero follows through `serverChanged`.
+    Q_INVOKABLE bool setDefaultServer(const QString &id);
+
+    /// One throwaway `QbtClient` against `fields`: app/version, app/webapiVersion, then
+    /// torrents/info to count. Answers with `serverTested()`, always exactly once. An empty
+    /// `secret` on a server that already exists reads the stored one first. In demo mode the
+    /// result is fictional (there is no network to reach).
+    Q_INVOKABLE void testServer(const QVariantMap &fields, const QString &secret = QString());
+
+    // General pane -----------------------------------------------------------------------
+    /// Fig. 16's first behaviour row: whether the rail shows its SERVERS group at all.
+    Q_PROPERTY(bool showServersGroup READ showServersGroup WRITE setShowServersGroup NOTIFY
+                   settingsChanged)
+    bool showServersGroup() const;
+    void setShowServersGroup(bool show);
+
+    /// Fig. 16's second row: apply the server's path map before asking the file manager.
+    Q_PROPERTY(
+        bool pathMapEnabled READ pathMapEnabled WRITE setPathMapEnabled NOTIFY settingsChanged)
+    bool pathMapEnabled() const;
+    void setPathMapEnabled(bool enabled);
+
+    // Appearance pane --------------------------------------------------------------------
+    /// Off pins the bundled Tokyo Night instead of following `omarchy-theme-set`.
+    Q_PROPERTY(bool followOmarchyTheme READ followOmarchyTheme WRITE setFollowOmarchyTheme NOTIFY
+                   settingsChanged)
+    bool followOmarchyTheme() const;
+    void setFollowOmarchyTheme(bool follow);
+
+    /// A pixel size that replaces `shell.toml`'s `[font] base-size`; 0 follows the shell.
+    Q_PROPERTY(
+        int baseSizeOverride READ baseSizeOverride WRITE setBaseSizeOverride NOTIFY settingsChanged)
+    int baseSizeOverride() const;
+    void setBaseSizeOverride(int pixels);
+
+    /// Window transparency in percent, 50…100; 0 means "the default", which is 90
+    /// (docs/QUESTIONS.md Q1: `Theme.windowAlpha` is fixed at 0.90 and this is its override).
+    Q_PROPERTY(int windowAlphaOverride READ windowAlphaOverride WRITE setWindowAlphaOverride NOTIFY
+                   settingsChanged)
+    int windowAlphaOverride() const;
+    void setWindowAlphaOverride(int percent);
+
+    /// "auto" | "always" | "never" (plan Phase 6 T6.3). `auto` behaves as `always` until the
+    /// companion widget exists; the row is here now because it is cheap.
+    Q_PROPERTY(QString trayIconMode READ trayIconMode WRITE setTrayIconMode NOTIFY settingsChanged)
+    QString trayIconMode() const;
+    void setTrayIconMode(const QString &mode);
+
+    // About pane -------------------------------------------------------------------------
+    /// "omaseed 0.1.0 · Qt 6.11.0" — `core::versionLine()`.
+    Q_PROPERTY(QString versionText READ versionText CONSTANT)
+    QString versionText() const;
+    /// The Qt this binary runs against, on its own.
+    Q_PROPERTY(QString qtVersionText READ qtVersionText CONSTANT)
+    QString qtVersionText() const;
+    /// The public repository, and the copyable line that installs the companion bar widget.
+    Q_PROPERTY(QString repoUrl READ repoUrl CONSTANT)
+    QString repoUrl() const;
+    Q_PROPERTY(QString pluginAddCommand READ pluginAddCommand CONSTANT)
+    QString pluginAddCommand() const;
+
+Q_SIGNALS:
+    /// Any of the persisted settings above moved.
+    void settingsChanged();
+    /// One `testServer()` finished. `id` is the id the caller passed in `fields` (empty for a
+    /// server that is not saved yet), so a sheet can tell its own answer from another's.
+    void serverTested(const QString &id,
+                      bool ok,
+                      const QString &version,
+                      const QString &apiVersion,
+                      int torrentCount,
+                      int latencyMs,
+                      const QString &error);
+
+private:
+    void loadSettings();
+    void saveSettings();
+    void applyAppearance();
+    /// The shared tail of `testServer()`: run the probe with the secret already resolved.
+    void runServerTest(const omaseed::core::Server &server, const QString &secret);
+
+    omaseed::core::ServerListModel *m_serverList =
+        new omaseed::core::ServerListModel(m_servers, m_secrets, this);
+    QPointer<omaseed::integration::ThemeReader> m_themeReader;
+
+    bool m_showServersGroup = true;
+    bool m_pathMapEnabled = true;
+    bool m_followOmarchyTheme = true;
+    int m_baseSizeOverride = 0;
+    int m_windowAlphaOverride = 0;
+    QString m_trayIconMode = QStringLiteral("auto");
+    bool m_settingsLoaded = false;
+    // --- end T4.5 --------------------------------------------------------------------------
     // --- T4.3: torrent actions ---
     // Every action of spec §3 Fig. 6/7/8/11 and Fig. 26's "act" column that touches the
     // server lives here, over `QbtClient`. Each one no-ops in demo mode (logging

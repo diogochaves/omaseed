@@ -508,7 +508,8 @@ Item {
             counts: App.counts
             filtered: App.filtered
             servers: App.servers
-            serverCount: App.serverCount
+            // T4.5: the SERVERS group is off unless the General pane asks for it.
+            serverCount: App.showServersGroup ? App.serverCount : 0
             tags: App.tags
             trackers: App.trackers
             visible: !root.libraryEmpty && !root.firstSync
@@ -1056,4 +1057,33 @@ Item {
         target: App
     }
     // --- end T4.2 ---
+
+    // --- T4.5: settings ---
+    // The settings modal of spec §5 Fig. 16, with Fig. 9's server sheet inside it. `,`, the
+    // hero's gear, the tray's `settings…` and the disconnected banner all arrive through
+    // App.openSettings().
+    SettingsModal {
+        id: settingsModal
+
+        anchors.fill: parent
+        z: 11
+
+        onClosed: table.forceActiveFocus()
+    }
+
+    Connections {
+        function onOpenSettings(): void {
+            settingsModal.open();
+        }
+
+        target: App
+    }
+
+    // The Appearance pane's transparency override; 0 keeps the default 0.90 of QUESTIONS Q1.
+    Binding {
+        property: "windowAlpha"
+        target: Theme
+        value: App.windowAlphaOverride > 0 ? App.windowAlphaOverride / 100 : 0.90
+    }
+    // --- end T4.5 ---
 }

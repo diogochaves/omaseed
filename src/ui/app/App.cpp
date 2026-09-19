@@ -5,12 +5,15 @@
 #include "core/PathMap.hpp"
 #include "core/StateFile.hpp"
 #include "core/TorrentFile.hpp"
+#include "core/Version.hpp"
 #include "integration/Notifier.hpp"
+#include "integration/ThemeReader.hpp"
 #include "integration/Xdg.hpp"
 #include "ui/app/DemoData.hpp"
 
 #include <QClipboard>
 #include <QDebug>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -22,8 +25,11 @@
 #include <QQmlEngine>
 #include <QRegularExpression>
 #include <QThreadPool>
+#include <QTimer>
 #include <QUrl>
 #include <QtGlobal>
+
+#include <chrono>
 
 using namespace omaseed::core;
 using omaseed::integration::Tray;
@@ -1539,5 +1545,345 @@ QString App::pickDirectory(const QString &startDir) const
 }
 
 // --- end T4.3 ------------------------------------------------------------------------------
+
+// --- T4.5: settings ------------------------------------------------------------------------
+// The settings modal's half of App (spec v2 §5 Fig. 16, §3 Fig. 9). See the block at the end
+// of App.hpp for what it adds and why it sits here rather than woven through the file.
+
+void App::attachTheme(omaseed::integration::ThemeReader *reader)
+{
+    m_themeReader = reader;
+    loadSettings();
+    applyAppearance();
+}
+
+QString App::addServer(const QVariantMap &fields, const QString &secret)
+{
+    const QString id = m_serverList->add(fields, secret);
+    if (id.isEmpty())
+        return {};
+    qInfo().noquote() << QStringLiteral("server added: %1").arg(id);
+    // The first server ever added is made default by the model, and there is no engine
+    // running yet: move onto it so the table fills without a restart.
+    if (!m_hasServer && m_servers->defaultId() == id)
+        setDefaultServer(id);
+    else
+        Q_EMIT serverChanged();
+    return id;
+}
+
+bool App::updateServer(const QVariantMap &fields, const QString &secret)
+{
+    if (!m_serverList->update(fields, secret))
+        return false;
+    const QString id = fields.value(QStringLiteral("id")).toString();
+    // Editing the server the engine is on has to reach the live client, or the change only
+    // shows after a restart.
+    if (m_hasServer && !m_demoMode && m_server.id == id)
+        setDefaultServer(id);
+    else
+        Q_EMIT serverChanged();
+    return true;
+}
+
+bool App::removeServer(const QString &id)
+{
+    const bool wasLive = m_hasServer && m_server.id == id;
+    if (!m_serverList->remove(id))
+        return false;
+    qInfo().noquote() << QStringLiteral("server removed: %1").arg(id);
+    if (wasLive) {
+        m_engine->stop();
+        m_hasServer = false;
+        m_server = Server();
+        const std::optional<Server> next = m_servers->defaultServer();
+        if (next)
+            setDefaultServer(next->id);
+    }
+    Q_EMIT serverChanged();
+    return true;
+}
+
+bool App::setDefaultServer(const QString &id)
+{
+    const std::optional<Server> server = m_servers->byId(id);
+    if (!server || !m_servers->setDefault(id))
+        return false;
+
+    if (!m_demoMode) {
+        // A different server is a different world: stop, throw away the rid, the models and
+        // the probe (setClient(nullptr) does all three), then configure and start again.
+        m_engine->stop();
+        m_engine->setClient(nullptr);
+        m_engine->setClient(m_client);
+        m_serverLost = false;
+        applyServer(*server);
+    }
+    qInfo().noquote() << QStringLiteral("server: %1 (%2) is now default")
+                             .arg(server->url.toString(QUrl::RemoveUserInfo), server->name);
+    Q_EMIT serverChanged();
+    updateTray();
+    return true;
+}
+
+void App::testServer(const QVariantMap &fields, const QString &secret)
+{
+    const Server server = ServerListModel::serverFromMap(fields);
+
+    if (m_demoMode) {
+        // There is no network behind a demo run, and the sheet still has to show something.
+        QTimer::singleShot(0, this, [this, server]() {
+            Q_EMIT serverTested(server.id,
+                                true,
+                                QStringLiteral("5.2.3"),
+                                QStringLiteral("2.15.1"),
+                                142,
+                                3,
+                                QString());
+        });
+        return;
+    }
+
+    if (!server.url.isValid() || server.url.host().isEmpty()) {
+        QTimer::singleShot(0, this, [this, server]() {
+            Q_EMIT serverTested(server.id, false, QString(), QString(), -1, -1, tr("not a URL"));
+        });
+        return;
+    }
+
+    if (!secret.isEmpty() || server.authMode == AuthMode::None || server.id.isEmpty()) {
+        runServerTest(server, secret);
+        return;
+    }
+
+    // An existing server tested without retyping its key: read the stored one first.
+    const SecretStore::Kind kind = server.authMode == AuthMode::Cookie ? SecretStore::Kind::Password
+                                                                       : SecretStore::Kind::ApiKey;
+    auto *job = m_secrets->secret(server.id, kind, this);
+    connect(job,
+            &SecretStoreJob::finished,
+            this,
+            [this, server](bool ok, const QString &value, const QString &) {
+                runServerTest(server, ok ? value : QString());
+            });
+}
+
+void App::runServerTest(const Server &server, const QString &secret)
+{
+    auto *client = new QbtClient(this);
+    client->setBaseUrl(server.url);
+    client->setMaxRetries(0);
+    client->setTimeout(std::chrono::seconds(8));
+    switch (server.authMode) {
+    case AuthMode::ApiKey:
+        client->setApiKey(secret);
+        break;
+    case AuthMode::Cookie:
+        client->setCredentials(server.username, secret);
+        break;
+    case AuthMode::None:
+        break;
+    }
+
+    QElapsedTimer elapsed;
+    elapsed.start();
+    const QString id = server.id;
+
+    client->probe()->then(this, [this, client, elapsed, id](const QbtResult<ServerInfo> &result) {
+        const int latency = int(elapsed.elapsed());
+        if (result.isError()) {
+            const QString error = result.error().toString();
+            client->deleteLater();
+            m_serverList->setProbeResult(id, false, -1, latency, error);
+            Q_EMIT serverTested(id, false, QString(), QString(), -1, latency, error);
+            return;
+        }
+
+        const ServerInfo info = result.value();
+        // sync/maindata would do this too, but it also allocates a rid on the server; a
+        // plain torrents/info is the cheaper way to count what is there.
+        client->torrentsInfo()->then(
+            this, [this, client, id, info, latency](const QbtResult<QJsonArray> &listResult) {
+                const int count = listResult.isError() ? -1 : int(listResult.value().size());
+                const QString version = info.version;
+                const QString apiVersion = info.apiVersion;
+                client->deleteLater();
+                m_serverList->setProbeResult(id, true, count, latency, QString());
+                Q_EMIT serverTested(id, true, version, apiVersion, count, latency, QString());
+            });
+    });
+}
+
+// --- the persisted flags ---------------------------------------------------------------
+
+bool App::showServersGroup() const
+{
+    const_cast<App *>(this)->loadSettings();
+    return m_showServersGroup;
+}
+
+void App::setShowServersGroup(bool show)
+{
+    loadSettings();
+    if (m_showServersGroup == show)
+        return;
+    m_showServersGroup = show;
+    saveSettings();
+    Q_EMIT settingsChanged();
+}
+
+bool App::pathMapEnabled() const
+{
+    const_cast<App *>(this)->loadSettings();
+    return m_pathMapEnabled;
+}
+
+void App::setPathMapEnabled(bool enabled)
+{
+    loadSettings();
+    if (m_pathMapEnabled == enabled)
+        return;
+    m_pathMapEnabled = enabled;
+    saveSettings();
+    Q_EMIT settingsChanged();
+}
+
+bool App::followOmarchyTheme() const
+{
+    const_cast<App *>(this)->loadSettings();
+    return m_followOmarchyTheme;
+}
+
+void App::setFollowOmarchyTheme(bool follow)
+{
+    loadSettings();
+    if (m_followOmarchyTheme == follow)
+        return;
+    m_followOmarchyTheme = follow;
+    saveSettings();
+    applyAppearance();
+    Q_EMIT settingsChanged();
+}
+
+int App::baseSizeOverride() const
+{
+    const_cast<App *>(this)->loadSettings();
+    return m_baseSizeOverride;
+}
+
+void App::setBaseSizeOverride(int pixels)
+{
+    loadSettings();
+    // Anything outside the range the shell itself offers is "follow the shell".
+    const int clamped = (pixels >= 8 && pixels <= 32) ? pixels : 0;
+    if (m_baseSizeOverride == clamped)
+        return;
+    m_baseSizeOverride = clamped;
+    saveSettings();
+    applyAppearance();
+    Q_EMIT settingsChanged();
+}
+
+int App::windowAlphaOverride() const
+{
+    const_cast<App *>(this)->loadSettings();
+    return m_windowAlphaOverride;
+}
+
+void App::setWindowAlphaOverride(int percent)
+{
+    loadSettings();
+    const int clamped = (percent >= 50 && percent <= 100) ? percent : 0;
+    if (m_windowAlphaOverride == clamped)
+        return;
+    m_windowAlphaOverride = clamped;
+    saveSettings();
+    Q_EMIT settingsChanged();
+}
+
+QString App::trayIconMode() const
+{
+    const_cast<App *>(this)->loadSettings();
+    return m_trayIconMode;
+}
+
+void App::setTrayIconMode(const QString &mode)
+{
+    loadSettings();
+    static const QStringList known{
+        QStringLiteral("auto"), QStringLiteral("always"), QStringLiteral("never")};
+    const QString next = known.contains(mode) ? mode : QStringLiteral("auto");
+    if (m_trayIconMode == next)
+        return;
+    m_trayIconMode = next;
+    saveSettings();
+    // `auto` behaves as `always` until the companion widget's heartbeat exists (plan T6.3).
+    if (m_tray && m_tray->systemTrayIcon() != nullptr)
+        m_tray->systemTrayIcon()->setVisible(next != QStringLiteral("never"));
+    Q_EMIT settingsChanged();
+}
+
+QString App::versionText() const
+{
+    return omaseed::core::versionLine();
+}
+
+QString App::qtVersionText() const
+{
+    return QString::fromLatin1(qVersion());
+}
+
+QString App::repoUrl() const
+{
+    return QStringLiteral("https://github.com/diogochaves/omaseed");
+}
+
+QString App::pluginAddCommand() const
+{
+    return QStringLiteral("omarchy plugin add https://github.com/diogochaves/omaseed-bar");
+}
+
+void App::loadSettings()
+{
+    if (m_settingsLoaded)
+        return;
+    m_settingsLoaded = true;
+
+    const QJsonObject general = StateFile::readSection(QStringLiteral("general"));
+    m_showServersGroup = general.value(QStringLiteral("showServersGroup")).toBool(true);
+    m_pathMapEnabled = general.value(QStringLiteral("pathMapEnabled")).toBool(true);
+
+    const QJsonObject appearance = StateFile::readSection(QStringLiteral("appearance"));
+    m_followOmarchyTheme = appearance.value(QStringLiteral("followOmarchyTheme")).toBool(true);
+    m_baseSizeOverride = appearance.value(QStringLiteral("baseSizeOverride")).toInt(0);
+    m_windowAlphaOverride = appearance.value(QStringLiteral("windowAlphaOverride")).toInt(0);
+    m_trayIconMode =
+        appearance.value(QStringLiteral("trayIconMode")).toString(QStringLiteral("auto"));
+}
+
+void App::saveSettings()
+{
+    QJsonObject general;
+    general[QStringLiteral("showServersGroup")] = m_showServersGroup;
+    general[QStringLiteral("pathMapEnabled")] = m_pathMapEnabled;
+    StateFile::writeSection(QStringLiteral("general"), general);
+
+    QJsonObject appearance;
+    appearance[QStringLiteral("followOmarchyTheme")] = m_followOmarchyTheme;
+    appearance[QStringLiteral("baseSizeOverride")] = m_baseSizeOverride;
+    appearance[QStringLiteral("windowAlphaOverride")] = m_windowAlphaOverride;
+    appearance[QStringLiteral("trayIconMode")] = m_trayIconMode;
+    StateFile::writeSection(QStringLiteral("appearance"), appearance);
+}
+
+void App::applyAppearance()
+{
+    if (!m_themeReader)
+        return;
+    m_themeReader->setFollowOmarchy(m_followOmarchyTheme);
+    m_themeReader->setBaseSizeOverride(m_baseSizeOverride);
+}
+
+// --- end T4.5 --------------------------------------------------------------------------------
 
 } // namespace omaseed::app
