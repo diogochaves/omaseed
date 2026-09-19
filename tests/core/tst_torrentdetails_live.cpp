@@ -123,6 +123,9 @@ void TestTorrentDetailsLive::addFixture(QbtClient &client)
 void TestTorrentDetailsLive::removeFixture(QbtClient &client)
 {
     await(this, client.torrentsDelete({QString::fromLatin1(kFixtureHash)}, /*deleteFiles=*/true));
+    // Deleting the torrent does not delete the category it was filed under: the playground
+    // would otherwise collect one `omaseed-t34-live` row per run for ever (T4.8).
+    await(this, client.torrentsRemoveCategories({QString::fromLatin1(kCategory)}));
 }
 
 void TestTorrentDetailsLive::cleanup()

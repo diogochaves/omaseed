@@ -206,6 +206,9 @@ void TestQbtClientActionsLive::addUrlsHonoursOptions()
     const QString savePath = m_downloadsRoot + QStringLiteral("/t25");
     m_addedDirs.append(savePath);
     m_addedCategories.append(QStringLiteral("t25"));
+    // The tags an add creates outlive the torrent it created them for, so they belong in the
+    // cleanup list too (T4.8: the playground had collected `a` and `b` from earlier runs).
+    m_addedTags.append({QStringLiteral("a"), QStringLiteral("b")});
 
     QbtClient::AddOptions options;
     options.category = QStringLiteral("t25");
