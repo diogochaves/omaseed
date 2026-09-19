@@ -16,6 +16,10 @@ QString desktopFileName();
 QString dbusServiceName();
 /// The org.freedesktop.Application object path derived from the application id.
 QString dbusObjectPath();
+/// Object path of the theme control object (the theme-set hook pokes it).
+QString dbusThemeObjectPath();
+/// Interface name of the theme control object.
+QString dbusThemeInterface();
 /// Short name used for the binary, the config directory and QCoreApplication.
 QString applicationName();
 /// Organisation domain for QSettings and QCoreApplication.
