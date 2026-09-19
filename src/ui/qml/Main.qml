@@ -47,15 +47,18 @@ Window {
         z: 1
     }
 
-    // Magnet text and .torrent files dropped anywhere on the window. T4.2 routes these into
-    // the add sheet; for now they are only logged (charter §2 "Drag and drop").
+    // --- T4.2: add flow ---
+    // Magnet text and .torrent files dropped anywhere on the window (charter §2 "Drag and
+    // drop"): the first opens the add sheet, the rest queue behind it.
     DropArea {
         anchors.fill: parent
 
         onDropped: drop => {
             const addables = Xdg.addablesFromDrop(drop.urls, drop.text);
-            for (const addable of addables)
-                console.log("drop:", addable.kind, addable.value);
+            const values = addables.map(addable => addable.value);
+            if (values.length > 0)
+                view.addDropped(values);
         }
     }
+    // --- end T4.2 ---
 }

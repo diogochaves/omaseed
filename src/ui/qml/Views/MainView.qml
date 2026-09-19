@@ -690,4 +690,67 @@ Item {
             onCloseRequested: root.helpOpen = false
         }
     }
+
+    // --- T4.2: add flow ---
+    // Every source of an add ends up in one sheet (spec §3 Fig. 5): `a` and the hero's `+`
+    // arrive as `App.addRequested`, a drop as `Main.qml`'s `addDropped`, the browser's
+    // `magnet:`/`.torrent` hand-off as `App.addUrisRequested`. An infohash the library
+    // already holds opens Fig. 10 instead of being sent.
+    AddSheet {
+        id: addSheet
+
+        anchors.fill: parent
+        z: 11
+
+        onAddRequested: request => App.addTorrent(request)
+        onDuplicateFound: duplicate => duplicateSheet.openFor(duplicate)
+    }
+
+    DuplicateSheet {
+        id: duplicateSheet
+
+        anchors.fill: parent
+        z: 12
+
+        // `show it` gives up on the add: the sheet behind this one goes away with it.
+        onShowRequested: hash => {
+            addSheet.dismiss();
+            root.showTorrent(hash);
+        }
+    }
+
+    /// The drop target in `Main.qml` hands its addables over here.
+    function addDropped(values: var): void {
+        if (values.length === 1)
+            addSheet.openWith(values[0], "drop");
+        else
+            addSheet.openList(values, "drop");
+    }
+
+    /// Move the table's cursor to `hash` and let the details pane follow. Used by the add
+    /// flow once a new torrent turns up, and by T4.7's "show" notification action.
+    function showTorrent(hash: string): void {
+        const row = App.filtered.rowOfHash(hash);
+        if (row < 0)
+            return;
+        table.moveCursorTo(row);
+        table.forceActiveFocus();
+    }
+
+    Connections {
+        function onAddRequested(): void {
+            addSheet.openBlank();
+        }
+
+        function onAddUrisRequested(uris: list<string>): void {
+            addSheet.openList(uris, "browser");
+        }
+
+        function onShowTorrentRequested(hash: string): void {
+            root.showTorrent(hash);
+        }
+
+        target: App
+    }
+    // --- end T4.2 ---
 }
