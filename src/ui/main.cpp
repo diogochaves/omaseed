@@ -4,14 +4,16 @@
 #include "integration/SingleInstance.hpp"
 #include "integration/Theme.hpp"
 #include "integration/ThemeReader.hpp"
+#include "integration/Tray.hpp"
 #include "integration/Xdg.hpp"
 
+#include <QApplication>
 #include <QCommandLineOption>
 #include <QCommandLineParser>
 #include <QCoreApplication>
-#include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
+#include <QQuickWindow>
 #include <QSet>
 #include <QStringList>
 #include <QTimer>
@@ -31,6 +33,7 @@ const QStringList &reservedDemoNames()
         QStringLiteral("notify"),
         QStringLiteral("sync"),
         QStringLiteral("table"),
+        QStringLiteral("tray"),
     };
     return names;
 }
@@ -92,11 +95,74 @@ int runNotifyDemo()
     return QCoreApplication::exec();
 }
 
+/// "<state>" for the --demo tray log line.
+QString trayStateName(omaseed::integration::Tray::State state)
+{
+    using Tray = omaseed::integration::Tray;
+    switch (state) {
+    case Tray::Disconnected:
+        return QStringLiteral("disconnected");
+    case Tray::Idle:
+        return QStringLiteral("idle");
+    case Tray::Downloading:
+        return QStringLiteral("downloading");
+    case Tray::AltSpeed:
+        return QStringLiteral("alt-speed");
+    case Tray::Error:
+        return QStringLiteral("error");
+    }
+    return QString();
+}
+
+/// `--demo tray`: cycles the five icon states every 2 s with the spec's sample tooltip and
+/// stats, no window, so a screenshot of the bar strip can be taken at leisure. Runs until
+/// killed.
+int runTrayDemo()
+{
+    using omaseed::integration::ThemeReader;
+    using omaseed::integration::Tray;
+
+    ThemeReader themeReader;
+    Tray tray(&themeReader);
+
+    tray.setTooltip(
+        QStringLiteral("home"), QStringLiteral("4.21 MB/s"), QStringLiteral("812 KB/s"), 6, 118);
+    tray.setStats(
+        QStringLiteral("4.21 MB/s"), QStringLiteral("812 KB/s"), 6, 118, QStringLiteral("1.8 TB"));
+    tray.setDownloadingCount(6);
+
+    const QList<Tray::State> states{
+        Tray::Disconnected,
+        Tray::Idle,
+        Tray::Downloading,
+        Tray::AltSpeed,
+        Tray::Error,
+    };
+    int index = 0;
+
+    QTimer cycle;
+    QObject::connect(&cycle, &QTimer::timeout, [&]() {
+        const Tray::State state = states.at(index);
+        tray.setState(state);
+        qInfo().noquote() << QStringLiteral("tray state: %1").arg(trayStateName(state));
+        index = (index + 1) % states.size();
+    });
+    cycle.start(2000);
+
+    tray.setState(states.at(index));
+    qInfo().noquote() << QStringLiteral("tray state: %1").arg(trayStateName(states.at(index)));
+    index = (index + 1) % states.size();
+
+    return QCoreApplication::exec();
+}
+
 } // namespace
 
 int main(int argc, char *argv[])
 {
-    QGuiApplication app(argc, argv);
+    // QSystemTrayIcon lives in QtWidgets, which needs a QApplication rather than a plain
+    // QGuiApplication; nothing else in this app touches a QWidget.
+    QApplication app(argc, argv);
     QGuiApplication::setApplicationName(omaseed::integration::AppIdentity::applicationName());
     QGuiApplication::setApplicationVersion(omaseed::core::version());
     QGuiApplication::setOrganizationDomain(omaseed::integration::AppIdentity::organizationDomain());
@@ -130,6 +196,8 @@ int main(int argc, char *argv[])
     const QString demo = parser.isSet(demoOption) ? parser.value(demoOption) : QString();
     if (demo == QStringLiteral("notify"))
         return runNotifyDemo();
+    if (demo == QStringLiteral("tray"))
+        return runTrayDemo();
     if (!demo.isEmpty() && demo != QStringLiteral("gallery")) {
         qInfo().noquote() << QStringLiteral("demo %1 not implemented yet").arg(demo);
         if (!reservedDemoNames().contains(demo)) {
@@ -209,5 +277,57 @@ int main(int argc, char *argv[])
         return 1;
     window = qobject_cast<QWindow *>(engine.rootObjects().constFirst());
 
-    return QGuiApplication::exec();
+    // The tray, created once the window exists so toggleWindowRequested has something to
+    // show. Its own signals become window control (toggle, raise), a real quit, or -- for
+    // everything Phase 3 wires up (add, alt-speed, stop/start all, settings) -- a log line.
+    omaseed::integration::Tray tray(&theme);
+
+    QQuickWindow *rootWindow = qobject_cast<QQuickWindow *>(engine.rootObjects().constFirst());
+    if (!rootWindow)
+        qWarning().noquote() << QStringLiteral("tray: root object is not a window; window "
+                                               "control from the tray is disabled");
+
+    QObject::connect(
+        &tray, &omaseed::integration::Tray::toggleWindowRequested, &app, [rootWindow]() {
+            if (!rootWindow)
+                return;
+            if (rootWindow->isVisible()) {
+                rootWindow->hide();
+            } else {
+                rootWindow->show();
+                rootWindow->raise();
+                rootWindow->requestActivate();
+            }
+        });
+    QObject::connect(&tray, &omaseed::integration::Tray::showRequested, &app, [rootWindow]() {
+        if (!rootWindow)
+            return;
+        rootWindow->show();
+        rootWindow->raise();
+        rootWindow->requestActivate();
+    });
+    QObject::connect(
+        &tray, &omaseed::integration::Tray::quitRequested, &app, &QCoreApplication::quit);
+    QObject::connect(&tray, &omaseed::integration::Tray::addRequested, &app, []() {
+        qInfo().noquote() << QStringLiteral("tray: add");
+    });
+    QObject::connect(
+        &tray, &omaseed::integration::Tray::altSpeedToggled, &app, [&tray](bool checked) {
+            qInfo().noquote() << QStringLiteral("tray: alt-speed %1")
+                                     .arg(checked ? QStringLiteral("on") : QStringLiteral("off"));
+            // Phase 3 reports the server's actual state back; until then, the
+            // menu reflects whatever was last requested.
+            tray.setAltSpeedChecked(checked);
+        });
+    QObject::connect(&tray, &omaseed::integration::Tray::stopAllRequested, &app, []() {
+        qInfo().noquote() << QStringLiteral("tray: stop all");
+    });
+    QObject::connect(&tray, &omaseed::integration::Tray::startAllRequested, &app, []() {
+        qInfo().noquote() << QStringLiteral("tray: start all");
+    });
+    QObject::connect(&tray, &omaseed::integration::Tray::settingsRequested, &app, []() {
+        qInfo().noquote() << QStringLiteral("tray: settings");
+    });
+
+    return QApplication::exec();
 }

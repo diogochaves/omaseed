@@ -28,3 +28,8 @@ omaseed_add_test(tst_singleinstance
     LIBRARIES omaseed::integration
     DEFINES OMASEED_DATA_DIR="${CMAKE_SOURCE_DIR}/data"
 )
+
+omaseed_add_test(tst_tray
+    SOURCES tst_tray.cpp
+    LIBRARIES omaseed::integration Qt6::Svg Qt6::Widgets
+)
