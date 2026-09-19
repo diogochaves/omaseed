@@ -1,3 +1,9 @@
+#include "core/ApiError.hpp"
+#include "core/FilterCounts.hpp"
+#include "core/GlobalState.hpp"
+#include "core/QbtClient.hpp"
+#include "core/SyncEngine.hpp"
+#include "core/TorrentModel.hpp"
 #include "core/Version.hpp"
 #include "integration/AppIdentity.hpp"
 #include "integration/Notifier.hpp"
@@ -7,11 +13,14 @@
 #include <QCommandLineParser>
 #include <QCoreApplication>
 #include <QGuiApplication>
+#include <QProcessEnvironment>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QSet>
 #include <QStringList>
+#include <QTextStream>
 #include <QTimer>
+#include <QUrl>
 #include <QtGlobal>
 
 using omaseed::integration::AppIdentity::applicationId;
@@ -88,6 +97,92 @@ int runNotifyDemo()
     return QCoreApplication::exec();
 }
 
+/// `--demo sync`: polls QBT_TEST_URL (default: the :8081 playground) through SyncEngine,
+/// prints the table of spec §1 Fig. 1 and the hero's numbers once the first full update has
+/// landed, and exits. No window; it only reads.
+int runSyncDemo()
+{
+    using namespace omaseed::core;
+
+    const QString fromEnv =
+        QProcessEnvironment::systemEnvironment().value(QStringLiteral("QBT_TEST_URL"));
+    const QUrl url(fromEnv.isEmpty() ? QStringLiteral("http://127.0.0.1:8081") : fromEnv);
+
+    QbtClient client;
+    client.setBaseUrl(url);
+    const QString apiKey =
+        QProcessEnvironment::systemEnvironment().value(QStringLiteral("QBT_API_KEY"));
+    if (!apiKey.isEmpty())
+        client.setApiKey(apiKey);
+
+    SyncEngine engine;
+    engine.setClient(&client);
+
+    int exitCode = 0;
+    const auto printTable = [&engine, &url]() {
+        const TorrentModel *torrents = engine.torrents();
+        const GlobalState *state = engine.globalState();
+
+        QTextStream out(stdout);
+        out << QStringLiteral("omaseed · %1 · qBittorrent %2 · API %3\n")
+                   .arg(url.toString(), state->serverVersion(), state->apiVersion());
+        out << QStringLiteral("%1  %2  %3  %4  %5  %6  %7  %8\n")
+                   .arg(QStringLiteral("name"), -44)
+                   .arg(QStringLiteral("size"), 10)
+                   .arg(QStringLiteral("progress"), 8)
+                   .arg(QStringLiteral("status"), -12)
+                   .arg(QStringLiteral("down"), 10)
+                   .arg(QStringLiteral("up"), 10)
+                   .arg(QStringLiteral("eta"), 8)
+                   .arg(QStringLiteral("category"), -12);
+        for (int row = 0; row < torrents->count(); ++row) {
+            const QModelIndex index = torrents->index(row);
+            const auto text = [&](int role) { return torrents->data(index, role).toString(); };
+            out << QStringLiteral("%1  %2  %3  %4  %5  %6  %7  %8\n")
+                       .arg(text(TorrentModel::NameRole), -44)
+                       .arg(text(TorrentModel::SizeTextRole), 10)
+                       .arg(text(TorrentModel::ProgressTextRole), 8)
+                       .arg(text(TorrentModel::StateTextRole), -12)
+                       .arg(text(TorrentModel::DlspeedTextRole), 10)
+                       .arg(text(TorrentModel::UpspeedTextRole), 10)
+                       .arg(text(TorrentModel::EtaTextRole), 8)
+                       .arg(text(TorrentModel::CategoryRole), -12);
+        }
+        out << QStringLiteral(
+                   "%1 torrents · %2 downloading · %3 seeding · ↓ %4 · ↑ %5 · %6 free · %7\n")
+                   .arg(torrents->count())
+                   .arg(engine.counts()->downloading())
+                   .arg(engine.counts()->seeding())
+                   .arg(state->dlSpeedText(),
+                        state->upSpeedText(),
+                        state->freeSpaceText(),
+                        state->connectionStatus());
+    };
+
+    const auto fail = [&exitCode](const ApiError &error) {
+        qWarning().noquote() << error.toString();
+        exitCode = 1;
+        QCoreApplication::quit();
+    };
+
+    QObject::connect(&engine, &SyncEngine::firstSyncFinished, &engine, [&]() {
+        printTable();
+        QCoreApplication::quit();
+    });
+    QObject::connect(&engine, &SyncEngine::serverLost, &engine, fail);
+    QObject::connect(&engine, &SyncEngine::authRequired, &engine, fail);
+    QTimer::singleShot(30000, &engine, [&exitCode]() {
+        qWarning().noquote() << QStringLiteral("no full update within 30 s");
+        exitCode = 1;
+        QCoreApplication::quit();
+    });
+
+    engine.start();
+    QCoreApplication::exec();
+    engine.stop();
+    return exitCode;
+}
+
 } // namespace
 
 int main(int argc, char *argv[])
@@ -127,6 +222,8 @@ int main(int argc, char *argv[])
         const QString demo = parser.value(demoOption);
         if (demo == QStringLiteral("notify"))
             return runNotifyDemo();
+        if (demo == QStringLiteral("sync"))
+            return runSyncDemo();
 
         qInfo().noquote() << QStringLiteral("demo %1 not implemented yet").arg(demo);
         if (!reservedDemoNames().contains(demo)) {
