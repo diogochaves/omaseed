@@ -10,7 +10,6 @@
 
 #include <QJsonArray>
 #include <QJsonValue>
-#include <QMap>
 #include <QTimer>
 
 namespace omaseed::core {
@@ -281,7 +280,6 @@ void SyncEngine::applyData(const QJsonObject &data)
 
     // What to announce afterwards, decided against the state before the merge.
     QStringList completed;
-    QStringList newTrackerErrors;
     if (!fullUpdate) {
         for (auto it = torrents.constBegin(); it != torrents.constEnd(); ++it) {
             const int row = m_torrents->indexOfHash(it.key());
@@ -295,10 +293,6 @@ void SyncEngine::applyData(const QJsonObject &data)
             if ((nowComplete || hasCompletionOn) && !before.isComplete() &&
                 !before.completionOn.isValid())
                 completed.append(it.key());
-
-            const auto errorIt = diff.constFind(key("has_tracker_error"));
-            if (errorIt != diff.constEnd() && errorIt->toBool(false) && !before.hasTrackerError)
-                newTrackerErrors.append(it.key());
         }
     }
 
@@ -337,29 +331,6 @@ void SyncEngine::applyData(const QJsonObject &data)
     for (const QString &hash : completed) {
         const Torrent &t = m_torrents->torrent(hash);
         Q_EMIT torrentCompleted(hash, t.name, t.size, t.category, t.contentPath);
-    }
-
-    if (!newTrackerErrors.isEmpty()) {
-        QMap<QString, QStringList> byHost;
-        for (const QString &hash : newTrackerErrors) {
-            const Torrent &t = m_torrents->torrent(hash);
-            QStringList hosts;
-            if (!t.tracker.isEmpty()) {
-                hosts.append(trackerHost(t.tracker));
-            } else {
-                // No working tracker left: name every host this torrent announces to.
-                for (const QString &host : m_trackers->hosts()) {
-                    if (host != trackerlessKey() && m_trackers->hashesFor(host).contains(hash))
-                        hosts.append(host);
-                }
-            }
-            if (hosts.isEmpty())
-                hosts.append(trackerlessKey());
-            for (const QString &host : hosts)
-                byHost[host].append(hash);
-        }
-        for (auto it = byHost.constBegin(); it != byHost.constEnd(); ++it)
-            Q_EMIT trackerError(it.key(), it.value());
     }
 
     const qint64 freeSpace = m_globalState->freeSpaceOnDisk();

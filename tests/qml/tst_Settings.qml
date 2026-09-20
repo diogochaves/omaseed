@@ -244,7 +244,8 @@ TestCase {
         keyClick(Qt.Key_Space);
         compare(App.pathMapEnabled, !mapping);
 
-        // Notifications: four rows, bound to App.notificationsEnabled. The keyboard is
+        // Notifications: three toggle rows (Q16 dropped the tracker one) bound to
+        // App.notificationsEnabled, then the low-disk threshold field. The keyboard is
         // already in the pane — a digit moves the nav without taking it back.
         keyClick(Qt.Key_3);
         compare(modal.paneRowCount, 4);
@@ -266,6 +267,64 @@ TestCase {
         App.pathMapEnabled = mapping;
         App.setNotificationEnabled("completed", completed);
         App.trayIconMode = tray;
+    }
+
+    // T5.5 (Q16): the low-disk threshold is the fourth row of the Notifications pane, a
+    // field prefilled with App's value; `enter` on the row focuses it, and accepting the
+    // field writes the value back (clamped to 1 or more by App).
+    function test_the_notifications_pane_edits_the_low_disk_threshold() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        const was = App.lowDiskThresholdGiB;
+        compare(was, 2); // the default, nothing persisted by an earlier test
+
+        modal.open();
+        keyClick(Qt.Key_3);
+        compare(modal.paneIndex, 2);
+
+        const row = testCase.childNamed(modal, "lowDiskThresholdRow");
+        verify(row, "the Notifications pane has no threshold row");
+        compare(row.title, "Low-disk threshold");
+        const field = testCase.childNamed(modal, "lowDiskThresholdField");
+        verify(field, "the threshold row has no field");
+        compare(field.text, "2"); // prefilled when the modal opened
+        compare(field.trailing, "GiB");
+
+        // The disk row's caption says what the figure watches (Q16), and wraps rather than
+        // eliding, so the row is taller than a one-line one.
+        const diskRow = testCase.childNamed(modal, "notifyRow-diskFull");
+        verify(diskRow.description.indexOf("default save path") >= 0);
+        const completedRow = testCase.childNamed(modal, "notifyRow-completed");
+        verify(diskRow.implicitHeight > completedRow.implicitHeight);
+
+        // `j` x3 from the first row lands on the field's row; `enter` hands it the keyboard.
+        keyClick(Qt.Key_Tab);
+        keyClick(Qt.Key_J);
+        keyClick(Qt.Key_J);
+        keyClick(Qt.Key_J);
+        compare(modal.paneCursor, 3);
+        compare(row.hasCursor, true);
+        keyClick(Qt.Key_Return);
+        verify(field.editing);
+
+        // Type a new value; accepting it reaches App and re-syncs the field.
+        keyClick(Qt.Key_Backspace);
+        keyClick(Qt.Key_5);
+        keyClick(Qt.Key_Return);
+        compare(App.lowDiskThresholdGiB, 5);
+        compare(field.text, "5");
+        verify(!field.editing);
+
+        // A value App clamps comes back as what App kept.
+        field.text = "0";
+        field.accepted();
+        compare(App.lowDiskThresholdGiB, 2); // `0` is "unset": the default
+        compare(field.text, "2");
+        field.text = "-3";
+        field.accepted();
+        compare(App.lowDiskThresholdGiB, 1);
+        compare(field.text, "1");
+
+        App.lowDiskThresholdGiB = was;
     }
 
     // T4.8: T4.5 could not wire this row, because T4.3 (which owns the flag) had not landed.

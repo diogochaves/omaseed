@@ -600,9 +600,10 @@ QString App::sizeText(qint64 bytes) const
 // --- T4.7: notifications ---------------------------------------------------------------------
 //
 // SyncEngine already decides *when* something is notice-worthy (one torrentCompleted per
-// torrent, one trackerError per host, diskAlmostFull/serverLost/serverBack each exactly once
-// per crossing); this block only turns those events into the words Notifier sends and answers
-// what the shell reports back.
+// torrent, diskAlmostFull/serverLost/serverBack each exactly once per crossing); this block
+// only turns those events into the words Notifier sends and answers what the shell reports
+// back. There is no tracker-error notice (spec §6 Fig. 20): Q16 dropped it, so a failing
+// tracker shows only as the Trackers tab badge and the rail filter.
 
 void App::attachNotifier(omaseed::integration::Notifier *notifier)
 {
@@ -626,15 +627,6 @@ void App::attachNotifier(omaseed::integration::Notifier *notifier)
                 m_completedContentPaths.insert(hash, localPath);
                 m_notifier->notifyCompleted(
                     hash, name, Format::size(sizeBytes), category, hasFolder);
-            });
-
-    connect(m_engine,
-            &SyncEngine::trackerError,
-            this,
-            [this](const QString &host, const QStringList &hashes) {
-                if (m_notifier.isNull() || !m_notifyTrackerErrorEnabled)
-                    return;
-                m_notifier->notifyTrackerError(host, int(hashes.size()));
             });
 
     connect(m_engine, &SyncEngine::diskAlmostFull, this, [this](qint64 freeBytes) {
@@ -671,9 +663,11 @@ void App::attachXdg(omaseed::integration::Xdg *xdg)
 
 QVariantMap App::notificationsEnabled() const
 {
+    // QML reads this before main.cpp attaches the notifier, so the file is read on demand
+    // here too (the same lazy load the T4.5 getters do with loadSettings()).
+    const_cast<App *>(this)->loadNotificationToggles();
     QVariantMap map;
     map.insert(QStringLiteral("completed"), m_notifyCompletedEnabled);
-    map.insert(QStringLiteral("trackerError"), m_notifyTrackerErrorEnabled);
     map.insert(QStringLiteral("serverLost"), m_notifyServerLostEnabled);
     map.insert(QStringLiteral("diskFull"), m_notifyDiskFullEnabled);
     return map;
@@ -681,11 +675,10 @@ QVariantMap App::notificationsEnabled() const
 
 void App::setNotificationEnabled(const QString &key, bool enabled)
 {
+    loadNotificationToggles();
     bool *flag = nullptr;
     if (key == QStringLiteral("completed"))
         flag = &m_notifyCompletedEnabled;
-    else if (key == QStringLiteral("trackerError"))
-        flag = &m_notifyTrackerErrorEnabled;
     else if (key == QStringLiteral("serverLost"))
         flag = &m_notifyServerLostEnabled;
     else if (key == QStringLiteral("diskFull"))
@@ -700,6 +693,24 @@ void App::setNotificationEnabled(const QString &key, bool enabled)
     Q_EMIT notificationsEnabledChanged();
 }
 
+int App::lowDiskThresholdGiB() const
+{
+    const_cast<App *>(this)->loadNotificationToggles();
+    return m_lowDiskThresholdGiB;
+}
+
+void App::setLowDiskThresholdGiB(int gib)
+{
+    loadNotificationToggles();
+    const int clamped = qMax(1, gib);
+    if (clamped == m_lowDiskThresholdGiB)
+        return;
+    m_lowDiskThresholdGiB = clamped;
+    saveNotificationToggles();
+    applyLowDiskThreshold();
+    Q_EMIT lowDiskThresholdGiBChanged();
+}
+
 void App::loadNotificationToggles()
 {
     if (m_notificationTogglesLoaded)
@@ -708,19 +719,25 @@ void App::loadNotificationToggles()
 
     const QJsonObject section = StateFile::readSection(QStringLiteral("notifications"));
     m_notifyCompletedEnabled = section.value(QStringLiteral("completed")).toBool(true);
-    m_notifyTrackerErrorEnabled = section.value(QStringLiteral("trackerError")).toBool(true);
     m_notifyServerLostEnabled = section.value(QStringLiteral("serverLost")).toBool(true);
     m_notifyDiskFullEnabled = section.value(QStringLiteral("diskFull")).toBool(true);
+    m_lowDiskThresholdGiB = qMax(1, section.value(QStringLiteral("lowDiskThresholdGiB")).toInt(2));
+    applyLowDiskThreshold();
 }
 
 void App::saveNotificationToggles()
 {
     QJsonObject section;
     section.insert(QStringLiteral("completed"), m_notifyCompletedEnabled);
-    section.insert(QStringLiteral("trackerError"), m_notifyTrackerErrorEnabled);
     section.insert(QStringLiteral("serverLost"), m_notifyServerLostEnabled);
     section.insert(QStringLiteral("diskFull"), m_notifyDiskFullEnabled);
+    section.insert(QStringLiteral("lowDiskThresholdGiB"), m_lowDiskThresholdGiB);
     StateFile::writeSection(QStringLiteral("notifications"), section);
+}
+
+void App::applyLowDiskThreshold()
+{
+    m_engine->setLowDiskThreshold(qint64(m_lowDiskThresholdGiB) * 1024 * 1024 * 1024);
 }
 
 QString App::mapContentPathToLocal(const QString &remotePath) const
@@ -773,26 +790,6 @@ void App::onNotifierActionInvoked(const QString &eventClass,
                 m_xdg->showInFileManager(path);
         } else if (actionKey == QStringLiteral("show")) {
             Q_EMIT showTorrentRequested(subjectId);
-        }
-        return;
-    }
-
-    if (eventClass == QStringLiteral("tracker-error")) {
-        const QStringList hashes = m_engine->trackers()->hashesFor(subjectId);
-        if (actionKey == QStringLiteral("show-trackers")) {
-            if (!hashes.isEmpty()) {
-                Q_EMIT showTorrentRequested(hashes.constFirst());
-                Q_EMIT showTrackersRequested(hashes.constFirst());
-            }
-        } else if (actionKey == QStringLiteral("reannounce")) {
-            if (!m_demoMode && m_hasServer && !hashes.isEmpty()) {
-                m_client->torrentsReannounce(hashes)->then(
-                    this, [](const QbtResult<QByteArray> &result) {
-                        if (result.isError())
-                            qWarning().noquote() << QStringLiteral("reannounce failed: %1")
-                                                        .arg(result.error().toString());
-                    });
-            }
         }
         return;
     }

@@ -5,7 +5,8 @@ import Omaseed.Kit
 // One behaviour row of the settings modal (spec v2 §5 Fig. 16 `.trow`): a dim glyph, a
 // bright title over a dim description, and the caller's control pushed to the right. The
 // whole row is outlined at the hairline alpha, and `hasCursor` fills it the way every other
-// cursor in the app does.
+// cursor in the app does. The description wraps rather than eliding, so a caption that has
+// to say something (Q16's disk row) is read in full and the row grows to fit it.
 //
 // The control is the default content, so a row reads like the figure's markup:
 //
@@ -85,10 +86,10 @@ Rectangle {
             Label {
                 Layout.fillWidth: true
                 dim: true
-                elide: Text.ElideRight
                 size: "small"
                 text: root.description
                 visible: root.description.length > 0
+                wrapMode: Text.Wrap
             }
         }
 

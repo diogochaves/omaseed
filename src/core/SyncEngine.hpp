@@ -16,11 +16,6 @@
 //   torrentCompleted  a known torrent reached progress 1 or got a completion_on in a
 //                     *partial* update — never from the full one, which would fire for the
 //                     whole library at startup.
-//   trackerError      a torrent's has_tracker_error turned true. qBittorrent 5.x reports
-//                     that flag per torrent inside maindata, so this costs no extra request;
-//                     the host comes from the torrent's current `tracker` URL, or, when it
-//                     has none left, from the `trackers` map that names the announce URLs
-//                     the torrent belongs to. Grouped by host, one signal per host.
 //   diskAlmostFull    server_state.free_space_on_disk crossed the threshold downwards.
 //   serverLost        the first network or timeout failure, once, not once per poll.
 //   serverBack        the first success after that.
@@ -118,7 +113,6 @@ Q_SIGNALS:
                           qint64 sizeBytes,
                           const QString &category,
                           const QString &contentPath);
-    void trackerError(const QString &host, const QStringList &hashes);
     void diskAlmostFull(qint64 freeBytes);
     void serverLost(const omaseed::core::ApiError &error);
     void serverBack();

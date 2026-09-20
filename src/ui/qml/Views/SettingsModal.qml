@@ -74,7 +74,7 @@ Item {
         case 1:
             return App.serverList.count + 1; // the servers, then "+ add a server"
         case 2:
-            return 4;
+            return 4; // three toggles, then the low-disk threshold field
         case 4:
             return 4;
         case 5:
@@ -124,7 +124,11 @@ Item {
             return;
         }
         if (root.paneIndex === 2) {
-            const keys = ["completed", "trackerError", "serverLost", "diskFull"];
+            const keys = ["completed", "serverLost", "diskFull"];
+            if (root.paneCursor >= keys.length) {
+                thresholdField.focusInput();
+                return;
+            }
             const key = keys[root.paneCursor];
             App.setNotificationEnabled(key, !App.notificationsEnabled[key]);
             return;
@@ -170,6 +174,13 @@ Item {
         clipboard.selectAll();
         clipboard.copy();
         clipboard.deselect();
+    }
+
+    /// The threshold field shows the stored value. `Field.text` is an alias on the editor,
+    /// so a binding would break at the first keystroke: it is written when the modal opens
+    /// and whenever App changes the value (a clamp, or the field's own accept).
+    function _syncThresholdField(): void {
+        thresholdField.text = String(App.lowDiskThresholdGiB);
     }
 
     function _nextTrayMode(): string {
@@ -322,7 +333,16 @@ Item {
             regrab.restart();
         }
 
+        function onLowDiskThresholdGiBChanged(): void {
+            root._syncThresholdField();
+        }
+
         target: App
+    }
+
+    onOpenedChanged: {
+        if (root.opened)
+            root._syncThresholdField();
     }
 
     // Nothing typed while any of the three overlays is up may reach the window behind them:
@@ -690,12 +710,6 @@ Item {
                                         "description": qsTr("One notice per finished torrent, with open folder and show.")
                                     },
                                     {
-                                        "key": "trackerError",
-                                        "glyph": Glyphs.statusErrored,
-                                        "title": qsTr("Tracker errors"),
-                                        "description": qsTr("Grouped per tracker host, with reannounce.")
-                                    },
-                                    {
                                         "key": "serverLost",
                                         "glyph": Glyphs.trayDisconnected,
                                         "title": qsTr("Server lost and back"),
@@ -705,7 +719,7 @@ Item {
                                         "key": "diskFull",
                                         "glyph": Glyphs.folder,
                                         "title": qsTr("Disk almost full"),
-                                        "description": qsTr("From the server's own free-space figure.")
+                                        "description": qsTr("From the server's own free-space figure for its default save path. Other disks and per-category paths are not watched.")
                                     }
                                 ]
 
@@ -720,6 +734,7 @@ Item {
                                     glyph: notifyRow.modelData.glyph
                                     hasCursor: root.area === "pane"
                                                && root.paneCursor === notifyRow.index
+                                    objectName: "notifyRow-" + notifyRow.modelData.key
                                     title: notifyRow.modelData.title
 
                                     onClicked: {
@@ -733,6 +748,44 @@ Item {
                                         checked: App.notificationsEnabled[notifyRow.modelData.key] === true
 
                                         onToggled: App.setNotificationEnabled(notifyRow.modelData.key, checked)
+                                    }
+                                }
+                            }
+
+                            // Q16: the line the disk notice fires at, a setting rather than
+                            // the fixed 2 GiB of T4.7. The same row + field shape as the
+                            // Appearance pane's overrides.
+                            SettingsRow {
+                                Layout.fillWidth: true
+                                description: qsTr("The notice fires once when the free space drops below this.")
+                                glyph: Glyphs.altSpeed
+                                hasCursor: root.area === "pane" && root.paneCursor === 3
+                                objectName: "lowDiskThresholdRow"
+                                title: qsTr("Low-disk threshold")
+
+                                onClicked: {
+                                    root.paneCursor = 3;
+                                    root.area = "pane";
+                                    thresholdField.focusInput();
+                                }
+
+                                Field {
+                                    id: thresholdField
+
+                                    implicitWidth: Theme.space(110)
+                                    objectName: "lowDiskThresholdField"
+                                    placeholder: qsTr("2")
+                                    trailing: qsTr("GiB")
+
+                                    onAccepted: {
+                                        App.lowDiskThresholdGiB = parseInt(text, 10) || 2;
+                                        root._syncThresholdField();
+                                        bodyItem.forceActiveFocus();
+                                    }
+                                    onCleared: {
+                                        App.lowDiskThresholdGiB = 2;
+                                        root._syncThresholdField();
+                                        bodyItem.forceActiveFocus();
                                     }
                                 }
                             }

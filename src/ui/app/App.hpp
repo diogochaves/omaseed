@@ -260,7 +260,9 @@ Q_SIGNALS:
     // --- end T3.5 ------------------------------------------------------------------------
 
     // --- T4.7: notifications ---------------------------------------------------------------
-    // Wires SyncEngine's five events (spec §6) to the real Notifier, handles the shell's
+    // Wires SyncEngine's four events (spec §6, minus Fig. 20's tracker notice — dropped in
+    // T5.5 per docs/QUESTIONS.md Q16: tracker health is the Trackers tab badge and the rail
+    // filter, as in qBittorrent's own GUI) to the real Notifier, handles the shell's
     // ActionInvoked for them, and keeps the per-event enable/disable toggles the Notifications
     // pane (T4.5) reads and writes. Everything this adds to App sits in this one block, at the
     // end of the class and at the end of App.cpp, the same arrangement T3.4 and T3.5 use.
@@ -271,26 +273,38 @@ public:
     /// `xdg` reveals a completed torrent's folder ("open folder"). Not owned.
     void attachXdg(omaseed::integration::Xdg *xdg);
 
-    /// Four booleans QML can read as `enabled.completed`, `.trackerError`, `.serverLost`,
-    /// `.diskFull`; `serverLost` covers both the lost and the back notice. Persisted under
-    /// `"notifications"` in `~/.config/omaseed/state.json`, default true.
+    /// Three booleans QML can read as `enabled.completed`, `.serverLost`, `.diskFull`;
+    /// `serverLost` covers both the lost and the back notice. Persisted under
+    /// `"notifications"` in `~/.config/omaseed/state.json`, default true. An older file's
+    /// `trackerError` key is ignored.
     Q_PROPERTY(QVariantMap notificationsEnabled READ notificationsEnabled NOTIFY
                    notificationsEnabledChanged)
     QVariantMap notificationsEnabled() const;
-    /// `key` is one of "completed", "trackerError", "serverLost", "diskFull".
+    /// `key` is one of "completed", "serverLost", "diskFull".
     Q_INVOKABLE void setNotificationEnabled(const QString &key, bool enabled);
+
+    /// Where "disk almost full" fires, in GiB: default 2, never below 1 (the `diskFull`
+    /// toggle is the off switch). Persisted next to the toggles as `lowDiskThresholdGiB` and
+    /// pushed into SyncEngine::lowDiskThreshold as bytes. It watches one number, the
+    /// server's `free_space_on_disk`, which qBittorrent reports for its default save path
+    /// only; other disks and per-category paths are not covered (docs/QUESTIONS.md Q16).
+    Q_PROPERTY(int lowDiskThresholdGiB READ lowDiskThresholdGiB WRITE setLowDiskThresholdGiB NOTIFY
+                   lowDiskThresholdGiBChanged)
+    int lowDiskThresholdGiB() const;
+    void setLowDiskThresholdGiB(int gib);
 
 Q_SIGNALS:
     void notificationsEnabledChanged();
+    void lowDiskThresholdGiBChanged();
     /// "show": raise the window and move the table cursor to this hash. MainView's
     /// `Connections { target: App }` block, when it has one, is where this lands.
     void showTorrentRequested(const QString &hash);
-    /// "show trackers": as above, plus open the details pane's Trackers tab.
-    void showTrackersRequested(const QString &hash);
 
 private:
     void loadNotificationToggles();
     void saveNotificationToggles();
+    /// `m_lowDiskThresholdGiB` into the engine, as bytes.
+    void applyLowDiskThreshold();
     void onNotifierActionInvoked(const QString &eventClass,
                                  const QString &subjectId,
                                  const QString &actionKey);
@@ -310,9 +324,9 @@ private:
     QHash<QString, QString> m_completedContentPaths;
 
     bool m_notifyCompletedEnabled = true;
-    bool m_notifyTrackerErrorEnabled = true;
     bool m_notifyServerLostEnabled = true;
     bool m_notifyDiskFullEnabled = true;
+    int m_lowDiskThresholdGiB = 2;
     bool m_notificationTogglesLoaded = false;
 
     // --- T4.5: settings ------------------------------------------------------------------

@@ -57,9 +57,10 @@ const QStringList &reservedDemoNames()
     return names;
 }
 
-/// `--demo notify`: sends the three notices of spec §6 through the real Notifier and keeps
-/// the event loop alive (no window) until NotificationClosed arrived for all three or 30 s
-/// passed. Every ActionInvoked is logged as "action: <class> <subject> <key>".
+/// `--demo notify`: sends the three notices of spec §6 (completed, disk almost full, server
+/// lost; the tracker notice of Fig. 20 was dropped in Q16) through the real Notifier and
+/// keeps the event loop alive (no window) until NotificationClosed arrived for all three or
+/// 30 s passed. Every ActionInvoked is logged as "action: <class> <subject> <key>".
 int runNotifyDemo()
 {
     using omaseed::integration::Notifier;
@@ -67,12 +68,11 @@ int runNotifyDemo()
     Notifier notifier;
 
     const QString hash = QStringLiteral("2f1e9c7a4b6d8e0f1a2b3c4d5e6f7089abcdef01");
-    const QString trackerHost = QStringLiteral("tracker.opentrackr.org");
     const QString serverId = QStringLiteral("home");
 
     QSet<QString> pending{
         QStringLiteral("completed|%1").arg(hash),
-        QStringLiteral("tracker-error|%1").arg(trackerHost),
+        QStringLiteral("disk|%1").arg(serverId),
         QStringLiteral("server|%1").arg(serverId),
     };
 
@@ -99,8 +99,8 @@ int runNotifyDemo()
                                  /*hasFolder=*/true);
     qInfo().noquote() << QStringLiteral("notified completed id=%1").arg(completedId);
 
-    const quint32 trackerId = notifier.notifyTrackerError(trackerHost, 3);
-    qInfo().noquote() << QStringLiteral("notified tracker-error id=%1").arg(trackerId);
+    const quint32 diskId = notifier.notifyDiskAlmostFull(serverId, QStringLiteral("1.8 GB"));
+    qInfo().noquote() << QStringLiteral("notified disk id=%1").arg(diskId);
 
     const quint32 serverLostId = notifier.notifyServerLost(serverId,
                                                            QStringLiteral("home"),
@@ -510,18 +510,14 @@ int main(int argc, char *argv[])
     // Notifications (spec §6): the tray icon already reflects the same events through
     // App::updateTray; this is the desktop toast side. Xdg is attached so "open folder" can
     // reveal a completed torrent's content path; MainView has no `Connections { target: App }`
-    // block yet (only `target: App.torrents`), so `showTorrentRequested`/`showTrackersRequested`
-    // are only logged here until that block exists.
+    // block yet (only `target: App.torrents`), so `showTorrentRequested` is only logged here
+    // until that block exists.
     omaseed::integration::Notifier notifier;
     omaseedApp.attachXdg(&xdg);
     omaseedApp.attachNotifier(&notifier);
     QObject::connect(
         &omaseedApp, &omaseed::app::App::showTorrentRequested, &app, [](const QString &hash) {
             qInfo().noquote() << QStringLiteral("show torrent requested: %1").arg(hash);
-        });
-    QObject::connect(
-        &omaseedApp, &omaseed::app::App::showTrackersRequested, &app, [](const QString &hash) {
-            qInfo().noquote() << QStringLiteral("show trackers requested: %1").arg(hash);
         });
 
     // The window's visibility drives the poll cadence (1.5 s shown, 5 s hidden). Main.qml

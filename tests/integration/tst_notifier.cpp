@@ -21,11 +21,10 @@ private slots:
 
     void completedBodyAndActionsMatchSpec();
     void completedWithoutFolderOmitsOpenFolderAction();
-    void trackerErrorBodyAndActionsMatchSpec();
     void serverLostBodyAndActionsMatchSpec();
     void serverBackReplacesTheServerLostNotice();
     void everyNoticeCarriesTheDesktopEntryHint();
-    void secondTrackerErrorForSameHostReusesTheId();
+    void secondDiskNoticeForSameServerReusesTheId();
     void actionInvokedCarriesClassSubjectAndKey();
     void notificationClosedForgetsTheKey();
 
@@ -96,23 +95,6 @@ void TestNotifier::completedWithoutFolderOmitsOpenFolderAction()
              QStringList({QStringLiteral("show"), QStringLiteral("show")}));
 }
 
-void TestNotifier::trackerErrorBodyAndActionsMatchSpec()
-{
-    m_notifier->notifyTrackerError(QStringLiteral("tracker.opentrackr.org"), 3);
-    QCOMPARE(m_server->calls.size(), 1);
-
-    const auto &call = m_server->calls.first();
-    QCOMPARE(call.summary, QStringLiteral("Tracker error"));
-    QCOMPARE(call.body, QStringLiteral("tracker.opentrackr.org · timed out for 3 torrents"));
-    QCOMPARE(call.actions,
-             QStringList({QStringLiteral("show-trackers"),
-                          QStringLiteral("show trackers"),
-                          QStringLiteral("reannounce"),
-                          QStringLiteral("reannounce")}));
-    QCOMPARE(call.hints.value(QStringLiteral("category")).toString(),
-             QStringLiteral("network.error"));
-}
-
 void TestNotifier::serverLostBodyAndActionsMatchSpec()
 {
     m_notifier->notifyServerLost(QStringLiteral("home"),
@@ -158,12 +140,12 @@ void TestNotifier::everyNoticeCarriesTheDesktopEntryHint()
              QStringLiteral("io.github.diogochaves.omaseed"));
 }
 
-void TestNotifier::secondTrackerErrorForSameHostReusesTheId()
+void TestNotifier::secondDiskNoticeForSameServerReusesTheId()
 {
     const quint32 first =
-        m_notifier->notifyTrackerError(QStringLiteral("tracker.opentrackr.org"), 3);
+        m_notifier->notifyDiskAlmostFull(QStringLiteral("home"), QStringLiteral("1.8 GB"));
     const quint32 second =
-        m_notifier->notifyTrackerError(QStringLiteral("tracker.opentrackr.org"), 5);
+        m_notifier->notifyDiskAlmostFull(QStringLiteral("home"), QStringLiteral("1.2 GB"));
 
     QVERIFY(first != 0);
     QCOMPARE(second, first);
@@ -192,14 +174,15 @@ void TestNotifier::actionInvokedCarriesClassSubjectAndKey()
 
 void TestNotifier::notificationClosedForgetsTheKey()
 {
-    const quint32 id = m_notifier->notifyTrackerError(QStringLiteral("tracker.opentrackr.org"), 3);
+    const quint32 id =
+        m_notifier->notifyDiskAlmostFull(QStringLiteral("home"), QStringLiteral("1.8 GB"));
     QVERIFY(id != 0);
 
     QSignalSpy closedSpy(m_notifier, &Notifier::noticeClosed);
     m_server->triggerNotificationClosed(id, 1);
     QVERIFY(closedSpy.wait(2000));
 
-    m_notifier->notifyTrackerError(QStringLiteral("tracker.opentrackr.org"), 1);
+    m_notifier->notifyDiskAlmostFull(QStringLiteral("home"), QStringLiteral("1.2 GB"));
     QCOMPARE(m_server->calls.size(), 2);
     QCOMPARE(m_server->calls.at(1).replacesId, 0u);
 }

@@ -3,8 +3,8 @@
 Torrents for Omarchy, powered by qBittorrent.
 
 A native Linux desktop client (C++20, Qt 6 Quick) for one or many qBittorrent servers. It
-owns `magnet:` links and `.torrent` files, lives in the tray, notifies on completion and
-tracker errors, opens finished content in the file manager, and presents a dense
+owns `magnet:` links and `.torrent` files, lives in the tray, notifies on completion, a lost
+server and a full disk, opens finished content in the file manager, and presents a dense
 keyboard-driven table in the exact visual language of the Omarchy shell — repainting live
 the instant the Omarchy theme changes. It does not contain a torrent engine; qBittorrent
 (local or remote) is the engine. It runs on any Linux, with a bundled default theme when
@@ -20,7 +20,7 @@ Private during development; public with v1.
 - Follows the selected Omarchy theme live, all bundled themes including the light ones
 - Lives in the tray; closing the window hides it, it keeps polling and notifying
 - Default handler for `magnet:` links and `.torrent` files, registered on request
-- Desktop notifications with actions (open folder, show, reannounce), not just a toast
+- Desktop notifications with actions (open folder, show, settings), not just a toast
 - One server or many, with per-server credentials and a default
 - Keyboard-first: every action in the table, rail and details pane has a key; `?` shows
   the full map
@@ -233,8 +233,8 @@ feature existed.
   every `--demo` view (`details`, `firstrun`, `gallery`, `notify`, `overlays`, `rail`,
   `states`, `sync`, `table`, `torrents`, `tray`).
 - **Where things live on disk:** `~/.config/omaseed/servers.json` (the server list),
-  `~/.config/omaseed/state.json` (window/column/filter state, notification toggles,
-  appearance overrides), `~/.config/omaseed/secrets/` (the 0600-file credential fallback
+  `~/.config/omaseed/state.json` (window/column/filter state, notification toggles and the
+  low-disk threshold, appearance overrides), `~/.config/omaseed/secrets/` (the 0600-file credential fallback
   when no keyring is available).
 - **Start first run over.** Remove `~/.config/omaseed/servers.json` (and, if you want the
   handler prompt to ask again, clear the magnet/`.torrent` entries it set in

@@ -174,7 +174,7 @@ private slots:
     void onlyOnePollInFlight();
     void cadenceFollowsVisibility();
     void completionIsAnnouncedOnceAndNeverOnFullUpdates();
-    void trackerErrorIsGroupedByHost();
+    void trackerErrorFlagReachesTheRowWithoutANotice();
     void diskAlmostFullFiresOncePerCrossing();
     void serverLostOnceThenBackWithAFullUpdate();
     void forbiddenStopsThePollLoop();
@@ -398,7 +398,9 @@ void TestSyncEngineFixtures::completionIsAnnouncedOnceAndNeverOnFullUpdates()
     QVERIFY(args.at(4).toString().endsWith(QStringLiteral("fixture-one")));
 }
 
-void TestSyncEngineFixtures::trackerErrorIsGroupedByHost()
+// Q16 dropped the tracker-error notice: a torrent losing its trackers is a row flag (the
+// Trackers tab badge and the rail filter read it), not an event the engine announces.
+void TestSyncEngineFixtures::trackerErrorFlagReachesTheRowWithoutANotice()
 {
     FixtureServer server;
     QVERIFY(server.start());
@@ -413,20 +415,15 @@ void TestSyncEngineFixtures::trackerErrorIsGroupedByHost()
                         std::chrono::milliseconds(10),
                         std::chrono::milliseconds(10));
 
-    QSignalSpy errors(&engine, &SyncEngine::trackerError);
+    const QString hash = QStringLiteral("d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1");
     engine.start();
+    QVERIFY(waitFor([&] { return engine.torrents()->count() == 4; }));
+    QVERIFY(!engine.torrents()->torrent(hash).hasTrackerError);
     QVERIFY(waitFor([&] { return server.mainDataRequests >= 4; }));
     engine.stop();
 
-    // d1d1… announces to two hosts and has lost both: one signal per host, once only.
-    QCOMPARE(errors.count(), 2);
-    QStringList hosts{errors.at(0).at(0).toString(), errors.at(1).at(0).toString()};
-    hosts.sort();
-    QCOMPARE(hosts,
-             QStringList({QStringLiteral("tracker.archlinux.org"),
-                          QStringLiteral("tracker.opentrackr.org")}));
-    QCOMPARE(errors.at(0).at(1).toStringList(),
-             QStringList({QStringLiteral("d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1")}));
+    QVERIFY(engine.torrents()->torrent(hash).hasTrackerError);
+    QCOMPARE(engine.torrents()->torrent(hash).tracker, QString());
 }
 
 void TestSyncEngineFixtures::diskAlmostFullFiresOncePerCrossing()
