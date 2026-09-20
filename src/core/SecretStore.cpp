@@ -169,9 +169,13 @@ void SecretStore::runProbe(Done done)
 
     // Real probe: write, decide on the write's result, then delete before the next operation
     // may start (so the delete can never interleave with a caller's job on the same service).
-    // The jobs are parented to the store and self-delete once finished; a job abandoned by
-    // the timeout is disconnected and its late answer ignored.
-    auto *write = new QKeychain::WritePasswordJob(m_service, this);
+    // The jobs are deliberately NOT parented to the store: libsecret's GLib callback keeps a
+    // raw pointer to a running job, so deleting one mid-flight (a store torn down while the
+    // probe is out, which every QML test file does) crashes inside Job::finished. They are
+    // left to qtkeychain's own auto-delete once finished; the slots have `this` as their
+    // context, so a dead store simply stops listening. A job abandoned by the timeout is
+    // disconnected and its late answer ignored.
+    auto *write = new QKeychain::WritePasswordJob(m_service);
     write->setKey(QLatin1String(kProbeKey));
     write->setTextData(QStringLiteral("probe"));
     connect(write, &QKeychain::Job::finished, this, [this, finish](QKeychain::Job *job) {
@@ -184,7 +188,7 @@ void SecretStore::runProbe(Done done)
             return;
         }
         settleBackend(Backend::Keychain);
-        auto *remove = new QKeychain::DeletePasswordJob(m_service, this);
+        auto *remove = new QKeychain::DeletePasswordJob(m_service);
         remove->setKey(QLatin1String(kProbeKey));
         connect(remove, &QKeychain::Job::finished, this, [finish](QKeychain::Job *) {
             finish(std::nullopt); // best effort: the entry is harmless if this failed
@@ -237,11 +241,14 @@ QString SecretStore::secretFilePath(const QString &serverId)
 }
 
 // --- keychain backend --------------------------------------------------------------------
+// Every qtkeychain job below is unparented and auto-deletes on finish, for the reason given
+// in runProbe(): a running job must outlive the store rather than be deleted under
+// libsecret's callback.
 
 void SecretStore::runKeychainWrite(
     Job *job, const QString &serverId, Kind kind, const QString &value, Done done)
 {
-    auto *write = new QKeychain::WritePasswordJob(m_service, this);
+    auto *write = new QKeychain::WritePasswordJob(m_service);
     write->setKey(serverId + QStringLiteral("/") + keyFor(kind));
     write->setTextData(value);
     QPointer<Job> alive(job);
@@ -259,7 +266,7 @@ void SecretStore::runKeychainWrite(
 
 void SecretStore::runKeychainRead(Job *job, const QString &serverId, Kind kind, Done done)
 {
-    auto *read = new QKeychain::ReadPasswordJob(m_service, this);
+    auto *read = new QKeychain::ReadPasswordJob(m_service);
     read->setKey(serverId + QStringLiteral("/") + keyFor(kind));
     QPointer<Job> alive(job);
     connect(read, &QKeychain::Job::finished, this, [alive, done, read](QKeychain::Job *) {
@@ -279,7 +286,7 @@ void SecretStore::runKeychainRead(Job *job, const QString &serverId, Kind kind, 
 
 void SecretStore::runKeychainRemove(Job *job, const QString &serverId, Kind kind, Done done)
 {
-    auto *remove = new QKeychain::DeletePasswordJob(m_service, this);
+    auto *remove = new QKeychain::DeletePasswordJob(m_service);
     remove->setKey(serverId + QStringLiteral("/") + keyFor(kind));
     QPointer<Job> alive(job);
     connect(remove, &QKeychain::Job::finished, this, [alive, done](QKeychain::Job *finished) {
