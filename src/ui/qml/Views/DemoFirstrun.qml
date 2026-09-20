@@ -8,11 +8,13 @@ import Omaseed.Views
 // turns that off (`autoDetect: false`) and hands the page a fake "found a Docker container"
 // candidate instead. `OMASEED_DEMO_STEP=1|2|3|install` jumps straight to that step, the way
 // `OMASEED_DEMO_STATE` does for `DemoStates.qml`:
-//   1        (default) step 1, choose, with the fake local candidate.
+//   1        (default) step 1, choose, with the fake local candidate: the install row is
+//            the dimmed, captioned third one (Q20); `SHOT_KEYS="j j Return"` opens the
+//            install page with its port-8080 warning from here.
 //   2        step 2, the API-key page, as if "connect to a remote server" was chosen.
 //   3        step 3, the magnet-handler prompt.
-//   install  step 1 with no local candidate found, so the install row shows, then jumps
-//            straight to the install page (step 2's other body).
+//   install  step 1 with no local candidate found, so the install row is at full weight,
+//            then jumps straight to the install page (step 2's other body, no warning).
 Window {
     id: root
 
