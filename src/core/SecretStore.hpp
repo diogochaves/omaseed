@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QString>
 
+#include <chrono>
 #include <functional>
 #include <optional>
 
@@ -38,9 +39,18 @@ Q_SIGNALS:
 ///   `{ "version": 1, "apiKey": "...", "password": "..." }`, used when the keychain backend
 ///   is unavailable.
 ///
-/// Which backend is in use is detected once per process (a throwaway probe write/read/
-/// delete), cached, and exposed as `backendName()`. `setForcedBackend()` skips the probe
-/// for tests.
+/// Which backend is in use is detected once per store, asynchronously: the first operation
+/// queues a throwaway probe (write, then delete, of a `__omaseed_probe__` entry) ahead of
+/// itself. A successful write decides Keychain; a failed write, an unavailable keychain or a
+/// probe that has not answered within `probeTimeout()` (3 s by default, Q4) decides File.
+/// The result is cached, announced by `backendResolved()` and readable through `backend()`
+/// / `backendName()`, neither of which blocks. `setForcedBackend()` skips the probe for
+/// tests.
+///
+/// Nothing in the store spins a nested event loop: every operation — the probe included —
+/// runs through one queue, strictly one at a time, and the next one starts only once the
+/// current one has finished. That is what keeps a read queued right behind a write from
+/// missing the entry the write is still storing (T4.5).
 ///
 /// All operations are asynchronous: they return a `Job*` (parented to `this` unless a
 /// `parent` is given) that emits `finished(bool ok, QString value, QString error)` exactly
@@ -59,8 +69,14 @@ public:
         Keychain,
         File,
     };
+    Q_ENUM(Backend)
 
     using Job = SecretStoreJob;
+
+    /// Test hook: a replacement for the keychain probe. It receives a completion callback to
+    /// call with `true` when the keychain answered (Backend::Keychain) or `false` when it did
+    /// not (Backend::File); a runner that never calls it lets the timeout decide.
+    using ProbeRunner = std::function<void(std::function<void(bool keychainOk)> done)>;
 
     /// `service` is the keychain service name; tests pass one suffixed `-test`.
     explicit SecretStore(QString service = defaultServiceName(), QObject *parent = nullptr);
@@ -72,35 +88,63 @@ public:
     Job *secret(const QString &serverId, Kind kind, QObject *parent = nullptr);
     Job *removeSecret(const QString &serverId, Kind kind, QObject *parent = nullptr);
 
-    /// "libsecret" or "file". Triggers backend detection if it has not run yet.
+    /// The backend in use, or `std::nullopt` while it is still being detected. Asking
+    /// queues the probe if it has not run yet; `backendResolved()` reports the answer.
+    std::optional<Backend> backend();
+    /// "libsecret", "file" or "detecting" (same semantics as `backend()`).
     QString backendName();
-    Backend backend();
 
     /// Skips the probe and pins the backend, for tests. Pass `std::nullopt` to go back to
-    /// auto-detection on the next call.
+    /// auto-detection.
     void setForcedBackend(std::optional<Backend> backend);
 
+    /// How long the probe may take before the store settles on the file backend. Applies to
+    /// the probe only; regular operations have no timeout.
+    void setProbeTimeout(std::chrono::milliseconds timeout);
+    std::chrono::milliseconds probeTimeout() const;
+
+    /// Test hook, see `ProbeRunner`. An empty runner restores the real keychain probe.
+    void setProbeRunner(ProbeRunner runner);
+
+Q_SIGNALS:
+    /// Fired once, when auto-detection settles (never for a forced backend).
+    void backendResolved(omaseed::core::SecretStore::Backend backend);
+
 private:
+    /// Called by an operation exactly once, when it is done and the next may start.
+    using Done = std::function<void()>;
+    using Operation = std::function<void(Done done)>;
+
     QString m_service;
     std::optional<Backend> m_detectedBackend;
     std::optional<Backend> m_forcedBackend;
-    QList<std::function<void()>> m_queue;
-    bool m_draining = false;
+    std::chrono::milliseconds m_probeTimeout{3000};
+    ProbeRunner m_probeRunner;
+    bool m_probeQueued = false;
 
-    Backend resolveBackend();
-    Backend probeKeychain() const;
+    QList<Operation> m_queue;
+    bool m_busy = false;
+    bool m_startScheduled = false;
+
+    /// The backend an operation runs on. Only valid inside a queued operation (the probe,
+    /// if needed, has finished by then) or when a backend is forced.
+    Backend resolvedBackend() const;
+    /// Queues the probe (at the front) once, if no backend is known or forced.
+    void ensureBackendKnown();
+    void runProbe(Done done);
+    void settleBackend(Backend backend);
 
     static QString keyFor(Kind kind);
     static QString fieldFor(Kind kind);
 
-    void runKeychainWrite(Job *job, const QString &serverId, Kind kind, const QString &value) const;
-    void runKeychainRead(Job *job, const QString &serverId, Kind kind) const;
-    void runKeychainRemove(Job *job, const QString &serverId, Kind kind) const;
+    void
+    runKeychainWrite(Job *job, const QString &serverId, Kind kind, const QString &value, Done done);
+    void runKeychainRead(Job *job, const QString &serverId, Kind kind, Done done);
+    void runKeychainRemove(Job *job, const QString &serverId, Kind kind, Done done);
 
-    /// One queue for every operation: the keychain backend blocks in a nested event loop,
-    /// so two operations must never overlap (see the note in SecretStore.cpp).
-    void enqueue(std::function<void()> operation);
-    void drain();
+    void enqueue(Operation operation);
+    void scheduleNext();
+    void startNext();
 
     void runFileWrite(Job *job, const QString &serverId, Kind kind, const QString &value) const;
     void runFileRead(Job *job, const QString &serverId, Kind kind) const;

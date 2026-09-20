@@ -175,30 +175,36 @@ void TestAppServers::removeServerDeletesTheSecret()
     const QString id =
         app.addServer(strictFields(), QStringLiteral("a-secret-that-is-not-the-real-one"));
     QVERIFY(!id.isEmpty());
-    // App's own SecretStore writes the secret from a queued job; let it settle before a
-    // second store reads the same entry (two stores have two queues, and the keychain
-    // backend blocks in a nested event loop while it works).
-    QTest::qWait(300);
-
+    // App's own SecretStore probes its backend and writes the secret from queued jobs; a
+    // second store (its own queue, its own probe) polls until that write has landed.
     SecretStore secrets(kSecretService);
-    {
+    bool stored = false;
+    for (int attempt = 0; attempt < 50 && !stored; ++attempt) {
         auto *job = secrets.secret(id, SecretStore::Kind::ApiKey);
         QSignalSpy finished(job, &omaseed::core::SecretStoreJob::finished);
         QVERIFY(finished.wait(5000));
-        QVERIFY2(finished.at(0).at(0).toBool(), "the secret was not stored with the server");
+        stored = finished.at(0).at(0).toBool();
+        if (!stored)
+            QTest::qWait(100);
     }
+    QVERIFY2(stored, "the secret was not stored with the server");
 
     QVERIFY(app.removeServer(id));
     QCOMPARE(app.serverList()->count(), 0);
 
-    {
+    // The removal is queued the same way, so poll until the entry is gone.
+    bool gone = false;
+    for (int attempt = 0; attempt < 50 && !gone; ++attempt) {
         auto *job = secrets.secret(id, SecretStore::Kind::ApiKey);
         QSignalSpy finished(job, &omaseed::core::SecretStoreJob::finished);
         QVERIFY(finished.wait(5000));
         const bool ok = finished.at(0).at(0).toBool();
         const QString value = finished.at(0).at(1).toString();
-        QVERIFY2(!ok || value.isEmpty(), "the secret outlived the server it belonged to");
+        gone = !ok || value.isEmpty();
+        if (!gone)
+            QTest::qWait(100);
     }
+    QVERIFY2(gone, "the secret outlived the server it belonged to");
 }
 
 void TestAppServers::appearanceOverridesReachTheTheme()
