@@ -4,3 +4,6 @@ build-release/
 *.user
 .qmlls.ini
 /docs/QUESTIONS.md.bak
+
+# GPL projects cloned for behaviour reference only; never copied, never committed
+reference/
