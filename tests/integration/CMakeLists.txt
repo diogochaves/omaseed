@@ -33,3 +33,8 @@ omaseed_add_test(tst_tray
     SOURCES tst_tray.cpp
     LIBRARIES omaseed::integration Qt6::Svg Qt6::Widgets
 )
+
+omaseed_add_test(tst_themecontrast
+    SOURCES tst_themecontrast.cpp
+    LIBRARIES omaseed::integration
+)

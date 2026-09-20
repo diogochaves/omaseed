@@ -50,6 +50,7 @@ private slots:
     void userShellOverlayBeatsTheThemesShell();
     void spacingAndTypeFollowTheBaseSize();
     void windowAlphaFollowsTheLaunchersBackgroundAlpha();
+    void dimForegroundIsLiftedToTheContrastFloor();
 
 private:
     ThemeReader::Paths paths() const;
@@ -295,6 +296,27 @@ void TestThemeReader::windowAlphaFollowsTheLaunchersBackgroundAlpha()
               QStringLiteral("[launcher]\nbackground-alpha = \"opaque\"\n"));
     reader.reload();
     QCOMPARE(theme.defaultWindowAlpha(), 0.95);
+}
+
+/// docs/QUESTIONS.md Q19: a theme whose dark_foreground is under 3:1 against its background
+/// gets the role lifted towards the foreground; one already there keeps it byte for byte.
+void TestThemeReader::dimForegroundIsLiftedToTheContrastFloor()
+{
+    // Tokyo Night's #565f89 reads at 2.76 on #1a1b26: lifted, and to the same colour the
+    // static helper gives, so the resolver and the role agree.
+    installTheme(kTokyoNight, QStringLiteral("tokyo-night"));
+    ThemeReader reader(paths());
+    Theme theme(&reader);
+    QVERIFY(theme.dimForeground() != QColor(QStringLiteral("#565f89")));
+    QVERIFY(Theme::contrastRatio(theme.dimForeground(), theme.background()) >= 3.0);
+    QCOMPARE(theme.dimForeground(),
+             Theme::liftToContrast(
+                 QColor(QStringLiteral("#565f89")), theme.foreground(), theme.background(), 3.0));
+
+    // Lupine's #757575 reads at 4.41 on #fafafa: untouched.
+    installTheme(kLupine, QStringLiteral("lupine"));
+    reader.reload();
+    QCOMPARE(theme.dimForeground().name(), QStringLiteral("#757575"));
 }
 
 QTEST_MAIN(TestThemeReader)
