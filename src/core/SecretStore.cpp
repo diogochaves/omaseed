@@ -3,23 +3,28 @@
 #include "core/Paths.hpp"
 
 #include <QDir>
-#include <QEventLoop>
 #include <QFile>
 #include <QFileDevice>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonParseError>
+#include <QLoggingCategory>
 #include <QPointer>
 #include <QProcessEnvironment>
 #include <QTimer>
 
 #include <qt6keychain/keychain.h>
 
+#include <memory>
+
 namespace omaseed::core {
 
 namespace {
 
+Q_LOGGING_CATEGORY(lcSecrets, "omaseed.secrets")
+
 constexpr int kSecretFileVersion = 1;
+constexpr auto kProbeKey = "__omaseed_probe__";
 
 QFileDevice::Permissions ownerReadWrite()
 {
@@ -31,17 +36,10 @@ QFileDevice::Permissions ownerReadWriteExec()
     return ownerReadWrite() | QFileDevice::ExeOwner;
 }
 
-/// Runs a QKeychain job to completion on a nested event loop. Used only for the one-shot
-/// backend probe and inside the (already asynchronous, deferred-to-the-next-tick) job
-/// bodies below, so it never blocks a caller that has not yet had a chance to connect to
-/// `finished()`.
-QKeychain::Error runSync(QKeychain::Job &job)
+QString backendLabel(SecretStore::Backend backend)
 {
-    QEventLoop loop;
-    QObject::connect(&job, &QKeychain::Job::finished, &loop, &QEventLoop::quit);
-    job.start();
-    loop.exec();
-    return job.error();
+    return backend == SecretStore::Backend::Keychain ? QStringLiteral("libsecret")
+                                                     : QStringLiteral("file");
 }
 
 } // namespace
@@ -72,35 +70,131 @@ QString SecretStore::fieldFor(Kind kind)
     return keyFor(kind);
 }
 
-SecretStore::Backend SecretStore::probeKeychain() const
-{
-    if (!QKeychain::isAvailable())
-        return Backend::File;
+// --- backend detection -----------------------------------------------------------------------
 
-    QKeychain::WritePasswordJob write(m_service);
-    write.setAutoDelete(false);
-    write.setKey(QStringLiteral("__omaseed_probe__"));
-    write.setTextData(QStringLiteral("probe"));
-    const QKeychain::Error writeError = runSync(write);
-
-    if (writeError != QKeychain::NoError)
-        return Backend::File;
-
-    QKeychain::DeletePasswordJob remove(m_service);
-    remove.setAutoDelete(false);
-    remove.setKey(QStringLiteral("__omaseed_probe__"));
-    runSync(remove); // best effort; the probe entry is harmless if this fails
-
-    return Backend::Keychain;
-}
-
-SecretStore::Backend SecretStore::resolveBackend()
+SecretStore::Backend SecretStore::resolvedBackend() const
 {
     if (m_forcedBackend)
         return *m_forcedBackend;
-    if (!m_detectedBackend)
-        m_detectedBackend = probeKeychain();
-    return *m_detectedBackend;
+    // An operation only runs once the probe queued ahead of it has settled, so this holds.
+    Q_ASSERT(m_detectedBackend);
+    return m_detectedBackend.value_or(Backend::File);
+}
+
+void SecretStore::ensureBackendKnown()
+{
+    if (m_forcedBackend || m_detectedBackend || m_probeQueued)
+        return;
+    m_probeQueued = true;
+    // At the front: the probe depends on nothing, and whatever is queued depends on it.
+    m_queue.prepend([this](Done done) {
+        runProbe([this, done]() {
+            m_probeQueued = false;
+            done();
+        });
+    });
+    scheduleNext();
+}
+
+void SecretStore::settleBackend(Backend backend)
+{
+    if (m_detectedBackend)
+        return;
+    m_detectedBackend = backend;
+    qCInfo(lcSecrets).noquote() << QStringLiteral("secret backend: %1").arg(backendLabel(backend));
+    Q_EMIT backendResolved(backend);
+}
+
+void SecretStore::runProbe(Done done)
+{
+    // A forced backend set after the probe was queued, or an earlier probe, wins.
+    if (m_forcedBackend || m_detectedBackend) {
+        done();
+        return;
+    }
+    if (!m_probeRunner && !QKeychain::isAvailable()) {
+        settleBackend(Backend::File);
+        done();
+        return;
+    }
+
+    // The probe has three ways to end — the keychain answers, the test runner answers, or
+    // the timer fires first — and whichever comes first must be the only one to move the
+    // queue on. `settled` is shared by all three so the losers turn into no-ops.
+    struct Probe
+    {
+        bool settled = false;
+        Done done;
+    };
+    auto probe = std::make_shared<Probe>();
+    probe->done = std::move(done);
+
+    auto *timer = new QTimer(this);
+    timer->setSingleShot(true);
+    timer->setInterval(m_probeTimeout);
+
+    const auto finish = [this, probe, timer](std::optional<Backend> backend) {
+        if (probe->settled)
+            return;
+        probe->settled = true;
+        timer->stop();
+        timer->deleteLater();
+        if (backend)
+            settleBackend(*backend);
+        probe->done();
+    };
+
+    connect(timer, &QTimer::timeout, this, [this, finish]() {
+        if (!m_detectedBackend) {
+            qCWarning(lcSecrets).noquote()
+                << QStringLiteral(
+                       "keychain did not answer the probe within %1 ms; storing secrets in "
+                       "0600 files instead")
+                       .arg(m_probeTimeout.count());
+            finish(Backend::File);
+        } else {
+            // The write already decided Keychain; only the cleanup delete is late. The probe
+            // entry is harmless, so let the queue move on rather than wait on it.
+            qCInfo(lcSecrets) << "keychain probe cleanup timed out; leaving the probe entry";
+            finish(std::nullopt);
+        }
+    });
+    timer->start();
+
+    if (m_probeRunner) {
+        m_probeRunner(
+            [finish](bool keychainOk) { finish(keychainOk ? Backend::Keychain : Backend::File); });
+        return;
+    }
+
+    // Real probe: write, decide on the write's result, then delete before the next operation
+    // may start (so the delete can never interleave with a caller's job on the same service).
+    // The jobs are parented to the store and self-delete once finished; a job abandoned by
+    // the timeout is disconnected and its late answer ignored.
+    auto *write = new QKeychain::WritePasswordJob(m_service, this);
+    write->setKey(QLatin1String(kProbeKey));
+    write->setTextData(QStringLiteral("probe"));
+    connect(write, &QKeychain::Job::finished, this, [this, finish](QKeychain::Job *job) {
+        if (job->error() != QKeychain::NoError) {
+            qCInfo(lcSecrets).noquote()
+                << QStringLiteral("keychain probe write failed (%1); storing secrets in 0600 "
+                                  "files instead")
+                       .arg(job->errorString());
+            finish(Backend::File);
+            return;
+        }
+        settleBackend(Backend::Keychain);
+        auto *remove = new QKeychain::DeletePasswordJob(m_service, this);
+        remove->setKey(QLatin1String(kProbeKey));
+        connect(remove, &QKeychain::Job::finished, this, [finish](QKeychain::Job *) {
+            finish(std::nullopt); // best effort: the entry is harmless if this failed
+        });
+        remove->start();
+    });
+    connect(timer, &QTimer::timeout, write, [this, write]() {
+        QObject::disconnect(write, nullptr, this, nullptr);
+    });
+    write->start();
 }
 
 void SecretStore::setForcedBackend(std::optional<Backend> backend)
@@ -108,15 +202,33 @@ void SecretStore::setForcedBackend(std::optional<Backend> backend)
     m_forcedBackend = backend;
 }
 
-SecretStore::Backend SecretStore::backend()
+void SecretStore::setProbeTimeout(std::chrono::milliseconds timeout)
 {
-    return resolveBackend();
+    m_probeTimeout = timeout;
+}
+
+std::chrono::milliseconds SecretStore::probeTimeout() const
+{
+    return m_probeTimeout;
+}
+
+void SecretStore::setProbeRunner(ProbeRunner runner)
+{
+    m_probeRunner = std::move(runner);
+}
+
+std::optional<SecretStore::Backend> SecretStore::backend()
+{
+    if (m_forcedBackend)
+        return m_forcedBackend;
+    ensureBackendKnown();
+    return m_detectedBackend;
 }
 
 QString SecretStore::backendName()
 {
-    return resolveBackend() == Backend::Keychain ? QStringLiteral("libsecret")
-                                                 : QStringLiteral("file");
+    const std::optional<Backend> resolved = backend();
+    return resolved ? backendLabel(*resolved) : QStringLiteral("detecting");
 }
 
 QString SecretStore::secretFilePath(const QString &serverId)
@@ -126,48 +238,63 @@ QString SecretStore::secretFilePath(const QString &serverId)
 
 // --- keychain backend --------------------------------------------------------------------
 
-void SecretStore::runKeychainWrite(Job *job,
-                                   const QString &serverId,
-                                   Kind kind,
-                                   const QString &value) const
+void SecretStore::runKeychainWrite(
+    Job *job, const QString &serverId, Kind kind, const QString &value, Done done)
 {
-    QKeychain::WritePasswordJob write(m_service);
-    write.setAutoDelete(false);
-    write.setKey(serverId + QStringLiteral("/") + keyFor(kind));
-    write.setTextData(value);
-    const QKeychain::Error error = runSync(write);
-    if (error == QKeychain::NoError)
-        Q_EMIT job->finished(true, QString(), QString());
-    else
-        Q_EMIT job->finished(false, QString(), write.errorString());
+    auto *write = new QKeychain::WritePasswordJob(m_service, this);
+    write->setKey(serverId + QStringLiteral("/") + keyFor(kind));
+    write->setTextData(value);
+    QPointer<Job> alive(job);
+    connect(write, &QKeychain::Job::finished, this, [alive, done](QKeychain::Job *finished) {
+        if (alive) {
+            if (finished->error() == QKeychain::NoError)
+                Q_EMIT alive->finished(true, QString(), QString());
+            else
+                Q_EMIT alive->finished(false, QString(), finished->errorString());
+        }
+        done();
+    });
+    write->start();
 }
 
-void SecretStore::runKeychainRead(Job *job, const QString &serverId, Kind kind) const
+void SecretStore::runKeychainRead(Job *job, const QString &serverId, Kind kind, Done done)
 {
-    QKeychain::ReadPasswordJob read(m_service);
-    read.setAutoDelete(false);
-    read.setKey(serverId + QStringLiteral("/") + keyFor(kind));
-    const QKeychain::Error error = runSync(read);
-    if (error == QKeychain::NoError)
-        Q_EMIT job->finished(true, read.textData(), QString());
-    else if (error == QKeychain::EntryNotFound)
-        Q_EMIT job->finished(false, QString(), QStringLiteral("not found"));
-    else
-        Q_EMIT job->finished(false, QString(), read.errorString());
+    auto *read = new QKeychain::ReadPasswordJob(m_service, this);
+    read->setKey(serverId + QStringLiteral("/") + keyFor(kind));
+    QPointer<Job> alive(job);
+    connect(read, &QKeychain::Job::finished, this, [alive, done, read](QKeychain::Job *) {
+        if (alive) {
+            const QKeychain::Error error = read->error();
+            if (error == QKeychain::NoError)
+                Q_EMIT alive->finished(true, read->textData(), QString());
+            else if (error == QKeychain::EntryNotFound)
+                Q_EMIT alive->finished(false, QString(), QStringLiteral("not found"));
+            else
+                Q_EMIT alive->finished(false, QString(), read->errorString());
+        }
+        done();
+    });
+    read->start();
 }
 
-void SecretStore::runKeychainRemove(Job *job, const QString &serverId, Kind kind) const
+void SecretStore::runKeychainRemove(Job *job, const QString &serverId, Kind kind, Done done)
 {
-    QKeychain::DeletePasswordJob remove(m_service);
-    remove.setAutoDelete(false);
-    remove.setKey(serverId + QStringLiteral("/") + keyFor(kind));
-    const QKeychain::Error error = runSync(remove);
-    // Removing an absent entry is not a failure: the end state the caller wants already
-    // holds.
-    if (error == QKeychain::NoError || error == QKeychain::EntryNotFound)
-        Q_EMIT job->finished(true, QString(), QString());
-    else
-        Q_EMIT job->finished(false, QString(), remove.errorString());
+    auto *remove = new QKeychain::DeletePasswordJob(m_service, this);
+    remove->setKey(serverId + QStringLiteral("/") + keyFor(kind));
+    QPointer<Job> alive(job);
+    connect(remove, &QKeychain::Job::finished, this, [alive, done](QKeychain::Job *finished) {
+        if (alive) {
+            const QKeychain::Error error = finished->error();
+            // Removing an absent entry is not a failure: the end state the caller wants
+            // already holds.
+            if (error == QKeychain::NoError || error == QKeychain::EntryNotFound)
+                Q_EMIT alive->finished(true, QString(), QString());
+            else
+                Q_EMIT alive->finished(false, QString(), finished->errorString());
+        }
+        done();
+    });
+    remove->start();
 }
 
 // --- file backend --------------------------------------------------------------------------
@@ -272,29 +399,41 @@ void SecretStore::runFileRemove(Job *job, const QString &serverId, Kind kind) co
 
 // --- public API, dispatch to the resolved backend -------------------------------------------
 
-// The keychain backend runs each qtkeychain job in a nested event loop, which delivers the
-// zero-timers of everything queued behind it — so a plain `singleShot` per operation let a
-// read start *inside* the write it was queued after, and miss the entry that write had not
-// finished storing yet (found in T4.5: "add a server, then use it" read back nothing). Every
-// operation therefore goes through one queue, drained one at a time, re-entrancy guarded.
-void SecretStore::enqueue(std::function<void()> operation)
+// One queue for every operation, the probe included, strictly one at a time: an operation
+// gets a `done` callback and the next one starts only after it has been called. Nothing here
+// waits — the keychain jobs report back through their `finished` signal — so the queue is
+// what guarantees that a read queued behind a write sees the entry that write stored (T4.5
+// found the opposite: "add a server, then use it" read back nothing).
+void SecretStore::enqueue(Operation operation)
 {
     m_queue.append(std::move(operation));
-    if (m_draining)
-        return;
-    QTimer::singleShot(0, this, [this]() { drain(); });
+    scheduleNext();
 }
 
-void SecretStore::drain()
+void SecretStore::scheduleNext()
 {
-    if (m_draining)
+    // Deferred to the next tick so the caller can connect to the job it was just handed,
+    // and so a synchronous (file) operation never starts the next one recursively.
+    if (m_busy || m_startScheduled)
         return;
-    m_draining = true;
-    while (!m_queue.isEmpty()) {
-        const std::function<void()> operation = m_queue.takeFirst();
-        operation();
-    }
-    m_draining = false;
+    m_startScheduled = true;
+    QTimer::singleShot(0, this, [this]() {
+        m_startScheduled = false;
+        startNext();
+    });
+}
+
+void SecretStore::startNext()
+{
+    if (m_busy || m_queue.isEmpty())
+        return;
+    ensureBackendKnown(); // puts the probe ahead of the operation that is about to run
+    m_busy = true;
+    const Operation operation = m_queue.takeFirst();
+    operation([this]() {
+        m_busy = false;
+        scheduleNext();
+    });
 }
 
 SecretStore::Job *
@@ -302,13 +441,15 @@ SecretStore::setSecret(const QString &serverId, Kind kind, const QString &value,
 {
     auto *job = new Job(parent ? parent : this);
     QPointer<Job> alive(job);
-    enqueue([this, alive, serverId, kind, value]() {
-        if (!alive)
-            return;
-        if (resolveBackend() == Backend::Keychain)
-            runKeychainWrite(alive, serverId, kind, value);
-        else
+    enqueue([this, alive, serverId, kind, value](Done done) {
+        if (!alive) {
+            done();
+        } else if (resolvedBackend() == Backend::Keychain) {
+            runKeychainWrite(alive, serverId, kind, value, std::move(done));
+        } else {
             runFileWrite(alive, serverId, kind, value);
+            done();
+        }
     });
     return job;
 }
@@ -317,13 +458,15 @@ SecretStore::Job *SecretStore::secret(const QString &serverId, Kind kind, QObjec
 {
     auto *job = new Job(parent ? parent : this);
     QPointer<Job> alive(job);
-    enqueue([this, alive, serverId, kind]() {
-        if (!alive)
-            return;
-        if (resolveBackend() == Backend::Keychain)
-            runKeychainRead(alive, serverId, kind);
-        else
+    enqueue([this, alive, serverId, kind](Done done) {
+        if (!alive) {
+            done();
+        } else if (resolvedBackend() == Backend::Keychain) {
+            runKeychainRead(alive, serverId, kind, std::move(done));
+        } else {
             runFileRead(alive, serverId, kind);
+            done();
+        }
     });
     return job;
 }
@@ -332,13 +475,15 @@ SecretStore::Job *SecretStore::removeSecret(const QString &serverId, Kind kind, 
 {
     auto *job = new Job(parent ? parent : this);
     QPointer<Job> alive(job);
-    enqueue([this, alive, serverId, kind]() {
-        if (!alive)
-            return;
-        if (resolveBackend() == Backend::Keychain)
-            runKeychainRemove(alive, serverId, kind);
-        else
+    enqueue([this, alive, serverId, kind](Done done) {
+        if (!alive) {
+            done();
+        } else if (resolvedBackend() == Backend::Keychain) {
+            runKeychainRemove(alive, serverId, kind, std::move(done));
+        } else {
             runFileRemove(alive, serverId, kind);
+            done();
+        }
     });
     return job;
 }

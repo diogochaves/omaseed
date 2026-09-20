@@ -59,6 +59,10 @@ private slots:
 
     void keychainBackendRoundTrips();
 
+    void probeResolvesAsynchronously();
+    void probeTimeoutFallsBackToFile();
+    void probeRunnerDecidesTheBackend();
+
 private:
     QTemporaryDir m_dir;
     QByteArray m_previousXdgConfigHome;
@@ -200,8 +204,9 @@ void TestSecretStore::forcedFileBackendSkipsProbe()
     // operations land on disk as the file backend, regardless of what the real keychain on
     // this machine would have reported.
     SecretStore store;
+    QSignalSpy resolved(&store, &SecretStore::backendResolved);
     store.setForcedBackend(SecretStore::Backend::File);
-    QCOMPARE(store.backend(), SecretStore::Backend::File);
+    QCOMPARE(store.backend(), std::optional(SecretStore::Backend::File));
     QCOMPARE(store.backendName(), QStringLiteral("file"));
 
     JobResult write = run(store.setSecret(
@@ -210,6 +215,8 @@ void TestSecretStore::forcedFileBackendSkipsProbe()
 
     const QString secretFile = m_dir.path() + QStringLiteral("/omaseed/secrets/server-x.json");
     QVERIFY(QFileInfo::exists(secretFile));
+    // A forced backend is never "detected", so nothing was announced.
+    QCOMPARE(resolved.count(), 0);
 
     // Clearing the forced backend goes back to auto-detection.
     store.setForcedBackend(std::nullopt);
@@ -242,6 +249,106 @@ void TestSecretStore::keychainBackendRoundTrips()
 
     JobResult readAfterRemove = run(store.secret(serverId, SecretStore::Kind::ApiKey));
     QVERIFY(!readAfterRemove.ok);
+}
+
+void TestSecretStore::probeResolvesAsynchronously()
+{
+    // Auto-detection against the real (test-suffixed) service. Whatever it decides, the
+    // decision must arrive through the signal without anyone blocking, and a read queued
+    // right behind a write must see the written value (the T4.5 regression: the probe and
+    // the write are both asynchronous now, and the queue is the only thing keeping order).
+    SecretStore store(QStringLiteral("io.github.diogochaves.omaseed-test"));
+    QSignalSpy resolved(&store, &SecretStore::backendResolved);
+
+    QCOMPARE(store.backend(), std::nullopt); // queues the probe, does not wait for it
+    QCOMPARE(store.backendName(), QStringLiteral("detecting"));
+
+    const QString serverId = QStringLiteral("probe-server-1");
+    SecretStore::Job *write =
+        store.setSecret(serverId, SecretStore::Kind::ApiKey, QStringLiteral("pr0be-s3cr3t"));
+    QSignalSpy writeFinished(write, &SecretStore::Job::finished);
+    SecretStore::Job *read = store.secret(serverId, SecretStore::Kind::ApiKey);
+    QSignalSpy readFinished(read, &SecretStore::Job::finished);
+
+    // Nothing has run yet: the probe, the write and the read are all still queued.
+    QCOMPARE(resolved.count(), 0);
+    QCOMPARE(writeFinished.count(), 0);
+
+    QTRY_COMPARE_WITH_TIMEOUT(resolved.count(), 1, 5000);
+    const auto backend = resolved.at(0).at(0).value<SecretStore::Backend>();
+    QVERIFY(backend == SecretStore::Backend::Keychain || backend == SecretStore::Backend::File);
+    QCOMPARE(store.backend(), std::optional(backend));
+    QCOMPARE(store.backendName(),
+             backend == SecretStore::Backend::Keychain ? QStringLiteral("libsecret")
+                                                       : QStringLiteral("file"));
+
+    QTRY_COMPARE_WITH_TIMEOUT(readFinished.count(), 1, 5000);
+    QCOMPARE(writeFinished.count(), 1);
+    QVERIFY2(writeFinished.at(0).at(0).toBool(), qPrintable(writeFinished.at(0).at(2).toString()));
+    QVERIFY2(readFinished.at(0).at(0).toBool(), qPrintable(readFinished.at(0).at(2).toString()));
+    QCOMPARE(readFinished.at(0).at(1).toString(), QStringLiteral("pr0be-s3cr3t"));
+
+    // Never leave an entry behind, whichever backend took it.
+    JobResult remove = run(store.removeSecret(serverId, SecretStore::Kind::ApiKey));
+    QVERIFY(remove.ok);
+    JobResult readAfterRemove = run(store.secret(serverId, SecretStore::Kind::ApiKey));
+    QVERIFY(!readAfterRemove.ok);
+
+    // The probe runs once per store; asking again is answered from the cache.
+    QCOMPARE(resolved.count(), 1);
+}
+
+void TestSecretStore::probeTimeoutFallsBackToFile()
+{
+    // A keychain that never answers (a runner that never calls back) must not stall the
+    // store: after the (shortened) timeout it settles on the file backend and the write that
+    // was waiting behind the probe lands on disk.
+    SecretStore store(QStringLiteral("io.github.diogochaves.omaseed-test"));
+    QSignalSpy resolved(&store, &SecretStore::backendResolved);
+    store.setProbeTimeout(std::chrono::milliseconds(50));
+    int runnerCalls = 0;
+    store.setProbeRunner([&runnerCalls](std::function<void(bool)>) { ++runnerCalls; });
+
+    const QString serverId = QStringLiteral("timeout-server");
+    SecretStore::Job *write =
+        store.setSecret(serverId, SecretStore::Kind::ApiKey, QStringLiteral("late"));
+    QSignalSpy writeFinished(write, &SecretStore::Job::finished);
+    QCOMPARE(store.backendName(), QStringLiteral("detecting"));
+
+    QTRY_COMPARE_WITH_TIMEOUT(resolved.count(), 1, 2000);
+    QCOMPARE(resolved.at(0).at(0).value<SecretStore::Backend>(), SecretStore::Backend::File);
+    QCOMPARE(runnerCalls, 1);
+    QCOMPARE(store.backendName(), QStringLiteral("file"));
+
+    QTRY_COMPARE_WITH_TIMEOUT(writeFinished.count(), 1, 2000);
+    QVERIFY(writeFinished.at(0).at(0).toBool());
+    QVERIFY(QFileInfo::exists(m_dir.path() + QStringLiteral("/omaseed/secrets/") + serverId +
+                              QStringLiteral(".json")));
+
+    JobResult read = run(store.secret(serverId, SecretStore::Kind::ApiKey));
+    QVERIFY(read.ok);
+    QCOMPARE(read.value, QStringLiteral("late"));
+}
+
+void TestSecretStore::probeRunnerDecidesTheBackend()
+{
+    // A runner that answers in time decides the backend, and a late timer changes nothing.
+    SecretStore store(QStringLiteral("io.github.diogochaves.omaseed-test"));
+    QSignalSpy resolved(&store, &SecretStore::backendResolved);
+    store.setProbeTimeout(std::chrono::milliseconds(20));
+    std::function<void(bool)> answer;
+    store.setProbeRunner([&answer](std::function<void(bool)> done) { answer = std::move(done); });
+
+    QCOMPARE(store.backend(), std::nullopt);
+    QTRY_VERIFY(static_cast<bool>(answer)); // the probe started on the next tick
+    answer(true);
+    QCOMPARE(resolved.count(), 1);
+    QCOMPARE(resolved.at(0).at(0).value<SecretStore::Backend>(), SecretStore::Backend::Keychain);
+    QCOMPARE(store.backendName(), QStringLiteral("libsecret"));
+
+    QTest::qWait(60); // past the timeout: it must not flip the answer
+    QCOMPARE(resolved.count(), 1);
+    QCOMPARE(store.backend(), std::optional(SecretStore::Backend::Keychain));
 }
 
 QTEST_GUILESS_MAIN(TestSecretStore)
