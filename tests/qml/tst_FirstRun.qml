@@ -38,10 +38,16 @@ TestCase {
         const page = createTemporaryObject(pageComponent, testCase, {
                                                "candidates": [localCandidate]
                                            });
-        compare(page._rows.length, 2);
+        compare(page._rows.length, 3);
         compare(page._rows[0].kind, "local");
         compare(page._rows[0].detail, localCandidate.detail);
         compare(page._rows[1].kind, "remote");
+        // Q20: the install row stays, dimmed and captioned, under the two others.
+        compare(page._rows[2].kind, "install");
+        compare(page._rows[2].dimmed, true);
+        compare(page._rows[2].detail, "a local server was already found");
+        compare(page._rows[0].dimmed, false);
+        compare(page._rows[1].dimmed, false);
     }
 
     function test_rows_with_no_candidate_offer_install() {
@@ -51,6 +57,8 @@ TestCase {
         compare(page._rows.length, 2);
         compare(page._rows[0].kind, "remote");
         compare(page._rows[1].kind, "install");
+        compare(page._rows[1].dimmed, false);
+        verify(page._rows[1].detail.indexOf("Adds the package") === 0);
     }
 
     function test_j_k_move_the_cursor_and_clamp() {
@@ -60,9 +68,11 @@ TestCase {
         compare(page.cursorIndex, 0);
         page.moveCursor(1);
         compare(page.cursorIndex, 1);
+        page.moveCursor(1); // the dimmed install row takes the cursor like any other
+        compare(page.cursorIndex, 2);
         page.moveCursor(1); // clamps at the last row
-        compare(page.cursorIndex, 1);
-        page.moveCursor(-1);
+        compare(page.cursorIndex, 2);
+        page.moveCursor(-2);
         compare(page.cursorIndex, 0);
         page.moveCursor(-1); // clamps at the first row
         compare(page.cursorIndex, 0);
@@ -86,6 +96,31 @@ TestCase {
         page.cursorIndex = 1; // remote, install
         page.chooseCursor();
         compare(page.page, "install");
+    }
+
+    function test_dimmed_install_row_opens_the_install_step_with_the_port_warning() {
+        const page = createTemporaryObject(pageComponent, testCase, {
+                                               "candidates": [localCandidate]
+                                           });
+        page.cursorIndex = 2; // local, remote, install (dimmed)
+        page.chooseCursor();
+        compare(page.page, "install");
+        compare(page.chosenKind, "install");
+        const warning = findChild(page, "portWarning");
+        verify(warning !== null);
+        compare(warning.visible, true);
+    }
+
+    function test_install_step_has_no_port_warning_without_a_local_server() {
+        const page = createTemporaryObject(pageComponent, testCase, {
+                                               "candidates": []
+                                           });
+        page.cursorIndex = 1;
+        page.chooseCursor();
+        compare(page.page, "install");
+        const warning = findChild(page, "portWarning");
+        verify(warning !== null);
+        compare(warning.visible, false);
     }
 
     function test_install_step_shows_the_exact_commands() {

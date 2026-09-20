@@ -12,8 +12,11 @@ import Omaseed.Kit
 //
 // Three steps (the footer's "step N of 3"):
 //   1 choose    `App.detectServers()` on `Component.onCompleted`; rows for a detected local
-//               server, "connect to a remote server", and — only when nothing local was
-//               found — "install qbittorrent-nox here".
+//               server, "connect to a remote server", and "install qbittorrent-nox here" —
+//               the last one dimmed and captioned "a local server was already found" when
+//               step 1 found one (Q20: still selectable, since a second engine is possible
+//               with its own profile and port, but the packaged service is one instance on
+//               8080 and would not start next to a server already answering there).
 //   2 details   either the API-key page (URL/name/auth/key, `test`, `continue`) for "local"
 //               and "remote", or the install page (copyable commands, `run with pkexec`) for
 //               "install", which itself continues into the API-key page pointed at
@@ -44,23 +47,25 @@ Item {
                           "kind": "local",
                           "glyph": "⛁",
                           "title": qsTr("Use the server on this machine"),
-                          "detail": root._localCandidate.detail || ""
+                          "detail": root._localCandidate.detail || "",
+                          "dimmed": false
                       });
         rows.push({
                       "kind": "remote",
                       "glyph": "⇢",
                       "title": qsTr("Connect to a remote server"),
                       "detail": qsTr(
-                                    "A seedbox, a NAS, or qui's proxy. You will enter a URL and an API key.")
+                                    "A seedbox, a NAS, or qui's proxy. You will enter a URL and an API key."),
+                      "dimmed": false
                   });
-        if (!root.hasLocal)
-            rows.push({
-                          "kind": "install",
-                          "glyph": "+",
-                          "title": qsTr("Install qbittorrent-nox here"),
-                          "detail": qsTr(
-                                        "Adds the package and a user service. Offered because you can, not because you must.")
-                      });
+        rows.push({
+                      "kind": "install",
+                      "glyph": "+",
+                      "title": qsTr("Install qbittorrent-nox here"),
+                      "detail": root.hasLocal ? qsTr("a local server was already found") : qsTr(
+                                                                                              "Adds the package and a user service. Offered because you can, not because you must."),
+                      "dimmed": root.hasLocal
+                  });
         return rows;
     }
 
@@ -322,6 +327,9 @@ ColumnLayout {
 
                 readonly property bool hasCursor: optionRow.index === root.cursorIndex
                 readonly property bool hot: optionRow.hasCursor || hoverHandler.hovered
+                // Q20: the install row under a found server. Only the ink dims; cursor,
+                // hover, enter and click work as on the other rows.
+                readonly property bool dimmed: optionRow.modelData.dimmed
 
                 Layout.fillWidth: true
                 color: optionRow.hot ? Theme.fill(Theme.fillHover) : "transparent"
@@ -359,7 +367,7 @@ ColumnLayout {
 
                         Text {
                             anchors.centerIn: parent
-                            color: Theme.accent
+                            color: optionRow.dimmed ? Theme.dimForeground : Theme.accent
                             font.family: Theme.fontFamily
                             font.pixelSize: Theme.font.body
                             text: optionRow.modelData.glyph
@@ -372,7 +380,8 @@ ColumnLayout {
 
                         Label {
                             Layout.fillWidth: true
-                            bright: true
+                            bright: !optionRow.dimmed
+                            dim: optionRow.dimmed
                             text: optionRow.modelData.title
                         }
 
@@ -410,6 +419,42 @@ ColumnLayout {
             text: qsTr(
                       "Two commands: install the package, then enable the user service so it starts with your session.")
             wrapMode: Text.WordWrap
+        }
+
+        // Q20: the port clash, only when step 1 found a server. The kit's `Banner` is one
+        // line; this wraps, so it borrows `DuplicateSheet`'s rule-glyph-text shape instead.
+        RowLayout {
+            id: portWarning
+
+            Layout.fillWidth: true
+            objectName: "portWarning"
+            spacing: Theme.space(8)
+            visible: root.hasLocal
+
+            Rectangle {
+                Layout.alignment: Qt.AlignTop
+                Layout.preferredHeight: portWarningText.implicitHeight
+                Layout.preferredWidth: 2
+                color: Theme.yellow
+            }
+
+            Label {
+                Layout.alignment: Qt.AlignTop
+                color: Theme.yellow
+                size: "small"
+                text: Glyphs.statusStalled
+            }
+
+            Label {
+                id: portWarningText
+
+                Layout.fillWidth: true
+                color: Theme.yellow
+                size: "small"
+                text: qsTr(
+                          "A server already answers on port 8080. The packaged service also uses 8080, so it will not start until one of them moves. To run two engines, give the new one its own profile and port (qbittorrent-nox --profile=… --webui-port=…).")
+                wrapMode: Text.WordWrap
+            }
         }
 
         Field {
