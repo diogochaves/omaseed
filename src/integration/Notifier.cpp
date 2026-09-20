@@ -126,29 +126,6 @@ quint32 Notifier::notifyCompleted(const QString &hash,
                       QStringLiteral("transfer.complete"));
 }
 
-quint32 Notifier::notifyTrackerError(const QString &host, int count)
-{
-    const QString key = QStringLiteral("tracker-error|%1").arg(host);
-    const QString unit = count == 1 ? QStringLiteral("torrent") : QStringLiteral("torrents");
-    const QString body = QStringLiteral("%1 · timed out for %2 %3").arg(host).arg(count).arg(unit);
-
-    const QStringList actions{
-        QStringLiteral("show-trackers"),
-        QStringLiteral("show trackers"),
-        QStringLiteral("reannounce"),
-        QStringLiteral("reannounce"),
-    };
-
-    return sendNotice(key,
-                      QStringLiteral("tracker-error"),
-                      host,
-                      QStringLiteral("Tracker error"),
-                      body,
-                      actions,
-                      kUrgencyNormal,
-                      QStringLiteral("network.error"));
-}
-
 quint32 Notifier::notifyServerLost(const QString &serverId,
                                    const QString &serverName,
                                    const QString &hostText,

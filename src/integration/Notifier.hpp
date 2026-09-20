@@ -33,11 +33,6 @@ public:
                             const QString &category,
                             bool hasFolder);
 
-    /// "<host> · timed out for N torrent(s)". Actions "show trackers" and "reannounce".
-    /// Event class "tracker-error", subject the tracker host: a second call for the same
-    /// host replaces the live notice instead of stacking another one.
-    quint32 notifyTrackerError(const QString &host, int count);
-
     /// "<serverName> is unreachable" / "<hostText> · <reasonText> · retrying every N s".
     /// Action "settings". Event class "server", subject the server id.
     quint32 notifyServerLost(const QString &serverId,
@@ -55,7 +50,7 @@ public:
 signals:
     /// Fired when the shell reports ActionInvoked for a notice this Notifier sent.
     /// eventClass/subjectId are the values the corresponding notify*() call was made with;
-    /// actionKey is one of open-folder, show, show-trackers, reannounce, settings.
+    /// actionKey is one of open-folder, show, settings.
     void
     actionInvoked(const QString &eventClass, const QString &subjectId, const QString &actionKey);
 

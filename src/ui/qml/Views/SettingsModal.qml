@@ -74,7 +74,7 @@ Item {
         case 1:
             return App.serverList.count + 1; // the servers, then "+ add a server"
         case 2:
-            return 4;
+            return 3;
         case 4:
             return 4;
         case 5:
@@ -124,7 +124,7 @@ Item {
             return;
         }
         if (root.paneIndex === 2) {
-            const keys = ["completed", "trackerError", "serverLost", "diskFull"];
+            const keys = ["completed", "serverLost", "diskFull"];
             const key = keys[root.paneCursor];
             App.setNotificationEnabled(key, !App.notificationsEnabled[key]);
             return;
@@ -688,12 +688,6 @@ Item {
                                         "glyph": Glyphs.check,
                                         "title": qsTr("Torrent completed"),
                                         "description": qsTr("One notice per finished torrent, with open folder and show.")
-                                    },
-                                    {
-                                        "key": "trackerError",
-                                        "glyph": Glyphs.statusErrored,
-                                        "title": qsTr("Tracker errors"),
-                                        "description": qsTr("Grouped per tracker host, with reannounce.")
                                     },
                                     {
                                         "key": "serverLost",

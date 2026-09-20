@@ -243,10 +243,11 @@ TestCase {
         keyClick(Qt.Key_Space);
         compare(App.pathMapEnabled, !mapping);
 
-        // Notifications: four rows, bound to App.notificationsEnabled. The keyboard is
-        // already in the pane — a digit moves the nav without taking it back.
+        // Notifications: three rows (Q16 dropped the tracker one), bound to
+        // App.notificationsEnabled. The keyboard is already in the pane — a digit moves the
+        // nav without taking it back.
         keyClick(Qt.Key_3);
-        compare(modal.paneRowCount, 4);
+        compare(modal.paneRowCount, 3);
         compare(modal.area, "pane");
         keyClick(Qt.Key_Return);
         compare(App.notificationsEnabled["completed"] === true, !completed);

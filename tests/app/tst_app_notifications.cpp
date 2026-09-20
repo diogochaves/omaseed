@@ -1,11 +1,12 @@
-// T4.7 — App wired to Notifier: the four notice-worthy SyncEngine events become the right
-// desktop notices, the per-event toggles suppress them, a flapping server produces exactly one
-// "lost" and one "back", and the "reannounce" action reaches the real torrents/reannounce
-// endpoint. SyncEngine itself (when to fire, how to group) is covered by
-// tests/core/tst_syncengine_fixtures.cpp; this file only checks what App does with those
-// events once they arrive.
+// T4.7 — App wired to Notifier: the notice-worthy SyncEngine events become the right desktop
+// notices, the per-event toggles suppress them, and a flapping server produces exactly one
+// "lost" and one "back". T5.5 (Q16): the low-disk threshold is a setting that reaches the
+// engine and survives a restart, and a tracker error is no longer a notice at all.
+// SyncEngine itself (when to fire) is covered by tests/core/tst_syncengine_fixtures.cpp; this
+// file only checks what App does with those events once they arrive.
 
 #include "core/Format.hpp"
+#include "core/TorrentModel.hpp"
 #include "integration/Notifier.hpp"
 #include "ui/app/App.hpp"
 
@@ -15,7 +16,6 @@
 #include <QElapsedTimer>
 #include <QEventLoop>
 #include <QJsonArray>
-#include <QJsonDocument>
 #include <QJsonObject>
 #include <QSignalSpy>
 #include <QTcpServer>
@@ -45,8 +45,7 @@ QByteArray httpResponse(int code, const QByteArray &reason, const QByteArray &bo
     return response;
 }
 
-/// The three GET endpoints SyncEngine uses, plus POST torrents/reannounce, which this file
-/// needs to check the "reannounce" notification action reaches the real client.
+/// The three GET endpoints SyncEngine uses, for the flapping-server test.
 class FakeQbtServer : public QTcpServer
 {
 public:
@@ -61,7 +60,6 @@ public:
     void setMainData(const QList<QByteArray> &bodies) { m_bodies = bodies; }
 
     int mainDataRequests = 0;
-    QList<QByteArray> reannounceBodies;
 
 protected:
     void incomingConnection(qintptr socketDescriptor) override
@@ -78,7 +76,6 @@ protected:
                 return;
             const QByteArray head = buffer->left(headerEnd);
             const QByteArray requestLine = head.split('\n').value(0);
-            const QByteArray method = requestLine.split(' ').value(0);
             const QByteArray target = requestLine.split(' ').value(1);
 
             qsizetype contentLength = 0;
@@ -89,7 +86,6 @@ protected:
             const qsizetype bodyStart = headerEnd + 4;
             if (buffer->size() < bodyStart + contentLength)
                 return; // wait for the rest of the body
-            const QByteArray body = buffer->mid(bodyStart, contentLength);
             buffer->clear();
 
             QByteArray response;
@@ -104,9 +100,6 @@ protected:
                         ? QByteArray("{}")
                         : m_bodies.at(std::min(qsizetype(index), m_bodies.size() - 1));
                 response = httpResponse(200, "OK", responseBody);
-            } else if (method == "POST" && target.startsWith("/api/v2/torrents/reannounce")) {
-                reannounceBodies.append(body);
-                response = httpResponse(200, "OK", "Ok.");
             } else {
                 response = httpResponse(404, "Not Found", "no");
             }
@@ -130,12 +123,7 @@ bool waitFor(const std::function<bool()> &predicate, int timeoutMs = 5000)
     return predicate();
 }
 
-QJsonObject torrentRow(const QString &name,
-                       const QString &category,
-                       double progress,
-                       qint64 size,
-                       bool hasTrackerError = false,
-                       const QString &tracker = QString())
+QJsonObject torrentRow(const QString &name, const QString &category, double progress, qint64 size)
 {
     QJsonObject row;
     row.insert(QStringLiteral("name"), name);
@@ -145,8 +133,8 @@ QJsonObject torrentRow(const QString &name,
     row.insert(QStringLiteral("total_size"), size);
     row.insert(QStringLiteral("state"),
                progress >= 1.0 ? QStringLiteral("uploading") : QStringLiteral("downloading"));
-    row.insert(QStringLiteral("has_tracker_error"), hasTrackerError);
-    row.insert(QStringLiteral("tracker"), tracker);
+    row.insert(QStringLiteral("has_tracker_error"), false);
+    row.insert(QStringLiteral("tracker"), QString());
     return row;
 }
 
@@ -164,11 +152,10 @@ private slots:
 
     void completedNoticeMatchesSpecBodyAndOffersOpenFolderWhenTheFolderExists();
     void completedNoticeOmitsOpenFolderWhenTheFolderIsUnknown();
-    void trackerErrorGroupsByHostOnePerHost();
+    void trackerErrorSendsNoNotice();
     void diskAlmostFullMatchesQ2Wording();
     void disabledToggleSuppressesTheNotice();
     void flappingServerFiresOneLostAndOneBack();
-    void reannounceActionReachesTheRealEndpoint();
 
 private:
     FakeNotificationBus m_bus;
@@ -279,7 +266,8 @@ void TestAppNotifications::completedNoticeOmitsOpenFolderWhenTheFolderIsUnknown(
              QStringList({QStringLiteral("show"), QStringLiteral("show")}));
 }
 
-void TestAppNotifications::trackerErrorGroupsByHostOnePerHost()
+// Q16: tracker health is the Trackers tab badge and the rail filter, never a desktop notice.
+void TestAppNotifications::trackerErrorSendsNoNotice()
 {
     App app;
     Notifier notifier(m_bus.connection());
@@ -302,15 +290,8 @@ void TestAppNotifications::trackerErrorGroupsByHostOnePerHost()
          QJsonObject{{kTrackerHash, QJsonObject{{QStringLiteral("has_tracker_error"), true}}}}}};
     app.applyDemoData(diff);
 
-    QCOMPARE(m_bus.server()->calls.size(), 1);
-    const auto &call = m_bus.server()->calls.first();
-    QCOMPARE(call.summary, QStringLiteral("Tracker error"));
-    QCOMPARE(call.body, QStringLiteral("tracker.opentrackr.org · timed out for 1 torrent"));
-    QCOMPARE(call.actions,
-             QStringList({QStringLiteral("show-trackers"),
-                          QStringLiteral("show trackers"),
-                          QStringLiteral("reannounce"),
-                          QStringLiteral("reannounce")}));
+    QVERIFY(app.torrents()->torrent(kTrackerHash).hasTrackerError);
+    QCOMPARE(m_bus.server()->calls.size(), 0);
 }
 
 void TestAppNotifications::diskAlmostFullMatchesQ2Wording()
@@ -413,58 +394,6 @@ void TestAppNotifications::flappingServerFiresOneLostAndOneBack()
     QCOMPARE(m_bus.server()->calls.size(), 2);
     QCOMPARE(m_bus.server()->calls.at(1).summary, QStringLiteral("fake is back"));
     QCOMPARE(m_bus.server()->calls.at(1).body, QStringLiteral("connected again"));
-
-    app.engine()->stop();
-}
-
-void TestAppNotifications::reannounceActionReachesTheRealEndpoint()
-{
-    FakeQbtServer server;
-    QVERIFY(server.start());
-
-    const QByteArray seed =
-        QJsonDocument(
-            QJsonObject{
-                {QStringLiteral("full_update"), true},
-                {QStringLiteral("rid"), 1},
-                {QStringLiteral("torrents"),
-                 QJsonObject{
-                     {kTrackerHash,
-                      torrentRow(
-                          QStringLiteral("fixture-two"), QString(), 0.3, 1000, false, QString())}}},
-                {QStringLiteral("trackers"),
-                 QJsonObject{{QStringLiteral("udp://tracker.opentrackr.org:1337/announce"),
-                              QJsonArray{kTrackerHash}}}},
-            })
-            .toJson(QJsonDocument::Compact);
-    const QByteArray diff =
-        QJsonDocument(
-            QJsonObject{{QStringLiteral("rid"), 2},
-                        {QStringLiteral("torrents"),
-                         QJsonObject{{kTrackerHash,
-                                      QJsonObject{{QStringLiteral("has_tracker_error"), true}}}}}})
-            .toJson(QJsonDocument::Compact);
-    server.setMainData({seed, diff});
-
-    qputenv("OMASEED_SERVER_URL", server.url().toString().toUtf8());
-    qputenv("OMASEED_SERVER_NAME", "fake");
-
-    App app;
-    Notifier notifier(m_bus.connection());
-    app.attachNotifier(&notifier);
-    app.engine()->setIntervals(std::chrono::milliseconds(10),
-                               std::chrono::milliseconds(10),
-                               std::chrono::milliseconds(10),
-                               std::chrono::milliseconds(10));
-    app.start();
-
-    QVERIFY(waitFor([&] { return m_bus.server()->calls.size() >= 1; }));
-    // init() reset nextId to 1 and this is the only notice sent so far in this test.
-    const quint32 id = 1;
-
-    m_bus.server()->triggerActionInvoked(id, QStringLiteral("reannounce"));
-    QVERIFY(waitFor([&] { return !server.reannounceBodies.isEmpty(); }));
-    QVERIFY(server.reannounceBodies.first().contains(kTrackerHash.toUtf8()));
 
     app.engine()->stop();
 }

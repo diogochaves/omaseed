@@ -534,12 +534,6 @@ Item {
             root.showTorrent(hash);
         }
 
-        /// T4.7's tracker-error notification.
-        function onShowTrackersRequested(hash: string): void {
-            if (!details.collapsed)
-                details.activateTab(2); // Trackers
-        }
-
         /// The jump palette's `tab` (Fig. 12's "tab actions"): jump there, then open Fig. 11
         /// on that row. The palette has already moved the cursor and closed itself.
         function onShowActionsRequested(hash: string): void {
@@ -898,8 +892,7 @@ Item {
 
     // --- T4.3: actions ---
     // The overlays `torrentAction()` opens, a short-lived footer note for "copied" and for
-    // `App.actionFailed`, and the two notices `App.showTorrentRequested`/
-    // `showTrackersRequested` (T4.7's seam) land on.
+    // `App.actionFailed`, and the notice `App.showTorrentRequested` (T4.7's seam) lands on.
 
     /// A few words shown next to the footer's facts for `_footerNoteSeconds`, then cleared.
     property string footerNote: ""
