@@ -123,6 +123,9 @@ void TestServerListModel::rolesOfOneServer()
     QCOMPARE(roleOf(model, 0, ServerListModel::TorrentCountRole).toInt(), -1);
     QCOMPARE(roleOf(model, 0, ServerListModel::ReachableTextRole).toString(), QString());
     QVERIFY(!roleOf(model, 0, ServerListModel::ReachableRole).toBool());
+    QCOMPARE(roleOf(model, 0, ServerListModel::VersionRole).toString(), QString());
+    QCOMPARE(roleOf(model, 0, ServerListModel::ApiVersionRole).toString(), QString());
+    QCOMPARE(roleOf(model, 0, ServerListModel::VersionTextRole).toString(), QString());
 
     // roleNames() is the contract the QML delegates bind to.
     const QHash<int, QByteArray> names = model.roleNames();
@@ -138,7 +141,10 @@ void TestServerListModel::rolesOfOneServer()
                                  "reachable",
                                  "reachableText",
                                  "torrentCount",
-                                 "lastError"})
+                                 "lastError",
+                                 "version",
+                                 "apiVersion",
+                                 "versionText"})
         QVERIFY2(names.values().contains(QByteArray(expected)), expected);
 
     // serverMap() round-trips through the edit fields the sheet uses.
@@ -224,24 +230,55 @@ void TestServerListModel::probeResultsFillTheRow()
     const QString id = model.add(homeFields());
     QSignalSpy changed(&model, &ServerListModel::dataChanged);
 
-    model.setProbeResult(id, true, 142, 3, QString());
+    // The arguments are `App::serverTested()`'s after the id; qBittorrent's "v5.2.3" loses
+    // its "v" in `version` and gets it back in `versionText` (Q23's "v5.2.3 · 42 torrents").
+    model.setProbeResult(
+        id, true, QStringLiteral("v5.2.3"), QStringLiteral("2.15.1"), 142, 3, QString());
     QCOMPARE(changed.count(), 1);
     QVERIFY(roleOf(model, 0, ServerListModel::ReachableRole).toBool());
     QCOMPARE(roleOf(model, 0, ServerListModel::ReachableTextRole).toString(),
              QStringLiteral("yes · 3 ms"));
     QCOMPARE(roleOf(model, 0, ServerListModel::TorrentCountRole).toInt(), 142);
+    QCOMPARE(roleOf(model, 0, ServerListModel::VersionRole).toString(), QStringLiteral("5.2.3"));
+    QCOMPARE(roleOf(model, 0, ServerListModel::ApiVersionRole).toString(),
+             QStringLiteral("2.15.1"));
+    QCOMPARE(roleOf(model, 0, ServerListModel::VersionTextRole).toString(),
+             QStringLiteral("v5.2.3"));
+    // serverMap() is what the sheet reads back after a save.
+    const QVariantMap map = model.serverMap(id);
+    QCOMPARE(map.value(QStringLiteral("version")).toString(), QStringLiteral("5.2.3"));
+    QCOMPARE(map.value(QStringLiteral("apiVersion")).toString(), QStringLiteral("2.15.1"));
+    QCOMPARE(map.value(QStringLiteral("versionText")).toString(), QStringLiteral("v5.2.3"));
 
-    // A failure keeps the last count (it is still what the server had) and says why.
-    model.setProbeResult(id, false, -1, 12, QStringLiteral("connection refused"));
+    // A failure keeps the last count and versions (they are still what the server had) and
+    // says why.
+    model.setProbeResult(
+        id, false, QString(), QString(), -1, 12, QStringLiteral("connection refused"));
     QVERIFY(!roleOf(model, 0, ServerListModel::ReachableRole).toBool());
     QCOMPARE(roleOf(model, 0, ServerListModel::ReachableTextRole).toString(),
              QStringLiteral("no · connection refused"));
     QCOMPARE(roleOf(model, 0, ServerListModel::LastErrorRole).toString(),
              QStringLiteral("connection refused"));
     QCOMPARE(roleOf(model, 0, ServerListModel::TorrentCountRole).toInt(), 142);
+    QCOMPARE(roleOf(model, 0, ServerListModel::VersionRole).toString(), QStringLiteral("5.2.3"));
+
+    // A version that already has no "v" is taken as it is (demo mode's answer).
+    model.setProbeResult(
+        id, true, QStringLiteral("5.3.0"), QStringLiteral("2.16.0"), 142, 3, QString());
+    QCOMPARE(roleOf(model, 0, ServerListModel::VersionTextRole).toString(),
+             QStringLiteral("v5.3.0"));
+
+    // A second server has probes of its own: a fresh id starts empty.
+    QVariantMap other = homeFields();
+    other.insert(QStringLiteral("name"), QStringLiteral("other"));
+    other.insert(QStringLiteral("url"), QStringLiteral("http://other.invalid:9090"));
+    const QString otherId = model.add(other);
+    QCOMPARE(roleOf(model, model.indexOfId(otherId), ServerListModel::VersionRole).toString(),
+             QString());
+    QCOMPARE(model.serverMap(otherId).value(QStringLiteral("versionText")).toString(), QString());
 
     // A probe for a server that is gone is not a crash and not a row.
-    model.setProbeResult(QStringLiteral("nope"), true, 1, 1, QString());
+    model.setProbeResult(QStringLiteral("nope"), true, QString(), QString(), 1, 1, QString());
 }
 
 void TestServerListModel::persistsToJson()

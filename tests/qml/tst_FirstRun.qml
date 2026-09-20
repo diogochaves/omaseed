@@ -165,6 +165,39 @@ TestCase {
         compare(button.enabled, true);
     }
 
+    // Q23: step 2's test runs before the server exists; `continue` gives its answer to the
+    // row it creates, so Settings → Servers shows "v5.2.3 · 142 torrents" right away.
+    function test_continue_carries_the_test_result_onto_the_new_server() {
+        App.loadDemo(16);
+        const page = createTemporaryObject(pageComponent, testCase, {
+                                               "candidates": [localCandidate]
+                                           });
+        page.chooseCursor();
+        page.editName = "home";
+        const spy = createTemporaryObject(signalSpyComponent, testCase, {
+                                              "target": App,
+                                              "signalName": "serverTested"
+                                          });
+        page.runTest();
+        spy.wait(2000);
+        compare(page.testVersion, "5.2.3");
+        compare(page.testCount, 142);
+
+        page.continueFromApiKey();
+        compare(page.page, "handler");
+        compare(App.serverList.count, 1);
+        const id = App.serverList.idAt(0);
+        const map = App.serverList.serverMap(id);
+        compare(map.name, "home");
+        compare(map.versionText, "v5.2.3");
+        compare(map.apiVersion, "2.15.1");
+        compare(map.torrentCount, 142);
+        compare(map.reachableText, "yes · 3 ms");
+        // App is a singleton shared with every other test file: leave no server behind.
+        App.serverList.remove(id);
+        compare(App.serverList.count, 0);
+    }
+
     function test_handler_step_not_now_asks_Xdg_and_finishes() {
         const page = createTemporaryObject(pageComponent, testCase, {
                                                "candidates": [localCandidate]

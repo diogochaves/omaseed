@@ -1742,7 +1742,7 @@ void App::runServerTest(const Server &server, const QString &secret)
         if (result.isError()) {
             const QString error = result.error().toString();
             client->deleteLater();
-            m_serverList->setProbeResult(id, false, -1, latency, error);
+            m_serverList->setProbeResult(id, false, QString(), QString(), -1, latency, error);
             Q_EMIT serverTested(id, false, QString(), QString(), -1, latency, error);
             return;
         }
@@ -1756,7 +1756,8 @@ void App::runServerTest(const Server &server, const QString &secret)
                 const QString version = info.version;
                 const QString apiVersion = info.apiVersion;
                 client->deleteLater();
-                m_serverList->setProbeResult(id, true, count, latency, QString());
+                m_serverList->setProbeResult(
+                    id, true, version, apiVersion, count, latency, QString());
                 Q_EMIT serverTested(id, true, version, apiVersion, count, latency, QString());
             });
     });
