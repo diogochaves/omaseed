@@ -293,6 +293,30 @@ void TestAppActions::limitsRoundTripThroughTorrentsInfo()
     });
     QCOMPARE(reset.value(QStringLiteral("dl_limit")).toInteger(), qint64(0));
     QCOMPARE(reset.value(QStringLiteral("up_limit")).toInteger(), qint64(0));
+
+    // T5.5 Q14: the action rides along by its wire name; the playground is 2.15.1, so App
+    // sends it (and `supportsShareLimitAction` says so). Back to Default afterwards, so the
+    // shared fixture is left as found even if the compare fails.
+    QVERIFY(m_app->supportsShareLimitAction());
+    m_app->setLimits({kFixtureTwo}, -1, -1, -2, -2, QStringLiteral("EnableSuperSeeding"));
+    const QJsonObject acted = pollUntil(kFixtureTwo, [](const QJsonObject &t) {
+        return t.value(QStringLiteral("share_limit_action")).toString() ==
+               QStringLiteral("EnableSuperSeeding");
+    });
+    m_app->setLimits({kFixtureTwo}, -1, -1, -2, -2, QString());
+    const QJsonObject defaulted = pollUntil(kFixtureTwo, [](const QJsonObject &t) {
+        return t.value(QStringLiteral("share_limit_action")).toString() ==
+               QStringLiteral("Default");
+    });
+    QCOMPARE(acted.value(QStringLiteral("share_limit_action")).toString(),
+             QStringLiteral("EnableSuperSeeding"));
+    QCOMPARE(defaulted.value(QStringLiteral("share_limit_action")).toString(),
+             QStringLiteral("Default"));
+    // The model's row map carries it too, for the sheet's prefill (once the poll caught up).
+    QTRY_COMPARE_WITH_TIMEOUT(
+        m_app->torrentRow(kFixtureTwo).value(QStringLiteral("shareLimitAction")).toString(),
+        QStringLiteral("Default"),
+        8000);
 }
 
 void TestAppActions::renameAndRenameBack()

@@ -92,7 +92,9 @@ public:
     void setLastError(const ApiError &error);
     void setLastSyncTime(const QDateTime &when);
     void setServerName(const QString &name);
-    void setServerVersions(const QString &version, const QString &apiVersion);
+    /// Invokable so the view tests can move the API version and watch what it gates (the
+    /// Limits sheet's share-limit action row, T5.5 Q14).
+    Q_INVOKABLE void setServerVersions(const QString &version, const QString &apiVersion);
     void setRetryInSeconds(int seconds);
     /// Back to the defaults, keeping the server's name: used when a server is swapped out.
     void reset();

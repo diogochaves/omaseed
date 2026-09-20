@@ -12,6 +12,7 @@
 #include <QNetworkRequest>
 #include <QPointer>
 #include <QTimer>
+#include <QVersionNumber>
 
 #include <functional>
 #include <utility>
@@ -908,11 +909,50 @@ QbtReply<QByteArray> *QbtClient::torrentsSetUploadLimit(const QStringList &hashe
     return post(QStringLiteral("torrents/setUploadLimit"), form);
 }
 
-QbtReply<QByteArray> *QbtClient::torrentsSetShareLimits(const QStringList &hashes,
-                                                        double ratioLimit,
-                                                        qint64 seedingTimeLimit,
-                                                        qint64 inactiveSeedingTimeLimit,
-                                                        const QString &shareLimitAction)
+QString QbtClient::shareLimitActionName(ShareLimitAction action)
+{
+    switch (action) {
+    case ShareLimitAction::Default:
+        return QStringLiteral("Default");
+    case ShareLimitAction::Stop:
+        return QStringLiteral("Stop");
+    case ShareLimitAction::Remove:
+        return QStringLiteral("Remove");
+    case ShareLimitAction::RemoveWithContent:
+        return QStringLiteral("RemoveWithContent");
+    case ShareLimitAction::EnableSuperSeeding:
+        return QStringLiteral("EnableSuperSeeding");
+    }
+    return QStringLiteral("Default");
+}
+
+QbtClient::ShareLimitAction QbtClient::shareLimitActionFromName(QStringView name)
+{
+    static const ShareLimitAction all[] = {
+        ShareLimitAction::Stop,
+        ShareLimitAction::Remove,
+        ShareLimitAction::RemoveWithContent,
+        ShareLimitAction::EnableSuperSeeding,
+    };
+    for (ShareLimitAction action : all) {
+        if (name == shareLimitActionName(action))
+            return action;
+    }
+    return ShareLimitAction::Default;
+}
+
+bool QbtClient::supportsShareLimitAction(const QString &apiVersion)
+{
+    const QVersionNumber version = QVersionNumber::fromString(apiVersion);
+    return !version.isNull() && version >= QVersionNumber(2, 15, 1);
+}
+
+QbtReply<QByteArray> *
+QbtClient::torrentsSetShareLimits(const QStringList &hashes,
+                                  double ratioLimit,
+                                  qint64 seedingTimeLimit,
+                                  qint64 inactiveSeedingTimeLimit,
+                                  std::optional<ShareLimitAction> shareLimitAction)
 {
     QUrlQuery form = hashesForm(hashes);
     addItem(form, QStringLiteral("ratioLimit"), QString::number(ratioLimit));
@@ -920,7 +960,8 @@ QbtReply<QByteArray> *QbtClient::torrentsSetShareLimits(const QStringList &hashe
     addItem(form,
             QStringLiteral("inactiveSeedingTimeLimit"),
             QString::number(inactiveSeedingTimeLimit));
-    addItem(form, QStringLiteral("shareLimitAction"), shareLimitAction);
+    if (shareLimitAction)
+        addItem(form, QStringLiteral("shareLimitAction"), shareLimitActionName(*shareLimitAction));
     return post(QStringLiteral("torrents/setShareLimits"), form);
 }
 

@@ -74,6 +74,7 @@ public:
         UpLimitRole,
         RatioLimitRole,
         SeedingTimeLimitRole,
+        ShareLimitActionRole,
         AvailabilityRole,
         AmountLeftRole,
         CompletedRole,

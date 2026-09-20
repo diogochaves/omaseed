@@ -76,6 +76,11 @@ App::App(QObject *parent)
     connect(m_engine->globalState(), &GlobalState::freeSpaceOnDiskChanged, this, &App::updateTray);
     connect(m_engine->globalState(), &GlobalState::serverNameChanged, this, &App::updateTray);
     connect(m_engine->counts(), &FilterCounts::changed, this, &App::updateTray);
+    // T5.5 Q14: `supportsShareLimitAction` is derived from the API version, nothing else.
+    connect(m_engine->globalState(),
+            &GlobalState::apiVersionChanged,
+            this,
+            &App::supportsShareLimitActionChanged);
 
     connect(m_engine, &SyncEngine::firstSyncFinished, this, [this]() {
         if (m_demoMode)
@@ -557,6 +562,7 @@ QVariantMap App::torrentRow(const QString &hash) const
     row.insert(QStringLiteral("upLimit"), torrent.upLimit);
     row.insert(QStringLiteral("ratioLimit"), torrent.ratioLimit);
     row.insert(QStringLiteral("seedingTimeLimit"), torrent.seedingTimeLimit);
+    row.insert(QStringLiteral("shareLimitAction"), torrent.shareLimitAction);
     row.insert(QStringLiteral("sizeText"), Format::size(torrent.size));
     row.insert(QStringLiteral("progressText"), Format::percent(torrent.progress));
     row.insert(QStringLiteral("ratioText"), Format::ratio(torrent.ratio));
@@ -1480,9 +1486,14 @@ void App::setLocation(const QStringList &hashes, const QString &path)
         });
 }
 
-void App::setLimits(
-    const QStringList &hashes, qint64 dl, qint64 ul, double ratio, qint64 seedingMinutes)
+void App::setLimits(const QStringList &hashes,
+                    qint64 dl,
+                    qint64 ul,
+                    double ratio,
+                    qint64 seedingMinutes,
+                    const QString &shareLimitAction)
 {
+    Q_EMIT limitsRequested(hashes, dl, ul, ratio, seedingMinutes, shareLimitAction);
     if (hashes.isEmpty() || demoGuard(QStringLiteral("limits"), hashes.size()) || !m_hasServer)
         return;
 
@@ -1501,8 +1512,14 @@ void App::setLimits(
 
     // torrents/setShareLimits takes seedingTimeLimit in minutes (qBittorrent's own unit); the
     // caller (LimitsSheet) has already converted its days field, so this is passed straight
-    // through, sentinels (-2 global, -1 none) included.
-    m_client->torrentsSetShareLimits(hashes, ratio, seedingMinutes, -2)
+    // through, sentinels (-2 global, -1 none) included. The action (T5.5 Q14) travels only
+    // when the server knows the field; a server still without a version answer gets the
+    // field too, since 5.2.3 (the server this ships against) refuses the call without it.
+    const QString apiVersion = m_engine->globalState()->apiVersion();
+    std::optional<QbtClient::ShareLimitAction> action;
+    if (apiVersion.isEmpty() || QbtClient::supportsShareLimitAction(apiVersion))
+        action = QbtClient::shareLimitActionFromName(shareLimitAction);
+    m_client->torrentsSetShareLimits(hashes, ratio, seedingMinutes, -2, action)
         ->then(this, [this](const QbtResult<QByteArray> &result) {
             reportActionResult(QStringLiteral("limits"), result);
         });
@@ -1994,5 +2011,14 @@ void App::runInstallWithPkexec()
 }
 
 // --- end T4.6 ------------------------------------------------------------------------------
+
+// --- T5.5 Q14: share-limit action ------------------------------------------------------------
+
+bool App::supportsShareLimitAction() const
+{
+    return QbtClient::supportsShareLimitAction(m_engine->globalState()->apiVersion());
+}
+
+// --- end T5.5 Q14 ----------------------------------------------------------------------------
 
 } // namespace omaseed::app

@@ -86,6 +86,7 @@ private slots:
     void categoryAndTags();
     void locationAndSpeedLimits();
     void shareLimitsRoundTrip();
+    void shareLimitActionRoundTrip();
     void renameAndToggles();
     void queuePriorityMoves();
     void addFileFixtureAndDeleteWithFiles();
@@ -367,6 +368,44 @@ void TestQbtClientActionsLive::shareLimitsRoundTrip()
     const QbtResult<QByteArray> cleared =
         await(this, m_client->torrentsSetShareLimits(QStringList{hash}, -2, -2, -2));
     QVERIFY2(!cleared.isError(), qPrintable(cleared.error().toString()));
+}
+
+void TestQbtClientActionsLive::shareLimitActionRoundTrip()
+{
+    QVERIFY(!m_addedHashes.isEmpty());
+    const QString hash = m_addedHashes.first();
+
+    // T5.5 Q14: the playground (5.2.3, API 2.15.1) echoes the action back as
+    // `share_limit_action` in torrents/info, which is what prefills the sheet's chip row.
+    const QbtResult<QByteArray> set =
+        await(this,
+              m_client->torrentsSetShareLimits(
+                  QStringList{hash}, -2, -2, -2, QbtClient::ShareLimitAction::Stop));
+    QVERIFY2(!set.isError(), qPrintable(set.error().toString()));
+    const QJsonObject info = pollUntil(hash, [](const QJsonObject &t) {
+        return t.value(QStringLiteral("share_limit_action")).toString() == QStringLiteral("Stop");
+    });
+    // Restore before asserting: cleanupTestCase() deletes the torrent anyway, but a failed
+    // compare must not leave a fixture the other live tests read in a non-default state.
+    const QbtResult<QByteArray> restored =
+        await(this,
+              m_client->torrentsSetShareLimits(
+                  QStringList{hash}, -2, -2, -2, QbtClient::ShareLimitAction::Default));
+    QCOMPARE(info.value(QStringLiteral("share_limit_action")).toString(), QStringLiteral("Stop"));
+    QVERIFY2(!restored.isError(), qPrintable(restored.error().toString()));
+    const QJsonObject back = pollUntil(hash, [](const QJsonObject &t) {
+        return t.value(QStringLiteral("share_limit_action")).toString() ==
+               QStringLiteral("Default");
+    });
+    QCOMPARE(back.value(QStringLiteral("share_limit_action")).toString(),
+             QStringLiteral("Default"));
+
+    // The fact behind the client's default argument: 5.2.3 refuses the call without the
+    // field, so "omit when Default" is a UI notion, not a wire one.
+    const QbtResult<QByteArray> withoutField =
+        await(this, m_client->torrentsSetShareLimits(QStringList{hash}, -2, -2, -2, std::nullopt));
+    QVERIFY(withoutField.isError());
+    QCOMPARE(withoutField.error().httpStatus(), 400);
 }
 
 void TestQbtClientActionsLive::renameAndToggles()

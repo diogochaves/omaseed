@@ -462,8 +462,17 @@ public:
     /// `dl`/`ul` in bytes/s, -1 = unchanged, 0 = unlimited. `ratio` and `seedingMinutes`
     /// always go together through torrents/setShareLimits: -2 = use the global default,
     /// -1 = no limit, >=0 the limit itself (`seedingMinutes` is the API's own unit).
-    Q_INVOKABLE void
-    setLimits(const QStringList &hashes, qint64 dl, qint64 ul, double ratio, qint64 seedingMinutes);
+    /// `shareLimitAction` (T5.5 Q14) is the wire name of what happens when a limit is
+    /// reached — Default, Stop, Remove, RemoveWithContent, EnableSuperSeeding; empty reads
+    /// as Default. It goes on the wire when `supportsShareLimitAction` is true (Default
+    /// included: 5.2.3 answers 400 without the field) and is left off for a server known to
+    /// be older than API 2.15.1.
+    Q_INVOKABLE void setLimits(const QStringList &hashes,
+                               qint64 dl,
+                               qint64 ul,
+                               double ratio,
+                               qint64 seedingMinutes,
+                               const QString &shareLimitAction = QString());
 
     /// The sheet's fallback rename (the table's inline editor is the primary one).
     Q_INVOKABLE void rename(const QString &hash, const QString &name);
@@ -693,6 +702,29 @@ private:
     QPointer<omaseed::core::ServerDetector> m_serverDetector;
     QPointer<QProcess> m_installProcess;
     // --- end T4.6 ------------------------------------------------------------------------
+
+    // --- T5.5 Q14: share-limit action ------------------------------------------------------
+public:
+    /// True once the connected server's Web API is known to be 2.15.1 or newer (the version
+    /// the `shareLimitAction` field and the `share_limit_action` row appeared in), so the
+    /// Limits sheet can show its "when the limit is reached" row. Follows
+    /// `globalState.apiVersion`; false while the version is still unknown. The demo library
+    /// reports 2.15.1, so the row shows there too.
+    Q_PROPERTY(bool supportsShareLimitAction READ supportsShareLimitAction NOTIFY
+                   supportsShareLimitActionChanged)
+    bool supportsShareLimitAction() const;
+
+Q_SIGNALS:
+    void supportsShareLimitActionChanged();
+    /// Every `setLimits()` call as it was received, before the demo guard and the API-version
+    /// decision — the QML tests' view of what the Limits sheet converted its fields into.
+    void limitsRequested(QStringList hashes,
+                         qint64 dl,
+                         qint64 ul,
+                         double ratio,
+                         qint64 seedingMinutes,
+                         QString shareLimitAction);
+    // --- end T5.5 Q14 ----------------------------------------------------------------------
 };
 
 } // namespace omaseed::app

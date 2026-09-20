@@ -43,6 +43,7 @@
 //   hasTrackerError bool
 //   priority        int       queue position   seqDl bool   firstLastPiecePrio bool
 //   dlLimit         qint64    upLimit qint64   ratioLimit double  seedingTimeLimit qint64
+//   shareLimitAction string   Default | Stop | Remove | RemoveWithContent | EnableSuperSeeding
 //   availability    double    amountLeft qint64  completed qint64
 //   downloaded      qint64    uploaded qint64
 //   timeActive      qint64    seconds          timeActiveText string

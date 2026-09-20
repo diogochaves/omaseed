@@ -57,6 +57,7 @@ const QHash<QString, QList<int>> &keyToRoles()
         {QStringLiteral("up_limit"), {M::UpLimitRole}},
         {QStringLiteral("ratio_limit"), {M::RatioLimitRole}},
         {QStringLiteral("seeding_time_limit"), {M::SeedingTimeLimitRole}},
+        {QStringLiteral("share_limit_action"), {M::ShareLimitActionRole}},
         {QStringLiteral("availability"), {M::AvailabilityRole}},
         {QStringLiteral("amount_left"), {M::AmountLeftRole}},
         {QStringLiteral("completed"), {M::CompletedRole}},
@@ -182,6 +183,8 @@ QVariant TorrentModel::data(const QModelIndex &index, int role) const
         return t.ratioLimit;
     case SeedingTimeLimitRole:
         return t.seedingTimeLimit;
+    case ShareLimitActionRole:
+        return t.shareLimitAction;
     case AvailabilityRole:
         return t.availability;
     case AmountLeftRole:
@@ -262,6 +265,7 @@ QHash<int, QByteArray> TorrentModel::roleNames() const
         {UpLimitRole, "upLimit"},
         {RatioLimitRole, "ratioLimit"},
         {SeedingTimeLimitRole, "seedingTimeLimit"},
+        {ShareLimitActionRole, "shareLimitAction"},
         {AvailabilityRole, "availability"},
         {AmountLeftRole, "amountLeft"},
         {CompletedRole, "completed"},

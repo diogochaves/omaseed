@@ -113,6 +113,10 @@ struct Torrent
     qint64 upLimit = 0;
     double ratioLimit = -2.0;     ///< -2 global, -1 unlimited
     qint64 seedingTimeLimit = -2; ///< minutes; -2 global, -1 unlimited
+    /// What happens when a share limit is reached, as qBittorrent 5.2 (API 2.15.1) spells it:
+    /// Default, Stop, Remove, RemoveWithContent or EnableSuperSeeding. Older servers never
+    /// send the key, so the value stays "Default" (use the global setting).
+    QString shareLimitAction = QStringLiteral("Default");
 
     double availability = 0.0;
     qint64 amountLeft = 0;

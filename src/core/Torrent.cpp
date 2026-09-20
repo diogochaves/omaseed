@@ -196,6 +196,7 @@ QStringList Torrent::applyJson(const QJsonObject &json)
     take(json, QLatin1StringView("up_limit"), upLimit, asInteger, changed);
     take(json, QLatin1StringView("ratio_limit"), ratioLimit, asDouble, changed);
     take(json, QLatin1StringView("seeding_time_limit"), seedingTimeLimit, asInteger, changed);
+    take(json, QLatin1StringView("share_limit_action"), shareLimitAction, asString, changed);
 
     take(json, QLatin1StringView("availability"), availability, asDouble, changed);
     take(json, QLatin1StringView("amount_left"), amountLeft, asInteger, changed);
