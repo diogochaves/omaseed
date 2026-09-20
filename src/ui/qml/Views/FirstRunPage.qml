@@ -95,6 +95,12 @@ Item {
     property bool testOk: false
     property string testResultText: ""
     property bool testing: false
+    // the rest of the last answer, kept so `continue` can hand it to the row it creates
+    property string testVersion: ""
+    property string testApiVersion: ""
+    property int testCount: -1
+    property int testLatency: -1
+    property string testError: ""
 
     readonly property string _newServerId: ""
 
@@ -113,6 +119,11 @@ function _resetTest(): void {
     root.testOk = false;
     root.testResultText = "";
     root.testing = false;
+    root.testVersion = "";
+    root.testApiVersion = "";
+    root.testCount = -1;
+    root.testLatency = -1;
+    root.testError = "";
 }
 
 function openRow(kind: string, url: string): void {
@@ -158,6 +169,11 @@ function continueFromApiKey(): void {
     const id = App.addServer(root._fieldMap(), root.editSecret);
     if (id.length === 0)
         return;
+    // The test ran before the server had an id: give its answer to the row that now exists,
+    // so Settings → Servers shows the version and count straight away (QUESTIONS.md Q23).
+    if (root.tested)
+        App.serverList.setProbeResult(id, root.testOk, root.testVersion, root.testApiVersion,
+                                      root.testCount, root.testLatency, root.testError);
     App.setDefaultServer(id);
     root._openHandlerStep();
 }
@@ -206,6 +222,11 @@ Connections {
         root.testing = false;
         root.tested = true;
         root.testOk = ok;
+        root.testVersion = version;
+        root.testApiVersion = apiVersion;
+        root.testCount = torrentCount;
+        root.testLatency = latencyMs;
+        root.testError = error;
         root.testResultText = ok ? qsTr("qBittorrent %1 · API %2 · %3 torrents").arg(version.replace(
                                                                                          /^v/, "")).arg(
                                        apiVersion).arg(torrentCount) : error;

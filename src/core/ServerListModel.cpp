@@ -78,6 +78,12 @@ QVariant ServerListModel::data(const QModelIndex &index, int role) const
         return probe.torrentCount;
     case LastErrorRole:
         return probe.error;
+    case VersionRole:
+        return probe.version;
+    case ApiVersionRole:
+        return probe.apiVersion;
+    case VersionTextRole:
+        return probe.version.isEmpty() ? QString() : QStringLiteral("v%1").arg(probe.version);
     default:
         break;
     }
@@ -100,6 +106,9 @@ QHash<int, QByteArray> ServerListModel::roleNames() const
         {ReachableTextRole, "reachableText"},
         {TorrentCountRole, "torrentCount"},
         {LastErrorRole, "lastError"},
+        {VersionRole, "version"},
+        {ApiVersionRole, "apiVersion"},
+        {VersionTextRole, "versionText"},
     };
 }
 
@@ -202,8 +211,13 @@ bool ServerListModel::setDefault(const QString &id)
     return m_store != nullptr && m_store->setDefault(id);
 }
 
-void ServerListModel::setProbeResult(
-    const QString &id, bool reachable, int torrentCount, int latencyMs, const QString &error)
+void ServerListModel::setProbeResult(const QString &id,
+                                     bool reachable,
+                                     const QString &version,
+                                     const QString &apiVersion,
+                                     int torrentCount,
+                                     int latencyMs,
+                                     const QString &error)
 {
     if (id.isEmpty())
         return; // a server that is not saved yet has no row to write into
@@ -214,6 +228,13 @@ void ServerListModel::setProbeResult(
     probe.error = error;
     if (torrentCount >= 0)
         probe.torrentCount = torrentCount;
+    if (!version.isEmpty()) {
+        // qBittorrent answers app/version with "v5.2.3"; the roles print the number and put
+        // the "v" back only in `VersionTextRole`.
+        probe.version = version.startsWith(QLatin1Char('v')) ? version.mid(1) : version;
+    }
+    if (!apiVersion.isEmpty())
+        probe.apiVersion = apiVersion;
 
     const int row = indexOfId(id);
     if (row < 0)
@@ -221,7 +242,13 @@ void ServerListModel::setProbeResult(
     const QModelIndex changedIndex = index(row, 0);
     Q_EMIT dataChanged(changedIndex,
                        changedIndex,
-                       {ReachableRole, ReachableTextRole, TorrentCountRole, LastErrorRole});
+                       {ReachableRole,
+                        ReachableTextRole,
+                        TorrentCountRole,
+                        LastErrorRole,
+                        VersionRole,
+                        ApiVersionRole,
+                        VersionTextRole});
 }
 
 Server ServerListModel::serverFromMap(const QVariantMap &fields)

@@ -625,11 +625,14 @@ Item {
                                     required property string reachableText
                                     required property int torrentCount
                                     required property string url
+                                    required property string versionText
 
                                     Layout.fillWidth: true
                                     objectName: "serverRow" + serverRow.index
                                     description: {
                                         const parts = [serverRow.url, serverRow.authModeText];
+                                        if (serverRow.versionText.length > 0)
+                                            parts.push(serverRow.versionText);
                                         if (serverRow.torrentCount >= 0)
                                             parts.push(qsTr("%1 torrents").arg(serverRow.torrentCount));
                                         else if (serverRow.lastError.length > 0)

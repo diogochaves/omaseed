@@ -107,12 +107,19 @@ void TestAppServers::testServerReportsVersionAndCount()
     QVERIFY(answer.at(4).toInt() >= 0);          // torrents/info length
     QVERIFY(answer.at(5).toInt() >= 0);          // latency
 
-    // The row the Servers pane draws now carries the same numbers.
+    // The row the Servers pane draws now carries the same numbers, and (Q23) the versions:
+    // "v5.2.3" from the server is "5.2.3" in `version` and "v5.2.3" again in `versionText`.
     const QVariantMap row = app.serverList()->serverMap(id);
     QVERIFY(row.value(QStringLiteral("reachable")).toBool());
     QVERIFY(
         row.value(QStringLiteral("reachableText")).toString().startsWith(QStringLiteral("yes")));
     QCOMPARE(row.value(QStringLiteral("torrentCount")).toInt(), answer.at(4).toInt());
+    const QString version = answer.at(2).toString();
+    QCOMPARE(row.value(QStringLiteral("version")).toString(),
+             version.startsWith(QLatin1Char('v')) ? version.mid(1) : version);
+    QCOMPARE(row.value(QStringLiteral("versionText")).toString(),
+             QStringLiteral("v%1").arg(row.value(QStringLiteral("version")).toString()));
+    QCOMPARE(row.value(QStringLiteral("apiVersion")).toString(), answer.at(3).toString());
 }
 
 void TestAppServers::testServerRejectsAWrongKey()

@@ -139,7 +139,7 @@ TestCase {
     function test_the_servers_pane_prints_url_auth_and_count() {
         const id = testCase.addTestServer("playground", "http://127.0.0.1:8081");
         verify(id.length > 0);
-        App.serverList.setProbeResult(id, true, 3, 4, "");
+        App.serverList.setProbeResult(id, true, "v5.2.3", "2.15.1", 3, 4, "");
 
         const modal = createTemporaryObject(modalComponent, testCase);
         modal.open();
@@ -150,7 +150,7 @@ TestCase {
         const row = testCase.childNamed(modal, "serverRow0");
         verify(row !== null);
         compare(row.title, "playground");
-        compare(row.description, "http://127.0.0.1:8081 · API key · 3 torrents");
+        compare(row.description, "http://127.0.0.1:8081 · API key · v5.2.3 · 3 torrents");
         compare(row.status, "default"); // the only server is the default one
         compare(row.failing, false);
 
@@ -161,8 +161,67 @@ TestCase {
         verify(addRow.dashed);
 
         // A failed test turns the row red and says "retrying".
-        App.serverList.setProbeResult(id, false, -1, 12, "connection refused");
+        App.serverList.setProbeResult(id, false, "", "", -1, 12, "connection refused");
         compare(row.failing, true);
+        // ...and keeps the version and count it had.
+        compare(row.description, "http://127.0.0.1:8081 · API key · v5.2.3 · 3 torrents");
+    }
+
+    // Q23: a `test` pressed in a new server's sheet before `save` is not lost with the
+    // sheet — `save` hands it to the row the save created. Demo mode's `App.testServer()`
+    // answers "5.2.3 / 2.15.1 / 142 torrents / 3 ms" without a network.
+    function test_saving_a_new_server_carries_its_test_result_onto_the_row() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        modal.showPane(1);
+        const sheet = modal.serverSheet;
+        sheet.openNew();
+        sheet.editName = "playground";
+        sheet.editUrl = "http://127.0.0.1:8081";
+        sheet.editAuthMode = "none";
+
+        sheet.actionTriggered("test");
+        tryVerify(() => sheet.tested, 2000);
+        compare(sheet.testOk, true);
+        compare(sheet.testVersion, "5.2.3");
+        compare(sheet.testCount, 142);
+        compare(App.serverList.count, 0); // nothing saved yet, nothing to attribute it to
+
+        sheet.actionTriggered("save");
+        compare(App.serverList.count, 1);
+        verify(!sheet.opened);
+        const id = App.serverList.idAt(0);
+        const map = App.serverList.serverMap(id);
+        compare(map.version, "5.2.3");
+        compare(map.apiVersion, "2.15.1");
+        compare(map.versionText, "v5.2.3");
+        compare(map.torrentCount, 142);
+        compare(map.reachableText, "yes · 3 ms");
+
+        const row = testCase.childNamed(modal, "serverRow0");
+        verify(row !== null);
+        compare(row.description, "http://127.0.0.1:8081 · none · v5.2.3 · 142 torrents");
+        compare(row.failing, false);
+        compare(modal.paneCursor, 0);
+    }
+
+    // The other half of Q23: a save without a test carries nothing, and the row says so.
+    function test_saving_an_untested_server_leaves_the_row_untested() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        modal.showPane(1);
+        const sheet = modal.serverSheet;
+        sheet.openNew();
+        sheet.editName = "playground";
+        sheet.editUrl = "http://127.0.0.1:8081";
+        sheet.actionTriggered("save");
+        compare(App.serverList.count, 1);
+        const map = App.serverList.serverMap(App.serverList.idAt(0));
+        compare(map.versionText, "");
+        compare(map.torrentCount, -1);
+        compare(map.reachableText, "");
+        const row = testCase.childNamed(modal, "serverRow0");
+        compare(row.description, "http://127.0.0.1:8081 · none");
     }
 
     function test_a_opens_an_empty_server_sheet_and_enter_opens_the_row() {

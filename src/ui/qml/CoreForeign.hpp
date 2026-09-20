@@ -243,6 +243,9 @@ QML_NAMED_ELEMENT(Torrent)
 //   reachableText   string  "yes · 3 ms" / "no · connection refused"; "" until one ran
 //   torrentCount    int     -1 until a test counted them
 //   lastError       string  the last failed test's message
+//   version         string  "5.2.3" from the last successful test; "" until one ran
+//   apiVersion      string  "2.15.1" likewise
+//   versionText     string  "v5.2.3" for the dim line; "" until a test ran (Q23)
 #include "core/ServerListModel.hpp"
 
 struct ServerListModelForeign

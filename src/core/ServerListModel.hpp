@@ -12,8 +12,11 @@
 //
 // Two kinds of state live in a row:
 //   - what the store persists: id, name, url, auth mode, username, path map, default flag;
-//   - what a probe found and nothing persists: reachable, latency, torrent count, last error.
-//     `setProbeResult()` writes those; they are cleared when the server is removed.
+//   - what a probe found and nothing persists: reachable, latency, version, API version,
+//     torrent count, last error. `setProbeResult()` writes those; they are cleared when the
+//     server is removed. Its argument order is `App::serverTested()`'s, so a sheet that
+//     tested a server before it had an id can hand the answer straight on once it does
+//     (docs/QUESTIONS.md Q23).
 //
 // Secrets never travel through `Server` or `servers.json`. `add()`/`update()` take the secret
 // separately and hand it to `SecretStore` (asynchronously, keyed by the server's id);
@@ -53,6 +56,9 @@ public:
         ReachableTextRole, ///< "yes · 3 ms" / "no · connection refused"; empty until one ran
         TorrentCountRole,  ///< -1 until a probe counted them
         LastErrorRole,
+        VersionRole,     ///< "5.2.3" (the server's leading "v" dropped); empty until a probe ran
+        ApiVersionRole,  ///< "2.15.1"; empty until a probe ran
+        VersionTextRole, ///< "v5.2.3" for the dim line; empty until a probe ran
     };
     Q_ENUM(Role)
 
@@ -89,9 +95,17 @@ public:
     /// Makes `id` the default (empty clears it).
     Q_INVOKABLE bool setDefault(const QString &id);
 
-    /// What a `testServer()` round trip found. `torrentCount` < 0 leaves the count alone.
-    Q_INVOKABLE void setProbeResult(
-        const QString &id, bool reachable, int torrentCount, int latencyMs, const QString &error);
+    /// What a `testServer()` round trip found — the arguments of `App::serverTested()` after
+    /// its id. `torrentCount` < 0 leaves the count alone; empty versions leave the last known
+    /// ones alone (a failed probe has none, and the server did not change version by being
+    /// unreachable).
+    Q_INVOKABLE void setProbeResult(const QString &id,
+                                    bool reachable,
+                                    const QString &version,
+                                    const QString &apiVersion,
+                                    int torrentCount,
+                                    int latencyMs,
+                                    const QString &error);
 
     // ---- the pure parts, so a test needs no store -------------------------------------
 
@@ -116,6 +130,8 @@ private:
         bool probed = false;
         int torrentCount = -1;
         int latencyMs = -1;
+        QString version;
+        QString apiVersion;
         QString error;
     };
 

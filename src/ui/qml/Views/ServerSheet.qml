@@ -13,8 +13,12 @@ import Omaseed.Kit
 //               (or username + password), and one path mapping; `cancel` / `test` / `save`.
 //
 // `test` runs `App.testServer()` in both modes and writes what comes back into the subtitle
-// and into the Torrents / Reachable rows. Nothing here ever reads a stored secret back: the
-// `Key` row shows a fixed mask, and an empty key field on save means "keep the stored one".
+// and into the Torrents / Reachable rows. A saved server's test lands on its list row by
+// itself (App stores the probe under the id it was given); a new server has no id until
+// `save`, so `_save()` hands the sheet's fresh result to the new row itself, or the Servers
+// pane would show no version or count until the next test (docs/QUESTIONS.md Q23). Nothing
+// here ever reads a stored secret back: the `Key` row shows a fixed mask, and an empty key
+// field on save means "keep the stored one".
 Sheet {
     id: root
 
@@ -115,12 +119,21 @@ Sheet {
         App.testServer(root.editing ? root.fieldMap() : root.server, root.editSecret);
     }
 
+    /// Q23: the result of a `test` pressed before `save` belongs to the row that now exists.
+    function _carryTestResult(id: string): void {
+        if (!root.tested)
+            return;
+        App.serverList.setProbeResult(id, root.testOk, root.testVersion, root.testApiVersion,
+                                      root.testCount, root.testLatency, root.testError);
+    }
+
     function _save(): void {
         const map = root.fieldMap();
         if (root.isNew) {
             const id = App.addServer(map, root.editSecret);
             if (id.length === 0)
                 return; // no usable URL: the sheet stays open with the fields as typed
+            root._carryTestResult(id);
             root.server = App.serverList.serverMap(id);
             root.editing = false;
             root.saved(id);
