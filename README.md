@@ -233,8 +233,8 @@ feature existed.
   every `--demo` view (`details`, `firstrun`, `gallery`, `notify`, `overlays`, `rail`,
   `states`, `sync`, `table`, `torrents`, `tray`).
 - **Where things live on disk:** `~/.config/omaseed/servers.json` (the server list),
-  `~/.config/omaseed/state.json` (window/column/filter state, notification toggles,
-  appearance overrides), `~/.config/omaseed/secrets/` (the 0600-file credential fallback
+  `~/.config/omaseed/state.json` (window/column/filter state, notification toggles and the
+  low-disk threshold, appearance overrides), `~/.config/omaseed/secrets/` (the 0600-file credential fallback
   when no keyring is available).
 - **Start first run over.** Remove `~/.config/omaseed/servers.json` (and, if you want the
   handler prompt to ask again, clear the magnet/`.torrent` entries it set in

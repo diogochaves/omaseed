@@ -283,8 +283,19 @@ public:
     /// `key` is one of "completed", "serverLost", "diskFull".
     Q_INVOKABLE void setNotificationEnabled(const QString &key, bool enabled);
 
+    /// Where "disk almost full" fires, in GiB: default 2, never below 1 (the `diskFull`
+    /// toggle is the off switch). Persisted next to the toggles as `lowDiskThresholdGiB` and
+    /// pushed into SyncEngine::lowDiskThreshold as bytes. It watches one number, the
+    /// server's `free_space_on_disk`, which qBittorrent reports for its default save path
+    /// only; other disks and per-category paths are not covered (docs/QUESTIONS.md Q16).
+    Q_PROPERTY(int lowDiskThresholdGiB READ lowDiskThresholdGiB WRITE setLowDiskThresholdGiB NOTIFY
+                   lowDiskThresholdGiBChanged)
+    int lowDiskThresholdGiB() const;
+    void setLowDiskThresholdGiB(int gib);
+
 Q_SIGNALS:
     void notificationsEnabledChanged();
+    void lowDiskThresholdGiBChanged();
     /// "show": raise the window and move the table cursor to this hash. MainView's
     /// `Connections { target: App }` block, when it has one, is where this lands.
     void showTorrentRequested(const QString &hash);
@@ -292,6 +303,8 @@ Q_SIGNALS:
 private:
     void loadNotificationToggles();
     void saveNotificationToggles();
+    /// `m_lowDiskThresholdGiB` into the engine, as bytes.
+    void applyLowDiskThreshold();
     void onNotifierActionInvoked(const QString &eventClass,
                                  const QString &subjectId,
                                  const QString &actionKey);
@@ -313,6 +326,7 @@ private:
     bool m_notifyCompletedEnabled = true;
     bool m_notifyServerLostEnabled = true;
     bool m_notifyDiskFullEnabled = true;
+    int m_lowDiskThresholdGiB = 2;
     bool m_notificationTogglesLoaded = false;
 
     // --- T4.5: settings ------------------------------------------------------------------

@@ -657,6 +657,9 @@ void App::attachXdg(omaseed::integration::Xdg *xdg)
 
 QVariantMap App::notificationsEnabled() const
 {
+    // QML reads this before main.cpp attaches the notifier, so the file is read on demand
+    // here too (the same lazy load the T4.5 getters do with loadSettings()).
+    const_cast<App *>(this)->loadNotificationToggles();
     QVariantMap map;
     map.insert(QStringLiteral("completed"), m_notifyCompletedEnabled);
     map.insert(QStringLiteral("serverLost"), m_notifyServerLostEnabled);
@@ -666,6 +669,7 @@ QVariantMap App::notificationsEnabled() const
 
 void App::setNotificationEnabled(const QString &key, bool enabled)
 {
+    loadNotificationToggles();
     bool *flag = nullptr;
     if (key == QStringLiteral("completed"))
         flag = &m_notifyCompletedEnabled;
@@ -683,6 +687,24 @@ void App::setNotificationEnabled(const QString &key, bool enabled)
     Q_EMIT notificationsEnabledChanged();
 }
 
+int App::lowDiskThresholdGiB() const
+{
+    const_cast<App *>(this)->loadNotificationToggles();
+    return m_lowDiskThresholdGiB;
+}
+
+void App::setLowDiskThresholdGiB(int gib)
+{
+    loadNotificationToggles();
+    const int clamped = qMax(1, gib);
+    if (clamped == m_lowDiskThresholdGiB)
+        return;
+    m_lowDiskThresholdGiB = clamped;
+    saveNotificationToggles();
+    applyLowDiskThreshold();
+    Q_EMIT lowDiskThresholdGiBChanged();
+}
+
 void App::loadNotificationToggles()
 {
     if (m_notificationTogglesLoaded)
@@ -693,6 +715,8 @@ void App::loadNotificationToggles()
     m_notifyCompletedEnabled = section.value(QStringLiteral("completed")).toBool(true);
     m_notifyServerLostEnabled = section.value(QStringLiteral("serverLost")).toBool(true);
     m_notifyDiskFullEnabled = section.value(QStringLiteral("diskFull")).toBool(true);
+    m_lowDiskThresholdGiB = qMax(1, section.value(QStringLiteral("lowDiskThresholdGiB")).toInt(2));
+    applyLowDiskThreshold();
 }
 
 void App::saveNotificationToggles()
@@ -701,7 +725,13 @@ void App::saveNotificationToggles()
     section.insert(QStringLiteral("completed"), m_notifyCompletedEnabled);
     section.insert(QStringLiteral("serverLost"), m_notifyServerLostEnabled);
     section.insert(QStringLiteral("diskFull"), m_notifyDiskFullEnabled);
+    section.insert(QStringLiteral("lowDiskThresholdGiB"), m_lowDiskThresholdGiB);
     StateFile::writeSection(QStringLiteral("notifications"), section);
+}
+
+void App::applyLowDiskThreshold()
+{
+    m_engine->setLowDiskThreshold(qint64(m_lowDiskThresholdGiB) * 1024 * 1024 * 1024);
 }
 
 QString App::mapContentPathToLocal(const QString &remotePath) const

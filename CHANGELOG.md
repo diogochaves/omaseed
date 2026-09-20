@@ -21,7 +21,8 @@ built for Omarchy.
 - System tray presence, single-instance activation, and `magnet:` / `.torrent` file
   hand-off to an already-running instance.
 - Desktop notifications for completed downloads, lost/restored server connections, and
-  low disk space, each individually toggleable.
+  low disk space, each individually toggleable; the low-disk line is a setting (default
+  2 GiB) that watches the server's free space for its default save path.
 - A virtualised torrent table, a rail of status/category/tag/server filters, search, and
   a details pane (overview, files, trackers, peers).
 - Command palettes: jump-to-torrent, category, tags, sort, and column visibility, plus a
