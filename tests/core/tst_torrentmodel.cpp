@@ -70,6 +70,7 @@ private slots:
     void fullUpdateFillsRowsAndIndex();
     void rolesCoverTheTableAndTheDetails();
     void partialMergesOnlyThePresentKeys();
+    void shareLimitActionParsesAndDefaults();
     void partialAppendsUnknownHashes();
     void partialRemovesInContiguousRuns();
     void dataChangedIsBatchedPerRun();
@@ -138,7 +139,7 @@ void TestTorrentModel::rolesCoverTheTableAndTheDetails()
     QCOMPARE(model.data(model.index(1), TorrentModel::EtaTextRole).toString(), QStringLiteral("—"));
 
     // Every role has a name and every name resolves back.
-    QCOMPARE(model.roleNames().size(), 59);
+    QCOMPARE(model.roleNames().size(), 60);
     QCOMPARE(roleOf(model, "stateText"), int(TorrentModel::StateTextRole));
     QCOMPARE(roleOf(model, "stateRole"), int(TorrentModel::StateColorRoleRole));
     QCOMPARE(roleOf(model, "seedsPeersText"), int(TorrentModel::SeedsPeersTextRole));
@@ -159,6 +160,31 @@ void TestTorrentModel::partialMergesOnlyThePresentKeys()
     QCOMPARE(t.category, QStringLiteral("linux")); // untouched
     QCOMPARE(t.progress, 0.489);                   // untouched
     QCOMPARE(model.count(), 3);
+}
+
+void TestTorrentModel::shareLimitActionParsesAndDefaults()
+{
+    // T5.5 Q14: `share_limit_action` (API 2.15.1) rides along as a plain string. A server
+    // that never sends the key (pre-2.15.1, and the JSON above) leaves it at "Default".
+    TorrentModel model;
+    model.applyFullUpdate(threeTorrents());
+    const int role = roleOf(model, "shareLimitAction");
+    QCOMPARE(role, int(TorrentModel::ShareLimitActionRole));
+    QCOMPARE(model.torrent(QStringLiteral("aaaa")).shareLimitAction, QStringLiteral("Default"));
+    QCOMPARE(model.data(model.index(0), role).toString(), QStringLiteral("Default"));
+
+    QSignalSpy changed(&model, &QAbstractItemModel::dataChanged);
+    model.applyPartial(QJsonObject{{QStringLiteral("aaaa"),
+                                    QJsonObject{{QStringLiteral("share_limit_action"),
+                                                 QStringLiteral("RemoveWithContent")}}}},
+                       QJsonArray());
+    QCOMPARE(model.torrent(QStringLiteral("aaaa")).shareLimitAction,
+             QStringLiteral("RemoveWithContent"));
+    QCOMPARE(model.data(model.index(0), role).toString(), QStringLiteral("RemoveWithContent"));
+    QCOMPARE(changed.count(), 1);
+    QVERIFY(changed.first().at(2).value<QList<int>>().contains(role));
+    // The other rows are untouched.
+    QCOMPARE(model.torrent(QStringLiteral("bbbb")).shareLimitAction, QStringLiteral("Default"));
 }
 
 void TestTorrentModel::partialAppendsUnknownHashes()

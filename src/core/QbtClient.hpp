@@ -62,9 +62,11 @@
 //   POST torrents/setDownloadLimit      torrentsSetDownloadLimit(hashes, bytesPerSec)
 //   POST torrents/setUploadLimit        torrentsSetUploadLimit(hashes, bytesPerSec)
 //   POST torrents/setShareLimits        torrentsSetShareLimits(hashes, ratio, seedingTime,
-//                                          inactiveSeedingTime, shareLimitAction) -- 5.2.3
-//                                          requires shareLimitAction; the wiki does not
-//                                          document it. -2 = global default, -1 = none.
+//                                          inactiveSeedingTime, shareLimitAction) -- the
+//                                          action (API >= 2.15.1: Default | Stop | Remove |
+//                                          RemoveWithContent | EnableSuperSeeding) is
+//                                          required by 5.2.3 and rejected with 400 when it
+//                                          is missing; -2 = global default, -1 = none.
 //   POST torrents/rename                torrentsRename(hash, name)
 //   POST torrents/renameFile            torrentsRenameFile(hash, oldPath, newPath)
 //   POST torrents/renameFolder          torrentsRenameFolder(hash, oldPath, newPath)
@@ -222,15 +224,31 @@ public:
     QbtReply<QByteArray> *torrentsSetLocation(const QStringList &hashes, const QString &location);
     QbtReply<QByteArray> *torrentsSetDownloadLimit(const QStringList &hashes, qint64 bytesPerSec);
     QbtReply<QByteArray> *torrentsSetUploadLimit(const QStringList &hashes, qint64 bytesPerSec);
+    /// What qBittorrent does to a torrent once one of its share limits is reached, as the
+    /// `shareLimitAction` of torrents/setShareLimits and the `share_limit_action` of
+    /// torrents/info spell it (API 2.15.1, qBittorrent 5.2). `Default` leaves the choice to
+    /// the server's global setting.
+    enum class ShareLimitAction { Default, Stop, Remove, RemoveWithContent, EnableSuperSeeding };
+    Q_ENUM(ShareLimitAction)
+
+    /// The wire name of `action`, e.g. "RemoveWithContent".
+    static QString shareLimitActionName(ShareLimitAction action);
+    /// The reverse; anything unknown (an empty string included) reads as Default.
+    static ShareLimitAction shareLimitActionFromName(QStringView name);
+    /// True when a server with this app/webapiVersion (e.g. "2.15.1") knows the action:
+    /// the field was added in 2.15.1 and an older server rejects an unknown parameter.
+    static bool supportsShareLimitAction(const QString &apiVersion);
+
     /// ratioLimit/seedingTimeLimit/inactiveSeedingTimeLimit: -2 = global default, -1 = none,
-    /// >=0 the limit itself. 5.2.3 requires shareLimitAction too, undocumented in the older
-    /// wiki text; "Default" reproduces the historical behaviour (stop seeding).
-    QbtReply<QByteArray> *
-    torrentsSetShareLimits(const QStringList &hashes,
-                           double ratioLimit,
-                           qint64 seedingTimeLimit,
-                           qint64 inactiveSeedingTimeLimit,
-                           const QString &shareLimitAction = QStringLiteral("Default"));
+    /// >=0 the limit itself. `shareLimitAction` engaged sends the field (5.2.3 answers 400
+    /// without it, `Default` included, so a >= 2.15.1 caller always passes one); nullopt
+    /// leaves it off for the pre-2.15.1 servers that do not know it.
+    QbtReply<QByteArray> *torrentsSetShareLimits(
+        const QStringList &hashes,
+        double ratioLimit,
+        qint64 seedingTimeLimit,
+        qint64 inactiveSeedingTimeLimit,
+        std::optional<ShareLimitAction> shareLimitAction = ShareLimitAction::Default);
 
     QbtReply<QByteArray> *torrentsRename(const QString &hash, const QString &name);
     QbtReply<QByteArray> *

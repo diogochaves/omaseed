@@ -144,6 +144,10 @@ private slots:
     void tagsArePercentEncoded();
     void deleteFilesFlag();
     void shareLimitsSendsAllFiveFields();
+    void shareLimitActionNames_data();
+    void shareLimitActionNames();
+    void shareLimitActionIsOmittedForAnOldApi();
+    void shareLimitActionSupportFollowsTheApiVersion();
     void addUrlsSendsStoppedAndPausedAndOptions();
     void a500OnActionIsNotRetried();
     void a409OnActionMapsToConflict();
@@ -227,9 +231,88 @@ void TestQbtClientActionsFake::shareLimitsSendsAllFiveFields()
              QStringLiteral("-2"));
     QCOMPARE(body.queryItemValue(QStringLiteral("inactiveSeedingTimeLimit"), QUrl::FullyDecoded),
              QStringLiteral("-2"));
-    // 5.2.3 requires this field although the older wiki text does not mention it.
+    // 5.2.3 answers 400 without this field, so the default argument is Default, not "omit".
     QCOMPARE(body.queryItemValue(QStringLiteral("shareLimitAction"), QUrl::FullyDecoded),
              QStringLiteral("Default"));
+}
+
+void TestQbtClientActionsFake::shareLimitActionNames_data()
+{
+    QTest::addColumn<QbtClient::ShareLimitAction>("action");
+    QTest::addColumn<QString>("name");
+
+    // The qBittorrent 5.2 meta-enum names (T5.5 Q14), which torrents/info echoes back as
+    // `share_limit_action`.
+    QTest::newRow("default") << QbtClient::ShareLimitAction::Default << QStringLiteral("Default");
+    QTest::newRow("stop") << QbtClient::ShareLimitAction::Stop << QStringLiteral("Stop");
+    QTest::newRow("remove") << QbtClient::ShareLimitAction::Remove << QStringLiteral("Remove");
+    QTest::newRow("remove with content")
+        << QbtClient::ShareLimitAction::RemoveWithContent << QStringLiteral("RemoveWithContent");
+    QTest::newRow("super seeding")
+        << QbtClient::ShareLimitAction::EnableSuperSeeding << QStringLiteral("EnableSuperSeeding");
+}
+
+void TestQbtClientActionsFake::shareLimitActionNames()
+{
+    QFETCH(QbtClient::ShareLimitAction, action);
+    QFETCH(QString, name);
+
+    QCOMPARE(QbtClient::shareLimitActionName(action), name);
+    QCOMPARE(QbtClient::shareLimitActionFromName(name), action);
+
+    FakeServer server;
+    server.setHandler([](const Recorded &, int) { return httpResponse(200, "OK", ""); });
+    QbtClient client;
+    client.setBaseUrl(server.url());
+
+    const QbtResult<QByteArray> result = await(
+        this, client.torrentsSetShareLimits(QStringList{QStringLiteral("h1")}, 2, 60, -1, action));
+    QVERIFY2(!result.isError(), qPrintable(result.error().toString()));
+    const QUrlQuery body(QString::fromUtf8(server.requests.at(0).body));
+    QCOMPARE(body.queryItemValue(QStringLiteral("shareLimitAction"), QUrl::FullyDecoded), name);
+    QCOMPARE(body.queryItemValue(QStringLiteral("ratioLimit"), QUrl::FullyDecoded),
+             QStringLiteral("2"));
+    QCOMPARE(body.queryItemValue(QStringLiteral("seedingTimeLimit"), QUrl::FullyDecoded),
+             QStringLiteral("60"));
+    QCOMPARE(body.queryItemValue(QStringLiteral("inactiveSeedingTimeLimit"), QUrl::FullyDecoded),
+             QStringLiteral("-1"));
+}
+
+void TestQbtClientActionsFake::shareLimitActionIsOmittedForAnOldApi()
+{
+    FakeServer server;
+    server.setHandler([](const Recorded &, int) { return httpResponse(200, "OK", ""); });
+    QbtClient client;
+    client.setBaseUrl(server.url());
+
+    // A caller talking to a pre-2.15.1 server passes nullopt: the field is left off
+    // entirely (not sent empty), the four limits still travel.
+    const QbtResult<QByteArray> result = await(
+        this,
+        client.torrentsSetShareLimits(QStringList{QStringLiteral("h1")}, -2, -2, -2, std::nullopt));
+    QVERIFY2(!result.isError(), qPrintable(result.error().toString()));
+    const QUrlQuery body(QString::fromUtf8(server.requests.at(0).body));
+    QVERIFY(!body.hasQueryItem(QStringLiteral("shareLimitAction")));
+    QCOMPARE(body.queryItemValue(QStringLiteral("hashes"), QUrl::FullyDecoded),
+             QStringLiteral("h1"));
+    QCOMPARE(body.queryItemValue(QStringLiteral("inactiveSeedingTimeLimit"), QUrl::FullyDecoded),
+             QStringLiteral("-2"));
+
+    // Unknown or empty names read as Default rather than failing.
+    QCOMPARE(QbtClient::shareLimitActionFromName(QString()), QbtClient::ShareLimitAction::Default);
+    QCOMPARE(QbtClient::shareLimitActionFromName(QStringLiteral("DeleteFiles")),
+             QbtClient::ShareLimitAction::Default);
+}
+
+void TestQbtClientActionsFake::shareLimitActionSupportFollowsTheApiVersion()
+{
+    QVERIFY(QbtClient::supportsShareLimitAction(QStringLiteral("2.15.1")));
+    QVERIFY(QbtClient::supportsShareLimitAction(QStringLiteral("2.16.0")));
+    QVERIFY(QbtClient::supportsShareLimitAction(QStringLiteral("3.0")));
+    QVERIFY(!QbtClient::supportsShareLimitAction(QStringLiteral("2.15.0")));
+    QVERIFY(!QbtClient::supportsShareLimitAction(QStringLiteral("2.11.4")));
+    QVERIFY(!QbtClient::supportsShareLimitAction(QString()));
+    QVERIFY(!QbtClient::supportsShareLimitAction(QStringLiteral("unknown")));
 }
 
 void TestQbtClientActionsFake::addUrlsSendsStoppedAndPausedAndOptions()

@@ -237,6 +237,9 @@ void TestSyncEngineFixtures::fullUpdateFillsEveryModel()
                           QStringLiteral("tracker.opentrackr.org"),
                           QStringLiteral("trackerless")}));
     QCOMPARE(engine.trackers()->hashesFor(QStringLiteral("trackerless")).size(), 3);
+    // Every torrent of the recorded 5.2.3 maindata carries `share_limit_action` (T5.5 Q14).
+    for (const QString &hash : engine.torrents()->hashes())
+        QCOMPARE(engine.torrents()->torrent(hash).shareLimitAction, QStringLiteral("Default"));
     QCOMPARE(engine.counts()->total(), 4);
     QCOMPARE(engine.globalState()->serverVersion(), QStringLiteral("v5.2.3"));
     QCOMPARE(engine.globalState()->apiVersion(), QStringLiteral("2.15.1"));
