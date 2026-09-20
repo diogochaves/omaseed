@@ -1,6 +1,7 @@
 import QtQuick
 import QtTest
 import Omaseed
+import Omaseed.Kit
 import Omaseed.Views
 
 // T4.5. `Views/SettingsModal.qml` and `Views/ServerSheet.qml` — spec v2 §5 Fig. 16 and §3
@@ -298,6 +299,19 @@ TestCase {
         keyClick(Qt.Key_Tab);
         keyClick(Qt.Key_J);
         compare(modal.paneCursor, 0);
+    }
+
+    // T5.5 Q1: the transparency row's placeholder is the shell's own default, not a
+    // literal — 95 under the harness's empty shell.toml — so the user sees what "empty" means.
+    function test_the_transparency_placeholder_is_the_shells_default() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        keyClick(Qt.Key_5);
+        compare(modal.paneIndex, 4);
+        const field = testCase.childNamed(modal, "windowAlphaField");
+        verify(field !== null);
+        compare(field.placeholder, String(Math.round(Theme.defaultWindowAlpha * 100)));
+        compare(field.placeholder, "95");
     }
 
     function test_the_about_pane_prints_the_version_and_the_install_line() {

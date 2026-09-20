@@ -1174,11 +1174,12 @@ Item {
         onClosed: table.forceActiveFocus()
     }
 
-    // The Appearance pane's transparency override; 0 keeps the default 0.90 of QUESTIONS Q1.
+    // The Appearance pane's transparency override; 0 keeps the shell's `[launcher]
+    // background-alpha` (QUESTIONS Q1), which a theme change can move under us.
     Binding {
         property: "windowAlpha"
         target: Theme
-        value: App.windowAlphaOverride > 0 ? App.windowAlphaOverride / 100 : 0.90
+        value: App.windowAlphaOverride > 0 ? App.windowAlphaOverride / 100 : Theme.defaultWindowAlpha
     }
     // --- end T4.5 ---
 

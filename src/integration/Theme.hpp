@@ -119,6 +119,10 @@ class Theme : public QObject
     Q_PROPERTY(QString themeName READ themeName NOTIFY changed FINAL)
     Q_PROPERTY(QString fontFamily READ fontFamily NOTIFY changed FINAL)
     Q_PROPERTY(int cornerRadius READ cornerRadius NOTIFY cornerRadiusChanged FINAL)
+    /// The ground's alpha as the shell wants it: `[launcher] background-alpha`, 0.95 when the
+    /// key is missing (docs/QUESTIONS.md Q1). `windowAlpha` starts here; the Appearance
+    /// pane's override writes it, and a theme change only moves the default.
+    Q_PROPERTY(qreal defaultWindowAlpha READ defaultWindowAlpha NOTIFY changed FINAL)
     Q_PROPERTY(
         qreal windowAlpha READ windowAlpha WRITE setWindowAlpha NOTIFY windowAlphaChanged FINAL)
 
@@ -167,6 +171,7 @@ public:
     QString themeName() const { return m_themeName; }
     QString fontFamily() const { return m_fontFamily; }
     int cornerRadius() const { return m_cornerRadius; }
+    qreal defaultWindowAlpha() const { return m_defaultWindowAlpha; }
     qreal windowAlpha() const { return m_windowAlpha; }
     void setWindowAlpha(qreal alpha);
 
@@ -221,7 +226,8 @@ private:
     QString m_themeName = QStringLiteral("tokyo-night");
     QString m_fontFamily = QStringLiteral("monospace");
     int m_cornerRadius = 0;
-    qreal m_windowAlpha = 0.90;
+    qreal m_defaultWindowAlpha = 0.95;
+    qreal m_windowAlpha = 0.95;
 };
 
 } // namespace omaseed::integration

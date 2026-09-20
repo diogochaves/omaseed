@@ -49,6 +49,7 @@ private slots:
     void reloadIsImmediate();
     void userShellOverlayBeatsTheThemesShell();
     void spacingAndTypeFollowTheBaseSize();
+    void windowAlphaFollowsTheLaunchersBackgroundAlpha();
 
 private:
     ThemeReader::Paths paths() const;
@@ -240,6 +241,60 @@ void TestThemeReader::spacingAndTypeFollowTheBaseSize()
     reader.reload();
     QCOMPARE(theme.font()->heading(), 24);
     QCOMPARE(theme.font()->body(), 14);
+}
+
+/// docs/QUESTIONS.md Q1: the ground's default alpha is `[launcher] background-alpha`, 0.95
+/// when the key is missing, the user's overlay winning; an override set through
+/// setWindowAlpha() survives a theme change.
+void TestThemeReader::windowAlphaFollowsTheLaunchersBackgroundAlpha()
+{
+    installTheme(kTokyoNight, QStringLiteral("tokyo-night"));
+
+    // No shell.toml at all: the fallback, and the ground starts there.
+    {
+        ThemeReader reader(paths());
+        Theme theme(&reader);
+        QCOMPARE(theme.defaultWindowAlpha(), 0.95);
+        QCOMPARE(theme.windowAlpha(), 0.95);
+    }
+
+    // The theme's shell.toml sets the key.
+    writeFile(stateDir() + QStringLiteral("/theme/shell.toml"),
+              QStringLiteral("[font]\nbase-size = 12\n\n[launcher]\n"
+                             "background = \"#11111b\"\nbackground-alpha = 0.80\n"));
+    ThemeReader reader(paths());
+    Theme theme(&reader);
+    QCOMPARE(theme.defaultWindowAlpha(), 0.80);
+    QCOMPARE(theme.windowAlpha(), 0.80);
+
+    // The user's overlay beats the theme's value…
+    writeFile(configDir() + QStringLiteral("/shell.toml"),
+              QStringLiteral("[launcher]\nbackground-alpha = 0.70\n"));
+    QSignalSpy changed(&theme, &Theme::changed);
+    reader.reload();
+    QCOMPARE(changed.count(), 1);
+    QCOMPARE(theme.defaultWindowAlpha(), 0.70);
+    // …and, with nobody binding windowAlpha to the default, the ground keeps its value:
+    // it is MainView's Binding that decides between the default and the override.
+    QCOMPARE(theme.windowAlpha(), 0.80);
+
+    // An override set through setWindowAlpha() is never stomped by a theme change.
+    theme.setWindowAlpha(0.60);
+    writeFile(configDir() + QStringLiteral("/shell.toml"),
+              QStringLiteral("[launcher]\nbackground-alpha = 1.0\n"));
+    reader.reload();
+    QCOMPARE(theme.defaultWindowAlpha(), 1.0);
+    QCOMPARE(theme.windowAlpha(), 0.60);
+
+    // Out-of-range and non-numeric values clamp or fall back rather than leak into the ground.
+    writeFile(configDir() + QStringLiteral("/shell.toml"),
+              QStringLiteral("[launcher]\nbackground-alpha = 1.5\n"));
+    reader.reload();
+    QCOMPARE(theme.defaultWindowAlpha(), 1.0);
+    writeFile(configDir() + QStringLiteral("/shell.toml"),
+              QStringLiteral("[launcher]\nbackground-alpha = \"opaque\"\n"));
+    reader.reload();
+    QCOMPARE(theme.defaultWindowAlpha(), 0.95);
 }
 
 QTEST_MAIN(TestThemeReader)
