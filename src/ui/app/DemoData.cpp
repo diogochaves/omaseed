@@ -319,6 +319,11 @@ QJsonObject torrentJson(int index,
     json.insert(QStringLiteral("up_limit"), 0);
     json.insert(QStringLiteral("ratio_limit"), -2.0);
     json.insert(QStringLiteral("seeding_time_limit"), -2);
+    // T5.5 Q14: one row with a share-limit action of its own, so the Limits sheet's fifth
+    // row has something to prefill from; every other row leaves it to the global setting.
+    json.insert(QStringLiteral("share_limit_action"),
+                name.startsWith(QLatin1String("Tears of Steel")) ? QStringLiteral("Stop")
+                                                                 : QStringLiteral("Default"));
     json.insert(QStringLiteral("availability"), progress >= 1.0 ? 1.0 : progress + 0.4);
     json.insert(QStringLiteral("amount_left"), size - completed);
     json.insert(QStringLiteral("completed"), completed);

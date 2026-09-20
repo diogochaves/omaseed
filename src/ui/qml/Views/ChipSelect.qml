@@ -20,6 +20,10 @@ Item {
     property bool multiple: false
     /// Single-select: the chosen option, "" for none.
     property string current: ""
+    /// Single-select: picking the current chip again clears it (Category: "no category" is
+    /// a real answer). Off for a row where one of the options is always the answer (the
+    /// Limits sheet's share-limit action), so re-picking the current chip keeps it.
+    property bool allowNone: true
     /// Multi-select: the chosen options, in the order they were picked.
     property var selected: []
     /// Show the dim `…` chip after the options (the palette hand-off).
@@ -44,7 +48,7 @@ Item {
     /// Pick (or, in multi-select, unpick) one option by name.
     function pick(option: string): void {
     if (!root.multiple) {
-        root.current = root.current === option ? "" : option;
+        root.current = root.current === option && root.allowNone ? "" : option;
         root.changed();
         return;
     }

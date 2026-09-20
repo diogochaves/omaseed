@@ -22,6 +22,15 @@ TestCase {
         focus: true
     }
 
+    Component {
+        id: limitsSpy
+
+        SignalSpy {
+            signalName: "limitsRequested"
+            target: App
+        }
+    }
+
     function initTestCase() {
         App.loadDemo(16);
     }
@@ -158,6 +167,93 @@ TestCase {
         view.limitsSheetPanel.triggerPrimary();
         // demo mode: App.setLimits no-ops after logging, so this only asserts the sheet
         // closes itself the way `enter` should.
+        compare(view.limitsSheetPanel.opened, false);
+    }
+
+    // ---- the limits sheet's share-limit action row (T5.5 Q14) ------------------------------
+    function test_action_row_shows_only_on_a_server_that_knows_the_field() {
+        // The demo library reports API 2.15.1 (App::applyDemoData), the version the row
+        // appeared in, so it is visible here; a pre-2.15.1 server hides it.
+        compare(App.supportsShareLimitAction, true);
+        const hash = hashByName("Big Buck Bunny 4K (CC-BY)");
+        view.limitsSheetPanel.openFor([hash]);
+        compare(view.limitsSheetPanel.actionRow.visible, true);
+        App.globalState.setServerVersions("v5.0.4", "2.11.4");
+        compare(App.supportsShareLimitAction, false);
+        compare(view.limitsSheetPanel.actionRow.visible, false);
+        App.globalState.setServerVersions("5.2.3", "2.15.1");
+        compare(App.supportsShareLimitAction, true);
+        compare(view.limitsSheetPanel.actionRow.visible, true);
+    }
+
+    function test_action_row_prefills_from_the_cursor_torrent_and_applies_the_wire_name() {
+        const spy = createTemporaryObject(limitsSpy, testCase);
+        // Every demo row is Default except Tears of Steel (DemoData::torrentJson).
+        const stopHash = hashByName("Tears of Steel 4K (CC-BY)");
+        compare(App.torrentRow(stopHash).shareLimitAction, "Stop");
+        view.limitsSheetPanel.openFor([stopHash]);
+        compare(view.limitsSheetPanel.actionChips.current, "stop");
+        compare(view.limitsSheetPanel._actionMixed, false);
+        compare(view.limitsSheetPanel.actionValue(), "Stop");
+        view.limitsSheetPanel.triggerPrimary();
+        compare(spy.count, 1);
+        compare(spy.signalArguments[0][0], [stopHash]);
+        compare(spy.signalArguments[0][5], "Stop");
+        compare(view.limitsSheetPanel.opened, false);
+
+        const defaultHash = hashByName("Big Buck Bunny 4K (CC-BY)");
+        view.limitsSheetPanel.openFor([defaultHash]);
+        compare(view.limitsSheetPanel.actionChips.current, "default");
+        view.limitsSheetPanel.actionChips.pick("remove with content");
+        compare(view.limitsSheetPanel.actionValue(), "RemoveWithContent");
+        view.limitsSheetPanel.triggerPrimary();
+        compare(spy.count, 2);
+        compare(spy.signalArguments[1][5], "RemoveWithContent");
+    }
+
+    function test_action_row_falls_back_to_default_and_says_mixed_for_a_disagreeing_selection() {
+        const stopHash = hashByName("Tears of Steel 4K (CC-BY)");
+        const defaultHash = hashByName("Big Buck Bunny 4K (CC-BY)");
+        view.limitsSheetPanel.openFor([stopHash, defaultHash]);
+        compare(view.limitsSheetPanel.actionChips.current, "default");
+        compare(view.limitsSheetPanel._actionMixed, true);
+        // Touching the row settles it, like qui's "was mixed" hint going away.
+        view.limitsSheetPanel.actionChips.pick("stop");
+        compare(view.limitsSheetPanel._actionMixed, false);
+        compare(view.limitsSheetPanel.actionValue(), "Stop");
+        // Two torrents that agree are not mixed.
+        view.limitsSheetPanel.openFor([defaultHash,
+                                       hashByName("OpenStreetMap planet-260908.osm.pbf")]);
+        compare(view.limitsSheetPanel._actionMixed, false);
+        compare(view.limitsSheetPanel.actionChips.current, "default");
+    }
+
+    function test_action_row_is_keyboard_driven_and_never_empty() {
+        const hash = hashByName("Big Buck Bunny 4K (CC-BY)");
+        view.limitsSheetPanel.openFor([hash]);
+        const chips = view.limitsSheetPanel.actionChips;
+        chips.forceActiveFocus();
+        compare(chips.activeFocus, true);
+        // `l` twice then `space`: the cursor starts on the first chip, so this picks the third.
+        keyClick(Qt.Key_L);
+        keyClick(Qt.Key_L);
+        keyClick(Qt.Key_Space);
+        compare(chips.current, "remove");
+        // Re-picking the current chip keeps it (`allowNone: false`): one option is always on.
+        keyClick(Qt.Key_Space);
+        compare(chips.current, "remove");
+        compare(view.limitsSheetPanel.actionValue(), "Remove");
+    }
+
+    function test_action_row_reset_returns_to_default() {
+        const spy = createTemporaryObject(limitsSpy, testCase);
+        const stopHash = hashByName("Tears of Steel 4K (CC-BY)");
+        view.limitsSheetPanel.openFor([stopHash]);
+        compare(view.limitsSheetPanel.actionChips.current, "stop");
+        view.limitsSheetPanel.actionTriggered("reset");
+        compare(view.limitsSheetPanel.actionChips.current, "default");
+        compare(spy.count, 1);
+        compare(spy.signalArguments[0][5], "Default");
         compare(view.limitsSheetPanel.opened, false);
     }
 
