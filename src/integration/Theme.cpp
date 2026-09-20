@@ -119,6 +119,10 @@ Theme::Theme(ThemeReader *reader, QObject *parent)
         connect(m_reader, &ThemeReader::changed, this, &Theme::adopt);
         adopt();
     }
+    // The ground starts at the shell's default; only setWindowAlpha() (the Appearance
+    // override, through MainView's Binding) moves it after this, so a live theme change
+    // never stomps an override the user has set.
+    m_windowAlpha = m_defaultWindowAlpha;
     readCornerRadius();
 }
 
@@ -183,6 +187,8 @@ void Theme::adopt()
     m_fillPressed = number(shell, QStringLiteral("controls.pressed-fill-alpha"), 0.22);
     m_borderIdle = number(shell, QStringLiteral("controls.normal-border-alpha"), 0.40);
     m_borderHover = number(shell, QStringLiteral("controls.hover-cursor-border-alpha"), 0.25);
+    m_defaultWindowAlpha = std::clamp(
+        number(shell, QStringLiteral("launcher.background-alpha"), 0.95), qreal(0), qreal(1));
 
     // The font family is fontconfig's answer for "monospace", which a theme change can move.
     if (QGuiApplication::instance())

@@ -374,8 +374,9 @@ public:
     int baseSizeOverride() const;
     void setBaseSizeOverride(int pixels);
 
-    /// Window transparency in percent, 50…100; 0 means "the default", which is 90
-    /// (docs/QUESTIONS.md Q1: `Theme.windowAlpha` is fixed at 0.90 and this is its override).
+    /// Window transparency in percent, 50…100; 0 means "the default", which is
+    /// `Theme.defaultWindowAlpha` (docs/QUESTIONS.md Q1: `shell.toml` `[launcher]
+    /// background-alpha`, 0.95 when missing); this is its override.
     Q_PROPERTY(int windowAlphaOverride READ windowAlphaOverride WRITE setWindowAlphaOverride NOTIFY
                    settingsChanged)
     int windowAlphaOverride() const;

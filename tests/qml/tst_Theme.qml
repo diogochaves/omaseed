@@ -70,12 +70,16 @@ TestCase {
         fuzzyCompare(Theme.hairlineAlpha, 0.12, 0.001);
     }
 
-    function test_window_alpha_defaults_to_ninety_percent_and_is_writable() {
-        fuzzyCompare(Theme.windowAlpha, 0.90, 0.001);
-        Theme.windowAlpha = 0.75;
+    function test_window_alpha_starts_at_the_shells_default_and_is_writable() {
+        // The harness points XDG at an empty directory, so no shell.toml: the fallback of
+        // QUESTIONS Q1 applies, and the ground starts there.
+        fuzzyCompare(Theme.defaultWindowAlpha, 0.95, 0.001);
+        fuzzyCompare(Theme.windowAlpha, Theme.defaultWindowAlpha, 0.001);
+        Theme.windowAlpha = 0.75; // the Appearance override, through MainView's Binding
         fuzzyCompare(Theme.windowAlpha, 0.75, 0.001);
-        Theme.windowAlpha = 0.90; // the Appearance pane will do exactly this
-        fuzzyCompare(Theme.windowAlpha, 0.90, 0.001);
+        fuzzyCompare(Theme.defaultWindowAlpha, 0.95, 0.001); // the default never follows
+        Theme.windowAlpha = Theme.defaultWindowAlpha; // …and clearing the override restores it
+        fuzzyCompare(Theme.windowAlpha, 0.95, 0.001);
     }
 
     function test_corner_radius_is_never_negative() {

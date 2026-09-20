@@ -821,7 +821,7 @@ Item {
 
                             SettingsRow {
                                 Layout.fillWidth: true
-                                description: qsTr("How much wallpaper shows through the window, 50–100. Empty is 90.")
+                                description: qsTr("How much wallpaper shows through the window, 50–100. Empty follows shell.toml.")
                                 glyph: Glyphs.altSpeed
                                 hasCursor: root.area === "pane" && root.paneCursor === 2
                                 title: qsTr("Window transparency")
@@ -835,8 +835,9 @@ Item {
                                 Field {
                                     id: alphaField
 
+                                    objectName: "windowAlphaField"
                                     implicitWidth: Theme.space(110)
-                                    placeholder: qsTr("90")
+                                    placeholder: String(Math.round(Theme.defaultWindowAlpha * 100))
                                     trailing: qsTr("%")
 
                                     onAccepted: {
