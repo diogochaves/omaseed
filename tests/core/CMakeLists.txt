@@ -29,7 +29,7 @@ omaseed_add_test(tst_torrentfile
     DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
 )
 
-omaseed_add_test(tst_torrentfile_live
+omaseed_add_test(tst_torrentfile_live LIVE
     SOURCES tst_torrentfile_live.cpp
     LIBRARIES omaseed::core Qt6::Network
     DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
@@ -65,7 +65,7 @@ omaseed_add_test(tst_qbtclient_actions_fake
     LIBRARIES omaseed::core
 )
 
-omaseed_add_test(tst_qbtclient_actions_live
+omaseed_add_test(tst_qbtclient_actions_live LIVE
     SOURCES tst_qbtclient_actions_live.cpp
     LIBRARIES omaseed::core
     DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
@@ -76,7 +76,7 @@ omaseed_add_test(tst_qbtclient_fake
     LIBRARIES omaseed::core
 )
 
-omaseed_add_test(tst_qbtclient_live
+omaseed_add_test(tst_qbtclient_live LIVE
     SOURCES tst_qbtclient_live.cpp
     LIBRARIES omaseed::core
 )
@@ -134,7 +134,7 @@ omaseed_add_test(tst_syncengine_fixtures
     DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
 )
 
-omaseed_add_test(tst_syncengine_live
+omaseed_add_test(tst_syncengine_live LIVE
     SOURCES tst_syncengine_live.cpp
     LIBRARIES omaseed::core
 )
@@ -169,7 +169,7 @@ omaseed_add_test(tst_torrentdetails
     DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
 )
 
-omaseed_add_test(tst_torrentdetails_live
+omaseed_add_test(tst_torrentdetails_live LIVE
     SOURCES tst_torrentdetails_live.cpp
     LIBRARIES omaseed::core Qt6::Network
     DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
