@@ -75,6 +75,8 @@ class Theme : public QObject
     // ---- colour roles ------------------------------------------------------------------
     Q_PROPERTY(QColor background READ background NOTIFY changed FINAL)
     Q_PROPERTY(QColor foreground READ foreground NOTIFY changed FINAL)
+    /// `dark_foreground`, lifted towards `foreground` until it reads at 3:1 against
+    /// `background` (docs/QUESTIONS.md Q19). A theme already at 3:1 keeps its colour.
     Q_PROPERTY(QColor dimForeground READ dimForeground NOTIFY changed FINAL)
     Q_PROPERTY(QColor brightForeground READ brightForeground NOTIFY changed FINAL)
     Q_PROPERTY(QColor accent READ accent NOTIFY changed FINAL)
@@ -179,6 +181,15 @@ public:
     Q_INVOKABLE int space(qreal px) const;
     /// The foreground at an alpha: 0.04 idle, 0.08 hover, 0.18 selected, 0.22 pressed.
     Q_INVOKABLE QColor fill(qreal alpha) const;
+
+    /// WCAG 2 contrast ratio of two opaque colours, 1 to 21: relative luminance from the
+    /// sRGB-linearised channels, then (lighter + 0.05) / (darker + 0.05).
+    static qreal contrastRatio(const QColor &a, const QColor &b);
+    /// `dim` itself when it already reads at `minimum` against `against`; otherwise the first
+    /// colour on the line from `dim` towards `toward`, walked in 1/256 steps, that does, or
+    /// `toward` when even that falls short (docs/QUESTIONS.md Q19, the floor on dimForeground).
+    static QColor
+    liftToContrast(const QColor &dim, const QColor &toward, const QColor &against, qreal minimum);
 
 Q_SIGNALS:
     void changed();

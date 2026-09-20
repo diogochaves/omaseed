@@ -53,6 +53,31 @@ int roundPositive(double value)
     return std::max(1, static_cast<int>(std::lround(value)));
 }
 
+/// The contrast every tracked caption and column header must reach against the window
+/// background (docs/QUESTIONS.md Q19, Diogo's ruling of 2026-09-19).
+constexpr qreal kMinimumDimContrast = 3.0;
+
+/// WCAG relative luminance of an opaque colour: each sRGB channel linearised, then weighted.
+qreal relativeLuminance(const QColor &colour)
+{
+    const auto linear = [](qreal channel) {
+        return channel <= 0.04045 ? channel / 12.92 : std::pow((channel + 0.055) / 1.055, 2.4);
+    };
+    return 0.2126 * linear(colour.redF()) + 0.7152 * linear(colour.greenF()) +
+           0.0722 * linear(colour.blueF());
+}
+
+/// `from` moved the fraction `t` of the way to `to`, channel by channel, rounded to bytes.
+QColor mixed(const QColor &from, const QColor &to, qreal t)
+{
+    const auto channel = [t](int a, int b) {
+        return static_cast<int>(std::lround(a + (b - a) * t));
+    };
+    return QColor::fromRgb(channel(from.red(), to.red()),
+                           channel(from.green(), to.green()),
+                           channel(from.blue(), to.blue()));
+}
+
 } // namespace
 
 // -------------------------------------------------------------------------------------
@@ -159,6 +184,12 @@ void Theme::adopt()
     m_background = colorOf(palette, QStringLiteral("background"), m_background);
     m_foreground = colorOf(palette, QStringLiteral("foreground"), m_foreground);
     m_dimForeground = colorOf(palette, QStringLiteral("dark_foreground"), m_dimForeground);
+    // Twelve of the bundled themes put dark_foreground under 3:1 against their own
+    // background, and the spec draws every caption in it. Lift it towards the foreground
+    // until it reads (Q19); the opaque theme colour is the reference, not the alpha-blended
+    // ground, which moves with the wallpaper.
+    m_dimForeground =
+        liftToContrast(m_dimForeground, m_foreground, m_background, kMinimumDimContrast);
     m_brightForeground = colorOf(palette, QStringLiteral("bright_foreground"), m_brightForeground);
     m_accent = colorOf(palette, QStringLiteral("accent"), m_accent);
     m_muted = colorOf(palette, QStringLiteral("muted"), m_muted);
@@ -262,6 +293,30 @@ QColor Theme::fill(qreal alpha) const
     QColor colour = m_foreground;
     colour.setAlphaF(static_cast<float>(std::clamp(alpha, qreal(0), qreal(1))));
     return colour;
+}
+
+qreal Theme::contrastRatio(const QColor &a, const QColor &b)
+{
+    const qreal la = relativeLuminance(a);
+    const qreal lb = relativeLuminance(b);
+    return (std::max(la, lb) + 0.05) / (std::min(la, lb) + 0.05);
+}
+
+QColor
+Theme::liftToContrast(const QColor &dim, const QColor &toward, const QColor &against, qreal minimum)
+{
+    if (contrastRatio(dim, against) >= minimum)
+        return dim; // byte for byte: a theme that reads already is not touched
+    if (contrastRatio(toward, against) < minimum)
+        return toward; // a degenerate palette: the best it has
+    // A linear walk rather than a bisection: the contrast need not be monotone in t when
+    // dim sits on the other side of the background from toward, and 257 steps are nothing.
+    for (int step = 1; step < 256; ++step) {
+        const QColor candidate = mixed(dim, toward, step / 256.0);
+        if (contrastRatio(candidate, against) >= minimum)
+            return candidate;
+    }
+    return toward;
 }
 
 } // namespace omaseed::integration
