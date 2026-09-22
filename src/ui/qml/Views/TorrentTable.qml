@@ -251,6 +251,16 @@ Item {
         internal.refreshSelection();
     }
 
+    /// The hover label for an elided name, in this item's coordinates. Rows call these
+    /// rather than reaching into the panel, so the table owns when it is up.
+    function showNameTip(x: int, y: int, text: string): void {
+        nameTip.showAt(x, y, text);
+    }
+
+    function hideNameTip(): void {
+        nameTip.hide();
+    }
+
     function clearSelection(): void {
         root.selection.clearSelection();
         internal.anchorIndex = -1;
@@ -849,8 +859,26 @@ Item {
                     root.selectOnly(row.index);
                 }
                 onDoubleClicked: root.activated(row.hash)
+                onExited: root.hideNameTip()
+                onPositionChanged: mouse => {
+                    const overName = mouse.x >= nameCell.x
+                                   && mouse.x < nameCell.x + nameCell.width;
+                    if (!overName || !nameText.truncated) {
+                        root.hideNameTip();
+                        return;
+                    }
+                    const at = pointer.mapToItem(root, mouse.x, mouse.y);
+                    root.showNameTip(at.x, at.y, row.name);
+                }
             }
         }
+    }
+
+    // A name too long for its column is elided (`Text.ElideRight`). Selecting the row already
+    // shows it whole in the details pane, so this covers the other case: reading a row you do
+    // not want to select. It only ever appears over a name that really was cut.
+    Tooltip {
+        id: nameTip
     }
 
     // The inline rename editor (`.tbl .rn .ren`): a 1 px accent outline, the row height less

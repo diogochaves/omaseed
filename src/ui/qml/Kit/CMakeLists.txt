@@ -40,6 +40,7 @@ qt_add_qml_module(omaseed-kit
         TableRow.qml
         Tabs.qml
         Toggle.qml
+        Tooltip.qml
 )
 
 target_link_libraries(omaseed-kit
