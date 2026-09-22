@@ -314,18 +314,26 @@ TestCase {
 
         // Appearance: the tray-icon row cycles the three chips.
         keyClick(Qt.Key_5);
-        compare(modal.paneRowCount, 4);
+        compare(modal.paneRowCount, 5);
         const tray = App.trayIconMode;
         modal.paneCursor = 3;
         modal.area = "pane";
         modal.activateRow();
         verify(App.trayIconMode !== tray);
 
+        // ...and the fifth row swaps the side the hero's speed pair sits on.
+        const speeds = App.speedsAlignment;
+        modal.paneCursor = 4;
+        modal.activateRow();
+        verify(App.speedsAlignment !== speeds);
+        compare(App.speedsAlignment, speeds === "left" ? "right" : "left");
+
         // Put everything back: App persists these to state.json.
         App.showServersGroup = servers;
         App.pathMapEnabled = mapping;
         App.setNotificationEnabled("completed", completed);
         App.trayIconMode = tray;
+        App.speedsAlignment = speeds;
     }
 
     // T5.5 (Q16): the low-disk threshold is the fourth row of the Notifications pane, a

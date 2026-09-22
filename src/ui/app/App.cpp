@@ -1850,6 +1850,24 @@ void App::setWindowAlphaOverride(int percent)
     Q_EMIT settingsChanged();
 }
 
+QString App::speedsAlignment() const
+{
+    const_cast<App *>(this)->loadSettings();
+    return m_speedsAlignment;
+}
+
+void App::setSpeedsAlignment(const QString &side)
+{
+    loadSettings();
+    const QString wanted =
+        side == QLatin1String("right") ? QStringLiteral("right") : QStringLiteral("left");
+    if (m_speedsAlignment == wanted)
+        return;
+    m_speedsAlignment = wanted;
+    saveSettings();
+    Q_EMIT settingsChanged();
+}
+
 QString App::trayIconMode() const
 {
     const_cast<App *>(this)->loadSettings();
@@ -1908,6 +1926,11 @@ void App::loadSettings()
     m_windowAlphaOverride = appearance.value(QStringLiteral("windowAlphaOverride")).toInt(0);
     m_trayIconMode =
         appearance.value(QStringLiteral("trayIconMode")).toString(QStringLiteral("auto"));
+    m_speedsAlignment =
+        appearance.value(QStringLiteral("speedsAlignment")).toString(QStringLiteral("left")) ==
+                QLatin1String("right")
+            ? QStringLiteral("right")
+            : QStringLiteral("left");
 }
 
 void App::saveSettings()
@@ -1922,6 +1945,7 @@ void App::saveSettings()
     appearance[QStringLiteral("baseSizeOverride")] = m_baseSizeOverride;
     appearance[QStringLiteral("windowAlphaOverride")] = m_windowAlphaOverride;
     appearance[QStringLiteral("trayIconMode")] = m_trayIconMode;
+    appearance[QStringLiteral("speedsAlignment")] = m_speedsAlignment;
     StateFile::writeSection(QStringLiteral("appearance"), appearance);
 }
 

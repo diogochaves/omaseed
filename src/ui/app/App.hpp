@@ -396,6 +396,14 @@ public:
     int windowAlphaOverride() const;
     void setWindowAlphaOverride(int percent);
 
+    /// Which side of the hero the download/upload pair sits on: "left" (the spec's own
+    /// placement, beside the server name) or "right" (against the search field). Anything
+    /// else is read back as "left".
+    Q_PROPERTY(QString speedsAlignment READ speedsAlignment WRITE setSpeedsAlignment NOTIFY
+                   settingsChanged)
+    QString speedsAlignment() const;
+    void setSpeedsAlignment(const QString &side);
+
     /// "auto" | "always" | "never" (plan Phase 6 T6.3). `auto` behaves as `always` until the
     /// companion widget exists; the row is here now because it is cheap.
     Q_PROPERTY(QString trayIconMode READ trayIconMode WRITE setTrayIconMode NOTIFY settingsChanged)
@@ -445,6 +453,7 @@ private:
     int m_baseSizeOverride = 0;
     int m_windowAlphaOverride = 0;
     QString m_trayIconMode = QStringLiteral("auto");
+    QString m_speedsAlignment = QStringLiteral("left");
     bool m_settingsLoaded = false;
     // --- end T4.5 --------------------------------------------------------------------------
     // --- T4.3: torrent actions ---

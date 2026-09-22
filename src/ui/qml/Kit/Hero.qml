@@ -25,6 +25,8 @@ Item {
     property alias searchField: searchField
     /// The connection dot (spec `.dot`), exposed so a test can read the colour it resolved to.
     readonly property alias statusDot: statusDot
+    /// The download figure, so a test can see which side `speedsAlignment` put the pair on.
+    readonly property alias downStat: downStat
     property int searchCount: 0
     /// What the field's trailing count prints. Fig. 1 shows the bare count, Fig. 24 shows
     /// "0 of 142"; the caller decides, and the plain count is the default.
@@ -32,6 +34,10 @@ Item {
     property string searchText: ""
     property string serverLine: ""
     property string upSpeed: "—"
+
+    /// "left" (beside the server name, the spec's placement) or "right" (against the search
+    /// field). Anything else reads as "left".
+    property string speedsAlignment: "left"
 
     signal addClicked
     signal altSpeedClicked
@@ -109,7 +115,16 @@ Item {
             }
         }
 
+        // The speed pair sits beside the server name (the spec's own placement) or against
+        // the search field, per `speedsAlignment`. Exactly one of the two spacers takes the
+        // slack, so the pair moves without the row being declared twice.
+        Item {
+            Layout.fillWidth: root.speedsAlignment === "right"
+        }
+
         Stat {
+            id: downStat
+
             Layout.alignment: Qt.AlignVCenter
             Layout.leftMargin: Theme.space(6)
             glyph: Glyphs.arrowDown
@@ -127,7 +142,7 @@ Item {
         }
 
         Item {
-            Layout.fillWidth: true
+            Layout.fillWidth: root.speedsAlignment !== "right"
         }
 
         Field {

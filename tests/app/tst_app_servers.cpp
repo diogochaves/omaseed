@@ -253,7 +253,16 @@ void TestAppServers::appearanceOverridesReachTheTheme()
     app.setWindowAlphaOverride(5);
     QCOMPARE(app.windowAlphaOverride(), 0);
 
-    // The General pane's two flags and the tray mode round-trip through state.json.
+    // Which side the hero's speed pair sits on; anything but "right" reads back as "left".
+    QCOMPARE(app.speedsAlignment(), QStringLiteral("left"));
+    app.setSpeedsAlignment(QStringLiteral("right"));
+    QCOMPARE(app.speedsAlignment(), QStringLiteral("right"));
+    app.setSpeedsAlignment(QStringLiteral("sideways"));
+    QCOMPARE(app.speedsAlignment(), QStringLiteral("left"));
+    app.setSpeedsAlignment(QStringLiteral("right"));
+
+    // The General pane's two flags, the tray mode and the alignment round-trip through
+    // state.json.
     app.setShowServersGroup(false);
     app.setPathMapEnabled(false);
     app.setTrayIconMode(QStringLiteral("never"));
@@ -261,6 +270,7 @@ void TestAppServers::appearanceOverridesReachTheTheme()
     QCOMPARE(reopened.showServersGroup(), false);
     QCOMPARE(reopened.pathMapEnabled(), false);
     QCOMPARE(reopened.trayIconMode(), QStringLiteral("never"));
+    QCOMPARE(reopened.speedsAlignment(), QStringLiteral("right"));
     QCOMPARE(reopened.baseSizeOverride(), 0);
     QCOMPARE(reopened.followOmarchyTheme(), false);
 }

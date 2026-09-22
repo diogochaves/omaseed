@@ -67,4 +67,33 @@ TestCase {
         compare(settingsClicks, 1);
         compare(helpClicks, 1);
     }
+
+    function test_speeds_sit_left_of_the_search_field_by_default() {
+        // Wide enough that the row has real slack for a spacer to take; at the component's
+        // own 900 there is none, and neither alignment could move anything.
+        const hero = createTemporaryObject(heroComponent, testCase, {
+                                               "width": 1400
+                                           });
+        compare(hero.speedsAlignment, "left");
+        verify(hero.downStat.x < hero.searchField.x, "the speed pair is not left of the field");
+        // Beside the server line rather than against the field: well inside the left half.
+        verify(hero.downStat.x < hero.width / 2, "the speed pair drifted right");
+    }
+
+    function test_right_alignment_pushes_the_speeds_against_the_field() {
+        const hero = createTemporaryObject(heroComponent, testCase, {
+                                               "speedsAlignment": "right",
+                                               "width": 1400
+                                           });
+        verify(hero.downStat.x < hero.searchField.x, "the pair must stay before the field");
+        verify(hero.downStat.x > hero.width / 2, "the speed pair did not move right");
+    }
+
+    function test_an_unknown_alignment_is_drawn_as_left() {
+        const hero = createTemporaryObject(heroComponent, testCase, {
+                                               "speedsAlignment": "sideways",
+                                               "width": 1400
+                                           });
+        verify(hero.downStat.x < hero.width / 2);
+    }
 }

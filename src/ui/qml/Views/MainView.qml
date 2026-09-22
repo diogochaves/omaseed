@@ -592,6 +592,7 @@ Item {
             return version.length > 0 ? qsTr("%1 · qBittorrent %2").arg(App.serverName).arg(
                                             version) : App.serverName;
         }
+        speedsAlignment: App.speedsAlignment
         syncing: root.firstSync
         upSpeed: root.live ? App.globalState.upSpeedText : "—"
 

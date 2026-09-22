@@ -76,7 +76,7 @@ Item {
         case 2:
             return 4; // three toggles, then the low-disk threshold field
         case 4:
-            return 4;
+            return 5; // theme, base size, transparency, tray icon, speed alignment
         case 5:
             return 1; // the copyable `omarchy plugin add` line
         default:
@@ -142,6 +142,8 @@ Item {
                 alphaField.focusInput();
             else if (root.paneCursor === 3)
                 App.trayIconMode = root._nextTrayMode();
+            else if (root.paneCursor === 4)
+                App.speedsAlignment = App.speedsAlignment === "left" ? "right" : "left";
             return;
         }
         if (root.paneIndex === 5)
@@ -935,6 +937,39 @@ Item {
                                             text: trayChip.modelData
 
                                             onClicked: App.trayIconMode = trayChip.modelData
+                                        }
+                                    }
+                                }
+                            }
+
+                            SettingsRow {
+                                Layout.fillWidth: true
+                                description: qsTr("which side of the hero the download and upload figures sit on.")
+                                glyph: Glyphs.arrowDown
+                                hasCursor: root.area === "pane" && root.paneCursor === 4
+                                title: qsTr("Speed figures")
+
+                                onClicked: {
+                                    root.paneCursor = 4;
+                                    root.area = "pane";
+                                    App.speedsAlignment = App.speedsAlignment === "left" ? "right" : "left";
+                                }
+
+                                RowLayout {
+                                    spacing: Theme.space(6)
+
+                                    Repeater {
+                                        model: ["left", "right"]
+
+                                        Chip {
+                                            id: speedsChip
+
+                                            required property string modelData
+
+                                            selected: App.speedsAlignment === speedsChip.modelData
+                                            text: speedsChip.modelData
+
+                                            onClicked: App.speedsAlignment = speedsChip.modelData
                                         }
                                     }
                                 }
