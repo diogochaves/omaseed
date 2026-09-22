@@ -7,3 +7,6 @@ build-release/
 
 # GPL projects cloned for behaviour reference only; never copied, never committed
 reference/
+
+# Local scratch (design drafts, assets not yet in the tree)
+.local/
