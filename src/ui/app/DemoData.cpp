@@ -235,6 +235,123 @@ const char *const kTags[] = {"private", "keep", "4k"};
 const char *const kMoviesTracker = "udp://tracker.example.org:1337/announce";
 const char *const kLinuxTracker = "udp://tracker.example.net:6969/announce";
 
+// --- a crowded rail on demand --------------------------------------------------------------
+// `OMASEED_DEMO_GROUPS=<n>` multiplies the rail's three model-backed groups by `n` (1 = the
+// spec's own library, the default, and the only shape a screenshot may be compared to the
+// figures in). It exists to see the rail under a library with many categories, tags and
+// trackers: at n = 3 the groups go 4/3/2 -> 12/9/6, at n = 6 to 24/18/12. The spec's first 16
+// rows keep their own category, tags and tracker at every n, so only the generated rows past
+// the figure draw from the extra pools.
+
+/// Extra rail entries, appended in order after the spec's own. Long enough for n = 6.
+const DemoCategory kExtraCategories[] = {
+    {"books", "/data/torrents/books"},
+    {"games", "/data/torrents/games"},
+    {"anime", "/data/torrents/anime"},
+    {"podcasts", "/data/torrents/podcasts"},
+    {"software", "/data/torrents/software"},
+    {"audiobooks", "/data/torrents/audiobooks"},
+    {"comics", "/data/torrents/comics"},
+    {"courses", "/data/torrents/courses"},
+    {"photos", "/data/torrents/photos"},
+    {"datasets", "/data/torrents/datasets"},
+    {"firmware", "/data/torrents/firmware"},
+    {"magazines", "/data/torrents/magazines"},
+    {"concerts", "/data/torrents/concerts"},
+    {"lectures", "/data/torrents/lectures"},
+    {"maps", "/data/torrents/maps"},
+    {"fonts", "/data/torrents/fonts"},
+    {"samples", "/data/torrents/samples"},
+    {"backups", "/data/torrents/backups"},
+    {"roms", "/data/torrents/roms"},
+    {"a-very-long-category-name-that-elides", "/data/torrents/long"},
+};
+
+const char *const kExtraTags[] = {
+    "archive",
+    "hdr",
+    "remux",
+    "public",
+    "seed-forever",
+    "slow",
+    "temp",
+    "vpn",
+    "watched",
+    "unwatched",
+    "ratio-done",
+    "re-encode",
+    "lossless",
+    "subtitled",
+    "a-very-long-tag-name-that-elides",
+};
+
+/// One host apiece: TrackerModel groups the rail's tracker rows by host (see its rebuild), so
+/// two announce URLs on the same hostname are one row however different their port or scheme.
+const char *const kExtraTrackers[] = {
+    "udp://open.example.org:6969/announce",
+    "http://retracker.example.net:8080/announce",
+    "udp://exodus.example.com:6969/announce",
+    "https://private.example.net:443/announce",
+    "udp://opentrackr.example.org:1337/announce",
+    "http://bt.example.com:2710/announce",
+    "udp://publicbt.example.org:80/announce",
+    "https://swarm.example.net:443/announce",
+    "udp://dht.example.com:6881/announce",
+    "http://a-very-long-tracker-hostname.example.net:6969/announce",
+};
+
+/// How many times over to populate the rail's category/tag/tracker groups; 1 unless
+/// `OMASEED_DEMO_GROUPS` says otherwise, clamped so the pools above always suffice.
+int groupMultiplier()
+{
+    bool ok = false;
+    const int n = qEnvironmentVariableIntValue("OMASEED_DEMO_GROUPS", &ok);
+    return ok ? std::clamp(n, 1, 6) : 1;
+}
+
+/// The category rows this run offers: the spec's four, then as many extras as the multiplier
+/// asks for.
+QList<DemoCategory> categoryPool()
+{
+    QList<DemoCategory> pool(std::begin(kCategories), std::end(kCategories));
+    const int wanted = pool.size() * groupMultiplier();
+    for (const DemoCategory &entry : kExtraCategories) {
+        if (pool.size() >= wanted)
+            break;
+        pool.append(entry);
+    }
+    return pool;
+}
+
+QStringList tagPool()
+{
+    QStringList pool;
+    for (const char *const tag : kTags)
+        pool.append(QString::fromLatin1(tag));
+    const int wanted = pool.size() * groupMultiplier();
+    for (const char *const tag : kExtraTags) {
+        if (pool.size() >= wanted)
+            break;
+        pool.append(QString::fromLatin1(tag));
+    }
+    return pool;
+}
+
+/// The announce URLs this run uses: the spec's two, then extras. A tracker only reaches the
+/// rail once a torrent announces to it (TrackerModel is built from `trackers`), so the
+/// generated rows spread themselves over the whole pool.
+QStringList trackerPool()
+{
+    QStringList pool{QString::fromLatin1(kLinuxTracker), QString::fromLatin1(kMoviesTracker)};
+    const int wanted = pool.size() * groupMultiplier();
+    for (const char *const url : kExtraTrackers) {
+        if (pool.size() >= wanted)
+            break;
+        pool.append(QString::fromLatin1(url));
+    }
+    return pool;
+}
+
 /// A stable, unique, 40-hex infohash for row `index`: four hex digits of the row number in
 /// front of the name's SHA-1. The demo library must look the same every run (the views key
 /// their cursor and selection on the hash), and `sync/maindata` sends its torrents as a JSON
@@ -248,9 +365,9 @@ QString hashFor(int index, const QString &name)
            QString::fromLatin1(digest).left(36);
 }
 
-QString savePathFor(const QString &category)
+QString savePathFor(const QList<DemoCategory> &categories, const QString &category)
 {
-    for (const DemoCategory &entry : kCategories) {
+    for (const DemoCategory &entry : categories) {
         if (category == QLatin1StringView(entry.name))
             return QString::fromLatin1(entry.savePath);
     }
@@ -258,14 +375,33 @@ QString savePathFor(const QString &category)
 }
 
 /// The announce URL a torrent belongs to; an empty string is the rail's `trackerless` row.
-QString trackerFor(const QString &category, bool trackerless)
+/// The spec's four categories keep the figure's two trackers (linux announces to one, the
+/// three media categories to the other); every extra category rotates through the extras, so
+/// each tracker the pool offers ends up with torrents and therefore with a rail row.
+QString trackerFor(const QList<DemoCategory> &categories,
+                   const QStringList &trackers,
+                   const QString &category)
 {
-    if (trackerless)
+    if (category.isEmpty())
         return QString();
-    return category == QLatin1String("movies") || category == QLatin1String("tv") ||
-                   category == QLatin1String("music")
-               ? QString::fromLatin1(kMoviesTracker)
-               : QString::fromLatin1(kLinuxTracker);
+
+    int index = -1;
+    for (qsizetype i = 0; i < categories.size(); ++i) {
+        if (category == QLatin1StringView(categories.at(i).name)) {
+            index = int(i);
+            break;
+        }
+    }
+    if (index < 0)
+        return trackers.value(0);
+    if (index == 0)
+        return trackers.value(0); // linux
+    if (index < int(std::size(kCategories)))
+        return trackers.value(1); // movies / tv / music
+    const int extras = int(trackers.size()) - 2;
+    if (extras <= 0)
+        return trackers.value(1);
+    return trackers.value(2 + (index - int(std::size(kCategories))) % extras);
 }
 
 /// Builds one torrent object with every key TorrentModel reads, derived from the few the
@@ -283,10 +419,10 @@ QJsonObject torrentJson(int index,
                         qint64 upspeed,
                         qint64 eta,
                         bool trackerError,
-                        qint64 addedOn)
+                        qint64 addedOn,
+                        const QString &tracker,
+                        const QString &savePath)
 {
-    const QString tracker = trackerFor(category, /*trackerless=*/category.isEmpty());
-    const QString savePath = savePathFor(category);
     const qint64 completed = qint64(double(size) * progress);
 
     QJsonObject json;
@@ -393,6 +529,11 @@ QJsonObject maindata(int rows)
     // A fixed "now", so added_on never drifts between two runs of the same demo.
     const qint64 now = QDateTime(QDate(2026, 9, 19), QTime(10, 41)).toSecsSinceEpoch();
 
+    // The rail's three model-backed groups, `OMASEED_DEMO_GROUPS` times over (1 by default).
+    const QList<DemoCategory> categoryEntries = categoryPool();
+    const QStringList tagEntries = tagPool();
+    const QStringList trackerEntries = trackerPool();
+
     QJsonObject torrents;
     QJsonObject trackers;
     const auto announce = [&trackers](const QString &url, const QString &hash) {
@@ -409,6 +550,7 @@ QJsonObject maindata(int rows)
         const QString category = QString::fromLatin1(row.category);
         const QString hash = hashFor(i, name);
         const bool trackerError = QLatin1StringView(row.state) == QLatin1String("error");
+        const QString tracker = trackerFor(categoryEntries, trackerEntries, category);
         torrents.insert(hash,
                         torrentJson(i,
                                     name,
@@ -423,8 +565,10 @@ QJsonObject maindata(int rows)
                                     row.upspeed,
                                     row.eta,
                                     trackerError,
-                                    now - 86400LL * (i + 1)));
-        announce(trackerFor(category, category.isEmpty()), hash);
+                                    now - 86400LL * (i + 1),
+                                    tracker,
+                                    savePathFor(categoryEntries, category)));
+        announce(tracker, hash);
     }
 
     // Everything past the figure: the same shapes, varied deterministically, so a 10 000-row
@@ -442,10 +586,12 @@ QJsonObject maindata(int rows)
         "forcedUP",
     };
     for (int i = kSpecRowCount; i < count; ++i) {
-        const int categoryIndex = int(random.bounded(quint32(std::size(kCategories) + 1)));
-        const QString category = categoryIndex == int(std::size(kCategories))
+        // The last index is the uncategorised row. At the default multiplier the pool is
+        // `kCategories` itself, so this draws exactly the sequence it always drew.
+        const int categoryIndex = int(random.bounded(quint32(categoryEntries.size() + 1)));
+        const QString category = categoryIndex == int(categoryEntries.size())
                                      ? QString()
-                                     : QString::fromLatin1(kCategories[categoryIndex].name);
+                                     : QString::fromLatin1(categoryEntries.at(categoryIndex).name);
         const QString state =
             QString::fromLatin1(kStates[random.bounded(quint32(std::size(kStates)))]);
         const bool complete = state != QLatin1String("downloading") &&
@@ -459,7 +605,7 @@ QJsonObject maindata(int rows)
 
         QStringList tags;
         if (random.bounded(2u) == 0)
-            tags.append(QString::fromLatin1(kTags[random.bounded(quint32(std::size(kTags)))]));
+            tags.append(tagEntries.at(int(random.bounded(quint32(tagEntries.size())))));
 
         const qint64 size = qint64(random.bounded(64u) + 1) * 128 * kMb;
         const qint64 dlspeed =
@@ -469,6 +615,7 @@ QJsonObject maindata(int rows)
                            : dlspeed > 0 ? qint64(random.bounded(7200u) + 30)
                                          : kInfiniteEta;
 
+        const QString tracker = trackerFor(categoryEntries, trackerEntries, category);
         torrents.insert(hash,
                         torrentJson(i,
                                     name,
@@ -483,12 +630,14 @@ QJsonObject maindata(int rows)
                                     upspeed,
                                     eta,
                                     state == QLatin1String("error"),
-                                    now - 60LL * i));
-        announce(trackerFor(category, category.isEmpty()), hash);
+                                    now - 60LL * i,
+                                    tracker,
+                                    savePathFor(categoryEntries, category)));
+        announce(tracker, hash);
     }
 
     QJsonObject categories;
-    for (const DemoCategory &entry : kCategories) {
+    for (const DemoCategory &entry : categoryEntries) {
         QJsonObject category;
         category.insert(QStringLiteral("name"), QString::fromLatin1(entry.name));
         category.insert(QStringLiteral("savePath"), QString::fromLatin1(entry.savePath));
@@ -496,8 +645,8 @@ QJsonObject maindata(int rows)
     }
 
     QJsonArray tags;
-    for (const char *const tag : kTags)
-        tags.append(QString::fromLatin1(tag));
+    for (const QString &tag : tagEntries)
+        tags.append(tag);
 
     QJsonObject data;
     data.insert(QStringLiteral("full_update"), true);

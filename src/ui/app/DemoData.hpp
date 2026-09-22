@@ -26,6 +26,12 @@ QStringList specNames();
 /// A full `sync/maindata` update with `rows` torrents (clamped to at least 1), the spec's
 /// 16 first. Carries `torrents`, `categories`, `tags`, `trackers`, `server_state` and
 /// `full_update: true`, which is all SyncEngine::applyDemoData() reads.
+///
+/// `OMASEED_DEMO_GROUPS=<1..6>` multiplies the rail's category, tag and tracker groups (4/3/2
+/// at 1, the default, which is the library the figures draw; 12/9/6 at 3), to see the rail
+/// under a crowded library. The spec's 16 rows keep their own category, tags and tracker at
+/// every setting, and at 1 the generated rows are byte-identical to what they always were,
+/// so a screenshot meant for the figures is unaffected.
 QJsonObject maindata(int rows = 16);
 
 /// The hero's numbers of spec §1 Fig. 1 as a `server_state` object: 4.21 MB/s down,
