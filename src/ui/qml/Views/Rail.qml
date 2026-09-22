@@ -16,6 +16,12 @@ import Omaseed.Kit
 // rows), `l` hands focus to the table via `focusTable()`. Cursor and selection are independent
 // (the spec figure shows the cursor on "movies" while "downloading" is the selected status),
 // so clicking a row only ever changes selection.
+//
+// docs/08 §5: groups fold. `collapsedGroups` names the folded ones (the host owns and persists
+// it, per server); a click on a heading or `z` on any row asks for a toggle through
+// `groupToggled`. A folded group leaves one cursor stop, its heading, where `enter`/`space`
+// unfolds it. While the rail is scrolled, the heading of the group the top row belongs to
+// sticks to the top edge, so a scrolled row always says which group it is in.
 Item {
     id: root
 
@@ -31,26 +37,88 @@ Item {
     property ServerListModel serverList: null
 
     property int cursorIndex: 0
+    /// The folded groups: any of "status", "categories", "tags", "trackers", "servers".
+    property var collapsedGroups: []
 
     signal focusTable
+    /// A heading was clicked, or `z` pressed on one of the group's rows.
+    signal groupToggled(string group)
     /// `enter` or a click on a server row: that server should become the default one. The
     /// rail never switches servers itself — the host calls `App.setDefaultServer(id)`.
     signal serverActivated(string id)
 
     // ---- row bookkeeping -----------------------------------------------------------
-    // Each visible row registers itself here (global cursor index -> {item, select}) so
-    // moveCursor/selectCursor and the "keep the cursor row visible" scroll can find it
-    // without the rail owning a duplicate copy of every model's rows.
-    property var _rowMap: ({})
-
-    function _registerRow(globalIndex, item, selectFn) {
-        root._rowMap[globalIndex] = {
-            "item": item,
-            "select": selectFn
-        };
+    // Every row (and every group heading) registers itself with a function that selects it;
+    // `_rowMap` maps each one's live `globalIndex` (the cursor position, -1 while it is not
+    // a stop) to `{item, select}`, so moveCursor/selectCursor and the "keep the cursor row
+    // visible" scroll can find it without the rail owning a copy of every model's rows. It is
+    // rebuilt whenever a row comes or goes or an index moves (a group folds, a category is
+    // added above).
+    property var _rows: []
+    property int _rowsRevision: 0
+    readonly property var _rowMap: {
+        root._rowsRevision;
+        const map = {};
+        for (const entry of root._rows) {
+            const index = entry.item.globalIndex;
+            if (index >= 0)
+                map[index] = entry;
+        }
+        return map;
     }
-    function _unregisterRow(globalIndex) {
-        delete root._rowMap[globalIndex];
+
+    function _registerRow(item, selectFn) {
+        root._rows.push({
+                            "item": item,
+                            "select": selectFn
+                        });
+        root._rowsRevision++;
+    }
+    function _unregisterRow(item) {
+        root._rows = root._rows.filter(entry => entry.item !== item);
+        root._rowsRevision++;
+    }
+
+    // ---- folding -------------------------------------------------------------------
+    readonly property bool statusFolded: root.collapsedGroups.indexOf("status") >= 0
+    readonly property bool categoriesFolded: root.collapsedGroups.indexOf("categories") >= 0
+    readonly property bool tagsFolded: root.collapsedGroups.indexOf("tags") >= 0
+    readonly property bool trackersFolded: root.collapsedGroups.indexOf("trackers") >= 0
+    readonly property bool serversFolded: root.collapsedGroups.indexOf("servers") >= 0
+
+    /// The group the cursor position `index` falls in.
+    function groupAt(index: int): string {
+        if (index >= root.serversBase && root.serversSpan > 0)
+            return "servers";
+        if (index >= root.trackersBase)
+            return "trackers";
+        if (index >= root.tagsBase)
+            return "tags";
+        if (index >= root.categoriesBase)
+            return "categories";
+        return "status";
+    }
+
+    function baseOf(group: string): int {
+        switch (group) {
+        case "categories":
+            return root.categoriesBase;
+        case "tags":
+            return root.tagsBase;
+        case "trackers":
+            return root.trackersBase;
+        case "servers":
+            return root.serversBase;
+        default:
+            return root.statusBase;
+        }
+    }
+
+    /// Fold or unfold `group` and leave the cursor on its first stop.
+    function toggleGroup(group: string): void {
+        root.groupToggled(group);
+        root.cursorIndex = root.baseOf(group);
+        root._scrollCursorIntoView();
     }
 
     // ---- the status group: nine fixed rows, spec v2 §9 `RAIL[0]` -------------------
@@ -121,12 +189,23 @@ Item {
     readonly property int serversRowCount: root.serverCount > 1
                                            && root.serverList ? root.serverList.count : 0
 
+    // A folded group is one stop (its heading) in the cursor space.
+    readonly property int statusSpan: root.statusFolded ? 1 : root.statusRowCount
+    readonly property int categoriesSpan: root.categoriesFolded ? 1 : root.categoriesRowCount
+    readonly property int tagsSpan: root.tagsFolded ? 1 : root.tagsRowCount
+    readonly property int trackersSpan: root.trackersFolded ? 1 : root.trackersRowCount
+    readonly property int serversSpan: root.serversRowCount > 0 && root.serversFolded ? 1 :
+                                                                                     root.serversRowCount
+
     readonly property int statusBase: 0
-    readonly property int categoriesBase: root.statusBase + root.statusRowCount
-    readonly property int tagsBase: root.categoriesBase + root.categoriesRowCount
-    readonly property int trackersBase: root.tagsBase + root.tagsRowCount
-    readonly property int serversBase: root.trackersBase + root.trackersRowCount
-    readonly property int totalRowCount: root.serversBase + root.serversRowCount
+    readonly property int categoriesBase: root.statusBase + root.statusSpan
+    readonly property int tagsBase: root.categoriesBase + root.categoriesSpan
+    readonly property int trackersBase: root.tagsBase + root.tagsSpan
+    readonly property int serversBase: root.trackersBase + root.trackersSpan
+    readonly property int totalRowCount: root.serversBase + root.serversSpan
+
+    onTotalRowCountChanged: if (root.cursorIndex >= root.totalRowCount)
+                                root.cursorIndex = Math.max(0, root.totalRowCount - 1)
 
     // ---- public keyboard/selection surface ------------------------------------------
     function moveCursor(delta) {
@@ -194,6 +273,10 @@ Item {
             root.focusTable();
             event.accepted = true;
             break;
+        case Qt.Key_Z:
+            root.toggleGroup(root.groupAt(root.cursorIndex));
+            event.accepted = true;
+            break;
         case Qt.Key_0:
         case Qt.Key_1:
         case Qt.Key_2:
@@ -233,8 +316,21 @@ Item {
 
             // ---- status ------------------------------------------------------------
             RailGroup {
+                id: statusGroup
+
+                readonly property int globalIndex: root.statusFolded ? root.statusBase : -1
+
+                collapsed: root.statusFolded
+                count: root.counts.total
+                hasCursor: root.cursorIndex === statusGroup.globalIndex
                 label: qsTr("status")
                 width: content.width
+
+                onToggled: root.toggleGroup("status")
+
+                Component.onCompleted: root._registerRow(statusGroup, () => root.toggleGroup(
+                                                             "status"))
+                Component.onDestruction: root._unregisterRow(statusGroup)
 
                 Repeater {
                     model: root.statusRows
@@ -245,49 +341,67 @@ Item {
                         required property int index
                         required property var modelData
 
+                        readonly property int globalIndex: root.statusFolded ? -1 : root.statusBase
+                                                                                  + statusDelegate.index
+
                         count: statusDelegate.modelData.count
                         glyph: statusDelegate.modelData.glyph
-                        hasCursor: root.cursorIndex === (root.statusBase + statusDelegate.index)
+                        hasCursor: root.cursorIndex === statusDelegate.globalIndex
                         // Every group always shows its answer: with no status filter, "all"
                         // is the selected row (docs/08 §5; the spec's RAIL array never
                         // selected it, REVIEW §9).
                         selected: root.filtered.statusFilter === statusDelegate.index
                         text: statusDelegate.modelData.text
+                        visible: !root.statusFolded
                         width: content.width
 
                         onClicked: root.selectStatus(statusDelegate.index)
 
-                        Component.onCompleted: root._registerRow(root.statusBase
-                                                                 + statusDelegate.index,
-                                                                 statusDelegate, ()
+                        Component.onCompleted: root._registerRow(statusDelegate, ()
                                                                  => root.selectStatus(
                                                                         statusDelegate.index))
-                        Component.onDestruction: root._unregisterRow(root.statusBase
-                                                                     + statusDelegate.index)
+                        Component.onDestruction: root._unregisterRow(statusDelegate)
                     }
                 }
             }
 
             // ---- categories ----------------------------------------------------------
             RailGroup {
+                id: categoriesGroup
+
+                readonly property int globalIndex: root.categoriesFolded ? root.categoriesBase : -1
+
+                collapsed: root.categoriesFolded
+                count: root.categoriesNamedCount
+                hasCursor: root.cursorIndex === categoriesGroup.globalIndex
                 label: qsTr("categories")
                 width: content.width
+
+                onToggled: root.toggleGroup("categories")
+
+                Component.onCompleted: root._registerRow(categoriesGroup, () => root.toggleGroup(
+                                                             "categories"))
+                Component.onDestruction: root._unregisterRow(categoriesGroup)
 
                 RailRow {
                     id: categoriesAll
 
+                    readonly property int globalIndex: root.categoriesFolded ? -1 :
+                                                                               root.categoriesBase
+
                     count: root.counts.total
-                    hasCursor: root.cursorIndex === root.categoriesBase
+                    hasCursor: root.cursorIndex === categoriesAll.globalIndex
                     // Selected while the group has no filter, like the status "all" row.
                     selected: root.filtered.category === undefined
                     text: qsTr("all")
+                    visible: !root.categoriesFolded
                     width: content.width
 
                     onClicked: root.filtered.clearCategory()
 
-                    Component.onCompleted: root._registerRow(root.categoriesBase, categoriesAll, ()
+                    Component.onCompleted: root._registerRow(categoriesAll, ()
                                                              => root.filtered.clearCategory())
-                    Component.onDestruction: root._unregisterRow(root.categoriesBase)
+                    Component.onDestruction: root._unregisterRow(categoriesAll)
                 }
 
                 Repeater {
@@ -299,70 +413,88 @@ Item {
                         required property int index
                         required property string name
 
-                        readonly property int globalIndex: root.categoriesBase + 1
-                                                           + categoryDelegate.index
+                        readonly property int globalIndex: root.categoriesFolded ? -1 :
+                                                                                   root.categoriesBase
+                                                                                   + 1
+                                                                                   + categoryDelegate.index
 
                         count: root.counts.categoryCount(categoryDelegate.name)
                         glyph: Glyphs.category
                         hasCursor: root.cursorIndex === categoryDelegate.globalIndex
                         selected: root.filtered.category === categoryDelegate.name
                         text: categoryDelegate.name
+                        visible: !root.categoriesFolded
                         width: content.width
 
                         onClicked: root.filtered.category = categoryDelegate.name
 
-                        Component.onCompleted: root._registerRow(categoryDelegate.globalIndex,
-                                                                 categoryDelegate, () => {
+                        Component.onCompleted: root._registerRow(categoryDelegate, () => {
                                                                      root.filtered.category
                                                                              = categoryDelegate.name;
                                                                  })
-                        Component.onDestruction: root._unregisterRow(categoryDelegate.globalIndex)
+                        Component.onDestruction: root._unregisterRow(categoryDelegate)
                     }
                 }
 
                 RailRow {
                     id: categoriesNone
 
-                    readonly property int globalIndex: root.categoriesBase + 1
-                                                       + root.categoriesNamedCount
+                    readonly property int globalIndex: root.categoriesFolded
+                                                       || !root.categoriesNoneVisible ? -1 :
+                                                                                        root.categoriesBase
+                                                                                        + 1
+                                                                                        + root.categoriesNamedCount
 
                     count: root.counts.uncategorised
                     glyph: "·"
                     hasCursor: root.cursorIndex === categoriesNone.globalIndex
                     selected: root.filtered.category === ""
                     text: qsTr("none")
-                    visible: root.categoriesNoneVisible
+                    visible: root.categoriesNoneVisible && !root.categoriesFolded
                     width: content.width
 
                     onClicked: root.filtered.category = ""
 
-                    Component.onCompleted: root._registerRow(categoriesNone.globalIndex,
-                                                             categoriesNone, () => {
+                    Component.onCompleted: root._registerRow(categoriesNone, () => {
                                                                  root.filtered.category = "";
                                                              })
-                    Component.onDestruction: root._unregisterRow(categoriesNone.globalIndex)
+                    Component.onDestruction: root._unregisterRow(categoriesNone)
                 }
             }
 
             // ---- tags ------------------------------------------------------------------
             RailGroup {
+                id: tagsGroup
+
+                readonly property int globalIndex: root.tagsFolded ? root.tagsBase : -1
+
+                collapsed: root.tagsFolded
+                count: root.tagsNamedCount
+                hasCursor: root.cursorIndex === tagsGroup.globalIndex
                 label: qsTr("tags")
                 width: content.width
+
+                onToggled: root.toggleGroup("tags")
+
+                Component.onCompleted: root._registerRow(tagsGroup, () => root.toggleGroup("tags"))
+                Component.onDestruction: root._unregisterRow(tagsGroup)
 
                 RailRow {
                     id: tagsAll
 
+                    readonly property int globalIndex: root.tagsFolded ? -1 : root.tagsBase
+
                     count: root.counts.total
-                    hasCursor: root.cursorIndex === root.tagsBase
+                    hasCursor: root.cursorIndex === tagsAll.globalIndex
                     selected: root.filtered.tag === undefined
                     text: qsTr("all")
+                    visible: !root.tagsFolded
                     width: content.width
 
                     onClicked: root.filtered.clearTag()
 
-                    Component.onCompleted: root._registerRow(root.tagsBase, tagsAll, ()
-                                                             => root.filtered.clearTag())
-                    Component.onDestruction: root._unregisterRow(root.tagsBase)
+                    Component.onCompleted: root._registerRow(tagsAll, () => root.filtered.clearTag())
+                    Component.onDestruction: root._unregisterRow(tagsAll)
                 }
 
                 Repeater {
@@ -374,68 +506,85 @@ Item {
                         required property int index
                         required property string name
 
-                        readonly property int globalIndex: root.tagsBase + 1 + tagDelegate.index
+                        readonly property int globalIndex: root.tagsFolded ? -1 : root.tagsBase + 1
+                                                                                + tagDelegate.index
 
                         count: root.counts.tagCount(tagDelegate.name)
                         glyph: Glyphs.tag
                         hasCursor: root.cursorIndex === tagDelegate.globalIndex
                         selected: root.filtered.tag === tagDelegate.name
                         text: tagDelegate.name
+                        visible: !root.tagsFolded
                         width: content.width
 
                         onClicked: root.filtered.tag = tagDelegate.name
 
-                        Component.onCompleted: root._registerRow(tagDelegate.globalIndex,
-                                                                 tagDelegate, () => {
+                        Component.onCompleted: root._registerRow(tagDelegate, () => {
                                                                      root.filtered.tag
                                                                              = tagDelegate.name;
                                                                  })
-                        Component.onDestruction: root._unregisterRow(tagDelegate.globalIndex)
+                        Component.onDestruction: root._unregisterRow(tagDelegate)
                     }
                 }
 
                 RailRow {
                     id: tagsUntagged
 
-                    readonly property int globalIndex: root.tagsBase + 1 + root.tagsNamedCount
+                    readonly property int globalIndex: root.tagsFolded || !root.tagsUntaggedVisible
+                                                       ? -1 : root.tagsBase + 1 + root.tagsNamedCount
 
                     count: root.counts.untagged
                     glyph: "·"
                     hasCursor: root.cursorIndex === tagsUntagged.globalIndex
                     selected: root.filtered.tag === ""
                     text: qsTr("untagged")
-                    visible: root.tagsUntaggedVisible
+                    visible: root.tagsUntaggedVisible && !root.tagsFolded
                     width: content.width
 
                     onClicked: root.filtered.tag = ""
 
-                    Component.onCompleted: root._registerRow(tagsUntagged.globalIndex, tagsUntagged,
-                                                             () => {
+                    Component.onCompleted: root._registerRow(tagsUntagged, () => {
                                                                  root.filtered.tag = "";
                                                              })
-                    Component.onDestruction: root._unregisterRow(tagsUntagged.globalIndex)
+                    Component.onDestruction: root._unregisterRow(tagsUntagged)
                 }
             }
 
             // ---- trackers ----------------------------------------------------------------
             RailGroup {
+                id: trackersGroup
+
+                readonly property int globalIndex: root.trackersFolded ? root.trackersBase : -1
+
+                collapsed: root.trackersFolded
+                count: root.trackersNamedCount
+                hasCursor: root.cursorIndex === trackersGroup.globalIndex
                 label: qsTr("trackers")
                 width: content.width
+
+                onToggled: root.toggleGroup("trackers")
+
+                Component.onCompleted: root._registerRow(trackersGroup, () => root.toggleGroup(
+                                                             "trackers"))
+                Component.onDestruction: root._unregisterRow(trackersGroup)
 
                 RailRow {
                     id: trackersAll
 
+                    readonly property int globalIndex: root.trackersFolded ? -1 : root.trackersBase
+
                     count: root.counts.total
-                    hasCursor: root.cursorIndex === root.trackersBase
+                    hasCursor: root.cursorIndex === trackersAll.globalIndex
                     selected: root.filtered.tracker === undefined
                     text: qsTr("all")
+                    visible: !root.trackersFolded
                     width: content.width
 
                     onClicked: root.filtered.clearTracker()
 
-                    Component.onCompleted: root._registerRow(root.trackersBase, trackersAll, ()
+                    Component.onCompleted: root._registerRow(trackersAll, ()
                                                              => root.filtered.clearTracker())
-                    Component.onDestruction: root._unregisterRow(root.trackersBase)
+                    Component.onDestruction: root._unregisterRow(trackersAll)
                 }
 
                 Repeater {
@@ -449,24 +598,26 @@ Item {
                         required property string host
                         required property int torrentCount
 
-                        readonly property int globalIndex: root.trackersBase + 1
-                                                           + trackerDelegate.index
+                        readonly property int globalIndex: root.trackersFolded ? -1 :
+                                                                                 root.trackersBase
+                                                                                 + 1
+                                                                                 + trackerDelegate.index
 
                         count: trackerDelegate.torrentCount
                         glyph: trackerDelegate.isTrackerless ? "·" : Glyphs.tracker
                         hasCursor: root.cursorIndex === trackerDelegate.globalIndex
                         selected: root.filtered.tracker === trackerDelegate.host
                         text: trackerDelegate.host
+                        visible: !root.trackersFolded
                         width: content.width
 
                         onClicked: root.filtered.tracker = trackerDelegate.host
 
-                        Component.onCompleted: root._registerRow(trackerDelegate.globalIndex,
-                                                                 trackerDelegate, () => {
+                        Component.onCompleted: root._registerRow(trackerDelegate, () => {
                                                                      root.filtered.tracker
                                                                              = trackerDelegate.host;
                                                                  })
-                        Component.onDestruction: root._unregisterRow(trackerDelegate.globalIndex)
+                        Component.onDestruction: root._unregisterRow(trackerDelegate)
                     }
                 }
             }
@@ -476,9 +627,23 @@ Item {
             // way a status or category row is. `id` is a QML keyword, so the row's id comes
             // from `idAt(index)` rather than from a required property.
             RailGroup {
+                id: serversGroup
+
+                readonly property int globalIndex: root.serversFolded && root.serversRowCount > 0
+                                                   ? root.serversBase : -1
+
+                collapsed: root.serversFolded
+                count: root.serversRowCount
+                hasCursor: root.cursorIndex === serversGroup.globalIndex
                 label: qsTr("servers")
                 visible: root.serversRowCount > 0
                 width: content.width
+
+                onToggled: root.toggleGroup("servers")
+
+                Component.onCompleted: root._registerRow(serversGroup, () => root.toggleGroup(
+                                                             "servers"))
+                Component.onDestruction: root._unregisterRow(serversGroup)
 
                 Repeater {
                     model: root.serverList
@@ -490,29 +655,94 @@ Item {
                         required property string name
                         required property bool isDefault
 
-                        readonly property int globalIndex: root.serversBase + serverDelegate.index
+                        readonly property int globalIndex: root.serversFolded
+                                                           || root.serversRowCount === 0 ? -1 :
+                                                                                           root.serversBase
+                                                                                           + serverDelegate.index
 
                         count: -1
                         glyph: Glyphs.server
                         hasCursor: root.cursorIndex === serverDelegate.globalIndex
                         selected: serverDelegate.isDefault
                         text: serverDelegate.name
+                        visible: !root.serversFolded
                         width: content.width
 
                         onClicked: root.serverActivated(root.serverList.idAt(
                                                             serverDelegate.index))
 
-                        Component.onCompleted: root._registerRow(serverDelegate.globalIndex,
-                                                                 serverDelegate, () => {
+                        Component.onCompleted: root._registerRow(serverDelegate, () => {
                                                                      root.serverActivated(
                                                                          root.serverList.idAt(
                                                                              serverDelegate.index));
                                                                  })
-                        Component.onDestruction: root._unregisterRow(serverDelegate.globalIndex)
+                        Component.onDestruction: root._unregisterRow(serverDelegate)
                     }
                 }
             }
         }
+    }
+
+    // docs/08 §5: while the rail is scrolled, the heading of the group the top row belongs to
+    // sticks to the top edge. It is the real group's heading drawn again, so it folds too.
+    readonly property var _groups: [statusGroup, categoriesGroup, tagsGroup, trackersGroup,
+        serversGroup]
+    /// The group whose heading has scrolled off while some of its rows are still in view.
+    readonly property Item stuckGroup: {
+        const top = flick.contentY;
+        if (top <= 0)
+            return null;
+        for (const group of root._groups) {
+            if (!group.visible || group.collapsed)
+                continue;
+            if (group.y < top && group.y + group.height - group.header.height > top)
+                return group;
+        }
+        return null;
+    }
+
+    Rectangle {
+        id: stuckHeader
+
+        anchors.left: parent.left
+        anchors.right: hairline.left
+        anchors.top: parent.top
+        color: Theme.background
+        height: stuckLabel.implicitHeight + Theme.space(10)
+        visible: root.stuckGroup !== null
+        z: 2
+
+        Label {
+            id: stuckLabel
+
+            anchors.left: parent.left
+            anchors.leftMargin: Theme.space(16)
+            anchors.verticalCenter: parent.verticalCenter
+            text: root.stuckGroup ? root.stuckGroup.label : ""
+            tracked: true
+        }
+
+        Hairline {
+            anchors.bottom: parent.bottom
+            anchors.left: parent.left
+            anchors.right: parent.right
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+
+            onClicked: root.toggleGroup(root._groupKey(root.stuckGroup))
+        }
+    }
+
+    function _groupKey(group: Item): string {
+        return group === statusGroup ? "status" : group === categoriesGroup ? "categories" :
+                                                                              group === tagsGroup
+                                                                              ? "tags" : group
+                                                                                         === trackersGroup
+                                                                                         ? "trackers" :
+                                                                                           "servers";
     }
 
     Hairline {

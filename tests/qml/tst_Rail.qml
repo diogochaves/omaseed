@@ -129,6 +129,35 @@ TestCase {
         compare(rail._rowMap[rail.categoriesBase].item.selected, true);
     }
 
+    // docs/08 §5: a folded group hides its rows and leaves one cursor stop, its heading;
+    // `z` folds the group the cursor is in, and `enter` on the heading unfolds it.
+    function test_a_folded_group_is_one_stop_and_z_folds_it() {
+        const rail = createTemporaryObject(railComponent, testCase);
+        rail.groupToggled.connect(group => {
+            rail.collapsedGroups = rail.collapsedGroups.indexOf(group) >= 0
+                    ? rail.collapsedGroups.filter(g => g !== group)
+                    : rail.collapsedGroups.concat([group]);
+        });
+        const open = rail.totalRowCount;
+        const categories = rail.categoriesRowCount;
+        const tagsAll = rail._rowMap[rail.tagsBase].item;
+
+        rail.cursorIndex = rail.categoriesBase + 1; // a category row
+        rail.forceActiveFocus();
+        keyClick(Qt.Key_Z);
+        compare(rail.collapsedGroups, ["categories"]);
+        compare(rail.totalRowCount, open - categories + 1);
+        compare(rail.cursorIndex, rail.categoriesBase);
+        verify(rail._rowMap[rail.categoriesBase].item.collapsed, "the stop is not the heading");
+        // The rows below moved up, and the map follows them.
+        compare(rail._rowMap[rail.tagsBase].item, tagsAll);
+
+        keyClick(Qt.Key_Return);
+        compare(rail.collapsedGroups, []);
+        compare(rail.totalRowCount, open);
+        compare(rail._rowMap[rail.categoriesBase].item.text, "all");
+    }
+
     function test_selecting_a_category_sets_filtered_category() {
         const rail = createTemporaryObject(railComponent, testCase);
         const moviesIndex = rail.categoriesBase + 2; // all, linux, movies

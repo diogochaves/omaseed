@@ -79,10 +79,11 @@ TestCase {
         compare(testCase.line(model.hints), "enter apply · esc cancel");
     }
 
-    function test_the_rail_teaches_its_own_four() {
+    function test_the_rail_teaches_its_own_five() {
         model.focusArea = "rail";
         compare(model.area, "rail");
-        compare(testCase.line(model.hints), "j k move · enter select · 0–9 status · l table");
+        compare(testCase.line(model.hints),
+                "j k move · enter select · 0–9 status · z fold · l table");
         compare(model.pinned.key, "?");
     }
 

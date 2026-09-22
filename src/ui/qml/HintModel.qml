@@ -84,7 +84,7 @@ QtObject {
         case "rail":
             return [root._hint("rail", "j k"), root._hint("rail", "enter"), root._hint("rail",
                                                                                        "0–9"), root._hint(
-                        "rail", "l")];
+                        "rail", "z"), root._hint("rail", "l")];
         case "details":
             return root._detailsHints();
         default:

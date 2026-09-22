@@ -603,6 +603,17 @@ QtObject {
             "helpKeys": "",
             "help": ""
         },
+        // docs/08 §5: fold or unfold the group the cursor is in.
+        {
+            "area": "rail",
+            "key": "z",
+            "action": "fold",
+            "label": qsTr("fold"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
         {
             "area": "rail",
             "key": "0–9",

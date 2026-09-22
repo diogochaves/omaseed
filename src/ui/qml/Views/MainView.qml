@@ -103,6 +103,9 @@ Item {
     }
 
     /// True while anything is over the window.
+    /// The rail groups folded on this server (docs/08 §5), saved with the table's state.
+    property var railFolded: []
+
     readonly property bool overlayOpen: root.activeOverlay !== null
 
     /// The `[{key, label}]` the overlay on top teaches, for the window's footer. A menu has
@@ -759,7 +762,16 @@ Item {
             trackers: App.trackers
             visible: !root.libraryEmpty && !root.firstSync
 
+            collapsedGroups: root.railFolded
+
             onFocusTable: table.forceActiveFocus()
+            onGroupToggled: group => {
+                root.railFolded = root.railFolded.indexOf(group) >= 0 ? root.railFolded.filter(
+                                                                            g => g !== group) :
+                                                                        root.railFolded.concat(
+                                                                            [group]);
+                root.saveTableState();
+            }
             onServerActivated: id => App.setDefaultServer(id)
         }
 
@@ -1199,12 +1211,14 @@ Item {
         App.saveTableState(key, {
                                "columns": table.visibleColumns,
                                "sortRole": App.filtered.sortRoleName,
-                               "sortOrder": App.filtered.sortOrder
+                               "sortOrder": App.filtered.sortOrder,
+                               "railFolded": root.railFolded
                            });
     }
 
     function restoreTableState(): void {
         const state = App.tableState(App.tableStateKey());
+        root.railFolded = state.railFolded !== undefined ? state.railFolded : [];
         if (state.columns !== undefined && state.columns.length > 0)
             table.visibleColumns = state.columns;
         if (state.sortRole !== undefined && String(state.sortRole).length > 0) {
