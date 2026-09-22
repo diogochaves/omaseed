@@ -68,6 +68,8 @@ TestCase {
         view.tagPalette.close();
         view.sortPalette.close();
         view.columnsPalette.close();
+        view.moreMenu.close();
+        view.globalLimitsSheet.close();
         view.helpOpen = false;
         view.details.collapsed = false;
         view.details.activateTab(0);
@@ -199,6 +201,26 @@ TestCase {
         keyClick(Qt.Key_Comma, Qt.ControlModifier);
         compare(settingsSpy.count, 1);
         compare(view.columnsPalette.opened, false);
+    }
+
+    // docs/08 §3: ctrl+. opens the ⋯ menu under its button; its rows reach the limits sheet,
+    // the columns palette and select-all.
+    function test_ctrl_period_opens_the_more_menu_and_its_rows_run() {
+        keyClick(Qt.Key_Period, Qt.ControlModifier);
+        compare(view.moreMenu.opened, true);
+        compare(view.activeOverlay, view.moreMenu);
+
+        view.moreAction("altLimits");
+        compare(view.moreMenu.opened, false);
+        compare(view.globalLimitsSheet.opened, true);
+        // The demo answers with its own alt limits (1 MB/s, 200 KB/s).
+        tryCompare(view.globalLimitsSheet, "loaded", true);
+        compare(view.globalLimitsSheet.altDownloadField.text, "1024");
+        compare(view.globalLimitsSheet.downloadField.text, "");
+        view.globalLimitsSheet.close();
+
+        view.moreAction("selectAll");
+        compare(view.table.selectedHashes().length, App.filtered.count);
     }
 
     function test_pipe_opens_the_columns_palette() {

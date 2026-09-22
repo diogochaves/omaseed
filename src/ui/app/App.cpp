@@ -1483,6 +1483,51 @@ void App::setLocation(const QStringList &hashes, const QString &path)
         });
 }
 
+void App::requestGlobalLimits()
+{
+    if (m_demoMode) {
+        // The demo server's own alt limits (DemoData::serverState), no normal ones.
+        Q_EMIT globalLimitsLoaded(0, 0, 1024 * 1024, 200 * 1024);
+        return;
+    }
+    if (!m_hasServer)
+        return;
+    m_client->appPreferences()->then(this, [this](const QbtResult<QJsonObject> &result) {
+        if (result.isError()) {
+            Q_EMIT actionFailed(QStringLiteral("limits"), result.error().toString());
+            return;
+        }
+        // app/preferences carries these in bytes/s on 5.x (checked live on :8081).
+        const QJsonObject &prefs = result.value();
+        Q_EMIT globalLimitsLoaded(prefs.value(QStringLiteral("dl_limit")).toInteger(),
+                                  prefs.value(QStringLiteral("up_limit")).toInteger(),
+                                  prefs.value(QStringLiteral("alt_dl_limit")).toInteger(),
+                                  prefs.value(QStringLiteral("alt_up_limit")).toInteger());
+    });
+}
+
+void App::setGlobalLimits(qint64 dl, qint64 up, qint64 altDl, qint64 altUp)
+{
+    Q_EMIT globalLimitsRequested(dl, up, altDl, altUp);
+    if (demoGuard(QStringLiteral("globalLimits"), 1) || !m_hasServer)
+        return;
+
+    QJsonObject changes;
+    const auto put = [&changes](const char *key, qint64 value) {
+        if (value >= 0)
+            changes.insert(QLatin1String(key), value);
+    };
+    put("dl_limit", dl);
+    put("up_limit", up);
+    put("alt_dl_limit", altDl);
+    put("alt_up_limit", altUp);
+    if (changes.isEmpty())
+        return;
+    m_client->appSetPreferences(changes)->then(this, [this](const QbtResult<QByteArray> &result) {
+        reportActionResult(QStringLiteral("limits"), result);
+    });
+}
+
 void App::setLimits(const QStringList &hashes,
                     qint64 dl,
                     qint64 ul,

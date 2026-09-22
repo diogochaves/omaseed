@@ -110,10 +110,11 @@ TestCase {
                                            "open folder", "copy magnet · hash · name"]);
 
         const application = Keymap.helpRows("app");
-        compare(application.map(row => row.helpKeys), ["s", "A", ", ctrl+,", "|", "q", "ctrl+q",
+        compare(application.map(row => row.helpKeys), ["s", "A", ", ctrl+,", "|", "ctrl+.", "q",
+                                                       "ctrl+q",
                                                        "super+t"]);
         compare(application.map(row => row.help), ["sort", "alt-speed", "settings", "columns",
-                                                   "hide to tray", "quit",
+                                                   "more actions", "hide to tray", "quit",
                                                    "suggested Hyprland bind"]);
     }
 

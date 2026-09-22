@@ -599,6 +599,15 @@ QbtReply<QJsonObject> *QbtClient::appPreferences()
                                [path](const QByteArray &body) { return parseObject(body, path); });
 }
 
+QbtReply<QByteArray> *QbtClient::appSetPreferences(const QJsonObject &changes)
+{
+    QUrlQuery form;
+    addItem(form,
+            QStringLiteral("json"),
+            QString::fromUtf8(QJsonDocument(changes).toJson(QJsonDocument::Compact)));
+    return post(QStringLiteral("app/setPreferences"), form);
+}
+
 QbtReply<QJsonObject> *QbtClient::appBuildInfo()
 {
     RequestSpec spec;

@@ -121,6 +121,17 @@ QtObject {
             "helpKeys": "",
             "help": ""
         },
+        // The hero's ⋯ menu (docs/08 §3).
+        {
+            "area": "global",
+            "key": "ctrl+.",
+            "action": "more",
+            "label": qsTr("more"),
+            "column": "app",
+            "rank": 4.5, // after columns (4), before hide (5)
+            "helpKeys": "ctrl+.",
+            "help": qsTr("more actions")
+        },
         {
             "area": "global",
             "key": "|",

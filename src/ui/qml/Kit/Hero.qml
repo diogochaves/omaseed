@@ -42,6 +42,8 @@ Item {
     readonly property alias downStat: downStat
     /// The network word after the server line, for tests.
     readonly property alias networkLabel: networkLabel
+    /// The ⋯ button, so the caller can hang its menu under it.
+    readonly property alias moreButton: moreButton
     /// The alt-speed chip.
     readonly property alias altChip: altChip
     /// The `+`, so a test can see how it is drawn.
@@ -61,6 +63,7 @@ Item {
     signal addClicked
     signal altSpeedClicked
     signal helpClicked
+    signal moreClicked
     signal searchChanged(string text)
     signal searchCleared
     signal settingsClicked
@@ -227,6 +230,16 @@ Item {
                 tooltip: qsTr("settings")
 
                 onClicked: root.settingsClicked()
+            }
+
+            // docs/08 §3: global, occasional actions (the limits, columns, select all).
+            IconButton {
+                id: moreButton
+
+                glyph: Glyphs.more
+                tooltip: qsTr("more · ctrl+.")
+
+                onClicked: root.moreClicked()
             }
 
             IconButton {

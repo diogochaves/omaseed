@@ -31,12 +31,14 @@ qt_add_qml_module(omaseed-views
         EmptyState.qml
         FilteredEmpty.qml
         FirstRunPage.qml
+        GlobalLimitsSheet.qml
         HelpSheet.qml
         JumpPalette.qml
         LimitsSheet.qml
         LoadingState.qml
         LocationSheet.qml
         MainView.qml
+        MoreMenu.qml
         Rail.qml
         RailGroup.qml
         RenameSheet.qml

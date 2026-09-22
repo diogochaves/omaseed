@@ -6,6 +6,8 @@
 #include "core/QbtClient.hpp"
 
 #include <QEventLoop>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QSignalSpy>
 #include <QTcpServer>
 #include <QTcpSocket>
@@ -151,7 +153,33 @@ private slots:
     void addUrlsSendsStoppedAndPausedAndOptions();
     void a500OnActionIsNotRetried();
     void a409OnActionMapsToConflict();
+    void setPreferencesSendsOnlyTheChangedKeysAsJson();
 };
+
+void TestQbtClientActionsFake::setPreferencesSendsOnlyTheChangedKeysAsJson()
+{
+    FakeServer server;
+    server.setHandler([](const Recorded &, int) { return httpResponse(200, "OK", ""); });
+
+    QbtClient client;
+    client.setBaseUrl(server.url());
+
+    const QbtResult<QByteArray> result =
+        await(this,
+              client.appSetPreferences(QJsonObject{{QStringLiteral("dl_limit"), 51200},
+                                                   {QStringLiteral("alt_up_limit"), 0}}));
+    QVERIFY2(!result.isError(), qPrintable(result.error().toString()));
+    QCOMPARE(server.requests.at(0).method, QByteArray("POST"));
+    QVERIFY(server.requests.at(0).target.endsWith("/api/v2/app/setPreferences"));
+    const QUrlQuery body(QString::fromUtf8(server.requests.at(0).body));
+    const QJsonObject sent =
+        QJsonDocument::fromJson(
+            body.queryItemValue(QStringLiteral("json"), QUrl::FullyDecoded).toUtf8())
+            .object();
+    QCOMPARE(sent.size(), 2);
+    QCOMPARE(sent.value(QStringLiteral("dl_limit")).toInteger(), 51200);
+    QCOMPARE(sent.value(QStringLiteral("alt_up_limit")).toInteger(), 0);
+}
 
 void TestQbtClientActionsFake::hashesAreJoinedWithPipe()
 {

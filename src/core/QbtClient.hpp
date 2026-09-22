@@ -25,6 +25,7 @@
 //   GET  app/version                 appVersion()
 //   GET  app/webapiVersion           webApiVersion()
 //   GET  app/preferences             appPreferences()
+//   POST app/setPreferences          appSetPreferences(changes)  -- only the keys given
 //   GET  app/buildInfo               appBuildInfo()
 //   POST auth/login                  login()
 //   GET  sync/maindata               syncMainData(rid)
@@ -178,9 +179,11 @@ public:
     QbtReply<QByteArray> *post(const QString &path, const QUrlQuery &form = QUrlQuery());
 
     // --- typed calls --------------------------------------------------------------------
-    QbtReply<QString> *appVersion();              ///< GET app/version
-    QbtReply<QString> *webApiVersion();           ///< GET app/webapiVersion
-    QbtReply<QJsonObject> *appPreferences();      ///< GET app/preferences
+    QbtReply<QString> *appVersion();         ///< GET app/version
+    QbtReply<QString> *webApiVersion();      ///< GET app/webapiVersion
+    QbtReply<QJsonObject> *appPreferences(); ///< GET app/preferences
+    /// POST app/setPreferences with `json=<changes>`; the server leaves every other key alone.
+    QbtReply<QByteArray> *appSetPreferences(const QJsonObject &changes);
     QbtReply<QJsonObject> *appBuildInfo();        ///< GET app/buildInfo
     QbtReply<QJsonObject> *syncMainData(int rid); ///< GET sync/maindata?rid=
     QbtReply<QJsonArray> *torrentsInfo(const TorrentsInfoQuery &query = TorrentsInfoQuery());

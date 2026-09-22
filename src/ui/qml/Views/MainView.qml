@@ -44,6 +44,8 @@ Item {
     readonly property alias deleteConfirmPanel: deleteConfirmPanel
     readonly property alias locationSheetPanel: locationSheetPanel
     readonly property alias limitsSheetPanel: limitsSheetPanel
+    readonly property alias moreMenu: moreMenu
+    readonly property alias globalLimitsSheet: globalLimitsSheet
     readonly property alias renameSheetPanel: renameSheetPanel
     // T4.8: the rest of the overlays, for the stacking and focus cases of `tst_Main`.
     readonly property alias addSheet: addSheet
@@ -87,12 +89,16 @@ Item {
             return renameSheetPanel;
         if (limitsSheetPanel.opened)
             return limitsSheetPanel;
+        if (globalLimitsSheet.opened)
+            return globalLimitsSheet;
         if (locationSheetPanel.opened)
             return locationSheetPanel;
         if (deleteConfirmPanel.opened)
             return deleteConfirmPanel;
         if (actionsMenuPanel.opened)
             return actionsMenuPanel;
+        if (moreMenu.opened)
+            return moreMenu;
         return null;
     }
 
@@ -366,6 +372,9 @@ Item {
             case Qt.Key_Comma: // the desktop's settings key, beside bare `,` (Keymap "ctrl+,")
                 App.openSettings();
                 break;
+            case Qt.Key_Period:
+                root.openMoreMenu();
+                break;
             default:
                 return;
             }
@@ -423,6 +432,34 @@ Item {
                 return;
         }
         event.accepted = true;
+    }
+
+    /// The hero's ⋯ menu, hung under its button with their right edges flush.
+    function openMoreMenu(): void {
+        const button = hero.moreButton;
+        const corner = button.mapToItem(root, button.width, button.height);
+        moreMenu.openAt(Math.round(corner.x - moreMenu.menuWidth), Math.round(corner.y
+                                                                              + Theme.space(4)));
+    }
+
+    /// Runs a row of the ⋯ menu (docs/08 §3). The menu has closed and given the focus back.
+    function moreAction(action: string): void {
+        moreMenu.close();
+        switch (action) {
+        case "globalLimits":
+            globalLimitsSheet.openFor(false);
+            break;
+        case "altLimits":
+            globalLimitsSheet.openFor(true);
+            break;
+        case "columns":
+            columnsPalette.open();
+            break;
+        case "selectAll":
+            table.forceActiveFocus();
+            table.selectAll();
+            break;
+        }
     }
 
     /// Fig. 26's "act" column, for the table only: every one of these needs Phase 4, so they
@@ -605,6 +642,7 @@ Item {
         onAddClicked: App.addRequested()
         onAltSpeedClicked: App.toggleAltSpeed()
         onHelpClicked: root.helpOpen = true
+        onMoreClicked: root.openMoreMenu()
         onSearchChanged: text => App.filtered.text = text
         onSearchCleared: root.clearFilter()
         onSettingsClicked: App.openSettings()
@@ -943,6 +981,22 @@ Item {
             font.pixelSize: Theme.font.small
             text: root.footerNote
         }
+    }
+
+    MoreMenu {
+        id: moreMenu
+
+        anchors.fill: parent
+        z: 9
+
+        onActivated: action => root.moreAction(action)
+    }
+
+    GlobalLimitsSheet {
+        id: globalLimitsSheet
+
+        anchors.fill: parent
+        z: 9
     }
 
     ActionsMenu {

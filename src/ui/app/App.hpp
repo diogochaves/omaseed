@@ -748,6 +748,21 @@ Q_SIGNALS:
                          qint64 seedingMinutes,
                          QString shareLimitAction);
     // --- end T5.5 Q14 ----------------------------------------------------------------------
+
+    // --- docs/08 §3: the hero's ⋯ menu -----------------------------------------------------
+public:
+    /// Fetch the server's four global limits (bytes/s, 0 = none); they arrive through
+    /// `globalLimitsLoaded`. The demo answers with its own figures.
+    Q_INVOKABLE void requestGlobalLimits();
+    /// Write the global limits through app/setPreferences. -1 leaves a value as it is, 0 lifts
+    /// it; only the values that are not -1 are sent.
+    Q_INVOKABLE void setGlobalLimits(qint64 dl, qint64 up, qint64 altDl, qint64 altUp);
+
+Q_SIGNALS:
+    void globalLimitsLoaded(qint64 dl, qint64 up, qint64 altDl, qint64 altUp);
+    /// Every `setGlobalLimits()` call as received, before the demo guard (for the QML tests).
+    void globalLimitsRequested(qint64 dl, qint64 up, qint64 altDl, qint64 altUp);
+    // --- end docs/08 §3 ---------------------------------------------------------------------
 };
 
 } // namespace omaseed::app
