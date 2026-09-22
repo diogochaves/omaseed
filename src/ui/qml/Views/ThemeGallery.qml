@@ -401,11 +401,10 @@ Window {
                                 spacing: Theme.space(2)
                                 width: Theme.space(72)
 
-                                Text {
+                                Glyph {
                                     anchors.horizontalCenter: parent.horizontalCenter
                                     color: Theme.foreground
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.font.icon
+                                    pixelSize: Theme.font.icon
                                     text: glyphSample.modelData.glyph
                                 }
 

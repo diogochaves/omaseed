@@ -63,11 +63,10 @@ Rectangle {
         }
     }
 
-    Text {
+    Glyph {
         anchors.centerIn: parent
         color: root._glyphColor
-        font.family: Theme.fontFamily
-        font.pixelSize: Theme.font.icon
+        pixelSize: Theme.font.icon
         text: root.glyph
     }
 

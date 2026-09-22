@@ -352,11 +352,10 @@ Item {
                                                             radius: Theme.cornerRadius
                                                             visible: root.glyph.length > 0
 
-                                                            Text {
+                                                            Glyph {
                                                                 anchors.centerIn: parent
                                                                 color: Theme.foreground
-                                                                font.family: Theme.fontFamily
-                                                                font.pixelSize: Theme.font.subtitle
+                                                                pixelSize: Theme.font.subtitle
                                                                 text: root.glyph
                                                             }
                                                         }

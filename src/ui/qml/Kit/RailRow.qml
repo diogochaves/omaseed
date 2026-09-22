@@ -54,14 +54,13 @@ Rectangle {
         anchors.verticalCenter: parent.verticalCenter
         spacing: Theme.space(8)
 
-        Text {
+        Glyph {
             id: glyphText
 
             anchors.verticalCenter: parent.verticalCenter
             color: root.selected ? Theme.accent : Theme.dimForeground
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.font.small
-            horizontalAlignment: Text.AlignHCenter
+            height: Theme.font.small
+            pixelSize: Theme.font.small
             text: root.glyph
             width: Theme.space(14)
         }

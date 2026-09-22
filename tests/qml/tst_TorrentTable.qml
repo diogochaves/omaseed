@@ -16,6 +16,8 @@ TestCase {
     // what lets qmllint check the member access.
     property TableHeader headerProbe: null
     property Text cellProbe: null
+    // The status cell is a `Glyph` (text or SVG icon), not a `Text`.
+    property Glyph glyphProbe: null
     property ListView rowsProbe: null
     property TorrentTable spare: null
 
@@ -170,9 +172,10 @@ TestCase {
     }
 
     function test_status_cell_uses_the_state_glyph_and_colour() {
-        compare(cellText("statusGlyph_0"), Glyphs.statusDownloading);
-        testCase.cellProbe = findChild(table, "statusGlyph_0");
-        compare(testCase.cellProbe.color, Theme.stateDownloading);
+        testCase.glyphProbe = findChild(table, "statusGlyph_0");
+        verify(testCase.glyphProbe);
+        compare(testCase.glyphProbe.text, Glyphs.statusDownloading);
+        compare(testCase.glyphProbe.color, Theme.stateDownloading);
 
         let seeding = -1;
         for (let row = 0; row < App.filtered.count; ++row) {
@@ -182,9 +185,9 @@ TestCase {
             }
         }
         verify(seeding >= 0, "no seeding row in the demo library");
-        compare(cellText("statusGlyph_" + seeding), Glyphs.statusSeeding);
-        testCase.cellProbe = findChild(table, "statusGlyph_" + seeding);
-        compare(testCase.cellProbe.color, Theme.stateSeeding);
+        testCase.glyphProbe = findChild(table, "statusGlyph_" + seeding);
+        compare(testCase.glyphProbe.text, Glyphs.statusSeeding);
+        compare(testCase.glyphProbe.color, Theme.stateSeeding);
     }
 
     function test_move_cursor_moves_the_cursor_hash() {

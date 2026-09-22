@@ -721,17 +721,16 @@ Item {
                     width: root.columnLayout.status.w
                     x: root.columnLayout.status.x
 
-                    Text {
+                    Glyph {
                         id: statusGlyphText
 
                         anchors.left: parent.left
                         anchors.leftMargin: Theme.space(8)
                         anchors.verticalCenter: parent.verticalCenter
                         color: row.stateColor
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.font.body
-                        horizontalAlignment: Text.AlignHCenter
+                        height: Theme.font.body
                         objectName: "statusGlyph_" + row.index
+                        pixelSize: Theme.font.body
                         text: row.statusGlyph
                         width: Theme.space(12)
                     }

@@ -218,8 +218,8 @@ Item {
                         anchors.rightMargin: Theme.space(14)
                         spacing: Theme.space(10)
 
-                        Label {
-                            dim: true
+                        Glyph {
+                            color: Theme.dimForeground
                             text: root.glyph
                             visible: root.glyph.length > 0
                         }

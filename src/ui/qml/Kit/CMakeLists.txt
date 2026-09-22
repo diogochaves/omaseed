@@ -20,9 +20,11 @@ qt_add_qml_module(omaseed-kit
         Field.qml
         FormRow.qml
         Fuzzy.qml
+        Glyph.qml
         Glyphs.qml
         Hairline.qml
         Hero.qml
+        Icon.qml
         IconButton.qml
         KeyHints.qml
         KeyValue.qml

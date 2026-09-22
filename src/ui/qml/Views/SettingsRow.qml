@@ -61,12 +61,11 @@ Rectangle {
         anchors.verticalCenter: parent.verticalCenter
         spacing: Theme.space(12)
 
-        Text {
+        Glyph {
+            Layout.preferredHeight: Theme.font.small
             Layout.preferredWidth: Theme.space(16)
             color: Theme.dimForeground
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.font.small
-            horizontalAlignment: Text.AlignHCenter
+            pixelSize: Theme.font.small
             text: root.glyph
             visible: root.glyph.length > 0
         }

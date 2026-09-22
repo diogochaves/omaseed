@@ -1,6 +1,11 @@
 pragma Singleton
 import QtQuick
 
+// A value written "icon:<name>" is not a character: `Glyph.qml` draws it as the SVG `Icon` of
+// that name (docs/08 §2, option D). Those are the symbols the UI font does not carry, which
+// fontconfig would otherwise hand to another font (for ⚙ and ⌨, the colour emoji font).
+// Everything else stays a typographic symbol, drawn as text.
+//
 // The Nerd Font / Unicode glyph choices for every icon the spec v2 uses as a stand-in (spec
 // §1–7, plan §7: "pick the Nerd Font equivalents once in Kit/Glyphs.qml"). The spec's own demo
 // script (docs/05-ui-spec-v2.html) already renders these as plain Unicode symbols in
@@ -18,12 +23,12 @@ QtObject {
 
     // ---- hero actions, spec §1 `.acts` ----------------------------------------------
     readonly property string add: "+"
-    readonly property string altSpeed: "⏷" // spec §1 `.btn.icon` alt-speed
-    readonly property string settings: "⚙"
+    readonly property string altSpeed: "icon:altSpeed" // spec §1 `.btn.icon` alt-speed
+    readonly property string settings: "icon:gear"
     readonly property string help: "?"
     readonly property string search: "/" // spec §1 `.field.search .dim`
-    readonly property string jump: "\u2315" // ⌕, spec §4 Fig. 12 `.palette .q .g`
-    readonly property string folder: "▤" // spec Fig. 13 category glyph
+    readonly property string jump: "icon:jump" // ⌕, spec §4 Fig. 12 `.palette .q .g`
+    readonly property string folder: "icon:folder" // spec Fig. 13 category glyph
 
     // ---- tray states, spec §6 Fig. 17 -------------------------------------------------
     readonly property string trayIdle: "◆"
@@ -40,10 +45,10 @@ QtObject {
     readonly property string statusStopped: "■"
     readonly property string statusActive: "●"
     readonly property string statusStalled: "◌"
-    readonly property string statusChecking: "⟳"
+    readonly property string statusChecking: "icon:checking"
     readonly property string statusErrored: "!"
     readonly property string statusQueued: "≡"
-    readonly property string category: "▤"
+    readonly property string category: "icon:folder"
     readonly property string tag: "#"
     readonly property string tracker: "◦"
 
@@ -58,11 +63,18 @@ QtObject {
     readonly property string dot: "●"
 
     // ---- settings nav, spec §5 Fig. 16 `.settings .nav .it .g` ------------------------
-    readonly property string server: "⛁" // also the server sheet's head, Fig. 9
+    readonly property string server: "icon:server" // also the server sheet's head, Fig. 9
     readonly property string notifications: "◔"
-    readonly property string keyboard: "⌨"
-    readonly property string appearance: "◐"
+    readonly property string keyboard: "icon:keyboard"
+    readonly property string appearance: "icon:appearance"
     readonly property string about: "i"
     readonly property string home: "⌂" // Fig. 16's path-mapping row, Fig. 7's head
     readonly property string plus: "+"
+
+    // ---- hero ⋯ menu, docs/08 §3 -------------------------------------------------------
+    readonly property string more: "icon:more"
+    readonly property string columns: "icon:columns"
+    readonly property string sidebar: "icon:sidebar"
+    readonly property string limits: "icon:limits"
+    readonly property string selectAll: "icon:selectAll"
 }

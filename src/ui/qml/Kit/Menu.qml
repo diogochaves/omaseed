@@ -234,10 +234,10 @@ Item {
                                     spacing: Theme.space(8)
                                     visible: !menuRow.separator
 
-                                    Label {
+                                    Glyph {
+                                        Layout.preferredHeight: Theme.font.body
                                         Layout.preferredWidth: Theme.space(14)
-                                        dim: true
-                                        horizontalAlignment: Text.AlignHCenter
+                                        color: Theme.dimForeground
                                         text: menuRow.modelData.glyph !== undefined
                                               ? menuRow.modelData.glyph : ""
                                         visible: text.length > 0

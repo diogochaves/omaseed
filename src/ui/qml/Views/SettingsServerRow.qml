@@ -65,10 +65,8 @@ Rectangle {
             visible: !root.dashed
         }
 
-        Text {
+        Glyph {
             color: Theme.dimForeground
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.font.body
             text: root.glyph
             visible: root.dashed && root.glyph.length > 0
         }

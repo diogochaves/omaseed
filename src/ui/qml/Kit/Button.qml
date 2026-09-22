@@ -89,13 +89,12 @@ Rectangle {
         anchors.centerIn: parent
         spacing: Theme.space(6)
 
-        Text {
+        Glyph {
             id: glyphLabel
 
             anchors.verticalCenter: parent.verticalCenter
             color: root._textColor
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.font.icon
+            pixelSize: Theme.font.icon
             text: root.glyph
             visible: root.glyph.length > 0
         }
