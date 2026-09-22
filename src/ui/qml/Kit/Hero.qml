@@ -3,7 +3,7 @@ import QtQuick
 import QtQuick.Layouts
 import Omaseed.Kit
 
-// The hero row (spec v2 §1 Fig. 1 `.hero`): mark in an outlined square, app name with a
+// The hero row (spec v2 §1 Fig. 1 `.hero`): the mark, app name with a
 // tracked server caption and status dot beneath, two headline speed `Stat`s, a search `Field`
 // with a `/` hint and live count, four glyph `IconButton`s, and a hairline rule underneath.
 // Only `Theme` tokens; the caller owns state and reacts to the signals.
@@ -91,23 +91,16 @@ Item {
         anchors.topMargin: Theme.space(12)
         spacing: Theme.space(14)
 
-        Rectangle {
+        Glyph {
             id: mark
 
             Layout.alignment: Qt.AlignVCenter
-            Layout.preferredHeight: Theme.space(28)
-            Layout.preferredWidth: Theme.space(28)
-            border.color: (root.connected || root.syncing
-                           || !root.serverConfigured) ? Theme.accent : Theme.red
-            border.width: 1
-            color: "transparent"
-
-            Glyph {
-                anchors.centerIn: parent
-                color: mark.border.color
-                pixelSize: Theme.font.title
-                text: Glyphs.mark
-            }
+            Layout.preferredHeight: Theme.space(24)
+            Layout.preferredWidth: Theme.space(24)
+            color: (root.connected || root.syncing || !root.serverConfigured) ? Theme.accent
+                                                                              : Theme.red
+            pixelSize: Theme.space(24)
+            text: Glyphs.mark
         }
 
         Column {

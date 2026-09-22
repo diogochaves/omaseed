@@ -31,19 +31,12 @@ Window {
 
         spacing: Theme.space(8)
 
-        Rectangle {
-            Layout.preferredHeight: Theme.space(20)
-            Layout.preferredWidth: Theme.space(20)
-            border.color: heroLine.markColor
-            border.width: 1
-            color: "transparent"
-
-            Glyph {
-                anchors.centerIn: parent
-                color: heroLine.markColor
-                pixelSize: Theme.font.body
-                text: Glyphs.mark
-            }
+        Glyph {
+            Layout.preferredHeight: Theme.space(18)
+            Layout.preferredWidth: Theme.space(18)
+            color: heroLine.markColor
+            pixelSize: Theme.space(18)
+            text: Glyphs.mark
         }
 
         Text {
