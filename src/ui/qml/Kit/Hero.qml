@@ -27,6 +27,8 @@ Item {
     readonly property alias statusDot: statusDot
     /// The download figure, so a test can see which side `speedsAlignment` put the pair on.
     readonly property alias downStat: downStat
+    /// The `+`, so a test can see how it is drawn.
+    readonly property alias addButton: addButton
     property int searchCount: 0
     /// What the field's trailing count prints. Fig. 1 shows the bare count, Fig. 24 shows
     /// "0 of 142"; the caller decides, and the plain count is the default.
@@ -165,8 +167,12 @@ Item {
             spacing: Theme.space(2)
 
             IconButton {
-                accent: true // `.btn.icon.on` in Fig. 1: adding is the hero's one bright action
+                id: addButton
+
+                // Fig. 1 draws `.btn.icon.on`, the bare accent glyph; beside the other icons it
+                // did not read as a button. The kit's primary outline does (docs/08 §3, REVIEW §9).
                 glyph: Glyphs.add
+                primary: true
                 tooltip: qsTr("add")
 
                 onClicked: root.addClicked()

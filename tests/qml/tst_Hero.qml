@@ -24,6 +24,14 @@ TestCase {
         compare(lastText, "fedora 45");
     }
 
+    // docs/08 §3: the `+` carries the kit's primary outline so it reads as a button.
+    function test_add_is_a_primary_outline() {
+        const hero = createTemporaryObject(heroComponent, testCase);
+        verify(hero.addButton.primary);
+        compare(hero.addButton.border.color, Theme.accent);
+        compare(hero.addButton.border.width, 1);
+    }
+
     function test_emits_search_cleared() {
         const hero = createTemporaryObject(heroComponent, testCase);
         let cleared = 0;
