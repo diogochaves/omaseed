@@ -1913,6 +1913,93 @@ void App::setSpeedsAlignment(const QString &side)
     Q_EMIT settingsChanged();
 }
 
+namespace {
+
+/// `value` when it is one of `allowed`, otherwise the first of them (the default).
+QString oneOf(const QString &value, const QStringList &allowed)
+{
+    return allowed.contains(value) ? value : allowed.constFirst();
+}
+
+const QStringList kRailScrollHints{
+    QStringLiteral("chevrons"), QStringLiteral("fade"), QStringLiteral("scrollbar")};
+const QStringList kTrackerHostStyles{
+    QStringLiteral("prefix"), QStringLiteral("left"), QStringLiteral("right")};
+
+int tintStep(int percent)
+{
+    return percent == 4 || percent == 8 ? percent : 0;
+}
+
+} // namespace
+
+QString App::railScrollHint() const
+{
+    const_cast<App *>(this)->loadSettings();
+    return m_railScrollHint;
+}
+
+void App::setRailScrollHint(const QString &hint)
+{
+    loadSettings();
+    const QString wanted = oneOf(hint, kRailScrollHints);
+    if (m_railScrollHint == wanted)
+        return;
+    m_railScrollHint = wanted;
+    saveSettings();
+    Q_EMIT settingsChanged();
+}
+
+int App::surfaceTint() const
+{
+    const_cast<App *>(this)->loadSettings();
+    return m_surfaceTint;
+}
+
+void App::setSurfaceTint(int percent)
+{
+    loadSettings();
+    const int wanted = tintStep(percent);
+    if (m_surfaceTint == wanted)
+        return;
+    m_surfaceTint = wanted;
+    saveSettings();
+    Q_EMIT settingsChanged();
+}
+
+QString App::trackerHostStyle() const
+{
+    const_cast<App *>(this)->loadSettings();
+    return m_trackerHostStyle;
+}
+
+void App::setTrackerHostStyle(const QString &style)
+{
+    loadSettings();
+    const QString wanted = oneOf(style, kTrackerHostStyles);
+    if (m_trackerHostStyle == wanted)
+        return;
+    m_trackerHostStyle = wanted;
+    saveSettings();
+    Q_EMIT settingsChanged();
+}
+
+bool App::railHidden() const
+{
+    const_cast<App *>(this)->loadSettings();
+    return m_railHidden;
+}
+
+void App::setRailHidden(bool hidden)
+{
+    loadSettings();
+    if (m_railHidden == hidden)
+        return;
+    m_railHidden = hidden;
+    saveSettings();
+    Q_EMIT settingsChanged();
+}
+
 QString App::trayIconMode() const
 {
     const_cast<App *>(this)->loadSettings();
@@ -1976,6 +2063,12 @@ void App::loadSettings()
                 QLatin1String("right")
             ? QStringLiteral("right")
             : QStringLiteral("left");
+    m_railScrollHint =
+        oneOf(appearance.value(QStringLiteral("railScrollHint")).toString(), kRailScrollHints);
+    m_surfaceTint = tintStep(appearance.value(QStringLiteral("surfaceTint")).toInt(0));
+    m_trackerHostStyle =
+        oneOf(appearance.value(QStringLiteral("trackerHostStyle")).toString(), kTrackerHostStyles);
+    m_railHidden = appearance.value(QStringLiteral("railHidden")).toBool(false);
 }
 
 void App::saveSettings()
@@ -1991,6 +2084,10 @@ void App::saveSettings()
     appearance[QStringLiteral("windowAlphaOverride")] = m_windowAlphaOverride;
     appearance[QStringLiteral("trayIconMode")] = m_trayIconMode;
     appearance[QStringLiteral("speedsAlignment")] = m_speedsAlignment;
+    appearance[QStringLiteral("railScrollHint")] = m_railScrollHint;
+    appearance[QStringLiteral("surfaceTint")] = m_surfaceTint;
+    appearance[QStringLiteral("trackerHostStyle")] = m_trackerHostStyle;
+    appearance[QStringLiteral("railHidden")] = m_railHidden;
     StateFile::writeSection(QStringLiteral("appearance"), appearance);
 }
 

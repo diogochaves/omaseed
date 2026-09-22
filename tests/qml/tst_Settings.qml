@@ -314,7 +314,7 @@ TestCase {
 
         // Appearance: the tray-icon row cycles the three chips.
         keyClick(Qt.Key_5);
-        compare(modal.paneRowCount, 5);
+        compare(modal.paneRowCount, 8);
         const tray = App.trayIconMode;
         modal.paneCursor = 3;
         modal.area = "pane";
@@ -328,12 +328,29 @@ TestCase {
         verify(App.speedsAlignment !== speeds);
         compare(App.speedsAlignment, speeds === "left" ? "right" : "left");
 
+        // ...and the last three cycle the rail's looks (docs/08 §5).
+        const hint = App.railScrollHint;
+        const tint = App.surfaceTint;
+        const hosts = App.trackerHostStyle;
+        modal.paneCursor = 5;
+        modal.activateRow();
+        verify(App.railScrollHint !== hint);
+        modal.paneCursor = 6;
+        modal.activateRow();
+        verify(App.surfaceTint !== tint);
+        modal.paneCursor = 7;
+        modal.activateRow();
+        verify(App.trackerHostStyle !== hosts);
+
         // Put everything back: App persists these to state.json.
         App.showServersGroup = servers;
         App.pathMapEnabled = mapping;
         App.setNotificationEnabled("completed", completed);
         App.trayIconMode = tray;
         App.speedsAlignment = speeds;
+        App.railScrollHint = hint;
+        App.surfaceTint = tint;
+        App.trackerHostStyle = hosts;
     }
 
     // T5.5 (Q16): the low-disk threshold is the fourth row of the Notifications pane, a

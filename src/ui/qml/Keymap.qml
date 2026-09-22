@@ -148,6 +148,18 @@ QtObject {
             "helpKeys": "",
             "help": ""
         },
+        // docs/08 §5: hide or show the rail (the sidebar key of most editors).
+        {
+            "area": "global",
+            "key": "ctrl+b",
+            "action": "toggleRail",
+            "label": qsTr("rail"),
+            "column": "view",
+            "rank": 5,
+            "helpKeys": "ctrl+b",
+            "help": qsTr("rail"),
+            "about": qsTr("Hide or show the rail")
+        },
         // The hero's ⋯ menu (docs/08 §3).
         {
             "area": "global",

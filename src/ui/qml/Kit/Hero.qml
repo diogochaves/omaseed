@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Layouts
 import Omaseed.Kit
@@ -56,6 +57,10 @@ Item {
     property string serverLine: ""
     property string upSpeed: "—"
 
+    /// Filters to show as removable chips before the search field, `[{key, glyph, text}]`:
+    /// the caller fills it while the rail that would show them is hidden (docs/08 §5).
+    property var filterChips: []
+
     /// "left" (beside the server name, the spec's placement) or "right" (against the search
     /// field). Anything else reads as "left".
     property string speedsAlignment: "left"
@@ -64,6 +69,8 @@ Item {
     signal altSpeedClicked
     signal helpClicked
     signal moreClicked
+    /// The ✕ of one of `filterChips`.
+    signal filterChipCleared(string key)
     signal searchChanged(string text)
     signal searchCleared
     signal settingsClicked
@@ -176,6 +183,23 @@ Item {
 
         Item {
             Layout.fillWidth: root.speedsAlignment !== "right"
+        }
+
+        Repeater {
+            model: root.filterChips
+
+            Chip {
+                id: filterChip
+
+                required property var modelData
+
+                Layout.alignment: Qt.AlignVCenter
+                glyph: filterChip.modelData.glyph
+                objectName: "filterChip_" + filterChip.modelData.key
+                text: filterChip.modelData.text + "  " + Glyphs.close
+
+                onClicked: root.filterChipCleared(filterChip.modelData.key)
+            }
         }
 
         Field {

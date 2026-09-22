@@ -379,6 +379,9 @@ Item {
             case Qt.Key_Period:
                 root.openMoreMenu();
                 break;
+            case Qt.Key_B:
+                root.toggleRail();
+                break;
             default:
                 return;
             }
@@ -477,6 +480,9 @@ Item {
         case "more":
             root.openMoreMenu();
             return;
+        case "toggleRail":
+            root.toggleRail();
+            return;
         case "hide":
             root.hideRequested();
             return;
@@ -495,6 +501,67 @@ Item {
             return;
         default:
             return;
+        }
+    }
+
+    /// `ctrl+b` (docs/08 §5): hide or show the rail. Hiding it never hides a filter: while it
+    /// is gone, each active filter shows as a chip in the hero.
+    function toggleRail(): void {
+        App.railHidden = !App.railHidden;
+        if (App.railHidden && rail.activeFocus)
+            table.forceActiveFocus();
+    }
+
+    /// The filters the rail would show as selected, as the hero's chips while it is hidden.
+    readonly property var activeFilterChips: {
+        if (!App.railHidden)
+            return [];
+        const chips = [];
+        const status = App.filtered.statusFilter;
+        if (status !== TorrentFilterModel.All)
+            chips.push({
+                           "key": "status",
+                           "glyph": rail.statusRows[status].glyph,
+                           "text": rail.statusRows[status].text
+                       });
+        const category = App.filtered.category;
+        if (category !== undefined)
+            chips.push({
+                           "key": "category",
+                           "glyph": Glyphs.category,
+                           "text": category === "" ? qsTr("no category") : category
+                       });
+        const tag = App.filtered.tag;
+        if (tag !== undefined)
+            chips.push({
+                           "key": "tag",
+                           "glyph": Glyphs.tag,
+                           "text": tag === "" ? qsTr("untagged") : tag
+                       });
+        const tracker = App.filtered.tracker;
+        if (tracker !== undefined)
+            chips.push({
+                           "key": "tracker",
+                           "glyph": Glyphs.tracker,
+                           "text": rail.trackerText(tracker)
+                       });
+        return chips;
+    }
+
+    function clearOneFilter(key: string): void {
+        switch (key) {
+        case "status":
+            App.filtered.statusFilter = TorrentFilterModel.All;
+            break;
+        case "category":
+            App.filtered.clearCategory();
+            break;
+        case "tag":
+            App.filtered.clearTag();
+            break;
+        case "tracker":
+            App.filtered.clearTracker();
+            break;
         }
     }
 
@@ -522,6 +589,9 @@ Item {
         case "selectAll":
             table.forceActiveFocus();
             table.selectAll();
+            break;
+        case "toggleRail":
+            root.toggleRail();
             break;
         }
     }
@@ -671,6 +741,8 @@ Item {
     Hero {
         id: hero
 
+        filterChips: root.activeFilterChips
+
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
@@ -706,7 +778,15 @@ Item {
         onAddClicked: App.addRequested()
         onAltSpeedClicked: App.toggleAltSpeed()
         onHelpClicked: root.helpOpen = true
+        onFilterChipCleared: key => root.clearOneFilter(key)
         onMoreClicked: root.openMoreMenu()
+
+        Rectangle {
+            anchors.fill: parent
+            color: Theme.fill(Theme.fillIdle)
+            visible: App.surfaceTint === 8
+            z: -1
+        }
         onSearchChanged: text => App.filtered.text = text
         onSearchCleared: root.clearFilter()
         onSettingsClicked: App.openSettings()
@@ -760,9 +840,21 @@ Item {
             serverList: App.serverList
             tags: App.tags
             trackers: App.trackers
-            visible: !root.libraryEmpty && !root.firstSync
+            // docs/08 §5: `ctrl+b` hides it; the filters it holds show as chips in the hero.
+            visible: !root.libraryEmpty && !root.firstSync && !App.railHidden
 
             collapsedGroups: root.railFolded
+            scrollHint: App.railScrollHint
+            trackerHostStyle: App.trackerHostStyle
+
+            // docs/08 §5: Settings -> Appearance may tint the side surfaces, in the plan's own
+            // fill steps: 4 % puts the rail and details on one step, 8 % puts the rail on two.
+            Rectangle {
+                anchors.fill: parent
+                color: Theme.fill(App.surfaceTint === 8 ? Theme.fillHover : Theme.fillIdle)
+                visible: App.surfaceTint > 0
+                z: -1
+            }
 
             onFocusTable: table.forceActiveFocus()
             onGroupToggled: group => {
@@ -823,7 +915,10 @@ Item {
                     if (!details.collapsed)
                         details.forceActiveFocus();
                 }
-                onFocusRail: rail.forceActiveFocus()
+                onFocusRail: {
+                    App.railHidden = false; // `h` brings a hidden rail back
+                    rail.forceActiveFocus();
+                }
                 // The inline editor is the primary rename; the sheet (`renameSheetPanel`) is
                 // only the menu/multi-selection fallback.
                 onRenameRequested: (hash, name) => App.rename(hash, name)
@@ -872,6 +967,13 @@ Item {
 
             onFocusTable: table.forceActiveFocus()
             onCopyRequested: text => console.log("copy:", text)
+
+            Rectangle {
+                anchors.fill: parent
+                color: Theme.fill(Theme.fillIdle)
+                visible: App.surfaceTint > 0
+                z: -1
+            }
             onOpenFolderRequested: path => console.log("open folder:", path)
             onPeerAction: (action, address) => console.log("peer:", action, address)
             onTrackerAction: (action, url) => console.log("tracker:", action, url)
@@ -1079,6 +1181,7 @@ Item {
         id: moreMenu
 
         anchors.fill: parent
+        railHidden: App.railHidden
         z: 9
 
         onActivated: action => root.moreAction(action)

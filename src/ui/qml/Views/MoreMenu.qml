@@ -9,6 +9,9 @@ import Omaseed.Kit
 Menu {
     id: root
 
+    /// The rail row reads "show rail" while it is hidden.
+    property bool railHidden: false
+
     menuWidth: Theme.space(280)
     items: [
         {
@@ -35,6 +38,12 @@ Menu {
             "glyph": Glyphs.selectAll,
             "key": "ctrl+a",
             "action": "selectAll"
+        },
+        {
+            "text": root.railHidden ? qsTr("show rail") : qsTr("hide rail"),
+            "glyph": Glyphs.sidebar,
+            "key": "ctrl+b",
+            "action": "toggleRail"
         }
     ]
 }

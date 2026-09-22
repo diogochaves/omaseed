@@ -404,6 +404,29 @@ public:
     QString speedsAlignment() const;
     void setSpeedsAlignment(const QString &side);
 
+    // docs/08 §5 — the rail's look, under Settings -> Appearance.
+    /// How the rail says there is more above or below: "chevrons" (a counted line at each
+    /// end, the default), "fade" or "scrollbar". Anything else reads back as "chevrons".
+    Q_PROPERTY(
+        QString railScrollHint READ railScrollHint WRITE setRailScrollHint NOTIFY settingsChanged)
+    QString railScrollHint() const;
+    void setRailScrollHint(const QString &hint);
+    /// The fill the rail and details sit on, as a percentage of the foreground: 0 (none, the
+    /// default), 4 or 8 — the plan's own fill steps, so every theme still holds together.
+    Q_PROPERTY(int surfaceTint READ surfaceTint WRITE setSurfaceTint NOTIFY settingsChanged)
+    int surfaceTint() const;
+    void setSurfaceTint(int percent);
+    /// How a tracker host is fitted into the rail: "prefix" (drop a leading tracker./announce./
+    /// open., the default), "left" (elide the start) or "right" (elide the end).
+    Q_PROPERTY(QString trackerHostStyle READ trackerHostStyle WRITE setTrackerHostStyle NOTIFY
+                   settingsChanged)
+    QString trackerHostStyle() const;
+    void setTrackerHostStyle(const QString &style);
+    /// The rail is hidden (`ctrl+b`); remembered across runs.
+    Q_PROPERTY(bool railHidden READ railHidden WRITE setRailHidden NOTIFY settingsChanged)
+    bool railHidden() const;
+    void setRailHidden(bool hidden);
+
     /// "auto" | "always" | "never" (plan Phase 6 T6.3). `auto` behaves as `always` until the
     /// companion widget exists; the row is here now because it is cheap.
     Q_PROPERTY(QString trayIconMode READ trayIconMode WRITE setTrayIconMode NOTIFY settingsChanged)
@@ -454,6 +477,10 @@ private:
     int m_windowAlphaOverride = 0;
     QString m_trayIconMode = QStringLiteral("auto");
     QString m_speedsAlignment = QStringLiteral("left");
+    QString m_railScrollHint = QStringLiteral("chevrons");
+    int m_surfaceTint = 0;
+    QString m_trackerHostStyle = QStringLiteral("prefix");
+    bool m_railHidden = false;
     bool m_settingsLoaded = false;
     // --- end T4.5 --------------------------------------------------------------------------
     // --- T4.3: torrent actions ---

@@ -76,7 +76,9 @@ Item {
         case 2:
             return 4; // three toggles, then the low-disk threshold field
         case 4:
-            return 5; // theme, base size, transparency, tray icon, speed alignment
+            // theme, base size, transparency, tray icon, speed alignment, then the rail's scroll
+            // hint, surface tint and tracker hosts (docs/08 §5)
+            return 8;
         case 5:
             return 1; // the copyable `omarchy plugin add` line
         default:
@@ -144,10 +146,29 @@ Item {
                 App.trayIconMode = root._nextTrayMode();
             else if (root.paneCursor === 4)
                 App.speedsAlignment = App.speedsAlignment === "left" ? "right" : "left";
+            else if (root.paneCursor === 5)
+                App.railScrollHint = root._next(root.scrollHints, App.railScrollHint);
+            else if (root.paneCursor === 6)
+                App.surfaceTint = root._next(root.tints, App.surfaceTint);
+            else if (root.paneCursor === 7)
+                App.trackerHostStyle = root._next(root.hostStyles, App.trackerHostStyle);
             return;
         }
         if (root.paneIndex === 5)
             root.copyPluginLine();
+    }
+
+    // docs/08 §5: the rail's three looks, as [value, chip text].
+    readonly property var scrollHints: [["chevrons", qsTr("counted")], ["fade", qsTr("fade")],
+        ["scrollbar", qsTr("scrollbar")]]
+    readonly property var tints: [[0, qsTr("none")], [4, qsTr("4 %")], [8, qsTr("8 %")]]
+    readonly property var hostStyles: [["prefix", qsTr("drop prefix")], ["left", qsTr("cut start")],
+        ["right", qsTr("cut end")]]
+
+    /// The value after `current` in `options` (`[[value, text]]`), wrapping round.
+    function _next(options: var, current: var): var {
+        const at = options.findIndex(option => option[0] === current);
+        return options[(at + 1) % options.length][0];
     }
 
     /// The id of the server the Servers pane's cursor is on, or "" on the add row.
@@ -970,6 +991,105 @@ Item {
                                             text: speedsChip.modelData
 
                                             onClicked: App.speedsAlignment = speedsChip.modelData
+                                        }
+                                    }
+                                }
+                            }
+
+                            SettingsRow {
+                                Layout.fillWidth: true
+                                description: qsTr("how the rail says there is more above or below it.")
+                                glyph: Glyphs.chevronDown
+                                hasCursor: root.area === "pane" && root.paneCursor === 5
+                                title: qsTr("Rail scroll hint")
+
+                                onClicked: {
+                                    root.paneCursor = 5;
+                                    root.area = "pane";
+                                    App.railScrollHint = root._next(root.scrollHints, App.railScrollHint);
+                                }
+
+                                RowLayout {
+                                    spacing: Theme.space(6)
+
+                                    Repeater {
+                                        model: root.scrollHints
+
+                                        Chip {
+                                            id: hintChip
+
+                                            required property var modelData
+
+                                            selected: App.railScrollHint === hintChip.modelData[0]
+                                            text: hintChip.modelData[1]
+
+                                            onClicked: App.railScrollHint = hintChip.modelData[0]
+                                        }
+                                    }
+                                }
+                            }
+
+                            SettingsRow {
+                                Layout.fillWidth: true
+                                description: qsTr("a light fill behind the rail and the details.")
+                                glyph: Glyphs.sidebar
+                                hasCursor: root.area === "pane" && root.paneCursor === 6
+                                title: qsTr("Surface tint")
+
+                                onClicked: {
+                                    root.paneCursor = 6;
+                                    root.area = "pane";
+                                    App.surfaceTint = root._next(root.tints, App.surfaceTint);
+                                }
+
+                                RowLayout {
+                                    spacing: Theme.space(6)
+
+                                    Repeater {
+                                        model: root.tints
+
+                                        Chip {
+                                            id: tintChip
+
+                                            required property var modelData
+
+                                            selected: App.surfaceTint === tintChip.modelData[0]
+                                            text: tintChip.modelData[1]
+
+                                            onClicked: App.surfaceTint = tintChip.modelData[0]
+                                        }
+                                    }
+                                }
+                            }
+
+                            SettingsRow {
+                                Layout.fillWidth: true
+                                description: qsTr("how a long tracker host fits the rail.")
+                                glyph: Glyphs.tracker
+                                hasCursor: root.area === "pane" && root.paneCursor === 7
+                                title: qsTr("Tracker hosts")
+
+                                onClicked: {
+                                    root.paneCursor = 7;
+                                    root.area = "pane";
+                                    App.trackerHostStyle = root._next(root.hostStyles, App.trackerHostStyle);
+                                }
+
+                                RowLayout {
+                                    spacing: Theme.space(6)
+
+                                    Repeater {
+                                        model: root.hostStyles
+
+                                        Chip {
+                                            id: hostChip
+
+                                            required property var modelData
+
+                                            selected: App.trackerHostStyle === hostChip.modelData[0]
+                                            text: hostChip.modelData[1]
+
+                                            onClicked: App.trackerHostStyle = hostChip.modelData[0]
                                         }
                                     }
                                 }

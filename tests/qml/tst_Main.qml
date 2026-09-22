@@ -71,6 +71,7 @@ TestCase {
         view.moreMenu.close();
         view.globalLimitsSheet.close();
         view.helpOpen = false;
+        App.railHidden = false;
         view.details.collapsed = false;
         view.details.activateTab(0);
         view.table.cancelRename();
@@ -245,6 +246,26 @@ TestCase {
 
         view.moreAction("selectAll");
         compare(view.table.selectedHashes().length, App.filtered.count);
+    }
+
+    // docs/08 §5: ctrl+b hides the rail; its filters then show as chips in the hero, and a
+    // chip's ✕ clears that filter. `h` from the table brings the rail back.
+    function test_ctrl_b_hides_the_rail_and_its_filters_become_chips() {
+        App.filtered.statusFilter = TorrentFilterModel.Downloading;
+        keyClick(Qt.Key_B, Qt.ControlModifier);
+        compare(App.railHidden, true);
+        compare(view.rail.visible, false);
+        compare(view.activeFilterChips.length, 1);
+        compare(view.activeFilterChips[0].key, "status");
+
+        view.clearOneFilter("status");
+        compare(App.filtered.statusFilter, TorrentFilterModel.All);
+        compare(view.activeFilterChips.length, 0);
+
+        view.table.forceActiveFocus();
+        keyClick("h");
+        compare(App.railHidden, false);
+        verify(view.rail.activeFocus);
     }
 
     function test_pipe_opens_the_columns_palette() {

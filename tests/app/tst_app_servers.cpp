@@ -261,6 +261,21 @@ void TestAppServers::appearanceOverridesReachTheTheme()
     QCOMPARE(app.speedsAlignment(), QStringLiteral("left"));
     app.setSpeedsAlignment(QStringLiteral("right"));
 
+    // docs/08 §5: the rail's three looks and its hidden flag; unknown values read as the
+    // defaults.
+    QCOMPARE(app.railScrollHint(), QStringLiteral("chevrons"));
+    app.setRailScrollHint(QStringLiteral("sideways"));
+    QCOMPARE(app.railScrollHint(), QStringLiteral("chevrons"));
+    app.setRailScrollHint(QStringLiteral("fade"));
+    QCOMPARE(app.surfaceTint(), 0);
+    app.setSurfaceTint(5);
+    QCOMPARE(app.surfaceTint(), 0);
+    app.setSurfaceTint(8);
+    QCOMPARE(app.trackerHostStyle(), QStringLiteral("prefix"));
+    app.setTrackerHostStyle(QStringLiteral("left"));
+    QCOMPARE(app.railHidden(), false);
+    app.setRailHidden(true);
+
     // The General pane's two flags, the tray mode and the alignment round-trip through
     // state.json.
     app.setShowServersGroup(false);
@@ -271,6 +286,10 @@ void TestAppServers::appearanceOverridesReachTheTheme()
     QCOMPARE(reopened.pathMapEnabled(), false);
     QCOMPARE(reopened.trayIconMode(), QStringLiteral("never"));
     QCOMPARE(reopened.speedsAlignment(), QStringLiteral("right"));
+    QCOMPARE(reopened.railScrollHint(), QStringLiteral("fade"));
+    QCOMPARE(reopened.surfaceTint(), 8);
+    QCOMPARE(reopened.trackerHostStyle(), QStringLiteral("left"));
+    QCOMPARE(reopened.railHidden(), true);
     QCOMPARE(reopened.baseSizeOverride(), 0);
     QCOMPARE(reopened.followOmarchyTheme(), false);
 }

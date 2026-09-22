@@ -20,8 +20,15 @@ Rectangle {
     property int count: -1
     property bool selected: false
     property bool hasCursor: false
+    /// Cut the start of a name that does not fit rather than its end (a tracker host, whose
+    /// end is the part that tells two hosts apart).
+    property bool elideLeft: false
 
     signal clicked
+    /// The pointer came onto the row (true) or left it (false).
+    signal hoverChanged(bool hovering)
+
+    readonly property bool hovered: mouseArea.containsMouse
 
     readonly property bool hot: root.hasCursor || mouseArea.containsMouse
     /// True once the name no longer fits its column and Text.ElideRight has cut it — for
@@ -70,7 +77,7 @@ Rectangle {
 
             anchors.verticalCenter: parent.verticalCenter
             color: root.selected ? Theme.brightForeground : Theme.foreground
-            elide: Text.ElideRight
+            elide: root.elideLeft ? Text.ElideLeft : Text.ElideRight
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.body
             text: root.text
@@ -99,5 +106,6 @@ Rectangle {
         hoverEnabled: true
 
         onClicked: root.clicked()
+        onContainsMouseChanged: root.hoverChanged(mouseArea.containsMouse)
     }
 }

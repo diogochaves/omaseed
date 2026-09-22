@@ -158,6 +158,19 @@ TestCase {
         compare(rail._rowMap[rail.categoriesBase].item.text, "all");
     }
 
+    // docs/08 §5: "prefix" drops a leading tracker./announce./open. but never leaves a bare
+    // top-level domain; the elide styles print the host whole and let the row cut it.
+    function test_tracker_hosts_follow_the_host_style() {
+        const rail = createTemporaryObject(railComponent, testCase);
+        compare(rail.trackerHostStyle, "prefix");
+        compare(rail.trackerText("tracker.opentrackr.org"), "opentrackr.org");
+        compare(rail.trackerText("announce.example.net"), "example.net");
+        compare(rail.trackerText("tracker.org"), "tracker.org");
+        compare(rail.trackerText("archlinux.org"), "archlinux.org");
+        rail.trackerHostStyle = "left";
+        compare(rail.trackerText("tracker.opentrackr.org"), "tracker.opentrackr.org");
+    }
+
     function test_selecting_a_category_sets_filtered_category() {
         const rail = createTemporaryObject(railComponent, testCase);
         const moviesIndex = rail.categoriesBase + 2; // all, linux, movies
