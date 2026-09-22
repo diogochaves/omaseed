@@ -284,7 +284,7 @@ TestCase {
         compare(App.filtered.sortOrder, Qt.DescendingOrder, "a second enter reverses it back");
     }
 
-    // ---- columns (`ctrl+,`) ---------------------------------------------------------------
+    // ---- columns (`|`) -------------------------------------------------------------------
     function test_columns_toggle_hides_a_column_from_the_table() {
         columnsPalette.open();
         const etaRow = columnsPalette.items.find(item => item.key === "eta");

@@ -194,6 +194,18 @@ TestCase {
         compare(settingsSpy.count, 1);
     }
 
+    // docs/08 §4: `ctrl+,` is the desktop's settings key, so it opens them too.
+    function test_ctrl_comma_asks_for_settings() {
+        keyClick(Qt.Key_Comma, Qt.ControlModifier);
+        compare(settingsSpy.count, 1);
+        compare(view.columnsPalette.opened, false);
+    }
+
+    function test_pipe_opens_the_columns_palette() {
+        keyClick(Qt.Key_Bar, Qt.ShiftModifier);
+        compare(view.columnsPalette.opened, true);
+    }
+
     function test_q_hides_to_the_tray() {
         const hideSpy = createTemporaryQmlObject(
                   'import QtTest; SignalSpy { signalName: "hideRequested" }', testCase);

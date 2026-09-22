@@ -363,8 +363,8 @@ Item {
             case Qt.Key_K:
                 jumpPalette.open();
                 break;
-            case Qt.Key_Comma:
-                columnsPalette.open();
+            case Qt.Key_Comma: // the desktop's settings key, beside bare `,` (Keymap "ctrl+,")
+                App.openSettings();
                 break;
             default:
                 return;
@@ -395,6 +395,9 @@ Item {
             break;
         case Qt.Key_Comma:
             App.openSettings();
+            break;
+        case Qt.Key_Bar: // the columns palette: the pipe looks like a column rule
+            columnsPalette.open();
             break;
         case Qt.Key_Q:
             root.hideRequested();
@@ -977,7 +980,7 @@ Item {
     }
 
     // --- T4.4: palettes ---------------------------------------------------------------------
-    // Jump (`ctrl+k`), category (`C`), tags (`t`), sort (`s`) and columns (`ctrl+,`), plus the
+    // Jump (`ctrl+k`), category (`C`), tags (`t`), sort (`s`) and columns (`|`), plus the
     // table-state round trip through `state.json`. `App.categoryPickerRequested` /
     // `tagPickerRequested` are T4.3's seam (its `C`/`t` actions); the add sheet's `…` chips
     // open the same two palettes in `openForChoice` mode, which answers the caller instead of

@@ -105,17 +105,30 @@ QtObject {
             "label": qsTr("settings"),
             "column": "app",
             "rank": 3,
-            "helpKeys": ",",
+            "helpKeys": ", ctrl+,",
             "help": qsTr("settings")
         },
+        // `ctrl+,` is where the rest of the desktop keeps settings (GTK, macOS, VS Code,
+        // Strata), so it opens them here too; bare `,` stays the keyboard-first key. Fig. 26
+        // gave `ctrl+,` to Columns, which moved to `|` (docs/08 §4, REVIEW §9).
         {
             "area": "global",
             "key": "ctrl+,",
+            "action": "settings",
+            "label": qsTr("settings"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "global",
+            "key": "|",
             "action": "columns",
             "label": qsTr("columns"),
             "column": "app",
             "rank": 4,
-            "helpKeys": "ctrl+,",
+            "helpKeys": "|",
             "help": qsTr("columns")
         },
         {

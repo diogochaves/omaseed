@@ -13,7 +13,7 @@ TestCase {
     /// Every key of Fig. 26, in the figure's reading order.
     readonly property list<string> figureKeys: ["j", "k", "g", "G", "h", "l", "/", "0–9", "i", "1–4",
         "ctrl+k", "space", "v", "ctrl+a", "esc", "a", "enter", "p", "P", "d", "D", "c", "R", "C",
-        "t", "m", "L", "r", "[", "]", "o", "y", "Y", "s", "A", ",", "ctrl+,", "q", "ctrl+q", "?"]
+        "t", "m", "L", "r", "[", "]", "o", "y", "Y", "s", "A", ",", "ctrl+,", "|", "q", "ctrl+q", "?"]
 
     function test_every_figure_key_is_bound() {
         const bound = Keymap.entries.map(entry => entry.key);
@@ -54,6 +54,13 @@ TestCase {
         // It leads no help-sheet row: `?` is the key the footer and the sheet teach.
         compare(f1.column, "");
         compare(f1.helpKeys, "");
+    }
+
+    // docs/08 §4: `ctrl+,` joins `,` on Settings, and Columns moves to `|`.
+    function test_ctrl_comma_is_settings_and_columns_is_the_pipe() {
+        compare(Keymap.find("global", "ctrl+,").action, "settings");
+        compare(Keymap.find("global", ",").action, "settings");
+        compare(Keymap.find("global", "|").action, "columns");
     }
 
     function test_case_separates_the_stronger_variant() {
@@ -103,7 +110,7 @@ TestCase {
                                            "open folder", "copy magnet · hash · name"]);
 
         const application = Keymap.helpRows("app");
-        compare(application.map(row => row.helpKeys), ["s", "A", ",", "ctrl+,", "q", "ctrl+q",
+        compare(application.map(row => row.helpKeys), ["s", "A", ", ctrl+,", "|", "q", "ctrl+q",
                                                        "super+t"]);
         compare(application.map(row => row.help), ["sort", "alt-speed", "settings", "columns",
                                                    "hide to tray", "quit",

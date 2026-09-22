@@ -2,7 +2,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import Omaseed.Kit
 
-// `ctrl+,`: a multi-select over the table's columns. `space` toggles `table.visibleColumns`
+// `|`: a multi-select over the table's columns. `space` toggles `table.visibleColumns`
 // live, so the header changes under the palette as you go; Name can never be hidden (there
 // would be nothing left to click). `MainView`'s own block persists the result to
 // `state.json` whenever `table.visibleColumns` changes, so this component stays unaware of
