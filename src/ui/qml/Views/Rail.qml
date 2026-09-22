@@ -688,7 +688,7 @@ Item {
     readonly property var _groups: [statusGroup, categoriesGroup, tagsGroup, trackersGroup,
         serversGroup]
     /// The group whose heading has scrolled off while some of its rows are still in view.
-    readonly property Item stuckGroup: {
+    readonly property RailGroup stuckGroup: {
         const top = flick.contentY;
         if (top <= 0)
             return null;
@@ -736,7 +736,7 @@ Item {
         }
     }
 
-    function _groupKey(group: Item): string {
+    function _groupKey(group: RailGroup): string {
         return group === statusGroup ? "status" : group === categoriesGroup ? "categories" :
                                                                               group === tagsGroup
                                                                               ? "tags" : group
