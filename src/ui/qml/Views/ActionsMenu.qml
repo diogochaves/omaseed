@@ -85,6 +85,16 @@ Menu {
             "action": "copyMagnet"
         },
         {
+            "text": qsTr("copy hash"),
+            "key": "Y",
+            "action": "copyHash"
+        },
+        {
+            "text": qsTr("copy name"),
+            "key": "n",
+            "action": "copyName"
+        },
+        {
             "text": qsTr("open folder"),
             "key": "o",
             "action": "openFolder"

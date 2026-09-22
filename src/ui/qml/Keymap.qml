@@ -435,14 +435,27 @@ QtObject {
             "label": qsTr("copy magnet"),
             "column": "act",
             "rank": 9,
-            "helpKeys": "y Y",
-            "help": qsTr("copy magnet · hash")
+            "helpKeys": "y Y n",
+            "help": qsTr("copy magnet · hash · name")
         },
         {
             "area": "table",
             "key": "Y",
             "action": "copyHash",
             "label": qsTr("copy hash"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        // The third of the copy group. qui offers these as a "Copy…" submenu; `Kit/Menu` is
+        // deliberately one flat list with a key per row, so they are three rows instead —
+        // which is also the shape a keyboard reaches fastest.
+        {
+            "area": "table",
+            "key": "n",
+            "action": "copyName",
+            "label": qsTr("copy name"),
             "column": "",
             "rank": 0,
             "helpKeys": "",

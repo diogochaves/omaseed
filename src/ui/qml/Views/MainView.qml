@@ -306,6 +306,10 @@ Item {
             App.copyToClipboard(App.torrentRow(root.cursorHash).infohashV1 || "");
             root.flashFooterNote(qsTr("copied"));
             break;
+        case "copyName":
+            App.copyToClipboard(App.torrentRow(root.cursorHash).name || "");
+            root.flashFooterNote(qsTr("copied"));
+            break;
         case "openFolder":
             App.openFolder(root.cursorHash);
             break;
@@ -454,6 +458,9 @@ Item {
             return true;
         case Qt.Key_Y:
             root.torrentAction(shift ? "copyHash" : "copyMagnet");
+            return true;
+        case Qt.Key_N:
+            root.torrentAction("copyName");
             return true;
         default:
             return false;

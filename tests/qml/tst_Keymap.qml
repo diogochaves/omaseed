@@ -63,6 +63,7 @@ TestCase {
         compare(Keymap.find("table", "D").action, "deleteWithFiles");
         compare(Keymap.find("table", "y").action, "copyMagnet");
         compare(Keymap.find("table", "Y").action, "copyHash");
+        compare(Keymap.find("table", "n").action, "copyName");
     }
 
     function test_find_returns_null_for_an_unbound_key() {
@@ -95,11 +96,11 @@ TestCase {
 
         const act = Keymap.helpRows("act");
         compare(act.map(row => row.helpKeys), ["a", "enter", "p P", "d D", "c R", "C t m L r", "[ ]",
-                                               "o", "y Y"]);
+                                               "o", "y Y n"]);
         compare(act.map(row => row.help), ["add", "actions", "stop/start · force",
                                            "delete · with files", "recheck · reannounce",
                                            "category · tags · location · limits · rename", "queue",
-                                           "open folder", "copy magnet · hash"]);
+                                           "open folder", "copy magnet · hash · name"]);
 
         const application = Keymap.helpRows("app");
         compare(application.map(row => row.helpKeys), ["s", "A", ",", "ctrl+,", "q", "ctrl+q",

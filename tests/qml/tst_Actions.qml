@@ -77,6 +77,8 @@ TestCase {
             ["[", "queueUp"],
             ["]", "queueDown"],
             ["y", "copyMagnet"],
+            ["Y", "copyHash"],
+            ["n", "copyName"],
             ["o", "openFolder"],
             ["d", "delete"]
         ];
