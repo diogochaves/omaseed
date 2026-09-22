@@ -576,6 +576,7 @@ Item {
         altSpeedActive: App.globalState.useAltSpeedLimits
         appName: qsTr("omaseed")
         connected: !root.serverLost
+        connectionStatus: App.globalState.connectionStatus
         serverConfigured: App.hasServer
         downSpeed: root.live ? App.globalState.dlSpeedText : "—"
         searchCount: App.filtered.count

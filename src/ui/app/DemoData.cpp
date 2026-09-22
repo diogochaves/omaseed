@@ -508,7 +508,13 @@ QJsonObject serverState()
     state.insert(QStringLiteral("up_info_data"), 188LL * kGb);
     state.insert(QStringLiteral("free_space_on_disk"), qint64(1.8 * double(kTb)));
     state.insert(QStringLiteral("use_alt_speed_limits"), false);
-    state.insert(QStringLiteral("connection_status"), QStringLiteral("connected"));
+    // `OMASEED_DEMO_CONNECTION=firewalled|disconnected` shows the hero's network warning.
+    const QString connection = qEnvironmentVariable("OMASEED_DEMO_CONNECTION");
+    state.insert(QStringLiteral("connection_status"),
+                 connection == QLatin1String("firewalled") ||
+                         connection == QLatin1String("disconnected")
+                     ? connection
+                     : QStringLiteral("connected"));
     state.insert(QStringLiteral("dht_nodes"), 382);
     state.insert(QStringLiteral("total_peer_connections"), 214);
     state.insert(QStringLiteral("dl_rate_limit"), 0);

@@ -32,6 +32,31 @@ TestCase {
         compare(hero.addButton.border.width, 1);
     }
 
+    // docs/08 §3: silent while connected; firewalled and disconnected are named in colour.
+    function test_the_network_status_is_named_only_when_it_is_not_connected() {
+        const hero = createTemporaryObject(heroComponent, testCase);
+        compare(hero.networkWarning, "");
+        compare(hero.statusDot.color, Theme.green);
+
+        hero.connectionStatus = "firewalled";
+        compare(hero.networkWarning, "firewalled");
+        verify(hero.networkLabel.text.indexOf("firewalled") >= 0);
+        compare(hero.networkLabel.color, Theme.yellow);
+        compare(hero.statusDot.color, Theme.yellow);
+
+        hero.connectionStatus = "disconnected";
+        compare(hero.networkLabel.color, Theme.red);
+        compare(hero.statusDot.color, Theme.red);
+
+        // While the API itself is unreachable, or before the first sync, the line already says
+        // so; qBittorrent's own network state is not read then.
+        hero.connected = false;
+        compare(hero.networkWarning, "");
+        hero.connected = true;
+        hero.syncing = true;
+        compare(hero.networkWarning, "");
+    }
+
     function test_emits_search_cleared() {
         const hero = createTemporaryObject(heroComponent, testCase);
         let cleared = 0;

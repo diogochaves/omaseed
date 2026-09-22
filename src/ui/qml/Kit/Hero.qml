@@ -17,6 +17,16 @@ Item {
     /// The first sync has not landed yet (spec §7 Fig. 25): the mark stays accent, the dot
     /// goes yellow and the caller writes "… · first sync" into `serverLine`.
     property bool syncing: false
+    /// qBittorrent's own view of its network: "connected", "firewalled" or "disconnected"
+    /// (`server_state.connection_status`). Silent while connected; the other two are named in
+    /// the server line in their colour (docs/08 §3). Only read while the API itself answers.
+    property string connectionStatus: "connected"
+    /// What the server line adds after itself: "firewalled", "disconnected" or nothing.
+    readonly property string networkWarning: (root.connected && !root.syncing
+                                              && root.serverConfigured
+                                              && (root.connectionStatus === "firewalled"
+                                                  || root.connectionStatus === "disconnected"))
+                                             ? root.connectionStatus : ""
     /// The server is on its alternative speed limits: the glyph turns accent (`.btn.icon.on`).
     property bool altSpeedActive: false
     property string downSpeed: "—"
@@ -27,6 +37,8 @@ Item {
     readonly property alias statusDot: statusDot
     /// The download figure, so a test can see which side `speedsAlignment` put the pair on.
     readonly property alias downStat: downStat
+    /// The network word after the server line, for tests.
+    readonly property alias networkLabel: networkLabel
     /// The `+`, so a test can see how it is drawn.
     readonly property alias addButton: addButton
     property int searchCount: 0
@@ -103,7 +115,7 @@ Item {
                     id: statusDot
 
                     anchors.verticalCenter: parent.verticalCenter
-                    color: !root.serverConfigured ? Theme.dimForeground : root.syncing ? Theme.yellow : root.connected ? Theme.green : Theme.red
+                    color: !root.serverConfigured ? Theme.dimForeground : root.syncing ? Theme.yellow : !root.connected ? Theme.red : root.networkWarning === "firewalled" ? Theme.yellow : root.networkWarning === "disconnected" ? Theme.red : Theme.green
                     height: Theme.space(7)
                     radius: width / 2
                     width: Theme.space(7)
@@ -113,6 +125,17 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     text: root.serverLine
                     tracked: true
+                }
+
+                Label {
+                    id: networkLabel
+
+                    anchors.verticalCenter: parent.verticalCenter
+                    color: root.networkWarning === "firewalled" ? Theme.yellow : Theme.red
+                    text: "· " + (root.networkWarning === "firewalled" ? qsTr("firewalled")
+                                                                         : qsTr("disconnected"))
+                    tracked: true
+                    visible: root.networkWarning.length > 0
                 }
             }
         }
