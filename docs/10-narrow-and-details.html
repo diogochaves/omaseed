@@ -1,0 +1,594 @@
+<title>omaseed narrow windows</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap">
+<style>
+/* ------------------------------------------------------------------
+   Batch 1, last items: the window at narrow widths, and B1.7 (details
+   placement + divider). Drawn in the family of 05 (never edited), 08
+   and 09: same Omarchy theme toggles, same colour roles, v2 kit only.
+   ------------------------------------------------------------------ */
+:root {
+  --accent:#5492f8; --selection:#292932; --muted:#272833;
+  --bg:#11111b; --bg-dark:#0d0d14; --bg-darker:#09090e; --bg-light:#292932;
+  --fg:#b9c5ef; --fg-dark:#8b94b3; --fg-light:#c4cef1; --fg-bright:#cbd4f3;
+  --red:#ee5681; --yellow:#f6d58c; --orange:#f16f94; --green:#7dd676;
+  --cyan:#63d5c2; --blue:#5492f8; --magenta:#b47ff3; --brown:#914359;
+  --fill-normal: color-mix(in srgb, var(--fg) 4%, transparent);
+  --fill-hover:  color-mix(in srgb, var(--fg) 8%, transparent);
+  --fill-selected: color-mix(in srgb, var(--fg) 18%, transparent);
+  --fill-pressed: color-mix(in srgb, var(--fg) 22%, transparent);
+  --border-normal: color-mix(in srgb, var(--fg) 40%, transparent);
+  --hairline: color-mix(in srgb, var(--fg) 12%, transparent);
+  --glass: color-mix(in srgb, var(--bg) 92%, transparent);
+  --st-down: var(--blue); --st-seed: var(--green); --st-stop: var(--fg-dark);
+  --st-err: var(--red); --st-check: var(--yellow); --st-queue: var(--magenta); --st-stall: var(--orange);
+  --mono: "JetBrains Mono", "JetBrainsMono Nerd Font", ui-monospace, monospace;
+  --base: 14px;
+  --caption: calc(var(--base) * 0.833); --small: calc(var(--base) * 0.917); --body: var(--base);
+  --subtitle: calc(var(--base) * 1.083); --title: calc(var(--base) * 1.167); --heading: calc(var(--base) * 1.333);
+  --u: calc(var(--base) / 12);
+  --ctl: calc(var(--base) * 2.333);
+  color-scheme: dark;
+}
+:root[data-mode="light"] { color-scheme: light; }
+:root[data-base="12"] { --base: 12px; }
+
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg-dark); color:var(--fg); font:400 13px/1.55 var(--mono); -webkit-font-smoothing:antialiased; }
+a { color:var(--accent); }
+h1,h2,h3 { margin:0; font-weight:600; color:var(--fg-bright); text-wrap:balance; }
+h1 { font-size:24px; letter-spacing:-.01em; } h2 { font-size:16px; } h3 { font-size:13px; }
+p { margin:0; max-width:80ch; }
+code { font-family:var(--mono); color:var(--fg-bright); background:var(--fill-normal); padding:0 4px; }
+kbd { font-family:var(--mono); color:var(--fg-bright); }
+.eyebrow { font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--fg-dark); }
+.dim { color:var(--fg-dark); }
+button { font:inherit; }
+:focus-visible { outline:1px solid var(--accent); outline-offset:1px; }
+
+/* ---------- page chrome ---------- */
+.topbar { position:sticky; top:env(safe-area-inset-top,0px); z-index:10; display:flex; align-items:center; gap:14px; flex-wrap:wrap; padding:8px 16px; background:var(--bg); border-bottom:1px solid var(--hairline); }
+.topbar .brand { display:flex; align-items:center; gap:8px; color:var(--fg-bright); font-weight:600; }
+.topbar .brand svg { width:15px; height:15px; color:var(--accent); display:block; }
+.topbar nav { display:flex; gap:2px; flex-wrap:wrap; }
+.topbar nav a { color:var(--fg-dark); text-decoration:none; font-size:11px; padding:4px 8px; }
+.topbar nav a:hover { color:var(--fg-bright); background:var(--fill-hover); }
+.segs { margin-left:auto; display:flex; gap:10px; flex-wrap:wrap; }
+.seg { display:flex; flex-wrap:wrap; border:1px solid var(--border-normal); }
+.seg button { font-size:11px; color:var(--fg); background:var(--fill-normal); border:0; border-right:1px solid var(--border-normal); padding:5px 10px; cursor:pointer; display:flex; gap:6px; align-items:center; }
+.seg button:last-child { border-right:0; }
+.seg button:hover { background:var(--fill-hover); }
+.seg button[aria-pressed="true"] { background:var(--fill-selected); color:var(--fg-bright); }
+.seg .sw { width:10px; height:10px; border:1px solid var(--border-normal); }
+.page { padding-block:28px 72px; padding-inline:16px; max-width:1400px; margin:0 auto; display:grid; gap:64px; }
+header.lead { display:grid; gap:14px; }
+.lead .meta { display:flex; gap:18px; flex-wrap:wrap; font-size:11px; color:var(--fg-dark); }
+.lead .meta b { color:var(--fg); font-weight:500; }
+section { display:grid; gap:20px; scroll-margin-top:72px; min-width:0; }
+.sec-head { display:grid; gap:6px; } .sec-head .eyebrow { color:var(--accent); }
+.grid2 { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr)); gap:20px; align-items:start; }
+.figure { display:grid; gap:8px; min-width:0; }
+.figure > .cap { font-size:11.5px; color:var(--fg-dark); max-width:100ch; } .figure > .cap b { color:var(--fg); font-weight:500; }
+.scroller { overflow-x:auto; min-width:0; }
+.desk { padding:18px; background:
+  radial-gradient(ellipse at 18% 8%, color-mix(in srgb, var(--accent) 30%, var(--bg-darker)) 0%, transparent 52%),
+  radial-gradient(ellipse at 84% 92%, color-mix(in srgb, var(--magenta) 26%, var(--bg-darker)) 0%, transparent 55%),
+  var(--bg-darker); display:grid; gap:12px; justify-items:start; }
+.shots { display:grid; gap:10px; justify-items:start; }
+.shots figure { margin:0; display:grid; gap:4px; max-width:100%; }
+.shots img { display:block; border:1px solid var(--hairline); max-width:none; }
+.shots figcaption { font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--fg-dark); }
+.dev { display:inline-block; font-size:9.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--yellow); border:1px solid var(--yellow); padding:0 5px; margin-left:6px; vertical-align:2px; }
+.rec { display:inline-block; font-size:9.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--accent); border:1px solid var(--accent); padding:0 5px; margin-left:6px; vertical-align:2px; }
+.bug { display:inline-block; font-size:9.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--red); border:1px solid var(--red); padding:0 5px; margin-left:6px; vertical-align:2px; }
+.finds { display:grid; gap:0; border:1px solid var(--hairline); background:var(--bg); }
+.finds > div { display:grid; grid-template-columns:minmax(0,260px) 1fr; gap:6px 18px; padding:10px 14px; border-bottom:1px solid var(--hairline); font-size:12px; }
+.finds > div:last-child { border-bottom:0; }
+.finds b { color:var(--fg-bright); font-weight:600; } .finds span { color:var(--fg); } .finds span code { font-size:11px; }
+.opt { display:grid; gap:10px; min-width:0; }
+.opt > .h { display:flex; gap:8px; align-items:baseline; flex-wrap:wrap; }
+.opt > .h b { color:var(--fg-bright); font-weight:600; font-size:13px; } .opt > .h .k { color:var(--accent); font-weight:600; }
+.opt > .d { font-size:11.5px; color:var(--fg-dark); max-width:100ch; } .opt > .d b { color:var(--fg); font-weight:500; }
+.ladder { width:100%; border-collapse:collapse; font-size:11.5px; min-width:760px; }
+.ladder th, .ladder td { text-align:left; vertical-align:top; padding:7px 10px; border-bottom:1px solid var(--hairline); }
+.ladder thead th { color:var(--fg-bright); font-weight:600; border-bottom:1px solid var(--border-normal); }
+.ladder tbody th { color:var(--accent); font-weight:600; white-space:nowrap; }
+.ladder td.keep { color:var(--fg-dark); }
+.wlab { font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--fg-dark); }
+.wlab b { color:var(--fg); font-weight:500; }
+
+/* ---------- §6 decision sheet (08's) ---------- */
+.decide { display:grid; gap:0; border:1px solid var(--hairline); background:var(--bg); }
+.q { display:grid; grid-template-columns:minmax(0,300px) 1fr; gap:10px 20px; padding:12px 14px; border-bottom:1px solid var(--hairline); align-items:start; }
+.q .qt { display:grid; gap:2px; } .q .qt b { color:var(--fg-bright); font-weight:600; font-size:12.5px; } .q .qt span { color:var(--fg-dark); font-size:11px; }
+.q .qt .ref { color:var(--accent); font-size:10px; letter-spacing:.1em; text-transform:uppercase; }
+.q .os { display:flex; flex-wrap:wrap; gap:6px; }
+.q label { display:inline-flex; align-items:center; gap:6px; font-size:12px; padding:4px 10px; border:1px solid var(--border-normal); background:var(--fill-normal); cursor:pointer; color:var(--fg); }
+.q label:hover { background:var(--fill-hover); }
+.q input { position:absolute; opacity:0; width:1px; height:1px; }
+.q label:has(input:checked) { background:var(--fill-selected); color:var(--fg-bright); border-color:var(--accent); }
+.q label:has(input:focus-visible) { outline:1px solid var(--accent); outline-offset:1px; }
+.q label .r { font-size:9px; letter-spacing:.1em; text-transform:uppercase; color:var(--accent); }
+.out { display:grid; gap:10px; padding:14px; }
+.out textarea, .notes { width:100%; resize:vertical; background:var(--bg-dark); color:var(--fg-bright); border:1px solid var(--border-normal); font:12px/1.5 var(--mono); padding:10px; }
+.out textarea { min-height:150px; } .notes { min-height:54px; }
+.out .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+.pbtn { display:inline-flex; align-items:center; height:30px; padding:0 12px; font-size:12px; color:var(--fg); background:var(--fill-normal); border:1px solid var(--border-normal); cursor:pointer; }
+.pbtn.primary { color:var(--accent); border-color:var(--accent); }
+.out .st { font-size:11.5px; color:var(--green); }
+
+/* =====================================================================
+   The app, v2 kit. Widths are the real window widths at base 14,
+   scaled with the base toggle: calc(W / 14 * var(--base)).
+   ===================================================================== */
+.win { background:var(--glass); color:var(--fg); border:1px solid var(--accent); font-size:var(--body); line-height:1.4; min-width:0; overflow:hidden; flex:none; }
+.mk { width:1em; height:1em; display:block; flex:none; }
+svg.ic { width:1.15em; height:1.15em; display:block; }
+.lbl { font-size:var(--caption); letter-spacing:.1em; text-transform:uppercase; color:var(--fg-dark); white-space:nowrap; }
+.dot { display:inline-block; width:calc(7 * var(--u)); height:calc(7 * var(--u)); border-radius:50%; background:var(--green); flex:none; }
+.hero { display:flex; align-items:center; gap:calc(14 * var(--u)); padding:calc(10 * var(--u)) calc(16 * var(--u)); border-bottom:1px solid var(--hairline); min-width:0; white-space:nowrap; }
+.hero.two { flex-wrap:wrap; row-gap:calc(8 * var(--u)); }
+.hero .brk { flex-basis:100%; height:0; }
+.hero .grow { flex:1; min-width:0; }
+.hero .mkw { font-size:calc(24 * var(--u)); color:var(--accent); }
+.hero .id { min-width:0; overflow:hidden; flex:0 1 auto; }
+.hero .id .l { overflow:hidden; text-overflow:ellipsis; display:block; }
+.hero .id .l .dot { vertical-align:1px; margin-right:calc(6 * var(--u)); }
+.hero .stat, .hero .mkw, .hero .chip { flex:none; }
+.hero .id b { display:block; color:var(--fg-bright); font-size:var(--subtitle); font-weight:600; }
+.hero .id .l { display:flex; align-items:center; gap:calc(6 * var(--u)); }
+.hero .id .warn { color:var(--yellow); }
+.hero .stat { display:grid; }
+.hero .stat .v { color:var(--fg-bright); font-size:var(--heading); font-weight:500; }
+.hero .stat .v i { font-style:normal; font-size:var(--body); margin-right:calc(4 * var(--u)); }
+.ib { width:var(--ctl); height:var(--ctl); display:grid; place-items:center; color:var(--fg-dark); border:1px solid transparent; flex:none; }
+.ib.pri { color:var(--accent); border-color:var(--accent); }
+.ib.hot { background:var(--fill-selected); color:var(--fg-bright); }
+.acts { display:flex; gap:calc(2 * var(--u)); flex:none; }
+.fld { display:flex; align-items:center; gap:calc(8 * var(--u)); height:var(--ctl); padding:0 calc(10 * var(--u)); color:var(--fg-dark); background:var(--fill-normal); border:1px solid var(--border-normal); flex:none; min-width:0; overflow:hidden; }
+.fld .k { margin-left:auto; font-size:var(--caption); }
+.fld.fill { flex:1; }
+.chip { display:inline-flex; align-items:center; gap:calc(5 * var(--u)); height:calc(var(--ctl) - 6 * var(--u)); padding:0 calc(8 * var(--u)); font-size:var(--small); border:1px solid var(--border-normal); color:var(--fg); background:var(--fill-normal); white-space:nowrap; flex:none; }
+.chip.warn { border-color:var(--yellow); color:var(--yellow); background:color-mix(in srgb, var(--yellow) 8%, transparent); }
+.chip.solo { width:calc(var(--ctl) - 6 * var(--u)); justify-content:center; padding:0; }
+.menu { background:var(--bg); border:1px solid var(--accent); width:calc(280 * var(--u)); padding:calc(6 * var(--u)) 0; display:grid; font-size:var(--body); }
+.menu .it { display:flex; align-items:center; gap:calc(10 * var(--u)); padding:calc(5 * var(--u)) calc(12 * var(--u)); color:var(--fg); }
+.menu .it .ic { color:var(--fg-dark); }
+.menu .it kbd { margin-left:auto; color:var(--fg-dark); font-size:var(--caption); }
+.menu .it.new { background:color-mix(in srgb, var(--accent) 10%, transparent); color:var(--fg-bright); }
+.menu .sp { height:1px; background:var(--hairline); margin:calc(5 * var(--u)) 0; }
+
+.foot { display:flex; align-items:center; gap:calc(16 * var(--u)); padding:calc(6 * var(--u)) calc(14 * var(--u)); border-top:1px solid var(--hairline); font-size:var(--small); color:var(--fg-dark); white-space:nowrap; min-height:calc(var(--base) * 2.2); }
+.foot b { color:var(--fg); font-weight:500; }
+.foot .hints { display:flex; gap:calc(12 * var(--u)); }
+.foot .hints b { color:var(--fg-bright); }
+.foot .grow { flex:1; }
+
+.tbl { padding:calc(4 * var(--u)) calc(10 * var(--u)); }
+.tr { display:grid; gap:calc(12 * var(--u)); align-items:center; height:calc(var(--base) * 2.4); padding:0 calc(8 * var(--u)); white-space:nowrap; }
+.tr > span { overflow:hidden; text-overflow:ellipsis; min-width:0; }
+.tr .r { text-align:right; }
+.th { color:var(--fg-dark); font-size:var(--caption); height:calc(var(--base) * 2.1); }
+.tr.sel { background:var(--fill-selected); }
+.tr.cur { box-shadow:inset 0 0 0 1px var(--border-normal); }
+.tr.cur.sel { background:var(--fill-pressed); }
+.nm i { font-style:normal; color:var(--fg-dark); margin-left:calc(6 * var(--u)); }
+.pg { display:flex; align-items:center; gap:calc(8 * var(--u)); }
+.pg .tk { flex:1; position:relative; height:2px; background:var(--hairline); display:block; }
+.pg .tk b { position:absolute; left:0; top:0; bottom:0; display:block; }
+.pg em { font-style:normal; color:var(--fg-dark); font-size:var(--small); width:calc(38 * var(--u)); text-align:right; flex:none; }
+.stt g { display:inline-block; width:1.2em; }
+
+/* ---------- the two-pane layout for §5 ---------- */
+.app { display:grid; grid-template-rows:auto 1fr auto; }
+.bodyR { display:grid; grid-template-columns:calc(170 * var(--u)) minmax(0,1fr) auto calc(var(--pw) * var(--u)); height:calc(360 * var(--u)); }
+.bodyB { display:grid; grid-template-columns:calc(170 * var(--u)) minmax(0,1fr); height:calc(470 * var(--u)); }
+.bodyB .main { display:grid; grid-template-rows:minmax(0,1fr) auto calc(var(--ph) * var(--u)); min-height:0; }
+.rail { border-right:1px solid var(--hairline); padding-block:calc(6 * var(--u)); overflow:hidden; }
+.rh { padding:calc(6 * var(--u)) calc(14 * var(--u)) calc(4 * var(--u)); font-size:var(--caption); letter-spacing:.1em; text-transform:uppercase; color:var(--fg-dark); }
+.rr { display:flex; align-items:center; gap:calc(8 * var(--u)); height:calc(var(--base) * 2.05); padding:0 calc(14 * var(--u)); white-space:nowrap; }
+.rr g { width:1em; color:var(--fg-dark); text-align:center; flex:none; }
+.rr span { flex:1; overflow:hidden; text-overflow:ellipsis; }
+.rr em { font-style:normal; color:var(--fg-dark); font-size:var(--caption); }
+.rr.on { background:var(--fill-selected); color:var(--fg-bright); }
+.div { position:relative; background:var(--hairline); }
+.bodyR .div { width:1px; }
+.bodyB .div { height:1px; }
+.div.hot { background:var(--accent); }
+.div .grip { position:absolute; display:grid; place-items:center; color:var(--accent); background:var(--bg); border:1px solid var(--accent); font-size:var(--caption); line-height:1; }
+.bodyR .div .grip { top:50%; left:50%; transform:translate(-50%,-50%); width:calc(12 * var(--u)); height:calc(36 * var(--u)); }
+.bodyB .div .grip { left:50%; top:50%; transform:translate(-50%,-50%); height:calc(12 * var(--u)); width:calc(36 * var(--u)); }
+.div .zone { position:absolute; background:color-mix(in srgb, var(--accent) 12%, transparent); }
+.bodyR .div .zone { top:0; bottom:0; left:calc(-3 * var(--u)); right:calc(-3 * var(--u)); }
+.bodyB .div .zone { left:0; right:0; top:calc(-3 * var(--u)); bottom:calc(-3 * var(--u)); }
+.div .tip { position:absolute; background:var(--bg); border:1px solid var(--border-normal); color:var(--fg-bright); font-size:var(--caption); padding:calc(2 * var(--u)) calc(6 * var(--u)); white-space:nowrap; z-index:2; }
+.bodyR .div .tip { top:calc(50% + 26 * var(--u)); right:calc(8 * var(--u)); }
+.bodyB .div .tip { left:calc(50% + 26 * var(--u)); top:calc(-26 * var(--u)); }
+.det { min-width:0; overflow:hidden; }
+.dh { padding:calc(12 * var(--u)) calc(14 * var(--u)) calc(6 * var(--u)); display:grid; gap:calc(2 * var(--u)); }
+.dh b { color:var(--fg-bright); font-weight:600; overflow-wrap:anywhere; }
+.dh .m { color:var(--fg-dark); font-size:var(--small); }
+.strip { display:flex; gap:calc(22 * var(--u)); padding:calc(6 * var(--u)) calc(14 * var(--u)) calc(10 * var(--u)); border-bottom:1px solid var(--hairline); }
+.strip div { display:grid; } .strip .v { color:var(--fg-bright); white-space:nowrap; }
+.tabs { display:flex; gap:calc(2 * var(--u)); padding:0 calc(8 * var(--u)); border-bottom:1px solid var(--hairline); font-size:var(--small); }
+.tabs .t { padding:calc(6 * var(--u)) calc(8 * var(--u)); color:var(--fg-dark); white-space:nowrap; }
+.tabs .t.on { color:var(--fg-bright); box-shadow:inset 0 -2px 0 var(--accent); }
+.tabs .t em { font-style:normal; opacity:.7; margin-left:3px; }
+.kv { display:grid; grid-template-columns:auto minmax(0,1fr); gap:0 calc(14 * var(--u)); padding:calc(6 * var(--u)) calc(14 * var(--u)); font-size:var(--small); align-content:start; }
+.kv > span { padding:calc(4 * var(--u)) 0; border-bottom:1px solid var(--hairline); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.kv .k { color:var(--fg-dark); font-size:var(--caption); letter-spacing:.1em; text-transform:uppercase; padding-top:calc(5 * var(--u)); }
+.kv .v { color:var(--fg-bright); }
+.kv2 { display:grid; grid-template-columns:1fr 1fr; gap:0 calc(24 * var(--u)); }
+.bdet { display:grid; grid-template-columns:calc(250 * var(--u)) minmax(0,1fr); min-height:0; overflow:hidden; }
+.bdet .left { border-right:1px solid var(--hairline); display:grid; align-content:start; }
+.bdet .left .strip { display:grid; grid-template-columns:1fr 1fr; gap:calc(8 * var(--u)) calc(14 * var(--u)); border-bottom:0; }
+.bdet .right { display:grid; grid-template-rows:auto 1fr; min-height:0; }
+.note { color:var(--accent); }
+
+@media (max-width:720px) {
+  .q, .finds > div { grid-template-columns:1fr; }
+  h1 { font-size:20px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition:none !important; } }
+</style>
+
+<div class="topbar">
+  <div class="brand"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M1 8H6V18H16V23H1Z M8 1H23V16H18V6H8Z M8 8H16V16H8Z"/></svg> omaseed <span class="dim" style="font-weight:400">/ narrow windows · B1.7</span></div>
+  <nav><a href="#today">Today</a><a href="#hero">Hero</a><a href="#footer">Footer</a><a href="#table">Table</a><a href="#details">Details</a><a href="#decide">Decide</a></nav>
+  <div class="segs">
+    <div class="seg" role="group" aria-label="Base size" id="baseSeg"><button type="button" data-base="12" aria-pressed="false">base 12</button><button type="button" data-base="14" aria-pressed="true">base 14</button></div>
+    <div class="seg" role="group" aria-label="Omarchy theme" id="themeSeg">
+      <button type="button" data-theme="frieren" aria-pressed="true"><span class="sw" style="background:#5492f8"></span>Frieren</button>
+      <button type="button" data-theme="tokyo-night" aria-pressed="false"><span class="sw" style="background:#7aa2f7"></span>Tokyo Night</button>
+      <button type="button" data-theme="hackerman" aria-pressed="false"><span class="sw" style="background:#82FB9C"></span>Hackerman</button>
+      <button type="button" data-theme="lupine" aria-pressed="false"><span class="sw" style="background:#3264eb"></span>Lupine</button>
+    </div>
+  </div>
+</div>
+
+<div class="page">
+<header class="lead">
+  <div class="eyebrow">Proposal · docs/10 · 2026-09-22 · closes batch 1</div>
+  <h1>The window when it's narrow, and where Details goes</h1>
+  <p>The last two batch-1 items. First, the hero at narrow widths, which you flagged after the alt-speed chip and <kbd>⋯</kbd> went in. Second, B1.7: Details on the right or at the bottom, with a divider you can drag. That one was triaged but never drawn. Looking at narrow windows turned up problems in the footer and the table too, so they're here as well.</p>
+  <p>Every width on this page is a real window width at base 14. The mocks scale with the base toggle. Screenshots in §1 are the <code>main</code> build as of today, taken under the worst case: alt-speed on and the server firewalled.</p>
+  <div class="meta"><span>theme <b id="metaTheme">Frieren</b></span><span>mode <b id="metaMode">dark</b></span><span>base <b id="metaBase">14</b></span><span>build <b>main @ 7d9a919</b></span><span>evidence <b>docs/evidence/ux-batch1/</b></span></div>
+</header>
+
+<!-- ================= §1 TODAY ================= -->
+<section id="today">
+  <div class="sec-head"><div class="eyebrow">1 · What the app does today</div><h2>Nothing gives way, so the right-hand edge is cut off</h2>
+  <p>The spec never says how the hero, footer or table behave when narrow, and the window has no minimum width. Every row is laid out at full size and whatever doesn't fit is cut off.</p></div>
+  <div class="figure">
+    <div class="scroller"><div class="desk shots">
+      <figure><img src="evidence/ux-batch1/narrow-hero-1200.png" width="1200" height="74" alt="Hero at 1200 px: the add button is cut in half; settings, more and help are gone"><figcaption>1200 px · <kbd>+</kbd> cut in half, gear, <kbd>⋯</kbd>, <kbd>?</kbd> gone</figcaption></figure>
+      <figure><img src="evidence/ux-batch1/narrow-hero-1000.png" width="1000" height="74" alt="Hero at 1000 px: the alt-speed chip is cut off and every action is gone"><figcaption>1000 px · alt-speed chip cut, no actions</figcaption></figure>
+      <figure><img src="evidence/ux-batch1/narrow-hero-800.png" width="800" height="74" alt="Hero at 800 px: the filter field is cut off"><figcaption>800 px · the filter field is cut off</figcaption></figure>
+      <figure><img src="evidence/ux-batch1/narrow-hero-640.png" width="640" height="74" alt="Hero at 640 px: the upload speed is cut off"><figcaption>640 px · even the upload figure is cut off</figcaption></figure>
+    </div></div>
+    <div class="cap"><b>Fig. 1.1</b>: The hero at four widths, alt-speed on, firewalled. Below about 1300 px the mouse can't reach Add, Settings, More or Help. The keys still work.</div>
+  </div>
+  <div class="grid2">
+    <div class="figure"><div class="scroller"><div class="desk shots"><figure><img src="evidence/ux-batch1/narrow-window-800.png" width="800" height="600" alt="The whole window at 800 px wide"><figcaption>800 × 600</figcaption></figure></div></div>
+      <div class="cap"><b>Fig. 1.2</b>: The whole window at 800 px. The table's right-hand columns are cut off with no way to scroll to them, and Name is the first column to shrink. The footer loses <kbd>? help</kbd>. Details at the bottom take 300 px, leaving four table rows.</div></div>
+    <div class="figure"><div class="scroller"><div class="desk shots"><figure><img src="evidence/ux-batch1/details-bottom-at-1500.png" width="550" alt="The whole window at 1500 px wide with Details at the bottom"><figcaption>1500 × 860, shown at half size</figcaption></figure></div></div>
+      <div class="cap"><b>Fig. 1.3</b>: At 1500 px, Details is already at the bottom. The spec says it drops below the table "under 1100 px". <code>SplitLayout</code> compares <code>Theme.space(1100)</code> (1283 px at base 14) against the area <i>beside the rail</i>, not the window. So on your desktop Details sits on the right only when the window is wider than about 1515 px.</div></div>
+  </div>
+  <div class="finds">
+    <div><b>Hero actions get cut off <span class="bug">bug</span></b><span>The RowLayout in <code>Kit/Hero.qml</code> has no minimum widths or priorities, so the last items fall off first, and those are the actions.</span></div>
+    <div><b>Footer loses <kbd>? help</kbd> <span class="bug">bug</span></b><span>The hints are one row laid out left to right, so the help key, which sits at the far right, disappears first.</span></div>
+    <div><b>Table cuts columns off <span class="bug">bug</span></b><span>The fixed columns keep their width, so Name shrinks to about 120 px, and then ↑ and ETA fall off the right edge.</span></div>
+    <div><b>Breakpoint measured against the wrong width <span class="dev">spec gap</span></b><span>1283 px beside the rail instead of 1100 px of window at base 12. With the rail hidden (<kbd>ctrl+b</kbd>) Details jumps to the right, which is surprising.</span></div>
+    <div><b>Bottom pane has a fixed height</b><span><code>sideHeight: Theme.space(260)</code>. You can't make it smaller or larger. That's B1.7.</span></div>
+  </div>
+</section>
+
+<!-- ================= §2 HERO ================= -->
+<section id="hero">
+  <div class="sec-head"><div class="eyebrow">2 · The hero</div><h2>Decide what gives way, in what order, and what never does</h2>
+  <p>What never goes: the mark and its status dot, both speed figures, <kbd>+</kbd> and <kbd>⋯</kbd>. Everything else has a width below which it gets smaller or moves into <kbd>⋯</kbd>. Its key keeps working, and <kbd>⋯</kbd> gains a row for it, so the mouse can always reach it.</p></div>
+
+  <div class="opt">
+    <div class="h"><span class="k">A</span><b>A ladder: things get smaller, then move into ⋯</b><span class="rec">rec</span></div>
+    <div class="scroller"><table class="ladder">
+      <thead><tr><th>Below</th><th>Server line</th><th>Speeds</th><th>Filter</th><th>Alt-speed chip</th><th>Gear, <kbd>?</kbd></th><th>App name</th></tr></thead>
+      <tbody>
+        <tr><th>—</th><td class="keep">home · qBittorrent 5.2.3 · firewalled</td><td class="keep">with captions</td><td class="keep">220</td><td class="keep">glyph + text</td><td class="keep">buttons</td><td class="keep">shown</td></tr>
+        <tr><th>1500</th><td>home · firewalled <span class="dim">(version in tooltip)</span></td><td class="keep">—</td><td>180</td><td>short form ↓1M ↑200K while on, glyph only while off</td><td class="keep">—</td><td class="keep">—</td></tr>
+        <tr><th>1150</th><td class="keep">—</td><td>captions go (the arrows say it)</td><td>140</td><td class="keep">—</td><td>move into <kbd>⋯</kbd></td><td class="keep">—</td></tr>
+        <tr><th>900</th><td class="keep">—</td><td class="keep">—</td><td>a <kbd>/</kbd> button that opens the field over the speeds</td><td>glyph only, lit; limits in tooltip</td><td class="keep">—</td><td class="keep">—</td></tr>
+        <tr><th>700</th><td>hidden: the dot beside the mark keeps its colour, the words go to its tooltip</td><td class="keep">—</td><td class="keep">—</td><td class="keep">—</td><td class="keep">—</td><td>hidden (the mark stays)</td></tr>
+        <tr><th>any</th><td>if something still doesn't fit, the server line elides first; buttons never do</td><td class="keep">—</td><td class="keep">—</td><td class="keep">—</td><td class="keep">—</td><td class="keep">—</td></tr>
+      </tbody>
+    </table></div>
+    <div class="scroller"><div class="desk" id="ladderA"></div></div>
+    <div class="d"><b>Fig. 2.1</b>: Option A at 1500, 1150, 900, 700 and 560 px, each the narrowest width of its step, alt-speed on, firewalled. The window keeps its single-row hero at every width. The thresholds scale with base size like every other spacing token, so at base 12 each one is 14 % lower.</div>
+  </div>
+
+  <div class="grid2">
+    <div class="figure">
+      <div class="desk" id="moreMenu"></div>
+      <div class="cap"><b>Fig. 2.2</b>: <kbd>⋯</kbd> below 1150 px. Settings and Help join the menu at the top, highlighted here, and keep their keys. Above 1150 px the menu is unchanged.</div>
+    </div>
+    <div class="figure">
+      <div class="scroller"><div class="desk" id="searchOpen"></div></div>
+      <div class="cap"><b>Fig. 2.3</b>: The <kbd>/</kbd> button pressed below 900 px. The field opens over the speeds, the actions stay, and <kbd>esc</kbd> or clearing it closes it. A filter that's set keeps the button lit and shows the count.</div>
+    </div>
+  </div>
+
+  <div class="opt">
+    <div class="h"><span class="k">B</span><b>Two rows below 1100</b></div>
+    <div class="scroller"><div class="desk" id="twoRows"></div></div>
+    <div class="d"><b>Fig. 2.4</b>: Nothing hides. The filter gets its own full-width row with the chip and the rarer actions. It costs one control height, about 40 px, on every narrow window, and the hero no longer matches the spec's single band.</div>
+  </div>
+
+  <div class="opt">
+    <div class="h"><span class="k">C</span><b>Only a minimum window width</b></div>
+    <div class="d">Setting <code>minimumWidth</code> at about 1300 px would keep today's hero intact, but Hyprland gives a tiled window its tile size whatever minimum the client asks for. A third of your 3440 px screen is about 1130 px, so the clipping comes back as soon as the window is tiled. Worth adding anyway as a floor, much lower: <b>560 px</b>, the narrowest width Option A is drawn at.</div>
+  </div>
+</section>
+
+<!-- ================= §3 FOOTER ================= -->
+<section id="footer">
+  <div class="sec-head"><div class="eyebrow">3 · The footer</div><h2><kbd>? help</kbd> is pinned right, hints drop from the middle, and facts get shorter</h2>
+  <p>The footer teaches keys, so the key that teaches all the others must never be the one that disappears.</p></div>
+  <div class="scroller"><div class="desk" id="footers"></div></div>
+  <div class="figure"><div class="cap"><b>Fig. 3.1</b>: The same footer at 1500, 1150, 900, 700 and 560 px, the hero's steps. Hints drop in reverse order of use (<kbd>o</kbd>, <kbd>d</kbd>, <kbd>p</kbd>, <kbd>/</kbd>, <kbd>space</kbd>, <kbd>enter</kbd>, <kbd>j k</kbd>). The facts shorten from "16 torrents · 8 downloading · 1.80 TB free · 2 selected" down to "16 · 2 sel".</div></div>
+</section>
+
+<!-- ================= §4 TABLE ================= -->
+<section id="table">
+  <div class="sec-head"><div class="eyebrow">4 · The table</div><h2>Columns step aside in a fixed order; Name keeps its share</h2>
+  <p>Today the fixed columns keep their width, Name shrinks to fit, and whatever is left falls off the right edge. Proposed: Name never drops below 40 % of the table. When the columns don't fit, they hide one at a time, least useful first. It's temporary: the columns you picked with <kbd>|</kbd> are kept, and they come back when the window widens. The header of the last visible column shows <code>+2</code>, and clicking it opens the columns palette.</p></div>
+  <div class="scroller"><div class="desk" id="tables"></div></div>
+  <div class="figure"><div class="cap"><b>Fig. 4.1</b>: Table area (the width beside the rail) at 1300, 1100, 850, 650 and 480 px. A column goes when keeping it would push Name below 40 % of the row. Order of retreat: ↑, S/P, ETA, Size, ↓. Below 560 px Status becomes its glyph alone, keeping its colour, with the word in a tooltip. Progress is never hidden. It's the column you came for.</div></div>
+</section>
+
+<!-- ================= §5 DETAILS ================= -->
+<section id="details">
+  <div class="sec-head"><div class="eyebrow">5 · Details: right, bottom, and the divider · B1.7</div><h2>A placement setting, a divider you can drag, and the same things from the keyboard</h2>
+  <p>Omarchy has no convention for dividers inside a window: it tiles windows, not panes. So this is our call. The app is keyboard-first, so anything the mouse can do to the divider, a key can do too.</p></div>
+  <div class="finds">
+    <div><b>Placement</b><span>Settings → Appearance → Details: <b>auto</b> (the default: right when the window is wide enough, otherwise bottom), <b>right</b> or <b>bottom</b>. <kbd>I</kbd> (shift+i) cycles it and the footer confirms it for two seconds. <kbd>i</kbd> still shows and hides the pane.</span></div>
+    <div><b>Breakpoint</b><span>Fix it to what the spec says: measured against the <i>window</i>, 1100 px at base 12 (1283 at base 14). With the rail visible, that gives the table about 750 px beside a 340 px pane.</span></div>
+    <div><b>Divider</b><span>Still a 1 px hairline, but it responds across 6 px. On hover it turns accent and the pointer becomes a resize cursor. Dragging shows the size. Double-click resets it. Right pane: 260 to 640 px of width. Bottom pane: 160 px to 60 % of height.</span></div>
+    <div><b>Keyboard</b><span><kbd>&lt;</kbd> and <kbd>&gt;</kbd> make the pane smaller and larger by 40 px, as vim's <kbd>ctrl+w &lt;</kbd> <kbd>&gt;</kbd> do. Both keys are free today.</span></div>
+    <div><b>Memory</b><span>One size per placement, per server, in <code>state.json</code> next to the table state. Switching placement doesn't lose the other size.</span></div>
+    <div><b>At the bottom</b><span>A wide, short pane shouldn't stack the right-hand layout into 300 px of height. The header and figures move into a left column and the fields sit in two columns beside them, so Details fits in about 200 px.</span></div>
+  </div>
+  <div class="figure">
+    <div class="scroller"><div class="desk" id="detRight"></div></div>
+    <div class="cap"><b>Fig. 5.1</b>: Right, at 1300 px, while the divider is being dragged. The 6 px hit area is tinted here so you can see it; in the app only the hairline and the grip change.</div>
+  </div>
+  <div class="figure">
+    <div class="scroller"><div class="desk" id="detBottom"></div></div>
+    <div class="cap"><b>Fig. 5.2</b>: Bottom, at 1100 px, after <kbd>I</kbd>. The two-column layout, the grip on hover, and the footer note. Six table rows instead of today's four at the same height.</div>
+  </div>
+</section>
+
+<!-- ================= §6 DECIDE ================= -->
+<section id="decide">
+  <div class="sec-head"><div class="eyebrow">6 · Decision sheet</div><h2>Your answers, in one paste</h2>
+  <p>Recommendations are preselected. The three bugs in §1 are fixed whatever you choose here; these answers decide how.</p></div>
+  <form class="decide" id="decideForm"></form>
+</section>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  const $ = id => document.getElementById(id);
+  const THEMES = {
+    "frieren": { label:"Frieren", mode:"dark", accent:"#5492f8", selection:"#292932", muted:"#272833", background:"#11111b", dark_background:"#0d0d14", darker_background:"#09090e", lighter_background:"#292932", foreground:"#b9c5ef", dark_foreground:"#8b94b3", light_foreground:"#c4cef1", bright_foreground:"#cbd4f3", red:"#ee5681", yellow:"#f6d58c", orange:"#f16f94", green:"#7dd676", cyan:"#63d5c2", blue:"#5492f8", magenta:"#b47ff3", brown:"#914359" },
+    "tokyo-night": { label:"Tokyo Night", mode:"dark", accent:"#7aa2f7", selection:"#292e42", muted:"#414868", background:"#1a1b26", dark_background:"#13141c", darker_background:"#0e0e14", lighter_background:"#24283b", foreground:"#a9b1d6", dark_foreground:"#565f89", light_foreground:"#b4bee6", bright_foreground:"#c0caf5", red:"#f7768e", yellow:"#e0af68", orange:"#eb927b", green:"#9ece6a", cyan:"#449dab", blue:"#7aa2f7", magenta:"#ad8ee6", brown:"#75493d" },
+    "hackerman": { label:"Hackerman", mode:"dark", accent:"#82FB9C", selection:"#1f253a", muted:"#2d3450", background:"#0B0C16", dark_background:"#080910", darker_background:"#06060c", lighter_background:"#151828", foreground:"#ddf7ff", dark_foreground:"#6a6e95", light_foreground:"#b5c5db", bright_foreground:"#ddf7ff", red:"#50f872", yellow:"#50f7d4", orange:"#50f7a3", green:"#4fe88f", cyan:"#7cf8f7", blue:"#829dd4", magenta:"#86a7df", brown:"#287b51" },
+    "lupine": { label:"Lupine", mode:"light", accent:"#3264eb", selection:"#d0d0d0", muted:"#9e9e9e", background:"#fafafa", dark_background:"#ececec", darker_background:"#dedede", lighter_background:"#f5f5f5", foreground:"#212121", dark_foreground:"#757575", light_foreground:"#424242", bright_foreground:"#000000", red:"#c900c4", yellow:"#026fde", orange:"#026fde", green:"#4a2fd0", cyan:"#0c67de", blue:"#3264eb", magenta:"#8a4ad7", brown:"#013a6f" }
+  };
+  const MAP = { accent:"--accent", selection:"--selection", muted:"--muted", background:"--bg", dark_background:"--bg-dark", darker_background:"--bg-darker", lighter_background:"--bg-light", foreground:"--fg", dark_foreground:"--fg-dark", light_foreground:"--fg-light", bright_foreground:"--fg-bright", red:"--red", yellow:"--yellow", orange:"--orange", green:"--green", cyan:"--cyan", blue:"--blue", magenta:"--magenta", brown:"--brown" };
+
+  function gearPath() {
+    const pts = [];
+    for (let k = 0; k < 8; k++) {
+      const a = k * 45;
+      [[a - 15, 7.2], [a - 8, 9.8], [a + 8, 9.8], [a + 15, 7.2]].forEach(([d, r]) => {
+        const t = (d - 90) * Math.PI / 180;
+        pts.push((12 + r * Math.cos(t)).toFixed(2) + " " + (12 + r * Math.sin(t)).toFixed(2));
+      });
+    }
+    return "M" + pts.join(" L") + " Z M15 12 A3 3 0 1 1 9 12 A3 3 0 1 1 15 12 Z";
+  }
+  const ICON = {
+    add: '<path d="M12 4.5v15M4.5 12h15"/>',
+    help: '<path d="M8.8 9a3.2 3.2 0 1 1 4.7 2.8c-1 .6-1.5 1.2-1.5 2.4v.8"/><path d="M12 18.4v.2"/>',
+    gear: '<path d="' + gearPath() + '"/>',
+    alt: '<path d="M4.2 17.5A8.6 8.6 0 1 1 19.8 17.5"/><path d="M12 14.2 7.2 10.4"/><path d="M12 13.2v2"/>',
+    more: '<path d="M5.5 12h.1M12 12h.1M18.5 12h.1" stroke-width="2.6"/>',
+    search: '<path d="M16.5 10.5a6 6 0 1 1-12 0 6 6 0 1 1 12 0ZM15 15l5 5"/>',
+    limits: '<path d="M4 7h10M18 7h2M4 17h4M12 17h8M14 4.5v5M8 14.5v5"/>',
+    columns: '<path d="M4 5h16v14H4zM9.4 5v14M14.6 5v14"/>',
+    selall: '<path d="M4 4h16v16H4zM8 12l3 3 5-6"/>'
+  };
+  const ic = n => `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true">${ICON[n]}</svg>`;
+  const MARK = '<svg class="mk" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M1 8H6V18H16V23H1Z M8 1H23V16H18V6H8Z M8 8H16V16H8Z"/></svg>';
+  const W = w => `width:calc(${w} / 14 * var(--base))`;
+  const wl = (w, extra) => `<div class="wlab"><b>${w} px</b>${extra ? " · " + extra : ""}</div>`;
+
+  /* ---------------- §2 hero ---------------- */
+  function heroA(w, opts) {
+    opts = opts || {};
+    const lv = w >= 1500 ? 0 : w >= 1150 ? 1 : w >= 900 ? 2 : w >= 700 ? 3 : 4;
+    const server = lv === 0 ? "home · qBittorrent 5.2.3" : "home";
+    const id = lv < 4
+      ? `<div class="id"><b>omaseed</b><span class="lbl l"><span class="dot" style="background:var(--yellow)"></span>${server} <span class="warn">· firewalled</span></span></div>`
+      : `<span class="dot" style="background:var(--yellow);margin-left:calc(-4 * var(--u))" title="home · firewalled"></span>`;
+    const cap = t => lv < 2 ? `<span class="lbl">${t}</span>` : "";
+    const stats = `<div class="stat"><span class="v"><i style="color:var(--st-down)">↓</i>4.21 MB/s</span>${cap("download")}</div><div class="stat"><span class="v"><i style="color:var(--st-seed)">↑</i>812 KB/s</span>${cap("upload")}</div>`;
+    let fld;
+    if (opts.searching) fld = `<div class="fld fill" style="border-color:var(--accent);color:var(--fg-bright)"><span class="dim">/</span>arch<span class="k">2 of 8</span></div>`;
+    else if (lv >= 3) fld = `<span class="ib">${ic("search")}</span>`;
+    else fld = `<div class="fld" style="width:calc(${[220, 180, 140][lv]} * var(--u))"><span>/</span><span>filter${lv < 2 ? " torrents" : ""}</span><span class="k">8</span></div>`;
+    const chip = lv >= 3 ? `<span class="chip warn solo" title="alt-speed ↓1.00 MB/s ↑200 KB/s">${ic("alt")}</span>` : `<span class="chip warn">${ic("alt")}${lv >= 1 ? "↓1M ↑200K" : "↓1.00 MB/s ↑200 KB/s"}</span>`;
+    const acts = `<div class="acts"><span class="ib pri">${ic("add")}</span>${lv < 2 ? `<span class="ib">${ic("gear")}</span>` : ""}<span class="ib">${ic("more")}</span>${lv < 2 ? `<span class="ib">${ic("help")}</span>` : ""}</div>`;
+    if (opts.searching) return `<div class="win" style="${W(w)}"><div class="hero"><span class="mkw">${MARK}</span>${fld}${acts}</div></div>`;
+    return `<div class="win" style="${W(w)}"><div class="hero"${lv >= 4 ? ' style="gap:calc(10 * var(--u))"' : ""}><span class="mkw">${MARK}</span>${id}${stats}<div class="grow"></div>${fld}${chip}${acts}</div></div>`;
+  }
+  function heroB(w) {
+    return `<div class="win" style="${W(w)}"><div class="hero two"><span class="mkw">${MARK}</span><div class="id"><b>omaseed</b><span class="lbl l"><span class="dot" style="background:var(--yellow)"></span>home <span class="warn">· firewalled</span></span></div><div class="stat"><span class="v"><i style="color:var(--st-down)">↓</i>4.21 MB/s</span></div><div class="stat"><span class="v"><i style="color:var(--st-seed)">↑</i>812 KB/s</span></div><div class="grow"></div><div class="acts"><span class="ib pri">${ic("add")}</span><span class="ib">${ic("more")}</span></div><span class="brk"></span><div class="fld fill"><span>/</span><span>filter torrents</span><span class="k">8</span></div><span class="chip warn">${ic("alt")}↓1.00 MB/s ↑200 KB/s</span><div class="acts"><span class="ib">${ic("gear")}</span><span class="ib">${ic("help")}</span></div></div></div>`;
+  }
+  function renderHero() {
+    $("ladderA").innerHTML = [1500, 1150, 900, 700, 560].map(w => wl(w) + heroA(w)).join("");
+    $("twoRows").innerHTML = [1000, 700].map(w => wl(w) + heroB(w)).join("");
+    $("searchOpen").innerHTML = wl(700, "after /") + heroA(700, { searching: true });
+    $("moreMenu").innerHTML = `<div class="menu">
+      <div class="it new">${ic("gear")}Settings<kbd>,</kbd></div>
+      <div class="it new">${ic("help")}Help<kbd>?</kbd></div>
+      <div class="sp"></div>
+      <div class="it">${ic("limits")}Speed limits…<kbd></kbd></div>
+      <div class="it">${ic("alt")}Alternative speeds<kbd>A</kbd></div>
+      <div class="sp"></div>
+      <div class="it">${ic("columns")}Columns…<kbd>|</kbd></div>
+      <div class="it">${ic("selall")}Select all shown<kbd>ctrl+a</kbd></div></div>`;
+  }
+
+  /* ---------------- §3 footer ---------------- */
+  const HINTS = [["j k","move"],["enter","actions"],["space","select"],["/","filter"],["p","stop/start"],["d","delete"],["o","folder"]];
+  function footer(w) {
+    const n = w >= 1500 ? 7 : w >= 1150 ? 4 : w >= 900 ? 2 : w >= 700 ? 1 : 0;
+    const facts = w >= 1100 ? `<b>16</b> torrents · <b>8</b> downloading · <b>1.80 TB</b> free · 2 selected`
+      : w >= 900 ? `<b>16</b> torrents · <b>8</b> ↓ · <b>1.80 TB</b> free · 2 sel`
+      : w >= 700 ? `<b>16</b> · <b>8</b> ↓ · <b>1.80 TB</b> free`
+      : `<b>16</b> · 2 sel`;
+    return `<div class="win" style="${W(w)}"><div class="foot"><span>${facts}</span><div class="hints">${HINTS.slice(0, n).map(h => `<span><b>${h[0]}</b> ${h[1]}</span>`).join("")}</div><div class="grow"></div><div class="hints"><span><b>?</b> help</span></div></div></div>`;
+  }
+  function renderFooter() { $("footers").innerHTML = [1500, 1150, 900, 700, 560].map(w => wl(w) + footer(w)).join(""); }
+
+  /* ---------------- §4 table ---------------- */
+  const S = { down:["↓","downloading","var(--st-down)"], seed:["↑","seeding","var(--st-seed)"], stall:["○","stalled","var(--st-stall)"] };
+  const ROWS = [
+    { n:"archlinux-2026.09.01-x86_64.iso", c:"linux", sz:"1.31 GB", p:48.9, s:"down", sp:"21 / 42", d:"1.84 MB/s", u:"112 KB/s", e:"2m 40s" },
+    { n:"Fedora-Workstation-Live-44-1.6.x86_64.iso", c:"linux", sz:"2.34 GB", p:12.4, s:"down", sp:"8 / 19", d:"1.02 MB/s", u:"0", e:"19m" },
+    { n:"Cosmos Laundromat 2K (CC-BY)", c:"movies", sz:"3.12 GB", p:87.2, s:"down", sp:"40 / 12", d:"940 KB/s", u:"220 KB/s", e:"7m 05s" },
+    { n:"ubuntu-26.04.1-desktop-amd64.iso", c:"linux", sz:"6.11 GB", p:100, s:"seed", sp:"0 / 12", d:"0", u:"0", e:"–" },
+    { n:"NixOS minimal 26.05 x86_64.iso", c:"linux", sz:"1.02 GB", p:22.7, s:"stall", sp:"0 / 2", d:"0", u:"0", e:"∞" }
+  ];
+  const COLS = [
+    { k:"sz", h:"Size", w:64, r:1, f:t => t.sz, drop:640 },
+    { k:"pg", h:"Progress", w:110, f:t => `<span class="pg"><span class="tk"><b style="width:${t.p}%;background:${S[t.s][2]}"></b></span><em>${t.p === 100 ? "100%" : t.p.toFixed(1) + "%"}</em></span>` },
+    { k:"st", h:"Status", w:110, f:(t, g) => `<span class="stt"><g style="color:${S[t.s][2]}">${S[t.s][0]}</g>${g ? "" : S[t.s][1]}</span>` },
+    { k:"sp", h:"S / P", w:64, r:1, f:t => t.sp, drop:880 },
+    { k:"d", h:"↓", w:74, r:1, f:t => t.d, drop:560 },
+    { k:"u", h:"↑", w:70, r:1, f:t => t.u, drop:1000 },
+    { k:"e", h:"ETA", w:54, r:1, f:t => t.e, drop:760 }
+  ];
+  function table(w) {
+    const glyph = w < 560, px = u => u * 14 / 12, ORDER = ["u", "sp", "e", "sz", "d"];
+    let cols = COLS.map(c => c.k === "st" && glyph ? Object.assign({}, c, { w:28 }) : c);
+    const need = cs => cs.reduce((a, c) => a + px(c.w) + 14, 36);
+    for (const k of ORDER) { if (need(cols) <= w * 0.6) break; cols = cols.filter(c => c.k !== k); }
+    const hidden = COLS.length - cols.length;
+    const tmpl = `minmax(calc(${Math.round(w * 0.4)} / 14 * var(--base)),1fr) ` + cols.map(c => `calc(${c.w} * var(--u))`).join(" ");
+    const head = `<div class="tr th" style="grid-template-columns:${tmpl}"><span>Name</span>${cols.map((c, i) => `<span class="${c.r ? "r" : ""}">${c.k === "st" && glyph ? "" : c.h}${i === cols.length - 1 && hidden ? ` <span class="note">+${hidden}</span>` : ""}</span>`).join("")}</div>`;
+    const rows = ROWS.map((t, i) => `<div class="tr${i === 0 ? " cur sel" : i === 1 ? " sel" : ""}" style="grid-template-columns:${tmpl}"><span class="nm">${t.n}<i>${t.c}</i></span>${cols.map(c => `<span class="${c.r ? "r" : ""}">${c.f(t, glyph)}</span>`).join("")}</div>`).join("");
+    return `<div class="win" style="${W(w)}"><div class="tbl">${head}${rows}</div></div>`;
+  }
+  function renderTables() {
+    const gone = w => { const h = table(w).split('class="tr th"')[1].split("</div>")[0]; return COLS.filter(c => c.k !== "st" && !h.includes(">" + c.h)).map(c => c.h); };
+    $("tables").innerHTML = [1300, 1100, 850, 650, 480].map(w => { const g = gone(w); return wl(w, (g.length ? "without " + g.join(", ") : "all columns") + (w < 560 ? "; Status is its glyph" : "")) + table(w); }).join("");
+  }
+
+  /* ---------------- §5 details ---------------- */
+  const RAIL = [["◆","all",16],["↓","downloading",8,1],["↑","seeding",6],["✓","completed",8],["■","stopped",2],["○","stalled",1],["↻","checking",1],["!","errored",1]];
+  const railHtml = () => `<aside class="rail"><div class="rh">Status</div>${RAIL.map(r => `<div class="rr${r[3] ? " on" : ""}"><g>${r[0]}</g><span>${r[1]}</span><em>${r[2]}</em></div>`).join("")}</aside>`;
+  function mini(w, rows) {
+    const cols = COLS.filter(c => ["sz","pg","st","d"].includes(c.k));
+    const tmpl = `minmax(0,1fr) ` + cols.map(c => `calc(${c.w} * var(--u))`).join(" ");
+    return `<div class="tbl"><div class="tr th" style="grid-template-columns:${tmpl}"><span>Name</span>${cols.map(c => `<span class="${c.r ? "r" : ""}">${c.h}</span>`).join("")}</div>${ROWS.slice(0, rows).concat(ROWS.slice(0, Math.max(0, rows - ROWS.length))).map((t, i) => `<div class="tr${i === 0 ? " cur sel" : ""}" style="grid-template-columns:${tmpl}"><span class="nm">${t.n}<i>${t.c}</i></span>${cols.map(c => `<span class="${c.r ? "r" : ""}">${c.f(t)}</span>`).join("")}</div>`).join("")}</div>`;
+  }
+  const KV = [["Save path","/data/torrents/linux/"],["Hash v1","000023dc8f83516bdc23a28de0b8f985bda95bdd"],["Status",'<span style="color:var(--st-down)">downloading</span>'],["Downloaded","656 MB of 1.31 GB"],["Uploaded","394 MB"],["Pieces","1 264 × 1 MiB · 617 have"],["Availability","38.20"],["Seeds","21 connected · 1 204 total"],["Peers","42 connected · 88 total"],["Time active","14 min 22 s"]];
+  const tabs = `<div class="tabs"><span class="t on">General <em>1</em></span><span class="t">Files <em>2</em></span><span class="t">Trackers <em>3</em></span><span class="t">Peers <em>4</em></span></div>`;
+  const strip = `<div class="strip"><div><span class="lbl">size</span><span class="v">1.31 GB</span></div><div><span class="lbl">done</span><span class="v">48.9 %</span></div><div><span class="lbl">ratio</span><span class="v">0.21</span></div><div><span class="lbl">eta</span><span class="v">2 min 40 s</span></div></div>`;
+  const hero = w => heroA(w).replace(/^<div class="win"[^>]*>/, "").replace(/<\/div>$/, "");
+  function renderDetails() {
+    $("detRight").innerHTML = wl(1300, "dragging, pane 380 px") + `<div class="win app" style="${W(1300)}">${hero(1300)}
+      <div class="bodyR" style="--pw:326">${railHtml()}<div style="min-width:0;overflow:hidden">${mini(1300, 5)}</div>
+      <div class="div hot"><span class="zone"></span><span class="grip">⋮</span><span class="tip">380 px · &lt; &gt;</span></div>
+      <aside class="det"><div class="dh"><b>archlinux-2026.09.01-x86_64.iso</b><span class="m">linux · private · added 18 Sep 10:41</span></div>${strip}${tabs}<div class="kv">${KV.slice(0, 7).map(k => `<span class="k">${k[0]}</span><span class="v">${k[1]}</span>`).join("")}</div></aside></div>
+      ${footer(1300).replace(/^<div class="win"[^>]*>/, "").replace(/<\/div>$/, "")}</div>`;
+    const half = Math.ceil(KV.length / 2);
+    const kvcol = a => `<div class="kv">${a.map(k => `<span class="k">${k[0]}</span><span class="v">${k[1]}</span>`).join("")}</div>`;
+    $("detBottom").innerHTML = wl(1100, "bottom, hovering the divider") + `<div class="win app" style="${W(1100)}">${hero(1100)}
+      <div class="bodyB">${railHtml()}<div class="main" style="--ph:190"><div style="min-height:0;overflow:hidden">${mini(1100, 6)}</div>
+        <div class="div hot"><span class="grip">⋯</span></div>
+        <div class="bdet"><div class="left"><div class="dh"><b>archlinux-2026.09.01-x86_64.iso</b><span class="m">linux · private · added 18 Sep 10:41</span></div>${strip}</div>
+          <div class="right">${tabs}<div class="kv2">${kvcol(KV.slice(0, half))}${kvcol(KV.slice(half))}</div></div></div></div></div>
+      <div class="foot"><span><b>16</b> torrents · <b>8</b> downloading · <b>1.80 TB</b> free · 2 selected</span><span class="note">details: bottom · <b style="color:var(--accent)">I</b> to change</span><div class="grow"></div><div class="hints"><span><b>?</b> help</span></div></div></div>`;
+  }
+
+  /* ---------------- §6 decision sheet ---------------- */
+  const QS = [
+    ["hero", "§2", "Hero at narrow widths", "", [["A","A · ladder into ⋯",1],["B","B · two rows below 1100"],["C","C · minimum width only"]]],
+    ["search", "§2 · Fig. 2.3", "Filter below 900", "Only with A.", [["icon","/ button, opens over the speeds",1],["keep","keep a 120 px field"]]],
+    ["minw", "§2 · C", "A minimum window width", "", [["560","560 px floor",1],["none","none"]]],
+    ["footer", "§3", "Footer", "", [["ladder","? pinned, hints drop, facts shorten",1],["help","only pin ? help"]]],
+    ["table", "§4", "Table when narrow", "", [["retreat","columns step aside in order",1],["scroll","horizontal scroll"],["clip","clip (today)"]]],
+    ["bp", "§5", "Details breakpoint", "", [["window","window width, as the spec says",1],["split","area beside the rail (today)"]]],
+    ["place", "§5", "Details placement", "", [["setting","auto / right / bottom, I cycles",1],["auto","auto only (today)"]]],
+    ["divider", "§5", "Divider", "", [["both","drag + < > keys",1],["drag","drag only"],["none","fixed (today)"]]],
+    ["bottom", "§5 · Fig. 5.2", "Details at the bottom", "", [["two","two-column layout",1],["same","same layout as the right"]]]
+  ];
+  const STORE = "omaseed-10-decisions";
+  function loadSaved() { try { return JSON.parse(localStorage.getItem(STORE) || "{}"); } catch (e) { return {}; } }
+  function save(v) { try { localStorage.setItem(STORE, JSON.stringify(v)); } catch (e) {} }
+  function renderDecide() {
+    const saved = loadSaved();
+    let h = QS.map(q => `<div class="q"><div class="qt"><span class="ref">${q[1]}</span><b>${q[2]}</b>${q[3] ? `<span>${q[3]}</span>` : ""}</div>
+      <div class="os" role="radiogroup" aria-label="${q[2]}">${q[4].map(o => {
+        const chk = saved[q[0]] ? saved[q[0]] === o[0] : !!o[2];
+        return `<label><input type="radio" id="q-${q[0]}-${o[0]}" name="${q[0]}" value="${o[0]}" ${chk ? "checked" : ""}>${o[1]}${o[2] ? ' <span class="r">rec</span>' : ""}</label>`;
+      }).join("")}</div></div>`).join("");
+    h += `<div class="q"><div class="qt"><span class="ref">anything</span><b>Notes</b><span>Thresholds, keys, anything the options missed.</span></div><textarea class="notes" id="q-notes" name="notes" aria-label="Notes">${(saved.notes || "").replace(/</g, "&lt;")}</textarea></div>`;
+    h += `<div class="out"><div class="row"><button type="button" class="pbtn primary" id="copyBtn">Copy answers</button><button type="button" class="pbtn" id="resetBtn">Back to recommendations</button><span class="st" id="copySt" aria-live="polite"></span></div><textarea id="outText" readonly aria-label="Answers to paste"></textarea></div>`;
+    $("decideForm").innerHTML = h;
+    const update = () => {
+      const f = $("decideForm"), v = {};
+      QS.forEach(q => { const c = f.querySelector(`input[name="${q[0]}"]:checked`); v[q[0]] = c ? c.value : ""; });
+      v.notes = $("q-notes").value;
+      save(v);
+      const lines = QS.map(q => { const o = q[4].find(x => x[0] === v[q[0]]); return `${q[2]}: ${o ? o[1] : "—"}${o && !o[2] ? "  (changed)" : ""}`; });
+      $("outText").value = "10 narrow windows + B1.7, answers\n" + lines.join("\n") + (v.notes.trim() ? "\nnotes: " + v.notes.trim() : "");
+    };
+    $("decideForm").addEventListener("change", update);
+    $("q-notes").addEventListener("input", update);
+    $("copyBtn").addEventListener("click", () => {
+      const t = $("outText");
+      const done = ok => { $("copySt").textContent = ok ? "Copied. Paste it into the session." : "Selected. Press ctrl+c to copy."; };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t.value).then(() => done(true), () => { t.select(); done(false); });
+      else { t.select(); done(false); }
+    });
+    $("resetBtn").addEventListener("click", () => { save({}); renderDecide(); });
+    update();
+  }
+
+  /* ---------------- theme / base ---------------- */
+  function setTheme(name) {
+    const t = THEMES[name]; if (!t) return; const r = document.documentElement.style;
+    for (const k in MAP) r.setProperty(MAP[k], t[k]);
+    document.documentElement.dataset.mode = t.mode;
+    document.querySelectorAll("#themeSeg button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.theme === name)));
+    $("metaTheme").textContent = t.label; $("metaMode").textContent = t.mode;
+    try { localStorage.setItem("omaseed-10-theme", name); } catch (e) {}
+  }
+  function setBase(b) {
+    document.documentElement.dataset.base = b;
+    document.querySelectorAll("#baseSeg button").forEach(x => x.setAttribute("aria-pressed", String(x.dataset.base === b)));
+    $("metaBase").textContent = b;
+    try { localStorage.setItem("omaseed-10-base", b); } catch (e) {}
+  }
+  $("themeSeg").addEventListener("click", e => { const b = e.target.closest("button[data-theme]"); if (b) setTheme(b.dataset.theme); });
+  $("baseSeg").addEventListener("click", e => { const b = e.target.closest("button[data-base]"); if (b) setBase(b.dataset.base); });
+  let t = (window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches) ? "lupine" : "frieren", b = "14";
+  try { const s = localStorage.getItem("omaseed-10-theme"); if (s && THEMES[s]) t = s; const z = localStorage.getItem("omaseed-10-base"); if (z === "12" || z === "14") b = z; } catch (e) {}
+  setTheme(t); setBase(b);
+  renderHero(); renderFooter(); renderTables(); renderDetails(); renderDecide();
+})();
+</script>
