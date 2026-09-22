@@ -14,6 +14,9 @@ namespace omaseed::core::Format {
 /// "4.21 MB/s", "812 KB/s", "0" for nothing moving (spec §1 hero and table).
 QString speed(qint64 bytesPerSecond);
 
+/// A speed limit: "10 KB/s", or "∞" when there is none (qBittorrent sends 0 or -1).
+QString limit(qint64 bytesPerSecond);
+
 /// "1.31 GB", "412 MB", "9 KB", "0" (spec §1 Size column, §2 strip).
 QString size(qint64 bytes);
 

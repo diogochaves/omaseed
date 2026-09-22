@@ -57,6 +57,25 @@ TestCase {
         compare(hero.networkWarning, "");
     }
 
+    // docs/08 §3: alt-speed is a chip that names itself, and prints the limits while on.
+    function test_the_alt_speed_chip_shows_the_limits_while_on() {
+        const hero = createTemporaryObject(heroComponent, testCase, {
+                                               "altDownLimit": "10 KB/s",
+                                               "altUpLimit": "∞"
+                                           });
+        compare(hero.altChip.text, "alt-speed");
+        verify(!hero.altChip.warn);
+        hero.altSpeedActive = true;
+        compare(hero.altChip.text, "↓10 KB/s ↑∞");
+        verify(hero.altChip.warn);
+        compare(hero.altChip.border.color, Theme.yellow);
+
+        let clicks = 0;
+        hero.altSpeedClicked.connect(() => clicks++);
+        hero.altChip.clicked();
+        compare(clicks, 1);
+    }
+
     function test_emits_search_cleared() {
         const hero = createTemporaryObject(heroComponent, testCase);
         let cleared = 0;

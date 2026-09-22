@@ -507,7 +507,9 @@ QJsonObject serverState()
     state.insert(QStringLiteral("dl_info_data"), 412LL * kGb);
     state.insert(QStringLiteral("up_info_data"), 188LL * kGb);
     state.insert(QStringLiteral("free_space_on_disk"), qint64(1.8 * double(kTb)));
-    state.insert(QStringLiteral("use_alt_speed_limits"), false);
+    // `OMASEED_DEMO_ALTSPEED=1` puts the demo server on its alternative limits.
+    const bool altSpeed = qEnvironmentVariableIntValue("OMASEED_DEMO_ALTSPEED") == 1;
+    state.insert(QStringLiteral("use_alt_speed_limits"), altSpeed);
     // `OMASEED_DEMO_CONNECTION=firewalled|disconnected` shows the hero's network warning.
     const QString connection = qEnvironmentVariable("OMASEED_DEMO_CONNECTION");
     state.insert(QStringLiteral("connection_status"),
@@ -517,8 +519,8 @@ QJsonObject serverState()
                      : QStringLiteral("connected"));
     state.insert(QStringLiteral("dht_nodes"), 382);
     state.insert(QStringLiteral("total_peer_connections"), 214);
-    state.insert(QStringLiteral("dl_rate_limit"), 0);
-    state.insert(QStringLiteral("up_rate_limit"), 0);
+    state.insert(QStringLiteral("dl_rate_limit"), altSpeed ? 1024 * kKb : 0);
+    state.insert(QStringLiteral("up_rate_limit"), altSpeed ? 200 * kKb : 0);
     state.insert(QStringLiteral("queueing"), true);
     state.insert(QStringLiteral("refresh_interval"), 1500);
     return state;

@@ -69,6 +69,11 @@ QString speed(qint64 bytesPerSecond)
     return scaled(bytesPerSecond, QStringLiteral("/s"));
 }
 
+QString limit(qint64 bytesPerSecond)
+{
+    return bytesPerSecond <= 0 ? QStringLiteral("∞") : speed(bytesPerSecond);
+}
+
 QString size(qint64 bytes)
 {
     return scaled(bytes, QString());

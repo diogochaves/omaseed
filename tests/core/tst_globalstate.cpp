@@ -66,6 +66,7 @@ void TestGlobalState::mergesOnlyThePresentKeys()
 
     QCOMPARE(state.dlSpeedText(), QStringLiteral("4.21 MB/s"));
     QCOMPARE(state.upSpeedText(), QStringLiteral("812 KB/s"));
+    QCOMPARE(state.dlRateLimitText(), QStringLiteral("∞"));
     QCOMPARE(state.freeSpaceText(), QStringLiteral("1.80 TB"));
     QCOMPARE(state.dhtNodes(), 312);
 

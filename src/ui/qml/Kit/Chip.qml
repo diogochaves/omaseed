@@ -8,6 +8,11 @@ Rectangle {
     id: root
 
     property string text: ""
+    /// Optional glyph before the text (a `Glyphs.*` value: text or "icon:<name>").
+    property string glyph: ""
+    /// A state worth noticing (the hero's alt-speed while it throttles): the border and text
+    /// take the warning role instead of the foreground. The fill stays foreground-based.
+    property bool warn: false
     property bool selected: false
     property bool hasCursor: false
     /// Opt into the keyboard: the chip joins the tab order and `space`/`enter` picks it
@@ -23,13 +28,13 @@ Rectangle {
     Accessible.role: Accessible.Button
 
     activeFocusOnTab: root.focusable && root.enabled
-    border.color: root.activeFocus ? Theme.accent : root.hot ? Theme.fill(Theme.borderHover) :
-                                                               Theme.fill(Theme.borderIdle)
+    border.color: root.activeFocus ? Theme.accent : root.warn ? Theme.yellow : root.hot
+                                                                                ? Theme.fill(Theme.borderHover) : Theme.fill(Theme.borderIdle)
     border.width: (root.selected && !root.activeFocus) ? 0 : 1
     color: root.selected ? Theme.fill(Theme.fillSelected) : root.hot ? Theme.fill(Theme.fillHover) :
                                                                        Theme.fill(Theme.fillIdle)
     height: Theme.space(22)
-    implicitWidth: label.implicitWidth + Theme.space(16)
+    implicitWidth: content.implicitWidth + Theme.space(16)
     radius: Theme.cornerRadius
 
     Behavior on color {
@@ -38,14 +43,32 @@ Rectangle {
         }
     }
 
-    Text {
-        id: label
+    Row {
+        id: content
 
         anchors.centerIn: parent
-        color: root.selected ? Theme.brightForeground : Theme.foreground
-        font.family: Theme.fontFamily
-        font.pixelSize: Theme.font.small
-        text: root.text
+        spacing: Theme.space(5)
+
+        Glyph {
+            anchors.verticalCenter: parent.verticalCenter
+            color: label.color
+            height: Theme.font.small
+            pixelSize: Theme.font.small
+            text: root.glyph
+            visible: root.glyph.length > 0
+            width: Theme.font.small
+        }
+
+        Text {
+            id: label
+
+            anchors.verticalCenter: parent.verticalCenter
+            color: root.warn ? Theme.yellow : root.selected ? Theme.brightForeground :
+                                                              Theme.foreground
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.font.small
+            text: root.text
+        }
     }
 
     MouseArea {

@@ -50,6 +50,16 @@ QString GlobalState::upSpeedText() const
     return Format::speed(m_upInfoSpeed);
 }
 
+QString GlobalState::dlRateLimitText() const
+{
+    return Format::limit(m_dlRateLimit);
+}
+
+QString GlobalState::upRateLimitText() const
+{
+    return Format::limit(m_upRateLimit);
+}
+
 QString GlobalState::freeSpaceText() const
 {
     return Format::size(m_freeSpaceOnDisk);

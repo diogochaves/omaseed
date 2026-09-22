@@ -573,7 +573,9 @@ Item {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
+        altDownLimit: App.globalState.dlRateLimitText
         altSpeedActive: App.globalState.useAltSpeedLimits
+        altUpLimit: App.globalState.upRateLimitText
         appName: qsTr("omaseed")
         connected: !root.serverLost
         connectionStatus: App.globalState.connectionStatus

@@ -29,6 +29,9 @@ Item {
                                              ? root.connectionStatus : ""
     /// The server is on its alternative speed limits: the glyph turns accent (`.btn.icon.on`).
     property bool altSpeedActive: false
+    /// The limits in force while alt-speed is on ("10 KB/s", "∞"); the chip prints them.
+    property string altDownLimit: "∞"
+    property string altUpLimit: "∞"
     property string downSpeed: "—"
     // Exposed read-only so `tst_Hero.qml` can drive the inner Field directly instead of
     // simulating keystrokes.
@@ -39,6 +42,8 @@ Item {
     readonly property alias downStat: downStat
     /// The network word after the server line, for tests.
     readonly property alias networkLabel: networkLabel
+    /// The alt-speed chip.
+    readonly property alias altChip: altChip
     /// The `+`, so a test can see how it is drawn.
     readonly property alias addButton: addButton
     property int searchCount: 0
@@ -185,6 +190,21 @@ Item {
             onTextChanged: root.searchChanged(searchField.text)
         }
 
+        // Alt-speed names itself and, while it throttles, prints the limits in the warning
+        // role, so the state reads from across the room (docs/08 §3; Fig. 1 had the `⏷` glyph,
+        // which read as a dropdown). `A` still toggles it.
+        Chip {
+            id: altChip
+
+            Layout.alignment: Qt.AlignVCenter
+            glyph: Glyphs.altSpeed
+            text: root.altSpeedActive ? qsTr("↓%1 ↑%2").arg(root.altDownLimit).arg(
+                                            root.altUpLimit) : qsTr("alt-speed")
+            warn: root.altSpeedActive
+
+            onClicked: root.altSpeedClicked()
+        }
+
         Row {
             Layout.alignment: Qt.AlignVCenter
             spacing: Theme.space(2)
@@ -201,13 +221,6 @@ Item {
                 onClicked: root.addClicked()
             }
 
-            IconButton {
-                accent: root.altSpeedActive
-                glyph: Glyphs.altSpeed
-                tooltip: qsTr("alt-speed")
-
-                onClicked: root.altSpeedClicked()
-            }
 
             IconButton {
                 glyph: Glyphs.settings

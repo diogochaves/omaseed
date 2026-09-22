@@ -49,6 +49,10 @@ class GlobalState : public QObject
     // --- formatted, for the hero and the tray --------------------------------------------
     Q_PROPERTY(QString dlSpeedText READ dlSpeedText NOTIFY dlInfoSpeedChanged)
     Q_PROPERTY(QString upSpeedText READ upSpeedText NOTIFY upInfoSpeedChanged)
+    /// The limits in force right now ("10 KB/s" or "∞"); while alt-speed is on these are
+    /// the alternative limits, which is what the hero's alt-speed chip prints.
+    Q_PROPERTY(QString dlRateLimitText READ dlRateLimitText NOTIFY dlRateLimitChanged)
+    Q_PROPERTY(QString upRateLimitText READ upRateLimitText NOTIFY upRateLimitChanged)
     Q_PROPERTY(QString freeSpaceText READ freeSpaceText NOTIFY freeSpaceOnDiskChanged)
     Q_PROPERTY(QString lastSyncText READ lastSyncText NOTIFY lastSyncTimeChanged)
 
@@ -80,6 +84,8 @@ public:
 
     QString dlSpeedText() const;
     QString upSpeedText() const;
+    QString dlRateLimitText() const;
+    QString upRateLimitText() const;
     QString freeSpaceText() const;
     QString lastSyncText() const;
 

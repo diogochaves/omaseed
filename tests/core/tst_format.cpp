@@ -38,7 +38,15 @@ private slots:
     void piecesRow();
     void connectedTotalRow();
     void shareLimitRow();
+    void limitIsASpeedOrInfinity();
 };
+
+void TestFormat::limitIsASpeedOrInfinity()
+{
+    QCOMPARE(Format::limit(10240), QStringLiteral("10 KB/s"));
+    QCOMPARE(Format::limit(0), QStringLiteral("∞"));
+    QCOMPARE(Format::limit(-1), QStringLiteral("∞"));
+}
 
 void TestFormat::speed_data()
 {
