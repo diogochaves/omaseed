@@ -16,15 +16,34 @@ import QtQuick
 //             "0–9", "1–4" (en dashes, like the figure).
 //   action    the verb `MainView` switches on.
 //   label     the short word the footer hints print after the key.
-//   column    for the help sheet: "navigate", "select", "act", "app" — set only on the
-//             entry that leads a sheet row; "" on the rest.
-//   rank      the row's place inside its column, so the sheet reproduces Fig. 26's order.
+//   column    the help-sheet section: "navigate", "select", "act", "view", "app" — set
+//             only on the entry that leads a sheet row; "" on the rest.
+//   rank      the row's place inside its section.
 //   helpKeys  the row's key chip ("p P", "C t m L r"); "" when the entry leads no row.
-//   help      the row's description ("stop/start · force"); "" when it leads no row.
+//   help      the row's short gloss ("stop/start · force"); "" when it leads no row.
+//   about     on a row's entry only: the sentence the sheet prints beside the keys
+//             (docs/08 §4, layout A, after Strata's shape).
 QtObject {
     id: root
 
-    readonly property var columns: ["navigate", "select", "act", "app"]
+    // In this order the help sheet splits them into two columns of about equal height:
+    // move, select, view | act on torrents, app.
+    readonly property var columns: ["navigate", "select", "view", "act", "app"]
+    /// Each help-sheet section's heading and one-line description (docs/08 §4, layout A).
+    readonly property var columnTitles: ({
+                                             "navigate": qsTr("move"),
+                                             "select": qsTr("select"),
+                                             "act": qsTr("act on torrents"),
+                                             "view": qsTr("view"),
+                                             "app": qsTr("app")
+                                         })
+    readonly property var columnAbout: ({
+                                            "navigate": qsTr("Get around the window without the mouse."),
+                                            "select": qsTr("Most actions apply to the selection, or to the cursor row when nothing is selected."),
+                                            "act": qsTr("On the selection, or the cursor row."),
+                                            "view": qsTr("What the window shows."),
+                                            "app": ""
+                                        })
 
     readonly property var entries: [
         // global: routed by MainView wherever the focus is -------------------------
@@ -36,17 +55,19 @@ QtObject {
             "column": "navigate",
             "rank": 4,
             "helpKeys": "/",
-            "help": qsTr("filter")
+            "help": qsTr("filter"),
+            "about": qsTr("Filter the table by name")
         },
         {
             "area": "global",
             "key": "i",
             "action": "toggleDetails",
             "label": qsTr("details"),
-            "column": "navigate",
-            "rank": 6,
+            "column": "view",
+            "rank": 1,
             "helpKeys": "i",
-            "help": qsTr("details")
+            "help": qsTr("details"),
+            "about": qsTr("Show or hide the details panel")
         },
         {
             "area": "global",
@@ -54,9 +75,10 @@ QtObject {
             "action": "jump",
             "label": qsTr("jump"),
             "column": "navigate",
-            "rank": 8,
+            "rank": 6,
             "helpKeys": "ctrl+k",
-            "help": qsTr("jump")
+            "help": qsTr("jump"),
+            "about": qsTr("Jump to any torrent, category or tag by name")
         },
         {
             "area": "global",
@@ -66,7 +88,8 @@ QtObject {
             "column": "select",
             "rank": 4,
             "helpKeys": "esc",
-            "help": qsTr("clear, then filter, then close")
+            "help": qsTr("clear, then filter, then close"),
+            "about": qsTr("Clear the selection, then the filter, then close")
         },
         {
             "area": "global",
@@ -76,17 +99,19 @@ QtObject {
             "column": "act",
             "rank": 1,
             "helpKeys": "a",
-            "help": qsTr("add")
+            "help": qsTr("add"),
+            "about": qsTr("Add a torrent: magnet, file or URL")
         },
         {
             "area": "global",
             "key": "s",
             "action": "sort",
             "label": qsTr("sort"),
-            "column": "app",
-            "rank": 1,
+            "column": "view",
+            "rank": 3,
             "helpKeys": "s",
-            "help": qsTr("sort")
+            "help": qsTr("sort"),
+            "about": qsTr("Sort by any column")
         },
         {
             "area": "global",
@@ -94,9 +119,10 @@ QtObject {
             "action": "altSpeed",
             "label": qsTr("alt-speed"),
             "column": "app",
-            "rank": 2,
+            "rank": 1,
             "helpKeys": "A",
-            "help": qsTr("alt-speed")
+            "help": qsTr("alt-speed"),
+            "about": qsTr("Toggle the alternative speed limits")
         },
         {
             "area": "global",
@@ -104,9 +130,10 @@ QtObject {
             "action": "settings",
             "label": qsTr("settings"),
             "column": "app",
-            "rank": 3,
+            "rank": 2,
             "helpKeys": ", ctrl+,",
-            "help": qsTr("settings")
+            "help": qsTr("settings"),
+            "about": qsTr("Settings")
         },
         // `ctrl+,` is where the rest of the desktop keeps settings (GTK, macOS, VS Code,
         // Strata), so it opens them here too; bare `,` stays the keyboard-first key. Fig. 26
@@ -128,19 +155,21 @@ QtObject {
             "action": "more",
             "label": qsTr("more"),
             "column": "app",
-            "rank": 4.5, // after columns (4), before hide (5)
+            "rank": 3,
             "helpKeys": "ctrl+.",
-            "help": qsTr("more actions")
+            "help": qsTr("more actions"),
+            "about": qsTr("The ⋯ menu: speed limits, columns, select all")
         },
         {
             "area": "global",
             "key": "|",
             "action": "columns",
             "label": qsTr("columns"),
-            "column": "app",
+            "column": "view",
             "rank": 4,
             "helpKeys": "|",
-            "help": qsTr("columns")
+            "help": qsTr("columns"),
+            "about": qsTr("Pick and order the table's columns")
         },
         {
             "area": "global",
@@ -148,9 +177,10 @@ QtObject {
             "action": "hide",
             "label": qsTr("hide"),
             "column": "app",
-            "rank": 5,
+            "rank": 4,
             "helpKeys": "q",
-            "help": qsTr("hide to tray")
+            "help": qsTr("hide to tray"),
+            "about": qsTr("Hide to the tray")
         },
         {
             "area": "global",
@@ -158,9 +188,10 @@ QtObject {
             "action": "quit",
             "label": qsTr("quit"),
             "column": "app",
-            "rank": 6,
+            "rank": 5,
             "helpKeys": "ctrl+q",
-            "help": qsTr("quit")
+            "help": qsTr("quit"),
+            "about": qsTr("Quit")
         },
         // Not bound by omaseed: the figure teaches the Hyprland bind that raises it.
         {
@@ -169,9 +200,10 @@ QtObject {
             "action": "hyprlandBind",
             "label": qsTr("omaseed"),
             "column": "app",
-            "rank": 7,
+            "rank": 6,
             "helpKeys": "super+t",
-            "help": qsTr("suggested Hyprland bind")
+            "help": qsTr("suggested Hyprland bind"),
+            "about": qsTr("Bring omaseed forward: a bind for your own Hyprland config")
         },
         // The sheet's own key. Fig. 26 does not list it inside the sheet (it is the footer's
         // pinned hint), so it leads no row.
@@ -210,7 +242,8 @@ QtObject {
             "column": "navigate",
             "rank": 1,
             "helpKeys": "j k",
-            "help": qsTr("move")
+            "help": qsTr("move"),
+            "about": qsTr("Move the cursor down and up")
         },
         {
             "area": "table",
@@ -230,7 +263,8 @@ QtObject {
             "column": "navigate",
             "rank": 2,
             "helpKeys": "g G",
-            "help": qsTr("first · last")
+            "help": qsTr("first · last"),
+            "about": qsTr("Jump to the first or the last torrent")
         },
         {
             "area": "table",
@@ -250,7 +284,8 @@ QtObject {
             "column": "navigate",
             "rank": 3,
             "helpKeys": "h l",
-            "help": qsTr("rail · table · details")
+            "help": qsTr("rail · table · details"),
+            "about": qsTr("Move focus between the rail, the table and the details")
         },
         {
             "area": "table",
@@ -270,7 +305,8 @@ QtObject {
             "column": "select",
             "rank": 1,
             "helpKeys": "space",
-            "help": qsTr("toggle")
+            "help": qsTr("toggle"),
+            "about": qsTr("Add or remove the cursor row")
         },
         {
             "area": "table",
@@ -280,7 +316,8 @@ QtObject {
             "column": "select",
             "rank": 2,
             "helpKeys": "v",
-            "help": qsTr("range")
+            "help": qsTr("range"),
+            "about": qsTr("Select a range from the last row you marked")
         },
         {
             "area": "table",
@@ -290,7 +327,8 @@ QtObject {
             "column": "select",
             "rank": 3,
             "helpKeys": "ctrl+a",
-            "help": qsTr("all visible")
+            "help": qsTr("all visible"),
+            "about": qsTr("Select every torrent the filter shows")
         },
         {
             "area": "table",
@@ -310,7 +348,8 @@ QtObject {
             "column": "act",
             "rank": 2,
             "helpKeys": "enter",
-            "help": qsTr("actions")
+            "help": qsTr("actions"),
+            "about": qsTr("Open the actions menu for the selection")
         },
         {
             "area": "table",
@@ -320,7 +359,8 @@ QtObject {
             "column": "act",
             "rank": 3,
             "helpKeys": "p P",
-            "help": qsTr("stop/start · force")
+            "help": qsTr("stop/start · force"),
+            "about": qsTr("Stop or start · force start, skipping the queue")
         },
         {
             "area": "table",
@@ -340,7 +380,8 @@ QtObject {
             "column": "act",
             "rank": 4,
             "helpKeys": "d D",
-            "help": qsTr("delete · with files")
+            "help": qsTr("delete · with files"),
+            "about": qsTr("Delete · delete with its files")
         },
         {
             "area": "table",
@@ -360,7 +401,8 @@ QtObject {
             "column": "act",
             "rank": 5,
             "helpKeys": "c R",
-            "help": qsTr("recheck · reannounce")
+            "help": qsTr("recheck · reannounce"),
+            "about": qsTr("Recheck the data · reannounce to every tracker")
         },
         {
             "area": "table",
@@ -380,7 +422,8 @@ QtObject {
             "column": "act",
             "rank": 6,
             "helpKeys": "C t m L r",
-            "help": qsTr("category · tags · location · limits · rename")
+            "help": qsTr("category · tags · location · limits · rename"),
+            "about": qsTr("Set category · tags · location · limits · rename")
         },
         {
             "area": "table",
@@ -430,7 +473,8 @@ QtObject {
             "column": "act",
             "rank": 7,
             "helpKeys": "[ ]",
-            "help": qsTr("queue")
+            "help": qsTr("queue"),
+            "about": qsTr("Move up or down in the queue")
         },
         {
             "area": "table",
@@ -450,7 +494,8 @@ QtObject {
             "column": "act",
             "rank": 8,
             "helpKeys": "o",
-            "help": qsTr("open folder")
+            "help": qsTr("open folder"),
+            "about": qsTr("Open the folder in the file manager")
         },
         {
             "area": "table",
@@ -460,7 +505,8 @@ QtObject {
             "column": "act",
             "rank": 9,
             "helpKeys": "y Y n",
-            "help": qsTr("copy magnet · hash · name")
+            "help": qsTr("copy magnet · hash · name"),
+            "about": qsTr("Copy magnet · hash · name")
         },
         {
             "area": "table",
@@ -565,7 +611,8 @@ QtObject {
             "column": "navigate",
             "rank": 5,
             "helpKeys": "0–9",
-            "help": qsTr("status filter")
+            "help": qsTr("status filter"),
+            "about": qsTr("Filter by status: 0 all, 1 downloading, 2 seeding…")
         },
 
         // details (spec §2 Fig. 2-4 add the file/tracker/peer keys) -------------------
@@ -614,10 +661,11 @@ QtObject {
             "key": "1–4",
             "action": "detailsTab",
             "label": qsTr("tab"),
-            "column": "navigate",
-            "rank": 7,
+            "column": "view",
+            "rank": 2,
             "helpKeys": "1–4",
-            "help": qsTr("details tab")
+            "help": qsTr("details tab"),
+            "about": qsTr("Details tab: general, files, trackers, peers")
         },
         {
             "area": "details",

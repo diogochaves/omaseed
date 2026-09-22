@@ -185,6 +185,30 @@ TestCase {
         verify(view.table.activeFocus, "the table did not get the focus back");
     }
 
+    // docs/08 §4: typing filters the sheet, the first match has the cursor, enter runs it.
+    function test_the_help_sheet_filters_and_runs_the_match() {
+        keyClick(Qt.Key_Question);
+        compare(view.helpOpen, true);
+        keyClick("c");
+        keyClick("o");
+        keyClick("l");
+        compare(view.helpSheet.query, "col");
+        verify(view.helpSheet.matchedRows.length > 0);
+        compare(view.helpSheet.cursorRow.action, "columns");
+
+        keyClick(Qt.Key_Return);
+        compare(view.helpOpen, false);
+        compare(view.columnsPalette.opened, true);
+
+        // A new opening starts on the whole map again.
+        view.columnsPalette.close();
+        keyClick(Qt.Key_Question);
+        compare(view.helpSheet.query, "");
+        compare(view.helpSheet.cursorRow, null);
+        keyClick(Qt.Key_Escape);
+        compare(view.helpOpen, false);
+    }
+
     // ---- the app-level keys -----------------------------------------------------------------
     function test_a_asks_for_the_add_sheet() {
         keyClick("a");

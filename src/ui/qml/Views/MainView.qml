@@ -335,6 +335,7 @@ Item {
     onCursorHashChanged: root.refreshDetails()
     onHelpOpenChanged: {
         if (root.helpOpen) {
+            helpSheet.filterField.text = ""; // every opening starts on the whole map
             helpSheetPanel.open(); // the sheet hands the keyboard to HelpSheet and remembers
         } else {                   // what had it, so `esc` lands back on the table
             helpSheetPanel.close();
@@ -432,6 +433,66 @@ Item {
                 return;
         }
         event.accepted = true;
+    }
+
+    /// Runs a Keymap row's action from the help sheet's `enter` (docs/08 §4). Rows that name a
+    /// movement rather than a command (j k, g G, h l, 0–9, 1–4, space, v, esc) do nothing.
+    function runKeymapAction(action: string): void {
+        switch (action) {
+        case "filter":
+            root.focusSearch();
+            return;
+        case "jump":
+            jumpPalette.open();
+            return;
+        case "selectAll":
+            table.forceActiveFocus();
+            table.selectAll();
+            return;
+        case "add":
+            App.addRequested();
+            return;
+        case "actions":
+            table.forceActiveFocus();
+            table.requestActions();
+            return;
+        case "toggleDetails":
+            root.toggleDetails();
+            return;
+        case "sort":
+            sortPalette.openOnCurrent();
+            return;
+        case "columns":
+            columnsPalette.open();
+            return;
+        case "altSpeed":
+            App.toggleAltSpeed();
+            return;
+        case "settings":
+            App.openSettings();
+            return;
+        case "more":
+            root.openMoreMenu();
+            return;
+        case "hide":
+            root.hideRequested();
+            return;
+        case "quit":
+            root.quitRequested();
+            return;
+        case "stopStart":
+        case "delete":
+        case "recheck":
+        case "category":
+        case "queueUp":
+        case "openFolder":
+        case "copyMagnet":
+            table.forceActiveFocus();
+            root.torrentAction(action);
+            return;
+        default:
+            return;
+        }
     }
 
     /// The hero's ⋯ menu, hung under its button with their right edges flush.
@@ -934,12 +995,31 @@ Item {
 
         onRejected: root.helpOpen = false
 
+        hints: [
+            {
+                "key": "↑↓",
+                "label": qsTr("move")
+            },
+            {
+                "key": "enter",
+                "label": qsTr("run")
+            },
+            {
+                "key": "esc",
+                "label": qsTr("clear, then close")
+            }
+        ]
+
         HelpSheet {
             id: helpSheet
 
             Layout.fillWidth: true
 
             onCloseRequested: root.helpOpen = false
+            onRunRequested: action => {
+                root.helpOpen = false;
+                root.runKeymapAction(action);
+            }
         }
     }
 

@@ -86,20 +86,15 @@ TestCase {
         compare(Keymap.labelOf("global", "a"), "add");
     }
 
+    // Fig. 26's rows, regrouped by docs/08 §4 (layout A): i, 1–4, s and | form "view".
     function test_the_help_sheet_is_figure_26() {
-        compare(Keymap.columns, ["navigate", "select", "act", "app"]);
+        compare(Keymap.columns, ["navigate", "select", "view", "act", "app"]);
 
         const navigate = Keymap.helpRows("navigate");
-        compare(navigate.map(row => row.helpKeys), ["j k", "g G", "h l", "/", "0–9", "i", "1–4",
-                                                    "ctrl+k"]);
-        compare(navigate.map(row => row.help), ["move", "first · last", "rail · table · details",
-                                                "filter", "status filter", "details", "details tab",
-                                                "jump"]);
+        compare(navigate.map(row => row.helpKeys), ["j k", "g G", "h l", "/", "0–9", "ctrl+k"]);
 
         const select = Keymap.helpRows("select");
         compare(select.map(row => row.helpKeys), ["space", "v", "ctrl+a", "esc"]);
-        compare(select.map(row => row.help), ["toggle", "range", "all visible",
-                                              "clear, then filter, then close"]);
 
         const act = Keymap.helpRows("act");
         compare(act.map(row => row.helpKeys), ["a", "enter", "p P", "d D", "c R", "C t m L r", "[ ]",
@@ -109,13 +104,22 @@ TestCase {
                                            "category · tags · location · limits · rename", "queue",
                                            "open folder", "copy magnet · hash · name"]);
 
+        const view = Keymap.helpRows("view");
+        compare(view.map(row => row.helpKeys), ["i", "1–4", "s", "|"]);
+
         const application = Keymap.helpRows("app");
-        compare(application.map(row => row.helpKeys), ["s", "A", ", ctrl+,", "|", "ctrl+.", "q",
-                                                       "ctrl+q",
+        compare(application.map(row => row.helpKeys), ["A", ", ctrl+,", "ctrl+.", "q", "ctrl+q",
                                                        "super+t"]);
-        compare(application.map(row => row.help), ["sort", "alt-speed", "settings", "columns",
-                                                   "more actions", "hide to tray", "quit",
-                                                   "suggested Hyprland bind"]);
+    }
+
+    // docs/08 §4: every row carries a sentence, and every section a heading.
+    function test_every_sheet_row_has_a_sentence() {
+        for (const column of Keymap.columns) {
+            verify(Keymap.columnTitles[column].length > 0, "no heading for " + column);
+            for (const row of Keymap.helpRows(column))
+                verify(row.about !== undefined && row.about.length > 0, "no sentence for "
+                       + row.helpKeys);
+        }
     }
 
     function test_every_sheet_row_names_a_real_entry() {
