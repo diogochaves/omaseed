@@ -1,0 +1,921 @@
+<title>omaseed visual pass</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,300,0,0&display=block">
+<style>
+/* ------------------------------------------------------------------
+   Batch-1 visual pass. Drawn in the family of 05-ui-spec-v2.html
+   (never edited): same tokens, same chrome, same theme and base
+   toggles. Everything here is a proposal; nothing is approved until
+   Diogo answers the decision sheet at the bottom.
+   ------------------------------------------------------------------ */
+:root {
+  --accent:#5492f8; --selection:#292932; --muted:#272833;
+  --bg:#11111b; --bg-dark:#0d0d14; --bg-darker:#09090e; --bg-light:#292932;
+  --fg:#b9c5ef; --fg-dark:#8b94b3; --fg-light:#c4cef1; --fg-bright:#cbd4f3;
+  --red:#ee5681; --yellow:#f6d58c; --orange:#f16f94; --green:#7dd676;
+  --cyan:#63d5c2; --blue:#5492f8; --magenta:#b47ff3; --brown:#914359;
+
+  --fill-normal: color-mix(in srgb, var(--fg) 4%, transparent);
+  --fill-hover:  color-mix(in srgb, var(--fg) 8%, transparent);
+  --fill-selected: color-mix(in srgb, var(--fg) 18%, transparent);
+  --fill-pressed: color-mix(in srgb, var(--fg) 22%, transparent);
+  --border-normal: color-mix(in srgb, var(--fg) 40%, transparent);
+  --border-hover: color-mix(in srgb, var(--fg) 25%, transparent);
+  --hairline: color-mix(in srgb, var(--fg) 12%, transparent);
+  --scrim: color-mix(in srgb, var(--bg) 70%, transparent);
+  --glass: color-mix(in srgb, var(--bg) 90%, transparent);
+  --st-down: var(--blue); --st-seed: var(--green); --st-stop: var(--fg-dark);
+  --st-err: var(--red); --st-check: var(--yellow); --st-queue: var(--magenta); --st-stall: var(--orange);
+
+  --mono: "JetBrains Mono", "JetBrainsMono Nerd Font", ui-monospace, monospace;
+  --emoji: "Noto Color Emoji", "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
+  --base: 14px;
+  --caption: calc(var(--base) * 0.833); --small: calc(var(--base) * 0.917); --body: var(--base);
+  --subtitle: calc(var(--base) * 1.083); --title: calc(var(--base) * 1.167); --heading: calc(var(--base) * 1.333);
+  --u: calc(var(--base) / 12);
+  --row: calc(var(--base) * 2.4);
+  --ctl: calc(var(--base) * 2.333);
+  color-scheme: dark;
+}
+:root[data-mode="light"] { color-scheme: light; }
+:root[data-base="12"] { --base: 12px; }
+
+* { box-sizing:border-box; }
+html, body { min-height:100%; }
+body { margin:0; background:var(--bg-dark); color:var(--fg); font:400 13px/1.55 var(--mono); -webkit-font-smoothing:antialiased; }
+a { color:var(--accent); }
+h1,h2,h3 { margin:0; font-weight:600; color:var(--fg-bright); text-wrap:balance; }
+h1 { font-size:24px; letter-spacing:-.01em; } h2 { font-size:16px; } h3 { font-size:13px; }
+p { margin:0; max-width:78ch; }
+code { font-family:var(--mono); color:var(--fg-bright); background:var(--fill-normal); padding:0 4px; }
+kbd { font-family:var(--mono); color:var(--fg-bright); }
+.eyebrow { font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--fg-dark); }
+.dim { color:var(--fg-dark); } .bright { color:var(--fg-bright); }
+.note { color:var(--fg-dark); font-size:11.5px; }
+button { font:inherit; }
+:focus-visible { outline:1px solid var(--accent); outline-offset:1px; }
+
+/* ---------- page chrome (v2) ---------- */
+.topbar { position:sticky; top:env(safe-area-inset-top,0px); z-index:10; display:flex; align-items:center; gap:14px; flex-wrap:wrap; padding:8px 16px; background:var(--bg); border-bottom:1px solid var(--hairline); }
+.topbar .brand { display:flex; align-items:center; gap:8px; color:var(--fg-bright); font-weight:600; }
+.topbar .brand .glyph { color:var(--accent); }
+.topbar nav { display:flex; gap:2px; flex-wrap:wrap; }
+.topbar nav a { color:var(--fg-dark); text-decoration:none; font-size:11px; padding:4px 8px; }
+.topbar nav a:hover { color:var(--fg-bright); background:var(--fill-hover); }
+.segs { margin-left:auto; display:flex; gap:10px; flex-wrap:wrap; }
+.seg { display:flex; flex-wrap:wrap; border:1px solid var(--border-normal); }
+.seg button { font-size:11px; color:var(--fg); background:var(--fill-normal); border:0; border-right:1px solid var(--border-normal); padding:5px 10px; cursor:pointer; display:flex; gap:6px; align-items:center; }
+.seg button:last-child { border-right:0; }
+.seg button:hover { background:var(--fill-hover); }
+.seg button[aria-pressed="true"] { background:var(--fill-selected); color:var(--fg-bright); }
+.seg .sw { width:10px; height:10px; border:1px solid var(--border-normal); }
+.page { padding-block:28px 72px; padding-inline:16px; max-width:1400px; margin:0 auto; display:grid; gap:64px; }
+header.lead { display:grid; gap:14px; }
+.lead .meta { display:flex; gap:18px; flex-wrap:wrap; font-size:11px; color:var(--fg-dark); }
+.lead .meta b { color:var(--fg); font-weight:500; }
+section { display:grid; gap:20px; scroll-margin-top:72px; min-width:0; }
+.sec-head { display:grid; gap:6px; } .sec-head .eyebrow { color:var(--accent); }
+.grid2 { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr)); gap:20px; align-items:start; }
+.grid3 { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr)); gap:20px; align-items:start; }
+.figure { display:grid; gap:8px; min-width:0; }
+.figure > .cap { font-size:11.5px; color:var(--fg-dark); max-width:90ch; } .figure > .cap b { color:var(--fg); font-weight:500; }
+.scroller { overflow-x:auto; min-width:0; }
+.desk { padding:22px; background:
+  radial-gradient(ellipse at 18% 8%, color-mix(in srgb, var(--accent) 34%, var(--bg-darker)) 0%, transparent 52%),
+  radial-gradient(ellipse at 84% 92%, color-mix(in srgb, var(--magenta) 30%, var(--bg-darker)) 0%, transparent 55%),
+  var(--bg-darker); display:grid; place-items:center; }
+.win { background:var(--glass); color:var(--fg); border:1px solid var(--accent); font-size:var(--body); line-height:1.4; display:grid; min-width:0; }
+.win.inactive { border-color:var(--muted); }
+
+/* findings, rulings, recommendation tags */
+.finding { display:grid; grid-template-columns:auto 1fr; gap:4px 12px; padding:10px 14px; border-left:2px solid var(--yellow); background:color-mix(in srgb, var(--yellow) 6%, transparent); font-size:12px; max-width:110ch; }
+.finding .m { color:var(--yellow); font-size:10px; letter-spacing:.12em; text-transform:uppercase; padding-top:2px; }
+.finding p { color:var(--fg); max-width:none; }
+.rulings { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr)); gap:10px; }
+.ruling { border:1px solid var(--hairline); padding:10px 12px; display:grid; gap:4px; font-size:12px; }
+.ruling .t { color:var(--fg-bright); font-weight:600; } .ruling .s { color:var(--green); font-size:10px; letter-spacing:.12em; text-transform:uppercase; }
+.rec { display:inline-block; font-size:9.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--accent); border:1px solid var(--accent); padding:0 5px; margin-left:6px; vertical-align:2px; }
+.dev { display:inline-block; font-size:9.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--yellow); border:1px solid var(--yellow); padding:0 5px; margin-left:6px; vertical-align:2px; }
+.opt { display:grid; gap:8px; align-content:start; min-width:0; }
+.opt > .h { display:flex; gap:8px; align-items:baseline; flex-wrap:wrap; }
+.opt > .h b { color:var(--fg-bright); font-weight:600; font-size:12.5px; }
+.opt > .h .k { color:var(--accent); font-weight:600; }
+.opt > .d { font-size:11.5px; color:var(--fg-dark); }
+.opt > .d b { color:var(--fg); font-weight:500; }
+.opt.pick { outline:1px solid color-mix(in srgb, var(--accent) 45%, transparent); outline-offset:6px; }
+
+/* ---------- controls (shell kit, as v2) ---------- */
+.btn { display:inline-flex; align-items:center; justify-content:center; gap:calc(6*var(--u)); height:var(--ctl); padding:0 calc(10*var(--u)); font-size:var(--body); color:var(--fg); background:transparent; border:1px solid transparent; white-space:nowrap; }
+.btn.b { border-color:var(--border-normal); background:var(--fill-normal); }
+.btn.primary { border-color:var(--accent); color:var(--accent); }
+.btn.icon { width:var(--ctl); padding:0; color:var(--fg-dark); font-size:var(--subtitle); }
+.btn.icon.on { color:var(--accent); }
+.btn.icon.hair { border-color:color-mix(in srgb, var(--accent) 40%, transparent); }
+.btn.icon.fill { background:color-mix(in srgb, var(--accent) 18%, transparent); color:var(--fg-bright); }
+.btn.icon.big { font-size:var(--heading); font-weight:300; }
+.btn.lbld { width:auto; padding:0 calc(10*var(--u)); font-size:var(--body); gap:calc(6*var(--u)); }
+.btn svg, .ic svg { width:1.15em; height:1.15em; display:block; }
+.field { display:flex; align-items:center; gap:calc(8*var(--u)); height:var(--ctl); padding:0 calc(10*var(--u)); font-size:var(--body); color:var(--fg-bright); background:var(--fill-normal); border:1px solid var(--border-normal); min-width:0; }
+.field .ph { color:var(--fg-dark); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.field .k { margin-left:auto; color:var(--fg-dark); font-size:var(--caption); white-space:nowrap; flex:none; }
+.field.focus { border-color:var(--accent); }
+.chip { display:inline-flex; align-items:center; gap:calc(5*var(--u)); height:calc(var(--ctl) - 6*var(--u)); padding:0 calc(8*var(--u)); font-size:var(--small); border:1px solid var(--border-normal); color:var(--fg); background:var(--fill-normal); white-space:nowrap; }
+.chip.on { border-color:var(--yellow); color:var(--yellow); background:color-mix(in srgb, var(--yellow) 8%, transparent); }
+.chip svg { width:1.1em; height:1.1em; }
+.lbl { font-size:var(--caption); letter-spacing:.1em; text-transform:uppercase; color:var(--fg-dark); }
+.sep { height:1px; background:var(--hairline); }
+.dot { display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--green); vertical-align:middle; flex:none; }
+.dot.warn { background:var(--yellow); } .dot.err { background:var(--red); } .dot.off { background:var(--fg-dark); }
+.emoji { font-family:var(--emoji); font-size:.95em; }
+.ms { font-family:"Material Symbols Outlined"; font-weight:300; font-style:normal; font-size:1.25em; line-height:1; letter-spacing:normal; text-transform:none; white-space:nowrap; font-feature-settings:"liga"; -webkit-font-smoothing:antialiased; }
+
+/* ---------- hero (v2 .hero) ---------- */
+.hero { display:flex; align-items:center; gap:calc(14*var(--u)); padding:calc(12*var(--u)) calc(16*var(--u)); border-bottom:1px solid var(--hairline); min-width:0; }
+.hero .mark { width:calc(28*var(--u)); height:calc(28*var(--u)); border:1px solid var(--accent); color:var(--accent); display:grid; place-items:center; font-size:var(--title); flex:none; }
+.hero .mark svg { width:62%; height:62%; }
+.hero .name { display:grid; gap:1px; flex:none; }
+.hero .name b { color:var(--fg-bright); font-size:var(--subtitle); font-weight:600; }
+.hero .name .lbl { display:flex; gap:6px; align-items:center; white-space:nowrap; }
+.hero .name .lbl .w { color:var(--yellow); } .hero .name .lbl .e { color:var(--red); }
+.hero .stat { display:grid; gap:0; margin-left:calc(12*var(--u)); font-variant-numeric:tabular-nums; flex:none; }
+.hero .stat .v { color:var(--fg-bright); font-size:var(--heading); font-weight:500; line-height:1.15; white-space:nowrap; }
+.hero .stat .v i { font-style:normal; font-size:var(--body); margin-right:4px; }
+.hero .stat.d .v i { color:var(--st-down); } .hero .stat.u .v i { color:var(--st-seed); }
+.hero .stat .lbl { letter-spacing:.08em; }
+.hero .grow { flex:1; min-width:8px; }
+.hero .search { width:calc(220*var(--u)); flex:0 1 auto; min-width:calc(120*var(--u)); }
+.hero .acts { display:flex; gap:calc(2*var(--u)); align-items:center; flex:none; }
+.hero .acts .chip { margin-right:calc(6*var(--u)); }
+.herowin { width:calc(1060*var(--u)); }
+.herowin.narrow { width:100%; }
+.herowin.narrow .hero { padding-inline:calc(10*var(--u)); gap:calc(10*var(--u)); }
+
+/* ---------- menu ---------- */
+.menu { background:var(--bg); border:1px solid var(--accent); width:calc(300*var(--u)); max-width:100%; padding:calc(6*var(--u)) 0; display:grid; font-size:var(--body); }
+.menu .it { display:flex; gap:calc(10*var(--u)); align-items:center; height:calc(var(--base)*2.1); padding:0 calc(14*var(--u)); color:var(--fg); }
+.menu .it .g { width:calc(16*var(--u)); display:grid; place-items:center; color:var(--fg-dark); }
+.menu .it .g svg { width:1.05em; height:1.05em; }
+.menu .it .k { margin-left:auto; color:var(--fg-dark); font-size:var(--caption); }
+.menu .it.cur { background:var(--fill-hover); color:var(--accent); }
+.menu .it.soon { color:var(--fg-dark); } .menu .it.soon .k { font-style:italic; }
+.menu .sep { margin:calc(4*var(--u)) calc(14*var(--u)); }
+.menu .gh { padding:calc(4*var(--u)) calc(14*var(--u)) 0; }
+
+/* ---------- §1 the mark ---------- */
+.marktbl { display:grid; grid-template-columns:minmax(150px,1.1fr) repeat(5, minmax(64px,1fr)) minmax(150px,1.2fr); border:1px solid var(--hairline); min-width:840px; }
+.marktbl > div { padding:10px; border-bottom:1px solid var(--hairline); display:flex; align-items:center; gap:10px; min-width:0; }
+.marktbl > .h { font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--fg-dark); padding-block:6px; }
+.marktbl .nm { display:grid; gap:2px; align-content:center; }
+.marktbl .nm b { color:var(--fg-bright); font-weight:600; font-size:12.5px; display:grid; }
+.marktbl .nm span { font-size:11px; color:var(--fg-dark); }
+.marktbl .st { justify-content:center; gap:8px; background:var(--bg); }
+.marktbl .big { justify-content:center; background:var(--bg); }
+.marktbl > .cur { background:color-mix(in srgb, var(--fg) 5%, var(--bg)); }
+.marktbl .nm .rec { margin-left:0; margin-top:3px; width:max-content; display:block; }
+.px { display:block; flex:none; }
+.bar { display:flex; align-items:center; gap:14px; height:30px; padding:0 12px; background:var(--bg); border:1px solid var(--hairline); color:var(--fg); font-size:12px; min-width:620px; }
+.bar .ws { display:flex; gap:10px; color:var(--fg-dark); } .bar .ws b { color:var(--fg-bright); font-weight:500; }
+.bar .clock { margin:0 auto; color:var(--fg); }
+.bar .tray { display:flex; gap:10px; align-items:center; }
+.bar .tray svg { display:block; }
+.bars { display:grid; gap:6px; }
+.bars .lab { font-size:10.5px; color:var(--fg-dark); display:flex; gap:10px; }
+.tiles { display:flex; flex-wrap:wrap; gap:14px; }
+.tile { display:grid; gap:6px; justify-items:center; font-size:10.5px; color:var(--fg-dark); }
+.tile .t { width:96px; height:96px; display:grid; place-items:center; background:var(--bg); border:1px solid var(--hairline); }
+
+/* ---------- §2 symbols ---------- */
+.audit { display:grid; grid-template-columns:120px 72px minmax(120px,1fr) minmax(170px,1.2fr) 130px 110px; border:1px solid var(--hairline); font-size:12px; min-width:720px; }
+.audit > div { padding:5px 10px; border-bottom:1px solid color-mix(in srgb, var(--fg) 6%, transparent); display:flex; align-items:center; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.audit > .h { font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--fg-dark); border-bottom-color:var(--hairline); }
+.audit .g { font-size:16px; color:var(--fg-bright); justify-content:center; }
+.audit .ok { color:var(--fg-dark); } .audit .warn { color:var(--yellow); } .audit .bad { color:var(--red); }
+.audit .bad-row { background:color-mix(in srgb, var(--red) 5%, transparent); }
+.audit .warn-row { background:color-mix(in srgb, var(--yellow) 4%, transparent); }
+.symopts { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr)); gap:20px; }
+.symcard { border:1px solid var(--hairline); background:var(--bg); display:grid; }
+.symcard.pick { border-color:var(--accent); }
+.symcard .hd { display:flex; gap:8px; align-items:baseline; padding:10px 12px 6px; flex-wrap:wrap; }
+.symcard .hd b { color:var(--fg-bright); } .symcard .hd .k { color:var(--accent); font-weight:700; }
+.symcard .acts { display:flex; gap:calc(2*var(--u)); padding:6px 12px 10px; border-bottom:1px solid var(--hairline); }
+.symcard .nav { display:grid; padding:6px 0; border-bottom:1px solid var(--hairline); font-size:var(--body); }
+.symcard .nav .it { display:flex; gap:10px; align-items:center; height:calc(var(--base)*2.1); padding:0 14px; }
+.symcard .nav .it .g { width:18px; display:grid; place-items:center; color:var(--fg-dark); }
+.symcard .nav .it .g svg { width:1.05em; height:1.05em; }
+.symcard .nav .it.on { background:var(--fill-selected); color:var(--fg-bright); }
+.symcard .nav .it.on .g { color:var(--fg); }
+.symcard .pc { padding:8px 12px 12px; font-size:11.5px; color:var(--fg-dark); }
+.symcard .pc b { color:var(--fg); font-weight:500; }
+.cands { display:flex; flex-wrap:wrap; gap:8px; }
+.cand { display:grid; gap:4px; justify-items:center; font-size:10px; color:var(--fg-dark); }
+.cand .g { width:40px; height:40px; display:grid; place-items:center; border:1px solid var(--hairline); background:var(--bg); color:var(--fg); font-size:18px; }
+.cand .g.bad { border-color:color-mix(in srgb, var(--red) 50%, transparent); }
+
+/* ---------- §4 help sheet ---------- */
+.stage { position:relative; overflow:hidden; display:grid; place-items:center; padding:24px; min-width:0; }
+.stage .win-bg { position:absolute; inset:14px; background:var(--glass); border:1px solid var(--muted); }
+.stage .scrim { position:absolute; inset:14px; background:var(--scrim); }
+.sheet { position:relative; background:var(--bg); border:1px solid var(--accent); width:100%; display:grid; gap:calc(12*var(--u)); padding:calc(16*var(--u)); font-size:var(--body); }
+.sheet .hd { display:flex; gap:calc(10*var(--u)); align-items:center; }
+.sheet .hd .ic { width:calc(30*var(--u)); height:calc(30*var(--u)); border:1px solid var(--border-normal); display:grid; place-items:center; color:var(--fg); font-size:var(--subtitle); flex:none; }
+.sheet .hd .t { display:grid; gap:1px; min-width:0; flex:1; } .sheet .hd .t b { color:var(--fg-bright); font-weight:600; } .sheet .hd .t .m { color:var(--fg-dark); font-size:var(--small); }
+.sheet .hd .x { margin-left:auto; color:var(--fg-dark); font-size:var(--caption); }
+.helpsheet { display:grid; grid-template-columns:auto 1fr; gap:calc(6*var(--u)) calc(14*var(--u)); font-size:var(--small); align-content:start; }
+.helpsheet .k { text-align:right; color:var(--fg-bright); white-space:nowrap; } .helpsheet .d { color:var(--fg-dark); }
+.helpsheet .g { grid-column:1/-1; padding-top:calc(8*var(--u)); }
+.hs2 { display:grid; gap:calc(14*var(--u)); max-height:calc(440*var(--u)); overflow:auto; padding-right:6px; }
+.hs2 .cols { columns:2 calc(300*var(--u)); column-gap:calc(28*var(--u)); }
+.hs2 .grp { break-inside:avoid; display:grid; gap:0; margin-bottom:calc(14*var(--u)); }
+.hs2 .grp h4 { margin:0 0 calc(4*var(--u)); font-size:var(--caption); letter-spacing:.1em; text-transform:uppercase; color:var(--accent); font-weight:500; }
+.hs2 .grp .gd { font-size:var(--caption); color:var(--fg-dark); margin-bottom:calc(6*var(--u)); }
+.kr { display:grid; grid-template-columns:calc(78*var(--u)) 1fr; gap:calc(12*var(--u)); padding:calc(4*var(--u)) 0; border-bottom:1px solid color-mix(in srgb, var(--fg) 6%, transparent); font-size:var(--small); align-items:baseline; }
+.kr .k { color:var(--fg-bright); white-space:nowrap; font-weight:500; }
+.kr .k .or { color:var(--fg-dark); font-weight:400; }
+.kr .d { color:var(--fg); } .kr .d small { display:block; color:var(--fg-dark); font-size:var(--caption); }
+.kr.new .k::after { content:"new"; margin-left:6px; font-size:8.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--accent); border:1px solid var(--accent); padding:0 3px; vertical-align:1px; }
+.kr.hit { background:var(--fill-hover); box-shadow:inset 2px 0 0 var(--accent); padding-left:6px; }
+.kr mark { background:color-mix(in srgb, var(--accent) 35%, transparent); color:var(--fg-bright); }
+.hs3 { display:grid; grid-template-columns:calc(180*var(--u)) 1fr; }
+.hs3 .gn { border-right:1px solid var(--hairline); padding:calc(6*var(--u)) 0; display:grid; align-content:start; }
+.hs3 .gn .it { white-space:nowrap; display:flex; gap:8px; align-items:center; height:calc(var(--base)*2.1); padding:0 calc(12*var(--u)); color:var(--fg); font-size:var(--body); }
+.hs3 .gn .it .n { margin-left:auto; color:var(--fg-dark); font-size:var(--caption); }
+.hs3 .gn .it.on { background:var(--fill-selected); color:var(--fg-bright); }
+.hs3 .pane { padding:0 0 0 calc(16*var(--u)); display:grid; align-content:start; }
+.hs3 .pane .gd { font-size:var(--small); color:var(--fg-dark); margin-bottom:calc(8*var(--u)); }
+.sheet .ft { display:flex; align-items:center; gap:calc(14*var(--u)); font-size:var(--caption); color:var(--fg-dark); border-top:1px solid var(--hairline); padding-top:calc(8*var(--u)); flex-wrap:wrap; }
+.sheet .ft .r { margin-left:auto; }
+.sheet .ft b { color:var(--fg); font-weight:500; }
+.keypick { display:flex; flex-wrap:wrap; gap:14px; }
+.keypick .kp { border:1px solid var(--hairline); padding:10px 12px; display:grid; gap:4px; font-size:11.5px; min-width:190px; flex:1; background:var(--bg); }
+.keypick .kp.pick { border-color:var(--accent); }
+.keypick .kp .key { font-size:20px; color:var(--fg-bright); font-weight:600; }
+.keypick .kp .dd { color:var(--fg-dark); }
+
+/* ---------- §5 rail ---------- */
+.rails { display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:20px; }
+.railbox { display:grid; gap:8px; align-content:start; min-width:0; }
+.railbox .h { display:flex; gap:6px; align-items:baseline; flex-wrap:wrap; }
+.railbox .h b { color:var(--fg-bright); font-weight:600; font-size:12.5px; }
+.railbox .h .k { color:var(--accent); font-weight:700; }
+.railbox .d { font-size:11.5px; color:var(--fg-dark); }
+.rv { position:relative; width:calc(200*var(--u)); max-width:100%; height:calc(330*var(--u)); overflow:hidden; background:var(--bg); border:1px solid var(--hairline); }
+.rv .in { position:absolute; left:0; right:0; top:0; padding:calc(10*var(--u)) 0; display:grid; gap:calc(14*var(--u)); }
+.rv.fade { -webkit-mask-image:linear-gradient(to bottom, transparent 0, #000 calc(36*var(--u)), #000 calc(100% - 36*var(--u)), transparent 100%); mask-image:linear-gradient(to bottom, transparent 0, #000 calc(36*var(--u)), #000 calc(100% - 36*var(--u)), transparent 100%); }
+.grp { display:grid; grid-template-columns:minmax(0,1fr); }
+.grp > .lbl { padding:0 calc(16*var(--u)) calc(4*var(--u)); display:flex; gap:6px; align-items:center; }
+.grp > .lbl .n { margin-left:auto; letter-spacing:0; text-transform:none; }
+.grp > .lbl .cv { width:10px; color:var(--fg-dark); }
+.rrow { display:flex; gap:calc(8*var(--u)); align-items:center; height:calc(var(--base)*2.1); padding:0 calc(16*var(--u)); font-size:var(--body); color:var(--fg); white-space:nowrap; }
+.rrow .g { width:calc(14*var(--u)); color:var(--fg-dark); text-align:center; font-size:var(--small); flex:none; }
+.rrow .t { overflow:hidden; text-overflow:ellipsis; min-width:0; }
+.rrow .t.left { direction:rtl; text-align:left; }
+.rrow .n { margin-left:auto; color:var(--fg-dark); font-variant-numeric:tabular-nums; font-size:var(--small); flex:none; }
+.rrow.sel { background:var(--fill-selected); color:var(--fg-bright); } .rrow.sel .g { color:var(--accent); }
+.rrow.cur { box-shadow:inset 0 0 0 1px var(--border-hover); }
+.rv .stick { position:absolute; left:0; right:0; top:0; z-index:2; background:var(--bg); padding:calc(6*var(--u)) 0 calc(4*var(--u)); border-bottom:1px solid var(--hairline); }
+.rv .stick > .lbl { padding:0 calc(16*var(--u)); }
+.rv .more { position:absolute; left:0; right:0; z-index:3; height:calc(var(--base)*1.7); display:flex; align-items:center; justify-content:center; gap:6px; font-size:var(--caption); color:var(--fg-dark); background:var(--bg); }
+.rv .more.top { top:0; border-bottom:1px solid var(--hairline); } .rv .more.bot { bottom:0; border-top:1px solid var(--hairline); }
+.rv .thumb { position:absolute; right:1px; width:2px; background:var(--border-normal); z-index:3; }
+.rv .track { position:absolute; right:1px; top:2px; bottom:2px; width:2px; background:var(--hairline); z-index:2; }
+.tintrow { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr)); gap:20px; }
+.mini { display:grid; grid-template-rows:auto 1fr auto; height:calc(230*var(--u)); border:1px solid var(--accent); background:var(--glass); font-size:var(--small); overflow:hidden; }
+.mini .mh { height:calc(40*var(--u)); display:flex; align-items:center; gap:8px; padding:0 12px; border-bottom:1px solid var(--hairline); color:var(--fg-bright); }
+.mini .mh .mk { color:var(--accent); }
+.mini .mb { display:grid; grid-template-columns:calc(92*var(--u)) 1fr calc(110*var(--u)); min-height:0; }
+.mini .mb.norail { grid-template-columns:1fr calc(110*var(--u)); }
+.mini .mr { border-right:1px solid var(--hairline); padding:8px 0; display:grid; align-content:start; gap:2px; }
+.mini .mr span { padding:0 10px; color:var(--fg-dark); white-space:nowrap; overflow:hidden; }
+.mini .mr span.s { background:var(--fill-selected); color:var(--fg-bright); }
+.mini .mt { padding:6px 10px; display:grid; align-content:start; gap:5px; }
+.mini .mt i { display:block; height:6px; background:var(--fill-hover); }
+.mini .md { border-left:1px solid var(--hairline); padding:8px 10px; display:grid; align-content:start; gap:5px; }
+.mini .md i { display:block; height:5px; background:var(--fill-hover); }
+.mini .mf { height:calc(24*var(--u)); display:flex; align-items:center; gap:12px; padding:0 12px; border-top:1px solid var(--hairline); color:var(--fg-dark); font-size:var(--caption); }
+.mini .mf b { color:var(--fg); font-weight:500; } .mini .mf .r { margin-left:auto; }
+.mini .t1 { background:color-mix(in srgb, var(--fg) 4%, transparent); }
+.mini .t2 { background:color-mix(in srgb, var(--fg) 8%, transparent); }
+.elide { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr)); gap:20px; }
+
+/* ---------- §6 decision sheet ---------- */
+.decide { display:grid; gap:0; border:1px solid var(--hairline); background:var(--bg); }
+.q { display:grid; grid-template-columns:minmax(0,300px) 1fr; gap:10px 20px; padding:12px 14px; border-bottom:1px solid var(--hairline); align-items:start; }
+.q:last-of-type { border-bottom:0; }
+.q .qt { display:grid; gap:2px; } .q .qt b { color:var(--fg-bright); font-weight:600; font-size:12.5px; } .q .qt span { color:var(--fg-dark); font-size:11px; }
+.q .qt .ref { color:var(--accent); font-size:10px; letter-spacing:.1em; text-transform:uppercase; }
+.q .os { display:flex; flex-wrap:wrap; gap:6px; }
+.q label { display:inline-flex; align-items:center; gap:6px; font-size:12px; padding:4px 10px; border:1px solid var(--border-normal); background:var(--fill-normal); cursor:pointer; color:var(--fg); }
+.q label:hover { background:var(--fill-hover); }
+.q input { position:absolute; opacity:0; width:1px; height:1px; }
+.q label:has(input:checked) { background:var(--fill-selected); color:var(--fg-bright); border-color:var(--accent); }
+.q label:has(input:focus-visible) { outline:1px solid var(--accent); outline-offset:1px; }
+.q label .r { font-size:9px; letter-spacing:.1em; text-transform:uppercase; color:var(--accent); }
+.q textarea { grid-column:1/-1; }
+.out { display:grid; gap:10px; padding:14px; border-top:1px solid var(--hairline); }
+.out textarea { width:100%; min-height:130px; resize:vertical; background:var(--bg-dark); color:var(--fg-bright); border:1px solid var(--border-normal); font:12px/1.5 var(--mono); padding:10px; }
+.out .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+.out .btn { cursor:pointer; }
+.out .st { font-size:11.5px; color:var(--green); }
+.notes { width:100%; min-height:54px; resize:vertical; background:var(--bg-dark); color:var(--fg-bright); border:1px solid var(--border-normal); font:12px/1.5 var(--mono); padding:8px; }
+
+@media (max-width:720px) {
+  .q { grid-template-columns:1fr; }
+  .hs3 { grid-template-columns:1fr; } .hs3 .gn { border-right:0; border-bottom:1px solid var(--hairline); }
+  h1 { font-size:20px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition:none !important; } }
+</style>
+
+<div class="topbar">
+  <div class="brand"><span class="glyph">◆</span> omaseed <span class="dim" style="font-weight:400">/ visual pass · batch 1</span></div>
+  <nav><a href="#mark">Mark</a><a href="#symbols">Symbols</a><a href="#hero">Hero</a><a href="#help">Help</a><a href="#rail">Rail</a><a href="#decide">Decide</a></nav>
+  <div class="segs">
+    <div class="seg" role="group" aria-label="Base size" id="baseSeg"><button type="button" data-base="12" aria-pressed="false">base 12</button><button type="button" data-base="14" aria-pressed="true">base 14</button></div>
+    <div class="seg" role="group" aria-label="Omarchy theme" id="themeSeg">
+      <button type="button" data-theme="frieren" aria-pressed="true"><span class="sw" style="background:#5492f8"></span>Frieren</button>
+      <button type="button" data-theme="tokyo-night" aria-pressed="false"><span class="sw" style="background:#7aa2f7"></span>Tokyo Night</button>
+      <button type="button" data-theme="hackerman" aria-pressed="false"><span class="sw" style="background:#82FB9C"></span>Hackerman</button>
+      <button type="button" data-theme="lupine" aria-pressed="false"><span class="sw" style="background:#3264eb"></span>Lupine</button>
+    </div>
+  </div>
+</div>
+
+<div class="page">
+<header class="lead">
+  <div class="eyebrow">Proposal · docs/08 · 2026-09-22 · departs from v2 where marked</div>
+  <h1>Batch 1, drawn: the mark, the symbols, the hero, the help sheet and the rail</h1>
+  <p>Every open judgment item from the batch-1 capture (<code>docs/UX-NOTES.md</code>), drawn beside what the app does today so you can choose by looking. Switch theme and base size above. Frieren at base 14 is your desktop; Hackerman is the stress test, because its "red" is green; Lupine is the light check. Items marked <span class="dev">deviation</span> depart from approved v2 and get a <code>REVIEW-v0.1.0.md</code> §8 line if you pick them. The decision sheet at the bottom collects your answers into one paste.</p>
+  <div class="meta"><span>theme <b id="metaTheme">Frieren</b></span><span>mode <b id="metaMode">dark</b></span><span>base <b id="metaBase">14</b></span><span>glyph audit <b>fc-list on this machine, 2026-09-22</b></span><span>ships <b>nothing, until you answer</b></span></div>
+  <div class="rulings">
+    <div class="ruling"><span class="s">ruled</span><span class="t">Multi-instance is v2</span><span class="dim">Its own phase, after the companion widget. Nothing here assumes it.</span></div>
+    <div class="ruling"><span class="s">ruled</span><span class="t"><kbd>ctrl+,</kbd> also opens Settings</span><span class="dim">Bare <kbd>,</kbd> stays. Columns moves to a free key, chosen in §4. Changes Fig. 26.</span></div>
+    <div class="ruling"><span class="s">ruled</span><span class="t">The gear is decided by looking</span><span class="dim">§2 draws all four fixes. §3 draws every <kbd>+</kbd> with the gear already fixed.</span></div>
+  </div>
+</header>
+
+<!-- ================= §1 MARK ================= -->
+<section id="mark">
+  <div class="sec-head"><div class="eyebrow">1 · The mark · B1.1</div><h2>An icon on the seed idea that holds up at 16 px</h2>
+  <p>The tray is 16–22 px in the Omarchy bar, so every candidate is judged there first. Each row shows the five tray states at 22 px, the same mark at 16/22/32 px, and the 128 px launcher size.</p></div>
+  <div class="finding"><span class="m">found</span><p>All five tray states are <b>the same diamond</b> (<code>src/integration/resources/tray/*.svg</code>). Downloading and alt-speed also get a painted badge, but <b>error is colour only</b>: a red diamond. On Hackerman, red is <code>#50f872</code>, so the error icon is green. The launcher icon (<code>data/icons/…/omaseed.svg</code>) is still the T1.5 placeholder, a rounded square in fixed Tokyo Night blue that looks nothing like the tray mark.</p></div>
+  <div class="finding"><span class="m">proposed</span><p>Whatever mark you pick, <b>every state gets a shape</b>, not just a colour: a count badge for downloading (as today), a slow badge for alt-speed (as today), <b>an ! badge for error</b> (new), and an outline for disconnected (as today). All the candidates below are drawn this way, so the states are readable on any theme.</p></div>
+  <div class="scroller"><div class="marktbl" id="markTable"></div></div>
+  <div class="figure">
+    <div class="bars" id="barStrips"></div>
+    <div class="cap"><b>Fig. 1.1</b>: Each candidate in a bar strip at 16 and 22 px, idle and downloading. The neighbours are generic bar icons at the same weight, so you can see which mark disappears and which shouts.</div>
+  </div>
+  <div class="figure">
+    <div class="tiles" id="launcherTiles"></div>
+    <div class="cap"><b>Fig. 1.2</b>: Launcher size (128 px, shown at 96). The launcher icon can't follow the theme, so it gets one fixed palette at implementation. It's drawn here in the current theme's accent only to compare shapes.</div>
+  </div>
+</section>
+
+<!-- ================= §2 SYMBOLS ================= -->
+<section id="symbols">
+  <div class="sec-head"><div class="eyebrow">2 · How omaseed draws symbols · B1.4c</div><h2>The gear is a symptom: 8 of 24 glyphs are drawn by a font we didn't choose</h2>
+  <p>The UI font is whatever fontconfig answers for <code>monospace</code> (<code>src/integration/Theme.cpp:226</code>), and a font change in Omarchy moves it. Today that's JetBrainsMono Nerd Font. The table audits every non-ASCII glyph in <code>Kit/Glyphs.qml</code> against it.</p></div>
+  <div class="figure">
+    <div class="scroller"><div class="audit" id="auditTable"></div></div>
+    <div class="cap"><b>Fig. 2.0</b>: Coverage is from <code>fc-list :charset=…</code> on this machine. * JetBrains Mono does have ⌨, but ⌨ is emoji-capable and was seen drawn in colour during the batch-1 capture, like ⚙. Qt prefers the emoji font for these codepoints, and U+FE0E doesn't override it.</div>
+  </div>
+  <div class="figure">
+    <div class="symopts" id="symOpts"></div>
+    <div class="cap"><b>Fig. 2.1</b>: The four fixes, each applied to the hero's actions and the settings nav. "Now" reproduces the bug: the page asks for the colour emoji font the way fontconfig does for Qt. Option B is drawn with Material Symbols because the page can load it. The installed alternative is the Nerd Font symbol set.</div>
+  </div>
+  <div class="figure">
+    <div class="cands" id="codepointCands"></div>
+    <div class="cap"><b>Fig. 2.2</b>: What option A can actually use. None of these is emoji-capable, and JetBrainsMono NF has each one. None of them means "settings" or "keybindings" the way ⚙ and ⌨ do, and that's the problem with A. The red-framed pair is today's.</div>
+  </div>
+  <div class="finding"><span class="m">recommend</span><p><b>D, with a rule:</b> icons are SVG and typographic symbols stay text. Draw a small <code>Kit/Icon.qml</code> set (gear, keyboard, alt-speed, server, appearance, jump, category, checking, plus the new more/columns/sidebar) and tint it through <code>Theme</code> roles like any glyph. Keep the arrows, ✓ ■ ● ◆ and friends as text, because they sit inside running text and every mono font has them. This fixes all eight, adds no dependency and survives a font change. C is the same work plus about sixteen more icons, for consistency you may not need.</p></div>
+</section>
+
+<!-- ================= §3 HERO ================= -->
+<section id="hero">
+  <div class="sec-head"><div class="eyebrow">3 · The hero / top bar · B1.3, B1.4</div><h2>Connection status, alt-speed, a real menu, and a <kbd>+</kbd> you can see</h2>
+  <p>These all compete for the right-hand side, so they're drawn together. Every variant from here on uses the §2 recommendation, so the gear is a monochrome SVG in its Theme role.</p></div>
+  <div class="finding"><span class="m">found</span><p><b>There is no <kbd>▾</kbd> menu.</b> The second hero button, <kbd>⏷</kbd> (U+23F7), <i>is</i> the alt-speed toggle (<code>Kit/Hero.qml:175</code>). It looks exactly like a dropdown chevron, which is why alt-speed looked like it was hidden inside something. It's also one of the eight glyphs from §2 that JetBrains Mono doesn't have.</p></div>
+  <div class="figure">
+    <div class="scroller"><div class="desk"><div class="win herowin" id="heroNow"></div></div></div>
+    <div class="cap"><b>Fig. 3.1</b>: Today, while the playground is <code>firewalled</code>. The dot is green and the line says nothing: <code>GlobalState::connectionStatus</code> is parsed and never drawn. The colour gear outshines the accent <kbd>+</kbd> beside it.</div>
+  </div>
+
+  <h3>Connection status</h3>
+  <div class="grid3" id="connOpts"></div>
+
+  <h3>Alt-speed and the actions around it</h3>
+  <div class="grid3" id="altOpts"></div>
+
+  <div class="grid2">
+    <div class="figure">
+      <div class="desk" style="place-items:start end"><div class="menu" id="moreMenu"></div></div>
+      <div class="cap"><b>Fig. 3.2</b>: The <kbd>⋯</kbd> menu, opened with <kbd>ctrl+.</kbd> or a click. It's where the global limits and the new server features live. The dim rows are features the API has (verified live on :8081) that we don't implement yet. Each is its own task, and a row only appears once its feature ships.</div>
+    </div>
+    <div class="opt">
+      <div class="h"><b>Why a menu, and why these rows</b></div>
+      <div class="d">The hero has room for four icons, and three of them are taken. Everything else that's global and occasional (setting the limits, not just toggling them, creating a torrent, search, export) needs one home that's findable with the mouse and teaches its key. Columns and select-all are listed because you couldn't find them (B1.5, B1.14a). They keep their keys, and the menu is where the keys get taught. Row order is frequency, not feature age.</div>
+    </div>
+  </div>
+
+  <h3>The <kbd>+</kbd>, judged with the gear fixed · B1.4d</h3>
+  <div class="grid3" id="plusOpts"></div>
+
+  <div class="figure">
+    <div class="scroller"><div class="desk"><div class="win herowin" id="heroRec"></div></div></div>
+    <div class="cap"><b>Fig. 3.3</b>: The recommended assembly, firewalled. It combines the silent-when-healthy status, the alt-speed chip (shown on), <kbd>+</kbd> with the kit's primary outline, SVG gear, <kbd>⋯</kbd> and <kbd>?</kbd>. The search field gives up 40 px to fit the chip.</div>
+  </div>
+</section>
+
+<!-- ================= §4 HELP ================= -->
+<section id="help">
+  <div class="sec-head"><div class="eyebrow">4 · The help sheet · B1.11b</div><h2>Strata's structure in our chrome: sections, a sentence per key, a filter</h2>
+  <p>Same data as Fig. 26 plus the rulings: <kbd>ctrl+,</kbd> joins <kbd>,</kbd> on Settings, <kbd>F1</kbd> is shown next to <kbd>?</kbd> (shipped in <code>18247e5</code>), and Columns gets its new key. Nothing is copied from Strata. Only the shape is borrowed: grouped sections, a description beside each key and a scrollable body.</p></div>
+  <div class="grid2">
+    <div class="figure">
+      <div class="desk"><div class="stage" style="width:100%"><div class="win-bg"></div><div class="scrim"></div><div class="sheet" id="helpNow"></div></div></div>
+      <div class="cap"><b>Fig. 4.1</b>: Today (Fig. 26). Chips and two-word glosses. Columns is filed under "app" as <kbd>ctrl+,</kbd>, where nobody looks for it.</div>
+    </div>
+    <div class="figure">
+      <div class="desk"><div class="stage" style="width:100%"><div class="win-bg"></div><div class="scrim"></div><div class="sheet" id="helpA"></div></div></div>
+      <div class="cap"><b>Fig. 4.2 · layout A</b> <span class="rec">recommended</span>: One sheet in two balanced columns with a filter on top. Typing narrows every section at once. Shown with the filter at <kbd>col</kbd>. The first match gets the cursor, and <kbd>enter</kbd> runs it, so the sheet doubles as a command list.</div>
+    </div>
+  </div>
+  <div class="figure">
+    <div class="desk"><div class="stage" style="width:100%;max-width:980px"><div class="win-bg"></div><div class="scrim"></div><div class="sheet" id="helpB" style="max-width:860px"></div></div></div>
+    <div class="cap"><b>Fig. 4.3 · layout B</b>: Settings-shaped, with sections on the left and one section at a time. It's closer to Strata and roomier for descriptions, but you can't scan everything at once, which is most of what a cheat sheet is for.</div>
+  </div>
+  <h3>Where Columns goes</h3>
+  <div class="keypick" id="keyPick"></div>
+  <p class="note">Taken in the table scope today: <kbd>/ i a s A , q ? j k g G h l v p P d D c R C t m L r o y Y n [ ] 0–9 1–4 F1</kbd>, <kbd>ctrl+k ctrl+a ctrl+q</kbd>. Read from <code>src/ui/qml/Keymap.qml</code>.</p>
+</section>
+
+<!-- ================= §5 RAIL ================= -->
+<section id="rail">
+  <div class="sec-head"><div class="eyebrow">5 · The rail · B1.6, B1.9, B1.10</div><h2>Say it scrolls, keep its labels, let it fold, let it hide</h2>
+  <p>All drawn against the crowded rail from <code>OMASEED_DEMO_GROUPS=4 --rows 200</code>, scrolled partway down, which is where every problem shows at once.</p></div>
+  <h3>Scrolling: hint and headers</h3>
+  <div class="rails" id="railScroll"></div>
+  <h3>Folding and the <kbd>all</kbd> row</h3>
+  <div class="rails" id="railFold"></div>
+  <h3>Hiding it · B1.6</h3>
+  <div class="tintrow" id="railHide"></div>
+  <h3>Tint per surface · B1.9</h3>
+  <div class="tintrow" id="railTint"></div>
+  <p class="note">The tints use only the plan's existing fill steps (4 % and 8 % of foreground), so the §3 theme rules hold and no new token is needed. Switch themes above. The step that's pleasant on Frieren has to stay quiet on Lupine too.</p>
+  <h3>Tracker hosts at 200 px</h3>
+  <div class="elide" id="railElide"></div>
+</section>
+
+<!-- ================= §6 DECIDE ================= -->
+<section id="decide">
+  <div class="sec-head"><div class="eyebrow">6 · Decision sheet</div><h2>Your answers, in one paste</h2>
+  <p>Recommendations are preselected. Change what you disagree with, add a note wherever you like, then copy and paste the block back to me. Your choices are remembered in this browser only.</p></div>
+  <form class="decide" id="decideForm"></form>
+</section>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  /* ---------------- themes (from each theme's colors.toml) ---------------- */
+  const THEMES = {
+    "frieren": { label:"Frieren", mode:"dark", accent:"#5492f8", selection:"#292932", muted:"#272833", background:"#11111b", dark_background:"#0d0d14", darker_background:"#09090e", lighter_background:"#292932", foreground:"#b9c5ef", dark_foreground:"#8b94b3", light_foreground:"#c4cef1", bright_foreground:"#cbd4f3", red:"#ee5681", yellow:"#f6d58c", orange:"#f16f94", green:"#7dd676", cyan:"#63d5c2", blue:"#5492f8", magenta:"#b47ff3", brown:"#914359" },
+    "tokyo-night": { label:"Tokyo Night", mode:"dark", accent:"#7aa2f7", selection:"#292e42", muted:"#414868", background:"#1a1b26", dark_background:"#13141c", darker_background:"#0e0e14", lighter_background:"#24283b", foreground:"#a9b1d6", dark_foreground:"#565f89", light_foreground:"#b4bee6", bright_foreground:"#c0caf5", red:"#f7768e", yellow:"#e0af68", orange:"#eb927b", green:"#9ece6a", cyan:"#449dab", blue:"#7aa2f7", magenta:"#ad8ee6", brown:"#75493d" },
+    "hackerman": { label:"Hackerman", mode:"dark", accent:"#82FB9C", selection:"#1f253a", muted:"#2d3450", background:"#0B0C16", dark_background:"#080910", darker_background:"#06060c", lighter_background:"#151828", foreground:"#ddf7ff", dark_foreground:"#6a6e95", light_foreground:"#b5c5db", bright_foreground:"#ddf7ff", red:"#50f872", yellow:"#50f7d4", orange:"#50f7a3", green:"#4fe88f", cyan:"#7cf8f7", blue:"#829dd4", magenta:"#86a7df", brown:"#287b51" },
+    "lupine": { label:"Lupine", mode:"light", accent:"#3264eb", selection:"#d0d0d0", muted:"#9e9e9e", background:"#fafafa", dark_background:"#ececec", darker_background:"#dedede", lighter_background:"#f5f5f5", foreground:"#212121", dark_foreground:"#757575", light_foreground:"#424242", bright_foreground:"#000000", red:"#c900c4", yellow:"#026fde", orange:"#026fde", green:"#4a2fd0", cyan:"#0c67de", blue:"#3264eb", magenta:"#8a4ad7", brown:"#013a6f" }
+  };
+  const MAP = { accent:"--accent", selection:"--selection", muted:"--muted", background:"--bg", dark_background:"--bg-dark", darker_background:"--bg-darker", lighter_background:"--bg-light", foreground:"--fg", dark_foreground:"--fg-dark", light_foreground:"--fg-light", bright_foreground:"--fg-bright", red:"--red", yellow:"--yellow", orange:"--orange", green:"--green", cyan:"--cyan", blue:"--blue", magenta:"--magenta", brown:"--brown" };
+  const $ = id => document.getElementById(id);
+
+  /* ---------------- §2 option C/D: the SVG icon set ---------------- */
+  function gearPath() {
+    const pts = [], teeth = 8;
+    for (let k = 0; k < teeth; k++) {
+      const a = k * 360 / teeth;
+      [[a - 15, 7.2], [a - 8, 9.8], [a + 8, 9.8], [a + 15, 7.2]].forEach(([d, r]) => {
+        const t = (d - 90) * Math.PI / 180;
+        pts.push((12 + r * Math.cos(t)).toFixed(2) + " " + (12 + r * Math.sin(t)).toFixed(2));
+      });
+    }
+    return "M" + pts.join(" L") + " Z M15 12 A3 3 0 1 1 9 12 A3 3 0 1 1 15 12 Z";
+  }
+  const ICON = {
+    add: '<path d="M12 4.5v15M4.5 12h15"/>',
+    help: '<path d="M8.8 9a3.2 3.2 0 1 1 4.7 2.8c-1 .6-1.5 1.2-1.5 2.4v.8"/><path d="M12 18.4v.2"/>',
+    gear: '<path d="' + gearPath() + '"/>',
+    alt: '<path d="M4.2 17.5A8.6 8.6 0 1 1 19.8 17.5"/><path d="M12 14.2 7.2 10.4"/><path d="M12 13.2v2"/>',
+    more: '<path d="M5.5 12h.1M12 12h.1M18.5 12h.1" stroke-width="2.6"/>',
+    server: '<path d="M4 4.5h16v6H4zM4 13.5h16v6H4zM7.5 7.5h.1M7.5 16.5h.1"/>',
+    bell: '<path d="M6.5 16.5V11a5.5 5.5 0 0 1 11 0v5.5l1.5 2h-14zM10 21h4"/>',
+    contrast: '<path d="M20 12a8 8 0 1 1-16 0 8 8 0 1 1 16 0Z"/><path d="M12 4a8 8 0 0 1 0 16Z" fill="currentColor" stroke="none"/>',
+    info: '<path d="M20.5 12a8.5 8.5 0 1 1-17 0 8.5 8.5 0 1 1 17 0ZM12 10.8v6M12 7.4v.2"/>',
+    keyboard: '<path d="M3 6.5h18v11H3zM6.5 10h.1M10 10h.1M13.5 10h.1M17 10h.1M7.5 14h9"/>',
+    search: '<path d="M16.5 10.5a6 6 0 1 1-12 0 6 6 0 1 1 12 0ZM15 15l5 5"/>',
+    sync: '<path d="M19 12a7 7 0 1 1-2.1-5M19 4.5V8h-3.5"/>',
+    folder: '<path d="M3.5 6h6.5l2 2.2h8.5v10.3h-17z"/>',
+    columns: '<path d="M4 5h16v14H4zM9.4 5v14M14.6 5v14"/>',
+    sidebar: '<path d="M3.5 5h17v14h-17zM9 5v14"/>',
+    create: '<path d="M6 3.5h8l4 4v13H6zM14 3.5v4h4M12 11v6M9 14h6"/>',
+    export: '<path d="M12 4v11M7.5 8.5 12 4l4.5 4.5M5 14v5.5h14V14"/>',
+    rss: '<path d="M5 5a14 14 0 0 1 14 14M5 10.5a8.5 8.5 0 0 1 8.5 8.5M6 18.1h.1"/>',
+    limits: '<path d="M4 7h10M18 7h2M4 17h4M12 17h8M14 4.5v5M8 14.5v5"/>',
+    selall: '<path d="M4 4h16v16H4zM8 12l3 3 5-6"/>'
+  };
+  const svg = (name, extra) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"${extra || ""}>${ICON[name]}</svg>`;
+
+  /* ---------------- §1 mark candidates ---------------- */
+  function tri(cx, cy, r, deg) {
+    return [0, 120, 240].map(o => { const t = (deg + o - 90) * Math.PI / 180; return (cx + r * Math.cos(t)).toFixed(2) + " " + (cy + r * Math.sin(t)).toFixed(2); });
+  }
+  function swarm() {
+    let d = "M16 12 A4 4 0 1 1 8 12 A4 4 0 1 1 16 12 Z";
+    [0, 120, 240].forEach(a => {
+      const t = (a - 90) * Math.PI / 180, cx = 12 + 8.6 * Math.cos(t), cy = 12 + 8.6 * Math.sin(t);
+      d += " M" + tri(cx, cy, 3.4, a).join(" L") + " Z";
+    });
+    return d;
+  }
+  const MARKS = [
+    { id:"now", name:"Diamond", note:"today · Fig. 1 ◆", d:"M12 1 L23 12 L12 23 L1 12 Z", now:true },
+    { id:"B", name:"Up-seed", note:"diamond with an upload arrow cut through it. Keeps the identity and says seeding", d:"M12 1 L23 12 L12 23 L1 12 Z M12 5.6 L17.6 11.2 L14.1 11.2 L14.1 17.6 L9.9 17.6 L9.9 11.2 L6.4 11.2 Z", pick:true },
+    { id:"C", name:"Kernel", note:"a grain with its seam. New identity, strong silhouette", d:"M3.5 20.5 C3.5 10 10 3.5 20.5 3.5 C20.5 14 14 20.5 3.5 20.5 Z M6.3 16.4 L16.4 6.3 L17.7 7.6 L7.6 17.7 Z" },
+    { id:"D", name:"Sprout", note:"seed plus one leaf. The most literal, and the most detailed", d:"M7 17.5 A5 5 0 1 0 17 17.5 A5 5 0 1 0 7 17.5 Z M10.9 13 L10.9 9 C10.9 4.8 14.2 2.2 20.5 2.2 C20.5 7.8 17.4 10.6 13.1 10.6 L13.1 13 Z" },
+    { id:"E", name:"Swarm", note:"a peer sending to three. Sharing, not seeds", d:swarm() },
+    { id:"F", name:"Split", note:"a diamond in two halves passing each other. The trade", d:"M10.9 3.6 L10.9 23.4 L1 13.5 Z M13.1 0.6 L23 10.5 L13.1 20.4 Z" }
+  ];
+  const STATES = [
+    ["idle", "var(--fg)", "idle"], ["down", "var(--accent)", "downloading"], ["alt", "var(--accent)", "alt-speed"],
+    ["err", "var(--red)", "error"], ["off", "var(--fg-dark)", "disconnected"]
+  ];
+  function markSVG(m, state, px, badge, colour) {
+    const col = colour || (STATES.find(s => s[0] === state) || STATES[0])[1];
+    const body = state === "off"
+      ? `<path d="${m.d}" fill-rule="evenodd" style="fill:none;stroke:${col};stroke-width:${px < 20 ? 2.2 : 1.8}"/>`
+      : `<path d="${m.d}" fill-rule="evenodd" style="fill:${col}"/>`;
+    const ring = "stroke:var(--bg);stroke-width:2.2";
+    let b = "";
+    if (badge !== false) {
+      if (state === "down") b = `<circle cx="18.2" cy="18.2" r="5.6" style="fill:var(--accent);${ring}"/><text x="18.2" y="21.1" text-anchor="middle" font-family="JetBrains Mono,monospace" font-weight="700" font-size="8.4" style="fill:var(--bg)">3</text>`;
+      if (state === "alt") b = `<circle cx="18.2" cy="18.2" r="5.6" style="fill:var(--yellow);${ring}"/><path d="M15.4 16.6 H21 L18.2 20.6 Z" style="fill:var(--bg)"/>`;
+      if (state === "err" && !m.now) b = `<circle cx="18.2" cy="18.2" r="5.6" style="fill:var(--red);${ring}"/><path d="M17.1 14.6 H19.3 V18.9 H17.1 Z M17.1 19.9 H19.3 V21.9 H17.1 Z" style="fill:var(--bg)"/>`;
+    }
+    return `<svg class="px" width="${px}" height="${px}" viewBox="0 0 24 24" role="img" aria-label="${m.name} ${state}">${body}${b}</svg>`;
+  }
+  function renderMarks() {
+    let h = `<div class="h">candidate</div>` + STATES.map(s => `<div class="h" style="justify-content:center">${s[2]}</div>`).join("") + `<div class="h">16 · 22 · 32 · 128</div>`;
+    MARKS.forEach(m => {
+      const cls = m.now ? "cur" : "";
+      h += `<div class="nm ${cls}"><b>${m.now ? m.name : m.id + " · " + m.name}${m.pick ? '<span class="rec">recommended</span>' : ""}</b><span>${m.note}</span></div>`;
+      STATES.forEach(s => { h += `<div class="st ${cls}">${markSVG(m, s[0], 22)}</div>`; });
+      h += `<div class="big ${cls}">${[16, 22, 32].map(p => markSVG(m, "idle", p, false)).join("")}${markSVG(m, "down", 56)}</div>`;
+    });
+    $("markTable").innerHTML = h;
+    const neighbours = [
+      '<path d="M3 9.5a13 13 0 0 1 18 0M6 13a8.5 8.5 0 0 1 12 0M9 16.5a4 4 0 0 1 6 0" fill="none" stroke="currentColor" stroke-width="1.8"/>',
+      '<path d="M4 9.5h4l5-4.5v14l-5-4.5H4zM16.5 9a4 4 0 0 1 0 6" fill="none" stroke="currentColor" stroke-width="1.8"/>',
+      '<path d="M3 7.5h16v9H3zM21 10.5v3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M5 9.5h9v5H5z" fill="currentColor"/>',
+      '<path d="M12 3v9M6.3 6.8a8 8 0 1 0 11.4 0" fill="none" stroke="currentColor" stroke-width="1.8"/>'
+    ];
+    const nb = p => neighbours.map(n => `<svg width="${p}" height="${p}" viewBox="0 0 24 24" aria-hidden="true">${n}</svg>`).join("");
+    $("barStrips").innerHTML = MARKS.map(m => [16, 22].map(p => `
+      <div class="bars"><div class="lab"><b class="bright" style="font-weight:500">${m.now ? "Diamond · today" : m.id + " · " + m.name}</b><span>${p} px</span></div>
+      <div class="scroller"><div class="bar"><span class="ws"><b>1</b><span>2</span><span>3</span><span>4</span></span><span class="clock">Tuesday 14:32</span>
+      <span class="tray">${markSVG(m, "idle", p)}${markSVG(m, "down", p)}${nb(p)}</span></div></div></div>`).join("")).join("");
+    $("launcherTiles").innerHTML = MARKS.map(m => `<div class="tile"><div class="t">${markSVG(m, "idle", 72, false, "var(--accent)")}</div><span>${m.now ? "today" : m.id + " · " + m.name}</span></div>`).join("");
+  }
+
+  /* ---------------- §2 audit and options ---------------- */
+  const AUDIT = [
+    ["⚙","U+2699","settings","Noto Color Emoji","emoji","bad"],
+    ["⌨","U+2328","keyboard","Noto Color Emoji*","emoji","bad"],
+    ["⏷","U+23F7","altSpeed · trayAltSpeed","Adwaita Mono","fallback","warn"],
+    ["⌕","U+2315","jump","Adwaita Mono","fallback","warn"],
+    ["⟳","U+27F3","statusChecking","Adwaita Mono","fallback","warn"],
+    ["▤","U+25A4","folder · category","Noto Sans Mono","fallback","warn"],
+    ["◐","U+25D0","appearance","Noto Sans Mono","fallback","warn"],
+    ["⛁","U+26C1","server","Noto Sans Symbols 2","fallback","warn"],
+    ["◆ ◌ ● ■ ◔ ◦","…","mark, tray, rail, notifications, tracker","JetBrainsMono NF","ok","ok"],
+    ["↓ ↑ ✓ ✕ ≡ ⌂","…","speeds, status, close, queued, home","JetBrainsMono NF","ok","ok"],
+    ["› ▾ ▴ ·","…","chevrons, sort, middot","JetBrainsMono NF","ok","ok"]
+  ];
+  function renderAudit() {
+    let h = ["", "code", "used as", "drawn by, today", "risk", "fix under D"].map(t => `<div class="h">${t}</div>`).join("");
+    AUDIT.forEach(r => {
+      const rc = r[5] === "bad" ? "bad-row" : (r[5] === "warn" ? "warn-row" : "");
+      const risk = r[4] === "emoji" ? "colour emoji" : (r[4] === "fallback" ? "not in UI font" : "none");
+      const fix = r[5] === "ok" ? "stays text" : "SVG icon";
+      h += `<div class="g ${rc}" style="${r[0].length > 2 ? "font-size:12px" : ""}">${r[0]}</div><div class="${rc}">${r[1]}</div><div class="${rc}">${r[2]}</div><div class="${rc}">${r[3]}</div><div class="${rc} ${r[5]}">${risk}</div><div class="${rc} ${r[5] === "ok" ? "ok" : ""}">${fix}</div>`;
+    });
+    $("auditTable").innerHTML = h;
+  }
+  // per option: hero acts [add, alt, settings, help], nav [server, bell, keyboard, appearance, about]
+  const SYM = {
+    now: { acts:["+","⏷",'<span class="emoji">\u2699\uFE0F</span>',"?"], nav:["⛁","◔",'<span class="emoji">\u2328\uFE0F</span>',"◐","i"] },
+    A:   { acts:["+","⏷","✶","?"], nav:["⛁","◔","⌥","◐","i"] },
+    B:   { acts:['<span class="ms">add</span>','<span class="ms">speed</span>','<span class="ms">settings</span>','<span class="ms">help</span>'], nav:['<span class="ms">dns</span>','<span class="ms">notifications</span>','<span class="ms">keyboard</span>','<span class="ms">contrast</span>','<span class="ms">info</span>'] },
+    C:   { acts:[svg("add"),svg("alt"),svg("gear"),svg("help")], nav:[svg("server"),svg("bell"),svg("keyboard"),svg("contrast"),svg("info")] },
+    D:   { acts:["+",svg("alt"),svg("gear"),"?"], nav:[svg("server"),"◔",svg("keyboard"),svg("contrast"),"i"] }
+  };
+  const SYMTXT = {
+    now: ["Now", "", "The gear and keyboard come from the colour emoji font, ignore their Theme role, and look the same on all 22 themes. Six more glyphs fall back to three other fonts with different weights."],
+    A: ["A", "Swap the codepoints", "<b>Cheapest.</b> Two glyphs change. But it only picks glyphs the <i>current</i> font has, and a font change can break it again. It leaves the six fallbacks alone, and nothing on offer means \"settings\"."],
+    B: ["B", "Bundle a symbol font", "<b>Consistent, but it's a dependency.</b> A font file to package and license-check, pinned per Text. The icons come in another designer's style (rounded, Material) beside our square mono UI."],
+    C: ["C", "Every icon SVG", "<b>Full control, most work.</b> About 24 icons drawn in one square, 1.7-stroke style and tinted by Theme roles. Survives any font change, but it also redraws arrows and checks that were never broken."],
+    D: ["D", "SVG icons, text symbols", "<b>Fixes all eight and nothing else.</b> About 12 SVG icons through one <code>Kit/Icon.qml</code>. + and ? stay text because every font has them."]
+  };
+  function renderSymOpts() {
+    const navNames = ["Servers", "Notifications", "Keybindings", "Appearance", "About"];
+    $("symOpts").innerHTML = ["now", "A", "B", "C", "D"].map(k => {
+      const s = SYM[k], t = SYMTXT[k];
+      return `<div class="symcard ${k === "D" ? "pick" : ""}">
+        <div class="hd">${k === "now" ? "<b>Now</b>" : `<span class="k">${t[0]}</span><b>${t[1]}</b>`}${k === "D" ? '<span class="rec">recommended</span>' : ""}</div>
+        <div class="acts">${s.acts.map((g, i) => `<span class="btn icon ${i === 0 ? "on" : ""}">${g}</span>`).join("")}</div>
+        <div class="nav">${s.nav.map((g, i) => `<div class="it ${i === 2 ? "on" : ""}"><span class="g">${g}</span>${navNames[i]}</div>`).join("")}</div>
+        <div class="pc">${t[2]}</div></div>`;
+    }).join("");
+    const cands = [["⚙","today",1],["✶","U+2736"],["◎","U+25CE"],["☰","U+2630"],["⊞","U+229E"],["⋮","U+22EE"],["⌨","today",1],["⌥","U+2325"],["⌘","U+2318"],["␣","U+2423"]];
+    $("codepointCands").innerHTML = cands.map(c => `<div class="cand"><span class="g ${c[2] ? "bad" : ""}">${c[2] ? `<span class="emoji">${c[0]}\uFE0F</span>` : c[0]}</span>${c[1]}</div>`).join("");
+  }
+
+  /* ---------------- §3 hero ---------------- */
+  function hero(o) {
+    const conn = o.conn || "firewalled";
+    let dot = "", line = "";
+    const srv = "home";
+    const ver = o.short ? "" : " · qBittorrent 5.2.3";
+    if (o.connStyle === "now") { dot = '<span class="dot"></span>'; line = `${srv}${ver}`; }
+    else if (o.connStyle === "dot") { dot = `<span class="dot ${conn === "connected" ? "" : conn === "firewalled" ? "warn" : "err"}"></span>`; line = `${srv}${ver}`; }
+    else if (o.connStyle === "word") {
+      if (conn === "connected") { dot = '<span class="dot"></span>'; line = `${srv}${ver}`; }
+      else if (conn === "firewalled") { dot = '<span class="dot warn"></span>'; line = `${srv} · <span class="w">firewalled</span>${ver}`; }
+      else { dot = '<span class="dot err"></span>'; line = `${srv} · <span class="e">disconnected</span>`; }
+    } else if (o.connStyle === "badge") { dot = '<span class="dot"></span>'; line = `${srv}${ver}`; }
+    const speeds = conn === "disconnected" ? ["—", "—"] : ["4.21 MB/s", "812 KB/s"];
+    const badge = o.connStyle === "badge" && conn !== "connected"
+      ? `<span class="chip" style="border-color:var(--${conn === "firewalled" ? "yellow" : "red"});color:var(--${conn === "firewalled" ? "yellow" : "red"})">${conn}</span>` : "";
+    const g = o.glyphs || "D";
+    const set = SYM[g];
+    const plus = o.plus || "spec";
+    const plusCls = { spec:"btn icon on", hair:"btn icon on hair", primary:"btn icon primary", label:"btn primary lbld", big:"btn icon on big", fill:"btn icon fill" }[plus];
+    const plusInner = plus === "label" ? `${g === "now" ? "+" : svg("add")} add` : (g === "now" ? "+" : svg("add"));
+    let acts = `<span class="${plusCls}" title="add">${plusInner}</span>`;
+    if (o.alt === "chip") acts = `<span class="chip ${o.altOn ? "on" : ""}">${svg("alt")} ${o.altOn ? "alt ↓1.0 ↑0.2 MB/s" : "alt-speed"}</span>` + acts;
+    else if (o.alt !== "menu") acts += `<span class="btn icon ${o.altOn ? "on" : ""}" title="alt-speed">${set.acts[1]}</span>`;
+    acts += `<span class="btn icon" title="settings">${set.acts[2]}</span>`;
+    if (o.more) acts += `<span class="btn icon" title="more">${svg("more")}</span>`;
+    acts += `<span class="btn icon" title="help">${set.acts[3]}</span>`;
+    const markInner = o.mark === "B" ? `<svg viewBox="0 0 24 24"><path d="${MARKS[1].d}" fill-rule="evenodd" style="fill:currentColor"/></svg>` : "◆";
+    const markStyle = conn === "disconnected" ? ' style="border-color:var(--red);color:var(--red)"' : "";
+    return `<div class="hero">
+      <div class="mark"${markStyle}>${markInner}</div>
+      <div class="name"><b>omaseed</b><span class="lbl">${dot} ${line}</span></div>
+      ${o.compact ? "" : `<div class="stat d"><span class="v"><i>↓</i>${speeds[0]}</span><span class="lbl">download</span></div>
+      <div class="stat u"><span class="v"><i>↑</i>${speeds[1]}</span><span class="lbl">upload</span></div>`}
+      ${badge}
+      <div class="grow"></div>
+      ${o.compact ? "" : `<div class="field search" style="${o.alt === "chip" ? "width:calc(180*var(--u))" : ""}"><span class="dim">/</span><span class="ph">filter torrents</span><span class="k">142</span></div>`}
+      ${o.noActs ? "" : `<div class="acts">${acts}</div>`}</div>`;
+  }
+  function renderHero() {
+    $("heroNow").innerHTML = hero({ glyphs:"now", connStyle:"now", conn:"firewalled", plus:"spec" });
+    const connOpts = [
+      ["a", "Dot colour only", "The dot goes yellow or red and the words don't change. It's quiet, but a coloured dot alone doesn't tell you what it means, and on Hackerman yellow and red are both green.", "dot"],
+      ["b", "Silent when healthy", "Connected looks exactly like today. Firewalled or disconnected puts the word in the server line in its colour, so the one state you need to know about is the one that speaks.", "word", true],
+      ["c", "Badge after the speeds", "Loudest. It sits where the eye already is, but it pushes the speeds' neighbours around whenever the state changes.", "badge"]
+    ];
+    $("connOpts").innerHTML = connOpts.map(c => `<div class="opt ${c[4] ? "pick" : ""}"><div class="h"><span class="k">${c[0]}</span><b>${c[1]}</b>${c[4] ? '<span class="rec">recommended</span>' : ""}</div>
+      ${["connected", "firewalled", "disconnected"].map(s => `<div class="scroller"><div class="win inactive herowin narrow">${hero({ connStyle:c[3], conn:s, compact:true, noActs:true })}</div></div>`).join("")}
+      <div class="d">${c[2]}</div></div>`).join("");
+    const altOpts = [
+      ["i", "Icon toggle (today)", "The ⏷ glyph, accent when on. It reads as a dropdown (see the finding above), and when it's on nothing says what the limit is.", { alt:"icon", altOn:true }],
+      ["ii", "Labelled chip", "A chip that names itself and, when on, shows the alt limits in yellow (the check/warning role), so the throttle is visible from across the room. Clicking toggles. <kbd>A</kbd> still toggles.", { alt:"chip", altOn:true }, true],
+      ["iii", "Into the ⋯ menu", "The fewest icons, but alt-speed is a thing you flip often, and burying it one click deeper is the problem you reported.", { alt:"menu" }]
+    ];
+    $("altOpts").innerHTML = altOpts.map(c => `<div class="opt ${c[4] ? "pick" : ""}"><div class="h"><span class="k">${c[0]}</span><b>${c[1]}</b>${c[4] ? '<span class="rec">recommended</span>' : ""}</div>
+      <div class="scroller"><div class="win inactive herowin narrow">${hero(Object.assign({ connStyle:"word", conn:"connected", compact:true, short:true, more:true, plus:"spec" }, c[3]))}</div></div>
+      <div class="d">${c[2]}</div></div>`).join("");
+    const mi = (g, t, k, cls) => `<div class="it ${cls || ""}"><span class="g">${svg(g)}</span>${t}<span class="k">${k}</span></div>`;
+    $("moreMenu").innerHTML =
+      `<div class="gh lbl">speed</div>` + mi("limits", "Global speed limits…", "L", "cur") + mi("alt", "Alt-speed limits…", "") +
+      `<div class="sep"></div><div class="gh lbl">view</div>` + mi("columns", "Columns…", "|") + mi("selall", "Select all visible", "ctrl+a") + mi("sidebar", "Hide rail", "ctrl+b") +
+      `<div class="sep"></div><div class="gh lbl">server</div>` + mi("create", "Create torrent…", "later", "soon") + mi("search", "Search plugins…", "later", "soon") + mi("export", "Export .torrent…", "later", "soon") + mi("rss", "RSS…", "later", "soon");
+    const plusOpts = [
+      ["1", "Spec · glyph in accent", "Fig. 1's <code>.btn.icon.on</code>. Next to a monochrome gear it's already the only colour in the row. Judge this one first.", "spec"],
+      ["2", "Hairline border", "Accent at 40 % for the border. That's a new use of a border, not in the kit.", "hair", false, true],
+      ["3", "Primary outline", "The kit's own <code>.btn.primary</code>, a full accent outline, on an icon button. No new style, just Fig. 1 changed.", "primary", true, true],
+      ["4", "Labelled: + add", "The primary outline with a word. The clearest, and it costs about 50 px of search field.", "label", false, true],
+      ["5", "Accent fill 18 %", "A fill in accent rather than foreground. That breaks the fills-are-foreground rule, so it's shown only to rule it out.", "fill", false, true],
+      ["6", "Bigger glyph", "Heading size, light weight. No chrome at all, but bigger than its neighbours and out of rhythm.", "big", false, true]
+    ];
+    $("plusOpts").innerHTML = plusOpts.map(c => `<div class="opt ${c[4] ? "pick" : ""}"><div class="h"><span class="k">${c[0]}</span><b>${c[1]}</b>${c[4] ? '<span class="rec">recommended</span>' : ""}${c[5] ? '<span class="dev">deviation</span>' : ""}</div>
+      <div class="scroller"><div class="win inactive herowin narrow">${hero({ connStyle:"word", conn:"connected", compact:true, short:true, alt:"chip", more:true, plus:c[3] })}</div></div>
+      <div class="d">${c[2]}</div></div>`).join("");
+    $("heroRec").innerHTML = hero({ connStyle:"word", conn:"firewalled", alt:"chip", altOn:true, more:true, plus:"primary", mark:"B" });
+  }
+
+  /* ---------------- §4 help ---------------- */
+  const HELP = [
+    ["Move", "Get around the window without the mouse.", [
+      ["j k", "Move the cursor down and up"], ["g G", "Jump to the first or the last torrent"], ["h l", "Move focus between rail, table and details"],
+      ["/", "Filter the table by name"], ["0–9", "Filter by status: 0 all, 1 downloading, 2 seeding…"], ["ctrl+k", "Jump to any torrent, category or tag by name"],
+      ["esc", "Clear the selection, then the filter, then close"]]],
+    ["Select", "Most actions apply to the selection, or to the cursor row when nothing is selected.", [
+      ["space", "Add or remove the cursor row"], ["v", "Select a range from the last row you marked"], ["ctrl+a", "Select every torrent the filter shows"]]],
+    ["Act on torrents", "", [
+      ["a", "Add a torrent: magnet, file or URL"], ["enter", "Open the actions menu for the selection"], ["p P", "Stop or start · force start, skipping the queue"],
+      ["d D", "Delete · delete with its files"], ["c", "Recheck the downloaded data"], ["R", "Reannounce to every tracker"],
+      ["C t", "Set category · set tags"], ["m", "Move the files to another folder"], ["L", "Set speed and share limits"], ["r", "Rename"],
+      ["[ ]", "Move up or down in the queue"], ["o", "Open the folder in the file manager"], ["y Y n", "Copy magnet · hash · name"]]],
+    ["View", "What the window shows.", [
+      ["i", "Show or hide the details panel"], ["1–4", "Details tab: general, files, trackers, peers"], ["s", "Sort by any column"],
+      ["|", "Pick and order the table's columns", "new key"], ["ctrl+b", "Hide or show the rail", "new"]]],
+    ["App", "", [
+      ["A", "Toggle alternative speed limits"], [", <span class='or'>or</span> ctrl+,", "Settings", "ctrl+, new"], ["ctrl+.", "The ⋯ menu", "new"],
+      ["? <span class='or'>or</span> F1", "This sheet"], ["q", "Hide to the tray"], ["ctrl+q", "Quit"]]],
+    ["Hyprland", "A bind for your own config. omaseed doesn't set it.", [["super+t", "Bring omaseed forward (suggested)"]]]
+  ];
+  function kr(r, q) {
+    let d = r[1];
+    if (q) d = d.replace(new RegExp("(" + q + ")", "i"), "<mark>$1</mark>");
+    return `<div class="kr ${r[2] ? "new" : ""} ${q && r[1].toLowerCase().includes(q) && r[0] === "|" ? "hit" : ""}"><span class="k">${r[0]}</span><span class="d">${d}</span></div>`;
+  }
+  function renderHelp() {
+    $("helpNow").innerHTML = `<div class="hd"><div class="ic">?</div><div class="t"><b>Shortcuts</b><span class="m">single letters act on the table · capitals are the stronger variant</span></div><span class="x">esc</span></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:16px">
+      <div class="helpsheet"><span class="g lbl">navigate</span><span class="k">j k</span><span class="d">move</span><span class="k">g G</span><span class="d">first · last</span><span class="k">h l</span><span class="d">rail · table · details</span><span class="k">/</span><span class="d">filter</span><span class="k">0–9</span><span class="d">status filter</span><span class="k">ctrl+k</span><span class="d">jump</span></div>
+      <div class="helpsheet"><span class="g lbl">act</span><span class="k">a</span><span class="d">add</span><span class="k">enter</span><span class="d">actions</span><span class="k">p P</span><span class="d">stop/start · force</span><span class="k">d D</span><span class="d">delete · with files</span><span class="k">C t m L r</span><span class="d">category · tags · location · limits · rename</span></div>
+      <div class="helpsheet"><span class="g lbl">app</span><span class="k">s</span><span class="d">sort</span><span class="k">A</span><span class="d">alt-speed</span><span class="k">,</span><span class="d">settings</span><span class="k" style="color:var(--yellow)">ctrl+,</span><span class="d" style="color:var(--yellow)">columns</span><span class="k">q</span><span class="d">hide to tray</span></div>
+      </div>`;
+    const q = "col";
+    const matches = HELP.map(g => [g[0], g[1], g[2].filter(r => r[1].toLowerCase().includes(q))]).filter(g => g[2].length);
+    $("helpA").innerHTML = `<div class="hd"><div class="ic">?</div><div class="t"><b>Shortcuts</b><span class="m">single letters act on the table · capitals are the stronger variant · ctrl is app-level</span></div><span class="x">esc</span></div>
+      <div class="field focus"><span class="dim">/</span><span>col</span><span class="k">${matches.reduce((n, g) => n + g[2].length, 0)} of ${HELP.reduce((n, g) => n + g[2].length, 0)}</span></div>
+      <div class="hs2">${matches.map(g => `<div class="grp"><h4>${g[0]}</h4>${g[2].map(r => kr(r, q)).join("")}</div>`).join("")}
+      <p class="note">With the filter cleared, every section shows, in two balanced columns.</p></div>
+      <div class="ft"><span><b>enter</b> run</span><span><b>esc</b> clear, then close</span><span class="r"><b>?</b> or <b>F1</b> opens this</span></div>`;
+    const counts = HELP.map(g => g[2].length);
+    const on = 3;
+    $("helpB").innerHTML = `<div class="hd"><div class="ic">?</div><div class="t"><b>Shortcuts</b><span class="m">single letters act on the table · capitals are the stronger variant · ctrl is app-level</span></div><span class="x">esc</span></div>
+      <div class="field"><span class="dim">/</span><span class="ph">filter shortcuts</span></div>
+      <div class="hs3"><div class="gn">${HELP.map((g, i) => `<div class="it ${i === on ? "on" : ""}">${g[0]}<span class="n">${counts[i]}</span></div>`).join("")}</div>
+      <div class="pane"><div class="gd">${HELP[on][1]}</div>${HELP[on][2].map(r => kr(r)).join("")}</div></div>
+      <div class="ft"><span><b>j k</b> section</span><span><b>/</b> filter</span><span class="r"><b>?</b> or <b>F1</b> opens this</span></div>`;
+    const keys = [
+      ["|", "The pipe looks like a column rule. It's free in every scope. On US and most EU layouts it's shift plus a key, which is fine for a once-a-session palette.", true],
+      ["w", "Free, and a single unshifted letter. But there's no mnemonic, and it's a letter we may want later (watch folders)."],
+      ["ctrl+shift+,", "Keeps Columns next to Settings in the ctrl+, family. Three keys for a palette is a lot, and it can't be typed on some layouts."]
+    ];
+    $("keyPick").innerHTML = keys.map(k => `<div class="kp ${k[2] ? "pick" : ""}"><span class="key">${k[0]}${k[2] ? '<span class="rec">recommended</span>' : ""}</span><span class="dd">${k[1]}</span></div>`).join("");
+  }
+
+  /* ---------------- §5 rail ---------------- */
+  const RAILDATA = [
+    ["status", 142, [["all",142,"◆"],["downloading",6,"↓"],["seeding",118,"↑"],["completed",121,"✓"],["stopped",12,"■"],["active",9,"●"],["stalled",3,"◌"],["checking",1,"⟳"],["errored",2,"!"]]],
+    ["categories", 9, [["all",142,""],["linux",8,"▤"],["movies",41,"▤"],["tv",63,"▤"],["music",20,"▤"],["books",14,"▤"],["games",6,"▤"],["software",11,"▤"],["none",10,"·"]]],
+    ["tags", 6, [["all",142,""],["private",97,"#"],["keep",30,"#"],["4k",12,"#"],["hdr",9,"#"],["rare",3,"#"]]],
+    ["trackers", 7, [["all",142,""],["tracker.opentrackr.org",88,"◦"],["tracker.torrent.eu.org",41,"◦"],["archlinux.org",8,"◦"],["trackerless",4,"·"]]]
+  ];
+  const ROWH = () => parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--base")) * 2.1;
+  function railHTML(o) {
+    o = o || {};
+    const selStatus = o.selAll ? "all" : "downloading";
+    const grp = (g, gi) => {
+      const collapsed = o.collapsed && o.collapsed.includes(g[0]);
+      const head = `<div class="lbl">${o.fold ? `<span class="cv">${collapsed ? "›" : "▾"}</span>` : ""}${g[0]}${o.fold ? `<span class="n">${g[1]}</span>` : ""}</div>`;
+      if (collapsed) return `<div class="grp">${head}</div>`;
+      return `<div class="grp">${head}${g[2].map((r, ri) => {
+        let cls = "";
+        if (gi === 0 && r[0] === selStatus) cls = "sel";
+        if (gi === 1 && r[0] === "movies") cls = "cur";
+        if (gi > 0 && ri === 0 && o.selAll) cls = "sel";
+        return `<div class="rrow ${cls}"><span class="g">${r[2]}</span><span class="t">${r[0]}</span><span class="n">${r[1]}</span></div>`;
+      }).join("")}</div>`;
+    };
+    return RAILDATA.map(grp).join("");
+  }
+  function railView(o) {
+    const scroll = o.scroll || 0;
+    let extra = "";
+    if (o.hint === "chev") extra = `<div class="more top">▴ 6 above</div><div class="more bot">▾ 14 below</div>`;
+    if (o.hint === "bar") extra = `<div class="track"></div><div class="thumb" style="top:32%;height:34%"></div>`;
+    if (o.sticky) extra += `<div class="stick"><div class="lbl">${o.fold ? '<span class="cv">▾</span>' : ""}categories${o.fold ? '<span class="n">9</span>' : ""}</div></div>`;
+    return `<div class="rv ${o.hint === "fade" ? "fade" : ""}">${extra}<div class="in" style="top:${-scroll}px">${railHTML(o)}</div></div>`;
+  }
+  function renderRail() {
+    const s = Math.round(ROWH() * 7.2);
+    const scrollOpts = [
+      ["now", "Today", "Scrolled seven rows. STATUS is gone and nothing says so, and the rows under the cut have no group label.", { scroll:s }],
+      ["a", "Fade", "The edges fade where there's more. Quiet and theme-safe, but it's the weakest signal, easy to read as styling.", { scroll:s, hint:"fade" }],
+      ["b", "Counted chevrons", "A line at each end that says how much is hidden. It's the only one that tells you what you'd get by scrolling, and it matches the footer's habit of stating facts.", { scroll:s, hint:"chev" }, true],
+      ["c", "Hover scrollbar", "A 2 px track and thumb that appear on hover or focus. It's familiar, but invisible when you're not already touching the rail.", { scroll:s, hint:"bar" }],
+      ["d", "Sticky headers", "The current group's label pins to the top, so scrolled rows always say which group they're in. It pairs with any hint.", { scroll:s, sticky:true }, true]
+    ];
+    $("railScroll").innerHTML = scrollOpts.map(c => `<div class="railbox"><div class="h"><span class="k">${c[0]}</span><b>${c[1]}</b>${c[4] ? '<span class="rec">recommended</span>' : ""}</div>${railView(c[3])}<div class="d">${c[2]}</div></div>`).join("");
+    const stuck = $("railScroll").querySelector(".stick");
+    if (stuck) { const inner = stuck.parentNode.querySelector(".in"), g2 = inner.children[1]; inner.style.top = -(g2.offsetTop + g2.firstElementChild.offsetHeight + ROWH() * 2 - stuck.offsetHeight) + "px"; }
+    const foldOpts = [
+      ["e", "Collapsible groups", "▾/› on each header, with a count. Folded groups stay folded per server in <code>state.json</code>. <kbd>space</kbd> on a header toggles it. Tags and trackers are folded here.", { fold:true, collapsed:["tags", "trackers"] }, true],
+      ["f", "all drawn as selected", "When a group has no filter, its <kbd>all</kbd> row takes the selected fill, so every group always shows its answer. v2's <code>RAIL</code> array says it never does.", { selAll:true, fold:true, collapsed:["trackers"] }, true, true],
+      ["now", "all never selected (today)", "Only a real filter gets the fill. You can't tell \"no category filter\" from \"forgot to look\".", { fold:false }]
+    ];
+    $("railFold").innerHTML = foldOpts.map(c => `<div class="railbox"><div class="h"><span class="k">${c[0]}</span><b>${c[1]}</b>${c[4] ? '<span class="rec">recommended</span>' : ""}${c[5] ? '<span class="dev">deviation</span>' : ""}</div>${railView(c[3])}<div class="d">${c[2]}</div></div>`).join("");
+    const mini = (o) => `<div class="mini"><div class="mh ${o.th || ""}"><span class="mk">◆</span>omaseed<span class="dim" style="margin-left:auto">${o.chip || ""}</span></div>
+      <div class="mb ${o.norail ? "norail" : ""}">${o.norail ? "" : `<div class="mr ${o.tr || ""}"><span>status</span><span class="s">downloading</span><span>seeding</span><span>stopped</span><span>categories</span><span>linux</span></div>`}
+      <div class="mt">${"<i></i>".repeat(9)}</div><div class="md ${o.td || ""}">${"<i></i>".repeat(7)}</div></div>
+      <div class="mf"><span><b>6</b> of 142</span><span class="r">${o.foot || "<b>?</b> help"}</span></div></div>`;
+    $("railHide").innerHTML =
+      `<div class="railbox"><div class="h"><b>Rail hidden</b><span class="rec">recommended</span></div>${mini({ norail:true, chip:'<span class="chip">↓ downloading ✕</span>', foot:"<b>ctrl+b</b> rail · <b>?</b> help" })}<div class="d"><kbd>ctrl+b</kbd> toggles it (the sidebar key in VS Code, Zed and most editors). The choice is saved. When hidden, <kbd>0–9</kbd> still filter, and any active filter shows as a removable chip in the hero, so hiding the rail never hides a filter. <kbd>h</kbd> from the table shows the rail again.</div></div>
+       <div class="railbox"><div class="h"><b>What gets the space</b></div>${mini({ foot:"<b>?</b> help" })}<div class="d">The table takes the rail's width. Details keep theirs. At the window width in your capture (1662 px) that's +200 px of torrent name, which is the column that elides first.</div></div>`;
+    const tints = [
+      ["0 %", "Today: one surface. Everything sits on the 90 % glass.", {}],
+      ["4 % rail + details", "The side surfaces step back from the table by one fill step. The table stays the brightest place to look.", { tr:"t1", td:"t1" }, true],
+      ["8 % rail, 4 % hero", "More separation. It reads as panels, but on Lupine it starts to look grey.", { tr:"t2", td:"t1", th:"t1" }]
+    ];
+    $("railTint").innerHTML = tints.map(t => `<div class="railbox"><div class="h"><b>${t[0]}</b>${t[3] ? '<span class="rec">recommended</span>' : ""}</div>${mini(t[2])}<div class="d">${t[1]}</div></div>`).join("");
+    const hosts = [["tracker.opentrackr.org", 88], ["tracker.torrent.eu.org", 41], ["tracker.openbittorrent.com", 22], ["archlinux.org", 8]];
+    const shortHost = h => h.replace(/^tracker\./, "");
+    const el = (label, fn, cls, d, rec) => `<div class="railbox"><div class="h"><b>${label}</b>${rec ? '<span class="rec">recommended</span>' : ""}</div>
+      <div class="rv" style="height:auto"><div class="in" style="position:static"><div class="grp"><div class="lbl">trackers</div>${hosts.map(h => `<div class="rrow"><span class="g">◦</span><span class="t ${cls}">${fn(h[0])}</span><span class="n">${h[1]}</span></div>`).join("")}</div></div></div><div class="d">${d}</div></div>`;
+    $("railElide").innerHTML =
+      el("Right elide (today)", h => h, "", "Three rows all start <code>tracker.o…</code>. The part that differs is the part that gets cut.") +
+      el("Left elide", h => h.length > 17 ? "…" + h.slice(-16) : h, "", "Keeps the end, which is the part that differs. But a cut-off start reads oddly, and the domain loses its first label.") +
+      el("Drop the shared prefix", shortHost, "", "Strip a leading <code>tracker.</code> (and <code>announce.</code>, <code>open.</code>) before eliding, and show the full host in the tooltip. Nothing is cut in the common case.", true);
+  }
+
+  /* ---------------- §6 decision sheet ---------------- */
+  const QS = [
+    ["mark", "§1 · B1.1", "The mark", "", [["now","keep diamond"],["B","B up-seed",1],["C","C kernel"],["D","D sprout"],["E","E swarm"],["F","F split"]]],
+    ["states", "§1", "Tray states", "Shape as well as colour", [["badge","badges incl. ! for error",1],["colour","colour only for error (today)"]]],
+    ["symbols", "§2 · B1.4c", "How symbols are drawn", "", [["A","A swap codepoints"],["B","B symbol font"],["C","C all SVG"],["D","D SVG icons, text symbols",1]]],
+    ["conn", "§3 · B1.3b", "Connection status", "", [["a","a dot colour"],["b","b silent when healthy",1],["c","c badge"]]],
+    ["alt", "§3 · B1.3c", "Alt-speed", "", [["i","i icon (today)"],["ii","ii labelled chip",1],["iii","iii in ⋯ menu"]]],
+    ["more", "§3 · B1.4b", "The ⋯ menu", "ctrl+. or click", [["yes","yes, as drawn",1],["no","no menu"]]],
+    ["plus", "§3 · B1.4d", "The +", "With the gear fixed", [["1","1 spec"],["2","2 hairline"],["3","3 primary outline",1],["4","4 + add"],["6","6 bigger"]]],
+    ["colkey", "§4 · B1.5b", "Columns key", "ctrl+, goes to Settings", [["pipe","|",1],["w","w"],["csc","ctrl+shift+,"]]],
+    ["help", "§4 · B1.11b", "Help sheet", "", [["A","A two columns + filter",1],["B","B section nav"],["now","keep today's"]]],
+    ["hint", "§5 · B1.10b", "Rail scroll hint", "", [["fade","a fade"],["chev","b counted chevrons",1],["bar","c hover scrollbar"],["none","none"]]],
+    ["sticky", "§5", "Sticky group headers", "", [["yes","yes",1],["no","no"]]],
+    ["fold", "§5", "Collapsible groups", "", [["yes","yes",1],["no","no"]]],
+    ["all", "§5 · B1.10a", "all drawn as selected", "Deviation from v2", [["yes","yes",1],["no","no (today)"]]],
+    ["hide", "§5 · B1.6", "Hide the rail", "", [["cb","ctrl+b, as drawn",1],["no","not now"]]],
+    ["tint", "§5 · B1.9", "Surface tint", "", [["0","0 % (today)"],["4","4 % rail + details",1],["8","8 % rail, 4 % hero"],["setting","make it a setting"]]],
+    ["elide", "§5", "Tracker hosts", "", [["right","right elide (today)"],["left","left elide"],["prefix","drop shared prefix",1]]]
+  ];
+  const STORE = "omaseed-08-decisions";
+  function loadSaved() { try { return JSON.parse(localStorage.getItem(STORE) || "{}"); } catch (e) { return {}; } }
+  function save(v) { try { localStorage.setItem(STORE, JSON.stringify(v)); } catch (e) {} }
+  function renderDecide() {
+    const saved = loadSaved();
+    let h = QS.map(q => `<div class="q"><div class="qt"><span class="ref">${q[1]}</span><b>${q[2]}</b>${q[3] ? `<span>${q[3]}</span>` : ""}</div>
+      <div class="os" role="radiogroup" aria-label="${q[2]}">${q[4].map(o => {
+        const chk = saved[q[0]] ? saved[q[0]] === o[0] : !!o[2];
+        return `<label><input type="radio" id="q-${q[0]}-${o[0]}" name="${q[0]}" value="${o[0]}" ${chk ? "checked" : ""}>${o[1]}${o[2] ? ' <span class="r">rec</span>' : ""}</label>`;
+      }).join("")}</div></div>`).join("");
+    h += `<div class="q"><div class="qt"><span class="ref">anything</span><b>Notes</b><span>Anything the options missed.</span></div><textarea class="notes" id="q-notes" name="notes" aria-label="Notes">${(saved.notes || "").replace(/</g, "&lt;")}</textarea></div>`;
+    h += `<div class="out"><div class="row"><button type="button" class="btn b primary" id="copyBtn">Copy answers</button><button type="button" class="btn b" id="resetBtn">Back to recommendations</button><span class="st" id="copySt" aria-live="polite"></span></div><textarea id="outText" readonly aria-label="Answers to paste"></textarea></div>`;
+    $("decideForm").innerHTML = h;
+    const update = () => {
+      const f = $("decideForm"), v = {};
+      QS.forEach(q => { const c = f.querySelector(`input[name="${q[0]}"]:checked`); v[q[0]] = c ? c.value : ""; });
+      v.notes = $("q-notes").value;
+      save(v);
+      const lines = QS.map(q => { const o = q[4].find(x => x[0] === v[q[0]]); return `${q[1].split(" · ").pop().padEnd(7)} ${q[2]}: ${o ? o[1] : "—"}${o && !o[2] ? "  (changed)" : ""}`; });
+      $("outText").value = "08 visual pass, answers\n" + lines.join("\n") + (v.notes.trim() ? "\nnotes: " + v.notes.trim() : "");
+    };
+    $("decideForm").addEventListener("change", update);
+    $("q-notes").addEventListener("input", update);
+    $("copyBtn").addEventListener("click", () => {
+      const t = $("outText");
+      const done = ok => { $("copySt").textContent = ok ? "Copied. Paste it into the session." : "Selected. Press ctrl+c to copy."; };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t.value).then(() => done(true), () => { t.select(); done(false); });
+      else { t.select(); done(false); }
+    });
+    $("resetBtn").addEventListener("click", () => { save({}); renderDecide(); });
+    update();
+  }
+
+  /* ---------------- theme / base ---------------- */
+  function setTheme(name) {
+    const t = THEMES[name]; if (!t) return; const r = document.documentElement.style;
+    for (const k in MAP) r.setProperty(MAP[k], t[k]);
+    document.documentElement.dataset.mode = t.mode;
+    document.querySelectorAll("#themeSeg button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.theme === name)));
+    $("metaTheme").textContent = t.label; $("metaMode").textContent = t.mode;
+    try { localStorage.setItem("omaseed-08-theme", name); } catch (e) {}
+  }
+  function setBase(b) {
+    document.documentElement.dataset.base = b;
+    document.querySelectorAll("#baseSeg button").forEach(x => x.setAttribute("aria-pressed", String(x.dataset.base === b)));
+    $("metaBase").textContent = b;
+    try { localStorage.setItem("omaseed-08-base", b); } catch (e) {}
+    renderRail();
+  }
+  $("themeSeg").addEventListener("click", e => { const b = e.target.closest("button[data-theme]"); if (b) setTheme(b.dataset.theme); });
+  $("baseSeg").addEventListener("click", e => { const b = e.target.closest("button[data-base]"); if (b) setBase(b.dataset.base); });
+
+  let t = "frieren", b = "14";
+  try { const s = localStorage.getItem("omaseed-08-theme"); if (s && THEMES[s]) t = s; const z = localStorage.getItem("omaseed-08-base"); if (z === "12" || z === "14") b = z; } catch (e) {}
+  setTheme(t);
+  renderMarks(); renderAudit(); renderSymOpts(); renderHero(); renderHelp(); renderDecide();
+  setBase(b);
+})();
+</script>
