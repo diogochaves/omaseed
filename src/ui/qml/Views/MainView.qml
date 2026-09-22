@@ -371,6 +371,7 @@ Item {
 
         switch (event.key) {
         case Qt.Key_Question:
+        case Qt.Key_F1: // the desktop's help key, same sheet (Keymap's "f1" entry)
             root.helpOpen = true;
             break;
         case Qt.Key_Slash:

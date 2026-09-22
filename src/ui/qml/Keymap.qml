@@ -161,6 +161,21 @@ QtObject {
             "helpKeys": "",
             "help": ""
         },
+        // F1 opens the same sheet. `?` is the keyboard-first convention this app is built
+        // on and stays the key the footer teaches; F1 is what the desktop at large uses
+        // (GTK/GNOME, and Strata next door), and it costs one entry to stop the question
+        // being asked. Omarchy itself has no in-app help key to follow: its own binding,
+        // SUPER+K, opens a global Hyprland cheat sheet, not an application's.
+        {
+            "area": "global",
+            "key": "f1",
+            "action": "help",
+            "label": qsTr("help"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
 
         // table ---------------------------------------------------------------------
         {

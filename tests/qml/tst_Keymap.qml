@@ -47,6 +47,15 @@ TestCase {
         compare(escape.action, "escape");
     }
 
+    function test_f1_is_an_alias_for_the_help_sheet() {
+        const f1 = Keymap.find("global", "f1");
+        verify(f1 !== null, "f1 is not in the keymap");
+        compare(f1.action, Keymap.find("global", "?").action);
+        // It leads no help-sheet row: `?` is the key the footer and the sheet teach.
+        compare(f1.column, "");
+        compare(f1.helpKeys, "");
+    }
+
     function test_case_separates_the_stronger_variant() {
         compare(Keymap.find("table", "p").action, "stopStart");
         compare(Keymap.find("table", "P").action, "forceStart");
