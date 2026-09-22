@@ -58,6 +58,7 @@ private slots:
     void leftClickRequestsToggleWindow();
     void statesProduceDifferentNonNullIcons();
     void iconDominantColourTracksAFakePalette();
+    void errorDiffersFromIdleByShapeWhenRedIsNotRed();
     void settingAltSpeedCheckedDoesNotEmit();
     void constructionUnderNoTrayDoesNotCrash();
 };
@@ -163,6 +164,27 @@ void TestTray::statesProduceDifferentNonNullIcons()
     QVERIFY(c != d);
     QVERIFY(d != e);
     QVERIFY(a != e);
+}
+
+// docs/08 §1: on a theme whose "red" is the foreground colour, error must still not look like
+// idle. The badge gives it a shape of its own.
+void TestTray::errorDiffersFromIdleByShapeWhenRedIsNotRed()
+{
+    Tray tray;
+    tray.setPalette({
+        {QStringLiteral("accent"), QColor(QStringLiteral("#82fb9c"))},
+        {QStringLiteral("foreground"), QColor(QStringLiteral("#ddf7ff"))},
+        {QStringLiteral("dim"), QColor(QStringLiteral("#6a6e95"))},
+        {QStringLiteral("red"), QColor(QStringLiteral("#ddf7ff"))},
+        {QStringLiteral("yellow"), QColor(QStringLiteral("#50f7d4"))},
+        {QStringLiteral("background"), QColor(QStringLiteral("#0b0c16"))},
+    });
+
+    for (int size : {16, 22}) {
+        const QImage idle = tray.iconForState(Tray::Idle).pixmap(size).toImage();
+        const QImage error = tray.iconForState(Tray::Error).pixmap(size).toImage();
+        QVERIFY2(idle != error, qPrintable(QStringLiteral("identical at %1 px").arg(size)));
+    }
 }
 
 void TestTray::iconDominantColourTracksAFakePalette()

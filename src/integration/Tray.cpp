@@ -269,6 +269,8 @@ QIcon Tray::iconForState(State state) const
             paintCountBadge(&painter, size, m_downloadingCount);
         else if (state == AltSpeed)
             paintAltSpeedMark(&painter, size);
+        else if (state == Error)
+            paintErrorMark(&painter, size);
 
         painter.end();
         icon.addPixmap(pixmap);
@@ -308,6 +310,27 @@ void Tray::paintAltSpeedMark(QPainter *painter, int size) const
     painter->setFont(font);
     painter->setPen(m_palette.value(QStringLiteral("background")));
     painter->drawText(rect, Qt::AlignCenter, QStringLiteral("⏷"));
+}
+
+// The error state must differ from idle by shape, not only by colour: some themes' "red"
+// is not red at all (Hackerman's is #50f872). A red disc with an `!` knocked out of it, ringed
+// in the background colour so it separates from the red diamond under it (docs/08 §1).
+void Tray::paintErrorMark(QPainter *painter, int size) const
+{
+    const qreal markSize = size * 0.56;
+    const QRectF rect(size - markSize, size - markSize, markSize, markSize);
+    const QColor background = m_palette.value(QStringLiteral("background"));
+
+    painter->setPen(QPen(background, qMax(1.0, size * 0.08)));
+    painter->setBrush(m_palette.value(QStringLiteral("red")));
+    painter->drawEllipse(rect.adjusted(0.5, 0.5, -0.5, -0.5));
+
+    const qreal barWidth = qMax(1.5, markSize * 0.2);
+    const qreal x = rect.center().x() - barWidth / 2;
+    painter->setPen(Qt::NoPen);
+    painter->setBrush(background);
+    painter->drawRect(QRectF(x, rect.top() + markSize * 0.2, barWidth, markSize * 0.36));
+    painter->drawRect(QRectF(x, rect.top() + markSize * 0.64, barWidth, barWidth));
 }
 
 } // namespace omaseed::integration

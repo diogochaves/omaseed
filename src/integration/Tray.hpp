@@ -114,6 +114,7 @@ private:
     static QHash<QString, QColor> defaultPalette();
     void paintCountBadge(QPainter *painter, int size, int count) const;
     void paintAltSpeedMark(QPainter *painter, int size) const;
+    void paintErrorMark(QPainter *painter, int size) const;
 
     ThemeReader *m_reader = nullptr;
     QSystemTrayIcon *m_trayIcon = nullptr;
