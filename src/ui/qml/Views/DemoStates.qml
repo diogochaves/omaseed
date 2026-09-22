@@ -38,11 +38,10 @@ Window {
             border.width: 1
             color: "transparent"
 
-            Text {
+            Glyph {
                 anchors.centerIn: parent
                 color: heroLine.markColor
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.font.body
+                pixelSize: Theme.font.body
                 text: Glyphs.mark
             }
         }

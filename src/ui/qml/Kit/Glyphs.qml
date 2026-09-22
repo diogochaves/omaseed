@@ -15,7 +15,7 @@ import QtQuick
 // exposed by name so a Kit component never carries a literal symbol.
 QtObject {
     // ---- identity ------------------------------------------------------------------
-    readonly property string mark: "◆" // hero mark, spec §1 Fig. 1 `.mark`
+    readonly property string mark: "icon:mark" // hero mark, spec §1 Fig. 1 `.mark`
 
     // ---- speeds --------------------------------------------------------------------
     readonly property string arrowDown: "↓" // download stat, spec §1 `.stat.d .v i`

@@ -102,11 +102,10 @@ Item {
             border.width: 1
             color: "transparent"
 
-            Text {
+            Glyph {
                 anchors.centerIn: parent
                 color: mark.border.color
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.font.title
+                pixelSize: Theme.font.title
                 text: Glyphs.mark
             }
         }
