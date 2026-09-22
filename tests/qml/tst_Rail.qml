@@ -103,17 +103,15 @@ TestCase {
         compare(App.filtered.count, App.counts.downloading);
     }
 
-    // Spec Fig. 1's RAIL array gives every "all" row no "sel" class, even the one whose group
-    // is logically the active filter — only a real narrowing filter (a specific status,
-    // category, tag or tracker) draws the selected fill. Otherwise "downloading" selected
-    // would light up four grey "all" bands alongside it instead of standing alone.
-    function test_all_rows_never_show_the_selected_fill() {
+    // docs/08 §5 (REVIEW §9): a group with no filter draws its "all" row selected, so every
+    // group always shows its answer. The spec's RAIL array never selected "all".
+    function test_all_rows_are_selected_while_their_group_has_no_filter() {
         const rail = createTemporaryObject(railComponent, testCase);
 
-        compare(rail._rowMap[rail.statusBase].item.selected, false); // status "all"
-        compare(rail._rowMap[rail.categoriesBase].item.selected, false);
-        compare(rail._rowMap[rail.tagsBase].item.selected, false);
-        compare(rail._rowMap[rail.trackersBase].item.selected, false);
+        compare(rail._rowMap[rail.statusBase].item.selected, true); // status "all"
+        compare(rail._rowMap[rail.categoriesBase].item.selected, true);
+        compare(rail._rowMap[rail.tagsBase].item.selected, true);
+        compare(rail._rowMap[rail.trackersBase].item.selected, true);
 
         rail.selectStatus(1); // downloading
         compare(rail._rowMap[rail.statusBase].item.selected, false);
@@ -122,9 +120,13 @@ TestCase {
         rail._rowMap[rail.categoriesBase + 2].select(); // movies
         compare(rail._rowMap[rail.categoriesBase].item.selected, false);
         compare(rail._rowMap[rail.categoriesBase + 2].item.selected, true);
+        // The other groups still have no filter.
+        compare(rail._rowMap[rail.tagsBase].item.selected, true);
 
-        rail.selectStatus(0); // back to "all": still plain, not selected
-        compare(rail._rowMap[rail.statusBase].item.selected, false);
+        rail.selectStatus(0);
+        compare(rail._rowMap[rail.statusBase].item.selected, true);
+        App.filtered.clearCategory();
+        compare(rail._rowMap[rail.categoriesBase].item.selected, true);
     }
 
     function test_selecting_a_category_sets_filtered_category() {
