@@ -134,8 +134,10 @@ QtObject {
                     // The figure says "add peer" where the Trackers tab says "add".
                     root._hint("details", "a", qsTr("add peer")), root._hint("details", "y")];
         default:
-            // docs/12 G5: General's rows are a list with a cursor, and `y` copies a value.
-            return [root._hint("details", "j k"), root._hint("details", "y", qsTr("copy value"))];
+            // docs/12 G5 and G4: General's rows are a list with a cursor, `y` copies a value
+            // and `enter` changes an option row.
+            return [root._hint("details", "j k"), root._hint("details", "y", qsTr("copy value")),
+                    root._hint("details", "enter", qsTr("change"))];
         }
     }
 }

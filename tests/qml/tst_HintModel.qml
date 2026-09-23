@@ -86,7 +86,7 @@ TestCase {
         model.focusArea = "details";
         model.detailsTab = 0;
         compare(model.area, "details");
-        compare(testCase.line(model.hints), "j k move · y copy value");
+        compare(testCase.line(model.hints), "j k move · y copy value · enter change");
     }
 
     function test_the_details_tabs_teach_figures_2_to_4() {

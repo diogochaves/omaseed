@@ -82,6 +82,7 @@ private slots:
     void rolesCoverTheTableAndTheDetails();
     void partialMergesOnlyThePresentKeys();
     void shareLimitActionParsesAndDefaults();
+    void perTorrentOptionsParse();
     void partialAppendsUnknownHashes();
     void partialRemovesInContiguousRuns();
     void dataChangedIsBatchedPerRun();
@@ -217,6 +218,31 @@ void TestTorrentModel::shareLimitActionParsesAndDefaults()
     QVERIFY(changed.first().at(2).value<QList<int>>().contains(role));
     // The other rows are untouched.
     QCOMPARE(model.torrent(QStringLiteral("bbbb")).shareLimitAction, QStringLiteral("Default"));
+}
+
+void TestTorrentModel::perTorrentOptionsParse()
+{
+    // docs/12 G4: the four options General's Options group shows, straight off the row.
+    TorrentModel model;
+    model.applyFullUpdate(threeTorrents());
+    const auto &before = model.torrent(QStringLiteral("aaaa"));
+    QCOMPARE(before.superSeeding, false);
+    QCOMPARE(before.autoTmm, false);
+
+    QSignalSpy updated(&model, &TorrentModel::updated);
+    model.applyPartial(QJsonObject{{QStringLiteral("aaaa"),
+                                    QJsonObject{{QStringLiteral("seq_dl"), true},
+                                                {QStringLiteral("f_l_piece_prio"), true},
+                                                {QStringLiteral("super_seeding"), true},
+                                                {QStringLiteral("auto_tmm"), true}}}},
+                       QJsonArray());
+    const auto &after = model.torrent(QStringLiteral("aaaa"));
+    QVERIFY(after.seqDl);
+    QVERIFY(after.firstLastPiecePrio);
+    QVERIFY(after.superSeeding);
+    QVERIFY(after.autoTmm);
+    // Views that snapshot the row (the details pane) hear about it.
+    QCOMPARE(updated.count(), 1);
 }
 
 void TestTorrentModel::partialAppendsUnknownHashes()

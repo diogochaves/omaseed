@@ -12,6 +12,19 @@ Menu {
     /// Whether the cursor torrent (the row the menu was opened on) is currently stopped —
     /// decides the first row's text between "start" and "stop".
     property bool cursorStopped: false
+    /// The cursor torrent's row (App.torrentRow), for the docs/12 G4 option rows' checks:
+    /// each row turns its option to the other side of the cursor torrent's, on the whole
+    /// selection.
+    property var cursorRow: ({})
+
+    function _option(text: string, key: string, action: string, on: bool): var {
+        return {
+            "text": text,
+            "key": key,
+            "action": action,
+            "glyph": on ? Glyphs.check : ""
+        };
+    }
 
     menuWidth: Theme.space(280)
     items: [
@@ -66,6 +79,15 @@ Menu {
             "key": "r",
             "action": "rename"
         },
+        {
+            "separator": true
+        },
+        root._option(qsTr("sequential download"), "s", "sequential", root.cursorRow.seqDl === true),
+        root._option(qsTr("first / last pieces first"), "f", "firstLast", root.cursorRow.firstLastPiecePrio
+                     === true),
+        root._option(qsTr("super seeding"), "S", "superSeeding", root.cursorRow.superSeeding === true),
+        root._option(qsTr("automatic management"), "a", "autoManagement", root.cursorRow.autoTmm
+                     === true),
         {
             "separator": true
         },

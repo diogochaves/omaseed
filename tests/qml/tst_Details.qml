@@ -191,7 +191,7 @@ TestCase {
         // G goes to the last row, in Options; the cursor crosses the group headings.
         keyClick(Qt.Key_G, Qt.ShiftModifier);
         compare(view.cursorIndex, general.count - 1);
-        compare(general.rows[view.cursorIndex].key, "Share limit");
+        compare(general.rows[view.cursorIndex].key, "Auto manage");
 
         // The hash, whole.
         const hashRow = general.rows.findIndex(row => row.key === "Hash v1");
@@ -229,12 +229,63 @@ TestCase {
         compare(valueSpy.signalArguments[0][1], "save path");
     }
 
+    // docs/12 G4: the Options group's on/off rows, and `enter` on one turns it over.
+    function test_enter_toggles_an_option_row() {
+        const view = testCase.select(testCase.archName);
+        const hash = App.details.hash;
+        const general = findChild(view, "generalTab");
+        const keys = general.groups[2].rows.map(row => row.key);
+        compare(keys, ["Share limit", "Sequential", "First / last", "Super seed",
+                       "Auto manage"]);
+
+        const before = App.torrentRow(hash).seqDl;
+        const sequential = general.rows.findIndex(row => row.option === "sequential");
+        compare(general.rows[sequential].value, before ? "on" : "off");
+        view.forceActiveFocus();
+        view.moveCursor(sequential - view.cursorIndex);
+        keyClick(Qt.Key_Return);
+        // The demo flips the fictional row; the pane redraws from the next snapshot.
+        compare(App.torrentRow(hash).seqDl, !before);
+        view.torrent = App.torrentRow(hash);
+        compare(general.rows[sequential].value, !before ? "on" : "off");
+        compare(general.rows[sequential].on, !before);
+
+        // The cursor stays on the row, so `enter` again turns it back.
+        compare(view.cursorIndex, sequential);
+        keyClick(Qt.Key_Return);
+        compare(App.torrentRow(hash).seqDl, before);
+
+        // Each option reaches its own field.
+        for (const [option, field] of [["firstLast", "firstLastPiecePrio"],
+                                       ["superSeeding", "superSeeding"],
+                                       ["autoManagement", "autoTmm"]]) {
+            view.torrent = App.torrentRow(hash);
+            const row = general.rows.findIndex(entry => entry.option === option);
+            const was = App.torrentRow(hash)[field];
+            view.moveCursor(row - view.cursorIndex);
+            keyClick(Qt.Key_Enter);
+            compare(App.torrentRow(hash)[field], !was, option);
+            view.toggleGeneralOption(row); // and back, for the next case
+            view.torrent = App.torrentRow(hash);
+        }
+    }
+
+    // docs/12 G4: `enter` on a row that is not an option is not the pane's to take.
+    function test_enter_on_a_plain_row_changes_nothing() {
+        const view = testCase.select(testCase.archName);
+        compare(view.toggleGeneralOption(0), false); // Status
+        const general = findChild(view, "generalTab");
+        const shareLimit = general.rows.findIndex(row => row.key === "Share limit");
+        compare(view.toggleGeneralOption(shareLimit), false);
+    }
+
     // docs/12 G5: the pane's own hint row teaches General too.
     function test_general_has_hints_of_its_own() {
         const view = testCase.select(testCase.archName);
         const hints = findChild(view, "detailsHints");
         verify(hints !== null && hints.visible);
-        compare(hints.model.map(hint => hint.key + " " + hint.label), ["j k move", "y copy value"]);
+        compare(hints.model.map(hint => hint.key + " " + hint.label), ["j k move", "y copy value",
+                                                                          "enter change"]);
     }
 
     // docs/12 G2: the demo fills every new row, so `--demo` shows them all.

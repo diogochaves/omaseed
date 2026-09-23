@@ -110,6 +110,8 @@ struct Torrent
     int priority = 0; ///< queue position, -1 when queueing is off
     bool seqDl = false;
     bool firstLastPiecePrio = false;
+    bool superSeeding = false; ///< docs/12 G4: per-torrent super seeding
+    bool autoTmm = false;      ///< docs/12 G4: automatic torrent management
     qint64 dlLimit = 0;
     qint64 upLimit = 0;
     double ratioLimit = -2.0;     ///< -2 global, -1 unlimited

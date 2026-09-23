@@ -454,6 +454,9 @@ QJsonObject torrentJson(int index,
     json.insert(QStringLiteral("priority"), 0);
     json.insert(QStringLiteral("seq_dl"), false);
     json.insert(QStringLiteral("f_l_piece_prio"), false);
+    // docs/12 G4: the rows with a category let qBittorrent manage their save path.
+    json.insert(QStringLiteral("super_seeding"), false);
+    json.insert(QStringLiteral("auto_tmm"), !category.isEmpty());
     json.insert(QStringLiteral("dl_limit"), 0);
     json.insert(QStringLiteral("up_limit"), 0);
     json.insert(QStringLiteral("ratio_limit"), -2.0);

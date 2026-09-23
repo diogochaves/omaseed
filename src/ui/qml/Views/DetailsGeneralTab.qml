@@ -59,8 +59,9 @@ Flickable {
         return null;
     }
 
-    /// `[{label, rows: [{index, key, value, copy, name, color?, dim?}]}]`, empty groups
-    /// dropped. `copy` is what `y` puts on the clipboard: the whole value, never the
+    /// `[{label, rows: [{index, key, value, copy, name, color?, dim?, option?, on?}]}]`, empty
+    /// groups dropped. `option` names a G4 on/off row ("sequential", "firstLast",
+    /// "superSeeding", "autoManagement") and `on` its state. `copy` is what `y` puts on the clipboard: the whole value, never the
     /// shortened text on screen (the magnet); `name` is how the footer says what was copied.
     readonly property var groups: {
         const map = root.properties || {};
@@ -116,6 +117,18 @@ Flickable {
 
         const options = make();
         add(options, qsTr("Share limit"), map.shareLimit);
+        // docs/12 G4: on/off rows off the torrent row; `enter` or a click changes them.
+        const option = (key, name, on) => add(options, key, on ? qsTr("on") : qsTr("off"), {
+                                                  "option": name,
+                                                  "on": on,
+                                                  "color": on ? Theme.green : Theme.dimForeground
+                                              });
+        if (row && row.seqDl !== undefined) {
+            option(qsTr("Sequential"), "sequential", row.seqDl === true);
+            option(qsTr("First / last"), "firstLast", row.firstLastPiecePrio === true);
+            option(qsTr("Super seed"), "superSeeding", row.superSeeding === true);
+            option(qsTr("Auto manage"), "autoManagement", row.autoTmm === true);
+        }
 
         let index = 0;
         for (const list of [transfer, information, options]) {

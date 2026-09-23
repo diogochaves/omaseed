@@ -81,6 +81,7 @@ private Q_SLOTS:
     void cleanup();
     void polls_properties_files_and_trackers();
     void peers_only_poll_while_the_tab_is_active();
+    void piece_states_poll_while_general_is_active();
 
 private:
     void addFixture(QbtClient &client);
@@ -208,6 +209,37 @@ void TestTorrentDetailsLive::peers_only_poll_while_the_tab_is_active()
     // Leaving the tab forgets the rid, so the next visit gets a full update.
     details.setPeersActive(false);
     QCOMPARE(details.peers()->rid(), 0);
+}
+
+void TestTorrentDetailsLive::piece_states_poll_while_general_is_active()
+{
+    // docs/12 G3: torrents/pieceStates rides with the properties while General is on show.
+    QbtClient client;
+    client.setBaseUrl(m_url);
+    addFixture(client);
+
+    TorrentDetails details;
+    details.setClient(&client);
+    details.setPollInterval(200);
+    details.setHash(QString::fromLatin1(kFixtureHash));
+
+    // The fixture is one 16 KiB piece, added stopped, so nothing of it is had.
+    QVERIFY2(waitFor([&]() { return details.pieceCount() > 0; }, 5000),
+             "torrents/pieceStates never answered");
+    QCOMPARE(details.pieceCount(), 1);
+    QCOMPARE(details.piecesHaveCount(), 0);
+    QCOMPARE(details.pieceBuckets(300), (QList<int>{0}));
+    QVERIFY(details.lastError().isEmpty());
+
+    // Another tab: the states are dropped and no longer asked for.
+    details.setGeneralActive(false);
+    QCOMPARE(details.pieceCount(), 0);
+    QTest::qWait(500);
+    QCOMPARE(details.pieceCount(), 0);
+
+    // Back on General, they come back straight away.
+    details.setGeneralActive(true);
+    QVERIFY(waitFor([&]() { return details.pieceCount() == 1; }, 5000));
 }
 
 QTEST_MAIN(TestTorrentDetailsLive)

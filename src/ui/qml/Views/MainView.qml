@@ -332,6 +332,20 @@ Item {
         case "openFolder":
             App.openFolder(root.cursorHash);
             break;
+        // docs/12 G4: the other side of the cursor torrent's option, on every hash.
+        case "sequential":
+            App.setSequentialDownload(hashes, App.torrentRow(root.cursorHash).seqDl !== true);
+            break;
+        case "firstLast":
+            App.setFirstLastPiecePrio(hashes,
+                                      App.torrentRow(root.cursorHash).firstLastPiecePrio !== true);
+            break;
+        case "superSeeding":
+            App.setSuperSeeding(hashes, App.torrentRow(root.cursorHash).superSeeding !== true);
+            break;
+        case "autoManagement":
+            App.setAutoManagement(hashes, App.torrentRow(root.cursorHash).autoTmm !== true);
+            break;
         default:
             console.log("action:", action, hashes.length, "torrents");
             break;
@@ -953,6 +967,7 @@ Item {
                 onActionsRequested: (hash, x, y) => {
                     const point = table.mapToItem(root, x, y);
                     actionsMenuPanel.cursorStopped = App.torrentRow(hash).stopped === true;
+                    actionsMenuPanel.cursorRow = App.torrentRow(hash);
                     actionsMenuPanel.openAt(point.x, point.y);
                 }
                 onActivated: hash => console.log("activated:", hash)

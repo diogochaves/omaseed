@@ -1,6 +1,7 @@
 import QtQuick
 import QtTest
 import Omaseed
+import Omaseed.Kit
 import Omaseed.Views
 
 // T4.3. The torrent actions of spec v2 §3 Fig. 6, 7, 8, 11 against the demo library (spec
@@ -87,6 +88,51 @@ TestCase {
         compare(view.actionsMenuPanel.indexOfKey("d") >= 0, true);
         const deleteRow = view.actionsMenuPanel.items[view.actionsMenuPanel.indexOfKey("d")];
         compare(deleteRow.danger, true);
+    }
+
+    // docs/12 G4: the four per-torrent options, checked for the cursor torrent.
+    function test_the_menu_carries_the_four_options() {
+        const hash = hashByName("archlinux-2026.09.01-x86_64.iso");
+        view.table.moveCursorTo(App.filtered.rowOfHash(hash));
+        view.table.requestActions();
+        compare(view.actionsMenuPanel.opened, true);
+        for (const [key, action] of [["s", "sequential"], ["f", "firstLast"],
+                                     ["S", "superSeeding"], ["a", "autoManagement"]]) {
+            const index = view.actionsMenuPanel.indexOfKey(key);
+            verify(index >= 0, "missing row for key " + key);
+            compare(view.actionsMenuPanel.items[index].action, action);
+        }
+        // The demo's linux rows are automatically managed.
+        compare(view.actionsMenuPanel.items[view.actionsMenuPanel.indexOfKey("a")].glyph,
+                Glyphs.check);
+        compare(view.actionsMenuPanel.items[view.actionsMenuPanel.indexOfKey("s")].glyph, "");
+        view.actionsMenuPanel.close();
+    }
+
+    // docs/12 G4: a menu row sets the whole selection to the other side of the cursor's.
+    function test_an_option_row_applies_to_the_selection() {
+        const arch = hashByName("archlinux-2026.09.01-x86_64.iso");
+        const fedora = hashByName("Fedora-Workstation-Live-44-1.6.x86_64.iso");
+        // A mixed pair: fedora already sequential, the cursor (arch) not.
+        App.setSequentialDownload([arch], false);
+        App.setSequentialDownload([fedora], true);
+        view.table.toggleSelection(App.filtered.rowOfHash(fedora));
+        view.table.moveCursorTo(App.filtered.rowOfHash(arch));
+        view.table.toggleSelection(App.filtered.rowOfHash(arch));
+        compare(view.table.selectedCount, 2);
+
+        view.torrentAction("sequential");
+        compare(App.torrentRow(arch).seqDl, true);
+        compare(App.torrentRow(fedora).seqDl, true);
+
+        view.torrentAction("sequential");
+        compare(App.torrentRow(arch).seqDl, false);
+        compare(App.torrentRow(fedora).seqDl, false);
+
+        view.torrentAction("superSeeding");
+        compare(App.torrentRow(arch).superSeeding, true);
+        compare(App.torrentRow(fedora).superSeeding, true);
+        App.setSuperSeeding([arch, fedora], false);
     }
 
     function test_start_stop_label_follows_the_cursor_torrent() {

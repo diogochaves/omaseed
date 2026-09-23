@@ -174,6 +174,30 @@ Item {
             root.valueCopyRequested(entry.copy, entry.name);
     }
 
+    /// `enter`, or a click, on one of General's option rows (docs/12 G4): turns it the other
+    /// way for this torrent. False when the row is not an option.
+    function toggleGeneralOption(row: int): bool {
+        const entry = generalTab.rows[row];
+        if (!entry || !entry.option || root.details.hash.length === 0)
+            return false;
+        const hashes = [root.details.hash];
+        switch (entry.option) {
+        case "sequential":
+            App.setSequentialDownload(hashes, !entry.on);
+            break;
+        case "firstLast":
+            App.setFirstLastPiecePrio(hashes, !entry.on);
+            break;
+        case "superSeeding":
+            App.setSuperSeeding(hashes, !entry.on);
+            break;
+        case "autoManagement":
+            App.setAutoManagement(hashes, !entry.on);
+            break;
+        }
+        return true;
+    }
+
     /// `Y` on a file row: where the file is on this machine, through the path map.
     function copyLocalPath() {
         if (root.currentTab !== 1 || root.details.files.count === 0)
@@ -471,6 +495,12 @@ Item {
         case Qt.Key_Y:
             root.copyCurrent();
             break;
+        case Qt.Key_Return:
+        case Qt.Key_Enter:
+            // G4: General's option rows; anything else goes on to the window.
+            if (root.currentTab !== 0 || !root.toggleGeneralOption(root.generalCursor))
+                return;
+            break;
         case Qt.Key_A:
             if (root.currentTab === 2)
                 root.trackerAction("add", "");
@@ -678,7 +708,8 @@ Item {
                                                                       generalTab.count - 1))
             onRowClicked: row => {
                 root.generalCursor = row;
-                root.copyGeneralRow(row);
+                if (!root.toggleGeneralOption(row))
+                    root.copyGeneralRow(row);
             }
         }
 
@@ -733,7 +764,7 @@ Item {
     }
 
     // The tab's own hints (spec §2 Fig. 2-4 `.foot .hints`), and since docs/12 G5 General's
-    // (`j k` move, `y` copy value). Inside the window Main's footer teaches
+    // (`j k` move, `y` copy value, `enter` change an option). Inside the window Main's footer teaches
     // them instead (HintModel), so this row only shows in the standalone figures.
     Item {
         id: footer
@@ -767,6 +798,10 @@ Item {
                                 {
                                     "key": "y",
                                     "label": qsTr("copy value")
+                                },
+                                {
+                                    "key": "enter",
+                                    "label": qsTr("change")
                                 }
                             ];
                 if (root.currentTab === 1)
