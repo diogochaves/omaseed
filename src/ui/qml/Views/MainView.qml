@@ -472,7 +472,7 @@ Item {
     }
 
     /// Runs a Keymap row's action from the help sheet's `enter` (docs/08 §4). Rows that name a
-    /// movement rather than a command (j k, g G, h l, 0–9, 1–4, space, v, esc) do nothing.
+    /// movement rather than a command (j k, g G, h l, 0–8, 1–4, space, v, esc) do nothing.
     function runKeymapAction(action: string): void {
         switch (action) {
         case "filter":
