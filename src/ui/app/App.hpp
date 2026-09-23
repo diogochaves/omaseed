@@ -693,6 +693,9 @@ public:
     /// `OMASEED_DEMO_ADD`: the text a `--demo` run drops into the sheet when it opens, so
     /// Fig. 5 and Fig. 10 can be screenshot reproducibly. Empty everywhere else.
     Q_INVOKABLE QString demoAddText() const;
+    /// The example `.torrent` behind `OMASEED_DEMO_ADD=torrent` (DemoData::demoTorrentBytes),
+    /// written to the temp directory; its path. Empty outside demo mode.
+    Q_INVOKABLE QString demoTorrentPath() const;
 
     /// The URI hand-off: this process's own argv and every `SingleInstance::openRequested`
     /// from a second launch. Re-emitted as `addUrisRequested` for the sheet to queue.
@@ -738,9 +741,7 @@ private:
                                 const QVariantList &priorities,
                                 bool keepStopped,
                                 int attempt = 0);
-    /// The file-free example `.torrent` `OMASEED_DEMO_ADD=torrent` hands the sheet, written
-    /// to the temp directory once; its path.
-    QString demoTorrentPath() const;
+
     /// Builds the client's options from the sheet's payload.
     omaseed::core::QbtClient::AddOptions addOptionsFrom(const QVariantMap &request) const;
     /// Waits up to 10 s for `hash` to turn up in the model, then asks for the cursor.

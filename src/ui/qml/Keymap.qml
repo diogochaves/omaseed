@@ -8,7 +8,8 @@ import QtQuick
 //
 // Every entry is plain data:
 //   area      where the key applies: "global" (anywhere), "table", "rail", "details",
-//             "search". A key event reaches the focused view first (Qt propagates an
+//             "search", "addFiles" (the add sheet's file tree). A key event reaches the
+//             focused view first (Qt propagates an
 //             unaccepted key up the parent chain), so an area entry always wins over the
 //             "global" entry for the same key — that is how `a` adds a tracker inside the
 //             details pane and a torrent everywhere else.
@@ -836,6 +837,89 @@ QtObject {
             "help": ""
         },
 
+        // the add sheet's file tree (docs/11 D1): the details Files tab's keys, plus space
+        // to check or uncheck a file or a whole folder. The sheet's own hint line reads these.
+        {
+            "area": "addFiles",
+            "key": "j",
+            "action": "moveDown",
+            "label": qsTr("move"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "addFiles",
+            "key": "k",
+            "action": "moveUp",
+            "label": qsTr("move"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "addFiles",
+            "key": "space",
+            "action": "toggleFile",
+            "label": qsTr("check"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "addFiles",
+            "key": "+",
+            "action": "raisePriority",
+            "label": qsTr("priority"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "addFiles",
+            "key": "-",
+            "action": "lowerPriority",
+            "label": qsTr("priority"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "addFiles",
+            "key": "x",
+            "action": "skipFile",
+            "label": qsTr("skip"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "addFiles",
+            "key": "h",
+            "action": "fold",
+            "label": qsTr("fold"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "addFiles",
+            "key": "l",
+            "action": "unfold",
+            "label": qsTr("unfold"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+
         // search field ---------------------------------------------------------------
         {
             "area": "search",
@@ -859,7 +943,7 @@ QtObject {
         }
     ]
 
-    readonly property var areas: ["global", "table", "rail", "details", "search"]
+    readonly property var areas: ["global", "table", "rail", "details", "search", "addFiles"]
 
     /// Every entry of one area, in declaration order.
     function forArea(area) {

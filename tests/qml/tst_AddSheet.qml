@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtTest
 import Omaseed
+import Omaseed.Kit
 import Omaseed.Views
 
 // T4.2. `Views/AddSheet.qml` and `Views/DuplicateSheet.qml` — spec v2 §3 Fig. 5 and Fig. 10,
@@ -28,6 +29,16 @@ TestCase {
 
         AddSheet {
             anchors.fill: parent
+        }
+    }
+
+    // A short window (docs/11 D1): the sheet must still fit, and only the tree scrolls.
+    Component {
+        id: shortSheetComponent
+
+        AddSheet {
+            height: 700
+            width: 1100
         }
     }
 
@@ -415,6 +426,160 @@ TestCase {
         sheet.finish(false, "the server refused this torrent");
         compare(sheet.opened, true);
         compare(sheet.errorText, "the server refused this torrent");
+    }
+
+    // ---- docs/11 D1: rename, download limit, first/last pieces, the file picker -----------
+
+    /// Opens the sheet on the demo's eight-file `.torrent` and waits for its parse.
+    function openTorrent(component) {
+        const sheet = createTemporaryObject(component, testCase);
+        const path = App.demoTorrentPath();
+        verify(path.length > 0, "demo mode writes the example .torrent");
+        sheet.openWith(path, "file");
+        tryCompare(sheet, "showFiles", true, 5000);
+        return sheet;
+    }
+
+    /// The tree row whose `name` is `name`, or -1.
+    function rowNamed(sheet, name) {
+        const view = sheet.filesTree.view;
+        for (let row = 0; row < view.count; ++row) {
+            view.currentIndex = row;
+            if (view.currentItem && view.currentItem.name === name)
+                return row;
+        }
+        return -1;
+    }
+
+    function test_the_new_fields_travel_with_the_add() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        const added = createTemporaryObject(addSpy, testCase, {
+                                                "target": sheet
+                                            });
+        sheet.openWith(testCase.freshMagnet, "clipboard");
+        // The name's placeholder is the parsed name: empty keeps it.
+        compare(sheet.renameField.placeholder, "Fedora-Workstation-Live-44-1.6.x86_64.iso");
+        sheet.renameField.text = "Fedora 44";
+        sheet.dlLimitField.text = "2048";
+        sheet.firstLastToggle.checked = true;
+
+        keyClick(Qt.Key_Return);
+
+        compare(added.count, 1);
+        const request = added.signalArguments[0][0];
+        compare(request.rename, "Fedora 44");
+        compare(request.dlLimitKb, 2048);
+        compare(request.firstLastPiecePrio, true);
+        compare(request.filePriorities, []);
+    }
+
+    function test_a_magnet_has_no_file_picker() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        sheet.openWith(testCase.freshMagnet, "clipboard");
+        compare(sheet.showFiles, false);
+        compare(sheet.filesTree.visible, false);
+    }
+
+    function test_a_torrent_file_shows_its_tree() {
+        const sheet = testCase.openTorrent(addSheetComponent);
+        compare(App.addFiles.fileCount, 8);
+        compare(sheet.filesTree.visible, true);
+        // Six folders (four films, two subs) and eight files, every folder open.
+        compare(sheet.filesTree.count, 14);
+        compare(App.addFiles.summaryText.indexOf("8 files · "), 0);
+        compare(sheet.subtitle.indexOf("Blender Open Movies · "), 0);
+        compare(sheet.sourceText, "from file");
+    }
+
+    function test_the_tree_is_keyboard_driven() {
+        const sheet = testCase.openTorrent(addSheetComponent);
+        const tree = sheet.filesTree;
+        tree.forceActiveFocus();
+        compare(tree.activeFocus, true);
+        // The hint line teaches the tree's keys while it has the keyboard.
+        compare(sheet.hints[0].key, "j k");
+        compare(sheet.hints[1].key, "space");
+
+        keyClick("j");
+        compare(tree.cursorIndex, 1);
+        keyClick(Qt.Key_Space); // skip bbb_sunflower_2160p_60fps.mp4
+        compare(App.addFiles.wantedCount, 7);
+        compare(App.addFiles.priority(1), 0);
+
+        keyClick("h"); // up to Big Buck Bunny/
+        compare(tree.cursorIndex, 0);
+        keyClick("h"); // and fold it
+        compare(App.addFiles.isExpanded(0), false);
+        compare(tree.count, 10);
+        keyClick("l");
+        compare(tree.count, 14);
+
+        keyClick("k");
+        compare(tree.cursorIndex, 0);
+        keyClick("+"); // the whole folder: mixed -> high
+        compare(App.addFiles.priority(0), 6);
+        keyClick("x");
+        compare(App.addFiles.priority(0), 0);
+        keyClick(Qt.Key_Space); // all skipped -> back to normal
+        compare(App.addFiles.priority(0), 1);
+        keyClick("-");
+        compare(App.addFiles.priority(0), 0);
+    }
+
+    function test_the_file_choices_travel_with_the_add() {
+        const sheet = testCase.openTorrent(addSheetComponent);
+        const added = createTemporaryObject(addSpy, testCase, {
+                                                "target": sheet
+                                            });
+        const sintel = testCase.rowNamed(sheet, "Sintel/");
+        verify(sintel > 0);
+        App.addFiles.toggleWanted(sintel);
+        const readme = testCase.rowNamed(sheet, "README.txt");
+        App.addFiles.setPriority(readme, 7);
+
+        sheet.filesTree.forceActiveFocus();
+        keyClick(Qt.Key_Return, Qt.ShiftModifier);
+
+        compare(added.count, 1);
+        const request = added.signalArguments[0][0];
+        compare(request.kind, "file");
+        compare(request.stopped, true);
+        compare(request.filePriorities, [1, 1, 1, 0, 0, 1, 1, 7]);
+    }
+
+    function test_every_file_skipped_is_not_an_add() {
+        const sheet = testCase.openTorrent(addSheetComponent);
+        const added = createTemporaryObject(addSpy, testCase, {
+                                                "target": sheet
+                                            });
+        for (let row = sheet.filesTree.count - 1; row >= 0; --row) {
+            if (App.addFiles.depthAt(row) === 0)
+                App.addFiles.setPriority(row, 0);
+        }
+        compare(App.addFiles.wantedCount, 0);
+        sheet.submit(false);
+        compare(added.count, 0);
+        verify(sheet.errorText.length > 0);
+    }
+
+    function test_the_tree_scrolls_in_a_short_window() {
+        const sheet = testCase.openTorrent(shortSheetComponent);
+        const tree = sheet.filesTree;
+        tryVerify(() => tree.height > 0);
+        verify(tree.height < tree.count * Theme.railRowHeight,
+               "14 rows cannot fit under the form in 700 px");
+        compare(tree.scrollBar.needed, true);
+        // The panel still fits the window, margins included.
+        verify(sheet.panel.height <= sheet.height - 2 * Theme.space(16) + 1,
+               "panel " + sheet.panel.height + " in " + sheet.height);
+        verify(sheet.panel.implicitHeight <= sheet.panel.height + 1,
+               "the body does not need to scroll: only the tree does");
+
+        tree.forceActiveFocus();
+        for (let i = 0; i < 13; ++i)
+            keyClick("j");
+        compare(tree.cursorIndex, 13);
+        verify(tree.view.contentY > 0, "the cursor row is scrolled into view");
     }
 
     function test_escape_drops_the_queue() {

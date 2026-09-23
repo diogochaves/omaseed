@@ -62,6 +62,19 @@ Item {
     readonly property alias panel: panel
     readonly property alias actionsRow: actionsRow
     readonly property alias body: bodyColumn
+    /// How tall the caller's rows can be before the body starts to scroll: the window less
+    /// the margins, padding, head, buttons and hint line. A row that should take what is left
+    /// (the add sheet's file tree) sizes itself from this.
+    readonly property real bodyRoom: {
+        let chrome = 2 * root._margin + 2 * panel.padding;
+        if (head.visible)
+            chrome += head.height + layout.spacing;
+        if (actionsRow.visible)
+            chrome += actionsRow.height + actionsRow.Layout.topMargin + layout.spacing;
+        if (foot.visible)
+            chrome += foot.height + layout.spacing;
+        return Math.max(0, root.height - chrome);
+    }
 
     /// The action the caller's text names, for a test or a caller that wants the payload.
     signal actionTriggered(string text)
@@ -336,6 +349,8 @@ Item {
 
                                                     // head (`.sheet .hd`) ---------------------------------------------------
                                                     RowLayout {
+                                                        id: head
+
                                                         Layout.fillWidth: true
                                                         spacing: Theme.space(10)
                                                         visible: root.glyph.length > 0
@@ -453,6 +468,8 @@ Item {
 
                                                     // the hint line (`.sheet .ft`) -------------------------------------------
                                                     ColumnLayout {
+                                                        id: foot
+
                                                         Layout.fillWidth: true
                                                         spacing: Theme.space(8)
                                                         visible: root.hints.length > 0

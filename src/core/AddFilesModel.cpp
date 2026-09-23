@@ -151,6 +151,11 @@ void AddFilesModel::setExpanded(int row, bool expanded)
     m_tree->setExpanded(row, expanded);
 }
 
+int AddFilesModel::depthAt(int row) const
+{
+    return data(index(row, 0), TorrentFilesModel::DepthRole).toInt();
+}
+
 int AddFilesModel::priority(int row) const
 {
     return m_tree->priority(row);

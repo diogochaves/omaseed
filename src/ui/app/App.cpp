@@ -1475,6 +1475,8 @@ QString App::demoAddText() const
 
 QString App::demoTorrentPath() const
 {
+    if (!m_demoMode)
+        return QString();
     const QString path =
         QDir(QDir::tempPath()).filePath(QStringLiteral("Blender Open Movies.torrent"));
     QFile file(path);

@@ -84,6 +84,8 @@ void TestAddFilesModel::loadsTheTreeAllNormal()
     QCOMPARE(roleAt(model, 0, "wanted").toInt(), 2);
     QCOMPARE(roleAt(model, 0, "priority").toInt(), 1);
     QVERIFY(rowNamed(model, QStringLiteral("README.txt")) >= 0);
+    QCOMPARE(model.depthAt(0), 0);
+    QCOMPARE(model.depthAt(rowNamed(model, QStringLiteral("bbb.en.srt"))), 2);
     QVERIFY(model.summaryText().startsWith(QStringLiteral("8 files · ")));
     QCOMPARE(model.priorityList().size(), 8);
 }

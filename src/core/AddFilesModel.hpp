@@ -65,6 +65,8 @@ public:
     Q_INVOKABLE bool isFolder(int row) const;
     Q_INVOKABLE bool isExpanded(int row) const;
     Q_INVOKABLE void setExpanded(int row, bool expanded);
+    /// How deep a row sits (0 at the top), for `h` to find the folder a row is in.
+    Q_INVOKABLE int depthAt(int row) const;
 
     // --- choosing ----------------------------------------------------------------------
     /// The priority a row shows: the file's own, or a folder's when its files agree, else -1.
