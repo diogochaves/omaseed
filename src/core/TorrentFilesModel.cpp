@@ -105,7 +105,7 @@ QHash<int, QByteArray> TorrentFilesModel::roleNames() const
         {PieceFirstRole, "pieceFirst"},
         {PieceLastRole, "pieceLast"},
         {PiecesTextRole, "piecesText"},
-        {SelectedRole, "selected"},
+        {SelectedRole, "rowSelected"},
     };
 }
 

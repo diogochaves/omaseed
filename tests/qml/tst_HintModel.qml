@@ -105,7 +105,9 @@ TestCase {
         model.focusArea = "details";
 
         model.detailsTab = 1;
-        compare(testCase.line(model.hints), "+ - priority · x skip · h l fold · o open");
+        // N1 put a menu, a selection, rename, sort and a filter in the Files tab.
+        compare(testCase.line(model.hints),
+                "p priority · space select · enter menu · r rename · s sort · / filter");
 
         model.detailsTab = 2;
         compare(testCase.line(model.hints), "a add · d remove · R reannounce · y copy");

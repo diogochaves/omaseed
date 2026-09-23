@@ -357,7 +357,6 @@ void TestApp::environmentOverrideReachesThePlayground()
     app.engine()->stop();
 }
 
-QTEST_MAIN(TestApp)
 // N1: with no server, a priority and a rename still change the Files tab's rows, so the demo
 // shows them; a name with a slash is refused before anything is sent.
 void TestApp::filesTabActionsRunLocallyInDemo()
@@ -399,4 +398,5 @@ void TestApp::filesTabActionsRunLocallyInDemo()
     QVERIFY(app.torrentFileLocalPath(QStringLiteral("nope"), QStringLiteral("a")).isEmpty());
 }
 
+QTEST_MAIN(TestApp)
 #include "tst_app.moc"

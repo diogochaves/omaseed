@@ -135,11 +135,11 @@ Item {
 
     /// Which view holds the focus, for `HintModel`.
     readonly property string focusArea: {
-        if (hero.searchField.editing)
+        if (hero.searchField.editing || details.filterEditing)
             return "search";
         if (rail.activeFocus)
             return "rail";
-        if (details.activeFocus)
+        if (details.activeFocus || details.editing)
             return "details";
         return "table";
     }
@@ -1021,7 +1021,11 @@ Item {
             wide: !split.docked
 
             onFocusTable: table.forceActiveFocus()
-            onCopyRequested: text => console.log("copy:", text)
+            onCopyRequested: text => {
+                App.copyToClipboard(text);
+                root.flashFooterNote(qsTr("copied"));
+            }
+            onOpenFileRequested: path => App.openTorrentFile(App.details.hash, path)
 
             Rectangle {
                 anchors.fill: parent
@@ -1029,7 +1033,7 @@ Item {
                 visible: App.surfaceTint > 0
                 z: -1
             }
-            onOpenFolderRequested: path => console.log("open folder:", path)
+            onOpenFolderRequested: path => App.revealTorrentFile(App.details.hash, path)
             onPeerAction: (action, address) => console.log("peer:", action, address)
             onTrackerAction: (action, url) => console.log("tracker:", action, url)
         }

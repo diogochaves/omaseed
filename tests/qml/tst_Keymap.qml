@@ -98,15 +98,17 @@ TestCase {
         compare(select.map(row => row.helpKeys), ["space", "v", "ctrl+a", "esc"]);
 
         const act = Keymap.helpRows("act");
+        // The last two are the Files tab's (N1).
         compare(act.map(row => row.helpKeys), ["a", "enter", "p P", "d D", "c R", "C t m L r", "[ ]",
-                                               "o", "y Y n"]);
+                                               "o", "y Y n", "p + - x", "O o r"]);
         compare(act.map(row => row.help), ["add", "actions", "stop/start · force",
                                            "delete · with files", "recheck · reannounce",
                                            "category · tags · location · limits · rename", "queue",
-                                           "open folder", "copy magnet · hash · name"]);
+                                           "open folder", "copy magnet · hash · name",
+                                           "file priority", "open · folder · rename"]);
 
         const view = Keymap.helpRows("view");
-        compare(view.map(row => row.helpKeys), ["i", "1–4", "s", "|", "ctrl+b", "I", "< >"]);
+        compare(view.map(row => row.helpKeys), ["i", "1–4", "s", "|", "ctrl+b", "I", "< >", "H L"]);
 
         const application = Keymap.helpRows("app");
         compare(application.map(row => row.helpKeys), ["A", ", ctrl+,", "ctrl+.", "q", "ctrl+q",

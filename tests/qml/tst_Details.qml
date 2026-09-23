@@ -1,6 +1,7 @@
 import QtQuick
 import QtTest
 import Omaseed
+import Omaseed.Kit
 import Omaseed.Views
 
 // Details against the demo library: the head and strip of spec §2 Fig. 1's right column,
@@ -10,6 +11,8 @@ TestCase {
     id: testCase
 
     name: "Details"
+    visible: true
+    when: windowShown
 
     readonly property string bbbName: "Big Buck Bunny 4K (CC-BY)"
     readonly property string archName: "archlinux-2026.09.01-x86_64.iso"
@@ -39,6 +42,14 @@ TestCase {
         const hash = testCase.hashOf(name);
         verify(hash.length > 0, "the demo library has no row named " + name);
         App.selectTorrent(hash);
+        // The demo keeps the same hash between cases, so the files model keeps its state:
+        // start every case from the torrent's own order, unfiltered and unselected.
+        const files = App.details.files;
+        files.filterText = "";
+        files.sortKey = "";
+        files.sortDescending = false;
+        files.clearSelection();
+        files.expandAll();
         const view = createTemporaryObject(detailsComponent, testCase);
         view.torrent = App.torrentRow(hash);
         return view;
@@ -226,6 +237,180 @@ TestCase {
         view.collapsed = true;
         compare(view.implicitWidth, 0);
         compare(view.visible, false);
+    }
+
+    // ---- N1: the Files tab ------------------------------------------------------------
+
+    function filesView() {
+        const view = testCase.select(testCase.bbbName);
+        view.activateTab(1);
+        view.forceActiveFocus();
+        return view;
+    }
+
+    function test_slash_filters_the_files_and_esc_clears_it() {
+        const view = testCase.filesView();
+        const files = App.details.files;
+
+        keyClick("/");
+        verify(view.filterEditing, "`/` did not put the caret in the files filter");
+        verify(view.editing);
+        keyClick("s");
+        keyClick("r");
+        keyClick("t");
+        compare(files.filterText, "srt");
+        // The folders of a match stay, so the tree still reads.
+        compare(files.count, 4);
+        compare(files.matchCount, 2);
+
+        // `enter` hands the keyboard back to the list and keeps the filter.
+        keyClick(Qt.Key_Return);
+        verify(!view.filterEditing);
+        compare(files.filterText, "srt");
+        // `esc` on the list clears it.
+        keyClick(Qt.Key_Escape);
+        compare(files.filterText, "");
+        compare(files.count, 7);
+    }
+
+    function test_space_selects_and_a_priority_applies_to_the_selection() {
+        const view = testCase.filesView();
+        const files = App.details.files;
+
+        view.moveCursor(1);
+        keyClick(Qt.Key_Space);
+        view.moveCursor(5); // LICENSE.txt
+        keyClick(Qt.Key_Space);
+        compare(files.selectedCount, 2);
+
+        // `x` skips both, wherever the cursor is (the demo applies it locally).
+        keyClick(Qt.Key_X);
+        compare(files.priority(1), 0);
+        compare(files.priority(6), 0);
+        compare(files.priority(2), 1); // not selected, untouched
+
+        // `v` selects from the last toggled row to the cursor.
+        view.moveCursor(-2);
+        keyClick(Qt.Key_V);
+        compare(files.selectedCount, 4);
+
+        keyClick(Qt.Key_Escape);
+        compare(files.selectedCount, 0);
+    }
+
+    function test_p_opens_the_priority_menu_and_its_letters_apply() {
+        const view = testCase.filesView();
+        const files = App.details.files;
+        view.moveCursor(2); // bbb_sunflower_1080p, normal
+
+        keyClick("p");
+        verify(view.editing, "`p` did not open the priority menu");
+        keyClick("m");
+        verify(!view.editing);
+        compare(files.priority(2), 7);
+    }
+
+    function test_s_sorts_and_the_cursor_follows_its_row() {
+        const view = testCase.filesView();
+        const files = App.details.files;
+        view.moveCursor(6); // LICENSE.txt
+        compare(files.pathAt(view.cursorIndex), "Big Buck Bunny 4K/LICENSE.txt");
+
+        keyClick("s");
+        keyClick("s"); // size, largest first
+        compare(files.sortKey, "size");
+        verify(files.sortDescending);
+        compare(files.pathAt(view.cursorIndex), "Big Buck Bunny 4K/LICENSE.txt");
+        compare(files.pathAt(1), "Big Buck Bunny 4K/bbb_sunflower_2160p_60fps.mp4");
+
+        // The same key again reverses.
+        keyClick("s");
+        keyClick("s");
+        verify(!files.sortDescending);
+    }
+
+    function test_r_renames_a_file_inline() {
+        const view = testCase.filesView();
+        const files = App.details.files;
+        view.moveCursor(4); // subs/bbb.en.srt
+        renameSpy.target = App;
+        renameSpy.clear();
+
+        keyClick("r");
+        verify(view.editing, "`r` did not open the editor");
+        // The name is selected up to its extension, so typing replaces "bbb.en".
+        keyClick("e");
+        keyClick("n");
+        keyClick(Qt.Key_Return);
+        compare(renameSpy.count, 1);
+        compare(renameSpy.signalArguments[0][2], "Big Buck Bunny 4K/subs/en.srt");
+        verify(!view.editing);
+        compare(files.nameAt(4), "en.srt");
+    }
+
+    function test_H_and_L_fold_and_open_every_folder() {
+        const view = testCase.filesView();
+        const files = App.details.files;
+        view.foldAll(true);
+        compare(files.count, 1);
+        view.foldAll(false);
+        compare(files.count, 7);
+    }
+
+    function test_o_and_O_ask_for_the_folder_and_the_file() {
+        const view = testCase.filesView();
+        view.moveCursor(1);
+        fileSpy.target = view;
+        fileSpy.clear();
+        view.fileAction("openFile");
+        compare(fileSpy.count, 1);
+        compare(fileSpy.signalArguments[0][0], "Big Buck Bunny 4K/bbb_sunflower_2160p_60fps.mp4");
+
+        // A folder has nothing to open with an application.
+        view.moveCursor(-1);
+        view.fileAction("openFile");
+        compare(fileSpy.count, 1);
+    }
+
+    function test_y_Y_n_copy_the_path_the_local_path_and_the_name() {
+        const view = testCase.filesView();
+        view.moveCursor(6);
+        copySpy.target = view;
+        copySpy.clear();
+        view.copyCurrent();
+        view.copyLocalPath();
+        view.copyName();
+        compare(copySpy.count, 3);
+        compare(copySpy.signalArguments[0][0], "Big Buck Bunny 4K/LICENSE.txt");
+        verify(copySpy.signalArguments[1][0].endsWith("/Big Buck Bunny 4K/LICENSE.txt"));
+        verify(copySpy.signalArguments[1][0].startsWith("/"));
+        compare(copySpy.signalArguments[2][0], "LICENSE.txt");
+    }
+
+    // docs/11 J2: every header starts where its column's text does.
+    function test_file_headers_line_up_with_the_rows() {
+        const view = testCase.filesView();
+        wait(0);
+        const header = findChild(view, "fileHeader_name");
+        const name = findChild(view, "fileName_1");
+        verify(header !== null && name !== null);
+        // A file row at depth 1 is indented one step; the header lines up with depth 0,
+        // where the folder's glyph starts. Compare against the row's own left edge.
+        const headerX = header.mapToItem(view, 0, 0).x;
+        const rowX = name.mapToItem(view, 0, 0).x - Theme.space(14);
+        compare(Math.round(headerX), Math.round(rowX));
+    }
+
+    SignalSpy {
+        id: renameSpy
+
+        signalName: "torrentFileRenameRequested"
+    }
+
+    SignalSpy {
+        id: fileSpy
+
+        signalName: "openFileRequested"
     }
 
     SignalSpy {

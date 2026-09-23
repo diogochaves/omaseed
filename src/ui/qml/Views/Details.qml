@@ -59,6 +59,8 @@ Item {
 
     /// `o` on a file row: the path inside the torrent, for Xdg to reveal.
     signal openFolderRequested(string path)
+    /// `O`, or a double click on a file: the path inside the torrent, to open.
+    signal openFileRequested(string path)
     /// `h` on anything that is not an open folder hands the focus back to the table.
     signal focusTable
     /// `a` add, `d` remove, `R` reannounce (Phase 4 wires them; App only re-emits for now).
@@ -67,6 +69,15 @@ Item {
     signal peerAction(string action, string address)
     /// `y`: the text the caller should put on the clipboard.
     signal copyRequested(string text)
+
+    /// Something inside the pane holds the keyboard — the Files tab's filter, its inline
+    /// rename or one of its menus — so Main still counts the focus as the pane's.
+    readonly property bool editing: filesTab.filterEditing || filesTab.renamingRow >= 0
+                                    || fileMenu.opened || priorityMenu.opened || sortMenu.opened
+    /// The caret is in the Files tab's filter field (Main's footer teaches enter/esc then).
+    readonly property bool filterEditing: filesTab.filterEditing
+    /// `v` selects from here to the cursor; the last row `space` toggled.
+    property int filesAnchor: -1
 
     readonly property bool hasTrackerError: (root.torrent && root.torrent.hasTrackerError === true)
                                             || root.details.hasTrackerError
@@ -108,17 +119,31 @@ Item {
         root.focusTable();
     }
 
-    /// `+`, `-`, `x`: "raise", "lower" or "skip" on the Files tab's cursor row.
+    /// `+`, `-`, `x`: "raise", "lower" or "skip" on the Files tab's selection, or on its
+    /// cursor row when nothing is selected. A mixed set raises to high and lowers to normal.
     function setPriority(name: string) {
         if (root.currentTab !== 1 || root.details.files.count === 0)
             return;
-        const current = root.details.files.priority(root.filesCursor);
-        const wanted = name === "skip" ? 0 : name === "raise" ? root.details.files.raisedPriority(
-                                                                    current) :
-                                                                root.details.files.loweredPriority(
-                                                                    current);
-        App.setFilePriority(root.details.hash, root.details.files.fileIndexes(root.filesCursor),
-                            wanted);
+        const files = root.details.files;
+        const current = files.targetPriority(root.filesCursor);
+        const wanted = name === "skip" ? 0 : name === "raise" ? files.raisedPriority(current) :
+                                                                files.loweredPriority(current);
+        root.applyPriority(wanted);
+    }
+
+    /// The priority menu's rows: one API priority (0 skip, 1 normal, 6 high, 7 maximal) on the
+    /// selection or the cursor row.
+    function applyPriority(priority: int) {
+        const ids = root.details.files.targetFileIndexes(root.filesCursor);
+        if (ids.length > 0)
+            App.setFilePriority(root.details.hash, ids, priority);
+    }
+
+    /// qBittorrent's "by shown file order": the first third maximal, the next high, the rest
+    /// normal, in the order the list shows them.
+    function applyShownOrder() {
+        App.setFilePriorityGroups(root.details.hash,
+                                  root.details.files.shownOrderGroups(root.filesCursor));
     }
 
     /// `y` on the current row: the announce URL, the peer address, or the file path.
@@ -129,6 +154,217 @@ Item {
             root.copyRequested(root.details.peers.addressAt(root.peersCursor));
         else if (root.currentTab === 1 && root.details.files.count > 0)
             root.copyRequested(root.details.files.pathAt(root.filesCursor));
+    }
+
+    /// `Y` on a file row: where the file is on this machine, through the path map.
+    function copyLocalPath() {
+        if (root.currentTab !== 1 || root.details.files.count === 0)
+            return;
+        const local = App.torrentFileLocalPath(root.details.hash,
+                                               root.details.files.pathAt(root.filesCursor));
+        if (local.length > 0)
+            root.copyRequested(local);
+    }
+
+    /// `n` on a file row: the name alone.
+    function copyName() {
+        if (root.currentTab === 1 && root.details.files.count > 0)
+            root.copyRequested(root.details.files.nameAt(root.filesCursor));
+    }
+
+    /// `space`: select or unselect the Files tab's cursor row.
+    function toggleFileSelection() {
+        if (root.currentTab !== 1 || root.details.files.count === 0)
+            return;
+        root.details.files.toggleSelected(root.filesCursor);
+        root.filesAnchor = root.filesCursor;
+    }
+
+    /// `v`: select every row from the last one `space` toggled to the cursor.
+    function selectFileRange() {
+        if (root.currentTab !== 1 || root.details.files.count === 0)
+            return;
+        const anchor = root.filesAnchor < 0 ? root.filesCursor : root.filesAnchor;
+        root.details.files.selectRange(anchor, root.filesCursor);
+    }
+
+    /// `r` on a file or folder row: the inline editor, on the leaf name.
+    function startRename() {
+        if (root.currentTab !== 1 || root.details.files.count === 0)
+            return;
+        filesTab.renameText = root.details.files.nameAt(root.filesCursor);
+        filesTab.renamingRow = root.filesCursor;
+    }
+
+    function commitRename(text: string) {
+        const row = filesTab.renamingRow;
+        filesTab.renamingRow = -1;
+        root.forceActiveFocus();
+        if (row < 0 || text.length === 0 || text === root.details.files.nameAt(row))
+            return;
+        App.renameTorrentFile(root.details.hash, root.details.files.pathAt(row), text,
+                              root.details.files.isFolder(row));
+    }
+
+    function cancelRename() {
+        if (filesTab.renamingRow < 0)
+            return;
+        filesTab.renamingRow = -1;
+        root.forceActiveFocus();
+    }
+
+    /// Sorts the Files tab and keeps the cursor on the row it was on.
+    function sortFilesBy(key: string) {
+        const path = root.details.files.pathAt(root.filesCursor);
+        root.details.files.sortBy(key);
+        root._followPath(path);
+    }
+
+    /// `H` / `L`: fold or open every folder.
+    function foldAll(folded: bool) {
+        const path = root.details.files.pathAt(root.filesCursor);
+        if (folded)
+            root.details.files.collapseAll();
+        else
+            root.details.files.expandAll();
+        root._followPath(path);
+    }
+
+    /// `enter` or a right click on a Files row: its menu. `x`, `y` in the pane's coordinates;
+    /// the cursor row's own place when they are left out.
+    function openFileMenu(x: real, y: real) {
+        if (root.currentTab !== 1 || root.details.files.count === 0)
+            return;
+        const at = x < 0 ? filesTab.menuPoint(root.filesCursor, root) : Qt.point(x, y);
+        fileMenu.openAt(at.x, at.y);
+    }
+
+    /// `p` on a Files row: the priority menu.
+    function openPriorityMenu() {
+        if (root.currentTab !== 1 || root.details.files.count === 0)
+            return;
+        const at = filesTab.menuPoint(root.filesCursor, root);
+        priorityMenu.openAt(at.x, at.y);
+    }
+
+    /// `s` in the Files tab: the sort menu, under the header.
+    function openSortMenu() {
+        if (root.currentTab !== 1)
+            return;
+        const at = filesTab.mapToItem(root, Theme.space(16), Theme.font.body * 2);
+        sortMenu.openAt(at.x, at.y);
+    }
+
+    /// `/` in the Files tab.
+    function focusFileFilter() {
+        if (root.currentTab === 1)
+            filesTab.focusFilter();
+    }
+
+    /// A row of the file menu, or the same key pressed on the list.
+    function fileAction(action: string) {
+        const files = root.details.files;
+        const path = files.pathAt(root.filesCursor);
+        switch (action) {
+        case "openFile":
+            if (!files.isFolder(root.filesCursor))
+                root.openFileRequested(path);
+            break;
+        case "reveal":
+            root.openFolderRequested(path);
+            break;
+        case "priority":
+            root.openPriorityMenu();
+            break;
+        case "rename":
+            root.startRename();
+            break;
+        case "copyPath":
+            root.copyCurrent();
+            break;
+        case "copyLocalPath":
+            root.copyLocalPath();
+            break;
+        case "copyName":
+            root.copyName();
+            break;
+        case "expandAll":
+            root.foldAll(false);
+            break;
+        case "collapseAll":
+            root.foldAll(true);
+            break;
+        }
+    }
+
+    function _followPath(path: string) {
+        const row = root.details.files.rowOfPath(path);
+        if (row >= 0)
+            root._setCursor(row);
+    }
+
+    function _filesKey(event: var): bool {
+        const shift = (event.modifiers & Qt.ShiftModifier) !== 0;
+        switch (event.key) {
+        case Qt.Key_Slash:
+            root.focusFileFilter();
+            return true;
+        case Qt.Key_S:
+            root.openSortMenu();
+            return true;
+        case Qt.Key_P:
+            root.openPriorityMenu();
+            return true;
+        case Qt.Key_Return:
+        case Qt.Key_Enter:
+            root.openFileMenu(-1, -1);
+            return true;
+        case Qt.Key_Space:
+            root.toggleFileSelection();
+            return true;
+        case Qt.Key_V:
+            root.selectFileRange();
+            return true;
+        case Qt.Key_R:
+            root.startRename();
+            return true;
+        case Qt.Key_N:
+            root.copyName();
+            return true;
+        case Qt.Key_O:
+            if (root.details.files.count > 0)
+                root.fileAction(shift ? "openFile" : "reveal");
+            return true;
+        case Qt.Key_Y:
+            if (shift)
+                root.copyLocalPath();
+            else
+                root.copyCurrent();
+            return true;
+        case Qt.Key_H:
+            if (!shift)
+                return false;
+            root.foldAll(true);
+            return true;
+        case Qt.Key_L:
+            if (!shift)
+                return false;
+            root.foldAll(false);
+            return true;
+        case Qt.Key_Escape:
+            if (root.details.files.selectedCount > 0) {
+                root.details.files.clearSelection();
+                root.filesAnchor = -1;
+                return true;
+            }
+            if (root.details.files.filterText.length > 0) {
+                root.details.files.filterText = "";
+                return true;
+            }
+            return false;
+        default:
+            return false;
+        }
     }
 
     function _setCursor(row: int) {
@@ -151,7 +387,28 @@ Item {
     visible: !root.collapsed
 
     Keys.onPressed: event => {
+        // A menu of the pane is open: what it did not take stops here, so a letter it has no
+        // row for cannot run the list's own key underneath it.
+        if ((fileMenu.opened || priorityMenu.opened || sortMenu.opened)
+                && (event.modifiers & Qt.ControlModifier) === 0) {
+            event.accepted = true;
+            return;
+        }
+        // The inline rename's editor keeps every key it does not use itself.
+        if (filesTab.renamingRow >= 0) {
+            event.accepted = true;
+            return;
+        }
+        if (root.currentTab === 1 && (event.modifiers & Qt.ControlModifier) === 0
+                && root._filesKey(event)) {
+            event.accepted = true;
+            return;
+        }
         switch (event.key) {
+        case Qt.Key_G:
+            if (root.rowCount > 0)
+                root._setCursor((event.modifiers & Qt.ShiftModifier) ? root.rowCount - 1 : 0);
+            break;
         case Qt.Key_1:
             root.activateTab(0);
             break;
@@ -189,10 +446,6 @@ Item {
             break;
         case Qt.Key_X:
             root.setPriority("skip");
-            break;
-        case Qt.Key_O:
-            if (root.currentTab === 1 && root.details.files.count > 0)
-                root.openFolderRequested(root.details.files.pathAt(root.filesCursor));
             break;
         case Qt.Key_Y:
             root.copyCurrent();
@@ -375,11 +628,22 @@ Item {
             model: root.details.files
             visible: root.currentTab === 1
 
-            onRowActivated: row => root.openFolderRequested(root.details.files.pathAt(row))
+            onFilterDone: root.forceActiveFocus()
+            onRenameCancelled: root.cancelRename()
+            onRenameCommitted: text => root.commitRename(text)
+            onRowActivated: row => {
+                if (!root.details.files.isFolder(row))
+                    root.openFileRequested(root.details.files.pathAt(row));
+            }
             onRowClicked: row => {
                 root.filesCursor = row;
                 if (root.details.files.isFolder(row))
                     root.details.files.toggle(row);
+            }
+            onRowMenuRequested: (row, x, y) => {
+                root.filesCursor = row;
+                const at = filesTab.mapToItem(root, x, y);
+                root.openFileMenu(at.x, at.y);
             }
         }
 
@@ -434,20 +698,20 @@ Item {
                 if (root.currentTab === 1)
                     return [
                                 {
-                                    "key": "+ -",
-                                    "label": qsTr("priority")
+                                    "key": "p",
+                                    "label": Keymap.labelOf("details", "p")
                                 },
                                 {
-                                    "key": "x",
-                                    "label": qsTr("skip")
+                                    "key": "space",
+                                    "label": Keymap.labelOf("details", "space")
                                 },
                                 {
-                                    "key": "h l",
-                                    "label": qsTr("fold")
+                                    "key": "enter",
+                                    "label": Keymap.labelOf("details", "enter")
                                 },
                                 {
-                                    "key": "o",
-                                    "label": qsTr("open")
+                                    "key": "/",
+                                    "label": Keymap.labelOf("details", "/")
                                 }
                             ];
                 if (root.currentTab === 2)
@@ -485,6 +749,159 @@ Item {
                         ];
             }
         }
+    }
+
+    // --- the Files tab's menus (N1) -------------------------------------------------------
+    // Kit/Menu over the whole pane, opened at the cursor row: `enter` or a right click for the
+    // row's actions, `p` for its priority, `s` for the sort. Each row's key is the same key
+    // the list itself answers to, where it has one.
+
+    Menu {
+        id: fileMenu
+
+        readonly property bool onFolder: root.details.files.isFolder(root.filesCursor)
+        readonly property int selected: root.details.files.selectedCount
+
+        anchors.fill: parent
+        items: [
+            {
+                "text": qsTr("open"),
+                "key": "O",
+                "action": "openFile",
+                "disabled": fileMenu.onFolder
+            },
+            {
+                "text": qsTr("open folder"),
+                "key": "o",
+                "action": "reveal"
+            },
+            {
+                "separator": true
+            },
+            {
+                "text": fileMenu.selected > 0 ? qsTr("priority of %n selected…", "", fileMenu.selected)
+                                              : qsTr("priority…"),
+                "key": "p",
+                "action": "priority"
+            },
+            {
+                "text": fileMenu.onFolder ? qsTr("rename folder") : qsTr("rename"),
+                "key": "r",
+                "action": "rename"
+            },
+            {
+                "separator": true
+            },
+            {
+                "text": qsTr("copy path"),
+                "key": "y",
+                "action": "copyPath"
+            },
+            {
+                "text": qsTr("copy local path"),
+                "key": "Y",
+                "action": "copyLocalPath"
+            },
+            {
+                "text": qsTr("copy name"),
+                "key": "n",
+                "action": "copyName"
+            },
+            {
+                "separator": true
+            },
+            {
+                "text": qsTr("expand all"),
+                "key": "L",
+                "action": "expandAll"
+            },
+            {
+                "text": qsTr("collapse all"),
+                "key": "H",
+                "action": "collapseAll"
+            }
+        ]
+        menuWidth: Math.min(Theme.space(260), root.width - Theme.space(16))
+        z: 20
+
+        onActivated: action => root.fileAction(action)
+    }
+
+    Menu {
+        id: priorityMenu
+
+        /// The one priority every target shares, -1 when they differ.
+        readonly property int current: priorityMenu.opened
+                                       ? root.details.files.targetPriority(root.filesCursor) : -1
+
+        function row(text: string, key: string, priority: int): var {
+            return {
+                "text": text,
+                "key": key,
+                "action": String(priority),
+                "glyph": priorityMenu.current === priority ? Glyphs.check : ""
+            };
+        }
+
+        anchors.fill: parent
+        items: [priorityMenu.row(qsTr("maximal"), "m", 7), priorityMenu.row(qsTr("high"), "h", 6),
+            priorityMenu.row(qsTr("normal"), "n", 1), priorityMenu.row(qsTr("skip"), "x", 0), {
+                "separator": true
+            }, {
+                "text": qsTr("by shown file order"),
+                "key": "b",
+                "action": "shownOrder"
+            }]
+        menuWidth: Math.min(Theme.space(240), root.width - Theme.space(16))
+        z: 20
+
+        onActivated: action => {
+            if (action === "shownOrder")
+                root.applyShownOrder();
+            else
+                root.applyPriority(Number(action));
+        }
+    }
+
+    Menu {
+        id: sortMenu
+
+        function row(text: string, key: string, sortKey: string): var {
+            const files = root.details.files;
+            const current = files.sortKey === sortKey;
+            return {
+                "text": text,
+                "key": key,
+                "action": sortKey,
+                "glyph": !current ? "" : sortKey === "" ? Glyphs.check : files.sortDescending
+                                                               ? Glyphs.chevronDown : Glyphs.chevronUp
+            };
+        }
+
+        anchors.fill: parent
+        items: [sortMenu.row(qsTr("torrent order"), "t", ""), sortMenu.row(qsTr("name"), "n",
+                                                                               "name"),
+            sortMenu.row(qsTr("size"), "s", "size"), sortMenu.row(qsTr("progress"), "p",
+                                                                  "progress"),
+            sortMenu.row(qsTr("remaining"), "r", "remaining"), sortMenu.row(qsTr("priority"), "i",
+                                                                            "priority"),
+            sortMenu.row(qsTr("availability"), "a", "availability"), sortMenu.row(qsTr(
+                                                                                     "pieces"),
+                                                                                 "c", "pieces")]
+        menuWidth: Math.min(Theme.space(220), root.width - Theme.space(16))
+        z: 20
+
+        onActivated: action => root.sortFilesBy(action)
+    }
+
+    // A filter or a fold that shrinks the list pulls the cursor back onto a row.
+    Connections {
+        function onCountChanged(): void {
+            if (root.filesCursor >= root.details.files.count)
+                root.filesCursor = Math.max(0, root.details.files.count - 1);
+        }
+
+        target: root.details.files
     }
 
     // The Peers tab is the only one whose poll costs the server real work, so App is told
