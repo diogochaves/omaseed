@@ -7,7 +7,8 @@
 namespace omaseed::core {
 
 /// One file described by a .torrent, with its path relative to the torrent's root ('/'
-/// separated, even for a single-file torrent where it is just the torrent's name).
+/// separated, even for a single-file torrent where it is just the torrent's name). BEP-47
+/// pad files are left out, so the n-th entry is the file qBittorrent calls index n.
 struct TorrentFileEntry
 {
     QString path;
@@ -51,12 +52,19 @@ public:
     qint64 pieceLength = 0;
     qint64 pieceCount = 0;
 
+    /// The id qBittorrent keys this torrent by, and that every `hash=` parameter after the
+    /// add takes: the v1 infohash when the torrent has v1 metadata (v1 or hybrid), otherwise
+    /// the v2 infohash cut to its first 40 hex digits (BEP-52's truncated form).
+    QString torrentId() const;
+
     /// Builds a magnet link (`magnet:?xt=urn:btih:...&dn=...&tr=...`) for this torrent, using
     /// infoHashV1 and every tracker from announce/announce-list, deduplicated in order.
     QString magnetLink() const;
 
 private:
     bool m_valid = false;
+    /// The info dict carries v1 "pieces" (v1-only or hybrid).
+    bool m_hasV1 = false;
 };
 
 } // namespace omaseed::core

@@ -7,8 +7,10 @@
 // magnet added stopped turns up stopped. The two live cases are skipped when the playground
 // is not answering, and both clean up after themselves — nothing here ever touches :8080.
 
+#include "core/AddFilesModel.hpp"
 #include "core/QbtClient.hpp"
 #include "core/SyncEngine.hpp"
+#include "core/TorrentFilesModel.hpp"
 #include "core/TorrentModel.hpp"
 #include "ui/app/App.hpp"
 
@@ -46,6 +48,12 @@ const char *kFixtureName = "Single.bin";
 /// A magnet nobody seeds, for the "add stopped" case. Its own hash, so the two live cases
 /// never collide with each other or with tst_syncengine_live's fixture.
 const char *kMagnetHash = "0102030405060708090a0b0c0d0e0f1011121315";
+
+/// docs/11 D1: the eight-file tree the file picker is tested with. Sintel/ (ids 3 and 4) is
+/// skipped and README.txt (id 7) raised to maximal before the add.
+const char *kTreeFile = "open_movies_v1.torrent";
+const char *kTreeHash = "429d28a2cdae51f937735430e0a88cec3ee76cbc";
+const char *kTreeRename = "omaseed-d1 renamed";
 
 /// The category, tag and save path the live add names. Created and removed by the test.
 #define kCategory "omaseed-t42"
@@ -127,9 +135,12 @@ private slots:
     void parsesATorrentFileOffTheMainThread();
     void findsADuplicateInTheLibrary();
     void findsNoDuplicateForAnUnknownHash();
+    void loadsATorrentsFilesForThePicker();
+    void demoTorrentOpensThePicker();
 
     void addsATorrentFileWithItsOptions();
     void addsAMagnetStopped();
+    void addsWithFileChoicesRenameAndLimits();
 
 private:
     /// The one `torrents/info` entry for `hash`, or an empty object.
@@ -161,7 +172,9 @@ void TestAppAdd::init()
 
 void TestAppAdd::cleanup()
 {
-    if (m_live)
+    // OMASEED_TEST_KEEP=1 leaves what a case added on the playground, to look at it with curl
+    // afterwards; the next run's deleteFixtures() clears it.
+    if (m_live && qEnvironmentVariableIsEmpty("OMASEED_TEST_KEEP"))
         deleteFixtures();
     clearServerEnvironment();
     if (m_savedConfigHome.isEmpty())
@@ -176,8 +189,10 @@ void TestAppAdd::deleteFixtures()
     client.setBaseUrl(m_url);
     QUrlQuery form;
     form.addQueryItem(QStringLiteral("hashes"),
-                      QStringLiteral("%1|%2").arg(QString::fromLatin1(kFixtureHash),
-                                                  QString::fromLatin1(kMagnetHash)));
+                      QStringLiteral("%1|%2|%3")
+                          .arg(QString::fromLatin1(kFixtureHash),
+                               QString::fromLatin1(kMagnetHash),
+                               QString::fromLatin1(kTreeHash)));
     form.addQueryItem(QStringLiteral("deleteFiles"), QStringLiteral("true"));
     await(this, client.post(QStringLiteral("torrents/delete"), form));
 }
@@ -262,6 +277,45 @@ void TestAppAdd::parsesATorrentFileOffTheMainThread()
     QCOMPARE(map.value(QStringLiteral("name")).toString(), QString::fromLatin1(kFixtureName));
     QCOMPARE(map.value(QStringLiteral("infoHashV1")).toString(), QString::fromLatin1(kFixtureHash));
     QCOMPARE(map.value(QStringLiteral("sizeText")).toString(), QStringLiteral("49 KB"));
+}
+
+void TestAppAdd::loadsATorrentsFilesForThePicker()
+{
+    App app;
+    QSignalSpy parsed(&app, &App::addableParsed);
+    app.parseAddable(QStringLiteral(OMASEED_FIXTURES_DIR "/") + QString::fromLatin1(kTreeFile));
+    QVERIFY(parsed.wait(10000));
+    const QVariantMap map = parsed.first().first().toMap();
+    QVERIFY(map.value(QStringLiteral("valid")).toBool());
+    QCOMPARE(map.value(QStringLiteral("fileCount")).toInt(), 8);
+
+    app.loadAddFiles(map.value(QStringLiteral("token")).toString());
+    QCOMPARE(app.addFiles()->fileCount(), 8);
+    QVERIFY(!app.addFiles()->isCustomised());
+
+    // A token that names nothing (a magnet has none) empties the picker.
+    app.loadAddFiles(QString());
+    QCOMPARE(app.addFiles()->fileCount(), 0);
+}
+
+void TestAppAdd::demoTorrentOpensThePicker()
+{
+    App app;
+    QVERIFY(app.demoAddText().isEmpty());
+    app.startDemo(16);
+    qputenv("OMASEED_DEMO_ADD", QByteArrayLiteral("torrent"));
+    const QString path = app.demoAddText();
+    QVERIFY(path.endsWith(QStringLiteral(".torrent")));
+
+    QSignalSpy parsed(&app, &App::addableParsed);
+    const QVariantMap first = app.parseAddable(path);
+    QCOMPARE(first.value(QStringLiteral("kind")).toString(), QStringLiteral("file"));
+    QVERIFY(parsed.wait(10000));
+    const QVariantMap map = parsed.first().first().toMap();
+    QVERIFY2(map.value(QStringLiteral("valid")).toBool(),
+             qPrintable(map.value(QStringLiteral("error")).toString()));
+    QCOMPARE(map.value(QStringLiteral("name")).toString(), QStringLiteral("Blender Open Movies"));
+    QCOMPARE(map.value(QStringLiteral("fileCount")).toInt(), 8);
 }
 
 // ---- Fig. 10 ------------------------------------------------------------------------------
@@ -420,6 +474,88 @@ void TestAppAdd::addsAMagnetStopped()
                  },
                  15000),
              qPrintable(info.value(QStringLiteral("state")).toString()));
+
+    app.engine()->stop();
+}
+
+void TestAppAdd::addsWithFileChoicesRenameAndLimits()
+{
+    if (!m_live)
+        QSKIP("the :8081 playground is not answering: scripts/dev/test-server.sh start");
+
+    deleteFixtures();
+
+    qputenv("OMASEED_SERVER_URL", m_url.toString().toUtf8());
+    qputenv("OMASEED_SERVER_NAME", QByteArrayLiteral("playground"));
+
+    App app;
+    app.start();
+    QVERIFY(app.hasServer());
+
+    QSignalSpy parsed(&app, &App::addableParsed);
+    app.parseAddable(QStringLiteral(OMASEED_FIXTURES_DIR "/") + QString::fromLatin1(kTreeFile));
+    QVERIFY(parsed.wait(10000));
+    QVariantMap request = parsed.first().first().toMap();
+    QVERIFY(request.value(QStringLiteral("valid")).toBool());
+
+    // The sheet's picker: Sintel/ skipped, README.txt to maximal.
+    app.loadAddFiles(request.value(QStringLiteral("token")).toString());
+    AddFilesModel *files = app.addFiles();
+    for (int row = 0; row < files->count(); ++row) {
+        const QString name =
+            files->data(files->index(row, 0), TorrentFilesModel::NameRole).toString();
+        if (name == QLatin1String("Sintel/"))
+            files->toggleWanted(row);
+        else if (name == QLatin1String("README.txt"))
+            files->setPriority(row, 7);
+    }
+    QVERIFY(files->isCustomised());
+
+    request.insert(QStringLiteral("filePriorities"), files->priorityList());
+    request.insert(QStringLiteral("rename"), QString::fromLatin1(kTreeRename));
+    request.insert(QStringLiteral("dlLimitKb"), 300);
+    request.insert(QStringLiteral("firstLastPiecePrio"), true);
+    request.insert(QStringLiteral("stopped"), false);
+
+    QSignalSpy finished(&app, &App::addFinished);
+    app.addTorrent(request);
+    QVERIFY(finished.wait(20000));
+    QVERIFY2(finished.first().at(0).toBool(), qPrintable(finished.first().at(1).toString()));
+    QCOMPARE(finished.first().at(2).toString(), QString::fromLatin1(kTreeHash));
+
+    QbtClient probe;
+    probe.setBaseUrl(m_url);
+    QJsonObject info;
+    QVERIFY2(waitFor(
+                 [&]() {
+                     info = infoFor(probe, QString::fromLatin1(kTreeHash));
+                     return !info.isEmpty();
+                 },
+                 15000),
+             "the added torrent never turned up in torrents/info");
+    QCOMPARE(info.value(QStringLiteral("name")).toString(), QString::fromLatin1(kTreeRename));
+    QCOMPARE(info.value(QStringLiteral("dl_limit")).toInt(), 300 * 1024);
+    QVERIFY(info.value(QStringLiteral("f_l_piece_prio")).toBool());
+    // Added stopped for the priorities, then started, because `stopped` was false.
+    QVERIFY2(waitFor(
+                 [&]() {
+                     info = infoFor(probe, QString::fromLatin1(kTreeHash));
+                     return !info.isEmpty() && !isStopped(info);
+                 },
+                 15000),
+             qPrintable(info.value(QStringLiteral("state")).toString()));
+
+    QUrlQuery query;
+    query.addQueryItem(QStringLiteral("hash"), QString::fromLatin1(kTreeHash));
+    const QbtResult<QByteArray> listed =
+        await(this, probe.get(QStringLiteral("torrents/files"), query));
+    QVERIFY(!listed.isError());
+    const QJsonArray rows = QJsonDocument::fromJson(listed.value()).array();
+    QCOMPARE(rows.size(), 8);
+    QList<int> priorities;
+    for (const QJsonValue &row : rows)
+        priorities.append(row.toObject().value(QStringLiteral("priority")).toInt());
+    QCOMPARE(priorities, (QList<int>{1, 1, 1, 0, 0, 1, 1, 7}));
 
     app.engine()->stop();
 }

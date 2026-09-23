@@ -99,6 +99,10 @@ TorrentFile TorrentFile::parse(const QByteArray &data, QString *errorMessage)
     const Value filesValue = infoValue.value("files");
     if (filesValue.isList()) {
         for (const Value &entry : filesValue.toList()) {
+            // BEP-47 pad files ("attr" containing 'p') only align the next file to a piece
+            // boundary. qBittorrent hides them and numbers the real files without them.
+            if (entry.value("attr").toString().contains('p'))
+                continue;
             QStringList pathParts;
             for (const Value &part : entry.value("path").toList())
                 pathParts.append(utf8(part.toString()));
@@ -123,6 +127,7 @@ TorrentFile TorrentFile::parse(const QByteArray &data, QString *errorMessage)
     }
 
     const QByteArray pieces = infoValue.value("pieces").toString();
+    result.m_hasV1 = infoValue.value("pieces").isString();
     if (!pieces.isEmpty()) {
         result.pieceCount = pieces.size() / 20;
     } else if (result.pieceLength > 0) {
@@ -145,6 +150,13 @@ TorrentFile TorrentFile::parse(const QByteArray &data, QString *errorMessage)
     result.m_valid = true;
     setError(errorMessage, QString());
     return result;
+}
+
+QString TorrentFile::torrentId() const
+{
+    if (m_hasV1 || infoHashV2.isEmpty())
+        return infoHashV1;
+    return infoHashV2.left(40);
 }
 
 QString TorrentFile::magnetLink() const

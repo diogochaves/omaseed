@@ -150,6 +150,66 @@ def build_v2_stub():
     return "v2_stub.torrent", torrent
 
 
+def build_multi_file_padded_v1():
+    """A v1 multi-file torrent with a BEP-47 pad file between its two real files, the way
+    hybrid (v1+v2) torrents and some v1 creators align files to pieces. qBittorrent leaves pad
+    files out of its file list and its `torrents/filePrio` ids, so the parser must too, or
+    every id after the first pad points at the wrong file."""
+    piece_length = 16384
+    files = [
+        {"length": 20000, "path": ["disc", "one.bin"]},
+        {"attr": "p", "length": 12768, "path": [".pad", "12768"]},
+        {"length": 5000, "path": ["notes.txt"]},
+    ]
+    total = sum(f["length"] for f in files)
+    piece_count = ceil_div(total, piece_length)
+    info = {
+        "name": "Padded Pack",
+        "piece length": piece_length,
+        "pieces": fake_pieces(piece_count, "padded"),
+        "files": files,
+    }
+    torrent = {
+        "announce": "http://tracker.example.com/announce",
+        "creation date": FIXED_CREATION_DATE,
+        "info": info,
+    }
+    return "multi_file_padded_v1.torrent", torrent
+
+
+def build_open_movies_v1():
+    """The add sheet's file picker fixture (D1): a nested tree of a few folders, sizes in
+    the gigabytes so the sheet's sizes read like a real library, and a big piece length so
+    the fake piece list stays small on disk."""
+    piece_length = 16 * 1024 * 1024
+    gib = 1024 * 1024 * 1024
+    files = [
+        {"length": int(3.43 * gib), "path": ["Big Buck Bunny", "bbb_sunflower_2160p_60fps.mp4"]},
+        {"length": 48213, "path": ["Big Buck Bunny", "subs", "bbb.en.srt"]},
+        {"length": 51877, "path": ["Big Buck Bunny", "subs", "bbb.de.srt"]},
+        {"length": int(4.12 * gib), "path": ["Sintel", "sintel_4k.mkv"]},
+        {"length": 61022, "path": ["Sintel", "subs", "sintel.en.srt"]},
+        {"length": int(6.02 * gib), "path": ["Tears of Steel", "tears_of_steel_4k.mov"]},
+        {"length": int(1.37 * gib), "path": ["Cosmos Laundromat", "cosmos_laundromat_2k.mp4"]},
+        {"length": 2911, "path": ["README.txt"]},
+    ]
+    total = sum(f["length"] for f in files)
+    piece_count = ceil_div(total, piece_length)
+    info = {
+        "name": "Blender Open Movies",
+        "piece length": piece_length,
+        "pieces": fake_pieces(piece_count, "open-movies"),
+        "files": files,
+    }
+    torrent = {
+        "announce": "http://tracker.example.com/announce",
+        "comment": "omaseed fixture: the add sheet's file picker",
+        "creation date": FIXED_CREATION_DATE,
+        "info": info,
+    }
+    return "open_movies_v1.torrent", torrent
+
+
 def main():
     fixtures_dir = os.path.dirname(os.path.abspath(__file__))
     builders = [
@@ -157,6 +217,8 @@ def main():
         build_multi_file_v1_unicode,
         build_private_announce_list,
         build_v2_stub,
+        build_multi_file_padded_v1,
+        build_open_movies_v1,
     ]
 
     manifest = []
@@ -176,7 +238,8 @@ def main():
 
         total_size = info.get("length")
         if total_size is None and "files" in info:
-            total_size = sum(f["length"] for f in info["files"])
+            # BEP-47 pad files are not content: qBittorrent leaves them out, and so do we.
+            total_size = sum(f["length"] for f in info["files"] if "p" not in f.get("attr", ""))
         if total_size is None and "file tree" in info:
             def sum_tree(node):
                 total = 0

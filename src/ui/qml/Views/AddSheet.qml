@@ -10,6 +10,11 @@ import Omaseed.Kit
 // gave is parsed locally first (`App.parseAddable`), so the head already confirms the name,
 // the size and where it came from instead of asking; the rows below only adjust the add.
 //
+// A `.torrent` of more than one file also gets the file picker (docs/11 D1): its tree, read
+// from the metainfo (`App.addFiles`), with a check mark and a priority per file and folder.
+// It is the last row, and it takes the height the window has left, scrolling past that.
+// Magnets have no file list until their metadata arrives, so they get no picker (v2).
+//
 // The sheet never talks to the server itself: it emits `addRequested(request)` with the map
 // `App.addTorrent` takes, and listens for `App.addFinished` to close, to move on to the next
 // queued source, or to show the server's refusal and stay open. An infohash the library
@@ -44,6 +49,10 @@ Sheet {
     readonly property alias sourceField: sourceField
     readonly property alias savePathField: savePathField
     readonly property alias upLimitField: upLimitField
+    readonly property alias dlLimitField: dlLimitField
+    readonly property alias renameField: renameField
+    readonly property alias firstLastToggle: firstLastToggle
+    readonly property alias filesTree: filesTree
     readonly property alias categoryChips: categoryChips
     readonly property alias tagChips: tagChips
     readonly property alias layoutChips: layoutChips
@@ -63,6 +72,67 @@ Sheet {
         const base = known > 0 ? App.tags.tags() : [];
         return base.concat(sheet.extraTags.filter(name => base.indexOf(name) < 0));
     }
+
+    /// A parsed `.torrent` of more than one file is on show: the picker is drawn and its
+    /// choices travel with the add.
+    readonly property bool showFiles: sheet.addable !== null && sheet.addable.valid === true
+                                      && sheet.addable.kind === "file" && App.addFiles.fileCount > 1
+
+    /// What the tree may take: the body's room less every other row, so the sheet fits the
+    /// window and only the tree scrolls. Siblings' heights never depend on the tree's, so
+    /// this binding cannot loop.
+    readonly property real _treeRoom: {
+        let used = filesHead.height + filesSection.spacing;
+        const rows = sheet.body.children;
+        for (let i = 0; i < rows.length; ++i) {
+            const row = rows[i];
+            if (row !== filesSection && row.visible)
+                used += row.height + sheet.body.spacing;
+        }
+        return sheet.bodyRoom - used;
+    }
+
+    /// The hint line: the tree's own keys while it has the keyboard (Keymap "addFiles").
+    readonly property var _formHints: [
+        {
+            "key": "tab",
+            "label": qsTr("fields")
+        },
+        {
+            "key": "enter",
+            "label": qsTr("add")
+        },
+        {
+            "key": "shift+enter",
+            "label": qsTr("add stopped")
+        }
+    ]
+    readonly property var _treeHints: [
+        {
+            "key": "j k",
+            "label": Keymap.labelOf("addFiles", "j")
+        },
+        {
+            "key": "space",
+            "label": Keymap.labelOf("addFiles", "space")
+        },
+        {
+            "key": "+ -",
+            "label": Keymap.labelOf("addFiles", "+")
+        },
+        {
+            "key": "x",
+            "label": Keymap.labelOf("addFiles", "x")
+        },
+        {
+            "key": "h l",
+            "label": Keymap.labelOf("addFiles", "h")
+        },
+        {
+            "key": "enter",
+            "label": qsTr("add")
+        }
+    ]
 
     /// `add` / `add stopped`: the map `App.addTorrent` takes.
     signal addRequested(var request)
@@ -102,6 +172,8 @@ Sheet {
     property string _pendingToken: ""
     property bool _awaitingPick: false
     property bool _savePathEdited: false
+    /// The parse whose files the picker holds, so a re-emit of the same map keeps the choices.
+    property string _filesToken: ""
 
     /// What the clipboard offers, or "" — the fake first, so a test can drive it.
     function clipboardText(): string {
@@ -122,7 +194,7 @@ Sheet {
     // sheet must not paste that over the field.
     const parsed = prefill.length > 0 ? App.parseAddable(prefill) : null;
     if (parsed && (parsed.valid || parsed.pending))
-    sheet.loadText(prefill, "clipboard");
+    sheet.loadText(prefill, demo.length > 0 && parsed.kind === "file" ? "file" : "clipboard");
     sheet.open();
 }
 
@@ -178,6 +250,11 @@ Sheet {
     map["autoTMM"] = sheet.autoTMM;
     map["contentLayout"] = sheet.layoutValue();
     map["upLimitKb"] = parseInt(upLimitField.text, 10) || 0;
+    map["dlLimitKb"] = parseInt(dlLimitField.text, 10) || 0;
+    map["rename"] = renameField.text.trim();
+    map["firstLastPiecePrio"] = firstLastToggle.checked;
+    map["filePriorities"] = sheet.showFiles && App.addFiles.customised
+            ? App.addFiles.priorityList() : [];
     map["sequentialDownload"] = sequentialToggle.checked;
     map["skipChecking"] = skipCheckToggle.checked;
     map["stopped"] = stopped;
@@ -226,6 +303,10 @@ Sheet {
         function submit(stopped: bool): void {
         if (!sheet.addable || sheet.addable.valid !== true)
         return;
+        if (sheet.showFiles && App.addFiles.wantedCount === 0) {
+            sheet.errorText = qsTr("every file is skipped: check at least one");
+            return;
+        }
         const duplicate = App.findDuplicate(sheet.addable.infoHashV1, sheet.addable.infoHashV2);
         if (duplicate && duplicate.hash) {
             sheet.duplicateFound(duplicate);
@@ -263,6 +344,8 @@ Sheet {
                 sourceField.text = "";
                 savePathField.text = "";
                 upLimitField.text = "";
+                dlLimitField.text = "";
+                renameField.text = "";
                 sheet._programmatic = false;
                 sheet.addable = null;
                 sheet.source = "";
@@ -282,6 +365,21 @@ Sheet {
                 layoutChips.cursorIndex = 0;
                 sequentialToggle.checked = false;
                 skipCheckToggle.checked = false;
+                firstLastToggle.checked = false;
+                filesTree.cursorIndex = 0;
+            }
+
+                /// Keep the picker on the parse in the field: load a `.torrent`'s files once it
+                /// is read, empty it for anything else.
+                function _syncFiles(): void {
+                const addable = sheet.addable;
+                const token = addable && addable.valid === true && addable.kind === "file"
+                && (addable.fileCount || 0) > 1 ? addable.token : "";
+                if (token === sheet._filesToken)
+                return;
+                sheet._filesToken = token;
+                App.loadAddFiles(token);
+                filesTree.cursorIndex = 0;
             }
 
                 /// The category's own save path, so `Save to` follows the chips until it is typed into.
@@ -312,20 +410,7 @@ Sheet {
                 ]
                 footerRight: qsTr("server: %1").arg(App.serverName)
                 glyph: Glyphs.add
-                hints: [
-                    {
-                        "key": "tab",
-                        "label": qsTr("fields")
-                    },
-                    {
-                        "key": "enter",
-                        "label": qsTr("add")
-                    },
-                    {
-                        "key": "shift+enter",
-                        "label": qsTr("add stopped")
-                    }
-                ]
+                hints: filesTree.activeFocus ? sheet._treeHints : sheet._formHints
                 sheetWidth: Theme.space(600)
                 subtitle: {
                     if (!sheet.addable)
@@ -350,6 +435,7 @@ Sheet {
                         event.accepted = true;
                 }
 
+                onAddableChanged: sheet._syncFiles()
                 onRejected: sheet.dismiss()
                 onActionTriggered: text => {
                     if (text === sheet._addText)
@@ -417,6 +503,23 @@ Sheet {
                                     event.accepted = true;
                                 }
                             }
+                        }
+                    }
+
+                    // `.row` — Name (docs/11 D1): the torrent's name on the server. Empty keeps the
+                    // metainfo's own, which the placeholder shows.
+                    FormRow {
+                        Layout.fillWidth: true
+                        label: qsTr("Name")
+
+                        Field {
+                            id: renameField
+
+                            Layout.fillWidth: true
+                            placeholder: sheet.addable && sheet.addable.name.length > 0
+                                         ? sheet.addable.name : qsTr("the torrent's own name")
+
+                            onAccepted: sheet.triggerPrimary()
                         }
                     }
 
@@ -504,27 +607,66 @@ Sheet {
                             }
                         }
 
-                        FormRow {
+                        // The right half holds both limits (docs/11 D1 adds the download one).
+                        // Near the 560 px floor the captions would elide, so they go to arrows.
+                        RowLayout {
+                            id: limitsRow
+
+                            readonly property bool narrow: limitsRow.width < Theme.space(250)
+
+                            Layout.alignment: Qt.AlignTop
                             Layout.fillWidth: true
                             Layout.preferredWidth: 1
-                            label: qsTr("Upload limit")
+                            spacing: Theme.space(10)
 
-                            Field {
-                                id: upLimitField
-
+                            FormRow {
                                 Layout.fillWidth: true
-                                placeholder: qsTr("∞")
-                                trailing: qsTr("KB/s")
+                                Layout.preferredWidth: 1
+                                label: limitsRow.narrow ? qsTr("↓ limit") : qsTr(
+                                                              "Download limit")
 
-                                onAccepted: sheet.triggerPrimary()
+                                Field {
+                                    id: dlLimitField
+
+                                    Layout.fillWidth: true
+                                    implicitWidth: Theme.space(80)
+                                    placeholder: qsTr("∞")
+                                    trailing: qsTr("KB/s")
+
+                                    onAccepted: sheet.triggerPrimary()
+                                }
+                            }
+
+                            FormRow {
+                                Layout.fillWidth: true
+                                Layout.preferredWidth: 1
+                                label: limitsRow.narrow ? qsTr("↑ limit") : qsTr(
+                                                              "Upload limit")
+
+                                Field {
+                                    id: upLimitField
+
+                                    Layout.fillWidth: true
+                                    implicitWidth: Theme.space(80)
+                                    placeholder: qsTr("∞")
+                                    trailing: qsTr("KB/s")
+
+                                    onAccepted: sheet.triggerPrimary()
+                                }
                             }
                         }
                     }
 
-                    // `.cols` — the two toggles
-                    RowLayout {
+                    // `.cols` — the toggles, two to a line
+                    GridLayout {
                         Layout.fillWidth: true
-                        spacing: Theme.space(10)
+                        columnSpacing: Theme.space(10)
+                        // One to a line once the longest label no longer fits half the width.
+                        columns: 2 * Math.max(sequentialToggle.implicitWidth,
+                                              firstLastToggle.implicitWidth,
+                                              skipCheckToggle.implicitWidth) + columnSpacing
+                                 <= width ? 2 : 1
+                        rowSpacing: Theme.space(10)
 
                         // A Kit `Toggle` sizes itself to its label, so each half of the `.cols` grid is an
                         // Item the layout can stretch instead.
@@ -546,6 +688,21 @@ Sheet {
                         Item {
                             Layout.fillWidth: true
                             Layout.preferredWidth: 1
+                            implicitHeight: firstLastToggle.implicitHeight
+                            implicitWidth: firstLastToggle.implicitWidth
+
+                            Toggle {
+                                id: firstLastToggle
+
+                                anchors.left: parent.left
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: qsTr("first and last pieces first")
+                            }
+                        }
+
+                        Item {
+                            Layout.fillWidth: true
+                            Layout.preferredWidth: 1
                             implicitHeight: skipCheckToggle.implicitHeight
                             implicitWidth: skipCheckToggle.implicitWidth
 
@@ -556,6 +713,46 @@ Sheet {
                                 anchors.verticalCenter: parent.verticalCenter
                                 text: qsTr("skip hash check")
                             }
+                        }
+                    }
+
+                    // Files (docs/11 D1): the `.torrent`'s tree, last so it can take what the
+                    // window leaves; past that it scrolls.
+                    ColumnLayout {
+                        id: filesSection
+
+                        Layout.fillWidth: true
+                        spacing: Theme.space(4)
+                        visible: sheet.showFiles
+
+                        RowLayout {
+                            id: filesHead
+
+                            Layout.fillWidth: true
+                            spacing: Theme.space(10)
+
+                            Label {
+                                Layout.fillWidth: true
+                                elide: Text.ElideRight
+                                text: qsTr("Files")
+                                tracked: true
+                            }
+
+                            Label {
+                                dim: true
+                                size: "caption"
+                                text: App.addFiles.summaryText
+                            }
+                        }
+
+                        AddFilesTree {
+                            id: filesTree
+
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: implicitHeight
+                            // Never fewer than four rows: below that the whole body scrolls.
+                            maximumHeight: Math.max(4 * Theme.railRowHeight + 2, sheet._treeRoom)
+                            model: App.addFiles
                         }
                     }
                 }

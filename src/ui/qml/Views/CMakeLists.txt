@@ -9,6 +9,7 @@ qt_add_qml_module(omaseed-views
         DemoEnvForeign.hpp
     QML_FILES
         ActionsMenu.qml
+        AddFilesTree.qml
         AddSheet.qml
         CategoryPalette.qml
         ChipSelect.qml

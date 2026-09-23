@@ -2,6 +2,8 @@
 configure_file(BuildConfig.hpp.in "${CMAKE_CURRENT_BINARY_DIR}/omaseed/core/BuildConfig.hpp" @ONLY)
 
 qt_add_library(omaseed-core STATIC
+    AddFilesModel.cpp
+    AddFilesModel.hpp
     ApiError.cpp
     ApiError.hpp
     Bencode.cpp

@@ -1,5 +1,7 @@
 #include "ui/app/DemoData.hpp"
 
+#include "core/Bencode.hpp"
+
 #include <QCryptographicHash>
 #include <QDate>
 #include <QDateTime>
@@ -991,6 +993,57 @@ QJsonObject details(const omaseed::core::Torrent &torrent)
     result.insert(QStringLiteral("trackers"), isArch ? archTrackers() : generatedTrackers(torrent));
     result.insert(QStringLiteral("peers"), isArch ? archPeers() : generatedPeers(torrent));
     return result;
+}
+
+QByteArray demoTorrentBytes()
+{
+    using namespace omaseed::core::bencode;
+    constexpr qint64 gib = 1024LL * 1024 * 1024;
+    constexpr qint64 pieceLength = 16LL * 1024 * 1024;
+    struct DemoFile
+    {
+        qint64 length;
+        QList<QByteArray> path;
+    };
+    const QList<DemoFile> files{
+        {qint64(3.43 * gib), {"Big Buck Bunny", "bbb_sunflower_2160p_60fps.mp4"}},
+        {48213, {"Big Buck Bunny", "subs", "bbb.en.srt"}},
+        {51877, {"Big Buck Bunny", "subs", "bbb.de.srt"}},
+        {qint64(4.12 * gib), {"Sintel", "sintel_4k.mkv"}},
+        {61022, {"Sintel", "subs", "sintel.en.srt"}},
+        {qint64(6.02 * gib), {"Tears of Steel", "tears_of_steel_4k.mov"}},
+        {qint64(1.37 * gib), {"Cosmos Laundromat", "cosmos_laundromat_2k.mp4"}},
+        {2911, {"README.txt"}},
+    };
+
+    List fileList;
+    qint64 total = 0;
+    for (const DemoFile &file : files) {
+        List path;
+        for (const QByteArray &part : file.path)
+            path.append(Value(part));
+        fileList.append(Value(Dict{{"length", Value(file.length)}, {"path", Value(path)}}));
+        total += file.length;
+    }
+    // Made-up piece hashes: the right length, so the metainfo parses, and never a real swarm.
+    QByteArray pieces;
+    for (qint64 at = 0; at < (total + pieceLength - 1) / pieceLength; ++at) {
+        pieces += QCryptographicHash::hash("omaseed-demo-piece-" + QByteArray::number(at),
+                                           QCryptographicHash::Sha1);
+    }
+    const Dict info{
+        {"files", Value(fileList)},
+        {"name", Value(QByteArrayLiteral("Blender Open Movies"))},
+        {"piece length", Value(pieceLength)},
+        {"pieces", Value(pieces)},
+    };
+    const Dict torrent{
+        {"announce", Value(QByteArrayLiteral("http://tracker.example.org/announce"))},
+        {"comment", Value(QByteArrayLiteral("omaseed demo: the add sheet's file picker"))},
+        {"creation date", Value(qint64(1700000000))},
+        {"info", Value(info)},
+    };
+    return encode(Value(torrent));
 }
 
 } // namespace omaseed::app::DemoData

@@ -38,5 +38,25 @@
     "name": "V2Stub.bin",
     "pieceLength": 16384,
     "totalSize": 16384
+  },
+  {
+    "file": "multi_file_padded_v1.torrent",
+    "infoHashV1": "e7a6478cb24133c09a8f60e8eb4c054d1b7b8f11",
+    "infoHashV2": "",
+    "isPrivate": false,
+    "metaVersion": 1,
+    "name": "Padded Pack",
+    "pieceLength": 16384,
+    "totalSize": 25000
+  },
+  {
+    "file": "open_movies_v1.torrent",
+    "infoHashV1": "429d28a2cdae51f937735430e0a88cec3ee76cbc",
+    "infoHashV2": "",
+    "isPrivate": false,
+    "metaVersion": 1,
+    "name": "Blender Open Movies",
+    "pieceLength": 16777216,
+    "totalSize": 16041866871
   }
 ]
