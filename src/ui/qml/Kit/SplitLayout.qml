@@ -19,8 +19,13 @@ Item {
     property int sideWidth: Theme.space(330)
     property int sideHeight: Theme.space(260)
 
+    /// The width the breakpoint is measured against. The spec's rule is about the *window*
+    /// ("dropping below the table under 1100 px"), and the split itself sits beside the rail,
+    /// so MainView hands in the window's width; on its own the split measures itself.
+    property int referenceWidth: root.width
+
     readonly property int breakpoint: Theme.space(1100)
-    readonly property bool docked: root.width >= root.breakpoint
+    readonly property bool docked: root.referenceWidth >= root.breakpoint
     readonly property bool showSide: root.sideVisible && root.side !== null
 
     onMainChanged: {

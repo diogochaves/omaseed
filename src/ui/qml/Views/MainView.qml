@@ -875,6 +875,9 @@ Item {
             anchors.right: parent.right
             anchors.top: parent.top
             main: tableHost
+            // docs/10 §5: the breakpoint is the window's width, not what is left beside the
+            // rail, so hiding the rail no longer moves Details.
+            referenceWidth: root.width
             side: details
             sideHeight: Theme.space(260)
             sideVisible: !details.collapsed

@@ -35,6 +35,17 @@ TestCase {
         compare(split.docked, false);
     }
 
+    function test_breakpoint_reads_the_reference_width() {
+        const split = createTemporaryObject(splitComponent, testCase, {
+                                                "width": split_breakpoint() - 200,
+                                                "height": 600,
+                                                "referenceWidth": split_breakpoint()
+                                            });
+        compare(split.docked, true);
+        split.referenceWidth = split_breakpoint() - 1;
+        compare(split.docked, false);
+    }
+
     function test_breakpoint_is_scaled_space() {
         const split = createTemporaryObject(splitComponent, testCase);
         compare(split.breakpoint, Theme.space(1100));
