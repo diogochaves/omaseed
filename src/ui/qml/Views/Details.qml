@@ -76,6 +76,8 @@ Item {
                                     || fileMenu.opened || priorityMenu.opened || sortMenu.opened
     /// The caret is in the Files tab's filter field (Main's footer teaches enter/esc then).
     readonly property bool filterEditing: filesTab.filterEditing
+    /// One of the Files tab's menus is up; Main's footer then keeps only its facts (D3).
+    readonly property bool menuOpen: fileMenu.opened || priorityMenu.opened || sortMenu.opened
     /// `v` selects from here to the cursor; the last row `space` toggled.
     property int filesAnchor: -1
 

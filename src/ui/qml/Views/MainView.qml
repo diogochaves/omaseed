@@ -1065,7 +1065,7 @@ Item {
         focusArea: root.focusArea
         // T4.8, batch-2 D3: while an overlay is up the footer keeps its facts and teaches
         // nothing; the overlay's own hint row is the only one.
-        overlayOpen: root.overlayOpen
+        overlayOpen: root.overlayOpen || details.menuOpen
         // Fig. 1 keeps the table's line while row 3 is being renamed, because its cursor is
         // elsewhere; a rename the user started is always on the cursor row.
         renaming: table.renaming && table.renameIndex === table.cursorIndex

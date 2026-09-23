@@ -459,6 +459,20 @@ TestCase {
                                          view.globalLimitsSheet, "the speed limits sheet");
     }
 
+    // The Files tab's own menus (N1) are overlays too, as far as the footer goes.
+    function test_the_window_footer_stands_aside_for_the_files_menus() {
+        view.details.currentTab = 1;
+        view.details.openPriorityMenu();
+        tryVerify(() => view.details.menuOpen, 1000, "the priority menu did not open");
+        compare(view.hintModel.area, "overlay");
+        compare(view.hintModel.hints.length, 0, "the footer still teaches keys under the menu");
+        verify(view.factParts.length > 0, "the facts went with the menu");
+        keyClick(Qt.Key_Escape);
+        tryVerify(() => !view.details.menuOpen, 1000, "esc did not close the priority menu");
+        verify(view.hintModel.area !== "overlay", "the footer stayed in overlay mode");
+        view.details.currentTab = 0;
+    }
+
     // ---- one Connections block, and the jump palette's `tab` (T4.8) --------------------------
     function test_show_actions_requested_opens_the_menu_on_that_row() {
         const hash = App.filtered.hashAt(3);
