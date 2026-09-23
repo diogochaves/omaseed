@@ -39,9 +39,9 @@ QJsonObject maindata(int rows = 16);
 QJsonObject serverState();
 
 /// Everything the details pane (spec §2) shows for one torrent of the demo library, shaped
-/// for TorrentDetails::applyDemo(): `{hash, properties, files, trackers, peers}`, where each
-/// value has the shape of the API call it stands in for (`torrents/properties`,
-/// `torrents/files`, `torrents/trackers`, `sync/torrentPeers`).
+/// for TorrentDetails::applyDemo(): `{hash, properties, files, trackers, peers, pieceStates}`,
+/// where each value has the shape of the API call it stands in for (`torrents/properties`,
+/// `torrents/files`, `torrents/trackers`, `sync/torrentPeers`, `torrents/pieceStates`).
 ///
 /// Two rows are the spec's own figures: `Big Buck Bunny 4K (CC-BY)` carries Fig. 2's file
 /// tree, and `archlinux-2026.09.01-x86_64.iso` Fig. 3's trackers and Fig. 4's peers. Every

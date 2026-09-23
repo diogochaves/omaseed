@@ -34,6 +34,7 @@
 //   GET  torrents/properties         torrentsProperties(hash)
 //   GET  torrents/files              torrentsFiles(hash)
 //   GET  torrents/trackers           torrentsTrackers(hash)
+//   GET  torrents/pieceStates        torrentsPieceStates(hash)
 //   GET  torrents/categories         torrentsCategories()
 //   GET  torrents/tags               torrentsTags()
 //   GET  transfer/info               transferInfo()
@@ -190,6 +191,8 @@ public:
     QbtReply<QJsonObject> *torrentsProperties(const QString &hash); ///< GET torrents/properties
     QbtReply<QJsonArray> *torrentsFiles(const QString &hash);       ///< GET torrents/files
     QbtReply<QJsonArray> *torrentsTrackers(const QString &hash);    ///< GET torrents/trackers
+    /// GET torrents/pieceStates — one number per piece: 0 missing, 1 downloading, 2 had.
+    QbtReply<QJsonArray> *torrentsPieceStates(const QString &hash);
     /// GET sync/torrentPeers?hash=&rid= — the same rid protocol as sync/maindata.
     QbtReply<QJsonObject> *torrentsPeers(const QString &hash, int rid);
     QbtReply<QJsonObject> *torrentsCategories(); ///< GET torrents/categories

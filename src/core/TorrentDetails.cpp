@@ -1,6 +1,7 @@
 #include "core/TorrentDetails.hpp"
 
 #include "core/Format.hpp"
+#include "core/PieceStates.hpp"
 #include "core/QbtClient.hpp"
 #include "core/Torrent.hpp"
 #include "core/TorrentModel.hpp"
@@ -82,6 +83,7 @@ void TorrentDetails::setHash(const QString &hash)
     m_files->clear();
     m_trackers->clear();
     m_peers->clear();
+    setPieceStates(QByteArray());
 
     Q_EMIT hashChanged();
     Q_EMIT propertiesChanged();
@@ -101,6 +103,37 @@ void TorrentDetails::setPeersActive(bool active)
     updateTimers();
     if (active && !m_hash.isEmpty() && !m_demo)
         pollPeers();
+}
+
+void TorrentDetails::setGeneralActive(bool active)
+{
+    if (active == m_generalActive)
+        return;
+    m_generalActive = active;
+    // Nobody looks at the bar from another tab; come back to fresh states instead of
+    // old ones for a tick.
+    if (!active && !m_demo)
+        setPieceStates(QByteArray());
+    if (active && !m_hash.isEmpty() && !m_demo)
+        pollPieceStates();
+}
+
+int TorrentDetails::piecesHaveCount() const
+{
+    return PieceStates::count(m_pieceStates, PieceStates::Have);
+}
+
+QList<int> TorrentDetails::pieceBuckets(int buckets) const
+{
+    return PieceStates::bucket(m_pieceStates, buckets);
+}
+
+void TorrentDetails::setPieceStates(const QByteArray &states)
+{
+    if (states == m_pieceStates)
+        return;
+    m_pieceStates = states;
+    Q_EMIT pieceStatesChanged();
 }
 
 void TorrentDetails::setVisible(bool visible)
@@ -178,6 +211,28 @@ void TorrentDetails::poll()
         noteSuccess();
         m_trackers->applyTrackers(result.value());
     });
+
+    if (m_generalActive)
+        pollPieceStates();
+}
+
+void TorrentDetails::pollPieceStates()
+{
+    if (m_demo || m_client.isNull() || m_hash.isEmpty() || !m_generalActive)
+        return;
+
+    const QString hash = m_hash;
+    m_client->torrentsPieceStates(hash)->then(
+        this, [this, hash](const QbtResult<QJsonArray> &result) {
+            if (hash != m_hash || !m_generalActive)
+                return;
+            if (result.isError()) {
+                noteError(QStringLiteral("pieceStates"), result.error().toString());
+                return;
+            }
+            noteSuccess();
+            setPieceStates(PieceStates::fromJson(result.value()));
+        });
 }
 
 void TorrentDetails::pollPeers()
@@ -360,6 +415,7 @@ void TorrentDetails::applyDemo(const QJsonObject &details)
     m_files->applyFiles(details.value(QStringLiteral("files")).toArray());
     m_trackers->applyTrackers(details.value(QStringLiteral("trackers")).toArray());
     m_peers->applyPeers(details.value(QStringLiteral("peers")).toObject());
+    setPieceStates(PieceStates::fromJson(details.value(QStringLiteral("pieceStates")).toArray()));
     Q_EMIT refreshed();
 }
 

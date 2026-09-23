@@ -645,6 +645,7 @@ Item {
             id: generalTab
 
             anchors.fill: parent
+            details: root.details
             objectName: "generalTab"
             // Two columns only with room for them: narrower, the values would wrap instead.
             columns: root.wide && body.width >= Theme.space(620) ? 2 : 1
@@ -940,6 +941,12 @@ Item {
     // The Peers tab is the only one whose poll costs the server real work, so App is told
     // when it comes and goes (spec §2: peers refresh every 2 s while the tab is on show).
     // The pane's overall visibility is Main's to report, through App.setDetailsVisible().
-    onCurrentTabChanged: App.setPeersTabActive(!root.collapsed && root.currentTab === 3)
-    onCollapsedChanged: App.setPeersTabActive(!root.collapsed && root.currentTab === 3)
+    onCurrentTabChanged: {
+        App.setPeersTabActive(!root.collapsed && root.currentTab === 3);
+        App.setGeneralTabActive(!root.collapsed && root.currentTab === 0); // G3's pieces bar
+    }
+    onCollapsedChanged: {
+        App.setPeersTabActive(!root.collapsed && root.currentTab === 3);
+        App.setGeneralTabActive(!root.collapsed && root.currentTab === 0);
+    }
 }

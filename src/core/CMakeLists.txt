@@ -22,6 +22,8 @@ qt_add_library(omaseed-core STATIC
     PathMap.hpp
     Paths.cpp
     Paths.hpp
+    PieceStates.cpp
+    PieceStates.hpp
     QbtClient.cpp
     QbtClient.hpp
     QbtReply.cpp

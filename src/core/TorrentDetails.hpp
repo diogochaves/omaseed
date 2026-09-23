@@ -9,7 +9,9 @@
 //     visible (they are cheap and all three feed something on screen);
 //   * peers every 2 s, but only while the Peers tab is the one on show — setPeersActive() —
 //     because `sync/torrentPeers` is the one call of the four that costs the server real
-//     work, and its rid diff is worthless when nobody is looking.
+//     work, and its rid diff is worthless when nobody is looking;
+//   * pieceStates (docs/12 G3's bar) with properties, but only while the General tab is the
+//     one on show — setGeneralActive() — since it is one number per piece.
 //
 // setVisible(false) stops everything (the window went away); setHash({}) means "no torrent",
 // clears the models and stops the timers. Errors are values: a failed poll is logged once
@@ -60,6 +62,11 @@ class TorrentDetails : public QObject
 
     /// True while any real tracker of this torrent is failing — the Trackers tab's badge.
     Q_PROPERTY(bool hasTrackerError READ hasTrackerError NOTIFY hasTrackerErrorChanged)
+
+    /// docs/12 G3: how many pieces `torrents/pieceStates` last answered with, and how many of
+    /// them are had. 0 pieces means "no bar" (no metadata yet, or the General tab not shown).
+    Q_PROPERTY(int pieceCount READ pieceCount NOTIFY pieceStatesChanged)
+    Q_PROPERTY(int piecesHaveCount READ piecesHaveCount NOTIFY pieceStatesChanged)
     /// Empty while the polls are going through; the last failure's message otherwise.
     Q_PROPERTY(QString lastError READ lastError NOTIFY lastErrorChanged)
 
@@ -86,12 +93,21 @@ public:
     void setHash(const QString &hash);
     /// The Peers tab is the one on show, so sync/torrentPeers is worth asking for.
     void setPeersActive(bool active);
+    /// The General tab is the one on show, so torrents/pieceStates is worth asking for
+    /// (docs/12 G3). True by default: General is the tab the pane opens on.
+    void setGeneralActive(bool active);
+
+    int pieceCount() const { return int(m_pieceStates.size()); }
+    int piecesHaveCount() const;
+    /// The pieces bar's cells for a bar `buckets` pixels wide: PieceStates::bucket().
+    Q_INVOKABLE QList<int> pieceBuckets(int buckets) const;
     /// The window (or the pane) went away: everything stops until it comes back.
     void setVisible(bool visible);
     /// Polls now instead of on the next tick.
     void refreshNow();
 
-    /// Fills the models with `{hash, properties, files, trackers, peers}` and stops polling.
+    /// Fills the models with `{hash, properties, files, trackers, peers, pieceStates}` and
+    /// stops polling.
     /// `--demo details` and the QML tests use this; nothing here touches a network.
     void applyDemo(const QJsonObject &details);
 
@@ -103,6 +119,7 @@ Q_SIGNALS:
     void hashChanged();
     void propertiesChanged();
     void hasTrackerErrorChanged();
+    void pieceStatesChanged();
     void lastErrorChanged();
     /// One poll cycle of properties + files + trackers came back (for the live tests).
     void refreshed();
@@ -110,8 +127,10 @@ Q_SIGNALS:
 private:
     void poll();
     void pollPeers();
+    void pollPieceStates();
     void updateTimers();
     void applyProperties(const QJsonObject &json);
+    void setPieceStates(const QByteArray &states);
     void noteError(const QString &what, const QString &message);
     void noteSuccess();
     void setLastError(const QString &message);
@@ -130,9 +149,11 @@ private:
     QJsonObject m_rawProperties;
     QVariantMap m_properties;
     QString m_lastError;
+    QByteArray m_pieceStates; ///< one PieceStates::State per piece
 
     bool m_visible = true;
     bool m_peersActive = false;
+    bool m_generalActive = true;
     bool m_demo = false;
     bool m_errorLogged = false;
     bool m_trackerError = false;

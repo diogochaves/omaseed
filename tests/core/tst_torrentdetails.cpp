@@ -56,6 +56,7 @@ private Q_SLOTS:
     void the_figure_ones_general_rows();
     void share_limit_comes_from_the_torrent_row();
     void the_docs12_rows();
+    void piece_states_feed_the_bar();
     void apply_demo_fills_every_model();
     void selecting_another_torrent_clears_everything();
     void nothing_polls_without_a_client();
@@ -237,6 +238,34 @@ void TestTorrentDetails::the_docs12_rows()
     QCOMPARE(general.value(QStringLiteral("avgSpeed")).toString(), QString());
     QCOMPARE(general.value(QStringLiteral("pieces")).toString(), QString());
     QCOMPARE(general.value(QStringLiteral("connections")).toString(), QString());
+}
+
+void TestTorrentDetails::piece_states_feed_the_bar()
+{
+    TorrentDetails details;
+    QSignalSpy changed(&details, &TorrentDetails::pieceStatesChanged);
+    QCOMPARE(details.pieceCount(), 0);
+    QVERIFY(details.pieceBuckets(100).isEmpty());
+
+    QJsonObject demo;
+    demo.insert(QStringLiteral("hash"), QStringLiteral("0000a8b4"));
+    demo.insert(QStringLiteral("properties"),
+                fixture(QStringLiteral("properties-fig1.json")).object());
+    demo.insert(QStringLiteral("pieceStates"), QJsonArray{2, 2, 2, 2, 1, 0, 0, 2});
+    details.applyDemo(demo);
+
+    QCOMPARE(changed.count(), 1);
+    QCOMPARE(details.pieceCount(), 8);
+    QCOMPARE(details.piecesHaveCount(), 5);
+    QCOMPARE(details.pieceBuckets(100), (QList<int>{2, 2, 2, 2, 1, 0, 0, 2}));
+    QCOMPARE(details.pieceBuckets(4), (QList<int>{2, 2, 1, 0}));
+
+    // Another torrent with no metadata: no bar at all.
+    demo.insert(QStringLiteral("hash"), QStringLiteral("cafebabe"));
+    demo.remove(QStringLiteral("pieceStates"));
+    details.applyDemo(demo);
+    QCOMPARE(details.pieceCount(), 0);
+    QCOMPARE(changed.count(), 2);
 }
 
 void TestTorrentDetails::apply_demo_fills_every_model()

@@ -533,6 +533,11 @@ void App::setPeersTabActive(bool active)
     m_details->setPeersActive(active);
 }
 
+void App::setGeneralTabActive(bool active)
+{
+    m_details->setGeneralActive(active);
+}
+
 void App::setFilePriority(const QString &hash, const QVariantList &fileIndexes, int priority)
 {
     if (hash.isEmpty() || fileIndexes.isEmpty())

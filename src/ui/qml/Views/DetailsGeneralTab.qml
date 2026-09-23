@@ -1,5 +1,6 @@
 pragma ComponentBehavior: Bound
 import QtQuick
+import Omaseed
 import Omaseed.Kit
 
 // The details pane's General tab (spec v2 §2 Fig. 1's `.kv` block), grouped as docs/12 G1
@@ -17,6 +18,8 @@ import Omaseed.Kit
 Flickable {
     id: root
 
+    /// The controller, for docs/12 G3's pieces bar; null draws no bar.
+    property TorrentDetails details: null
     property var properties: ({})
     property var torrent: null
     property int columns: 1
@@ -86,6 +89,7 @@ Flickable {
             }].filter(group => group.rows.length > 0);
     }
 
+    readonly property bool _hasBar: root.details !== null && root.details.pieceCount > 0
     readonly property int _gap: Theme.space(24)
     readonly property int _blockWidth: root.columns === 2 ? Math.floor((root.width - root._gap) / 2)
                                                           : root.width
@@ -102,6 +106,28 @@ Flickable {
         id: first
 
         width: root._blockWidth
+
+        // docs/12 G3: at the top of General, over Transfer.
+        Item {
+            height: root._hasBar ? bar.implicitHeight + Theme.space(12) : 0
+            visible: root._hasBar
+            width: parent.width
+
+            DetailsPiecesBar {
+                id: bar
+
+                anchors.left: parent.left
+                anchors.leftMargin: Theme.space(16)
+                anchors.right: parent.right
+                anchors.rightMargin: Theme.space(16)
+                anchors.top: parent.top
+                anchors.topMargin: Theme.space(12)
+                details: root.details
+                haveText: (root.properties || {}).piecesHave || ""
+                objectName: "piecesBar"
+                percentText: root.torrent ? root.torrent.progressText : ""
+            }
+        }
 
         Repeater {
             model: root.columns === 2 ? root.groups.slice(0, 1) : root.groups

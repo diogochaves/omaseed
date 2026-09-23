@@ -212,6 +212,9 @@ public:
     Q_INVOKABLE void setDetailsVisible(bool visible);
     /// The Peers tab is the one on show, so sync/torrentPeers is worth polling.
     Q_INVOKABLE void setPeersTabActive(bool active);
+    /// The General tab is the one on show, so torrents/pieceStates is worth polling (docs/12
+    /// G3).
+    Q_INVOKABLE void setGeneralTabActive(bool active);
 
     /// POST torrents/filePrio. `fileIndexes` is a list of ints (the `fileIndexes` role of a
     /// TorrentFilesModel row); a no-op in demo mode, where there is no server to tell.

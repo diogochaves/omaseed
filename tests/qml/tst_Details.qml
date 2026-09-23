@@ -138,6 +138,36 @@ TestCase {
         verify(options.mapToItem(general, 0, 0).y > information.mapToItem(general, 0, 0).y);
     }
 
+    // docs/12 G3: the pieces bar tops General, drawn from the demo's piece states.
+    function test_the_pieces_bar_tops_general() {
+        const view = testCase.select(testCase.archName);
+        const bar = findChild(view, "piecesBar");
+        verify(bar !== null);
+        verify(bar.visible, "no pieces bar for a torrent with pieces");
+        compare(App.details.pieceCount, 1264);
+        compare(App.details.piecesHaveCount, 617);
+        compare(findChild(view, "piecesLabel").text, "pieces · 617 of 1 264");
+        compare(findChild(view, "piecesPercent").text, "48.9 %");
+
+        // Above the Transfer heading.
+        wait(0);
+        const transfer = findChild(view, "generalHeading_Transfer");
+        const general = findChild(view, "generalTab");
+        verify(bar.mapToItem(general, 0, 0).y < transfer.mapToItem(general, 0, 0).y);
+
+        // The canvas painted one cell per pixel: some had, some in flight, some missing.
+        const canvas = findChild(view, "piecesCanvas");
+        tryVerify(() => canvas.cells.length > 0);
+        compare(canvas.cells.length, Math.min(1264, Math.floor(canvas.width)));
+        verify(canvas.cells.indexOf(2) >= 0);
+        verify(canvas.cells.indexOf(1) >= 0);
+        verify(canvas.cells.indexOf(0) >= 0);
+
+        // A finished torrent is had from end to end.
+        testCase.select(testCase.bbbName);
+        compare(App.details.piecesHaveCount, App.details.pieceCount);
+    }
+
     // docs/12 G2: the demo fills every new row, so `--demo` shows them all.
     function test_the_demo_fills_the_docs12_rows() {
         testCase.select(testCase.archName);

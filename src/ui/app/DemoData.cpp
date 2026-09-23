@@ -983,6 +983,39 @@ QJsonObject generatedPeers(const omaseed::core::Torrent &torrent)
     return answer;
 }
 
+/// docs/12 G3: a `torrents/pieceStates` answer with exactly `have` pieces had. Pieces go in
+/// runs of 16 with a jittered order, so the bar fills mostly from the left with a ragged
+/// edge, the way a swarm's rarest-first download looks; a torrent that is moving has a few
+/// pieces in flight just past what it has.
+QJsonArray generatedPieceStates(const omaseed::core::Torrent &torrent, int count, int have)
+{
+    QRandomGenerator random(quint32(qHash(torrent.hash)) ^ 0x9e37u);
+    constexpr int kRun = 16;
+    QList<double> runJitter((count + kRun - 1) / kRun);
+    for (double &jitter : runJitter)
+        jitter = random.generateDouble() * 0.45;
+
+    QList<int> order(count);
+    for (int i = 0; i < count; ++i)
+        order[i] = i;
+    const auto key = [&](int piece) { return double(piece) / count + runJitter.at(piece / kRun); };
+    std::stable_sort(order.begin(), order.end(), [&](int a, int b) { return key(a) < key(b); });
+
+    QList<int> states(count, 0);
+    have = std::clamp(have, 0, count);
+    for (int i = 0; i < have; ++i)
+        states[order.at(i)] = 2;
+    const bool moving = torrent.dlspeed > 0;
+    const int inFlight = moving ? std::min(count - have, 6) : 0;
+    for (int i = 0; i < inFlight; ++i)
+        states[order.at(have + i * std::max(1, (count - have) / 7))] = 1;
+
+    QJsonArray array;
+    for (int state : states)
+        array.append(state);
+    return array;
+}
+
 } // namespace
 
 QJsonObject details(const omaseed::core::Torrent &torrent)
@@ -1066,6 +1099,8 @@ QJsonObject details(const omaseed::core::Torrent &torrent)
     result.insert(QStringLiteral("files"), isBbb ? bigBuckBunnyFiles() : generatedFiles(torrent));
     result.insert(QStringLiteral("trackers"), isArch ? archTrackers() : generatedTrackers(torrent));
     result.insert(QStringLiteral("peers"), isArch ? archPeers() : generatedPeers(torrent));
+    result.insert(QStringLiteral("pieceStates"),
+                  generatedPieceStates(torrent, pieceCount, piecesHave));
     return result;
 }
 
