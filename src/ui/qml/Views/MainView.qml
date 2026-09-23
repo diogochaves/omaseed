@@ -1227,11 +1227,24 @@ Item {
         visible: root.footerNote.length > 0
         z: 8
 
-        Text {
-            color: Theme.accent
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.font.small
-            text: root.footerNote
+        // Backed by the ground and a hairline, so the note never reads through whatever it
+        // sits on (the rail's "▾ 9 below", a table row).
+        Rectangle {
+            border.color: Theme.fill(Theme.hairlineAlpha)
+            border.width: 1
+            color: Theme.background
+            height: noteText.implicitHeight + Theme.space(6)
+            width: noteText.implicitWidth + Theme.space(16)
+
+            Text {
+                id: noteText
+
+                anchors.centerIn: parent
+                color: Theme.accent
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.font.small
+                text: root.footerNote
+            }
         }
     }
 
