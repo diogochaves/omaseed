@@ -120,6 +120,88 @@ TestCase {
         compare(palette.listView.height, Theme.space(360));
     }
 
+    // N3: a list taller than the panel says it has more, the way the rail does.
+    function longRows() {
+        const rows = [];
+        for (let i = 0; i < 40; ++i)
+            rows.push({
+                "title": "row " + i,
+                "key": i
+            });
+        return rows;
+    }
+
+    function test_an_overflowing_list_counts_the_rows_below_and_above() {
+        const palette = createTemporaryObject(paletteComponent, testCase, {
+                                                  "items": testCase.longRows()
+                                              });
+        palette.open();
+        waitForRendering(palette);
+        const hint = findChild(palette, "scrollHint");
+        compare(hint.style, "chevrons");
+        compare(hint.countAbove, 0);
+        verify(hint.countBelow > 0, "no rows counted below");
+        compare(findChild(hint, "moreBelow").visible, true);
+        compare(findChild(hint, "moreAbove").visible, false);
+        // Every row is either counted, or at least partly on screen above the band.
+        const rowHeight = palette.listView.contentHeight / 40;
+        const shown = Math.floor((palette.listView.height - hint.bottomInset - 1) / rowHeight) + 1;
+        compare(hint.countBelow, 40 - shown);
+
+        palette.cursorToKey(39);
+        waitForRendering(palette);
+        compare(hint.countBelow, 0);
+        verify(hint.countAbove > 0);
+        compare(findChild(hint, "moreAbove").visible, true);
+    }
+
+    function test_the_cursor_stays_clear_of_the_bands() {
+        const palette = createTemporaryObject(paletteComponent, testCase, {
+                                                  "items": testCase.longRows()
+                                              });
+        palette.open();
+        waitForRendering(palette);
+        const list = palette.listView;
+        const hint = findChild(palette, "scrollHint");
+        for (let i = 0; i < 20; ++i) {
+            keyClick(Qt.Key_Down);
+            const row = list.itemAtIndex(palette.cursorIndex);
+            verify(row.y + row.height <= list.contentY + list.height - hint.clearBottom + 0.5,
+                   "row " + palette.cursorIndex + " under the bottom band");
+        }
+        for (let i = 0; i < 18; ++i) {
+            keyClick(Qt.Key_Up);
+            const row = list.itemAtIndex(palette.cursorIndex);
+            verify(row.y >= list.contentY + hint.clearTop - 0.5, "row " + palette.cursorIndex
+                   + " under the top band");
+        }
+    }
+
+    function test_the_hint_follows_the_style_it_is_given() {
+        const palette = createTemporaryObject(paletteComponent, testCase, {
+                                                  "items": testCase.longRows(),
+                                                  "scrollHint": "fade"
+                                              });
+        palette.open();
+        waitForRendering(palette);
+        const hint = findChild(palette, "scrollHint");
+        compare(findChild(hint, "fadeBelow").visible, true);
+        compare(findChild(hint, "moreBelow").visible, false);
+        palette.scrollHint = "scrollbar";
+        compare(findChild(hint, "scrollbar").visible, true, "an open palette shows its bar");
+        compare(findChild(hint, "fadeBelow").visible, false);
+    }
+
+    function test_a_short_list_says_nothing() {
+        const palette = createTemporaryObject(paletteComponent, testCase);
+        palette.open();
+        waitForRendering(palette);
+        const hint = findChild(palette, "scrollHint");
+        compare(hint.countAbove, 0);
+        compare(hint.countBelow, 0);
+        compare(hint.overflows, false);
+    }
+
     function test_the_title_stands_in_for_an_empty_query() {
         const palette = createTemporaryObject(multiComponent, testCase);
         palette.open();
@@ -246,6 +328,62 @@ TestCase {
         compare(multi.query, "", "space was typed into a multi-select's query");
     }
 
+    // N2: a reorderable list asks to move the cursor's row; the caller owns the order.
+    function test_alt_arrows_ask_to_move_the_row_in_a_reorderable_list() {
+        const palette = createTemporaryObject(multiComponent, testCase, {
+                                                  "reorderable": true
+                                              });
+        const moved = createTemporaryObject(moveSpy, testCase, {
+                                                "target": palette
+                                            });
+        palette.open();
+        keyClick(Qt.Key_Down);
+
+        keyClick(Qt.Key_Down, Qt.AltModifier);
+        compare(moved.count, 1);
+        compare(moved.signalArguments[0][0], 1);
+        compare(moved.signalArguments[0][1].title, "linux");
+        compare(moved.signalArguments[0][2], 1);
+        compare(palette.cursorIndex, 1, "alt+down moved the cursor as well");
+
+        keyClick(Qt.Key_Up, Qt.AltModifier);
+        compare(moved.count, 2);
+        compare(moved.signalArguments[1][2], -1);
+
+        keyClick("j", Qt.AltModifier);
+        keyClick("k", Qt.AltModifier);
+        compare(moved.count, 4, "alt+j / alt+k are not aliases");
+        compare(moved.signalArguments[2][2], 1);
+        compare(moved.signalArguments[3][2], -1);
+        compare(palette.query, "", "alt+j / alt+k were typed into the query");
+    }
+
+    function test_ctrl_r_asks_for_the_default_order_only_when_reorderable() {
+        const plain = createTemporaryObject(multiComponent, testCase);
+        const plainReset = createTemporaryObject(resetSpy, testCase, {
+                                                     "target": plain
+                                                 });
+        const plainMoved = createTemporaryObject(moveSpy, testCase, {
+                                                     "target": plain
+                                                 });
+        plain.open();
+        keyClick("r", Qt.ControlModifier);
+        keyClick(Qt.Key_Down, Qt.AltModifier);
+        compare(plainReset.count, 0);
+        compare(plainMoved.count, 0);
+        plain.close();
+
+        const palette = createTemporaryObject(multiComponent, testCase, {
+                                                  "reorderable": true
+                                              });
+        const reset = createTemporaryObject(resetSpy, testCase, {
+                                                "target": palette
+                                            });
+        palette.open();
+        keyClick("r", Qt.ControlModifier);
+        compare(reset.count, 1);
+    }
+
     function test_escape_closes_and_rejects() {
         const palette = createTemporaryObject(paletteComponent, testCase);
         const rejected = createTemporaryObject(rejectedSpy, testCase, {
@@ -366,6 +504,22 @@ TestCase {
 
         SignalSpy {
             signalName: "toggled"
+        }
+    }
+
+    Component {
+        id: moveSpy
+
+        SignalSpy {
+            signalName: "moveRequested"
+        }
+    }
+
+    Component {
+        id: resetSpy
+
+        SignalSpy {
+            signalName: "resetRequested"
         }
     }
 

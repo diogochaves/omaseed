@@ -160,7 +160,8 @@ Item {
             root.copyPluginLine();
     }
 
-    // docs/08 §5: the rail's three looks, as [value, chip text].
+    // docs/08 §5: the three scroll-hint looks, as [value, chip text]. Rail's first, and since
+    // N3 every palette's too; the stored key keeps its `railScrollHint` name.
     readonly property var scrollHints: [["chevrons", qsTr("counted")], ["fade", qsTr("fade")],
         ["scrollbar", qsTr("scrollbar")]]
     readonly property var tints: [[0, qsTr("none")], [4, qsTr("4 %")], [8, qsTr("8 %")]]
@@ -1138,10 +1139,10 @@ Item {
 
                             SettingsRow {
                                 Layout.fillWidth: true
-                                description: qsTr("how the rail says there is more above or below it.")
+                                description: qsTr("how lists say there is more above or below: the rail and every palette.")
                                 glyph: Glyphs.scrollHint
                                 hasCursor: root.area === "pane" && root.paneCursor === 5
-                                title: qsTr("Rail scroll hint")
+                                title: qsTr("Scroll hint")
 
                                 onClicked: {
                                     root.paneCursor = 5;

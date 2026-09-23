@@ -74,6 +74,17 @@ TestCase {
         compare(Keymap.find("table", "n").action, "copyName");
     }
 
+    // N2: the columns palette's own keys. `j`/`k` are typed text there, so the moves take alt.
+    function test_the_columns_palette_moves_with_alt_and_resets_with_ctrl_r() {
+        compare(Keymap.find("columns", "alt+↑").action, "moveColumnUp");
+        compare(Keymap.find("columns", "alt+↓").action, "moveColumnDown");
+        compare(Keymap.find("columns", "alt+k").action, "moveColumnUp");
+        compare(Keymap.find("columns", "alt+j").action, "moveColumnDown");
+        compare(Keymap.find("columns", "ctrl+r").action, "resetColumnOrder");
+        compare(Keymap.find("columns", "space").action, "toggleColumn");
+        compare(Keymap.find("columns", "j"), null);
+    }
+
     function test_find_returns_null_for_an_unbound_key() {
         compare(Keymap.find("table", "§"), null);
         compare(Keymap.find("search", "j"), null);
@@ -107,7 +118,8 @@ TestCase {
                                            "open folder", "copy magnet · hash · name"]);
 
         const view = Keymap.helpRows("view");
-        compare(view.map(row => row.helpKeys), ["i", "1–4", "s", "|", "ctrl+b", "I", "< >"]);
+        compare(view.map(row => row.helpKeys), ["i", "1–4", "s", "|", "alt+↑ alt+↓", "ctrl+b", "I",
+                                                "< >"]);
 
         const application = Keymap.helpRows("app");
         compare(application.map(row => row.helpKeys), ["A", ", ctrl+,", "ctrl+.", "q", "ctrl+q",

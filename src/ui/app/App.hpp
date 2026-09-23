@@ -412,8 +412,10 @@ public:
     void setSpeedsAlignment(const QString &side);
 
     // docs/08 §5 — the rail's look, under Settings -> Appearance.
-    /// How the rail says there is more above or below: "chevrons" (a counted line at each
-    /// end, the default), "fade" or "scrollbar". Anything else reads back as "chevrons".
+    /// How the rail, and since N3 every palette, says there is more above or below:
+    /// "chevrons" (a counted line at each end, the default), "fade" or "scrollbar". Anything
+    /// else reads back as "chevrons". Settings calls it "Scroll hint"; the name is kept so
+    /// the stored key stays readable.
     Q_PROPERTY(
         QString railScrollHint READ railScrollHint WRITE setRailScrollHint NOTIFY settingsChanged)
     QString railScrollHint() const;

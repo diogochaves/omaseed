@@ -35,6 +35,7 @@ qt_add_qml_module(omaseed-kit
         RailRow.qml
         Scrim.qml
         ScrollBar.qml
+        ScrollHint.qml
         Sheet.qml
         SplitLayout.qml
         Stat.qml

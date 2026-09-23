@@ -15,7 +15,9 @@ import Omaseed.Kit
 // Keys: `up`/`down` and `ctrl+p`/`ctrl+n` move (never `j`/`k` — in a palette those are typed
 // text), `enter` activates, `tab` asks for the secondary action (Fig. 12's "tab actions"),
 // `space` toggles when `multi` is set, `esc` closes. `inline: true` drops the scrim and the
-// centring, for the gallery.
+// centring, for the gallery. A `reorderable` list (the columns palette, N2) also asks to move
+// the cursor's row with `alt+up`/`alt+down` (`alt+k`/`alt+j`) and to put the default order back
+// with `ctrl+r`; the caller owns the order, as it owns `checked`.
 Item {
     id: root
 
@@ -31,6 +33,9 @@ Item {
     property var items: []
     /// Show the check column and let `space` toggle rows (the tags picker).
     property bool multi: false
+    /// Let `alt+up`/`alt+down` ask to move the cursor's row and `ctrl+r` ask for the default
+    /// order (`moveRequested`, `resetRequested`).
+    property bool reorderable: false
     property var hints: []
     property string footerRight: ""
     property bool inline: false
@@ -38,6 +43,10 @@ Item {
     property int paletteWidth: Theme.space(480)
     /// The row the keyboard is on.
     property int cursorIndex: 0
+    /// How the list says it has more rows above or below (N3): "chevrons" (counted),
+    /// "fade" or "scrollbar", as `Kit/ScrollHint` draws them. The host binds it to the
+    /// app's scroll-hint setting.
+    property string scrollHint: "chevrons"
 
     readonly property bool opened: root._opened
     readonly property alias panel: panel
@@ -54,6 +63,11 @@ Item {
     signal toggled(int index, var item)
     /// `esc`, or a click on the scrim.
     signal rejected
+    /// `alt+up` (-1) or `alt+down` (+1) on a row while `reorderable` is set. The caller
+    /// moves it and, if it wants the cursor to follow, calls `cursorToKey()`.
+    signal moveRequested(int index, var item, int delta)
+    /// `ctrl+r` while `reorderable` is set.
+    signal resetRequested
 
     property bool _opened: false
     property Item _previousFocus: null
@@ -94,7 +108,7 @@ Item {
         for (let i = 0; i < root.items.length; ++i) {
             if (root.items[i].key === key) {
                 root.cursorIndex = i;
-                list.positionViewAtIndex(i, ListView.Contain);
+                root._showRow(i);
                 return;
             }
         }
@@ -110,8 +124,67 @@ Item {
     if (root.items.length === 0)
     return;
     root.cursorIndex = Math.max(0, Math.min(root.items.length - 1, root.cursorIndex + delta));
-    list.positionViewAtIndex(root.cursorIndex, ListView.Contain);
+    root._showRow(root.cursorIndex);
 }
+
+    /// Scroll row `index` into view and clear of the hint's bands or fades.
+    function _showRow(index: int): void {
+        list.positionViewAtIndex(index, ListView.Contain);
+        const row = list.itemAtIndex(index);
+        if (row === null)
+            return;
+        const first = list.originY;
+        const last = list.originY + Math.max(0, list.contentHeight - list.height);
+        if (row.y < list.contentY + hint.clearTop)
+            list.contentY = Math.max(first, row.y - hint.clearTop);
+        else if (row.y + row.height > list.contentY + list.height - hint.clearBottom)
+            list.contentY = Math.min(last, row.y + row.height - list.height + hint.clearBottom);
+    }
+
+    /// How many rows are wholly out of view each way. A row under a band counts as out of
+    /// view, since the band hides it. `ListView.indexAt` notifies nothing and only sees rows
+    /// once the view has laid them out, so each delegate reports its own box to `_rowBoxes`
+    /// (index -> [y, height, row]) as it comes, moves, resizes or goes, and bumps
+    /// `_layoutRevision`, which every binding below passes in.
+    property int _layoutRevision: 0
+    property var _rowBoxes: ({})
+    function _setRowBox(index: int, row: Item, gone: bool): void {
+        const held = root._rowBoxes[index];
+        if (!gone)
+            root._rowBoxes[index] = [row.y, row.height, row];
+        else if (held !== undefined && held[2] === row) // not a newer row at the same index
+            delete root._rowBoxes[index];
+        root._layoutRevision++;
+    }
+    /// The row whose box holds content `y`, or -1.
+    function _rowAt(y: real, revision: int): int {
+        if (revision < 0)
+            return -1;
+        for (const key in root._rowBoxes) {
+            const box = root._rowBoxes[key];
+            if (y >= box[0] && y < box[0] + box[1])
+                return Number(key);
+        }
+        return -1;
+    }
+    readonly property int _rawAbove: Math.max(0, root._rowAt(list.contentY + 1, root._layoutRevision))
+    readonly property int _rawBelow: {
+        const last = root._rowAt(list.contentY + list.height - 1, root._layoutRevision);
+        return last < 0 ? 0 : list.count - 1 - last;
+    }
+    readonly property int _rowsAbove: {
+        if (root._rawAbove === 0)
+            return 0;
+        return Math.max(root._rawAbove, root._rowAt(list.contentY + hint.bandHeight + 1,
+                                                    root._layoutRevision));
+    }
+    readonly property int _rowsBelow: {
+        if (root._rawBelow === 0)
+            return 0;
+        const last = root._rowAt(list.contentY + list.height - hint.bandHeight - 1,
+                                 root._layoutRevision);
+        return last < 0 ? root._rawBelow : list.count - 1 - last;
+    }
 
     /// `enter`: hand the cursor's row to the caller. The caller closes the palette.
     function activate(): void {
@@ -126,6 +199,25 @@ Item {
 
     function _onKey(event: var): void {
     const ctrl = (event.modifiers & Qt.ControlModifier) !== 0;
+    const alt = (event.modifiers & Qt.AltModifier) !== 0;
+    if (root.reorderable && alt && !ctrl) {
+        let delta = 0;
+        if (event.key === Qt.Key_Up || event.key === Qt.Key_K)
+            delta = -1;
+        else if (event.key === Qt.Key_Down || event.key === Qt.Key_J)
+            delta = 1;
+        if (delta !== 0) {
+            if (root.currentItem)
+                root.moveRequested(root.cursorIndex, root.currentItem, delta);
+            event.accepted = true;
+            return;
+        }
+    }
+    if (root.reorderable && ctrl && event.key === Qt.Key_R) {
+        root.resetRequested();
+        event.accepted = true;
+        return;
+    }
     if (ctrl && (event.key === Qt.Key_N || event.key === Qt.Key_P)) {
         root.moveCursor(event.key === Qt.Key_N ? 1 : -1);
         event.accepted = true;
@@ -297,6 +389,13 @@ Item {
                         height: rowColumn.implicitHeight + 2 * Theme.space(6)
                         width: ListView.view.width
 
+                        // `indexAt` notifies nothing, so a row that comes, goes, moves or
+                        // resizes asks the scroll-hint counts to look again.
+                        Component.onCompleted: root._setRowBox(row.index, row, false)
+                        Component.onDestruction: root._setRowBox(row.index, row, true)
+                        onHeightChanged: root._setRowBox(row.index, row, false)
+                        onYChanged: root._setRowBox(row.index, row, false)
+
                         Rectangle {
                             anchors.fill: parent
                             border.color: Theme.fill(Theme.borderHover)
@@ -405,6 +504,23 @@ Item {
                         size: "caption"
                     }
                 }
+            }
+
+            // N3: more rows above or below, in the look the scroll-hint setting picks. Inset
+            // by the panel's 1 px edge, so a band never covers the accent border.
+            ScrollHint {
+                id: hint
+
+                countAbove: root._rowsAbove
+                countBelow: root._rowsBelow
+                flickable: list
+                height: list.height
+                objectName: "scrollHint"
+                revealed: root._opened
+                style: root.scrollHint
+                width: list.width - 2 * panel.border.width
+                x: list.x + panel.border.width
+                y: layout.y + list.y
             }
         }
     }
