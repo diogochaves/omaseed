@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 import Omaseed.Kit
 
@@ -88,8 +89,14 @@ Rectangle {
         anchors.verticalCenter: parent.verticalCenter
         clip: true
         color: Theme.brightForeground
+        // Qt shows a delegate caret when the field gains the keyboard but can leave it drawn
+        // when the keyboard moves on in the same frame: Speed limits opened on its alt-speed
+        // pair focused Download first, and Download kept a caret over its `∞` (batch-2 P2).
+        // Opacity rather than `visible`, which Qt itself toggles to blink.
         cursorDelegate: Rectangle {
             color: Theme.accent
+            objectName: "fieldCaret"
+            opacity: input.activeFocus ? 1 : 0
             width: 1
         }
         echoMode: root.echoMode
