@@ -24,6 +24,7 @@ class FilterCounts : public QObject
     Q_OBJECT
     Q_PROPERTY(int total READ total NOTIFY changed)
     Q_PROPERTY(int downloading READ downloading NOTIFY changed)
+    Q_PROPERTY(int inProgress READ inProgress NOTIFY changed)
     Q_PROPERTY(int seeding READ seeding NOTIFY changed)
     Q_PROPERTY(int completed READ completed NOTIFY changed)
     Q_PROPERTY(int stopped READ stopped NOTIFY changed)
@@ -44,6 +45,10 @@ public:
 
     int total() const { return m_total; }
     int downloading() const { return count(StatusGroup::Downloading); }
+    /// Downloading and not stopped: what the footer's "downloading" fact counts. The rail's
+    /// row keeps qBittorrent's filter, which also takes stoppedDL (Q16); the footer is a
+    /// status line, where a stopped torrent does not read as downloading.
+    int inProgress() const { return m_inProgress; }
     int seeding() const { return count(StatusGroup::Seeding); }
     int completed() const { return count(StatusGroup::Completed); }
     int stopped() const { return count(StatusGroup::Stopped); }
@@ -83,6 +88,7 @@ private:
 
     int m_total = 0;
     int m_untagged = 0;
+    int m_inProgress = 0;
     int m_groupCounts[8] = {};
     QHash<QString, int> m_categoryCounts;
     QHash<QString, int> m_tagCounts;

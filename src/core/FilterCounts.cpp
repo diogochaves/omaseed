@@ -92,6 +92,7 @@ int FilterCounts::trackerCount(const QString &host) const
 void FilterCounts::recompute()
 {
     const int oldTotal = m_total;
+    const int oldInProgress = m_inProgress;
     const QHash<QString, int> oldCategories = m_categoryCounts;
     const QHash<QString, int> oldTags = m_tagCounts;
     const QHash<QString, int> oldTrackers = m_trackerCounts;
@@ -100,6 +101,7 @@ void FilterCounts::recompute()
 
     m_total = 0;
     m_untagged = 0;
+    m_inProgress = 0;
     for (int &slot : m_groupCounts)
         slot = 0;
     m_categoryCounts.clear();
@@ -119,6 +121,8 @@ void FilterCounts::recompute()
             if (groups.testFlag(group))
                 ++m_groupCounts[slotFor(group)];
         }
+        if (groups.testFlag(StatusGroup::Downloading) && !groups.testFlag(StatusGroup::Stopped))
+            ++m_inProgress;
 
         ++m_categoryCounts[t.category];
 
@@ -138,7 +142,7 @@ void FilterCounts::recompute()
 
     const bool sameGroups =
         std::equal(std::begin(m_groupCounts), std::end(m_groupCounts), std::begin(oldGroups));
-    if (oldTotal == m_total && sameGroups && oldCategories == m_categoryCounts &&
+    if (oldTotal == m_total && oldInProgress == m_inProgress && sameGroups && oldCategories == m_categoryCounts &&
         oldTags == m_tagCounts && oldTrackers == m_trackerCounts)
         return;
 

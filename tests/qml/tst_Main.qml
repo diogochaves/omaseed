@@ -90,8 +90,10 @@ TestCase {
     }
 
     // ---- the footer's facts (spec §1 Fig. 1 `.foot .facts`) -----------------------------
+    // Seven, not the rail's eight: the demo's stopped download is not "downloading" here.
     function test_the_footer_states_the_library() {
-        compare(view.factsText, "16 torrents · 8 downloading · " + App.globalState.freeSpaceText
+        compare(App.counts.downloading, 8);
+        compare(view.factsText, "16 torrents · 7 downloading · " + App.globalState.freeSpaceText
                 + " free");
     }
 
