@@ -53,6 +53,15 @@ TestCase {
         verify(strip.implicitHeight > Theme.space(6) + Theme.space(10));
     }
 
+    function test_rule_is_on_by_default_and_can_be_turned_off() {
+        const strip = createTemporaryObject(stripComponent, testCase, {
+                                                "items": testCase.sampleItems
+                                            });
+        compare(strip.rule, true);
+        strip.rule = false;
+        compare(strip.rule, false);
+    }
+
     function test_empty_items_still_lays_out() {
         const strip = createTemporaryObject(stripComponent, testCase, {
                                                 "items": []

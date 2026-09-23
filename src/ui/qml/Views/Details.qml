@@ -36,11 +36,13 @@ Item {
     /// tab from its own footer (`HintModel`), so Main turns this off too; the standalone
     /// figures keep it.
     property bool showHints: true
-    /// docs/10 §5: under the table the pane is wide and short, so the head and the strip take
-    /// a left column and the tabs sit beside them, General's rows in two columns.
+    /// docs/10 §5, reworked by docs/13: under the table the pane is wide and short, so the
+    /// head and the strip share one band across the top (name on the left, the four facts on
+    /// the right) and the tabs get the whole width below it, General's rows in two columns.
     property bool wide: false
-    /// The head and strip's width: all of it, or the left column.
-    readonly property int headWidth: root.wide ? Theme.space(280) : root.width
+    /// docs/13: the strip's width in the band. Fixed, so the name does not shift as the ETA
+    /// changes length; never more than half the pane, so the name keeps room.
+    readonly property int bandStripWidth: Math.min(Theme.space(440), Math.floor(root.width / 2))
 
     /// Where the cursor sits inside the current tab's list; General's rows are a list too (G5).
     readonly property int cursorIndex: root.currentTab === 1 ? root.filesCursor : root.currentTab
@@ -558,7 +560,7 @@ Item {
         anchors.left: parent.left
         anchors.leftMargin: Theme.space(16)
         anchors.top: parent.top
-        width: root.headWidth - Theme.space(32)
+        width: (root.wide ? root.width - root.bandStripWidth : root.width) - Theme.space(32)
         height: headColumn.implicitHeight + Theme.space(12) + Theme.space(8)
 
         Column {
@@ -634,9 +636,18 @@ Item {
     Strip {
         id: strip
 
-        anchors.left: parent.left
-        anchors.top: head.bottom
-        width: root.headWidth
+        // docs/13: in the band the strip sits beside the head, centred on its two lines, and
+        // the band's own rule closes it.
+        anchors.right: parent.right
+        objectName: "strip"
+        rule: !root.wide
+        width: root.wide ? root.bandStripWidth : root.width
+        // A y binding rather than anchors: swapping anchors.top for anchors.verticalCenter
+        // when `wide` flips leaves the strip where it was. Centred, the head's text sits 2
+        // below its middle (12 over, 8 under) and the strip's 2 above its own (6 over, 10
+        // under).
+        y: root.wide ? head.y + (head.height - height) / 2 + Theme.space(2) + Theme.space(2)
+                     : head.y + head.height
         items: [
             {
                 "label": qsTr("size"),
@@ -657,24 +668,24 @@ Item {
         ]
     }
 
-    // The rule between the left column and the tabs, while wide.
+    // docs/13: the rule under the band, across the whole pane, while wide.
     Hairline {
-        id: columnRule
+        id: bandRule
 
-        anchors.bottom: parent.bottom
-        anchors.top: parent.top
-        vertical: true
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: head.bottom
         visible: root.wide
-        x: root.headWidth
     }
 
     Tabs {
         id: tabs
 
-        anchors.left: root.wide ? columnRule.right : parent.left
+        anchors.left: parent.left
         anchors.right: parent.right
-        anchors.top: root.wide ? parent.top : strip.bottom
+        anchors.top: root.wide ? bandRule.bottom : strip.bottom
         currentIndex: root.currentTab
+        objectName: "detailsTabs"
         // Set once; activateTab() keeps it in step afterwards.
         model: [
             {
@@ -703,7 +714,7 @@ Item {
         id: body
 
         anchors.bottom: footer.top
-        anchors.left: root.wide ? columnRule.right : parent.left
+        anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: tabs.bottom
         clip: true

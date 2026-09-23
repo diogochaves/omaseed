@@ -7,11 +7,12 @@ import Omaseed.Kit
 // each a tracked dim label over a bright value. `items` is `[{label, value}]`; the spec always
 // shows four, but this component lays out however many it is given, at equal width
 // (`grid-template-columns:repeat(4,1fr)`). Padding is the spec's `6px 16px 10px`; a hairline
-// closes the bottom.
+// closes the bottom unless `rule` is off (docs/13: in the details band the band draws it).
 Item {
     id: root
 
     property var items: []
+    property bool rule: true
 
     readonly property int _labelSize: Math.max(1, Theme.font.caption - 1)
 
@@ -67,5 +68,6 @@ Item {
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.right: parent.right
+        visible: root.rule
     }
 }
