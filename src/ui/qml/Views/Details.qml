@@ -469,6 +469,10 @@ Item {
             event.accepted = true;
             return;
         }
+        // The rest of ctrl belongs to the window: `ctrl+k` is jump, not `k`, and `ctrl+b`
+        // hides the rail rather than doing whatever `b` does here.
+        if (event.modifiers & Qt.ControlModifier)
+            return;
         switch (event.key) {
         case Qt.Key_G:
             if (root.rowCount > 0)

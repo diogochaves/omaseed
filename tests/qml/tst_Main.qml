@@ -230,6 +230,14 @@ TestCase {
         compare(settingsSpy.count, 1);
     }
 
+    // The details pane takes bare letters (`k` moves its cursor), but ctrl chords still
+    // reach the window: `ctrl+k` from the pane opens jump.
+    function test_ctrl_chords_pass_through_the_details_pane() {
+        view.details.forceActiveFocus();
+        keyClick(Qt.Key_K, Qt.ControlModifier);
+        compare(view.jumpPalette.opened, true, "ctrl+k in the details pane did not open jump");
+    }
+
     // docs/08 §4: `ctrl+,` is the desktop's settings key, so it opens them too.
     function test_ctrl_comma_asks_for_settings() {
         keyClick(Qt.Key_Comma, Qt.ControlModifier);
