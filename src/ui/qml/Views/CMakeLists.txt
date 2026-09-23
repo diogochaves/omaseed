@@ -21,8 +21,10 @@ qt_add_qml_module(omaseed-views
         DemoStates.qml
         DemoTorrents.qml
         Details.qml
+        DetailsCell.qml
         DetailsFilesTab.qml
         DetailsGeneralTab.qml
+        DetailsHeader.qml
         DetailsPeersTab.qml
         DetailsTrackersTab.qml
         DimmedOverlay.qml

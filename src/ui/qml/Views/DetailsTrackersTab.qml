@@ -6,7 +6,9 @@ import Omaseed.Kit
 
 // The details pane's Trackers tab (spec v2 §2 Fig. 3 `.list.trk`): a health dot, then
 // `Tracker · Seeds · Peers · Status`. Protocol prefixes are already dropped by the model;
-// the full URL travels in the `y` copy action. DHT/PeX/LSD are dimmed rows with a dim dot.
+// the full URL travels in the `y` copy action and shows on hover. DHT/PeX/LSD are dimmed rows
+// with a dim dot. Hosts elide in the middle so the TLD survives (docs/11 J1), and each header
+// sits over its column's text, the dot column included (J2).
 Item {
     id: root
 
@@ -42,29 +44,29 @@ Item {
         anchors.top: parent.top
         spacing: Theme.space(8)
 
-        TableHeader {
+        DetailsHeader {
             Layout.preferredWidth: root.dotWidth
             text: ""
         }
 
-        TableHeader {
+        DetailsHeader {
             Layout.fillWidth: true
             text: qsTr("Tracker")
         }
 
-        TableHeader {
+        DetailsHeader {
             Layout.preferredWidth: root.seedsWidth
             alignRight: true
             text: qsTr("Seeds")
         }
 
-        TableHeader {
+        DetailsHeader {
             Layout.preferredWidth: root.peersWidth
             alignRight: true
             text: qsTr("Peers")
         }
 
-        TableHeader {
+        DetailsHeader {
             Layout.preferredWidth: root.statusWidth
             text: qsTr("Status")
         }
@@ -86,6 +88,7 @@ Item {
 
             required property int index
             required property string host
+            required property string url
             required property string statusText
             required property string dotRole
             required property int status
@@ -111,55 +114,59 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: Theme.space(8)
 
+                // The dot's column is as wide as its (empty) header, so the host starts
+                // where "Tracker" does.
                 Item {
                     Layout.preferredHeight: Theme.space(6)
-                    Layout.preferredWidth: Theme.space(6)
+                    Layout.preferredWidth: root.dotWidth
 
                     Rectangle {
-                        anchors.fill: parent
+                        anchors.left: parent.left
+                        anchors.verticalCenter: parent.verticalCenter
                         color: Theme[row.dotRole]
+                        height: Theme.space(6)
                         radius: width / 2
+                        width: Theme.space(6)
                     }
                 }
 
-                Text {
+                DetailsCell {
                     Layout.fillWidth: true
+                    alwaysTip: !row.isPseudo
                     color: row.rowColor
-                    elide: Text.ElideRight
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.font.small
+                    elide: Text.ElideMiddle
+                    objectName: "trackerHost_" + row.index
                     text: row.host
+                    tip: tip
+                    tipText: row.url
                 }
 
-                Text {
+                DetailsCell {
                     Layout.preferredWidth: root.seedsWidth
                     color: row.rowColor
-                    elide: Text.ElideRight
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.font.small
                     horizontalAlignment: Text.AlignRight
                     text: row.seedsText
                 }
 
-                Text {
+                DetailsCell {
                     Layout.preferredWidth: root.peersWidth
                     color: row.rowColor
-                    elide: Text.ElideRight
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.font.small
                     horizontalAlignment: Text.AlignRight
                     text: row.leechesText
                 }
 
-                Text {
+                DetailsCell {
                     Layout.preferredWidth: root.statusWidth
                     color: row.statusColor
-                    elide: Text.ElideRight
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.font.small
                     text: row.statusText
+                    tip: tip
                 }
             }
         }
+    }
+
+    // The whole announce URL on a host, the whole status on a cut one.
+    Tooltip {
+        id: tip
     }
 }
