@@ -101,6 +101,12 @@ cmd_start() {
     [ -f "$CONTROL" ] || echo '{}' >"$CONTROL"
     control exemptPorts "[$SEEDER_BT_PORT]"
     play_server start | sed 's/^/playground: /'
+    # Two downloads at a time, so the rest show as queued; but finished swarm torrents must not
+    # use up the active slots (5 by default), or a later download sits "stalled" with its peer
+    # right there, held back by the queue. Announcing to every tier lets `break dead`'s tracker
+    # (a tier of its own) be tried, not skipped while the first one works.
+    curl -fs -X POST "$PLAY/app/setPreferences" --data-urlencode \
+        'json={"max_active_downloads":2,"max_active_uploads":20,"max_active_torrents":20,"announce_to_all_tiers":true,"announce_to_all_trackers":true}' >/dev/null
     seeder_server start | sed 's/^/seeder:     /'
     curl -fs -X POST "$SEEDER/app/setPreferences" --data-urlencode \
         "json={\"enable_embedded_tracker\":false,\"queueing_enabled\":false,\"up_limit\":$((${OMASEED_SWARM_RATE:-4096} * 1024))}" >/dev/null
@@ -270,6 +276,7 @@ PY
         hash="$(find_torrent "$name")"
         curl -fs -X POST "$PLAY/torrents/addTrackers" -d "hash=$hash" --data-urlencode "urls=$DEAD_TRACKER" >/dev/null
         wake "$hash"
+        reannounce
         echo "added $DEAD_TRACKER to $(find_torrent "$name" name)" ;;
     missing)
         name="${name:-tiny-notes}"
@@ -284,7 +291,8 @@ PY
         local ro="$PLAY_DOWNLOADS/$CATEGORY-readonly"
         mkdir -p "$ro" && chmod 555 "$ro"
         add_torrent "unwritable-fixture.bin" "$ro"
-        wake "$(find_torrent unwritable-fixture)"
+        # Force-started outright: it is still loading here, too early for wake to see it queued.
+        curl -fs -X POST "$PLAY/torrents/setForceStart" -d "hashes=$(find_torrent unwritable-fixture)" -d value=true >/dev/null
         echo "unwritable-fixture.bin saves into read-only $ro" ;;
     checking)
         name="${name:-Open Movie Night}"
