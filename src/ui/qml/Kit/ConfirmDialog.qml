@@ -162,13 +162,15 @@ Item {
                 wrapMode: Text.WordWrap
             }
 
+            // A torrent name is often one long word, so it breaks at the edge rather than
+            // running past it.
             Label {
                 Layout.fillWidth: true
                 dim: true
                 size: "small"
                 text: root.subtitle
                 visible: root.subtitle.length > 0
-                wrapMode: Text.WordWrap
+                wrapMode: Text.WrapAtWordBoundaryOrAnywhere
             }
 
             ColumnLayout {

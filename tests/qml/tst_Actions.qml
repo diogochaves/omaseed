@@ -126,11 +126,37 @@ TestCase {
         compare(view.deleteConfirmPanel.body.children[0].checked, true);
     }
 
+    // Batch-2 J7: the title counts, the line under it names the torrent and its size once.
     function test_delete_confirm_names_a_single_torrent() {
         const hash = hashByName("Elephants Dream 1080p (CC-BY)");
         view.table.moveCursorTo(App.filtered.rowOfHash(hash));
         keyClick("d");
-        compare(view.deleteConfirmPanel.message.indexOf("Elephants Dream") >= 0, true);
+        compare(view.deleteConfirmPanel.message, "Delete this torrent?");
+        const lines = view.deleteConfirmPanel.subtitle.split("\n");
+        compare(lines.length, 2);
+        compare(lines[0], "Elephants Dream 1080p (CC-BY)");
+        compare(lines[1], App.sizeText(App.torrentRow(hash).size) + " on disk");
+    }
+
+    function test_delete_confirm_lists_three_names_then_counts_the_rest() {
+        const hashes = [];
+        for (let i = 0; i < 5; ++i)
+            hashes.push(App.filtered.hashAt(i));
+        view.deleteConfirmPanel.openFor(hashes, false);
+        compare(view.deleteConfirmPanel.message, "Delete 5 torrents?");
+        const lines = view.deleteConfirmPanel.subtitle.split("\n");
+        compare(lines.length, 4);
+        compare(lines[0], App.torrentRow(hashes[0]).name);
+        compare(lines[2], App.torrentRow(hashes[2]).name);
+        verify(lines[3].startsWith("and 2 more · "), lines[3]);
+        verify(lines[3].endsWith(" on disk"), lines[3]);
+        view.deleteConfirmPanel.close();
+
+        view.deleteConfirmPanel.openFor(hashes.slice(0, 3), false);
+        compare(view.deleteConfirmPanel.message, "Delete 3 torrents?");
+        compare(view.deleteConfirmPanel.subtitle.split("\n").length, 4);
+        verify(view.deleteConfirmPanel.subtitle.indexOf("more") < 0);
+        view.deleteConfirmPanel.close();
     }
 
     // ---- the location sheet (Fig. 7) -------------------------------------------------------

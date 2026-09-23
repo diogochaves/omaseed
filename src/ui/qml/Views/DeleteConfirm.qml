@@ -4,11 +4,12 @@ import QtQuick.Layouts
 import Omaseed
 import Omaseed.Kit
 
-// The delete confirmation of spec v2 §3 Fig. 6 (`.confirm`), on `Kit/ConfirmDialog`: one
-// torrent names itself ("Delete "linux-distro.iso"?"), several are counted, the subtitle
-// lists the names and the total size, and the body's toggle remembers whether the files come
-// with it (`App.deleteFilesDefault`). `d` opens with the toggle as remembered; `D` opens it
-// forced on.
+// The delete confirmation of spec v2 §3 Fig. 6 (`.confirm`), on `Kit/ConfirmDialog`. The
+// title only counts ("Delete this torrent?", "Delete 3 torrents?"); the names and the total
+// size are said once, in the line under it, one name per line, the first three and then "and
+// N more" (batch-2 J7: the title used to repeat the name and wrap in the middle of it). The
+// body's toggle remembers whether the files come with it (`App.deleteFilesDefault`). `d`
+// opens with the toggle as remembered; `D` opens it forced on.
 ConfirmDialog {
     id: root
 
@@ -21,12 +22,18 @@ ConfirmDialog {
     cancelText: qsTr("cancel")
     confirmText: qsTr("delete")
     destructive: true
-    message: root.hashes.length === 1 ? qsTr("Delete “%1”?").arg(
-                                            root._names.length > 0 ? root._names[0] : "")
-                                       : qsTr("Delete %1 torrents and their files?").arg(
-                                            root.hashes.length)
-    subtitle: qsTr("%1 · %2 on disk").arg(root._names.join(", ")).arg(App.sizeText(
-                                                    root._totalSize))
+    message: root.hashes.length === 1 ? qsTr("Delete this torrent?")
+                                      : qsTr("Delete %1 torrents?").arg(root.hashes.length)
+    subtitle: {
+        const shown = root._names.slice(0, root._listed);
+        const size = qsTr("%1 on disk").arg(App.sizeText(root._totalSize));
+        const more = root._names.length - shown.length;
+        const last = more > 0 ? qsTr("and %1 more · %2").arg(more).arg(size) : size;
+        return shown.concat([last]).join("\n");
+    }
+
+    /// How many names the line under the title spells out before "and N more".
+    readonly property int _listed: 3
 
     /// Opens the dialog on `hashes`, with the "also delete files" toggle set to `filesOn`
     /// (the remembered default for `d`, forced true for `D`).
