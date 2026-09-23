@@ -52,6 +52,7 @@ QT_QPA_PLATFORM=offscreen ./build/omaseed --help  # headless smoke
 ./build/omaseed                                   # real run under Hyprland
 qmllint src/ui/qml/**/*.qml && qmlformat -i <file>
 scripts/dev/test-server.sh start|stop|status|reset|seed [--strict]
+scripts/dev/swarm.sh start|seed|status|break CASE|fix|reset|stop   # offline swarm: real downloads on :8081
 ```
 
 Visual checks under Hyprland: run the app, find it with `hyprctl -j clients`, screenshot with

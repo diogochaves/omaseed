@@ -29,12 +29,12 @@ if [ "$STRICT" = 1 ]; then
   PROFILE="${OMASEED_STRICT_PROFILE:-$HOME/.local/share/omaseed-test-strict}"
   PORT="${OMASEED_STRICT_PORT:-8082}"
   LOCALHOST_AUTH=true
-  BT_PORT=26998
+  BT_PORT="${OMASEED_STRICT_BT_PORT:-26998}"
 else
   PROFILE="${OMASEED_TEST_PROFILE:-$HOME/.local/share/omaseed-test}"
   PORT="${OMASEED_TEST_PORT:-8081}"
   LOCALHOST_AUTH=false
-  BT_PORT=26999
+  BT_PORT="${OMASEED_TEST_BT_PORT:-26999}"
 fi
 WEBUI_USER="omaseed"
 WEBUI_PASS="omaseed-test"
@@ -113,6 +113,10 @@ cmd_start() {
     >"$LOGFILE" 2>&1 &
   echo $! > "$PIDFILE"
   wait_up
+  # Peers on loopback only, no UPnP: a test server is never reachable from the LAN (the WebUI
+  # already binds 127.0.0.1; the BitTorrent port used to listen on every interface).
+  api /api/v2/app/setPreferences -X POST --data-urlencode \
+    'json={"current_network_interface":"lo","current_interface_address":"127.0.0.1","upnp":false}' >/dev/null
   echo "qBittorrent $(api /api/v2/app/version) · API $(api /api/v2/app/webapiVersion) · $BASE · profile $PROFILE$([ "$STRICT" = 1 ] && echo ' · strict auth')"
 }
 
