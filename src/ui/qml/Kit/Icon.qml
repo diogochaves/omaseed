@@ -75,6 +75,17 @@ Item {
                                        "selectAll": {
                                            "stroke": "M4 4 H20 V20 H4 Z M8 12 L11 15 L16 9",
                                            "fill": ""
+                                       },
+                                       // Batch-2 J8: a list with a thumb beside it, for the
+                                       // scroll-hint setting.
+                                       "scroll": {
+                                           "stroke": "M4 6 H14 M4 12 H14 M4 18 H14 M19.5 3.5 V20.5",
+                                           "fill": "M18 7 H21 V13 H18 Z"
+                                       },
+                                       // Batch-2 J8: a globe, for the tracker-host setting.
+                                       "globe": {
+                                           "stroke": "M20.5 12 A8.5 8.5 0 1 1 3.5 12 A8.5 8.5 0 1 1 20.5 12 Z M3.5 12 H20.5 M12 3.5 C8 7.5 8 16.5 12 20.5 M12 3.5 C16 7.5 16 16.5 12 20.5",
+                                           "fill": ""
                                        }
                                    })
 

@@ -474,6 +474,8 @@ TestCase {
         compare(modal.paneIndex, 5);
         verify(App.versionText.length > 0);
         verify(App.qtVersionText.length > 0);
+        // Batch-2 J8: the Qt version has its own row, so VERSION does not repeat it.
+        verify(App.versionText.indexOf("Qt") < 0, App.versionText);
         verify(App.repoUrl.indexOf("http") === 0);
         verify(App.pluginAddCommand.indexOf("omarchy plugin add ") === 0);
     }

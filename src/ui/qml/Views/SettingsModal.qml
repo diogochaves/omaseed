@@ -541,7 +541,9 @@ Item {
 
                             SettingsRow {
                                 Layout.fillWidth: true
-                                description: qsTr("Only useful with two or more servers. Off hides the multi-server chrome.")
+                                // Batch-2 J8: plain words, and true to Rail.qml, which draws
+                                // the group only from two servers and never while this is off.
+                                description: qsTr("It appears once you add a second server. Off keeps it hidden even then.")
                                 glyph: Glyphs.mark
                                 hasCursor: root.area === "pane" && root.paneCursor === 0
                                 title: qsTr("Show the Servers group in the rail")
@@ -1004,7 +1006,7 @@ Item {
                             SettingsRow {
                                 Layout.fillWidth: true
                                 description: qsTr("how the rail says there is more above or below it.")
-                                glyph: Glyphs.chevronDown
+                                glyph: Glyphs.scrollHint
                                 hasCursor: root.area === "pane" && root.paneCursor === 5
                                 title: qsTr("Rail scroll hint")
 
@@ -1070,7 +1072,7 @@ Item {
                             SettingsRow {
                                 Layout.fillWidth: true
                                 description: qsTr("how a long tracker host fits the rail.")
-                                glyph: Glyphs.tracker
+                                glyph: Glyphs.host
                                 hasCursor: root.area === "pane" && root.paneCursor === 7
                                 title: qsTr("Tracker hosts")
 

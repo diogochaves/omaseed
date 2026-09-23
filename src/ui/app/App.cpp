@@ -2050,7 +2050,7 @@ void App::setTrayIconMode(const QString &mode)
 
 QString App::versionText() const
 {
-    return omaseed::core::versionLine();
+    return QStringLiteral("omaseed %1").arg(omaseed::core::version());
 }
 
 QString App::qtVersionText() const

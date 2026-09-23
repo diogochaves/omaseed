@@ -442,7 +442,8 @@ public:
     void setTrayIconMode(const QString &mode);
 
     // About pane -------------------------------------------------------------------------
-    /// "omaseed 0.1.0 · Qt 6.11.0" — `core::versionLine()`.
+    /// "omaseed 0.1.0". Not `core::versionLine()`: the About pane prints the Qt version on
+    /// its own row (`qtVersionText`), so VERSION repeating it read twice (batch-2 J8).
     Q_PROPERTY(QString versionText READ versionText CONSTANT)
     QString versionText() const;
     /// The Qt this binary runs against, on its own.
