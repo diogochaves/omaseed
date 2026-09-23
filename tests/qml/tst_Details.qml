@@ -83,13 +83,34 @@ TestCase {
         const properties = App.details.properties;
 
         compare(properties.savePath, "/data/torrents/linux/");
-        compare(properties.pieces, "1 264 × 1 MiB · 617 have");
+        compare(properties.pieces, "1 264 × 1 MiB");
+        compare(properties.piecesHave, "617 of 1 264");
         compare(properties.availability, "38.20");
         compare(properties.seeds, "21 connected · 1 204 total");
         compare(properties.comment, "Arch Linux 2026.09.01 release");
         compare(properties.createdBy, "mktorrent 1.1");
         // Spec §2 Fig. 1 has no "Created on" row; the demo leaves the date out.
         compare(properties.createdOn, "");
+    }
+
+    // docs/12 G2: the demo fills every new row, so `--demo` shows them all.
+    function test_the_demo_fills_the_docs12_rows() {
+        testCase.select(testCase.archName);
+        const properties = App.details.properties;
+
+        compare(properties.connections, "63 of 100");
+        compare(properties.avgSpeed, "↓ 1.72 MB/s · ↑ 96 KB/s");
+        verify(properties.reannounce.startsWith("in "));
+        verify(properties.lastSeen.length > 0);
+        verify(properties.private === "yes" || properties.private === "no");
+        verify(properties.magnet.startsWith("magnet:?xt=urn:btih:"));
+        verify(properties.magnetText.endsWith("…"));
+
+        // A finished one has a seeding time and a completion date as well.
+        testCase.select(testCase.bbbName);
+        const finished = App.details.properties;
+        verify(finished.seedingTime.length > 0, "no seeding time for a complete torrent");
+        verify(finished.completedOn.length > 0, "no completion date for a complete torrent");
     }
 
     function test_files_tab_is_figure_two() {

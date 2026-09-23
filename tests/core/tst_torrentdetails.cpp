@@ -3,6 +3,7 @@
 // models at once, and the share limit it has to fetch from the torrent row because
 // torrents/properties does not carry it.
 
+#include "core/Format.hpp"
 #include "core/TorrentDetails.hpp"
 #include "core/TorrentModel.hpp"
 
@@ -54,6 +55,7 @@ private Q_SLOTS:
     void general_tab_strings_from_a_recorded_properties();
     void the_figure_ones_general_rows();
     void share_limit_comes_from_the_torrent_row();
+    void the_docs12_rows();
     void apply_demo_fills_every_model();
     void selecting_another_torrent_clears_everything();
     void nothing_polls_without_a_client();
@@ -77,8 +79,20 @@ void TestTorrentDetails::general_tab_strings_from_a_recorded_properties()
     QCOMPARE(properties.value(QStringLiteral("downloaded")).toString(),
              QStringLiteral("0 of 4 KB"));
     QCOMPARE(properties.value(QStringLiteral("uploaded")).toString(), QStringLiteral("0"));
-    QCOMPARE(properties.value(QStringLiteral("pieces")).toString(),
-             QStringLiteral("1 × 16 KiB · 0 have"));
+    QCOMPARE(properties.value(QStringLiteral("pieces")).toString(), QStringLiteral("1 × 16 KiB"));
+    QCOMPARE(properties.value(QStringLiteral("piecesHave")).toString(), QStringLiteral("0 of 1"));
+    // docs/12 G2 on a stopped torrent that never ran: -1 averages, no announce, no seeding,
+    // never seen complete, and not private.
+    QCOMPARE(properties.value(QStringLiteral("connections")).toString(),
+             QStringLiteral("0 of 100"));
+    QCOMPARE(properties.value(QStringLiteral("avgSpeed")).toString(), QString());
+    QCOMPARE(properties.value(QStringLiteral("reannounce")).toString(), QString());
+    QCOMPARE(properties.value(QStringLiteral("seedingTime")).toString(), QString());
+    QCOMPARE(properties.value(QStringLiteral("completedOn")).toString(), QString());
+    QCOMPARE(properties.value(QStringLiteral("lastSeen")).toString(), QStringLiteral("never"));
+    QCOMPARE(properties.value(QStringLiteral("private")).toString(), QStringLiteral("no"));
+    // No torrent row, so no magnet.
+    QCOMPARE(properties.value(QStringLiteral("magnet")).toString(), QString());
     QCOMPARE(properties.value(QStringLiteral("availability")).toString(), QStringLiteral("0.00"));
     QCOMPARE(properties.value(QStringLiteral("seeds")).toString(),
              QStringLiteral("0 connected · 0 total"));
@@ -114,7 +128,9 @@ void TestTorrentDetails::the_figure_ones_general_rows()
     QCOMPARE(properties.value(QStringLiteral("uploaded")).toString(), QStringLiteral("98.4 MB"));
     QCOMPARE(properties.value(QStringLiteral("wasted")).toString(), QStringLiteral("2.10 MB"));
     QCOMPARE(properties.value(QStringLiteral("pieces")).toString(),
-             QStringLiteral("1 264 × 1 MiB · 617 have"));
+             QStringLiteral("1 264 × 1 MiB"));
+    QCOMPARE(properties.value(QStringLiteral("piecesHave")).toString(),
+             QStringLiteral("617 of 1 264"));
     QCOMPARE(properties.value(QStringLiteral("availability")).toString(), QStringLiteral("38.20"));
     QCOMPARE(properties.value(QStringLiteral("seeds")).toString(),
              QStringLiteral("21 connected · 1 204 total"));
@@ -151,6 +167,76 @@ void TestTorrentDetails::share_limit_comes_from_the_torrent_row()
 
     QCOMPARE(details.properties().value(QStringLiteral("shareLimit")).toString(),
              QStringLiteral("ratio 2.0"));
+}
+
+void TestTorrentDetails::the_docs12_rows()
+{
+    TorrentModel torrents;
+    QJsonObject row;
+    row.insert(QStringLiteral("name"), QStringLiteral("archlinux"));
+    row.insert(QStringLiteral("magnet_uri"),
+               QStringLiteral("magnet:?xt=urn:btih:3f6c9a1b7e2d4c8f0a5b6e7d8c9f0a1b2c3d4e5f"
+                              "&dn=archlinux&tr=https%3A%2F%2Ftracker.example.org%2Fannounce"));
+    QJsonObject map;
+    map.insert(QStringLiteral("0000a8b4"), row);
+    torrents.applyFullUpdate(map);
+
+    TorrentDetails details;
+    details.setTorrentModel(&torrents);
+
+    QJsonObject properties = fixture(QStringLiteral("properties-fig1.json")).object();
+    QJsonObject demo;
+    demo.insert(QStringLiteral("hash"), QStringLiteral("0000a8b4"));
+    demo.insert(QStringLiteral("properties"), properties);
+    details.applyDemo(demo);
+
+    QVariantMap general = details.properties();
+    QCOMPARE(general.value(QStringLiteral("connections")).toString(), QStringLiteral("63 of 100"));
+    QCOMPARE(general.value(QStringLiteral("avgSpeed")).toString(),
+             QStringLiteral("↓ 1.72 MB/s · ↑ 96 KB/s"));
+    QCOMPARE(general.value(QStringLiteral("reannounce")).toString(), QStringLiteral("in 27 min"));
+    QCOMPARE(general.value(QStringLiteral("lastSeen")).toString(),
+             omaseed::core::Format::relativeTime(QDateTime::fromSecsSinceEpoch(1789822500)));
+    QCOMPARE(general.value(QStringLiteral("private")).toString(), QStringLiteral("no"));
+    // Still downloading: neither seeding time nor a completion date.
+    QCOMPARE(general.value(QStringLiteral("seedingTime")).toString(), QString());
+    QCOMPARE(general.value(QStringLiteral("completedOn")).toString(), QString());
+    // The magnet is the torrent row's, whole; the short one is only for the eye.
+    QCOMPARE(general.value(QStringLiteral("magnet")).toString(),
+             row.value(QStringLiteral("magnet_uri")).toString());
+    QCOMPARE(general.value(QStringLiteral("magnetText")).toString(),
+             QStringLiteral("magnet:?xt=urn:btih:3f6c9a1b…"));
+
+    // Finished and seeding on a private tracker.
+    properties.insert(QStringLiteral("seeding_time"), 7260);
+    properties.insert(QStringLiteral("completion_date"), 1789822500);
+    properties.insert(QStringLiteral("private"), true);
+    properties.insert(QStringLiteral("nb_connections_limit"), -1);
+    demo.insert(QStringLiteral("properties"), properties);
+    details.applyDemo(demo);
+    general = details.properties();
+    QCOMPARE(general.value(QStringLiteral("seedingTime")).toString(), QStringLiteral("2h 1m"));
+    QVERIFY(!general.value(QStringLiteral("completedOn")).toString().isEmpty());
+    QCOMPARE(general.value(QStringLiteral("private")).toString(), QStringLiteral("yes"));
+    QCOMPARE(general.value(QStringLiteral("connections")).toString(), QStringLiteral("63 of ∞"));
+
+    // A 5.x magnet with no metadata: `private` is null, and every piece count is -1, so
+    // neither Private nor "never seen complete" can be said yet.
+    QJsonObject magnetOnly;
+    magnetOnly.insert(QStringLiteral("private"), QJsonValue::Null);
+    magnetOnly.insert(QStringLiteral("is_private"), false);
+    magnetOnly.insert(QStringLiteral("last_seen"), -1);
+    magnetOnly.insert(QStringLiteral("pieces_num"), -1);
+    magnetOnly.insert(QStringLiteral("dl_speed_avg"), -1);
+    magnetOnly.insert(QStringLiteral("up_speed_avg"), -1);
+    demo.insert(QStringLiteral("properties"), magnetOnly);
+    details.applyDemo(demo);
+    general = details.properties();
+    QCOMPARE(general.value(QStringLiteral("private")).toString(), QString());
+    QCOMPARE(general.value(QStringLiteral("lastSeen")).toString(), QString());
+    QCOMPARE(general.value(QStringLiteral("avgSpeed")).toString(), QString());
+    QCOMPARE(general.value(QStringLiteral("pieces")).toString(), QString());
+    QCOMPARE(general.value(QStringLiteral("connections")).toString(), QString());
 }
 
 void TestTorrentDetails::apply_demo_fills_every_model()

@@ -1035,6 +1035,32 @@ QJsonObject details(const omaseed::core::Torrent &torrent)
     // Spec §2 Fig. 1 has no "Created on" row, so the demo leaves the date out.
     properties.insert(QStringLiteral("creation_date"), -1);
 
+    // docs/12 G2: every new row of the General tab has a value in the demo.
+    const bool stopped = torrent.inGroup(omaseed::core::StatusGroup::Stopped);
+    const bool complete = torrent.progress >= 1.0;
+    const int spread = int(torrent.infohashV1.isEmpty() ? 0 : torrent.infohashV1.at(0).unicode());
+    properties.insert(QStringLiteral("nb_connections"),
+                      stopped ? 0 : torrent.numSeeds + torrent.numLeechs);
+    properties.insert(QStringLiteral("nb_connections_limit"), 100);
+    const qint64 active = std::max(qint64(1), isArch ? qint64(862) : torrent.timeActive);
+    properties.insert(QStringLiteral("dl_speed_avg"),
+                      isArch ? qint64(1806131) : torrent.downloaded / active);
+    properties.insert(QStringLiteral("up_speed_avg"),
+                      isArch ? qint64(98304) : torrent.uploaded / active);
+    // Complete torrents were last seen whole the moment they finished; the others a little
+    // while ago, some of them today.
+    const qint64 now = QDateTime::currentSecsSinceEpoch();
+    properties.insert(QStringLiteral("last_seen"),
+                      complete ? now - 60 : now - 600 - qint64(spread % 7) * 3 * 3600);
+    properties.insert(QStringLiteral("seeding_time"), torrent.seedingTime);
+    properties.insert(QStringLiteral("completion_date"),
+                      torrent.completionOn.isValid() ? torrent.completionOn.toSecsSinceEpoch()
+                                                     : qint64(-1));
+    properties.insert(QStringLiteral("reannounce"), stopped ? 0 : 120 + (spread % 25) * 60);
+    const bool isPrivate = torrent.tags.contains(QStringLiteral("private"));
+    properties.insert(QStringLiteral("private"), isPrivate);
+    properties.insert(QStringLiteral("is_private"), isPrivate);
+
     result.insert(QStringLiteral("hash"), torrent.hash);
     result.insert(QStringLiteral("properties"), properties);
     result.insert(QStringLiteral("files"), isBbb ? bigBuckBunnyFiles() : generatedFiles(torrent));

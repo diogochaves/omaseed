@@ -49,10 +49,13 @@ class TorrentDetails : public QObject
     Q_PROPERTY(omaseed::core::TorrentPeersModel *peers READ peers CONSTANT)
 
     /// The General tab's ready-to-draw strings (spec §2 Fig. 1's `.kv` block). Keys:
-    /// name, savePath, hashV1, hashV2, downloaded, uploaded, wasted, pieces, availability,
-    /// seeds, peers, timeActive, shareLimit, createdBy, comment, createdOn. Every value is a
-    /// QString already through Format; a value the server did not send is an empty string,
-    /// and the view leaves that row out.
+    /// name, savePath, hashV1, hashV2, downloaded, uploaded, wasted, pieces ("1 264 × 1 MiB"),
+    /// piecesHave ("617 of 1 264"), availability, seeds, peers, timeActive, shareLimit,
+    /// createdBy, comment, createdOn, and docs/12 G2's connections, lastSeen, seedingTime,
+    /// completedOn, avgSpeed, reannounce, private, magnet (the whole link, from the torrent
+    /// row) and magnetText (the same, shortened for the eye). Every value is a QString
+    /// already through Format; a value the server did not send, or sent as "unknown", is an
+    /// empty string, and the view leaves that row out.
     Q_PROPERTY(QVariantMap properties READ properties NOTIFY propertiesChanged)
 
     /// True while any real tracker of this torrent is failing — the Trackers tab's badge.

@@ -512,6 +512,8 @@ void App::selectTorrent(const QString &hash)
 
     if (m_demoMode) {
         // No server: the pane is filled from the same fictional library the table draws.
+        // The torrent row still carries what torrents/properties lacks (limits, magnet).
+        m_details->setTorrentModel(m_engine->torrents());
         m_details->applyDemo(DemoData::details(m_engine->torrents()->torrent(hash)));
         return;
     }

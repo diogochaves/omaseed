@@ -252,9 +252,10 @@ void TorrentDetails::applyProperties(const QJsonObject &json)
                    .arg(Format::size(number("total_downloaded")), Format::size(totalSize)));
     map.insert(QStringLiteral("uploaded"), Format::size(number("total_uploaded")));
     map.insert(QStringLiteral("wasted"), Format::size(number("total_wasted")));
-    map.insert(QStringLiteral("pieces"),
-               Format::pieces(
-                   int(number("pieces_num")), number("piece_size"), int(number("pieces_have"))));
+    const int piecesNum = int(number("pieces_num"));
+    map.insert(QStringLiteral("pieces"), Format::pieceLayout(piecesNum, number("piece_size")));
+    map.insert(QStringLiteral("piecesHave"),
+               Format::piecesHave(int(number("pieces_have")), piecesNum));
     map.insert(QStringLiteral("availability"), Format::ratio(real("availability")));
     map.insert(QStringLiteral("seeds"),
                Format::connectedTotal(int(number("seeds")), int(number("seeds_total"))));
@@ -269,15 +270,64 @@ void TorrentDetails::applyProperties(const QJsonObject &json)
                created > 0 ? Format::relativeTime(QDateTime::fromSecsSinceEpoch(created))
                            : QString());
 
-    // torrents/properties has no share limits; the torrent row of sync/maindata does.
+    // docs/12 G2. qBittorrent marks "not known" with -1 (or leaves the key out on an older
+    // server); every such value turns into an empty string, and the view drops the row.
+    const auto has = [&json](const char *key) {
+        const QJsonValue value = json.value(QLatin1StringView(key));
+        return !value.isUndefined() && !value.isNull();
+    };
+    const auto when = [&](const char *key) {
+        const qint64 seconds = number(key);
+        return seconds > 0 ? Format::relativeTime(QDateTime::fromSecsSinceEpoch(seconds))
+                           : QString();
+    };
+
+    map.insert(QStringLiteral("connections"),
+               has("nb_connections") ? Format::connections(int(number("nb_connections")),
+                                                           int(number("nb_connections_limit")))
+                                     : QString());
+    // "Never" is the answer that matters for a stalled torrent, but only once there is
+    // metadata to be complete against.
+    QString lastSeen = when("last_seen");
+    if (lastSeen.isEmpty() && has("last_seen") && piecesNum > 0)
+        lastSeen = QStringLiteral("never");
+    map.insert(QStringLiteral("lastSeen"), lastSeen);
+    const qint64 seedingTime = number("seeding_time");
+    map.insert(QStringLiteral("seedingTime"),
+               seedingTime > 0 ? Format::duration(seedingTime) : QString());
+    map.insert(QStringLiteral("completedOn"), when("completion_date"));
+    map.insert(QStringLiteral("avgSpeed"),
+               has("dl_speed_avg") || has("up_speed_avg")
+                   ? Format::averageSpeeds(has("dl_speed_avg") ? number("dl_speed_avg") : -1,
+                                           has("up_speed_avg") ? number("up_speed_avg") : -1)
+                   : QString());
+    map.insert(QStringLiteral("reannounce"), Format::reannounceIn(number("reannounce")));
+
+    // `private` (5.0+) is null until the metadata says; older servers only send
+    // `is_private`, which reads false for a magnet that has no metadata yet.
+    QString privateText;
+    const QJsonValue privateValue = json.value(QLatin1StringView("private"));
+    const QJsonValue isPrivate = json.value(QLatin1StringView("is_private"));
+    if (privateValue.isBool())
+        privateText = privateValue.toBool() ? QStringLiteral("yes") : QStringLiteral("no");
+    else if (privateValue.isUndefined() && isPrivate.isBool() && piecesNum > 0)
+        privateText = isPrivate.toBool() ? QStringLiteral("yes") : QStringLiteral("no");
+    map.insert(QStringLiteral("private"), privateText);
+
+    // torrents/properties has no share limits and no magnet; the torrent row of
+    // sync/maindata has both.
     double ratioLimit = -2.0;
     qint64 seedingTimeLimit = -2;
-    if (!m_torrents.isNull() && !m_hash.isEmpty()) {
+    QString magnet;
+    if (!m_torrents.isNull() && !m_hash.isEmpty() && m_torrents->indexOfHash(m_hash) >= 0) {
         const Torrent &row = m_torrents->torrent(m_hash);
         ratioLimit = row.ratioLimit;
         seedingTimeLimit = row.seedingTimeLimit;
+        magnet = row.magnetUri;
     }
     map.insert(QStringLiteral("shareLimit"), Format::shareLimit(ratioLimit, seedingTimeLimit));
+    map.insert(QStringLiteral("magnet"), magnet);
+    map.insert(QStringLiteral("magnetText"), Format::shortMagnet(magnet));
 
     if (map == m_properties)
         return;
