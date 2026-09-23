@@ -172,7 +172,9 @@ void TestAppAdd::init()
 
 void TestAppAdd::cleanup()
 {
-    if (m_live)
+    // OMASEED_TEST_KEEP=1 leaves what a case added on the playground, to look at it with curl
+    // afterwards; the next run's deleteFixtures() clears it.
+    if (m_live && qEnvironmentVariableIsEmpty("OMASEED_TEST_KEEP"))
         deleteFixtures();
     clearServerEnvironment();
     if (m_savedConfigHome.isEmpty())
