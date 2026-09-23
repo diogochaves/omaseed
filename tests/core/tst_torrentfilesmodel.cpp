@@ -54,6 +54,11 @@ private Q_SLOTS:
     void shown_order_splits_the_files_in_thirds();
     void a_local_rename_moves_the_subtree();
     void the_server_path_follows_the_content_path();
+    void the_summary_counts_files_folders_size_and_skips();
+    void select_all_files_takes_what_the_filter_shows();
+    void the_filter_takes_wildcards_and_alternatives_data();
+    void the_filter_takes_wildcards_and_alternatives();
+    void a_wildcard_filter_keeps_the_folders_of_a_match();
 };
 
 void TestTorrentFilesModel::builds_the_tree_from_slash_separated_names()
@@ -529,6 +534,144 @@ void TestTorrentFilesModel::the_server_path_follows_the_content_path()
                                              QStringLiteral("Pack/a.bin")),
              QStringLiteral("D:\\Torrents\\Pack\\a.bin"));
     QCOMPARE(TorrentFilesModel::serverPathOf(QString(), QString(), QStringLiteral("a")), QString());
+}
+
+// docs/12 F1: the line above the headers, "5 files · 2 folders · 3.91 GB · 2 skipped".
+void TestTorrentFilesModel::the_summary_counts_files_folders_size_and_skips()
+{
+    TorrentFilesModel model;
+    QSignalSpy summary(&model, &TorrentFilesModel::summaryChanged);
+    model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
+    QCOMPARE(summary.count(), 1);
+    QCOMPARE(model.fileCount(), 5);
+    QCOMPARE(model.folderCount(), 2);
+    QCOMPARE(model.skippedCount(), 2);
+    QCOMPARE(model.totalSize(), 4199502437LL);
+    QCOMPARE(model.totalSizeText(), QStringLiteral("3.91 GB"));
+
+    // The filter narrows the rows, not the summary.
+    model.setFilterText(QStringLiteral("srt"));
+    QCOMPARE(model.folderCount(), 2);
+    QCOMPARE(model.totalSize(), 4199502437LL);
+
+    // A priority change moves the skipped count; a poll with the same numbers does not emit.
+    summary.clear();
+    model.setLocalPriority({2}, int(FilePriority::Normal));
+    QCOMPARE(model.skippedCount(), 1);
+    QCOMPARE(summary.count(), 1);
+    model.setLocalPriority({2}, int(FilePriority::Skip));
+    summary.clear();
+    model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
+    QCOMPARE(summary.count(), 0);
+
+    model.clear();
+    QCOMPARE(model.folderCount(), 0);
+    QCOMPARE(model.skippedCount(), 0);
+    QCOMPARE(model.totalSize(), 0);
+    QCOMPARE(summary.count(), 1);
+}
+
+// docs/12 F3: `ctrl+a` selects the files the filter shows, and a priority then acts on them.
+void TestTorrentFilesModel::select_all_files_takes_what_the_filter_shows()
+{
+    TorrentFilesModel model;
+    model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
+    QSignalSpy selection(&model, &TorrentFilesModel::selectionChanged);
+
+    model.setFilterText(QStringLiteral("srt"));
+    model.selectAllFiles();
+    QCOMPARE(selection.count(), 1);
+    QCOMPARE(model.selectedCount(), 2);
+    QCOMPARE(model.targetFileIndexes(0), (QVariantList{2, 3}));
+    // The folders around the matches are shown, not selected.
+    QVERIFY(!model.isSelected(0));
+    QVERIFY(!model.isSelected(1));
+    QVERIFY(model.isSelected(2));
+    QVERIFY(model.isSelected(3));
+
+    // Again: nothing new, no signal.
+    model.selectAllFiles();
+    QCOMPARE(selection.count(), 1);
+
+    // No filter: every file, including the ones inside a folded folder.
+    model.clearSelection();
+    model.setFilterText(QString());
+    model.setExpanded(model.rowOfPath(QStringLiteral("Big Buck Bunny 4K/subs")), false);
+    model.selectAllFiles();
+    QCOMPARE(model.selectedCount(), 5);
+    QCOMPARE(model.targetFileIndexes(0), (QVariantList{0, 1, 2, 3, 4}));
+}
+
+// docs/12 F4: a plain substring, `*` for any run of characters, `|` for or, against the path.
+void TestTorrentFilesModel::the_filter_takes_wildcards_and_alternatives_data()
+{
+    QTest::addColumn<QString>("filter");
+    QTest::addColumn<QString>("path");
+    QTest::addColumn<bool>("matches");
+
+    const QString srt = QStringLiteral("Big Buck Bunny 4K/subs/bbb.en.srt");
+    const QString mp4 = QStringLiteral("Big Buck Bunny 4K/bbb_sunflower_1080p_30fps.mp4");
+    const QString mkv = QStringLiteral("Show/S01/Show.S01E02.mkv");
+
+    QTest::newRow("empty") << QString() << srt << true;
+    QTest::newRow("only separators") << QStringLiteral(" | ") << srt << true;
+    QTest::newRow("substring") << QStringLiteral("en.srt") << srt << true;
+    QTest::newRow("case") << QStringLiteral("BBB.EN") << srt << true;
+    QTest::newRow("not there") << QStringLiteral("pt.srt") << srt << false;
+    QTest::newRow("a folder in the path") << QStringLiteral("subs/") << srt << true;
+    QTest::newRow("a folder, not a file") << QStringLiteral("subs/") << mp4 << false;
+    QTest::newRow("star suffix") << QStringLiteral("*.srt") << srt << true;
+    QTest::newRow("star suffix, other") << QStringLiteral("*.srt") << mp4 << false;
+    QTest::newRow("star inside") << QStringLiteral("bbb*srt") << srt << true;
+    QTest::newRow("star inside, in order") << QStringLiteral("srt*bbb") << srt << false;
+    QTest::newRow("star across folders") << QStringLiteral("4k*en") << srt << true;
+    QTest::newRow("star alone") << QStringLiteral("*") << mp4 << true;
+    QTest::newRow("regex characters are literal") << QStringLiteral("bbb.en") << srt << true;
+    QTest::newRow("a dot is not any character") << QStringLiteral("bbb.sunflower") << mp4 << false;
+    QTest::newRow("brackets are literal") << QStringLiteral("[1080p]") << mp4 << false;
+    QTest::newRow("or, first") << QStringLiteral("mkv|mp4") << mkv << true;
+    QTest::newRow("or, second") << QStringLiteral("mkv|mp4") << mp4 << true;
+    QTest::newRow("or, neither") << QStringLiteral("mkv|mp4") << srt << false;
+    QTest::newRow("or, with spaces") << QStringLiteral("mkv | mp4") << mp4 << true;
+    QTest::newRow("or, half typed") << QStringLiteral("mkv|") << mkv << true;
+    QTest::newRow("or, half typed, other") << QStringLiteral("mkv|") << mp4 << false;
+    QTest::newRow("or with a star") << QStringLiteral("*.srt|*.mkv") << mkv << true;
+    QTest::newRow("words, all of them") << QStringLiteral("subs pt") << srt << false;
+    QTest::newRow("words, in one alternative") << QStringLiteral("subs en|mkv") << srt << true;
+}
+
+void TestTorrentFilesModel::the_filter_takes_wildcards_and_alternatives()
+{
+    QFETCH(QString, filter);
+    QFETCH(QString, path);
+    QFETCH(bool, matches);
+    QCOMPARE(TorrentFilesModel::filterMatches(filter, path), matches);
+}
+
+void TestTorrentFilesModel::a_wildcard_filter_keeps_the_folders_of_a_match()
+{
+    TorrentFilesModel model;
+    model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
+
+    model.setFilterText(QStringLiteral("*.srt"));
+    QCOMPARE(model.matchCount(), 2);
+    QCOMPARE(names(model),
+             (QStringList{QStringLiteral("Big Buck Bunny 4K/"),
+                          QStringLiteral("subs/"),
+                          QStringLiteral("bbb.en.srt"),
+                          QStringLiteral("bbb.pt.srt")}));
+
+    model.setFilterText(QStringLiteral("txt|2160p"));
+    QCOMPARE(model.matchCount(), 2);
+    QCOMPARE(names(model),
+             (QStringList{QStringLiteral("Big Buck Bunny 4K/"),
+                          QStringLiteral("bbb_sunflower_2160p_60fps.mp4"),
+                          QStringLiteral("LICENSE.txt")}));
+
+    // "subs/" is a folder's name in the path: its files, and the folders around them.
+    model.setFilterText(QStringLiteral("subs/"));
+    QCOMPARE(model.matchCount(), 2);
+    QCOMPARE(model.count(), 4);
 }
 
 QTEST_MAIN(TestTorrentFilesModel)

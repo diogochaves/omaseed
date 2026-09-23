@@ -16,6 +16,8 @@ Rectangle {
     property string placeholder: ""
     property string hint: ""
     property string trailing: ""
+    /// A key drawn as a cap after `trailing` (docs/12 F1: the Files filter's `esc`); "" none.
+    property string trailingKey: ""
     property bool hasCursor: false
     /// `TextInput.Password` for a secret (spec §3 Fig. 9's `Key` field). Normal by default.
     property int echoMode: TextInput.Normal
@@ -66,11 +68,22 @@ Rectangle {
         visible: root.hint.length > 0
     }
 
+    KeyCap {
+        id: trailingCap
+
+        anchors.right: parent.right
+        anchors.rightMargin: Theme.space(8)
+        anchors.verticalCenter: parent.verticalCenter
+        objectName: "fieldTrailingKey"
+        text: root.trailingKey
+        visible: root.trailingKey.length > 0
+    }
+
     Text {
         id: trailingText
 
-        anchors.right: parent.right
-        anchors.rightMargin: Theme.space(10)
+        anchors.right: trailingCap.visible ? trailingCap.left : parent.right
+        anchors.rightMargin: trailingCap.visible ? Theme.space(8) : Theme.space(10)
         anchors.verticalCenter: parent.verticalCenter
         color: Theme.dimForeground
         font.family: Theme.fontFamily
@@ -84,8 +97,10 @@ Rectangle {
 
         anchors.left: hintText.visible ? hintText.right : parent.left
         anchors.leftMargin: hintText.visible ? Theme.space(6) : Theme.space(10)
-        anchors.right: trailingText.visible ? trailingText.left : parent.right
-        anchors.rightMargin: trailingText.visible ? Theme.space(6) : Theme.space(10)
+        anchors.right: trailingText.visible ? trailingText.left : trailingCap.visible
+                                                                  ? trailingCap.left : parent.right
+        anchors.rightMargin: trailingText.visible || trailingCap.visible ? Theme.space(6)
+                                                                        : Theme.space(10)
         anchors.verticalCenter: parent.verticalCenter
         clip: true
         color: Theme.brightForeground

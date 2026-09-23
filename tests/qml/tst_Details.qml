@@ -305,6 +305,114 @@ TestCase {
         verify(view.activeFocus);
     }
 
+    // docs/12 F1: the summary line is always there, and `/` turns the same row into the field.
+    function test_the_summary_line_turns_into_the_filter_and_back() {
+        const view = testCase.filesView();
+        const summary = findChild(view, "filesSummary");
+        const field = findChild(view, "filesFilter");
+        const header = findChild(view, "fileHeader_name");
+        verify(summary !== null && field !== null && header !== null);
+        wait(0);
+
+        verify(summary.visible);
+        verify(!field.visible);
+        compare(findChild(view, "filesSummaryCount").text, "5 files");
+        compare(findChild(view, "filesSummaryFacts").text, " · 2 folders · 3.91 GB · 2 skipped");
+        verify(findChild(view, "filesSummaryGo").visible);
+        const headerY = header.mapToItem(view, 0, 0).y;
+
+        keyClick("/");
+        verify(!summary.visible);
+        verify(field.visible);
+        compare(field.trailingKey, "esc");
+        keyClick("s");
+        keyClick("r");
+        keyClick("t");
+        compare(field.trailing, "2 of 5 files");
+        // The same row: the headers and the list do not move.
+        compare(header.mapToItem(view, 0, 0).y, headerY);
+
+        keyClick(Qt.Key_Escape);
+        verify(summary.visible);
+        verify(!field.visible);
+        compare(header.mapToItem(view, 0, 0).y, headerY);
+    }
+
+    // docs/12 F2: one file has nothing to filter; `/` says so instead of opening a field.
+    function test_a_single_file_offers_no_filter() {
+        const view = testCase.select(testCase.archName);
+        view.activateTab(1);
+        view.forceActiveFocus();
+        compare(App.details.files.fileCount, 1);
+        wait(0);
+
+        compare(findChild(view, "filesSummaryCount").text, "1 file");
+        compare(findChild(view, "filesSummaryFacts").text, " · 1.31 GB");
+        verify(!findChild(view, "filesSummaryGo").visible, "a single file still offers a filter");
+
+        noteSpy.target = view;
+        noteSpy.clear();
+        keyClick("/");
+        verify(!findChild(view, "filesFilter").visible, "`/` opened a field on one file");
+        verify(!view.filterEditing);
+        verify(findChild(view, "filesSummary").visible);
+        compare(noteSpy.count, 1);
+        compare(noteSpy.signalArguments[0][0], "one file, nothing to filter");
+    }
+
+    // docs/12 F3: `ctrl+a` selects what the filter shows, and `p` then acts on all of it.
+    function test_ctrl_a_selects_the_filtered_files_and_p_applies_to_them() {
+        const view = testCase.filesView();
+        const files = App.details.files;
+
+        keyClick("/");
+        keyClick("s");
+        keyClick("r");
+        keyClick("t");
+        keyClick(Qt.Key_Return);
+        verify(!view.filterEditing);
+        compare(files.matchCount, 2);
+
+        keyClick(Qt.Key_A, Qt.ControlModifier);
+        compare(files.selectedCount, 2);
+        verify(!files.isSelected(0), "a folder around the matches was selected");
+
+        keyClick("p");
+        verify(view.editing, "`p` did not open the priority menu");
+        keyClick("n");
+        // Both subtitles go from skip to normal; the videos stay as they were.
+        files.filterText = "";
+        compare(files.priority(files.rowOfPath("Big Buck Bunny 4K/subs/bbb.en.srt")), 1);
+        compare(files.priority(files.rowOfPath("Big Buck Bunny 4K/subs/bbb.pt.srt")), 1);
+        compare(files.priority(files.rowOfPath("Big Buck Bunny 4K/bbb_sunflower_2160p_60fps.mp4")),
+                6);
+
+        // With no filter, every file (the folders count through them).
+        keyClick(Qt.Key_Escape);
+        compare(files.selectedCount, 0);
+        keyClick(Qt.Key_A, Qt.ControlModifier);
+        compare(files.selectedCount, 5);
+    }
+
+    // docs/12 F4: the placeholder shows the syntax, and `*` and `|` work as it says.
+    function test_the_filter_takes_wildcards_and_alternatives() {
+        const view = testCase.filesView();
+        const files = App.details.files;
+        const field = findChild(view, "filesFilter");
+
+        keyClick("/");
+        compare(field.placeholder, "filter files · *.srt · mkv|mp4");
+        for (const key of "*.srt")
+            keyClick(key);
+        compare(files.filterText, "*.srt");
+        compare(files.matchCount, 2);
+        compare(field.trailing, "2 of 5 files");
+
+        field.text = "txt|2160p";
+        compare(files.matchCount, 2);
+        compare(files.count, 3); // the root folder and the two files
+    }
+
     function test_space_selects_and_a_priority_applies_to_the_selection() {
         const view = testCase.filesView();
         const files = App.details.files;
@@ -468,6 +576,12 @@ TestCase {
         id: copySpy
 
         signalName: "copyRequested"
+    }
+
+    SignalSpy {
+        id: noteSpy
+
+        signalName: "noteRequested"
     }
 
     SignalSpy {

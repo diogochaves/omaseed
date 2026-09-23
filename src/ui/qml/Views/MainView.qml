@@ -187,6 +187,15 @@ Item {
                 "label": step >= 2 ? qsTr("%1 sel").arg(table.selectedCount)
                                    : qsTr("%1 selected").arg(table.selectedCount)
             });
+        // docs/12 F3: the Files tab's own selection (`space`, `v`, `ctrl+a`), while it shows.
+        const files = App.details.files.selectedCount;
+        if (files > 0 && details.currentTab === 1 && !details.collapsed)
+            parts.push({
+                "value": "",
+                "label": step >= 2 ? qsTr("%1 files sel").arg(files) : files === 1
+                                                                       ? qsTr("1 file selected")
+                                                                       : qsTr("%1 files selected").arg(files)
+            });
         return parts;
     }
 
@@ -1019,6 +1028,7 @@ Item {
                 root.flashFooterNote(qsTr("copied"));
             }
             onOpenFileRequested: path => App.openTorrentFile(App.details.hash, path)
+            onNoteRequested: text => root.flashFooterNote(text)
 
             Rectangle {
                 anchors.fill: parent

@@ -4,10 +4,11 @@ import QtQuick.Layouts
 import Omaseed
 import Omaseed.Kit
 
-// The details pane's Files tab (spec v2 §2 Fig. 2 `.list.files`, UX-NOTES N1): an optional
-// filter field, a header row that sorts on a click, then the visible rows of the torrent's
-// file tree. Folders carry a `▾`/`›` fold glyph and their subtree's totals; every level
-// indents by `Theme.space(14)`, matching the figure's 8 / 22 / 38 px left padding.
+// The details pane's Files tab (spec v2 §2 Fig. 2 `.list.files`, UX-NOTES N1): a summary line
+// that turns into the filter field (docs/12 F1), a header row that sorts on a click, then the
+// visible rows of the torrent's file tree. Folders carry a `▾`/`›` fold glyph and their
+// subtree's totals; every level indents by `Theme.space(14)`, matching the figure's
+// 8 / 22 / 38 px left padding.
 //
 // The model is already flat — TorrentFilesModel drops a folded folder's subtree, a filtered
 // out file and sorts siblings — so this is a plain ListView. `cursorIndex` is owned by
@@ -43,6 +44,29 @@ Item {
     /// The caret is in the filter field.
     readonly property bool filterEditing: filterField.editing
 
+    readonly property int fileCount: root.model ? root.model.fileCount : 0
+    /// docs/12 F2: a single-file torrent has nothing to filter, so it offers no filter.
+    readonly property bool canFilter: root.fileCount > 1
+    /// docs/12 F1's summary line, in two halves: the file count, in the foreground, and the
+    /// rest, dim: " · 2 folders · 3.91 GB · 2 skipped". Folders and skips only when there are.
+    readonly property string summaryCountText: root.fileCount === 0 ? qsTr("no files")
+                                                                    : root.fileCount === 1
+                                                                      ? qsTr("1 file")
+                                                                      : qsTr("%1 files").arg(
+                                                                            root.fileCount)
+    readonly property string summaryFactsText: {
+        if (root.model === null || root.fileCount === 0)
+            return "";
+        const parts = [""];
+        const folders = root.model.folderCount;
+        if (folders > 0)
+            parts.push(folders === 1 ? qsTr("1 folder") : qsTr("%1 folders").arg(folders));
+        parts.push(root.model.totalSizeText);
+        if (root.model.skippedCount > 0)
+            parts.push(qsTr("%1 skipped").arg(root.model.skippedCount));
+        return parts.join(" · ");
+    }
+
     // The spec's `.files { grid-template-columns: 1fr 70px 56px 72px }`, trimmed to fit the
     // real docked column (spec §2's Fig. 2 is a 400 px mock). Each fixed column holds its
     // widest value ("81.4 GB", "100 %", "maximal", "3860–3911").
@@ -72,9 +96,13 @@ Item {
         return item.mapToItem(target, Theme.space(24), item.height);
     }
 
-    function focusFilter(): void {
+    /// `/` or a click on the summary line. False, and nothing opens, on a single file (F2).
+    function focusFilter(): bool {
+        if (!root.canFilter)
+            return false;
         root.filterOpen = true;
         filterField.focusInput();
+        return true;
     }
 
     implicitHeight: Theme.space(200)
@@ -86,6 +114,100 @@ Item {
             root.renameCancelled();
     }
 
+    // docs/12 F1: one row above the headers that is always there. At rest it is the summary
+    // line, the facts about the files and the way into the filter; `/` or a click turns the
+    // same row into the filter field, and `esc` turns it back. Both fill the same height, so
+    // the list below never moves.
+    Item {
+        id: filterBar
+
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        height: Theme.controlHeight + Theme.space(8)
+
+        Item {
+            id: summary
+
+            anchors.fill: parent
+            anchors.leftMargin: Theme.space(8)
+            anchors.rightMargin: Theme.space(8)
+            objectName: "filesSummary"
+            visible: !root.filterShown
+
+            Text {
+                id: summaryCount
+
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+                color: Theme.foreground
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.font.small
+                objectName: "filesSummaryCount"
+                text: root.summaryCountText
+            }
+
+            Text {
+                anchors.left: summaryCount.right
+                anchors.verticalCenter: parent.verticalCenter
+                color: Theme.dimForeground
+                elide: Text.ElideRight
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.font.small
+                objectName: "filesSummaryFacts"
+                text: root.summaryFactsText
+                width: Math.max(0, Math.min(implicitWidth, summary.width - summaryCount.width
+                                            - (summaryGo.visible ? summaryGo.width
+                                                                   + Theme.space(8) : 0)))
+            }
+
+            Row {
+                id: summaryGo
+
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                objectName: "filesSummaryGo"
+                spacing: Theme.space(6)
+                visible: root.canFilter
+
+                Glyph {
+                    anchors.verticalCenter: parent.verticalCenter
+                    color: Theme.dimForeground
+                    pixelSize: Theme.font.small
+                    text: Glyphs.jump
+                }
+
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    color: Theme.dimForeground
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.font.small
+                    text: qsTr("filter")
+                }
+
+                KeyCap {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "/"
+                }
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                cursorShape: Qt.PointingHandCursor
+                enabled: root.canFilter
+
+                onClicked: root.focusFilter()
+            }
+        }
+
+        Hairline {
+            anchors.bottom: parent.bottom
+            anchors.left: parent.left
+            anchors.right: parent.right
+            visible: !root.filterShown
+        }
+    }
+
     Field {
         id: filterField
 
@@ -93,15 +215,15 @@ Item {
         anchors.leftMargin: Theme.space(8)
         anchors.right: parent.right
         anchors.rightMargin: Theme.space(8)
-        anchors.top: parent.top
-        anchors.topMargin: root.filterShown ? Theme.space(6) : 0
-        height: root.filterShown ? Theme.controlHeight : 0
+        anchors.verticalCenter: filterBar.verticalCenter
         hint: Glyphs.search
         objectName: "filesFilter"
-        placeholder: qsTr("filter files")
-        trailing: root.model && root.model.filterText.length > 0 ? qsTr("%1 of %2").arg(
+        // docs/12 F4: the placeholder teaches the syntax.
+        placeholder: qsTr("filter files · *.srt · mkv|mp4")
+        trailing: root.model && root.model.filterText.length > 0 ? qsTr("%1 of %2 files").arg(
                                                                         root.model.matchCount).arg(
                                                                         root.model.fileCount) : ""
+        trailingKey: qsTr("esc")
         visible: root.filterShown
 
         Keys.onPressed: event => {
@@ -150,8 +272,8 @@ Item {
         anchors.leftMargin: Theme.space(8)
         anchors.right: parent.right
         anchors.rightMargin: Theme.space(8)
-        anchors.top: filterField.bottom
-        anchors.topMargin: root.filterShown ? Theme.space(4) : 0
+        anchors.top: filterBar.bottom
+        anchors.topMargin: Theme.space(2)
         spacing: Theme.space(8)
 
         DetailsHeader {

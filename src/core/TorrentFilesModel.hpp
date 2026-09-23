@@ -16,9 +16,13 @@
 //
 // N1 adds what qBittorrent's WebUI does with a torrent's content, all of it on the same
 // visible-rows list:
-//   * a name filter (`filterText`): a file shows when every word of the filter is in its
-//     path; a folder shows when one of its files does, and every folder is open while a
-//     filter is typed. A folder then acts on the files it shows, not on the hidden ones.
+//   * a name filter (`filterText`, docs/12 F4), matched against a file's path inside the
+//     torrent and ignoring case: `|` separates alternatives ("mkv|mp4"), a file must hold
+//     every space-separated word of one of them, and `*` in a word stands for any run of
+//     characters ("*.srt", "bbb*srt"). Otherwise a word is a plain substring, so "subs/"
+//     finds a folder's files. A folder shows when one of its files does, and every folder
+//     is open while a filter is typed. A folder then acts on the files it shows, not on the
+//     hidden ones.
 //   * a sort (`sortKey`, `sortDescending`): siblings are sorted inside their folder, so the
 //     tree survives. By name, folders come first in both directions (qBittorrent's content
 //     view does the same); by any number, folders and files mix. "" is the torrent's own
@@ -35,6 +39,7 @@
 #include <QHash>
 #include <QJsonArray>
 #include <QList>
+#include <QRegularExpression>
 #include <QSet>
 #include <QString>
 #include <QStringList>
@@ -62,6 +67,13 @@ class TorrentFilesModel : public QAbstractListModel
     Q_PROPERTY(int fileCount READ fileCount NOTIFY countChanged)
     /// How many files pass the filter (all of them while there is none): the "n" of "n of m".
     Q_PROPERTY(int matchCount READ matchCount NOTIFY countChanged)
+    /// docs/12 F1's summary line: "5 files · 2 folders · 3.91 GB · 2 skipped". Folders are
+    /// the synthesised ones, skipped files are the ones at priority 0, and the size is every
+    /// file's, whatever the filter shows.
+    Q_PROPERTY(int folderCount READ folderCount NOTIFY summaryChanged)
+    Q_PROPERTY(int skippedCount READ skippedCount NOTIFY summaryChanged)
+    Q_PROPERTY(qint64 totalSize READ totalSize NOTIFY summaryChanged)
+    Q_PROPERTY(QString totalSizeText READ totalSizeText NOTIFY summaryChanged)
     Q_PROPERTY(QString filterText READ filterText WRITE setFilterText NOTIFY filterTextChanged)
     /// "" (the torrent's order), "name", "size", "progress", "remaining", "priority",
     /// "availability", "pieces".
@@ -105,6 +117,10 @@ public:
     /// How many real files the torrent has, folders excluded.
     int fileCount() const { return m_fileCount; }
     int matchCount() const { return m_matchCount; }
+    int folderCount() const { return m_folderCount; }
+    int skippedCount() const { return m_skippedCount; }
+    qint64 totalSize() const { return m_totalSize; }
+    QString totalSizeText() const;
 
     /// Applies a `torrents/files` array. Same shape as last time -> rows update in place;
     /// anything else -> a reset.
@@ -146,6 +162,10 @@ public:
     /// Selects every visible row from `from` to `to`, both included, in either order.
     Q_INVOKABLE void selectRange(int from, int to);
     Q_INVOKABLE void selectAll();
+    /// docs/12 F3's `ctrl+a`: every file the filter shows, folded away or not (a folder counts
+    /// through its files, so it is not selected itself); with no filter, every file. Adds to
+    /// the selection.
+    Q_INVOKABLE void selectAllFiles();
     Q_INVOKABLE void clearSelection();
 
     // --- priorities ------------------------------------------------------------------
@@ -188,11 +208,16 @@ public:
     static QString
     serverPathOf(const QString &contentPath, const QString &savePath, const QString &relativePath);
 
+    /// Whether `path` passes the filter `filter`, by the rules above. An empty filter, or one
+    /// of nothing but separators, passes everything.
+    static bool filterMatches(const QString &filter, const QString &path);
+
 Q_SIGNALS:
     void countChanged();
     void filterTextChanged();
     void sortChanged();
     void selectionChanged();
+    void summaryChanged();
 
 private:
     struct Node
@@ -217,6 +242,18 @@ private:
         int parent = -1;
     };
 
+    /// One word of the filter: a plain lower-case substring, or a `*` pattern.
+    struct FilterWord
+    {
+        QString plain;
+        QRegularExpression pattern; ///< valid only when the word has a `*`
+        bool wildcard = false;
+    };
+    /// The filter's `|` alternatives, each a list of words that must all match.
+    using Filter = QList<QList<FilterWord>>;
+    static Filter parseFilter(const QString &text);
+    static bool matches(const Filter &filter, const QString &path);
+
     /// The paths, in order, that a given `torrents/files` array would build. Two arrays with
     /// the same shape can be merged in place.
     static QStringList shapeOf(const QJsonArray &files);
@@ -226,7 +263,7 @@ private:
     void updateInPlace(const QJsonArray &files);
     void aggregate(int node);
     void applyFilter();
-    bool matchFilter(int node, const QStringList &words);
+    bool matchFilter(int node, const Filter &filter);
     QList<int> sortedChildren(const QList<int> &children) const;
     bool lessThan(int left, int right) const;
     QList<int> computeVisible() const;
@@ -240,6 +277,8 @@ private:
     void collectLeaves(int node, QList<int> &out) const;
     int leafOfFileIndex(int fileIndex) const;
     void emitAllChanged(const QList<int> &roles);
+    /// Recounts folders, skipped files and the total size; emits summaryChanged() on a change.
+    void updateSummary();
 
     QList<Node> m_nodes; ///< the tree, parents before children
     QList<int> m_roots;
@@ -250,6 +289,9 @@ private:
     QSet<QString> m_selected;
     int m_fileCount = 0;
     int m_matchCount = 0;
+    int m_folderCount = 0;
+    int m_skippedCount = 0;
+    qint64 m_totalSize = 0;
     QString m_filterText;
     QString m_sortKey;
     bool m_sortDescending = false;

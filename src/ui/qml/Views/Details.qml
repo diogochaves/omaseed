@@ -69,6 +69,8 @@ Item {
     signal peerAction(string action, string address)
     /// `y`: the text the caller should put on the clipboard.
     signal copyRequested(string text)
+    /// A few words for the window's footer note ("one file, nothing to filter").
+    signal noteRequested(string text)
 
     /// Something inside the pane holds the keyboard — the Files tab's filter, its inline
     /// rename or one of its menus — so Main still counts the focus as the pane's.
@@ -190,6 +192,13 @@ Item {
         root.details.files.selectRange(anchor, root.filesCursor);
     }
 
+    /// `ctrl+a` (docs/12 F3): every file the filter shows, so `p` / `+` `-` `x` then act on
+    /// all of them; with no filter, every file.
+    function selectAllFiles() {
+        if (root.currentTab === 1)
+            root.details.files.selectAllFiles();
+    }
+
     /// `r` on a file or folder row: the inline editor, on the leaf name.
     function startRename() {
         if (root.currentTab !== 1 || root.details.files.count === 0)
@@ -257,10 +266,11 @@ Item {
         sortMenu.openAt(at.x, at.y);
     }
 
-    /// `/` in the Files tab.
+    /// `/` in the Files tab. A single file has no filter (docs/12 F2): the footer says so,
+    /// so the key does not seem broken.
     function focusFileFilter() {
-        if (root.currentTab === 1)
-            filesTab.focusFilter();
+        if (root.currentTab === 1 && !filesTab.focusFilter())
+            root.noteRequested(qsTr("one file, nothing to filter"));
     }
 
     /// A row of the file menu, or the same key pressed on the list.
@@ -398,6 +408,13 @@ Item {
         }
         // The inline rename's editor keeps every key it does not use itself.
         if (filesTab.renamingRow >= 0) {
+            event.accepted = true;
+            return;
+        }
+        // The one ctrl key of the Files tab; the rest of ctrl belongs to the window.
+        if (root.currentTab === 1 && !root.menuOpen && event.key === Qt.Key_A
+                && event.modifiers === Qt.ControlModifier) {
+            root.selectAllFiles();
             event.accepted = true;
             return;
         }

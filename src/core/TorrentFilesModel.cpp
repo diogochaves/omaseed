@@ -202,6 +202,7 @@ void TorrentFilesModel::applyFiles(const QJsonArray &files)
 
     if (shapeOf(files) == m_shape) {
         updateInPlace(files);
+        updateSummary();
         return;
     }
 
@@ -210,6 +211,7 @@ void TorrentFilesModel::applyFiles(const QJsonArray &files)
     endResetModel();
     Q_EMIT countChanged();
     Q_EMIT selectionChanged();
+    updateSummary();
 }
 
 void TorrentFilesModel::clear()
@@ -234,6 +236,7 @@ void TorrentFilesModel::clear()
     Q_EMIT selectionChanged();
     if (hadFilter)
         Q_EMIT filterTextChanged();
+    updateSummary();
 }
 
 void TorrentFilesModel::rebuild(const QJsonArray &files)
@@ -430,26 +433,69 @@ void TorrentFilesModel::aggregate(int at)
 
 // --- filter and sort ---------------------------------------------------------------------
 
-void TorrentFilesModel::applyFilter()
+TorrentFilesModel::Filter TorrentFilesModel::parseFilter(const QString &text)
 {
-    const QStringList words = m_filterText.toLower().split(QLatin1Char(' '), Qt::SkipEmptyParts);
-    m_matchCount = 0;
-    for (int root : std::as_const(m_roots))
-        matchFilter(root, words);
+    Filter filter;
+    const QStringList alternatives = text.toLower().split(QLatin1Char('|'), Qt::SkipEmptyParts);
+    for (const QString &alternative : alternatives) {
+        QList<FilterWord> words;
+        const QStringList parts = alternative.split(QLatin1Char(' '), Qt::SkipEmptyParts);
+        for (const QString &part : parts) {
+            FilterWord word;
+            word.plain = part;
+            word.wildcard = part.contains(QLatin1Char('*'));
+            if (word.wildcard) {
+                // `*` is any run of characters; everything else is literal, and the pattern
+                // may sit anywhere in the path, as a plain word does.
+                QStringList pieces = part.split(QLatin1Char('*'));
+                for (QString &piece : pieces)
+                    piece = QRegularExpression::escape(piece);
+                word.pattern = QRegularExpression(pieces.join(QStringLiteral(".*")),
+                                                  QRegularExpression::DotMatchesEverythingOption);
+            }
+            words.append(word);
+        }
+        // "mkv| " while typing: an alternative of blanks is no alternative.
+        if (!words.isEmpty())
+            filter.append(words);
+    }
+    return filter;
 }
 
-bool TorrentFilesModel::matchFilter(int at, const QStringList &words)
+bool TorrentFilesModel::matches(const Filter &filter, const QString &path)
+{
+    if (filter.isEmpty())
+        return true;
+    const QString lower = path.toLower();
+    for (const QList<FilterWord> &words : filter) {
+        const bool all = std::all_of(words.cbegin(), words.cend(), [&](const FilterWord &word) {
+            return word.wildcard ? word.pattern.match(lower).hasMatch()
+                                 : lower.contains(word.plain);
+        });
+        if (all)
+            return true;
+    }
+    return false;
+}
+
+bool TorrentFilesModel::filterMatches(const QString &filter, const QString &path)
+{
+    return matches(parseFilter(filter), path);
+}
+
+void TorrentFilesModel::applyFilter()
+{
+    const Filter filter = parseFilter(m_filterText);
+    m_matchCount = 0;
+    for (int root : std::as_const(m_roots))
+        matchFilter(root, filter);
+}
+
+bool TorrentFilesModel::matchFilter(int at, const Filter &filter)
 {
     Node &node = m_nodes[at];
     if (!node.isFolder) {
-        const QString path = node.path.toLower();
-        bool matches = true;
-        for (const QString &word : words) {
-            if (!path.contains(word)) {
-                matches = false;
-                break;
-            }
-        }
+        const bool matches = TorrentFilesModel::matches(filter, node.path);
         node.matches = matches;
         node.shownIds = matches ? node.fileIndexes : QList<int>();
         if (matches)
@@ -461,7 +507,7 @@ bool TorrentFilesModel::matchFilter(int at, const QStringList &words)
     QList<int> shown;
     const QList<int> children = node.children;
     for (int child : children) {
-        if (matchFilter(child, words)) {
+        if (matchFilter(child, filter)) {
             any = true;
             shown.append(m_nodes.at(child).shownIds);
         }
@@ -599,6 +645,33 @@ void TorrentFilesModel::relayout()
     Q_EMIT countChanged();
 }
 
+void TorrentFilesModel::updateSummary()
+{
+    int folders = 0;
+    int skipped = 0;
+    qint64 size = 0;
+    for (const Node &node : std::as_const(m_nodes)) {
+        if (node.isFolder) {
+            ++folders;
+            continue;
+        }
+        size += node.size;
+        if (node.priority == int(FilePriority::Skip))
+            ++skipped;
+    }
+    if (folders == m_folderCount && skipped == m_skippedCount && size == m_totalSize)
+        return;
+    m_folderCount = folders;
+    m_skippedCount = skipped;
+    m_totalSize = size;
+    Q_EMIT summaryChanged();
+}
+
+QString TorrentFilesModel::totalSizeText() const
+{
+    return Format::size(m_totalSize);
+}
+
 void TorrentFilesModel::emitAllChanged(const QList<int> &roles)
 {
     if (!m_visible.isEmpty())
@@ -716,6 +789,19 @@ void TorrentFilesModel::selectRange(int from, int to)
 void TorrentFilesModel::selectAll()
 {
     selectRange(0, int(m_visible.size()) - 1);
+}
+
+void TorrentFilesModel::selectAllFiles()
+{
+    const qsizetype before = m_selected.size();
+    for (const Node &node : std::as_const(m_nodes)) {
+        if (!node.isFolder && node.matches)
+            m_selected.insert(node.path);
+    }
+    if (m_selected.size() == before)
+        return;
+    emitAllChanged({SelectedRole});
+    Q_EMIT selectionChanged();
 }
 
 void TorrentFilesModel::clearSelection()
@@ -859,6 +945,7 @@ void TorrentFilesModel::setLocalPriority(const QVariantList &fileIndexes, int pr
         return;
     for (int root : std::as_const(m_roots))
         aggregate(root);
+    updateSummary();
 
     const QList<int> next = computeVisible();
     if (next != m_visible) {
