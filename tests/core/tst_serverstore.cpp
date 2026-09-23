@@ -37,6 +37,7 @@ private slots:
     void startsEmptyWithNoFile();
     void addUpdateRemoveAndDefault();
     void savesAndReloads();
+    void aStoreThatIsNotPersistentWritesNothing();
     void filePermissionsAreOwnerOnly();
     void corruptJsonFailsWithoutLosingTheFile();
     void futureVersionFailsWithoutLoading();
@@ -139,6 +140,26 @@ void TestServerStore::savesAndReloads()
     QVERIFY(reloaded.load());
     QCOMPARE(reloaded.count(), 2);
     QVERIFY(reloaded.defaultServer().has_value());
+}
+
+// A --demo run keeps its servers in memory (batch-2 P5).
+void TestServerStore::aStoreThatIsNotPersistentWritesNothing()
+{
+    const QString file = m_dir.path() + QStringLiteral("/omaseed/servers.json");
+    QFile::remove(file); // the directory is shared with the cases before this one
+
+    ServerStore store;
+    QVERIFY(store.isPersistent());
+    store.setPersistent(false);
+    QVERIFY(store.add(
+        makeServer(QStringLiteral("Playground"), QUrl(QStringLiteral("http://127.0.0.1:8081")))));
+    QCOMPARE(store.count(), 1);
+    QVERIFY(store.save());
+    QVERIFY(!QFile::exists(file));
+
+    ServerStore reloaded;
+    QVERIFY(reloaded.load());
+    QCOMPARE(reloaded.count(), 0);
 }
 
 void TestServerStore::filePermissionsAreOwnerOnly()

@@ -104,6 +104,9 @@ bool ServerStore::load()
 
 bool ServerStore::save() const
 {
+    if (!m_persistent)
+        return true;
+
     const QString dir = paths::configDir();
     QDir().mkpath(dir);
     QFile::setPermissions(dir, ownerReadWriteExec());

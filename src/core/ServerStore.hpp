@@ -29,8 +29,13 @@ public:
     bool load();
 
     /// Writes `servers.json` atomically (via `QSaveFile`), then sets the directory to 0700
-    /// and the file to 0600.
+    /// and the file to 0600. A store that is not persistent writes nothing and says it did.
     bool save() const;
+
+    /// False keeps every change in memory only: a `--demo` run lists its fictional server
+    /// and may add or remove more, but must never touch the user's real `servers.json`.
+    void setPersistent(bool persistent) { m_persistent = persistent; }
+    bool isPersistent() const { return m_persistent; }
 
     QList<Server> servers() const;
     int count() const;
@@ -61,6 +66,7 @@ Q_SIGNALS:
 private:
     QList<Server> m_servers;
     QString m_defaultId;
+    bool m_persistent = true;
 
     static QString filePath();
     int indexOf(const QString &id) const;
