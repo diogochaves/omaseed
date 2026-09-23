@@ -10,6 +10,9 @@
 #include "core/CategoryModel.hpp"
 #include "core/FilterCounts.hpp"
 #include "core/GlobalState.hpp"
+#include "core/Paths.hpp"
+#include "core/ServerListModel.hpp"
+#include "core/ServerStore.hpp"
 #include "core/SyncEngine.hpp"
 #include "core/TorrentFilterModel.hpp"
 #include "core/TorrentModel.hpp"
@@ -19,6 +22,7 @@
 #include "ui/app/DemoData.hpp"
 
 #include <QElapsedTimer>
+#include <QFile>
 #include <QJsonObject>
 #include <QProcessEnvironment>
 #include <QQmlComponent>
@@ -91,6 +95,7 @@ private slots:
 
     void withoutAServerNothingPolls();
     void demoDataReproducesTheSpecsSixteenRows();
+    void demoListsItsServerAndPersistsNothing();
     void demoDataScalesWithUniqueHashes();
     void qmlSeesAppAndTheCoreTypes();
     void trayStateFollowsTheWorld();
@@ -135,6 +140,39 @@ void TestApp::withoutAServerNothingPolls()
     QVERIFY(!app.engine()->isRunning());
     QCOMPARE(app.torrents()->count(), 0);
     QVERIFY(!app.globalState()->connected());
+}
+
+// Batch-2 P5: the hero says HOME under --demo, so Settings › Servers lists "home" too; and a
+// demo never writes the user's servers.json, whatever is done in its Settings.
+void TestApp::demoListsItsServerAndPersistsNothing()
+{
+    const QString file = omaseed::core::paths::configDir() + QStringLiteral("/servers.json");
+    QFile::remove(file); // the directory is shared with the cases before this one
+
+    App app;
+    app.startDemo(16);
+    QCOMPARE(app.serverCount(), 1);
+    QCOMPARE(app.serverList()->count(), 1);
+    const std::optional<omaseed::core::Server> home = app.servers()->defaultServer();
+    QVERIFY(home.has_value());
+    QCOMPARE(home->name, QStringLiteral("home"));
+    QCOMPARE(home->name, app.serverName());
+    const QVariantMap row = app.serverList()->serverMap(home->id);
+    QCOMPARE(row.value(QStringLiteral("torrentCount")).toInt(), 16);
+
+    const QString added =
+        app.addServer({{QStringLiteral("name"), QStringLiteral("second")},
+                       {QStringLiteral("url"), QStringLiteral("http://nas.example:8080")},
+                       {QStringLiteral("authMode"), QStringLiteral("none")}},
+                      QString());
+    QVERIFY(!added.isEmpty());
+    QCOMPARE(app.serverCount(), 2);
+    QVERIFY(app.removeServer(added));
+    QVERIFY2(!QFile::exists(file), "a demo wrote servers.json");
+
+    // A second demo in the same process does not list "home" twice.
+    app.startDemo(16);
+    QCOMPARE(app.serverCount(), 1);
 }
 
 void TestApp::demoDataReproducesTheSpecsSixteenRows()

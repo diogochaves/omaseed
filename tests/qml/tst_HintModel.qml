@@ -23,7 +23,6 @@ TestCase {
 
     function init() {
         model.overlayOpen = false;
-        model.overlayHints = [];
         model.connected = true;
         model.detailsTab = 0;
         model.filterText = "";
@@ -33,29 +32,18 @@ TestCase {
         model.torrentCount = 142;
     }
 
-    // T4.8: an overlay owns the keyboard, so the window's own footer stops teaching the
-    // table's keys under it and prints the overlay's instead.
-    function test_an_overlay_replaces_the_line_with_its_own_hints() {
-        model.overlayHints = [
-            {
-                "key": "tab",
-                "label": "fields"
-            },
-            {
-                "key": "enter",
-                "label": "add"
-            }
-        ];
+    // T4.8, batch-2 D3: an overlay owns the keyboard and teaches its keys in its own hint
+    // row, so the window's footer stops teaching anything under it.
+    function test_an_overlay_leaves_the_footer_without_hints() {
         model.overlayOpen = true;
 
         compare(model.area, "overlay");
-        compare(testCase.line(model.hints), "esc close · tab fields · enter add");
+        compare(model.hints.length, 0);
         compare(model.pinned, null, "`? help` cannot work under an overlay");
-    }
 
-    function test_an_overlay_with_no_hints_of_its_own_still_teaches_escape() {
-        model.overlayOpen = true;
-        compare(testCase.line(model.hints), "esc close");
+        model.overlayOpen = false;
+        verify(model.hints.length > 0, "the table's hints did not come back");
+        verify(model.pinned !== null);
     }
 
     function test_an_overlay_outranks_every_window_state() {
@@ -83,7 +71,7 @@ TestCase {
         model.focusArea = "rail";
         compare(model.area, "rail");
         compare(testCase.line(model.hints),
-                "j k move · enter select · 0–9 status · z fold · l table");
+                "j k move · enter select · 0–8 status · z fold · l table");
         compare(model.pinned.key, "?");
     }
 

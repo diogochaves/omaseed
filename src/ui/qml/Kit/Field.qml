@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 import Omaseed.Kit
 
@@ -88,8 +89,14 @@ Rectangle {
         anchors.verticalCenter: parent.verticalCenter
         clip: true
         color: Theme.brightForeground
+        // Qt shows a delegate caret when the field gains the keyboard but can leave it drawn
+        // when the keyboard moves on in the same frame: Speed limits opened on its alt-speed
+        // pair focused Download first, and Download kept a caret over its `∞` (batch-2 P2).
+        // Opacity rather than `visible`, which Qt itself toggles to blink.
         cursorDelegate: Rectangle {
             color: Theme.accent
+            objectName: "fieldCaret"
+            opacity: input.activeFocus ? 1 : 0
             width: 1
         }
         echoMode: root.echoMode
@@ -99,13 +106,18 @@ Rectangle {
         selectByMouse: true
         selectionColor: Theme.selection
 
+        // The placeholder stays until something is typed: an empty focused field still
+        // says what empty means (`∞` in the limit sheets). It dims one step further while
+        // the caret is in, as most text fields do (batch-2 J6).
         Text {
             anchors.verticalCenter: parent.verticalCenter
             color: Theme.dimForeground
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.body
+            objectName: "fieldPlaceholder"
+            opacity: input.activeFocus ? 0.55 : 1
             text: root.placeholder
-            visible: input.text.length === 0 && !input.activeFocus
+            visible: input.text.length === 0
         }
 
         // Escape clears the field; with nothing left to clear it is passed on, so the

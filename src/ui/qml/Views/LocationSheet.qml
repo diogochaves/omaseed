@@ -61,7 +61,7 @@ Sheet {
             id: pathField
 
             Layout.fillWidth: true
-            trailing: qsTr("ctrl+o")
+            trailing: qsTr("ctrl+o browse")
 
             // Field's own `Keys.onReturnPressed` already marks the key accepted (it emits
             // `accepted()` either way), so `enter` never reaches the Sheet's own handling

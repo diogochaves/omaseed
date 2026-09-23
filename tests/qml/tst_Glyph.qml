@@ -17,7 +17,7 @@ TestCase {
     function test_the_font_gaps_are_icons() {
         const names = ["settings", "keyboard", "altSpeed", "jump", "statusChecking", "category",
                        "folder", "appearance", "server", "more", "columns", "sidebar", "limits",
-                       "selectAll"];
+                       "selectAll", "scrollHint", "host"];
         for (const name of names) {
             const glyph = createTemporaryObject(glyphComponent, testCase, {
                                                     "text": Glyphs[name]

@@ -6,6 +6,10 @@ TestCase {
     id: testCase
 
     name: "Field"
+    visible: true
+    when: windowShown
+    width: 400
+    height: 200
 
     Component {
         id: fieldComponent
@@ -52,5 +56,45 @@ TestCase {
         field.text = "qbt_secret";
         compare(field.text, "qbt_secret");
         compare(field.echoMode, TextInput.Password);
+    }
+
+    // Batch-2 P2: Speed limits opened on the alt-speed field focused Download first, then
+    // Alt-speed download, and Download kept drawing its caret over the `∞`. Only the field
+    // with the keyboard may show one.
+    function test_only_the_focused_field_draws_a_caret() {
+        const first = createTemporaryObject(fieldComponent, testCase);
+        const second = createTemporaryObject(fieldComponent, testCase, {
+                                                 "y": Theme.controlHeight * 2
+                                             });
+        first.focusInput();
+        second.focusInput();
+        wait(50);
+        const stray = findChild(first, "fieldCaret");
+        verify(stray === null || !stray.visible || stray.opacity === 0,
+               "the unfocused field still draws a caret");
+        const live = findChild(second, "fieldCaret");
+        verify(live !== null);
+        compare(live.opacity, 1);
+    }
+
+    // Batch-2 J6: focusing an empty field keeps its placeholder, dimmed a step, until the
+    // first character is typed.
+    function test_the_placeholder_stays_until_something_is_typed() {
+        const field = createTemporaryObject(fieldComponent, testCase, {
+                                                "placeholder": "∞"
+                                            });
+        const placeholder = findChild(field, "fieldPlaceholder");
+        verify(placeholder !== null);
+        compare(placeholder.visible, true);
+        const idle = placeholder.opacity;
+
+        field.focusInput();
+        compare(field.editing, true);
+        compare(placeholder.visible, true, "the placeholder went when the field took focus");
+        verify(placeholder.opacity < idle, "a focused placeholder should be dimmer");
+
+        keyClick("5");
+        compare(field.text, "5");
+        compare(placeholder.visible, false);
     }
 }

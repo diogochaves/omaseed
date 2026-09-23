@@ -48,6 +48,10 @@ FocusScope {
     readonly property var cursorRow: root.cursorIndex >= 0 ? root.matchedRows[root.cursorIndex] :
                                                             null
 
+    /// The most the list may take before it scrolls: 60 % of the window in the `?` sheet;
+    /// Settings › Keybindings gives it the rest of its pane.
+    property real maxListHeight: Math.max(Theme.space(200), (root.Window.height || 800) * 0.6)
+
     readonly property int _gap: Theme.space(28)
     readonly property bool _twoColumns: root.width >= Theme.space(560)
     /// The widest key chip of the whole sheet sets the key column, so every sentence starts on
@@ -173,15 +177,13 @@ FocusScope {
             id: scroller
 
             Layout.fillWidth: true
-            Layout.preferredHeight: Math.min(columns.implicitHeight, Math.max(Theme.space(200),
-                                                                               (root.Window.height
-                                                                                || 800) * 0.6))
+            Layout.preferredHeight: Math.max(0, Math.min(columns.implicitHeight, root.maxListHeight))
             boundsBehavior: Flickable.StopAtBounds
             clip: true
             contentHeight: columns.implicitHeight
             contentWidth: width
 
-            // The list is capped at 60 % of the window, so on a short one VIEW's rows sit below
+            // The list is capped (`maxListHeight`), so on a short window VIEW's rows sit below
             // the fold; the bar says so (batch-2 pre-walk P1). Parented to the Flickable
             // itself, not its content, so it stays put while the rows scroll.
             ScrollBar {

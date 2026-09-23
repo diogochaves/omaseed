@@ -10,8 +10,9 @@ TestCase {
 
     name: "Keymap"
 
-    /// Every key of Fig. 26, in the figure's reading order.
-    readonly property list<string> figureKeys: ["j", "k", "g", "G", "h", "l", "/", "0–9", "i", "1–4",
+    /// Every key of Fig. 26, in the figure's reading order. One deviation, logged in
+    /// REVIEW-v0.1.0.md §9: the figure prints `0–9`, the app `0–8` (batch-2 S1).
+    readonly property list<string> figureKeys: ["j", "k", "g", "G", "h", "l", "/", "0–8", "i", "1–4",
         "ctrl+k", "space", "v", "ctrl+a", "esc", "a", "enter", "p", "P", "d", "D", "c", "R", "C",
         "t", "m", "L", "r", "[", "]", "o", "y", "Y", "s", "A", ",", "ctrl+,", "|", "q", "ctrl+q", "?"]
 
@@ -91,7 +92,7 @@ TestCase {
         compare(Keymap.columns, ["navigate", "select", "view", "act", "app"]);
 
         const navigate = Keymap.helpRows("navigate");
-        compare(navigate.map(row => row.helpKeys), ["j k", "g G", "h l", "/", "0–9", "ctrl+k",
+        compare(navigate.map(row => row.helpKeys), ["j k", "g G", "h l", "/", "0–8", "ctrl+k",
                                                   "ctrl+h ctrl+l"]);
 
         const select = Keymap.helpRows("select");

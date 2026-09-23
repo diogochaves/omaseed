@@ -14,7 +14,7 @@ import QtQuick
 //             "global" entry for the same key — that is how `a` adds a tracker inside the
 //             details pane and a torrent everywhere else.
 //   key       the key as the spec writes it: "j", "G", "ctrl+q", "esc", "enter", "space",
-//             "0–9", "1–4" (en dashes, like the figure).
+//             "0–8", "1–4" (en dashes, like the figure).
 //   action    the verb `MainView` switches on.
 //   label     the short word the footer hints print after the key.
 //   column    the help-sheet section: "navigate", "select", "act", "view", "app" — set
@@ -684,12 +684,14 @@ QtObject {
         },
         {
             "area": "rail",
-            "key": "0–9",
+            // Fig. 26 prints 0–9, but the rail has nine status rows, 0 (all) to 8 (errored),
+            // so `9` does nothing; the sheet prints the keys that work (batch-2 S1, REVIEW §9).
+            "key": "0–8",
             "action": "statusFilter",
             "label": qsTr("status"),
             "column": "navigate",
             "rank": 5,
-            "helpKeys": "0–9",
+            "helpKeys": "0–8",
             "help": qsTr("status filter"),
             "about": qsTr("Filter by status: 0 all, 1 downloading, 2 seeding…")
         },

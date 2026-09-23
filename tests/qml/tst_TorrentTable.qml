@@ -332,6 +332,27 @@ TestCase {
         compare(renameSpy.signalArguments[0][1], "archlinux-renamed.iso");
     }
 
+    // Batch-2 J5: the editor widens over the next columns to show the whole name, opens on
+    // its start with all of it selected, and goes away on enter or esc.
+    function test_rename_widens_and_opens_on_the_start_of_the_name() {
+        table.startRename();
+        const loader = findChild(table, "renameEditor");
+        verify(loader !== null && loader.item !== null);
+        const name = table.renameText;
+        const input = loader.item.children[1];
+        compare(input.selectedText, name);
+        compare(input.cursorPosition, 0);
+        verify(loader.width >= input.contentWidth, "the name does not fit the editor");
+
+        // A name longer than the Name cell takes the next columns, never past the table.
+        input.text = name + name + name + name;
+        verify(loader.width > table.columnLayout.name.w, "the editor stayed inside the Name cell");
+        verify(loader.x + loader.width <= table.width, "the editor ran past the table");
+        table.cancelRename();
+        compare(table.renaming, false);
+        compare(loader.item, null);
+    }
+
     function test_rename_cancel_emits_nothing() {
         table.startRename();
         table.renameText = "ignored";

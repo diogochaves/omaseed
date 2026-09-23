@@ -110,11 +110,14 @@ public:
     /// sync loop. Does nothing in demo mode, and nothing when there is no server.
     void start();
     /// Fills the models with `rows` fictional torrents (DemoData) and turns `demoMode` on.
-    /// No client is configured and the engine stays stopped.
-    void startDemo(int rows);
+    /// No client is configured and the engine stays stopped. With `seedServer`, the server
+    /// list gets the fictional "home" the hero names, so Settings › Servers has a row to show
+    /// (batch-2 P5); in memory only, like every server change during a demo.
+    void startDemo(int rows, bool seedServer = true);
     /// The same from QML, for the qmltestrunner tests of the views: the engine-owned fallback
-    /// `App` of a test has no server and no data until a test calls `App.loadDemo(16)`.
-    Q_INVOKABLE void loadDemo(int rows) { startDemo(rows); }
+    /// `App` of a test has no server and no data until a test calls `App.loadDemo(16)`. It
+    /// seeds no server row, so the Settings tests start from an empty list.
+    Q_INVOKABLE void loadDemo(int rows) { startDemo(rows, false); }
     /// The demo path for anything that has its own JSON: tests build a maindata object,
     /// change a row, and apply it here.
     void applyDemoData(const QJsonObject &maindata);
@@ -444,7 +447,8 @@ public:
     void setTrayIconMode(const QString &mode);
 
     // About pane -------------------------------------------------------------------------
-    /// "omaseed 0.1.0 · Qt 6.11.0" — `core::versionLine()`.
+    /// "omaseed 0.1.0". Not `core::versionLine()`: the About pane prints the Qt version on
+    /// its own row (`qtVersionText`), so VERSION repeating it read twice (batch-2 J8).
     Q_PROPERTY(QString versionText READ versionText CONSTANT)
     QString versionText() const;
     /// The Qt this binary runs against, on its own.

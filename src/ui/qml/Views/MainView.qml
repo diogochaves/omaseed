@@ -108,15 +108,6 @@ Item {
 
     readonly property bool overlayOpen: root.activeOverlay !== null
 
-    /// The `[{key, label}]` the overlay on top teaches, for the window's footer. A menu has
-    /// none of its own: its rows print their keys themselves.
-    readonly property var overlayHints: {
-        const overlay = root.activeOverlay;
-        if (!overlay || overlay.hints === undefined)
-            return [];
-        return overlay.hints;
-    }
-
     // the window's state (spec §7)
     /// A configured, non-demo server that stopped answering: Fig. 23.
     readonly property bool serverLost: App.hasServer && !App.demoMode
@@ -472,7 +463,7 @@ Item {
     }
 
     /// Runs a Keymap row's action from the help sheet's `enter` (docs/08 §4). Rows that name a
-    /// movement rather than a command (j k, g G, h l, 0–9, 1–4, space, v, esc) do nothing.
+    /// movement rather than a command (j k, g G, h l, 0–8, 1–4, space, v, esc) do nothing.
     function runKeymapAction(action: string): void {
         switch (action) {
         case "filter":
@@ -1066,8 +1057,8 @@ Item {
         filterText: App.filtered.text
         filteredCount: App.filtered.count
         focusArea: root.focusArea
-        // T4.8: while an overlay is up the footer teaches its keys, not the table's.
-        overlayHints: root.overlayHints
+        // T4.8, batch-2 D3: while an overlay is up the footer keeps its facts and teaches
+        // nothing; the overlay's own hint row is the only one.
         overlayOpen: root.overlayOpen
         // Fig. 1 keeps the table's line while row 3 is being renamed, because its cursor is
         // elsewhere; a rename the user started is always on the cursor row.

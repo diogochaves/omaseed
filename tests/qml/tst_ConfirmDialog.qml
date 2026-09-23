@@ -31,8 +31,8 @@ TestCase {
             cancelText: "Cancel"
             confirmText: "Delete"
             destructive: true
-            message: "Delete 2 torrents and their files?"
-            subtitle: "archlinux-2026.09.01-x86_64.iso, debian-13.1.0-amd64-DVD-1.iso · 5.29 GB on disk"
+            message: "Delete 2 torrents?"
+            subtitle: "archlinux-2026.09.01-x86_64.iso\ndebian-13.1.0-amd64-DVD-1.iso\n5.29 GB on disk"
 
             Toggle {
                 checked: true

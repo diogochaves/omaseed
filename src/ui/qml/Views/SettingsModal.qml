@@ -216,6 +216,49 @@ Item {
         return modes[(modes.indexOf(App.trayIconMode) + 1) % modes.length];
     }
 
+    /// The tallest pane's own height. Keybindings is left out: it is a list with a scroller of
+    /// its own, and takes whatever height the others set.
+    readonly property real _tallestPane: Math.max(generalPane.implicitHeight, serversPane.implicitHeight,
+                                                  notificationsPane.implicitHeight,
+                                                  appearancePane.implicitHeight, aboutPane.implicitHeight)
+    /// The most the body may take so that the whole modal stays within 85 % of the window:
+    /// the sheet adds its padding, the gap and its hint row around the body.
+    readonly property real _bodyCap: Math.max(Theme.space(200), Math.floor(root.height * 0.85) - 2
+                                              * Theme.space(16) - Theme.space(12) - Theme.space(8) - 1
+                                              - Math.ceil(captionMetrics.height))
+
+    /// The pane on show, in `navRows` order.
+    readonly property Item _paneOnShow: [generalPane, serversPane, notificationsPane, keysPane,
+        appearancePane, aboutPane][root.paneIndex]
+
+    /// Scrolls the pane just enough to show the row with the cursor, so `j`/`k` never move
+    /// it out of sight on a pane taller than the modal.
+    function _revealCursor(): void {
+        if (root.area !== "pane")
+            return;
+        const row = root._cursorRowIn(root._paneOnShow);
+        if (row === null)
+            return;
+        const top = row.mapToItem(paneStack.contentItem, 0, 0).y;
+        const bottom = top + row.height;
+        if (top < paneStack.contentY)
+            paneStack.contentY = top;
+        else if (bottom > paneStack.contentY + paneStack.height)
+            paneStack.contentY = bottom - paneStack.height;
+    }
+
+    function _cursorRowIn(item: Item): var {
+        for (let i = 0; i < item.children.length; ++i) {
+            const child = item.children[i];
+            if (child.hasCursor === true)
+                return child;
+            const inner = root._cursorRowIn(child);
+            if (inner !== null)
+                return inner;
+        }
+        return null;
+    }
+
     function _moveNav(delta: int): void {
         root.showPane((root.paneIndex + delta + root.navRows.length) % root.navRows.length);
     }
@@ -372,6 +415,16 @@ Item {
         if (root.opened)
             root._syncThresholdField();
     }
+    onPaneIndexChanged: paneStack.contentY = 0
+    onPaneCursorChanged: Qt.callLater(root._revealCursor)
+    onAreaChanged: Qt.callLater(root._revealCursor)
+
+    FontMetrics {
+        id: captionMetrics
+
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.font.caption
+    }
 
     // Nothing typed while any of the three overlays is up may reach the window behind them:
     // what the sheet, the server sheet and the confirm leave unhandled stops here.
@@ -425,10 +478,11 @@ Item {
             }
 
             Layout.fillWidth: true
-            // As tall as the pane on show, never shorter than Fig. 16's own body: the fixed
-            // height padded the short panes (About, Appearance) with dead space and would
-            // have clipped a pane that grew past it.
-            implicitHeight: Math.max(Theme.space(470), bodyRow.implicitHeight)
+            // Batch-2 J3: one height whatever the pane, so moving through the nav never moves
+            // the modal: the tallest pane's, never shorter than Fig. 16's own body, and capped
+            // so the modal stays within 85 % of the window. A pane taller than that scrolls.
+            implicitHeight: Math.min(root._bodyCap, Math.max(Theme.space(470), paneHead.implicitHeight
+                                                             + Theme.space(12) + root._tallestPane))
 
             Keys.onPressed: event => root._onKey(event)
 
@@ -499,6 +553,8 @@ Item {
                     spacing: Theme.space(12)
 
                     RowLayout {
+                        id: paneHead
+
                         Layout.fillWidth: true
                         spacing: Theme.space(10)
 
@@ -518,30 +574,50 @@ Item {
                         }
                     }
 
-                    // The panes. Only one is ever visible; each fills what is left, and the
-                    // visible one's implicit height is what sizes the modal.
-                    Item {
+                    // The panes, in what is left under the pane's title. Only one is ever
+                    // visible, and it fills the content, which is as tall as the room or the
+                    // pane, whichever is more: a pane taller than the room scrolls here under a
+                    // bar, as the help sheet does (batch-2 J3). Keybindings always gets exactly
+                    // the room, because its list scrolls itself.
+                    Flickable {
                         id: paneStack
 
                         Layout.fillHeight: true
                         Layout.fillWidth: true
-                        implicitHeight: {
-                            for (let i = 0; i < paneStack.children.length; ++i) {
-                                if (paneStack.children[i].visible)
-                                    return paneStack.children[i].implicitHeight;
-                            }
-                            return 0;
+                        boundsBehavior: Flickable.StopAtBounds
+                        clip: true
+                        contentHeight: root.paneIndex === 3 ? height : Math.max(height,
+                                                                                root._paneOnShow.implicitHeight)
+                        contentWidth: width - (paneBar.needed ? paneBar.width + Theme.space(8) : 0)
+                        objectName: "paneScroller"
+
+                        // On the Flickable, not its content, so it stays put while the pane
+                        // scrolls.
+                        ScrollBar {
+                            id: paneBar
+
+                            anchors.bottom: parent.bottom
+                            anchors.right: parent.right
+                            anchors.top: parent.top
+                            flickable: paneStack
+                            objectName: "settingsScrollBar"
+                            parent: paneStack
+                            vertical: true
                         }
 
                         // ---- General ---------------------------------------------------
                         ColumnLayout {
+                            id: generalPane
+
                             anchors.fill: parent
                             spacing: Theme.space(8)
                             visible: root.paneIndex === 0
 
                             SettingsRow {
                                 Layout.fillWidth: true
-                                description: qsTr("Only useful with two or more servers. Off hides the multi-server chrome.")
+                                // Batch-2 J8: plain words, and true to Rail.qml, which draws
+                                // the group only from two servers and never while this is off.
+                                description: qsTr("It appears once you add a second server. Off keeps it hidden even then.")
                                 glyph: Glyphs.mark
                                 hasCursor: root.area === "pane" && root.paneCursor === 0
                                 title: qsTr("Show the Servers group in the rail")
@@ -654,6 +730,8 @@ Item {
 
                         // ---- Servers (the figure's own pane) ---------------------------
                         ColumnLayout {
+                            id: serversPane
+
                             anchors.fill: parent
                             spacing: Theme.space(6)
                             visible: root.paneIndex === 1
@@ -728,6 +806,8 @@ Item {
 
                         // ---- Notifications ---------------------------------------------
                         ColumnLayout {
+                            id: notificationsPane
+
                             anchors.fill: parent
                             spacing: Theme.space(8)
                             visible: root.paneIndex === 2
@@ -827,20 +907,73 @@ Item {
                         }
 
                         // ---- Keybindings (read-only in v1) -----------------------------
-                        Flickable {
+                        Item {
+                            id: keysPane
+
                             anchors.fill: parent
-                            boundsBehavior: Flickable.StopAtBounds
-                            clip: true
-                            contentHeight: keysBody.implicitHeight
-                            contentWidth: width
                             visible: root.paneIndex === 3
 
+                            // Batch-2 J4: a Settings page with nothing to change says so, and
+                            // where else the same list lives.
+                            Row {
+                                id: keysNote
+
+                                anchors.left: parent.left
+                                anchors.top: parent.top
+                                objectName: "keysNote"
+                                spacing: Theme.space(6)
+
+                                Label {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    dim: true
+                                    size: "small"
+                                    text: qsTr("Rebinding comes later.")
+                                }
+
+                                // `?` as a key, in the outline of the sheets' icon squares.
+                                Rectangle {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    border.color: Theme.fill(Theme.borderIdle)
+                                    border.width: 1
+                                    color: Theme.fill(Theme.fillIdle)
+                                    implicitHeight: keyText.implicitHeight + Theme.space(2)
+                                    implicitWidth: Math.max(implicitHeight, keyText.implicitWidth
+                                                            + Theme.space(10))
+                                    radius: Theme.cornerRadius
+
+                                    Text {
+                                        id: keyText
+
+                                        anchors.centerIn: parent
+                                        color: Theme.brightForeground
+                                        font.family: Theme.fontFamily
+                                        font.pixelSize: Theme.font.small
+                                        font.weight: Font.Medium
+                                        text: "?"
+                                    }
+                                }
+
+                                Label {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    dim: true
+                                    size: "small"
+                                    text: qsTr("shows this anywhere.")
+                                }
+                            }
+
                             // The `?` sheet's own body: the same rows, from the same Keymap,
-                            // so the two can never drift apart.
+                            // so the two can never drift apart. Its list takes the rest of the
+                            // pane and scrolls itself.
                             HelpSheet {
                                 id: keysBody
 
-                                width: parent.width
+                                anchors.left: parent.left
+                                anchors.right: parent.right
+                                anchors.top: keysNote.bottom
+                                anchors.topMargin: Theme.space(12)
+                                height: parent.height - keysNote.height - Theme.space(12)
+                                maxListHeight: keysBody.height - keysBody.filterField.height
+                                               - Theme.space(14)
 
                                 onCloseRequested: root.close()
                             }
@@ -848,6 +981,8 @@ Item {
 
                         // ---- Appearance -------------------------------------------------
                         ColumnLayout {
+                            id: appearancePane
+
                             anchors.fill: parent
                             spacing: Theme.space(8)
                             visible: root.paneIndex === 4
@@ -1004,7 +1139,7 @@ Item {
                             SettingsRow {
                                 Layout.fillWidth: true
                                 description: qsTr("how the rail says there is more above or below it.")
-                                glyph: Glyphs.chevronDown
+                                glyph: Glyphs.scrollHint
                                 hasCursor: root.area === "pane" && root.paneCursor === 5
                                 title: qsTr("Rail scroll hint")
 
@@ -1070,7 +1205,7 @@ Item {
                             SettingsRow {
                                 Layout.fillWidth: true
                                 description: qsTr("how a long tracker host fits the rail.")
-                                glyph: Glyphs.tracker
+                                glyph: Glyphs.host
                                 hasCursor: root.area === "pane" && root.paneCursor === 7
                                 title: qsTr("Tracker hosts")
 
@@ -1140,6 +1275,8 @@ Item {
 
                         // ---- About -------------------------------------------------------
                         ColumnLayout {
+                            id: aboutPane
+
                             anchors.fill: parent
                             spacing: Theme.space(10)
                             visible: root.paneIndex === 5

@@ -62,6 +62,10 @@ QtObject {
     readonly property string close: "✕"
     readonly property string dot: "●"
 
+    // ---- settings rows, batch-2 J8: the rows that had only a typographic dot -----------
+    readonly property string scrollHint: "icon:scroll" // Appearance › scroll hint
+    readonly property string host: "icon:globe" // Appearance › tracker hosts
+
     // ---- settings nav, spec §5 Fig. 16 `.settings .nav .it .g` ------------------------
     readonly property string server: "icon:server" // also the server sheet's head, Fig. 9
     readonly property string notifications: "◔"

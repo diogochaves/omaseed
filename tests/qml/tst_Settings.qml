@@ -30,6 +30,16 @@ TestCase {
         }
     }
 
+    // A window too short for the tallest pane (J3).
+    Component {
+        id: shortHostComponent
+
+        Item {
+            height: 420
+            width: 1100
+        }
+    }
+
     Component {
         id: probeComponent
 
@@ -452,6 +462,15 @@ TestCase {
         keyClick(Qt.Key_Tab);
         keyClick(Qt.Key_J);
         compare(modal.paneCursor, 0);
+
+        // Batch-2 J4: it says rebinding comes later and that `?` shows the same list.
+        const note = testCase.childNamed(modal, "keysNote");
+        verify(note !== null && note.visible);
+        // The list fits the pane and scrolls itself; the pane does not scroll around it.
+        const bar = testCase.childNamed(modal, "helpScrollBar");
+        verify(bar !== null);
+        const scroller = testCase.childNamed(modal, "paneScroller");
+        verify(scroller.contentHeight <= scroller.height + 1);
     }
 
     // T5.5 Q1: the transparency row's placeholder is the shell's own default, not a
@@ -474,7 +493,56 @@ TestCase {
         compare(modal.paneIndex, 5);
         verify(App.versionText.length > 0);
         verify(App.qtVersionText.length > 0);
+        // Batch-2 J8: the Qt version has its own row, so VERSION does not repeat it.
+        verify(App.versionText.indexOf("Qt") < 0, App.versionText);
         verify(App.repoUrl.indexOf("http") === 0);
         verify(App.pluginAddCommand.indexOf("omarchy plugin add ") === 0);
+    }
+
+    // Batch-2 J3: one height for every pane, the tallest one's, so j/k through the nav never
+    // moves the modal; and never more than 85 % of the window.
+    function test_the_modal_keeps_one_height_through_every_pane() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        const heights = [];
+        const tops = [];
+        for (let i = 0; i < 6; ++i) {
+            keyClick(Qt.Key_1 + i);
+            compare(modal.paneIndex, i);
+            heights.push(modal.sheet.panel.height);
+            tops.push(modal.sheet.panel.y);
+        }
+        for (let i = 1; i < 6; ++i) {
+            compare(heights[i], heights[0], "pane " + i + " changed the modal's height");
+            compare(tops[i], tops[0], "pane " + i + " moved the modal");
+        }
+        verify(heights[0] <= testCase.height * 0.85 + 1, heights[0] + " is over 85 % of the window");
+    }
+
+    function test_a_pane_taller_than_the_window_allows_scrolls_under_a_bar() {
+        const host = createTemporaryObject(shortHostComponent, testCase);
+        const modal = createTemporaryObject(modalComponent, host);
+        modal.open();
+        verify(modal.sheet.panel.height <= host.height * 0.85 + 1);
+
+        keyClick(Qt.Key_5); // Appearance, the tallest pane
+        compare(modal.paneIndex, 4);
+        const scroller = testCase.childNamed(modal, "paneScroller");
+        const bar = testCase.childNamed(modal, "settingsScrollBar");
+        verify(scroller !== null && bar !== null);
+        verify(bar.needed, "Appearance fits a 420 px window; the test needs a taller pane");
+        compare(scroller.contentY, 0);
+
+        // Walking the rows down scrolls the pane so the cursor row stays in view.
+        keyClick(Qt.Key_Tab);
+        for (let i = 0; i < 8; ++i)
+            keyClick(Qt.Key_J);
+        compare(modal.paneCursor, 8);
+        tryVerify(() => scroller.contentY > 0, 1000, "the last row was left below the fold");
+
+        // Another pane starts at its top.
+        keyClick(Qt.Key_Tab);
+        keyClick(Qt.Key_1);
+        compare(scroller.contentY, 0);
     }
 }

@@ -322,9 +322,23 @@ void App::startEngine()
     m_engine->start();
 }
 
-void App::startDemo(int rows)
+void App::startDemo(int rows, bool seedServer)
 {
     applyDemoData(DemoData::maindata(rows));
+    if (!seedServer)
+        return;
+
+    if (!m_servers->byId(m_server.id))
+        m_servers->add(m_server);
+    m_servers->setDefault(m_server.id);
+    // As if the demo server had been tested: "v5.2.3 · 16 torrents" on its row.
+    m_serverList->setProbeResult(m_server.id,
+                                 true,
+                                 QStringLiteral("5.2.3"),
+                                 QStringLiteral("2.15.1"),
+                                 m_engine->torrents()->count(),
+                                 3,
+                                 QString());
 }
 
 void App::applyDemoData(const QJsonObject &maindata)
@@ -333,12 +347,15 @@ void App::applyDemoData(const QJsonObject &maindata)
 
     const bool wasDemo = m_demoMode;
     m_demoMode = true;
+    // A demo never persists: servers added, edited or removed in its Settings stay in memory.
+    m_servers->setPersistent(false);
 
     // The hero's server line in spec §1 Fig. 1; nothing behind it is real.
     m_server = Server();
     m_server.id = QStringLiteral("demo");
     m_server.name = QStringLiteral("home");
     m_server.url = QUrl(QStringLiteral("http://demo.example.org"));
+    m_server.authMode = AuthMode::None;
     // True on purpose: there is a (fictional) library to draw, so the views show the table
     // and not the first-run page. `demoMode` is what tells them not to touch the network.
     m_hasServer = true;
@@ -1798,7 +1815,9 @@ void App::attachTheme(omaseed::integration::ThemeReader *reader)
 
 QString App::addServer(const QVariantMap &fields, const QString &secret)
 {
-    const QString id = m_serverList->add(fields, secret);
+    // A demo keeps its servers in memory (applyDemoData); their secrets stay out of the
+    // keychain for the same reason.
+    const QString id = m_serverList->add(fields, m_demoMode ? QString() : secret);
     if (id.isEmpty())
         return {};
     qInfo().noquote() << QStringLiteral("server added: %1").arg(id);
@@ -1813,7 +1832,7 @@ QString App::addServer(const QVariantMap &fields, const QString &secret)
 
 bool App::updateServer(const QVariantMap &fields, const QString &secret)
 {
-    if (!m_serverList->update(fields, secret))
+    if (!m_serverList->update(fields, m_demoMode ? QString() : secret))
         return false;
     const QString id = fields.value(QStringLiteral("id")).toString();
     // Editing the server the engine is on has to reach the live client, or the change only
@@ -2189,7 +2208,7 @@ void App::setTrayIconMode(const QString &mode)
 
 QString App::versionText() const
 {
-    return omaseed::core::versionLine();
+    return QStringLiteral("omaseed %1").arg(omaseed::core::version());
 }
 
 QString App::qtVersionText() const
