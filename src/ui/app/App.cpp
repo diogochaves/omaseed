@@ -1228,8 +1228,8 @@ void App::parseTorrentBytes(const QString &token,
 
 void App::pickTorrentFile()
 {
-    // getOpenFileContent never maps a widget window of ours: on Wayland Qt's
-    // xdgdesktopportal platform theme serves the dialog, so the picker is the portal's.
+    // The portal's chooser, not a widget window of ours: main() selects Qt's
+    // xdgdesktopportal platform theme, which serves QFileDialog's static pickers.
     QFileDialog::getOpenFileContent(tr("Torrent files (*.torrent);;All files (*)"),
                                     [this](const QString &fileName, const QByteArray &bytes) {
                                         if (fileName.isEmpty())
