@@ -402,17 +402,51 @@ TestCase {
                                       "the settings modal");
     }
 
-    function test_the_window_footer_teaches_the_overlay_that_is_up() {
-        App.addRequested();
-        compare(view.hintModel.area, "overlay");
-        compare(view.overlayHints, view.addSheet.hints);
-        compare(view.hintModel.hints[0].key, "esc");
-        compare(view.hintModel.hints[0].label, "close");
-        compare(view.hintModel.hints.length, view.addSheet.hints.length + 1);
-        compare(view.hintModel.pinned, null);
+    // Batch-2 D3: with a sheet, palette, modal or menu up, the window footer keeps its facts
+    // and prints no hints, so nothing repeats the overlay's own row or contradicts it; the
+    // table's hints come back when it closes.
+    function _checkFooterStandsAside(open, overlay, what) {
+        open();
+        compare(overlay.opened, true, what + " did not open");
+        compare(view.hintModel.area, "overlay", what);
+        compare(view.hintModel.hints.length, 0, "the footer still teaches keys under " + what);
+        compare(view.hintModel.pinned, null, what);
+        verify(view.factParts.length > 0, "the facts went with " + what);
+        overlay.close();
+        compare(view.hintModel.area, "table", what);
+        verify(view.hintModel.hints.length > 0, "the hints did not come back after " + what);
+        verify(view.hintModel.pinned !== null, "`? help` did not come back after " + what);
+    }
 
-        keyClick(Qt.Key_Escape);
-        compare(view.hintModel.area, "table");
+    function test_the_window_footer_stands_aside_for_every_overlay() {
+        testCase._checkFooterStandsAside(() => App.addRequested(), view.addSheet, "the add sheet");
+        testCase._checkFooterStandsAside(() => keyClick("L", Qt.ShiftModifier),
+                                         view.limitsSheetPanel, "the limits sheet");
+        testCase._checkFooterStandsAside(() => keyClick("m"), view.locationSheetPanel,
+                                         "the location sheet");
+        testCase._checkFooterStandsAside(() => App.openSettings(), view.settingsModal,
+                                         "the settings modal");
+        // The help sheet is driven by `helpOpen`; this stands in for its panel.
+        const help = {
+            get opened() {
+                return view.helpOpen;
+            },
+            close() {
+                view.helpOpen = false;
+            }
+        };
+        testCase._checkFooterStandsAside(() => view.helpOpen = true, help, "the help sheet");
+        testCase._checkFooterStandsAside(() => keyClick("s"), view.sortPalette,
+                                         "the sort palette");
+        testCase._checkFooterStandsAside(() => keyClick(Qt.Key_K, Qt.ControlModifier),
+                                         view.jumpPalette, "the jump palette");
+        testCase._checkFooterStandsAside(() => keyClick("d"), view.deleteConfirmPanel,
+                                         "the delete confirm");
+        testCase._checkFooterStandsAside(() => keyClick(Qt.Key_Return), view.actionsMenuPanel,
+                                         "the actions menu");
+        testCase._checkFooterStandsAside(() => view.moreMenu.open(), view.moreMenu, "the ⋯ menu");
+        testCase._checkFooterStandsAside(() => view.globalLimitsSheet.openFor(true),
+                                         view.globalLimitsSheet, "the speed limits sheet");
     }
 
     // ---- one Connections block, and the jump palette's `tab` (T4.8) --------------------------

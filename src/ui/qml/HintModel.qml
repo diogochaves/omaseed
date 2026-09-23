@@ -8,8 +8,10 @@ import Omaseed
 // The lists are the ones the spec draws: §1 Fig. 1 for the table, §2 Fig. 2-4 for the
 // details pane's three list tabs, §7 Fig. 22 for the empty state, Fig. 23 for a lost server
 // and Fig. 24 for a filter with no result. While an overlay is up (T4.8) the footer prints
-// `esc close` and that overlay's own hints instead, because the window underneath answers
-// no key at all. `? help` is pinned to the right edge everywhere
+// no hints at all: the window underneath answers no key, and the overlay's own hint row is
+// the one place its keys are taught (batch-2 D3), so the two can never repeat or contradict
+// each other ("esc close" beside the help sheet's "esc clear, then close"). The facts on the
+// left stay. `? help` is pinned to the right edge everywhere
 // the window is usable (Fig. 1 and Fig. 22); Fig. 23 and Fig. 24 print no pinned hint.
 //
 // Every key and every word comes out of `Keymap`, so a key can never be taught here and
@@ -35,8 +37,6 @@ QtObject {
     /// draws an overlay's hints inside the overlay, and the window underneath is modal, so
     /// the footer must stop teaching table keys that nothing will answer.
     property bool overlayOpen: false
-    /// The overlay's own `[{key, label}]`, which the footer prints after `esc close`.
-    property var overlayHints: []
 
     // what the footer reads ---------------------------------------------------------
     /// The state the hints describe. A window-wide state (lost server, empty library,
@@ -63,9 +63,7 @@ QtObject {
     readonly property var hints: {
         switch (root.area) {
         case "overlay":
-            // `close` rather than Keymap's own "clear" for the global `esc`: over an overlay
-            // that key closes it, which is the last rung of the same escape ladder.
-            return [root._hint("global", "esc", qsTr("close"))].concat(root.overlayHints);
+            return [];
         case "disconnected":
             // Fig. 23. `R retry` is the one hint with no Keymap entry: retrying is not a
             // table action, it only exists while the server is gone (App.retryNow()).
