@@ -77,8 +77,8 @@ Item {
             return 4; // three toggles, then the low-disk threshold field
         case 4:
             // theme, base size, transparency, tray icon, speed alignment, then the rail's scroll
-            // hint, surface tint and tracker hosts (docs/08 §5)
-            return 8;
+            // hint, surface tint and tracker hosts (docs/08 §5), then where Details sits (docs/10)
+            return 9;
         case 5:
             return 1; // the copyable `omarchy plugin add` line
         default:
@@ -152,6 +152,8 @@ Item {
                 App.surfaceTint = root._next(root.tints, App.surfaceTint);
             else if (root.paneCursor === 7)
                 App.trackerHostStyle = root._next(root.hostStyles, App.trackerHostStyle);
+            else if (root.paneCursor === 8)
+                App.detailsPlacement = root._next(root.placements, App.detailsPlacement);
             return;
         }
         if (root.paneIndex === 5)
@@ -164,6 +166,9 @@ Item {
     readonly property var tints: [[0, qsTr("none")], [4, qsTr("4 %")], [8, qsTr("8 %")]]
     readonly property var hostStyles: [["prefix", qsTr("drop prefix")], ["left", qsTr("cut start")],
         ["right", qsTr("cut end")]]
+    // docs/10 §5: where Details sits.
+    readonly property var placements: [["auto", qsTr("auto")], ["right", qsTr("right")], ["bottom",
+                                                                                          qsTr("bottom")]]
 
     /// The value after `current` in `options` (`[[value, text]]`), wrapping round.
     function _next(options: var, current: var): var {
@@ -1090,6 +1095,39 @@ Item {
                                             text: hostChip.modelData[1]
 
                                             onClicked: App.trackerHostStyle = hostChip.modelData[0]
+                                        }
+                                    }
+                                }
+                            }
+
+                            SettingsRow {
+                                Layout.fillWidth: true
+                                description: qsTr("auto puts it right when the window is wide enough. I cycles it.")
+                                glyph: Glyphs.sidebar
+                                hasCursor: root.area === "pane" && root.paneCursor === 8
+                                title: qsTr("Details panel")
+
+                                onClicked: {
+                                    root.paneCursor = 8;
+                                    root.area = "pane";
+                                    App.detailsPlacement = root._next(root.placements, App.detailsPlacement);
+                                }
+
+                                RowLayout {
+                                    spacing: Theme.space(6)
+
+                                    Repeater {
+                                        model: root.placements
+
+                                        Chip {
+                                            id: placementChip
+
+                                            required property var modelData
+
+                                            selected: App.detailsPlacement === placementChip.modelData[0]
+                                            text: placementChip.modelData[1]
+
+                                            onClicked: App.detailsPlacement = placementChip.modelData[0]
                                         }
                                     }
                                 }

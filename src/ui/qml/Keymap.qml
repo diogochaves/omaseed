@@ -69,6 +69,39 @@ QtObject {
             "help": qsTr("details"),
             "about": qsTr("Show or hide the details panel")
         },
+        // docs/10 §5 (B1.7): where Details sits, and how big it is.
+        {
+            "area": "global",
+            "key": "I",
+            "action": "cycleDetailsPlacement",
+            "label": qsTr("place"),
+            "column": "view",
+            "rank": 6,
+            "helpKeys": "I",
+            "help": qsTr("details right · bottom · auto"),
+            "about": qsTr("Move the details panel: right, bottom, or by window width")
+        },
+        {
+            "area": "global",
+            "key": "<",
+            "action": "detailsSmaller",
+            "label": qsTr("smaller"),
+            "column": "view",
+            "rank": 7,
+            "helpKeys": "< >",
+            "help": qsTr("details smaller · larger"),
+            "about": qsTr("Resize the details panel; its divider also drags")
+        },
+        {
+            "area": "global",
+            "key": ">",
+            "action": "detailsLarger",
+            "label": qsTr("larger"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
         {
             "area": "global",
             "key": "ctrl+k",

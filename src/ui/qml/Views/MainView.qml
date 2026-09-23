@@ -230,6 +230,22 @@ Item {
             table.forceActiveFocus();
     }
 
+    /// `I` (docs/10 §5): auto -> right -> bottom -> auto, shown in the footer for a moment. A
+    /// hidden pane comes back, since moving it is a way of asking for it.
+    function cycleDetailsPlacement(): void {
+        const order = ["auto", "right", "bottom"];
+        const next = order[(order.indexOf(App.detailsPlacement) + 1) % order.length];
+        App.detailsPlacement = next;
+        if (details.collapsed)
+            root.toggleDetails();
+        const words = {
+            "auto": qsTr("auto"),
+            "right": qsTr("right"),
+            "bottom": qsTr("bottom")
+        };
+        root.flashFooterNote(qsTr("details: %1 · I to change").arg(words[next]));
+    }
+
     /// `esc`, in the order Fig. 26 promises: clear, then filter, then close.
     function handleEscape(): void {
         if (root.helpOpen) {
@@ -401,7 +417,18 @@ Item {
             root.focusSearch();
             break;
         case Qt.Key_I:
-            root.toggleDetails();
+            if (shift)
+                root.cycleDetailsPlacement();
+            else
+                root.toggleDetails();
+            break;
+        case Qt.Key_Less: // docs/10 §5: the details pane smaller and larger, as vim's ctrl+w < >
+            if (!details.collapsed)
+                split.resizeBy(-Theme.space(40));
+            break;
+        case Qt.Key_Greater:
+            if (!details.collapsed)
+                split.resizeBy(Theme.space(40));
             break;
         case Qt.Key_A:
             if (shift)
@@ -897,10 +924,14 @@ Item {
             // rail, so hiding the rail no longer moves Details.
             referenceWidth: root.width
             side: details
-            sideHeight: Theme.space(260)
+            defaultSideHeight: Theme.space(260)
+            defaultSideWidth: Theme.space(340)
+            // docs/10 §5: Settings -> Appearance, or `I`; the sizes are the table state's.
+            placement: App.detailsPlacement
             sideVisible: !details.collapsed
-            sideWidth: Theme.space(340)
             visible: !root.libraryEmpty && !root.firstSync
+
+            onResized: root.saveTableState()
         }
 
         // `main` and `side` are reparented into the split; they are declared here so the
@@ -1341,13 +1372,22 @@ Item {
                                "columns": table.visibleColumns,
                                "sortRole": App.filtered.sortRoleName,
                                "sortOrder": App.filtered.sortOrder,
-                               "railFolded": root.railFolded
+                               "railFolded": root.railFolded,
+                               // In base-12 units, so a base size change keeps the proportion.
+                               "detailsWidth": Math.round(split.sideWidth * 12
+                                                          / Theme.font.baseSize),
+                               "detailsHeight": Math.round(split.sideHeight * 12
+                                                           / Theme.font.baseSize)
                            });
     }
 
     function restoreTableState(): void {
         const state = App.tableState(App.tableStateKey());
         root.railFolded = state.railFolded !== undefined ? state.railFolded : [];
+        split.sideWidth = state.detailsWidth > 0 ? Theme.space(state.detailsWidth)
+                                                 : split.defaultSideWidth;
+        split.sideHeight = state.detailsHeight > 0 ? Theme.space(state.detailsHeight)
+                                                   : split.defaultSideHeight;
         if (state.columns !== undefined && state.columns.length > 0)
             table.visibleColumns = state.columns;
         if (state.sortRole !== undefined && String(state.sortRole).length > 0) {

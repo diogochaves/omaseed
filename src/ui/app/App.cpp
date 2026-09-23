@@ -1930,6 +1930,8 @@ QString oneOf(const QString &value, const QStringList &allowed)
 
 const QStringList kRailScrollHints{
     QStringLiteral("chevrons"), QStringLiteral("fade"), QStringLiteral("scrollbar")};
+const QStringList kDetailsPlacements{
+    QStringLiteral("auto"), QStringLiteral("right"), QStringLiteral("bottom")};
 const QStringList kTrackerHostStyles{
     QStringLiteral("prefix"), QStringLiteral("left"), QStringLiteral("right")};
 
@@ -1953,6 +1955,23 @@ void App::setRailScrollHint(const QString &hint)
     if (m_railScrollHint == wanted)
         return;
     m_railScrollHint = wanted;
+    saveSettings();
+    Q_EMIT settingsChanged();
+}
+
+QString App::detailsPlacement() const
+{
+    const_cast<App *>(this)->loadSettings();
+    return m_detailsPlacement;
+}
+
+void App::setDetailsPlacement(const QString &placement)
+{
+    loadSettings();
+    const QString wanted = oneOf(placement, kDetailsPlacements);
+    if (m_detailsPlacement == wanted)
+        return;
+    m_detailsPlacement = wanted;
     saveSettings();
     Q_EMIT settingsChanged();
 }
@@ -2076,6 +2095,8 @@ void App::loadSettings()
     m_trackerHostStyle =
         oneOf(appearance.value(QStringLiteral("trackerHostStyle")).toString(), kTrackerHostStyles);
     m_railHidden = appearance.value(QStringLiteral("railHidden")).toBool(false);
+    m_detailsPlacement =
+        oneOf(appearance.value(QStringLiteral("detailsPlacement")).toString(), kDetailsPlacements);
 }
 
 void App::saveSettings()
@@ -2095,6 +2116,7 @@ void App::saveSettings()
     appearance[QStringLiteral("surfaceTint")] = m_surfaceTint;
     appearance[QStringLiteral("trackerHostStyle")] = m_trackerHostStyle;
     appearance[QStringLiteral("railHidden")] = m_railHidden;
+    appearance[QStringLiteral("detailsPlacement")] = m_detailsPlacement;
     StateFile::writeSection(QStringLiteral("appearance"), appearance);
 }
 

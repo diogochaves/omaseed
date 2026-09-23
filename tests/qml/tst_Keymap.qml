@@ -106,7 +106,7 @@ TestCase {
                                            "open folder", "copy magnet · hash · name"]);
 
         const view = Keymap.helpRows("view");
-        compare(view.map(row => row.helpKeys), ["i", "1–4", "s", "|", "ctrl+b"]);
+        compare(view.map(row => row.helpKeys), ["i", "1–4", "s", "|", "ctrl+b", "I", "< >"]);
 
         const application = Keymap.helpRows("app");
         compare(application.map(row => row.helpKeys), ["A", ", ctrl+,", "ctrl+.", "q", "ctrl+q",

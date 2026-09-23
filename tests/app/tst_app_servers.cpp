@@ -275,6 +275,11 @@ void TestAppServers::appearanceOverridesReachTheTheme()
     app.setTrackerHostStyle(QStringLiteral("left"));
     QCOMPARE(app.railHidden(), false);
     app.setRailHidden(true);
+    // docs/10 §5: where Details sits.
+    QCOMPARE(app.detailsPlacement(), QStringLiteral("auto"));
+    app.setDetailsPlacement(QStringLiteral("left"));
+    QCOMPARE(app.detailsPlacement(), QStringLiteral("auto"));
+    app.setDetailsPlacement(QStringLiteral("bottom"));
 
     // The General pane's two flags, the tray mode and the alignment round-trip through
     // state.json.
@@ -290,6 +295,7 @@ void TestAppServers::appearanceOverridesReachTheTheme()
     QCOMPARE(reopened.surfaceTint(), 8);
     QCOMPARE(reopened.trackerHostStyle(), QStringLiteral("left"));
     QCOMPARE(reopened.railHidden(), true);
+    QCOMPARE(reopened.detailsPlacement(), QStringLiteral("bottom"));
     QCOMPARE(reopened.baseSizeOverride(), 0);
     QCOMPARE(reopened.followOmarchyTheme(), false);
 }

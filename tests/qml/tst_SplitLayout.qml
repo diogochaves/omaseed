@@ -106,4 +106,60 @@ TestCase {
     function split_breakpoint() {
         return Theme.space(1100);
     }
+
+    // docs/10 §5: a pinned placement ignores the breakpoint.
+    function test_placement_pins_the_side() {
+        const split = createTemporaryObject(splitComponent, testCase, {
+                                                "width": 800,
+                                                "height": 600
+                                            });
+        compare(split.docked, false);
+        split.placement = "right";
+        compare(split.docked, true);
+        split.width = 3000;
+        split.placement = "bottom";
+        compare(split.docked, false);
+        split.placement = "auto";
+        compare(split.docked, true);
+    }
+
+    // docs/10 §5: `<` `>` resize along the docked axis, clamped, and say so.
+    function test_resize_by_is_clamped_and_signals() {
+        const split = createTemporaryObject(splitComponent, testCase, {
+                                                "width": 1600,
+                                                "height": 600
+                                            });
+        let resized = 0;
+        split.resized.connect(() => resized += 1);
+        const before = split.shownSideWidth;
+        split.resizeBy(40);
+        compare(split.shownSideWidth, before + 40);
+        compare(resized, 1);
+        split.resizeBy(100000);
+        compare(split.shownSideWidth, split.maximumSideWidth);
+        split.resizeBy(-100000);
+        compare(split.shownSideWidth, split.minimumSideWidth);
+        split.resetSize();
+        compare(split.sideWidth, split.defaultSideWidth);
+
+        split.placement = "bottom";
+        split.resizeBy(-100000);
+        compare(split.shownSideHeight, split.minimumSideHeight);
+        split.resizeBy(100000);
+        compare(split.shownSideHeight, Math.round(600 * 0.6));
+    }
+
+    // A size chosen in a wide window is kept, but drawn clamped in a narrow one.
+    function test_a_kept_size_is_clamped_to_the_room() {
+        const split = createTemporaryObject(splitComponent, testCase, {
+                                                "width": 1600,
+                                                "height": 600,
+                                                "placement": "right",
+                                                "sideWidth": Theme.space(540)
+                                            });
+        compare(split.shownSideWidth, Theme.space(540));
+        split.width = Theme.space(600);
+        compare(split.sideWidth, Theme.space(540));
+        compare(split.shownSideWidth, split.maximumSideWidth);
+    }
 }

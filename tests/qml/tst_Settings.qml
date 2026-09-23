@@ -314,7 +314,7 @@ TestCase {
 
         // Appearance: the tray-icon row cycles the three chips.
         keyClick(Qt.Key_5);
-        compare(modal.paneRowCount, 8);
+        compare(modal.paneRowCount, 9);
         const tray = App.trayIconMode;
         modal.paneCursor = 3;
         modal.area = "pane";
@@ -342,6 +342,15 @@ TestCase {
         modal.activateRow();
         verify(App.trackerHostStyle !== hosts);
 
+        // ...and the ninth places Details (docs/10 §5): auto, right, bottom.
+        const placement = App.detailsPlacement;
+        compare(placement, "auto");
+        modal.paneCursor = 8;
+        modal.activateRow();
+        compare(App.detailsPlacement, "right");
+        modal.activateRow();
+        compare(App.detailsPlacement, "bottom");
+
         // Put everything back: App persists these to state.json.
         App.showServersGroup = servers;
         App.pathMapEnabled = mapping;
@@ -351,6 +360,7 @@ TestCase {
         App.railScrollHint = hint;
         App.surfaceTint = tint;
         App.trackerHostStyle = hosts;
+        App.detailsPlacement = placement;
     }
 
     // T5.5 (Q16): the low-disk threshold is the fourth row of the Notifications pane, a

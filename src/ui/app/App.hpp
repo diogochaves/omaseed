@@ -424,6 +424,12 @@ public:
                    settingsChanged)
     QString trackerHostStyle() const;
     void setTrackerHostStyle(const QString &style);
+    /// docs/10 §5: where Details sits. "auto" (the default: right when the window is wide
+    /// enough, under the table otherwise), "right" or "bottom". `I` cycles it.
+    Q_PROPERTY(QString detailsPlacement READ detailsPlacement WRITE setDetailsPlacement NOTIFY
+                   settingsChanged)
+    QString detailsPlacement() const;
+    void setDetailsPlacement(const QString &placement);
     /// The rail is hidden (`ctrl+b`); remembered across runs.
     Q_PROPERTY(bool railHidden READ railHidden WRITE setRailHidden NOTIFY settingsChanged)
     bool railHidden() const;
@@ -480,6 +486,7 @@ private:
     QString m_trayIconMode = QStringLiteral("auto");
     QString m_speedsAlignment = QStringLiteral("left");
     QString m_railScrollHint = QStringLiteral("chevrons");
+    QString m_detailsPlacement = QStringLiteral("auto");
     int m_surfaceTint = 0;
     QString m_trackerHostStyle = QStringLiteral("prefix");
     bool m_railHidden = false;
