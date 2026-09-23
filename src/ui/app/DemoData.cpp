@@ -687,7 +687,26 @@ QJsonObject fileJson(int index, const QString &name, qint64 size, double progres
     file.insert(QStringLiteral("progress"), progress);
     file.insert(QStringLiteral("priority"), priority);
     file.insert(QStringLiteral("availability"), progress >= 1.0 ? 1.0 : progress);
+    file.insert(QStringLiteral("is_seed"), progress >= 1.0);
     return file;
+}
+
+/// Gives every file the `piece_range` the API sends: the files lie end to end in the
+/// torrent's data, cut into pieces of `pieceSize` bytes.
+QJsonArray withPieceRanges(const QJsonArray &files, qint64 pieceSize)
+{
+    QJsonArray out;
+    qint64 offset = 0;
+    for (const QJsonValue &value : files) {
+        QJsonObject file = value.toObject();
+        const qint64 size =
+            std::max<qint64>(1, qint64(file.value(QStringLiteral("size")).toDouble()));
+        file.insert(QStringLiteral("piece_range"),
+                    QJsonArray{int(offset / pieceSize), int((offset + size - 1) / pieceSize)});
+        offset += size;
+        out.append(file);
+    }
+    return out;
 }
 
 QJsonObject trackerJson(const QString &url,
@@ -753,7 +772,7 @@ QJsonArray bigBuckBunnyFiles()
     files.append(fileJson(2, root + QStringLiteral("subs/bbb.en.srt"), 9216LL, 0.0, 0));
     files.append(fileJson(3, root + QStringLiteral("subs/bbb.pt.srt"), 9216LL, 0.0, 0));
     files.append(fileJson(4, root + QStringLiteral("LICENSE.txt"), 1024LL, 1.0, 1));
-    return files;
+    return withPieceRanges(files, 1024LL * 1024);
 }
 
 /// Spec §2 Fig. 3: three announce URLs (the middle one timing out) and DHT/PeX. The hosts
@@ -843,25 +862,54 @@ bool looksLikeOneFile(const QString &name)
 }
 
 /// A plausible file list for a row the spec does not draw: one file for anything that looks
-/// like an image or an archive, a small folder tree otherwise.
+/// like an image or an archive, otherwise a folder tree with enough in it to show the Files
+/// tab's filter, sort and priorities (N1): extras numbered so a natural sort matters, two
+/// subtitle files, a skipped sample, and files at different stages.
 QJsonArray generatedFiles(const omaseed::core::Torrent &torrent)
 {
     QJsonArray files;
+    const qint64 pieceSize = 4LL * 1024 * 1024;
     if (looksLikeOneFile(torrent.name) || torrent.size <= 0) {
         files.append(fileJson(0, torrent.name, torrent.size, torrent.progress, 1));
-        return files;
+        return withPieceRanges(files, pieceSize);
     }
 
     const QString root = torrent.name + QLatin1Char('/');
-    const qint64 extras = 1024LL * 1024;
-    const qint64 main = std::max(qint64(1), torrent.size - 3 * extras);
+    const qint64 mb = 1024LL * 1024;
+    struct Extra
+    {
+        const char *path;
+        qint64 size;
+        double progress; ///< < 0: the torrent's own
+        int priority;
+        double availability; ///< < 0: from the progress
+    };
+    const Extra extras[] = {
+        {"extras/behind-the-scenes.mkv", 180 * mb, -1.0, 1, -1.0},
+        {"extras/featurette-2.mkv", 96 * mb, 0.42, 6, 0.81},
+        {"extras/featurette-10.mkv", 64 * mb, 0.0, 7, 0.37},
+        {"extras/poster.png", mb / 4, 1.0, 1, -1.0},
+        {"subs/english.srt", 96 * 1024, 1.0, 1, -1.0},
+        {"subs/português (Brasil).srt", 98 * 1024, 0.0, 0, 0.0},
+        {"sample/sample.mkv", 24 * mb, 0.0, 0, 0.64},
+        {"LICENSE.txt", 1024, 1.0, 1, -1.0},
+    };
+    qint64 rest = 0;
+    for (const Extra &extra : extras)
+        rest += extra.size;
+    const qint64 main = std::max(qint64(1), torrent.size - rest);
     files.append(
         fileJson(0, root + torrent.name + QStringLiteral(".mkv"), main, torrent.progress, 1));
-    files.append(fileJson(
-        1, root + QStringLiteral("extras/behind-the-scenes.mkv"), 2 * extras, torrent.progress, 1));
-    files.append(fileJson(2, root + QStringLiteral("extras/poster.png"), extras / 4, 1.0, 1));
-    files.append(fileJson(3, root + QStringLiteral("LICENSE.txt"), 1024, 1.0, 1));
-    return files;
+    int index = 1;
+    for (const Extra &extra : extras) {
+        const double progress = extra.progress < 0 ? torrent.progress : extra.progress;
+        QJsonObject file = fileJson(
+            index++, root + QString::fromUtf8(extra.path), extra.size, progress, extra.priority);
+        if (extra.availability >= 0)
+            file.insert(QStringLiteral("availability"), extra.availability);
+        files.append(file);
+    }
+    return withPieceRanges(files, pieceSize);
 }
 
 QJsonArray generatedTrackers(const omaseed::core::Torrent &torrent)

@@ -5,9 +5,15 @@ import Omaseed
 import Omaseed.Kit
 
 // The details pane's Peers tab (spec v2 §2 Fig. 4 `.list.peers`):
-// `Address · CC · Client · ↓ · ↑ · Done`. Speeds are already abbreviated by the model
-// ("1.02 M"); the full figure lives in the tooltip. The address column shows the IP only —
-// the port travels with the `b` ban and `y` copy actions.
+// `Address · CC · Client · ↓ · ↑ · Done`. Speeds are in the table's units ("1.02 MB/s",
+// docs/11 J2). The address column shows the IP only — the port travels with the `b` ban and
+// `y` copy actions, and shows on hover with the peer's country and connection.
+//
+// J1: docked on the right there is not room for six columns, so the address takes a fixed
+// width that holds a whole IPv4 address (an IPv6 one elides in the middle), CC steps aside
+// (the country is in the address's hover label) and the client takes what is left. The
+// client is the one flexible column, with a preferred width of 1 on both the header and the
+// row, so the header's caption starts where the row text does whatever their lengths (J2).
 Item {
     id: root
 
@@ -23,7 +29,10 @@ Item {
     // means the two flexible ones elide; the address gets the larger share of what is left,
     // because it is what identifies the row for `b` ban and `y` copy.
     readonly property int codeWidth: Theme.space(26)
-    readonly property int speedWidth: Theme.space(48)
+    readonly property int speedWidth: Theme.space(64)
+    readonly property int addressWidth: root.width >= Theme.space(560) ? Theme.space(160)
+                                                                       : Theme.space(100)
+    readonly property bool showCode: root.width >= Theme.space(480)
     readonly property int doneWidth: Theme.space(40)
 
     function ensureVisible() {
@@ -43,36 +52,37 @@ Item {
         anchors.top: parent.top
         spacing: Theme.space(8)
 
-        TableHeader {
-            Layout.fillWidth: true
-            Layout.horizontalStretchFactor: 3
+        DetailsHeader {
+            Layout.preferredWidth: root.addressWidth
             text: qsTr("Address")
         }
 
-        TableHeader {
+        DetailsHeader {
             Layout.preferredWidth: root.codeWidth
             text: qsTr("CC")
+            visible: root.showCode
         }
 
-        TableHeader {
+        DetailsHeader {
             Layout.fillWidth: true
-            Layout.horizontalStretchFactor: 2
+            Layout.minimumWidth: 0
+            Layout.preferredWidth: 1
             text: qsTr("Client")
         }
 
-        TableHeader {
+        DetailsHeader {
             Layout.preferredWidth: root.speedWidth
             alignRight: true
             text: Glyphs.arrowDown
         }
 
-        TableHeader {
+        DetailsHeader {
             Layout.preferredWidth: root.speedWidth
             alignRight: true
             text: Glyphs.arrowUp
         }
 
-        TableHeader {
+        DetailsHeader {
             Layout.preferredWidth: root.doneWidth
             alignRight: true
             text: qsTr("Done")
@@ -95,6 +105,9 @@ Item {
 
             required property int index
             required property string ip
+            required property string address
+            required property string country
+            required property string connection
             required property string countryCode
             required property string client
             required property string dlSpeedText
@@ -115,65 +128,63 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: Theme.space(8)
 
-                Text {
-                    Layout.fillWidth: true
-                    Layout.horizontalStretchFactor: 3
+                DetailsCell {
+                    Layout.preferredWidth: root.addressWidth
+                    alwaysTip: true
                     color: row.textColor
-                    elide: Text.ElideRight
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.font.small
+                    elide: Text.ElideMiddle
+                    objectName: "peerAddress_" + row.index
                     text: row.ip
+                    tip: tip
+                    tipText: [row.address, row.country, row.connection].filter(part => part.length
+                                                                                   > 0).join(" · ")
                 }
 
-                Text {
+                DetailsCell {
                     Layout.preferredWidth: root.codeWidth
                     color: row.textColor
-                    elide: Text.ElideRight
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.font.small
                     text: row.countryCode
+                    tip: tip
+                    tipText: row.country
+                    visible: root.showCode
                 }
 
-                Text {
+                DetailsCell {
                     Layout.fillWidth: true
-                    Layout.horizontalStretchFactor: 2
+                    Layout.minimumWidth: 0
+                    Layout.preferredWidth: 1
                     color: row.textColor
-                    elide: Text.ElideRight
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.font.small
+                    // The version is the end worth keeping: "qBitt…4.6.2".
+                    elide: Text.ElideMiddle
                     text: row.client
+                    tip: tip
                 }
 
-                Text {
+                DetailsCell {
                     Layout.preferredWidth: root.speedWidth
                     color: row.textColor
-                    elide: Text.ElideRight
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.font.small
                     horizontalAlignment: Text.AlignRight
                     text: row.dlSpeedText
                 }
 
-                Text {
+                DetailsCell {
                     Layout.preferredWidth: root.speedWidth
                     color: row.textColor
-                    elide: Text.ElideRight
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.font.small
                     horizontalAlignment: Text.AlignRight
                     text: row.upSpeedText
                 }
 
-                Text {
+                DetailsCell {
                     Layout.preferredWidth: root.doneWidth
                     color: row.textColor
-                    elide: Text.ElideRight
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.font.small
                     horizontalAlignment: Text.AlignRight
                     text: row.progressText
                 }
             }
         }
+    }
+
+    Tooltip {
+        id: tip
     }
 }

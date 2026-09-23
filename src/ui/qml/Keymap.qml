@@ -781,8 +781,8 @@ QtObject {
         {
             "area": "details",
             "key": "o",
-            "action": "openFile",
-            "label": qsTr("open"),
+            "action": "revealFile",
+            "label": qsTr("folder"),
             "column": "",
             "rank": 0,
             "helpKeys": "",
@@ -903,7 +903,6 @@ QtObject {
             "help": ""
         },
 
-
         // the add sheet's file tree (docs/11 D1): the details Files tab's keys, plus space
         // to check or uncheck a file or a whole folder. The sheet's own hint line reads these.
         {
@@ -981,6 +980,162 @@ QtObject {
             "key": "l",
             "action": "unfold",
             "label": qsTr("unfold"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+
+        // The Files tab (UX-NOTES N1): the same verbs as the table where there is one
+        // (space, v, enter, r, y, n, g G, s, /), and qBittorrent's content actions.
+        {
+            "area": "details",
+            "key": "g",
+            "action": "first",
+            "label": qsTr("first"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "details",
+            "key": "G",
+            "action": "last",
+            "label": qsTr("last"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "details",
+            "key": "space",
+            "action": "toggleSelection",
+            "label": qsTr("select"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "details",
+            "key": "v",
+            "action": "selectRange",
+            "label": qsTr("range"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "details",
+            "key": "esc",
+            "action": "clearSelection",
+            "label": qsTr("clear"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "details",
+            "key": "enter",
+            "action": "fileMenu",
+            "label": qsTr("menu"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "details",
+            "key": "p",
+            "action": "priorityMenu",
+            "label": qsTr("priority"),
+            "column": "act",
+            "rank": 10,
+            "helpKeys": "p + - x",
+            "help": qsTr("file priority"),
+            "about": qsTr("In the Files tab: the priority menu, raise, lower, skip; on the selected files or the cursor row")
+        },
+        {
+            "area": "details",
+            "key": "O",
+            "action": "openFile",
+            "label": qsTr("open"),
+            "column": "act",
+            "rank": 11,
+            "helpKeys": "O o r",
+            "help": qsTr("open · folder · rename"),
+            "about": qsTr("In the Files tab: open a file, show it in its folder, rename a file or folder")
+        },
+        {
+            "area": "details",
+            "key": "r",
+            "action": "renameFile",
+            "label": qsTr("rename"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "details",
+            "key": "Y",
+            "action": "copyLocalPath",
+            "label": qsTr("copy local path"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "details",
+            "key": "n",
+            "action": "copyName",
+            "label": qsTr("copy name"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "details",
+            "key": "s",
+            "action": "sortFiles",
+            "label": qsTr("sort"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "details",
+            "key": "/",
+            "action": "filterFiles",
+            "label": qsTr("filter"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "details",
+            "key": "H",
+            "action": "collapseAll",
+            "label": qsTr("collapse all"),
+            "column": "view",
+            "rank": 10,
+            "helpKeys": "H L",
+            "help": qsTr("fold every folder"),
+            "about": qsTr("In the Files tab: collapse or open every folder; s sorts the files, / filters them")
+        },
+        {
+            "area": "details",
+            "key": "L",
+            "action": "expandAll",
+            "label": qsTr("expand all"),
             "column": "",
             "rank": 0,
             "helpKeys": "",

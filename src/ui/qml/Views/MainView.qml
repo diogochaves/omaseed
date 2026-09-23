@@ -126,11 +126,11 @@ Item {
 
     /// Which view holds the focus, for `HintModel`.
     readonly property string focusArea: {
-        if (hero.searchField.editing)
+        if (hero.searchField.editing || details.filterEditing)
             return "search";
         if (rail.activeFocus)
             return "rail";
-        if (details.activeFocus)
+        if (details.activeFocus || details.editing)
             return "details";
         return "table";
     }
@@ -917,7 +917,9 @@ Item {
             side: details
             // Two columns under the table (Details.wide) fit the General tab in less height.
             defaultSideHeight: Theme.space(220)
-            defaultSideWidth: Theme.space(340)
+            // docs/11 J1: wide enough for the Files tab's four columns and a name that can be
+            // told apart (it was 340, which cut every list in the pane).
+            defaultSideWidth: Theme.space(400)
             // docs/10 §5: Settings -> Appearance, or `I`; the sizes are the table state's.
             placement: App.detailsPlacement
             sideVisible: !details.collapsed
@@ -1012,7 +1014,11 @@ Item {
             wide: !split.docked
 
             onFocusTable: table.forceActiveFocus()
-            onCopyRequested: text => console.log("copy:", text)
+            onCopyRequested: text => {
+                App.copyToClipboard(text);
+                root.flashFooterNote(qsTr("copied"));
+            }
+            onOpenFileRequested: path => App.openTorrentFile(App.details.hash, path)
 
             Rectangle {
                 anchors.fill: parent
@@ -1020,7 +1026,7 @@ Item {
                 visible: App.surfaceTint > 0
                 z: -1
             }
-            onOpenFolderRequested: path => console.log("open folder:", path)
+            onOpenFolderRequested: path => App.revealTorrentFile(App.details.hash, path)
             onPeerAction: (action, address) => console.log("peer:", action, address)
             onTrackerAction: (action, url) => console.log("tracker:", action, url)
         }
@@ -1391,8 +1397,12 @@ Item {
                                "sortOrder": App.filtered.sortOrder,
                                "railFolded": root.railFolded,
                                // In base-12 units, so a base size change keeps the proportion.
-                               "detailsWidth": Math.round(split.sideWidth * 12
-                                                          / Theme.font.baseSize),
+                               // 0 while it is the default, so a later default reaches it.
+                               "detailsWidth": split.sideWidth === split.defaultSideWidth ? 0
+                                                                                          : Math.round(
+                                                                                                split.sideWidth
+                                                                                                * 12
+                                                                                                / Theme.font.baseSize),
                                "detailsHeight": Math.round(split.sideHeight * 12
                                                            / Theme.font.baseSize)
                            });
@@ -1401,8 +1411,10 @@ Item {
     function restoreTableState(): void {
         const state = App.tableState(App.tableStateKey());
         root.railFolded = state.railFolded !== undefined ? state.railFolded : [];
-        split.sideWidth = state.detailsWidth > 0 ? Theme.space(state.detailsWidth)
-                                                 : split.defaultSideWidth;
+        // 340 was the default before docs/11 J1, saved by every earlier version whether or
+        // not anybody dragged it; it reads as "the default" so the wider one arrives.
+        split.sideWidth = state.detailsWidth > 0 && state.detailsWidth !== 340
+                ? Theme.space(state.detailsWidth) : split.defaultSideWidth;
         split.sideHeight = state.detailsHeight > 0 ? Theme.space(state.detailsHeight)
                                                    : split.defaultSideHeight;
         if (state.columns !== undefined && state.columns.length > 0)

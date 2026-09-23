@@ -39,3 +39,10 @@ omaseed_add_test(tst_app_servers LIVE
     SOURCES tst_app_servers.cpp
     LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::Network
 )
+
+# N1 — the Files tab's priority and rename actions, live against the :8081 playground.
+omaseed_add_test(tst_app_files_live LIVE
+    SOURCES tst_app_files_live.cpp
+    LIBRARIES omaseed::app omaseed::core omaseed::integration
+    DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
+)

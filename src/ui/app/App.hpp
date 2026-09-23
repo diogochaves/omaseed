@@ -839,6 +839,34 @@ Q_SIGNALS:
     /// Every `setGlobalLimits()` call as received, before the demo guard (for the QML tests).
     void globalLimitsRequested(qint64 dl, qint64 up, qint64 altDl, qint64 altUp);
     // --- end docs/08 §3 ---------------------------------------------------------------------
+
+    // --- N1: the Files tab's actions --------------------------------------------------------
+    // Everything the Files tab does to one file or folder of the torrent the pane shows. The
+    // priority itself still goes through setFilePriority() above. `relativePath` is always a
+    // row's path inside the torrent (TorrentFilesModel::pathAt).
+public:
+    /// The file's path on this machine: the server's path (TorrentFilesModel::serverPathOf)
+    /// through the server's path map. Empty for an unknown torrent.
+    Q_INVOKABLE QString torrentFileLocalPath(const QString &hash,
+                                             const QString &relativePath) const;
+    /// `O` / a double click: open the file with the desktop's default application.
+    Q_INVOKABLE void openTorrentFile(const QString &hash, const QString &relativePath);
+    /// `o`: show the file (or folder) in the file manager.
+    Q_INVOKABLE void revealTorrentFile(const QString &hash, const QString &relativePath);
+    /// `r`: rename one file or folder to `newName` (a name, not a path) inside its own
+    /// folder, through torrents/renameFile or torrents/renameFolder.
+    Q_INVOKABLE void renameTorrentFile(const QString &hash,
+                                       const QString &oldPath,
+                                       const QString &newName,
+                                       bool folder);
+    /// qBittorrent's "by shown file order": `groups` is TorrentFilesModel::shownOrderGroups(),
+    /// one torrents/filePrio call per group.
+    Q_INVOKABLE void setFilePriorityGroups(const QString &hash, const QVariantList &groups);
+
+Q_SIGNALS:
+    /// Every rename as asked, before the demo guard (for the QML tests).
+    void torrentFileRenameRequested(QString hash, QString oldPath, QString newPath, bool folder);
+    // --- end N1 -----------------------------------------------------------------------------
 };
 
 } // namespace omaseed::app

@@ -60,12 +60,14 @@ void TestTorrentPeersModel::the_figure_row_by_row()
                               QStringLiteral("Transmission 4.1.1"),
                               QStringLiteral("libtorrent 2.0.14"),
                               QStringLiteral("Deluge 2.2.0")};
-    const QStringList down{QStringLiteral("1.02 M"),
-                           QStringLiteral("744 K"),
-                           QStringLiteral("402 K"),
-                           QStringLiteral("118 K")};
-    const QStringList up{
-        QStringLiteral("0"), QStringLiteral("12 K"), QStringLiteral("0"), QStringLiteral("98 K")};
+    const QStringList down{QStringLiteral("1.02 MB/s"),
+                           QStringLiteral("744 KB/s"),
+                           QStringLiteral("402 KB/s"),
+                           QStringLiteral("118 KB/s")};
+    const QStringList up{QStringLiteral("0"),
+                         QStringLiteral("12 KB/s"),
+                         QStringLiteral("0"),
+                         QStringLiteral("98 KB/s")};
     const QStringList done{QStringLiteral("100 %"),
                            QStringLiteral("100 %"),
                            QStringLiteral("88.4 %"),
@@ -118,7 +120,7 @@ void TestTorrentPeersModel::a_partial_update_merges_and_removes()
     QCOMPARE(at(model, french, TorrentPeersModel::ProgressTextRole).toString(),
              QStringLiteral("100 %"));
     QCOMPARE(at(model, french, TorrentPeersModel::UpSpeedTextRole).toString(),
-             QStringLiteral("4 K"));
+             QStringLiteral("4 KB/s"));
     QCOMPARE(at(model, french, TorrentPeersModel::DownloadedRole).toLongLong(), 71303168LL);
 
     // The newcomer is there in full, and lands where its speed puts it (2 K, third of four).
@@ -157,7 +159,7 @@ void TestTorrentPeersModel::an_ip_is_recovered_from_the_key()
 
     QCOMPARE(model.count(), 1);
     QCOMPARE(at(model, 0, TorrentPeersModel::IpRole).toString(), QStringLiteral("198.51.100.4"));
-    QCOMPARE(at(model, 0, TorrentPeersModel::DlSpeedTextRole).toString(), QStringLiteral("2 K"));
+    QCOMPARE(at(model, 0, TorrentPeersModel::DlSpeedTextRole).toString(), QStringLiteral("2 KB/s"));
 }
 
 QTEST_MAIN(TestTorrentPeersModel)
