@@ -3,5 +3,5 @@
      the same 24-unit path as Kit/Icon.qml's "mark" and the tray icons. -->
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
   <rect x="8" y="8" width="112" height="112" rx="24" fill="#1a1b26" stroke="#7aa2f7" stroke-width="6"/>
-  <path transform="translate(28 28) scale(3)" d="M1 8 H6 V18 H16 V23 H1 Z M8 1 H23 V16 H18 V6 H8 Z M8 8 H16 V16 H8 Z" fill="#7aa2f7"/>
+  <path transform="translate(28 28) scale(3)" d="M1 8 H6 V18 H16 V23 H1 Z M8 1 H23 V16 H18 V6 H8 Z M9 9 H15 V15 H9 Z" fill="#7aa2f7"/>
 </svg>
