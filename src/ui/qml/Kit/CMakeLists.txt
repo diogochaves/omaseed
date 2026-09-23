@@ -34,6 +34,7 @@ qt_add_qml_module(omaseed-kit
         ProgressLine.qml
         RailRow.qml
         Scrim.qml
+        ScrollBar.qml
         Sheet.qml
         SplitLayout.qml
         Stat.qml

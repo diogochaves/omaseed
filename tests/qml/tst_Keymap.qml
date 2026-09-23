@@ -91,7 +91,8 @@ TestCase {
         compare(Keymap.columns, ["navigate", "select", "view", "act", "app"]);
 
         const navigate = Keymap.helpRows("navigate");
-        compare(navigate.map(row => row.helpKeys), ["j k", "g G", "h l", "/", "0–9", "ctrl+k"]);
+        compare(navigate.map(row => row.helpKeys), ["j k", "g G", "h l", "/", "0–9", "ctrl+k",
+                                                  "ctrl+h ctrl+l"]);
 
         const select = Keymap.helpRows("select");
         compare(select.map(row => row.helpKeys), ["space", "v", "ctrl+a", "esc"]);

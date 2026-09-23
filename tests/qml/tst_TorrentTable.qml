@@ -149,6 +149,31 @@ TestCase {
         compare(header("name").width, table.width - fixed);
     }
 
+    // docs/10 §4 (Diogo's ruling): a table too narrow for its columns keeps every one of them
+    // and scrolls sideways; Name never goes under `minimumNameWidth`.
+    function test_a_narrow_table_scrolls_instead_of_squeezing() {
+        const fixed = testCase.fixedWidth([72, 118, 116, 62, 84, 84, 62]);
+        table.anchors.fill = undefined;
+        table.width = 600;
+        table.height = 400;
+        compare(table.rowWidth, fixed + Theme.space(table.minimumNameWidth));
+        compare(header("name").width, Theme.space(table.minimumNameWidth));
+        compare(header("eta").width, Theme.space(62));
+        const bar = findChild(table, "sideways");
+        verify(bar.needed);
+        const list = findChild(table, "rows");
+        table.scrollSideways(100000);
+        compare(list.contentX, table.rowWidth - list.width);
+        table.scrollSideways(-100000);
+        compare(list.contentX, 0);
+        table.anchors.fill = testCase;
+    }
+
+    function test_a_wide_table_does_not_scroll() {
+        compare(table.rowWidth, table.width);
+        verify(!findChild(table, "sideways").needed);
+    }
+
     function test_first_row_shows_the_figure_texts() {
         compare(cellText("name_0"), "archlinux-2026.09.01-x86_64.iso");
         compare(cellText("category_0"), "linux");

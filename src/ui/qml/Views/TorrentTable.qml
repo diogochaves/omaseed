@@ -13,7 +13,10 @@ import Omaseed.Kit
 // alignment and the order a first click on it uses. `visibleColumns` is the live set T4.4's
 // columns palette and `state.json` drive; `columnLayout` turns the two into one
 // `{key: {x, w}}` map, so a delegate does two cheap lookups per cell instead of filtering the
-// column list once per row. The widths are the spec's `grid-template-columns: minmax(0,1fr)
+// column list once per row. When the columns chosen don't fit beside a Name of at least
+// `minimumNameWidth`, the rows grow wider than the view and it scrolls sideways under a
+// `ScrollBar` (docs/10 §4, Diogo's ruling: columns never step aside on their own). The widths
+// are the spec's `grid-template-columns: minmax(0,1fr)
 // 72px 118px 104px 62px 84px 84px 62px` put through `Theme.space()`, so base 14 scales them
 // the way the spec's `[data-base="14"]` rule does.
 //
@@ -159,6 +162,16 @@ Item {
         return column.visible && root.visibleColumns.indexOf(column.key) >= 0;
     })
 
+    /// How wide the rows are: the view's width, or more when the chosen columns need it.
+    readonly property int rowWidth: {
+        let fixed = 0;
+        for (const column of root.activeColumns) {
+            if (column.width > 0)
+                fixed += Theme.space(column.width);
+        }
+        return Math.max(root.width, fixed + Theme.space(root.minimumNameWidth));
+    }
+
     /// `{key: {"x": px, "w": px}}` for every key in `columns`; a hidden column has `w` 0.
     readonly property var columnLayout: {
         const layout = {};
@@ -173,8 +186,7 @@ Item {
             if (column.width > 0)
                 fixed += Theme.space(column.width);
         }
-        const floor = Theme.space(root.minimumNameWidth);
-        const flexible = Math.max(floor, root.width - fixed);
+        const flexible = root.rowWidth - fixed;
         let x = 0;
         for (const column of shown) {
             const w = column.width > 0 ? Theme.space(column.width) : flexible;
@@ -231,6 +243,12 @@ Item {
         for (const index of rows)
             hashes.push(root.filtered.hashAt(index.row));
         return hashes;
+    }
+
+    /// `ctrl+h` / `ctrl+l` and shift+wheel: scroll the rows sideways by `step` pixels.
+    function scrollSideways(step: real): void {
+        const far = Math.max(0, list.contentWidth - list.width);
+        list.contentX = Math.max(0, Math.min(far, list.contentX + step));
     }
 
     function moveCursor(delta: int): void {
@@ -400,9 +418,16 @@ Item {
             root.startRename();
             break;
         case Qt.Key_H:
-            root.focusRail();
+            if (event.modifiers & Qt.ControlModifier)
+                root.scrollSideways(-Theme.space(120));
+            else
+                root.focusRail();
             break;
         case Qt.Key_L:
+            if (event.modifiers & Qt.ControlModifier) {
+                root.scrollSideways(Theme.space(120));
+                break;
+            }
             // Plain `l` hands the focus right; `L` is the limits action and belongs to Main.
             if (event.modifiers & Qt.ShiftModifier)
                 return;
@@ -494,13 +519,25 @@ Item {
     }
 
     // ---- header ----------------------------------------------------------------------------
+    // The header scrolls sideways with the rows: it is the rows' width, shifted by their
+    // `contentX` inside a clipped strip.
     Item {
-        id: header
+        id: headerStrip
 
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
+        clip: true
+        height: header.height
+    }
+
+    Item {
+        id: header
+
         height: Theme.font.body * 2
+        parent: headerStrip
+        width: root.rowWidth
+        x: -list.contentX
 
         Repeater {
             model: root.activeColumns
@@ -529,11 +566,13 @@ Item {
     ListView {
         id: list
 
-        anchors.bottom: parent.bottom
+        anchors.bottom: sideways.visible ? sideways.top : parent.bottom
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.top: header.bottom
+        anchors.top: headerStrip.bottom
         boundsBehavior: Flickable.StopAtBounds
+        contentWidth: root.rowWidth
+        flickableDirection: Flickable.AutoFlickDirection
         cacheBuffer: Theme.rowHeight * 6
         clip: true
         keyNavigationEnabled: false
@@ -569,7 +608,7 @@ Item {
 
             height: Theme.rowHeight
             objectName: "row_" + row.index
-            width: ListView.view.width
+            width: root.rowWidth
 
             TableRow {
                 id: band
@@ -870,6 +909,28 @@ Item {
                     root.showNameTip(at.x, at.y, row.name);
                 }
             }
+        }
+    }
+
+    ScrollBar {
+        id: sideways
+
+        anchors.bottom: parent.bottom
+        anchors.left: parent.left
+        anchors.right: parent.right
+        flickable: list
+        objectName: "sideways"
+    }
+
+    // A vertical wheel with shift held scrolls sideways, as it does in a browser; a touchpad's
+    // own sideways swipe already reaches the list, which flicks both ways.
+    WheelHandler {
+        acceptedModifiers: Qt.ShiftModifier
+        target: null
+
+        onWheel: event => {
+            const delta = event.angleDelta.y !== 0 ? event.angleDelta.y : event.angleDelta.x;
+            root.scrollSideways(-delta / 120 * Theme.space(60));
         }
     }
 

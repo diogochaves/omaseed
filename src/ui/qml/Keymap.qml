@@ -299,6 +299,28 @@ QtObject {
             "help": qsTr("rail · table · details"),
             "about": qsTr("Move focus between the rail, the table and the details")
         },
+        // docs/10 §4: when the chosen columns are wider than the table, it scrolls sideways.
+        {
+            "area": "table",
+            "key": "ctrl+h",
+            "action": "scrollLeft",
+            "label": qsTr("scroll"),
+            "column": "navigate",
+            "rank": 7,
+            "helpKeys": "ctrl+h ctrl+l",
+            "help": qsTr("scroll sideways"),
+            "about": qsTr("Scroll the table left and right when its columns don't fit")
+        },
+        {
+            "area": "table",
+            "key": "ctrl+l",
+            "action": "scrollRight",
+            "label": qsTr("scroll"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
         {
             "area": "table",
             "key": "l",
