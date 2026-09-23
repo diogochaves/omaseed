@@ -61,6 +61,12 @@ Palette {
             root.table.moveCursorTo(row);
     }
 
+    // Every jump starts from an empty query, like the other palettes: the last one's text
+    // would otherwise stay in the row and the next name be typed after it.
+    onOpenedChanged: {
+        if (root.opened)
+            root.query = "";
+    }
     onActivated: (index, item) => {
         root.jumpTo(item.key);
         root.close();
