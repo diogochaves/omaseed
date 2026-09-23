@@ -938,8 +938,9 @@ Item {
             // rail, so hiding the rail no longer moves Details.
             referenceWidth: root.width
             side: details
-            // Two columns under the table (Details.wide) fit the General tab in less height.
-            defaultSideHeight: Theme.space(220)
+            // Two columns under the table (Details.wide) fit the General tab in less height;
+            // docs/13's band over the tabs costs about 40, so 220 became 260.
+            defaultSideHeight: Theme.space(260)
             // docs/11 J1: wide enough for the Files tab's four columns and a name that can be
             // told apart (it was 340, which cut every list in the pane).
             defaultSideWidth: Theme.space(400)
@@ -1445,8 +1446,9 @@ Item {
         // not anybody dragged it; it reads as "the default" so the wider one arrives.
         split.sideWidth = state.detailsWidth > 0 && state.detailsWidth !== 340
                 ? Theme.space(state.detailsWidth) : split.defaultSideWidth;
-        split.sideHeight = state.detailsHeight > 0 ? Theme.space(state.detailsHeight)
-                                                   : split.defaultSideHeight;
+        // Likewise 220 for the height, the default before docs/13's band.
+        split.sideHeight = state.detailsHeight > 0 && state.detailsHeight !== 220
+                ? Theme.space(state.detailsHeight) : split.defaultSideHeight;
         if (state.columns !== undefined && state.columns.length > 0)
             table.visibleColumns = state.columns;
         table.setColumnOrder(state.columnOrder !== undefined ? state.columnOrder
