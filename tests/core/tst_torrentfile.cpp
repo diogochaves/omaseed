@@ -34,6 +34,9 @@ private slots:
     void singleFileNameIsUsedAsItsPath();
     void multiFileUnicodePathsJoinWithSlash();
     void magnetLinkIncludesHashNameAndTrackers();
+    void padFilesAreLeftOut();
+    void filesKeepTheirMetainfoOrder();
+    void torrentIdIsV1WhenPresentAndTruncatedV2Otherwise();
     void rejectsGarbage();
 };
 
@@ -133,6 +136,51 @@ void TestTorrentFile::magnetLinkIncludesHashNameAndTrackers()
     QVERIFY(magnet.contains(QStringLiteral("tr=http%3A%2F%2Ftracker1.example.com%2Fannounce")));
     QVERIFY(magnet.contains(QStringLiteral("tr=http%3A%2F%2Ftracker2.example.com%2Fannounce")));
     QVERIFY(magnet.contains(QStringLiteral("tr=http%3A%2F%2Ftracker3.example.com%2Fannounce")));
+}
+
+void TestTorrentFile::padFilesAreLeftOut()
+{
+    // qBittorrent numbers files without BEP-47 pad files, so `torrents/filePrio` id 1 is
+    // notes.txt here, not the pad entry between the two.
+    const QByteArray data =
+        readFile(QStringLiteral(OMASEED_FIXTURES_DIR "/multi_file_padded_v1.torrent"));
+    const TorrentFile torrent = TorrentFile::parse(data);
+    QVERIFY(torrent.isValid());
+    QCOMPARE(torrent.files.size(), 2);
+    QCOMPARE(torrent.files.at(0).path, QStringLiteral("disc/one.bin"));
+    QCOMPARE(torrent.files.at(1).path, QStringLiteral("notes.txt"));
+    QCOMPARE(torrent.totalSize, qint64(25000));
+}
+
+void TestTorrentFile::filesKeepTheirMetainfoOrder()
+{
+    // The add sheet's file ids are positions in this list, so it must be the metainfo's own
+    // order, not a sorted one.
+    const QByteArray data =
+        readFile(QStringLiteral(OMASEED_FIXTURES_DIR "/multi_file_v1_unicode.torrent"));
+    const TorrentFile torrent = TorrentFile::parse(data);
+    QVERIFY(torrent.isValid());
+    QCOMPARE(torrent.files.size(), 3);
+    QCOMPARE(torrent.files.at(0).path, QStringLiteral("café/notes.txt"));
+    QCOMPARE(torrent.files.at(0).size, qint64(120));
+    QCOMPARE(torrent.files.at(1).path, QStringLiteral("日本語/sub フォルダ/ファイル.bin"));
+    QCOMPARE(torrent.files.at(2).path, QStringLiteral("root.txt"));
+}
+
+void TestTorrentFile::torrentIdIsV1WhenPresentAndTruncatedV2Otherwise()
+{
+    const TorrentFile v1 = TorrentFile::parse(
+        readFile(QStringLiteral(OMASEED_FIXTURES_DIR "/single_file_v1.torrent")));
+    QCOMPARE(v1.torrentId(), v1.infoHashV1);
+
+    // v2-only: no "pieces", so there is no v1 infohash for qBittorrent to key it by.
+    const TorrentFile v2 =
+        TorrentFile::parse(readFile(QStringLiteral(OMASEED_FIXTURES_DIR "/v2_stub.torrent")));
+    QVERIFY(v2.isValid());
+    QCOMPARE(v2.infoHashV2.size(), 64);
+    QCOMPARE(v2.torrentId(), v2.infoHashV2.left(40));
+    QCOMPARE(v2.files.size(), 1);
+    QCOMPARE(v2.files.first().path, QStringLiteral("V2Stub.bin"));
 }
 
 void TestTorrentFile::rejectsGarbage()
