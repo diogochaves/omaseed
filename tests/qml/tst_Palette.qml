@@ -120,6 +120,88 @@ TestCase {
         compare(palette.listView.height, Theme.space(360));
     }
 
+    // N3: a list taller than the panel says it has more, the way the rail does.
+    function longRows() {
+        const rows = [];
+        for (let i = 0; i < 40; ++i)
+            rows.push({
+                "title": "row " + i,
+                "key": i
+            });
+        return rows;
+    }
+
+    function test_an_overflowing_list_counts_the_rows_below_and_above() {
+        const palette = createTemporaryObject(paletteComponent, testCase, {
+                                                  "items": testCase.longRows()
+                                              });
+        palette.open();
+        waitForRendering(palette);
+        const hint = findChild(palette, "scrollHint");
+        compare(hint.style, "chevrons");
+        compare(hint.countAbove, 0);
+        verify(hint.countBelow > 0, "no rows counted below");
+        compare(findChild(hint, "moreBelow").visible, true);
+        compare(findChild(hint, "moreAbove").visible, false);
+        // Every row is either counted, or at least partly on screen above the band.
+        const rowHeight = palette.listView.contentHeight / 40;
+        const shown = Math.floor((palette.listView.height - hint.bottomInset - 1) / rowHeight) + 1;
+        compare(hint.countBelow, 40 - shown);
+
+        palette.cursorToKey(39);
+        waitForRendering(palette);
+        compare(hint.countBelow, 0);
+        verify(hint.countAbove > 0);
+        compare(findChild(hint, "moreAbove").visible, true);
+    }
+
+    function test_the_cursor_stays_clear_of_the_bands() {
+        const palette = createTemporaryObject(paletteComponent, testCase, {
+                                                  "items": testCase.longRows()
+                                              });
+        palette.open();
+        waitForRendering(palette);
+        const list = palette.listView;
+        const hint = findChild(palette, "scrollHint");
+        for (let i = 0; i < 20; ++i) {
+            keyClick(Qt.Key_Down);
+            const row = list.itemAtIndex(palette.cursorIndex);
+            verify(row.y + row.height <= list.contentY + list.height - hint.clearBottom + 0.5,
+                   "row " + palette.cursorIndex + " under the bottom band");
+        }
+        for (let i = 0; i < 18; ++i) {
+            keyClick(Qt.Key_Up);
+            const row = list.itemAtIndex(palette.cursorIndex);
+            verify(row.y >= list.contentY + hint.clearTop - 0.5, "row " + palette.cursorIndex
+                   + " under the top band");
+        }
+    }
+
+    function test_the_hint_follows_the_style_it_is_given() {
+        const palette = createTemporaryObject(paletteComponent, testCase, {
+                                                  "items": testCase.longRows(),
+                                                  "scrollHint": "fade"
+                                              });
+        palette.open();
+        waitForRendering(palette);
+        const hint = findChild(palette, "scrollHint");
+        compare(findChild(hint, "fadeBelow").visible, true);
+        compare(findChild(hint, "moreBelow").visible, false);
+        palette.scrollHint = "scrollbar";
+        compare(findChild(hint, "scrollbar").visible, true, "an open palette shows its bar");
+        compare(findChild(hint, "fadeBelow").visible, false);
+    }
+
+    function test_a_short_list_says_nothing() {
+        const palette = createTemporaryObject(paletteComponent, testCase);
+        palette.open();
+        waitForRendering(palette);
+        const hint = findChild(palette, "scrollHint");
+        compare(hint.countAbove, 0);
+        compare(hint.countBelow, 0);
+        compare(hint.overflows, false);
+    }
+
     function test_the_title_stands_in_for_an_empty_query() {
         const palette = createTemporaryObject(multiComponent, testCase);
         palette.open();

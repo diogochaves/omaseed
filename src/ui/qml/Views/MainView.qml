@@ -1319,6 +1319,7 @@ Item {
         id: jumpPalette
 
         anchors.fill: parent
+        scrollHint: App.railScrollHint
         table: table
         z: 14
     }
@@ -1327,6 +1328,7 @@ Item {
         id: categoryPalette
 
         anchors.fill: parent
+        scrollHint: App.railScrollHint
         z: 14
 
         onChosen: name => addSheet.applyChosenCategory(name)
@@ -1336,6 +1338,7 @@ Item {
         id: tagPalette
 
         anchors.fill: parent
+        scrollHint: App.railScrollHint
         z: 14
 
         onChosen: tags => addSheet.applyChosenTags(tags)
@@ -1345,6 +1348,7 @@ Item {
         id: sortPalette
 
         anchors.fill: parent
+        scrollHint: App.railScrollHint
         table: table
         z: 14
     }
@@ -1353,6 +1357,7 @@ Item {
         id: columnsPalette
 
         anchors.fill: parent
+        scrollHint: App.railScrollHint
         table: table
         z: 14
     }

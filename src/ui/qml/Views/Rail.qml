@@ -733,143 +733,20 @@ Item {
         }
     }
 
-    // ---- the scroll hint (docs/08 §5) ---------------------------------------------
-    // "chevrons": a line at each end that says how many rows are out of view that way; a
-    // click scrolls most of a page towards them.
-    Rectangle {
-        id: moreAbove
-
-        anchors.left: parent.left
-        anchors.right: hairline.left
-        anchors.top: parent.top
-        color: Theme.background
-        height: Math.round(Theme.railRowHeight * 0.8)
-        visible: root.scrollHint === "chevrons" && root.rowsAbove > 0
-        z: 3
-
-        Label {
-            anchors.centerIn: parent
-            dim: true
-            size: "caption"
-            text: qsTr("%1 %2 above").arg(Glyphs.chevronUp).arg(root.rowsAbove)
-        }
-
-        Hairline {
-            anchors.bottom: parent.bottom
-            anchors.left: parent.left
-            anchors.right: parent.right
-        }
-
-        MouseArea {
-            anchors.fill: parent
-            cursorShape: Qt.PointingHandCursor
-
-            onClicked: flick.contentY = Math.max(0, flick.contentY - flick.height * 0.8)
-        }
-    }
-
-    Rectangle {
-        id: moreBelow
+    // ---- the scroll hint (docs/08 §5, the Kit look every list shares) ----------------
+    ScrollHint {
+        id: scrollHintOverlay
 
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.right: hairline.left
-        color: Theme.background
-        height: Math.round(Theme.railRowHeight * 0.8)
-        visible: root.scrollHint === "chevrons" && root.rowsBelow > 0
-        z: 3
-
-        Label {
-            anchors.centerIn: parent
-            dim: true
-            size: "caption"
-            text: qsTr("%1 %2 below").arg(Glyphs.chevronDown).arg(root.rowsBelow)
-        }
-
-        Hairline {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: parent.top
-        }
-
-        MouseArea {
-            anchors.fill: parent
-            cursorShape: Qt.PointingHandCursor
-
-            onClicked: flick.contentY = Math.min(flick.contentHeight - flick.height,
-                                                 flick.contentY + flick.height * 0.8)
-        }
-    }
-
-    // "fade": the edge where there is more fades into the window's ground.
-    Rectangle {
-        anchors.left: parent.left
-        anchors.right: hairline.left
         anchors.top: parent.top
-        height: Theme.railRowHeight * 1.5
-        visible: root.scrollHint === "fade" && root.rowsAbove > 0
+        countAbove: root.rowsAbove
+        countBelow: root.rowsBelow
+        flickable: flick
+        revealed: root.activeFocus
+        style: root.scrollHint
         z: 3
-
-        gradient: Gradient {
-            GradientStop {
-                color: Theme.background
-                position: 0
-            }
-            GradientStop {
-                color: "transparent"
-                position: 1
-            }
-        }
-    }
-
-    Rectangle {
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.right: hairline.left
-        height: Theme.railRowHeight * 1.5
-        visible: root.scrollHint === "fade" && root.rowsBelow > 0
-        z: 3
-
-        gradient: Gradient {
-            GradientStop {
-                color: "transparent"
-                position: 0
-            }
-            GradientStop {
-                color: Theme.background
-                position: 1
-            }
-        }
-    }
-
-    // "scrollbar": a 2 px track and thumb while the pointer is over the rail or it has focus.
-    HoverHandler {
-        id: railHover
-    }
-
-    Item {
-        anchors.bottom: parent.bottom
-        anchors.bottomMargin: Theme.space(2)
-        anchors.right: hairline.left
-        anchors.rightMargin: 1
-        anchors.top: parent.top
-        anchors.topMargin: Theme.space(2)
-        visible: root.scrollHint === "scrollbar" && flick.contentHeight > flick.height
-                 && (railHover.hovered || root.activeFocus)
-        width: 2
-        z: 3
-
-        Rectangle {
-            anchors.fill: parent
-            color: Theme.fill(Theme.hairlineAlpha)
-        }
-
-        Rectangle {
-            color: Theme.fill(Theme.borderIdle)
-            height: Math.max(Theme.space(16), parent.height * flick.visibleArea.heightRatio)
-            width: parent.width
-            y: flick.visibleArea.yPosition * parent.height
-        }
     }
 
     Tooltip {
@@ -901,7 +778,8 @@ Item {
 
         anchors.left: parent.left
         anchors.right: hairline.left
-        anchors.top: moreAbove.visible ? moreAbove.bottom : parent.top
+        anchors.top: parent.top
+        anchors.topMargin: scrollHintOverlay.topInset
         color: Theme.background
         height: stuckLabel.implicitHeight + Theme.space(10)
         visible: root.stuckGroup !== null
