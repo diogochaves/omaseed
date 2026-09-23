@@ -12,6 +12,9 @@ Window {
 
     width: Theme.space(1360)
     height: Theme.space(800)
+    // docs/10 §2: a floor at the narrowest width the hero was drawn for, 560 px at base 14.
+    // Hyprland still sizes a tiled window to its tile; the hero's ladder is what covers that.
+    minimumWidth: Theme.space(480)
     visible: true
     title: qsTr("omaseed")
     color: Qt.rgba(Theme.background.r, Theme.background.g, Theme.background.b, Theme.windowAlpha)
