@@ -552,6 +552,31 @@ TestCase {
     }
 
     // ---- the details pane follows the table's cursor -------------------------------------------
+    /// Puts the table's cursor on the demo row called `name`.
+    function _cursorOn(name) {
+        for (let row = 0; row < App.filtered.count; ++row) {
+            if (App.torrentRow(App.filtered.hashAt(row)).name === name) {
+                view.table.moveCursorTo(row);
+                return;
+            }
+        }
+        fail("the demo library has no row named " + name);
+    }
+
+    // docs/12 F2: `/` on a single-file torrent's Files tab flashes the footer note.
+    function test_slash_on_a_single_file_says_there_is_nothing_to_filter() {
+        testCase._cursorOn("archlinux-2026.09.01-x86_64.iso");
+        tryCompare(App.details.files, "fileCount", 1);
+        view.details.activateTab(1);
+        view.details.forceActiveFocus();
+        view.footerNote = "";
+
+        keyClick("/");
+        compare(view.footerNote, "one file, nothing to filter");
+        verify(!view.hero.searchField.editing, "`/` went on to the window's search");
+        view.details.activateTab(0);
+    }
+
     function test_the_details_pane_follows_the_cursor() {
         const first = view.table.cursorHash;
         compare(view.details.torrent.name, App.torrentRow(first).name);

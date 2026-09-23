@@ -338,6 +338,28 @@ TestCase {
         compare(header.mapToItem(view, 0, 0).y, headerY);
     }
 
+    // docs/12 F2: one file has nothing to filter; `/` says so instead of opening a field.
+    function test_a_single_file_offers_no_filter() {
+        const view = testCase.select(testCase.archName);
+        view.activateTab(1);
+        view.forceActiveFocus();
+        compare(App.details.files.fileCount, 1);
+        wait(0);
+
+        compare(findChild(view, "filesSummaryCount").text, "1 file");
+        compare(findChild(view, "filesSummaryFacts").text, " · 1.31 GB");
+        verify(!findChild(view, "filesSummaryGo").visible, "a single file still offers a filter");
+
+        noteSpy.target = view;
+        noteSpy.clear();
+        keyClick("/");
+        verify(!findChild(view, "filesFilter").visible, "`/` opened a field on one file");
+        verify(!view.filterEditing);
+        verify(findChild(view, "filesSummary").visible);
+        compare(noteSpy.count, 1);
+        compare(noteSpy.signalArguments[0][0], "one file, nothing to filter");
+    }
+
     function test_space_selects_and_a_priority_applies_to_the_selection() {
         const view = testCase.filesView();
         const files = App.details.files;
@@ -501,6 +523,12 @@ TestCase {
         id: copySpy
 
         signalName: "copyRequested"
+    }
+
+    SignalSpy {
+        id: noteSpy
+
+        signalName: "noteRequested"
     }
 
     SignalSpy {

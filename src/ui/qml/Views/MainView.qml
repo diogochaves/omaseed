@@ -1019,6 +1019,7 @@ Item {
                 root.flashFooterNote(qsTr("copied"));
             }
             onOpenFileRequested: path => App.openTorrentFile(App.details.hash, path)
+            onNoteRequested: text => root.flashFooterNote(text)
 
             Rectangle {
                 anchors.fill: parent

@@ -45,6 +45,8 @@ Item {
     readonly property bool filterEditing: filterField.editing
 
     readonly property int fileCount: root.model ? root.model.fileCount : 0
+    /// docs/12 F2: a single-file torrent has nothing to filter, so it offers no filter.
+    readonly property bool canFilter: root.fileCount > 1
     /// docs/12 F1's summary line, in two halves: the file count, in the foreground, and the
     /// rest, dim: " · 2 folders · 3.91 GB · 2 skipped". Folders and skips only when there are.
     readonly property string summaryCountText: root.fileCount === 0 ? qsTr("no files")
@@ -94,9 +96,13 @@ Item {
         return item.mapToItem(target, Theme.space(24), item.height);
     }
 
-    function focusFilter(): void {
+    /// `/` or a click on the summary line. False, and nothing opens, on a single file (F2).
+    function focusFilter(): bool {
+        if (!root.canFilter)
+            return false;
         root.filterOpen = true;
         filterField.focusInput();
+        return true;
     }
 
     implicitHeight: Theme.space(200)
@@ -162,6 +168,7 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 objectName: "filesSummaryGo"
                 spacing: Theme.space(6)
+                visible: root.canFilter
 
                 Glyph {
                     anchors.verticalCenter: parent.verticalCenter
@@ -187,6 +194,7 @@ Item {
             MouseArea {
                 anchors.fill: parent
                 cursorShape: Qt.PointingHandCursor
+                enabled: root.canFilter
 
                 onClicked: root.focusFilter()
             }

@@ -69,6 +69,8 @@ Item {
     signal peerAction(string action, string address)
     /// `y`: the text the caller should put on the clipboard.
     signal copyRequested(string text)
+    /// A few words for the window's footer note ("one file, nothing to filter").
+    signal noteRequested(string text)
 
     /// Something inside the pane holds the keyboard — the Files tab's filter, its inline
     /// rename or one of its menus — so Main still counts the focus as the pane's.
@@ -257,10 +259,11 @@ Item {
         sortMenu.openAt(at.x, at.y);
     }
 
-    /// `/` in the Files tab.
+    /// `/` in the Files tab. A single file has no filter (docs/12 F2): the footer says so,
+    /// so the key does not seem broken.
     function focusFileFilter() {
-        if (root.currentTab === 1)
-            filesTab.focusFilter();
+        if (root.currentTab === 1 && !filesTab.focusFilter())
+            root.noteRequested(qsTr("one file, nothing to filter"));
     }
 
     /// A row of the file menu, or the same key pressed on the list.
