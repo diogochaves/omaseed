@@ -1,0 +1,73 @@
+<title>omaseed details band</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap">
+<style>
+/* ------------------------------------------------------------------
+   docs/13: the details pane docked under the table. Replaces the
+   two-column layout of docs/10 §5 Fig. 5.2. Same family as 10–12
+   (frieren colours, v2 kit type). Screenshots in evidence/details-band/.
+   ------------------------------------------------------------------ */
+:root {
+  --accent:#5492f8; --bg:#11111b; --bg-dark:#0d0d14; --fg:#b9c5ef; --fg-dark:#8b94b3; --fg-bright:#cbd4f3;
+  --fill-normal: color-mix(in srgb, var(--fg) 4%, transparent);
+  --hairline: color-mix(in srgb, var(--fg) 12%, transparent);
+  --mono: "JetBrains Mono", "JetBrainsMono Nerd Font", ui-monospace, monospace;
+  color-scheme: dark;
+}
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg-dark); color:var(--fg); font:400 13px/1.6 var(--mono); -webkit-font-smoothing:antialiased; }
+main { max-width:1100px; margin:0 auto; padding:32px 16px 64px; display:grid; gap:28px; }
+h1,h2 { margin:0; font-weight:600; color:var(--fg-bright); text-wrap:balance; }
+h1 { font-size:24px; } h2 { font-size:16px; }
+p, li { max-width:78ch; }
+p { margin:0; }
+code { color:var(--fg-bright); background:var(--fill-normal); padding:0 4px; }
+.eyebrow { font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--fg-dark); }
+.dim { color:var(--fg-dark); }
+section { display:grid; gap:12px; border-top:1px solid var(--hairline); padding-top:20px; }
+pre { margin:0; padding:12px 16px; background:var(--bg); border:1px solid var(--hairline); overflow-x:auto; font:inherit; font-size:12px; line-height:1.5; }
+figure { margin:0; display:grid; gap:6px; }
+figure img { width:100%; height:auto; border:1px solid var(--hairline); display:block; }
+figcaption { font-size:11px; color:var(--fg-dark); }
+.pair { display:grid; gap:16px; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); }
+</style>
+
+<main>
+  <header style="display:grid; gap:8px">
+    <p class="eyebrow">omaseed · docs/13 · 2026-09-23 · approved by Diogo in session</p>
+    <h1>The details pane under the table: one band, full-width tabs</h1>
+    <p class="dim">Replaces docs/10 §5 Fig. 5.2 ("two-column layout") for the bottom dock only. The right dock is unchanged.</p>
+  </header>
+
+  <section>
+    <h2>What was wrong</h2>
+    <p>Docked at the bottom, the head (name, category · tags · added) and the four-up strip sat in a 280-unit left column with the tabs beside it. The column's content is about two short blocks tall, so most of it was empty. Meanwhile the tabs beside it lost those 280 units: Files cut long names, and General dropped to one column sooner.</p>
+  </section>
+
+  <section>
+    <h2>The ruling</h2>
+    <p>Under the table, the head and the strip share one band across the top of the pane, in the right dock's order (head, then strip) but side by side. The tabs and their body take the whole width below it.</p>
+<pre>┌──────────────────────────────────────────────────────────────────────────────┐
+│ demo.library.misc.00177                   SIZE     DONE    RATIO   ETA       │
+│ keep · added 19 Sep 07:44                 6.38 GB  79.9 %  0.21    43 min 3 s│
+├──────────────────────────────────────────────────────────────────────────────┤
+│ General 1   Files 2   Trackers 3   Peers 4                                   │
+├──────────────────────────────────────────────────────────────────────────────┤
+│ (the tab's body, the pane's full width)                                      │</pre>
+    <ul>
+      <li>The strip is a fixed <code>440</code> units wide at the band's right edge, so the name does not move as the ETA changes length. It never takes more than half the pane, so the name keeps room.</li>
+      <li>The strip is centred on the head's two lines. One hairline runs under the whole band; the strip's own bottom rule is off (<code>Strip.rule</code>).</li>
+      <li>The vertical rule between the column and the tabs is gone.</li>
+      <li>General's two-column switch stays at <code>620</code> units of body width. The body is now the full pane, so it switches to two columns at any usual window width.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Before and after</h2>
+    <div class="pair">
+      <figure><img src="evidence/details-band/before.png" alt="Bottom-docked details pane with a mostly empty left column beside the Files tab"><figcaption>Before: the 280-unit column, mostly empty below the strip.</figcaption></figure>
+      <figure><img src="evidence/details-band/after.png" alt="Bottom-docked details pane with the name and the four facts in one band above full-width tabs"><figcaption>After: 1060 × 900 box, <code>--demo table --rows 500</code>.</figcaption></figure>
+    </div>
+  </section>
+</main>

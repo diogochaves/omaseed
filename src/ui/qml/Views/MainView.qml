@@ -1034,7 +1034,7 @@ Item {
             showHints: false
             // SplitLayout draws the divider between the table and the pane.
             showEdge: false
-            // docs/10 §5: under the table, the two-column layout.
+            // docs/10 §5 and docs/13: under the table, the head band over full-width tabs.
             wide: !split.docked
 
             onFocusTable: table.forceActiveFocus()

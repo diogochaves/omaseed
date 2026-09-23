@@ -140,6 +140,38 @@ TestCase {
         verify(options.mapToItem(general, 0, 0).y > information.mapToItem(general, 0, 0).y);
     }
 
+    // docs/13: under the table the head and the strip share one band, and the tabs and
+    // their body take the pane's whole width below it.
+    function test_wide_puts_the_head_and_strip_in_one_band_over_full_width_tabs() {
+        const view = testCase.select(testCase.archName);
+        view.width = 1100;
+        view.wide = true;
+        wait(0);
+        const strip = findChild(view, "strip");
+        const general = findChild(view, "generalTab");
+        const stripAt = strip.mapToItem(view, 0, 0);
+        compare(stripAt.x + strip.width, view.width);
+        compare(strip.width, Theme.space(440));
+        compare(strip.rule, false);
+        const generalAt = general.mapToItem(view, 0, 0);
+        compare(generalAt.x, 0);
+        compare(general.width, view.width);
+        verify(generalAt.y >= stripAt.y + strip.height, "the tabs overlap the band");
+        const tabs = findChild(view, "detailsTabs");
+        verify(tabs.mapToItem(view, 0, 0).y >= stripAt.y + strip.height, "the strip is not in the band");
+
+        // Narrow, the strip gives the name half the pane at least.
+        view.width = 600;
+        wait(0);
+        compare(strip.width, 300);
+
+        // Docked at the side, the strip is back under the head, full width, with its rule.
+        view.wide = false;
+        wait(0);
+        compare(strip.width, view.width);
+        compare(strip.rule, true);
+    }
+
     // docs/12 G3: the pieces bar tops General, drawn from the demo's piece states.
     function test_the_pieces_bar_tops_general() {
         const view = testCase.select(testCase.archName);
