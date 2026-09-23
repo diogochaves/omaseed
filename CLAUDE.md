@@ -1,7 +1,8 @@
 # omaseed — instructions for agents
 
 Native Linux desktop client for qBittorrent, Omarchy-first. C++20 + Qt 6 Quick, CMake, MIT.
-Read in this order before doing anything: this file → `docs/06-implementation-plan.md`
+Read in this order before doing anything: this file → `docs/CHECKPOINT.md` (where the last
+session stopped and what is next) → `docs/06-implementation-plan.md`
 (the work breakdown you execute) → `docs/05-ui-spec-v2.html` (the approved look, open it in
 a browser) → `docs/03-charter.md` (scope and decisions). `docs/01` and `02` are history.
 
