@@ -43,6 +43,17 @@ private Q_SLOTS:
     void unicode_paths_from_the_playground();
     void raise_and_lower_walk_the_ladder();
     void empty_input_clears();
+    void sorting_by_name_keeps_the_tree_and_puts_folders_first();
+    void sorting_by_a_number_mixes_folders_and_files();
+    void sort_by_flips_the_current_key_and_picks_a_direction_for_a_new_one();
+    void the_filter_keeps_the_folders_of_a_match();
+    void a_folder_acts_on_the_files_the_filter_shows();
+    void remaining_availability_and_pieces_add_up();
+    void a_local_priority_reaggregates_the_folders();
+    void selection_targets_its_files_and_survives_a_refresh();
+    void shown_order_splits_the_files_in_thirds();
+    void a_local_rename_moves_the_subtree();
+    void the_server_path_follows_the_content_path();
 };
 
 void TestTorrentFilesModel::builds_the_tree_from_slash_separated_names()
@@ -224,6 +235,293 @@ void TestTorrentFilesModel::empty_input_clears()
     QCOMPARE(model.fileCount(), 0);
     QVERIFY(!model.isFolder(0));
     QCOMPARE(model.fileIndexes(0), QVariantList());
+}
+
+namespace {
+
+QStringList names(const TorrentFilesModel &model)
+{
+    QStringList out;
+    for (int row = 0; row < model.count(); ++row)
+        out.append(at(model, row, TorrentFilesModel::NameRole).toString());
+    return out;
+}
+
+} // namespace
+
+void TestTorrentFilesModel::sorting_by_name_keeps_the_tree_and_puts_folders_first()
+{
+    TorrentFilesModel model;
+    model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
+    QSignalSpy sorted(&model, &TorrentFilesModel::sortChanged);
+
+    model.setSortKey(QStringLiteral("name"));
+    QCOMPARE(sorted.count(), 1);
+    // Natural order inside each folder ("1080p" before "2160p"), folders ahead of files.
+    QCOMPARE(names(model),
+             (QStringList{QStringLiteral("Big Buck Bunny 4K/"),
+                          QStringLiteral("subs/"),
+                          QStringLiteral("bbb.en.srt"),
+                          QStringLiteral("bbb.pt.srt"),
+                          QStringLiteral("bbb_sunflower_1080p_30fps.mp4"),
+                          QStringLiteral("bbb_sunflower_2160p_60fps.mp4"),
+                          QStringLiteral("LICENSE.txt")}));
+
+    // Reversed, the folder still leads: qBittorrent's content view does the same.
+    model.setSortDescending(true);
+    QCOMPARE(names(model),
+             (QStringList{QStringLiteral("Big Buck Bunny 4K/"),
+                          QStringLiteral("subs/"),
+                          QStringLiteral("bbb.pt.srt"),
+                          QStringLiteral("bbb.en.srt"),
+                          QStringLiteral("LICENSE.txt"),
+                          QStringLiteral("bbb_sunflower_2160p_60fps.mp4"),
+                          QStringLiteral("bbb_sunflower_1080p_30fps.mp4")}));
+    // Depth is the tree's, whatever the order.
+    QCOMPARE(at(model, 2, TorrentFilesModel::DepthRole).toInt(), 2);
+
+    // Back to the torrent's own order.
+    model.setSortKey(QString());
+    QCOMPARE(at(model, 1, TorrentFilesModel::NameRole).toString(),
+             QStringLiteral("bbb_sunflower_2160p_60fps.mp4"));
+}
+
+void TestTorrentFilesModel::sorting_by_a_number_mixes_folders_and_files()
+{
+    TorrentFilesModel model;
+    model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
+    model.setSortKey(QStringLiteral("size"));
+    model.setSortDescending(false);
+    // Smallest first: the 1 KB licence, then the 18 KB subs folder, then the two videos.
+    QCOMPARE(names(model),
+             (QStringList{QStringLiteral("Big Buck Bunny 4K/"),
+                          QStringLiteral("LICENSE.txt"),
+                          QStringLiteral("subs/"),
+                          QStringLiteral("bbb.en.srt"),
+                          QStringLiteral("bbb.pt.srt"),
+                          QStringLiteral("bbb_sunflower_1080p_30fps.mp4"),
+                          QStringLiteral("bbb_sunflower_2160p_60fps.mp4")}));
+
+    // A poll that changes nothing keeps the order; equal sizes keep the torrent's order.
+    model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
+    QCOMPARE(at(model, 3, TorrentFilesModel::NameRole).toString(), QStringLiteral("bbb.en.srt"));
+}
+
+void TestTorrentFilesModel::sort_by_flips_the_current_key_and_picks_a_direction_for_a_new_one()
+{
+    TorrentFilesModel model;
+    model.sortBy(QStringLiteral("size"));
+    QCOMPARE(model.sortKey(), QStringLiteral("size"));
+    QVERIFY(model.sortDescending()); // numbers: largest first
+    model.sortBy(QStringLiteral("size"));
+    QVERIFY(!model.sortDescending());
+    model.sortBy(QStringLiteral("name"));
+    QVERIFY(!model.sortDescending()); // text: a to z
+    model.sortBy(QStringLiteral("pieces"));
+    QVERIFY(!model.sortDescending());
+}
+
+void TestTorrentFilesModel::the_filter_keeps_the_folders_of_a_match()
+{
+    TorrentFilesModel model;
+    model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
+    QCOMPARE(model.matchCount(), 5);
+
+    // Fold the root first: a filter opens every folder, and clearing it restores the fold.
+    model.setExpanded(0, false);
+    QCOMPARE(model.count(), 1);
+
+    model.setFilterText(QStringLiteral("SRT"));
+    QCOMPARE(model.matchCount(), 2);
+    QCOMPARE(names(model),
+             (QStringList{QStringLiteral("Big Buck Bunny 4K/"),
+                          QStringLiteral("subs/"),
+                          QStringLiteral("bbb.en.srt"),
+                          QStringLiteral("bbb.pt.srt")}));
+    QVERIFY(model.isExpanded(0));
+    model.setExpanded(0, false); // no folding while filtering
+    QCOMPARE(model.count(), 4);
+
+    // Every word must be in the path; a folder's name counts, since it is in the path.
+    model.setFilterText(QStringLiteral("subs pt"));
+    QCOMPARE(model.matchCount(), 1);
+    QCOMPARE(model.count(), 3);
+
+    model.setFilterText(QStringLiteral("nothing like this"));
+    QCOMPARE(model.count(), 0);
+    QCOMPARE(model.matchCount(), 0);
+
+    model.setFilterText(QString());
+    QCOMPARE(model.count(), 1);
+    QCOMPARE(model.matchCount(), 5);
+}
+
+void TestTorrentFilesModel::a_folder_acts_on_the_files_the_filter_shows()
+{
+    TorrentFilesModel model;
+    model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
+    model.setFilterText(QStringLiteral("en.srt"));
+    QCOMPARE(model.fileIndexes(0), (QVariantList{2}));
+    QCOMPARE(model.targetFileIndexes(0), (QVariantList{2}));
+    QCOMPARE(at(model, 0, TorrentFilesModel::FileIndexesRole).toList(), (QVariantList{2}));
+    // The folder's own figures stay the whole folder's.
+    QCOMPARE(at(model, 0, TorrentFilesModel::SizeRole).toLongLong(), 4199502437LL);
+}
+
+void TestTorrentFilesModel::remaining_availability_and_pieces_add_up()
+{
+    TorrentFilesModel model;
+    model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
+
+    // Everything wanted is complete, and a skipped file has nothing left to fetch.
+    QCOMPARE(at(model, 0, TorrentFilesModel::RemainingRole).toLongLong(), 0LL);
+    QCOMPARE(at(model, 4, TorrentFilesModel::RemainingRole).toLongLong(), 0LL);
+    QCOMPARE(at(model, 0, TorrentFilesModel::RemainingTextRole).toString(), QStringLiteral("0"));
+
+    // A folder's availability is over its wanted files; all skipped reads unknown.
+    QCOMPARE(at(model, 0, TorrentFilesModel::AvailabilityTextRole).toString(),
+             QStringLiteral("100 %"));
+    QCOMPARE(at(model, 3, TorrentFilesModel::AvailabilityRole).toDouble(), -1.0);
+    QCOMPARE(at(model, 3, TorrentFilesModel::AvailabilityTextRole).toString(), QStringLiteral("—"));
+
+    QCOMPARE(at(model, 0, TorrentFilesModel::PiecesTextRole).toString(), QStringLiteral("0–3912"));
+    QCOMPARE(at(model, 1, TorrentFilesModel::PiecesTextRole).toString(), QStringLiteral("0–3859"));
+    QCOMPARE(at(model, 3, TorrentFilesModel::PiecesTextRole).toString(), QStringLiteral("3912"));
+    QCOMPARE(at(model, 3, TorrentFilesModel::PieceFirstRole).toInt(), 3912);
+}
+
+void TestTorrentFilesModel::a_local_priority_reaggregates_the_folders()
+{
+    TorrentFilesModel model;
+    model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
+    QSignalSpy changed(&model, &QAbstractItemModel::dataChanged);
+
+    model.setLocalPriority({2}, int(FilePriority::Normal));
+    QVERIFY(changed.count() > 0);
+    QCOMPARE(model.priority(4), int(FilePriority::Normal));
+    QCOMPARE(model.priority(3), int(FilePriority::Mixed));
+    // Wanted now, and not downloaded: 9 KB to fetch, and nobody has its pieces.
+    QCOMPARE(at(model, 4, TorrentFilesModel::RemainingRole).toLongLong(), 9216LL);
+    QCOMPARE(at(model, 0, TorrentFilesModel::RemainingRole).toLongLong(), 9216LL);
+    QCOMPARE(at(model, 3, TorrentFilesModel::AvailabilityRole).toDouble(), 0.0);
+
+    // Setting the same value again changes nothing.
+    changed.clear();
+    model.setLocalPriority({2}, int(FilePriority::Normal));
+    QCOMPARE(changed.count(), 0);
+}
+
+void TestTorrentFilesModel::selection_targets_its_files_and_survives_a_refresh()
+{
+    TorrentFilesModel model;
+    model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
+    QSignalSpy selection(&model, &TorrentFilesModel::selectionChanged);
+
+    // Nothing selected: the cursor row is the target.
+    QCOMPARE(model.targetFileIndexes(3), (QVariantList{2, 3}));
+    QCOMPARE(model.targetPriority(3), int(FilePriority::Skip));
+
+    model.toggleSelected(1);
+    model.toggleSelected(6);
+    QCOMPARE(model.selectedCount(), 2);
+    QCOMPARE(selection.count(), 2);
+    QVERIFY(at(model, 1, TorrentFilesModel::SelectedRole).toBool());
+    // The selection wins over the cursor, wherever the cursor is.
+    QCOMPARE(model.targetFileIndexes(3), (QVariantList{0, 4}));
+    QCOMPARE(model.targetPriority(3), int(FilePriority::Mixed));
+
+    // A folder and a file inside it count the file once.
+    model.selectRange(3, 4);
+    QCOMPARE(model.selectedCount(), 4);
+    QCOMPARE(model.targetFileIndexes(0), (QVariantList{0, 2, 3, 4}));
+
+    model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
+    QVERIFY(model.isSelected(1));
+    QCOMPARE(model.selectedCount(), 4);
+
+    model.clearSelection();
+    QCOMPARE(model.selectedCount(), 0);
+    QCOMPARE(model.targetFileIndexes(1), (QVariantList{0}));
+
+    model.selectAll();
+    QCOMPARE(model.selectedCount(), 7);
+}
+
+void TestTorrentFilesModel::shown_order_splits_the_files_in_thirds()
+{
+    TorrentFilesModel model;
+    model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
+
+    // Five files: groups of one, so the first is maximal, the second high, the rest normal.
+    const QVariantList groups = model.shownOrderGroups(0);
+    QCOMPARE(groups.size(), 3);
+    QCOMPARE(groups.at(0).toMap().value(QStringLiteral("priority")).toInt(), 7);
+    QCOMPARE(groups.at(0).toMap().value(QStringLiteral("fileIndexes")).toList(), (QVariantList{0}));
+    QCOMPARE(groups.at(1).toMap().value(QStringLiteral("fileIndexes")).toList(), (QVariantList{1}));
+    QCOMPARE(groups.at(2).toMap().value(QStringLiteral("priority")).toInt(), 1);
+    QCOMPARE(groups.at(2).toMap().value(QStringLiteral("fileIndexes")).toList(),
+             (QVariantList{2, 3, 4}));
+
+    // "Shown" means the order on screen: smallest first puts the licence at the top.
+    model.setSortKey(QStringLiteral("size"));
+    model.setSortDescending(false);
+    const QVariantList bySize = model.shownOrderGroups(0);
+    QCOMPARE(bySize.at(0).toMap().value(QStringLiteral("fileIndexes")).toList(), (QVariantList{4}));
+
+    // One file is one group.
+    QCOMPARE(model.shownOrderGroups(1).size(), 1);
+}
+
+void TestTorrentFilesModel::a_local_rename_moves_the_subtree()
+{
+    TorrentFilesModel model;
+    model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
+    model.setExpanded(3, false); // fold subs/
+    model.setSelected(3, true);
+    QCOMPARE(model.count(), 5);
+
+    model.renameLocal(QStringLiteral("Big Buck Bunny 4K/subs"),
+                      QStringLiteral("Big Buck Bunny 4K/subtitles"));
+    QCOMPARE(model.nameAt(3), QStringLiteral("subtitles"));
+    QCOMPARE(model.count(), 5); // still folded
+    QVERIFY(model.isSelected(3));
+    model.setExpanded(3, true);
+    QCOMPARE(model.pathAt(4), QStringLiteral("Big Buck Bunny 4K/subtitles/bbb.en.srt"));
+
+    model.renameLocal(QStringLiteral("Big Buck Bunny 4K/LICENSE.txt"),
+                      QStringLiteral("Big Buck Bunny 4K/COPYING"));
+    QCOMPARE(model.rowOfPath(QStringLiteral("Big Buck Bunny 4K/COPYING")), 6);
+    QCOMPARE(model.parentRow(6), 0);
+    QCOMPARE(model.parentRow(0), -1);
+}
+
+void TestTorrentFilesModel::the_server_path_follows_the_content_path()
+{
+    // A folder torrent: the files' names start with the content path's last part.
+    QCOMPARE(TorrentFilesModel::serverPathOf(QStringLiteral("/data/movies/Big Buck Bunny 4K"),
+                                             QStringLiteral("/data/movies/"),
+                                             QStringLiteral("Big Buck Bunny 4K/subs/bbb.en.srt")),
+             QStringLiteral("/data/movies/Big Buck Bunny 4K/subs/bbb.en.srt"));
+    // Still downloading into qBittorrent's incomplete folder: the content path knows.
+    QCOMPARE(TorrentFilesModel::serverPathOf(QStringLiteral("/data/incomplete/Pack"),
+                                             QStringLiteral("/data/done"),
+                                             QStringLiteral("Pack/a.bin")),
+             QStringLiteral("/data/incomplete/Pack/a.bin"));
+    // A one-file torrent.
+    QCOMPARE(TorrentFilesModel::serverPathOf(QStringLiteral("/data/linux/arch.iso"),
+                                             QStringLiteral("/data/linux"),
+                                             QStringLiteral("arch.iso")),
+             QStringLiteral("/data/linux/arch.iso"));
+    // No content path yet: the save path.
+    QCOMPARE(TorrentFilesModel::serverPathOf(
+                 QString(), QStringLiteral("/data/linux/"), QStringLiteral("arch.iso")),
+             QStringLiteral("/data/linux/arch.iso"));
+    // A Windows server keeps its own separator.
+    QCOMPARE(TorrentFilesModel::serverPathOf(QStringLiteral("D:\\Torrents\\Pack"),
+                                             QStringLiteral("D:\\Torrents"),
+                                             QStringLiteral("Pack/a.bin")),
+             QStringLiteral("D:\\Torrents\\Pack\\a.bin"));
+    QCOMPARE(TorrentFilesModel::serverPathOf(QString(), QString(), QStringLiteral("a")), QString());
 }
 
 QTEST_MAIN(TestTorrentFilesModel)
