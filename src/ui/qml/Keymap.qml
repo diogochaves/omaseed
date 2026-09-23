@@ -743,7 +743,7 @@ QtObject {
             "rank": 2,
             "helpKeys": "1–4",
             "help": qsTr("details tab"),
-            "about": qsTr("Details tab: general, files, trackers, peers")
+            "about": qsTr("In the details: general, files, trackers, peers tab")
         },
         {
             "area": "details",
