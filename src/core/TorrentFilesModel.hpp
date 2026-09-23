@@ -16,9 +16,13 @@
 //
 // N1 adds what qBittorrent's WebUI does with a torrent's content, all of it on the same
 // visible-rows list:
-//   * a name filter (`filterText`): a file shows when every word of the filter is in its
-//     path; a folder shows when one of its files does, and every folder is open while a
-//     filter is typed. A folder then acts on the files it shows, not on the hidden ones.
+//   * a name filter (`filterText`, docs/12 F4), matched against a file's path inside the
+//     torrent and ignoring case: `|` separates alternatives ("mkv|mp4"), a file must hold
+//     every space-separated word of one of them, and `*` in a word stands for any run of
+//     characters ("*.srt", "bbb*srt"). Otherwise a word is a plain substring, so "subs/"
+//     finds a folder's files. A folder shows when one of its files does, and every folder
+//     is open while a filter is typed. A folder then acts on the files it shows, not on the
+//     hidden ones.
 //   * a sort (`sortKey`, `sortDescending`): siblings are sorted inside their folder, so the
 //     tree survives. By name, folders come first in both directions (qBittorrent's content
 //     view does the same); by any number, folders and files mix. "" is the torrent's own
@@ -35,6 +39,7 @@
 #include <QHash>
 #include <QJsonArray>
 #include <QList>
+#include <QRegularExpression>
 #include <QSet>
 #include <QString>
 #include <QStringList>
@@ -203,6 +208,10 @@ public:
     static QString
     serverPathOf(const QString &contentPath, const QString &savePath, const QString &relativePath);
 
+    /// Whether `path` passes the filter `filter`, by the rules above. An empty filter, or one
+    /// of nothing but separators, passes everything.
+    static bool filterMatches(const QString &filter, const QString &path);
+
 Q_SIGNALS:
     void countChanged();
     void filterTextChanged();
@@ -233,6 +242,18 @@ private:
         int parent = -1;
     };
 
+    /// One word of the filter: a plain lower-case substring, or a `*` pattern.
+    struct FilterWord
+    {
+        QString plain;
+        QRegularExpression pattern; ///< valid only when the word has a `*`
+        bool wildcard = false;
+    };
+    /// The filter's `|` alternatives, each a list of words that must all match.
+    using Filter = QList<QList<FilterWord>>;
+    static Filter parseFilter(const QString &text);
+    static bool matches(const Filter &filter, const QString &path);
+
     /// The paths, in order, that a given `torrents/files` array would build. Two arrays with
     /// the same shape can be merged in place.
     static QStringList shapeOf(const QJsonArray &files);
@@ -242,7 +263,7 @@ private:
     void updateInPlace(const QJsonArray &files);
     void aggregate(int node);
     void applyFilter();
-    bool matchFilter(int node, const QStringList &words);
+    bool matchFilter(int node, const Filter &filter);
     QList<int> sortedChildren(const QList<int> &children) const;
     bool lessThan(int left, int right) const;
     QList<int> computeVisible() const;

@@ -433,26 +433,69 @@ void TorrentFilesModel::aggregate(int at)
 
 // --- filter and sort ---------------------------------------------------------------------
 
-void TorrentFilesModel::applyFilter()
+TorrentFilesModel::Filter TorrentFilesModel::parseFilter(const QString &text)
 {
-    const QStringList words = m_filterText.toLower().split(QLatin1Char(' '), Qt::SkipEmptyParts);
-    m_matchCount = 0;
-    for (int root : std::as_const(m_roots))
-        matchFilter(root, words);
+    Filter filter;
+    const QStringList alternatives = text.toLower().split(QLatin1Char('|'), Qt::SkipEmptyParts);
+    for (const QString &alternative : alternatives) {
+        QList<FilterWord> words;
+        const QStringList parts = alternative.split(QLatin1Char(' '), Qt::SkipEmptyParts);
+        for (const QString &part : parts) {
+            FilterWord word;
+            word.plain = part;
+            word.wildcard = part.contains(QLatin1Char('*'));
+            if (word.wildcard) {
+                // `*` is any run of characters; everything else is literal, and the pattern
+                // may sit anywhere in the path, as a plain word does.
+                QStringList pieces = part.split(QLatin1Char('*'));
+                for (QString &piece : pieces)
+                    piece = QRegularExpression::escape(piece);
+                word.pattern = QRegularExpression(pieces.join(QStringLiteral(".*")),
+                                                  QRegularExpression::DotMatchesEverythingOption);
+            }
+            words.append(word);
+        }
+        // "mkv| " while typing: an alternative of blanks is no alternative.
+        if (!words.isEmpty())
+            filter.append(words);
+    }
+    return filter;
 }
 
-bool TorrentFilesModel::matchFilter(int at, const QStringList &words)
+bool TorrentFilesModel::matches(const Filter &filter, const QString &path)
+{
+    if (filter.isEmpty())
+        return true;
+    const QString lower = path.toLower();
+    for (const QList<FilterWord> &words : filter) {
+        const bool all = std::all_of(words.cbegin(), words.cend(), [&](const FilterWord &word) {
+            return word.wildcard ? word.pattern.match(lower).hasMatch()
+                                 : lower.contains(word.plain);
+        });
+        if (all)
+            return true;
+    }
+    return false;
+}
+
+bool TorrentFilesModel::filterMatches(const QString &filter, const QString &path)
+{
+    return matches(parseFilter(filter), path);
+}
+
+void TorrentFilesModel::applyFilter()
+{
+    const Filter filter = parseFilter(m_filterText);
+    m_matchCount = 0;
+    for (int root : std::as_const(m_roots))
+        matchFilter(root, filter);
+}
+
+bool TorrentFilesModel::matchFilter(int at, const Filter &filter)
 {
     Node &node = m_nodes[at];
     if (!node.isFolder) {
-        const QString path = node.path.toLower();
-        bool matches = true;
-        for (const QString &word : words) {
-            if (!path.contains(word)) {
-                matches = false;
-                break;
-            }
-        }
+        const bool matches = TorrentFilesModel::matches(filter, node.path);
         node.matches = matches;
         node.shownIds = matches ? node.fileIndexes : QList<int>();
         if (matches)
@@ -464,7 +507,7 @@ bool TorrentFilesModel::matchFilter(int at, const QStringList &words)
     QList<int> shown;
     const QList<int> children = node.children;
     for (int child : children) {
-        if (matchFilter(child, words)) {
+        if (matchFilter(child, filter)) {
             any = true;
             shown.append(m_nodes.at(child).shownIds);
         }

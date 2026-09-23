@@ -218,7 +218,8 @@ Item {
         anchors.verticalCenter: filterBar.verticalCenter
         hint: Glyphs.search
         objectName: "filesFilter"
-        placeholder: qsTr("filter files")
+        // docs/12 F4: the placeholder teaches the syntax.
+        placeholder: qsTr("filter files · *.srt · mkv|mp4")
         trailing: root.model && root.model.filterText.length > 0 ? qsTr("%1 of %2 files").arg(
                                                                         root.model.matchCount).arg(
                                                                         root.model.fileCount) : ""

@@ -394,6 +394,25 @@ TestCase {
         compare(files.selectedCount, 5);
     }
 
+    // docs/12 F4: the placeholder shows the syntax, and `*` and `|` work as it says.
+    function test_the_filter_takes_wildcards_and_alternatives() {
+        const view = testCase.filesView();
+        const files = App.details.files;
+        const field = findChild(view, "filesFilter");
+
+        keyClick("/");
+        compare(field.placeholder, "filter files · *.srt · mkv|mp4");
+        for (const key of "*.srt")
+            keyClick(key);
+        compare(files.filterText, "*.srt");
+        compare(files.matchCount, 2);
+        compare(field.trailing, "2 of 5 files");
+
+        field.text = "txt|2160p";
+        compare(files.matchCount, 2);
+        compare(files.count, 3); // the root folder and the two files
+    }
+
     function test_space_selects_and_a_priority_applies_to_the_selection() {
         const view = testCase.filesView();
         const files = App.details.files;
