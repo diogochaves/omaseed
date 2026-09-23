@@ -230,6 +230,18 @@ TestCase {
         compare(settingsSpy.count, 1);
     }
 
+    // Each jump starts empty: the last query used to stay, so the next name was appended to it.
+    function test_the_jump_palette_opens_with_an_empty_query() {
+        keyClick(Qt.Key_K, Qt.ControlModifier);
+        keyClick("f");
+        keyClick("e");
+        compare(view.jumpPalette.query, "fe");
+        keyClick(Qt.Key_Return);
+        compare(view.jumpPalette.opened, false);
+        keyClick(Qt.Key_K, Qt.ControlModifier);
+        compare(view.jumpPalette.query, "");
+    }
+
     // The details pane takes bare letters (`k` moves its cursor), but ctrl chords still
     // reach the window: `ctrl+k` from the pane opens jump.
     function test_ctrl_chords_pass_through_the_details_pane() {
