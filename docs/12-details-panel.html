@@ -1,0 +1,509 @@
+<title>omaseed details panel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap">
+<style>
+/* ------------------------------------------------------------------
+   The details panel, session 7: finding the Files filter, and what
+   else other clients put in the panel. Same family as 08, 10 and 11
+   (frieren colours, v2 kit type). Mocks are drawn in HTML at the
+   docked-right width; screenshots live in evidence/ux-batch2/.
+   ------------------------------------------------------------------ */
+:root {
+  --accent:#5492f8; --bg:#11111b; --bg-dark:#0d0d14; --fg:#b9c5ef; --fg-dark:#8b94b3; --fg-bright:#cbd4f3;
+  --red:#ee5681; --yellow:#f6d58c; --green:#7dd676; --magenta:#b47ff3;
+  --fill-normal: color-mix(in srgb, var(--fg) 4%, transparent);
+  --fill-hover:  color-mix(in srgb, var(--fg) 8%, transparent);
+  --fill-selected: color-mix(in srgb, var(--fg) 18%, transparent);
+  --border-normal: color-mix(in srgb, var(--fg) 40%, transparent);
+  --hairline: color-mix(in srgb, var(--fg) 12%, transparent);
+  --mono: "JetBrains Mono", "JetBrainsMono Nerd Font", ui-monospace, monospace;
+  color-scheme: dark;
+}
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg-dark); color:var(--fg); font:400 13px/1.6 var(--mono); -webkit-font-smoothing:antialiased; }
+a { color:var(--accent); }
+h1,h2,h3 { margin:0; font-weight:600; color:var(--fg-bright); text-wrap:balance; }
+h1 { font-size:24px; letter-spacing:-.01em; } h2 { font-size:16px; } h3 { font-size:14px; }
+p { margin:0; max-width:78ch; }
+code, kbd { font-family:var(--mono); color:var(--fg-bright); background:var(--fill-normal); padding:0 4px; }
+.eyebrow { font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--fg-dark); }
+.dim { color:var(--fg-dark); }
+button { font:inherit; }
+:focus-visible { outline:1px solid var(--accent); outline-offset:2px; }
+
+.topbar { position:sticky; top:env(safe-area-inset-top,0px); z-index:10; display:flex; align-items:center; gap:14px; flex-wrap:wrap; padding:8px 16px; background:var(--bg); border-bottom:1px solid var(--hairline); }
+.topbar .brand { display:flex; align-items:center; gap:8px; color:var(--fg-bright); font-weight:600; }
+.topbar .brand svg { width:15px; height:15px; color:var(--accent); display:block; }
+.topbar nav { display:flex; gap:2px; flex-wrap:wrap; }
+.topbar nav a { color:var(--fg-dark); text-decoration:none; font-size:11px; padding:4px 8px; }
+.topbar nav a:hover { color:var(--fg-bright); background:var(--fill-hover); }
+.topbar .count { margin-left:auto; font-size:11px; color:var(--fg-dark); }
+.topbar .count b { color:var(--accent); font-weight:600; }
+
+.page { padding-block:28px 72px; padding-inline:16px; max-width:1180px; margin:0 auto; display:grid; gap:56px; }
+header.lead { display:grid; gap:14px; }
+.lead .meta { display:flex; gap:18px; flex-wrap:wrap; font-size:11px; color:var(--fg-dark); }
+.lead .meta b { color:var(--fg); font-weight:500; }
+.how { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr)); gap:1px; background:var(--hairline); border:1px solid var(--hairline); }
+.how div { background:var(--bg); padding:12px 14px; display:grid; gap:4px; font-size:12px; }
+.how b { color:var(--fg-bright); font-weight:600; }
+section { display:grid; gap:18px; scroll-margin-top:64px; min-width:0; }
+.sec-head { display:grid; gap:6px; } .sec-head .eyebrow { color:var(--accent); }
+
+/* ---------- an item: text left, captures right ---------- */
+.item { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.15fr); gap:18px 28px; padding:20px 0; border-top:1px solid var(--hairline); scroll-margin-top:64px; }
+.item:first-of-type { border-top:0; }
+.item .txt { display:grid; gap:10px; align-content:start; min-width:0; }
+.item .id { display:flex; gap:10px; align-items:baseline; flex-wrap:wrap; }
+.tag { font-size:10px; letter-spacing:.1em; text-transform:uppercase; padding:1px 6px; border:1px solid currentColor; }
+.tag.j { color:var(--accent); } .tag.d { color:var(--magenta); } .tag.s { color:var(--yellow); } .tag.p { color:var(--fg-dark); } .tag.ok { color:var(--green); }
+.item ul { margin:0; padding-left:18px; display:grid; gap:4px; max-width:78ch; }
+.item li::marker { color:var(--fg-dark); }
+.rec { font-size:12px; border-left:2px solid var(--accent); padding:4px 0 4px 10px; color:var(--fg); max-width:78ch; }
+.rec b { color:var(--accent); font-weight:600; }
+.jump { font-size:11px; }
+.caps { display:grid; gap:12px; align-content:start; min-width:0; }
+.caps.two { grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr)); }
+.caps.three { grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr)); }
+figure { margin:0; display:grid; gap:6px; min-width:0; }
+figure button { padding:0; border:1px solid var(--hairline); background:var(--bg); cursor:zoom-in; display:block; width:100%; }
+figure button:hover { border-color:var(--border-normal); }
+figure img { display:block; width:100%; height:auto; max-width:100%; }
+figcaption { font-size:11px; color:var(--fg-dark); }
+figcaption b { color:var(--fg); font-weight:500; }
+
+.plain { display:grid; gap:0; border:1px solid var(--hairline); background:var(--bg); }
+.plain > div { display:grid; grid-template-columns:auto minmax(0,1fr); gap:4px 14px; padding:12px 14px; border-top:1px solid var(--hairline); align-items:start; }
+.plain > div:first-child { border-top:0; }
+.plain .body { display:grid; gap:4px; } .plain .body b { color:var(--fg-bright); font-weight:600; }
+
+/* ---------- decision sheet ---------- */
+.decide { display:grid; border:1px solid var(--hairline); background:var(--bg); }
+.q { display:grid; grid-template-columns:minmax(0,300px) 1fr; gap:10px 20px; padding:12px 14px; border-bottom:1px solid var(--hairline); align-items:start; }
+.q .qt { display:grid; gap:2px; } .q .qt b { color:var(--fg-bright); font-weight:600; font-size:12.5px; } .q .qt span { color:var(--fg-dark); font-size:11px; }
+.q .qt a { font-size:10px; letter-spacing:.1em; text-transform:uppercase; text-decoration:none; }
+.q .os { display:flex; flex-wrap:wrap; gap:6px; }
+.q label { position:relative; display:inline-flex; align-items:center; gap:6px; font-size:12px; padding:4px 10px; border:1px solid var(--border-normal); background:var(--fill-normal); cursor:pointer; color:var(--fg); }
+.q label:hover { background:var(--fill-hover); }
+.q input { position:absolute; opacity:0; width:1px; height:1px; }
+.q label:has(input:checked) { background:var(--fill-selected); color:var(--fg-bright); border-color:var(--accent); }
+.q label:has(input[type=checkbox]:checked)::before { content:"✓"; color:var(--accent); }
+.q label:has(input:focus-visible) { outline:1px solid var(--accent); outline-offset:1px; }
+.q label .r { font-size:9px; letter-spacing:.1em; text-transform:uppercase; color:var(--accent); }
+.out { display:grid; gap:10px; padding:14px; }
+.out textarea, .notes { width:100%; resize:vertical; background:var(--bg-dark); color:var(--fg-bright); border:1px solid var(--border-normal); font:12px/1.5 var(--mono); padding:10px; }
+.out textarea { min-height:180px; } .notes { min-height:70px; }
+.out .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+.pbtn { display:inline-flex; align-items:center; height:30px; padding:0 12px; font-size:12px; color:var(--fg); background:var(--fill-normal); border:1px solid var(--border-normal); cursor:pointer; }
+.pbtn:hover { background:var(--fill-hover); }
+.pbtn.primary { color:var(--accent); border-color:var(--accent); }
+.out .st { font-size:11.5px; color:var(--green); }
+
+/* ---------- full-size view ---------- */
+dialog { padding:0; border:1px solid var(--accent); background:var(--bg); color:var(--fg); max-width:min(96vw,1400px); max-height:94vh; }
+dialog::backdrop { background:color-mix(in srgb, var(--bg-dark) 85%, transparent); }
+dialog .bar { display:flex; justify-content:space-between; gap:12px; align-items:center; padding:8px 12px; border-bottom:1px solid var(--hairline); font-size:11.5px; position:sticky; top:0; background:var(--bg); }
+dialog img { display:block; max-width:100%; height:auto; }
+
+@media (max-width: 760px) {
+  .item { grid-template-columns:minmax(0,1fr); }
+  .q { grid-template-columns:minmax(0,1fr); }
+}
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior:smooth; } }
+
+/* ---------- panel mocks (docked right, ~400 u) ---------- */
+.mocks { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,330px),1fr)); gap:16px; }
+.mock { display:grid; gap:8px; align-content:start; min-width:0; }
+.mock .cap { font-size:11px; color:var(--fg-dark); } .mock .cap b { color:var(--fg-bright); font-weight:600; }
+.pane { border:1px solid var(--accent); background:var(--bg); font-size:11.5px; line-height:1.5; overflow:hidden; font-variant-numeric:tabular-nums; }
+.pane .tabs { display:flex; gap:14px; padding:6px 10px 0; border-bottom:1px solid var(--hairline); color:var(--fg-dark); white-space:nowrap; overflow:hidden; }
+.pane .tabs span { padding-bottom:5px; } .pane .tabs .on { color:var(--fg-bright); border-bottom:1px solid var(--fg-bright); }
+.pane .tabs i { font-style:normal; opacity:.7; }
+.fl { display:grid; grid-template-columns:minmax(0,1fr) 5.2em 7.4em 4.6em; gap:0 8px; padding:3px 10px; align-items:center; white-space:nowrap; }
+.fl > * { overflow:hidden; text-overflow:ellipsis; }
+.fl.h { color:var(--fg-dark); font-size:10.5px; padding-block:5px; }
+.fl .r { text-align:right; }
+.fl.cur { background:var(--fill-selected); }
+.fl .d2 { padding-left:14px; } .fl .d3 { padding-left:28px; }
+.done { display:flex; gap:6px; align-items:center; justify-content:flex-end; }
+.done s { display:block; flex:1; height:1px; background:var(--hairline); text-decoration:none; position:relative; }
+.done s u { position:absolute; inset:0 auto 0 0; background:var(--green); height:1px; }
+.pri-skip { color:var(--fg-dark); text-decoration:line-through; } .pri-high { color:var(--yellow); } .pri-mixed { color:var(--magenta); }
+.sum { display:flex; gap:8px; align-items:center; padding:5px 10px; border-bottom:1px solid var(--hairline); color:var(--fg-dark); font-size:11px; white-space:nowrap; overflow:hidden; }
+.sum b { color:var(--fg); font-weight:500; }
+.sum .go { margin-left:auto; display:flex; gap:6px; align-items:center; color:var(--fg-dark); }
+.kc { display:inline-block; padding:0 5px; border:1px solid var(--border-normal); color:var(--fg-bright); font-size:10.5px; line-height:1.45; }
+.fld { display:flex; gap:8px; align-items:center; margin:6px 10px 2px; padding:3px 8px; border:1px solid var(--border-normal); background:var(--fill-normal); color:var(--fg-dark); font-size:11px; white-space:nowrap; overflow:hidden; }
+.fld.on { border-color:var(--accent); color:var(--fg-bright); }
+.fld .t { color:var(--fg-bright); } .fld .t::after { content:""; display:inline-block; width:1px; height:1.1em; background:var(--accent); vertical-align:-2px; margin-left:1px; }
+.fld .cnt { margin-left:auto; color:var(--fg-dark); }
+.foot { display:flex; gap:12px; padding:5px 10px; border-top:1px solid var(--hairline); color:var(--fg-dark); font-size:10.5px; white-space:nowrap; overflow:hidden; }
+.foot b { color:var(--fg-bright); font-weight:500; }
+.hl { color:var(--accent); }
+.gap { height:8px; }
+
+/* General mock */
+.gsec { padding:6px 10px 2px; font-size:9.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--accent); }
+.gr { display:grid; grid-template-columns:9.5em minmax(0,1fr); gap:0 10px; padding:2px 10px; }
+.gr span:first-child { color:var(--fg-dark); font-size:10px; letter-spacing:.08em; text-transform:uppercase; padding-top:1px; }
+.gr span:last-child { color:var(--fg); overflow-wrap:anywhere; }
+.gr.new span:last-child { color:var(--fg-bright); }
+.gr.new span:first-child::before { content:"+ "; color:var(--green); }
+.gr.cur { background:var(--fill-selected); }
+.onoff { color:var(--fg-dark); } .onoff.y { color:var(--green); }
+.bar { margin:8px 10px 4px; display:grid; gap:4px; }
+.bar .lbl { display:flex; justify-content:space-between; font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--fg-dark); }
+.bar .lbl .sw { display:flex; gap:8px; } .bar .lbl .sw .on { color:var(--fg-bright); }
+.pieces { height:10px; display:flex; background:var(--fill-normal); }
+.pieces i { display:block; height:100%; }
+
+/* candidate table */
+.tbl { overflow-x:auto; border:1px solid var(--hairline); background:var(--bg); }
+.tbl table { border-collapse:collapse; width:100%; min-width:720px; font-size:12px; }
+.tbl th, .tbl td { text-align:left; padding:7px 10px; border-top:1px solid var(--hairline); vertical-align:top; }
+.tbl th { color:var(--fg-dark); font-weight:500; font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; border-top:0; }
+.tbl td b { color:var(--fg-bright); font-weight:600; }
+.v-yes { color:var(--green); } .v-later { color:var(--yellow); } .v-no { color:var(--fg-dark); }
+</style>
+
+<div class="topbar">
+  <span class="brand"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="1.5" y="1.5" width="9" height="9"/><rect x="5.5" y="5.5" width="9" height="9"/><rect x="6.5" y="6.5" width="3" height="3" fill="currentColor" stroke="none"/></svg>omaseed · details panel</span>
+  <nav aria-label="Sections">
+    <a href="#find">finding the filter</a><a href="#others">other clients</a><a href="#general">general tab</a><a href="#later">later</a><a href="#decide">decision sheet</a>
+  </nav>
+  <span class="count"><b>10</b> rulings</span>
+</div>
+
+<main class="page">
+  <header class="lead">
+    <span class="eyebrow">docs/12 · details panel</span>
+    <h1>Make the file filter findable, and fill the details panel like the clients people know</h1>
+    <p>You said nothing tells you <code>/</code> filters the files, and that <code>esc</code> didn't close it. The esc part was a bug and it's fixed. This board is about the rest: how to make the filter visible, and what else is worth adding to the panel. For that I looked at qBittorrent, qui, VueTorrent, Transmission, Deluge, BiglyBT, Fragments, Flood, Tixati, Motrix and µTorrent. The mocks are drawn at the docked-right width with the demo's Big Buck Bunny torrent. The sheet at the bottom starts with my recommendations picked, so you only change what you disagree with.</p>
+    <div class="meta"><span>theme <b>frieren</b></span><span>base <b>14</b></span><span>build <b>main @ 788d49b</b></span><span>written <b>2026-09-23</b></span></div>
+    <div class="how">
+      <div><b>Fixed already</b><span class="dim"><code>esc</code> in an empty filter now closes it. <code>esc</code> on the list clears the filter and closes the emptied field. Two new tests, commit 788d49b.</span></div>
+      <div><b>4 about the filter</b><span class="dim">Where it lives, single-file torrents, acting on what's shown, match syntax.</span></div>
+      <div><b>5 about the panel</b><span class="dim">Grouping General, extra fields, a pieces bar, per-torrent options, copying a value.</span></div>
+      <div><b>1 for later</b><span class="dim">Ideas I'd park in UX-NOTES rather than build now.</span></div>
+    </div>
+  </header>
+
+  <section id="find">
+    <div class="sec-head"><span class="eyebrow">§1 · finding the filter</span><h2>Why you can't see it today</h2>
+      <p class="dim">The only hint is <code>/ filter</code> in the footer, and the footer shows it only while the details panel has the keyboard. With focus on the table, the footer lists the table's keys, and there <code>/</code> searches torrents. So nothing on screen says files can be filtered until you've already found it.</p></div>
+
+    <div class="item" id="f1">
+      <div class="txt">
+        <div class="id"><span class="tag j">F1</span><h3>Where the filter lives</h3></div>
+        <p>Almost every client with a file filter keeps a field above the list at all times: qBittorrent ("Filter files…"), qui ("Search files…" with a live "3 of 12"), VueTorrent, BiglyBT. Fragments hides it behind a magnifier button. Transmission GTK and Deluge only have hidden type-ahead that jumps to a match, and nobody finds it.</p>
+        <ul>
+          <li><b>A. Summary line.</b> One quiet line above the headers gives the facts about the files (count, folders, size, skipped) and ends in <code>⌕ filter /</code>. Clicking it or pressing <code>/</code> turns the line into the field; <code>esc</code> turns it back. It costs one row, which it pays for with the file count you asked for, and it matches the head strip's facts-first tone.</li>
+          <li><b>B. Always-visible field.</b> The qBittorrent and qui way: an empty field with a placeholder, always there. It's the most familiar, but it's a boxed control sitting over the list all the time, and it doesn't carry the count.</li>
+          <li><b>C. A chip in the tab strip.</b> <code>⌕ /</code> at the right end of the tab row, as qBittorrent's WebUI does. It costs no row, but it's the easiest to miss, and there's no room for it with the tab strip at narrow widths.</li>
+        </ul>
+        <p>In all three, the footer keeps <code>/ filter</code> while the panel has focus, and the field shows <code>n of m files</code> as you type.</p>
+        <p class="rec"><b>Recommend A.</b> It gives the count you wanted and makes the filter visible without a permanent empty box. It's the same row whether you're filtering or not, so the list never jumps.</p>
+      </div>
+      <div class="mocks">
+        <div class="mock"><span class="cap"><b>A · summary line</b>, at rest</span><div class="pane"><div class="tabs"><span>General <i>1</i></span><span class="on">Files <i>2</i></span><span>Trackers <i>3</i></span><span>Peers <i>4</i></span></div><div class="sum"><span><b>5 files</b> · 2 folders · 3.91 GB · 2 skipped</span><span class="go">⌕ filter <span class="kc">/</span></span></div>    <div class="fl h"><span>Name</span><span class="r">Size</span><span class="r">Done</span><span>Priority</span></div>
+    <div class="fl cur"><span>▾ Big Buck Bunny 4K/</span><span class="r">3.91 GB</span><span class="done"><s><u style="width:100%"></u></s>100 %</span><span class="pri-mixed">mixed</span></div>
+    <div class="fl"><span class="d2">bbb_sunflo…_60fps.mp4</span><span class="r">3.86 GB</span><span class="done"><s><u style="width:100%"></u></s>100 %</span><span class="pri-high">high</span></div>
+    <div class="fl"><span class="d2">bbb_sunflo…_30fps.mp4</span><span class="r">52.1 MB</span><span class="done"><s><u style="width:100%"></u></s>100 %</span><span>normal</span></div>
+    <div class="fl"><span class="d2">▾ subs/</span><span class="r">18 KB</span><span class="done"><s></s>0 %</span><span class="pri-skip">skip</span></div>
+    <div class="fl"><span class="d3">bbb.en.srt</span><span class="r">9 KB</span><span class="done"><s></s>0 %</span><span class="pri-skip">skip</span></div>
+    <div class="fl"><span class="d3">bbb.pt.srt</span><span class="r">9 KB</span><span class="done"><s></s>0 %</span><span class="pri-skip">skip</span></div>
+    <div class="fl"><span class="d2">LICENSE.txt</span><span class="r">1 KB</span><span class="done"><s><u style="width:100%"></u></s>100 %</span><span>normal</span></div></div></div>
+        <div class="mock"><span class="cap"><b>A · summary line</b>, after <kbd>/</kbd> srt</span><div class="pane"><div class="tabs"><span>General <i>1</i></span><span class="on">Files <i>2</i></span><span>Trackers <i>3</i></span><span>Peers <i>4</i></span></div><div class="sum" style="padding:0;border:0"></div><div class="fld on" style="margin-bottom:6px">⌕ <span class="t">srt</span><span class="cnt">2 of 5 files</span><span class="kc">esc</span></div>    <div class="fl h"><span>Name</span><span class="r">Size</span><span class="r">Done</span><span>Priority</span></div>
+    <div class="fl"><span>▾ Big Buck Bunny 4K/</span><span class="r">3.91 GB</span><span class="done"><s><u style="width:100%"></u></s>100 %</span><span class="pri-mixed">mixed</span></div>
+    <div class="fl"><span class="d2">▾ subs/</span><span class="r">18 KB</span><span class="done"><s></s>0 %</span><span class="pri-skip">skip</span></div>
+    <div class="fl cur"><span class="d3">bbb.en.<span class="hl">srt</span></span><span class="r">9 KB</span><span class="done"><s></s>0 %</span><span class="pri-skip">skip</span></div>
+    <div class="fl"><span class="d3">bbb.pt.<span class="hl">srt</span></span><span class="r">9 KB</span><span class="done"><s></s>0 %</span><span class="pri-skip">skip</span></div><div class="foot"><span><b>/</b> filter</span><span><b>p</b> priority</span><span><b>space</b> select</span><span><b>enter</b> menu</span></div></div></div>
+        <div class="mock"><span class="cap"><b>B · always-visible field</b></span><div class="pane"><div class="tabs"><span>General <i>1</i></span><span class="on">Files <i>2</i></span><span>Trackers <i>3</i></span><span>Peers <i>4</i></span></div><div class="fld">⌕ filter files<span class="cnt"><span class="kc">/</span></span></div>    <div class="fl h"><span>Name</span><span class="r">Size</span><span class="r">Done</span><span>Priority</span></div>
+    <div class="fl cur"><span>▾ Big Buck Bunny 4K/</span><span class="r">3.91 GB</span><span class="done"><s><u style="width:100%"></u></s>100 %</span><span class="pri-mixed">mixed</span></div>
+    <div class="fl"><span class="d2">bbb_sunflo…_60fps.mp4</span><span class="r">3.86 GB</span><span class="done"><s><u style="width:100%"></u></s>100 %</span><span class="pri-high">high</span></div>
+    <div class="fl"><span class="d2">bbb_sunflo…_30fps.mp4</span><span class="r">52.1 MB</span><span class="done"><s><u style="width:100%"></u></s>100 %</span><span>normal</span></div>
+    <div class="fl"><span class="d2">▾ subs/</span><span class="r">18 KB</span><span class="done"><s></s>0 %</span><span class="pri-skip">skip</span></div>
+    <div class="fl"><span class="d3">bbb.en.srt</span><span class="r">9 KB</span><span class="done"><s></s>0 %</span><span class="pri-skip">skip</span></div>
+    <div class="fl"><span class="d3">bbb.pt.srt</span><span class="r">9 KB</span><span class="done"><s></s>0 %</span><span class="pri-skip">skip</span></div>
+    <div class="fl"><span class="d2">LICENSE.txt</span><span class="r">1 KB</span><span class="done"><s><u style="width:100%"></u></s>100 %</span><span>normal</span></div></div></div>
+        <div class="mock"><span class="cap"><b>C · chip in the tab strip</b></span><div class="pane"><div class="tabs"><span>General <i>1</i></span><span class="on">Files <i>2</i></span><span>Trackers <i>3</i></span><span>Peers <i>4</i></span><span style="margin-left:auto">⌕ <span class="kc">/</span></span></div>    <div class="fl h"><span>Name</span><span class="r">Size</span><span class="r">Done</span><span>Priority</span></div>
+    <div class="fl cur"><span>▾ Big Buck Bunny 4K/</span><span class="r">3.91 GB</span><span class="done"><s><u style="width:100%"></u></s>100 %</span><span class="pri-mixed">mixed</span></div>
+    <div class="fl"><span class="d2">bbb_sunflo…_60fps.mp4</span><span class="r">3.86 GB</span><span class="done"><s><u style="width:100%"></u></s>100 %</span><span class="pri-high">high</span></div>
+    <div class="fl"><span class="d2">bbb_sunflo…_30fps.mp4</span><span class="r">52.1 MB</span><span class="done"><s><u style="width:100%"></u></s>100 %</span><span>normal</span></div>
+    <div class="fl"><span class="d2">▾ subs/</span><span class="r">18 KB</span><span class="done"><s></s>0 %</span><span class="pri-skip">skip</span></div>
+    <div class="fl"><span class="d3">bbb.en.srt</span><span class="r">9 KB</span><span class="done"><s></s>0 %</span><span class="pri-skip">skip</span></div>
+    <div class="fl"><span class="d3">bbb.pt.srt</span><span class="r">9 KB</span><span class="done"><s></s>0 %</span><span class="pri-skip">skip</span></div>
+    <div class="fl"><span class="d2">LICENSE.txt</span><span class="r">1 KB</span><span class="done"><s><u style="width:100%"></u></s>100 %</span><span>normal</span></div></div></div>
+      </div>
+    </div>
+
+    <div class="item" id="f2">
+      <div class="txt">
+        <div class="id"><span class="tag j">F2</span><h3>Single-file torrents</h3></div>
+        <p>An .iso or a single .mkv has one file, so there's nothing to filter. Transmission on macOS disables its filter for single-file torrents.</p>
+        <p class="rec"><b>Recommend</b> the summary line reads <code>1 file · 1.31 GB</code> with no <code>⌕ filter /</code>, and <code>/</code> does nothing there. (Pressing it flashes "one file, nothing to filter" in the footer, so the key doesn't seem broken.)</p>
+      </div>
+      <div class="mocks"><div class="mock"><span class="cap"><b>archlinux…iso</b>, one file</span><div class="pane"><div class="tabs"><span>General <i>1</i></span><span class="on">Files <i>2</i></span><span>Trackers <i>3</i></span><span>Peers <i>4</i></span></div><div class="sum"><span><b>1 file</b> · 1.31 GB</span></div><div class="fl h"><span>Name</span><span class="r">Size</span><span class="r">Done</span><span>Priority</span></div><div class="fl cur"><span>archlinux-2026.09.01-x86_64.iso</span><span class="r">1.31 GB</span><span class="done"><s><u style="width:49%"></u></s>48.9 %</span><span>normal</span></div></div></div></div>
+    </div>
+
+    <div class="item" id="f3">
+      <div class="txt">
+        <div class="id"><span class="tag j">F3</span><h3>Acting on what the filter shows</h3></div>
+        <p>The main reason to filter a file list is to do something to the matches: skip every .nfo, raise every episode of a season. qBittorrent does it with filter, then select all, then a priority. VueTorrent has a bulk-select dialog. Today you can filter, but then have to <code>space</code> each match one by one.</p>
+        <p class="rec"><b>Recommend</b> <code>ctrl+a</code> in the Files tab selects every file the filter shows (folders count through their files), and the footer says <code>2 selected</code>. Then <code>p</code>, or <code>+ - x</code>, act on them as they already do. With no filter it selects every file.</p>
+      </div>
+      <div class="mocks"><div class="mock"><span class="cap"><b>/ srt</b>, <kbd>ctrl+a</kbd>, then <kbd>p</kbd> normal</span><div class="pane"><div class="tabs"><span>General <i>1</i></span><span class="on">Files <i>2</i></span><span>Trackers <i>3</i></span><span>Peers <i>4</i></span></div><div class="fld on" style="margin-bottom:6px">⌕ <span class="t">srt</span><span class="cnt">2 of 5 files</span><span class="kc">esc</span></div>
+    <div class="fl h"><span>Name</span><span class="r">Size</span><span class="r">Done</span><span>Priority</span></div>
+    <div class="fl"><span>▾ Big Buck Bunny 4K/</span><span class="r">3.91 GB</span><span class="done"><s><u style="width:100%"></u></s>100 %</span><span class="pri-mixed">mixed</span></div>
+    <div class="fl"><span class="d2">▾ subs/</span><span class="r">18 KB</span><span class="done"><s></s>0 %</span><span>normal</span></div>
+    <div class="fl cur"><span class="d3">● bbb.en.<span class="hl">srt</span></span><span class="r">9 KB</span><span class="done"><s></s>0 %</span><span>normal</span></div>
+    <div class="fl cur"><span class="d3">● bbb.pt.<span class="hl">srt</span></span><span class="r">9 KB</span><span class="done"><s></s>0 %</span><span>normal</span></div>
+    <div class="foot"><span><b>2</b> selected</span><span><b>p</b> priority</span><span><b>esc</b> clear</span></div></div></div></div>
+    </div>
+
+    <div class="item" id="f4">
+      <div class="txt">
+        <div class="id"><span class="tag j">F4</span><h3>How a filter matches</h3></div>
+        <p>Today it's a plain substring of the name, ignoring case. qBittorrent adds a right-click menu for wildcards, regex or plain text. BiglyBT has a small language documented in a tooltip: <code>|</code> for or, <code>!</code> for not, <code>p:</code> for the full path, a regex toggle, and <code>size:&gt;1G</code>.</p>
+        <ul>
+          <li><b>Plain, plus <code>*</code> and <code>|</code>.</b> <code>*.srt</code> and <code>mkv|mp4</code> cover almost every real case. The placeholder can say so: <code>filter files · *.srt · mkv|mp4</code>.</li>
+          <li><b>Plain only</b>, as today.</li>
+          <li><b>BiglyBT's full language.</b> Powerful, but it needs a tooltip to explain it, and nobody reads those.</li>
+        </ul>
+        <p class="rec"><b>Recommend plain + <code>*</code> + <code>|</code></b>, matched against the path so <code>subs/</code> finds a folder's files.</p>
+      </div>
+      <div class="mocks"><div class="mock"><span class="cap"><b>/</b> with the syntax in the placeholder</span><div class="pane"><div class="tabs"><span>General <i>1</i></span><span class="on">Files <i>2</i></span><span>Trackers <i>3</i></span><span>Peers <i>4</i></span></div><div class="fld on" style="margin-bottom:6px">⌕ <span style="color:var(--fg-dark)">filter files · *.srt · mkv|mp4</span></div><div class="fl h"><span>Name</span><span class="r">Size</span><span class="r">Done</span><span>Priority</span></div></div></div></div>
+    </div>
+  </section>
+
+  <section id="others">
+    <div class="sec-head"><span class="eyebrow">§2 · other clients</span><h2>What the others put in the panel</h2>
+      <p class="dim">Read from each client's UI source where possible (qBittorrent, qui, VueTorrent, Transmission, Deluge, BiglyBT, Fragments, Flood). The rest come from docs only. Tribler and Porla had no usable sources.</p></div>
+    <div class="tbl"><table>
+      <thead><tr><th>Idea</th><th>Who has it</th><th>What it costs us</th><th>Verdict</th></tr></thead>
+      <tbody>
+        <tr><td><b>File count and match count</b></td><td>qui "3 of 12", VueTorrent "matches n/total (size)", Deluge "Total Files"</td><td>Nothing new: the model has fileCount and matchCount</td><td class="v-yes">yes, F1</td></tr>
+        <tr><td><b>Pieces bar</b> (have / downloading / missing)</td><td>qBittorrent, µTorrent, Transmission macOS, qui, VueTorrent, Motrix. Their availability views read the swarm from libtorrent directly.</td><td>A new <code>torrents/pieceStates</code> call, polled with the details (one byte per piece). The WebUI API has no per-piece availability, so no availability view.</td><td class="v-yes">yes, G3</td></tr>
+        <tr><td><b>Grouped General</b>: Transfer / Information / Options</td><td>qBittorrent (Transfer, Information), Deluge (Status, Details, Options), qui</td><td>Layout only</td><td class="v-yes">yes, G1</td></tr>
+        <tr><td><b>More fields</b>: last seen complete, connections, seeding time, completed on, average speeds, reannounce in, private, piece size, popularity</td><td>qBittorrent, Deluge ("complete seen", seeding time)</td><td>All in <code>torrents/properties</code>, which we already fetch</td><td class="v-yes">yes, G2</td></tr>
+        <tr><td><b>Per-torrent options</b>: sequential, first/last pieces first, super seeding, automatic management</td><td>Deluge Options tab, Transmission Options, qui Limits</td><td>The client calls exist. They're only in the add sheet today.</td><td class="v-yes">yes, G4</td></tr>
+        <tr><td><b>Copy any value</b>, and the magnet link</td><td>Motrix (click any value), qui, Transmission web (magnet)</td><td>General rows get a cursor; <code>magnet_uri</code> is already in the torrent row</td><td class="v-yes">yes, G5</td></tr>
+        <tr><td><b>HTTP sources / web seeds</b>, shown only when there are any</td><td>qBittorrent tab, qui (hidden when empty)</td><td>A new <code>torrents/webseeds</code> call and a fifth tab</td><td class="v-later">later</td></tr>
+        <tr><td><b>Per-torrent speed graph</b></td><td>qBittorrent Speed tab, Tixati Bandwidth, Motrix Activity</td><td>No API; sample the torrent row ourselves and keep history</td><td class="v-later">later</td></tr>
+        <tr><td><b>Hide skipped files</b> toggle; remember a torrent's filter</td><td>BiglyBT</td><td>Small</td><td class="v-later">later</td></tr>
+        <tr><td><b>Event log, your own notes</b></td><td>Tixati, Synology (log)</td><td>No per-torrent log in the API</td><td class="v-no">no</td></tr>
+        <tr><td><b>MediaInfo, cross-seed</b></td><td>qui, Flood</td><td>Needs the files locally, or another service</td><td class="v-no">no, out of scope</td></tr>
+        <tr><td><b>Dock toggle button</b></td><td>your own idea, withdrawn</td><td>You set it once; <code>I</code> already switches it</td><td class="v-no">no</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section id="general">
+    <div class="sec-head"><span class="eyebrow">§3 · the General tab</span><h2>From a flat list to three groups, with a pieces bar</h2>
+      <p class="dim">Today General is one list of 15 rows in the order the code adds them. Status sits between the hash and the byte counts, and nothing groups what belongs together.</p></div>
+
+    <div class="item" id="g1">
+      <div class="txt">
+        <div class="id"><span class="tag j">G1</span><h3>Group the rows</h3></div>
+        <p><b>Transfer</b> covers what's moving: status, downloaded, uploaded, wasted, seeds, peers, connections, availability, speeds and times. <b>Information</b> covers what the torrent is: size, pieces, save path, hashes, magnet, created by and on, completed on, comment. <b>Options</b> covers what you can change: limits, share limit, sequential, first/last, super seeding, automatic management. The group labels use the rail's section style (small caps, accent), so they read as the same family.</p>
+        <p class="rec"><b>Recommend</b> the three groups, in that order.</p>
+      </div>
+      <div class="mocks"><div class="mock"><span class="cap"><b>General</b>, grouped (<span style="color:var(--green)">+</span> = new field)</span><div class="pane"><div class="tabs"><span class="on">General <i>1</i></span><span>Files <i>2</i></span><span>Trackers <i>3</i></span><span>Peers <i>4</i></span></div>
+        <div class="bar"><div class="lbl"><span>pieces · 617 of 1 264</span><span>48.9 %</span></div><div class="pieces"><i style="flex:1;background:var(--green)"></i><i style="flex:1;background:var(--green)"></i><i style="flex:1;background:var(--green)"></i><i style="flex:1;background:var(--green)"></i><i style="flex:1;background:var(--green)"></i><i style="flex:1;background:var(--green)"></i><i style="flex:1;background:var(--green)"></i><i style="flex:1;background:var(--green)"></i><i style="flex:1;background:var(--green)"></i><i style="flex:1;background:var(--green)"></i><i style="flex:1;background:var(--green)"></i><i style="flex:1;background:var(--green)"></i><i style="flex:1;background:var(--green)"></i><i style="flex:1;background:var(--green)"></i><i style="flex:1;background:var(--green)"></i><i style="flex:1;background:var(--green)"></i><i style="flex:1;background:var(--green)"></i><i style="flex:1;background:var(--green)"></i><i style="flex:1;background:var(--green)"></i><i style="flex:1;background:var(--green)"></i><i style="flex:1;background:var(--green)"></i><i style="flex:1;background:var(--green)"></i><i style="flex:1;background:var(--green)"></i><i style="flex:1;background:var(--green)"></i><i style="flex:1;background:var(--green)"></i><i style="flex:1;background:var(--green)"></i><i style="flex:1;background:var(--green)"></i><i style="flex:1;background:transparent"></i><i style="flex:1;background:var(--green)"></i><i style="flex:1;background:var(--green)"></i><i style="flex:1;background:transparent"></i><i style="flex:1;background:var(--green)"></i><i style="flex:1;background:var(--green)"></i><i style="flex:1;background:var(--green)"></i><i style="flex:1;background:var(--accent)"></i><i style="flex:1;background:transparent"></i><i style="flex:1;background:transparent"></i><i style="flex:1;background:transparent"></i><i style="flex:1;background:transparent"></i><i style="flex:1;background:transparent"></i><i style="flex:1;background:transparent"></i><i style="flex:1;background:transparent"></i><i style="flex:1;background:transparent"></i><i style="flex:1;background:transparent"></i><i style="flex:1;background:transparent"></i><i style="flex:1;background:transparent"></i><i style="flex:1;background:transparent"></i><i style="flex:1;background:transparent"></i><i style="flex:1;background:transparent"></i><i style="flex:1;background:transparent"></i><i style="flex:1;background:transparent"></i><i style="flex:1;background:var(--accent)"></i><i style="flex:1;background:transparent"></i><i style="flex:1;background:transparent"></i><i style="flex:1;background:transparent"></i><i style="flex:1;background:transparent"></i><i style="flex:1;background:var(--accent)"></i><i style="flex:1;background:transparent"></i><i style="flex:1;background:transparent"></i><i style="flex:1;background:transparent"></i></div></div>
+        <div class="gsec">Transfer</div>
+        <div class="gr"><span>Status</span><span style="color:var(--accent)">downloading</span></div>
+        <div class="gr"><span>Downloaded</span><span>656 MB of 1.31 GB</span></div>
+        <div class="gr"><span>Uploaded</span><span>394 MB</span></div>
+        <div class="gr"><span>Wasted</span><span>2.10 MB</span></div>
+        <div class="gr"><span>Seeds</span><span>12 of 214</span></div>
+        <div class="gr"><span>Peers</span><span>3 of 41</span></div>
+        <div class="gr new"><span>Connections</span><span>15 of 100</span></div>
+        <div class="gr"><span>Availability</span><span>38.20</span></div>
+        <div class="gr new"><span>Avg speed</span><span>↓ 4.12 MB/s · ↑ 820 KB/s</span></div>
+        <div class="gr"><span>Time active</span><span>2 h 14 min</span></div>
+        <div class="gr new"><span>Last seen full</span><span>now</span></div>
+        <div class="gr new"><span>Reannounce</span><span>in 12 min</span></div>
+        <div class="gsec">Information</div>
+        <div class="gr"><span>Save path</span><span>/data/torrents/linux/</span></div>
+        <div class="gr new"><span>Pieces</span><span>1 264 × 1 MiB</span></div>
+        <div class="gr cur"><span>Hash v1</span><span>000023dc8f83516bdc23a28de0b8f985bda95bdd</span></div>
+        <div class="gr new"><span>Magnet</span><span style="color:var(--fg-dark)">magnet:?xt=urn:btih:0000…  y copies</span></div>
+        <div class="gr new"><span>Private</span><span>no</span></div>
+        <div class="gr"><span>Created by</span><span>mktorrent 1.1</span></div>
+        <div class="gsec">Options</div>
+        <div class="gr"><span>Share limit</span><span>global</span></div>
+        <div class="gr new"><span>Sequential</span><span class="onoff">off</span></div>
+        <div class="gr new"><span>First / last</span><span class="onoff y">on</span></div>
+        <div class="gr new"><span>Super seed</span><span class="onoff">off</span></div>
+        <div class="gr new"><span>Auto manage</span><span class="onoff y">on</span></div>
+        <div class="gap"></div>
+        <div class="foot"><span><b>j k</b> move</span><span><b>y</b> copy value</span><span><b>enter</b> change</span></div>
+      </div></div></div>
+    </div>
+
+    <div class="item" id="g2">
+      <div class="txt">
+        <div class="id"><span class="tag j">G2</span><h3>Which new fields</h3></div>
+        <p>All of these are already in <code>torrents/properties</code> or the torrent row, so none needs a new request. Each is one row. Pick any; the sheet starts with the ones I'd add.</p>
+        <ul>
+          <li><b>Connections</b> "15 of 100". This is qBittorrent's first question when a torrent is slow.</li>
+          <li><b>Last seen complete.</b> This tells you whether a stalled torrent can still finish. It's the most useful of the lot.</li>
+          <li><b>Seeding time</b> and <b>completed on</b>. Both matter for ratio and seeding-time rules on private trackers.</li>
+          <li><b>Average speeds</b> ↓ and ↑.</li>
+          <li><b>Reannounce in.</b></li>
+          <li><b>Piece count and size</b> as a separate row in Information. The Pieces row in Transfer then becomes the bar in G3.</li>
+          <li><b>Private.</b></li>
+          <li><b>Magnet</b>: shown shortened, and copied whole with <code>y</code>.</li>
+          <li><b>Popularity</b> (qBittorrent 5): ratio per month active. It's niche, so I'd leave it out.</li>
+        </ul>
+      </div>
+      <div></div>
+    </div>
+
+    <div class="item" id="g3">
+      <div class="txt">
+        <div class="id"><span class="tag j">G3</span><h3>A pieces bar</h3></div>
+        <p>This is the most common visual in torrent clients, from µTorrent's two bars to qBittorrent's Progress and Availability. It shows at a glance whether a torrent is stuck on its last pieces, or whether the swarm is missing a region.</p>
+        <p>It would sit at the top of General, one bar 10 u tall, drawn from <code>torrents/pieceStates</code>, with <code>green</code> = have, <code>accent</code> = downloading, and empty = missing. For a torrent with 50 000 pieces, several pieces share each pixel. The availability bar qBittorrent draws isn't possible here: the WebUI API has per-piece states but not per-piece peer counts. The Availability row (38.20) stays as the number.</p>
+        <ul>
+          <li><b>General only</b>: one bar, at the top of General.</li>
+          <li><b>Every tab</b>: under the head strip, 3 u tall, visible on all four tabs.</li>
+          <li><b>No bar</b>.</li>
+        </ul>
+        <p class="rec"><b>Recommend General only.</b> The head strip already says 48.9 %; a bar on every tab would repeat it.</p>
+      </div>
+      <div></div>
+    </div>
+
+    <div class="item" id="g4">
+      <div class="txt">
+        <div class="id"><span class="tag j">G4</span><h3>Per-torrent options</h3></div>
+        <p>You can set sequential download and first/last pieces when adding, but not on a torrent you already have, and super seeding and automatic management aren't reachable at all. Deluge and Transmission give them an Options tab. qui puts them in General.</p>
+        <p class="rec"><b>Recommend</b> both: they show in General's Options group, where <code>enter</code> toggles the row under the cursor, and they're rows in the table's actions menu so they work on a selection of torrents too.</p>
+      </div>
+      <div></div>
+    </div>
+
+    <div class="item" id="g5">
+      <div class="txt">
+        <div class="id"><span class="tag j">G5</span><h3>Copy a value</h3></div>
+        <p>General has no cursor today, so <code>y</code> can't copy a hash or a save path. You have to select the text with the mouse. Motrix and qui copy any value on a click.</p>
+        <p class="rec"><b>Recommend</b> General rows get the same <code>j k</code> cursor as the other tabs. <code>y</code> copies the value (the full magnet or hash, not the shortened one), a click on a value copies it too, and the footer confirms "copied hash v1".</p>
+      </div>
+      <div></div>
+    </div>
+  </section>
+
+  <section id="later">
+    <div class="sec-head"><span class="eyebrow">§4 · later</span><h2>Park these in UX-NOTES</h2></div>
+    <div class="item" id="l1">
+      <div class="txt">
+        <div class="id"><span class="tag d">L1</span><h3>Ideas I wouldn't build now</h3></div>
+        <ul>
+          <li><b>HTTP sources tab</b>: a new API call and a fifth tab, shown only when a torrent has any web seeds.</li>
+          <li><b>Per-torrent speed graph</b>: no API, so we'd sample ourselves. It could share code with a future global graph.</li>
+          <li><b>Hide skipped files</b> toggle, and <b>remembering each torrent's filter</b>.</li>
+        </ul>
+        <p class="rec"><b>Recommend</b> parking all three in <code>docs/UX-NOTES.md</code> under "later".</p>
+      </div>
+      <div></div>
+    </div>
+  </section>
+
+  <section id="decide">
+    <div class="sec-head"><span class="eyebrow">§5 · decision sheet</span><h2>Your answers</h2>
+      <p class="dim">The recommendations start picked. Change what you disagree with, add notes, then copy and paste the answers into the session.</p></div>
+    <form class="decide" id="decideForm" onsubmit="return false"></form>
+  </section>
+</main>
+
+<dialog id="viewer" aria-label="Screenshot, full size">
+  <div class="bar"><span id="viewerCap" class="dim"></span><button type="button" class="pbtn" id="viewerClose">close · esc</button></div>
+  <img id="viewerImg" alt="">
+</dialog>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+
+  /* ---------------- full-size view ---------------- */
+  const viewer = $("viewer");
+  document.querySelectorAll("figure button[data-full]").forEach(b => b.addEventListener("click", () => {
+    $("viewerImg").src = b.dataset.full;
+    $("viewerImg").alt = b.querySelector("img").alt;
+    $("viewerCap").textContent = b.dataset.full.split("/").pop();
+    if (viewer.showModal) viewer.showModal(); else window.open(b.dataset.full);
+  }));
+  $("viewerClose").addEventListener("click", () => viewer.close());
+  viewer.addEventListener("click", e => { if (e.target === viewer) viewer.close(); });
+
+  /* ---------------- decision sheet ---------------- */
+  // [key, anchor, question, hint, options [value, label, rec?], multi?]
+  const QS = [
+    ["f1", "f1", "Where the file filter lives", "", [["summary", "A · summary line with ⌕ filter /", 1], ["field", "B · always-visible field"], ["chip", "C · chip in the tab strip"], ["footer", "footer hint only (today)"]]],
+    ["f2", "f2", "Single-file torrents", "", [["hide", "no filter, '1 file · size' only", 1], ["same", "same as multi-file"]]],
+    ["f3", "f3", "Act on what's shown", "", [["ctrla", "ctrl+a selects every shown file", 1], ["no", "not now"]]],
+    ["f4", "f4", "How the filter matches", "", [["glob", "plain + * + |, against the path", 1], ["plain", "plain substring (today)"], ["full", "BiglyBT-style language"]]],
+    ["g1", "g1", "General grouping", "", [["three", "Transfer / Information / Options", 1], ["flat", "keep one list, reorder only"]]],
+    ["g2", "g2", "New General fields", "Pick any.", [["conn", "connections", 1], ["lastseen", "last seen complete", 1], ["seedtime", "seeding time + completed on", 1], ["avg", "average speeds", 1], ["reann", "reannounce in", 1], ["pieces", "pieces × size row", 1], ["private", "private", 1], ["magnet", "magnet", 1], ["pop", "popularity"]], true],
+    ["g3", "g3", "Pieces bar", "", [["general", "top of General only", 1], ["every", "under the head, every tab"], ["none", "no bar"]]],
+    ["g4", "g4", "Per-torrent options", "", [["both", "General Options group + actions menu", 1], ["menu", "actions menu only"], ["later", "later"]]],
+    ["g5", "g5", "Copy a value in General", "", [["cursor", "j k cursor, y and click copy", 1], ["no", "not now"]]],
+    ["l1", "l1", "Park for later", "", [["park", "park all three in UX-NOTES", 1], ["notes", "see my notes"]]]
+  ];
+  const STORE = "omaseed-12-decisions";
+  const load = () => { try { return JSON.parse(localStorage.getItem(STORE) || "{}"); } catch (e) { return {}; } };
+  const save = v => { try { localStorage.setItem(STORE, JSON.stringify(v)); } catch (e) {} };
+  const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
+
+  function render() {
+    const saved = load();
+    let h = QS.map(q => {
+      const [key, anchor, title, hint, opts, multi] = q;
+      const type = multi ? "checkbox" : "radio";
+      return `<div class="q"><div class="qt"><a href="#${anchor}">${anchor.toUpperCase()} ↑</a><b>${title}</b>${hint ? `<span>${hint}</span>` : ""}</div>
+        <div class="os" role="${multi ? "group" : "radiogroup"}" aria-label="${title}">${opts.map(o => {
+          let chk;
+          if (multi) chk = Array.isArray(saved[key]) ? saved[key].includes(o[0]) : !!o[2];
+          else chk = saved[key] ? saved[key] === o[0] : !!o[2];
+          return `<label><input type="${type}" id="q-${key}-${o[0]}" name="${key}" value="${o[0]}" ${chk ? "checked" : ""}>${o[1]}${o[2] ? ' <span class="r">rec</span>' : ""}</label>`;
+        }).join("")}</div></div>`;
+    }).join("");
+    h += `<div class="q"><div class="qt"><span class="dim" style="font-size:10px;letter-spacing:.1em;text-transform:uppercase">anything</span><b>Notes and your own items</b><span>One per line: exceptions, other fields you want, anything else about the panel.</span></div><textarea class="notes" id="q-notes" name="notes" aria-label="Notes and your own items">${esc(saved.notes || "")}</textarea></div>`;
+    h += `<div class="out"><div class="row"><button type="button" class="pbtn primary" id="copyBtn">Copy answers</button><button type="button" class="pbtn" id="resetBtn">Back to recommendations</button><span class="st" id="copySt" aria-live="polite"></span></div><textarea id="outText" readonly aria-label="Answers to paste"></textarea></div>`;
+    $("decideForm").innerHTML = h;
+
+    const update = () => {
+      const f = $("decideForm"), v = {};
+      QS.forEach(q => {
+        if (q[5]) v[q[0]] = [...f.querySelectorAll(`input[name="${q[0]}"]:checked`)].map(i => i.value);
+        else { const c = f.querySelector(`input[name="${q[0]}"]:checked`); v[q[0]] = c ? c.value : ""; }
+      });
+      v.notes = $("q-notes").value;
+      save(v);
+      const lines = QS.map(q => {
+        const [key, , title, , opts, multi] = q;
+        if (multi) {
+          const picked = opts.filter(o => v[key].includes(o[0]));
+          const changed = opts.some(o => !!o[2] !== v[key].includes(o[0]));
+          return `${key.toUpperCase()} ${title}: ${picked.length ? picked.map(o => o[1]).join(", ") : "none"}${changed ? "  (changed)" : ""}`;
+        }
+        const o = opts.find(x => x[0] === v[key]);
+        return `${key.toUpperCase()} ${title}: ${o ? o[1] : "—"}${o && !o[2] ? "  (changed)" : ""}`;
+      });
+      $("outText").value = "12 details panel, answers\n" + lines.join("\n") + (v.notes.trim() ? "\nnotes:\n" + v.notes.trim() : "");
+    };
+    $("decideForm").addEventListener("change", update);
+    $("q-notes").addEventListener("input", update);
+    $("copyBtn").addEventListener("click", () => {
+      const t = $("outText");
+      const done = ok => { $("copySt").textContent = ok ? "Copied. Paste it into the session." : "Selected. Press ctrl+c to copy."; };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t.value).then(() => done(true), () => { t.select(); done(false); });
+      else { t.select(); done(false); }
+    });
+    $("resetBtn").addEventListener("click", () => { save({}); render(); });
+    update();
+  }
+  render();
+})();
+</script>
