@@ -298,6 +298,16 @@ int runHeadlessTableDemo(int rows)
 
 int main(int argc, char *argv[])
 {
+    // File pickers go through the FileChooser portal, so the chooser is xdg-desktop-portal's
+    // window, which Omarchy floats like every other app's picker. Omarchy sets
+    // QT_QPA_PLATFORMTHEME=gtk3, under which Qt opens GTK's chooser inside this process: a
+    // tiled window with our class and no title. Nothing else here reads the platform theme
+    // (colours come from Theme, the font from fontconfig, the tray is StatusNotifierItem), so
+    // the switch changes only the pickers. OMASEED_PLATFORMTHEME picks another theme.
+    const QByteArray platformTheme = qgetenv("OMASEED_PLATFORMTHEME");
+    qputenv("QT_QPA_PLATFORMTHEME",
+            platformTheme.isEmpty() ? QByteArrayLiteral("xdgdesktopportal") : platformTheme);
+
     // QSystemTrayIcon lives in QtWidgets, which needs a QApplication rather than a plain
     // QGuiApplication; nothing else in this app touches a QWidget.
     QApplication app(argc, argv);
