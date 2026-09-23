@@ -512,24 +512,52 @@ Item {
             }
 
             // Spec §1 Fig. 1: "linux · keep · added today 10:41" — category, tags, added.
-            Text {
-                color: Theme.dimForeground
-                elide: Text.ElideRight
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.font.small
-                text: {
+            // docs/11 J8: when it does not fit, the category and tags give way and the date
+            // stays whole, so it is two texts, the first one eliding.
+            Item {
+                id: metaLine
+
+                readonly property string labels: {
                     if (!root.torrent)
-                        return qsTr("pick a row in the table");
+                        return "";
                     const parts = [];
                     if (root.torrent.category)
                         parts.push(root.torrent.category);
                     if (root.torrent.tagsText)
                         parts.push(root.torrent.tagsText);
-                    if (root.torrent.addedOnText)
-                        parts.push(root.torrent.addedOnText);
                     return parts.join(" · ");
                 }
+                readonly property string added: root.torrent && root.torrent.addedOnText
+                                                ? root.torrent.addedOnText : ""
+
+                height: addedText.implicitHeight
                 width: parent.width
+
+                Text {
+                    id: labelsText
+
+                    color: Theme.dimForeground
+                    elide: Text.ElideRight
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.font.small
+                    objectName: "headLabels"
+                    text: !root.torrent ? qsTr("pick a row in the table") : metaLine.labels
+                    width: Math.min(implicitWidth, metaLine.width - addedText.implicitWidth)
+                }
+
+                Text {
+                    id: addedText
+
+                    anchors.left: labelsText.right
+                    color: Theme.dimForeground
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.font.small
+                    objectName: "headAdded"
+                    // The separator travels with the date, so it survives the labels' cut.
+                    text: !root.torrent || metaLine.added.length === 0 ? "" : metaLine.labels.length
+                                                                             > 0 ? " · " + metaLine.added
+                                                                                 : metaLine.added
+                }
             }
         }
     }

@@ -387,6 +387,19 @@ TestCase {
         compare(copySpy.signalArguments[2][0], "LICENSE.txt");
     }
 
+    // docs/11 J8: the tags give way before the added date does.
+    function test_the_head_keeps_the_added_date_whole() {
+        const view = testCase.select(testCase.bbbName);
+        view.width = 220;
+        const labels = findChild(view, "headLabels");
+        const added = findChild(view, "headAdded");
+        verify(labels !== null && added !== null);
+        verify(added.text.startsWith(" · added"));
+        compare(added.width, added.implicitWidth);
+        verify(labels.truncated, "the tags did not give way");
+        verify(added.x + added.width <= view.width);
+    }
+
     // docs/11 J2: every header starts where its column's text does.
     function test_file_headers_line_up_with_the_rows() {
         const view = testCase.filesView();
