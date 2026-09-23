@@ -88,6 +88,7 @@
 //   downloaded qint64  uploaded qint64  relevance double
 // ---------------------------------------------------------------------------------------
 
+#include "core/AddFilesModel.hpp"
 #include "core/CategoryModel.hpp"
 #include "core/FilterCounts.hpp"
 #include "core/GlobalState.hpp"
@@ -196,6 +197,16 @@ struct TorrentFilesModelForeign
     QML_FOREIGN(omaseed::core::TorrentFilesModel)
     QML_NAMED_ELEMENT(TorrentFilesModel)
     QML_UNCREATABLE("TorrentFilesModel is App.details.files; it is not created from QML.")
+};
+
+/// The add sheet's file picker (docs/11 D1): TorrentFilesModel's roles plus `wanted`
+/// (0 every file under the row skipped, 1 some, 2 none).
+struct AddFilesModelForeign
+{
+    Q_GADGET
+    QML_FOREIGN(omaseed::core::AddFilesModel)
+    QML_NAMED_ELEMENT(AddFilesModel)
+    QML_UNCREATABLE("AddFilesModel is App.addFiles; it is not created from QML.")
 };
 
 struct TorrentTrackersModelForeign

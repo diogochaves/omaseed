@@ -49,4 +49,9 @@ QJsonObject serverState();
 /// screenshot taken twice is the same screenshot.
 QJsonObject details(const omaseed::core::Torrent &torrent);
 
+/// A `.torrent` for the add sheet's file picker (`OMASEED_DEMO_ADD=torrent`, docs/11 D1):
+/// "Blender Open Movies", eight files in four folders and two `subs` folders, about 16 GB.
+/// Only the metainfo is real; its piece hashes are made up, so no swarm ever answers it.
+QByteArray demoTorrentBytes();
+
 } // namespace omaseed::app::DemoData

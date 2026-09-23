@@ -23,6 +23,7 @@
 //
 // App owns no view state (cursor, selection, open sheets): that belongs to the QML side.
 
+#include "core/AddFilesModel.hpp"
 #include "core/CategoryModel.hpp"
 #include "core/FilterCounts.hpp"
 #include "core/GlobalState.hpp"
@@ -35,6 +36,7 @@
 #include "core/SyncEngine.hpp"
 #include "core/TagModel.hpp"
 #include "core/TorrentDetails.hpp"
+#include "core/TorrentFile.hpp"
 #include "core/TorrentFilterModel.hpp"
 #include "core/TorrentModel.hpp"
 #include "core/TrackerModel.hpp"
@@ -637,7 +639,17 @@ private:
     // App: local parsing of what the user pasted, dropped, picked or handed over on the
     // command line, the duplicate test, and the POST itself. Same arrangement as the blocks
     // above: one block at the end of the class and one at the end of App.cpp.
+    /// The add sheet's file picker (docs/11 D1): the files of the `.torrent` the sheet shows,
+    /// filled by `loadAddFiles(token)`.
+    Q_PROPERTY(omaseed::core::AddFilesModel *addFiles READ addFiles CONSTANT)
+
 public:
+    omaseed::core::AddFilesModel *addFiles() const { return m_addFiles; }
+
+    /// Shows the files of the parsed `.torrent` behind `token` in `addFiles`, every one at
+    /// "normal"; empties it when the token names nothing (a magnet, a URL, a stale parse).
+    Q_INVOKABLE void loadAddFiles(const QString &token);
+
     /// What one line of "magnet / http(s) URL / .torrent path" is, as the sheet draws it:
     ///   kind         "magnet" | "url" | "file" | "none"
     ///   valid        bool, false when nothing recognisable was in `text`
@@ -647,6 +659,7 @@ public:
     ///   infoHashV1 / infoHashV2   lowercase hex, empty when unknown
     ///   value        what goes to the server (the magnet, the URL, the file path)
     ///   token        the key `addTorrent` uses to find a picked file's bytes again
+    ///   fileCount    a `.torrent`'s number of files (0 for a magnet or a URL)
     ///   error        why `valid` is false
     /// A magnet and a URL are answered in the return value. A `.torrent` is read and hashed
     /// on a worker thread (plan §4: never on the GUI thread) and answered a second time
@@ -667,7 +680,12 @@ public:
     /// Adds what the sheet holds: `parseAddable`'s map plus `category`, `tags` (list),
     /// `savePath`, `autoTMM`, `contentLayout` ("Original" | "Subfolder" | "NoSubfolder"),
     /// `upLimitKb` (KB/s, 0 or absent = unlimited), `sequentialDownload`, `skipChecking` and
-    /// `stopped`. Answers with `addFinished`; on success the new hash, once the next sync
+    /// `stopped`, plus `rename` (the torrent's name; empty keeps its own), `dlLimitKb`,
+    /// `firstLastPiecePrio` and, for a `.torrent`, `filePriorities` (one per file id,
+    /// `addFiles.priorityList()`). qBittorrent takes no file priorities on a file upload, so
+    /// when any of them is not "normal" the torrent is added stopped, the priorities are set
+    /// with `torrents/filePrio`, and it is started unless `stopped` asked otherwise.
+    /// Answers with `addFinished`; on success the new hash, once the next sync
     /// brings it, also travels as `showTorrentRequested` so the table's cursor lands on it.
     /// In demo mode nothing is sent: the add is logged and reported as a success.
     Q_INVOKABLE void addTorrent(const QVariantMap &request);
@@ -697,6 +715,9 @@ private:
     {
         QString fileName;
         QByteArray bytes;
+        /// The parsed file list, for `loadAddFiles`, and the id qBittorrent will key it by.
+        QList<omaseed::core::TorrentFileEntry> files;
+        QString torrentId;
     };
 
     /// Parses `bytes` on the global thread pool and emits `addableParsed` back here.
@@ -708,7 +729,18 @@ private:
     QVariantMap torrentFileMap(const QString &token,
                                const QString &fileName,
                                const QString &value,
-                               const QByteArray &bytes) const;
+                               const QByteArray &bytes,
+                               omaseed::core::TorrentFile *parsedOut = nullptr) const;
+    /// After a stopped add: `torrents/filePrio` for each group of `priorities`, then
+    /// `torrents/start` unless `keepStopped`, then `addFinished`. A just-added torrent can
+    /// take a moment to exist on an older server, so a 404/409 is retried for a few seconds.
+    void applyAddFilePriorities(const QString &id,
+                                const QVariantList &priorities,
+                                bool keepStopped,
+                                int attempt = 0);
+    /// The file-free example `.torrent` `OMASEED_DEMO_ADD=torrent` hands the sheet, written
+    /// to the temp directory once; its path.
+    QString demoTorrentPath() const;
     /// Builds the client's options from the sheet's payload.
     omaseed::core::QbtClient::AddOptions addOptionsFrom(const QVariantMap &request) const;
     /// Waits up to 10 s for `hash` to turn up in the model, then asks for the cursor.
@@ -719,6 +751,7 @@ private:
     QTimer *m_addWatchTimer = nullptr;
     QMetaObject::Connection m_addWatch;
     int m_nextAddableToken = 0;
+    omaseed::core::AddFilesModel *m_addFiles = new omaseed::core::AddFilesModel(this);
     // --- end T4.2 ------------------------------------------------------------------------
 
     // --- T4.6: first run -------------------------------------------------------------------

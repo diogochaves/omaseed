@@ -13,12 +13,14 @@
 
 #include <QClipboard>
 #include <QDebug>
+#include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QGuiApplication>
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <QJsonObject>
 #include <QPointer>
 #include <QProcessEnvironment>
@@ -1123,7 +1125,8 @@ QVariantMap App::parseAddable(const QString &textIn)
 QVariantMap App::torrentFileMap(const QString &token,
                                 const QString &fileName,
                                 const QString &value,
-                                const QByteArray &bytes) const
+                                const QByteArray &bytes,
+                                TorrentFile *parsedOut) const
 {
     QVariantMap map{
         {QStringLiteral("kind"), QStringLiteral("file")},
@@ -1136,10 +1139,13 @@ QVariantMap App::torrentFileMap(const QString &token,
         {QStringLiteral("value"), value},
         {QStringLiteral("token"), token},
         {QStringLiteral("error"), QString()},
+        {QStringLiteral("fileCount"), 0},
     };
 
     QString error;
     const TorrentFile parsed = TorrentFile::parse(bytes, &error);
+    if (parsedOut)
+        *parsedOut = parsed;
     if (!parsed.isValid()) {
         map[QStringLiteral("error")] = error.isEmpty() ? tr("this file is not a .torrent") : error;
         return map;
@@ -1149,6 +1155,7 @@ QVariantMap App::torrentFileMap(const QString &token,
     map[QStringLiteral("sizeText")] = Format::size(parsed.totalSize);
     map[QStringLiteral("infoHashV1")] = parsed.infoHashV1;
     map[QStringLiteral("infoHashV2")] = parsed.infoHashV2;
+    map[QStringLiteral("fileCount")] = int(parsed.files.size());
     return map;
 }
 
@@ -1169,9 +1176,14 @@ void App::parseTorrentBytes(const QString &token,
             [self, token, fileName, value, bytes]() {
                 if (self.isNull())
                     return;
-                const QVariantMap map = self->torrentFileMap(token, fileName, value, bytes);
-                if (map.value(QStringLiteral("valid")).toBool())
-                    self->m_pendingTorrentFiles.insert(token, PendingTorrentFile{fileName, bytes});
+                TorrentFile parsed;
+                const QVariantMap map =
+                    self->torrentFileMap(token, fileName, value, bytes, &parsed);
+                if (map.value(QStringLiteral("valid")).toBool()) {
+                    self->m_pendingTorrentFiles.insert(
+                        token,
+                        PendingTorrentFile{fileName, bytes, parsed.files, parsed.torrentId()});
+                }
                 Q_EMIT self->addableParsed(map);
             },
             Qt::QueuedConnection);
@@ -1252,6 +1264,16 @@ QbtClient::AddOptions App::addOptionsFrom(const QVariantMap &request) const
     const qint64 upLimitKb = request.value(QStringLiteral("upLimitKb")).toLongLong();
     if (upLimitKb > 0)
         options.upLimit = upLimitKb * 1024;
+    const qint64 dlLimitKb = request.value(QStringLiteral("dlLimitKb")).toLongLong();
+    if (dlLimitKb > 0)
+        options.dlLimit = dlLimitKb * 1024;
+
+    const QString rename = request.value(QStringLiteral("rename")).toString().trimmed();
+    if (!rename.isEmpty() && rename != request.value(QStringLiteral("name")).toString())
+        options.rename = rename;
+
+    if (request.value(QStringLiteral("firstLastPiecePrio")).toBool())
+        options.firstLastPiecePrio = true;
 
     return options;
 }
@@ -1279,11 +1301,25 @@ void App::addTorrent(const QVariantMap &request)
         return;
     }
 
-    const QbtClient::AddOptions options = addOptionsFrom(request);
+    QbtClient::AddOptions options = addOptionsFrom(request);
+
+    // docs/11 D1: a file upload takes no file priorities ("Cannot specify filePriorities
+    // when uploading torrent files", 5.2), so the choices go on afterwards, while the
+    // torrent is still stopped and has not asked for a single piece.
+    const QVariantList filePriorities =
+        kind == QLatin1String("file") ? request.value(QStringLiteral("filePriorities")).toList()
+                                      : QVariantList();
+    const bool withPriorities = !AddFilesModel::priorityGroups(filePriorities).isEmpty();
+    const bool keepStopped = request.value(QStringLiteral("stopped")).toBool();
+    if (withPriorities)
+        options.stopped = true;
 
     QbtReply<QByteArray> *reply = nullptr;
+    QString torrentId = hash;
     if (kind == QLatin1String("file")) {
         const PendingTorrentFile file = m_pendingTorrentFiles.value(token);
+        if (!file.torrentId.isEmpty())
+            torrentId = file.torrentId;
         if (file.bytes.isEmpty()) {
             Q_EMIT addFinished(false, tr("the .torrent was not read; pick it again"), QString());
             return;
@@ -1293,7 +1329,7 @@ void App::addTorrent(const QVariantMap &request)
         reply = m_client->torrentsAddUrls(QStringList{value}, options);
     }
 
-    reply->then(this, [this, hash, token](const QbtResult<QByteArray> &result) {
+    reply->then(this, [=, this](const QbtResult<QByteArray> &result) {
         if (result.isError()) {
             qWarning().noquote() << QStringLiteral("add failed: %1").arg(result.error().toString());
             Q_EMIT addFinished(false, result.error().message(), QString());
@@ -1308,8 +1344,92 @@ void App::addTorrent(const QVariantMap &request)
         if (!token.isEmpty())
             m_pendingTorrentFiles.remove(token);
         watchForAddedHash(hash);
-        Q_EMIT addFinished(true, QString(), hash);
+        if (!withPriorities) {
+            Q_EMIT addFinished(true, QString(), hash);
+            return;
+        }
+        // 5.x answers with the ids it added; an older server says "Ok." and the metainfo's
+        // own id stands in.
+        const QJsonArray added = QJsonDocument::fromJson(result.value())
+                                     .object()
+                                     .value(QStringLiteral("added_torrent_ids"))
+                                     .toArray();
+        const QString id = added.isEmpty() ? torrentId : added.first().toString();
+        applyAddFilePriorities(id, filePriorities, keepStopped);
     });
+}
+
+void App::applyAddFilePriorities(const QString &id,
+                                 const QVariantList &priorities,
+                                 bool keepStopped,
+                                 int attempt)
+{
+    if (id.isEmpty()) {
+        Q_EMIT addFinished(false, tr("added stopped, but the file choices were not applied"), id);
+        return;
+    }
+
+    const QMap<int, QList<int>> groups = AddFilesModel::priorityGroups(priorities);
+    if (groups.isEmpty()) {
+        // Every choice is on the server: start it, unless the user asked for it stopped.
+        if (keepStopped) {
+            Q_EMIT addFinished(true, QString(), id);
+            return;
+        }
+        m_client->torrentsStart(QStringList{id})
+            ->then(this, [this, id](const QbtResult<QByteArray> &started) {
+                if (started.isError()) {
+                    Q_EMIT addFinished(false,
+                                       tr("added with your file choices, but it did not start: %1")
+                                           .arg(started.error().message()),
+                                       id);
+                    return;
+                }
+                Q_EMIT addFinished(true, QString(), id);
+            });
+        return;
+    }
+
+    // One `torrents/filePrio` per priority, one after the other: each success marks its ids
+    // "normal" (done) and goes round again with what is left.
+    const int priority = groups.firstKey();
+    const QList<int> ids = groups.first();
+    m_client->torrentsSetFilePrio(id, ids, priority)
+        ->then(this, [=, this](const QbtResult<QByteArray> &result) {
+            if (!result.isError()) {
+                QVariantList rest = priorities;
+                for (int at : ids)
+                    rest[at] = int(FilePriority::Normal);
+                applyAddFilePriorities(id, rest, keepStopped, attempt);
+                return;
+            }
+            const ApiError::Kind kind = result.error().kind();
+            // Not there yet (404) or its metadata not loaded yet (409): an older server adds
+            // asynchronously. Try again after a short wait, for about five seconds.
+            if ((kind == ApiError::Kind::NotFound || kind == ApiError::Kind::Conflict) &&
+                attempt < 20) {
+                QTimer::singleShot(250, this, [=, this]() {
+                    applyAddFilePriorities(id, priorities, keepStopped, attempt + 1);
+                });
+                return;
+            }
+            qWarning().noquote()
+                << QStringLiteral("add: file priorities failed: %1").arg(result.error().toString());
+            Q_EMIT addFinished(false,
+                               tr("added stopped, but the file choices were not applied: %1")
+                                   .arg(result.error().message()),
+                               id);
+        });
+}
+
+void App::loadAddFiles(const QString &token)
+{
+    const auto it = m_pendingTorrentFiles.constFind(token);
+    if (token.isEmpty() || it == m_pendingTorrentFiles.constEnd()) {
+        m_addFiles->clear();
+        return;
+    }
+    m_addFiles->load(it->files);
 }
 
 void App::watchForAddedHash(const QString &hash)
@@ -1344,7 +1464,24 @@ void App::watchForAddedHash(const QString &hash)
 
 QString App::demoAddText() const
 {
-    return m_demoMode ? env("OMASEED_DEMO_ADD") : QString();
+    if (!m_demoMode)
+        return QString();
+    const QString text = env("OMASEED_DEMO_ADD");
+    // `torrent`: a real `.torrent` with a folder tree, so the file picker can be shown.
+    if (text == QLatin1String("torrent"))
+        return demoTorrentPath();
+    return text;
+}
+
+QString App::demoTorrentPath() const
+{
+    const QString path =
+        QDir(QDir::tempPath()).filePath(QStringLiteral("Blender Open Movies.torrent"));
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate))
+        return QString();
+    file.write(DemoData::demoTorrentBytes());
+    return path;
 }
 
 void App::openUris(const QStringList &uris)
