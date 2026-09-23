@@ -89,6 +89,13 @@ FocusScope {
                                                0, root.cursorIndex) + delta));
     }
 
+    /// Scrolls the list by `delta` px, clamped to its ends. With no filter there is no cursor,
+    /// so `up`/`down` and the page keys scroll instead: a keyboard user reaches VIEW's rows too.
+    function scrollBy(delta: real): void {
+        scroller.contentY = Math.max(0, Math.min(scroller.contentHeight - scroller.height,
+                                                 scroller.contentY + delta));
+    }
+
     implicitHeight: layout.implicitHeight
 
     /// Where the cursor starts for a filter: the row whose short name starts with it, then one
@@ -118,11 +125,15 @@ FocusScope {
         if (event.key === Qt.Key_Question && root.query.length === 0) {
             root.closeRequested();
             event.accepted = true;
-        } else if (event.key === Qt.Key_Down) {
-            root.moveCursor(1);
+        } else if (event.key === Qt.Key_Down || event.key === Qt.Key_Up) {
+            const step = event.key === Qt.Key_Down ? 1 : -1;
+            if (root.query.length > 0)
+                root.moveCursor(step);
+            else
+                root.scrollBy(step * Theme.space(40));
             event.accepted = true;
-        } else if (event.key === Qt.Key_Up) {
-            root.moveCursor(-1);
+        } else if (event.key === Qt.Key_PageDown || event.key === Qt.Key_PageUp) {
+            root.scrollBy((event.key === Qt.Key_PageDown ? 1 : -1) * scroller.height * 0.9);
             event.accepted = true;
         }
     }
@@ -148,6 +159,7 @@ FocusScope {
 
             Layout.fillWidth: true
             focus: true
+            objectName: "helpFilter"
             hint: Glyphs.search
             placeholder: qsTr("filter shortcuts")
             trailing: root.query.length > 0 ? qsTr("%1 of %2").arg(root.matchedRows.length).arg(
@@ -169,11 +181,26 @@ FocusScope {
             contentHeight: columns.implicitHeight
             contentWidth: width
 
+            // The list is capped at 60 % of the window, so on a short one VIEW's rows sit below
+            // the fold; the bar says so (batch-2 pre-walk P1). Parented to the Flickable
+            // itself, not its content, so it stays put while the rows scroll.
+            ScrollBar {
+                id: scrollHint
+
+                anchors.bottom: parent.bottom
+                anchors.right: parent.right
+                anchors.top: parent.top
+                flickable: scroller
+                objectName: "helpScrollBar"
+                parent: scroller
+                vertical: true
+            }
+
             RowLayout {
                 id: columns
 
                 spacing: root._gap
-                width: scroller.width
+                width: scroller.width - (scrollHint.needed ? scrollHint.width + Theme.space(8) : 0)
 
                 Repeater {
                     model: root._twoColumns ? 2 : 1
