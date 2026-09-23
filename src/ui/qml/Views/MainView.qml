@@ -171,34 +171,37 @@ Item {
                     "label": qsTr("of %1").arg(App.counts.total)
                 }
             ]; // Fig. 24
-        // Fig. 1 (and Fig. 22, which simply has no downloading torrents to count).
+        // Fig. 1 (and Fig. 22, which simply has no downloading torrents to count). docs/10 §3:
+        // on the hero's narrow steps the words shorten, then the least-read facts go.
+        const step = hero.level;
         const parts = [
             {
                 "value": String(App.counts.total),
-                "label": qsTr("torrents")
+                "label": step >= 3 ? "" : qsTr("torrents")
             }
         ];
-        if (App.counts.downloading > 0)
+        if (App.counts.downloading > 0 && step < 4)
             parts.push({
                 "value": String(App.counts.downloading),
-                "label": qsTr("downloading")
+                "label": step >= 2 ? Glyphs.arrowDown : qsTr("downloading")
             });
-        parts.push({
-            "value": App.globalState.freeSpaceText,
-            "label": qsTr("free")
-        });
+        if (step < 4)
+            parts.push({
+                "value": App.globalState.freeSpaceText,
+                "label": qsTr("free")
+            });
         if (table.selectedCount > 0)
             parts.push({
                 "value": "",
-                "label": qsTr("%1 selected").arg(table.selectedCount)
+                "label": step >= 2 ? qsTr("%1 sel").arg(table.selectedCount)
+                                   : qsTr("%1 selected").arg(table.selectedCount)
             });
         return parts;
     }
 
     /// The same line as plain text, for the tests and for a log.
     readonly property string factsText: root.factParts.map(
-                                            part => part.value.length > 0 ? part.value + " "
-                                            + part.label : part.label).join(" · ")
+                                            part => (part.value + " " + part.label).trim()).join(" · ")
 
     implicitHeight: Theme.space(800)
     implicitWidth: Theme.space(1360)
@@ -1108,6 +1111,9 @@ Item {
             KeyHints {
                 Layout.alignment: Qt.AlignVCenter
                 Layout.fillWidth: true
+                // Given only what the facts leave, so it can drop the hints that don't fit
+                // (docs/10 §3); a layout never sizes an item under its minimum otherwise.
+                Layout.minimumWidth: 0
                 model: hintModel.hints
                 pinned: hintModel.pinned
             }

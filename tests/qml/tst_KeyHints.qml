@@ -55,4 +55,48 @@ TestCase {
                                             });
         compare(hints.hasPinned, true);
     }
+
+    // docs/10 §3: too narrow for every hint, the row drops them from the right and keeps the
+    // pinned `? help`.
+    function test_a_narrow_row_drops_hints_from_the_right_and_keeps_the_pinned_one() {
+        const model = [
+                  {
+                      "key": "j k",
+                      "label": "move"
+                  },
+                  {
+                      "key": "space",
+                      "label": "select"
+                  },
+                  {
+                      "key": "enter",
+                      "label": "actions"
+                  },
+                  {
+                      "key": "o",
+                      "label": "folder"
+                  }
+              ];
+        const hints = createTemporaryObject(keyHintsComponent, testCase, {
+                                                "model": model,
+                                                "pinned": {
+                                                    "key": "?",
+                                                    "label": "help"
+                                                },
+                                                "width": 2000
+                                            });
+        compare(hints.shownCount, 4);
+        hints.width = 10;
+        compare(hints.shownCount, 0);
+        hints.width = 2000;
+        compare(hints.shownCount, 4);
+        // Somewhere in between: fewer than all, never more than fit.
+        let narrower = 2000;
+        while (hints.shownCount === 4 && narrower > 0) {
+            narrower -= 10;
+            hints.width = narrower;
+        }
+        compare(hints.shownCount, 3);
+        verify(hints.hasPinned);
+    }
 }

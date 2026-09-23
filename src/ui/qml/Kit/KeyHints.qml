@@ -10,6 +10,9 @@ import Omaseed.Kit
 // (the `?` help hint) — matching `.hints .help { margin-left:auto }`. The caller must give
 // this component a width (it is a `RowLayout`, so the pinned item's push only works with a
 // bounded width).
+//
+// Too narrow for every hint (docs/10 §3), the row shows as many as fit, dropping from the
+// right; the pinned hint always keeps its place.
 RowLayout {
     id: root
 
@@ -22,21 +25,43 @@ RowLayout {
 
     readonly property bool hasPinned: root.pinned !== null
     readonly property int _pixelSize: Theme.font[root.size]
+    /// How many of `model`'s hints are shown.
+    readonly property int shownCount: {
+        const hints = root.model; // re-evaluate when the hints change
+        const room = root.width - (root.hasPinned ? pinnedRow.implicitWidth + root.spacing : 0);
+        let used = 0;
+        for (let i = 0; i < hintRepeater.count; ++i) {
+            const item = hintRepeater.itemAt(i);
+            if (item === null)
+                return i;
+            const need = item.implicitWidth + (i > 0 ? hintsRow.spacing : 0);
+            if (used + need > room)
+                return i;
+            used += need;
+        }
+        return hints === null ? 0 : hintRepeater.count;
+    }
 
     spacing: Theme.space(14)
 
     Row {
+        id: hintsRow
+
         spacing: Theme.space(14)
 
         Repeater {
+            id: hintRepeater
+
             model: root.model
 
             Row {
                 id: hintRow
 
+                required property int index
                 required property var modelData
 
                 spacing: Theme.space(6)
+                visible: hintRow.index < root.shownCount
 
                 Text {
                     color: Theme.foreground
@@ -60,6 +85,8 @@ RowLayout {
     }
 
     Row {
+        id: pinnedRow
+
         spacing: Theme.space(6)
         visible: root.hasPinned
 
