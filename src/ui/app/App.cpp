@@ -13,6 +13,7 @@
 
 #include <QClipboard>
 #include <QDebug>
+#include <QDesktopServices>
 #include <QElapsedTimer>
 #include <QFile>
 #include <QFileDialog>
@@ -513,7 +514,13 @@ void App::setPeersTabActive(bool active)
 
 void App::setFilePriority(const QString &hash, const QVariantList &fileIndexes, int priority)
 {
-    if (m_demoMode || !m_hasServer || hash.isEmpty() || fileIndexes.isEmpty())
+    if (hash.isEmpty() || fileIndexes.isEmpty())
+        return;
+    // N1: the rows change at once, before the server answers (and instead of it in demo
+    // mode, where there is none); the next poll confirms or corrects them.
+    if (m_details->hash() == hash)
+        m_details->files()->setLocalPriority(fileIndexes, priority);
+    if (m_demoMode || !m_hasServer)
         return;
 
     QList<int> ids;
@@ -532,10 +539,10 @@ void App::setFilePriority(const QString &hash, const QVariantList &fileIndexes, 
             if (result.isError()) {
                 qWarning().noquote() << QStringLiteral("set file priority failed: %1")
                                             .arg(result.error().toString());
-                return;
+                Q_EMIT actionFailed(QStringLiteral("priority"), result.error().toString());
             }
             // The file list is polled every 2 s anyway, but the pane should not look stuck
-            // for a whole tick after a key press.
+            // for a whole tick after a key press, nor keep a local change the server refused.
             m_details->refreshNow();
         });
 }
@@ -2213,5 +2220,96 @@ bool App::supportsShareLimitAction() const
 }
 
 // --- end T5.5 Q14 ----------------------------------------------------------------------------
+
+// --- N1: the Files tab's actions -------------------------------------------------------------
+
+QString App::torrentFileLocalPath(const QString &hash, const QString &relativePath) const
+{
+    if (hash.isEmpty() || relativePath.isEmpty() || m_engine->torrents()->indexOfHash(hash) < 0)
+        return {};
+    const Torrent &torrent = m_engine->torrents()->torrent(hash);
+    return mapContentPathToLocal(
+        TorrentFilesModel::serverPathOf(torrent.contentPath, torrent.savePath, relativePath));
+}
+
+void App::openTorrentFile(const QString &hash, const QString &relativePath)
+{
+    const QString local = torrentFileLocalPath(hash, relativePath);
+    if (local.isEmpty() || demoGuard(QStringLiteral("open file"), 1))
+        return;
+    // A remote server's path with no mapping for it, or a file not written yet: say so
+    // rather than let the desktop fail silently.
+    if (!QFileInfo::exists(local)) {
+        Q_EMIT actionFailed(QStringLiteral("open"), tr("%1 is not on this computer").arg(local));
+        return;
+    }
+    qInfo().noquote() << QStringLiteral("open file: %1").arg(local);
+    QDesktopServices::openUrl(QUrl::fromLocalFile(local));
+}
+
+void App::revealTorrentFile(const QString &hash, const QString &relativePath)
+{
+    const QString local = torrentFileLocalPath(hash, relativePath);
+    if (local.isEmpty() || demoGuard(QStringLiteral("open folder"), 1) || m_xdg.isNull())
+        return;
+    if (!QFileInfo::exists(local)) {
+        Q_EMIT actionFailed(QStringLiteral("open folder"),
+                            tr("%1 is not on this computer").arg(local));
+        return;
+    }
+    qInfo().noquote() << QStringLiteral("open folder: %1").arg(local);
+    m_xdg->showInFileManager(local);
+}
+
+void App::renameTorrentFile(const QString &hash,
+                            const QString &oldPath,
+                            const QString &newName,
+                            bool folder)
+{
+    const QString name = newName.trimmed();
+    if (hash.isEmpty() || oldPath.isEmpty() || name.isEmpty())
+        return;
+    if (name.contains(QLatin1Char('/')) || name == QLatin1String(".") ||
+        name == QLatin1String("..")) {
+        Q_EMIT actionFailed(QStringLiteral("rename"), tr("a name cannot hold a /"));
+        return;
+    }
+    const qsizetype slash = oldPath.lastIndexOf(QLatin1Char('/'));
+    const QString newPath = slash < 0 ? name : oldPath.left(slash + 1) + name;
+    if (newPath == oldPath)
+        return;
+
+    Q_EMIT torrentFileRenameRequested(hash, oldPath, newPath, folder);
+    if (m_demoMode) {
+        // No server: the demo's own copy of the list moves, so the rename can be seen.
+        if (m_details->hash() == hash || m_details->hash().isEmpty())
+            m_details->files()->renameLocal(oldPath, newPath);
+        return;
+    }
+    if (!m_hasServer)
+        return;
+
+    auto *reply = folder ? m_client->torrentsRenameFolder(hash, oldPath, newPath)
+                         : m_client->torrentsRenameFile(hash, oldPath, newPath);
+    reply->then(this, [this](const QbtResult<QByteArray> &result) {
+        if (result.isError()) {
+            Q_EMIT actionFailed(QStringLiteral("rename"), result.error().toString());
+            return;
+        }
+        m_details->refreshNow();
+    });
+}
+
+void App::setFilePriorityGroups(const QString &hash, const QVariantList &groups)
+{
+    for (const QVariant &group : groups) {
+        const QVariantMap map = group.toMap();
+        setFilePriority(hash,
+                        map.value(QStringLiteral("fileIndexes")).toList(),
+                        map.value(QStringLiteral("priority")).toInt());
+    }
+}
+
+// --- end N1 ----------------------------------------------------------------------------------
 
 } // namespace omaseed::app

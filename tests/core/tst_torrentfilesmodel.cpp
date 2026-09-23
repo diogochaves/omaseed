@@ -354,6 +354,13 @@ void TestTorrentFilesModel::the_filter_keeps_the_folders_of_a_match()
     model.setFilterText(QString());
     QCOMPARE(model.count(), 1);
     QCOMPARE(model.matchCount(), 5);
+
+    // Another torrent starts unfiltered, but keeps the sort.
+    model.setFilterText(QStringLiteral("srt"));
+    model.setSortKey(QStringLiteral("size"));
+    model.clear();
+    QVERIFY(model.filterText().isEmpty());
+    QCOMPARE(model.sortKey(), QStringLiteral("size"));
 }
 
 void TestTorrentFilesModel::a_folder_acts_on_the_files_the_filter_shows()

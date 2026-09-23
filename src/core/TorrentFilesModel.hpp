@@ -109,6 +109,7 @@ public:
     /// Applies a `torrents/files` array. Same shape as last time -> rows update in place;
     /// anything else -> a reset.
     void applyFiles(const QJsonArray &files);
+    /// Empties the model for another torrent: the filter goes too, the sort stays.
     void clear();
 
     // --- filter and sort -------------------------------------------------------------
@@ -184,9 +185,8 @@ public:
     /// names are relative to the folder that holds the torrent's top entry: that is
     /// `contentPath` less the top entry when it ends with it (which also follows qBittorrent's
     /// incomplete-files folder), and `savePath` otherwise.
-    static QString serverPathOf(const QString &contentPath,
-                                const QString &savePath,
-                                const QString &relativePath);
+    static QString
+    serverPathOf(const QString &contentPath, const QString &savePath, const QString &relativePath);
 
 Q_SIGNALS:
     void countChanged();

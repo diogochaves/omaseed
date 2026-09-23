@@ -226,9 +226,14 @@ void TorrentFilesModel::clear()
     m_selected.clear();
     m_fileCount = 0;
     m_matchCount = 0;
+    // A filter belongs to the torrent it was typed for; the sort is a preference and stays.
+    const bool hadFilter = !m_filterText.isEmpty();
+    m_filterText.clear();
     endResetModel();
     Q_EMIT countChanged();
     Q_EMIT selectionChanged();
+    if (hadFilter)
+        Q_EMIT filterTextChanged();
 }
 
 void TorrentFilesModel::rebuild(const QJsonArray &files)
@@ -674,8 +679,8 @@ int TorrentFilesModel::rowOfPath(const QString &path) const
 
 bool TorrentFilesModel::isSelected(int row) const
 {
-    return row >= 0 && row < int(m_visible.size())
-           && m_selected.contains(m_nodes.at(m_visible.at(row)).path);
+    return row >= 0 && row < int(m_visible.size()) &&
+           m_selected.contains(m_nodes.at(m_visible.at(row)).path);
 }
 
 void TorrentFilesModel::setSelected(int row, bool selected)
@@ -810,9 +815,8 @@ QVariantList TorrentFilesModel::shownOrderGroups(int cursorRow) const
     if (leaves.isEmpty())
         return {};
     const int groupSize = std::max(1, int(leaves.size()) / 3);
-    const std::array<int, 3> ladder{int(FilePriority::Maximal),
-                                    int(FilePriority::High),
-                                    int(FilePriority::Normal)};
+    const std::array<int, 3> ladder{
+        int(FilePriority::Maximal), int(FilePriority::High), int(FilePriority::Normal)};
     std::array<QList<int>, 3> groups;
     for (int at = 0; at < int(leaves.size()); ++at)
         groups[std::min(2, at / groupSize)].append(m_nodes.at(leaves.at(at)).fileIndex);
@@ -953,8 +957,8 @@ QString TorrentFilesModel::serverPathOf(const QString &contentPath,
     if (relativePath.isEmpty())
         return {};
     const auto trimmed = [](QString path) {
-        while (path.size() > 1 && (path.endsWith(QLatin1Char('/'))
-                                   || path.endsWith(QLatin1Char('\\'))))
+        while (path.size() > 1 &&
+               (path.endsWith(QLatin1Char('/')) || path.endsWith(QLatin1Char('\\'))))
             path.chop(1);
         return path;
     };

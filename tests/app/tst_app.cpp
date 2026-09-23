@@ -11,6 +11,8 @@
 #include "core/FilterCounts.hpp"
 #include "core/GlobalState.hpp"
 #include "core/SyncEngine.hpp"
+#include "core/TorrentDetails.hpp"
+#include "core/TorrentFilesModel.hpp"
 #include "core/TorrentFilterModel.hpp"
 #include "core/TorrentModel.hpp"
 #include "integration/ThemeReader.hpp"
@@ -95,6 +97,7 @@ private slots:
     void qmlSeesAppAndTheCoreTypes();
     void trayStateFollowsTheWorld();
     void environmentOverrideReachesThePlayground();
+    void filesTabActionsRunLocallyInDemo();
 
 private:
     QTemporaryDir m_config;
@@ -355,4 +358,45 @@ void TestApp::environmentOverrideReachesThePlayground()
 }
 
 QTEST_MAIN(TestApp)
+// N1: with no server, a priority and a rename still change the Files tab's rows, so the demo
+// shows them; a name with a slash is refused before anything is sent.
+void TestApp::filesTabActionsRunLocallyInDemo()
+{
+    App app;
+    app.startDemo(16);
+    QString hash;
+    for (int row = 0; row < app.torrents()->count(); ++row) {
+        if (roleOf(app.torrents(), row, "name").toString() ==
+            QStringLiteral("Big Buck Bunny 4K (CC-BY)"))
+            hash = roleOf(app.torrents(), row, "hash").toString();
+    }
+    QVERIFY(!hash.isEmpty());
+    app.selectTorrent(hash);
+    TorrentFilesModel *files = app.details()->files();
+    QCOMPARE(files->count(), 7);
+
+    app.setFilePriority(hash, {2, 3}, int(FilePriority::Normal));
+    QCOMPARE(files->priority(3), int(FilePriority::Normal));
+
+    QSignalSpy renamed(&app, &App::torrentFileRenameRequested);
+    QSignalSpy failed(&app, &App::actionFailed);
+    app.renameTorrentFile(
+        hash, QStringLiteral("Big Buck Bunny 4K/subs"), QStringLiteral("subtitles"), true);
+    QCOMPARE(renamed.count(), 1);
+    QCOMPARE(renamed.at(0).at(2).toString(), QStringLiteral("Big Buck Bunny 4K/subtitles"));
+    QCOMPARE(files->nameAt(3), QStringLiteral("subtitles"));
+
+    app.renameTorrentFile(
+        hash, QStringLiteral("Big Buck Bunny 4K/LICENSE.txt"), QStringLiteral("a/b"), false);
+    QCOMPARE(renamed.count(), 1);
+    QCOMPARE(failed.count(), 1);
+
+    // The demo's content path names the torrent, not its top folder, so the save path is
+    // where the files are.
+    const QString savePath = app.torrents()->torrent(hash).savePath;
+    QCOMPARE(app.torrentFileLocalPath(hash, QStringLiteral("Big Buck Bunny 4K/LICENSE.txt")),
+             savePath + QStringLiteral("/Big Buck Bunny 4K/LICENSE.txt"));
+    QVERIFY(app.torrentFileLocalPath(QStringLiteral("nope"), QStringLiteral("a")).isEmpty());
+}
+
 #include "tst_app.moc"
