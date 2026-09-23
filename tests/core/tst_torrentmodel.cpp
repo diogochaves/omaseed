@@ -35,6 +35,17 @@ torrentJson(const QString &name, const QString &state, double progress, qint64 d
         {QStringLiteral("tracker"), QStringLiteral("udp://tracker.opentrackr.org:1337/announce")},
         {QStringLiteral("added_on"), 1789833476},
         {QStringLiteral("completion_on"), -1},
+        {QStringLiteral("num_complete"), 1204},
+        {QStringLiteral("num_incomplete"), 88},
+        {QStringLiteral("total_size"), 1404304589},
+        {QStringLiteral("downloaded"), 687865856},
+        {QStringLiteral("uploaded"), 103179878},
+        {QStringLiteral("amount_left"), 716438733},
+        {QStringLiteral("availability"), 38.2},
+        {QStringLiteral("dl_limit"), 0},
+        {QStringLiteral("up_limit"), 204800},
+        {QStringLiteral("priority"), 3},
+        {QStringLiteral("last_activity"), 1789833476},
     };
 }
 
@@ -139,7 +150,28 @@ void TestTorrentModel::rolesCoverTheTableAndTheDetails()
     QCOMPARE(model.data(model.index(1), TorrentModel::EtaTextRole).toString(), QStringLiteral("—"));
 
     // Every role has a name and every name resolves back.
-    QCOMPARE(model.roleNames().size(), 60);
+    // docs/10 §4: the optional columns' texts.
+    QCOMPARE(model.data(first, TorrentModel::TotalSizeTextRole).toString(),
+             QStringLiteral("1.31 GB"));
+    QCOMPARE(model.data(first, TorrentModel::DownloadedTextRole).toString(),
+             Format::size(687865856));
+    QCOMPARE(model.data(first, TorrentModel::UploadedTextRole).toString(), Format::size(103179878));
+    QCOMPARE(model.data(first, TorrentModel::AmountLeftTextRole).toString(),
+             Format::size(716438733));
+    QCOMPARE(model.data(first, TorrentModel::AvailabilityTextRole).toString(),
+             QStringLiteral("38.20"));
+    QCOMPARE(model.data(first, TorrentModel::DlLimitTextRole).toString(), QStringLiteral("∞"));
+    QCOMPARE(model.data(first, TorrentModel::UpLimitTextRole).toString(), Format::speed(204800));
+    QCOMPARE(model.data(first, TorrentModel::PriorityTextRole).toString(), QStringLiteral("3"));
+    QCOMPARE(model.data(first, TorrentModel::SeedsTextRole).toString(),
+             QStringLiteral("21 (%1)").arg(Format::count(1204)));
+    QCOMPARE(model.data(first, TorrentModel::PeersTextRole).toString(), QStringLiteral("42 (88)"));
+    QCOMPARE(model.data(first, TorrentModel::AddedOnShortTextRole).toString(),
+             Format::relativeTime(model.data(first, TorrentModel::AddedOnRole).toDateTime()));
+    QVERIFY(model.data(first, TorrentModel::LastActivityRole).toDateTime().isValid());
+    QVERIFY(!model.data(first, TorrentModel::LastActivityTextRole).toString().isEmpty());
+
+    QCOMPARE(model.roleNames().size(), 73);
     QCOMPARE(roleOf(model, "stateText"), int(TorrentModel::StateTextRole));
     QCOMPARE(roleOf(model, "stateRole"), int(TorrentModel::StateColorRoleRole));
     QCOMPARE(roleOf(model, "seedsPeersText"), int(TorrentModel::SeedsPeersTextRole));

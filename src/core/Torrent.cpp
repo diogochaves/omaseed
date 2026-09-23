@@ -184,6 +184,7 @@ QStringList Torrent::applyJson(const QJsonObject &json)
 
     take(json, QLatin1StringView("added_on"), addedOn, asTimestamp, changed);
     take(json, QLatin1StringView("completion_on"), completionOn, asTimestamp, changed);
+    take(json, QLatin1StringView("last_activity"), lastActivity, asTimestamp, changed);
 
     take(json, QLatin1StringView("tracker"), tracker, asString, changed);
     take(json, QLatin1StringView("trackers_count"), trackersCount, asInt, changed);

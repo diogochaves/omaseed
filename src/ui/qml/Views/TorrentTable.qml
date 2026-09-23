@@ -39,6 +39,12 @@ Item {
     /// The ordered column record. `width` is in spec pixels at base 12 (0 = flexible) and
     /// goes through `Theme.space()` at use; `role` is the Torrent role name the header sorts
     /// by; `order` is the order a first click on that header applies.
+    ///
+    /// `name`, where given, is what the columns palette lists instead of a terse `title`.
+    ///
+    /// The first eight are Fig. 1's and drawn by cells of their own. The rest are optional
+    /// (docs/10 §4, "like qui"): off until the columns palette turns them on (`default:
+    /// false`), each one plain text read from its `text` role.
     property var columns: [
         {
             "key": "name",
@@ -82,6 +88,7 @@ Item {
         },
         {
             "key": "seedsPeers",
+            "name": qsTr("S / P  seeds / peers"),
             "title": qsTr("S / P"),
             "role": "numSeeds",
             "width": 62,
@@ -91,6 +98,7 @@ Item {
         },
         {
             "key": "dlspeed",
+            "name": qsTr("↓  download speed"),
             "title": Glyphs.arrowDown,
             "role": "dlspeed",
             "width": 84,
@@ -100,6 +108,7 @@ Item {
         },
         {
             "key": "upspeed",
+            "name": qsTr("↑  upload speed"),
             "title": Glyphs.arrowUp,
             "role": "upspeed",
             "width": 84,
@@ -115,12 +124,246 @@ Item {
             "align": Qt.AlignRight,
             "order": Qt.AscendingOrder,
             "visible": true
+        },
+        {
+            "key": "addedOn",
+            "title": qsTr("Added"),
+            "role": "addedOn",
+            "text": "addedOnShortText",
+            "width": 112,
+            "align": Qt.AlignLeft,
+            "order": Qt.DescendingOrder,
+            "visible": true,
+            "default": false
+        },
+        {
+            "key": "completionOn",
+            "title": qsTr("Completed"),
+            "role": "completionOn",
+            "text": "completionOnText",
+            "width": 112,
+            "align": Qt.AlignLeft,
+            "order": Qt.DescendingOrder,
+            "visible": true,
+            "default": false
+        },
+        {
+            "key": "lastActivity",
+            "title": qsTr("Last active"),
+            "role": "lastActivity",
+            "text": "lastActivityText",
+            "width": 112,
+            "align": Qt.AlignLeft,
+            "order": Qt.DescendingOrder,
+            "visible": true,
+            "default": false
+        },
+        {
+            "key": "ratio",
+            "title": qsTr("Ratio"),
+            "role": "ratio",
+            "text": "ratioText",
+            "width": 60,
+            "align": Qt.AlignRight,
+            "order": Qt.DescendingOrder,
+            "visible": true,
+            "default": false
+        },
+        {
+            "key": "category",
+            "title": qsTr("Category"),
+            "role": "category",
+            "text": "category",
+            "width": 96,
+            "align": Qt.AlignLeft,
+            "order": Qt.AscendingOrder,
+            "visible": true,
+            "default": false
+        },
+        {
+            "key": "tags",
+            "title": qsTr("Tags"),
+            "role": "tagsText",
+            "text": "tagsText",
+            "width": 120,
+            "align": Qt.AlignLeft,
+            "order": Qt.AscendingOrder,
+            "visible": true,
+            "default": false
+        },
+        {
+            "key": "tracker",
+            "title": qsTr("Tracker"),
+            "role": "trackerHost",
+            "text": "trackerHost",
+            "width": 150,
+            "align": Qt.AlignLeft,
+            "order": Qt.AscendingOrder,
+            "visible": true,
+            "default": false
+        },
+        {
+            "key": "seeds",
+            "title": qsTr("Seeds"),
+            "role": "numSeeds",
+            "text": "seedsText",
+            "width": 84,
+            "align": Qt.AlignRight,
+            "order": Qt.DescendingOrder,
+            "visible": true,
+            "default": false
+        },
+        {
+            "key": "peers",
+            "title": qsTr("Peers"),
+            "role": "numLeechs",
+            "text": "peersText",
+            "width": 84,
+            "align": Qt.AlignRight,
+            "order": Qt.DescendingOrder,
+            "visible": true,
+            "default": false
+        },
+        {
+            "key": "totalSize",
+            "title": qsTr("Total size"),
+            "role": "totalSize",
+            "text": "totalSizeText",
+            "width": 86,
+            "align": Qt.AlignRight,
+            "order": Qt.DescendingOrder,
+            "visible": true,
+            "default": false
+        },
+        {
+            "key": "downloaded",
+            "title": qsTr("Downloaded"),
+            "role": "downloaded",
+            "text": "downloadedText",
+            "width": 90,
+            "align": Qt.AlignRight,
+            "order": Qt.DescendingOrder,
+            "visible": true,
+            "default": false
+        },
+        {
+            "key": "uploaded",
+            "title": qsTr("Uploaded"),
+            "role": "uploaded",
+            "text": "uploadedText",
+            "width": 90,
+            "align": Qt.AlignRight,
+            "order": Qt.DescendingOrder,
+            "visible": true,
+            "default": false
+        },
+        {
+            "key": "remaining",
+            "title": qsTr("Remaining"),
+            "role": "amountLeft",
+            "text": "amountLeftText",
+            "width": 90,
+            "align": Qt.AlignRight,
+            "order": Qt.DescendingOrder,
+            "visible": true,
+            "default": false
+        },
+        {
+            "key": "availability",
+            "title": qsTr("Availability"),
+            "role": "availability",
+            "text": "availabilityText",
+            "width": 100,
+            "align": Qt.AlignRight,
+            "order": Qt.DescendingOrder,
+            "visible": true,
+            "default": false
+        },
+        {
+            "key": "dlLimit",
+            "name": qsTr("↓ limit  download limit"),
+            "title": Glyphs.arrowDown + " " + qsTr("limit"),
+            "role": "dlLimit",
+            "text": "dlLimitText",
+            "width": 84,
+            "align": Qt.AlignRight,
+            "order": Qt.DescendingOrder,
+            "visible": true,
+            "default": false
+        },
+        {
+            "key": "upLimit",
+            "name": qsTr("↑ limit  upload limit"),
+            "title": Glyphs.arrowUp + " " + qsTr("limit"),
+            "role": "upLimit",
+            "text": "upLimitText",
+            "width": 84,
+            "align": Qt.AlignRight,
+            "order": Qt.DescendingOrder,
+            "visible": true,
+            "default": false
+        },
+        {
+            "key": "queue",
+            "title": qsTr("Queue"),
+            "role": "priority",
+            "text": "priorityText",
+            "width": 60,
+            "align": Qt.AlignRight,
+            "order": Qt.AscendingOrder,
+            "visible": true,
+            "default": false
+        },
+        {
+            "key": "timeActive",
+            "title": qsTr("Time active"),
+            "role": "timeActive",
+            "text": "timeActiveText",
+            "width": 104,
+            "align": Qt.AlignRight,
+            "order": Qt.DescendingOrder,
+            "visible": true,
+            "default": false
+        },
+        {
+            "key": "seedingTime",
+            "title": qsTr("Seeding time"),
+            "role": "seedingTime",
+            "text": "seedingTimeText",
+            "width": 110,
+            "align": Qt.AlignRight,
+            "order": Qt.DescendingOrder,
+            "visible": true,
+            "default": false
+        },
+        {
+            "key": "savePath",
+            "title": qsTr("Save path"),
+            "role": "savePath",
+            "text": "savePath",
+            "width": 220,
+            "align": Qt.AlignLeft,
+            "order": Qt.AscendingOrder,
+            "visible": true,
+            "default": false
+        },
+        {
+            "key": "hash",
+            "title": qsTr("Hash"),
+            "role": "infohashV1",
+            "text": "infohashV1",
+            "width": 130,
+            "align": Qt.AlignLeft,
+            "order": Qt.AscendingOrder,
+            "visible": true,
+            "default": false
         }
     ]
 
     /// The keys that are on screen, in `columns` order. T4.4 writes this from the columns
     /// palette and from `state.json`.
-    property list<string> visibleColumns: root.columns.map(column => column.key)
+    property list<string> visibleColumns: root.columns.filter(column => column.default !== false).map(
+                                              column => column.key)
 
     /// The smallest the flexible Name column is allowed to get, in spec pixels.
     property int minimumNameWidth: 160
@@ -161,6 +404,8 @@ Item {
     readonly property var activeColumns: root.columns.filter(column => {
         return column.visible && root.visibleColumns.indexOf(column.key) >= 0;
     })
+    /// The active columns that are plain text, drawn by one generic cell each.
+    readonly property var textColumns: root.activeColumns.filter(column => column.text !== undefined)
 
     /// How wide the rows are: the view's width, or more when the chosen columns need it.
     readonly property int rowWidth: {
@@ -585,6 +830,8 @@ Item {
 
             required property string category
             required property string dlspeedText
+            /// The row's whole model entry, for the optional columns' `text` roles.
+            required property var model
             required property string etaText
             required property string hash
             required property int index
@@ -863,6 +1110,39 @@ Item {
                     visible: width > 0
                     width: root.columnLayout.eta.w
                     x: root.columnLayout.eta.x
+                }
+
+                // The optional columns: one plain cell each, the number columns tabular.
+                Repeater {
+                    model: root.textColumns
+
+                    delegate: Text {
+                        id: textCell
+
+                        required property var modelData
+
+                        readonly property var box: root.columnLayout[textCell.modelData.key]
+                        readonly property var value: row.model[textCell.modelData.text]
+
+                        color: band.textColor
+                        elide: Text.ElideRight
+                        font.family: Theme.fontFamily
+                        font.features: ({
+                                "tnum": 1
+                            })
+                        font.pixelSize: Theme.font.body
+                        height: band.height
+                        horizontalAlignment: textCell.modelData.align === Qt.AlignRight
+                                             ? Text.AlignRight : Text.AlignLeft
+                        leftPadding: Theme.space(8)
+                        objectName: textCell.modelData.key + "_" + row.index
+                        rightPadding: Theme.space(8)
+                        text: textCell.value === undefined || textCell.value === null
+                              ? "" : String(textCell.value)
+                        verticalAlignment: Text.AlignVCenter
+                        width: textCell.box.w
+                        x: textCell.box.x
+                    }
                 }
             }
 

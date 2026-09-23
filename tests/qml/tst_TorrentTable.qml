@@ -115,7 +115,9 @@ TestCase {
         escapeSpy.clear();
         railSpy.clear();
         detailsSpy.clear();
-        waitForRendering(table);
+        // Capped: when the test before left nothing to repaint no frame comes, and the
+        // default 5 s wait would run out for nothing.
+        waitForRendering(table, 250);
     }
 
     function test_row_count_follows_the_filter_model() {
@@ -167,6 +169,26 @@ TestCase {
         table.scrollSideways(-100000);
         compare(list.contentX, 0);
         table.anchors.fill = testCase;
+    }
+
+    // docs/10 §4: many more columns, off until the palette turns them on.
+    function test_the_optional_columns_start_hidden() {
+        compare(table.visibleColumns, testCase.allColumns);
+        verify(table.columns.length > 20);
+        compare(findChild(table, "header_addedOn"), null);
+    }
+
+    function test_turning_on_added_shows_its_header_and_cells() {
+        const saved = table.visibleColumns.slice();
+        table.visibleColumns = saved.concat(["addedOn", "ratio"]);
+        compare(header("addedOn").text, "Added");
+        compare(header("addedOn").width, Theme.space(112));
+        const first = App.filtered.index(0, 0);
+        const added = App.filtered.data(first, TorrentModel.AddedOnShortTextRole);
+        verify(added.length > 0);
+        compare(cellText("addedOn_0"), added);
+        compare(cellText("ratio_0"), App.filtered.data(first, TorrentModel.RatioTextRole));
+        table.visibleColumns = saved;
     }
 
     function test_a_wide_table_does_not_scroll() {

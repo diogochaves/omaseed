@@ -101,6 +101,7 @@ struct Torrent
 
     QDateTime addedOn;
     QDateTime completionOn; ///< invalid while the torrent is incomplete
+    QDateTime lastActivity; ///< the last time data moved, invalid when it never has
 
     QString tracker; ///< URL of the tracker currently in use, empty when there is none
     int trackersCount = 0;

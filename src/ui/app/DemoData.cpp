@@ -445,6 +445,7 @@ QJsonObject torrentJson(int index,
     json.insert(QStringLiteral("content_path"), savePath + QLatin1Char('/') + name);
     json.insert(QStringLiteral("added_on"), addedOn);
     json.insert(QStringLiteral("completion_on"), progress >= 1.0 ? addedOn + 3600 : 0);
+    json.insert(QStringLiteral("last_activity"), addedOn + 5400);
     json.insert(QStringLiteral("tracker"), tracker);
     json.insert(QStringLiteral("trackers_count"), tracker.isEmpty() ? 0 : 2);
     json.insert(QStringLiteral("has_tracker_error"), trackerError);

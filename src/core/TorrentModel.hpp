@@ -87,6 +87,21 @@ public:
         InfohashV1Role,
         InfohashV2Role,
         MagnetUriRole,
+        // The table's optional columns (docs/10 §4): a display text for fields that only
+        // had a raw role, the raw role still being what the header sorts by.
+        TotalSizeTextRole,
+        DownloadedTextRole,
+        UploadedTextRole,
+        AmountLeftTextRole,
+        AvailabilityTextRole,
+        DlLimitTextRole,
+        UpLimitTextRole,
+        PriorityTextRole,
+        SeedsTextRole,        ///< "21 (1 204)": connected, then the swarm
+        PeersTextRole,        ///< "42 (88)"
+        AddedOnShortTextRole, ///< "today 10:41", without `AddedOnTextRole`'s "added"
+        LastActivityRole,
+        LastActivityTextRole,
         TorrentRole, ///< the whole value, for code that wants more than one field
     };
     Q_ENUM(Role)

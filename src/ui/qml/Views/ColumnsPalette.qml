@@ -29,10 +29,12 @@ Palette {
         if (root.table === null)
             return rows;
         for (const column of root.table.columns) {
-            if (!Fuzzy.match(column.title, q) && !Fuzzy.match(column.key, q))
+            // A header that is only a glyph (↓, ↑) says more in the list under its `name`.
+            const title = column.name !== undefined ? column.name : column.title;
+            if (!Fuzzy.match(title, q) && !Fuzzy.match(column.key, q))
                 continue;
             rows.push({
-                "title": column.title,
+                "title": title,
                 "meta": column.key === "name" ? qsTr("always shown") : "",
                 "checked": root.table.visibleColumns.indexOf(column.key) >= 0,
                 "key": column.key

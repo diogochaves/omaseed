@@ -28,7 +28,7 @@ const QHash<QString, QList<int>> &keyToRoles()
     static const QHash<QString, QList<int>> map{
         {QStringLiteral("name"), {M::NameRole}},
         {QStringLiteral("size"), {M::SizeRole, M::SizeTextRole}},
-        {QStringLiteral("total_size"), {M::TotalSizeRole}},
+        {QStringLiteral("total_size"), {M::TotalSizeRole, M::TotalSizeTextRole}},
         {QStringLiteral("progress"),
          {M::ProgressRole, M::ProgressTextRole, M::ProgressPercentRole, M::StatusGroupsRole}},
         {QStringLiteral("state"),
@@ -36,33 +36,34 @@ const QHash<QString, QList<int>> &keyToRoles()
         {QStringLiteral("dlspeed"), {M::DlspeedRole, M::DlspeedTextRole, M::StatusGroupsRole}},
         {QStringLiteral("upspeed"), {M::UpspeedRole, M::UpspeedTextRole, M::StatusGroupsRole}},
         {QStringLiteral("eta"), {M::EtaRole, M::EtaTextRole, M::EtaLongTextRole}},
-        {QStringLiteral("num_seeds"), {M::NumSeedsRole, M::SeedsPeersTextRole}},
-        {QStringLiteral("num_leechs"), {M::NumLeechsRole, M::SeedsPeersTextRole}},
-        {QStringLiteral("num_complete"), {M::NumCompleteRole}},
-        {QStringLiteral("num_incomplete"), {M::NumIncompleteRole}},
+        {QStringLiteral("num_seeds"), {M::NumSeedsRole, M::SeedsPeersTextRole, M::SeedsTextRole}},
+        {QStringLiteral("num_leechs"), {M::NumLeechsRole, M::SeedsPeersTextRole, M::PeersTextRole}},
+        {QStringLiteral("num_complete"), {M::NumCompleteRole, M::SeedsTextRole}},
+        {QStringLiteral("num_incomplete"), {M::NumIncompleteRole, M::PeersTextRole}},
         {QStringLiteral("ratio"), {M::RatioRole, M::RatioTextRole}},
         {QStringLiteral("category"), {M::CategoryRole}},
         {QStringLiteral("tags"), {M::TagsRole, M::TagsTextRole}},
         {QStringLiteral("save_path"), {M::SavePathRole}},
         {QStringLiteral("content_path"), {M::ContentPathRole}},
-        {QStringLiteral("added_on"), {M::AddedOnRole, M::AddedOnTextRole}},
+        {QStringLiteral("added_on"), {M::AddedOnRole, M::AddedOnTextRole, M::AddedOnShortTextRole}},
         {QStringLiteral("completion_on"), {M::CompletionOnRole, M::CompletionOnTextRole}},
+        {QStringLiteral("last_activity"), {M::LastActivityRole, M::LastActivityTextRole}},
         {QStringLiteral("tracker"), {M::TrackerRole, M::TrackerHostRole}},
         {QStringLiteral("trackers_count"), {M::TrackersCountRole}},
         {QStringLiteral("has_tracker_error"), {M::HasTrackerErrorRole}},
-        {QStringLiteral("priority"), {M::PriorityRole}},
+        {QStringLiteral("priority"), {M::PriorityRole, M::PriorityTextRole}},
         {QStringLiteral("seq_dl"), {M::SeqDlRole}},
         {QStringLiteral("f_l_piece_prio"), {M::FirstLastPiecePrioRole}},
-        {QStringLiteral("dl_limit"), {M::DlLimitRole}},
-        {QStringLiteral("up_limit"), {M::UpLimitRole}},
+        {QStringLiteral("dl_limit"), {M::DlLimitRole, M::DlLimitTextRole}},
+        {QStringLiteral("up_limit"), {M::UpLimitRole, M::UpLimitTextRole}},
         {QStringLiteral("ratio_limit"), {M::RatioLimitRole}},
         {QStringLiteral("seeding_time_limit"), {M::SeedingTimeLimitRole}},
         {QStringLiteral("share_limit_action"), {M::ShareLimitActionRole}},
-        {QStringLiteral("availability"), {M::AvailabilityRole}},
-        {QStringLiteral("amount_left"), {M::AmountLeftRole}},
+        {QStringLiteral("availability"), {M::AvailabilityRole, M::AvailabilityTextRole}},
+        {QStringLiteral("amount_left"), {M::AmountLeftRole, M::AmountLeftTextRole}},
         {QStringLiteral("completed"), {M::CompletedRole}},
-        {QStringLiteral("downloaded"), {M::DownloadedRole}},
-        {QStringLiteral("uploaded"), {M::UploadedRole}},
+        {QStringLiteral("downloaded"), {M::DownloadedRole, M::DownloadedTextRole}},
+        {QStringLiteral("uploaded"), {M::UploadedRole, M::UploadedTextRole}},
         {QStringLiteral("time_active"), {M::TimeActiveRole, M::TimeActiveTextRole}},
         {QStringLiteral("seeding_time"), {M::SeedingTimeRole, M::SeedingTimeTextRole}},
         {QStringLiteral("infohash_v1"), {M::InfohashV1Role}},
@@ -209,6 +210,36 @@ QVariant TorrentModel::data(const QModelIndex &index, int role) const
         return t.infohashV2;
     case MagnetUriRole:
         return t.magnetUri;
+    case TotalSizeTextRole:
+        return t.totalSize < 0 ? QStringLiteral("—") : Format::size(t.totalSize);
+    case DownloadedTextRole:
+        return Format::size(t.downloaded);
+    case UploadedTextRole:
+        return Format::size(t.uploaded);
+    case AmountLeftTextRole:
+        return Format::size(t.amountLeft);
+    case AvailabilityTextRole:
+        // qBittorrent sends -1 while it has no metadata to count pieces against.
+        return t.availability < 0 ? QStringLiteral("—") : QString::number(t.availability, 'f', 2);
+    case DlLimitTextRole:
+        return Format::limit(t.dlLimit);
+    case UpLimitTextRole:
+        return Format::limit(t.upLimit);
+    case PriorityTextRole:
+        // 0 is "not queued" (a finished or forced torrent), -1 "queueing is off".
+        return t.priority > 0 ? QString::number(t.priority) : QStringLiteral("—");
+    case SeedsTextRole:
+        return QStringLiteral("%1 (%2)").arg(Format::count(std::max(0, t.numSeeds)),
+                                             Format::count(std::max(0, t.numComplete)));
+    case PeersTextRole:
+        return QStringLiteral("%1 (%2)").arg(Format::count(std::max(0, t.numLeechs)),
+                                             Format::count(std::max(0, t.numIncomplete)));
+    case AddedOnShortTextRole:
+        return Format::relativeTime(t.addedOn);
+    case LastActivityRole:
+        return t.lastActivity;
+    case LastActivityTextRole:
+        return Format::relativeTime(t.lastActivity);
     case TorrentRole:
         return QVariant::fromValue(t);
     default:
@@ -278,6 +309,19 @@ QHash<int, QByteArray> TorrentModel::roleNames() const
         {InfohashV1Role, "infohashV1"},
         {InfohashV2Role, "infohashV2"},
         {MagnetUriRole, "magnetUri"},
+        {TotalSizeTextRole, "totalSizeText"},
+        {DownloadedTextRole, "downloadedText"},
+        {UploadedTextRole, "uploadedText"},
+        {AmountLeftTextRole, "amountLeftText"},
+        {AvailabilityTextRole, "availabilityText"},
+        {DlLimitTextRole, "dlLimitText"},
+        {UpLimitTextRole, "upLimitText"},
+        {PriorityTextRole, "priorityText"},
+        {SeedsTextRole, "seedsText"},
+        {PeersTextRole, "peersText"},
+        {AddedOnShortTextRole, "addedOnShortText"},
+        {LastActivityRole, "lastActivity"},
+        {LastActivityTextRole, "lastActivityText"},
         {TorrentRole, "torrent"},
     };
     return names;
