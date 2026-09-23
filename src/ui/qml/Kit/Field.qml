@@ -106,13 +106,18 @@ Rectangle {
         selectByMouse: true
         selectionColor: Theme.selection
 
+        // The placeholder stays until something is typed: an empty focused field still
+        // says what empty means (`∞` in the limit sheets). It dims one step further while
+        // the caret is in, as most text fields do (batch-2 J6).
         Text {
             anchors.verticalCenter: parent.verticalCenter
             color: Theme.dimForeground
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.body
+            objectName: "fieldPlaceholder"
+            opacity: input.activeFocus ? 0.55 : 1
             text: root.placeholder
-            visible: input.text.length === 0 && !input.activeFocus
+            visible: input.text.length === 0
         }
 
         // Escape clears the field; with nothing left to clear it is passed on, so the

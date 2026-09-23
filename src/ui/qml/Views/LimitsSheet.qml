@@ -191,6 +191,9 @@ Sheet {
 
                     Layout.fillWidth: true
                     enabled: !root._ratioGlobal
+                    // Empty is no limit, as in the speed fields; under `global` the chip
+                    // says it all and the field has nothing to add (batch-2 J6).
+                    placeholder: root._ratioGlobal ? "" : "∞"
 
                     onAccepted: root.triggerPrimary()
                 }

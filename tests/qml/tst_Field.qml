@@ -76,4 +76,25 @@ TestCase {
         verify(live !== null);
         compare(live.opacity, 1);
     }
+
+    // Batch-2 J6: focusing an empty field keeps its placeholder, dimmed a step, until the
+    // first character is typed.
+    function test_the_placeholder_stays_until_something_is_typed() {
+        const field = createTemporaryObject(fieldComponent, testCase, {
+                                                "placeholder": "∞"
+                                            });
+        const placeholder = findChild(field, "fieldPlaceholder");
+        verify(placeholder !== null);
+        compare(placeholder.visible, true);
+        const idle = placeholder.opacity;
+
+        field.focusInput();
+        compare(field.editing, true);
+        compare(placeholder.visible, true, "the placeholder went when the field took focus");
+        verify(placeholder.opacity < idle, "a focused placeholder should be dimmer");
+
+        keyClick("5");
+        compare(field.text, "5");
+        compare(placeholder.visible, false);
+    }
 }
