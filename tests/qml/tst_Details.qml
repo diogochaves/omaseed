@@ -305,6 +305,39 @@ TestCase {
         verify(view.activeFocus);
     }
 
+    // docs/12 F1: the summary line is always there, and `/` turns the same row into the field.
+    function test_the_summary_line_turns_into_the_filter_and_back() {
+        const view = testCase.filesView();
+        const summary = findChild(view, "filesSummary");
+        const field = findChild(view, "filesFilter");
+        const header = findChild(view, "fileHeader_name");
+        verify(summary !== null && field !== null && header !== null);
+        wait(0);
+
+        verify(summary.visible);
+        verify(!field.visible);
+        compare(findChild(view, "filesSummaryCount").text, "5 files");
+        compare(findChild(view, "filesSummaryFacts").text, " · 2 folders · 3.91 GB · 2 skipped");
+        verify(findChild(view, "filesSummaryGo").visible);
+        const headerY = header.mapToItem(view, 0, 0).y;
+
+        keyClick("/");
+        verify(!summary.visible);
+        verify(field.visible);
+        compare(field.trailingKey, "esc");
+        keyClick("s");
+        keyClick("r");
+        keyClick("t");
+        compare(field.trailing, "2 of 5 files");
+        // The same row: the headers and the list do not move.
+        compare(header.mapToItem(view, 0, 0).y, headerY);
+
+        keyClick(Qt.Key_Escape);
+        verify(summary.visible);
+        verify(!field.visible);
+        compare(header.mapToItem(view, 0, 0).y, headerY);
+    }
+
     function test_space_selects_and_a_priority_applies_to_the_selection() {
         const view = testCase.filesView();
         const files = App.details.files;

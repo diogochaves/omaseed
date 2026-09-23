@@ -202,6 +202,7 @@ void TorrentFilesModel::applyFiles(const QJsonArray &files)
 
     if (shapeOf(files) == m_shape) {
         updateInPlace(files);
+        updateSummary();
         return;
     }
 
@@ -210,6 +211,7 @@ void TorrentFilesModel::applyFiles(const QJsonArray &files)
     endResetModel();
     Q_EMIT countChanged();
     Q_EMIT selectionChanged();
+    updateSummary();
 }
 
 void TorrentFilesModel::clear()
@@ -234,6 +236,7 @@ void TorrentFilesModel::clear()
     Q_EMIT selectionChanged();
     if (hadFilter)
         Q_EMIT filterTextChanged();
+    updateSummary();
 }
 
 void TorrentFilesModel::rebuild(const QJsonArray &files)
@@ -599,6 +602,33 @@ void TorrentFilesModel::relayout()
     Q_EMIT countChanged();
 }
 
+void TorrentFilesModel::updateSummary()
+{
+    int folders = 0;
+    int skipped = 0;
+    qint64 size = 0;
+    for (const Node &node : std::as_const(m_nodes)) {
+        if (node.isFolder) {
+            ++folders;
+            continue;
+        }
+        size += node.size;
+        if (node.priority == int(FilePriority::Skip))
+            ++skipped;
+    }
+    if (folders == m_folderCount && skipped == m_skippedCount && size == m_totalSize)
+        return;
+    m_folderCount = folders;
+    m_skippedCount = skipped;
+    m_totalSize = size;
+    Q_EMIT summaryChanged();
+}
+
+QString TorrentFilesModel::totalSizeText() const
+{
+    return Format::size(m_totalSize);
+}
+
 void TorrentFilesModel::emitAllChanged(const QList<int> &roles)
 {
     if (!m_visible.isEmpty())
@@ -859,6 +889,7 @@ void TorrentFilesModel::setLocalPriority(const QVariantList &fileIndexes, int pr
         return;
     for (int root : std::as_const(m_roots))
         aggregate(root);
+    updateSummary();
 
     const QList<int> next = computeVisible();
     if (next != m_visible) {

@@ -54,6 +54,7 @@ private Q_SLOTS:
     void shown_order_splits_the_files_in_thirds();
     void a_local_rename_moves_the_subtree();
     void the_server_path_follows_the_content_path();
+    void the_summary_counts_files_folders_size_and_skips();
 };
 
 void TestTorrentFilesModel::builds_the_tree_from_slash_separated_names()
@@ -529,6 +530,41 @@ void TestTorrentFilesModel::the_server_path_follows_the_content_path()
                                              QStringLiteral("Pack/a.bin")),
              QStringLiteral("D:\\Torrents\\Pack\\a.bin"));
     QCOMPARE(TorrentFilesModel::serverPathOf(QString(), QString(), QStringLiteral("a")), QString());
+}
+
+// docs/12 F1: the line above the headers, "5 files · 2 folders · 3.91 GB · 2 skipped".
+void TestTorrentFilesModel::the_summary_counts_files_folders_size_and_skips()
+{
+    TorrentFilesModel model;
+    QSignalSpy summary(&model, &TorrentFilesModel::summaryChanged);
+    model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
+    QCOMPARE(summary.count(), 1);
+    QCOMPARE(model.fileCount(), 5);
+    QCOMPARE(model.folderCount(), 2);
+    QCOMPARE(model.skippedCount(), 2);
+    QCOMPARE(model.totalSize(), 4199502437LL);
+    QCOMPARE(model.totalSizeText(), QStringLiteral("3.91 GB"));
+
+    // The filter narrows the rows, not the summary.
+    model.setFilterText(QStringLiteral("srt"));
+    QCOMPARE(model.folderCount(), 2);
+    QCOMPARE(model.totalSize(), 4199502437LL);
+
+    // A priority change moves the skipped count; a poll with the same numbers does not emit.
+    summary.clear();
+    model.setLocalPriority({2}, int(FilePriority::Normal));
+    QCOMPARE(model.skippedCount(), 1);
+    QCOMPARE(summary.count(), 1);
+    model.setLocalPriority({2}, int(FilePriority::Skip));
+    summary.clear();
+    model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
+    QCOMPARE(summary.count(), 0);
+
+    model.clear();
+    QCOMPARE(model.folderCount(), 0);
+    QCOMPARE(model.skippedCount(), 0);
+    QCOMPARE(model.totalSize(), 0);
+    QCOMPARE(summary.count(), 1);
 }
 
 QTEST_MAIN(TestTorrentFilesModel)

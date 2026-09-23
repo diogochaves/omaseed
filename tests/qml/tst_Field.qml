@@ -97,4 +97,19 @@ TestCase {
         compare(field.text, "5");
         compare(placeholder.visible, false);
     }
+
+    // docs/12 F1: the Files filter ends in an `esc` cap, after its count.
+    function test_trailing_key_draws_a_cap_after_the_count() {
+        const field = createTemporaryObject(fieldComponent, testCase, {
+                                                "width": 300,
+                                                "trailing": "2 of 5 files"
+                                            });
+        const cap = findChild(field, "fieldTrailingKey");
+        verify(cap !== null);
+        verify(!cap.visible);
+        field.trailingKey = "esc";
+        verify(cap.visible);
+        compare(cap.text, "esc");
+        verify(cap.x + cap.width <= field.width);
+    }
 }

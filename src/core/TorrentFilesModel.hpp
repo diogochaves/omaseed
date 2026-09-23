@@ -62,6 +62,13 @@ class TorrentFilesModel : public QAbstractListModel
     Q_PROPERTY(int fileCount READ fileCount NOTIFY countChanged)
     /// How many files pass the filter (all of them while there is none): the "n" of "n of m".
     Q_PROPERTY(int matchCount READ matchCount NOTIFY countChanged)
+    /// docs/12 F1's summary line: "5 files · 2 folders · 3.91 GB · 2 skipped". Folders are
+    /// the synthesised ones, skipped files are the ones at priority 0, and the size is every
+    /// file's, whatever the filter shows.
+    Q_PROPERTY(int folderCount READ folderCount NOTIFY summaryChanged)
+    Q_PROPERTY(int skippedCount READ skippedCount NOTIFY summaryChanged)
+    Q_PROPERTY(qint64 totalSize READ totalSize NOTIFY summaryChanged)
+    Q_PROPERTY(QString totalSizeText READ totalSizeText NOTIFY summaryChanged)
     Q_PROPERTY(QString filterText READ filterText WRITE setFilterText NOTIFY filterTextChanged)
     /// "" (the torrent's order), "name", "size", "progress", "remaining", "priority",
     /// "availability", "pieces".
@@ -105,6 +112,10 @@ public:
     /// How many real files the torrent has, folders excluded.
     int fileCount() const { return m_fileCount; }
     int matchCount() const { return m_matchCount; }
+    int folderCount() const { return m_folderCount; }
+    int skippedCount() const { return m_skippedCount; }
+    qint64 totalSize() const { return m_totalSize; }
+    QString totalSizeText() const;
 
     /// Applies a `torrents/files` array. Same shape as last time -> rows update in place;
     /// anything else -> a reset.
@@ -193,6 +204,7 @@ Q_SIGNALS:
     void filterTextChanged();
     void sortChanged();
     void selectionChanged();
+    void summaryChanged();
 
 private:
     struct Node
@@ -240,6 +252,8 @@ private:
     void collectLeaves(int node, QList<int> &out) const;
     int leafOfFileIndex(int fileIndex) const;
     void emitAllChanged(const QList<int> &roles);
+    /// Recounts folders, skipped files and the total size; emits summaryChanged() on a change.
+    void updateSummary();
 
     QList<Node> m_nodes; ///< the tree, parents before children
     QList<int> m_roots;
@@ -250,6 +264,9 @@ private:
     QSet<QString> m_selected;
     int m_fileCount = 0;
     int m_matchCount = 0;
+    int m_folderCount = 0;
+    int m_skippedCount = 0;
+    qint64 m_totalSize = 0;
     QString m_filterText;
     QString m_sortKey;
     bool m_sortDescending = false;
