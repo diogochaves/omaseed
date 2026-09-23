@@ -1,6 +1,7 @@
 import QtQuick
 import QtTest
 import Omaseed
+import Omaseed.Kit
 import Omaseed.Views
 
 // T3.5. The assembled window (`MainView` — `Main.qml` is the same thing inside a `Window`),
@@ -226,6 +227,22 @@ TestCase {
         keyClick(Qt.Key_Comma, Qt.ControlModifier);
         compare(settingsSpy.count, 1);
         compare(view.columnsPalette.opened, false);
+    }
+
+    // docs/10 §2: once the hero is too narrow for the gear and `?`, they lead the ⋯ menu,
+    // and their rows run what the buttons did.
+    function test_a_narrow_hero_moves_settings_and_help_into_the_more_menu() {
+        const actions = () => view.moreMenu.items.map(item => item.action);
+        verify(actions().indexOf("settings") < 0);
+        testCase.width = Theme.space(800); // the view fills the case, the hero spans the view
+        verify(view.hero.compact);
+        compare(actions().slice(0, 2), ["settings", "help"]);
+        view.moreAction("settings");
+        compare(settingsSpy.count, 1);
+        view.moreAction("help");
+        compare(view.helpOpen, true);
+        view.helpOpen = false;
+        testCase.width = 1360;
     }
 
     // docs/08 §3: ctrl+. opens the ⋯ menu under its button; its rows reach the limits sheet,

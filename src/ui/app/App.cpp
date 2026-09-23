@@ -595,6 +595,13 @@ QString App::sizeText(qint64 bytes) const
     return Format::size(bytes);
 }
 
+QString App::limitShortText(qint64 bytesPerSecond)
+{
+    if (bytesPerSecond <= 0)
+        return QStringLiteral("∞");
+    return Format::speedShort(bytesPerSecond).remove(QLatin1Char(' '));
+}
+
 // --- end T3.5 -------------------------------------------------------------------------------
 
 // --- T4.7: notifications ---------------------------------------------------------------------

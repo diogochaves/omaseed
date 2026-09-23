@@ -5,13 +5,20 @@ import Omaseed.Kit
 TestCase {
     id: testCase
 
+    height: 200
     name: "Hero"
+    // Shown, so the ladder tests can read `visible` (a hidden parent hides everything).
+    visible: true
+    when: windowShown
+    width: 1500
 
     Component {
         id: heroComponent
 
+        // Wide enough for the whole hero (docs/10 §2's step 0 at base 12); the ladder tests
+        // set their own widths.
         Hero {
-            width: 900
+            width: 1400
         }
     }
 
@@ -147,5 +154,71 @@ TestCase {
                                                "width": 1400
                                            });
         verify(hero.downStat.x < hero.width / 2);
+    }
+
+    // docs/10 §2: the steps the hero takes as it narrows.
+    function test_the_ladder_steps_follow_the_width() {
+        const hero = createTemporaryObject(heroComponent, testCase);
+        const widths = [1400, 1100, 800, 650, 500];
+        for (let i = 0; i < widths.length; i++) {
+            hero.width = widths[i];
+            compare(hero.level, i, "at " + widths[i]);
+        }
+    }
+
+    function test_step_one_shortens_the_server_line_and_the_chip() {
+        const hero = createTemporaryObject(heroComponent, testCase, {
+                                               "serverLine": "home · qBittorrent 5.2.3",
+                                               "serverLineShort": "home",
+                                               "altSpeedActive": true,
+                                               "altDownLimit": "1.00 MB/s",
+                                               "altUpLimit": "200 KB/s",
+                                               "altDownLimitShort": "1.00M",
+                                               "altUpLimitShort": "200K"
+                                           });
+        compare(findChild(hero, "serverLine").text, "home · qBittorrent 5.2.3");
+        compare(hero.altChip.text, "↓1.00 MB/s ↑200 KB/s");
+        hero.width = Theme.space(1000);
+        compare(hero.level, 1);
+        compare(findChild(hero, "serverLine").text, "home");
+        compare(hero.altChip.text, "↓1.00M ↑200K");
+        hero.altSpeedActive = false;
+        compare(hero.altChip.text, ""); // the glyph alone
+    }
+
+    function test_step_two_moves_the_gear_and_help_out() {
+        const hero = createTemporaryObject(heroComponent, testCase);
+        verify(!hero.compact);
+        verify(findChild(hero, "settingsButton").visible);
+        hero.width = Theme.space(800);
+        verify(hero.compact);
+        verify(!findChild(hero, "settingsButton").visible);
+        verify(!findChild(hero, "helpButton").visible);
+        verify(hero.addButton.visible);
+        verify(hero.moreButton.visible);
+    }
+
+    function test_step_three_folds_the_filter_into_a_button() {
+        const hero = createTemporaryObject(heroComponent, testCase);
+        hero.width = Theme.space(650);
+        verify(hero.searchFolded);
+        verify(findChild(hero, "searchButton").visible);
+        verify(!hero.searchField.visible);
+        hero.openSearch();
+        verify(hero.searchOpen);
+        verify(hero.searchField.visible);
+        verify(!findChild(hero, "searchButton").visible);
+        verify(!hero.downStat.visible);
+        verify(hero.addButton.visible);
+    }
+
+    function test_step_four_keeps_the_dot_beside_the_mark() {
+        const hero = createTemporaryObject(heroComponent, testCase);
+        hero.width = Theme.space(500);
+        compare(hero.level, 4);
+        verify(findChild(hero, "loneDot").visible);
+        verify(hero.downStat.visible);
+        verify(hero.addButton.visible);
+        verify(hero.moreButton.visible);
     }
 }

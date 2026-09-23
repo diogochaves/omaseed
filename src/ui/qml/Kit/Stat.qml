@@ -39,5 +39,6 @@ Column {
     Label {
         text: root.label
         tracked: true
+        visible: root.label.length > 0
     }
 }

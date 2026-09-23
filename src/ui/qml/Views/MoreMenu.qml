@@ -11,9 +11,31 @@ Menu {
 
     /// The rail row reads "show rail" while it is hidden.
     property bool railHidden: false
+    /// docs/10 §2: the hero is too narrow for its gear and `?`, so they lead the menu.
+    property bool appRows: false
+
+    readonly property var _appRows: [
+        {
+            "text": qsTr("settings"),
+            "glyph": Glyphs.settings,
+            "key": ",",
+            "action": "settings"
+        },
+        {
+            "text": qsTr("help"),
+            "glyph": Glyphs.help,
+            "key": "?",
+            "action": "help"
+        },
+        {
+            "separator": true
+        }
+    ]
 
     menuWidth: Theme.space(280)
-    items: [
+    items: (root.appRows ? root._appRows : []).concat(root._rows)
+
+    readonly property var _rows: [
         {
             "text": qsTr("speed limits…"),
             "glyph": Glyphs.limits,

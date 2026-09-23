@@ -7,6 +7,13 @@ import Omaseed.Kit
 // tracked server caption and status dot beneath, two headline speed `Stat`s, a search `Field`
 // with a `/` hint and live count, four glyph `IconButton`s, and a hairline rule underneath.
 // Only `Theme` tokens; the caller owns state and reacts to the signals.
+//
+// Narrow windows (docs/10 §2, the ladder): nothing is ever cut off. As the hero narrows it
+// takes steps (`level`): the server line drops its version and the alt-speed chip goes short
+// (1), the speed captions go and the gear and `?` move into ⋯ (2, `compact`), the filter
+// folds into a `/` button that opens over the speeds and the chip keeps only its glyph (3),
+// and the name and server line give way to the dot (4). The mark, the dot, both speeds, `+`
+// and ⋯ never leave, and if something still does not fit the server line elides first.
 Item {
     id: root
 
@@ -33,6 +40,9 @@ Item {
     /// The limits in force while alt-speed is on ("10 KB/s", "∞"); the chip prints them.
     property string altDownLimit: "∞"
     property string altUpLimit: "∞"
+    /// The same limits in short form ("1.00M"), for the chip from step 1.
+    property string altDownLimitShort: root.altDownLimit
+    property string altUpLimitShort: root.altUpLimit
     property string downSpeed: "—"
     // Exposed read-only so `tst_Hero.qml` can drive the inner Field directly instead of
     // simulating keystrokes.
@@ -55,7 +65,43 @@ Item {
     property string searchCountText: String(root.searchCount)
     property string searchText: ""
     property string serverLine: ""
+    /// The server line without the version, printed from step 1; the whole line stays in the
+    /// tooltip. Empty means "the same as `serverLine`".
+    property string serverLineShort: ""
     property string upSpeed: "—"
+
+    /// docs/10 §2: the step the hero is on, from its own width (the window's). Thresholds are
+    /// base-12 pixels through `Theme.space`, so they scale with the base size: 1500, 1150,
+    /// 900 and 700 px at base 14.
+    readonly property int level: {
+        if (root.width >= Theme.space(1286))
+            return 0;
+        if (root.width >= Theme.space(986))
+            return 1;
+        if (root.width >= Theme.space(771))
+            return 2;
+        return root.width >= Theme.space(600) ? 3 : 4;
+    }
+    /// From step 2 the gear and `?` are not in the hero; the caller puts them in ⋯.
+    readonly property bool compact: root.level >= 2
+    /// From step 3 the filter is a button; this is true while it is open over the speeds.
+    property bool searchOpen: false
+    readonly property bool searchFolded: root.level >= 3 && !root.searchOpen
+    /// The alt-speed chip's words for the current step: "" leaves the glyph alone.
+    readonly property string altChipText: {
+        if (root.level >= 3)
+            return "";
+        if (!root.altSpeedActive)
+            return root.level >= 1 ? "" : qsTr("alt-speed");
+        return root.level >= 1 ? qsTr("↓%1 ↑%2").arg(root.altDownLimitShort).arg(root.altUpLimitShort)
+                               : qsTr("↓%1 ↑%2").arg(root.altDownLimit).arg(root.altUpLimit);
+    }
+
+    /// `/`: focus the filter, opening it first when it is folded into its button.
+    function openSearch(): void {
+        root.searchOpen = true;
+        searchField.focusInput();
+    }
 
     /// Filters to show as removable chips before the search field, `[{key, glyph, text}]`:
     /// the caller fills it while the rail that would show them is hidden (docs/08 §5).
@@ -101,13 +147,85 @@ Item {
                                                                               : Theme.red
             pixelSize: Theme.space(24)
             text: Glyphs.mark
+
+            HoverHandler {
+                id: markHover
+            }
+        }
+
+        // Step 4: the name and server line are gone; the dot stays beside the mark, in the
+        // same colour, and the words move into the tooltip.
+        Rectangle {
+            id: loneDot
+
+            Layout.alignment: Qt.AlignVCenter
+            color: statusDot.color
+            implicitHeight: Theme.space(7)
+            implicitWidth: Theme.space(7)
+            objectName: "loneDot"
+            radius: width / 2
+            visible: root.level >= 4 && !root.searchOpen
+
+            HoverHandler {
+                id: dotHover
+            }
         }
 
         Column {
+            id: identity
+
+            /// The width it would take with nothing elided, from the texts' own implicit
+            /// widths: the server label's `width` follows the column, so the column's
+            /// `implicitWidth` cannot be what sizes it.
+            readonly property real naturalWidth: Math.max(appNameText.implicitWidth,
+                                                          statusDot.width + Theme.space(6)
+                                                          + serverLabel.implicitWidth
+                                                          + (networkLabel.visible
+                                                             ? Theme.space(6)
+                                                               + networkLabel.implicitWidth
+                                                             : 0))
+
+            // Allowed to narrow below its natural width, never above it: the server line is
+            // the first thing in the hero to elide.
+            /// What the rest of the row leaves it: every other visible item at its own width,
+            /// plus the spacing between them all.
+            readonly property real room: {
+                let used = 0;
+                let shown = 0;
+                for (const child of heroRow.children) {
+                    if (!child.visible)
+                        continue;
+                    shown += 1;
+                    if (child === identity)
+                        continue;
+                    used += child === searchField ? Theme.space([220, 180, 140, 140, 140][root.level])
+                                                  : child.implicitWidth;
+                }
+                return heroRow.width - used - Math.max(0, shown - 1) * heroRow.spacing
+                        - Theme.space(6); // the download figure's left margin
+            }
+
+            /// Narrower than it would like: the server line is eliding.
+            readonly property bool squeezed: identity.width + 0.5 < identity.naturalWidth
+
+            // Sized here rather than with `fillWidth`: a filling item competes with the
+            // spacers even when there is no room to spare, and would give up width they keep.
             Layout.alignment: Qt.AlignVCenter
+            Layout.maximumWidth: identity.naturalWidth
+            Layout.preferredWidth: Math.max(Theme.space(48), Math.min(identity.naturalWidth,
+                                                                      identity.room))
+            Layout.minimumWidth: Theme.space(48)
+            clip: true
             spacing: Theme.space(1)
+            visible: root.level < 3 || (root.level === 3 && !root.searchOpen)
+
+            HoverHandler {
+                id: identityHover
+            }
 
             Text {
+                id: appNameText
+
                 color: Theme.brightForeground
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.font.subtitle
@@ -129,9 +247,20 @@ Item {
                 }
 
                 Label {
+                    id: serverLabel
+
                     anchors.verticalCenter: parent.verticalCenter
-                    text: root.serverLine
+                    elide: Text.ElideRight
+                    objectName: "serverLine"
+                    text: root.level >= 1 && root.serverLineShort.length > 0 ? root.serverLineShort
+                                                                              : root.serverLine
                     tracked: true
+                    // Squeezed with a warning to show, the warning wins over the server's name.
+                    visible: !(identity.squeezed && networkLabel.visible)
+                    width: Math.max(0, Math.min(serverLabel.implicitWidth, identity.width - statusDot.width
+                                    - Theme.space(6) - (networkLabel.visible
+                                                        ? networkLabel.implicitWidth + Theme.space(
+                                                              6) : 0)))
                 }
 
                 Label {
@@ -139,10 +268,13 @@ Item {
 
                     anchors.verticalCenter: parent.verticalCenter
                     color: root.networkWarning === "firewalled" ? Theme.yellow : Theme.red
+                    elide: Text.ElideRight
                     text: "· " + (root.networkWarning === "firewalled" ? qsTr("firewalled")
                                                                          : qsTr("disconnected"))
                     tracked: true
                     visible: root.networkWarning.length > 0
+                    width: Math.max(0, Math.min(networkLabel.implicitWidth, identity.width
+                                                - statusDot.width - Theme.space(6)))
                 }
             }
         }
@@ -161,16 +293,18 @@ Item {
             Layout.leftMargin: Theme.space(6)
             glyph: Glyphs.arrowDown
             glyphColor: Theme.stateDownloading
-            label: qsTr("download")
+            label: root.level >= 2 ? "" : qsTr("download")
             value: root.downSpeed
+            visible: !(root.level >= 3 && root.searchOpen)
         }
 
         Stat {
             Layout.alignment: Qt.AlignVCenter
             glyph: Glyphs.arrowUp
             glyphColor: Theme.stateSeeding
-            label: qsTr("upload")
+            label: root.level >= 2 ? "" : qsTr("upload")
             value: root.upSpeed
+            visible: !(root.level >= 3 && root.searchOpen)
         }
 
         Item {
@@ -194,18 +328,38 @@ Item {
             }
         }
 
+        // Step 3: the filter folded into a button; lit while a filter is set.
+        IconButton {
+            id: searchButton
+
+            accent: root.searchText.length > 0
+            glyph: Glyphs.search
+            objectName: "searchButton"
+            tooltip: root.searchText.length > 0 ? qsTr("filter: %1 · /").arg(root.searchText)
+                                                : qsTr("filter · /")
+            visible: root.searchFolded
+
+            onClicked: root.openSearch()
+        }
+
         Field {
             id: searchField
 
             Layout.alignment: Qt.AlignVCenter
-            Layout.preferredWidth: Theme.space(220)
+            Layout.fillWidth: root.level >= 3
+            Layout.preferredWidth: Theme.space([220, 180, 140, 140, 140][root.level])
+            visible: !root.searchFolded
             hint: Glyphs.search
-            placeholder: qsTr("filter torrents")
+            placeholder: root.level >= 2 ? qsTr("filter") : qsTr("filter torrents")
             text: root.searchText
             trailing: root.searchCountText
 
             onAccepted: root.searchChanged(searchField.text)
             onCleared: root.searchCleared()
+            onEditingChanged: {
+                if (!searchField.editing)
+                    root.searchOpen = false;
+            }
             onTextChanged: root.searchChanged(searchField.text)
         }
 
@@ -217,8 +371,8 @@ Item {
 
             Layout.alignment: Qt.AlignVCenter
             glyph: Glyphs.altSpeed
-            text: root.altSpeedActive ? qsTr("↓%1 ↑%2").arg(root.altDownLimit).arg(
-                                            root.altUpLimit) : qsTr("alt-speed")
+            text: root.altChipText
+            visible: !(root.level >= 3 && root.searchOpen)
             warn: root.altSpeedActive
 
             onClicked: root.altSpeedClicked()
@@ -243,7 +397,9 @@ Item {
 
             IconButton {
                 glyph: Glyphs.settings
+                objectName: "settingsButton"
                 tooltip: qsTr("settings")
+                visible: !root.compact
 
                 onClicked: root.settingsClicked()
             }
@@ -260,10 +416,34 @@ Item {
 
             IconButton {
                 glyph: Glyphs.help
+                objectName: "helpButton"
                 tooltip: qsTr("help")
+                visible: !root.compact
 
                 onClicked: root.helpClicked()
             }
+        }
+    }
+
+    // The whole server line, whenever the hero shows less of it (from step 1, or elided).
+    Tooltip {
+        id: serverTip
+
+        readonly property bool wanted: (identityHover.hovered && (serverLabel.truncated
+                                                                  || root.level >= 1))
+                                       || dotHover.hovered || (markHover.hovered && root.level >= 4)
+        readonly property string fullLine: root.networkWarning.length > 0
+                                           ? root.serverLine + " · " + root.networkWarning
+                                           : root.serverLine
+
+        objectName: "serverTip"
+        z: 5
+
+        onWantedChanged: {
+            if (serverTip.wanted)
+                serverTip.showAt(mark.x, root.height, serverTip.fullLine);
+            else
+                serverTip.hide();
         }
     }
 

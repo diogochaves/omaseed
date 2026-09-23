@@ -207,7 +207,7 @@ Item {
 
     /// `/`: put the caret in the hero's search field.
     function focusSearch(): void {
-        hero.searchField.focusInput();
+        hero.openSearch();
     }
 
     /// `esc` in the field, and the field's own clear: empty the filter and go back to the
@@ -577,6 +577,12 @@ Item {
     function moreAction(action: string): void {
         moreMenu.close();
         switch (action) {
+        case "settings":
+            App.openSettings();
+            break;
+        case "help":
+            root.helpOpen = true;
+            break;
         case "globalLimits":
             globalLimitsSheet.openFor(false);
             break;
@@ -747,6 +753,8 @@ Item {
         anchors.right: parent.right
         anchors.top: parent.top
         altDownLimit: App.globalState.dlRateLimitText
+        altDownLimitShort: App.limitShortText(App.globalState.dlRateLimit)
+        altUpLimitShort: App.limitShortText(App.globalState.upRateLimit)
         altSpeedActive: App.globalState.useAltSpeedLimits
         altUpLimit: App.globalState.upRateLimitText
         appName: qsTr("omaseed")
@@ -770,6 +778,13 @@ Item {
             const version = App.globalState.serverVersion.replace(/^v/, "");
             return version.length > 0 ? qsTr("%1 · qBittorrent %2").arg(App.serverName).arg(
                                             version) : App.serverName;
+        }
+        // docs/10 §2: from the first narrow step the line drops the version (the tooltip
+        // keeps it); the states that matter more than the version keep their words.
+        serverLineShort: {
+            if (!App.hasServer || root.serverLost || root.firstSync)
+                return "";
+            return App.serverName;
         }
         speedsAlignment: App.speedsAlignment
         syncing: root.firstSync
@@ -1184,6 +1199,8 @@ Item {
         id: moreMenu
 
         anchors.fill: parent
+        // docs/10 §2: once the hero is too narrow for them, settings and help are here.
+        appRows: hero.compact
         railHidden: App.railHidden
         z: 9
 

@@ -250,6 +250,8 @@ public:
 
     /// `Format::size` for QML (the loading state prints how much of the first sync arrived).
     Q_INVOKABLE QString sizeText(qint64 bytes) const;
+    /// A rate limit in the hero's short form ("1.00M", "200K"); "∞" when there is none.
+    Q_INVOKABLE static QString limitShortText(qint64 bytesPerSecond);
 
     /// A client error ("network: GET sync/maindata: Connection refused") stripped to the
     /// reason Fig. 21's notice and Fig. 23's banner print ("connection refused").
