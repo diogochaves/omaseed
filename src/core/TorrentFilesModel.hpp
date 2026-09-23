@@ -157,6 +157,10 @@ public:
     /// Selects every visible row from `from` to `to`, both included, in either order.
     Q_INVOKABLE void selectRange(int from, int to);
     Q_INVOKABLE void selectAll();
+    /// docs/12 F3's `ctrl+a`: every file the filter shows, folded away or not (a folder counts
+    /// through its files, so it is not selected itself); with no filter, every file. Adds to
+    /// the selection.
+    Q_INVOKABLE void selectAllFiles();
     Q_INVOKABLE void clearSelection();
 
     // --- priorities ------------------------------------------------------------------

@@ -55,6 +55,7 @@ private Q_SLOTS:
     void a_local_rename_moves_the_subtree();
     void the_server_path_follows_the_content_path();
     void the_summary_counts_files_folders_size_and_skips();
+    void select_all_files_takes_what_the_filter_shows();
 };
 
 void TestTorrentFilesModel::builds_the_tree_from_slash_separated_names()
@@ -565,6 +566,37 @@ void TestTorrentFilesModel::the_summary_counts_files_folders_size_and_skips()
     QCOMPARE(model.skippedCount(), 0);
     QCOMPARE(model.totalSize(), 0);
     QCOMPARE(summary.count(), 1);
+}
+
+// docs/12 F3: `ctrl+a` selects the files the filter shows, and a priority then acts on them.
+void TestTorrentFilesModel::select_all_files_takes_what_the_filter_shows()
+{
+    TorrentFilesModel model;
+    model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
+    QSignalSpy selection(&model, &TorrentFilesModel::selectionChanged);
+
+    model.setFilterText(QStringLiteral("srt"));
+    model.selectAllFiles();
+    QCOMPARE(selection.count(), 1);
+    QCOMPARE(model.selectedCount(), 2);
+    QCOMPARE(model.targetFileIndexes(0), (QVariantList{2, 3}));
+    // The folders around the matches are shown, not selected.
+    QVERIFY(!model.isSelected(0));
+    QVERIFY(!model.isSelected(1));
+    QVERIFY(model.isSelected(2));
+    QVERIFY(model.isSelected(3));
+
+    // Again: nothing new, no signal.
+    model.selectAllFiles();
+    QCOMPARE(selection.count(), 1);
+
+    // No filter: every file, including the ones inside a folded folder.
+    model.clearSelection();
+    model.setFilterText(QString());
+    model.setExpanded(model.rowOfPath(QStringLiteral("Big Buck Bunny 4K/subs")), false);
+    model.selectAllFiles();
+    QCOMPARE(model.selectedCount(), 5);
+    QCOMPARE(model.targetFileIndexes(0), (QVariantList{0, 1, 2, 3, 4}));
 }
 
 QTEST_MAIN(TestTorrentFilesModel)

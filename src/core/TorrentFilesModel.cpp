@@ -748,6 +748,19 @@ void TorrentFilesModel::selectAll()
     selectRange(0, int(m_visible.size()) - 1);
 }
 
+void TorrentFilesModel::selectAllFiles()
+{
+    const qsizetype before = m_selected.size();
+    for (const Node &node : std::as_const(m_nodes)) {
+        if (!node.isFolder && node.matches)
+            m_selected.insert(node.path);
+    }
+    if (m_selected.size() == before)
+        return;
+    emitAllChanged({SelectedRole});
+    Q_EMIT selectionChanged();
+}
+
 void TorrentFilesModel::clearSelection()
 {
     if (m_selected.isEmpty())

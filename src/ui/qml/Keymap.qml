@@ -396,7 +396,7 @@ QtObject {
             "rank": 3,
             "helpKeys": "ctrl+a",
             "help": qsTr("all visible"),
-            "about": qsTr("Select every torrent the filter shows")
+            "about": qsTr("Select every torrent the filter shows; in the Files tab, every file it shows")
         },
         {
             "area": "table",
@@ -1023,6 +1023,16 @@ QtObject {
             "key": "v",
             "action": "selectRange",
             "label": qsTr("range"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "details",
+            "key": "ctrl+a",
+            "action": "selectAllFiles",
+            "label": qsTr("all"),
             "column": "",
             "rank": 0,
             "helpKeys": "",

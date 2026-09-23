@@ -577,6 +577,24 @@ TestCase {
         view.details.activateTab(0);
     }
 
+    // docs/12 F3: the Files tab's selection is a fact of the footer while the tab shows.
+    function test_the_files_selection_adds_its_own_fact() {
+        testCase._cursorOn("Big Buck Bunny 4K (CC-BY)");
+        tryCompare(App.details.files, "fileCount", 5);
+        App.details.files.filterText = "";
+        view.details.activateTab(1);
+        view.details.forceActiveFocus();
+
+        keyClick(Qt.Key_A, Qt.ControlModifier);
+        compare(App.details.files.selectedCount, 5);
+        verify(view.factsText.endsWith(" · 5 files selected"), view.factsText);
+        verify(view.table.selectedCount === 0, "ctrl+a reached the table");
+
+        App.details.files.clearSelection();
+        verify(!view.factsText.includes("files selected"));
+        view.details.activateTab(0);
+    }
+
     function test_the_details_pane_follows_the_cursor() {
         const first = view.table.cursorHash;
         compare(view.details.torrent.name, App.torrentRow(first).name);

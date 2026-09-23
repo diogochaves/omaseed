@@ -192,6 +192,13 @@ Item {
         root.details.files.selectRange(anchor, root.filesCursor);
     }
 
+    /// `ctrl+a` (docs/12 F3): every file the filter shows, so `p` / `+` `-` `x` then act on
+    /// all of them; with no filter, every file.
+    function selectAllFiles() {
+        if (root.currentTab === 1)
+            root.details.files.selectAllFiles();
+    }
+
     /// `r` on a file or folder row: the inline editor, on the leaf name.
     function startRename() {
         if (root.currentTab !== 1 || root.details.files.count === 0)
@@ -401,6 +408,13 @@ Item {
         }
         // The inline rename's editor keeps every key it does not use itself.
         if (filesTab.renamingRow >= 0) {
+            event.accepted = true;
+            return;
+        }
+        // The one ctrl key of the Files tab; the rest of ctrl belongs to the window.
+        if (root.currentTab === 1 && !root.menuOpen && event.key === Qt.Key_A
+                && event.modifiers === Qt.ControlModifier) {
+            root.selectAllFiles();
             event.accepted = true;
             return;
         }

@@ -360,6 +360,40 @@ TestCase {
         compare(noteSpy.signalArguments[0][0], "one file, nothing to filter");
     }
 
+    // docs/12 F3: `ctrl+a` selects what the filter shows, and `p` then acts on all of it.
+    function test_ctrl_a_selects_the_filtered_files_and_p_applies_to_them() {
+        const view = testCase.filesView();
+        const files = App.details.files;
+
+        keyClick("/");
+        keyClick("s");
+        keyClick("r");
+        keyClick("t");
+        keyClick(Qt.Key_Return);
+        verify(!view.filterEditing);
+        compare(files.matchCount, 2);
+
+        keyClick(Qt.Key_A, Qt.ControlModifier);
+        compare(files.selectedCount, 2);
+        verify(!files.isSelected(0), "a folder around the matches was selected");
+
+        keyClick("p");
+        verify(view.editing, "`p` did not open the priority menu");
+        keyClick("n");
+        // Both subtitles go from skip to normal; the videos stay as they were.
+        files.filterText = "";
+        compare(files.priority(files.rowOfPath("Big Buck Bunny 4K/subs/bbb.en.srt")), 1);
+        compare(files.priority(files.rowOfPath("Big Buck Bunny 4K/subs/bbb.pt.srt")), 1);
+        compare(files.priority(files.rowOfPath("Big Buck Bunny 4K/bbb_sunflower_2160p_60fps.mp4")),
+                6);
+
+        // With no filter, every file (the folders count through them).
+        keyClick(Qt.Key_Escape);
+        compare(files.selectedCount, 0);
+        keyClick(Qt.Key_A, Qt.ControlModifier);
+        compare(files.selectedCount, 5);
+    }
+
     function test_space_selects_and_a_priority_applies_to_the_selection() {
         const view = testCase.filesView();
         const files = App.details.files;
