@@ -259,6 +259,16 @@ TestCase {
         tryCompare(view.globalLimitsSheet, "loaded", true);
         compare(view.globalLimitsSheet.altDownloadField.text, "1024");
         compare(view.globalLimitsSheet.downloadField.text, "");
+        // Batch-2 D2: opened from "alt-speed limits…", the sheet says so.
+        compare(view.globalLimitsSheet.title, "Alt-speed limits");
+        verify(view.globalLimitsSheet.subtitle.indexOf("alt-speed is on") >= 0);
+        view.globalLimitsSheet.close();
+
+        view.moreAction("globalLimits");
+        compare(view.globalLimitsSheet.opened, true);
+        tryCompare(view.globalLimitsSheet, "loaded", true);
+        compare(view.globalLimitsSheet.title, "Speed limits");
+        compare(view.globalLimitsSheet.subtitle, "the server's global limits");
         view.globalLimitsSheet.close();
 
         view.moreAction("selectAll");

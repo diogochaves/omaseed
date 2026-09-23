@@ -9,11 +9,17 @@ import Omaseed.Kit
 // torrent Limits sheet (Fig. 8). Fields are KB/s; empty means no limit. The fields stay
 // empty and `apply` stays a no-op until the server's current values have arrived, so an
 // early `enter` can never lift a limit nobody saw.
+//
+// The ⋯ menu's "alt-speed limits…" opens the same sheet on the alternative pair, titled for
+// it and saying when those limits apply (batch-2 D2): one sheet, but no surprise.
 Sheet {
     id: root
 
     /// The server's values have arrived and are in the fields.
     property bool loaded: false
+    /// Opened from "alt-speed limits…": the caret starts in the alternative pair and the
+    /// head names it.
+    property bool alt: false
 
     readonly property alias downloadField: dlField
     readonly property alias altDownloadField: altDlField
@@ -28,13 +34,15 @@ Sheet {
             "primary": true
         }
     ]
-    glyph: Glyphs.limits
+    glyph: root.alt ? Glyphs.altSpeed : Glyphs.limits
     sheetWidth: Theme.space(460)
-    subtitle: root.loaded ? qsTr("the server's global limits") : qsTr("reading the server…")
-    title: qsTr("Speed limits")
+    subtitle: !root.loaded ? qsTr("reading the server…") : root.alt ? qsTr("used while alt-speed is on · A switches it")
+                                                                    : qsTr("the server's global limits")
+    title: root.alt ? qsTr("Alt-speed limits") : qsTr("Speed limits")
 
     /// Opens with the caret in the normal pair, or in the alternative pair when `alt`.
     function openFor(alt: bool): void {
+        root.alt = alt;
         root.loaded = false;
         dlField.text = "";
         ulField.text = "";
