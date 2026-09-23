@@ -295,4 +295,17 @@ TestCase {
         // QClipboard under the offscreen platform keeps an in-process clipboard, so this is
         // not just "it did not crash": the text really is what `y` would have copied.
     }
+
+    // docs/12 G5: `y` on a General row says what it copied.
+    function test_y_in_general_says_what_it_copied() {
+        const hash = hashByName("archlinux-2026.09.01-x86_64.iso");
+        view.table.moveCursorTo(App.filtered.rowOfHash(hash));
+        view.details.activateTab(0);
+        const general = findChild(view.details, "generalTab");
+        const hashRow = general.rows.findIndex(row => row.key === "Hash v1");
+        view.details.forceActiveFocus();
+        view.details.moveCursor(hashRow - view.details.cursorIndex);
+        keyClick("y");
+        compare(view.footerNote, "copied hash v1");
+    }
 }

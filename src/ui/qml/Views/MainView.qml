@@ -1019,6 +1019,11 @@ Item {
                 root.flashFooterNote(qsTr("copied"));
             }
             onOpenFileRequested: path => App.openTorrentFile(App.details.hash, path)
+            // docs/12 G5: "copied hash v1".
+            onValueCopyRequested: (text, name) => {
+                App.copyToClipboard(text);
+                root.flashFooterNote(qsTr("copied %1").arg(name));
+            }
 
             Rectangle {
                 anchors.fill: parent

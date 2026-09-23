@@ -23,8 +23,45 @@ Flickable {
     property var properties: ({})
     property var torrent: null
     property int columns: 1
+    /// docs/12 G5: the row under the pane's `j k` cursor, an index into `rows`.
+    property int cursorIndex: -1
 
-    /// `[{label, rows: [{key, value, color?, dim?}]}]`, empty groups dropped.
+    /// A click on a row (G5: Details moves the cursor there and copies the value).
+    signal rowClicked(int row)
+
+    /// Every row in reading order (Transfer, Information, Options), each carrying its
+    /// `index` there: the list the cursor walks.
+    readonly property var rows: root.groups.reduce((all, group) => all.concat(group.rows), [])
+    readonly property int count: root.rows.length
+
+    /// Scrolls the cursor row into view.
+    function ensureVisible(): void {
+        const item = root._rowItem(root.cursorIndex);
+        if (!item)
+            return;
+        const top = item.mapToItem(root.contentItem, 0, 0).y;
+        if (top < root.contentY)
+            root.contentY = top;
+        else if (top + item.height > root.contentY + root.height)
+            root.contentY = Math.min(top + item.height - root.height,
+                                     Math.max(0, root.contentHeight - root.height));
+    }
+
+    function _rowItem(index: int): Item {
+        const stack = [first, second];
+        while (stack.length > 0) {
+            const item = stack.pop();
+            if (item.objectName === "generalRow_" + index)
+                return item;
+            for (const child of item.children)
+                stack.push(child);
+        }
+        return null;
+    }
+
+    /// `[{label, rows: [{index, key, value, copy, name, color?, dim?}]}]`, empty groups
+    /// dropped. `copy` is what `y` puts on the clipboard: the whole value, never the
+    /// shortened text on screen (the magnet); `name` is how the footer says what was copied.
     readonly property var groups: {
         const map = root.properties || {};
         const row = root.torrent;
@@ -34,7 +71,9 @@ Flickable {
                 return;
             const entry = {
                 "key": key,
-                "value": String(value)
+                "name": key.toLowerCase(),
+                "value": String(value),
+                "copy": String(value)
             };
             for (const name in extra || {})
                 entry[name] = extra[name];
@@ -66,7 +105,8 @@ Flickable {
         add(information, qsTr("Hash v2"), map.hashV2);
         // Shortened for the eye, in the dim colour that says so.
         add(information, qsTr("Magnet"), map.magnetText, {
-                "dim": true
+                "dim": true,
+                "copy": map.magnet
             });
         add(information, qsTr("Private"), map.private);
         add(information, qsTr("Created by"), map.createdBy);
@@ -76,6 +116,12 @@ Flickable {
 
         const options = make();
         add(options, qsTr("Share limit"), map.shareLimit);
+
+        let index = 0;
+        for (const list of [transfer, information, options]) {
+            for (const entry of list)
+                entry.index = index++;
+        }
 
         return [{
                 "label": qsTr("Transfer"),
@@ -181,7 +227,11 @@ Flickable {
                     required property var modelData
 
                     entry: modelData
+                    hasCursor: modelData.index === root.cursorIndex
+                    objectName: "generalRow_" + modelData.index
                     width: group.width
+
+                    onClicked: root.rowClicked(modelData.index)
                 }
             }
         }

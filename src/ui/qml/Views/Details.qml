@@ -42,20 +42,21 @@ Item {
     /// The head and strip's width: all of it, or the left column.
     readonly property int headWidth: root.wide ? Theme.space(280) : root.width
 
-    /// Where the cursor sits inside the current tab's list. General has no list, so it is -1.
+    /// Where the cursor sits inside the current tab's list; General's rows are a list too (G5).
     readonly property int cursorIndex: root.currentTab === 1 ? root.filesCursor : root.currentTab
                                                                === 2 ? root.trackersCursor :
                                                                        root.currentTab === 3
-                                                                       ? root.peersCursor : -1
+                                                                       ? root.peersCursor : root.generalCursor
     readonly property int rowCount: root.currentTab === 1 ? filesTab.count : root.currentTab === 2 ? trackersTab.count :
                                                                                                      root.currentTab
                                                                                                      === 3 ? peersTab.count :
-                                                                                                             0
+                                                                                                             generalTab.count
 
     // One cursor per list, so switching tabs and coming back keeps the place.
     property int filesCursor: 0
     property int trackersCursor: 0
     property int peersCursor: 0
+    property int generalCursor: 0
 
     /// `o` on a file row: the path inside the torrent, for Xdg to reveal.
     signal openFolderRequested(string path)
@@ -69,6 +70,9 @@ Item {
     signal peerAction(string action, string address)
     /// `y`: the text the caller should put on the clipboard.
     signal copyRequested(string text)
+    /// `y` or a click on a General row (docs/12 G5): the whole value, and the row's name for
+    /// the footer's "copied hash v1".
+    signal valueCopyRequested(string text, string name)
 
     /// Something inside the pane holds the keyboard — the Files tab's filter, its inline
     /// rename or one of its menus — so Main still counts the focus as the pane's.
@@ -156,6 +160,18 @@ Item {
             root.copyRequested(root.details.peers.addressAt(root.peersCursor));
         else if (root.currentTab === 1 && root.details.files.count > 0)
             root.copyRequested(root.details.files.pathAt(root.filesCursor));
+        else if (root.currentTab === 0)
+            root.copyGeneralRow(root.generalCursor);
+    }
+
+    // --- the General tab (docs/12 G5) ------------------------------------------------------
+
+    /// `y`, or a click on a General row: its whole value (the full magnet or hash, not the
+    /// shortened text), named for the footer.
+    function copyGeneralRow(row: int) {
+        const entry = generalTab.rows[row];
+        if (entry && entry.copy.length > 0)
+            root.valueCopyRequested(entry.copy, entry.name);
     }
 
     /// `Y` on a file row: where the file is on this machine, through the path map.
@@ -379,6 +395,9 @@ Item {
         } else if (root.currentTab === 3) {
             root.peersCursor = row;
             peersTab.ensureVisible();
+        } else if (root.currentTab === 0) {
+            root.generalCursor = row;
+            generalTab.ensureVisible();
         }
     }
 
@@ -649,9 +668,18 @@ Item {
             objectName: "generalTab"
             // Two columns only with room for them: narrower, the values would wrap instead.
             columns: root.wide && body.width >= Theme.space(620) ? 2 : 1
+            cursorIndex: root.generalCursor
             properties: root.details.properties
             torrent: root.torrent
             visible: root.currentTab === 0
+
+            // Another torrent may have fewer rows: keep the cursor on one.
+            onCountChanged: root.generalCursor = Math.max(0, Math.min(root.generalCursor,
+                                                                      generalTab.count - 1))
+            onRowClicked: row => {
+                root.generalCursor = row;
+                root.copyGeneralRow(row);
+            }
         }
 
         DetailsFilesTab {
@@ -704,17 +732,17 @@ Item {
         }
     }
 
-    // The tab's own hints (spec §2 Fig. 2-4 `.foot .hints`). General has none: Fig. 1 shows
-    // the window's footer there instead. T3.5's HintModel replaces the source; the component
-    // and the rows stay.
+    // The tab's own hints (spec §2 Fig. 2-4 `.foot .hints`), and since docs/12 G5 General's
+    // (`j k` move, `y` copy value). Inside the window Main's footer teaches
+    // them instead (HintModel), so this row only shows in the standalone figures.
     Item {
         id: footer
 
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.right: parent.right
-        height: (root.currentTab === 0 || !root.showHints) ? 0 : Math.round(Theme.font.body * 2.2)
-        visible: root.currentTab !== 0 && root.showHints
+        height: !root.showHints ? 0 : Math.round(Theme.font.body * 2.2)
+        visible: root.showHints
 
         Hairline {
             anchors.left: parent.left
@@ -728,7 +756,19 @@ Item {
             anchors.right: parent.right
             anchors.rightMargin: Theme.space(16)
             anchors.verticalCenter: parent.verticalCenter
+            objectName: "detailsHints"
             model: {
+                if (root.currentTab === 0)
+                    return [
+                                {
+                                    "key": "j k",
+                                    "label": Keymap.labelOf("details", "j")
+                                },
+                                {
+                                    "key": "y",
+                                    "label": qsTr("copy value")
+                                }
+                            ];
                 if (root.currentTab === 1)
                     return [
                                 {

@@ -65,7 +65,9 @@ TestCase {
         compare(view.torrent.progressText, "48.9 %");
         compare(view.torrent.etaLongText, "2 min 40 s");
         compare(view.currentTab, 0);
-        compare(view.cursorIndex, -1); // General has no list
+        // docs/12 G5: General's rows are a list too, and the cursor starts on the first.
+        compare(view.cursorIndex, 0);
+        compare(view.rowCount, findChild(view, "generalTab").count);
     }
 
     function test_the_tracker_badge_follows_the_torrent() {
@@ -166,6 +168,73 @@ TestCase {
         // A finished torrent is had from end to end.
         testCase.select(testCase.bbbName);
         compare(App.details.piecesHaveCount, App.details.pieceCount);
+    }
+
+    // docs/12 G5: j k walk General's rows across the groups; y copies the whole value.
+    function test_general_rows_take_a_cursor_and_y_copies_the_whole_value() {
+        const view = testCase.select(testCase.archName);
+        const general = findChild(view, "generalTab");
+        view.forceActiveFocus();
+        valueSpy.target = view;
+        valueSpy.clear();
+
+        compare(view.cursorIndex, 0);
+        verify(findChild(view, "generalRow_0").hasCursor);
+        keyClick("j");
+        compare(view.cursorIndex, 1);
+        verify(findChild(view, "generalRow_1").hasCursor);
+        verify(!findChild(view, "generalRow_0").hasCursor);
+        keyClick("k");
+        keyClick("k");
+        compare(view.cursorIndex, 0); // clamped at the top
+
+        // G goes to the last row, in Options; the cursor crosses the group headings.
+        keyClick(Qt.Key_G, Qt.ShiftModifier);
+        compare(view.cursorIndex, general.count - 1);
+        compare(general.rows[view.cursorIndex].key, "Share limit");
+
+        // The hash, whole.
+        const hashRow = general.rows.findIndex(row => row.key === "Hash v1");
+        verify(hashRow > 0);
+        view.moveCursor(hashRow - view.cursorIndex);
+        compare(view.cursorIndex, hashRow);
+        keyClick("y");
+        compare(valueSpy.count, 1);
+        compare(valueSpy.signalArguments[0][0], App.details.properties.hashV1);
+        compare(valueSpy.signalArguments[0][1], "hash v1");
+
+        // The magnet: the screen shows it short, y copies all of it.
+        const magnetRow = general.rows.findIndex(row => row.key === "Magnet");
+        view.moveCursor(magnetRow - view.cursorIndex);
+        keyClick("y");
+        compare(valueSpy.count, 2);
+        compare(valueSpy.signalArguments[1][0], App.details.properties.magnet);
+        verify(valueSpy.signalArguments[1][0].length > general.rows[magnetRow].value.length);
+        compare(valueSpy.signalArguments[1][1], "magnet");
+    }
+
+    // docs/12 G5: a click on a row moves the cursor there and copies the value.
+    function test_a_click_on_a_general_row_copies_it() {
+        const view = testCase.select(testCase.archName);
+        const general = findChild(view, "generalTab");
+        valueSpy.target = view;
+        valueSpy.clear();
+
+        const pathRow = general.rows.findIndex(row => row.key === "Save path");
+        // Offscreen delivers no mouse events: the row's own signal stands in for the click.
+        findChild(view, "generalRow_" + pathRow).clicked();
+        compare(view.cursorIndex, pathRow);
+        compare(valueSpy.count, 1);
+        compare(valueSpy.signalArguments[0][0], "/data/torrents/linux/");
+        compare(valueSpy.signalArguments[0][1], "save path");
+    }
+
+    // docs/12 G5: the pane's own hint row teaches General too.
+    function test_general_has_hints_of_its_own() {
+        const view = testCase.select(testCase.archName);
+        const hints = findChild(view, "detailsHints");
+        verify(hints !== null && hints.visible);
+        compare(hints.model.map(hint => hint.key + " " + hint.label), ["j k move", "y copy value"]);
     }
 
     // docs/12 G2: the demo fills every new row, so `--demo` shows them all.
@@ -558,6 +627,12 @@ TestCase {
         id: focusSpy
 
         signalName: "focusTable"
+    }
+
+    SignalSpy {
+        id: valueSpy
+
+        signalName: "valueCopyRequested"
     }
 
     SignalSpy {

@@ -110,14 +110,15 @@ TestCase {
         compare(select.map(row => row.helpKeys), ["space", "v", "ctrl+a", "esc"]);
 
         const act = Keymap.helpRows("act");
-        // The last two are the Files tab's (N1).
+        // Then the Files tab's two (N1) and the details pane's copy (docs/12 G5).
         compare(act.map(row => row.helpKeys), ["a", "enter", "p P", "d D", "c R", "C t m L r", "[ ]",
-                                               "o", "y Y n", "p + - x", "O o r"]);
+                                               "o", "y Y n", "p + - x", "O o r", "y"]);
         compare(act.map(row => row.help), ["add", "actions", "stop/start · force",
                                            "delete · with files", "recheck · reannounce",
                                            "category · tags · location · limits · rename", "queue",
                                            "open folder", "copy magnet · hash · name",
-                                           "file priority", "open · folder · rename"]);
+                                           "file priority", "open · folder · rename",
+                                           "copy value"]);
 
         const view = Keymap.helpRows("view");
         compare(view.map(row => row.helpKeys), ["i", "1–4", "s", "|", "alt+↑ alt+↓", "ctrl+b", "I",
