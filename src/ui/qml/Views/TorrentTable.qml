@@ -922,17 +922,6 @@ Item {
                         text: row.category
                         visible: !row.editing && row.category.length > 0
                     }
-
-                    Loader {
-                        active: row.editing
-                        anchors.left: parent.left
-                        anchors.leftMargin: Theme.space(8)
-                        anchors.right: parent.right
-                        anchors.rightMargin: Theme.space(8)
-                        anchors.verticalCenter: parent.verticalCenter
-                        height: Theme.rowHeight - Theme.space(8)
-                        sourceComponent: renameEditor
-                    }
                 }
 
                 Text {
@@ -1189,6 +1178,25 @@ Item {
                     root.showNameTip(at.x, at.y, row.name);
                 }
             }
+
+            // The inline rename editor, over the row rather than inside the clipped Name cell
+            // (batch-2 J5): it starts where the name does and widens across the next columns
+            // to fit the whole name, up to the right edge of what the table shows.
+            Loader {
+                id: renameLoader
+
+                /// The right edge of the table's visible part, in the row's coordinates.
+                readonly property real room: list.contentX + list.width - Theme.space(8) - x
+
+                active: row.editing
+                anchors.verticalCenter: parent.verticalCenter
+                height: Theme.rowHeight - Theme.space(8)
+                objectName: "renameEditor"
+                sourceComponent: renameEditor
+                width: Math.max(root.columnLayout.name.w - 2 * Theme.space(8), Math.min(
+                                    renameLoader.implicitWidth, renameLoader.room))
+                x: root.columnLayout.name.x + Theme.space(8)
+            }
         }
     }
 
@@ -1222,14 +1230,23 @@ Item {
     }
 
     // The inline rename editor (`.tbl .rn .ren`): a 1 px accent outline, the row height less
-    // 8 u, the whole name selected at a 35 % accent highlight.
+    // 8 u, the whole name selected at a 35 % accent highlight. Opaque, because it lies over the
+    // next columns while it is wider than the Name cell; it opens on the start of the name
+    // (batch-2 J5: it used to open scrolled to the end, `…6.09.01-x86_64.iso`).
     Component {
         id: renameEditor
 
         Rectangle {
             border.color: Theme.accent
             border.width: 1
-            color: Theme.fill(Theme.fillIdle)
+            color: Theme.background
+            implicitWidth: editor.contentWidth + 2 * Theme.space(6) + Theme.space(12)
+
+            Rectangle {
+                anchors.fill: parent
+                anchors.margins: 1
+                color: Theme.fill(Theme.fillIdle)
+            }
 
             TextInput {
                 id: editor
@@ -1255,7 +1272,9 @@ Item {
                 onTextChanged: root.renameText = editor.text
 
                 Component.onCompleted: {
-                    editor.selectAll();
+                    // Everything selected, with the cursor at the start so the field shows the
+                    // beginning of the name rather than scrolling to its end.
+                    editor.select(editor.length, 0);
                     editor.forceActiveFocus();
                 }
             }
