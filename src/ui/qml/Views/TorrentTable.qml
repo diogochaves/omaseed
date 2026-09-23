@@ -360,10 +360,23 @@ Item {
         }
     ]
 
-    /// The keys that are on screen, in `columns` order. T4.4 writes this from the columns
-    /// palette and from `state.json`.
+    /// The keys that are on screen. T4.4 writes this from the columns palette and from
+    /// `state.json`. It says which, not where: `columnOrder` places them.
     property list<string> visibleColumns: root.columns.filter(column => column.default !== false).map(
                                               column => column.key)
+
+    /// Every column key, shown or not, in the order the table draws them (N2). The columns
+    /// palette moves keys in it (`alt+↑`/`alt+↓`), a header cell can be dragged along the
+    /// header, and `state.json` keeps it per server. Name is pinned first: it is the one
+    /// flexible column, and with the table scrolled back to its left edge it keeps every
+    /// row's identity on screen however many columns are chosen. Write it through
+    /// `setColumnOrder()` (or `moveColumn()`/`placeColumn()`), which repair any list.
+    property list<string> columnOrder: root.defaultColumnOrder
+    /// The order `columns` declares: Fig. 1's eight, then the optional ones.
+    readonly property list<string> defaultColumnOrder: root.columns.map(column => column.key)
+    /// False once `columnOrder` differs from `defaultColumnOrder`.
+    readonly property bool columnOrderIsDefault: root.columnOrder.join(",")
+                                                 === root.defaultColumnOrder.join(",")
 
     /// The smallest the flexible Name column is allowed to get, in spec pixels.
     property int minimumNameWidth: 160
@@ -401,7 +414,14 @@ Item {
     signal escapePressed
 
     // ---- derived -------------------------------------------------------------------------
-    readonly property var activeColumns: root.columns.filter(column => {
+    /// `columns` in `columnOrder`.
+    readonly property var orderedColumns: {
+        const byKey = {};
+        for (const column of root.columns)
+            byKey[column.key] = column;
+        return root.columnOrder.map(key => byKey[key]).filter(column => column !== undefined);
+    }
+    readonly property var activeColumns: root.orderedColumns.filter(column => {
         return column.visible && root.visibleColumns.indexOf(column.key) >= 0;
     })
     /// The active columns that are plain text, drawn by one generic cell each.
@@ -488,6 +508,68 @@ Item {
         for (const index of rows)
             hashes.push(root.filtered.hashAt(index.row));
         return hashes;
+    }
+
+    // ---- column order (N2) -----------------------------------------------------------------
+    /// `keys` made into a whole order: unknown and repeated keys dropped, a key it lacks (a
+    /// column added in a later version, say) put back after the column it follows by default,
+    /// and Name first.
+    function normalizedColumnOrder(keys: var): var {
+        const known = root.defaultColumnOrder;
+        const order = [];
+        for (const key of (keys === undefined || keys === null ? [] : keys)) {
+            const text = String(key);
+            if (known.indexOf(text) >= 0 && order.indexOf(text) < 0 && text !== "name")
+                order.push(text);
+        }
+        order.unshift("name");
+        for (let i = 0; i < known.length; ++i) {
+            if (order.indexOf(known[i]) >= 0)
+                continue;
+            const after = i > 0 ? order.indexOf(known[i - 1]) : -1;
+            order.splice(after + 1, 0, known[i]);
+        }
+        return order;
+    }
+
+    function setColumnOrder(keys: var): void {
+        const order = root.normalizedColumnOrder(keys);
+        if (order.join(",") !== root.columnOrder.join(","))
+            root.columnOrder = order;
+    }
+
+    function resetColumnOrder(): void {
+        root.setColumnOrder(root.defaultColumnOrder);
+    }
+
+    /// Whether `key` may move at all: every column but the pinned Name.
+    function canMoveColumn(key: string): bool {
+        return key !== "name" && root.columnOrder.indexOf(key) > 0;
+    }
+
+    /// Put `key` right before (`after` false) or right after `target`. Returns whether the
+    /// order changed. Name stays first whatever is asked.
+    function placeColumn(key: string, target: string, after: bool): bool {
+        if (!root.canMoveColumn(key) || key === target || root.columnOrder.indexOf(target) < 0)
+            return false;
+        const order = root.columnOrder.filter(other => other !== key);
+        const at = order.indexOf(target) + (after ? 1 : 0);
+        order.splice(Math.max(1, at), 0, key);
+        const before = root.columnOrder.join(",");
+        root.setColumnOrder(order);
+        return root.columnOrder.join(",") !== before;
+    }
+
+    /// Swap `key` with its neighbour `delta` (−1 up/left, +1 down/right) places away in
+    /// `columnOrder`, or, given `among`, with its neighbour in that list instead (the rows a
+    /// filtered palette shows, or the columns on screen). Returns whether it moved.
+    function moveColumn(key: string, delta: int, among: var): bool {
+        const list = among !== undefined && among !== null ? among : root.columnOrder;
+        const at = list.indexOf(key);
+        const to = at + delta;
+        if (at < 0 || delta === 0 || to < 0 || to >= list.length)
+            return false;
+        return root.placeColumn(key, list[to], delta > 0);
     }
 
     /// `ctrl+h` / `ctrl+l` and shift+wheel: scroll the rows sideways by `step` pixels.
@@ -695,6 +777,42 @@ Item {
         property string renameHash: ""
         property string cursorHash: ""
 
+        // A header cell being dragged (N2): its key, and the pointer's x in the header.
+        property string dragKey: ""
+        property real dragX: 0
+        /// `{key, after, x}`: the column the drag would land beside, or null while nothing
+        /// is dragged or the drop would change nothing.
+        readonly property var dropTarget: {
+            if (internal.dragKey.length === 0)
+                return null;
+            const shown = root.activeColumns;
+            for (let i = 0; i < shown.length; ++i) {
+                const box = root.columnLayout[shown[i].key];
+                if (internal.dragX >= box.x + box.w && i < shown.length - 1)
+                    continue;
+                const key = shown[i].key;
+                const after = key === "name" || internal.dragX >= box.x + box.w / 2;
+                // Onto itself, or onto the side of a neighbour it already sits on.
+                const neighbour = shown[i + (after ? 1 : -1)];
+                if (key === internal.dragKey || (neighbour !== undefined && neighbour.key
+                                                 === internal.dragKey))
+                    return null;
+                return {
+                    "key": key,
+                    "after": after,
+                    "x": after ? box.x + box.w : box.x
+                };
+            }
+            return null;
+        }
+
+        function dropColumn(): void {
+            const target = internal.dropTarget;
+            if (target !== null)
+                root.placeColumn(internal.dragKey, target.key, target.after);
+            internal.dragKey = "";
+        }
+
         function selectRow(row: int, command: int): void {
             root.selection.select(root.filtered.index(row, 0), command);
         }
@@ -803,7 +921,50 @@ Item {
                 x: headerCell.box.x
 
                 onClicked: root.sortBy(headerCell.modelData.role)
+
+                // N2, qui-style: drag a header cell along the header to move its column.
+                // Past the drag threshold the handler takes the press from the cell's own
+                // MouseArea, so a drag never sorts.
+                DragHandler {
+                    id: headerDrag
+
+                    cursorShape: Qt.ClosedHandCursor
+                    enabled: root.canMoveColumn(headerCell.modelData.key)
+                    target: null
+                    yAxis.enabled: false
+
+                    onActiveChanged: {
+                        if (headerDrag.active) {
+                            internal.dragX = headerCell.x + headerDrag.centroid.position.x;
+                            internal.dragKey = headerCell.modelData.key;
+                        } else {
+                            internal.dropColumn();
+                        }
+                    }
+                    onCentroidChanged: {
+                        if (headerDrag.active)
+                            internal.dragX = headerCell.x + headerDrag.centroid.position.x;
+                    }
+                }
+
+                // The column being dragged.
+                Rectangle {
+                    anchors.fill: parent
+                    color: Theme.fill(Theme.fillSelected)
+                    visible: internal.dragKey === headerCell.modelData.key
+                }
             }
+        }
+
+        // Where the dragged column would land.
+        Rectangle {
+            color: Theme.accent
+            height: parent.height
+            objectName: "dropMarker"
+            visible: internal.dropTarget !== null
+            width: 2
+            x: internal.dropTarget !== null ? Math.max(0, Math.min(parent.width - width,
+                                                                   internal.dropTarget.x - 1)) : 0
         }
     }
 

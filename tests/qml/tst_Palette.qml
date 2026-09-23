@@ -246,6 +246,62 @@ TestCase {
         compare(multi.query, "", "space was typed into a multi-select's query");
     }
 
+    // N2: a reorderable list asks to move the cursor's row; the caller owns the order.
+    function test_alt_arrows_ask_to_move_the_row_in_a_reorderable_list() {
+        const palette = createTemporaryObject(multiComponent, testCase, {
+                                                  "reorderable": true
+                                              });
+        const moved = createTemporaryObject(moveSpy, testCase, {
+                                                "target": palette
+                                            });
+        palette.open();
+        keyClick(Qt.Key_Down);
+
+        keyClick(Qt.Key_Down, Qt.AltModifier);
+        compare(moved.count, 1);
+        compare(moved.signalArguments[0][0], 1);
+        compare(moved.signalArguments[0][1].title, "linux");
+        compare(moved.signalArguments[0][2], 1);
+        compare(palette.cursorIndex, 1, "alt+down moved the cursor as well");
+
+        keyClick(Qt.Key_Up, Qt.AltModifier);
+        compare(moved.count, 2);
+        compare(moved.signalArguments[1][2], -1);
+
+        keyClick("j", Qt.AltModifier);
+        keyClick("k", Qt.AltModifier);
+        compare(moved.count, 4, "alt+j / alt+k are not aliases");
+        compare(moved.signalArguments[2][2], 1);
+        compare(moved.signalArguments[3][2], -1);
+        compare(palette.query, "", "alt+j / alt+k were typed into the query");
+    }
+
+    function test_ctrl_r_asks_for_the_default_order_only_when_reorderable() {
+        const plain = createTemporaryObject(multiComponent, testCase);
+        const plainReset = createTemporaryObject(resetSpy, testCase, {
+                                                     "target": plain
+                                                 });
+        const plainMoved = createTemporaryObject(moveSpy, testCase, {
+                                                     "target": plain
+                                                 });
+        plain.open();
+        keyClick("r", Qt.ControlModifier);
+        keyClick(Qt.Key_Down, Qt.AltModifier);
+        compare(plainReset.count, 0);
+        compare(plainMoved.count, 0);
+        plain.close();
+
+        const palette = createTemporaryObject(multiComponent, testCase, {
+                                                  "reorderable": true
+                                              });
+        const reset = createTemporaryObject(resetSpy, testCase, {
+                                                "target": palette
+                                            });
+        palette.open();
+        keyClick("r", Qt.ControlModifier);
+        compare(reset.count, 1);
+    }
+
     function test_escape_closes_and_rejects() {
         const palette = createTemporaryObject(paletteComponent, testCase);
         const rejected = createTemporaryObject(rejectedSpy, testCase, {
@@ -366,6 +422,22 @@ TestCase {
 
         SignalSpy {
             signalName: "toggled"
+        }
+    }
+
+    Component {
+        id: moveSpy
+
+        SignalSpy {
+            signalName: "moveRequested"
+        }
+    }
+
+    Component {
+        id: resetSpy
+
+        SignalSpy {
+            signalName: "resetRequested"
         }
     }
 

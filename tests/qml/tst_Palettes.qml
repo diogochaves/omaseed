@@ -83,12 +83,14 @@ TestCase {
         App.filtered.setSortByRoleName("dlspeed");
         App.filtered.sortOrder = Qt.DescendingOrder;
         table.visibleColumns = table.columns.map(column => column.key);
+        table.resetColumnOrder();
         table.moveCursorTo(0);
         jumpPalette.close();
         categoryPalette.close();
         tagPalette.close();
         sortPalette.close();
         columnsPalette.close();
+        columnsPalette.query = "";
         actionsSpy.clear();
     }
 
@@ -301,5 +303,90 @@ TestCase {
         const nameRow = columnsPalette.items.find(item => item.key === "name");
         columnsPalette.toggled(columnsPalette.items.indexOf(nameRow), nameRow);
         verify(table.visibleColumns.indexOf("name") >= 0, "Name must stay visible");
+    }
+
+    // ---- column order (N2) ------------------------------------------------------------
+    function test_columns_list_in_the_order_the_table_draws_them() {
+        table.placeColumn("eta", "size", false);
+        columnsPalette.open();
+        const keys = columnsPalette.items.map(item => item.key);
+        compare(keys[0], "name");
+        compare(keys[1], "eta");
+        compare(keys[2], "size");
+    }
+
+    function test_alt_arrows_move_the_cursor_column_and_the_cursor_follows() {
+        columnsPalette.open();
+        columnsPalette.cursorToKey("eta");
+        const before = table.columnOrder.indexOf("eta");
+
+        keyClick(Qt.Key_Up, Qt.AltModifier);
+        compare(table.columnOrder.indexOf("eta"), before - 1);
+        compare(columnsPalette.currentItem.key, "eta", "the cursor stayed behind");
+        const shown = table.activeColumns.map(column => column.key);
+        verify(shown.indexOf("eta") < shown.indexOf("upspeed"), "the table did not follow");
+
+        keyClick(Qt.Key_Down, Qt.AltModifier);
+        compare(table.columnOrder.indexOf("eta"), before);
+        verify(table.columnOrderIsDefault);
+    }
+
+    function test_name_stays_first() {
+        columnsPalette.open();
+        columnsPalette.cursorToKey("size");
+        keyClick(Qt.Key_Up, Qt.AltModifier);
+        compare(table.columnOrder[0], "name", "size moved past the pinned Name");
+
+        columnsPalette.cursorToKey("name");
+        keyClick(Qt.Key_Down, Qt.AltModifier);
+        compare(table.columnOrder[0], "name", "Name moved");
+    }
+
+    function test_a_filtered_list_moves_past_the_row_it_shows() {
+        columnsPalette.open();
+        columnsPalette.query = "time";
+        const keys = columnsPalette.items.map(item => item.key);
+        verify(keys.length >= 2, "the fixture needs two rows matching 'time'");
+        columnsPalette.cursorToKey(keys[1]);
+
+        keyClick(Qt.Key_Up, Qt.AltModifier);
+        compare(columnsPalette.items[0].key, keys[1]);
+        compare(columnsPalette.items[1].key, keys[0]);
+        compare(columnsPalette.currentItem.key, keys[1]);
+    }
+
+    function test_ctrl_r_and_the_last_row_put_back_the_default_order() {
+        columnsPalette.open();
+        const last = () => columnsPalette.items[columnsPalette.items.length - 1];
+        verify(last().key !== columnsPalette.resetKey, "a default order offers a reset");
+
+        columnsPalette.cursorToKey("eta");
+        keyClick(Qt.Key_Up, Qt.AltModifier);
+        verify(!table.columnOrderIsDefault);
+        compare(last().key, columnsPalette.resetKey);
+
+        keyClick("r", Qt.ControlModifier);
+        verify(table.columnOrderIsDefault);
+        compare(columnsPalette.currentItem.key, "eta", "the cursor lost its column");
+
+        keyClick(Qt.Key_Up, Qt.AltModifier);
+        columnsPalette.cursorIndex = columnsPalette.items.length - 1;
+        keyClick(Qt.Key_Return);
+        verify(table.columnOrderIsDefault, "enter on the last row did not reset");
+    }
+
+    function test_enter_toggles_a_column_too() {
+        columnsPalette.open();
+        columnsPalette.cursorToKey("eta");
+        keyClick(Qt.Key_Return);
+        verify(table.visibleColumns.indexOf("eta") < 0);
+    }
+
+    // The palette's own hint row, the footer and `?` read the same Keymap entries.
+    function test_the_hints_come_from_the_keymap() {
+        const keys = columnsPalette.hints.map(hint => hint.key);
+        compare(keys, ["space", "alt+↑↓", "ctrl+r"]);
+        compare(columnsPalette.hints[1].label, Keymap.find("columns", "alt+↑").label);
+        compare(columnsPalette.hints[2].label, Keymap.find("columns", "ctrl+r").label);
     }
 }

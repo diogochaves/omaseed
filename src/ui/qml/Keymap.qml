@@ -8,7 +8,7 @@ import QtQuick
 //
 // Every entry is plain data:
 //   area      where the key applies: "global" (anywhere), "table", "rail", "details",
-//             "search". A key event reaches the focused view first (Qt propagates an
+//             "columns" (the columns palette), "search". A key event reaches the focused view first (Qt propagates an
 //             unaccepted key up the parent chain), so an area entry always wins over the
 //             "global" entry for the same key — that is how `a` adds a tracker inside the
 //             details pane and a torrent everywhere else.
@@ -836,6 +836,70 @@ QtObject {
             "help": ""
         },
 
+        // the columns palette (`|`, N2): pick the columns and put them in order. `j`/`k`
+        // are typed text in a palette, so the moves take `alt`. ------------------------
+        {
+            "area": "columns",
+            "key": "space",
+            "action": "toggleColumn",
+            "label": qsTr("toggle"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "columns",
+            "key": "alt+↑",
+            "action": "moveColumnUp",
+            "label": qsTr("move"),
+            "column": "view",
+            "rank": 4.5,
+            "helpKeys": "alt+↑ alt+↓",
+            "help": qsTr("column order"),
+            "about": qsTr("In the columns palette: move a column up or down; ctrl+r puts back the default order")
+        },
+        {
+            "area": "columns",
+            "key": "alt+↓",
+            "action": "moveColumnDown",
+            "label": qsTr("move"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "columns",
+            "key": "alt+k",
+            "action": "moveColumnUp",
+            "label": qsTr("move"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "columns",
+            "key": "alt+j",
+            "action": "moveColumnDown",
+            "label": qsTr("move"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "columns",
+            "key": "ctrl+r",
+            "action": "resetColumnOrder",
+            "label": qsTr("default order"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+
         // search field ---------------------------------------------------------------
         {
             "area": "search",
@@ -859,7 +923,7 @@ QtObject {
         }
     ]
 
-    readonly property var areas: ["global", "table", "rail", "details", "search"]
+    readonly property var areas: ["global", "table", "rail", "details", "columns", "search"]
 
     /// Every entry of one area, in declaration order.
     function forArea(area) {

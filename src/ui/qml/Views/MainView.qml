@@ -1374,18 +1374,23 @@ Item {
             root.saveTableState();
         }
 
+        function onColumnOrderChanged() {
+            root.saveTableState();
+        }
+
         target: table
     }
 
-    // The columns palette toggles `table.visibleColumns` live and the header (and every
-    // other sort trigger, including a click) can change `App.filtered`'s sort at any time;
-    // both round-trip through `state.json`, keyed by the chosen server (or "demo").
+    // The columns palette toggles `table.visibleColumns` and moves `table.columnOrder` live
+    // (a header drag moves it too), and the header (and every other sort trigger, including
+    // a click) can change `App.filtered`'s sort at any time; all of it round-trips through `state.json`, keyed by the chosen server (or "demo").
     function saveTableState(): void {
         const key = App.tableStateKey();
         if (key.length === 0)
             return;
         App.saveTableState(key, {
                                "columns": table.visibleColumns,
+                               "columnOrder": table.columnOrder,
                                "sortRole": App.filtered.sortRoleName,
                                "sortOrder": App.filtered.sortOrder,
                                "railFolded": root.railFolded,
@@ -1406,6 +1411,8 @@ Item {
                                                    : split.defaultSideHeight;
         if (state.columns !== undefined && state.columns.length > 0)
             table.visibleColumns = state.columns;
+        table.setColumnOrder(state.columnOrder !== undefined ? state.columnOrder
+                                                             : table.defaultColumnOrder);
         if (state.sortRole !== undefined && String(state.sortRole).length > 0) {
             App.filtered.setSortByRoleName(state.sortRole);
             App.filtered.sortOrder = state.sortOrder !== undefined ? state.sortOrder : Qt.DescendingOrder;

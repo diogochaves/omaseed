@@ -15,7 +15,9 @@ import Omaseed.Kit
 // Keys: `up`/`down` and `ctrl+p`/`ctrl+n` move (never `j`/`k` — in a palette those are typed
 // text), `enter` activates, `tab` asks for the secondary action (Fig. 12's "tab actions"),
 // `space` toggles when `multi` is set, `esc` closes. `inline: true` drops the scrim and the
-// centring, for the gallery.
+// centring, for the gallery. A `reorderable` list (the columns palette, N2) also asks to move
+// the cursor's row with `alt+up`/`alt+down` (`alt+k`/`alt+j`) and to put the default order back
+// with `ctrl+r`; the caller owns the order, as it owns `checked`.
 Item {
     id: root
 
@@ -31,6 +33,9 @@ Item {
     property var items: []
     /// Show the check column and let `space` toggle rows (the tags picker).
     property bool multi: false
+    /// Let `alt+up`/`alt+down` ask to move the cursor's row and `ctrl+r` ask for the default
+    /// order (`moveRequested`, `resetRequested`).
+    property bool reorderable: false
     property var hints: []
     property string footerRight: ""
     property bool inline: false
@@ -54,6 +59,11 @@ Item {
     signal toggled(int index, var item)
     /// `esc`, or a click on the scrim.
     signal rejected
+    /// `alt+up` (-1) or `alt+down` (+1) on a row while `reorderable` is set. The caller
+    /// moves it and, if it wants the cursor to follow, calls `cursorToKey()`.
+    signal moveRequested(int index, var item, int delta)
+    /// `ctrl+r` while `reorderable` is set.
+    signal resetRequested
 
     property bool _opened: false
     property Item _previousFocus: null
@@ -126,6 +136,25 @@ Item {
 
     function _onKey(event: var): void {
     const ctrl = (event.modifiers & Qt.ControlModifier) !== 0;
+    const alt = (event.modifiers & Qt.AltModifier) !== 0;
+    if (root.reorderable && alt && !ctrl) {
+        let delta = 0;
+        if (event.key === Qt.Key_Up || event.key === Qt.Key_K)
+            delta = -1;
+        else if (event.key === Qt.Key_Down || event.key === Qt.Key_J)
+            delta = 1;
+        if (delta !== 0) {
+            if (root.currentItem)
+                root.moveRequested(root.cursorIndex, root.currentItem, delta);
+            event.accepted = true;
+            return;
+        }
+    }
+    if (root.reorderable && ctrl && event.key === Qt.Key_R) {
+        root.resetRequested();
+        event.accepted = true;
+        return;
+    }
     if (ctrl && (event.key === Qt.Key_N || event.key === Qt.Key_P)) {
         root.moveCursor(event.key === Qt.Key_N ? 1 : -1);
         event.accepted = true;

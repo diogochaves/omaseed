@@ -107,6 +107,7 @@ TestCase {
         table.cancelRename();
         table.clearSelection();
         table.visibleColumns = testCase.allColumns;
+        table.resetColumnOrder();
         App.filtered.setSortByRoleName("dlspeed");
         App.filtered.sortOrder = Qt.DescendingOrder;
         table.moveCursorTo(0);
@@ -387,6 +388,69 @@ TestCase {
         // The Name column grows by the hidden column's width.
         const fixed = testCase.fixedWidth([72, 118, 116, 62, 84, 84]);
         compare(header("name").width, table.width - fixed);
+    }
+
+    // ---- column order (N2) ------------------------------------------------------------
+    function test_the_column_order_starts_as_declared() {
+        compare(table.columnOrder, table.columns.map(column => column.key));
+        verify(table.columnOrderIsDefault);
+        compare(table.activeColumns.map(column => column.key), testCase.allColumns);
+    }
+
+    function test_moving_a_column_moves_its_header_and_its_cells() {
+        verify(header("eta").x > header("upspeed").x);
+        verify(table.moveColumn("eta", -1, testCase.allColumns));
+        waitForRendering(table);
+        compare(table.activeColumns.map(column => column.key), ["name", "size", "progress",
+                                                                "status", "seedsPeers", "dlspeed",
+                                                                "eta", "upspeed"]);
+        verify(header("eta").x < header("upspeed").x);
+        testCase.cellProbe = findChild(table, "eta_0");
+        compare(testCase.cellProbe.x, header("eta").x);
+        verify(!table.columnOrderIsDefault);
+
+        table.resetColumnOrder();
+        verify(table.columnOrderIsDefault);
+        verify(header("eta").x > header("upspeed").x);
+    }
+
+    function test_name_is_pinned_first() {
+        verify(!table.canMoveColumn("name"));
+        verify(!table.moveColumn("name", 1, null));
+        verify(!table.moveColumn("size", -1, null), "size moved in front of Name");
+        compare(table.columnOrder[0], "name");
+        // Before Name is read as right after it.
+        verify(table.placeColumn("eta", "name", false));
+        compare(table.columnOrder.slice(0, 3), ["name", "eta", "size"]);
+    }
+
+    // qui-style: a header cell dragged along the header moves its column, and the drag does
+    // not also sort by it.
+    function test_dragging_a_header_cell_moves_its_column() {
+        const eta = header("eta");
+        const size = header("size");
+        mouseDrag(eta, eta.width / 2, eta.height / 2, size.x - eta.x - eta.width / 2 + 5, 0,
+                  Qt.LeftButton, Qt.NoModifier, 20);
+        compare(table.activeColumns.map(column => column.key).slice(0, 3), ["name", "eta",
+                                                                            "size"]);
+        compare(App.filtered.sortRoleName, "dlspeed", "the drag also sorted");
+        compare(findChild(table, "dropMarker").visible, false);
+    }
+
+    // A saved order is repaired, not trusted: Name first, no strangers or repeats, and a
+    // column it does not know yet goes back beside its default neighbour.
+    function test_a_saved_order_is_made_whole() {
+        const all = table.columns.map(column => column.key);
+        const order = table.normalizedColumnOrder(["eta", "bogus", "name", "eta", "size"]);
+        compare(order.slice(0, 2), ["name", "eta"]);
+        verify(order.indexOf("size") < order.indexOf("progress"));
+        compare(order.length, all.length);
+        compare(order.slice().sort(), all.slice().sort());
+
+        const withoutHash = all.filter(key => key !== "hash");
+        compare(table.normalizedColumnOrder(withoutHash), all);
+        compare(table.normalizedColumnOrder([]), all);
+        compare(table.normalizedColumnOrder(undefined), all);
     }
 
     function test_enter_asks_for_the_actions_menu() {
