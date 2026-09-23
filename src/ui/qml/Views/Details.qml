@@ -642,7 +642,10 @@ Item {
         clip: true
 
         DetailsGeneralTab {
+            id: generalTab
+
             anchors.fill: parent
+            objectName: "generalTab"
             // Two columns only with room for them: narrower, the values would wrap instead.
             columns: root.wide && body.width >= Theme.space(620) ? 2 : 1
             properties: root.details.properties

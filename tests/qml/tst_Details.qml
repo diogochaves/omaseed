@@ -93,6 +93,51 @@ TestCase {
         compare(properties.createdOn, "");
     }
 
+    // docs/12 G1: Transfer, Information, Options, in that order, each row in its group.
+    function test_general_is_grouped_transfer_information_options() {
+        const view = testCase.select(testCase.archName);
+        const general = findChild(view, "generalTab");
+        verify(general !== null);
+
+        const groups = general.groups;
+        compare(groups.map(group => group.label), ["Transfer", "Information", "Options"]);
+        const keys = groups.map(group => group.rows.map(row => row.key));
+        compare(keys[0], ["Status", "Downloaded", "Uploaded", "Wasted", "Seeds", "Peers",
+                          "Connections", "Availability", "Avg speed", "Time active",
+                          "Last seen full", "Reannounce"]);
+        // No hash v2, no creation or completion date in the demo's arch row.
+        compare(keys[1], ["Save path", "Pieces", "Hash v1", "Magnet", "Private", "Created by",
+                          "Comment"]);
+        compare(keys[2][0], "Share limit");
+
+        // Each group has its heading on screen.
+        for (const label of ["Transfer", "Information", "Options"]) {
+            const heading = findChild(view, "generalHeading_" + label);
+            verify(heading !== null && heading.visible, "no heading for " + label);
+        }
+
+        // The magnet is shown short; its row is dim.
+        const magnet = groups[1].rows[3];
+        verify(magnet.value.endsWith("…"));
+        compare(magnet.dim, true);
+    }
+
+    // docs/10 §5 with G1: two columns put Transfer alone on the left.
+    function test_two_columns_keep_the_groups_whole() {
+        const view = testCase.select(testCase.archName);
+        view.width = 1100;
+        view.wide = true;
+        wait(0); // let the columns lay out
+        const general = findChild(view, "generalTab");
+        compare(general.columns, 2);
+        const transfer = findChild(view, "generalGroup_Transfer");
+        const information = findChild(view, "generalGroup_Information");
+        const options = findChild(view, "generalGroup_Options");
+        verify(transfer.mapToItem(general, 0, 0).x < information.mapToItem(general, 0, 0).x);
+        compare(information.mapToItem(general, 0, 0).x, options.mapToItem(general, 0, 0).x);
+        verify(options.mapToItem(general, 0, 0).y > information.mapToItem(general, 0, 0).y);
+    }
+
     // docs/12 G2: the demo fills every new row, so `--demo` shows them all.
     function test_the_demo_fills_the_docs12_rows() {
         testCase.select(testCase.archName);

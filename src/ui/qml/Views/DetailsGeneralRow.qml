@@ -1,0 +1,78 @@
+pragma ComponentBehavior: Bound
+import QtQuick
+import QtQuick.Layouts
+import Omaseed.Kit
+
+// One key/value row of the details pane's General tab (spec v2 §3 Fig. 9 `.kv`, grouped by
+// docs/12 G1): a fixed key column and a flexible value column, closed by a row hairline, the
+// same measures as Kit's KeyValue. `entry` is one of DetailsGeneralTab's rows,
+// `{key, value, color?, dim?}`. `hasCursor` draws the details lists' cursor (a hover fill and
+// a 1 px border, as Kit's TableRow does), so the tabs read as one family.
+Rectangle {
+    id: root
+
+    required property var entry
+    property bool hasCursor: false
+    property int keyWidth: Theme.space(100)
+
+    /// A click anywhere on the row.
+    signal clicked
+
+    readonly property color valueColor: root.entry.color ? root.entry.color : root.entry.dim
+                                                                               ? Theme.dimForeground :
+                                                                                 Theme.foreground
+
+    border.color: root.hasCursor ? Theme.fill(Theme.borderHover) : "transparent"
+    border.width: root.hasCursor ? 1 : 0
+    color: root.hasCursor ? Theme.fill(Theme.fillHover) : mouse.containsMouse ? Theme.fill(
+                                                                                    Theme.fillIdle) :
+                                                                                "transparent"
+    implicitHeight: Math.max(Theme.space(26), rowLayout.implicitHeight + Theme.space(8))
+
+    RowLayout {
+        id: rowLayout
+
+        anchors.left: parent.left
+        anchors.leftMargin: Theme.space(16)
+        anchors.right: parent.right
+        anchors.rightMargin: Theme.space(16)
+        anchors.verticalCenter: parent.verticalCenter
+        spacing: Theme.space(10)
+
+        Label {
+            Layout.alignment: Qt.AlignTop
+            Layout.preferredWidth: root.keyWidth
+            elide: Text.ElideRight
+            text: root.entry.key
+            tracked: true
+        }
+
+        Text {
+            Layout.fillWidth: true
+            color: root.valueColor
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.font.small
+            text: root.entry.value
+            textFormat: Text.PlainText
+            wrapMode: Text.Wrap
+        }
+    }
+
+    Rectangle {
+        anchors.bottom: parent.bottom
+        anchors.left: parent.left
+        anchors.right: parent.right
+        color: Theme.fill(0.06)
+        height: 1
+    }
+
+    MouseArea {
+        id: mouse
+
+        anchors.fill: parent
+        cursorShape: Qt.PointingHandCursor
+        hoverEnabled: true
+
+        onClicked: root.clicked()
+    }
+}
