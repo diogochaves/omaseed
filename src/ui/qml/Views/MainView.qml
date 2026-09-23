@@ -924,7 +924,8 @@ Item {
             // rail, so hiding the rail no longer moves Details.
             referenceWidth: root.width
             side: details
-            defaultSideHeight: Theme.space(260)
+            // Two columns under the table (Details.wide) fit the General tab in less height.
+            defaultSideHeight: Theme.space(220)
             defaultSideWidth: Theme.space(340)
             // docs/10 §5: Settings -> Appearance, or `I`; the sizes are the table state's.
             placement: App.detailsPlacement
@@ -1016,6 +1017,8 @@ Item {
             showHints: false
             // SplitLayout draws the divider between the table and the pane.
             showEdge: false
+            // docs/10 §5: under the table, the two-column layout.
+            wide: !split.docked
 
             onFocusTable: table.forceActiveFocus()
             onCopyRequested: text => console.log("copy:", text)

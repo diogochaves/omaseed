@@ -9,11 +9,15 @@ import Omaseed.Kit
 //
 // A row whose value is empty is left out, so a magnet with no metadata shows a short block
 // rather than a column of dashes.
+//
+// `columns: 2` (docs/10 §5, Details under the table) splits the rows into two blocks side by
+// side, the first half on the left, so the pane fits in about half the height.
 Flickable {
     id: root
 
     property var properties: ({})
     property var torrent: null
+    property int columns: 1
 
     readonly property var rows: {
         const map = root.properties || {};
@@ -48,9 +52,14 @@ Flickable {
         return list;
     }
 
+    readonly property int _half: Math.ceil(root.rows.length / 2)
+    readonly property int _gap: Theme.space(24)
+    readonly property int _blockWidth: root.columns === 2 ? Math.floor((root.width - root._gap) / 2)
+                                                          : root.width
+
     boundsBehavior: Flickable.StopAtBounds
     clip: true
-    contentHeight: block.implicitHeight
+    contentHeight: Math.max(block.implicitHeight, secondBlock.visible ? secondBlock.implicitHeight : 0)
     contentWidth: width
     implicitHeight: Theme.space(200)
     implicitWidth: Theme.space(300)
@@ -58,7 +67,16 @@ Flickable {
     KeyValue {
         id: block
 
-        items: root.rows
-        width: root.width
+        items: root.columns === 2 ? root.rows.slice(0, root._half) : root.rows
+        width: root._blockWidth
+    }
+
+    KeyValue {
+        id: secondBlock
+
+        items: root.columns === 2 ? root.rows.slice(root._half) : []
+        visible: root.columns === 2
+        width: root._blockWidth
+        x: root._blockWidth + root._gap
     }
 }

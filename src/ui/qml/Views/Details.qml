@@ -36,6 +36,11 @@ Item {
     /// tab from its own footer (`HintModel`), so Main turns this off too; the standalone
     /// figures keep it.
     property bool showHints: true
+    /// docs/10 §5: under the table the pane is wide and short, so the head and the strip take
+    /// a left column and the tabs sit beside them, General's rows in two columns.
+    property bool wide: false
+    /// The head and strip's width: all of it, or the left column.
+    readonly property int headWidth: root.wide ? Theme.space(280) : root.width
 
     /// Where the cursor sits inside the current tab's list. General has no list, so it is -1.
     readonly property int cursorIndex: root.currentTab === 1 ? root.filesCursor : root.currentTab
@@ -230,9 +235,8 @@ Item {
 
         anchors.left: parent.left
         anchors.leftMargin: Theme.space(16)
-        anchors.right: parent.right
-        anchors.rightMargin: Theme.space(16)
         anchors.top: parent.top
+        width: root.headWidth - Theme.space(32)
         height: headColumn.implicitHeight + Theme.space(12) + Theme.space(8)
 
         Column {
@@ -281,8 +285,8 @@ Item {
         id: strip
 
         anchors.left: parent.left
-        anchors.right: parent.right
         anchors.top: head.bottom
+        width: root.headWidth
         items: [
             {
                 "label": qsTr("size"),
@@ -303,12 +307,23 @@ Item {
         ]
     }
 
+    // The rule between the left column and the tabs, while wide.
+    Hairline {
+        id: columnRule
+
+        anchors.bottom: parent.bottom
+        anchors.top: parent.top
+        vertical: true
+        visible: root.wide
+        x: root.headWidth
+    }
+
     Tabs {
         id: tabs
 
-        anchors.left: parent.left
+        anchors.left: root.wide ? columnRule.right : parent.left
         anchors.right: parent.right
-        anchors.top: strip.bottom
+        anchors.top: root.wide ? parent.top : strip.bottom
         currentIndex: root.currentTab
         // Set once; activateTab() keeps it in step afterwards.
         model: [
@@ -338,13 +353,15 @@ Item {
         id: body
 
         anchors.bottom: footer.top
-        anchors.left: parent.left
+        anchors.left: root.wide ? columnRule.right : parent.left
         anchors.right: parent.right
         anchors.top: tabs.bottom
         clip: true
 
         DetailsGeneralTab {
             anchors.fill: parent
+            // Two columns only with room for them: narrower, the values would wrap instead.
+            columns: root.wide && body.width >= Theme.space(620) ? 2 : 1
             properties: root.details.properties
             torrent: root.torrent
             visible: root.currentTab === 0
