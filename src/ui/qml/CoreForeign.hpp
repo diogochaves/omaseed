@@ -83,7 +83,7 @@
 // TorrentPeersModel:
 //   address string ("ip:port", the ban/copy key)   ip string   port int
 //   country string  countryCode string  client string  connection string
-//   dlSpeed qint64  dlSpeedText string "1.02 M"    upSpeed qint64  upSpeedText string
+//   dlSpeed qint64  dlSpeedText string "1.02 MB/s" upSpeed qint64  upSpeedText string
 //   progress double  progressText string  flags string  flagsDesc string
 //   downloaded qint64  uploaded qint64  relevance double
 // ---------------------------------------------------------------------------------------

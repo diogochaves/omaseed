@@ -8,8 +8,9 @@
 // actions carry.
 //
 // Rows are sorted by download speed, fastest first, then by address — the order the figure
-// draws and the one that keeps the interesting peers on screen. Speeds abbreviate through
-// Format::speedShort ("1.02 M"), which is what the figure's ↓ and ↑ columns show.
+// draws and the one that keeps the interesting peers on screen. Speeds print through
+// Format::speed ("1.02 MB/s"), the units the main table prints (docs/11 J2; Fig. 4 drew
+// "1.02 M", which read as a different unit beside the table).
 
 #include <QAbstractListModel>
 #include <QHash>

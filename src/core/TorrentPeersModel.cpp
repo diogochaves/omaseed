@@ -103,11 +103,11 @@ QVariant TorrentPeersModel::data(const QModelIndex &index, int role) const
     case DlSpeedRole:
         return row.dlSpeed;
     case DlSpeedTextRole:
-        return Format::speedShort(row.dlSpeed);
+        return Format::speed(row.dlSpeed);
     case UpSpeedRole:
         return row.upSpeed;
     case UpSpeedTextRole:
-        return Format::speedShort(row.upSpeed);
+        return Format::speed(row.upSpeed);
     case ProgressRole:
         return row.progress;
     case ProgressTextRole:
