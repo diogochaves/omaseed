@@ -462,6 +462,15 @@ TestCase {
         keyClick(Qt.Key_Tab);
         keyClick(Qt.Key_J);
         compare(modal.paneCursor, 0);
+
+        // Batch-2 J4: it says rebinding comes later and that `?` shows the same list.
+        const note = testCase.childNamed(modal, "keysNote");
+        verify(note !== null && note.visible);
+        // The list fits the pane and scrolls itself; the pane does not scroll around it.
+        const bar = testCase.childNamed(modal, "helpScrollBar");
+        verify(bar !== null);
+        const scroller = testCase.childNamed(modal, "paneScroller");
+        verify(scroller.contentHeight <= scroller.height + 1);
     }
 
     // T5.5 Q1: the transparency row's placeholder is the shell's own default, not a

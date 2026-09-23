@@ -907,22 +907,73 @@ Item {
                         }
 
                         // ---- Keybindings (read-only in v1) -----------------------------
-                        Flickable {
+                        Item {
                             id: keysPane
 
                             anchors.fill: parent
-                            boundsBehavior: Flickable.StopAtBounds
-                            clip: true
-                            contentHeight: keysBody.implicitHeight
-                            contentWidth: width
                             visible: root.paneIndex === 3
 
+                            // Batch-2 J4: a Settings page with nothing to change says so, and
+                            // where else the same list lives.
+                            Row {
+                                id: keysNote
+
+                                anchors.left: parent.left
+                                anchors.top: parent.top
+                                objectName: "keysNote"
+                                spacing: Theme.space(6)
+
+                                Label {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    dim: true
+                                    size: "small"
+                                    text: qsTr("Rebinding comes later.")
+                                }
+
+                                // `?` as a key, in the outline of the sheets' icon squares.
+                                Rectangle {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    border.color: Theme.fill(Theme.borderIdle)
+                                    border.width: 1
+                                    color: Theme.fill(Theme.fillIdle)
+                                    implicitHeight: keyText.implicitHeight + Theme.space(2)
+                                    implicitWidth: Math.max(implicitHeight, keyText.implicitWidth
+                                                            + Theme.space(10))
+                                    radius: Theme.cornerRadius
+
+                                    Text {
+                                        id: keyText
+
+                                        anchors.centerIn: parent
+                                        color: Theme.brightForeground
+                                        font.family: Theme.fontFamily
+                                        font.pixelSize: Theme.font.small
+                                        font.weight: Font.Medium
+                                        text: "?"
+                                    }
+                                }
+
+                                Label {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    dim: true
+                                    size: "small"
+                                    text: qsTr("shows this anywhere.")
+                                }
+                            }
+
                             // The `?` sheet's own body: the same rows, from the same Keymap,
-                            // so the two can never drift apart.
+                            // so the two can never drift apart. Its list takes the rest of the
+                            // pane and scrolls itself.
                             HelpSheet {
                                 id: keysBody
 
-                                width: parent.width
+                                anchors.left: parent.left
+                                anchors.right: parent.right
+                                anchors.top: keysNote.bottom
+                                anchors.topMargin: Theme.space(12)
+                                height: parent.height - keysNote.height - Theme.space(12)
+                                maxListHeight: keysBody.height - keysBody.filterField.height
+                                               - Theme.space(14)
 
                                 onCloseRequested: root.close()
                             }
