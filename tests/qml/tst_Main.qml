@@ -144,6 +144,12 @@ TestCase {
         compare(view.focusArea, "table");
     }
 
+    // docs/13: under the table the pane starts 260 tall, room for the band over the tabs.
+    function test_the_bottom_pane_defaults_to_two_hundred_and_sixty() {
+        compare(view.split.defaultSideHeight, Theme.space(260));
+        compare(view.split.sideHeight, Theme.space(260));
+    }
+
     // ---- `i` ------------------------------------------------------------------------------
     function test_i_folds_the_details_pane_away() {
         compare(view.details.collapsed, false);
