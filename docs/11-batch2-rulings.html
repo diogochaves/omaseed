@@ -1,0 +1,460 @@
+<title>omaseed batch 2 rulings</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap">
+<style>
+/* ------------------------------------------------------------------
+   Batch 2, the agent's pre-walk: every capture and every ruling on one
+   page, so nothing has to be looked up in UX-NOTES or the evidence
+   folder. Same family as 08 and 10 (frieren colours, v2 kit type).
+   Screenshots live in evidence/ux-batch2/, relative to docs/.
+   ------------------------------------------------------------------ */
+:root {
+  --accent:#5492f8; --bg:#11111b; --bg-dark:#0d0d14; --fg:#b9c5ef; --fg-dark:#8b94b3; --fg-bright:#cbd4f3;
+  --red:#ee5681; --yellow:#f6d58c; --green:#7dd676; --magenta:#b47ff3;
+  --fill-normal: color-mix(in srgb, var(--fg) 4%, transparent);
+  --fill-hover:  color-mix(in srgb, var(--fg) 8%, transparent);
+  --fill-selected: color-mix(in srgb, var(--fg) 18%, transparent);
+  --border-normal: color-mix(in srgb, var(--fg) 40%, transparent);
+  --hairline: color-mix(in srgb, var(--fg) 12%, transparent);
+  --mono: "JetBrains Mono", "JetBrainsMono Nerd Font", ui-monospace, monospace;
+  color-scheme: dark;
+}
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg-dark); color:var(--fg); font:400 13px/1.6 var(--mono); -webkit-font-smoothing:antialiased; }
+a { color:var(--accent); }
+h1,h2,h3 { margin:0; font-weight:600; color:var(--fg-bright); text-wrap:balance; }
+h1 { font-size:24px; letter-spacing:-.01em; } h2 { font-size:16px; } h3 { font-size:14px; }
+p { margin:0; max-width:78ch; }
+code, kbd { font-family:var(--mono); color:var(--fg-bright); background:var(--fill-normal); padding:0 4px; }
+.eyebrow { font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--fg-dark); }
+.dim { color:var(--fg-dark); }
+button { font:inherit; }
+:focus-visible { outline:1px solid var(--accent); outline-offset:2px; }
+
+.topbar { position:sticky; top:env(safe-area-inset-top,0px); z-index:10; display:flex; align-items:center; gap:14px; flex-wrap:wrap; padding:8px 16px; background:var(--bg); border-bottom:1px solid var(--hairline); }
+.topbar .brand { display:flex; align-items:center; gap:8px; color:var(--fg-bright); font-weight:600; }
+.topbar .brand svg { width:15px; height:15px; color:var(--accent); display:block; }
+.topbar nav { display:flex; gap:2px; flex-wrap:wrap; }
+.topbar nav a { color:var(--fg-dark); text-decoration:none; font-size:11px; padding:4px 8px; }
+.topbar nav a:hover { color:var(--fg-bright); background:var(--fill-hover); }
+.topbar .count { margin-left:auto; font-size:11px; color:var(--fg-dark); }
+.topbar .count b { color:var(--accent); font-weight:600; }
+
+.page { padding-block:28px 72px; padding-inline:16px; max-width:1180px; margin:0 auto; display:grid; gap:56px; }
+header.lead { display:grid; gap:14px; }
+.lead .meta { display:flex; gap:18px; flex-wrap:wrap; font-size:11px; color:var(--fg-dark); }
+.lead .meta b { color:var(--fg); font-weight:500; }
+.how { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr)); gap:1px; background:var(--hairline); border:1px solid var(--hairline); }
+.how div { background:var(--bg); padding:12px 14px; display:grid; gap:4px; font-size:12px; }
+.how b { color:var(--fg-bright); font-weight:600; }
+section { display:grid; gap:18px; scroll-margin-top:64px; min-width:0; }
+.sec-head { display:grid; gap:6px; } .sec-head .eyebrow { color:var(--accent); }
+
+/* ---------- an item: text left, captures right ---------- */
+.item { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.15fr); gap:18px 28px; padding:20px 0; border-top:1px solid var(--hairline); scroll-margin-top:64px; }
+.item:first-of-type { border-top:0; }
+.item .txt { display:grid; gap:10px; align-content:start; min-width:0; }
+.item .id { display:flex; gap:10px; align-items:baseline; flex-wrap:wrap; }
+.tag { font-size:10px; letter-spacing:.1em; text-transform:uppercase; padding:1px 6px; border:1px solid currentColor; }
+.tag.j { color:var(--accent); } .tag.d { color:var(--magenta); } .tag.s { color:var(--yellow); } .tag.p { color:var(--fg-dark); } .tag.ok { color:var(--green); }
+.item ul { margin:0; padding-left:18px; display:grid; gap:4px; max-width:78ch; }
+.item li::marker { color:var(--fg-dark); }
+.rec { font-size:12px; border-left:2px solid var(--accent); padding:4px 0 4px 10px; color:var(--fg); max-width:78ch; }
+.rec b { color:var(--accent); font-weight:600; }
+.jump { font-size:11px; }
+.caps { display:grid; gap:12px; align-content:start; min-width:0; }
+.caps.two { grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr)); }
+.caps.three { grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr)); }
+figure { margin:0; display:grid; gap:6px; min-width:0; }
+figure button { padding:0; border:1px solid var(--hairline); background:var(--bg); cursor:zoom-in; display:block; width:100%; }
+figure button:hover { border-color:var(--border-normal); }
+figure img { display:block; width:100%; height:auto; max-width:100%; }
+figcaption { font-size:11px; color:var(--fg-dark); }
+figcaption b { color:var(--fg); font-weight:500; }
+
+.plain { display:grid; gap:0; border:1px solid var(--hairline); background:var(--bg); }
+.plain > div { display:grid; grid-template-columns:auto minmax(0,1fr); gap:4px 14px; padding:12px 14px; border-top:1px solid var(--hairline); align-items:start; }
+.plain > div:first-child { border-top:0; }
+.plain .body { display:grid; gap:4px; } .plain .body b { color:var(--fg-bright); font-weight:600; }
+
+/* ---------- decision sheet ---------- */
+.decide { display:grid; border:1px solid var(--hairline); background:var(--bg); }
+.q { display:grid; grid-template-columns:minmax(0,300px) 1fr; gap:10px 20px; padding:12px 14px; border-bottom:1px solid var(--hairline); align-items:start; }
+.q .qt { display:grid; gap:2px; } .q .qt b { color:var(--fg-bright); font-weight:600; font-size:12.5px; } .q .qt span { color:var(--fg-dark); font-size:11px; }
+.q .qt a { font-size:10px; letter-spacing:.1em; text-transform:uppercase; text-decoration:none; }
+.q .os { display:flex; flex-wrap:wrap; gap:6px; }
+.q label { position:relative; display:inline-flex; align-items:center; gap:6px; font-size:12px; padding:4px 10px; border:1px solid var(--border-normal); background:var(--fill-normal); cursor:pointer; color:var(--fg); }
+.q label:hover { background:var(--fill-hover); }
+.q input { position:absolute; opacity:0; width:1px; height:1px; }
+.q label:has(input:checked) { background:var(--fill-selected); color:var(--fg-bright); border-color:var(--accent); }
+.q label:has(input[type=checkbox]:checked)::before { content:"✓"; color:var(--accent); }
+.q label:has(input:focus-visible) { outline:1px solid var(--accent); outline-offset:1px; }
+.q label .r { font-size:9px; letter-spacing:.1em; text-transform:uppercase; color:var(--accent); }
+.out { display:grid; gap:10px; padding:14px; }
+.out textarea, .notes { width:100%; resize:vertical; background:var(--bg-dark); color:var(--fg-bright); border:1px solid var(--border-normal); font:12px/1.5 var(--mono); padding:10px; }
+.out textarea { min-height:180px; } .notes { min-height:70px; }
+.out .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+.pbtn { display:inline-flex; align-items:center; height:30px; padding:0 12px; font-size:12px; color:var(--fg); background:var(--fill-normal); border:1px solid var(--border-normal); cursor:pointer; }
+.pbtn:hover { background:var(--fill-hover); }
+.pbtn.primary { color:var(--accent); border-color:var(--accent); }
+.out .st { font-size:11.5px; color:var(--green); }
+
+/* ---------- full-size view ---------- */
+dialog { padding:0; border:1px solid var(--accent); background:var(--bg); color:var(--fg); max-width:min(96vw,1400px); max-height:94vh; }
+dialog::backdrop { background:color-mix(in srgb, var(--bg-dark) 85%, transparent); }
+dialog .bar { display:flex; justify-content:space-between; gap:12px; align-items:center; padding:8px 12px; border-bottom:1px solid var(--hairline); font-size:11.5px; position:sticky; top:0; background:var(--bg); }
+dialog img { display:block; max-width:100%; height:auto; }
+
+@media (max-width: 760px) {
+  .item { grid-template-columns:minmax(0,1fr); }
+  .q { grid-template-columns:minmax(0,1fr); }
+}
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior:smooth; } }
+</style>
+
+<div class="topbar">
+  <span class="brand"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="1.5" y="1.5" width="9" height="9"/><rect x="5.5" y="5.5" width="9" height="9"/><rect x="6.5" y="6.5" width="3" height="3" fill="currentColor" stroke="none"/></svg>omaseed · batch 2</span>
+  <nav aria-label="Sections">
+    <a href="#rule">rule these</a><a href="#decide">decision sheet</a><a href="#fixing">fixing anyway</a><a href="#shipped">shipped</a><a href="#yours">your notes</a>
+  </nav>
+  <span class="count"><b>12</b> rulings</span>
+</div>
+
+<main class="page">
+  <header class="lead">
+    <span class="eyebrow">docs/11 · batch 2 pre-walk</span>
+    <h1>Settings, details, the add flow and the modals: what I found, and what you need to rule</h1>
+    <p>Before your own batch-2 walk, I went through every batch-2 screen under <code>--demo</code> and checked what I saw against the code. Each item below has its screenshots next to it; click one to see it full size. Twelve need your ruling. Each one ends with my recommendation, and the sheet at the bottom starts with the recommendations picked, so you only change what you disagree with. Then copy the answers and paste them into the session.</p>
+    <div class="meta"><span>theme <b>frieren</b></span><span>base <b>14</b></span><span>window <b>1500 × 1000</b></span><span>build <b>main @ 3f0e5af</b></span><span>written <b>2026-09-22</b></span></div>
+    <div class="how">
+      <div><b>12 to rule</b><span class="dim">8 design calls, 3 scope questions, 1 spec question. Each is one line in the sheet.</span></div>
+      <div><b>3 I'll fix anyway</b><span class="dim">Clear bugs. Listed so you can object, with no ruling needed.</span></div>
+      <div><b>2 already shipped</b><span class="dim">The help sheet scrolls now; the 1–4 help text says where the key works.</span></div>
+    </div>
+  </header>
+
+  <!-- ================================================================ -->
+  <section id="rule">
+    <div class="sec-head"><span class="eyebrow">§1 · rule these</span><h2>Twelve items that need your call</h2>
+      <p class="dim">J = design call · D = scope · S = spec. The numbers match <code>docs/UX-NOTES.md</code>.</p></div>
+
+    <div>
+    <article class="item" id="j1">
+      <div class="txt">
+        <div class="id"><span class="tag j">J1</span><h3>The right-docked details panel is too narrow for its lists</h3></div>
+        <ul>
+          <li><b>Files:</b> both <code>bbb_sunflower_…</code> rows read the same, so you can't tell which one you're prioritising.</li>
+          <li><b>Trackers:</b> two different trackers both read <code>tracker.examp…</code>, and the status is cut to "timed out · retr…".</li>
+          <li><b>Peers:</b> addresses are cut to <code>185.21…</code>, and clients to <code>qBittorre…</code>.</li>
+          <li>The rail's tracker hosts have the same eliding problem, which is still open.</li>
+        </ul>
+        <p class="rec"><b>Recommend:</b> both. Elide in the middle so the ends survive (<code>bbb_sunf…1080p.mp4</code>, <code>tracker.…org</code>), show the full text on hover as in B1.8, <em>and</em> make the default panel wider. Middle eliding alone can't fix the peers' client column.</p>
+      </div>
+      <div class="caps three">
+        <figure><button type="button" data-full="evidence/ux-batch2/details-right-files.png" aria-label="Open the Files tab screenshot full size"><img src="evidence/ux-batch2/details-right-files.png" alt="Details Files tab at the default right width, names cut off" loading="lazy" width="410" height="400"></button><figcaption><b>Files</b></figcaption></figure>
+        <figure><button type="button" data-full="evidence/ux-batch2/details-right-trackers.png" aria-label="Open the Trackers tab screenshot full size"><img src="evidence/ux-batch2/details-right-trackers.png" alt="Details Trackers tab, two hosts elided identically" loading="lazy" width="410" height="400"></button><figcaption><b>Trackers</b></figcaption></figure>
+        <figure><button type="button" data-full="evidence/ux-batch2/details-right-peers.png" aria-label="Open the Peers tab screenshot full size"><img src="evidence/ux-batch2/details-right-peers.png" alt="Details Peers tab, addresses and clients cut off" loading="lazy" width="410" height="400"></button><figcaption><b>Peers</b></figcaption></figure>
+      </div>
+    </article>
+
+    <article class="item" id="j2">
+      <div class="txt">
+        <div class="id"><span class="tag j">J2</span><h3>Column headers in the details lists don't line up with their rows</h3></div>
+        <ul>
+          <li>In Trackers and Peers, the headers sit to one side of the text below them, because each row starts with a status dot or a fold arrow that the header doesn't have.</li>
+          <li>Peer speeds read <code>1.02 M</code> while the main table says <code>1.02 MB/s</code>.</li>
+        </ul>
+        <p class="rec"><b>Recommend:</b> line each header up with its row text and use the table's units. If a unit doesn't fit, that's a J1 problem, not a reason to shorten it.</p>
+        <span class="jump dim">Screenshots: the Trackers and Peers images in <a href="#j1">J1</a>.</span>
+      </div>
+      <div class="caps">
+        <figure><button type="button" data-full="evidence/ux-batch2/details-right-peers.png" aria-label="Open the Peers tab screenshot full size"><img src="evidence/ux-batch2/details-right-peers.png" alt="Peers tab: header Address sits right of the row text; speeds in M" loading="lazy" width="410" height="400"></button><figcaption>"Address" sits to one side of <code>185.21…</code>; speeds read <code>1.02 M</code></figcaption></figure>
+      </div>
+    </article>
+
+    <article class="item" id="j3">
+      <div class="txt">
+        <div class="id"><span class="tag j">J3</span><h3>The settings window changes height as you move between pages</h3></div>
+        <ul>
+          <li>Its minimum is 470 units and it grows to fit the page on show. Going from Notifications to Appearance with <kbd>j</kbd> moves its top edge up by about 95 px.</li>
+          <li>Short pages (General, Servers, About) leave a large empty area; Appearance is the tallest.</li>
+        </ul>
+        <p class="rec"><b>Recommend:</b> a fixed height, set by the tallest page and capped at 85 % of the window, with the page scrolling (and showing a scrollbar) when it's over the cap. The window then stays still while you move through it.</p>
+      </div>
+      <div class="caps two">
+        <figure><button type="button" data-full="evidence/ux-batch2/settings-general.png" aria-label="Open the General page screenshot full size"><img src="evidence/ux-batch2/settings-general.png" alt="Settings General page, short, with empty space" loading="lazy" width="900" height="640"></button><figcaption><b>General:</b> starts lower, empty below</figcaption></figure>
+        <figure><button type="button" data-full="evidence/ux-batch2/settings-appearance-grows.png" aria-label="Open the Appearance page screenshot full size"><img src="evidence/ux-batch2/settings-appearance-grows.png" alt="Settings Appearance page, the modal taller" loading="lazy" width="900" height="830"></button><figcaption><b>Appearance:</b> the same window, taller</figcaption></figure>
+      </div>
+    </article>
+
+    <article class="item" id="j4">
+      <div class="txt">
+        <div class="id"><span class="tag j">J4</span><h3>Settings › Keybindings repeats the <kbd>?</kbd> sheet</h3></div>
+        <ul>
+          <li>It is the same component with the same rows, and it's read-only. It can't drift from <kbd>?</kbd>, but a Settings page you can't change anything on reads like a promise it doesn't keep.</li>
+        </ul>
+        <p class="rec"><b>Recommend:</b> keep it as it is for v1 (people look for keys in Settings) and add a line at the top: "Rebinding comes later. <kbd>?</kbd> shows this anywhere." Rebinding goes on the v2 list.</p>
+      </div>
+      <div class="caps">
+        <figure><button type="button" data-full="evidence/ux-batch2/settings-keybindings-clipped.png" aria-label="Open the Keybindings page screenshot full size"><img src="evidence/ux-batch2/settings-keybindings-clipped.png" alt="Settings Keybindings page, the help sheet embedded" loading="lazy" width="900" height="640"></button><figcaption>Taken before the scrollbar fix: VIEW is cut at the bottom</figcaption></figure>
+      </div>
+    </article>
+
+    <article class="item" id="j5">
+      <div class="txt">
+        <div class="id"><span class="tag j">J5</span><h3>Inline rename shows the end of the name, not the start</h3></div>
+        <ul>
+          <li>The editor is only as wide as the Name cell, so a long name opens scrolled to its end (<code>…6.09.01-x86_64.iso</code>) and you can't see what you're renaming.</li>
+        </ul>
+        <p class="rec"><b>Recommend:</b> while editing, the field widens over the next columns (up to the table's width) and scrolls to the start, with the whole name selected. The table goes back to normal when you press enter or esc.</p>
+      </div>
+      <div class="caps">
+        <figure><button type="button" data-full="evidence/ux-batch2/inline-rename-scrolled.png" aria-label="Open the inline rename screenshot full size"><img src="evidence/ux-batch2/inline-rename-scrolled.png" alt="Inline rename field showing the end of the name" loading="lazy" width="480" height="60"></button><figcaption><kbd>r</kbd> on archlinux-2026.09.01-x86_64.iso</figcaption></figure>
+      </div>
+    </article>
+
+    <article class="item" id="j6">
+      <div class="txt">
+        <div class="id"><span class="tag j">J6</span><h3>An empty field goes blank when you focus it, so you lose the "unlimited" hint</h3></div>
+        <ul>
+          <li>The field hides its placeholder on focus, so in Limits and Speed limits, Download reads as blank while Upload beside it says <code>∞</code>. The two mean the same thing, but the first looks like a missing value.</li>
+          <li>Share ratio in Limits has no placeholder at all.</li>
+        </ul>
+        <p class="rec"><b>Recommend:</b> keep the placeholder until you type, dimmed a step further while focused (as most text fields do). Give share ratio an <code>∞</code> placeholder too.</p>
+      </div>
+      <div class="caps">
+        <figure><button type="button" data-full="evidence/ux-batch2/limits-sheet.png" aria-label="Open the Limits sheet screenshot full size"><img src="evidence/ux-batch2/limits-sheet.png" alt="Limits sheet: focused Download field blank, Upload shows infinity" loading="lazy" width="545" height="330"></button><figcaption><b>Limits</b> (<kbd>L</kbd>): Download is focused and blank</figcaption></figure>
+      </div>
+    </article>
+
+    <article class="item" id="j7">
+      <div class="txt">
+        <div class="id"><span class="tag j">J7</span><h3>The delete confirmation shows the name twice and wraps it mid-name</h3></div>
+        <ul>
+          <li>The title is "Delete "archlinux-2026.09.01-<br>x86_64.iso"?", and the line under it repeats the name with the size.</li>
+        </ul>
+        <p class="rec"><b>Recommend:</b> title "Delete this torrent?" (or "Delete 3 torrents?"), with the name and size once below it. With several, list the first three and "and 5 more".</p>
+      </div>
+      <div class="caps">
+        <figure><button type="button" data-full="evidence/ux-batch2/delete-confirm.png" aria-label="Open the delete confirm screenshot full size"><img src="evidence/ux-batch2/delete-confirm.png" alt="Delete confirm dialog, name in title and body" loading="lazy" width="440" height="240"></button><figcaption><kbd>d</kbd> on one torrent</figcaption></figure>
+      </div>
+    </article>
+
+    <article class="item" id="j8">
+      <div class="txt">
+        <div class="id"><span class="tag j">J8</span><h3>Five small wording and consistency fixes</h3></div>
+        <ul>
+          <li>Set location's hint is a bare <kbd>ctrl+o</kbd>; Add says <kbd>ctrl+o</kbd> browse. → add "browse".</li>
+          <li>About shows the Qt version twice (VERSION and QT). → drop "(Qt 6.11.2)" from VERSION.</li>
+          <li>General: "Off hides the multi-server chrome." → "Off hides it until you add a second server."</li>
+          <li>Appearance: Rail scroll hint and Tracker hosts have a plain dot where the other rows have an icon. → give them icons.</li>
+          <li>The details header cuts the added date ("added 11 Sep 1…") while it still shows every tag. → shorten tags first; the date stays whole.</li>
+        </ul>
+        <p class="rec"><b>Recommend:</b> apply all five.</p>
+      </div>
+      <div class="caps two">
+        <figure><button type="button" data-full="evidence/ux-batch2/location-sheet.png" aria-label="Open the location sheet screenshot full size"><img src="evidence/ux-batch2/location-sheet.png" alt="Set location sheet with bare ctrl+o hint" loading="lazy" width="500" height="205"></button><figcaption><b>Set location</b> (<kbd>m</kbd>)</figcaption></figure>
+        <figure><button type="button" data-full="evidence/ux-batch2/settings-about.png" aria-label="Open the About page screenshot full size"><img src="evidence/ux-batch2/settings-about.png" alt="Settings About page, Qt version shown twice" loading="lazy" width="900" height="640"></button><figcaption><b>About</b></figcaption></figure>
+      </div>
+    </article>
+
+    <article class="item" id="d1">
+      <div class="txt">
+        <div class="id"><span class="tag d">D1</span><h3>What else belongs in the add sheet for v1?</h3></div>
+        <ul>
+          <li>Today it has the source, category, tags, save path, layout, upload limit, sequential download, and skip hash check.</li>
+          <li>qui and qBittorrent's own dialog also have: <b>choosing files and priorities</b> before adding, a <b>download limit</b>, <b>rename</b>, and <b>first and last pieces first</b>.</li>
+          <li>The API takes download limit, rename and first/last pieces directly on add, so each of those is small. The file picker is the big one: a <code>.torrent</code> has to be read locally, and a magnet only has a file list after its metadata arrives, so for magnets it has to come after adding.</li>
+        </ul>
+        <p class="rec"><b>Recommend:</b> all four, with the file picker for <code>.torrent</code> files only in v1. Magnets get it in v2, through "add stopped, then choose files".</p>
+      </div>
+      <div class="caps">
+        <figure><button type="button" data-full="evidence/ux-batch2/add-sheet.png" aria-label="Open the add sheet screenshot full size"><img src="evidence/ux-batch2/add-sheet.png" alt="Add torrent sheet" loading="lazy" width="710" height="470"></button><figcaption><b>Add torrent</b> (<kbd>a</kbd>) today</figcaption></figure>
+      </div>
+    </article>
+
+    <article class="item" id="d2">
+      <div class="txt">
+        <div class="id"><span class="tag d">D2</span><h3>"alt-speed limits…" in the ⋯ menu opens the plain Speed limits sheet</h3></div>
+        <ul>
+          <li>It's the same sheet with the alt-speed fields focused, still titled "Speed limits · the server's global limits".</li>
+        </ul>
+        <p class="rec"><b>Recommend:</b> keep one sheet, but when it's opened from that entry, title it "Alt-speed limits" and say what they are ("used while alt-speed is on, <kbd>A</kbd>"). That's cheaper than a second sheet and less surprising.</p>
+      </div>
+      <div class="caps">
+        <figure><button type="button" data-full="evidence/ux-batch2/speed-limits-two-carets.png" aria-label="Open the speed limits sheet screenshot full size"><img src="evidence/ux-batch2/speed-limits-two-carets.png" alt="Speed limits sheet opened from alt-speed limits" loading="lazy" width="545" height="270"></button><figcaption>⋯ › alt-speed limits…</figcaption></figure>
+      </div>
+    </article>
+
+    <article class="item" id="d3">
+      <div class="txt">
+        <div class="id"><span class="tag d">D3</span><h3>Should the add flow's hints appear twice?</h3></div>
+        <ul>
+          <li>With the add sheet open, "tab fields · enter add · shift+enter add stopped" shows at the bottom of the sheet <em>and</em> in the window footer. With help open, the footer has both "esc close" and "esc clear, then close".</li>
+          <li>Batch 1 made the window footer the place hints live. Sheets kept their own row from v2.</li>
+        </ul>
+        <p class="rec"><b>Recommend:</b> when a sheet or modal is open, the window footer shows only the facts on the left, and the sheet's own row is the only place for hints.</p>
+      </div>
+      <div class="caps">
+        <figure><button type="button" data-full="evidence/ux-batch2/add-sheet.png" aria-label="Open the add sheet screenshot full size"><img src="evidence/ux-batch2/add-sheet.png" alt="Add sheet with hints in its own row and the window footer" loading="lazy" width="710" height="470"></button><figcaption>The same hints, in the sheet and in the footer below it</figcaption></figure>
+      </div>
+    </article>
+
+    <article class="item" id="s1">
+      <div class="txt">
+        <div class="id"><span class="tag s">S1</span><h3>The help sheet says <kbd>0–9</kbd> for status filters, but <kbd>9</kbd> does nothing</h3></div>
+        <ul>
+          <li>The rail has nine status rows, 0 (all) to 8 (errored). The spec's Fig. 26 prints <kbd>0–9</kbd>, and the spec is never edited, so either choice is logged as a deviation in <code>REVIEW-v0.1.0.md</code> §9.</li>
+        </ul>
+        <p class="rec"><b>Recommend:</b> print <kbd>0–8</kbd>. The help should match the keys. A spare <kbd>9</kbd> is fine and can get a job later.</p>
+      </div>
+      <div class="caps">
+        <figure><button type="button" data-full="evidence/ux-batch2/help-scrolled-with-bar.png" aria-label="Open the help sheet screenshot full size"><img src="evidence/ux-batch2/help-scrolled-with-bar.png" alt="Help sheet, scrolled" loading="lazy" width="900" height="790"></button><figcaption>The help sheet today (the <kbd>0–9</kbd> row is in MOVE, scrolled above)</figcaption></figure>
+      </div>
+    </article>
+    </div>
+  </section>
+
+  <!-- ================================================================ -->
+  <section id="decide">
+    <div class="sec-head"><span class="eyebrow">§2 · decision sheet</span><h2>Your answers</h2>
+      <p class="dim">Each line starts on my recommendation (marked <span style="color:var(--accent)">rec</span>). Change what you disagree with, add notes, then copy and paste into the session. Your picks are kept in this browser only.</p></div>
+    <form class="decide" id="decideForm" onsubmit="return false"></form>
+  </section>
+
+  <!-- ================================================================ -->
+  <section id="fixing">
+    <div class="sec-head"><span class="eyebrow">§3 · fixing anyway</span><h2>Three bugs I'll fix without a ruling</h2>
+      <p class="dim">Say so in your notes if you'd rather I didn't.</p></div>
+    <div class="item" style="border-top:0;padding-top:0">
+      <div class="plain">
+        <div><span class="tag p">P2</span><div class="body"><b>A second text cursor in a field that isn't focused</b><span>Speed limits opened on the alt-speed field also draws a cursor in Download, on top of its <code>∞</code>. Not yet traced.</span></div></div>
+        <div><span class="tag p">P4</span><div class="body"><b>Clashing hints in the window footer</b><span>"esc close" next to "esc clear, then close". Fixed by D3 if you take that; otherwise I'll just remove the clash.</span></div></div>
+        <div><span class="tag p">P5</span><div class="body"><b>Settings › Servers is empty in the demo</b><span>The hero says HOME, but the Servers page lists nothing, so it can't be reviewed from a demo. The demo gets one server row.</span></div></div>
+      </div>
+      <div class="caps two">
+        <figure><button type="button" data-full="evidence/ux-batch2/speed-limits-two-carets.png" aria-label="Open the two-cursors screenshot full size"><img src="evidence/ux-batch2/speed-limits-two-carets.png" alt="Two text cursors in the Speed limits sheet" loading="lazy" width="545" height="270"></button><figcaption><b>P2:</b> cursors in Download and Alt-speed download</figcaption></figure>
+        <figure><button type="button" data-full="evidence/ux-batch2/settings-servers-demo-empty.png" aria-label="Open the empty Servers page screenshot full size"><img src="evidence/ux-batch2/settings-servers-demo-empty.png" alt="Settings Servers page, empty in the demo" loading="lazy" width="900" height="640"></button><figcaption><b>P5:</b> only "+ add a server"</figcaption></figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================ -->
+  <section id="shipped">
+    <div class="sec-head"><span class="eyebrow">§4 · shipped</span><h2>Already on main</h2></div>
+    <div class="item" style="border-top:0;padding-top:0">
+      <div class="txt">
+        <div class="id"><span class="tag ok">P1 · 81b34c3</span><h3>The help sheet scrolls, and says so</h3></div>
+        <p>It's capped at 60 % of the window, so at 1000 px VIEW showed only its heading, and with no filter typed, no key could scroll it. It now has a scrollbar, and ↑↓ and PgUp/PgDn scroll it. Keybindings in Settings gets the same fix.</p>
+        <div class="id"><span class="tag ok">P3 · ad525d7</span><h3><kbd>1–4</kbd> says where it works</h3></div>
+        <p>"In the details: general, files, trackers, peers tab". From the table, the same digits pick a status.</p>
+      </div>
+      <div class="caps two">
+        <figure><button type="button" data-full="evidence/ux-batch2/help-view-clipped-at-1300.png" aria-label="Open the before screenshot full size"><img src="evidence/ux-batch2/help-view-clipped-at-1300.png" alt="Help sheet before: VIEW cut off" loading="lazy" width="900" height="970"></button><figcaption><b>Before</b>, even at 1300 px: <kbd>I</kbd> cut mid-line</figcaption></figure>
+        <figure><button type="button" data-full="evidence/ux-batch2/help-scrolled-with-bar.png" aria-label="Open the after screenshot full size"><img src="evidence/ux-batch2/help-scrolled-with-bar.png" alt="Help sheet after: scrollbar and full VIEW" loading="lazy" width="900" height="790"></button><figcaption><b>After</b>, at 1000 px, scrolled: bar on the right</figcaption></figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================ -->
+  <section id="yours">
+    <div class="sec-head"><span class="eyebrow">§5 · your notes</span><h2>What I haven't looked at, and room for yours</h2></div>
+    <div class="plain">
+      <div><span class="tag p">todo</span><div class="body"><b>Not walked yet</b><span>The first-run pages, the duplicate-torrent sheet, the new-server sheet's test and error states (that screenshot went wrong and needs re-taking), and themes other than frieren.</span></div></div>
+      <div><span class="tag p">yours</span><div class="body"><b>Your own batch-2 items</b><span>Anything you had in mind for settings, details, the add flow or the modals. Put them in the notes box in §2, one per line. They go into the same paste, and I'll triage them with the rest.</span></div></div>
+    </div>
+  </section>
+</main>
+
+<dialog id="viewer" aria-label="Screenshot, full size">
+  <div class="bar"><span id="viewerCap" class="dim"></span><button type="button" class="pbtn" id="viewerClose">close · esc</button></div>
+  <img id="viewerImg" alt="">
+</dialog>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+
+  /* ---------------- full-size view ---------------- */
+  const viewer = $("viewer");
+  document.querySelectorAll("figure button[data-full]").forEach(b => b.addEventListener("click", () => {
+    $("viewerImg").src = b.dataset.full;
+    $("viewerImg").alt = b.querySelector("img").alt;
+    $("viewerCap").textContent = b.dataset.full.split("/").pop();
+    if (viewer.showModal) viewer.showModal(); else window.open(b.dataset.full);
+  }));
+  $("viewerClose").addEventListener("click", () => viewer.close());
+  viewer.addEventListener("click", e => { if (e.target === viewer) viewer.close(); });
+
+  /* ---------------- decision sheet ---------------- */
+  // [key, anchor, question, hint, options [value, label, rec?], multi?]
+  const QS = [
+    ["j1", "j1", "Details lists too narrow", "", [["both", "middle elide + hover + wider default", 1], ["elide", "middle elide + hover only"], ["wider", "wider default only"], ["leave", "leave as is"]]],
+    ["j2", "j2", "Details header alignment and units", "", [["fix", "align headers + table units", 1], ["align", "align only, keep 1.02 M"], ["leave", "leave as is"]]],
+    ["j3", "j3", "Settings window height", "", [["fixed", "fixed at tallest page, capped 85 %", 1], ["grow", "grows per page (today)"]]],
+    ["j4", "j4", "Settings › Keybindings", "", [["keep", "keep + 'rebinding later' line", 1], ["pointer", "replace with a pointer to ?"], ["rebind", "make rebindable in v1"]]],
+    ["j5", "j5", "Inline rename", "", [["widen", "widen over columns, show start", 1], ["sheet", "use the rename sheet instead"], ["start", "keep width, show start"]]],
+    ["j6", "j6", "Placeholder on focus", "", [["keep", "keep ∞ until typing + ratio ∞", 1], ["hide", "hide on focus (today), add ratio ∞"]]],
+    ["j7", "j7", "Delete confirmation", "", [["short", "'Delete this torrent?' + name once", 1], ["keep", "keep as is"]]],
+    ["j8", "j8", "Five wording fixes", "", [["all", "apply all five", 1], ["notes", "apply, see my notes"], ["none", "skip"]]],
+    ["d1", "d1", "Add sheet, v1 additions", "Pick any.", [["files", "file picker (.torrent)", 1], ["dl", "download limit", 1], ["rename", "rename", 1], ["firstlast", "first/last pieces first", 1]], true],
+    ["d2", "d2", "alt-speed limits… entry", "", [["retitle", "same sheet, retitled", 1], ["separate", "a separate sheet"], ["keep", "keep as is"]]],
+    ["d3", "d3", "Hints while a sheet is open", "", [["sheet", "sheet's row only, footer facts only", 1], ["both", "both (today), clash fixed"]]],
+    ["s1", "s1", "0–9 in the help", "", [["08", "print 0–8 (log deviation)", 1], ["09", "keep 0–9 as the spec"], ["nine", "give 9 a job"]]]
+  ];
+  const STORE = "omaseed-11-decisions";
+  const load = () => { try { return JSON.parse(localStorage.getItem(STORE) || "{}"); } catch (e) { return {}; } };
+  const save = v => { try { localStorage.setItem(STORE, JSON.stringify(v)); } catch (e) {} };
+  const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
+
+  function render() {
+    const saved = load();
+    let h = QS.map(q => {
+      const [key, anchor, title, hint, opts, multi] = q;
+      const type = multi ? "checkbox" : "radio";
+      return `<div class="q"><div class="qt"><a href="#${anchor}">${anchor.toUpperCase()} ↑</a><b>${title}</b>${hint ? `<span>${hint}</span>` : ""}</div>
+        <div class="os" role="${multi ? "group" : "radiogroup"}" aria-label="${title}">${opts.map(o => {
+          let chk;
+          if (multi) chk = Array.isArray(saved[key]) ? saved[key].includes(o[0]) : !!o[2];
+          else chk = saved[key] ? saved[key] === o[0] : !!o[2];
+          return `<label><input type="${type}" id="q-${key}-${o[0]}" name="${key}" value="${o[0]}" ${chk ? "checked" : ""}>${o[1]}${o[2] ? ' <span class="r">rec</span>' : ""}</label>`;
+        }).join("")}</div></div>`;
+    }).join("");
+    h += `<div class="q"><div class="qt"><span class="dim" style="font-size:10px;letter-spacing:.1em;text-transform:uppercase">anything</span><b>Notes and your own items</b><span>One per line: J8 exceptions, P2–P5 objections, your batch-2 captures.</span></div><textarea class="notes" id="q-notes" name="notes" aria-label="Notes and your own items">${esc(saved.notes || "")}</textarea></div>`;
+    h += `<div class="out"><div class="row"><button type="button" class="pbtn primary" id="copyBtn">Copy answers</button><button type="button" class="pbtn" id="resetBtn">Back to recommendations</button><span class="st" id="copySt" aria-live="polite"></span></div><textarea id="outText" readonly aria-label="Answers to paste"></textarea></div>`;
+    $("decideForm").innerHTML = h;
+
+    const update = () => {
+      const f = $("decideForm"), v = {};
+      QS.forEach(q => {
+        if (q[5]) v[q[0]] = [...f.querySelectorAll(`input[name="${q[0]}"]:checked`)].map(i => i.value);
+        else { const c = f.querySelector(`input[name="${q[0]}"]:checked`); v[q[0]] = c ? c.value : ""; }
+      });
+      v.notes = $("q-notes").value;
+      save(v);
+      const lines = QS.map(q => {
+        const [key, , title, , opts, multi] = q;
+        if (multi) {
+          const picked = opts.filter(o => v[key].includes(o[0]));
+          const changed = opts.some(o => !!o[2] !== v[key].includes(o[0]));
+          return `${key.toUpperCase()} ${title}: ${picked.length ? picked.map(o => o[1]).join(", ") : "none"}${changed ? "  (changed)" : ""}`;
+        }
+        const o = opts.find(x => x[0] === v[key]);
+        return `${key.toUpperCase()} ${title}: ${o ? o[1] : "—"}${o && !o[2] ? "  (changed)" : ""}`;
+      });
+      $("outText").value = "11 batch 2, answers\n" + lines.join("\n") + (v.notes.trim() ? "\nnotes:\n" + v.notes.trim() : "");
+    };
+    $("decideForm").addEventListener("change", update);
+    $("q-notes").addEventListener("input", update);
+    $("copyBtn").addEventListener("click", () => {
+      const t = $("outText");
+      const done = ok => { $("copySt").textContent = ok ? "Copied. Paste it into the session." : "Selected. Press ctrl+c to copy."; };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t.value).then(() => done(true), () => { t.select(); done(false); });
+      else { t.select(); done(false); }
+    });
+    $("resetBtn").addEventListener("click", () => { save({}); render(); });
+    update();
+  }
+  render();
+})();
+</script>
