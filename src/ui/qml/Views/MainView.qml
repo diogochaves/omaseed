@@ -171,9 +171,11 @@ Item {
                 "label": step >= 3 ? "" : qsTr("torrents")
             }
         ];
-        if (App.counts.downloading > 0 && step < 4)
+        // Not the rail's count: that one takes stopped downloads too (Q16), which a status
+        // line would misread as "downloading now".
+        if (App.counts.inProgress > 0 && step < 4)
             parts.push({
-                "value": String(App.counts.downloading),
+                "value": String(App.counts.inProgress),
                 "label": step >= 2 ? Glyphs.arrowDown : qsTr("downloading")
             });
         if (step < 4)

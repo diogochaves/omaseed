@@ -89,6 +89,7 @@ void TestFilterCounts::countsTheRecordedFixture()
     QCOMPARE(counts.total(), 4);
     QCOMPARE(counts.stopped(), 4);
     QCOMPARE(counts.downloading(), 4); // stoppedDL is still a download
+    QCOMPARE(counts.inProgress(), 0);  // ... but not one in progress, for the footer
     QCOMPARE(counts.seeding(), 0);
     QCOMPARE(counts.active(), 0);
     QCOMPARE(counts.errored(), 0);
@@ -133,6 +134,7 @@ void TestFilterCounts::countsEveryStatusGroup()
 
     QCOMPARE(counts.total(), 6);
     QCOMPARE(counts.downloading(), 2); // a, c
+    QCOMPARE(counts.inProgress(), 2);  // a, c
     QCOMPARE(counts.seeding(), 2);     // b, f
     QCOMPARE(counts.completed(), 3);   // b, d, f
     QCOMPARE(counts.stopped(), 1);     // d
