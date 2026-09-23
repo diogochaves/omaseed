@@ -267,10 +267,42 @@ TestCase {
         keyClick(Qt.Key_Return);
         verify(!view.filterEditing);
         compare(files.filterText, "srt");
-        // `esc` on the list clears it.
+        // `esc` on the list clears it, and the emptied field goes with it.
         keyClick(Qt.Key_Escape);
         compare(files.filterText, "");
         compare(files.count, 7);
+        verify(!findChild(view, "filesFilter").visible, "an emptied filter stayed on screen");
+    }
+
+    function test_esc_closes_an_empty_files_filter() {
+        const view = testCase.filesView();
+        const field = findChild(view, "filesFilter");
+
+        keyClick("/");
+        verify(field.visible);
+        verify(view.filterEditing);
+        // Nothing typed: `esc` closes the field and gives the list the keyboard back.
+        keyClick(Qt.Key_Escape);
+        verify(!field.visible, "`esc` left the empty filter open");
+        verify(!view.filterEditing);
+        verify(view.activeFocus);
+    }
+
+    function test_esc_while_typing_clears_and_closes_the_files_filter() {
+        const view = testCase.filesView();
+        const files = App.details.files;
+        const field = findChild(view, "filesFilter");
+
+        keyClick("/");
+        keyClick("s");
+        keyClick("r");
+        keyClick("t");
+        compare(files.matchCount, 2);
+        keyClick(Qt.Key_Escape);
+        compare(files.filterText, "");
+        verify(!field.visible);
+        verify(!view.filterEditing);
+        verify(view.activeFocus);
     }
 
     function test_space_selects_and_a_priority_applies_to_the_selection() {

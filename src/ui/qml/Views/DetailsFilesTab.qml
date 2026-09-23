@@ -97,6 +97,7 @@ Item {
         anchors.topMargin: root.filterShown ? Theme.space(6) : 0
         height: root.filterShown ? Theme.controlHeight : 0
         hint: Glyphs.search
+        objectName: "filesFilter"
         placeholder: qsTr("filter files")
         trailing: root.model && root.model.filterText.length > 0 ? qsTr("%1 of %2").arg(
                                                                         root.model.matchCount).arg(
@@ -105,6 +106,11 @@ Item {
 
         Keys.onPressed: event => {
             if (event.key === Qt.Key_Down || event.key === Qt.Key_Up) {
+                root.filterDone();
+                event.accepted = true;
+            } else if (event.key === Qt.Key_Escape) {
+                // The Field passes on an `esc` it had nothing to clear: close the field.
+                root.filterOpen = false;
                 root.filterDone();
                 event.accepted = true;
             }
@@ -128,6 +134,9 @@ Item {
             function onFilterTextChanged(): void {
                 if (filterField.text !== root.model.filterText)
                     filterField.text = root.model.filterText;
+                // Cleared from the list (`esc` there): the emptied field goes too.
+                if (root.model.filterText.length === 0 && !filterField.editing)
+                    root.filterOpen = false;
             }
 
             target: root.model
