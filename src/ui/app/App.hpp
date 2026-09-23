@@ -212,6 +212,9 @@ public:
     Q_INVOKABLE void setDetailsVisible(bool visible);
     /// The Peers tab is the one on show, so sync/torrentPeers is worth polling.
     Q_INVOKABLE void setPeersTabActive(bool active);
+    /// The General tab is the one on show, so torrents/pieceStates is worth polling (docs/12
+    /// G3).
+    Q_INVOKABLE void setGeneralTabActive(bool active);
 
     /// POST torrents/filePrio. `fileIndexes` is a list of ints (the `fileIndexes` role of a
     /// TorrentFilesModel row); a no-op in demo mode, where there is no server to tell.
@@ -549,6 +552,14 @@ public:
 
     Q_INVOKABLE void remove(const QStringList &hashes, bool deleteFiles);
 
+    /// docs/12 G4: sequential download, first/last pieces first, super seeding and automatic
+    /// torrent management, set to `on` on every hash (a mixed selection comes out uniform).
+    /// In demo mode the fictional rows change locally.
+    Q_INVOKABLE void setSequentialDownload(const QStringList &hashes, bool on);
+    Q_INVOKABLE void setFirstLastPiecePrio(const QStringList &hashes, bool on);
+    Q_INVOKABLE void setSuperSeeding(const QStringList &hashes, bool on);
+    Q_INVOKABLE void setAutoManagement(const QStringList &hashes, bool on);
+
     /// `y`/`Y`: no server round trip, so it runs in demo mode too.
     Q_INVOKABLE void copyToClipboard(const QString &text) const;
     /// `o`: the cursor torrent's `contentPath`, mapped through the server's `PathMap` and
@@ -571,6 +582,11 @@ Q_SIGNALS:
 private:
     /// True (and logged) in demo mode, where none of these actions may touch a network.
     bool demoGuard(const QString &action, int count);
+    /// G4: the hashes whose `field` is not `on` yet (what a toggle endpoint must flip).
+    QStringList
+    hashesNotAt(const QStringList &hashes, bool on, bool omaseed::core::Torrent::*field) const;
+    /// G4 in demo mode: sets `key` to `on` on the fictional rows and returns true.
+    bool applyDemoOption(const QStringList &hashes, const QString &key, bool on);
     void reportActionResult(const QString &action,
                             const omaseed::core::QbtResult<QByteArray> &result);
     void loadDeleteFilesDefault();

@@ -24,9 +24,11 @@ qt_add_qml_module(omaseed-views
         Details.qml
         DetailsCell.qml
         DetailsFilesTab.qml
+        DetailsGeneralRow.qml
         DetailsGeneralTab.qml
         DetailsHeader.qml
         DetailsPeersTab.qml
+        DetailsPiecesBar.qml
         DetailsTrackersTab.qml
         DimmedOverlay.qml
         DisconnectedBanner.qml

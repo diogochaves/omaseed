@@ -225,7 +225,7 @@ QString count(qint64 value)
     return negative ? QLatin1Char('-') + digits : digits;
 }
 
-QString pieces(int pieceCount, qint64 pieceSize, int piecesHave)
+QString pieceLayout(int pieceCount, qint64 pieceSize)
 {
     if (pieceCount <= 0 || pieceSize <= 0)
         return QString();
@@ -241,8 +241,15 @@ QString pieces(int pieceCount, qint64 pieceSize, int piecesHave)
     const QString each = QStringLiteral("%1 %2").arg(QString::number(value, 'f', decimals),
                                                      QString::fromLatin1(units.at(unit)));
 
-    return QStringLiteral("%1 × %2 · %3 have")
-        .arg(count(pieceCount), each, count(std::max(0, piecesHave)));
+    return QStringLiteral("%1 × %2").arg(count(pieceCount), each);
+}
+
+QString piecesHave(int have, int pieceCount)
+{
+    if (pieceCount <= 0)
+        return QString();
+    return QStringLiteral("%1 of %2")
+        .arg(count(std::clamp(have, 0, pieceCount)), count(pieceCount));
 }
 
 QString connectedTotal(int connected, int total)
@@ -263,6 +270,49 @@ QString shareLimit(double ratioLimit, qint64 seedingTimeLimit)
     if (parts.isEmpty())
         parts.append(QStringLiteral("unlimited"));
     return parts.join(QStringLiteral(" · "));
+}
+
+QString connections(int connected, int limit)
+{
+    return QStringLiteral("%1 of %2")
+        .arg(count(std::max(0, connected)), limit > 0 ? count(limit) : infinity());
+}
+
+QString averageSpeeds(qint64 down, qint64 up)
+{
+    if (down < 0 && up < 0)
+        return QString();
+    const auto side = [](qint64 value) { return value < 0 ? dash() : speed(value); };
+    return QStringLiteral("↓ %1 · ↑ %2").arg(side(down), side(up));
+}
+
+QString reannounceIn(qint64 seconds)
+{
+    if (seconds <= 0)
+        return QString();
+    return QStringLiteral("in %1").arg(duration(seconds));
+}
+
+QString shortMagnet(const QString &magnetUri)
+{
+    if (magnetUri.isEmpty())
+        return QString();
+    // Only the first `xt` survives; the name, trackers and web seeds are the long part.
+    QString head = magnetUri.section(QLatin1Char('&'), 0, 0);
+    static const QString btih = QStringLiteral("urn:btih:");
+    static const QString btmh = QStringLiteral("urn:btmh:");
+    qsizetype at = head.indexOf(btih);
+    qsizetype prefix = btih.size();
+    if (at < 0) {
+        at = head.indexOf(btmh);
+        prefix = btmh.size();
+    }
+    constexpr qsizetype kShown = 8;
+    if (at >= 0 && head.size() > at + prefix + kShown)
+        return head.left(at + prefix + kShown) + QStringLiteral("…");
+    if (at < 0 && head.size() > 40)
+        return head.left(40) + QStringLiteral("…");
+    return head;
 }
 
 } // namespace omaseed::core::Format

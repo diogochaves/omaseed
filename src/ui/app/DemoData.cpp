@@ -454,6 +454,9 @@ QJsonObject torrentJson(int index,
     json.insert(QStringLiteral("priority"), 0);
     json.insert(QStringLiteral("seq_dl"), false);
     json.insert(QStringLiteral("f_l_piece_prio"), false);
+    // docs/12 G4: the rows with a category let qBittorrent manage their save path.
+    json.insert(QStringLiteral("super_seeding"), false);
+    json.insert(QStringLiteral("auto_tmm"), !category.isEmpty());
     json.insert(QStringLiteral("dl_limit"), 0);
     json.insert(QStringLiteral("up_limit"), 0);
     json.insert(QStringLiteral("ratio_limit"), -2.0);
@@ -983,6 +986,39 @@ QJsonObject generatedPeers(const omaseed::core::Torrent &torrent)
     return answer;
 }
 
+/// docs/12 G3: a `torrents/pieceStates` answer with exactly `have` pieces had. Pieces go in
+/// runs of 16 with a jittered order, so the bar fills mostly from the left with a ragged
+/// edge, the way a swarm's rarest-first download looks; a torrent that is moving has a few
+/// pieces in flight just past what it has.
+QJsonArray generatedPieceStates(const omaseed::core::Torrent &torrent, int count, int have)
+{
+    QRandomGenerator random(quint32(qHash(torrent.hash)) ^ 0x9e37u);
+    constexpr int kRun = 16;
+    QList<double> runJitter((count + kRun - 1) / kRun);
+    for (double &jitter : runJitter)
+        jitter = random.generateDouble() * 0.45;
+
+    QList<int> order(count);
+    for (int i = 0; i < count; ++i)
+        order[i] = i;
+    const auto key = [&](int piece) { return double(piece) / count + runJitter.at(piece / kRun); };
+    std::stable_sort(order.begin(), order.end(), [&](int a, int b) { return key(a) < key(b); });
+
+    QList<int> states(count, 0);
+    have = std::clamp(have, 0, count);
+    for (int i = 0; i < have; ++i)
+        states[order.at(i)] = 2;
+    const bool moving = torrent.dlspeed > 0;
+    const int inFlight = moving ? std::min(count - have, 6) : 0;
+    for (int i = 0; i < inFlight; ++i)
+        states[order.at(have + i * std::max(1, (count - have) / 7))] = 1;
+
+    QJsonArray array;
+    for (int state : states)
+        array.append(state);
+    return array;
+}
+
 } // namespace
 
 QJsonObject details(const omaseed::core::Torrent &torrent)
@@ -1035,11 +1071,39 @@ QJsonObject details(const omaseed::core::Torrent &torrent)
     // Spec §2 Fig. 1 has no "Created on" row, so the demo leaves the date out.
     properties.insert(QStringLiteral("creation_date"), -1);
 
+    // docs/12 G2: every new row of the General tab has a value in the demo.
+    const bool stopped = torrent.inGroup(omaseed::core::StatusGroup::Stopped);
+    const bool complete = torrent.progress >= 1.0;
+    const int spread = int(torrent.infohashV1.isEmpty() ? 0 : torrent.infohashV1.at(0).unicode());
+    properties.insert(QStringLiteral("nb_connections"),
+                      stopped ? 0 : torrent.numSeeds + torrent.numLeechs);
+    properties.insert(QStringLiteral("nb_connections_limit"), 100);
+    const qint64 active = std::max(qint64(1), isArch ? qint64(862) : torrent.timeActive);
+    properties.insert(QStringLiteral("dl_speed_avg"),
+                      isArch ? qint64(1806131) : torrent.downloaded / active);
+    properties.insert(QStringLiteral("up_speed_avg"),
+                      isArch ? qint64(98304) : torrent.uploaded / active);
+    // Complete torrents were last seen whole the moment they finished; the others a little
+    // while ago, some of them today.
+    const qint64 now = QDateTime::currentSecsSinceEpoch();
+    properties.insert(QStringLiteral("last_seen"),
+                      complete ? now - 60 : now - 600 - qint64(spread % 7) * 3 * 3600);
+    properties.insert(QStringLiteral("seeding_time"), torrent.seedingTime);
+    properties.insert(QStringLiteral("completion_date"),
+                      torrent.completionOn.isValid() ? torrent.completionOn.toSecsSinceEpoch()
+                                                     : qint64(-1));
+    properties.insert(QStringLiteral("reannounce"), stopped ? 0 : 120 + (spread % 25) * 60);
+    const bool isPrivate = torrent.tags.contains(QStringLiteral("private"));
+    properties.insert(QStringLiteral("private"), isPrivate);
+    properties.insert(QStringLiteral("is_private"), isPrivate);
+
     result.insert(QStringLiteral("hash"), torrent.hash);
     result.insert(QStringLiteral("properties"), properties);
     result.insert(QStringLiteral("files"), isBbb ? bigBuckBunnyFiles() : generatedFiles(torrent));
     result.insert(QStringLiteral("trackers"), isArch ? archTrackers() : generatedTrackers(torrent));
     result.insert(QStringLiteral("peers"), isArch ? archPeers() : generatedPeers(torrent));
+    result.insert(QStringLiteral("pieceStates"),
+                  generatedPieceStates(torrent, pieceCount, piecesHave));
     return result;
 }
 

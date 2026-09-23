@@ -684,6 +684,16 @@ QbtReply<QJsonArray> *QbtClient::torrentsTrackers(const QString &hash)
                               [path](const QByteArray &body) { return parseArray(body, path); });
 }
 
+QbtReply<QJsonArray> *QbtClient::torrentsPieceStates(const QString &hash)
+{
+    RequestSpec spec;
+    spec.path = QStringLiteral("torrents/pieceStates");
+    addItem(spec.query, QStringLiteral("hash"), hash);
+    const QString path = spec.path;
+    return submit<QJsonArray>(std::move(spec),
+                              [path](const QByteArray &body) { return parseArray(body, path); });
+}
+
 QbtReply<QJsonObject> *QbtClient::torrentsPeers(const QString &hash, int rid)
 {
     RequestSpec spec;

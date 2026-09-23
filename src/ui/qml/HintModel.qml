@@ -134,9 +134,10 @@ QtObject {
                     // The figure says "add peer" where the Trackers tab says "add".
                     root._hint("details", "a", qsTr("add peer")), root._hint("details", "y")];
         default:
-            // General has no list of its own, so the window keeps teaching the table
-            // (Details.qml's own hint row is hidden inside Main for the same reason).
-            return root._tableHints();
+            // docs/12 G5 and G4: General's rows are a list with a cursor, `y` copies a value
+            // and `enter` changes an option row.
+            return [root._hint("details", "j k"), root._hint("details", "y", qsTr("copy value")),
+                    root._hint("details", "enter", qsTr("change"))];
         }
     }
 }

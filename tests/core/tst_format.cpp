@@ -36,6 +36,11 @@ private slots:
     void percentRoundingTo100();
     void countGroupsWithSpaces();
     void piecesRow();
+    void piecesHaveLabel();
+    void connectionsRow();
+    void averageSpeedsRow();
+    void reannounceRow();
+    void shortMagnetRow();
     void connectedTotalRow();
     void shareLimitRow();
     void limitIsASpeedOrInfinity();
@@ -271,13 +276,61 @@ void TestFormat::countGroupsWithSpaces()
 
 void TestFormat::piecesRow()
 {
-    QCOMPARE(Format::pieces(1264, 1024 * 1024, 617), QStringLiteral("1 264 × 1 MiB · 617 have"));
-    QCOMPARE(Format::pieces(1, 16 * 1024, 0), QStringLiteral("1 × 16 KiB · 0 have"));
-    QCOMPARE(Format::pieces(4096, 512 * 1024, 4096),
-             QStringLiteral("4 096 × 512 KiB · 4 096 have"));
+    QCOMPARE(Format::pieceLayout(1264, 1024 * 1024), QStringLiteral("1 264 × 1 MiB"));
+    QCOMPARE(Format::pieceLayout(1, 16 * 1024), QStringLiteral("1 × 16 KiB"));
+    QCOMPARE(Format::pieceLayout(4096, 512 * 1024), QStringLiteral("4 096 × 512 KiB"));
     // A magnet with no metadata yet has no pieces to print.
-    QCOMPARE(Format::pieces(-1, -1, 0), QString());
-    QCOMPARE(Format::pieces(0, 1024, 0), QString());
+    QCOMPARE(Format::pieceLayout(-1, -1), QString());
+    QCOMPARE(Format::pieceLayout(0, 1024), QString());
+}
+
+void TestFormat::piecesHaveLabel()
+{
+    QCOMPARE(Format::piecesHave(617, 1264), QStringLiteral("617 of 1 264"));
+    QCOMPARE(Format::piecesHave(0, 1), QStringLiteral("0 of 1"));
+    QCOMPARE(Format::piecesHave(-1, 4), QStringLiteral("0 of 4"));
+    QCOMPARE(Format::piecesHave(9, 4), QStringLiteral("4 of 4"));
+    QCOMPARE(Format::piecesHave(0, -1), QString());
+}
+
+void TestFormat::connectionsRow()
+{
+    QCOMPARE(Format::connections(15, 100), QStringLiteral("15 of 100"));
+    QCOMPARE(Format::connections(1200, 5000), QStringLiteral("1 200 of 5 000"));
+    QCOMPARE(Format::connections(3, -1), QStringLiteral("3 of ∞"));
+    QCOMPARE(Format::connections(-1, 0), QStringLiteral("0 of ∞"));
+}
+
+void TestFormat::averageSpeedsRow()
+{
+    QCOMPARE(Format::averageSpeeds(4320133, 839680), QStringLiteral("↓ 4.12 MB/s · ↑ 820 KB/s"));
+    QCOMPARE(Format::averageSpeeds(0, 0), QStringLiteral("↓ 0 · ↑ 0"));
+    QCOMPARE(Format::averageSpeeds(-1, 2048), QStringLiteral("↓ — · ↑ 2 KB/s"));
+    // qBittorrent's -1 on both sides: never active, so no row at all.
+    QCOMPARE(Format::averageSpeeds(-1, -1), QString());
+}
+
+void TestFormat::reannounceRow()
+{
+    QCOMPARE(Format::reannounceIn(720), QStringLiteral("in 12 min"));
+    QCOMPARE(Format::reannounceIn(1620), QStringLiteral("in 27 min"));
+    QCOMPARE(Format::reannounceIn(45), QStringLiteral("in 45 s"));
+    QCOMPARE(Format::reannounceIn(0), QString());
+    QCOMPARE(Format::reannounceIn(-1), QString());
+}
+
+void TestFormat::shortMagnetRow()
+{
+    QCOMPARE(Format::shortMagnet(QStringLiteral("magnet:?xt=urn:btih:"
+                                                "3f6c9a1b7e2d4c8f0a5b6e7d8c9f0a1b2c3d4e5f"
+                                                "&dn=arch&tr=udp%3A%2F%2Fx")),
+             QStringLiteral("magnet:?xt=urn:btih:3f6c9a1b…"));
+    // A v2-only magnet carries btmh instead of btih.
+    QCOMPARE(Format::shortMagnet(QStringLiteral("magnet:?xt=urn:btmh:1220abcdef0123456789&dn=x")),
+             QStringLiteral("magnet:?xt=urn:btmh:1220abcd…"));
+    QCOMPARE(Format::shortMagnet(QStringLiteral("magnet:?xt=urn:btih:abcd")),
+             QStringLiteral("magnet:?xt=urn:btih:abcd"));
+    QCOMPARE(Format::shortMagnet(QString()), QString());
 }
 
 void TestFormat::connectedTotalRow()

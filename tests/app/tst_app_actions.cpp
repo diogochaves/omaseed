@@ -95,6 +95,7 @@ private slots:
     void renameAndRenameBack();
     void deleteRemovesOnlyWhatThisTestAdded();
     void deleteFilesDefaultPersists();
+    void perTorrentOptionsRoundTrip();
 
 private:
     QJsonObject torrentInfo(const QString &hash);
@@ -167,6 +168,15 @@ void TestAppActions::cleanupTestCase()
 {
     if (!m_app)
         return;
+
+    // docs/12 G4: every option back off on fixture-two (the toggles only flip, so each is
+    // sent only when the server still has it on).
+    const QJsonObject options = torrentInfo(kFixtureTwo);
+    if (options.value(QStringLiteral("seq_dl")).toBool())
+        await(this, m_app->client()->torrentsToggleSequentialDownload({kFixtureTwo}));
+    if (options.value(QStringLiteral("f_l_piece_prio")).toBool())
+        await(this, m_app->client()->torrentsToggleFirstLastPiecePrio({kFixtureTwo}));
+    await(this, m_app->client()->torrentsSetSuperSeeding({kFixtureTwo}, false));
 
     // Undo whatever this file changed on the two fixtures it borrowed, and remove the one
     // torrent it added itself.
@@ -369,6 +379,52 @@ void TestAppActions::deleteFilesDefaultPersists()
     m_app->setDeleteFilesDefault(false);
     App reopenedAgain;
     QCOMPARE(reopenedAgain.deleteFilesDefault(), false);
+}
+
+// docs/12 G4: the options General and the actions menu change, through App, on fixture-two.
+// Automatic management is left out on purpose: turning it on moves the torrent to its
+// category's save path, which a round trip would then have to put back by hand.
+void TestAppActions::perTorrentOptionsRoundTrip()
+{
+    const auto appSees = [this](bool omaseed::core::Torrent::*field, bool on) {
+        return waitFor(
+            [this, field, on]() {
+                return m_app->torrents()->indexOfHash(kFixtureTwo) >= 0 &&
+                       m_app->torrents()->torrent(kFixtureTwo).*field == on;
+            },
+            8000);
+    };
+    const auto serverHas = [this](const char *key, bool on) {
+        const QString name = QString::fromLatin1(key);
+        return pollUntil(kFixtureTwo,
+                         [&](const QJsonObject &t) { return t.value(name).toBool() == on; })
+                   .value(name)
+                   .toBool() == on;
+    };
+
+    QVERIFY2(appSees(&omaseed::core::Torrent::seqDl, false), "fixture-two starts sequential");
+    m_app->setSequentialDownload({kFixtureTwo}, true);
+    QVERIFY2(serverHas("seq_dl", true), "setSequentialDownload(true) did not reach the server");
+    QVERIFY(appSees(&omaseed::core::Torrent::seqDl, true));
+    // Asking for what it already is sends nothing: the toggle endpoint would flip it back.
+    m_app->setSequentialDownload({kFixtureTwo}, true);
+    QTest::qWait(600);
+    QVERIFY2(serverHas("seq_dl", true), "a second set to the same value flipped it");
+    m_app->setSequentialDownload({kFixtureTwo}, false);
+    QVERIFY(serverHas("seq_dl", false));
+    QVERIFY(appSees(&omaseed::core::Torrent::seqDl, false));
+
+    m_app->setFirstLastPiecePrio({kFixtureTwo}, true);
+    QVERIFY2(serverHas("f_l_piece_prio", true), "first/last did not reach the server");
+    QVERIFY(appSees(&omaseed::core::Torrent::firstLastPiecePrio, true));
+    m_app->setFirstLastPiecePrio({kFixtureTwo}, false);
+    QVERIFY(serverHas("f_l_piece_prio", false));
+
+    m_app->setSuperSeeding({kFixtureTwo}, true);
+    QVERIFY2(serverHas("super_seeding", true), "super seeding did not reach the server");
+    QVERIFY(appSees(&omaseed::core::Torrent::superSeeding, true));
+    m_app->setSuperSeeding({kFixtureTwo}, false);
+    QVERIFY(serverHas("super_seeding", false));
 }
 
 QTEST_MAIN(TestAppActions)

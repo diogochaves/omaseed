@@ -106,6 +106,7 @@ private Q_SLOTS:
     void torrentPeersParsesTheDiffShape();
     void filesTrackersAndPropertiesSendTheHash();
     void filePrioPostsTheIdList();
+    void pieceStatesSendsTheHashAndParsesTheArray();
 };
 
 void TestQbtClientDetailsFake::syncTorrentPeersSendsHashAndRid()
@@ -190,6 +191,28 @@ void TestQbtClientDetailsFake::filesTrackersAndPropertiesSendTheHash()
         const QUrlQuery query(QUrl(QString::fromLatin1(target)).query());
         QCOMPARE(query.queryItemValue(QStringLiteral("hash")), QStringLiteral("abc123"));
     }
+}
+
+void TestQbtClientDetailsFake::pieceStatesSendsTheHashAndParsesTheArray()
+{
+    // docs/12 G3's bar: one number per piece.
+    FakeServer server;
+    server.setHandler([](const QByteArray &) { return jsonResponse("[2,2,1,0]"); });
+
+    QbtClient client;
+    client.setBaseUrl(server.url());
+
+    const QbtResult<QJsonArray> states =
+        await(this, client.torrentsPieceStates(QStringLiteral("abc123")));
+    QVERIFY2(!states.isError(), qPrintable(states.error().toString()));
+    QCOMPARE(states.value().size(), 4);
+    QCOMPARE(states.value().at(2).toInt(), 1);
+
+    QCOMPARE(server.targets.size(), 1);
+    const QUrl target(QString::fromLatin1(server.targets.constFirst()));
+    QVERIFY(target.path().endsWith(QStringLiteral("/torrents/pieceStates")));
+    QCOMPARE(QUrlQuery(target.query()).queryItemValue(QStringLiteral("hash")),
+             QStringLiteral("abc123"));
 }
 
 void TestQbtClientDetailsFake::filePrioPostsTheIdList()

@@ -788,15 +788,18 @@ QtObject {
             "helpKeys": "",
             "help": ""
         },
+        // docs/12 G5/G4: the sheet row for the details pane's `y`, which General's rows share,
+        // and General's `enter` on an option row.
         {
             "area": "details",
             "key": "y",
             "action": "copy",
             "label": qsTr("copy"),
-            "column": "",
-            "rank": 0,
-            "helpKeys": "",
-            "help": ""
+            "column": "act",
+            "rank": 12,
+            "helpKeys": "y enter",
+            "help": qsTr("copy value · change option"),
+            "about": qsTr("In the details: copy the row under the cursor; in General, its whole value (the full hash or magnet). enter turns a General option on or off; a click does either")
         },
         {
             "area": "details",

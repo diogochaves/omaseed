@@ -65,7 +65,9 @@ TestCase {
         compare(view.torrent.progressText, "48.9 %");
         compare(view.torrent.etaLongText, "2 min 40 s");
         compare(view.currentTab, 0);
-        compare(view.cursorIndex, -1); // General has no list
+        // docs/12 G5: General's rows are a list too, and the cursor starts on the first.
+        compare(view.cursorIndex, 0);
+        compare(view.rowCount, findChild(view, "generalTab").count);
     }
 
     function test_the_tracker_badge_follows_the_torrent() {
@@ -83,13 +85,227 @@ TestCase {
         const properties = App.details.properties;
 
         compare(properties.savePath, "/data/torrents/linux/");
-        compare(properties.pieces, "1 264 × 1 MiB · 617 have");
+        compare(properties.pieces, "1 264 × 1 MiB");
+        compare(properties.piecesHave, "617 of 1 264");
         compare(properties.availability, "38.20");
         compare(properties.seeds, "21 connected · 1 204 total");
         compare(properties.comment, "Arch Linux 2026.09.01 release");
         compare(properties.createdBy, "mktorrent 1.1");
         // Spec §2 Fig. 1 has no "Created on" row; the demo leaves the date out.
         compare(properties.createdOn, "");
+    }
+
+    // docs/12 G1: Transfer, Information, Options, in that order, each row in its group.
+    function test_general_is_grouped_transfer_information_options() {
+        const view = testCase.select(testCase.archName);
+        const general = findChild(view, "generalTab");
+        verify(general !== null);
+
+        const groups = general.groups;
+        compare(groups.map(group => group.label), ["Transfer", "Information", "Options"]);
+        const keys = groups.map(group => group.rows.map(row => row.key));
+        compare(keys[0], ["Status", "Downloaded", "Uploaded", "Wasted", "Seeds", "Peers",
+                          "Connections", "Availability", "Avg speed", "Time active",
+                          "Last seen full", "Reannounce"]);
+        // No hash v2, no creation or completion date in the demo's arch row.
+        compare(keys[1], ["Save path", "Pieces", "Hash v1", "Magnet", "Private", "Created by",
+                          "Comment"]);
+        compare(keys[2][0], "Share limit");
+
+        // Each group has its heading on screen.
+        for (const label of ["Transfer", "Information", "Options"]) {
+            const heading = findChild(view, "generalHeading_" + label);
+            verify(heading !== null && heading.visible, "no heading for " + label);
+        }
+
+        // The magnet is shown short; its row is dim.
+        const magnet = groups[1].rows[3];
+        verify(magnet.value.endsWith("…"));
+        compare(magnet.dim, true);
+    }
+
+    // docs/10 §5 with G1: two columns put Transfer alone on the left.
+    function test_two_columns_keep_the_groups_whole() {
+        const view = testCase.select(testCase.archName);
+        view.width = 1100;
+        view.wide = true;
+        wait(0); // let the columns lay out
+        const general = findChild(view, "generalTab");
+        compare(general.columns, 2);
+        const transfer = findChild(view, "generalGroup_Transfer");
+        const information = findChild(view, "generalGroup_Information");
+        const options = findChild(view, "generalGroup_Options");
+        verify(transfer.mapToItem(general, 0, 0).x < information.mapToItem(general, 0, 0).x);
+        compare(information.mapToItem(general, 0, 0).x, options.mapToItem(general, 0, 0).x);
+        verify(options.mapToItem(general, 0, 0).y > information.mapToItem(general, 0, 0).y);
+    }
+
+    // docs/12 G3: the pieces bar tops General, drawn from the demo's piece states.
+    function test_the_pieces_bar_tops_general() {
+        const view = testCase.select(testCase.archName);
+        const bar = findChild(view, "piecesBar");
+        verify(bar !== null);
+        verify(bar.visible, "no pieces bar for a torrent with pieces");
+        compare(App.details.pieceCount, 1264);
+        compare(App.details.piecesHaveCount, 617);
+        compare(findChild(view, "piecesLabel").text, "pieces · 617 of 1 264");
+        compare(findChild(view, "piecesPercent").text, "48.9 %");
+
+        // Above the Transfer heading.
+        wait(0);
+        const transfer = findChild(view, "generalHeading_Transfer");
+        const general = findChild(view, "generalTab");
+        verify(bar.mapToItem(general, 0, 0).y < transfer.mapToItem(general, 0, 0).y);
+
+        // The canvas painted one cell per pixel: some had, some in flight, some missing.
+        const canvas = findChild(view, "piecesCanvas");
+        tryVerify(() => canvas.cells.length > 0);
+        compare(canvas.cells.length, Math.min(1264, Math.floor(canvas.width)));
+        verify(canvas.cells.indexOf(2) >= 0);
+        verify(canvas.cells.indexOf(1) >= 0);
+        verify(canvas.cells.indexOf(0) >= 0);
+
+        // A finished torrent is had from end to end.
+        testCase.select(testCase.bbbName);
+        compare(App.details.piecesHaveCount, App.details.pieceCount);
+    }
+
+    // docs/12 G5: j k walk General's rows across the groups; y copies the whole value.
+    function test_general_rows_take_a_cursor_and_y_copies_the_whole_value() {
+        const view = testCase.select(testCase.archName);
+        const general = findChild(view, "generalTab");
+        view.forceActiveFocus();
+        valueSpy.target = view;
+        valueSpy.clear();
+
+        compare(view.cursorIndex, 0);
+        verify(findChild(view, "generalRow_0").hasCursor);
+        keyClick("j");
+        compare(view.cursorIndex, 1);
+        verify(findChild(view, "generalRow_1").hasCursor);
+        verify(!findChild(view, "generalRow_0").hasCursor);
+        keyClick("k");
+        keyClick("k");
+        compare(view.cursorIndex, 0); // clamped at the top
+
+        // G goes to the last row, in Options; the cursor crosses the group headings.
+        keyClick(Qt.Key_G, Qt.ShiftModifier);
+        compare(view.cursorIndex, general.count - 1);
+        compare(general.rows[view.cursorIndex].key, "Auto manage");
+
+        // The hash, whole.
+        const hashRow = general.rows.findIndex(row => row.key === "Hash v1");
+        verify(hashRow > 0);
+        view.moveCursor(hashRow - view.cursorIndex);
+        compare(view.cursorIndex, hashRow);
+        keyClick("y");
+        compare(valueSpy.count, 1);
+        compare(valueSpy.signalArguments[0][0], App.details.properties.hashV1);
+        compare(valueSpy.signalArguments[0][1], "hash v1");
+
+        // The magnet: the screen shows it short, y copies all of it.
+        const magnetRow = general.rows.findIndex(row => row.key === "Magnet");
+        view.moveCursor(magnetRow - view.cursorIndex);
+        keyClick("y");
+        compare(valueSpy.count, 2);
+        compare(valueSpy.signalArguments[1][0], App.details.properties.magnet);
+        verify(valueSpy.signalArguments[1][0].length > general.rows[magnetRow].value.length);
+        compare(valueSpy.signalArguments[1][1], "magnet");
+    }
+
+    // docs/12 G5: a click on a row moves the cursor there and copies the value.
+    function test_a_click_on_a_general_row_copies_it() {
+        const view = testCase.select(testCase.archName);
+        const general = findChild(view, "generalTab");
+        valueSpy.target = view;
+        valueSpy.clear();
+
+        const pathRow = general.rows.findIndex(row => row.key === "Save path");
+        // Offscreen delivers no mouse events: the row's own signal stands in for the click.
+        findChild(view, "generalRow_" + pathRow).clicked();
+        compare(view.cursorIndex, pathRow);
+        compare(valueSpy.count, 1);
+        compare(valueSpy.signalArguments[0][0], "/data/torrents/linux/");
+        compare(valueSpy.signalArguments[0][1], "save path");
+    }
+
+    // docs/12 G4: the Options group's on/off rows, and `enter` on one turns it over.
+    function test_enter_toggles_an_option_row() {
+        const view = testCase.select(testCase.archName);
+        const hash = App.details.hash;
+        const general = findChild(view, "generalTab");
+        const keys = general.groups[2].rows.map(row => row.key);
+        compare(keys, ["Share limit", "Sequential", "First / last", "Super seed",
+                       "Auto manage"]);
+
+        const before = App.torrentRow(hash).seqDl;
+        const sequential = general.rows.findIndex(row => row.option === "sequential");
+        compare(general.rows[sequential].value, before ? "on" : "off");
+        view.forceActiveFocus();
+        view.moveCursor(sequential - view.cursorIndex);
+        keyClick(Qt.Key_Return);
+        // The demo flips the fictional row; the pane redraws from the next snapshot.
+        compare(App.torrentRow(hash).seqDl, !before);
+        view.torrent = App.torrentRow(hash);
+        compare(general.rows[sequential].value, !before ? "on" : "off");
+        compare(general.rows[sequential].on, !before);
+
+        // The cursor stays on the row, so `enter` again turns it back.
+        compare(view.cursorIndex, sequential);
+        keyClick(Qt.Key_Return);
+        compare(App.torrentRow(hash).seqDl, before);
+
+        // Each option reaches its own field.
+        for (const [option, field] of [["firstLast", "firstLastPiecePrio"],
+                                       ["superSeeding", "superSeeding"],
+                                       ["autoManagement", "autoTmm"]]) {
+            view.torrent = App.torrentRow(hash);
+            const row = general.rows.findIndex(entry => entry.option === option);
+            const was = App.torrentRow(hash)[field];
+            view.moveCursor(row - view.cursorIndex);
+            keyClick(Qt.Key_Enter);
+            compare(App.torrentRow(hash)[field], !was, option);
+            view.toggleGeneralOption(row); // and back, for the next case
+            view.torrent = App.torrentRow(hash);
+        }
+    }
+
+    // docs/12 G4: `enter` on a row that is not an option is not the pane's to take.
+    function test_enter_on_a_plain_row_changes_nothing() {
+        const view = testCase.select(testCase.archName);
+        compare(view.toggleGeneralOption(0), false); // Status
+        const general = findChild(view, "generalTab");
+        const shareLimit = general.rows.findIndex(row => row.key === "Share limit");
+        compare(view.toggleGeneralOption(shareLimit), false);
+    }
+
+    // docs/12 G5: the pane's own hint row teaches General too.
+    function test_general_has_hints_of_its_own() {
+        const view = testCase.select(testCase.archName);
+        const hints = findChild(view, "detailsHints");
+        verify(hints !== null && hints.visible);
+        compare(hints.model.map(hint => hint.key + " " + hint.label), ["j k move", "y copy value",
+                                                                          "enter change"]);
+    }
+
+    // docs/12 G2: the demo fills every new row, so `--demo` shows them all.
+    function test_the_demo_fills_the_docs12_rows() {
+        testCase.select(testCase.archName);
+        const properties = App.details.properties;
+
+        compare(properties.connections, "63 of 100");
+        compare(properties.avgSpeed, "↓ 1.72 MB/s · ↑ 96 KB/s");
+        verify(properties.reannounce.startsWith("in "));
+        verify(properties.lastSeen.length > 0);
+        verify(properties.private === "yes" || properties.private === "no");
+        verify(properties.magnet.startsWith("magnet:?xt=urn:btih:"));
+        verify(properties.magnetText.endsWith("…"));
+
+        // A finished one has a seeding time and a completion date as well.
+        testCase.select(testCase.bbbName);
+        const finished = App.details.properties;
+        verify(finished.seedingTime.length > 0, "no seeding time for a complete torrent");
+        verify(finished.completedOn.length > 0, "no completion date for a complete torrent");
     }
 
     function test_files_tab_is_figure_two() {
@@ -570,6 +786,12 @@ TestCase {
         id: focusSpy
 
         signalName: "focusTable"
+    }
+
+    SignalSpy {
+        id: valueSpy
+
+        signalName: "valueCopyRequested"
     }
 
     SignalSpy {

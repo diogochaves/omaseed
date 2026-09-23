@@ -81,12 +81,12 @@ TestCase {
         compare(testCase.line(model.hints), "enter apply · esc clear");
     }
 
-    function test_the_details_general_tab_keeps_the_table_line() {
+    // docs/12 G5: General's rows have a cursor of their own.
+    function test_the_details_general_tab_teaches_its_rows() {
         model.focusArea = "details";
         model.detailsTab = 0;
         compare(model.area, "details");
-        compare(testCase.line(model.hints),
-                "j k move · space select · enter actions · p stop/start · d delete · o folder · / filter");
+        compare(testCase.line(model.hints), "j k move · y copy value · enter change");
     }
 
     function test_the_details_tabs_teach_figures_2_to_4() {

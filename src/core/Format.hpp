@@ -62,11 +62,14 @@ QString speedShort(qint64 bytesPerSecond);
 /// "1 264 × 1 MiB", "1 204 total").
 QString count(qint64 value);
 
-/// "1 264 × 1 MiB · 617 have" — the General tab's Pieces row (spec §2 Fig. 1). Piece sizes
-/// are powers of two, so this one row prints proper binary units (KiB/MiB/GiB) rather than
-/// qBittorrent's KB/MB/GB labels. Empty when there are no pieces yet (a magnet without
-/// metadata).
-QString pieces(int pieceCount, qint64 pieceSize, int piecesHave);
+/// "1 264 × 1 MiB" — the General tab's Pieces row in Information (spec §2 Fig. 1, docs/12
+/// G2). Piece sizes are powers of two, so this one row prints proper binary units
+/// (KiB/MiB/GiB) rather than qBittorrent's KB/MB/GB labels. Empty when there are no pieces
+/// yet (a magnet without metadata).
+QString pieceLayout(int pieceCount, qint64 pieceSize);
+
+/// "617 of 1 264" — the pieces bar's label (docs/12 G3). Empty without pieces.
+QString piecesHave(int piecesHave, int pieceCount);
 
 /// "21 connected · 1 204 total" — the General tab's Seeds and Peers rows (spec §2 Fig. 1).
 QString connectedTotal(int connected, int total);
@@ -75,5 +78,25 @@ QString connectedTotal(int connected, int total);
 /// (spec §2 Fig. 1). `ratioLimit` and `seedingTimeLimit` follow qBittorrent's sentinels:
 /// -2 means "use the global limit", -1 "no limit"; the time limit is in minutes.
 QString shareLimit(double ratioLimit, qint64 seedingTimeLimit);
+
+// --- docs/12 G2: the General tab's new rows -------------------------------------------
+
+/// "15 of 100" — connections over the torrent's connection limit; a limit of 0 or less
+/// (qBittorrent's "none") prints "15 of ∞".
+QString connections(int connected, int limit);
+
+/// "↓ 4.12 MB/s · ↑ 820 KB/s" — the average speeds over the time active. qBittorrent sends
+/// -1 for a torrent that has not been active yet; that side prints "—", and both at -1 give
+/// an empty string, so the row is left out.
+QString averageSpeeds(qint64 downBytesPerSecond, qint64 upBytesPerSecond);
+
+/// "in 12 min" — the next announce. Empty at 0 or below (a stopped torrent announces
+/// nothing), so the row is left out.
+QString reannounceIn(qint64 seconds);
+
+/// The magnet as the General tab draws it: the `xt` part only, cut after the first eight
+/// characters of the hash — "magnet:?xt=urn:btih:3f6c9a1b…". The full link is what `y`
+/// copies; this is only for the eye. Empty for an empty link.
+QString shortMagnet(const QString &magnetUri);
 
 } // namespace omaseed::core::Format

@@ -193,6 +193,8 @@ QStringList Torrent::applyJson(const QJsonObject &json)
     take(json, QLatin1StringView("priority"), priority, asInt, changed);
     take(json, QLatin1StringView("seq_dl"), seqDl, asBool, changed);
     take(json, QLatin1StringView("f_l_piece_prio"), firstLastPiecePrio, asBool, changed);
+    take(json, QLatin1StringView("super_seeding"), superSeeding, asBool, changed);
+    take(json, QLatin1StringView("auto_tmm"), autoTmm, asBool, changed);
     take(json, QLatin1StringView("dl_limit"), dlLimit, asInteger, changed);
     take(json, QLatin1StringView("up_limit"), upLimit, asInteger, changed);
     take(json, QLatin1StringView("ratio_limit"), ratioLimit, asDouble, changed);
