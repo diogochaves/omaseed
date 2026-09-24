@@ -376,6 +376,31 @@ TestCase {
         fuzzyCompare(column.y + column.height / 2, (700 - footer.height) / 2, 1);
     }
 
+    // Too tall for the window (a big font on a small screen): the column starts at the top,
+    // scrolls, and the footer keeps its own strip below it.
+    function test_a_column_that_does_not_fit_scrolls_above_the_footer() {
+        const page = createTemporaryObject(pageComponent, testCase, {
+                                               "candidates": [],
+                                               "width": 900,
+                                               "height": 260
+                                           });
+        page.chooseCursor(); // step 2, the tallest
+        const column = findChild(page, "setupColumn");
+        const scroller = findChild(page, "setupScroller");
+        const footer = findChild(page, "setupFacts").parent.parent;
+        tryVerify(() => column.height > scroller.height);
+        verify(scroller.interactive);
+        compare(column.y, scroller.margin);
+        compare(scroller.y + scroller.height, footer.y);
+        verify(scroller.clip);
+
+        // Tab to a field below the fold brings it into view.
+        page.editAuthMode = "apiKey";
+        findChild(page, "keyField").focusInput();
+        page._cycleApiKeyFocus(1); // the test button, further down
+        verify(scroller.contentY > 0);
+    }
+
     // A server that is down right now can still be saved, but only after a test said so.
     function test_save_anyway_only_after_a_failed_test() {
         const page = createTemporaryObject(pageComponent, testCase, {
