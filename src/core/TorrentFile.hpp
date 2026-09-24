@@ -57,8 +57,9 @@ public:
     /// the v2 infohash cut to its first 40 hex digits (BEP-52's truncated form).
     QString torrentId() const;
 
-    /// Builds a magnet link (`magnet:?xt=urn:btih:...&dn=...&tr=...`) for this torrent, using
-    /// infoHashV1 and every tracker from announce/announce-list, deduplicated in order.
+    /// Builds a magnet link (`magnet:?xt=urn:btih:...&dn=...&tr=...`) for this torrent: the
+    /// v1 topic when it has v1 metadata, `xt=urn:btmh:1220<sha256>` when it has v2 (both for
+    /// a hybrid), and every tracker from announce/announce-list, deduplicated in order.
     QString magnetLink() const;
 
 private:

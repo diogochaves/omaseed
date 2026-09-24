@@ -136,6 +136,16 @@ void TestTorrentFile::magnetLinkIncludesHashNameAndTrackers()
     QVERIFY(magnet.contains(QStringLiteral("tr=http%3A%2F%2Ftracker1.example.com%2Fannounce")));
     QVERIFY(magnet.contains(QStringLiteral("tr=http%3A%2F%2Ftracker2.example.com%2Fannounce")));
     QVERIFY(magnet.contains(QStringLiteral("tr=http%3A%2F%2Ftracker3.example.com%2Fannounce")));
+    QVERIFY(!magnet.contains(QStringLiteral("btmh")));
+
+    // A v2-only torrent: its SHA-1 identifies nothing, so only the v2 multihash topic.
+    const TorrentFile v2 =
+        TorrentFile::parse(readFile(QStringLiteral(OMASEED_FIXTURES_DIR "/v2_stub.torrent")));
+    QVERIFY(v2.isValid());
+    const QString v2Magnet = v2.magnetLink();
+    QVERIFY2(v2Magnet.startsWith(QStringLiteral("magnet:?xt=urn:btmh:1220") + v2.infoHashV2),
+             qPrintable(v2Magnet));
+    QVERIFY(!v2Magnet.contains(QStringLiteral("btih")));
 }
 
 void TestTorrentFile::padFilesAreLeftOut()

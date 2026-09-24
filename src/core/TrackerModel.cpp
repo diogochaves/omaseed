@@ -136,27 +136,35 @@ void TrackerModel::setTrackerlessHashes(const QStringList &hashes)
 void TrackerModel::clear()
 {
     m_byUrl.clear();
+    m_hostCache.clear();
     m_trackerless.clear();
     rebuild();
 }
 
 void TrackerModel::rebuild()
 {
+    // A set per host, so a tracker with thousands of torrents over several announce URLs
+    // stays linear; a QStringList::contains here was quadratic.
     QHash<QString, TrackerGroup> byHost;
+    QHash<QString, QSet<QString>> hashesByHost;
     for (auto it = m_byUrl.constBegin(); it != m_byUrl.constEnd(); ++it) {
-        const QString host = trackerHost(it.key());
+        auto cached = m_hostCache.constFind(it.key());
+        if (cached == m_hostCache.constEnd())
+            cached = m_hostCache.insert(it.key(), trackerHost(it.key()));
+        const QString &host = *cached;
         TrackerGroup &group = byHost[host];
         group.host = host;
         group.urls.append(it.key());
-        for (const QString &hash : it.value()) {
-            if (!group.hashes.contains(hash))
-                group.hashes.append(hash);
-        }
+        QSet<QString> &hashes = hashesByHost[host];
+        for (const QString &hash : it.value())
+            hashes.insert(hash);
     }
 
     QList<TrackerGroup> next;
     next.reserve(byHost.size() + 1);
     for (TrackerGroup &group : byHost) {
+        const QSet<QString> &hashes = hashesByHost.value(group.host);
+        group.hashes = QStringList(hashes.cbegin(), hashes.cend());
         std::sort(group.urls.begin(), group.urls.end());
         std::sort(group.hashes.begin(), group.hashes.end());
         next.append(group);

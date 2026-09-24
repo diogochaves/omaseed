@@ -717,7 +717,7 @@ QJsonObject trackerJson(const QString &url,
                         int status,
                         int seeds,
                         int peers,
-                        qint64 nextAnnounce,
+                        qint64 nextAnnounce, ///< seconds from now; 0 for none
                         const QString &msg = QString())
 {
     QJsonObject tracker;
@@ -728,7 +728,9 @@ QJsonObject trackerJson(const QString &url,
     tracker.insert(QStringLiteral("num_peers"), peers);
     tracker.insert(QStringLiteral("num_leeches"), peers);
     tracker.insert(QStringLiteral("num_downloaded"), seeds > 0 ? seeds * 34 : -1);
-    tracker.insert(QStringLiteral("next_announce"), nextAnnounce);
+    // qBittorrent 5.x sends the next announce as a Unix time, not as seconds left.
+    tracker.insert(QStringLiteral("next_announce"),
+                   nextAnnounce > 0 ? QDateTime::currentSecsSinceEpoch() + nextAnnounce : 0);
     tracker.insert(QStringLiteral("msg"), msg);
     return tracker;
 }

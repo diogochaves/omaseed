@@ -33,7 +33,7 @@ private slots:
     void seedsPeers();
     void speedShort_data();
     void speedShort();
-    void percentRoundingTo100();
+    void percentNeverRoundsUpTo100();
     void countGroupsWithSpaces();
     void piecesRow();
     void piecesHaveLabel();
@@ -254,13 +254,17 @@ void TestFormat::speedShort()
     QCOMPARE(Format::speedShort(bytesPerSecond), text);
 }
 
-void TestFormat::percentRoundingTo100()
+void TestFormat::percentNeverRoundsUpTo100()
 {
-    // A folder whose only missing bytes are two 9 KB subtitles out of 3.9 GB is 99.9995 %
-    // done; the spec prints that as "100 %" (spec §2 Fig. 2's root row), not "100.0 %".
-    QCOMPARE(Format::percentCompact(0.9999956), QStringLiteral("100%"));
-    QCOMPARE(Format::percent(0.9999956), QStringLiteral("100 %"));
+    // Truncated, as qBittorrent does: only a finished item reads 100 %. A torrent 99.96 %
+    // done is still downloading, and says 99.9 %, never "100%" beside "downloading".
+    QCOMPARE(Format::percentCompact(0.9996), QStringLiteral("99.9%"));
+    QCOMPARE(Format::percentCompact(0.9999956), QStringLiteral("99.9%"));
+    QCOMPARE(Format::percent(0.9999956), QStringLiteral("99.9 %"));
     QCOMPARE(Format::percentCompact(0.9994), QStringLiteral("99.9%"));
+    QCOMPARE(Format::percentCompact(0.4899), QStringLiteral("48.9%"));
+    QCOMPARE(Format::percentCompact(1.0), QStringLiteral("100%"));
+    QCOMPARE(Format::percent(1.0), QStringLiteral("100 %"));
 }
 
 void TestFormat::countGroupsWithSpaces()

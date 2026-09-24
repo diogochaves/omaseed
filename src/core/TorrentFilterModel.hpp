@@ -6,12 +6,20 @@
 // category, tag and tracker filters are three-valued: unset means "any", and a set-but-empty
 // string means "the torrents with none" — the rail's `none` row (spec §1).
 //
+// A tracker row lists every torrent that has any announce URL on that host — the same
+// membership TrackerModel counts for the rail, and what qBittorrent's own WebUI filters on
+// — not only the torrents whose current tracker is on it. The trackerless row keeps the
+// `tracker == ""` rule FilterCounts counts with. Without a TrackerModel attached (tests),
+// every row falls back to the current tracker's host.
+//
 // Sorting is a total order: the chosen role first, then name, then hash. Without the
 // tie-break, two rows with the same speed would swap places on every 1.5 s poll.
 
 #include "core/Torrent.hpp"
 
 #include <QCollator>
+#include <QPointer>
+#include <QSet>
 #include <QSortFilterProxyModel>
 #include <QString>
 #include <QVariant>
@@ -21,6 +29,7 @@
 namespace omaseed::core {
 
 class TorrentModel;
+class TrackerModel;
 
 class TorrentFilterModel : public QSortFilterProxyModel
 {
@@ -71,6 +80,9 @@ public:
     void setTracker(const QVariant &tracker);
     Q_INVOKABLE void clearTracker();
 
+    /// The rail's tracker rows, whose membership the tracker filter follows.
+    void setTrackerModel(TrackerModel *model);
+
     QString text() const { return m_text; }
     void setText(const QString &text);
 
@@ -109,11 +121,18 @@ Q_SIGNALS:
 private:
     void refilter();
     void resort();
+    /// Reloads m_trackerHashes for the current tracker filter; true when it changed.
+    bool reloadTrackerHashes();
+    /// Whether the tracker filter goes by TrackerModel membership rather than the host of
+    /// the current tracker.
+    bool usesTrackerMembership() const;
 
     StatusFilter m_statusFilter = All;
     std::optional<QString> m_category;
     std::optional<QString> m_tag;
     std::optional<QString> m_tracker;
+    QPointer<TrackerModel> m_trackerModel;
+    QSet<QString> m_trackerHashes; ///< the filtered host's torrents, from m_trackerModel
     QString m_text;
     int m_sortRole = 0; ///< resolved to TorrentModel::NameRole on the first setSourceModel
     Qt::SortOrder m_sortOrder = Qt::AscendingOrder;

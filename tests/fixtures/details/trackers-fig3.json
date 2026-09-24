@@ -1,7 +1,7 @@
 [
     {
         "msg": "",
-        "next_announce": 1620,
+        "next_announce": 1790227620,
         "num_downloaded": 41028,
         "num_leeches": 88,
         "num_peers": 91,
@@ -13,7 +13,7 @@
     },
     {
         "msg": "timed out",
-        "next_announce": 240,
+        "next_announce": 1790226240,
         "num_downloaded": -1,
         "num_leeches": -1,
         "num_peers": -1,

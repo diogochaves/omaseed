@@ -10,6 +10,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QSignalSpy>
+#include <QTimeZone>
 #include <QTest>
 
 using namespace omaseed::core;
@@ -85,6 +86,8 @@ private slots:
     void perTorrentOptionsParse();
     void partialAppendsUnknownHashes();
     void partialRemovesInContiguousRuns();
+    void aHashRemovedTwiceRemovesOneRow();
+    void aNewDayRefreshesTheRelativeTexts();
     void dataChangedIsBatchedPerRun();
     void dataChangedNamesOnlyTheChangedRoles();
     void statusGroupsFollowTheRail();
@@ -288,6 +291,35 @@ void TestTorrentModel::partialRemovesInContiguousRuns()
     QCOMPARE(removed.count(), 2);                           // {4} and {1,2}, not three signals
 }
 
+void TestTorrentModel::aHashRemovedTwiceRemovesOneRow()
+{
+    TorrentModel model;
+    model.applyFullUpdate(threeTorrents());
+    model.applyPartial(QJsonObject(),
+                       QJsonArray({QStringLiteral("bbbb"), QStringLiteral("bbbb")}));
+    QCOMPARE(model.hashes(), QStringList({QStringLiteral("aaaa"), QStringLiteral("cccc")}));
+}
+
+void TestTorrentModel::aNewDayRefreshesTheRelativeTexts()
+{
+    const QTimeZone zone = QTimeZone::systemTimeZone();
+    const QDateTime evening(QDate(2026, 9, 23), QTime(23, 59, 0), zone);
+    QCOMPARE(TorrentModel::msecsToNextMidnight(evening), qint64(61000));
+    const QDateTime morning(QDate(2026, 9, 24), QTime(0, 0, 30), zone);
+    QCOMPARE(TorrentModel::msecsToNextMidnight(morning), qint64(86400000 - 30000 + 1000));
+
+    TorrentModel model;
+    model.applyFullUpdate(threeTorrents());
+    QSignalSpy changed(&model, &QAbstractItemModel::dataChanged);
+    model.refreshDayRelativeTexts();
+    QCOMPARE(changed.count(), 1);
+    QCOMPARE(changed.first().at(0).toModelIndex().row(), 0);
+    QCOMPARE(changed.first().at(1).toModelIndex().row(), 2);
+    const auto roles = changed.first().at(2).value<QList<int>>();
+    QVERIFY(roles.contains(TorrentModel::AddedOnTextRole));
+    QVERIFY(roles.contains(TorrentModel::LastActivityTextRole));
+}
+
 void TestTorrentModel::dataChangedIsBatchedPerRun()
 {
     TorrentModel model;
@@ -386,6 +418,13 @@ void TestTorrentModel::statusGroupsFollowTheRail()
     QVERIFY(stoppedIncomplete.inGroup(StatusGroup::Downloading));
     QVERIFY(!stoppedIncomplete.inGroup(StatusGroup::Completed));
 
+    // A force-started magnet still fetching metadata (qBittorrent 4.6+).
+    Torrent forcedMeta;
+    forcedMeta.applyJson(torrentJson(QStringLiteral("m"), QStringLiteral("forcedMetaDL"), 0.0));
+    QVERIFY(forcedMeta.inGroup(StatusGroup::Downloading));
+    QVERIFY(forcedMeta.inGroup(StatusGroup::Active));
+    QVERIFY(!forcedMeta.inGroup(StatusGroup::Stopped));
+
     Torrent checking;
     checking.applyJson(torrentJson(QStringLiteral("c"), QStringLiteral("checkingUP"), 1.0));
     QVERIFY(checking.inGroup(StatusGroup::Checking));
@@ -413,6 +452,8 @@ void TestTorrentModel::stateTextAndColourRole_data()
                               << QStringLiteral("stateDownloading");
     QTest::newRow("metaDL") << QStringLiteral("metaDL") << QStringLiteral("metadata")
                             << QStringLiteral("stateDownloading");
+    QTest::newRow("forcedMetaDL") << QStringLiteral("forcedMetaDL") << QStringLiteral("metadata")
+                                  << QStringLiteral("stateDownloading");
     QTest::newRow("uploading") << QStringLiteral("uploading") << QStringLiteral("seeding")
                                << QStringLiteral("stateSeeding");
     QTest::newRow("stalledDL") << QStringLiteral("stalledDL") << QStringLiteral("stalled")
@@ -468,6 +509,8 @@ void TestTorrentModel::etaTextFollowsTheState_data()
     const QString infinity = Format::etaShort(8640000);
     QTest::newRow("downloading") << QStringLiteral("downloading") << 0.5 << qint64(160) << twoForty;
     QTest::newRow("forcedDL") << QStringLiteral("forcedDL") << 0.5 << qint64(160) << twoForty;
+    QTest::newRow("forcedMetaDL") << QStringLiteral("forcedMetaDL") << 0.0 << qint64(8640000)
+                                  << infinity;
     QTest::newRow("stalledDL") << QStringLiteral("stalledDL") << 0.5 << qint64(8640000) << infinity;
     // The rest keep whatever estimate the server last sent; it no longer means anything.
     QTest::newRow("error") << QStringLiteral("error") << 0.5 << qint64(985) << dash;

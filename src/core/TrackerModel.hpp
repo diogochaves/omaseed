@@ -68,6 +68,7 @@ private:
 
     QHash<QString, QStringList> m_byUrl; ///< announce URL → hashes, straight from the API
     QStringList m_trackerless;
+    QHash<QString, QString> m_hostCache; ///< announce URL → host, so QUrl parses once
     QList<TrackerGroup> m_groups;
 };
 

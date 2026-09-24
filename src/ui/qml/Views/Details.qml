@@ -58,6 +58,9 @@ Item {
     property int filesCursor: 0
     property int trackersCursor: 0
     property int peersCursor: 0
+    /// Every poll re-sorts the peers by speed, so the cursor also holds its peer's address
+    /// and follows it to the new row: `y` copies, and `b` bans, the peer it was left on.
+    property string peersCursorAddress: ""
     property int generalCursor: 0
     /// The file the Files cursor is on, and the one being renamed. A sync that re-sorts the
     /// tab (by progress, remaining, availability) rebuilds the rows, so the index alone would
@@ -1050,6 +1053,15 @@ Item {
         function onCountChanged(): void {
             if (root.filesCursor >= root.details.files.count)
                 root.filesCursor = Math.max(0, root.details.files.count - 1);
+            root.filesCursorPath = root.details.files.pathAt(root.filesCursor);
+        }
+
+        // Sorted by progress or remaining, a poll moves the rows: the cursor keeps its file.
+        function onReordered(): void {
+            const row = root.details.files.rowOfPath(root.filesCursorPath);
+            if (row >= 0)
+                root.filesCursor = row;
+            root.filesCursorPath = root.details.files.pathAt(root.filesCursor);
         }
 
         // Rows rebuilt (a live re-sort, a filter, a fold): the cursor and an open rename
@@ -1076,8 +1088,8 @@ Item {
         target: root.details.files
     }
 
-    // Peers come and go every 2 s and another torrent may have fewer trackers: keep both
-    // cursors on a row, so `y` never copies nothing (review VIEW-13).
+    // Another torrent may have fewer trackers: keep the cursor on a row, so `y` never
+    // copies nothing (review VIEW-13).
     Connections {
         function onCountChanged(): void {
             if (root.trackersCursor >= root.details.trackers.count)
@@ -1087,10 +1099,15 @@ Item {
         target: root.details.trackers
     }
 
+    // A poll has moved the peers: put the cursor back on the one it was on, or keep it on
+    // a row when that peer is gone.
     Connections {
-        function onCountChanged(): void {
-            if (root.peersCursor >= root.details.peers.count)
-                root.peersCursor = Math.max(0, root.details.peers.count - 1);
+        function onApplied(): void {
+            const peers = root.details.peers;
+            const row = peers.rowOfAddress(root.peersCursorAddress);
+            root.peersCursor = row >= 0 ? row : Math.max(0, Math.min(root.peersCursor,
+                                                                     peers.count - 1));
+            root.peersCursorAddress = peers.addressAt(root.peersCursor);
         }
 
         target: root.details.peers
@@ -1107,4 +1124,5 @@ Item {
         App.setPeersTabActive(!root.collapsed && root.currentTab === 3);
         App.setGeneralTabActive(!root.collapsed && root.currentTab === 0);
     }
+    onPeersCursorChanged: root.peersCursorAddress = root.details.peers.addressAt(root.peersCursor)
 }

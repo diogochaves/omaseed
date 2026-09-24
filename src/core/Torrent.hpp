@@ -26,6 +26,7 @@ enum class TorrentState {
     Downloading,
     StalledDownload,
     MetaDownload,
+    ForcedMetaDownload, ///< "forcedMetaDL": a force-started magnet still fetching metadata
     ForcedDownload,
     QueuedDownload,
     CheckingDownload,

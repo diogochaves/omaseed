@@ -154,14 +154,15 @@ QString percentCompact(double fraction)
     double value = fraction * 100.0;
     if (value <= 0.0 || std::isnan(value))
         return QStringLiteral("0%");
-    if (value >= 100.0)
+    if (fraction >= 1.0)
         return QStringLiteral("100%");
-    // 99.9995 % renders as "100.0", which reads like a stray decimal on a finished item;
-    // the spec's own figures print "100 %" there (spec §2 Fig. 2's folder rows).
-    const QString rendered = QString::number(value, 'f', 1);
-    if (rendered == QLatin1String("100.0"))
-        return QStringLiteral("100%");
-    return rendered + QLatin1Char('%');
+    // Truncated, as qBittorrent does: an unfinished torrent never reads "100%" beside a
+    // state that says it is still downloading. 0.99996 is "99.9%". (Spec §2 Fig. 2's root
+    // row reads "100 %" because its only missing files are skipped, which a folder's
+    // progress leaves out, so it is exactly 1.)
+    // The epsilon keeps 0.489 * 100 (48.899999…) at 48.9.
+    value = std::floor(value * 10.0 + 1e-6) / 10.0;
+    return QString::number(std::min(value, 99.9), 'f', 1) + QLatin1Char('%');
 }
 
 QString relativeTime(const QDateTime &when)
