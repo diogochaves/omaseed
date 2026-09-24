@@ -26,6 +26,7 @@ private slots:
     void everyNoticeCarriesTheDesktopEntryHint();
     void secondDiskNoticeForSameServerReusesTheId();
     void actionInvokedCarriesClassSubjectAndKey();
+    void clickOnTheBodyActsAsTheMainButton();
     void notificationClosedForgetsTheKey();
 
 private:
@@ -78,6 +79,8 @@ void TestNotifier::completedBodyAndActionsMatchSpec()
              QStringList({QStringLiteral("open-folder"),
                           QStringLiteral("open folder"),
                           QStringLiteral("show"),
+                          QStringLiteral("show"),
+                          QStringLiteral("default"),
                           QStringLiteral("show")}));
     QCOMPARE(call.hints.value(QStringLiteral("category")).toString(),
              QStringLiteral("transfer.complete"));
@@ -92,7 +95,10 @@ void TestNotifier::completedWithoutFolderOmitsOpenFolderAction()
                                 /*hasFolder=*/false);
     QCOMPARE(m_server->calls.size(), 1);
     QCOMPARE(m_server->calls.first().actions,
-             QStringList({QStringLiteral("show"), QStringLiteral("show")}));
+             QStringList({QStringLiteral("show"),
+                          QStringLiteral("show"),
+                          QStringLiteral("default"),
+                          QStringLiteral("show")}));
 }
 
 void TestNotifier::serverLostBodyAndActionsMatchSpec()
@@ -108,7 +114,11 @@ void TestNotifier::serverLostBodyAndActionsMatchSpec()
     QCOMPARE(call.summary, QStringLiteral("home is unreachable"));
     QCOMPARE(call.body,
              QStringLiteral("nas.local:9090 · connection refused · retrying every 10 s"));
-    QCOMPARE(call.actions, QStringList({QStringLiteral("settings"), QStringLiteral("settings")}));
+    QCOMPARE(call.actions,
+             QStringList({QStringLiteral("settings"),
+                          QStringLiteral("settings"),
+                          QStringLiteral("default"),
+                          QStringLiteral("settings")}));
     QCOMPARE(call.hints.value(QStringLiteral("category")).toString(),
              QStringLiteral("network.disconnected"));
 }
@@ -170,6 +180,24 @@ void TestNotifier::actionInvokedCarriesClassSubjectAndKey()
     QCOMPARE(spy.first().at(0).toString(), QStringLiteral("completed"));
     QCOMPARE(spy.first().at(1).toString(), QStringLiteral("abc123"));
     QCOMPARE(spy.first().at(2).toString(), QStringLiteral("open-folder"));
+}
+
+void TestNotifier::clickOnTheBodyActsAsTheMainButton()
+{
+    const quint32 id = m_notifier->notifyCompleted(QStringLiteral("abc123"),
+                                                   QStringLiteral("name"),
+                                                   QStringLiteral("1 GB"),
+                                                   QStringLiteral("linux"),
+                                                   true);
+    QVERIFY(id != 0);
+
+    QSignalSpy spy(m_notifier, &Notifier::actionInvoked);
+    m_server->triggerActionInvoked(id, QStringLiteral("default"));
+    QVERIFY(spy.wait(2000));
+
+    QCOMPARE(spy.size(), 1);
+    QCOMPARE(spy.first().at(0).toString(), QStringLiteral("completed"));
+    QCOMPARE(spy.first().at(2).toString(), QStringLiteral("show"));
 }
 
 void TestNotifier::notificationClosedForgetsTheKey()

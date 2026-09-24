@@ -64,12 +64,24 @@ quint32 Notifier::sendNotice(const QString &key,
                              const QString &body,
                              const QStringList &actions,
                              uchar urgency,
-                             const QString &category)
+                             const QString &category,
+                             const QString &defaultAction)
 {
     if (!ensureServiceAvailable())
         return 0;
 
     const quint32 replacesId = m_liveIdByKey.value(key, 0);
+
+    // Omarchy's own notifications draw no buttons: a click on the toast invokes the action
+    // named "default" and nothing else, so the main button is offered under that name too.
+    // Servers that draw buttons (mako, dunst, GNOME, KDE) do not draw "default" as one.
+    QStringList allActions = actions;
+    if (!defaultAction.isEmpty()) {
+        const qsizetype at = actions.indexOf(defaultAction);
+        const QString label = at >= 0 && at + 1 < actions.size() ? actions.at(at + 1)
+                                                                 : defaultAction;
+        allActions << QStringLiteral("default") << label;
+    }
 
     QVariantMap hints;
     hints.insert(QStringLiteral("desktop-entry"), AppIdentity::applicationId());
@@ -84,7 +96,7 @@ quint32 Notifier::sendNotice(const QString &key,
                           AppIdentity::applicationId(),
                           summary,
                           body,
-                          actions,
+                          allActions,
                           hints,
                           -1);
     if (!reply.isValid()) {
@@ -98,7 +110,7 @@ quint32 Notifier::sendNotice(const QString &key,
         m_liveNoticeById.remove(replacesId);
 
     m_liveIdByKey.insert(key, id);
-    m_liveNoticeById.insert(id, LiveNotice{key, eventClass, subjectId});
+    m_liveNoticeById.insert(id, LiveNotice{key, eventClass, subjectId, defaultAction});
     return id;
 }
 
@@ -123,7 +135,8 @@ quint32 Notifier::notifyCompleted(const QString &hash,
                       body,
                       actions,
                       kUrgencyLow,
-                      QStringLiteral("transfer.complete"));
+                      QStringLiteral("transfer.complete"),
+                      QStringLiteral("show"));
 }
 
 quint32 Notifier::notifyServerLost(const QString &serverId,
@@ -146,7 +159,8 @@ quint32 Notifier::notifyServerLost(const QString &serverId,
                       body,
                       actions,
                       kUrgencyNormal,
-                      QStringLiteral("network.disconnected"));
+                      QStringLiteral("network.disconnected"),
+                      QStringLiteral("settings"));
 }
 
 quint32 Notifier::notifyServerBack(const QString &serverId, const QString &serverName)
@@ -179,7 +193,8 @@ quint32 Notifier::notifyDiskAlmostFull(const QString &serverId, const QString &f
                       body,
                       actions,
                       kUrgencyNormal,
-                      QString());
+                      QString(),
+                      QStringLiteral("settings"));
 }
 
 void Notifier::onActionInvoked(uint id, const QString &actionKey)
@@ -187,7 +202,10 @@ void Notifier::onActionInvoked(uint id, const QString &actionKey)
     const auto it = m_liveNoticeById.constFind(id);
     if (it == m_liveNoticeById.constEnd())
         return;
-    emit actionInvoked(it->eventClass, it->subjectId, actionKey);
+    const bool isDefault = actionKey == QStringLiteral("default");
+    if (isDefault && it->defaultAction.isEmpty())
+        return;
+    emit actionInvoked(it->eventClass, it->subjectId, isDefault ? it->defaultAction : actionKey);
 }
 
 void Notifier::onNotificationClosed(uint id, uint /*reason*/)

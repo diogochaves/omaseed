@@ -68,6 +68,7 @@ private:
         QString key;
         QString eventClass;
         QString subjectId;
+        QString defaultAction; ///< what a click on the notice body ("default") stands for
     };
 
     bool ensureServiceAvailable();
@@ -78,7 +79,8 @@ private:
                        const QString &body,
                        const QStringList &actions,
                        uchar urgency,
-                       const QString &category);
+                       const QString &category,
+                       const QString &defaultAction = QString());
 
     QDBusConnection m_connection;
     QDBusInterface *m_interface = nullptr;

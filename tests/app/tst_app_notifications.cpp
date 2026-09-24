@@ -254,6 +254,8 @@ void TestAppNotifications::completedNoticeMatchesSpecBodyAndOffersOpenFolderWhen
              QStringList({QStringLiteral("open-folder"),
                           QStringLiteral("open folder"),
                           QStringLiteral("show"),
+                          QStringLiteral("show"),
+                          QStringLiteral("default"),
                           QStringLiteral("show")}));
 }
 
@@ -282,7 +284,10 @@ void TestAppNotifications::completedNoticeOmitsOpenFolderWhenTheFolderIsUnknown(
 
     QCOMPARE(m_bus.server()->calls.size(), 1);
     QCOMPARE(m_bus.server()->calls.first().actions,
-             QStringList({QStringLiteral("show"), QStringLiteral("show")}));
+             QStringList({QStringLiteral("show"),
+                          QStringLiteral("show"),
+                          QStringLiteral("default"),
+                          QStringLiteral("show")}));
 }
 
 // Q16: tracker health is the Trackers tab badge and the rail filter, never a desktop notice.
@@ -325,7 +330,11 @@ void TestAppNotifications::diskAlmostFullMatchesQ2Wording()
     const auto &call = m_bus.server()->calls.first();
     QCOMPARE(call.summary, QStringLiteral("Disk almost full"));
     QCOMPARE(call.body, QStringLiteral("%1 free").arg(omaseed::core::Format::size(kGiB)));
-    QCOMPARE(call.actions, QStringList({QStringLiteral("settings"), QStringLiteral("settings")}));
+    QCOMPARE(call.actions,
+             QStringList({QStringLiteral("settings"),
+                          QStringLiteral("settings"),
+                          QStringLiteral("default"),
+                          QStringLiteral("settings")}));
 }
 
 void TestAppNotifications::disabledToggleSuppressesTheNotice()

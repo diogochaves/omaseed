@@ -499,13 +499,16 @@ int main(int argc, char *argv[])
                 rootWindow->requestActivate();
             }
         });
-    QObject::connect(&tray, &omaseed::integration::Tray::showRequested, &app, [rootWindow]() {
+    // The tray's "show", and a notice's "show" or "settings": whatever the window is doing
+    // (hidden to the tray, on another workspace), it comes up with that torrent or modal.
+    auto showWindow = [rootWindow]() {
         if (!rootWindow)
             return;
         rootWindow->show();
         rootWindow->raise();
         rootWindow->requestActivate();
-    });
+    };
+    QObject::connect(&tray, &omaseed::integration::Tray::showRequested, &app, showWindow);
     QObject::connect(
         &tray, &omaseed::integration::Tray::quitRequested, &app, &QCoreApplication::quit);
 
@@ -513,22 +516,17 @@ int main(int argc, char *argv[])
     // out as real requests, the icon state, tooltip and stats follow GlobalState and
     // FilterCounts, and the alt-speed checkbox follows the server rather than the last click.
     omaseedApp.attachTray(&tray);
-    QObject::connect(&omaseedApp, &omaseed::app::App::openSettings, &app, []() {
-        qInfo().noquote() << QStringLiteral("settings requested"); // T4.4 opens the modal
-    });
+    // MainView answers both signals (the cursor moves, the settings modal opens); this only
+    // brings the window up for them.
+    QObject::connect(&omaseedApp, &omaseed::app::App::openSettings, &app, showWindow);
 
     // Notifications (spec §6): the tray icon already reflects the same events through
     // App::updateTray; this is the desktop toast side. Xdg is attached so "open folder" can
-    // reveal a completed torrent's content path; MainView has no `Connections { target: App }`
-    // block yet (only `target: App.torrents`), so `showTorrentRequested` is only logged here
-    // until that block exists.
+    // reveal a completed torrent's content path.
     omaseed::integration::Notifier notifier;
     omaseedApp.attachXdg(&xdg);
     omaseedApp.attachNotifier(&notifier);
-    QObject::connect(
-        &omaseedApp, &omaseed::app::App::showTorrentRequested, &app, [](const QString &hash) {
-            qInfo().noquote() << QStringLiteral("show torrent requested: %1").arg(hash);
-        });
+    QObject::connect(&omaseedApp, &omaseed::app::App::showTorrentRequested, &app, showWindow);
 
     // The window's visibility drives the poll cadence (1.5 s shown, 5 s hidden). Main.qml
     // forwards its own `visible`; this catches the tray's hide/show of the same window, and
