@@ -467,6 +467,11 @@ void App::attachTray(Tray *tray)
     connect(tray, &Tray::stopAllRequested, this, &App::stopAll);
     connect(tray, &Tray::startAllRequested, this, &App::startAll);
 
+    // The Tray shows its icon when it is built; a saved "never" has to be applied here, not
+    // only when the setting changes.
+    loadSettings();
+    tray->setIconVisible(m_trayIconMode != QLatin1String("never"));
+
     updateTray();
 }
 
@@ -2238,6 +2243,8 @@ const QStringList kDetailsPlacements{
     QStringLiteral("auto"), QStringLiteral("right"), QStringLiteral("bottom")};
 const QStringList kTrackerHostStyles{
     QStringLiteral("prefix"), QStringLiteral("left"), QStringLiteral("right")};
+const QStringList kTrayIconModes{
+    QStringLiteral("auto"), QStringLiteral("always"), QStringLiteral("never")};
 
 int tintStep(int percent)
 {
@@ -2339,16 +2346,14 @@ QString App::trayIconMode() const
 void App::setTrayIconMode(const QString &mode)
 {
     loadSettings();
-    static const QStringList known{
-        QStringLiteral("auto"), QStringLiteral("always"), QStringLiteral("never")};
-    const QString next = known.contains(mode) ? mode : QStringLiteral("auto");
+    const QString next = oneOf(mode, kTrayIconModes);
     if (m_trayIconMode == next)
         return;
     m_trayIconMode = next;
     saveSettings();
     // `auto` behaves as `always` until the companion widget's heartbeat exists (plan T6.3).
-    if (m_tray && m_tray->systemTrayIcon() != nullptr)
-        m_tray->systemTrayIcon()->setVisible(next != QStringLiteral("never"));
+    if (m_tray)
+        m_tray->setIconVisible(next != QStringLiteral("never"));
     Q_EMIT settingsChanged();
 }
 
@@ -2386,8 +2391,8 @@ void App::loadSettings()
     m_followOmarchyTheme = appearance.value(QStringLiteral("followOmarchyTheme")).toBool(true);
     m_baseSizeOverride = appearance.value(QStringLiteral("baseSizeOverride")).toInt(0);
     m_windowAlphaOverride = appearance.value(QStringLiteral("windowAlphaOverride")).toInt(0);
-    m_trayIconMode =
-        appearance.value(QStringLiteral("trayIconMode")).toString(QStringLiteral("auto"));
+    m_trayIconMode = oneOf(appearance.value(QStringLiteral("trayIconMode")).toString(),
+                           kTrayIconModes);
     m_speedsAlignment =
         appearance.value(QStringLiteral("speedsAlignment")).toString(QStringLiteral("left")) ==
                 QLatin1String("right")

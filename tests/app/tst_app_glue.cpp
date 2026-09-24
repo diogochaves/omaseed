@@ -4,6 +4,7 @@
 #include "core/Server.hpp"
 #include "core/ServerStore.hpp"
 #include "core/SyncEngine.hpp"
+#include "integration/Tray.hpp"
 #include "ui/app/App.hpp"
 
 #include <QFile>
@@ -38,6 +39,9 @@ private slots:
 
     // APP-9
     void pathMapFollowsItsSetting();
+
+    // APP-10
+    void aSavedNeverTrayModeHidesTheIconAtStartup();
 
 private:
     QTemporaryDir m_dir;
@@ -199,6 +203,24 @@ void TestAppGlue::pathMapFollowsItsSetting()
     app.setPathMapEnabled(true);
     QCOMPARE(app.mapContentPathToLocal(remote), QStringLiteral("/mnt/nas/iso/arch.iso"));
     app.engine()->stop();
+}
+
+void TestAppGlue::aSavedNeverTrayModeHidesTheIconAtStartup()
+{
+    {
+        App before;
+        before.setTrayIconMode(QStringLiteral("never"));
+    }
+    App app; // a restart: the setting comes from state.json
+    omaseed::integration::Tray tray(nullptr);
+    QVERIFY(tray.iconWanted());
+    app.attachTray(&tray);
+    QVERIFY(!tray.iconWanted());
+    QVERIFY(!tray.systemTrayIcon()->isVisible());
+
+    app.setTrayIconMode(QStringLiteral("bogus")); // unknown values fall back to auto
+    QCOMPARE(app.trayIconMode(), QStringLiteral("auto"));
+    QVERIFY(tray.iconWanted());
 }
 
 QTEST_MAIN(TestAppGlue)

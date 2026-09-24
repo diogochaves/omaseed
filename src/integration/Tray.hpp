@@ -11,6 +11,7 @@ QT_BEGIN_NAMESPACE
 class QMenu;
 class QAction;
 class QPainter;
+class QDBusServiceWatcher;
 QT_END_NAMESPACE
 
 namespace omaseed::integration {
@@ -82,6 +83,11 @@ public:
     QIcon iconForState(State state) const;
 
     QSystemTrayIcon *systemTrayIcon() const { return m_trayIcon; }
+
+    /// Shows or hides the icon (Settings' tray icon mode). Shown while no StatusNotifierHost
+    /// exists yet, it appears once one registers, not never.
+    void setIconVisible(bool visible);
+    bool iconWanted() const { return m_iconWanted; }
     QMenu *menu() const { return m_menu; }
 
 Q_SIGNALS:
@@ -135,6 +141,10 @@ private:
     QString m_tooltip;
     QHash<QString, QColor> m_palette;
     bool m_loggedUnavailable = false;
+    bool m_iconWanted = true;
+    QDBusServiceWatcher *m_hostWatcher = nullptr;
+
+    void waitForHost();
 };
 
 } // namespace omaseed::integration
