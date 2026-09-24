@@ -93,7 +93,8 @@ void TestQbtClientLive::initTestCase()
 void TestQbtClientLive::bearerAgainstStrictServer()
 {
     if (m_apiKey.isEmpty())
-        QSKIP("QBT_STRICT_API_KEY is unset");
+        QSKIP("QBT_STRICT_API_KEY is unset: scripts/dev/test-server.sh start --strict "
+              "saves it in ~/.config/omaseed/dev.env; load that (set -a; . dev.env)");
 
     QbtClient client;
     client.setBaseUrl(m_strict);
@@ -113,7 +114,8 @@ void TestQbtClientLive::bearerAgainstStrictServer()
 void TestQbtClientLive::syncMainDataFirstCallIsFull()
 {
     if (m_apiKey.isEmpty())
-        QSKIP("QBT_STRICT_API_KEY is unset");
+        QSKIP("QBT_STRICT_API_KEY is unset: scripts/dev/test-server.sh start --strict "
+              "saves it in ~/.config/omaseed/dev.env; load that (set -a; . dev.env)");
 
     QbtClient client;
     client.setBaseUrl(m_strict);
@@ -130,7 +132,8 @@ void TestQbtClientLive::syncMainDataFirstCallIsFull()
 void TestQbtClientLive::cookieLoginAgainstStrictServer()
 {
     if (m_user.isEmpty() || m_password.isEmpty())
-        QSKIP("QBT_STRICT_USER / QBT_STRICT_PASS are unset");
+        QSKIP("QBT_STRICT_USER / QBT_STRICT_PASS are unset: scripts/dev/test-server.sh start "
+              "--strict saves them in ~/.config/omaseed/dev.env; load that (set -a; . dev.env)");
 
     QbtClient client;
     client.setBaseUrl(m_strict);
@@ -157,7 +160,8 @@ void TestQbtClientLive::cookieLoginAgainstStrictServer()
 void TestQbtClientLive::wrongPasswordIsUnauthorized()
 {
     if (m_user.isEmpty())
-        QSKIP("QBT_STRICT_USER is unset");
+        QSKIP("QBT_STRICT_USER is unset: scripts/dev/test-server.sh start --strict "
+              "saves it in ~/.config/omaseed/dev.env; load that (set -a; . dev.env)");
 
     QbtClient client;
     client.setBaseUrl(m_strict);
@@ -175,7 +179,8 @@ void TestQbtClientLive::wrongPasswordIsUnauthorized()
 
     // Put the right password back and the same client works again.
     if (m_password.isEmpty())
-        QSKIP("QBT_STRICT_PASS is unset");
+        QSKIP("QBT_STRICT_PASS is unset: scripts/dev/test-server.sh start --strict "
+              "saves it in ~/.config/omaseed/dev.env; load that (set -a; . dev.env)");
     client.setCredentials(m_user, m_password);
     const QbtResult<QString> again = await(this, client.appVersion());
     QVERIFY2(!again.isError(), qPrintable(again.error().toString()));

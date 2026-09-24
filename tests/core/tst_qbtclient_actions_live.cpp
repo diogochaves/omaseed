@@ -188,10 +188,10 @@ void TestQbtClientActionsLive::initTestCase()
         m_downloadsRoot.chop(1);
     if (m_downloadsRoot.isEmpty()) {
         const QString profile = env("OMASEED_TEST_PROFILE");
-        m_downloadsRoot = (profile.isEmpty()
-                               ? QDir::homePath() + QStringLiteral("/.local/share/omaseed-test")
-                               : profile)
-                          + QStringLiteral("/downloads");
+        m_downloadsRoot =
+            (profile.isEmpty() ? QDir::homePath() + QStringLiteral("/.local/share/omaseed-test")
+                               : profile) +
+            QStringLiteral("/downloads");
     }
 }
 

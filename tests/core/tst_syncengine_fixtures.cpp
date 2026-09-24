@@ -537,23 +537,24 @@ void TestSyncEngineFixtures::aTorrentAddedAndFinishedBetweenPollsIsAnnounced()
     // done (a 4 KB torrent finishes inside one poll), one done with nothing downloaded (added
     // over data already on disk), one still downloading. Only the first is a completion.
     const auto added = [](const QString &hash, double progress, qint64 downloaded) {
-        return QJsonObject{{QStringLiteral("name"), hash.left(4)},
-                           {QStringLiteral("state"),
-                            progress >= 1.0 ? QStringLiteral("uploading")
-                                            : QStringLiteral("downloading")},
-                           {QStringLiteral("progress"), progress},
-                           {QStringLiteral("downloaded"), downloaded},
-                           {QStringLiteral("size"), 4096}};
+        return QJsonObject{
+            {QStringLiteral("name"), hash.left(4)},
+            {QStringLiteral("state"),
+             progress >= 1.0 ? QStringLiteral("uploading") : QStringLiteral("downloading")},
+            {QStringLiteral("progress"), progress},
+            {QStringLiteral("downloaded"), downloaded},
+            {QStringLiteral("size"), 4096}};
     };
     const QJsonObject partial{
         {QStringLiteral("rid"), 2},
         {QStringLiteral("torrents"),
-         QJsonObject{{QStringLiteral("aaaa000000000000000000000000000000000001"),
-                      added(QStringLiteral("aaaa000000000000000000000000000000000001"), 1.0, 4096)},
-                     {QStringLiteral("bbbb000000000000000000000000000000000002"),
-                      added(QStringLiteral("bbbb000000000000000000000000000000000002"), 1.0, 0)},
-                     {QStringLiteral("cccc000000000000000000000000000000000003"),
-                      added(QStringLiteral("cccc000000000000000000000000000000000003"), 0.5, 2048)}}}};
+         QJsonObject{
+             {QStringLiteral("aaaa000000000000000000000000000000000001"),
+              added(QStringLiteral("aaaa000000000000000000000000000000000001"), 1.0, 4096)},
+             {QStringLiteral("bbbb000000000000000000000000000000000002"),
+              added(QStringLiteral("bbbb000000000000000000000000000000000002"), 1.0, 0)},
+             {QStringLiteral("cccc000000000000000000000000000000000003"),
+              added(QStringLiteral("cccc000000000000000000000000000000000003"), 0.5, 2048)}}}};
 
     FixtureServer server;
     QVERIFY(server.start());

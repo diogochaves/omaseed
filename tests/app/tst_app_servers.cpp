@@ -121,7 +121,8 @@ void TestAppServers::init()
 void TestAppServers::testServerReportsVersionAndCount()
 {
     if (strictKey().isEmpty())
-        QSKIP("QBT_STRICT_API_KEY is not set; load ~/.config/omaseed/dev.env to run this");
+        QSKIP("QBT_STRICT_API_KEY is not set: scripts/dev/test-server.sh start --strict "
+              "writes it to ~/.config/omaseed/dev.env; load that to run this");
 
     App app;
     QSignalSpy tested(&app, &App::serverTested);
@@ -160,7 +161,8 @@ void TestAppServers::testServerReportsVersionAndCount()
 void TestAppServers::testServerRejectsAWrongKey()
 {
     if (strictKey().isEmpty())
-        QSKIP("QBT_STRICT_API_KEY is not set; load ~/.config/omaseed/dev.env to run this");
+        QSKIP("QBT_STRICT_API_KEY is not set: scripts/dev/test-server.sh start --strict "
+              "writes it to ~/.config/omaseed/dev.env; load that to run this");
 
     App app;
     QSignalSpy tested(&app, &App::serverTested);
@@ -180,7 +182,8 @@ void TestAppServers::testServerRejectsAWrongKey()
 void TestAppServers::setDefaultServerMovesTheEngine()
 {
     if (strictKey().isEmpty())
-        QSKIP("QBT_STRICT_API_KEY is not set; load ~/.config/omaseed/dev.env to run this");
+        QSKIP("QBT_STRICT_API_KEY is not set: scripts/dev/test-server.sh start --strict "
+              "writes it to ~/.config/omaseed/dev.env; load that to run this");
 
     App app;
     app.start(); // nothing stored yet: no engine, no server

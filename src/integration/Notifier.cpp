@@ -95,8 +95,8 @@ quint32 Notifier::sendNotice(const QString &key,
     QStringList allActions = actions;
     if (!defaultAction.isEmpty()) {
         const qsizetype at = actions.indexOf(defaultAction);
-        const QString label = at >= 0 && at + 1 < actions.size() ? actions.at(at + 1)
-                                                                 : defaultAction;
+        const QString label =
+            at >= 0 && at + 1 < actions.size() ? actions.at(at + 1) : defaultAction;
         allActions << QStringLiteral("default") << label;
     }
 
