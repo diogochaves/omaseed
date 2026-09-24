@@ -283,10 +283,18 @@ void SyncEngine::applyData(const QJsonObject &data)
     if (!fullUpdate) {
         for (auto it = torrents.constBegin(); it != torrents.constEnd(); ++it) {
             const int row = m_torrents->indexOfHash(it.key());
-            if (row < 0)
-                continue; // a torrent we have never seen: added, not completed
-            const Torrent &before = m_torrents->torrentAt(row);
             const QJsonObject diff = it.value().toObject();
+            if (row < 0) {
+                // New since the last poll. Complete with bytes downloaded: it was added and
+                // finished between two polls (a small torrent does, in one 1.5 s interval).
+                // Complete with nothing downloaded: added over data already on disk, which
+                // is not a finished download.
+                if (diff.value(key("progress")).toDouble() >= 1.0 &&
+                    diff.value(key("downloaded")).toInteger() > 0)
+                    completed.append(it.key());
+                continue;
+            }
+            const Torrent &before = m_torrents->torrentAt(row);
 
             const bool nowComplete = diff.value(key("progress")).toDouble(before.progress) >= 1.0;
             const bool hasCompletionOn = diff.value(key("completion_on")).toInteger(0) > 0;

@@ -174,6 +174,7 @@ private slots:
     void onlyOnePollInFlight();
     void cadenceFollowsVisibility();
     void completionIsAnnouncedOnceAndNeverOnFullUpdates();
+    void aTorrentAddedAndFinishedBetweenPollsIsAnnounced();
     void trackerErrorFlagReachesTheRowWithoutANotice();
     void diskAlmostFullFiresOncePerCrossing();
     void serverLostOnceThenBackWithAFullUpdate();
@@ -396,6 +397,53 @@ void TestSyncEngineFixtures::completionIsAnnouncedOnceAndNeverOnFullUpdates()
     QCOMPARE(args.at(2).toLongLong(), 1404304589);
     QCOMPARE(args.at(3).toString(), QStringLiteral("fixtures"));
     QVERIFY(args.at(4).toString().endsWith(QStringLiteral("fixture-one")));
+}
+
+void TestSyncEngineFixtures::aTorrentAddedAndFinishedBetweenPollsIsAnnounced()
+{
+    // Three torrents the engine first meets in a partial update: one downloaded and already
+    // done (a 4 KB torrent finishes inside one poll), one done with nothing downloaded (added
+    // over data already on disk), one still downloading. Only the first is a completion.
+    const auto added = [](const QString &hash, double progress, qint64 downloaded) {
+        return QJsonObject{{QStringLiteral("name"), hash.left(4)},
+                           {QStringLiteral("state"),
+                            progress >= 1.0 ? QStringLiteral("uploading")
+                                            : QStringLiteral("downloading")},
+                           {QStringLiteral("progress"), progress},
+                           {QStringLiteral("downloaded"), downloaded},
+                           {QStringLiteral("size"), 4096}};
+    };
+    const QJsonObject partial{
+        {QStringLiteral("rid"), 2},
+        {QStringLiteral("torrents"),
+         QJsonObject{{QStringLiteral("aaaa000000000000000000000000000000000001"),
+                      added(QStringLiteral("aaaa000000000000000000000000000000000001"), 1.0, 4096)},
+                     {QStringLiteral("bbbb000000000000000000000000000000000002"),
+                      added(QStringLiteral("bbbb000000000000000000000000000000000002"), 1.0, 0)},
+                     {QStringLiteral("cccc000000000000000000000000000000000003"),
+                      added(QStringLiteral("cccc000000000000000000000000000000000003"), 0.5, 2048)}}}};
+
+    FixtureServer server;
+    QVERIFY(server.start());
+    server.setMainData({m_full, QJsonDocument(partial).toJson(QJsonDocument::Compact)});
+
+    QbtClient client;
+    client.setBaseUrl(server.url());
+    SyncEngine engine;
+    engine.setClient(&client);
+    engine.setIntervals(std::chrono::milliseconds(10),
+                        std::chrono::milliseconds(10),
+                        std::chrono::milliseconds(10),
+                        std::chrono::milliseconds(10));
+
+    QSignalSpy completed(&engine, &SyncEngine::torrentCompleted);
+    engine.start();
+    QVERIFY(waitFor([&] { return server.mainDataRequests >= 3; }));
+    engine.stop();
+
+    QCOMPARE(completed.count(), 1);
+    QCOMPARE(completed.first().at(0).toString(),
+             QStringLiteral("aaaa000000000000000000000000000000000001"));
 }
 
 // Q16 dropped the tracker-error notice: a torrent losing its trackers is a row flag (the
