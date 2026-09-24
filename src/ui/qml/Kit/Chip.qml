@@ -85,6 +85,8 @@ Rectangle {
         }
     }
 
+    // Keypad `enter` too (KIT-7).
+    Keys.onEnterPressed: root.clicked()
     Keys.onReturnPressed: root.clicked()
     Keys.onSpacePressed: root.clicked()
 }

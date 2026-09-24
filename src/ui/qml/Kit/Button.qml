@@ -125,6 +125,10 @@ Rectangle {
         }
     }
 
+    // Keypad `enter` is its own key (`Qt.Key_Enter`); without it the key went on to the
+    // Sheet, which ran its primary action instead of this button (KIT-7).
+    Keys.onEnterPressed: if (root.enabled)
+                             root.clicked()
     Keys.onReturnPressed: if (root.enabled)
                               root.clicked()
     Keys.onSpacePressed: if (root.enabled)

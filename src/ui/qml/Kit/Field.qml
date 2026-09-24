@@ -32,8 +32,19 @@ Rectangle {
     /// Puts the caret in the field. `forceActiveFocus()` on the Rectangle itself would stop
     /// at the root and never reach the inner TextInput.
     function focusInput(): void {
-    input.forceActiveFocus();
-}
+        input.forceActiveFocus();
+    }
+
+    // `enter` (Return or keypad Enter) accepts. `shift+enter` is deliberately left alone:
+    // inside a Sheet it is the secondary action (Fig. 5's `add stopped`), and a TextInput that
+    // swallowed it would never let the sheet see it (T4.2).
+    function _onEnter(event: var): void {
+        if (event.modifiers & Qt.ShiftModifier) {
+            event.accepted = false;
+            return;
+        }
+        root.accepted();
+    }
 
     readonly property bool hot: root.hasCursor || hoverHandler.hovered || input.activeFocus
 
@@ -146,15 +157,10 @@ Rectangle {
             input.text = "";
             root.cleared();
         }
-        // `enter` accepts. `shift+enter` is deliberately left alone: inside a Sheet it is the
-        // secondary action (Fig. 5's `add stopped`), and a TextInput that swallowed it would
-        // never let the sheet see it (T4.2).
-        Keys.onReturnPressed: event => {
-            if (event.modifiers & Qt.ShiftModifier) {
-                event.accepted = false;
-                return;
-            }
-            root.accepted();
-        }
+        // `enter` accepts; see `_onEnter`.
+        Keys.onReturnPressed: event => root._onEnter(event)
+        // Keypad `enter` is its own key; without this it went past `accepted` to the Sheet's
+        // primary action (KIT-7).
+        Keys.onEnterPressed: event => root._onEnter(event)
     }
 }

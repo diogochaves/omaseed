@@ -47,6 +47,20 @@ TestCase {
         compare(accepted, 1);
     }
 
+    // KIT-7: Return and keypad Enter both accept; shift+enter is left for the sheet.
+    function test_return_and_keypad_enter_both_accept() {
+        const field = createTemporaryObject(fieldComponent, testCase);
+        let accepted = 0;
+        field.accepted.connect(() => accepted++);
+        field.focusInput();
+        keyClick(Qt.Key_Return);
+        compare(accepted, 1);
+        keyClick(Qt.Key_Enter, Qt.KeypadModifier);
+        compare(accepted, 2, "keypad enter did not accept");
+        keyClick(Qt.Key_Enter, Qt.KeypadModifier | Qt.ShiftModifier);
+        compare(accepted, 2, "shift+keypad enter was swallowed by the field");
+    }
+
     // T4.5: a field that holds a secret (spec §3 Fig. 9's `Key`) draws bullets instead of the
     // characters, and `text` still carries the real value for the caller.
     function test_echo_mode_hides_a_secret() {

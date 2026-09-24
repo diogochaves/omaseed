@@ -321,6 +321,25 @@ TestCase {
         compare(accepted.count, 0, "enter on cancel ran the primary");
     }
 
+    // KIT-7: keypad enter on a focused button runs that button, as Return does, not the
+    // sheet's primary action.
+    function test_keypad_enter_on_the_focused_cancel_runs_cancel() {
+        const sheet = createTemporaryObject(keySheetComponent, testCase);
+        const accepted = createTemporaryObject(acceptedSpy, testCase, {
+                                                   "target": sheet
+                                               });
+        const triggered = createTemporaryObject(triggeredSpy, testCase, {
+                                                    "target": sheet
+                                                });
+        sheet.open();
+        keyClick(Qt.Key_Tab); // toggle -> cancel
+        keyClick(Qt.Key_Enter, Qt.KeypadModifier);
+        compare(triggered.count, 1);
+        compare(triggered.signalArguments[0][0], "cancel");
+        compare(accepted.count, 0, "keypad enter ran the primary");
+        compare(sheet.opened, false);
+    }
+
     // KIT-6: an open sheet is modal — a letter pressed on one of its buttons stops at the
     // sheet instead of reaching the view that holds it; ctrl+q still goes on.
     function test_keys_the_sheet_does_not_use_stop_at_it() {
