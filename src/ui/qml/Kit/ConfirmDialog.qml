@@ -27,8 +27,8 @@ Item {
     property string message: ""
     property string subtitle: ""
     /// The two button captions.
-    property string cancelText: qsTr("Cancel")
-    property string confirmText: qsTr("Confirm")
+    property string cancelText: qsTr("cancel")
+    property string confirmText: qsTr("confirm")
     /// Red confirm button, and the cursor starts on cancel.
     property bool destructive: false
     property bool inline: false

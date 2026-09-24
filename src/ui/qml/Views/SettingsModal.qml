@@ -193,7 +193,10 @@ Item {
         const map = App.serverList.serverMap(id);
         confirm.pendingId = id;
         confirm.message = qsTr("Remove the server %1?").arg(map.name);
-        confirm.subtitle = qsTr("%1 · the stored secret goes with it. Nothing on the server is touched.").arg(map.url);
+        // Only a server with a credential has a stored secret to lose (review RUN-14).
+        confirm.subtitle = map.authMode === "none"
+                ? qsTr("%1 · nothing on the server is touched.").arg(map.url)
+                : qsTr("%1 · the stored secret goes with it. Nothing on the server is touched.").arg(map.url);
         confirm.open();
     }
 
@@ -1327,7 +1330,7 @@ Item {
         property string pendingId: ""
 
         anchors.fill: parent
-        confirmText: qsTr("Remove")
+        confirmText: qsTr("remove")
         destructive: true
         z: 2
 

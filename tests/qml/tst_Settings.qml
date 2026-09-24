@@ -147,6 +147,25 @@ TestCase {
         signalName: "closed"
     }
 
+    // Review RUN-14: lowercase buttons, and a server without a credential has no secret to lose.
+    function test_removing_a_server_without_auth_does_not_mention_a_secret() {
+        const id = App.serverList.add({
+                                          "name": "open",
+                                          "url": "http://127.0.0.1:8081",
+                                          "authMode": "none"
+                                      }, "");
+        verify(id.length > 0);
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        modal.showPane(1);
+        modal.paneCursor = 0;
+        modal.removeCursorServer();
+        verify(modal.confirm.subtitle.indexOf("secret") < 0, modal.confirm.subtitle);
+        compare(modal.confirm.confirmText, "remove");
+        compare(modal.confirm.cancelText, "cancel");
+        modal.confirm.close();
+    }
+
     function test_the_servers_pane_prints_url_auth_and_count() {
         const id = testCase.addTestServer("playground", "http://127.0.0.1:8081");
         verify(id.length > 0);
