@@ -12,8 +12,8 @@ import Omaseed.Kit
 //
 // Everything on screen comes from two properties: `details` (the controller and its three
 // models) and `torrent` (the table's cursor row, as a plain object with the roles named
-// below). Actions leave as signals; only the file priority goes straight to App, because it
-// is the one thing the pane changes in Phase 3.
+// below). Most actions leave as signals for MainView; the Files tab's priority and rename,
+// and General's option rows, call App directly.
 Item {
     id: root
 

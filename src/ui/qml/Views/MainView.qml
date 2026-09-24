@@ -739,8 +739,8 @@ Item {
         }
     }
 
-    /// Fig. 26's "act" column, for the table only: every one of these needs Phase 4, so they
-    /// travel as `App.torrentActionRequested` and log.
+    /// Fig. 26's "act" column, for the table only: each key goes through `torrentAction()`,
+    /// which calls App or opens the overlay that asks first.
     function _tableAction(event, shift) {
         switch (event.key) {
         case Qt.Key_P:
