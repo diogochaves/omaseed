@@ -14,10 +14,20 @@ TestCase {
         id: host
 
         Item {
+            property alias target: target
             property alias tip: tooltip
 
             height: 200
             width: 400
+
+            Rectangle {
+                id: target
+
+                height: 30
+                width: 30
+                x: 100
+                y: 40
+            }
 
             Tooltip {
                 id: tooltip
@@ -25,6 +35,55 @@ TestCase {
                 delay: 1
             }
         }
+    }
+
+    Component {
+        id: plainHost
+
+        Item {
+            property alias tip: plainTip
+
+            height: 200
+            width: 400
+
+            Tooltip {
+                id: plainTip
+            }
+        }
+    }
+
+    // Review Q8: one look, IconButton's: an accent edge and a 400 ms rest.
+    function test_one_look_accent_edge_and_four_hundred_ms() {
+        const item = createTemporaryObject(host, testCase);
+        compare(item.tip.panelItem.border.color, Theme.accent);
+        compare(item.tip.panelItem.border.width, 1);
+        const plain = createTemporaryObject(plainHost, testCase);
+        compare(plain.tip.delay, 400);
+    }
+
+    function test_show_for_centres_the_panel_under_the_item() {
+        const item = createTemporaryObject(host, testCase);
+        item.tip.showFor(item.target, "add torrent");
+        tryCompare(item.tip, "shown", true);
+        const panel = item.tip.panelItem;
+        verify(panel.y >= item.target.y + item.target.height, "the panel is not under the item");
+        fuzzyCompare(panel.x + panel.width / 2, item.target.x + item.target.width / 2, 1);
+    }
+
+    function test_show_for_flips_above_an_item_at_the_bottom_edge() {
+        const item = createTemporaryObject(host, testCase);
+        item.target.y = item.height - item.target.height;
+        item.tip.showFor(item.target, "add torrent");
+        tryCompare(item.tip, "shown", true);
+        const panel = item.tip.panelItem;
+        verify(panel.y + panel.height <= item.target.y, "the panel was not flipped above the item");
+    }
+
+    function test_show_for_nothing_hides() {
+        const item = createTemporaryObject(host, testCase);
+        item.tip.showFor(item.target, "");
+        wait(20);
+        compare(item.tip.shown, false);
     }
 
     function test_it_waits_for_the_delay_before_showing() {

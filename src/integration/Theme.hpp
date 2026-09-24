@@ -108,6 +108,12 @@ class Theme : public QObject
     Q_PROPERTY(int rowHeight READ rowHeight NOTIFY changed FINAL)
     Q_PROPERTY(int controlHeight READ controlHeight NOTIFY changed FINAL)
     Q_PROPERTY(int railRowHeight READ railRowHeight NOTIFY changed FINAL)
+    /// The keyboard-focus ring (review Q6): a 1 px accent stroke drawn `focusGap` outside the
+    /// control's edge, so it never reads as the primary button's own accent outline.
+    /// `focusExtent` is how far the ring reaches past the edge; a parent that clips leaves
+    /// that much room around its focusable children.
+    Q_PROPERTY(int focusGap READ focusGap NOTIFY changed FINAL)
+    Q_PROPERTY(int focusExtent READ focusExtent NOTIFY changed FINAL)
     Q_PROPERTY(qreal fillIdle READ fillIdle NOTIFY changed FINAL)
     Q_PROPERTY(qreal fillHover READ fillHover NOTIFY changed FINAL)
     Q_PROPERTY(qreal fillSelected READ fillSelected NOTIFY changed FINAL)
@@ -168,6 +174,8 @@ public:
     int rowHeight() const;
     int controlHeight() const;
     int railRowHeight() const;
+    int focusGap() const { return space(2); }
+    int focusExtent() const { return focusGap() + 1; }
     qreal fillIdle() const { return m_fillIdle; }
     qreal fillHover() const { return m_fillHover; }
     qreal fillSelected() const { return m_fillSelected; }

@@ -64,14 +64,9 @@ Item {
             }
         }
 
-        Rectangle {
-            anchors.fill: parent
-            anchors.margins: -1
-            border.color: Theme.accent
-            border.width: 1
-            color: "transparent"
-            radius: Theme.cornerRadius
-            visible: root.activeFocus
+        // The whole control holds the focus; the ring goes round the track (review Q6).
+        FocusRing {
+            shown: root.activeFocus
         }
     }
 

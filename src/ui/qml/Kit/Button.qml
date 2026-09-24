@@ -7,7 +7,8 @@ import Omaseed.Kit
 // (/usr/share/omarchy/shell/Ui/Button.qml):
 //
 //   pressed         fillPressed (22 %)
-//   activeFocus     accent ring (1 px), plus the hover fill
+//   activeFocus     the hover fill, plus the kit's FocusRing: 1 px accent, `Theme.focusGap`
+//                   outside the edge, so it never reads as the primary's outline (review Q6)
 //   hasCursor/hover fillHover (8 %) + borderHover (25 %)
 //   selected        fillSelected (18 %), no border unless `bordered`
 //   idle            no chrome, unless `bordered`: fillIdle (4 %) + borderIdle (40 %)
@@ -38,25 +39,23 @@ Rectangle {
     readonly property color _textColor: root.danger ? Theme.red : (root.primary ? Theme.accent :
                                                                                   Theme.foreground)
     readonly property color _borderColor: (root.danger && (root.selected || root.primary))
-                                          ? Theme.red : root.primary ? Theme.accent :
-                                                                       root.activeFocus
-                                                                       ? Theme.accent : root.hot
+                                          ? Theme.red : root.primary ? Theme.accent : root.hot
+                                                                       ? Theme.fill(
+                                                                             Theme.borderHover) : (
+                                                                             root.bordered
+                                                                             || root.selected)
                                                                          ? Theme.fill(
-                                                                               Theme.borderHover) : (
-                                                                               root.bordered
-                                                                               || root.selected)
-                                                                           ? Theme.fill(
-                                                                                 Theme.borderIdle) :
-                                                                             "transparent"
+                                                                               Theme.borderIdle) :
+                                                                           "transparent"
 
-    Accessible.name: root.text.length > 0 ? root.text : root.glyph.startsWith("icon:") ? ""
-                                                                                     : root.glyph
+    Accessible.name: root.text.length > 0 ? root.text : root.glyph.startsWith("icon:") ? "" :
+                                                                                         root.glyph
+
     Accessible.role: Accessible.Button
 
     activeFocusOnTab: root.enabled
     border.color: root._borderColor
-    border.width: (root.primary || root.activeFocus || root.hot || root.bordered || root.selected)
-                  ? 1 : 0
+    border.width: (root.primary || root.hot || root.bordered || root.selected) ? 1 : 0
     color: (mouseArea.pressed || root.pressed) ? Theme.fill(Theme.fillPressed) : (root.activeFocus
                                                                                   || root.hot)
                                                  ? Theme.fill(Theme.fillHover) : root.selected ? (
@@ -111,6 +110,8 @@ Rectangle {
             visible: root.text.length > 0
         }
     }
+
+    FocusRing {}
 
     MouseArea {
         id: mouseArea

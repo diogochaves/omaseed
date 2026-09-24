@@ -6,6 +6,7 @@ TestCase {
     id: testCase
 
     name: "Button"
+    when: windowShown
 
     Component {
         id: buttonComponent
@@ -83,6 +84,32 @@ TestCase {
                                                  "primary": true
                                              });
         compare(button.border.color, Theme.accent);
+    }
+
+    // Review Q6: focus is the ring outside the edge, so a focused ordinary button no longer
+    // wears the primary's accent outline.
+    function test_focus_draws_the_ring_and_leaves_the_border_alone() {
+        const button = createTemporaryObject(buttonComponent, testCase, {
+                                                 "text": "test"
+                                             });
+        const ring = findChild(button, "focusRing");
+        verify(ring);
+        compare(ring.shown, false);
+        button.forceActiveFocus();
+        compare(ring.shown, true);
+        compare(ring.x, -Theme.focusExtent);
+        compare(button.border.width, 0);
+    }
+
+    function test_a_focused_primary_keeps_its_outline_inside_the_ring() {
+        const button = createTemporaryObject(buttonComponent, testCase, {
+                                                 "text": "edit",
+                                                 "primary": true
+                                             });
+        button.forceActiveFocus();
+        compare(button.border.color, Theme.accent);
+        compare(button.border.width, 1);
+        compare(findChild(button, "focusRing").shown, true);
     }
 
     function test_danger_text_is_red() {

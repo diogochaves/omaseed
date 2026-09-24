@@ -416,22 +416,35 @@ Item {
             }
 
             // the caller's rows ------------------------------------------------------
+            // The Flickable clips, so it reaches `Theme.focusExtent` past the rows on every
+            // side and insets them by as much: a row's FocusRing (review Q6) draws outside its
+            // control, and a control flush with the edge would lose it. The rows stay where
+            // they were.
             Flickable {
+                id: bodyScroller
+
+                Layout.bottomMargin: -Theme.focusExtent
                 Layout.fillHeight: true
                 Layout.fillWidth: true
-                Layout.maximumHeight: bodyColumn.implicitHeight
-                Layout.preferredHeight: bodyColumn.implicitHeight
+                Layout.leftMargin: -Theme.focusExtent
+                Layout.maximumHeight: bodyColumn.implicitHeight + 2 * Theme.focusExtent
+                Layout.preferredHeight: bodyColumn.implicitHeight + 2 * Theme.focusExtent
+                Layout.rightMargin: -Theme.focusExtent
+                Layout.topMargin: -Theme.focusExtent
                 boundsBehavior: Flickable.StopAtBounds
                 clip: true
-                contentHeight: bodyColumn.implicitHeight
+                contentHeight: bodyColumn.implicitHeight + 2 * Theme.focusExtent
                 contentWidth: width
+                objectName: "sheetBody"
                 visible: bodyColumn.children.length > 0
 
                 ColumnLayout {
                     id: bodyColumn
 
                     spacing: Theme.space(12)
-                    width: parent.width
+                    width: parent.width - 2 * Theme.focusExtent
+                    x: Theme.focusExtent
+                    y: Theme.focusExtent
                 }
             }
 
