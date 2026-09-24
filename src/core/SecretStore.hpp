@@ -129,8 +129,7 @@ public:
     struct KeychainHooks
     {
         std::function<void(const QString &key, KeychainAnswer answer)> read;
-        std::function<void(const QString &key, const QString &value, KeychainAnswer answer)>
-            write;
+        std::function<void(const QString &key, const QString &value, KeychainAnswer answer)> write;
         std::function<void(const QString &key, KeychainAnswer answer)> remove;
     };
     /// Empty hooks restore the real keychain.

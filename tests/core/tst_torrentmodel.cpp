@@ -10,8 +10,8 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QSignalSpy>
-#include <QTimeZone>
 #include <QTest>
+#include <QTimeZone>
 
 using namespace omaseed::core;
 
@@ -263,10 +263,10 @@ void TestTorrentModel::inactiveSeedingTimeLimitParsesAndDefaults()
     QCOMPARE(model.torrent(QStringLiteral("aaaa")).inactiveSeedingTimeLimit, qint64(-2));
 
     QSignalSpy changed(&model, &QAbstractItemModel::dataChanged);
-    model.applyPartial(QJsonObject{{QStringLiteral("aaaa"),
-                                    QJsonObject{{QStringLiteral("inactive_seeding_time_limit"),
-                                                 30}}}},
-                       QJsonArray());
+    model.applyPartial(
+        QJsonObject{{QStringLiteral("aaaa"),
+                     QJsonObject{{QStringLiteral("inactive_seeding_time_limit"), 30}}}},
+        QJsonArray());
     QCOMPARE(model.torrent(QStringLiteral("aaaa")).inactiveSeedingTimeLimit, qint64(30));
     QCOMPARE(model.data(model.index(0), role).toLongLong(), qint64(30));
     QCOMPARE(changed.count(), 1);
@@ -317,8 +317,7 @@ void TestTorrentModel::aHashRemovedTwiceRemovesOneRow()
 {
     TorrentModel model;
     model.applyFullUpdate(threeTorrents());
-    model.applyPartial(QJsonObject(),
-                       QJsonArray({QStringLiteral("bbbb"), QStringLiteral("bbbb")}));
+    model.applyPartial(QJsonObject(), QJsonArray({QStringLiteral("bbbb"), QStringLiteral("bbbb")}));
     QCOMPARE(model.hashes(), QStringList({QStringLiteral("aaaa"), QStringLiteral("cccc")}));
 }
 

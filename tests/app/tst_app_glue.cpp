@@ -12,11 +12,11 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QSignalSpy>
-#include <QThread>
-#include <QTemporaryDir>
 #include <QTcpServer>
 #include <QTcpSocket>
+#include <QTemporaryDir>
 #include <QTest>
+#include <QThread>
 #include <QUrlQuery>
 
 #include <memory>
@@ -337,9 +337,8 @@ protected:
                 ++toggles;
             else if (target.startsWith("/api/v2/torrents/setShareLimits"))
                 shareLimitsBody = requestBody;
-            socket->write("HTTP/1.1 " + status + "\r\n" + extraHeaders +
-                          "Content-Length: " + QByteArray::number(body.size()) +
-                          "\r\nConnection: close\r\n\r\n" + body);
+            socket->write("HTTP/1.1 " + status + "\r\n" + extraHeaders + "Content-Length: " +
+                          QByteArray::number(body.size()) + "\r\nConnection: close\r\n\r\n" + body);
             socket->disconnectFromHost();
         });
     }

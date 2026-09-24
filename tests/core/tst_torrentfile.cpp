@@ -201,15 +201,15 @@ void TestTorrentFile::torrentIdOfAHybridIsItsTruncatedV2Hash()
     // The parser does not check that the two piece layouts agree, so a stub is enough.
     const QByteArray info = QByteArrayLiteral("d"
                                               "9:file treed6:Hy.bind0:d6:lengthi16384e"
-                                              "11:pieces root32:")
-                            + QByteArray(32, 'r')
-                            + QByteArrayLiteral("eee"
-                                                "6:lengthi16384e"
-                                                "12:meta versioni2e"
-                                                "4:name6:Hy.bin"
-                                                "12:piece lengthi16384e"
-                                                "6:pieces20:")
-                            + QByteArray(20, 'p') + QByteArrayLiteral("e");
+                                              "11:pieces root32:") +
+                            QByteArray(32, 'r') +
+                            QByteArrayLiteral("eee"
+                                              "6:lengthi16384e"
+                                              "12:meta versioni2e"
+                                              "4:name6:Hy.bin"
+                                              "12:piece lengthi16384e"
+                                              "6:pieces20:") +
+                            QByteArray(20, 'p') + QByteArrayLiteral("e");
     const TorrentFile hybrid =
         TorrentFile::parse(QByteArrayLiteral("d4:info") + info + QByteArrayLiteral("e"));
     QVERIFY(hybrid.isValid());

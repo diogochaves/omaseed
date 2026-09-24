@@ -28,8 +28,8 @@ private slots:
     void actionInvokedCarriesClassSubjectAndKey();
     void clickOnTheBodyActsAsTheMainButton();
     void notificationClosedForgetsTheKey();
-    void aDaemonRestartForgetsTheLiveIds();  // INT-9
-    void aServiceThatAppearsLaterIsUsed();   // INT-9
+    void aDaemonRestartForgetsTheLiveIds(); // INT-9
+    void aServiceThatAppearsLaterIsUsed();  // INT-9
 
 private:
     FakeNotificationBus m_bus;

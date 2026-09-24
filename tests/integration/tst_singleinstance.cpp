@@ -210,10 +210,12 @@ void TestSingleInstance::themeReloadReachesThePrimaryByName()
 void TestSingleInstance::secondaryTakesOverFromAQuittingOwner()
 {
     const QString ownerName = QStringLiteral("quitting-owner");
-    QDBusConnection owner = QDBusConnection::connectToBus(QString::fromUtf8(m_busAddress), ownerName);
+    QDBusConnection owner =
+        QDBusConnection::connectToBus(QString::fromUtf8(m_busAddress), ownerName);
     QVERIFY(owner.registerService(Identity::dbusServiceName()));
     QuittingOwner object(ownerName);
-    QVERIFY(owner.registerObject(Identity::dbusObjectPath(), &object, QDBusConnection::ExportAllSlots));
+    QVERIFY(
+        owner.registerObject(Identity::dbusObjectPath(), &object, QDBusConnection::ExportAllSlots));
 
     const QStringList uris{QStringLiteral("magnet:?xt=urn:btih:quit")};
     SingleInstance second;
@@ -232,7 +234,8 @@ void TestSingleInstance::secondaryGivesUpOnAnOwnerThatIsNotTheApp()
     // Something holds the name but has no org.freedesktop.Application object (a stray demo
     // of an older build did exactly this). The secondary must answer quickly, not hang.
     const QString ownerName = QStringLiteral("foreign-owner");
-    QDBusConnection owner = QDBusConnection::connectToBus(QString::fromUtf8(m_busAddress), ownerName);
+    QDBusConnection owner =
+        QDBusConnection::connectToBus(QString::fromUtf8(m_busAddress), ownerName);
     QVERIFY(owner.registerService(Identity::dbusServiceName()));
 
     SingleInstance second;
@@ -290,8 +293,8 @@ void TestSingleInstance::localSocketFallbackLivesInTheRuntimeDir()
         QVERIFY(primary.start({}));
         QVERIFY(primary.isPrimary());
         QVERIFY(!primary.connection().isConnected());
-        const QString socket =
-            runtime.path() + QLatin1Char('/') + Identity::applicationId() + QStringLiteral(".instance");
+        const QString socket = runtime.path() + QLatin1Char('/') + Identity::applicationId() +
+                               QStringLiteral(".instance");
         QVERIFY2(QFileInfo::exists(socket), qPrintable(socket));
         QCOMPARE(QFileInfo(socket).permissions() & (QFile::ReadOther | QFile::WriteOther),
                  QFile::Permissions());

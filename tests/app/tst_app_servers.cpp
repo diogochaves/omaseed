@@ -23,8 +23,8 @@
 
 #include <QProcess>
 #include <QProcessEnvironment>
-#include <QStandardPaths>
 #include <QSignalSpy>
+#include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QVariantMap>
@@ -52,7 +52,8 @@ void clearTestSecretService()
 {
     const QString tool = QStandardPaths::findExecutable(QStringLiteral("secret-tool"));
     if (tool.isEmpty()) {
-        qWarning("secret-tool not found: entries in %s are left behind", qPrintable(kSecretService));
+        qWarning("secret-tool not found: entries in %s are left behind",
+                 qPrintable(kSecretService));
         return;
     }
     QProcess clear;

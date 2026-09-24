@@ -178,8 +178,7 @@ void TorrentFilterModel::setTrackerModel(TrackerModel *model)
 
 bool TorrentFilterModel::usesTrackerMembership() const
 {
-    return m_trackerModel && m_tracker && !m_tracker->isEmpty() &&
-           *m_tracker != trackerlessKey();
+    return m_trackerModel && m_tracker && !m_tracker->isEmpty() && *m_tracker != trackerlessKey();
 }
 
 bool TorrentFilterModel::reloadTrackerHashes()

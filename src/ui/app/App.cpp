@@ -1347,15 +1347,15 @@ void App::pickTorrentFile()
 {
     // The portal's chooser, not a widget window of ours: main() selects Qt's
     // xdgdesktopportal platform theme, which serves QFileDialog's static pickers.
-    QFileDialog::getOpenFileContent(tr("Torrent files (*.torrent);;All files (*)"),
-                                    [this](const QString &fileName, const QByteArray &bytes) {
-                                        if (fileName.isEmpty())
-                                            return; // cancelled
-                                        const QString token = QStringLiteral("file-%1").arg(
-                                            ++m_nextAddableToken, 4, 10, QLatin1Char('0'));
-                                        parseTorrentInBackground(
-                                            token, fileName, fileName, QString(), bytes);
-                                    });
+    QFileDialog::getOpenFileContent(
+        tr("Torrent files (*.torrent);;All files (*)"),
+        [this](const QString &fileName, const QByteArray &bytes) {
+            if (fileName.isEmpty())
+                return; // cancelled
+            const QString token =
+                QStringLiteral("file-%1").arg(++m_nextAddableToken, 4, 10, QLatin1Char('0'));
+            parseTorrentInBackground(token, fileName, fileName, QString(), bytes);
+        });
 }
 
 QVariantMap App::findDuplicate(const QString &hashV1, const QString &hashV2) const
@@ -1441,8 +1441,9 @@ void App::addTorrent(const QVariantMap &request)
     const QString value = request.value(QStringLiteral("value")).toString();
     const QString token = request.value(QStringLiteral("token")).toString();
     // The key the new row will have in maindata, which is what the cursor and QML look for.
-    const QString hash = TorrentFile::torrentIdFor(request.value(QStringLiteral("infoHashV1")).toString(),
-                                      request.value(QStringLiteral("infoHashV2")).toString());
+    const QString hash =
+        TorrentFile::torrentIdFor(request.value(QStringLiteral("infoHashV1")).toString(),
+                                  request.value(QStringLiteral("infoHashV2")).toString());
 
     if (kind != QLatin1String("magnet") && kind != QLatin1String("url") &&
         kind != QLatin1String("file")) {
@@ -1756,8 +1757,8 @@ void App::reannounce(const QStringList &hashes)
 
 void App::removeTracker(const QString &hash, const QString &url)
 {
-    if (hash.isEmpty() || url.isEmpty() || demoGuard(QStringLiteral("remove tracker"), 1)
-        || !m_hasServer)
+    if (hash.isEmpty() || url.isEmpty() || demoGuard(QStringLiteral("remove tracker"), 1) ||
+        !m_hasServer)
         return;
     m_client->torrentsRemoveTrackers(hash, QStringList{url})
         ->then(this, [this](const QbtResult<QByteArray> &result) {
@@ -2544,8 +2545,8 @@ void App::loadSettings()
     m_followOmarchyTheme = appearance.value(QStringLiteral("followOmarchyTheme")).toBool(true);
     m_baseSizeOverride = appearance.value(QStringLiteral("baseSizeOverride")).toInt(0);
     m_windowAlphaOverride = appearance.value(QStringLiteral("windowAlphaOverride")).toInt(0);
-    m_trayIconMode = oneOf(appearance.value(QStringLiteral("trayIconMode")).toString(),
-                           kTrayIconModes);
+    m_trayIconMode =
+        oneOf(appearance.value(QStringLiteral("trayIconMode")).toString(), kTrayIconModes);
     m_speedsAlignment =
         appearance.value(QStringLiteral("speedsAlignment")).toString(QStringLiteral("left")) ==
                 QLatin1String("right")

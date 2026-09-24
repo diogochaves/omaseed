@@ -194,29 +194,30 @@ void SecretStore::runProbe(Done done)
     auto *write = new QKeychain::WritePasswordJob(m_service);
     write->setKey(QLatin1String(kProbeKey));
     write->setTextData(QStringLiteral("probe"));
-    connect(write, &QKeychain::Job::finished, this, [this, finish, answeredLate](QKeychain::Job *job) {
-        if (answeredLate(job->error() == QKeychain::NoError)) {
+    connect(
+        write, &QKeychain::Job::finished, this, [this, finish, answeredLate](QKeychain::Job *job) {
+            if (answeredLate(job->error() == QKeychain::NoError)) {
+                auto *remove = new QKeychain::DeletePasswordJob(m_service);
+                remove->setKey(QLatin1String(kProbeKey));
+                remove->start(); // best effort, off the queue: the entry is harmless
+                return;
+            }
+            if (job->error() != QKeychain::NoError) {
+                qCInfo(lcSecrets).noquote()
+                    << QStringLiteral("keychain probe write failed (%1); storing secrets in 0600 "
+                                      "files instead")
+                           .arg(job->errorString());
+                finish(Backend::File);
+                return;
+            }
+            settleBackend(Backend::Keychain);
             auto *remove = new QKeychain::DeletePasswordJob(m_service);
             remove->setKey(QLatin1String(kProbeKey));
-            remove->start(); // best effort, off the queue: the entry is harmless
-            return;
-        }
-        if (job->error() != QKeychain::NoError) {
-            qCInfo(lcSecrets).noquote()
-                << QStringLiteral("keychain probe write failed (%1); storing secrets in 0600 "
-                                  "files instead")
-                       .arg(job->errorString());
-            finish(Backend::File);
-            return;
-        }
-        settleBackend(Backend::Keychain);
-        auto *remove = new QKeychain::DeletePasswordJob(m_service);
-        remove->setKey(QLatin1String(kProbeKey));
-        connect(remove, &QKeychain::Job::finished, this, [finish](QKeychain::Job *) {
-            finish(std::nullopt); // best effort: the entry is harmless if this failed
+            connect(remove, &QKeychain::Job::finished, this, [finish](QKeychain::Job *) {
+                finish(std::nullopt); // best effort: the entry is harmless if this failed
+            });
+            remove->start();
         });
-        remove->start();
-    });
     write->start();
 }
 
@@ -485,7 +486,10 @@ void SecretStore::startNext()
 
 namespace {
 
-void answerJob(const QPointer<SecretStoreJob> &job, bool ok, const QString &value, const QString &error)
+void answerJob(const QPointer<SecretStoreJob> &job,
+               bool ok,
+               const QString &value,
+               const QString &error)
 {
     if (job)
         Q_EMIT job->finished(ok, value, error);
@@ -511,9 +515,8 @@ SecretStore::setSecret(const QString &serverId, Kind kind, const QString &value,
         }
         keychainWrite(keychainKey(serverId, kind),
                       value,
-                      [this, alive, serverId, kind, done](KeychainStatus status,
-                                                          const QString &,
-                                                          const QString &error) {
+                      [this, alive, serverId, kind, done](
+                          KeychainStatus status, const QString &, const QString &error) {
                           // A copy left in a file by a session that could not reach the
                           // keychain is stale now, and plaintext: drop it.
                           if (status == KeychainStatus::Ok && crossBackendFallback())
@@ -531,9 +534,8 @@ void SecretStore::runRead(const QPointer<Job> &alive, const QString &serverId, K
 
     if (resolvedBackend() == Backend::Keychain) {
         keychainRead(key,
-                     [this, alive, serverId, kind, key, done](KeychainStatus status,
-                                                              const QString &value,
-                                                              const QString &error) {
+                     [this, alive, serverId, kind, key, done](
+                         KeychainStatus status, const QString &value, const QString &error) {
                          if (status == KeychainStatus::Ok || !crossBackendFallback()) {
                              answerJob(alive, status == KeychainStatus::Ok, value, error);
                              done();
@@ -634,9 +636,8 @@ SecretStore::Job *SecretStore::removeSecret(const QString &serverId, Kind kind, 
             return;
         }
         keychainRemove(key,
-                       [this, alive, serverId, kind, done](KeychainStatus status,
-                                                           const QString &,
-                                                           const QString &error) {
+                       [this, alive, serverId, kind, done](
+                           KeychainStatus status, const QString &, const QString &error) {
                            if (crossBackendFallback())
                                fileRemove(serverId, kind);
                            // Removing an absent entry is not a failure: the end state the

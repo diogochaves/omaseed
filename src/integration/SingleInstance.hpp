@@ -80,7 +80,8 @@ private:
 
     bool startOnSessionBus(const QString &busAddress, const QStringList &uris);
     bool startOnLocalSocket(const QStringList &uris);
-    bool becomePrimaryOnBus(QDBusConnection &connection, const QString &connectionName,
+    bool becomePrimaryOnBus(QDBusConnection &connection,
+                            const QString &connectionName,
                             const QStringList &uris);
     void deliverOwnUris(const QStringList &uris);
     void acceptLocalConnection();

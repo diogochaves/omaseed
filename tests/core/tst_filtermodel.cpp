@@ -258,7 +258,9 @@ void TestFilterModel::trackerFilterListsWhatTheRailCounts()
     trackers.applyFullUpdate(QJsonObject{
         {arch, QJsonArray{QStringLiteral("1111"), QStringLiteral("3333")}},
         {open,
-         QJsonArray{QStringLiteral("1111"), QStringLiteral("2222"), QStringLiteral("4444"),
+         QJsonArray{QStringLiteral("1111"),
+                    QStringLiteral("2222"),
+                    QStringLiteral("4444"),
                     QStringLiteral("5555")}},
     });
     trackers.setTrackerlessHashes({QStringLiteral("4444"), QStringLiteral("6666")});
@@ -280,10 +282,11 @@ void TestFilterModel::trackerFilterListsWhatTheRailCounts()
     // A poll that drops 1111's opentrackr URL re-filters the open row.
     m_proxy.setTracker(host);
     QSignalSpy count(&m_proxy, &TorrentFilterModel::countChanged);
-    trackers.applyPartial(QJsonObject{{open,
-                                       QJsonArray{QStringLiteral("2222"), QStringLiteral("4444"),
-                                                  QStringLiteral("5555")}}},
-                          QJsonArray());
+    trackers.applyPartial(
+        QJsonObject{
+            {open,
+             QJsonArray{QStringLiteral("2222"), QStringLiteral("4444"), QStringLiteral("5555")}}},
+        QJsonArray());
     QCOMPARE(m_proxy.count(), 3);
     QVERIFY(count.count() > 0);
     QVERIFY(!visibleHashes(m_proxy).contains(QStringLiteral("1111")));

@@ -325,6 +325,7 @@ private:
     void onNotifierActionInvoked(const QString &eventClass,
                                  const QString &subjectId,
                                  const QString &actionKey);
+
 public:
     /// The chosen server's PathMap applied to a server-side content path; the input unchanged
     /// (and unusable as a local path) when no mapping applies or Settings' "apply path map"

@@ -3,9 +3,9 @@
 #include <QDir>
 #include <QElapsedTimer>
 #include <QEventLoop>
-#include <QHash>
 #include <QFile>
 #include <QFileInfo>
+#include <QHash>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
@@ -397,12 +397,11 @@ struct FakeKeychain
             else
                 answer(Status::NotFound, QString(), QStringLiteral("not found"));
         };
-        h.write = [this](const QString &key,
-                         const QString &value,
-                         SecretStore::KeychainAnswer answer) {
-            entries.insert(key, value);
-            answer(Status::Ok, QString(), QString());
-        };
+        h.write =
+            [this](const QString &key, const QString &value, SecretStore::KeychainAnswer answer) {
+                entries.insert(key, value);
+                answer(Status::Ok, QString(), QString());
+            };
         h.remove = [this](const QString &key, SecretStore::KeychainAnswer answer) {
             answer(entries.remove(key) ? Status::Ok : Status::NotFound, QString(), QString());
         };
@@ -418,7 +417,8 @@ void TestSecretStore::keychainSessionFindsAndMovesAFileSecret()
     {
         SecretStore fileSession;
         fileSession.setForcedBackend(SecretStore::Backend::File);
-        QVERIFY(run(fileSession.setSecret(QStringLiteral("s"), SecretStore::Kind::ApiKey,
+        QVERIFY(run(fileSession.setSecret(QStringLiteral("s"),
+                                          SecretStore::Kind::ApiKey,
                                           QStringLiteral("from-file")))
                     .ok);
     }
@@ -465,9 +465,9 @@ void TestSecretStore::fileSessionKeychainLookupIsBounded()
     QVERIFY(timer.elapsed() < 2000);
 
     // The queue moved on: the next operation runs.
-    QVERIFY(run(store.setSecret(QStringLiteral("s"), SecretStore::Kind::ApiKey,
-                                QStringLiteral("x")))
-                .ok);
+    QVERIFY(
+        run(store.setSecret(QStringLiteral("s"), SecretStore::Kind::ApiKey, QStringLiteral("x")))
+            .ok);
 }
 
 void TestSecretStore::removeClearsBothBackends()
@@ -475,8 +475,8 @@ void TestSecretStore::removeClearsBothBackends()
     {
         SecretStore fileSession;
         fileSession.setForcedBackend(SecretStore::Backend::File);
-        QVERIFY(run(fileSession.setSecret(QStringLiteral("s"), SecretStore::Kind::ApiKey,
-                                          QStringLiteral("stale")))
+        QVERIFY(run(fileSession.setSecret(
+                        QStringLiteral("s"), SecretStore::Kind::ApiKey, QStringLiteral("stale")))
                     .ok);
     }
     FakeKeychain keychain;
@@ -522,9 +522,9 @@ void TestSecretStore::aCorruptFileIsNotRewritten()
     }
     SecretStore store;
     store.setForcedBackend(SecretStore::Backend::File);
-    QVERIFY(!run(store.setSecret(QStringLiteral("c"), SecretStore::Kind::Password,
-                                 QStringLiteral("p")))
-                 .ok);
+    QVERIFY(
+        !run(store.setSecret(QStringLiteral("c"), SecretStore::Kind::Password, QStringLiteral("p")))
+             .ok);
     QFile file(dir + QStringLiteral("/c.json"));
     QVERIFY(file.open(QIODevice::ReadOnly));
     QCOMPARE(file.readAll(), garbage);
