@@ -211,6 +211,7 @@ add_torrent() {
 
 cmd_seed() {
     tracker_running || cmd_start
+    mkdir -p "$CONTENT" "$TORRENTS" # reset removed them, and the tracker may still be up
     generate_content
     local unicode="Ünïcødé ✓ Spaces & Symbols (100%) [v2] {test} — a deliberately long torrent name to test eliding everywhere"
     create_torrent "tiny-notes.txt" hybrid
