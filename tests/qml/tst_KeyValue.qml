@@ -5,7 +5,10 @@ import Omaseed.Kit
 TestCase {
     id: testCase
 
+    height: 200
     name: "KeyValue"
+    when: windowShown
+    width: 400
 
     Component {
         id: keyValueComponent
@@ -97,5 +100,16 @@ TestCase {
         compare(row.valueText.text, long, "the full text is what the tooltip shows");
         compare(kv.implicitHeight, short.implicitHeight, "a long value made the row taller");
         verify(!findChild(short, "keyValueRow").valueText.truncated);
+
+        // Ruling 8: the full value shows in the kit's one tooltip, not a Controls ToolTip.
+        const tip = findChild(testCase.Window.window.contentItem, "keyValueTip");
+        verify(tip, "the elided value has no kit Tooltip");
+        compare(tip.parent, testCase.Window.window.contentItem);
+        compare(tip.delay, 400);
+        // Hover does not reach an offscreen window, so show it the way the row's handler does.
+        tip.showFor(row.valueText, row.valueText.text);
+        tryCompare(tip, "shown", true);
+        compare(tip.text, long);
+        tip.hide();
     }
 }

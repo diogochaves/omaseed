@@ -1,6 +1,5 @@
 pragma ComponentBehavior: Bound
 import QtQuick
-import QtQuick.Controls
 import QtQuick.Layouts
 import Omaseed.Kit
 
@@ -88,26 +87,19 @@ Item {
                             id: valueHover
                         }
 
-                        ToolTip {
-                            background: Rectangle {
-                                border.color: Theme.accent
-                                border.width: 1
-                                color: Theme.background
-                                radius: Theme.cornerRadius
-                            }
-                            contentItem: Text {
-                                color: Theme.foreground
-                                font.family: Theme.fontFamily
-                                font.pixelSize: Theme.font.small
-                                text: valueText.text
-                                textFormat: Text.PlainText
-                                wrapMode: Text.WrapAnywhere
-                            }
-                            delay: 400
-                            padding: Theme.space(6)
-                            text: valueText.text
-                            visible: valueText.truncated && valueHover.hovered
-                            width: Math.min(implicitWidth, Theme.space(420))
+                        // The kit's one tooltip (ruling 8), on the window's content item like
+                        // IconButton's, so a row one line tall does not clamp it.
+                        Tooltip {
+                            id: valueTip
+
+                            readonly property bool wanted: valueText.truncated && valueHover.hovered
+
+                            objectName: "keyValueTip"
+                            parent: valueText.Window.window ? valueText.Window.window.contentItem : valueText
+                            z: 1000
+
+                            onWantedChanged: valueTip.wanted ? valueTip.showFor(valueText, valueText.text)
+                                                             : valueTip.hide()
                         }
                     }
                 }
