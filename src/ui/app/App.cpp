@@ -599,7 +599,8 @@ QVariantMap App::torrentRow(const QString &hash) const
     row.insert(QStringLiteral("sizeText"), Format::size(torrent.size));
     row.insert(QStringLiteral("progressText"), Format::percent(torrent.progress));
     row.insert(QStringLiteral("ratioText"), Format::ratio(torrent.ratio));
-    row.insert(QStringLiteral("etaLongText"), Format::eta(torrent.eta));
+    row.insert(QStringLiteral("etaLongText"),
+               torrent.hasEta() ? Format::eta(torrent.eta) : QStringLiteral("—"));
     row.insert(QStringLiteral("stateText"), torrent.stateText());
     row.insert(QStringLiteral("stateRole"), torrent.stateRole());
     row.insert(QStringLiteral("hasTrackerError"), torrent.hasTrackerError);

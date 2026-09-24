@@ -476,7 +476,8 @@ Item {
             "checking": Glyphs.statusChecking,
             "moving": Glyphs.statusChecking,
             "queued": Glyphs.statusQueued,
-            "error": Glyphs.statusErrored
+            "error": Glyphs.statusErrored,
+            "missing files": Glyphs.statusErrored
         };
     }
 
