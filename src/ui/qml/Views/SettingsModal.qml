@@ -36,6 +36,15 @@ Item {
     property int paneCursor: 0
     /// "nav" or "pane": which half of the modal the keyboard is in.
     property string area: "nav"
+    /// docs/15 Q3 A: below 700 px (base 14) the nav folds into a row of tabs across the top,
+    /// so the rows get the sheet's whole width. The keyboard then lives in the pane, and
+    /// `h`/`l` or `[`/`]` move between the sections.
+    readonly property bool folded: root.width < Theme.space(600)
+
+    onFoldedChanged: {
+        if (root.folded && root.opened)
+            root.area = "pane";
+    }
 
     signal closed
 
@@ -54,7 +63,10 @@ Item {
         },
         {
             "glyph": Glyphs.keyboard,
-            "text": qsTr("Keybindings")
+            "text": qsTr("Keybindings"),
+            // The folded tabs' word (docs/15 Q3 A): six whole names are wider than the sheet
+            // at the 560 px floor, and this one is the longest.
+            "shortText": qsTr("Keys")
         },
         {
             "glyph": Glyphs.appearance,
@@ -87,6 +99,8 @@ Item {
     }
 
     function open(): void {
+        if (root.folded)
+            root.area = "pane";
         sheet.open();
     }
 
@@ -290,6 +304,29 @@ Item {
     function _onKey(event: var): void {
         if (event.key === Qt.Key_Escape)
             return;
+        // Folded, there is no nav to hand the keyboard to: the sideways keys move the tabs.
+        if (root.folded) {
+            switch (event.key) {
+            case Qt.Key_H:
+            case Qt.Key_Left:
+            case Qt.Key_BracketLeft:
+                root._moveNav(-1);
+                event.accepted = true;
+                return;
+            case Qt.Key_L:
+            case Qt.Key_Right:
+            case Qt.Key_BracketRight:
+                root._moveNav(1);
+                event.accepted = true;
+                return;
+            case Qt.Key_Tab:
+            case Qt.Key_Backtab:
+                event.accepted = true;
+                return;
+            default:
+                break;
+            }
+        }
         if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
             root.area = root.area === "nav" ? "pane" : "nav";
             if (root.area === "pane" && root.paneCursor < 0)
@@ -380,7 +417,11 @@ Item {
             root._syncAppearanceFields();
         }
     }
-    onPaneIndexChanged: paneStack.contentY = 0
+    onPaneIndexChanged: {
+        paneStack.contentY = 0;
+        // A click on a tab sets the tabs' own index, which ends a binding; keep them in step.
+        sectionTabs.currentIndex = root.paneIndex;
+    }
     onPaneCursorChanged: Qt.callLater(root._revealCursor)
     onAreaChanged: Qt.callLater(root._revealCursor)
 
@@ -419,10 +460,13 @@ Item {
                 "key": "j k",
                 "label": qsTr("move")
             },
-            {
-                "key": "tab",
-                "label": qsTr("pane")
-            },
+            root.folded ? {
+                              "key": "h l",
+                              "label": qsTr("section")
+                          } : {
+                              "key": "tab",
+                              "label": qsTr("pane")
+                          },
             {
                 "key": "enter",
                 "label": qsTr("act")
@@ -465,7 +509,9 @@ Item {
                     Layout.fillWidth: false
                     Layout.maximumWidth: Theme.space(150)
                     Layout.preferredWidth: Theme.space(150)
+                    objectName: "settingsNav"
                     spacing: 1
+                    visible: !root.folded
 
                     Label {
                         Layout.bottomMargin: Theme.space(8)
@@ -509,6 +555,7 @@ Item {
                     Layout.leftMargin: Theme.space(10)
                     Layout.rightMargin: Theme.space(18)
                     vertical: true
+                    visible: !root.folded
                 }
 
                 // ---- the pane (`.settings .pane`) --------------------------------------
@@ -516,6 +563,26 @@ Item {
                     Layout.fillHeight: true
                     Layout.fillWidth: true
                     spacing: Theme.space(12)
+
+                    // docs/15 Q3 A: the nav, folded into tabs across the top of the sheet.
+                    Tabs {
+                        id: sectionTabs
+
+                        Layout.fillWidth: true
+                        clip: true
+                        currentIndex: root.paneIndex
+                        model: root.navRows.map(row => ({
+                                                            "text": row.shortText ?? row.text
+                                                        }))
+                        objectName: "settingsTabs"
+                        visible: root.folded
+
+                        onActivated: index => {
+                            root.showPane(index);
+                            root.area = "pane";
+                            bodyItem.forceActiveFocus();
+                        }
+                    }
 
                     RowLayout {
                         id: paneHead
