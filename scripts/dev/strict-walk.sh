@@ -35,13 +35,20 @@ case "${1:-}" in
 esac
 
 [ -x build/omaseed ] || { echo "build first: cmake --build build" >&2; exit 1; }
-set -a
-# Outside the repo on purpose (it holds the strict credentials); nothing to follow.
-# shellcheck source=/dev/null
-. "$HOME/.config/omaseed/dev.env"
-set +a
+dev_env="${OMASEED_DEV_ENV:-$HOME/.config/omaseed/dev.env}"
+if [ -f "$dev_env" ]; then
+    set -a
+    # Outside the repo on purpose (it holds the strict credentials); nothing to follow.
+    # shellcheck source=/dev/null
+    . "$dev_env"
+    set +a
+fi
 for v in QBT_STRICT_USER QBT_STRICT_PASS QBT_STRICT_API_KEY; do
-    [ -n "${!v:-}" ] || { echo "$v is not set in ~/.config/omaseed/dev.env" >&2; exit 1; }
+    [ -n "${!v:-}" ] || {
+        echo "$v is not set in the environment or $dev_env;" \
+            "scripts/dev/test-server.sh start --strict makes it" >&2
+        exit 1
+    }
 done
 
 # bearer PATH [curl args…]: a request to the strict server with the API key. The key goes to

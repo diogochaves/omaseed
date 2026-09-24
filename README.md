@@ -260,8 +260,17 @@ QT_QPA_PLATFORM=offscreen ./build/omaseed --help  # headless smoke
 ```
 scripts/dev/lint.sh build            # qmllint + clang-format --dry-run --Werror
 scripts/dev/test-server.sh start|stop|status|reset|seed [--strict]  # dev servers, never :8080
+scripts/dev/test-server.sh rotate --strict                          # a new strict login, same API key
 scripts/dev/install-omarchy-extras.sh [--menu] [--uninstall]        # hook + hypr module for a source checkout
 ```
+
+The live tests (`ctest -L live`) need both test servers. `:8081` lets localhost in without a
+login. `:8082` checks logins like a real server. Run `scripts/dev/test-server.sh start --strict`
+once: it makes a random user, password and API key for your strict server and saves them to
+your own `~/.config/omaseed/dev.env` (0600, outside the repo) as `QBT_STRICT_USER`,
+`QBT_STRICT_PASS` and `QBT_STRICT_API_KEY`. Load that file before running the live tests
+(`set -a; . ~/.config/omaseed/dev.env; set +a`). If those variables are unset, the strict
+tests skip and say why. The repo holds no credential.
 
 Read `CLAUDE.md` first — the servers rule, theme rules and conventions all live there — then
 `docs/06-implementation-plan.md` for the architecture and work breakdown, and

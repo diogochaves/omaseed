@@ -22,8 +22,12 @@ a browser) → `docs/03-charter.md` (scope and decisions). `docs/01` and `02` ar
   - `http://127.0.0.1:8082` is the strict twin: `scripts/dev/test-server.sh start --strict`.
     Real auth: cookie login with `QBT_STRICT_USER`/`QBT_STRICT_PASS`, Bearer with
     `QBT_STRICT_API_KEY` from `dev.env`. Never `reset --strict`: the key lives in that profile.
+    The first `start --strict` makes a random login (and a key, if there is none) and saves
+    it to `dev.env`; `rotate --strict` changes the login and keeps the key.
 - Credentials live in `~/.config/omaseed/dev.env` (0600, outside the repo). Load with
-  `set -a; . ~/.config/omaseed/dev.env; set +a`. Never print the key, never commit it.
+  `set -a; . ~/.config/omaseed/dev.env; set +a`. Never print them, never commit them: no
+  credential is written in the repo. Scripts and tests read `QBT_STRICT_*` from the
+  environment, and live strict tests skip when those are unset.
 - No `sudo`. Everything needed is installed; if something is missing, stop and report it.
 - Follow the Omarchy theme rules in the plan's §3 exactly: no hex colours in QML, only
   `Theme` roles; sizes from `base-size`; fills 4/8/18/22 %; hairlines at 12 %.
@@ -55,6 +59,7 @@ QT_QPA_PLATFORM=offscreen ./build/omaseed --help  # headless smoke
 qmllint src/ui/qml/**/*.qml && qmlformat -i <file>
 scripts/dev/shellcheck.sh                          # every tracked shell script (also ctest -R shellcheck)
 scripts/dev/test-server.sh start|stop|status|reset|seed [--strict]
+scripts/dev/test-server.sh rotate --strict        # new random strict login in dev.env; key kept
 scripts/dev/swarm.sh start|seed|status|break CASE|fix|reset|stop   # offline swarm: real downloads on :8081
 scripts/dev/swarm-walk.sh [OUT] | --interactive   # every torrent state, shown in the app in an omabox
 scripts/dev/strict-walk.sh [OUT] | --interactive  # first run + cookie / API key login against :8082, in an omabox
