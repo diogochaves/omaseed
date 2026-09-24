@@ -233,15 +233,100 @@ TestCase {
         view.table.moveCursorTo(App.filtered.rowOfHash(hash));
         keyClick(Qt.Key_L, Qt.ShiftModifier);
         compare(view.limitsSheetPanel.opened, true);
-        // left blank: the speed fields stay -1 (unchanged), the ratio chip stays "global"
-        // (-2) and the seeding time stays -1 (no limit) — see `_speedValue()`/`onAccepted`.
-        compare(view.limitsSheetPanel._speedValue(""), -1);
-        compare(view.limitsSheetPanel._speedValue("0"), 0);
+        // A speed field that still reads what it opened with is -1 (unchanged); emptied, it
+        // lifts the limit (0), as the `∞` placeholder and the global sheet say.
+        compare(view.limitsSheetPanel._speedValue("", ""), -1);
+        compare(view.limitsSheetPanel._speedValue("500", "500"), -1);
+        compare(view.limitsSheetPanel._speedValue("", "500"), 0);
+        compare(view.limitsSheetPanel._speedValue("0", ""), 0);
+        compare(view.limitsSheetPanel._speedValue("1.5", ""), 1536);
+        verify(Number.isNaN(view.limitsSheetPanel._speedValue("abc", "")));
         compare(view.limitsSheetPanel._ratioGlobal, true);
         view.limitsSheetPanel.triggerPrimary();
         // demo mode: App.setLimits no-ops after logging, so this only asserts the sheet
         // closes itself the way `enter` should.
         compare(view.limitsSheetPanel.opened, false);
+    }
+
+    // ---- review VIEW-5: apply sends only what the user changed --------------------------
+    function test_limits_untouched_keep_global_seeding_time_and_speeds() {
+        const spy = createTemporaryObject(limitsSpy, testCase);
+        const hash = hashByName("Big Buck Bunny 4K (CC-BY)");
+        compare(App.torrentRow(hash).seedingTimeLimit, -2);
+        view.limitsSheetPanel.openFor([hash]);
+        view.limitsSheetPanel.downloadField.text = "300";
+        view.limitsSheetPanel.triggerPrimary();
+        compare(spy.count, 1);
+        const a = spy.signalArguments[0]; // hashes, dl, ul, ratio, seedingMinutes, action
+        compare(a[1], 300 * 1024);
+        compare(a[2], -1, "an untouched upload field changed the limit");
+        compare(a[3], -2, "the global ratio was lost");
+        compare(a[4], -2, "an untouched seeding time left the global limit");
+    }
+
+    function test_limits_a_cleared_speed_lifts_the_limit() {
+        const spy = createTemporaryObject(limitsSpy, testCase);
+        const sheet = view.limitsSheetPanel;
+        sheet.openFor([hashByName("Big Buck Bunny 4K (CC-BY)")]);
+        // As if the torrent had opened with 500 KB/s, which the user then clears.
+        const initial = Object.assign({}, sheet._initial);
+        initial.dl = "500";
+        sheet._initial = initial;
+        sheet.downloadField.text = "";
+        sheet.triggerPrimary();
+        compare(spy.signalArguments[0][1], 0, "an emptied speed field did not lift the limit");
+    }
+
+    function test_limits_seeding_time_keeps_minutes_and_reads_fractional_days() {
+        const spy = createTemporaryObject(limitsSpy, testCase);
+        const sheet = view.limitsSheetPanel;
+        compare(sheet._daysText(90), "0.06");
+        compare(sheet._daysText(2880), "2");
+        sheet.openFor([hashByName("Big Buck Bunny 4K (CC-BY)")]);
+        // A 90-minute limit opens as 0.06 days; left alone it must stay 90 minutes, not 0.
+        const initial = Object.assign({}, sheet._initial);
+        initial.seeding = "0.06";
+        sheet._initial = initial;
+        sheet.seedingField.text = "0.06";
+        compare(sheet._collect().seeding, null);
+        sheet.seedingField.text = "0.5";
+        compare(sheet._collect().seeding, 720);
+        sheet.seedingField.text = "";
+        compare(sheet._collect().seeding, -1);
+        sheet.close();
+        compare(spy.count, 0);
+    }
+
+    function test_limits_refuse_a_value_that_is_not_a_number() {
+        const spy = createTemporaryObject(limitsSpy, testCase);
+        const sheet = view.limitsSheetPanel;
+        sheet.openFor([hashByName("Big Buck Bunny 4K (CC-BY)")]);
+        sheet._ratioGlobal = false;
+        sheet.ratioField.text = "abc";
+        sheet.triggerPrimary();
+        compare(spy.count, 0, "NaN went to the server");
+        compare(sheet.opened, true);
+        verify(sheet.errorText.length > 0);
+        sheet.ratioField.text = "1.5";
+        sheet.triggerPrimary();
+        compare(spy.count, 1);
+        compare(spy.signalArguments[0][3], 1.5);
+        compare(sheet.opened, false);
+    }
+
+    function test_limits_a_mixed_selection_keeps_each_torrents_own_action() {
+        const spy = createTemporaryObject(limitsSpy, testCase);
+        const stopHash = hashByName("Tears of Steel 4K (CC-BY)");
+        const defaultHash = hashByName("Big Buck Bunny 4K (CC-BY)");
+        view.limitsSheetPanel.openFor([stopHash, defaultHash]);
+        compare(view.limitsSheetPanel._actionMixed, true);
+        view.limitsSheetPanel.triggerPrimary();
+        compare(spy.count, 2);
+        const actions = {};
+        actions[spy.signalArguments[0][0][0]] = spy.signalArguments[0][5];
+        actions[spy.signalArguments[1][0][0]] = spy.signalArguments[1][5];
+        compare(actions[stopHash], "Stop");
+        compare(actions[defaultHash], "Default");
     }
 
     // ---- the limits sheet's share-limit action row (T5.5 Q14) ------------------------------
