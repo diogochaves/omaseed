@@ -28,9 +28,9 @@ Rectangle {
     Accessible.role: Accessible.Button
 
     activeFocusOnTab: root.focusable && root.enabled
-    border.color: root.activeFocus ? Theme.accent : root.warn ? Theme.yellow : root.hot
-                                                                                ? Theme.fill(Theme.borderHover) : Theme.fill(Theme.borderIdle)
-    border.width: (root.selected && !root.activeFocus) ? 0 : 1
+    border.color: root.warn ? Theme.yellow : root.hot ? Theme.fill(Theme.borderHover) : Theme.fill(
+                                                            Theme.borderIdle)
+    border.width: root.selected ? 0 : 1
     color: root.selected ? Theme.fill(Theme.fillSelected) : root.hot ? Theme.fill(Theme.fillHover) :
                                                                        Theme.fill(Theme.fillIdle)
     height: Theme.space(22)
@@ -65,11 +65,15 @@ Rectangle {
             anchors.verticalCenter: parent.verticalCenter
             color: root.warn ? Theme.yellow : root.selected ? Theme.brightForeground :
                                                               Theme.foreground
+
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.small
             text: root.text
         }
     }
+
+    // Keyboard focus rings the chip from outside (review Q6), selected or not.
+    FocusRing {}
 
     MouseArea {
         id: mouseArea

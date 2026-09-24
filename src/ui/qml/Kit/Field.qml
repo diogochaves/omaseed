@@ -4,7 +4,9 @@ import Omaseed.Kit
 
 // Single-line filter/search field (spec v2 §1 Fig. 1 `.field.search`: a leading `/` hint, a
 // placeholder, and a trailing live count). Bordered idle (4 %/40 %), hover/cursor (8 %/25 %),
-// accent ring on focus — spec §8 tokens page. `Escape` clears the text and emits `cleared`;
+// accent edge while the caret is in it (spec `.field.focus`; a field keeps it rather than the
+// kit's outside FocusRing, review Q6: no field is ever primary, and the caret already says
+// where the keys go). `Escape` clears the text and emits `cleared`;
 // `Return` emits `accepted`. Typing updates `text` directly (it is a plain alias over the
 // inner `TextInput`), so a caller that wants single-source-of-truth state should listen for
 // `onTextChanged` and write back through a `Connections`/binding of its own — assigning

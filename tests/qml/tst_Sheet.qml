@@ -365,6 +365,23 @@ TestCase {
         compare(sheet.focusedIndex(), 0);
     }
 
+    // Review Q6: the body clips, and the focus ring draws outside its control. The body leaves
+    // room for it, so a control flush with the body's edge keeps the whole ring.
+    function test_the_body_does_not_clip_a_focus_ring() {
+        const sheet = createTemporaryObject(keySheetComponent, testCase);
+        sheet.open();
+        const body = findChild(sheet, "sheetBody");
+        verify(body && body.clip);
+        const toggle = sheet.focusables()[0];
+        verify(toggle.activeFocus);
+        const ring = findChild(toggle, "focusRing");
+        verify(ring.visible);
+        const at = ring.mapToItem(body, 0, 0);
+        verify(at.x >= 0 && at.y >= 0, "the ring is cut at the body's top or left");
+        verify(at.x + ring.width <= body.width, "the ring is cut at the body's right");
+        verify(at.y + ring.height <= body.height, "the ring is cut at the body's bottom");
+    }
+
     function test_tab_cycles_through_the_sheet_and_wraps_inside_it() {
         const sheet = createTemporaryObject(formSheetComponent, testCase);
         sheet.open();

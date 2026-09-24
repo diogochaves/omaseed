@@ -73,8 +73,13 @@ TestCase {
         chip.clicked.connect(() => clicks++);
         chip.forceActiveFocus();
         verify(chip.activeFocus);
-        // Focused, the chip carries the accent ring even while selected.
-        compare(chip.border.color, Theme.accent);
+        // Focused, the chip carries the focus ring outside its edge (review Q6), selected
+        // or not, and its own border stays what it was.
+        compare(findChild(chip, "focusRing").shown, true);
+        verify(chip.border.color !== Theme.accent);
+        chip.selected = true;
+        compare(chip.border.width, 0);
+        compare(findChild(chip, "focusRing").shown, true);
         keyClick(Qt.Key_Space);
         compare(clicks, 1);
         keyClick(Qt.Key_Return);

@@ -52,6 +52,12 @@ TestCase {
         compare(Theme.space(1), 1);
     }
 
+    function test_focus_ring_sits_outside_the_edge() {
+        compare(Theme.focusGap, Theme.space(2));
+        compare(Theme.focusExtent, Theme.focusGap + 1);
+        verify(Theme.focusGap >= 1);
+    }
+
     function test_fill_is_the_foreground_at_an_alpha() {
         compare(Theme.fill(0.5).r, Theme.foreground.r);
         compare(Theme.fill(0.5).g, Theme.foreground.g);

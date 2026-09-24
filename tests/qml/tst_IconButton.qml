@@ -5,7 +5,11 @@ import Omaseed.Kit
 TestCase {
     id: testCase
 
+    height: 300
     name: "IconButton"
+    visible: true
+    when: windowShown
+    width: 400
 
     Component {
         id: iconButtonComponent
@@ -43,6 +47,17 @@ TestCase {
                                                  "primary": true
                                              });
         compare(button.border.color, Theme.accent);
+    }
+
+    function test_focus_draws_the_ring_and_leaves_the_border_alone() {
+        const button = createTemporaryObject(iconButtonComponent, testCase, {
+                                                 "glyph": "+"
+                                             });
+        const ring = findChild(button, "focusRing");
+        verify(ring);
+        button.forceActiveFocus();
+        compare(ring.shown, true);
+        compare(button.border.width, 0);
     }
 
     function test_danger_glyph_is_red() {

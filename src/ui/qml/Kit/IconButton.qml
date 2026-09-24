@@ -29,26 +29,23 @@ Rectangle {
                                                                     || root.accent) ? Theme.accent :
                                                                                       Theme.dimForeground
     readonly property color _borderColor: (root.danger && (root.selected || root.primary))
-                                          ? Theme.red : root.primary ? Theme.accent :
-                                                                       root.activeFocus
-                                                                       ? Theme.accent : root.hot
+                                          ? Theme.red : root.primary ? Theme.accent : root.hot
+                                                                       ? Theme.fill(
+                                                                             Theme.borderHover) : (
+                                                                             root.bordered
+                                                                             || root.selected)
                                                                          ? Theme.fill(
-                                                                               Theme.borderHover) : (
-                                                                               root.bordered
-                                                                               || root.selected)
-                                                                           ? Theme.fill(
-                                                                                 Theme.borderIdle) :
-                                                                             "transparent"
+                                                                               Theme.borderIdle) :
+                                                                           "transparent"
 
     // An SVG glyph ("icon:gear") is no name to read out.
-    Accessible.name: root.tooltip.length > 0 ? root.tooltip : root.glyph.startsWith("icon:") ? ""
-                                                                                         : root.glyph
+    Accessible.name: root.tooltip.length > 0 ? root.tooltip : root.glyph.startsWith("icon:") ? "" :
+                                                                                               root.glyph
     Accessible.role: Accessible.Button
 
     activeFocusOnTab: root.enabled
     border.color: root._borderColor
-    border.width: (root.primary || root.activeFocus || root.hot || root.bordered || root.selected)
-                  ? 1 : 0
+    border.width: (root.primary || root.hot || root.bordered || root.selected) ? 1 : 0
     color: (mouseArea.pressed || root.pressed) ? Theme.fill(Theme.fillPressed) : (root.activeFocus
                                                                                   || root.hot)
                                                  ? Theme.fill(Theme.fillHover) : root.selected
@@ -73,6 +70,8 @@ Rectangle {
         pixelSize: Theme.font.icon
         text: root.glyph
     }
+
+    FocusRing {}
 
     MouseArea {
         id: mouseArea
