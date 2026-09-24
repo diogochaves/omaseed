@@ -30,6 +30,9 @@ Item {
     signal hideRequested
     /// `ctrl+q`: really quit.
     signal quitRequested
+    /// First run's done screen said "open the library": Main.qml lets its window go from the
+    /// floating setup size to a normal, tiled one.
+    signal setupFinished
 
     // the pieces, exposed for tests and for Main
     readonly property alias hero: hero
@@ -1612,6 +1615,7 @@ Item {
             onFinished: {
                 root.firstRun = false;
                 table.forceActiveFocus();
+                root.setupFinished();
             }
             onQuitRequested: root.quitRequested()
         }

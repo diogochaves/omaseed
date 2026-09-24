@@ -10,11 +10,36 @@ import Omaseed.Views
 Window {
     id: window
 
-    width: Theme.space(1360)
-    height: Theme.space(800)
+    // First run floats (Diogo, 2026-09-23). A window whose minimum and maximum sizes are equal
+    // is one Hyprland floats and centres by itself, with no window rule to install, and it
+    // decides that once, when the window maps. So first run locks the window to Omarchy's own
+    // floating size (875 × 600, its `floating-window` tag) and `leaveSetup()` unlocks it and
+    // maps it again, which tiles it like any other launch. Latched in Component.onCompleted,
+    // before the window first shows: `App.hasServer` flips mid-setup, when step 2 saves.
+    readonly property size setupSize: Qt.size(875, 600)
+    property bool setup: !App.hasServer && !App.demoMode
+
+    function leaveSetup(): void {
+        if (!window.setup)
+            return;
+        window.hide();
+        window.setup = false;
+        window.width = Theme.space(1360);
+        window.height = Theme.space(800);
+        window.show();
+        window.requestActivate();
+    }
+
+    Component.onCompleted: window.setup = window.setup // latch: drop the binding
+
+    width: window.setup ? window.setupSize.width : Theme.space(1360)
+    height: window.setup ? window.setupSize.height : Theme.space(800)
     // docs/10 §2: a floor at the narrowest width the hero was drawn for, 560 px at base 14.
     // Hyprland still sizes a tiled window to its tile; the hero's ladder is what covers that.
-    minimumWidth: Theme.space(480)
+    minimumWidth: window.setup ? window.setupSize.width : Theme.space(480)
+    minimumHeight: window.setup ? window.setupSize.height : 0
+    maximumWidth: window.setup ? window.setupSize.width : 16777215
+    maximumHeight: window.setup ? window.setupSize.height : 16777215
     visible: true
     title: qsTr("omaseed")
     color: Qt.rgba(Theme.background.r, Theme.background.g, Theme.background.b, Theme.windowAlpha)
@@ -38,6 +63,7 @@ Window {
 
         onHideRequested: window.hide()
         onQuitRequested: Qt.quit()
+        onSetupFinished: window.leaveSetup()
     }
 
     // The 1 px window edge: accent while active, muted otherwise.

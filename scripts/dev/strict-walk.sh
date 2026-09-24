@@ -58,6 +58,20 @@ launch() {
     sleep 3
 }
 
+# window_is floating|tiled [WxH]: the app's window, as the box's Hyprland has it.
+window_is() {
+    omabox hyprctl -b "$BOX" -j clients | python3 -c '
+import json, sys
+want, size = sys.argv[1], sys.argv[2] if len(sys.argv) > 2 else ""
+for c in json.load(sys.stdin):
+    if c["class"] == "io.github.diogochaves.omaseed":
+        ok = c["floating"] == (want == "floating")
+        if size:
+            ok = ok and "%dx%d" % tuple(c["size"]) == size
+        sys.exit(0 if ok else 1)
+sys.exit(1)' "$@"
+}
+
 # keys ARGS…: `omabox keys` into the app, quietly.
 keys() { omabox keys -b "$BOX" "$@" >/dev/null; }
 
@@ -125,7 +139,8 @@ REMOTE="Return -s 500 j j j k Return"
 
 # ---- cookie ---------------------------------------------------------------------------------
 launch
-step "Welcome" "docs/14 screen 0, no top bar: the mark with omaseed beside it, the pitch, the server search's answer (the box cannot reach :8080, so most likely nothing found), set up / quit, the version in the footer."
+check "first run floats, centred, at Omarchy's 875x600" window_is floating 875x600
+step "Welcome" "docs/14 screen 0, a floating 875x600 window, no top bar: the mark with omaseed beside it, the pitch, the server search's answer (the box cannot reach :8080, so most likely nothing found), set up / quit, the version in the footer."
 
 keys Return -s 800
 step "Step 1: server" "Centred column: the mark, 1 server · 2 sign in · 3 links, the question, the rows (remote, install; this machine only if found). Footer: step 1 of 3, j k choose, enter continue, esc quit."
@@ -150,7 +165,8 @@ keys Tab Return -s 2000
 step "Done" "✓ ✓ ✓. You're connected to strict. qBittorrent 5.2.3 · 3 torrents (· free space once synced); magnet links still open elsewhere; a / , / ? hints; open the library. Footer: setup done."
 
 keys Return -s 2500
-step "Signed in with a cookie" "The library with its top bar back: fixture-one, -two, -three (stopped); the hero says STRICT · QBITTORRENT 5.2.3; no banner."
+check "after setup the window tiles like any other launch" window_is tiled
+step "Signed in with a cookie" "The library, tiled full size, with its top bar back: fixture-one, -two, -three (stopped); the hero says STRICT · QBITTORRENT 5.2.3; no banner."
 
 check "servers.json keeps the user but not the password" \
     sh -c 'grep -q "\"authMode\": *\"cookie\"" "$1" && grep -q "\"username\": *\"$2\"" "$1" && ! grep -qF "$3" "$1"' \
@@ -160,6 +176,7 @@ check "the box's keyring holds <server id>/password" \
     sh -c 'omabox run -b "$1" -- secret-tool search --all server io.github.diogochaves.omaseed 2>&1 | grep -q "^attribute.user = .*/password$"' _ "$BOX"
 
 launch
+check "a later launch tiles straight away" window_is tiled
 step "Cookie after a restart" "Straight to the table, no first run and no banner: the password came back from the keyring."
 
 # ---- API key --------------------------------------------------------------------------------
