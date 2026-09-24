@@ -89,6 +89,42 @@ TestCase {
         compare(page.editUrl, "http://127.0.0.1:8080");
     }
 
+    // Cookie login needs a user as well as a password, as Settings' server sheet asks; the
+    // secret sent is always the visible field's, never one left in a hidden field.
+    function test_cookie_asks_for_a_user_and_a_password() {
+        const page = createTemporaryObject(pageComponent, testCase, {
+                                               "candidates": []
+                                           });
+        page.chooseCursor(); // "connect to a remote server"
+        compare(page.page, "apikey");
+        const key = findChild(page, "keyField");
+        const user = findChild(page, "userField");
+        const pass = findChild(page, "passField");
+
+        page.editAuthMode = "apiKey";
+        verify(key.visible);
+        verify(!user.visible);
+        key.text = "a-key";
+        compare(page.editSecret, "a-key");
+
+        page.editAuthMode = "cookie";
+        verify(!key.visible);
+        verify(user.visible);
+        verify(pass.visible);
+        compare(page.editSecret, ""); // the key does not go out as the password
+        user.text = "omaseed";
+        pass.text = "hunter2";
+        compare(page._fieldMap().authMode, "cookie");
+        compare(page._fieldMap().username, "omaseed");
+        compare(page.editSecret, "hunter2");
+
+        page.editAuthMode = "apiKey";
+        compare(page.editSecret, "a-key");
+        compare(page._fieldMap().username, "");
+        page.editAuthMode = "none";
+        compare(page.editSecret, "");
+    }
+
     function test_enter_on_the_install_row_opens_the_install_step() {
         const page = createTemporaryObject(pageComponent, testCase, {
                                                "candidates": []

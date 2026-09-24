@@ -94,7 +94,13 @@ Item {
     property string editUrl: ""
     property string editName: ""
     property string editAuthMode: "none"
+    property string editUsername: ""
     property string editSecret: ""
+
+    // The secret is the visible field's: a key typed, then "cookie" chosen, must not go out
+    // as the password.
+    onEditAuthModeChanged: root.editSecret = root.editAuthMode === "apiKey" ? keyField.text :
+                                             root.editAuthMode === "cookie" ? passField.text : ""
 
     property bool tested: false
     property bool testOk: false
@@ -115,7 +121,7 @@ Item {
     "name": root.editName,
     "url": root.editUrl,
     "authMode": root.editAuthMode,
-    "username": ""
+    "username": root.editAuthMode === "cookie" ? root.editUsername : ""
 };
 }
 
@@ -141,6 +147,7 @@ function openRow(kind: string, url: string): void {
     root.editUrl = url;
     root.editName = kind === "local" ? qsTr("home") : "";
     root.editAuthMode = "none";
+    root.editUsername = "";
     root.editSecret = "";
     // Written imperatively, not bound: a Kit `Field`'s `text` is a plain alias over its
     // TextInput (see the component's own header comment), so a declarative `text:
@@ -149,6 +156,8 @@ function openRow(kind: string, url: string): void {
     urlField.text = root.editUrl;
     nameField.text = root.editName;
     keyField.text = "";
+    userField.text = "";
+    passField.text = "";
     root.page = "apikey";
 }
 
@@ -254,8 +263,10 @@ function _apiKeyTabOrder(): list<Item> {
     const order = [urlField, nameField];
     for (let i = 0; i < authChips.count; ++i)
         order.push(authChips.itemAt(i));
-    if (keyField.visible)
+    if (root.editAuthMode === "apiKey")
         order.push(keyField);
+    else if (root.editAuthMode === "cookie")
+        order.push(userField, passField);
     order.push(openWebUiButton, testButton, skipTestButton);
     if (continueButton.enabled)
         order.push(continueButton);
@@ -613,16 +624,53 @@ ColumnLayout {
         FormRow {
             Layout.fillWidth: true
             label: qsTr("Key")
-            visible: root.editAuthMode !== "none"
+            visible: root.editAuthMode === "apiKey"
 
             Field {
                 id: keyField
 
                 Layout.fillWidth: true
+                objectName: "keyField"
                 echoMode: TextInput.Password
                 placeholder: qsTr("paste the API key")
 
                 onTextChanged: root.editSecret = text
+            }
+        }
+
+        // Cookie login, as Settings' server sheet asks for it: a user and a password.
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Theme.space(10)
+            visible: root.editAuthMode === "cookie"
+
+            FormRow {
+                Layout.fillWidth: true
+                label: qsTr("Username")
+
+                Field {
+                    id: userField
+
+                    Layout.fillWidth: true
+                    objectName: "userField"
+
+                    onTextChanged: root.editUsername = text
+                }
+            }
+
+            FormRow {
+                Layout.fillWidth: true
+                label: qsTr("Password")
+
+                Field {
+                    id: passField
+
+                    Layout.fillWidth: true
+                    objectName: "passField"
+                    echoMode: TextInput.Password
+
+                    onTextChanged: root.editSecret = text
+                }
             }
         }
 
