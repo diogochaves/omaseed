@@ -1,0 +1,94 @@
+# Build with warnings as errors, run every test that needs no test server, lint QML and C++,
+# and shellcheck every script: on an Arch container, the distribution omaseed ships for.
+#
+# Live tests (ctest label `live`) talk to the :8081/:8082 qBittorrent test servers and stay
+# local (scripts/dev/test-server.sh). Nothing here needs a desktop: Qt runs offscreen, the
+# tests get a private session bus from dbus-run-session, and the two tests that touch a real
+# login keyring skip unless OMASEED_TEST_KEYRING=1 (tests/core/tst_secretstore.cpp).
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  arch:
+    name: Arch · build, test, lint
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    timeout-minutes: 45
+    env:
+      QT_QPA_PLATFORM: offscreen
+      # QCollator ignores numeric mode in the C locale, and the natural-sort tests
+      # ("part 2" before "part 10") expect a real one, as any desktop session has.
+      LANG: en_US.UTF-8
+    steps:
+      # git before checkout, so actions/checkout makes a real clone: shellcheck.sh lists
+      # files with `git ls-files` and the release test clones the checkout.
+      - name: Install build and test dependencies
+        run: |
+          pacman -Syu --noconfirm --needed \
+            gcc cmake ninja git \
+            qt6-base qt6-declarative qt6-svg qt6-wayland qtkeychain-qt6 \
+            librsvg hicolor-icon-theme \
+            clang shellcheck python dbus systemd \
+            fontconfig ttf-jetbrains-mono-nerd ttf-liberation
+
+      # The QML tests measure text: give "monospace" the font Omarchy maps it to
+      # (omarchy-settings' 50-omarchy.conf), or the row widths they check drift.
+      - name: Map monospace to JetBrainsMono Nerd Font, as Omarchy does
+        run: |
+          cat > /etc/fonts/local.conf <<'EOF'
+          <?xml version="1.0"?>
+          <!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+          <fontconfig>
+            <match target="pattern">
+              <test name="family" qual="any"><string>monospace</string></test>
+              <edit name="family" mode="assign" binding="strong">
+                <string>JetBrainsMono Nerd Font</string>
+              </edit>
+            </match>
+          </fontconfig>
+          EOF
+          fc-cache -f
+          fc-match monospace
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Tests run as an ordinary user: as root, the "unreadable file" tests would read the
+      # file anyway. The release test also wants a branch, not the detached HEAD a
+      # pull_request checkout leaves.
+      - name: Hand the checkout to an unprivileged user
+        run: |
+          useradd --create-home builder
+          chown -R builder: "$GITHUB_WORKSPACE"
+          runuser -u builder -- git -C "$GITHUB_WORKSPACE" checkout -q -B ci
+
+      - name: Configure (warnings as errors)
+        run: >-
+          runuser -u builder -- env HOME=/home/builder
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DOMASEED_WERROR=ON
+
+      - name: Build
+        run: runuser -u builder -- env HOME=/home/builder cmake --build build
+
+      - name: Test (everything but the live servers)
+        run: >-
+          runuser -u builder -- env HOME=/home/builder
+          dbus-run-session --
+          ctest --test-dir build -LE live --output-on-failure --no-tests=error -j "$(nproc)"
+
+      - name: Lint (qmllint, clang-format)
+        run: runuser -u builder -- env HOME=/home/builder scripts/dev/lint.sh build
+
+      - name: ShellCheck
+        run: runuser -u builder -- env HOME=/home/builder scripts/dev/shellcheck.sh

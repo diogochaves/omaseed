@@ -40,6 +40,7 @@ data/                     .desktop, icons, hyprland rule snippet, theme-set hook
 packaging/arch/           PKGBUILD
 scripts/dev/              test-server.sh and other developer scripts
 docs/                     charter, specs, plan
+.github/workflows/ci.yml  CI: Arch container, -DOMASEED_WERROR=ON, ctest -LE live, lint, shellcheck
 ```
 
 ## Commands
