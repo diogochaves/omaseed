@@ -24,6 +24,7 @@ private slots:
     void demoNeverPollsTheDefaultServer_data();
     void demoNeverPollsTheDefaultServer();
     void aRealLaunchDoesPoll();
+    void demoSyncRefusesTheHomePort();
 
 private:
     /// Runs omaseed with `arguments` for up to `ms` and returns whether the listener saw a
@@ -92,6 +93,34 @@ void TestDemoOffline::demoNeverPollsTheDefaultServer()
 void TestDemoOffline::aRealLaunchDoesPoll()
 {
     QVERIFY2(connectsWithin({}, 10000), "a real launch never reached its default server");
+}
+
+// REG-7: `--demo sync` takes QBT_TEST_URL as the live tests do, behind the same :8080 guard.
+// The URL is on TEST-NET-1, which nothing answers, so a guard that failed would time out
+// rather than reach the real library.
+void TestDemoOffline::demoSyncRefusesTheHomePort()
+{
+    QProcess app;
+    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+    env.insert(QStringLiteral("XDG_CONFIG_HOME"), m_home.path());
+    env.insert(QStringLiteral("QT_QPA_PLATFORM"), QStringLiteral("offscreen"));
+    env.insert(QStringLiteral("DBUS_SESSION_BUS_ADDRESS"),
+               QStringLiteral("unix:path=%1/no-bus").arg(m_home.path()));
+    env.insert(QStringLiteral("XDG_RUNTIME_DIR"), m_home.path());
+    env.insert(QStringLiteral("QBT_TEST_URL"), QStringLiteral("http://192.0.2.1:8080"));
+    env.remove(QStringLiteral("QBT_API_KEY"));
+    app.setProcessEnvironment(env);
+    app.setProcessChannelMode(QProcess::ForwardedErrorChannel);
+    app.start(QStringLiteral(OMASEED_BINARY), {QStringLiteral("--demo"), QStringLiteral("sync")});
+    QVERIFY(app.waitForStarted(5000));
+    const bool finished = app.waitForFinished(5000);
+    if (!finished) {
+        app.kill();
+        app.waitForFinished(5000);
+    }
+    QVERIFY2(finished, "--demo sync did not refuse a :8080 URL");
+    QCOMPARE(app.exitStatus(), QProcess::NormalExit);
+    QCOMPARE(app.exitCode(), 2);
 }
 
 QTEST_GUILESS_MAIN(TestDemoOffline)
