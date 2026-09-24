@@ -347,6 +347,11 @@ void TestFilterModel::sortByRoleNameAndOrder()
     m_proxy.setSortOrder(Qt::DescendingOrder);
     QCOMPARE(visibleHashes(m_proxy).first(), QStringLiteral("2222")); // the biggest
 
+    // A new role re-sorts by itself, in the order already chosen.
+    m_proxy.setSortByRoleName(QStringLiteral("name"));
+    QCOMPARE(visibleHashes(m_proxy).first(), QStringLiteral("6666")); // NixOS, z to a
+    m_proxy.setSortByRoleName(QStringLiteral("size"));
+
     m_proxy.setSortByRoleName(QStringLiteral("nonsense"));
     QCOMPARE(m_proxy.sortRole(), int(TorrentModel::SizeRole)); // unchanged
 }

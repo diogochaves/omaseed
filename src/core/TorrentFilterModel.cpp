@@ -211,8 +211,9 @@ void TorrentFilterModel::setSortRole(int role)
     if (m_sortRole == role)
         return;
     m_sortRole = role;
+    // With a dynamic sort, the base class re-sorts on a new role by itself (lessThan reads
+    // m_sortRole, set above); a second sort, or an invalidate(), would be two more passes.
     QSortFilterProxyModel::setSortRole(role);
-    resort();
     Q_EMIT sortRoleChanged();
 }
 
@@ -254,8 +255,8 @@ void TorrentFilterModel::refilter()
 
 void TorrentFilterModel::resort()
 {
+    // One pass: sort() on a new order re-sorts the mapping; no invalidate() on top.
     sort(0, m_sortOrder);
-    invalidate();
 }
 
 int TorrentFilterModel::rowOfHash(const QString &hash) const
