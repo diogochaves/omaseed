@@ -178,6 +178,7 @@ private slots:
     void abortDuringBackoffIsCancelledAndNeverResent();
     void newBaseUrlCancelsEverythingOutstanding();
     void rejectedLoginIsNotRepeated();
+    void allowLoginAgainTriesOneMoreLogin();
     void cancelledLoginLeavesTheAuthStateAlone();
     void multipartAddLogsInAgainAfterAnExpiredSession();
     void probeAbortFinishesCancelled();
@@ -524,6 +525,52 @@ void TestQbtClientFake::rejectedLoginIsNotRepeated()
     const QbtResult<QString> result = await(this, client.appVersion());
     QVERIFY2(!result.isError(), qPrintable(result.error().toString()));
     QCOMPARE(logins(), 2);
+    QCOMPARE(client.authState(), QbtClient::AuthState::Ok);
+}
+
+// REG-2: a user's retry lifts the latch for one login; a refusal latches it again.
+void TestQbtClientFake::allowLoginAgainTriesOneMoreLogin()
+{
+    bool banned = true;
+    FakeServer server;
+    server.setHandler([&banned](const Recorded &recorded, int) -> QByteArray {
+        if (recorded.target.contains("auth/login")) {
+            if (!banned)
+                return httpResponse(
+                    200, "OK", "Ok.", {QByteArrayLiteral("Set-Cookie: SID=ok1; path=/")});
+            return httpResponse(403, "Forbidden", "Forbidden");
+        }
+        if (recorded.header("Cookie").isEmpty())
+            return httpResponse(403, "Forbidden", "Forbidden");
+        return httpResponse(200, "OK", "v5.0.0");
+    });
+    const auto logins = [&server]() {
+        return std::count_if(server.requests.cbegin(),
+                             server.requests.cend(),
+                             [](const Recorded &r) { return r.target.contains("auth/login"); });
+    };
+
+    QbtClient client;
+    client.setBaseUrl(server.url());
+    client.setMaxRetries(0);
+    client.setCredentials(QStringLiteral("admin"), QStringLiteral("secret"));
+
+    QVERIFY(await(this, client.appVersion()).isError());
+    QVERIFY(await(this, client.appVersion()).isError());
+    QCOMPARE(logins(), 1);
+
+    // Still banned: the retry logs in once, is refused, and latches again.
+    client.allowLoginAgain();
+    QVERIFY(await(this, client.appVersion()).isError());
+    QVERIFY(await(this, client.appVersion()).isError());
+    QCOMPARE(logins(), 2);
+
+    // The ban has expired: the next retry gets in.
+    banned = false;
+    client.allowLoginAgain();
+    const QbtResult<QString> result = await(this, client.appVersion());
+    QVERIFY2(!result.isError(), qPrintable(result.error().toString()));
+    QCOMPARE(logins(), 3);
     QCOMPARE(client.authState(), QbtClient::AuthState::Ok);
 }
 

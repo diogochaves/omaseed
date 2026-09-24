@@ -411,6 +411,9 @@ void App::retryNow()
 {
     if (m_demoMode || !m_hasServer)
         return;
+    // A retry the user asked for is one deliberate attempt: after a refused login (the ban
+    // expired, the password was fixed on the server) it may log in again (review REG-2).
+    m_client->allowLoginAgain();
     if (m_engine->isRunning())
         m_engine->retryNow();
     else

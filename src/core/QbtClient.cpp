@@ -254,6 +254,11 @@ void QbtClient::setCredentials(const QString &username, const QString &password)
     m_nam->setCookieJar(new QNetworkCookieJar());
 }
 
+void QbtClient::allowLoginAgain()
+{
+    m_loginRejected = false;
+}
+
 bool QbtClient::hasCredentials() const
 {
     return !m_username.isEmpty();

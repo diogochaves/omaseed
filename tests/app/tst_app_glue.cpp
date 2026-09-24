@@ -61,6 +61,9 @@ private slots:
     void aSecondPressBeforeTheNextSyncDoesNotUndoTheToggle();
     void limitsCarryTheTorrentsInactiveSeedingTime();
 
+    // REG-2
+    void retryAfterARefusedLoginLogsInOnceMore();
+
 private:
     QTemporaryDir m_dir;
     QByteArray m_previousConfigHome;
@@ -278,6 +281,11 @@ public:
     int toggles = 0;
     QByteArray shareLimitsBody;
     QString hash = QStringLiteral("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+    /// With requireLogin, everything but auth/login wants the SID cookie, and a login is
+    /// refused while refuseLogin is set.
+    bool requireLogin = false;
+    bool refuseLogin = false;
+    int logins = 0;
 
 protected:
     void incomingConnection(qintptr descriptor) override
@@ -299,9 +307,23 @@ protected:
                 return;
             const QByteArray target = buffer->left(buffer->indexOf('\n')).split(' ').value(1);
             const QByteArray requestBody = buffer->mid(headerEnd + 4, length);
+            const bool hasCookie = buffer->left(headerEnd).contains("SID=ok");
             buffer->clear();
+            QByteArray status = "200 OK";
+            QByteArray extraHeaders;
             QByteArray body = "Ok.";
-            if (target.startsWith("/api/v2/app/version"))
+            if (target.startsWith("/api/v2/auth/login")) {
+                ++logins;
+                if (refuseLogin) {
+                    status = "403 Forbidden";
+                    body = "Forbidden";
+                } else {
+                    extraHeaders = "Set-Cookie: SID=ok; path=/\r\n";
+                }
+            } else if (requireLogin && !hasCookie) {
+                status = "403 Forbidden";
+                body = "Forbidden";
+            } else if (target.startsWith("/api/v2/app/version"))
                 body = "v5.2.3";
             else if (target.startsWith("/api/v2/app/webapiVersion"))
                 body = "2.15.1";
@@ -315,7 +337,8 @@ protected:
                 ++toggles;
             else if (target.startsWith("/api/v2/torrents/setShareLimits"))
                 shareLimitsBody = requestBody;
-            socket->write("HTTP/1.1 200 OK\r\nContent-Length: " + QByteArray::number(body.size()) +
+            socket->write("HTTP/1.1 " + status + "\r\n" + extraHeaders +
+                          "Content-Length: " + QByteArray::number(body.size()) +
                           "\r\nConnection: close\r\n\r\n" + body);
             socket->disconnectFromHost();
         });
@@ -386,6 +409,40 @@ void TestAppGlue::limitsCarryTheTorrentsInactiveSeedingTime()
 
     app.engine()->stop();
     qunsetenv("OMASEED_SERVER_URL");
+}
+
+void TestAppGlue::retryAfterARefusedLoginLogsInOnceMore()
+{
+    // Review REG-2: after one refused login the client stops logging in by itself (IP bans),
+    // but the lost-server "retry" is the user asking for one more attempt.
+    ToggleServer server;
+    server.requireLogin = true;
+    server.refuseLogin = true;
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    QTemporaryDir home;
+    qputenv("XDG_CONFIG_HOME", home.path().toUtf8());
+    qputenv("OMASEED_SERVER_URL",
+            QStringLiteral("http://127.0.0.1:%1").arg(server.serverPort()).toUtf8());
+    qputenv("OMASEED_USERNAME", "admin");
+    qputenv("OMASEED_PASSWORD", "secret");
+
+    App app;
+    QSignalSpy authRequired(app.engine(), &omaseed::core::SyncEngine::authRequired);
+    app.start();
+    QTRY_COMPARE_WITH_TIMEOUT(authRequired.count(), 1, 5000);
+    QCOMPARE(server.logins, 1);
+
+    // The ban has expired: retry logs in again and the torrent arrives.
+    server.refuseLogin = false;
+    app.retryNow();
+    QTRY_COMPARE_WITH_TIMEOUT(app.torrents()->count(), 1, 5000);
+    QCOMPARE(server.logins, 2);
+    QCOMPARE(authRequired.count(), 1);
+
+    app.engine()->stop();
+    qunsetenv("OMASEED_SERVER_URL");
+    qunsetenv("OMASEED_USERNAME");
+    qunsetenv("OMASEED_PASSWORD");
 }
 
 QTEST_MAIN(TestAppGlue)
