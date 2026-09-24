@@ -36,7 +36,8 @@ esac
 
 [ -x build/omaseed ] || { echo "build first: cmake --build build" >&2; exit 1; }
 set -a
-# shellcheck disable=SC1090
+# Outside the repo on purpose (it holds the strict credentials); nothing to follow.
+# shellcheck source=/dev/null
 . "$HOME/.config/omaseed/dev.env"
 set +a
 for v in QBT_STRICT_USER QBT_STRICT_PASS QBT_STRICT_API_KEY; do
@@ -154,6 +155,7 @@ if [ "$INTERACTIVE" = 1 ]; then
     omabox up "$BOX" --interactive --net isolated --allow "$STRICT_PORT" >/dev/null
 else
     mkdir -p "$OUT"
+    # shellcheck disable=SC2016 # backticks are Markdown, not command substitution
     printf '# Strict walk %s\n\nBuild `%s`, against %s. Each shot: what should be on screen.\n\n' \
         "$(date '+%Y-%m-%d %H:%M')" "$(git rev-parse --short HEAD)" "$STRICT" >"$OUT/index.md"
     omabox up "$BOX" --net isolated --allow "$STRICT_PORT" >/dev/null
@@ -175,13 +177,14 @@ step "Welcome" "docs/14 screen 0, a floating 875x600 window, no top bar: the mar
 keys Return -s 800
 step "Step 1: server" "Centred column: the mark, 1 server · 2 sign in · 3 links, the question, the rows (remote, install; this machine only if found). Footer: step 1 of 3, j k choose, enter continue, esc quit."
 keys Escape -s 1500
+# shellcheck disable=SC2016 # expands in the inner sh, which gets the values as $1, $2
 check "esc on step 1 quits, as the footer says" \
     sh -c '! omabox hyprctl -b "$1" -j clients | grep -q "io.github.diogochaves.omaseed"' _ "$BOX"
 clip QBT_STRICT_PASS
 launch
 
 # URL, name, the cookie chip (API key, cookie, none are three tab stops), user, password, test.
-# shellcheck disable=SC2086
+# shellcheck disable=SC2086 # $REMOTE is a list of keys: split on purpose
 keys $REMOTE -s 500 -t "$STRICT" Tab -t strict Tab Tab space Tab Tab -t "$QBT_STRICT_USER" \
     Tab -t "not-the-password" Tab Return -s 3000
 step "Wrong password" "✓ server · 2 sign in. URL and name on one row; cookie shows Username and Password. A red dot and wrong username or password, the raw 401 dim underneath, then test / open web UI / save anyway / continue (off)."
@@ -203,6 +206,7 @@ step "Signed in with a cookie" "The library, tiled full size, with its top bar b
 check "servers.json keeps the user but not the password" \
     servers_json_is "$config/servers.json" cookie QBT_STRICT_PASS
 check "no plain-file secret (the keyring took it)" test ! -e "$config/secrets"
+# shellcheck disable=SC2016 # expands in the inner sh, which gets the values as $1, $2
 check "the box's keyring holds <server id>/password" \
     sh -c 'omabox run -b "$1" -- secret-tool search --all server io.github.diogochaves.omaseed 2>&1 | grep -q "^attribute.user = .*/password$"' _ "$BOX"
 
@@ -217,7 +221,7 @@ rm -f "$config/servers.json"
 clip QBT_STRICT_API_KEY
 launch
 # URL, name, the API key chip, then three tabs (cookie, none, Key) and a wrong key first.
-# shellcheck disable=SC2086
+# shellcheck disable=SC2086 # $REMOTE is a list of keys: split on purpose
 keys $REMOTE -s 500 -t "$STRICT" Tab -t strict-key Tab space Tab Tab Tab -t "not-a-real-key" \
     Tab Return -s 3000
 step "Wrong API key" "API key chosen: one Key field (no Username / Password). Red: the server refused this API key, the raw 403 dim underneath; continue stays off."
@@ -231,6 +235,7 @@ step "Signed in with an API key" "The same three fixtures; the hero says STRICT-
 
 check "servers.json has the API key mode and not the key" \
     servers_json_is "$config/servers.json" apiKey QBT_STRICT_API_KEY
+# shellcheck disable=SC2016 # expands in the inner sh, which gets the values as $1, $2
 check "the box's keyring holds <server id>/apiKey" \
     sh -c 'omabox run -b "$1" -- secret-tool search --all server io.github.diogochaves.omaseed 2>&1 | grep -q "^attribute.user = .*/apiKey$"' _ "$BOX"
 
@@ -246,7 +251,7 @@ rm -f "$config/servers.json"
 sed -i 's/^base-size = .*/base-size = 18/' "$home/.config/omarchy/shell.toml"
 launch
 check "at base-size 18 setup floats at 1125x771" window_is floating 1125x771
-# shellcheck disable=SC2086
+# shellcheck disable=SC2086 # $REMOTE is a list of keys: split on purpose
 keys $REMOTE -s 500 -t "$STRICT" Tab -t strict Tab Tab Tab Tab Return -s 3000
 step "Base size 18" "The same step 2 at font size 18 in a 1125x771 window: none chosen, the red 403 line, the buttons, and the footer clear of them (nothing overlaps)."
 

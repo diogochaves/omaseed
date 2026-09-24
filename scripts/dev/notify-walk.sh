@@ -210,6 +210,7 @@ if [ "$INTERACTIVE" = 1 ]; then
     omabox up "$BOX" --interactive --net isolated --allow "$PLAY_PORT" --ro-bind "$DOWNLOADS" >/dev/null
 else
     mkdir -p "$OUT"
+    # shellcheck disable=SC2016 # backticks are Markdown, not command substitution
     printf '# Notification walk %s\n\nBuild `%s`. Each shot: what should be on screen.\n\n' \
         "$(date '+%Y-%m-%d %H:%M')" "$(git rev-parse --short HEAD)" >"$OUT/index.md"
     omabox up "$BOX" --net isolated --allow "$PLAY_PORT" --ro-bind "$DOWNLOADS" >/dev/null
@@ -221,6 +222,7 @@ printf '{"version":1,"defaultId":"playground","servers":[{"id":"playground","nam
 chmod 600 "$home/.config/omaseed/servers.json"
 # The desktop entry and icon, so the shell can resolve the notice's icon and desktop-entry.
 omabox run -b "$BOX" -- scripts/dev/install-desktop.sh >/dev/null 2>&1
+# shellcheck disable=SC2016 # the box's $HOME, expanded inside the box
 omabox run -b "$BOX" -d -- sh -c \
     'exec dbus-monitor --session "interface=org.freedesktop.Notifications" >"$HOME/bus.log" 2>&1' >/dev/null
 launch

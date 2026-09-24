@@ -206,6 +206,7 @@ if [ "$INTERACTIVE" = 1 ]; then
     omabox up "$BOX" --interactive --net isolated --allow "$PLAY_PORT" --ro-bind "$DOWNLOADS" >/dev/null
 else
     mkdir -p "$OUT"
+    # shellcheck disable=SC2016 # backticks are Markdown, not command substitution
     printf '# Magnet walk %s\n\nBuild `%s`. Each shot: what should be on screen.\n\n' \
         "$(date '+%Y-%m-%d %H:%M')" "$(git rev-parse --short HEAD)" >"$OUT/index.md"
     omabox up "$BOX" --net isolated --allow "$PLAY_PORT" --ro-bind "$DOWNLOADS" >/dev/null
@@ -218,13 +219,16 @@ chmod 600 "$home/.config/omaseed/servers.json"
 omabox run -b "$BOX" -- scripts/dev/install-desktop.sh --set-default >/dev/null 2>&1
 # A browser's download, where the box's own file manager would find it. `home` is that
 # directory from the host; inside the box it is the box's $HOME.
+# shellcheck disable=SC2016 # the box's $HOME, expanded inside the box
 HOME_IN_BOX="$(omabox run -b "$BOX" -- sh -c 'printf %s "$HOME"')"
 mkdir -p "$home/Downloads"
 cp "$UNICODE_FILE" "$home/Downloads/unicode.torrent"
 
 # ---- the walk -----------------------------------------------------------------------------
+# shellcheck disable=SC2016 # expands in the inner sh, which gets the values as $1, $2
 check "omaseed is the box's magnet: handler" \
     sh -c '[ "$(omabox run -b "$1" -- xdg-mime query default x-scheme-handler/magnet)" = "$2.desktop" ]' _ "$BOX" "$APP_ID"
+# shellcheck disable=SC2016 # expands in the inner sh, which gets the values as $1, $2
 check "and its .torrent handler" \
     sh -c '[ "$(omabox run -b "$1" -- xdg-mime query default application/x-bittorrent)" = "$2.desktop" ]' _ "$BOX" "$APP_ID"
 

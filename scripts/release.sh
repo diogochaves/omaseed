@@ -227,12 +227,14 @@ log "Writing release notes"
     printf '# omaseed %s\n\n' "$TAG"
     printf '%s\n\n' "$CHANGELOG_SECTION"
     printf '## Install\n\n'
+    # shellcheck disable=SC2016 # backticks are Markdown, not command substitution
     printf 'Arch / Omarchy, from the source tarball (before the `[omarchy]` repo package lands):\n\n'
     printf '```\n'
     printf 'tar xf %s\n' "$TARBALL_NAME"
     printf 'cd omaseed-%s\n' "$VERSION"
     printf 'makepkg -si -p packaging/arch/PKGBUILD\n'
     printf '```\n\n'
+    # shellcheck disable=SC2016 # backticks are Markdown, not command substitution
     printf 'Once accepted into the omarchy-pkgs `[omarchy]` repo:\n\n'
     printf '```\n'
     printf 'pacman -S omaseed\n'

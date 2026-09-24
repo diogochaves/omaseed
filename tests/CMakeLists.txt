@@ -66,4 +66,12 @@ if(NOT WIN32)
         COMMAND bash "${CMAKE_SOURCE_DIR}/tests/dev/test_install_extras.sh"
     )
     set_tests_properties(dev_install_extras PROPERTIES TIMEOUT 60 SKIP_RETURN_CODE 77)
+
+    # Every tracked shell script is shellcheck-clean (settings in .shellcheckrc). Skips
+    # when shellcheck is not installed.
+    add_test(
+        NAME shellcheck
+        COMMAND bash "${CMAKE_SOURCE_DIR}/scripts/dev/shellcheck.sh"
+    )
+    set_tests_properties(shellcheck PROPERTIES LABELS "lint" TIMEOUT 60 SKIP_RETURN_CODE 77)
 endif()

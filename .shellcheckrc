@@ -1,0 +1,5 @@
+# ShellCheck settings for every shell script in the repo (see scripts/dev/shellcheck.sh).
+# a= b= c= blanks several variables on one line; that is the intent, not a typo.
+disable=SC1007
+# Follow `# shellcheck source=…` directives into the sourced helpers.
+external-sources=true
