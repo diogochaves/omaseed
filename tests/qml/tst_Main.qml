@@ -70,7 +70,10 @@ TestCase {
         view.sortPalette.close();
         view.columnsPalette.close();
         view.moreMenu.close();
+        view.filterMenu.close();
         view.globalLimitsSheet.close();
+        testCase.width = 1360;
+        App.filtered.clearCategory();
         view.helpOpen = false;
         view._testServerLost = false;
         App.railHidden = false;
@@ -337,6 +340,41 @@ TestCase {
         keyClick("h");
         compare(App.railHidden, false);
         verify(view.rail.activeFocus);
+    }
+
+    // docs/15 Q1 A: at the floor the chips leave the hero; `/` opens one menu with the name
+    // filter on top and a row per filter, and its ✕ clears that filter.
+    function test_slash_opens_the_filters_menu_on_the_last_step() {
+        App.filtered.statusFilter = TorrentFilterModel.Downloading;
+        App.filtered.category = "linux";
+        keyClick(Qt.Key_B, Qt.ControlModifier);
+        testCase.width = Theme.space(480);
+        compare(view.hero.level, 4);
+        verify(view.hero.filtersInButton);
+
+        view.table.forceActiveFocus();
+        keyClick(Qt.Key_Slash);
+        verify(view.filterMenu.opened);
+        verify(view.overlayOpen);
+        compare(view.filterMenu.filters.length, 2);
+        keyClick("u");
+        compare(App.filtered.text, "u");
+        compare(view.hero.searchField.text, "u");
+
+        keyClick(Qt.Key_Down);
+        keyClick(Qt.Key_X);
+        compare(App.filtered.statusFilter, TorrentFilterModel.All);
+        verify(view.filterMenu.opened);
+        // "clear all filters" is the row after the last filter.
+        keyClick(Qt.Key_J);
+        keyClick(Qt.Key_Return);
+        verify(!view.filterMenu.opened);
+        compare(App.filtered.category, undefined);
+        compare(App.filtered.text, "");
+        compare(view.hero.searchField.text, "");
+
+        testCase.width = 1360;
+        view.filterMenu.close();
     }
 
     function test_pipe_opens_the_columns_palette() {

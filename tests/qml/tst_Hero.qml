@@ -228,7 +228,9 @@ TestCase {
     function test_filter_chips_never_push_the_buttons_out() {
         const hero = createTemporaryObject(heroComponent, testCase, {
                                                "downSpeed": "12.3 MB/s",
+                                               "downSpeedShort": "12.3M",
                                                "upSpeed": "999.9 KB/s",
+                                               "upSpeedShort": "1000K",
                                                "altSpeedActive": true,
                                                "altDownLimit": "10.0 MB/s",
                                                "altUpLimit": "1.00 MB/s",
@@ -259,9 +261,8 @@ TestCase {
                     hero.searchOpen = open;
                     waitForItemPolished(hero.children[0]);
                     verify(hero.level < 3 || hero.chipsFolded);
-                    // Step 4 is the ladder's last: what gives there with chips up is still
-                    // Diogo's call (docs/QUESTIONS.md), so only steps 0–3 must fit.
-                    if (hero.level < 4 && overflow(hero) > 0.5)
+                    // Step 4 too: there the chips go into the `/` button (docs/15 Q1 A).
+                    if (overflow(hero) > 0.5)
                         over.push(chips.length + " chips at " + w + (open ? " open" : "") + ", level "
                                   + hero.level + ": " + Math.round(overflow(hero)) + " px over");
                 }
@@ -359,6 +360,108 @@ TestCase {
         verify(top >= hero.height, "the tip covers the hero: its top is at " + top);
         compare(hero.serverTip.text, "home · qBittorrent 5.2.3");
         mouseMove(testCase, testCase.width - 1, testCase.height - 1);
+    }
+
+    readonly property var fourChips: [{
+            "key": "status",
+            "glyph": Glyphs.arrowDown,
+            "text": "downloading"
+        }, {
+            "key": "category",
+            "glyph": Glyphs.category,
+            "text": "linux"
+        }, {
+            "key": "tag",
+            "glyph": Glyphs.tag,
+            "text": "keep"
+        }, {
+            "key": "tracker",
+            "glyph": Glyphs.tracker,
+            "text": "tracker.example.org"
+        }]
+
+    // docs/15 Q1 A, measured: with "4.21 MB/s" and "812 KB/s" the last step needed 562 px at
+    // the 560 px floor (base 14) and ~62 px more per chip. With the speeds short and the chips
+    // in the `/` button, the row fits the floor with no filters and with all four.
+    function test_step_four_fits_the_floor_with_zero_and_four_filters() {
+        const hero = createTemporaryObject(heroComponent, testCase, {
+                                               "downSpeed": "4.21 MB/s",
+                                               "upSpeed": "812 KB/s",
+                                               "downSpeedShort": "4.21M",
+                                               "upSpeedShort": "812K",
+                                               "altSpeedActive": true,
+                                               "altDownLimit": "10.0 MB/s",
+                                               "altUpLimit": "1.00 MB/s",
+                                               "altDownLimitShort": "10.0M",
+                                               "altUpLimitShort": "1.00M",
+                                               "serverLine": "home · qBittorrent 5.2.3",
+                                               "serverLineShort": "home"
+                                           });
+        hero.width = Theme.space(480);
+        const row = hero.children[0];
+        for (const chips of [[], testCase.fourChips]) {
+            hero.filterChips = chips;
+            hero.searchField.text = chips.length > 0 ? "iso" : "";
+            waitForItemPolished(row);
+            compare(hero.level, 4);
+            verify(row.implicitWidth <= row.width, chips.length + " filters: row needs "
+                   + row.implicitWidth + " of " + row.width);
+            verify(overflow(hero) <= 0.5, chips.length + " filters: " + overflow(hero) + " px over");
+            verify(hero.addButton.visible);
+            verify(hero.moreButton.visible);
+        }
+        hero.searchField.text = "";
+    }
+
+    function test_step_four_puts_the_filters_in_the_slash_button() {
+        const hero = createTemporaryObject(heroComponent, testCase, {
+                                               "downSpeed": "4.21 MB/s",
+                                               "downSpeedShort": "4.21M",
+                                               "upSpeed": "812 KB/s",
+                                               "upSpeedShort": "812K"
+                                           });
+        let asked = 0;
+        hero.filtersClicked.connect(() => asked += 1);
+        hero.filterChips = testCase.fourChips;
+        const button = findChild(hero, "filterButton");
+
+        // Steps 0–3 keep the chips and the plain `/`.
+        hero.width = Theme.space(900);
+        verify(hero.level < 4, "level " + hero.level);
+        verify(!button.visible);
+        verify(findChild(hero, "filterChip_tag").visible);
+        compare(hero.downStat.value, "4.21 MB/s");
+
+        hero.width = Theme.space(480);
+        compare(hero.level, 4);
+        verify(hero.filtersInButton);
+        verify(button.visible);
+        verify(!findChild(hero, "searchButton").visible);
+        verify(!findChild(hero, "filterChip_tag").visible);
+        compare(button.border.color, Theme.accent);
+        compare(findChild(hero, "filterCount").text, "4");
+        compare(hero.downStat.value, "4.21M");
+
+        // The name filter counts too.
+        hero.searchField.text = "iso";
+        compare(findChild(hero, "filterCount").text, "5");
+
+        // `/` and a click ask for the menu; the field stays folded.
+        hero.openSearch();
+        compare(asked, 1);
+        verify(!hero.searchOpen);
+        mouseClick(button);
+        compare(asked, 2);
+
+        // No chips: the lone name filter keeps today's `/`, which opens the field.
+        hero.filterChips = [];
+        verify(!button.visible);
+        verify(findChild(hero, "searchButton").visible);
+        verify(findChild(hero, "searchButton").accent);
+        hero.openSearch();
+        compare(asked, 2);
+        verify(hero.searchOpen);
+        hero.searchField.text = "";
     }
 
     function test_step_four_keeps_the_dot_beside_the_mark() {
