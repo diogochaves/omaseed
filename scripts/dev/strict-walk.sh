@@ -207,6 +207,19 @@ check "the box's keyring holds <server id>/apiKey" \
 launch
 step "API key after a restart" "Straight to the table again, signed in with the key from the keyring."
 
+# ---- a bigger font --------------------------------------------------------------------------
+# Setup's window grows with the shell's base-size (875 x 600 at 14), so at 18 the tallest step
+# still fits above the footer. Auth "none" against the strict server fails its test without a
+# login attempt, so the lockout counter is not touched.
+omabox run -b "$BOX" -- pkill -x omaseed >/dev/null 2>&1 || true
+rm -f "$config/servers.json"
+sed -i 's/^base-size = .*/base-size = 18/' "$home/.config/omarchy/shell.toml"
+launch
+check "at base-size 18 setup floats at 1125x771" window_is floating 1125x771
+# shellcheck disable=SC2086
+keys $REMOTE -s 500 -t "$STRICT" Tab -t strict Tab Tab Tab Tab Return -s 3000
+step "Base size 18" "The same step 2 at font size 18 in a 1125x771 window: none chosen, the red 403 line, the buttons, and the footer clear of them (nothing overlaps)."
+
 if [ "$INTERACTIVE" = 0 ]; then
     printf '\n## Checks\n\n%s' "$CHECKS" >>"$OUT/index.md"
 fi

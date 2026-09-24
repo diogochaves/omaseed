@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Window
 import Omaseed
 import Omaseed.Kit
 import Omaseed.Views
@@ -13,10 +14,20 @@ Window {
     // First run floats (Diogo, 2026-09-23). A window whose minimum and maximum sizes are equal
     // is one Hyprland floats and centres by itself, with no window rule to install, and it
     // decides that once, when the window maps. So first run locks the window to Omarchy's own
-    // floating size (875 × 600, its `floating-window` tag) and `leaveSetup()` unlocks it and
-    // maps it again, which tiles it like any other launch. Latched in Component.onCompleted,
-    // before the window first shows: `App.hasServer` flips mid-setup, when step 2 saves.
-    readonly property size setupSize: Qt.size(875, 600)
+    // floating size and `leaveSetup()` unlocks it and maps it again, which tiles it like any
+    // other launch. Latched in Component.onCompleted, before the window first shows:
+    // `App.hasServer` flips mid-setup, when step 2 saves.
+    //
+    // The size is Omarchy's 875 × 600 at base 14, the size the setup column was checked at,
+    // and grows with the font like everything inside it (1125 × 771 at 18), so a bigger font
+    // never pushes the column into the footer. Never larger than the screen's free area;
+    // what still does not fit then scrolls inside FirstRunPage.
+    readonly property real setupScale: Theme.font.baseSize / 14
+    readonly property size setupSize: Qt.size(
+                                          Math.min(Math.round(875 * window.setupScale),
+                                                   Screen.desktopAvailableWidth > 0 ? Screen.desktopAvailableWidth : 1e6),
+                                          Math.min(Math.round(600 * window.setupScale),
+                                                   Screen.desktopAvailableHeight > 0 ? Screen.desktopAvailableHeight : 1e6))
     property bool setup: !App.hasServer && !App.demoMode
 
     function leaveSetup(): void {

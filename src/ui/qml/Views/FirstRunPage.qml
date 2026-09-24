@@ -355,6 +355,19 @@ function _apiKeyTabOrder(): list<Item> {
     return order;
 }
 
+/// Only matters when the column scrolls (a big font on a small screen): keep what the
+/// keyboard just reached on screen.
+function _scrollIntoView(item: Item): void {
+    if (!scroller.interactive)
+        return;
+    const top = item.mapToItem(scroller.contentItem, 0, 0).y - Theme.space(8);
+    const bottom = top + item.height + Theme.space(16);
+    if (top < scroller.contentY)
+        scroller.contentY = Math.max(0, top);
+    else if (bottom > scroller.contentY + scroller.height)
+        scroller.contentY = Math.min(bottom - scroller.height, scroller.contentHeight - scroller.height);
+}
+
 function _cycleApiKeyFocus(delta: int): void {
     const order = root.page === "handler" ? [registerButton, notNowButton] : root._apiKeyTabOrder();
     let current = -1;
@@ -368,6 +381,7 @@ function _cycleApiKeyFocus(delta: int): void {
         next.focusInput();
     else
         next.forceActiveFocus();
+    root._scrollIntoView(next);
 }
 
 Keys.onPressed: event => {
@@ -408,436 +422,664 @@ focus: true
 // ---- layout -----------------------------------------------------------------------
 // docs/14 C1: one column, centred both ways in the space above the footer, its text
 // left-aligned. Each step is a different height, so the column re-centres between steps.
-ColumnLayout {
-    id: column
+// The window grows with the font (Main.qml), so the column normally fits; when it cannot
+// (a big font on a small screen), it starts at the top and scrolls, and never runs into the
+// footer.
+Flickable {
+    id: scroller
 
-    objectName: "setupColumn"
-    spacing: Theme.space(18)
-    width: Math.min(Theme.space(520), root.width - Theme.space(48))
-    x: Math.round((root.width - column.width) / 2)
-    y: Math.max(Theme.space(24), Math.round((root.height - setupFooter.height - column.height) / 2))
+    readonly property int margin: Theme.space(24)
 
-    // ---- welcome (docs/14 screen 0) -----------------------------------------------------
-    RowLayout {
-        spacing: Theme.space(14)
-        visible: root.page === "welcome"
+    anchors.bottom: setupFooter.top
+    anchors.left: parent.left
+    anchors.right: parent.right
+    anchors.top: parent.top
+    boundsBehavior: Flickable.StopAtBounds
+    clip: true
+    contentHeight: Math.max(scroller.height, column.height + 2 * scroller.margin)
+    contentWidth: scroller.width
+    interactive: column.height + 2 * scroller.margin > scroller.height
+    objectName: "setupScroller"
 
-        Icon {
-            color: Theme.accent
-            implicitHeight: Theme.font.display * 2
-            implicitWidth: Theme.font.display * 2
-            name: "mark"
-        }
-
-        Label {
-            bright: true
-            font.weight: Font.DemiBold
-            size: "display"
-            text: qsTr("omaseed")
-        }
+    ScrollBar {
+        anchors.bottom: parent.bottom
+        anchors.right: parent.right
+        anchors.top: parent.top
+        flickable: scroller
+        vertical: true
     }
 
-    Label {
-        Layout.fillWidth: true
-        dim: true
-        text: qsTr("Torrents for Omarchy, powered by qBittorrent.")
-        visible: root.page === "welcome"
-        wrapMode: Text.WordWrap
-    }
-
-    // The server search, as it runs: what step 1 will offer.
     ColumnLayout {
-        Layout.fillWidth: true
-        objectName: "detectLines"
-        spacing: Theme.space(4)
-        visible: root.page === "welcome"
+        id: column
 
-        Label {
-            Layout.fillWidth: true
-            dim: true
-            size: "small"
-            text: qsTr("· looking for qBittorrent on this machine…")
-            visible: root.detecting
-        }
-
-        Repeater {
-            model: root.detecting ? [] : root.candidates
-
-            Label {
-                required property var modelData
-
-                Layout.fillWidth: true
-                color: Theme.green
-                size: "small"
-                text: qsTr("✓ found %1").arg(modelData.detail || modelData.url || "")
-                wrapMode: Text.WordWrap
-            }
-        }
-
-        Label {
-            Layout.fillWidth: true
-            dim: true
-            size: "small"
-            text: qsTr("· no qBittorrent on this machine yet")
-            visible: !root.detecting && !root.hasLocal
-            wrapMode: Text.WordWrap
-        }
-    }
-
-    RowLayout {
-        spacing: Theme.space(8)
-        visible: root.page === "welcome"
-
-        Button {
-            id: setUpButton
-
-            primary: true
-            text: qsTr("set up")
-
-            onClicked: root.page = "choose"
-        }
-
-        Button {
-            text: qsTr("quit")
-
-            onClicked: root.quitRequested()
-        }
-    }
-
-    // ---- every other page: the mark, the named steps, the question -----------------------
-    RowLayout {
-        spacing: Theme.space(8)
-        visible: root.page !== "welcome"
-
-        Icon {
-            color: Theme.accent
-            implicitHeight: Theme.font.title
-            implicitWidth: Theme.font.title
-            name: "mark"
-        }
-
-        Label {
-            bright: true
-            font.weight: Font.DemiBold
-            text: qsTr("omaseed")
-        }
-    }
-
-    // docs/14 D1: done steps in green with a tick, the current one bright, the rest dim.
-    Row {
-        objectName: "setupSteps"
+        objectName: "setupColumn"
         spacing: Theme.space(18)
-        visible: root.page !== "welcome"
+        width: Math.min(Theme.space(520), scroller.width - Theme.space(48))
+        x: Math.round((scroller.width - column.width) / 2)
+        y: Math.max(scroller.margin, Math.round((scroller.height - column.height) / 2))
 
-        Repeater {
-            model: [qsTr("server"), qsTr("sign in"), qsTr("links")]
+        // ---- welcome (docs/14 screen 0) -----------------------------------------------------
+        RowLayout {
+            spacing: Theme.space(14)
+            visible: root.page === "welcome"
+
+            Icon {
+                color: Theme.accent
+                implicitHeight: Theme.font.display * 2
+                implicitWidth: Theme.font.display * 2
+                name: "mark"
+            }
 
             Label {
-                required property int index
-                required property string modelData
-
-                readonly property int number: index + 1
-
-                bright: number === root.stepNumber
-                color: number < root.stepNumber ? Theme.green : number === root.stepNumber
-                                                                ? Theme.brightForeground :
-                                                                  Theme.dimForeground
-                size: "small"
-                text: number < root.stepNumber ? "✓ " + modelData : number + " " + modelData
+                bright: true
+                font.weight: Font.DemiBold
+                size: "display"
+                text: qsTr("omaseed")
             }
         }
-    }
-
-    Label {
-        Layout.fillWidth: true
-        size: "heading"
-        bright: true
-        objectName: "heading"
-        text: root.heading
-        visible: root.page !== "welcome"
-        wrapMode: Text.WordWrap
-    }
-
-    // ---- step 1: choose --------------------------------------------------------------
-    ColumnLayout {
-        id: chooseColumn
-
-        Layout.fillWidth: true
-        spacing: Theme.space(6)
-        visible: root.page === "choose"
-
-        Repeater {
-            model: root._rows
-
-            Rectangle {
-                id: optionRow
-
-                required property int index
-                required property var modelData
-
-                readonly property bool hasCursor: optionRow.index === root.cursorIndex
-                readonly property bool hot: optionRow.hasCursor || hoverHandler.hovered
-                // Q20: the install row under a found server. Only the ink dims; cursor,
-                // hover, enter and click work as on the other rows.
-                readonly property bool dimmed: optionRow.modelData.dimmed
-
-                Layout.fillWidth: true
-                color: optionRow.hot ? Theme.fill(Theme.fillHover) : "transparent"
-                implicitHeight: rowLayout.implicitHeight + Theme.space(16)
-                radius: Theme.cornerRadius
-
-                HoverHandler {
-                    id: hoverHandler
-                }
-
-                TapHandler {
-                    onTapped: {
-                        root.cursorIndex = optionRow.index;
-                        root.chooseCursor();
-                    }
-                }
-
-                RowLayout {
-                    id: rowLayout
-
-                    anchors.left: parent.left
-                    anchors.leftMargin: Theme.space(12)
-                    anchors.right: parent.right
-                    anchors.rightMargin: Theme.space(12)
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing: Theme.space(12)
-
-                    Rectangle {
-                        color: "transparent"
-                        border.color: Theme.fill(Theme.borderIdle)
-                        border.width: 1
-                        implicitHeight: Theme.space(28)
-                        implicitWidth: Theme.space(28)
-                        radius: Theme.cornerRadius
-
-                        Text {
-                            anchors.centerIn: parent
-                            color: optionRow.dimmed ? Theme.dimForeground : Theme.accent
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.font.body
-                            text: optionRow.modelData.glyph
-                        }
-                    }
-
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        spacing: Theme.space(2)
-
-                        Label {
-                            Layout.fillWidth: true
-                            bright: !optionRow.dimmed
-                            dim: optionRow.dimmed
-                            text: optionRow.modelData.title
-                        }
-
-                        Label {
-                            Layout.fillWidth: true
-                            dim: true
-                            size: "small"
-                            text: optionRow.modelData.detail
-                            wrapMode: Text.WordWrap
-                        }
-                    }
-
-                    Label {
-                        // Spec Fig. 15 `.choice .k`: a dim caption in the key's own case —
-                        // case is meaningful in every key chip (T3.5/T3.6), and `tracked`
-                        // would print it as "ENTER".
-                        dim: true
-                        size: "caption"
-                        text: qsTr("enter")
-                        visible: optionRow.hasCursor
-                    }
-                }
-            }
-        }
-    }
-
-    // ---- step 2: install ---------------------------------------------------------------
-    ColumnLayout {
-        Layout.fillWidth: true
-        spacing: Theme.space(12)
-        visible: root.page === "install"
 
         Label {
             Layout.fillWidth: true
-            text: qsTr(
-                      "Two commands: install the package, then enable the user service so it starts with your session.")
+            dim: true
+            text: qsTr("Torrents for Omarchy, powered by qBittorrent.")
+            visible: root.page === "welcome"
             wrapMode: Text.WordWrap
         }
 
-        // Q20: the port clash, only when step 1 found a server. The kit's `Banner` is one
-        // line; this wraps, so it borrows `DuplicateSheet`'s rule-glyph-text shape instead.
-        RowLayout {
-            id: portWarning
-
+        // The server search, as it runs: what step 1 will offer.
+        ColumnLayout {
             Layout.fillWidth: true
-            objectName: "portWarning"
-            spacing: Theme.space(8)
-            visible: root.hasLocal
-
-            Rectangle {
-                Layout.alignment: Qt.AlignTop
-                Layout.preferredHeight: portWarningText.implicitHeight
-                Layout.horizontalStretchFactor: 2
-                color: Theme.yellow
-            }
+            objectName: "detectLines"
+            spacing: Theme.space(4)
+            visible: root.page === "welcome"
 
             Label {
-                Layout.alignment: Qt.AlignTop
-                color: Theme.yellow
-                size: "small"
-                text: Glyphs.statusStalled
-            }
-
-            Label {
-                id: portWarningText
-
                 Layout.fillWidth: true
-                color: Theme.yellow
+                dim: true
                 size: "small"
-                text: qsTr(
-                          "A server already answers on port 8080. The packaged service also uses 8080, so it will not start until one of them moves. To run two engines, give the new one its own profile and port (qbittorrent-nox --profile=… --webui-port=…).")
+                text: qsTr("· looking for qBittorrent on this machine…")
+                visible: root.detecting
+            }
+
+            Repeater {
+                model: root.detecting ? [] : root.candidates
+
+                Label {
+                    required property var modelData
+
+                    Layout.fillWidth: true
+                    color: Theme.green
+                    size: "small"
+                    text: qsTr("✓ found %1").arg(modelData.detail || modelData.url || "")
+                    wrapMode: Text.WordWrap
+                }
+            }
+
+            Label {
+                Layout.fillWidth: true
+                dim: true
+                size: "small"
+                text: qsTr("· no qBittorrent on this machine yet")
+                visible: !root.detecting && !root.hasLocal
                 wrapMode: Text.WordWrap
             }
         }
 
-        Field {
-            id: commandsField
-
-            Layout.fillWidth: true
-            objectName: "commandsField"
-            text: App.installCommandsText()
-        }
-
         RowLayout {
             spacing: Theme.space(8)
+            visible: root.page === "welcome"
 
             Button {
-                text: qsTr("copy")
+                id: setUpButton
 
-                onClicked: App.copyToClipboard(commandsField.text)
-            }
-
-            Button {
                 primary: true
-                text: qsTr("run with pkexec")
+                text: qsTr("set up")
 
-                onClicked: App.runInstallWithPkexec()
-            }
-
-            Item {
-                Layout.fillWidth: true
+                onClicked: root.page = "choose"
             }
 
             Button {
-                text: qsTr("continue")
+                text: qsTr("quit")
 
-                onClicked: root.openRow("local", "http://127.0.0.1:8080")
+                onClicked: root.quitRequested()
             }
         }
 
-        Connections {
-            function onInstallFinished(ok: bool, message: string): void {
-                installResultLabel.text = ok ? qsTr("installed") : message;
+        // ---- every other page: the mark, the named steps, the question -----------------------
+        RowLayout {
+            spacing: Theme.space(8)
+            visible: root.page !== "welcome"
+
+            Icon {
+                color: Theme.accent
+                implicitHeight: Theme.font.title
+                implicitWidth: Theme.font.title
+                name: "mark"
             }
 
-            target: App
+            Label {
+                bright: true
+                font.weight: Font.DemiBold
+                text: qsTr("omaseed")
+            }
+        }
+
+        // docs/14 D1: done steps in green with a tick, the current one bright, the rest dim.
+        Row {
+            objectName: "setupSteps"
+            spacing: Theme.space(18)
+            visible: root.page !== "welcome"
+
+            Repeater {
+                model: [qsTr("server"), qsTr("sign in"), qsTr("links")]
+
+                Label {
+                    required property int index
+                    required property string modelData
+
+                    readonly property int number: index + 1
+
+                    bright: number === root.stepNumber
+                    color: number < root.stepNumber ? Theme.green : number === root.stepNumber
+                                                                    ? Theme.brightForeground :
+                                                                      Theme.dimForeground
+                    size: "small"
+                    text: number < root.stepNumber ? "✓ " + modelData : number + " " + modelData
+                }
+            }
         }
 
         Label {
-            id: installResultLabel
-
             Layout.fillWidth: true
-            color: Theme.red
+            size: "heading"
+            bright: true
+            objectName: "heading"
+            text: root.heading
+            visible: root.page !== "welcome"
             wrapMode: Text.WordWrap
         }
-    }
 
-    // ---- step 2: api key -----------------------------------------------------------------
-    ColumnLayout {
-        Layout.fillWidth: true
-        spacing: Theme.space(12)
-        visible: root.page === "apikey"
+        // ---- step 1: choose --------------------------------------------------------------
+        ColumnLayout {
+            id: chooseColumn
 
-        RowLayout {
             Layout.fillWidth: true
-            spacing: Theme.space(10)
+            spacing: Theme.space(6)
+            visible: root.page === "choose"
 
-            FormRow {
-                Layout.fillWidth: true
-                Layout.horizontalStretchFactor: 3
-                label: qsTr("URL")
+            Repeater {
+                model: root._rows
 
-                Field {
-                    id: urlField
+                Rectangle {
+                    id: optionRow
 
-                    Layout.fillWidth: true
-                    placeholder: qsTr("http://127.0.0.1:8080")
+                    required property int index
+                    required property var modelData
 
-                    onTextChanged: root.editUrl = text
-                }
-            }
-
-            FormRow {
-                Layout.fillWidth: true
-                Layout.horizontalStretchFactor: 2
-                label: qsTr("Server name")
-
-                Field {
-                    id: nameField
+                    readonly property bool hasCursor: optionRow.index === root.cursorIndex
+                    readonly property bool hot: optionRow.hasCursor || hoverHandler.hovered
+                    // Q20: the install row under a found server. Only the ink dims; cursor,
+                    // hover, enter and click work as on the other rows.
+                    readonly property bool dimmed: optionRow.modelData.dimmed
 
                     Layout.fillWidth: true
-                    placeholder: qsTr("home")
+                    color: optionRow.hot ? Theme.fill(Theme.fillHover) : "transparent"
+                    implicitHeight: rowLayout.implicitHeight + Theme.space(16)
+                    radius: Theme.cornerRadius
 
-                    onTextChanged: root.editName = text
+                    HoverHandler {
+                        id: hoverHandler
+                    }
+
+                    TapHandler {
+                        onTapped: {
+                            root.cursorIndex = optionRow.index;
+                            root.chooseCursor();
+                        }
+                    }
+
+                    RowLayout {
+                        id: rowLayout
+
+                        anchors.left: parent.left
+                        anchors.leftMargin: Theme.space(12)
+                        anchors.right: parent.right
+                        anchors.rightMargin: Theme.space(12)
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: Theme.space(12)
+
+                        Rectangle {
+                            color: "transparent"
+                            border.color: Theme.fill(Theme.borderIdle)
+                            border.width: 1
+                            implicitHeight: Theme.space(28)
+                            implicitWidth: Theme.space(28)
+                            radius: Theme.cornerRadius
+
+                            Text {
+                                anchors.centerIn: parent
+                                color: optionRow.dimmed ? Theme.dimForeground : Theme.accent
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.font.body
+                                text: optionRow.modelData.glyph
+                            }
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: Theme.space(2)
+
+                            Label {
+                                Layout.fillWidth: true
+                                bright: !optionRow.dimmed
+                                dim: optionRow.dimmed
+                                text: optionRow.modelData.title
+                            }
+
+                            Label {
+                                Layout.fillWidth: true
+                                dim: true
+                                size: "small"
+                                text: optionRow.modelData.detail
+                                wrapMode: Text.WordWrap
+                            }
+                        }
+
+                        Label {
+                            // Spec Fig. 15 `.choice .k`: a dim caption in the key's own case —
+                            // case is meaningful in every key chip (T3.5/T3.6), and `tracked`
+                            // would print it as "ENTER".
+                            dim: true
+                            size: "caption"
+                            text: qsTr("enter")
+                            visible: optionRow.hasCursor
+                        }
+                    }
                 }
             }
         }
 
-        FormRow {
+        // ---- step 2: install ---------------------------------------------------------------
+        ColumnLayout {
             Layout.fillWidth: true
-            label: qsTr("Auth")
+            spacing: Theme.space(12)
+            visible: root.page === "install"
+
+            Label {
+                Layout.fillWidth: true
+                text: qsTr(
+                          "Two commands: install the package, then enable the user service so it starts with your session.")
+                wrapMode: Text.WordWrap
+            }
+
+            // Q20: the port clash, only when step 1 found a server. The kit's `Banner` is one
+            // line; this wraps, so it borrows `DuplicateSheet`'s rule-glyph-text shape instead.
+            RowLayout {
+                id: portWarning
+
+                Layout.fillWidth: true
+                objectName: "portWarning"
+                spacing: Theme.space(8)
+                visible: root.hasLocal
+
+                Rectangle {
+                    Layout.alignment: Qt.AlignTop
+                    Layout.preferredHeight: portWarningText.implicitHeight
+                    Layout.preferredWidth: 2
+                    color: Theme.yellow
+                }
+
+                Label {
+                    Layout.alignment: Qt.AlignTop
+                    color: Theme.yellow
+                    size: "small"
+                    text: Glyphs.statusStalled
+                }
+
+                Label {
+                    id: portWarningText
+
+                    Layout.fillWidth: true
+                    color: Theme.yellow
+                    size: "small"
+                    text: qsTr(
+                              "A server already answers on port 8080. The packaged service also uses 8080, so it will not start until one of them moves. To run two engines, give the new one its own profile and port (qbittorrent-nox --profile=… --webui-port=…).")
+                    wrapMode: Text.WordWrap
+                }
+            }
+
+            Field {
+                id: commandsField
+
+                Layout.fillWidth: true
+                objectName: "commandsField"
+                text: App.installCommandsText()
+            }
 
             RowLayout {
-                spacing: Theme.space(6)
+                spacing: Theme.space(8)
 
-                Repeater {
-                    id: authChips
+                Button {
+                    text: qsTr("copy")
 
-                    model: [
-                        {
-                            "mode": "apiKey",
-                            "text": qsTr("API key")
-                        },
-                        {
-                            "mode": "cookie",
-                            "text": qsTr("cookie")
-                        },
-                        {
-                            "mode": "none",
-                            "text": qsTr("none")
-                        }
-                    ]
+                    onClicked: App.copyToClipboard(commandsField.text)
+                }
 
-                    Chip {
-                        id: authChip
+                Button {
+                    primary: true
+                    text: qsTr("run with pkexec")
 
-                        activeFocusOnTab: false
+                    onClicked: App.runInstallWithPkexec()
+                }
 
-                        required property var modelData
+                Item {
+                    Layout.fillWidth: true
+                }
 
-                        focusable: true
-                        selected: root.editAuthMode === authChip.modelData.mode
-                        text: authChip.modelData.text
+                Button {
+                    text: qsTr("continue")
 
-                        onClicked: root.editAuthMode = authChip.modelData.mode
+                    onClicked: root.openRow("local", "http://127.0.0.1:8080")
+                }
+            }
+
+            Connections {
+                function onInstallFinished(ok: bool, message: string): void {
+                    installResultLabel.text = ok ? qsTr("installed") : message;
+                }
+
+                target: App
+            }
+
+            Label {
+                id: installResultLabel
+
+                Layout.fillWidth: true
+                color: Theme.red
+                wrapMode: Text.WordWrap
+            }
+        }
+
+        // ---- step 2: api key -----------------------------------------------------------------
+        ColumnLayout {
+            Layout.fillWidth: true
+            spacing: Theme.space(12)
+            visible: root.page === "apikey"
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: Theme.space(10)
+
+                FormRow {
+                    Layout.fillWidth: true
+                    Layout.horizontalStretchFactor: 3
+                    label: qsTr("URL")
+
+                    Field {
+                        id: urlField
+
+                        Layout.fillWidth: true
+                        placeholder: qsTr("http://127.0.0.1:8080")
+
+                        onTextChanged: root.editUrl = text
                     }
+                }
+
+                FormRow {
+                    Layout.fillWidth: true
+                    Layout.horizontalStretchFactor: 2
+                    label: qsTr("Server name")
+
+                    Field {
+                        id: nameField
+
+                        Layout.fillWidth: true
+                        placeholder: qsTr("home")
+
+                        onTextChanged: root.editName = text
+                    }
+                }
+            }
+
+            FormRow {
+                Layout.fillWidth: true
+                label: qsTr("Auth")
+
+                RowLayout {
+                    spacing: Theme.space(6)
+
+                    Repeater {
+                        id: authChips
+
+                        model: [
+                            {
+                                "mode": "apiKey",
+                                "text": qsTr("API key")
+                            },
+                            {
+                                "mode": "cookie",
+                                "text": qsTr("cookie")
+                            },
+                            {
+                                "mode": "none",
+                                "text": qsTr("none")
+                            }
+                        ]
+
+                        Chip {
+                            id: authChip
+
+                            activeFocusOnTab: false
+
+                            required property var modelData
+
+                            focusable: true
+                            selected: root.editAuthMode === authChip.modelData.mode
+                            text: authChip.modelData.text
+
+                            onClicked: root.editAuthMode = authChip.modelData.mode
+                        }
+                    }
+
+                    Item {
+                        Layout.fillWidth: true
+                    }
+                }
+            }
+
+            FormRow {
+                Layout.fillWidth: true
+                label: qsTr("Key")
+                visible: root.editAuthMode === "apiKey"
+
+                Field {
+                    id: keyField
+
+                    Layout.fillWidth: true
+                    objectName: "keyField"
+                    echoMode: TextInput.Password
+                    placeholder: qsTr("paste the API key")
+
+                    onTextChanged: root.editSecret = text
+                }
+            }
+
+            // Cookie login, as Settings' server sheet asks for it: a user and a password.
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: Theme.space(10)
+                visible: root.editAuthMode === "cookie"
+
+                FormRow {
+                    Layout.fillWidth: true
+                    label: qsTr("Username")
+
+                    Field {
+                        id: userField
+
+                        Layout.fillWidth: true
+                        objectName: "userField"
+
+                        onTextChanged: root.editUsername = text
+                    }
+                }
+
+                FormRow {
+                    Layout.fillWidth: true
+                    label: qsTr("Password")
+
+                    Field {
+                        id: passField
+
+                        Layout.fillWidth: true
+                        objectName: "passField"
+                        echoMode: TextInput.Password
+
+                        onTextChanged: root.editSecret = text
+                    }
+                }
+            }
+
+            // docs/14 screen 2: the answer sits above the buttons it decides, with a dot for
+            // its state; a refused credential keeps the raw error dim underneath.
+            RowLayout {
+                Layout.fillWidth: true
+                objectName: "testResult"
+                spacing: Theme.space(8)
+                visible: root.testResultText.length > 0
+
+                Rectangle {
+                    Layout.alignment: Qt.AlignTop
+                    Layout.topMargin: Math.round((resultText.font.pixelSize * 1.4 - height) / 2)
+                    color: root.testOk ? Theme.green : Theme.red
+                    height: Theme.space(7)
+                    radius: height / 2
+                    width: height
+                }
+
+                Label {
+                    id: resultText
+
+                    Layout.fillWidth: true
+                    color: root.tested && !root.testOk ? Theme.red : Theme.foreground
+                    text: root.testOk ? qsTr("%1 · %2").arg(root.editAuthMode === "none" ? qsTr("reached") :
+                                                                                           qsTr("signed in")).arg(
+                                            root.testResultText) : root.testResultText
+                    wrapMode: Text.WordWrap
+                }
+            }
+
+            Label {
+                Layout.fillWidth: true
+                Layout.leftMargin: Theme.space(15)
+                Layout.topMargin: -Theme.space(8)
+                dim: true
+                objectName: "testErrorDetail"
+                size: "small"
+                text: root.testErrorDetail
+                visible: root.tested && !root.testOk && root.testErrorDetail.length > 0
+                wrapMode: Text.WordWrap
+            }
+
+            RowLayout {
+                spacing: Theme.space(8)
+
+                Button {
+                    id: testButton
+
+                    activeFocusOnTab: false // the page cycles tab itself (see _cycleApiKeyFocus)
+
+                    text: root.testing ? qsTr("testing…") : qsTr("test")
+
+                    onClicked: root.runTest()
+                }
+
+                Button {
+                    id: openWebUiButton
+
+                    activeFocusOnTab: false // the page cycles tab itself (see _cycleApiKeyFocus)
+
+                    text: qsTr("open web UI")
+
+                    onClicked: Qt.openUrlExternally(root.editUrl)
+                }
+
+                Item {
+                    Layout.fillWidth: true
+                }
+
+                // docs/14: "skip test" left the row. A server that is down right now can still be
+                // saved, but only once a test has said so.
+                Button {
+                    id: saveAnywayButton
+
+                    activeFocusOnTab: false // the page cycles tab itself (see _cycleApiKeyFocus)
+
+                    objectName: "saveAnywayButton"
+                    text: qsTr("save anyway")
+                    visible: root.tested && !root.testOk
+
+                    onClicked: root.continueFromApiKey()
+                }
+
+                Button {
+                    id: continueButton
+
+                    activeFocusOnTab: false // the page cycles tab itself (see _cycleApiKeyFocus)
+
+                    enabled: root.tested && root.testOk
+                    objectName: "continueButton"
+                    primary: true
+                    text: qsTr("continue")
+
+                    onClicked: root.continueFromApiKey()
+                }
+            }
+        }
+
+        // ---- step 3: magnet handler -----------------------------------------------------------
+        ColumnLayout {
+            Layout.fillWidth: true
+            spacing: Theme.space(12)
+            visible: root.page === "handler"
+
+            Label {
+                Layout.fillWidth: true
+                dim: true
+                text: qsTr("Magnet links you click in a browser and .torrent files you open go straight to omaseed.")
+                wrapMode: Text.WordWrap
+            }
+
+            Label {
+                Layout.fillWidth: true
+                dim: true
+                text: root.currentHandlerText.length > 0 ? qsTr("currently: %1").arg(
+                                                               root.currentHandlerText) : ""
+                visible: root.currentHandlerText.length > 0
+            }
+
+            RowLayout {
+                spacing: Theme.space(8)
+
+                Button {
+                    id: registerButton
+
+                    activeFocusOnTab: false // the page cycles tab itself (see _cycleApiKeyFocus)
+
+                    primary: true
+                    text: qsTr("open them with omaseed")
+
+                    onClicked: root.registerHandler()
+                }
+
+                Button {
+                    id: notNowButton
+
+                    activeFocusOnTab: false // the page cycles tab itself (see _cycleApiKeyFocus)
+
+                    text: qsTr("not now")
+
+                    onClicked: root.skipHandler()
                 }
 
                 Item {
@@ -846,270 +1088,70 @@ ColumnLayout {
             }
         }
 
-        FormRow {
+        // ---- done (docs/14 screen 4) -------------------------------------------------------------
+        ColumnLayout {
             Layout.fillWidth: true
-            label: qsTr("Key")
-            visible: root.editAuthMode === "apiKey"
+            objectName: "doneColumn"
+            spacing: Theme.space(12)
+            visible: root.page === "done"
 
-            Field {
-                id: keyField
-
+            Label {
                 Layout.fillWidth: true
-                objectName: "keyField"
-                echoMode: TextInput.Password
-                placeholder: qsTr("paste the API key")
-
-                onTextChanged: root.editSecret = text
-            }
-        }
-
-        // Cookie login, as Settings' server sheet asks for it: a user and a password.
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: Theme.space(10)
-            visible: root.editAuthMode === "cookie"
-
-            FormRow {
-                Layout.fillWidth: true
-                label: qsTr("Username")
-
-                Field {
-                    id: userField
-
-                    Layout.fillWidth: true
-                    objectName: "userField"
-
-                    onTextChanged: root.editUsername = text
+                objectName: "doneFacts"
+                text: {
+                    const parts = [];
+                    const version = (root.testVersion || App.globalState.serverVersion).replace(/^v/, "");
+                    if (version.length > 0)
+                        parts.push(qsTr("qBittorrent %1").arg(version));
+                    const count = App.torrents.count > 0 ? App.torrents.count : root.testCount;
+                    if (count >= 0)
+                        parts.push(count === 1 ? qsTr("1 torrent") : qsTr("%1 torrents").arg(count));
+                    if (App.globalState.freeSpaceOnDisk > 0)
+                        parts.push(qsTr("%1 free").arg(App.globalState.freeSpaceText));
+                    return parts.join(" · ");
                 }
-            }
-
-            FormRow {
-                Layout.fillWidth: true
-                label: qsTr("Password")
-
-                Field {
-                    id: passField
-
-                    Layout.fillWidth: true
-                    objectName: "passField"
-                    echoMode: TextInput.Password
-
-                    onTextChanged: root.editSecret = text
-                }
-            }
-        }
-
-        // docs/14 screen 2: the answer sits above the buttons it decides, with a dot for
-        // its state; a refused credential keeps the raw error dim underneath.
-        RowLayout {
-            Layout.fillWidth: true
-            objectName: "testResult"
-            spacing: Theme.space(8)
-            visible: root.testResultText.length > 0
-
-            Rectangle {
-                Layout.alignment: Qt.AlignTop
-                Layout.topMargin: Math.round((resultText.font.pixelSize * 1.4 - height) / 2)
-                color: root.testOk ? Theme.green : Theme.red
-                height: Theme.space(7)
-                radius: height / 2
-                width: height
+                wrapMode: Text.WordWrap
             }
 
             Label {
-                id: resultText
-
                 Layout.fillWidth: true
-                color: root.tested && !root.testOk ? Theme.red : Theme.foreground
-                text: root.testOk ? qsTr("%1 · %2").arg(root.editAuthMode === "none" ? qsTr("reached") :
-                                                                                       qsTr("signed in")).arg(
-                                        root.testResultText) : root.testResultText
+                dim: true
+                text: root.registered ? qsTr("Magnet links and .torrent files open here.") :
+                                        qsTr("Magnet links still open elsewhere; Settings can change that.")
                 wrapMode: Text.WordWrap
             }
-        }
 
-        Label {
-            Layout.fillWidth: true
-            Layout.leftMargin: Theme.space(15)
-            Layout.topMargin: -Theme.space(8)
-            dim: true
-            objectName: "testErrorDetail"
-            size: "small"
-            text: root.testErrorDetail
-            visible: root.tested && !root.testOk && root.testErrorDetail.length > 0
-            wrapMode: Text.WordWrap
-        }
-
-        RowLayout {
-            spacing: Theme.space(8)
-
-            Button {
-                id: testButton
-
-                activeFocusOnTab: false // the page cycles tab itself (see _cycleApiKeyFocus)
-
-                text: root.testing ? qsTr("testing…") : qsTr("test")
-
-                onClicked: root.runTest()
-            }
-
-            Button {
-                id: openWebUiButton
-
-                activeFocusOnTab: false // the page cycles tab itself (see _cycleApiKeyFocus)
-
-                text: qsTr("open web UI")
-
-                onClicked: Qt.openUrlExternally(root.editUrl)
-            }
-
-            Item {
+            KeyHints {
                 Layout.fillWidth: true
+                Layout.topMargin: Theme.space(4)
+                model: [
+                    {
+                        "key": "a",
+                        "label": qsTr("add a torrent")
+                    },
+                    {
+                        "key": ",",
+                        "label": qsTr("settings and servers")
+                    },
+                    {
+                        "key": "?",
+                        "label": qsTr("every shortcut")
+                    }
+                ]
             }
 
-            // docs/14: "skip test" left the row. A server that is down right now can still be
-            // saved, but only once a test has said so.
-            Button {
-                id: saveAnywayButton
+            RowLayout {
+                spacing: Theme.space(8)
 
-                activeFocusOnTab: false // the page cycles tab itself (see _cycleApiKeyFocus)
+                Button {
+                    id: openLibraryButton
 
-                objectName: "saveAnywayButton"
-                text: qsTr("save anyway")
-                visible: root.tested && !root.testOk
+                    objectName: "openLibraryButton"
+                    primary: true
+                    text: qsTr("open the library")
 
-                onClicked: root.continueFromApiKey()
-            }
-
-            Button {
-                id: continueButton
-
-                activeFocusOnTab: false // the page cycles tab itself (see _cycleApiKeyFocus)
-
-                enabled: root.tested && root.testOk
-                objectName: "continueButton"
-                primary: true
-                text: qsTr("continue")
-
-                onClicked: root.continueFromApiKey()
-            }
-        }
-    }
-
-    // ---- step 3: magnet handler -----------------------------------------------------------
-    ColumnLayout {
-        Layout.fillWidth: true
-        spacing: Theme.space(12)
-        visible: root.page === "handler"
-
-        Label {
-            Layout.fillWidth: true
-            dim: true
-            text: qsTr("Magnet links you click in a browser and .torrent files you open go straight to omaseed.")
-            wrapMode: Text.WordWrap
-        }
-
-        Label {
-            Layout.fillWidth: true
-            dim: true
-            text: root.currentHandlerText.length > 0 ? qsTr("currently: %1").arg(
-                                                           root.currentHandlerText) : ""
-            visible: root.currentHandlerText.length > 0
-        }
-
-        RowLayout {
-            spacing: Theme.space(8)
-
-            Button {
-                id: registerButton
-
-                activeFocusOnTab: false // the page cycles tab itself (see _cycleApiKeyFocus)
-
-                primary: true
-                text: qsTr("open them with omaseed")
-
-                onClicked: root.registerHandler()
-            }
-
-            Button {
-                id: notNowButton
-
-                activeFocusOnTab: false // the page cycles tab itself (see _cycleApiKeyFocus)
-
-                text: qsTr("not now")
-
-                onClicked: root.skipHandler()
-            }
-
-            Item {
-                Layout.fillWidth: true
-            }
-        }
-    }
-
-    // ---- done (docs/14 screen 4) -------------------------------------------------------------
-    ColumnLayout {
-        Layout.fillWidth: true
-        objectName: "doneColumn"
-        spacing: Theme.space(12)
-        visible: root.page === "done"
-
-        Label {
-            Layout.fillWidth: true
-            objectName: "doneFacts"
-            text: {
-                const parts = [];
-                const version = (root.testVersion || App.globalState.serverVersion).replace(/^v/, "");
-                if (version.length > 0)
-                    parts.push(qsTr("qBittorrent %1").arg(version));
-                const count = App.torrents.count > 0 ? App.torrents.count : root.testCount;
-                if (count >= 0)
-                    parts.push(count === 1 ? qsTr("1 torrent") : qsTr("%1 torrents").arg(count));
-                if (App.globalState.freeSpaceOnDisk > 0)
-                    parts.push(qsTr("%1 free").arg(App.globalState.freeSpaceText));
-                return parts.join(" · ");
-            }
-            wrapMode: Text.WordWrap
-        }
-
-        Label {
-            Layout.fillWidth: true
-            dim: true
-            text: root.registered ? qsTr("Magnet links and .torrent files open here.") :
-                                    qsTr("Magnet links still open elsewhere; Settings can change that.")
-            wrapMode: Text.WordWrap
-        }
-
-        KeyHints {
-            Layout.fillWidth: true
-            Layout.topMargin: Theme.space(4)
-            model: [
-                {
-                    "key": "a",
-                    "label": qsTr("add a torrent")
-                },
-                {
-                    "key": ",",
-                    "label": qsTr("settings and servers")
-                },
-                {
-                    "key": "?",
-                    "label": qsTr("every shortcut")
+                    onClicked: root.openLibrary()
                 }
-            ]
-        }
-
-        RowLayout {
-            spacing: Theme.space(8)
-
-            Button {
-                id: openLibraryButton
-
-                objectName: "openLibraryButton"
-                primary: true
-                text: qsTr("open the library")
-
-                onClicked: root.openLibrary()
             }
         }
     }
