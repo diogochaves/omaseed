@@ -394,6 +394,10 @@ private:
     /// The server rejected our username/password. No automatic re-login until
     /// setCredentials(), clearAuth() or allowLoginAgain(): repeated failures get the IP banned.
     bool m_loginRejected = false;
+    /// What that rejected login said (Unauthorized for a wrong password, Forbidden for a ban).
+    /// While the latch holds, a 401/403 on a normal call is reported as this: the credential
+    /// is what is wrong, not the call.
+    ApiError::Kind m_loginRejectedKind = ApiError::Kind::Unauthorized;
 };
 
 } // namespace omaseed::core

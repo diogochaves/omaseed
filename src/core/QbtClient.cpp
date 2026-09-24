@@ -457,8 +457,10 @@ void QbtClient::onJobReplyFinished(const JobPtr &job)
         if (!error.isError())
             m_loginRejected = false;
         else if (error.kind() == ApiError::Kind::Unauthorized ||
-                 error.kind() == ApiError::Kind::Forbidden)
+                 error.kind() == ApiError::Kind::Forbidden) {
             m_loginRejected = true;
+            m_loginRejectedKind = error.kind();
+        }
     }
 
     if (!error.isError()) {
@@ -478,6 +480,16 @@ void QbtClient::onJobReplyFinished(const JobPtr &job)
         startLogin();
         pump();
         return;
+    }
+    if (authFailure && !job->spec.isLogin && !job->relogged && hasCredentials() &&
+        m_loginRejected && job->spec.allowReloginRetry) {
+        // The re-login this call would have made is held back because the server already
+        // refused the credential. Answer as that login did (a wrong password stays
+        // Unauthorized / NeedsCredential), not with the bare 403 an unauthenticated call gets.
+        error = ApiError(m_loginRejectedKind,
+                         QStringLiteral("%1 %2: sign-in was refused, not retried")
+                             .arg(job->spec.verb, job->spec.path),
+                         error.httpStatus());
     }
 
     if (error.isTransient() && job->spec.retryOnTransient && job->attempt <= m_maxRetries) {
