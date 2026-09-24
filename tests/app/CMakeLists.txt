@@ -13,6 +13,12 @@ omaseed_add_test(tst_demo_offline
 )
 add_dependencies(tst_demo_offline omaseed)
 
+# App glue that needs no server (install runner, path map, tray mode, demo isolation).
+omaseed_add_test(tst_app_glue
+    SOURCES tst_app_glue.cpp
+    LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::Widgets
+)
+
 omaseed_add_test(tst_app_notifications
     SOURCES tst_app_notifications.cpp ../integration/FakeNotificationServer.hpp
     LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::DBus

@@ -2436,37 +2436,57 @@ QString App::installCommandsText() const
 
 void App::runInstallWithPkexec()
 {
+    // Never `sudo` from inside the app (CLAUDE.md): `pkexec` is the polkit-mediated
+    // equivalent, and it is the user who authorizes it, not this process.
+    runInstall(QStringLiteral("pkexec"),
+               {QStringLiteral("pacman"),
+                QStringLiteral("-S"),
+                QStringLiteral("--noconfirm"),
+                QStringLiteral("qbittorrent-nox")});
+}
+
+void App::runInstall(const QString &program, const QStringList &arguments)
+{
     if (m_installProcess) {
         Q_EMIT installFinished(false, tr("an install is already running"));
         return;
     }
 
-    m_installProcess = new QProcess(this);
-    connect(m_installProcess,
+    auto *process = new QProcess(this);
+    m_installProcess = process;
+    // A crash or a kill emits errorOccurred(Crashed) and *then* finished(CrashExit); a read,
+    // write or timeout error is followed by finished too. Only FailedToStart comes alone. So
+    // finished answers every run that started, errorOccurred only the one that did not, and
+    // each handler works on the process it was connected to, not the member.
+    connect(process,
             &QProcess::finished,
             this,
-            [this](int exitCode, QProcess::ExitStatus status) {
+            [this, process](int exitCode, QProcess::ExitStatus status) {
                 const bool ok = status == QProcess::NormalExit && exitCode == 0;
-                const QString message =
-                    ok ? QString() : QString::fromUtf8(m_installProcess->readAllStandardError());
-                m_installProcess->deleteLater();
-                m_installProcess = nullptr;
+                QString message;
+                if (!ok) {
+                    message = QString::fromUtf8(process->readAllStandardError()).trimmed();
+                    if (message.isEmpty())
+                        message = status == QProcess::CrashExit
+                                      ? process->errorString()
+                                      : tr("the installer exited with code %1").arg(exitCode);
+                }
+                process->deleteLater();
+                if (m_installProcess == process)
+                    m_installProcess = nullptr;
                 Q_EMIT installFinished(ok, message);
             });
-    connect(m_installProcess, &QProcess::errorOccurred, this, [this](QProcess::ProcessError) {
-        const QString message = m_installProcess->errorString();
-        m_installProcess->deleteLater();
-        m_installProcess = nullptr;
+    connect(process, &QProcess::errorOccurred, this, [this, process](QProcess::ProcessError error) {
+        if (error != QProcess::FailedToStart)
+            return;
+        const QString message = process->errorString();
+        process->deleteLater();
+        if (m_installProcess == process)
+            m_installProcess = nullptr;
         Q_EMIT installFinished(false, message);
     });
 
-    // Never `sudo` from inside the app (CLAUDE.md): `pkexec` is the polkit-mediated
-    // equivalent, and it is the user who authorizes it, not this process.
-    m_installProcess->start(QStringLiteral("pkexec"),
-                            {QStringLiteral("pacman"),
-                             QStringLiteral("-S"),
-                             QStringLiteral("--noconfirm"),
-                             QStringLiteral("qbittorrent-nox")});
+    process->start(program, arguments);
 }
 
 // --- end T4.6 ------------------------------------------------------------------------------

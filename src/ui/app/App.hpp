@@ -815,6 +815,10 @@ public:
     /// app. Answers with `installFinished()`. Does not enable the service: that needs a user
     /// systemd instance the installer cannot assume is the one running this session.
     Q_INVOKABLE void runInstallWithPkexec();
+    /// What runInstallWithPkexec runs, with the command left open so a test can drive the
+    /// failure paths (a crash, a missing program) with something harmless. Always exactly
+    /// one `installFinished()` per call.
+    void runInstall(const QString &program, const QStringList &arguments);
 
 Q_SIGNALS:
     /// One `detectServers()` answer: each candidate is `{kind: "port"|"docker"|"process",
