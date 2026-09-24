@@ -43,6 +43,7 @@ private slots:
     void futureVersionFailsWithoutLoading();
     void anAddAfterAFailedLoadKeepsTheUnreadableFile_data();
     void anAddAfterAFailedLoadKeepsTheUnreadableFile();
+    void anUnmovableFileIsKeptInPlaceUntilASaveCanMoveIt();
 
 private:
     QTemporaryDir m_dir;
@@ -211,7 +212,10 @@ void TestServerStore::corruptJsonFailsWithoutLosingTheFile()
     QCOMPARE(failedSpy.count(), 1);
     QCOMPARE(store.count(), 0);
 
-    QFile file(filePath);
+    // Moved aside at once (Q9), so the first-run page can name where it went.
+    QVERIFY(!QFile::exists(filePath));
+    QVERIFY(store.keptPath().startsWith(filePath + QStringLiteral(".unreadable-")));
+    QFile file(store.keptPath());
     QVERIFY(file.open(QIODevice::ReadOnly));
     QCOMPARE(file.readAll(), corrupt);
 }
@@ -235,7 +239,10 @@ void TestServerStore::futureVersionFailsWithoutLoading()
     QCOMPARE(failedSpy.count(), 1);
     QCOMPARE(store.count(), 0);
 
-    QFile file(filePath);
+    // Moved aside at once (Q9), so the first-run page can name where it went.
+    QVERIFY(!QFile::exists(filePath));
+    QVERIFY(store.keptPath().startsWith(filePath + QStringLiteral(".unreadable-")));
+    QFile file(store.keptPath());
     QVERIFY(file.open(QIODevice::ReadOnly));
     QCOMPARE(file.readAll(), futureFile);
 }
@@ -264,19 +271,53 @@ void TestServerStore::anAddAfterAFailedLoadKeepsTheUnreadableFile()
     ServerStore store;
     QVERIFY(!store.load());
     QVERIFY(!store.loadError().isEmpty());
-
-    // First run then adds a server: the new list is saved, the old bytes survive beside it.
-    QVERIFY(store.add(makeServer(QStringLiteral("new"), QUrl(QStringLiteral("http://nas:8080")))));
-    QVERIFY(store.loadError().isEmpty());
-    const QString aside = store.setAsidePath();
+    const QString aside = store.keptPath();
     QVERIFY(aside.startsWith(filePath + QStringLiteral(".unreadable-")));
+
+    // First run then adds a server: the new list is saved, the old bytes survive beside it,
+    // and a second save leaves the new file where it is.
+    QVERIFY(store.add(makeServer(QStringLiteral("new"), QUrl(QStringLiteral("http://nas:8080")))));
+    QVERIFY(store.add(makeServer(QStringLiteral("two"), QUrl(QStringLiteral("http://nas:8081")))));
+    QCOMPARE(QDir(configDir).entryList({QStringLiteral("servers.json.unreadable-*")}).size(), 1);
+    QCOMPARE(store.keptPath(), aside);
     QFile kept(aside);
     QVERIFY(kept.open(QIODevice::ReadOnly));
     QCOMPARE(kept.readAll(), unreadable);
 
     ServerStore reread;
     QVERIFY(reread.load());
-    QCOMPARE(reread.count(), 1);
+    QCOMPARE(reread.count(), 2);
+}
+
+void TestServerStore::anUnmovableFileIsKeptInPlaceUntilASaveCanMoveIt()
+{
+    const QString configDir = m_dir.path() + QStringLiteral("/omaseed");
+    QVERIFY(QDir().mkpath(configDir));
+    const QString filePath = configDir + QStringLiteral("/servers.json");
+    for (const QString &old : QDir(configDir).entryList({QStringLiteral("servers.json*")}))
+        QFile::remove(configDir + QLatin1Char('/') + old);
+    const QByteArray corrupt = "{ oops";
+    {
+        QFile file(filePath);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write(corrupt);
+    }
+
+    // A directory the rename cannot write to: the file stays, and keptPath says so.
+    QVERIFY(QFile::setPermissions(configDir, QFileDevice::ReadOwner | QFileDevice::ExeOwner));
+    ServerStore store;
+    QVERIFY(!store.load());
+    QVERIFY(QFile::setPermissions(configDir,
+                                  QFileDevice::ReadOwner | QFileDevice::WriteOwner |
+                                      QFileDevice::ExeOwner));
+    QCOMPARE(store.keptPath(), filePath);
+
+    // The next save moves it first, then writes the new list.
+    QVERIFY(store.add(makeServer(QStringLiteral("new"), QUrl(QStringLiteral("http://nas:8080")))));
+    QVERIFY(store.keptPath().startsWith(filePath + QStringLiteral(".unreadable-")));
+    QFile kept(store.keptPath());
+    QVERIFY(kept.open(QIODevice::ReadOnly));
+    QCOMPARE(kept.readAll(), corrupt);
 }
 
 QTEST_APPLESS_MAIN(TestServerStore)

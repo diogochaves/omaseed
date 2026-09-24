@@ -54,8 +54,39 @@ int ServerStore::indexOf(const QString &id) const
 void ServerStore::failLoad(const QString &message)
 {
     m_loadError = message;
+    m_fileUnreadable = true;
+    m_keptPath = filePath();
     qCWarning(lcServers).noquote() << message;
+    // Moved aside now rather than at the next save, so the first-run page can say where the
+    // user's list went before anything is added (Q9).
+    moveUnreadableAside();
     Q_EMIT loadFailed(message);
+}
+
+bool ServerStore::moveUnreadableAside() const
+{
+    if (!m_fileUnreadable)
+        return true;
+    if (!QFile::exists(filePath())) {
+        m_fileUnreadable = false;
+        return true;
+    }
+    const QString stem = filePath() + QStringLiteral(".unreadable-") +
+                         QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd-HHmmss"));
+    QString aside = stem;
+    for (int n = 1; QFile::exists(aside); ++n)
+        aside = stem + QStringLiteral("-%1").arg(n);
+    if (!QFile::rename(filePath(), aside)) {
+        qCWarning(lcServers).noquote()
+            << QStringLiteral("%1 is unreadable and could not be moved to %2; it stays in place")
+                   .arg(filePath(), aside);
+        return false;
+    }
+    qCWarning(lcServers).noquote()
+        << QStringLiteral("moved the unreadable %1 to %2").arg(filePath(), aside);
+    m_fileUnreadable = false;
+    m_keptPath = aside;
+    return true;
 }
 
 bool ServerStore::load()
@@ -90,6 +121,8 @@ bool ServerStore::load()
         return false;
     }
     m_loadError.clear();
+    m_keptPath.clear();
+    m_fileUnreadable = false;
 
     QList<Server> loaded;
     for (const QJsonValue &value : root.value(QStringLiteral("servers")).toArray()) {
@@ -122,26 +155,14 @@ bool ServerStore::save() const
     QDir().mkpath(dir);
     QFile::setPermissions(dir, ownerReadWriteExec());
 
-    // The file on disk could not be read (corrupt, or written by a newer build): it may hold
-    // the user's whole server list, so it is moved aside, never overwritten. If it cannot be
-    // moved, nothing is written at all.
-    if (!m_loadError.isEmpty() && QFile::exists(filePath())) {
-        const QString stem =
-            filePath() + QStringLiteral(".unreadable-") +
-            QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd-HHmmss"));
-        QString aside = stem;
-        for (int n = 1; QFile::exists(aside); ++n)
-            aside = stem + QStringLiteral("-%1").arg(n);
-        if (!QFile::rename(filePath(), aside)) {
-            qCWarning(lcServers).noquote()
-                << QStringLiteral("not saving: %1 is unreadable and could not be moved to %2")
-                       .arg(filePath(), aside);
-            return false;
-        }
+    // The file on disk could not be read (corrupt, or written by a newer build) and load()
+    // could not move it aside: it may hold the user's whole server list, so it is never
+    // overwritten. One more try; if it still cannot be moved, nothing is written at all.
+    if (!moveUnreadableAside()) {
         qCWarning(lcServers).noquote()
-            << QStringLiteral("moved the unreadable %1 to %2").arg(filePath(), aside);
-        m_loadError.clear();
-        m_setAsidePath = aside;
+            << QStringLiteral("not saving: %1 is unreadable and could not be moved aside")
+                   .arg(filePath());
+        return false;
     }
 
     QJsonArray array;
