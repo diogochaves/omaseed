@@ -56,7 +56,7 @@ public:
     /// `changed` holds only the announce URLs whose hash list moved; `removed` the URLs the
     /// server dropped (qBittorrent sends them as `trackers_removed`).
     void applyPartial(const QJsonObject &changed, const QJsonArray &removed);
-    /// The torrents with no working tracker; an empty list removes the trackerless row.
+    /// The torrents with no tracker at all; an empty list removes the trackerless row.
     void setTrackerlessHashes(const QStringList &hashes);
     void clear();
 

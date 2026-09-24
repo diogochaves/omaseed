@@ -71,13 +71,15 @@ public:
     Q_INVOKABLE int categoryCount(const QString &name) const;
     /// An empty tag is "untagged".
     Q_INVOKABLE int tagCount(const QString &tag) const;
-    /// "trackerless" is a valid host here.
+    /// "trackerless" (no tracker at all, `trackers_count == 0`) is a valid host here; any
+    /// other host counts the torrents currently announcing to it. The rail's host rows use
+    /// TrackerModel instead, which counts every announce URL.
     Q_INVOKABLE int trackerCount(const QString &host) const;
 
     QHash<QString, int> categoryCounts() const { return m_categoryCounts; }
     QHash<QString, int> tagCounts() const { return m_tagCounts; }
     QHash<QString, int> trackerCounts() const { return m_trackerCounts; }
-    /// The hashes with no working tracker, for TrackerModel's trackerless row.
+    /// The hashes with no tracker at all, for TrackerModel's trackerless row.
     QStringList trackerlessHashes() const { return m_trackerlessHashes; }
 
 public Q_SLOTS:

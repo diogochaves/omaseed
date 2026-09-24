@@ -72,7 +72,7 @@ TorrentState torrentStateFromKey(QStringView key);
 /// "PeX" or "LSD" for qBittorrent's pseudo-trackers, "trackerless" for an empty string.
 QString trackerHost(const QString &trackerUrl);
 
-/// The name of the bucket a torrent with no working tracker falls into.
+/// The name of the bucket a torrent with no tracker at all falls into (Torrent::isTrackerless).
 QString trackerlessKey();
 
 struct Torrent
@@ -155,6 +155,11 @@ struct Torrent
     QString seedsPeersText() const;
     /// The rail bucket for this torrent's tracker.
     QString trackerHostKey() const;
+    /// No tracker at all, as qBittorrent 5 counts it: `trackers_count == 0` (review Q11). A
+    /// torrent whose trackers all fail is not trackerless; it stays under its hosts. The
+    /// current `tracker` must also be empty, so a server that never sends `trackers_count`
+    /// still leaves a torrent that is announcing somewhere out of the bucket.
+    bool isTrackerless() const;
     /// True once the payload is on disk.
     bool isComplete() const;
     /// True while the ETA means something: an unfinished torrent that is downloading, or

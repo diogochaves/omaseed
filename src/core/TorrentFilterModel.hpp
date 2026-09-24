@@ -8,9 +8,11 @@
 //
 // A tracker row lists every torrent that has any announce URL on that host — the same
 // membership TrackerModel counts for the rail, and what qBittorrent's own WebUI filters on
-// — not only the torrents whose current tracker is on it. The trackerless row keeps the
-// `tracker == ""` rule FilterCounts counts with. Without a TrackerModel attached (tests),
-// every row falls back to the current tracker's host.
+// — not only the torrents whose current tracker is on it. The trackerless row lists the
+// torrents with no tracker at all (`trackers_count == 0`, qBittorrent 5's rule and the one
+// FilterCounts counts with); one whose trackers all fail stays under its hosts only.
+// Without a TrackerModel attached (tests), a host row falls back to the current tracker's
+// host.
 //
 // Sorting is a total order: the chosen role first, then name, then hash. Without the
 // tie-break, two rows with the same speed would swap places on every 1.5 s poll.

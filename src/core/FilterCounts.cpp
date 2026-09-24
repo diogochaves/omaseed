@@ -131,13 +131,19 @@ void FilterCounts::recompute()
         for (const QString &tag : t.tags)
             ++m_tagCounts[tag];
 
-        // QUrl parsing dominates this loop otherwise: one announce URL serves many torrents.
-        auto host = m_hostCache.constFind(t.tracker);
-        if (host == m_hostCache.constEnd())
-            host = m_hostCache.insert(t.tracker, trackerHost(t.tracker));
-        ++m_trackerCounts[*host];
-        if (*host == trackerlessKey())
+        // Trackerless is `trackers_count == 0` (review Q11): a torrent whose trackers are all
+        // failing has no current tracker, but it is counted under its hosts by TrackerModel,
+        // not here.
+        if (t.isTrackerless()) {
+            ++m_trackerCounts[trackerlessKey()];
             m_trackerlessHashes.append(t.hash);
+        } else if (!t.tracker.trimmed().isEmpty()) {
+            // QUrl parsing dominates this loop otherwise: one announce URL serves many.
+            auto host = m_hostCache.constFind(t.tracker);
+            if (host == m_hostCache.constEnd())
+                host = m_hostCache.insert(t.tracker, trackerHost(t.tracker));
+            ++m_trackerCounts[*host];
+        }
     }
 
     const bool sameGroups =
