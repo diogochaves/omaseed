@@ -39,6 +39,13 @@ TestCase {
     }
 
     SignalSpy {
+        id: quitSpy
+
+        signalName: "quitRequested"
+        target: view
+    }
+
+    SignalSpy {
         id: actionSpy
 
         signalName: "torrentActionRequested"
@@ -553,6 +560,25 @@ TestCase {
         App.showTorrentRequested(hash);
         compare(App.filtered.text, "");
         compare(view.table.cursorHash, hash);
+    }
+
+    // ---- ruling Q12: ctrl+q quits from the Add and Duplicate sheets, like every overlay -------
+    function test_ctrl_q_quits_from_the_add_and_duplicate_sheets() {
+        const quit = quitSpy;
+        quit.clear();
+
+        App.addRequested();
+        verify(view.addSheet.opened);
+        compare(quit.count, 0);
+        keyClick(Qt.Key_Q, Qt.ControlModifier);
+        compare(quit.count, 1, "ctrl+q did not quit from the add sheet");
+        view.addSheet.dismiss();
+
+        view.duplicateSheet.openFor(App.torrentRow(App.filtered.hashAt(0)));
+        verify(view.duplicateSheet.opened);
+        keyClick(Qt.Key_Q, Qt.ControlModifier);
+        compare(quit.count, 2, "ctrl+q did not quit from the duplicate sheet");
+        view.duplicateSheet.close();
     }
 
     // ---- the add sheet's `…` chips open T4.4's palettes over it (T4.8) ------------------------
