@@ -96,8 +96,7 @@ void TestPathMap::rootPrefixKeepsTheSeparator()
     fromRoot.addMapping(QStringLiteral("/"), QStringLiteral("/mnt/nas"));
     QCOMPARE(fromRoot.toLocal(QStringLiteral("/data/file")), QStringLiteral("/mnt/nas/data/file"));
     QCOMPARE(fromRoot.toLocal(QStringLiteral("/")), QStringLiteral("/mnt/nas"));
-    QCOMPARE(fromRoot.toRemote(QStringLiteral("/mnt/nas/data/file")),
-             QStringLiteral("/data/file"));
+    QCOMPARE(fromRoot.toRemote(QStringLiteral("/mnt/nas/data/file")), QStringLiteral("/data/file"));
     QCOMPARE(fromRoot.toRemote(QStringLiteral("/mnt/nas")), QStringLiteral("/"));
 
     PathMap toRoot;

@@ -34,8 +34,8 @@ bool isHex(const QString &s)
 {
     // ASCII only: toLatin1() of U+0080..U+00FF is a negative char, which <cctype> may not see.
     return !s.isEmpty() && std::all_of(s.begin(), s.end(), [](QChar c) {
-               return c.unicode() < 128 && std::isxdigit(static_cast<unsigned char>(c.unicode()));
-           });
+        return c.unicode() < 128 && std::isxdigit(static_cast<unsigned char>(c.unicode()));
+    });
 }
 
 /// Normalises a btih hash (40-hex or 32-char base32) to lowercase hex. Empty on failure.

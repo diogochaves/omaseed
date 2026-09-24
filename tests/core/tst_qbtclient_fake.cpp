@@ -455,7 +455,7 @@ void TestQbtClientFake::newBaseUrlCancelsEverythingOutstanding()
     oldServer.setHandler([](const Recorded &recorded, int) -> QByteArray {
         if (recorded.method == "GET")
             return httpResponse(500, "Internal Server Error", "boom"); // into back-off
-        return QByteArray();                                          // the POST hangs
+        return QByteArray();                                           // the POST hangs
     });
     FakeServer newServer;
 
@@ -467,9 +467,9 @@ void TestQbtClientFake::newBaseUrlCancelsEverythingOutstanding()
 
     QList<ApiError> errors;
     const auto record = [&errors](const auto &result) { errors.append(result.error()); };
-    client.appVersion()->then(this, record);                                    // backs off
-    client.post(QStringLiteral("torrents/delete"))->then(this, record);         // in flight
-    client.get(QStringLiteral("torrents/files"))->then(this, record);           // queued
+    client.appVersion()->then(this, record);                            // backs off
+    client.post(QStringLiteral("torrents/delete"))->then(this, record); // in flight
+    client.get(QStringLiteral("torrents/files"))->then(this, record);   // queued
     QTRY_COMPARE(oldServer.requests.size(), 2);
     QTest::qWait(30);
     QVERIFY(errors.isEmpty());
@@ -574,9 +574,7 @@ void TestQbtClientFake::multipartAddLogsInAgainAfterAnExpiredSession()
     QbtClient::AddOptions options;
     options.category = QStringLiteral("movies");
     const QbtResult<QByteArray> result = await(
-        this,
-        client.torrentsAddFile(
-            QStringLiteral("we\"ird\r\nname é.torrent"), bytes, options));
+        this, client.torrentsAddFile(QStringLiteral("we\"ird\r\nname é.torrent"), bytes, options));
     QVERIFY2(!result.isError(), qPrintable(result.error().toString()));
     QCOMPARE(server.requests.size(), 3);
     QVERIFY(server.requests.at(1).target.contains("auth/login"));

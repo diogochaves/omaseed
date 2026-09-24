@@ -272,12 +272,13 @@ void TestQbtClientActionsFake::shareLimitsKeepRatioPrecision()
     QbtClient client;
     client.setBaseUrl(server.url());
 
-    QVERIFY(!await(this,
-                   client.torrentsSetShareLimits(QStringList{QStringLiteral("h1")}, 1234567.5, -2, -2))
-                 .isError());
-    QVERIFY(!await(this,
-                   client.torrentsSetShareLimits(QStringList{QStringLiteral("h1")}, 1.25, -2, -2))
-                 .isError());
+    QVERIFY(
+        !await(this,
+               client.torrentsSetShareLimits(QStringList{QStringLiteral("h1")}, 1234567.5, -2, -2))
+             .isError());
+    QVERIFY(
+        !await(this, client.torrentsSetShareLimits(QStringList{QStringLiteral("h1")}, 1.25, -2, -2))
+             .isError());
     const auto ratioOf = [&server](int index) {
         return QUrlQuery(QString::fromUtf8(server.requests.at(index).body))
             .queryItemValue(QStringLiteral("ratioLimit"), QUrl::FullyDecoded);

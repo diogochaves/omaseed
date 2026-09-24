@@ -184,8 +184,8 @@ void SyncEngine::poll()
     // A probe that failed (server not up yet at start) is retried here, so the version and
     // API version reach GlobalState once the server answers.
     if (!m_probed) {
-        m_pollReply = m_client->probe()->then(
-            this, [this, generation](const QbtResult<ServerInfo> &result) {
+        m_pollReply =
+            m_client->probe()->then(this, [this, generation](const QbtResult<ServerInfo> &result) {
                 if (generation != m_generation)
                     return; // stopped or switched meanwhile: not ours to apply
                 m_pollReply.clear();
@@ -197,8 +197,7 @@ void SyncEngine::poll()
                     return;
                 }
                 m_probed = true;
-                m_globalState->setServerVersions(result.value().version,
-                                                 result.value().apiVersion);
+                m_globalState->setServerVersions(result.value().version, result.value().apiVersion);
                 poll();
             });
         return;

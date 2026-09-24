@@ -90,7 +90,8 @@ void TestStateFile::writeLeavesOnlyTheStateFile()
     StateFile::writeSection(QStringLiteral("a"), QJsonObject{{QStringLiteral("x"), 1}});
     StateFile::writeSection(QStringLiteral("b"), QJsonObject{{QStringLiteral("y"), 2}});
     const QDir dir = QFileInfo(StateFile::path()).absoluteDir();
-    QCOMPARE(dir.entryList(QDir::Files | QDir::Hidden), QStringList({QStringLiteral("state.json")}));
+    QCOMPARE(dir.entryList(QDir::Files | QDir::Hidden),
+             QStringList({QStringLiteral("state.json")}));
     QCOMPARE(StateFile::readSection(QStringLiteral("a")).value(QStringLiteral("x")).toInt(), 1);
 }
 

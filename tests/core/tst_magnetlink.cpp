@@ -120,7 +120,8 @@ void TestMagnetLink::toStringIsCanonicalAndRoundTrips()
 void TestMagnetLink::numberedTopicsAreRead()
 {
     const QString v1 = QStringLiteral("0123456789abcdef0123456789abcdef01234567");
-    const QString v2 = QStringLiteral("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef");
+    const QString v2 =
+        QStringLiteral("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef");
     const MagnetLink link = MagnetLink::parse(
         QStringLiteral("magnet:?xt.1=urn:btih:%1&xt.2=urn:btmh:1220%2").arg(v1, v2));
     QVERIFY(link.isValid());

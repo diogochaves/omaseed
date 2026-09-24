@@ -315,8 +315,7 @@ void App::applyServer(const Server &server)
         connect(job,
                 &SecretStoreJob::finished,
                 this,
-                [this, username, generation](
-                    bool ok, const QString &value, const QString &error) {
+                [this, username, generation](bool ok, const QString &value, const QString &error) {
                     if (generation != m_serverGeneration)
                         return; // another server (or none) took over meanwhile
                     if (ok)

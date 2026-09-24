@@ -8,8 +8,8 @@
 #include "core/ServerDetector.hpp"
 
 #include <QDir>
-#include <QFile>
 #include <QElapsedTimer>
+#include <QFile>
 #include <QSignalSpy>
 #include <QTcpServer>
 #include <QTemporaryDir>
