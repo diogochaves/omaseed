@@ -377,6 +377,8 @@ void TorrentFilesModel::aggregate(int at)
     qint64 size = 0;
     qint64 remaining = 0;
     double done = 0.0;
+    qint64 wantedSize = 0;
+    double wantedDone = 0.0;
     double available = 0.0;
     qint64 availableOver = 0;
     int priority = int(FilePriority::Mixed);
@@ -393,6 +395,12 @@ void TorrentFilesModel::aggregate(int at)
         size += kid.size;
         remaining += kid.remaining;
         done += double(kid.size) * kid.progress;
+        // Progress counts the wanted files only, as qBittorrent's content view does: a
+        // folder whose wanted files are all done reads 100 %, whatever it skips.
+        if (kid.priority != int(FilePriority::Skip)) {
+            wantedSize += kid.size;
+            wantedDone += double(kid.size) * kid.progress;
+        }
         ids.append(kid.fileIndexes);
         // Availability is weighted by size over the files that are wanted, as qBittorrent's
         // content view does: a skipped file's pieces say nothing about this download.
@@ -416,7 +424,10 @@ void TorrentFilesModel::aggregate(int at)
     Node &node = m_nodes[at];
     node.size = size;
     node.remaining = remaining;
-    node.progress = size > 0 ? done / double(size) : 0.0;
+    // A folder that skips everything still shows what is on disk, over its full size.
+    node.progress = wantedSize > 0 ? wantedDone / double(wantedSize)
+                    : size > 0     ? done / double(size)
+                                   : 0.0;
     node.availability = availableOver > 0 ? available / double(availableOver) : -1.0;
     node.priority = first ? int(FilePriority::Normal) : priority;
     node.fileIndexes = ids;

@@ -181,9 +181,16 @@ void TestTorrentFilesModel::updates_in_place_when_the_shape_is_unchanged()
     QCOMPARE(changed.count(), 1);
     QCOMPARE(model.count(), 7);
 
-    // 120 B done + 4096 B half done + 10 B done, out of 4226.
+    // 120 B done and 10 B done; the 4096 B file half done is skipped, so, as in qBittorrent's
+    // content view, the folder has everything it wants: 100 %, and nothing remaining.
     QCOMPARE(at(model, 0, TorrentFilesModel::PriorityTextRole).toString(), QStringLiteral("mixed"));
-    QVERIFY(qAbs(at(model, 0, TorrentFilesModel::ProgressRole).toDouble() - 0.5156) < 0.001);
+    QCOMPARE(at(model, 0, TorrentFilesModel::ProgressRole).toDouble(), 1.0);
+    QCOMPARE(at(model, 0, TorrentFilesModel::RemainingRole).toLongLong(), 0LL);
+
+    // Skip everything and the folder shows what is on disk over its full size:
+    // 120 + 2048 + 10 of 4226.
+    model.setLocalPriority(QVariantList{0, 2}, int(FilePriority::Skip));
+    QVERIFY(qAbs(at(model, 0, TorrentFilesModel::ProgressRole).toDouble() - 0.5154) < 0.001);
 }
 
 void TestTorrentFilesModel::a_new_shape_resets_the_model()
