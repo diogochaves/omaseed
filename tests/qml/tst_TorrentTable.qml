@@ -128,6 +128,15 @@ TestCase {
         compare(testCase.rowsProbe.count, 16);
     }
 
+    // "missing files" does not fit the Status column: the table says "missing", with the
+    // errored glyph; every other state word passes through.
+    function test_missing_files_is_short_in_the_status_column() {
+        compare(table.statusWord("missing files"), "missing");
+        compare(table.statusWord("downloading"), "downloading");
+        compare(table.statusWord("error"), "error");
+        compare(table.statusGlyphs["missing files"], table.statusGlyphs["error"]);
+    }
+
     function test_header_titles_and_widths_match_the_spec() {
         compare(header("name").text, "Name");
         compare(header("size").text, "Size");

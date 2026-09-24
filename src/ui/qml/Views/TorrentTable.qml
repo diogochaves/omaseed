@@ -485,6 +485,12 @@ Item {
     implicitWidth: Theme.space(900)
 
     // ---- public functions ----------------------------------------------------------------
+    /// The Status column's word for a `stateText`. "missing files" does not fit the column,
+    /// so the table says "missing" next to the red glyph; the details pane keeps both words.
+    function statusWord(stateText: string): string {
+        return stateText === "missing files" ? qsTr("missing") : stateText;
+    }
+
     /// Sort by a Torrent role name; the same role twice reverses the order.
     function sortBy(roleName: string): void {
         if (roleName.length === 0)
@@ -1183,7 +1189,7 @@ Item {
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.font.body
                         objectName: "status_" + row.index
-                        text: row.stateText
+                        text: root.statusWord(row.stateText)
                     }
                 }
 
