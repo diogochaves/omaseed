@@ -4,6 +4,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonDocument>
+#include <QSaveFile>
 
 namespace omaseed::core {
 
@@ -33,11 +34,13 @@ void StateFile::write(const QJsonObject &state)
     const QString filePath = path();
     QDir().mkpath(QFileInfo(filePath).absolutePath());
 
-    QFile file(filePath);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate))
+    // QSaveFile: a crash or a full disk mid-write keeps the previous state.json whole
+    // instead of leaving an empty one that wipes every UI section.
+    QSaveFile file(filePath);
+    if (!file.open(QIODevice::WriteOnly))
         return;
-
     file.write(QJsonDocument(state).toJson(QJsonDocument::Indented));
+    file.commit();
 }
 
 QJsonObject StateFile::readSection(const QString &key)

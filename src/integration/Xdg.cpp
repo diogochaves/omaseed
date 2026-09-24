@@ -1,5 +1,6 @@
 #include "integration/Xdg.hpp"
 
+#include "core/StateFile.hpp"
 #include "integration/AppIdentity.hpp"
 
 #include <QClipboard>
@@ -203,37 +204,20 @@ void Xdg::registerAsDefaultHandler()
     process->start();
 }
 
+// state.json has one implementation, core::StateFile (an atomic rewrite); these delegate.
 QString Xdg::stateFilePath()
 {
-    QString configHome = qEnvironmentVariable("XDG_CONFIG_HOME");
-    if (configHome.isEmpty())
-        configHome = QDir::homePath() + QStringLiteral("/.config");
-    return configHome + QStringLiteral("/omaseed/state.json");
+    return core::StateFile::path();
 }
 
 QJsonObject Xdg::readState()
 {
-    QFile file(stateFilePath());
-    if (!file.open(QIODevice::ReadOnly))
-        return QJsonObject{{QStringLiteral("version"), 1}};
-
-    const QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
-    if (!doc.isObject())
-        return QJsonObject{{QStringLiteral("version"), 1}};
-
-    return doc.object();
+    return core::StateFile::read();
 }
 
 void Xdg::writeState(const QJsonObject &state)
 {
-    const QString path = stateFilePath();
-    QDir().mkpath(QFileInfo(path).absolutePath());
-
-    QFile file(path);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate))
-        return;
-
-    file.write(QJsonDocument(state).toJson(QJsonDocument::Indented));
+    core::StateFile::write(state);
 }
 
 bool Xdg::firstRunPromptNeeded() const
