@@ -146,6 +146,7 @@ void FilterCounts::recompute()
         oldTags == m_tagCounts && oldTrackers == m_trackerCounts)
         return;
 
+    ++m_revision;
     Q_EMIT changed();
 }
 

@@ -55,6 +55,18 @@ Item {
         return short.indexOf(".") > 0 ? short : host;
     }
 
+    // ---- per-name counts ------------------------------------------------------------
+    /// FilterCounts' lookups by name are methods, so a binding calling one directly never
+    /// re-runs: a category filled after launch read 0 for good. Every count binding passes
+    /// `counts.revision`, which moves whenever the counts do.
+    function _categoryCount(name: string, revision: int): int {
+        return revision < 0 ? 0 : root.counts.categoryCount(name);
+    }
+
+    function _tagCount(name: string, revision: int): int {
+        return revision < 0 ? 0 : root.counts.tagCount(name);
+    }
+
     // ---- what is scrolled out of view, for the hints -------------------------------
     /// Rows (and folded headings) wholly above / below the visible part of the rail.
     readonly property int rowsAbove: root._countOutside(true)
@@ -454,7 +466,7 @@ Item {
                                                                                    + 1
                                                                                    + categoryDelegate.index
 
-                        count: root.counts.categoryCount(categoryDelegate.name)
+                        count: root._categoryCount(categoryDelegate.name, root.counts.revision)
                         glyph: Glyphs.category
                         hasCursor: root.cursorIndex === categoryDelegate.globalIndex
                         selected: root.filtered.category === categoryDelegate.name
@@ -545,7 +557,7 @@ Item {
                         readonly property int globalIndex: root.tagsFolded ? -1 : root.tagsBase + 1
                                                                                 + tagDelegate.index
 
-                        count: root.counts.tagCount(tagDelegate.name)
+                        count: root._tagCount(tagDelegate.name, root.counts.revision)
                         glyph: Glyphs.tag
                         hasCursor: root.cursorIndex === tagDelegate.globalIndex
                         selected: root.filtered.tag === tagDelegate.name

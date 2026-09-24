@@ -70,6 +70,7 @@ private slots:
     void countsEveryStatusGroup();
     void countsCategoriesTagsAndTrackers();
     void recomputesWhenTheModelChanges();
+    void revisionMovesWhenOnlyACategoryCountDoes();
     void tenThousandTorrentsStayUnderTwentyMilliseconds();
     void benchmarkRecompute();
 };
@@ -210,6 +211,35 @@ void TestFilterCounts::recomputesWhenTheModelChanges()
 
     model.applyPartial(QJsonObject(), QJsonArray({QStringLiteral("a")}));
     QCOMPARE(counts.total(), 0);
+}
+
+void TestFilterCounts::revisionMovesWhenOnlyACategoryCountDoes()
+{
+    // The rail's category and tag rows re-read their counts on `revision` (a method call in a
+    // binding is not re-run on `changed`), so it has to move for a change no property shows:
+    // here the total, the groups and "uncategorised" all stay the same.
+    TorrentModel model;
+    FilterCounts counts;
+    counts.setModel(&model);
+    model.applyFullUpdate(
+        QJsonObject{{QStringLiteral("a"),
+                     QJsonObject{{QStringLiteral("state"), QStringLiteral("stoppedDL")},
+                                 {QStringLiteral("category"), QStringLiteral("linux")}}}});
+    QCOMPARE(counts.categoryCount(QStringLiteral("swarm")), 0);
+    const int before = counts.revision();
+
+    model.applyPartial(
+        QJsonObject{{QStringLiteral("a"),
+                     QJsonObject{{QStringLiteral("category"), QStringLiteral("swarm")}}}},
+        QJsonArray());
+    QCOMPARE(counts.categoryCount(QStringLiteral("swarm")), 1);
+    QVERIFY(counts.revision() != before);
+
+    const int after = counts.revision();
+    model.applyPartial(
+        QJsonObject{{QStringLiteral("a"), QJsonObject{{QStringLiteral("dlspeed"), 0}}}},
+        QJsonArray());
+    QCOMPARE(counts.revision(), after);
 }
 
 void TestFilterCounts::tenThousandTorrentsStayUnderTwentyMilliseconds()
