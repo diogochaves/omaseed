@@ -1,0 +1,453 @@
+<title>omaseed first run</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap">
+<style>
+/* ------------------------------------------------------------------
+   docs/14: first run designed as one flow. Proposal, awaiting Diogo.
+   Same family as docs/10–13 (frieren colours, v2 kit type). The mocks
+   are drawn in HTML at base 14; one em inside a mock is one base unit.
+   Screenshots of today's flow in evidence/first-run/.
+   ------------------------------------------------------------------ */
+:root {
+  --accent:#5492f8; --bg:#11111b; --bg-dark:#0d0d14; --bg-light:#1b1b2b;
+  --fg:#b9c5ef; --fg-dark:#8b94b3; --fg-bright:#cbd4f3; --muted:#3b3f5c;
+  --green:#8fc6a0; --red:#e98a9c; --yellow:#e2c28b; --magenta:#b7a0e6;
+  --fill-normal: color-mix(in srgb, var(--fg) 4%, transparent);
+  --fill-hover: color-mix(in srgb, var(--fg) 8%, transparent);
+  --fill-selected: color-mix(in srgb, var(--fg) 18%, transparent);
+  --border-normal: color-mix(in srgb, var(--fg) 40%, transparent);
+  --hairline: color-mix(in srgb, var(--fg) 12%, transparent);
+  --glass: color-mix(in srgb, var(--bg) 90%, transparent);
+  --mono: "JetBrains Mono", "JetBrainsMono Nerd Font", ui-monospace, monospace;
+  color-scheme: dark;
+}
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg-dark); color:var(--fg); font:400 13px/1.6 var(--mono); -webkit-font-smoothing:antialiased; }
+main { max-width:1100px; margin:0 auto; padding:32px 16px 72px; display:grid; gap:32px; }
+h1,h2,h3 { margin:0; font-weight:600; color:var(--fg-bright); text-wrap:balance; }
+h1 { font-size:24px; } h2 { font-size:16px; } h3 { font-size:13px; }
+p, li { max-width:78ch; }
+p { margin:0; }
+ul, ol { margin:0; padding-left:20px; display:grid; gap:4px; }
+code { color:var(--fg-bright); background:var(--fill-normal); padding:0 4px; }
+b { color:var(--fg-bright); font-weight:600; }
+.eyebrow { font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--fg-dark); }
+.dim { color:var(--fg-dark); }
+section { display:grid; gap:14px; border-top:1px solid var(--hairline); padding-top:22px; }
+figure { margin:0; display:grid; gap:6px; align-content:start; min-width:0; }
+figure > img { width:100%; height:auto; border:1px solid var(--hairline); display:block; }
+figcaption { font-size:11px; color:var(--fg-dark); }
+figcaption b { color:var(--fg); font-weight:500; }
+.grid3 { display:grid; gap:16px; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); }
+.grid2 { display:grid; gap:16px; grid-template-columns:repeat(auto-fit, minmax(420px, 1fr)); }
+@media (max-width:520px) { .grid2 { grid-template-columns:1fr; } }
+.tag { display:inline-block; font-size:10px; letter-spacing:.1em; text-transform:uppercase; padding:0 6px; border:1px solid var(--hairline); color:var(--fg-dark); }
+.tag.rec { color:var(--accent); border-color:color-mix(in srgb, var(--accent) 50%, transparent); }
+.problems { display:grid; gap:8px; counter-reset:p; list-style:none; padding:0; }
+.problems li { display:grid; grid-template-columns:28px 1fr; gap:8px; }
+.problems li::before { counter-increment:p; content:counter(p); color:var(--red); font-weight:600; }
+
+/* ---------- mock windows: one em = one base unit ---------- */
+.mockwrap { overflow-x:auto; }
+.mock { container-type:inline-size; min-width:560px; }
+.mock.small { min-width:280px; }
+.flow { display:grid; gap:28px; }
+.desk { padding:3.2cqw; background:
+  radial-gradient(ellipse at 18% 8%, color-mix(in srgb, var(--accent) 30%, var(--bg-dark)) 0%, transparent 55%),
+  radial-gradient(ellipse at 86% 94%, color-mix(in srgb, var(--magenta) 26%, var(--bg-dark)) 0%, transparent 55%),
+  var(--bg-dark); }
+.win { font-size:calc(100cqw / 76); aspect-ratio:16/9; background:var(--glass); border:1px solid var(--accent); display:grid; grid-template-rows:auto 1fr auto; line-height:1.4; color:var(--fg); overflow:hidden; }
+.mock.small .win { font-size:calc(100cqw / 36); aspect-ratio:16/10; }
+.mock.small .setup { width:88%; }
+.win .bar { display:flex; align-items:center; gap:1.2em; height:3.6em; padding:0 1.2em; border-bottom:1px solid var(--hairline); }
+.win .bar.none { height:0; border:0; padding:0; }
+.win .bar .who { display:grid; line-height:1.2; }
+.win .bar .who b { font-size:1em; }
+.win .bar .who span { font-size:.72em; letter-spacing:.08em; text-transform:uppercase; color:var(--fg-dark); }
+.win .bar .stat { display:grid; line-height:1.2; font-size:.9em; }
+.win .bar .stat span { font-size:.7em; letter-spacing:.08em; color:var(--fg-dark); }
+.win .bar .ctl { margin-left:auto; display:flex; gap:.6em; align-items:center; }
+.win .bar .ctl i { font-style:normal; height:2.1em; min-width:2.1em; padding:0 .6em; display:inline-grid; place-items:center; border:1px solid var(--hairline); color:var(--fg-dark); font-size:.85em; }
+.win .bar .ctl i.wide { min-width:12em; justify-content:start; }
+.win .body { position:relative; display:grid; place-items:center; padding:1.6em; min-height:0; }
+.win .body.top { place-items:start center; padding-top:3em; }
+.win .foot { display:flex; align-items:center; gap:1.4em; height:2.6em; padding:0 1.2em; border-top:1px solid var(--hairline); font-size:.85em; color:var(--fg-dark); white-space:nowrap; }
+.win .foot b { color:var(--fg); font-weight:500; }
+.win .foot .r { margin-left:auto; display:flex; gap:1.4em; }
+.win .foot.none { height:0; border:0; padding:0; overflow:hidden; }
+
+.mark { display:inline-block; width:1.4em; height:1.4em; fill:var(--accent); flex:none; }
+
+/* the setup column: a fixed-width block, centred in the window, text left-aligned */
+.setup { width:36em; max-width:100%; display:grid; gap:1.1em; }
+.setup .brand { display:flex; align-items:center; gap:.7em; color:var(--fg-bright); font-weight:600; }
+.setup .brand .mark { width:1.6em; height:1.6em; }
+.setup h4 { margin:0; font-size:1.33em; font-weight:600; color:var(--fg-bright); text-wrap:balance; }
+.setup .q { color:var(--fg-dark); }
+.steps { display:flex; gap:1.6em; font-size:.85em; color:var(--fg-dark); }
+.steps span { display:inline-flex; gap:.5em; }
+.steps .done { color:var(--green); }
+.steps .now { color:var(--fg-bright); }
+.steps .now::after { content:""; display:block; }
+.choice { display:flex; gap:1em; align-items:center; padding:.8em 1em; border:1px solid var(--hairline); background:var(--fill-normal); }
+.choice.cur { border-color:var(--accent); }
+.choice .g { width:1.8em; text-align:center; font-size:1.25em; }
+.choice .t { display:grid; gap:.1em; }
+.choice .t b { font-weight:600; }
+.choice .t span { font-size:.85em; color:var(--fg-dark); }
+.choice .k { margin-left:auto; font-size:.8em; color:var(--fg-dark); }
+.choice.dimmed { opacity:.55; }
+.fields { display:grid; gap:.7em; }
+.fields .row2 { display:grid; grid-template-columns:1fr 1fr; gap:.8em; }
+.fld { display:grid; gap:.3em; }
+.fld > span { font-size:.72em; letter-spacing:.08em; text-transform:uppercase; color:var(--fg-dark); }
+.fld > div { height:2.3em; border:1px solid var(--border-normal); padding:0 .7em; display:flex; align-items:center; color:var(--fg-bright); background:var(--fill-normal); }
+.fld > div.focus { border-color:var(--accent); }
+.chips { display:flex; gap:.4em; }
+.chips i { font-style:normal; font-size:.9em; padding:.15em .6em; border:1px solid var(--hairline); }
+.chips i.on { background:var(--fill-selected); color:var(--fg-bright); }
+.btns { display:flex; gap:.6em; align-items:center; }
+.btns i { font-style:normal; height:2.3em; padding:0 .9em; display:inline-grid; place-items:center; color:var(--fg); }
+.btns i.line { border:1px solid var(--border-normal); }
+.btns i.primary { border:1px solid var(--accent); color:var(--accent); }
+.btns i.off { border:1px solid var(--hairline); color:var(--fg-dark); }
+.btns .sp { flex:1; }
+.result { display:flex; gap:.6em; align-items:baseline; font-size:.92em; }
+.result .dot { width:.55em; height:.55em; border-radius:50%; background:var(--green); flex:none; transform:translateY(-.05em); }
+.result.bad .dot { background:var(--red); }
+.result.bad b { color:var(--red); }
+.hints { display:flex; gap:1.4em; font-size:.85em; color:var(--fg-dark); }
+.hints b { color:var(--fg); font-weight:500; }
+.found { display:grid; gap:.35em; font-size:.92em; }
+.found div { display:flex; gap:.7em; }
+.found .ok { color:var(--green); }
+.found .no { color:var(--fg-dark); }
+.big { display:grid; gap:1em; justify-items:start; }
+.big .mark { width:4.2em; height:4.2em; }
+.big .name { font-size:2em; font-weight:600; color:var(--fg-bright); line-height:1; }
+.big .line { color:var(--fg-dark); }
+.ghost { position:absolute; inset:0; display:grid; grid-template-columns:13em 1fr; opacity:.18; pointer-events:none; }
+.ghost div { border-right:1px solid var(--fg); }
+.ghost p { margin:1.2em; height:.6em; background:var(--fg); max-width:none; }
+
+/* ---------- decision sheet ---------- */
+.q-list { display:grid; gap:18px; }
+.qst { display:grid; gap:8px; padding:14px 16px; border:1px solid var(--hairline); background:var(--bg); }
+.qst legend { padding:0; font-weight:600; color:var(--fg-bright); }
+.qst fieldset { border:0; margin:0; padding:0; display:grid; gap:6px; }
+.opt { display:grid; grid-template-columns:18px 1fr; gap:8px; align-items:start; cursor:pointer; padding:4px 6px; }
+.opt:hover { background:var(--fill-hover); }
+.opt input { margin:4px 0 0; accent-color:var(--accent); }
+.opt span { display:grid; }
+.opt small { color:var(--fg-dark); font-size:12px; }
+textarea { width:100%; min-height:70px; background:var(--bg-dark); color:var(--fg); border:1px solid var(--hairline); font:inherit; font-size:12px; padding:8px; resize:vertical; }
+textarea:focus-visible, .opt input:focus-visible, button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.sheet { display:grid; gap:10px; }
+.sheet pre { margin:0; padding:12px 16px; background:var(--bg); border:1px solid var(--hairline); white-space:pre-wrap; font:inherit; font-size:12px; line-height:1.5; }
+button { font:inherit; color:var(--accent); background:transparent; border:1px solid var(--accent); padding:6px 14px; cursor:pointer; justify-self:start; }
+button:hover { background:color-mix(in srgb, var(--accent) 12%, transparent); }
+.copied { color:var(--green); font-size:12px; }
+@media (prefers-reduced-motion: no-preference) { .detect-live { animation:pulse 1.6s ease-in-out infinite; } }
+@keyframes pulse { 50% { opacity:.45; } }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="mark" viewBox="0 0 24 24"><path d="M1 8 H6 V18 H16 V23 H1 Z M8 1 H23 V16 H18 V6 H8 Z M9 9 H15 V15 H9 Z"/></symbol>
+</svg>
+
+<main>
+  <header style="display:grid; gap:8px">
+    <p class="eyebrow">omaseed · docs/14 · 2026-09-23 · proposal, waiting on Diogo</p>
+    <h1>First run, designed as one flow</h1>
+    <p class="dim">The setup screens grew one step at a time: a page shape from spec v2 Fig. 15, fields added in T4.6, a cookie option and headings added today. This board treats them as one piece: what a person sees from the first launch until their torrents show up. Nothing here is built yet. The questions at the end are the decisions this needs.</p>
+  </header>
+
+  <section>
+    <h2>Today</h2>
+    <div class="grid3">
+      <figure><img src="evidence/first-run/before-1-choose.webp" alt="First run step 1 today: the full top bar, and the choices pinned near the top of an otherwise empty window" loading="lazy"><figcaption><b>Step 1.</b> Full top bar, content pinned to the top.</figcaption></figure>
+      <figure><img src="evidence/first-run/before-2-sign-in.webp" alt="First run step 2 today: the server form near the top of the window with a test result line under the buttons" loading="lazy"><figcaption><b>Step 2.</b> The form; the result is a loose line of text.</figcaption></figure>
+      <figure><img src="evidence/first-run/before-3-links.webp" alt="First run step 3 today: a heading, one dim line and two buttons at the top of a nearly empty window" loading="lazy"><figcaption><b>Step 3.</b> Three lines at the top of a 1920 × 1080 window.</figcaption></figure>
+    </div>
+    <ol class="problems">
+      <li><span><b>The top bar belongs to the library, not to setup.</b> It says NO SERVER, shows empty speeds, a filter with a count of 0, alt-speed, add, settings and help. None of them work before a server exists. Spec Fig. 15 draws the page with no bar at all.</span></li>
+      <li><span><b>Everything hangs from the top edge.</b> Step 3 is three lines with about 900 px of nothing under them. A short page centred in the window reads as intended; one pinned to the top reads as unfinished.</span></li>
+      <li><span><b>No welcome.</b> The first thing a new user sees is a form-like question. The app never says what it is, and the server search runs invisibly.</span></li>
+      <li><span><b>Progress is a footer caption.</b> "step 2 of 3" sits bottom-left in small dim text. The steps have no names, so you can't tell what is left.</span></li>
+      <li><span><b>No ending.</b> After step 3 the page simply disappears. There is no moment that says "connected to strict, 3 torrents".</span></li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>The proposal: a setup surface</h2>
+    <p>One surface for every moment when there is no library to show yet. The window loses the library's chrome; a single column, 36 base units wide, sits in the middle of the window, with its text left-aligned. At the top of the column: the mark and the name, then the named steps, then the step's question. Keys stay where they are today (<code>j k</code>, <code>enter</code>, <code>tab</code>, <code>esc</code>) and show in the footer.</p>
+    <div class="flow">
+      <figure>
+        <div class="mockwrap"><div class="mock"><div class="desk"><div class="win">
+          <div class="bar none"></div>
+          <div class="body">
+            <div class="setup big">
+              <svg class="mark" viewBox="0 0 24 24"><use href="#mark"/></svg>
+              <div class="name">omaseed</div>
+              <div class="line">Torrents for Omarchy, powered by qBittorrent.</div>
+              <div class="found">
+                <div class="ok">✓ qBittorrent 5.2.3 answers on 127.0.0.1:8080</div>
+                <div class="no">· no Docker container</div>
+                <div class="no detect-live">· checking the service…</div>
+              </div>
+              <div class="btns"><i class="primary">set up</i><i>quit</i></div>
+            </div>
+          </div>
+          <div class="foot"><span>omaseed 0.1.0</span><span class="r"><span><b>enter</b> set up</span><span><b>esc</b> quit</span></span></div>
+        </div></div></div></div>
+        <figcaption><b>0 · Welcome.</b> Shown once, on the very first launch. The server search runs here, in view, so step 1 opens with its answer.</figcaption>
+      </figure>
+
+      <figure>
+        <div class="mockwrap"><div class="mock"><div class="desk"><div class="win">
+          <div class="bar none"></div>
+          <div class="body">
+            <div class="setup">
+              <div class="brand"><svg class="mark" viewBox="0 0 24 24"><use href="#mark"/></svg>omaseed</div>
+              <div class="steps"><span class="now">1 server</span><span>2 sign in</span><span>3 links</span></div>
+              <h4>Which qBittorrent should omaseed talk to?</h4>
+              <div class="choice cur"><span class="g">⛁</span><div class="t"><b>Use the server on this machine</b><span>127.0.0.1:8080 · qBittorrent 5.2.3</span></div><span class="k">enter</span></div>
+              <div class="choice"><span class="g">⇢</span><div class="t"><b>Connect to a remote server</b><span>A seedbox, a NAS, or qui's proxy.</span></div></div>
+              <div class="choice dimmed"><span class="g">+</span><div class="t"><b>Install qbittorrent-nox here</b><span>a local server was already found</span></div></div>
+            </div>
+          </div>
+          <div class="foot"><span>step 1 of 3</span><span class="r"><span><b>j k</b> choose</span><span><b>enter</b> continue</span><span><b>esc</b> quit</span></span></div>
+        </div></div></div></div>
+        <figcaption><b>1 · Server.</b> The same three rows as Fig. 15, centred, under named steps.</figcaption>
+      </figure>
+
+      <figure>
+        <div class="mockwrap"><div class="mock"><div class="desk"><div class="win">
+          <div class="bar none"></div>
+          <div class="body">
+            <div class="setup">
+              <div class="brand"><svg class="mark" viewBox="0 0 24 24"><use href="#mark"/></svg>omaseed</div>
+              <div class="steps"><span class="done">✓ server</span><span class="now">2 sign in</span><span>3 links</span></div>
+              <h4>Where is it, and how does omaseed sign in?</h4>
+              <div class="fields">
+                <div class="row2"><label class="fld"><span>URL</span><div>http://127.0.0.1:8082</div></label><label class="fld"><span>Name</span><div>strict</div></label></div>
+                <div class="chips"><i>API key</i><i class="on">cookie</i><i>none</i></div>
+                <div class="row2"><label class="fld"><span>Username</span><div>omaseed</div></label><label class="fld"><span>Password</span><div class="focus">••••••••••••</div></label></div>
+              </div>
+              <div class="result"><span class="dot"></span><span><b>signed in</b> · qBittorrent 5.2.3 · API 2.15.1 · 3 torrents</span></div>
+              <div class="btns"><i class="line">test</i><i>open web UI</i><span class="sp"></span><i class="primary">continue</i></div>
+            </div>
+          </div>
+          <div class="foot"><span>step 2 of 3</span><span class="r"><span><b>tab</b> next field</span><span><b>enter</b> test, then continue</span><span><b>esc</b> back</span></span></div>
+        </div></div></div></div>
+        <figcaption><b>2 · Sign in.</b> URL and name share a row; the result gets a status dot and sits above the buttons it decides. "skip test" moves to the <code>esc</code> menu of step 2 instead of standing next to continue.</figcaption>
+      </figure>
+
+      <figure>
+        <div class="mockwrap"><div class="mock"><div class="desk"><div class="win">
+          <div class="bar none"></div>
+          <div class="body">
+            <div class="setup">
+              <div class="brand"><svg class="mark" viewBox="0 0 24 24"><use href="#mark"/></svg>omaseed</div>
+              <div class="steps"><span class="done">✓ server</span><span class="done">✓ sign in</span><span class="now">3 links</span></div>
+              <h4>Open magnet links and .torrent files with omaseed?</h4>
+              <p class="q">Magnet links you click in a browser and .torrent files you open go straight to omaseed.</p>
+              <p class="q" style="font-size:.9em">currently: qBittorrent (qbittorrent.desktop)</p>
+              <div class="btns"><i class="primary">open them with omaseed</i><i>not now</i></div>
+            </div>
+          </div>
+          <div class="foot"><span>step 3 of 3</span><span class="r"><span><b>enter</b> choose</span><span><b>esc</b> back</span></span></div>
+        </div></div></div></div>
+        <figcaption><b>3 · Links.</b> Centred, the short page no longer looks empty. The button says what happens ("open them with omaseed"), not "register".</figcaption>
+      </figure>
+
+      <figure>
+        <div class="mockwrap"><div class="mock"><div class="desk"><div class="win">
+          <div class="bar none"></div>
+          <div class="body">
+            <div class="setup">
+              <div class="brand"><svg class="mark" viewBox="0 0 24 24"><use href="#mark"/></svg>omaseed</div>
+              <div class="steps"><span class="done">✓ server</span><span class="done">✓ sign in</span><span class="done">✓ links</span></div>
+              <h4>You're connected to strict.</h4>
+              <div class="found">
+                <div>qBittorrent 5.2.3 · 3 torrents · 652 GB free</div>
+                <div class="no">magnet links and .torrent files open here</div>
+              </div>
+              <div class="hints"><span><b>a</b> add a torrent</span><span><b>,</b> settings and servers</span><span><b>?</b> every shortcut</span></div>
+              <div class="btns"><i class="primary">open the library</i></div>
+            </div>
+          </div>
+          <div class="foot"><span>setup done</span><span class="r"><span><b>enter</b> open the library</span></span></div>
+        </div></div></div></div>
+        <figcaption><b>4 · Done.</b> One screen that closes the loop, with the three keys worth learning first. <code>enter</code> brings the library in with the full top bar.</figcaption>
+      </figure>
+
+      <figure>
+        <div class="mockwrap"><div class="mock"><div class="desk"><div class="win">
+          <div class="bar">
+            <svg class="mark" viewBox="0 0 24 24"><use href="#mark"/></svg>
+            <div class="who"><b>omaseed</b><span>strict · qBittorrent 5.2.3</span></div>
+            <div class="stat">↓ 0<span>DOWNLOAD</span></div><div class="stat">↑ 0<span>UPLOAD</span></div>
+            <div class="ctl"><i class="wide">/ filter torrents</i><i>alt-speed</i><i>+</i><i>⚙</i></div>
+          </div>
+          <div class="body top" style="padding:0">
+            <div class="ghost"><div><p></p><p></p><p></p></div><div><p></p><p></p><p></p></div></div>
+          </div>
+          <div class="foot"><span>3 torrents · 652 GB free</span><span class="r"><span><b>j k</b> move</span><span><b>?</b> help</span></span></div>
+        </div></div></div></div>
+        <figcaption><b>After setup.</b> The library, with its bar, appears only once there is a library. Nothing about it changes.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section>
+    <h2>The choices inside it</h2>
+
+    <h3>A · The top bar during setup</h3>
+    <div class="grid3">
+      <figure>
+        <div class="mockwrap"><div class="mock small"><div class="desk"><div class="win">
+          <div class="bar none"></div>
+          <div class="body"><div class="setup"><div class="brand"><svg class="mark" viewBox="0 0 24 24"><use href="#mark"/></svg>omaseed</div><h4>Which qBittorrent…</h4><div class="choice cur"><span class="g">⛁</span><div class="t"><b>Use the server on this machine</b></div></div></div></div>
+          <div class="foot"><span>step 1 of 3</span></div>
+        </div></div></div></div>
+        <figcaption><span class="tag rec">recommended</span> <b>A1 · No bar.</b> The mark and name move into the column. Closest to Fig. 15.</figcaption>
+      </figure>
+      <figure>
+        <div class="mockwrap"><div class="mock small"><div class="desk"><div class="win">
+          <div class="bar"><svg class="mark" viewBox="0 0 24 24"><use href="#mark"/></svg><div class="who"><b>omaseed</b><span>setup</span></div></div>
+          <div class="body"><div class="setup"><h4>Which qBittorrent…</h4><div class="choice cur"><span class="g">⛁</span><div class="t"><b>Use the server on this machine</b></div></div></div></div>
+          <div class="foot"><span>step 1 of 3</span></div>
+        </div></div></div></div>
+        <figcaption><b>A2 · Logo only.</b> The bar keeps its height and place, with just the mark and "omaseed · setup". Less jump when the library arrives.</figcaption>
+      </figure>
+      <figure>
+        <div class="mockwrap"><div class="mock small"><div class="desk"><div class="win">
+          <div class="bar"><svg class="mark" viewBox="0 0 24 24"><use href="#mark"/></svg><div class="who"><b>omaseed</b><span>no server</span></div><div class="ctl"><i class="wide">/ filter</i><i>+</i><i>⚙</i></div></div>
+          <div class="body top"><div class="setup"><h4>Which qBittorrent…</h4><div class="choice cur"><span class="g">⛁</span><div class="t"><b>Use the server on this machine</b></div></div></div></div>
+          <div class="foot"><span>step 1 of 3</span></div>
+        </div></div></div></div>
+        <figcaption><b>A3 · Today.</b> The library's full bar, with controls that do nothing yet.</figcaption>
+      </figure>
+    </div>
+
+    <h3>B · A welcome on first launch</h3>
+    <ul>
+      <li><span class="tag rec">recommended</span> <b>B1 · Welcome screen, once.</b> Screen 0 above. Shows the name, the one-line pitch, and the server search as it runs. Never shown again after setup.</li>
+      <li><b>B2 · No separate screen.</b> The mark, name and pitch sit above step 1's question, and the search result shows in the rows.</li>
+      <li><b>B3 · A splash on every launch</b> while the first sync loads. Not proposed: after setup, the library is what people open the app for, and a splash only puts time in front of it.</li>
+    </ul>
+
+    <h3>C · Where the column sits</h3>
+    <ul>
+      <li><span class="tag rec">recommended</span> <b>C1 · Centred both ways, text left-aligned.</b> Each step is a different height, so the brand row moves a little between steps. Short steps like 3 look intended.</li>
+      <li><b>C2 · Centred across, fixed at one-third down.</b> No shift between steps; short steps still sit a little high.</li>
+    </ul>
+
+    <h3>D · Progress</h3>
+    <ul>
+      <li><span class="tag rec">recommended</span> <b>D1 · Named steps at the top of the column</b> ("✓ server · 2 sign in · 3 links"), with "step 2 of 3" kept in the footer.</li>
+      <li><b>D2 · The footer caption only</b>, as today.</li>
+    </ul>
+
+    <h3>E · An ending</h3>
+    <ul>
+      <li><span class="tag rec">recommended</span> <b>E1 · A "done" screen</b> (screen 4) that names the server, counts the torrents and teaches three keys.</li>
+      <li><b>E2 · Straight into the library</b> after step 3, as today.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Where else the surface fits</h2>
+    <p>The same column, mark and centring work for any window with no library in it. These are not part of this proposal's build; they show why the surface is worth getting right once.</p>
+    <div class="grid3">
+      <figure>
+        <div class="mockwrap"><div class="mock small"><div class="desk"><div class="win">
+          <div class="bar none"></div>
+          <div class="body"><div class="setup"><div class="brand"><svg class="mark" viewBox="0 0 24 24"><use href="#mark"/></svg>omaseed</div><h4>Can't reach strict.</h4><div class="result bad"><span class="dot"></span><span><b>connection refused</b> · retrying in 7 s</span></div><div class="btns"><i class="primary">retry now</i><i>servers…</i></div></div></div>
+          <div class="foot"><span>last synced 21:36</span></div>
+        </div></div></div></div>
+        <figcaption><b>Unreachable on launch.</b> Today this is a banner over an empty table. With nothing cached to show, the surface says it plainly.</figcaption>
+      </figure>
+      <figure>
+        <div class="mockwrap"><div class="mock small"><div class="desk"><div class="win">
+          <div class="bar"><svg class="mark" viewBox="0 0 24 24"><use href="#mark"/></svg><div class="who"><b>omaseed</b><span>strict</span></div></div>
+          <div class="body"><div class="setup"><h4>No torrents yet.</h4><p class="q">Press a, drop a file here, or click a magnet link anywhere.</p><div class="hints"><span><b>a</b> add</span><span><b>,</b> settings</span></div></div></div>
+          <div class="foot"><span>0 torrents</span></div>
+        </div></div></div></div>
+        <figcaption><b>Empty library.</b> Already centred today; it would take the same column width and type.</figcaption>
+      </figure>
+      <figure>
+        <div class="mockwrap"><div class="mock small"><div class="desk"><div class="win">
+          <div class="bar none"></div>
+          <div class="body"><div class="setup"><div class="brand"><svg class="mark" viewBox="0 0 24 24"><use href="#mark"/></svg>omaseed</div><h4>Your servers</h4><div class="choice cur"><span class="g" style="color:var(--green)">●</span><div class="t"><b>home</b><span>1 204 torrents · ↓ 4.1 MB/s</span></div><span class="k">enter</span></div><div class="choice"><span class="g" style="color:var(--green)">●</span><div class="t"><b>seedbox</b><span>88 torrents · ↑ 900 KB/s</span></div></div><div class="choice"><span class="g" style="color:var(--red)">●</span><div class="t"><b>nas</b><span>unreachable</span></div></div></div></div>
+          <div class="foot"><span>3 servers</span></div>
+        </div></div></div></div>
+        <figcaption><span class="tag">idea, not proposed</span> <b>Several servers.</b> A server overview could use the same rows as step 1. Multi-server is v2 in the charter; this only shows the surface would carry it.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section>
+    <h2>Decisions</h2>
+    <p class="dim">Pick one per question and add notes if you like. The sheet at the bottom collects your answers; copy it and paste it to me.</p>
+    <form class="q-list" id="decisions">
+      <div class="qst"><fieldset><legend>A · Top bar during setup</legend>
+        <label class="opt"><input type="radio" name="a" id="a1" value="A1 no bar" checked><span>A1 · No bar <small>recommended; the mark moves into the column</small></span></label>
+        <label class="opt"><input type="radio" name="a" id="a2" value="A2 logo only"><span>A2 · Logo only <small>mark + "omaseed · setup" in the bar's place</small></span></label>
+        <label class="opt"><input type="radio" name="a" id="a3" value="A3 keep today's bar"><span>A3 · Keep today's bar</span></label>
+      </fieldset></div>
+      <div class="qst"><fieldset><legend>B · Welcome on first launch</legend>
+        <label class="opt"><input type="radio" name="b" id="b1" value="B1 welcome screen once" checked><span>B1 · Welcome screen, once <small>recommended; the server search runs in view</small></span></label>
+        <label class="opt"><input type="radio" name="b" id="b2" value="B2 no separate screen"><span>B2 · No separate screen <small>mark and pitch above step 1</small></span></label>
+        <label class="opt"><input type="radio" name="b" id="b3" value="B3 splash every launch"><span>B3 · A splash on every launch</span></label>
+      </fieldset></div>
+      <div class="qst"><fieldset><legend>C · Placement</legend>
+        <label class="opt"><input type="radio" name="c" id="c1" value="C1 centred both ways" checked><span>C1 · Centred both ways <small>recommended</small></span></label>
+        <label class="opt"><input type="radio" name="c" id="c2" value="C2 centred across, one-third down"><span>C2 · Centred across, fixed one-third down</span></label>
+      </fieldset></div>
+      <div class="qst"><fieldset><legend>D · Progress</legend>
+        <label class="opt"><input type="radio" name="d" id="d1" value="D1 named steps" checked><span>D1 · Named steps at the top <small>recommended</small></span></label>
+        <label class="opt"><input type="radio" name="d" id="d2" value="D2 footer caption only"><span>D2 · Footer caption only</span></label>
+      </fieldset></div>
+      <div class="qst"><fieldset><legend>E · Ending</legend>
+        <label class="opt"><input type="radio" name="e" id="e1" value="E1 done screen" checked><span>E1 · A "done" screen <small>recommended</small></span></label>
+        <label class="opt"><input type="radio" name="e" id="e2" value="E2 straight into the library"><span>E2 · Straight into the library</span></label>
+      </fieldset></div>
+      <div class="qst"><fieldset><legend>Anything else</legend>
+        <textarea id="notes" aria-label="Notes" placeholder="Wording, the reuse ideas, anything that looks wrong…"></textarea>
+      </fieldset></div>
+    </form>
+    <div class="sheet">
+      <pre id="sheet"></pre>
+      <div style="display:flex; gap:12px; align-items:center"><button type="button" id="copy">Copy answers</button><span class="copied" id="copied" hidden>copied</span></div>
+    </div>
+  </section>
+</main>
+
+<script>
+(() => {
+  const form = document.getElementById('decisions');
+  const sheet = document.getElementById('sheet');
+  const notes = document.getElementById('notes');
+  const render = () => {
+    const pick = name => (form.querySelector(`input[name="${name}"]:checked`) || {}).value || '(none)';
+    const lines = ['docs/14 first run, my answers:',
+      `A ${pick('a')}`, `B ${pick('b')}`, `C ${pick('c')}`, `D ${pick('d')}`, `E ${pick('e')}`];
+    const extra = notes.value.trim();
+    if (extra) lines.push('Notes: ' + extra);
+    sheet.textContent = lines.join('\n');
+  };
+  form.addEventListener('input', render);
+  render();
+  const copied = document.getElementById('copied');
+  document.getElementById('copy').addEventListener('click', () => {
+    const done = () => { copied.hidden = false; setTimeout(() => { copied.hidden = true; }, 1600); };
+    const fallback = () => { const r = document.createRange(); r.selectNodeContents(sheet); const s = getSelection(); s.removeAllRanges(); s.addRange(r); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(sheet.textContent).then(done, fallback);
+    } else fallback();
+  });
+})();
+</script>
