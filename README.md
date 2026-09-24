@@ -286,7 +286,7 @@ Two PKGBUILDs live in `packaging/arch/`:
   --publish` commits the archive's checksum on `main` right after the tag (see
   `docs/RELEASING.md`).
 - **`PKGBUILD.local`** — builds from the working tree instead (`prepare()` copies the repo
-  two directories up via `rsync`, excluding `.git` and build directories), so the package can
+  two directories up, the files git tracks or would add, nothing gitignored), so the package can
   be built and tried before any tag exists, or while iterating on packaging itself. Otherwise
   identical to `PKGBUILD` (kept in sync by hand — makepkg has no templating).
 
