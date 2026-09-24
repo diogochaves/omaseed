@@ -6,7 +6,8 @@
 // keys) that moved. applyPartial() therefore never resets: it merges, emits one dataChanged()
 // per contiguous run of touched rows, and only removes what `torrents_removed` names.
 //
-// Rows are appended in the order the API listed them and never reordered; sorting belongs to
+// Rows are appended in the order they arrive and never reordered — a full update comes out
+// of a JSON object, which iterates by key, so its rows are in hash order; sorting belongs to
 // TorrentFilterModel, so a sort change costs nothing here and row indices stay stable for the
 // views that remember a cursor.
 
