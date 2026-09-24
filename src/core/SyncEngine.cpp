@@ -126,26 +126,20 @@ void SyncEngine::start()
         m_savedMaxRetries = m_client->maxRetries();
     m_client->setMaxRetries(0);
 
-    if (!m_probed) {
-        m_client->probe()->then(this, [this](const QbtResult<ServerInfo> &result) {
-            if (!m_running)
-                return;
-            if (result.isError()) {
-                onPollError(result.error());
-                return;
-            }
-            m_probed = true;
-            m_globalState->setServerVersions(result.value().version, result.value().apiVersion);
-            poll();
-        });
-        return;
-    }
-
-    poll();
+    poll(); // probes first while the server's version is still unknown
 }
 
 void SyncEngine::stop()
 {
+    // Whatever is in flight belongs to the run being stopped (and, on a server switch, to
+    // the previous server): drop it, and make sure a late answer can never be applied.
+    ++m_generation;
+    m_pollInFlight = false;
+    if (QbtReplyBase *reply = m_pollReply.data()) {
+        m_pollReply.clear();
+        reply->abort();
+    }
+
     m_pollTimer->stop();
     m_countdownTimer->stop();
     m_globalState->setSyncing(false);
@@ -185,15 +179,44 @@ void SyncEngine::poll()
         return;
 
     m_pollInFlight = true;
-    m_client->syncMainData(m_rid)->then(this, [this](const QbtResult<QJsonObject> &result) {
-        m_pollInFlight = false;
-        if (!m_running)
-            return;
-        if (result.isError())
-            onPollError(result.error());
-        else
-            onPollResult(result.value());
-    });
+    const quint64 generation = m_generation;
+
+    // A probe that failed (server not up yet at start) is retried here, so the version and
+    // API version reach GlobalState once the server answers.
+    if (!m_probed) {
+        m_pollReply = m_client->probe()->then(
+            this, [this, generation](const QbtResult<ServerInfo> &result) {
+                if (generation != m_generation)
+                    return; // stopped or switched meanwhile: not ours to apply
+                m_pollReply.clear();
+                m_pollInFlight = false;
+                if (!m_running)
+                    return;
+                if (result.isError()) {
+                    onPollError(result.error());
+                    return;
+                }
+                m_probed = true;
+                m_globalState->setServerVersions(result.value().version,
+                                                 result.value().apiVersion);
+                poll();
+            });
+        return;
+    }
+
+    m_pollReply = m_client->syncMainData(m_rid)->then(
+        this, [this, generation](const QbtResult<QJsonObject> &result) {
+            if (generation != m_generation)
+                return; // stopped or switched meanwhile: not ours to apply
+            m_pollReply.clear();
+            m_pollInFlight = false;
+            if (!m_running)
+                return;
+            if (result.isError())
+                onPollError(result.error());
+            else
+                onPollResult(result.value());
+        });
 }
 
 void SyncEngine::onPollResult(const QJsonObject &data)
@@ -278,13 +301,19 @@ void SyncEngine::applyData(const QJsonObject &data)
     const bool fullUpdate = data.value(key("full_update")).toBool(false);
     const QJsonObject torrents = data.value(key("torrents")).toObject();
 
-    // What to announce afterwards, decided against the state before the merge.
+    // What to announce afterwards, decided against the state before the merge. Only the
+    // first full update is silent (there is no "before" yet); a later one (after a lost
+    // server, or a server that forgot our rid) still compares against the rows we hold.
     QStringList completed;
-    if (!fullUpdate) {
+    if (!fullUpdate || m_hadFullUpdate) {
         for (auto it = torrents.constBegin(); it != torrents.constEnd(); ++it) {
             const int row = m_torrents->indexOfHash(it.key());
             const QJsonObject diff = it.value().toObject();
             if (row < 0) {
+                // A full update lists everything: an unknown row there says nothing about
+                // when it finished.
+                if (fullUpdate)
+                    continue;
                 // New since the last poll. Complete with bytes downloaded: it was added and
                 // finished between two polls (a small torrent does, in one 1.5 s interval).
                 // Complete with nothing downloaded: added over data already on disk, which
