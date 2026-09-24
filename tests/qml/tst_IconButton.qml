@@ -60,6 +60,39 @@ TestCase {
         compare(button.border.width, 0);
     }
 
+    // Review Q8: the button's name is the kit's one Tooltip, with its accent edge and its
+    // 400 ms rest, shown on keyboard focus as on hover, under the button.
+    function test_keyboard_focus_shows_the_kit_tooltip_under_the_button() {
+        const button = createTemporaryObject(iconButtonComponent, testCase, {
+                                                 "glyph": "+",
+                                                 "tooltip": "add torrent",
+                                                 "x": 40,
+                                                 "y": 20
+                                             });
+        const tip = button.tooltipItem;
+        compare(tip.delay, 400);
+        compare(tip.parent, button.Window.window.contentItem);
+        compare(tip.shown, false);
+        button.forceActiveFocus();
+        tryCompare(tip, "shown", true);
+        compare(tip.text, "add torrent");
+        const panel = tip.panelItem;
+        compare(panel.border.color, Theme.accent);
+        const under = button.mapToItem(tip, 0, button.height);
+        verify(panel.y >= under.y, "the tip is not under the button");
+        button.focus = false;
+        compare(tip.shown, false);
+    }
+
+    function test_no_tooltip_text_never_shows() {
+        const button = createTemporaryObject(iconButtonComponent, testCase, {
+                                                 "glyph": "+"
+                                             });
+        button.forceActiveFocus();
+        wait(450);
+        compare(button.tooltipItem.shown, false);
+    }
+
     function test_danger_glyph_is_red() {
         const button = createTemporaryObject(iconButtonComponent, testCase, {
                                                  "glyph": "✕",

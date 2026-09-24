@@ -1,10 +1,10 @@
 import QtQuick
-import QtQuick.Controls
 import Omaseed.Kit
 
 // A square icon-only control, `Theme.controlHeight` on each side (spec v2 §1 Fig. 1 `.acts`:
 // add, alt-speed, settings, help). Same state machine as `Button`; see that file's header for
-// the priority order. `tooltip` shows a themed popup on hover or keyboard focus.
+// the priority order. `tooltip` shows the kit's `Tooltip` under the button on hover or
+// keyboard focus.
 Rectangle {
     id: root
 
@@ -25,6 +25,8 @@ Rectangle {
     signal clicked
 
     readonly property bool hot: root.hasCursor || mouseArea.containsMouse
+    /// The button's tooltip, which lives on the window's content item (the tests read it).
+    readonly property alias tooltipItem: tip
     readonly property color _glyphColor: root.danger ? Theme.red : (root.primary || root.selected
                                                                     || root.accent) ? Theme.accent :
                                                                                       Theme.dimForeground
@@ -87,24 +89,22 @@ Rectangle {
         }
     }
 
-    ToolTip {
-        background: Rectangle {
-            border.color: Theme.accent
-            border.width: 1
-            color: Theme.background
-            radius: Theme.cornerRadius
-        }
-        contentItem: Text {
-            color: Theme.foreground
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.font.small
-            text: root.tooltip
-        }
-        delay: 400
-        padding: Theme.space(6)
-        text: root.tooltip
-        visible: root.tooltip.length > 0 && (mouseArea.containsMouse || root.activeFocus)
+    // On the window's content item, not in the button: clamped inside a button one control
+    // tall, the panel would have nowhere to go (the hero's server tip does the same, KIT-8).
+    Tooltip {
+        id: tip
+
+        readonly property bool wanted: root.visible && root.tooltip.length > 0 && (mouseArea.containsMouse
+                                                                                   || root.activeFocus)
+
+        objectName: "iconButtonTip"
+        parent: root.Window.window ? root.Window.window.contentItem : root
+        z: 1000
+
+        onWantedChanged: tip.wanted ? tip.showFor(root, root.tooltip) : tip.hide()
     }
+
+    onTooltipChanged: tip.wanted ? tip.showFor(root, root.tooltip) : tip.hide()
 
     // Keypad `enter` is its own key (`Qt.Key_Enter`); without it the key went on to the
     // Sheet, which ran its primary action instead of this button (KIT-7).
