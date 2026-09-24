@@ -1354,12 +1354,6 @@ void App::pickTorrentFile()
                                     });
 }
 
-QString App::torrentIdFor(const QString &infoHashV1, const QString &infoHashV2)
-{
-    const QString v2 = infoHashV2.trimmed().toLower();
-    return v2.isEmpty() ? infoHashV1.trimmed().toLower() : v2.left(40);
-}
-
 QVariantMap App::findDuplicate(const QString &hashV1, const QString &hashV2) const
 {
     const auto lower = [](const QString &hash) { return hash.trimmed().toLower(); };
@@ -1375,7 +1369,7 @@ QVariantMap App::findDuplicate(const QString &hashV1, const QString &hashV2) con
     }
     // A torrent with a v2 hash is keyed by that hash cut to 40 characters, not by its v1 hash,
     // so anything the key misses is looked up in the rows' own infohash fields.
-    const QString id = torrentIdFor(v1, v2);
+    const QString id = TorrentFile::torrentIdFor(v1, v2);
     if (model->indexOfHash(id) >= 0)
         return torrentRow(id);
     for (int row = 0; row < model->count(); ++row) {
@@ -1443,7 +1437,7 @@ void App::addTorrent(const QVariantMap &request)
     const QString value = request.value(QStringLiteral("value")).toString();
     const QString token = request.value(QStringLiteral("token")).toString();
     // The key the new row will have in maindata, which is what the cursor and QML look for.
-    const QString hash = torrentIdFor(request.value(QStringLiteral("infoHashV1")).toString(),
+    const QString hash = TorrentFile::torrentIdFor(request.value(QStringLiteral("infoHashV1")).toString(),
                                       request.value(QStringLiteral("infoHashV2")).toString());
 
     if (kind != QLatin1String("magnet") && kind != QLatin1String("url") &&

@@ -744,12 +744,8 @@ public:
 
     /// Fig. 10's test: the library row either infohash already occupies (`torrentRow`'s
     /// fields), or an empty map. Both hashes are matched against the maindata `infohash_v1`/
-    /// `infohash_v2` fields as well as the key (see `torrentIdFor`).
+    /// `infohash_v2` fields as well as the key (see `TorrentFile::torrentIdFor`).
     Q_INVOKABLE QVariantMap findDuplicate(const QString &hashV1, const QString &hashV2) const;
-
-    /// The id qBittorrent keys a torrent by in maindata: its v2 info-hash cut to 40 hex
-    /// characters when it has one (v2-only and hybrid alike), else its v1 hash. Lower case.
-    static QString torrentIdFor(const QString &infoHashV1, const QString &infoHashV2);
 
     /// Adds what the sheet holds: `parseAddable`'s map plus `category`, `tags` (list),
     /// `savePath`, `autoTMM`, `contentLayout` ("Original" | "Subfolder" | "NoSubfolder"),

@@ -152,11 +152,15 @@ TorrentFile TorrentFile::parse(const QByteArray &data, QString *errorMessage)
     return result;
 }
 
+QString TorrentFile::torrentIdFor(const QString &infoHashV1, const QString &infoHashV2)
+{
+    const QString v2 = infoHashV2.trimmed().toLower();
+    return v2.isEmpty() ? infoHashV1.trimmed().toLower() : v2.left(40);
+}
+
 QString TorrentFile::torrentId() const
 {
-    if (m_hasV1 || infoHashV2.isEmpty())
-        return infoHashV1;
-    return infoHashV2.left(40);
+    return torrentIdFor(infoHashV1, infoHashV2);
 }
 
 QString TorrentFile::magnetLink() const

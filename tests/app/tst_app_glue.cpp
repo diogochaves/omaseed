@@ -4,6 +4,7 @@
 #include "core/Server.hpp"
 #include "core/ServerStore.hpp"
 #include "core/SyncEngine.hpp"
+#include "core/TorrentFile.hpp"
 #include "integration/Tray.hpp"
 #include "ui/app/App.hpp"
 
@@ -176,9 +177,9 @@ void TestAppGlue::torrentIdIsTheTruncatedV2HashWhenThereIsOne()
 {
     // As qBittorrent keys them (checked live on :8081: a hybrid's `hash` is its v2 hash's
     // first 40 characters, `infohash_v1` differs).
-    QCOMPARE(App::torrentIdFor(kV1, kV2), kV2.left(40));
-    QCOMPARE(App::torrentIdFor(QString(), kV2), kV2.left(40));
-    QCOMPARE(App::torrentIdFor(kV1.toUpper(), QString()), kV1);
+    QCOMPARE(omaseed::core::TorrentFile::torrentIdFor(kV1, kV2), kV2.left(40));
+    QCOMPARE(omaseed::core::TorrentFile::torrentIdFor(QString(), kV2), kV2.left(40));
+    QCOMPARE(omaseed::core::TorrentFile::torrentIdFor(kV1.toUpper(), QString()), kV1);
 }
 
 void TestAppGlue::aHybridMagnetIsAddedUnderItsV2Id()
