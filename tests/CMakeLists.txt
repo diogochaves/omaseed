@@ -50,4 +50,12 @@ if(NOT WIN32)
         COMMAND bash "${CMAKE_SOURCE_DIR}/tests/dev/test_home_guard.sh"
     )
     set_tests_properties(dev_home_guard PROPERTIES TIMEOUT 60)
+
+    # data/hooks/theme-set.d/omaseed on a private bus: it must never D-Bus-activate omaseed
+    # or hold omarchy-theme-set up.
+    add_test(
+        NAME theme_set_hook
+        COMMAND bash "${CMAKE_SOURCE_DIR}/tests/dev/test_theme_hook.sh"
+    )
+    set_tests_properties(theme_set_hook PROPERTIES TIMEOUT 60 SKIP_RETURN_CODE 77)
 endif()
