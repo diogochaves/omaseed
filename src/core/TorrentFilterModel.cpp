@@ -1,6 +1,7 @@
 #include "core/TorrentFilterModel.hpp"
 
 #include "core/TorrentModel.hpp"
+#include "core/TrackerModel.hpp"
 
 #include <algorithm>
 
@@ -134,6 +135,7 @@ void TorrentFilterModel::setTracker(const QVariant &tracker)
     if (m_tracker && *m_tracker == next)
         return;
     m_tracker = next;
+    reloadTrackerHashes();
     refilter();
     Q_EMIT trackerChanged();
     Q_EMIT countChanged();
@@ -144,9 +146,53 @@ void TorrentFilterModel::clearTracker()
     if (!m_tracker)
         return;
     m_tracker.reset();
+    m_trackerHashes.clear();
     refilter();
     Q_EMIT trackerChanged();
     Q_EMIT countChanged();
+}
+
+void TorrentFilterModel::setTrackerModel(TrackerModel *model)
+{
+    if (m_trackerModel == model)
+        return;
+    if (m_trackerModel)
+        disconnect(m_trackerModel, nullptr, this, nullptr);
+    m_trackerModel = model;
+    if (model != nullptr) {
+        // A poll that moves a torrent onto or off a host re-filters, but only when the
+        // filtered host's own membership moved.
+        const auto follow = [this]() {
+            if (reloadTrackerHashes())
+                refilter();
+        };
+        connect(model, &QAbstractItemModel::dataChanged, this, follow);
+        connect(model, &QAbstractItemModel::modelReset, this, follow);
+        connect(model, &QAbstractItemModel::rowsInserted, this, follow);
+        connect(model, &QAbstractItemModel::rowsRemoved, this, follow);
+    }
+    reloadTrackerHashes();
+    if (m_tracker)
+        refilter();
+}
+
+bool TorrentFilterModel::usesTrackerMembership() const
+{
+    return m_trackerModel && m_tracker && !m_tracker->isEmpty() &&
+           *m_tracker != trackerlessKey();
+}
+
+bool TorrentFilterModel::reloadTrackerHashes()
+{
+    QSet<QString> next;
+    if (usesTrackerMembership()) {
+        const QStringList hashes = m_trackerModel->hashesFor(*m_tracker);
+        next = QSet<QString>(hashes.cbegin(), hashes.cend());
+    }
+    if (next == m_trackerHashes)
+        return false;
+    m_trackerHashes = std::move(next);
+    return true;
 }
 
 void TorrentFilterModel::setText(const QString &text)
@@ -256,8 +302,14 @@ bool TorrentFilterModel::filterAcceptsRow(int sourceRow, const QModelIndex &sour
         }
     }
 
-    if (m_tracker && t.trackerHostKey() != *m_tracker)
-        return false;
+    if (m_tracker) {
+        if (usesTrackerMembership()) {
+            if (!m_trackerHashes.contains(t.hash))
+                return false;
+        } else if (t.trackerHostKey() != *m_tracker) {
+            return false;
+        }
+    }
 
     if (!m_text.isEmpty()) {
         const Qt::CaseSensitivity ci = Qt::CaseInsensitive;

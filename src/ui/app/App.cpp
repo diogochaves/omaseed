@@ -68,6 +68,8 @@ App::App(QObject *parent)
 {
     m_engine->setClient(m_client);
     m_filtered->setSourceModel(m_engine->torrents());
+    // A tracker row lists what the rail counts for it: every torrent on that host.
+    m_filtered->setTrackerModel(m_engine->trackers());
 
     // The hero, the footer and the tray all read GlobalState and FilterCounts, so the tray
     // only has to be told when either of them moved.
