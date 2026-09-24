@@ -93,12 +93,16 @@ cleanup() {
 trap cleanup EXIT
 
 scripts/dev/test-server.sh status --strict >/dev/null 2>&1 || scripts/dev/test-server.sh start --strict >/dev/null
-# The playground's three stopped fixtures, so the table has rows. Adding one twice is a no-op.
+# The playground's three stopped fixtures, so the table has rows. qBittorrent answers 409
+# for one it already has, which is fine.
 for m in "magnet:?xt=urn:btih:4a4e3b1d2d0c1a8d1e6a9f0b3c2d4e5f6a7b8c9d&dn=fixture-one" \
     "magnet:?xt=urn:btih:b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0&dn=fixture-two" \
     "magnet:?xt=urn:btih:c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00&dn=fixture-three"; do
-    bearer torrents/add -X POST -F "urls=$m" -F "stopped=true" -F "category=fixtures" >/dev/null
+    bearer torrents/add -X POST -F "urls=$m" -F "stopped=true" -F "category=fixtures" >/dev/null ||
+        true
 done
+[ "$(bearer torrents/info?category=fixtures | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))')" = 3 ] ||
+    { echo "the strict server does not have the three fixtures (is the API key right?)" >&2; exit 1; }
 
 echo "starting the box"
 omabox down -b "$BOX" >/dev/null 2>&1 || true
