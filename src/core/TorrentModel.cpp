@@ -30,9 +30,20 @@ const QHash<QString, QList<int>> &keyToRoles()
         {QStringLiteral("size"), {M::SizeRole, M::SizeTextRole}},
         {QStringLiteral("total_size"), {M::TotalSizeRole, M::TotalSizeTextRole}},
         {QStringLiteral("progress"),
-         {M::ProgressRole, M::ProgressTextRole, M::ProgressPercentRole, M::StatusGroupsRole}},
+         {M::ProgressRole,
+          M::ProgressTextRole,
+          M::ProgressPercentRole,
+          M::StatusGroupsRole,
+          M::EtaTextRole,
+          M::EtaLongTextRole}},
+        // The ETA texts follow the state too (Torrent::hasEta), not only the `eta` key.
         {QStringLiteral("state"),
-         {M::StateRole, M::StateTextRole, M::StateColorRoleRole, M::StatusGroupsRole}},
+         {M::StateRole,
+          M::StateTextRole,
+          M::StateColorRoleRole,
+          M::StatusGroupsRole,
+          M::EtaTextRole,
+          M::EtaLongTextRole}},
         {QStringLiteral("dlspeed"), {M::DlspeedRole, M::DlspeedTextRole, M::StatusGroupsRole}},
         {QStringLiteral("upspeed"), {M::UpspeedRole, M::UpspeedTextRole, M::StatusGroupsRole}},
         {QStringLiteral("eta"), {M::EtaRole, M::EtaTextRole, M::EtaLongTextRole}},
@@ -133,9 +144,9 @@ QVariant TorrentModel::data(const QModelIndex &index, int role) const
     case EtaRole:
         return t.eta;
     case EtaTextRole:
-        return t.isComplete() ? QStringLiteral("—") : Format::etaShort(t.eta);
+        return t.hasEta() ? Format::etaShort(t.eta) : QStringLiteral("—");
     case EtaLongTextRole:
-        return t.isComplete() ? QStringLiteral("—") : Format::eta(t.eta);
+        return t.hasEta() ? Format::eta(t.eta) : QStringLiteral("—");
     case NumSeedsRole:
         return t.numSeeds;
     case NumCompleteRole:

@@ -141,8 +141,8 @@ struct Torrent
     StatusGroups statusGroups() const;
     bool inGroup(StatusGroup group) const;
 
-    /// One of downloading, seeding, stopped, stalled, checking, queued, error, completed,
-    /// moving, metadata, unknown (spec §1 Status column).
+    /// One of downloading, seeding, stopped, stalled, checking, queued, error, missing files,
+    /// completed, moving, metadata, unknown (spec §1 Status column).
     QString stateText() const;
     /// The Theme colour role for that state: stateDownloading, stateSeeding, stateStopped,
     /// stateStalled, stateChecking, stateQueued, stateError (plan §3).
@@ -153,6 +153,10 @@ struct Torrent
     QString trackerHostKey() const;
     /// True once the payload is on disk.
     bool isComplete() const;
+    /// True while the ETA means something: an unfinished torrent that is downloading, or
+    /// trying to (stalled reads ∞). Every other state shows an em dash, whatever `eta` says;
+    /// an errored torrent keeps its last estimate.
+    bool hasEta() const;
 
     bool operator==(const Torrent &other) const = default;
 };

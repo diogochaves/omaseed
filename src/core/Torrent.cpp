@@ -303,7 +303,6 @@ QString Torrent::stateText() const
     case TorrentState::MetaDownload:
         return QStringLiteral("metadata");
     case TorrentState::StalledDownload:
-    case TorrentState::StalledUpload:
         return QStringLiteral("stalled");
     case TorrentState::QueuedDownload:
     case TorrentState::QueuedUpload:
@@ -313,8 +312,11 @@ QString Torrent::stateText() const
     case TorrentState::CheckingResumeData:
     case TorrentState::Allocating:
         return QStringLiteral("checking");
+    // A finished torrent with nobody to upload to is normal, not stuck: "stalled" is kept
+    // for downloads that are.
     case TorrentState::Uploading:
     case TorrentState::ForcedUpload:
+    case TorrentState::StalledUpload:
         return QStringLiteral("seeding");
     case TorrentState::StoppedDownload:
     case TorrentState::PausedDownload:
@@ -323,8 +325,11 @@ QString Torrent::stateText() const
     case TorrentState::PausedUpload:
         return QStringLiteral("completed");
     case TorrentState::Error:
-    case TorrentState::MissingFiles:
         return QStringLiteral("error");
+    // Fixed differently from an error (move the files back, or recheck), so it says so; the
+    // rail still counts it under errored.
+    case TorrentState::MissingFiles:
+        return QStringLiteral("missing files");
     case TorrentState::Moving:
         return QStringLiteral("moving");
     case TorrentState::Unknown:
@@ -346,7 +351,7 @@ QString Torrent::stateRole() const
         return QStringLiteral("stateChecking");
     if (text == QLatin1String("queued"))
         return QStringLiteral("stateQueued");
-    if (text == QLatin1String("error"))
+    if (text == QLatin1String("error") || text == QLatin1String("missing files"))
         return QStringLiteral("stateError");
     return QStringLiteral("stateStopped");
 }
@@ -364,6 +369,21 @@ QString Torrent::trackerHostKey() const
 bool Torrent::isComplete() const
 {
     return progress >= 1.0;
+}
+
+bool Torrent::hasEta() const
+{
+    if (isComplete())
+        return false;
+    switch (state) {
+    case TorrentState::Downloading:
+    case TorrentState::ForcedDownload:
+    case TorrentState::MetaDownload:
+    case TorrentState::StalledDownload:
+        return true;
+    default:
+        return false;
+    }
 }
 
 } // namespace omaseed::core

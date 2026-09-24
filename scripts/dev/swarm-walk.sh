@@ -129,7 +129,7 @@ step "Files tree" "Open Movie Night's Files tab: the film, extras/, subs/ (engli
 step "Many files" "photo-archive: 1 208 files in 92 folders by year and month; scrolling and folding stay smooth."
 wait_state "tiny-notes" "UP|^uploading" 30
 [ "$INTERACTIVE" = 1 ] || show "tiny-notes" 1
-step "Seeding" "tiny-notes.txt: finished, seeding (or stalled seeding), done 100 %, the rail counts it under seeding and completed. Each finished download raises a \"Download complete\" notification in the box (often caught by the first shots)."
+step "Seeding" "tiny-notes.txt: finished, seeding (also when nobody is downloading from it), done 100 %, ETA —, the rail counts it under seeding and completed. Each finished download raises a \"Download complete\" notification in the box (often caught by the first shots)."
 wait_state "Spaces & Symbols" "UP|^uploading" 60
 [ "$INTERACTIVE" = 1 ] || show "Spaces & Symbols" 1
 step "Long unicode name" "The v2-only torrent: its long unicode name elides in the table and the details head; General shows a v2 hash and no v1."
@@ -175,7 +175,7 @@ step "Stalled" "The seeder stopped: running downloads read stalled, speeds fall 
 wait_state "tiny-notes" "^missingFiles" 60
 sleep 4 # the app reconnects to the restarted playground
 [ "$INTERACTIVE" = 1 ] || show "tiny-notes" 1
-step "Missing files" "tiny-notes.txt: status missing files after the playground restarted; the app reconnected on its own (no banner left)."
+step "Missing files" "tiny-notes.txt: status missing files (red, counted under errored), ETA —, after the playground restarted; the app reconnected on its own (no banner left)."
 
 "$SWARM" fix >/dev/null
 sleep 10

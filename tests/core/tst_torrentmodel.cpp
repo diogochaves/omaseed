@@ -90,6 +90,9 @@ private slots:
     void statusGroupsFollowTheRail();
     void stateTextAndColourRole_data();
     void stateTextAndColourRole();
+    void etaTextFollowsTheState_data();
+    void etaTextFollowsTheState();
+    void stateChangeRefreshesTheEtaText();
 };
 
 void TestTorrentModel::fullUpdateFillsRowsAndIndex()
@@ -414,6 +417,9 @@ void TestTorrentModel::stateTextAndColourRole_data()
                                << QStringLiteral("stateSeeding");
     QTest::newRow("stalledDL") << QStringLiteral("stalledDL") << QStringLiteral("stalled")
                                << QStringLiteral("stateStalled");
+    // A finished torrent with no peers to upload to is seeding as usual, not stuck.
+    QTest::newRow("stalledUP") << QStringLiteral("stalledUP") << QStringLiteral("seeding")
+                               << QStringLiteral("stateSeeding");
     QTest::newRow("queuedDL") << QStringLiteral("queuedDL") << QStringLiteral("queued")
                               << QStringLiteral("stateQueued");
     QTest::newRow("checkingDL") << QStringLiteral("checkingDL") << QStringLiteral("checking")
@@ -429,6 +435,9 @@ void TestTorrentModel::stateTextAndColourRole_data()
                                << QStringLiteral("stateSeeding");
     QTest::newRow("error") << QStringLiteral("error") << QStringLiteral("error")
                            << QStringLiteral("stateError");
+    QTest::newRow("missingFiles") << QStringLiteral("missingFiles")
+                                  << QStringLiteral("missing files")
+                                  << QStringLiteral("stateError");
     QTest::newRow("nonsense") << QStringLiteral("wat") << QStringLiteral("unknown")
                               << QStringLiteral("stateStopped");
 }
@@ -445,6 +454,68 @@ void TestTorrentModel::stateTextAndColourRole()
     QCOMPARE(t.stateRole(), colourRole);
     if (state != QStringLiteral("wat"))
         QCOMPARE(torrentStateKey(t.state), state);
+}
+
+void TestTorrentModel::etaTextFollowsTheState_data()
+{
+    QTest::addColumn<QString>("state");
+    QTest::addColumn<double>("progress");
+    QTest::addColumn<qint64>("eta");
+    QTest::addColumn<QString>("text");
+
+    const QString dash = QStringLiteral("—");
+    const QString twoForty = Format::etaShort(160);
+    const QString infinity = Format::etaShort(8640000);
+    QTest::newRow("downloading") << QStringLiteral("downloading") << 0.5 << qint64(160) << twoForty;
+    QTest::newRow("forcedDL") << QStringLiteral("forcedDL") << 0.5 << qint64(160) << twoForty;
+    QTest::newRow("stalledDL") << QStringLiteral("stalledDL") << 0.5 << qint64(8640000) << infinity;
+    // The rest keep whatever estimate the server last sent; it no longer means anything.
+    QTest::newRow("error") << QStringLiteral("error") << 0.5 << qint64(985) << dash;
+    QTest::newRow("missingFiles") << QStringLiteral("missingFiles") << 0.5 << qint64(985) << dash;
+    QTest::newRow("stoppedDL") << QStringLiteral("stoppedDL") << 0.5 << qint64(985) << dash;
+    QTest::newRow("queuedDL") << QStringLiteral("queuedDL") << 0.5 << qint64(985) << dash;
+    QTest::newRow("checkingDL") << QStringLiteral("checkingDL") << 0.5 << qint64(985) << dash;
+    QTest::newRow("uploading") << QStringLiteral("uploading") << 1.0 << qint64(0) << dash;
+    // A download at 100 % that has not flipped state yet.
+    QTest::newRow("downloading done") << QStringLiteral("downloading") << 1.0 << qint64(0) << dash;
+}
+
+void TestTorrentModel::etaTextFollowsTheState()
+{
+    QFETCH(QString, state);
+    QFETCH(double, progress);
+    QFETCH(qint64, eta);
+    QFETCH(QString, text);
+
+    QJsonObject json = torrentJson(QStringLiteral("t"), state, progress);
+    json.insert(QStringLiteral("eta"), eta);
+    TorrentModel model;
+    model.applyFullUpdate(QJsonObject{{QStringLiteral("aaaa"), json}});
+    const QModelIndex index = model.index(0, 0);
+    QCOMPARE(index.data(TorrentModel::EtaTextRole).toString(), text);
+    if (text == QStringLiteral("—"))
+        QCOMPARE(index.data(TorrentModel::EtaLongTextRole).toString(), text);
+}
+
+void TestTorrentModel::stateChangeRefreshesTheEtaText()
+{
+    TorrentModel model;
+    model.applyFullUpdate(
+        QJsonObject{{QStringLiteral("aaaa"),
+                     torrentJson(QStringLiteral("a"), QStringLiteral("downloading"), 0.5)}});
+    QSignalSpy changed(&model, &QAbstractItemModel::dataChanged);
+
+    // Only the state moves: the ETA text must still be re-read.
+    model.applyPartial(
+        QJsonObject{{QStringLiteral("aaaa"),
+                     QJsonObject{{QStringLiteral("state"), QStringLiteral("error")}}}},
+        QJsonArray());
+
+    QCOMPARE(changed.count(), 1);
+    const QList<int> roles = changed.first().at(2).value<QList<int>>();
+    QVERIFY(roles.contains(int(TorrentModel::EtaTextRole)));
+    QVERIFY(roles.contains(int(TorrentModel::EtaLongTextRole)));
+    QCOMPARE(model.index(0, 0).data(TorrentModel::EtaTextRole).toString(), QStringLiteral("—"));
 }
 
 QTEST_MAIN(TestTorrentModel)

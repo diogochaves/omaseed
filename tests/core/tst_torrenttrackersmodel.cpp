@@ -38,6 +38,7 @@ class TestTorrentTrackersModel : public QObject
 private Q_SLOTS:
     void hosts_drop_the_protocol_prefix();
     void pseudo_trackers_keep_their_api_names();
+    void a_shared_host_shows_its_ports();
     void status_text_says_what_the_figure_says();
     void the_figure_row_by_row();
     void the_playground_recording();
@@ -57,6 +58,31 @@ void TestTorrentTrackersModel::hosts_drop_the_protocol_prefix()
     // Nothing recognisable comes back untouched rather than empty.
     QCOMPARE(TorrentTrackersModel::hostOf(QStringLiteral("not a url")),
              QStringLiteral("not a url"));
+}
+
+void TestTorrentTrackersModel::a_shared_host_shows_its_ports()
+{
+    auto entry = [](const QString &url) {
+        return QJsonObject{{QStringLiteral("url"), url},
+                           {QStringLiteral("tier"), 0},
+                           {QStringLiteral("status"), int(TrackerStatus::Working)}};
+    };
+    TorrentTrackersModel model;
+    model.applyTrackers(QJsonArray{
+        entry(QStringLiteral("** [DHT] **")),
+        entry(QStringLiteral("http://127.0.0.1:26996/announce")),
+        entry(QStringLiteral("http://127.0.0.1:9/announce")),
+        entry(QStringLiteral("udp://tracker.example.net:1337/announce")),
+    });
+    QCOMPARE(model.count(), 4);
+    QCOMPARE(at(model, 0, TorrentTrackersModel::HostRole).toString(), QStringLiteral("DHT"));
+    QCOMPARE(at(model, 1, TorrentTrackersModel::HostRole).toString(),
+             QStringLiteral("127.0.0.1:26996"));
+    QCOMPARE(at(model, 2, TorrentTrackersModel::HostRole).toString(),
+             QStringLiteral("127.0.0.1:9"));
+    // A host on its own keeps the figure's short form, port or not.
+    QCOMPARE(at(model, 3, TorrentTrackersModel::HostRole).toString(),
+             QStringLiteral("tracker.example.net"));
 }
 
 void TestTorrentTrackersModel::pseudo_trackers_keep_their_api_names()

@@ -245,6 +245,21 @@ TestCase {
         compare(valueSpy.signalArguments[1][1], "magnet");
     }
 
+    // A hash that does not fit breaks at its middle, never two characters over; wide, it
+    // stays on one line. Either way y copies it whole (above).
+    function test_a_hash_that_does_not_fit_breaks_in_half() {
+        const view = testCase.select(testCase.archName);
+        const general = findChild(view, "generalTab");
+        const hashRow = general.rows.findIndex(row => row.key === "Hash v1");
+        const hash = App.details.properties.hashV1;
+        compare(hash.length, 40);
+        const value = findChild(findChild(view, "generalRow_" + hashRow), "generalValue");
+        compare(value.text, hash.slice(0, 20) + "\n" + hash.slice(20));
+
+        view.width = 1400;
+        tryCompare(value, "text", hash);
+    }
+
     // docs/12 G5: a click on a row moves the cursor there and copies the value.
     function test_a_click_on_a_general_row_copies_it() {
         const view = testCase.select(testCase.archName);

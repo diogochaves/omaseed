@@ -2,6 +2,7 @@
 
 #include "core/Format.hpp"
 
+#include <QHash>
 #include <QJsonObject>
 #include <QUrl>
 
@@ -184,6 +185,18 @@ void TorrentTrackersModel::applyTrackers(const QJsonArray &trackers)
         row.nextAnnounce = qint64(entry.value(QStringLiteral("next_announce")).toDouble());
         row.msg = entry.value(QStringLiteral("msg")).toString();
         rows.append(row);
+    }
+
+    // Two announce URLs on one host (a tracker's second port, the swarm's live tracker and
+    // its dead twin) would read the same, so those rows add their port; the rest stay as
+    // the figure draws them.
+    QHash<QString, int> perHost;
+    for (const TorrentTracker &row : std::as_const(rows))
+        ++perHost[row.host];
+    for (TorrentTracker &row : rows) {
+        const int port = row.isPseudo ? -1 : QUrl(row.url).port();
+        if (perHost.value(row.host) > 1 && port > 0)
+            row.host = QStringLiteral("%1:%2").arg(row.host).arg(port);
     }
 
     if (rows == m_rows)

@@ -7,6 +7,8 @@
 // sends them, only shortened to `DHT`, `PeX`, `LSD`; every other row drops the protocol
 // prefix and the path, so `udp://tracker.example.net:1337/announce` reads
 // `tracker.example.net` (the full URL is still in `url`, for the tooltip and for `y` copy).
+// When two rows share a host, those rows keep their port (`127.0.0.1:26996`, `127.0.0.1:9`)
+// so they can be told apart.
 //
 // The figure's Status column carries the reason as well as the state: "working · 27 min",
 // "timed out · retry 4 min". `status` is the API's number; `statusText` is what the column
