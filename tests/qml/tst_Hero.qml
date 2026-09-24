@@ -297,6 +297,24 @@ TestCase {
         verify(squeezedOnce, "the probe never squeezed the server line");
     }
 
+    // KIT-8: the whole server line opens below the hero, not over the line it spells out.
+    function test_the_server_tip_opens_below_the_hero() {
+        const hero = createTemporaryObject(heroComponent, testCase, {
+                                               "serverLine": "home · qBittorrent 5.2.3",
+                                               "serverLineShort": "home"
+                                           });
+        hero.width = Theme.space(1000); // step 1: the tip carries the version
+        const server = findChild(hero, "serverLine");
+        waitForItemPolished(hero.children[0]);
+        mouseMove(server, 2, server.height / 2);
+        tryVerify(() => hero.serverTip.shown, 2000, "the tip never opened");
+        const panel = hero.serverTip.panelItem;
+        const top = panel.mapToItem(hero, 0, 0).y;
+        verify(top >= hero.height, "the tip covers the hero: its top is at " + top);
+        compare(hero.serverTip.text, "home · qBittorrent 5.2.3");
+        mouseMove(testCase, testCase.width - 1, testCase.height - 1);
+    }
+
     function test_step_four_keeps_the_dot_beside_the_mark() {
         const hero = createTemporaryObject(heroComponent, testCase);
         hero.width = Theme.space(500);

@@ -59,6 +59,8 @@ Item {
     readonly property alias altChip: altChip
     /// The `+`, so a test can see how it is drawn.
     readonly property alias addButton: addButton
+    /// The whole-server-line tooltip. It lives on the window's content item, not in the hero.
+    readonly property alias serverTip: serverTip
     property int searchCount: 0
     /// What the field's trailing count prints. Fig. 1 shows the bare count, Fig. 24 shows
     /// "0 of 142"; the caller decides, and the plain count is the default.
@@ -502,13 +504,18 @@ Item {
                                            : root.serverLine
 
         objectName: "serverTip"
+        // Over the whole window rather than the hero (KIT-8): clamped inside a hero one line
+        // tall, the panel had no room below and landed on the very line it spells out.
+        parent: root.Window.window ? root.Window.window.contentItem : root
         z: 5
 
         onWantedChanged: {
-            if (serverTip.wanted)
-                serverTip.showAt(mark.x, root.height, serverTip.fullLine);
-            else
+            if (serverTip.wanted) {
+                const at = root.mapToItem(serverTip, mark.x, root.height);
+                serverTip.showAt(at.x, at.y, serverTip.fullLine);
+            } else {
                 serverTip.hide();
+            }
         }
     }
 
