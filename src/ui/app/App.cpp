@@ -674,7 +674,12 @@ QString App::limitShortText(qint64 bytesPerSecond)
 {
     if (bytesPerSecond <= 0)
         return QStringLiteral("∞");
-    return Format::speedShort(bytesPerSecond).remove(QLatin1Char(' '));
+    return Format::speedCompact(bytesPerSecond);
+}
+
+QString App::speedShortText(qint64 bytesPerSecond)
+{
+    return Format::speedCompact(bytesPerSecond);
 }
 
 // --- end T3.5 -------------------------------------------------------------------------------

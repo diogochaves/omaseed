@@ -58,6 +58,10 @@ QString seedsPeers(int seeds, int peers);
 /// units and no "/s"; bytes per second under 1 KB print as a bare number.
 QString speedShort(qint64 bytesPerSecond);
 
+/// The hero's tightest form, speedShort() without the space: "4.21M", "812K", "0" (docs/15
+/// Q1 A: the ladder's last step prints `↓4.21M ↑812K`, as the alt-speed chip already does).
+QString speedCompact(qint64 bytesPerSecond);
+
 /// A count with the spec's space as the thousands separator: 1264 -> "1 264" (spec §2 Fig. 1
 /// "1 264 × 1 MiB", "1 204 total").
 QString count(qint64 value);
