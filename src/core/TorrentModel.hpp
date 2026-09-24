@@ -14,11 +14,13 @@
 #include "core/Torrent.hpp"
 
 #include <QAbstractListModel>
+#include <QDateTime>
 #include <QHash>
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QList>
 #include <QStringList>
+#include <QTimer>
 
 namespace omaseed::core {
 
@@ -132,6 +134,13 @@ public:
     /// The roles that change when the named JSON key changes, derived roles included.
     static QList<int> rolesForJsonKey(const QString &key);
 
+    /// The texts that say "today" or "yesterday", which a new day changes with no poll.
+    static QList<int> dayRelativeRoles();
+    /// Milliseconds from `now` to just after the next local midnight.
+    static qint64 msecsToNextMidnight(const QDateTime &now);
+    /// One dataChanged over every row for dayRelativeRoles(); the midnight timer calls it.
+    void refreshDayRelativeTexts();
+
 Q_SIGNALS:
     void countChanged();
     /// Emitted once per applyPartial/applyFullUpdate that touched anything, after all the
@@ -140,9 +149,11 @@ Q_SIGNALS:
 
 private:
     void emitRunsFor(const QList<QPair<int, QList<int>>> &touched);
+    void scheduleMidnight();
 
     QList<Torrent> m_rows;
     QHash<QString, int> m_indexByHash;
+    QTimer *m_midnight = nullptr; ///< fires once a day, just after local midnight
 };
 
 } // namespace omaseed::core

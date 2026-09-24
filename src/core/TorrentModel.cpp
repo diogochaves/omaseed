@@ -4,6 +4,7 @@
 
 #include <QJsonValue>
 #include <QSet>
+#include <QTimeZone>
 #include <QVariant>
 
 #include <algorithm>
@@ -88,7 +89,42 @@ const QHash<QString, QList<int>> &keyToRoles()
 
 TorrentModel::TorrentModel(QObject *parent)
     : QAbstractListModel(parent)
-{}
+    , m_midnight(new QTimer(this))
+{
+    // "today 10:41" is only worked out when a row changes; at midnight it has to become
+    // "yesterday 10:41" with nothing from the server to prompt it.
+    m_midnight->setSingleShot(true);
+    m_midnight->setTimerType(Qt::VeryCoarseTimer);
+    connect(m_midnight, &QTimer::timeout, this, [this]() {
+        refreshDayRelativeTexts();
+        scheduleMidnight();
+    });
+    scheduleMidnight();
+}
+
+QList<int> TorrentModel::dayRelativeRoles()
+{
+    return {AddedOnTextRole, AddedOnShortTextRole, CompletionOnTextRole, LastActivityTextRole};
+}
+
+qint64 TorrentModel::msecsToNextMidnight(const QDateTime &now)
+{
+    const QDateTime midnight(now.date().addDays(1), QTime(0, 0), now.timeZone());
+    // A second late, so the new date is already current when the texts are recomputed.
+    return std::max<qint64>(1000, now.msecsTo(midnight) + 1000);
+}
+
+void TorrentModel::scheduleMidnight()
+{
+    m_midnight->start(std::chrono::milliseconds(msecsToNextMidnight(QDateTime::currentDateTime())));
+}
+
+void TorrentModel::refreshDayRelativeTexts()
+{
+    if (m_rows.isEmpty())
+        return;
+    Q_EMIT dataChanged(index(0), index(int(m_rows.size()) - 1), dayRelativeRoles());
+}
 
 int TorrentModel::rowCount(const QModelIndex &parent) const
 {

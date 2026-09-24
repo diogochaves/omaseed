@@ -10,6 +10,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QSignalSpy>
+#include <QTimeZone>
 #include <QTest>
 
 using namespace omaseed::core;
@@ -86,6 +87,7 @@ private slots:
     void partialAppendsUnknownHashes();
     void partialRemovesInContiguousRuns();
     void aHashRemovedTwiceRemovesOneRow();
+    void aNewDayRefreshesTheRelativeTexts();
     void dataChangedIsBatchedPerRun();
     void dataChangedNamesOnlyTheChangedRoles();
     void statusGroupsFollowTheRail();
@@ -296,6 +298,26 @@ void TestTorrentModel::aHashRemovedTwiceRemovesOneRow()
     model.applyPartial(QJsonObject(),
                        QJsonArray({QStringLiteral("bbbb"), QStringLiteral("bbbb")}));
     QCOMPARE(model.hashes(), QStringList({QStringLiteral("aaaa"), QStringLiteral("cccc")}));
+}
+
+void TestTorrentModel::aNewDayRefreshesTheRelativeTexts()
+{
+    const QTimeZone zone = QTimeZone::systemTimeZone();
+    const QDateTime evening(QDate(2026, 9, 23), QTime(23, 59, 0), zone);
+    QCOMPARE(TorrentModel::msecsToNextMidnight(evening), qint64(61000));
+    const QDateTime morning(QDate(2026, 9, 24), QTime(0, 0, 30), zone);
+    QCOMPARE(TorrentModel::msecsToNextMidnight(morning), qint64(86400000 - 30000 + 1000));
+
+    TorrentModel model;
+    model.applyFullUpdate(threeTorrents());
+    QSignalSpy changed(&model, &QAbstractItemModel::dataChanged);
+    model.refreshDayRelativeTexts();
+    QCOMPARE(changed.count(), 1);
+    QCOMPARE(changed.first().at(0).toModelIndex().row(), 0);
+    QCOMPARE(changed.first().at(1).toModelIndex().row(), 2);
+    const auto roles = changed.first().at(2).value<QList<int>>();
+    QVERIFY(roles.contains(TorrentModel::AddedOnTextRole));
+    QVERIFY(roles.contains(TorrentModel::LastActivityTextRole));
 }
 
 void TestTorrentModel::dataChangedIsBatchedPerRun()
