@@ -311,7 +311,11 @@ void TorrentDetails::applyProperties(const QJsonObject &json)
     map.insert(QStringLiteral("pieces"), Format::pieceLayout(piecesNum, number("piece_size")));
     map.insert(QStringLiteral("piecesHave"),
                Format::piecesHave(int(number("pieces_have")), piecesNum));
-    map.insert(QStringLiteral("availability"), Format::ratio(real("availability")));
+    // qBittorrent sends -1 when it has no figure (every seeding torrent does): no row, rather
+    // than a "0.00" that reads as "no peer has the data".
+    const double availability = real("availability");
+    map.insert(QStringLiteral("availability"),
+               availability < 0 ? QString() : Format::ratio(availability));
     map.insert(QStringLiteral("seeds"),
                Format::connectedTotal(int(number("seeds")), int(number("seeds_total"))));
     map.insert(QStringLiteral("peers"),
