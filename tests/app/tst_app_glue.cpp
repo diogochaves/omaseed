@@ -3,7 +3,9 @@
 
 #include "ui/app/App.hpp"
 
+#include <QFile>
 #include <QSignalSpy>
+#include <QThread>
 #include <QTemporaryDir>
 #include <QTest>
 
@@ -22,6 +24,10 @@ private slots:
     void installThatCrashesAnswersOnce();
     void installThatCannotStartAnswersOnce();
     void installThatFailsCarriesItsStderr();
+
+    // APP-5
+    void aTorrentFileIsReadAndHashedOffTheGuiThread();
+    void anUnreadableTorrentFileAnswersWithItsError();
 
 private:
     QTemporaryDir m_dir;
@@ -90,6 +96,45 @@ void TestAppGlue::installThatFailsCarriesItsStderr()
     QCOMPARE(finished.count(), 1);
     QCOMPARE(finished.constFirst().at(0).toBool(), false);
     QCOMPARE(finished.constFirst().at(1).toString(), QStringLiteral("no polkit agent"));
+}
+
+void TestAppGlue::aTorrentFileIsReadAndHashedOffTheGuiThread()
+{
+    App app;
+    QSignalSpy parsed(&app, &App::addableParsed);
+    const QString path = QStringLiteral(OMASEED_FIXTURES_DIR "/single_file_v1.torrent");
+    const QVariantMap first = app.parseAddable(path);
+    QCOMPARE(first.value(QStringLiteral("kind")).toString(), QStringLiteral("file"));
+    QVERIFY(first.value(QStringLiteral("pending")).toBool());
+
+    QVERIFY(parsed.wait(5000));
+    const QVariantMap map = parsed.constFirst().constFirst().toMap();
+    QVERIFY2(map.value(QStringLiteral("valid")).toBool(),
+             qPrintable(map.value(QStringLiteral("error")).toString()));
+    QCOMPARE(map.value(QStringLiteral("token")), first.value(QStringLiteral("token")));
+    QVERIFY(!map.value(QStringLiteral("infoHashV1")).toString().isEmpty());
+    QVERIFY(App::lastTorrentParseThread() != nullptr);
+    QVERIFY(App::lastTorrentParseThread() != QThread::currentThread());
+}
+
+void TestAppGlue::anUnreadableTorrentFileAnswersWithItsError()
+{
+    QTemporaryDir dir;
+    const QString path = dir.path() + QStringLiteral("/locked.torrent");
+    QFile file(path);
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    file.write("d4:infod4:name1:xee");
+    file.close();
+    QVERIFY(QFile::setPermissions(path, QFileDevice::Permissions()));
+
+    App app;
+    QSignalSpy parsed(&app, &App::addableParsed);
+    app.parseAddable(path);
+    QVERIFY(parsed.wait(5000));
+    const QVariantMap map = parsed.constFirst().constFirst().toMap();
+    QVERIFY(!map.value(QStringLiteral("valid")).toBool());
+    QVERIFY(!map.value(QStringLiteral("error")).toString().isEmpty());
+    QFile::setPermissions(path, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
 }
 
 QTEST_MAIN(TestAppGlue)

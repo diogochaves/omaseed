@@ -27,11 +27,13 @@
 #include <QProcessEnvironment>
 #include <QQmlEngine>
 #include <QRegularExpression>
+#include <QThread>
 #include <QThreadPool>
 #include <QTimer>
 #include <QUrl>
 #include <QtGlobal>
 
+#include <atomic>
 #include <chrono>
 
 using namespace omaseed::core;
@@ -1140,21 +1142,15 @@ QVariantMap App::parseAddable(const QString &textIn)
     case integration::Addable::Kind::TorrentFile: {
         const QString token =
             QStringLiteral("file-%1").arg(++m_nextAddableToken, 4, 10, QLatin1Char('0'));
-        QFile file(addable.value);
-        if (!file.open(QIODevice::ReadOnly)) {
-            map[QStringLiteral("kind")] = QStringLiteral("file");
-            map[QStringLiteral("value")] = addable.value;
-            map[QStringLiteral("error")] = tr("cannot read %1").arg(addable.value);
-            return map;
-        }
-        const QByteArray bytes = file.readAll();
-        file.close();
         map[QStringLiteral("kind")] = QStringLiteral("file");
         map[QStringLiteral("value")] = addable.value;
         map[QStringLiteral("token")] = token;
         map[QStringLiteral("pending")] = true;
         map[QStringLiteral("name")] = QFileInfo(addable.value).fileName();
-        parseTorrentBytes(token, QFileInfo(addable.value).fileName(), addable.value, bytes);
+        // Read and parsed off the GUI thread; a file that cannot be read comes back through
+        // addableParsed with its error, like one that does not parse.
+        parseTorrentInBackground(
+            token, QFileInfo(addable.value).fileName(), addable.value, addable.value, QByteArray());
         return map;
     }
     case integration::Addable::Kind::None:
@@ -1168,8 +1164,8 @@ QVariantMap App::parseAddable(const QString &textIn)
 QVariantMap App::torrentFileMap(const QString &token,
                                 const QString &fileName,
                                 const QString &value,
-                                const QByteArray &bytes,
-                                TorrentFile *parsedOut) const
+                                const TorrentFile &parsed,
+                                const QString &error)
 {
     QVariantMap map{
         {QStringLiteral("kind"), QStringLiteral("file")},
@@ -1185,10 +1181,6 @@ QVariantMap App::torrentFileMap(const QString &token,
         {QStringLiteral("fileCount"), 0},
     };
 
-    QString error;
-    const TorrentFile parsed = TorrentFile::parse(bytes, &error);
-    if (parsedOut)
-        *parsedOut = parsed;
     if (!parsed.isValid()) {
         map[QStringLiteral("error")] = error.isEmpty() ? tr("this file is not a .torrent") : error;
         return map;
@@ -1202,27 +1194,59 @@ QVariantMap App::torrentFileMap(const QString &token,
     return map;
 }
 
-void App::parseTorrentBytes(const QString &token,
-                            const QString &fileName,
-                            const QString &value,
-                            const QByteArray &bytes)
+namespace {
+
+/// Bigger than any real .torrent (qBittorrent itself refuses past 100 MiB); a guard against
+/// reading a huge file someone named `.torrent` into memory.
+constexpr qint64 kMaxTorrentFileBytes = 100 * 1024 * 1024;
+
+std::atomic<QThread *> s_lastTorrentParseThread{nullptr};
+
+} // namespace
+
+QThread *App::lastTorrentParseThread()
 {
-    // SHA-1 of a large .torrent is the one piece of parsing worth keeping off the GUI thread
-    // (plan §4 T4.2). QThreadPool rather than QtConcurrent so omaseed-app keeps its current
-    // link line; the hop back is an ordinary queued call onto this object's thread.
+    return s_lastTorrentParseThread.load();
+}
+
+void App::parseTorrentInBackground(const QString &token,
+                                   const QString &fileName,
+                                   const QString &value,
+                                   const QString &path,
+                                   const QByteArray &bytesIn)
+{
+    // Reading, bencode and the SHA-1/SHA-256 of the info dict all run on the pool (plan §4
+    // T4.2). QThreadPool rather than QtConcurrent so omaseed-app keeps its current link line.
+    // The worker touches nothing of App's: it hops back through the application object,
+    // which outlives every App, and only there is the QPointer to App read.
     QPointer<App> self(this);
-    QThreadPool::globalInstance()->start([self, token, fileName, value, bytes]() {
-        if (self.isNull())
+    QThreadPool::globalInstance()->start([self, token, fileName, value, path, bytesIn]() {
+        QByteArray bytes = bytesIn;
+        QString error;
+        TorrentFile parsed;
+        if (!path.isEmpty()) {
+            QFile file(path);
+            if (!file.open(QIODevice::ReadOnly))
+                error = tr("cannot read %1").arg(path);
+            else if (file.size() > kMaxTorrentFileBytes)
+                error = tr("%1 is too large to be a .torrent").arg(path);
+            else
+                bytes = file.readAll();
+        }
+        if (error.isEmpty())
+            parsed = TorrentFile::parse(bytes, &error);
+        s_lastTorrentParseThread.store(QThread::currentThread());
+
+        QCoreApplication *application = QCoreApplication::instance();
+        if (!application)
             return;
         QMetaObject::invokeMethod(
-            self,
-            [self, token, fileName, value, bytes]() {
+            application,
+            [self, token, fileName, value, bytes, parsed, error]() {
                 if (self.isNull())
                     return;
-                TorrentFile parsed;
-                const QVariantMap map =
-                    self->torrentFileMap(token, fileName, value, bytes, &parsed);
-                if (map.value(QStringLiteral("valid")).toBool()) {
+                const QVariantMap map = torrentFileMap(token, fileName, value, parsed, error);
+                if (parsed.isValid()) {
                     self->m_pendingTorrentFiles.insert(
                         token,
                         PendingTorrentFile{fileName, bytes, parsed.files, parsed.torrentId()});
@@ -1243,7 +1267,8 @@ void App::pickTorrentFile()
                                             return; // cancelled
                                         const QString token = QStringLiteral("file-%1").arg(
                                             ++m_nextAddableToken, 4, 10, QLatin1Char('0'));
-                                        parseTorrentBytes(token, fileName, fileName, bytes);
+                                        parseTorrentInBackground(
+                                            token, fileName, fileName, QString(), bytes);
                                     });
 }
 

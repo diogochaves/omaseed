@@ -749,17 +749,27 @@ private:
         QString torrentId;
     };
 
-    /// Parses `bytes` on the global thread pool and emits `addableParsed` back here.
-    void parseTorrentBytes(const QString &token,
-                           const QString &fileName,
-                           const QString &value,
-                           const QByteArray &bytes);
-    /// Turns a finished TorrentFile into the map above and remembers its bytes.
-    QVariantMap torrentFileMap(const QString &token,
-                               const QString &fileName,
-                               const QString &value,
-                               const QByteArray &bytes,
-                               omaseed::core::TorrentFile *parsedOut = nullptr) const;
+    /// Reads `path` (when `bytes` is empty) and parses the .torrent on the global thread pool
+    /// — bencode and both info-hashes, never on the GUI thread (plan §4 T4.2) — then emits
+    /// `addableParsed` back here and remembers the bytes under `token`.
+    void parseTorrentInBackground(const QString &token,
+                                  const QString &fileName,
+                                  const QString &value,
+                                  const QString &path,
+                                  const QByteArray &bytes);
+    /// The addable map for a parsed (or failed) .torrent. Pure: no App state.
+    static QVariantMap torrentFileMap(const QString &token,
+                                      const QString &fileName,
+                                      const QString &value,
+                                      const omaseed::core::TorrentFile &parsed,
+                                      const QString &error);
+
+public:
+    /// The thread that ran the most recent .torrent parse, so a test can check it was not the
+    /// GUI thread.
+    static QThread *lastTorrentParseThread();
+
+private:
     /// After a stopped add: `torrents/filePrio` for each group of `priorities`, then
     /// `torrents/start` unless `keepStopped`, then `addFinished`. A just-added torrent can
     /// take a moment to exist on an older server, so a 404/409 is retried for a few seconds.

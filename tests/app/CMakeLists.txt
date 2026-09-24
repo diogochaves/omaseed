@@ -17,6 +17,7 @@ add_dependencies(tst_demo_offline omaseed)
 omaseed_add_test(tst_app_glue
     SOURCES tst_app_glue.cpp
     LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::Widgets
+    DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
 )
 
 omaseed_add_test(tst_app_notifications
