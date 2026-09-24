@@ -784,6 +784,41 @@ TestCase {
         App.copyToClipboard("omaseed test: nothing to add here");
     }
 
+    // Ruling Q14: y / Y / n copy one line per selected torrent, else the cursor row.
+    function test_copy_takes_the_selection_one_line_each() {
+        const first = App.filtered.hashAt(0);
+        const second = App.filtered.hashAt(1);
+        view.table.selectOnly(0);
+        view.table.toggleSelection(1);
+        compare(view.table.selectedCount, 2);
+        compare(view.actionHashes().length, 2);
+
+        const names = view.copyLines("copyName", view.actionHashes());
+        compare(names.length, 2);
+        verify(names.indexOf(App.torrentRow(first).name) >= 0);
+        verify(names.indexOf(App.torrentRow(second).name) >= 0);
+        const hashes = view.copyLines("copyHash", [first]);
+        compare(hashes, [App.torrentRow(first).infohashV1 || App.torrentRow(first).infohashV2
+                         || first]);
+
+        view.footerNote = "";
+        view.torrentAction("copyName");
+        compare(view.footerNote, "copied 2 names");
+
+        // A torrent with nothing to copy is skipped, and the note says so.
+        view.copyTorrents("copyName", [first, "not-a-torrent"]);
+        compare(view.footerNote, "copied 1 of 2 names");
+        view.copyTorrents("copyName", ["not-a-torrent", "nor-this"]);
+        compare(view.footerNote, "nothing to copy");
+
+        // No selection: the cursor row alone, and a plain "copied".
+        view.table.clearSelection();
+        compare(view.actionHashes(), [view.cursorHash]);
+        view.torrentAction("copyHash");
+        compare(view.footerNote, "copied");
+        App.copyToClipboard("omaseed test: nothing to add here");
+    }
+
     // ---- the `?` sheet closes and runs (review VIEW-8, VIEW-9) ---------------------------
     function test_question_and_f1_close_the_help_sheet_they_opened() {
         keyClick(Qt.Key_Question);

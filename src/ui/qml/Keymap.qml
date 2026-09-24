@@ -42,7 +42,7 @@ QtObject {
     readonly property var columnAbout: ({
                                             "navigate": qsTr("Get around the window without the mouse."),
                                             "select": qsTr("Most actions apply to the selection, or to the cursor row when nothing is selected."),
-                                            "act": qsTr("On the selection, or the cursor row. Copy, open folder and rename take the cursor row."),
+                                            "act": qsTr("On the selection, or the cursor row. Open folder and rename take the cursor row."),
                                             "view": qsTr("What the window shows."),
                                             "app": ""
                                         })
@@ -575,7 +575,7 @@ QtObject {
             "rank": 9,
             "helpKeys": "y Y n",
             "help": qsTr("copy magnet · hash · name"),
-            "about": qsTr("Copy the cursor row's magnet · hash · name")
+            "about": qsTr("Copy the magnet · hash · name, one line per selected torrent")
         },
         {
             "area": "table",
