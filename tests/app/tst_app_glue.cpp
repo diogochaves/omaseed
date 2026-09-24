@@ -64,6 +64,9 @@ private slots:
     // REG-2
     void retryAfterARefusedLoginLogsInOnceMore();
 
+    // APP-11
+    void removingTheLiveServerClearsItsWorld();
+
 private:
     QTemporaryDir m_dir;
     QByteArray m_previousConfigHome;
@@ -286,6 +289,7 @@ public:
     bool requireLogin = false;
     bool refuseLogin = false;
     int logins = 0;
+    int requests = 0;
 
 protected:
     void incomingConnection(qintptr descriptor) override
@@ -309,6 +313,7 @@ protected:
             const QByteArray requestBody = buffer->mid(headerEnd + 4, length);
             const bool hasCookie = buffer->left(headerEnd).contains("SID=ok");
             buffer->clear();
+            ++requests;
             QByteArray status = "200 OK";
             QByteArray extraHeaders;
             QByteArray body = "Ok.";
@@ -442,6 +447,48 @@ void TestAppGlue::retryAfterARefusedLoginLogsInOnceMore()
     qunsetenv("OMASEED_SERVER_URL");
     qunsetenv("OMASEED_USERNAME");
     qunsetenv("OMASEED_PASSWORD");
+}
+
+void TestAppGlue::removingTheLiveServerClearsItsWorld()
+{
+    // Review APP-11: removing the only (live) server must not leave the tray, the global
+    // state or the client on the removed server's world.
+    ToggleServer server;
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    QTemporaryDir home;
+    qputenv("XDG_CONFIG_HOME", home.path().toUtf8());
+    qunsetenv("OMASEED_SERVER_URL");
+
+    App app;
+    omaseed::integration::Tray tray(nullptr);
+    app.attachTray(&tray);
+    app.start();
+    const QString id = app.addServer(
+        QVariantMap{
+            {QStringLiteral("name"), QStringLiteral("gone-soon")},
+            {QStringLiteral("url"), QStringLiteral("http://127.0.0.1:%1").arg(server.serverPort())},
+            {QStringLiteral("authMode"), QStringLiteral("none")},
+        },
+        QString());
+    QVERIFY(!id.isEmpty());
+    QTRY_COMPARE_WITH_TIMEOUT(app.torrents()->count(), 1, 5000);
+    QTRY_VERIFY_WITH_TIMEOUT(app.globalState()->connected(), 5000);
+    QCOMPARE(app.globalState()->serverName(), QStringLiteral("gone-soon"));
+    QVERIFY(tray.tooltip().contains(QStringLiteral("gone-soon")));
+
+    QVERIFY(app.removeServer(id));
+    QVERIFY(!app.hasServer());
+    QCOMPARE(app.torrents()->count(), 0);
+    QVERIFY(!app.globalState()->connected());
+    QVERIFY(app.globalState()->serverName().isEmpty());
+    QVERIFY(app.client()->baseUrl().isEmpty());
+    QVERIFY(!tray.tooltip().contains(QStringLiteral("gone-soon")));
+    QCOMPARE(tray.state(), omaseed::integration::Tray::Disconnected);
+
+    // Nothing polls the removed server afterwards.
+    const int before = server.requests;
+    QTest::qWait(2000);
+    QCOMPARE(server.requests, before);
 }
 
 QTEST_MAIN(TestAppGlue)

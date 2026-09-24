@@ -58,4 +58,12 @@ if(NOT WIN32)
         COMMAND bash "${CMAKE_SOURCE_DIR}/tests/dev/test_theme_hook.sh"
     )
     set_tests_properties(theme_set_hook PROPERTIES TIMEOUT 60 SKIP_RETURN_CODE 77)
+
+    # install-omarchy-extras.sh --menu/--uninstall and install-desktop.sh, with HOME in a
+    # temporary directory: the user's own ~/.config is never touched.
+    add_test(
+        NAME dev_install_extras
+        COMMAND bash "${CMAKE_SOURCE_DIR}/tests/dev/test_install_extras.sh"
+    )
+    set_tests_properties(dev_install_extras PROPERTIES TIMEOUT 60 SKIP_RETURN_CODE 77)
 endif()

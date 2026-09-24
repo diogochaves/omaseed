@@ -2131,6 +2131,8 @@ bool App::removeServer(const QString &id)
         m_engine->setClient(nullptr);
         m_engine->setClient(m_client);
         m_client->clearAuth();
+        m_client->setBaseUrl(QUrl());
+        m_engine->globalState()->setServerName(QString());
         m_serverLost = false;
         m_hasServer = false;
         m_server = Server();

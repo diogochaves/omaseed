@@ -105,15 +105,60 @@ install_menu() {
     row=$(grep -F "${menu_marker}" "${menu_src}")
     local tmp
     tmp="$(mktemp)"
-    # Insert the row (with a marker comment) before the file's last line, which is the
-    # closing "}". Every row in this file already ends its own line with a comma, so a row
-    # inserted immediately before the closing brace is always valid trailing-comma JSONC.
-    head -n -1 "${menu_dest}" > "${tmp}"
-    {
-        echo "  // ---- ${menu_comment} ----"
-        echo "  ${row}"
-        tail -n 1 "${menu_dest}"
-    } >> "${tmp}"
+    # The row goes in before the top-level object's closing brace: the last line that is
+    # only "}" (trailing blank lines or comments after it are kept where they are). The last
+    # entry before it gets a comma if it has none; one that ends in a comment is left alone
+    # and the file is not touched, since a comma cannot be added safely there.
+    if ! awk -v comment="  // ---- ${menu_comment} ----" -v row="  ${row}" '
+        # True when the line has a // or /* outside a string ("https://..." is not one).
+        function has_comment(s,    i, c, in_str) {
+            in_str = 0
+            for (i = 1; i <= length(s); i++) {
+                c = substr(s, i, 1)
+                if (in_str) {
+                    if (c == "\\") i++
+                    else if (c == "\"") in_str = 0
+                } else if (c == "\"") {
+                    in_str = 1
+                } else if (c == "/" && (substr(s, i + 1, 1) == "/" || substr(s, i + 1, 1) == "*")) {
+                    return 1
+                }
+            }
+            return 0
+        }
+        { line[NR] = $0 }
+        /^[[:space:]]*}[[:space:]]*$/ { close_at = NR }
+        END {
+            if (!close_at) { print "no closing brace on a line of its own" > "/dev/stderr"; exit 2 }
+            prev = 0
+            for (i = close_at - 1; i >= 1; i--) {
+                t = line[i]
+                sub(/^[[:space:]]+/, "", t)
+                sub(/[[:space:]]+$/, "", t)
+                if (t == "" || t ~ /^\/\//) continue
+                prev = i
+                break
+            }
+            if (prev) {
+                t = line[prev]
+                sub(/[[:space:]]+$/, "", t)
+                if (has_comment(t) || t ~ /\*\/$/) {
+                    print "the entry before the closing brace ends in a comment" > "/dev/stderr"
+                    exit 2
+                }
+                if (t !~ /[,{]$/) line[prev] = t ","
+            }
+            for (i = 1; i <= NR; i++) {
+                if (i == close_at) { print comment; print row }
+                print line[i]
+            }
+        }
+    ' "${menu_dest}" > "${tmp}"; then
+        rm -f "${tmp}"
+        echo "cannot find where to add the row, leaving ${menu_dest} untouched;" \
+            "add it yourself from ${menu_src}" >&2
+        return
+    fi
     # Written through the existing file (not mv): its inode, mode and any symlink stay the
     # user's; mktemp's 0600 would otherwise replace their permissions.
     cat "${tmp}" > "${menu_dest}"
