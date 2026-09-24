@@ -50,6 +50,9 @@ Item {
     readonly property alias moreMenu: moreMenu
     readonly property alias globalLimitsSheet: globalLimitsSheet
     readonly property alias renameSheetPanel: renameSheetPanel
+    // ruling Q4: the Trackers/Peers tabs' `a` and the Peers tab's `b`
+    readonly property alias detailsAddSheet: detailsAddSheet
+    readonly property alias banPeerConfirm: banPeerConfirm
     // T4.8: the rest of the overlays, for the stacking and focus cases of `tst_Main`.
     readonly property alias addSheet: addSheet
     readonly property alias duplicateSheet: duplicateSheet
@@ -90,6 +93,10 @@ Item {
             return helpSheetPanel;
         if (renameSheetPanel.opened)
             return renameSheetPanel;
+        if (detailsAddSheet.opened)
+            return detailsAddSheet;
+        if (banPeerConfirm.opened)
+            return banPeerConfirm;
         if (limitsSheetPanel.opened)
             return limitsSheetPanel;
         if (globalLimitsSheet.opened)
@@ -409,9 +416,9 @@ Item {
     }
 
     /// The Trackers and Peers tabs' keys (Fig. 3/4). `R` reannounces the torrent (the API has
-    /// no per-tracker reannounce) and `d` removes the tracker under the cursor. Adding a
-    /// tracker or a peer needs an input sheet and banning a peer is a permanent IP ban; both
-    /// wait for a design (review VIEW-6), so they say so instead of doing nothing.
+    /// no per-tracker reannounce) and `d` removes the tracker under the cursor. `a` opens the
+    /// input sheet for trackers or peers, and `b` bans the peer under the cursor once the
+    /// confirm dialog has said the ban is permanent and global (ruling Q4, review VIEW-6).
     function detailsRowAction(kind: string, action: string, value: string): void {
         const hash = App.details.hash;
         if (hash.length === 0)
@@ -425,8 +432,11 @@ Item {
                 return;
             App.removeTracker(hash, value);
             root.flashFooterNote(qsTr("removed %1").arg(value));
-        } else {
-            root.flashFooterNote(qsTr("not in this version yet"));
+        } else if (action === "add") {
+            detailsAddSheet.openFor(kind, hash);
+        } else if (kind === "peer" && action === "ban") {
+            if (value.length > 0)
+                banPeerConfirm.openFor(value);
         }
     }
 
@@ -1445,6 +1455,20 @@ Item {
 
     RenameSheet {
         id: renameSheetPanel
+
+        anchors.fill: parent
+        z: 9
+    }
+
+    DetailsAddSheet {
+        id: detailsAddSheet
+
+        anchors.fill: parent
+        z: 9
+    }
+
+    BanPeerConfirm {
+        id: banPeerConfirm
 
         anchors.fill: parent
         z: 9

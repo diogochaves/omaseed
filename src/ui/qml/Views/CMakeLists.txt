@@ -11,6 +11,7 @@ qt_add_qml_module(omaseed-views
         ActionsMenu.qml
         AddFilesTree.qml
         AddSheet.qml
+        BanPeerConfirm.qml
         CategoryPalette.qml
         ChipSelect.qml
         ColumnsPalette.qml
@@ -22,6 +23,7 @@ qt_add_qml_module(omaseed-views
         DemoStates.qml
         DemoTorrents.qml
         Details.qml
+        DetailsAddSheet.qml
         DetailsCell.qml
         DetailsFilesTab.qml
         DetailsGeneralRow.qml

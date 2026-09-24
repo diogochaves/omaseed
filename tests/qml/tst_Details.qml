@@ -335,6 +335,19 @@ TestCase {
                                                                           "enter change"]);
     }
 
+    // Ruling Q4: Fig. 3/4's `a` add and `b` ban are built, so the pane teaches them again.
+    function test_trackers_and_peers_teach_add_and_ban() {
+        const view = testCase.select(testCase.archName);
+        const hints = findChild(view, "detailsHints");
+        view.activateTab(2);
+        compare(hints.model.map(hint => hint.key + " " + hint.label), ["a add", "d remove",
+                                                                          "R reannounce", "y copy"]);
+        view.activateTab(3);
+        compare(hints.model.map(hint => hint.key + " " + hint.label), ["b ban", "a add peer",
+                                                                          "y copy"]);
+        view.activateTab(0);
+    }
+
     // docs/12 G2: the demo fills every new row, so `--demo` shows them all.
     function test_the_demo_fills_the_docs12_rows() {
         testCase.select(testCase.archName);

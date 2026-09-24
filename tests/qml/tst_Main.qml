@@ -39,6 +39,13 @@ TestCase {
     }
 
     SignalSpy {
+        id: quitSpy
+
+        signalName: "quitRequested"
+        target: view
+    }
+
+    SignalSpy {
         id: actionSpy
 
         signalName: "torrentActionRequested"
@@ -64,6 +71,8 @@ TestCase {
         view.locationSheetPanel.close();
         view.limitsSheetPanel.close();
         view.renameSheetPanel.close();
+        view.detailsAddSheet.close();
+        view.banPeerConfirm.close();
         view.jumpPalette.close();
         view.categoryPalette.close();
         view.tagPalette.close();
@@ -807,18 +816,113 @@ TestCase {
         compare(addSpy.count, 1, "the details pane swallowed the window's `a`");
     }
 
-    function test_tracker_keys_act_and_the_unbuilt_ones_say_so() {
+    function test_tracker_keys_act() {
         testCase._cursorOn("Big Buck Bunny 4K (CC-BY)");
         view.details.activateTab(2);
         view.details.forceActiveFocus();
         keyClick(Qt.Key_R, Qt.ShiftModifier);
         compare(view.footerNote, "reannounced");
+        view.details.activateTab(0);
+    }
+
+    // ---- ruling Q4: the add sheet and the ban confirm ---------------------------------------
+    function _type(text) {
+        for (const c of text)
+            keyClick(c);
+    }
+
+    function test_a_in_trackers_opens_the_add_sheet_and_checks_the_urls() {
+        testCase._cursorOn("Big Buck Bunny 4K (CC-BY)");
+        view.details.activateTab(2);
+        view.details.forceActiveFocus();
         keyClick("a");
-        compare(view.footerNote, "not in this version yet");
-        compare(addSpy.count, 0, "`a` in Trackers opened the add sheet");
+        compare(addSpy.count, 0, "`a` in Trackers opened the add-torrent sheet");
+        compare(view.detailsAddSheet.opened, true);
+        compare(view.detailsAddSheet.kind, "tracker");
+        compare(view.detailsAddSheet.hash, App.details.hash);
+        verify(view.detailsAddSheet.field.editing, "the field does not have the caret");
+
+        testCase._type("tracker.example/announce");
+        keyClick(Qt.Key_Return);
+        compare(view.detailsAddSheet.opened, true, "a URL without a scheme was sent");
+        compare(view.detailsAddSheet.errorText,
+                "tracker.example/announce is not a tracker URL");
+
+        // esc cancels on the first press (a form sheet), and the pane gets the keyboard back.
+        keyClick(Qt.Key_Escape);
+        compare(view.detailsAddSheet.opened, false);
+        tryVerify(() => view.details.activeFocus, 1000, "the pane lost the keyboard");
+
+        keyClick("a");
+        compare(view.detailsAddSheet.errorText, "", "the last error came back");
+        compare(view.detailsAddSheet.field.text, "");
+        keyClick(Qt.Key_Return);
+        compare(view.detailsAddSheet.opened, true, "an empty field was sent");
+        verify(view.detailsAddSheet.errorText.length > 0);
+        testCase._type("udp://a.example:1337/announce https://b.example/announce");
+        compare(view.detailsAddSheet.errorText, "", "typing did not clear the error");
+        keyClick(Qt.Key_Return);
+        compare(view.detailsAddSheet.opened, false);
+        view.details.activateTab(0);
+    }
+
+    function test_a_in_peers_opens_the_add_sheet_for_host_and_port() {
+        testCase._cursorOn("Big Buck Bunny 4K (CC-BY)");
         view.details.activateTab(3);
+        view.details.forceActiveFocus();
+        keyClick("a");
+        compare(view.detailsAddSheet.opened, true);
+        compare(view.detailsAddSheet.kind, "peer");
+        compare(view.detailsAddSheet.title, "Add peers");
+
+        testCase._type("203.0.113.5");
+        keyClick(Qt.Key_Return);
+        compare(view.detailsAddSheet.errorText, "203.0.113.5 is not a host:port");
+        view.detailsAddSheet.field.text = "";
+        testCase._type("203.0.113.5:6881, [2001:db8::1]:51413");
+        keyClick(Qt.Key_Return);
+        compare(view.detailsAddSheet.opened, false);
+        view.details.activateTab(0);
+    }
+
+    function test_ctrl_q_quits_from_the_add_sheet() {
+        view.details.activateTab(2);
+        view.details.forceActiveFocus();
+        keyClick("a");
+        compare(view.detailsAddSheet.opened, true);
+        quitSpy.clear();
+        keyClick(Qt.Key_Q, Qt.ControlModifier);
+        compare(quitSpy.count, 1, "ctrl+q was swallowed by the sheet");
+        view.detailsAddSheet.close();
+        view.details.activateTab(0);
+    }
+
+    function test_b_in_peers_asks_before_a_permanent_ban() {
+        testCase._cursorOn("Big Buck Bunny 4K (CC-BY)");
+        view.details.activateTab(3);
+        view.details.forceActiveFocus();
+        tryVerify(() => App.details.peers.rowCount() > 0, 2000, "the demo torrent has no peers");
+        const address = App.details.peers.addressAt(view.details.peersCursor);
         keyClick("b");
-        compare(view.footerNote, "not in this version yet");
+        compare(view.banPeerConfirm.opened, true, "`b` banned without asking");
+        compare(view.banPeerConfirm.address, address);
+        verify(view.banPeerConfirm.subtitle.indexOf("permanent") >= 0);
+        verify(view.banPeerConfirm.subtitle.indexOf("every torrent") >= 0);
+        compare(view.banPeerConfirm.cursor, 0, "a ban must open on cancel");
+
+        quitSpy.clear();
+        keyClick(Qt.Key_Q, Qt.ControlModifier);
+        compare(quitSpy.count, 1, "ctrl+q was swallowed by the confirm");
+
+        keyClick(Qt.Key_Escape);
+        compare(view.banPeerConfirm.opened, false);
+        tryVerify(() => view.details.activeFocus, 1000, "the pane lost the keyboard");
+
+        // Confirmed: the demo App logs "demo: ban peer 1" instead of calling a server.
+        keyClick("b");
+        keyClick(Qt.Key_L);
+        keyClick(Qt.Key_Return);
+        compare(view.banPeerConfirm.opened, false);
         view.details.activateTab(0);
     }
 

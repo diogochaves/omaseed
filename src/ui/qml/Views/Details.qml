@@ -939,9 +939,12 @@ Item {
                                     "label": Keymap.labelOf("details", "/")
                                 }
                             ];
-                // Fig. 3/4's `a` add and `b` ban are not built yet (review VIEW-6).
                 if (root.currentTab === 2)
                     return [
+                                {
+                                    "key": "a",
+                                    "label": qsTr("add")
+                                },
                                 {
                                     "key": "d",
                                     "label": qsTr("remove")
@@ -956,6 +959,14 @@ Item {
                                 }
                             ];
                 return [
+                            {
+                                "key": "b",
+                                "label": qsTr("ban")
+                            },
+                            {
+                                "key": "a",
+                                "label": qsTr("add peer")
+                            },
                             {
                                 "key": "y",
                                 "label": qsTr("copy")
