@@ -172,6 +172,36 @@ TestCase {
         compare(view.deleteConfirmPanel.body.children[0].checked, true);
     }
 
+    // Review VER: flipping the toggle and cancelling leaves the remembered default alone; a
+    // confirmed delete with the toggle flipped remembers it, and `D`'s forced "on" does not.
+    function test_the_toggle_is_remembered_only_on_a_confirmed_delete() {
+        const confirm = view.deleteConfirmPanel;
+        const toggle = confirm.body.children[0];
+        App.deleteFilesDefault = false;
+
+        confirm.openFor([], false);
+        toggle.checked = true;
+        toggle.toggled();
+        confirm.cancel();
+        compare(App.deleteFilesDefault, false, "a cancelled flip was remembered");
+
+        confirm.openFor([], true); // `D`
+        confirm.confirm();
+        compare(App.deleteFilesDefault, false, "D's forced toggle was remembered");
+
+        confirm.openFor([], false);
+        toggle.checked = true;
+        toggle.toggled();
+        confirm.confirm();
+        compare(App.deleteFilesDefault, true);
+
+        confirm.openFor([], true);
+        toggle.checked = false;
+        toggle.toggled();
+        confirm.confirm();
+        compare(App.deleteFilesDefault, false);
+    }
+
     // Batch-2 J7: the title counts, the line under it names the torrent and its size once.
     function test_delete_confirm_names_a_single_torrent() {
         const hash = hashByName("Elephants Dream 1080p (CC-BY)");
