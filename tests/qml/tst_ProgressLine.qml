@@ -37,6 +37,18 @@ TestCase {
         compare(line._percentText, "48.9%");
     }
 
+    // KIT-15: what rounds to 100 reads "100%", like Format::percentCompact, never "100.0%".
+    function test_just_under_one_reads_like_one_hundred_not_one_hundred_point_zero() {
+        const line = createTemporaryObject(progressComponent, testCase, {
+                                               "value": 0.9996
+                                           });
+        compare(line._percentText, "100%");
+        line.value = 0.99999;
+        compare(line._percentText, "100%");
+        line.value = 0.9994;
+        compare(line._percentText, "99.9%");
+    }
+
     function test_percent_text_is_100_percent_at_full() {
         const line = createTemporaryObject(progressComponent, testCase, {
                                                "value": 1
