@@ -730,6 +730,16 @@ TestCase {
         view.table.visibleColumns = before;
     }
 
+    // ---- review RUN-7: an empty value is not "copied" -----------------------------------
+    function test_copying_nothing_does_not_say_copied() {
+        view.footerNote = "";
+        view.copyText("", "copied");
+        compare(view.footerNote, "nothing to copy");
+        view.copyText("fixture", "copied name");
+        compare(view.footerNote, "copied name");
+        App.copyToClipboard("omaseed test: nothing to add here");
+    }
+
     // ---- the `?` sheet closes and runs (review VIEW-8, VIEW-9) ---------------------------
     function test_question_and_f1_close_the_help_sheet_they_opened() {
         keyClick(Qt.Key_Question);
