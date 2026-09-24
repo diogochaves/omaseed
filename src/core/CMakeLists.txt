@@ -21,6 +21,8 @@ qt_add_library(omaseed-core STATIC
     MagnetLink.hpp
     PathMap.cpp
     PathMap.hpp
+    PeerInput.cpp
+    PeerInput.hpp
     Paths.cpp
     Paths.hpp
     PieceStates.cpp

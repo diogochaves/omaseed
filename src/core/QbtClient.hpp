@@ -53,6 +53,9 @@
 //   POST torrents/recheck               torrentsRecheck(hashes)
 //   POST torrents/reannounce            torrentsReannounce(hashes)
 //   POST torrents/removeTrackers        torrentsRemoveTrackers(hash, urls)
+//   POST torrents/addTrackers           torrentsAddTrackers(hash, urls)  -- urls one per line
+//   POST torrents/addPeers              torrentsAddPeers(hashes, peers)  -- both '|'-joined
+//   POST transfer/banPeers              transferBanPeers(peers)          -- '|'-joined host:port
 //   POST torrents/setCategory           torrentsSetCategory(hashes, category)
 //   POST torrents/createCategory        torrentsCreateCategory(name, savePath)
 //   POST torrents/editCategory          torrentsEditCategory(name, savePath)
@@ -223,6 +226,14 @@ public:
     QbtReply<QByteArray> *torrentsReannounce(const QStringList &hashes);
     /// POST torrents/removeTrackers: one torrent, `urls` joined with '|'.
     QbtReply<QByteArray> *torrentsRemoveTrackers(const QString &hash, const QStringList &urls);
+    /// POST torrents/addTrackers: one torrent, `urls` joined with a newline (sent as %0A).
+    QbtReply<QByteArray> *torrentsAddTrackers(const QString &hash, const QStringList &urls);
+    /// POST torrents/addPeers: `hashes` and `peers` (`host:port`, `[v6]:port`) each joined
+    /// with '|'.
+    QbtReply<QByteArray> *torrentsAddPeers(const QStringList &hashes, const QStringList &peers);
+    /// POST transfer/banPeers: `peers` (`host:port`) joined with '|'. The ban is qBittorrent's
+    /// global IP filter: every torrent, until removed in its settings.
+    QbtReply<QByteArray> *transferBanPeers(const QStringList &peers);
 
     QbtReply<QByteArray> *torrentsSetCategory(const QStringList &hashes, const QString &category);
     QbtReply<QByteArray> *torrentsCreateCategory(const QString &name,

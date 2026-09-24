@@ -954,6 +954,29 @@ QbtReply<QByteArray> *QbtClient::torrentsRemoveTrackers(const QString &hash,
     return post(QStringLiteral("torrents/removeTrackers"), form);
 }
 
+QbtReply<QByteArray> *QbtClient::torrentsAddTrackers(const QString &hash, const QStringList &urls)
+{
+    QUrlQuery form;
+    addItem(form, QStringLiteral("hash"), hash);
+    addItem(form, QStringLiteral("urls"), urls.join(QLatin1Char('\n')));
+    return post(QStringLiteral("torrents/addTrackers"), form);
+}
+
+QbtReply<QByteArray> *QbtClient::torrentsAddPeers(const QStringList &hashes,
+                                                  const QStringList &peers)
+{
+    QUrlQuery form = hashesForm(hashes);
+    addItem(form, QStringLiteral("peers"), peers.join(QLatin1Char('|')));
+    return post(QStringLiteral("torrents/addPeers"), form);
+}
+
+QbtReply<QByteArray> *QbtClient::transferBanPeers(const QStringList &peers)
+{
+    QUrlQuery form;
+    addItem(form, QStringLiteral("peers"), peers.join(QLatin1Char('|')));
+    return post(QStringLiteral("transfer/banPeers"), form);
+}
+
 QbtReply<QByteArray> *QbtClient::torrentsSetCategory(const QStringList &hashes,
                                                      const QString &category)
 {

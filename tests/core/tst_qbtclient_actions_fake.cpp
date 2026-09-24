@@ -156,7 +156,74 @@ private slots:
     void a409OnActionMapsToConflict();
     void setPreferencesSendsOnlyTheChangedKeysAsJson();
     void removeTrackersSendsTheHashAndPipedUrls();
+    void addTrackersSendsOneUrlPerLine();
+    void addPeersSendsPipedHashesAndPeers();
+    void banPeersSendsPipedPeers();
 };
+
+void TestQbtClientActionsFake::addTrackersSendsOneUrlPerLine()
+{
+    FakeServer server;
+    server.setHandler([](const Recorded &, int) { return httpResponse(200, "OK", ""); });
+
+    QbtClient client;
+    client.setBaseUrl(server.url());
+
+    const QbtResult<QByteArray> result = await(
+        this,
+        client.torrentsAddTrackers(QStringLiteral("h1"),
+                                   QStringList{QStringLiteral("udp://a.example:1337/announce"),
+                                               QStringLiteral("https://b.example/a?k=1&p=2")}));
+    QVERIFY2(!result.isError(), qPrintable(result.error().toString()));
+    QCOMPARE(server.requests.size(), 1);
+    QCOMPARE(server.requests.at(0).target, QByteArrayLiteral("/api/v2/torrents/addTrackers"));
+    // The newline goes out as %0A, and the second URL's own '&' and '=' stay inside `urls`.
+    QVERIFY(server.requests.at(0).body.contains("announce%0Ahttps"));
+    const QUrlQuery body(QString::fromUtf8(server.requests.at(0).body));
+    QCOMPARE(body.queryItemValue(QStringLiteral("hash"), QUrl::FullyDecoded), QStringLiteral("h1"));
+    QCOMPARE(body.queryItemValue(QStringLiteral("urls"), QUrl::FullyDecoded),
+             QStringLiteral("udp://a.example:1337/announce\nhttps://b.example/a?k=1&p=2"));
+}
+
+void TestQbtClientActionsFake::addPeersSendsPipedHashesAndPeers()
+{
+    FakeServer server;
+    server.setHandler([](const Recorded &, int) { return httpResponse(200, "OK", ""); });
+
+    QbtClient client;
+    client.setBaseUrl(server.url());
+
+    const QbtResult<QByteArray> result =
+        await(this,
+              client.torrentsAddPeers(QStringList{QStringLiteral("h1"), QStringLiteral("h2")},
+                                      QStringList{QStringLiteral("10.0.0.2:6881"),
+                                                  QStringLiteral("[2001:db8::1]:51413")}));
+    QVERIFY2(!result.isError(), qPrintable(result.error().toString()));
+    QCOMPARE(server.requests.at(0).target, QByteArrayLiteral("/api/v2/torrents/addPeers"));
+    const QUrlQuery body(QString::fromUtf8(server.requests.at(0).body));
+    QCOMPARE(body.queryItemValue(QStringLiteral("hashes"), QUrl::FullyDecoded),
+             QStringLiteral("h1|h2"));
+    QCOMPARE(body.queryItemValue(QStringLiteral("peers"), QUrl::FullyDecoded),
+             QStringLiteral("10.0.0.2:6881|[2001:db8::1]:51413"));
+}
+
+void TestQbtClientActionsFake::banPeersSendsPipedPeers()
+{
+    FakeServer server;
+    server.setHandler([](const Recorded &, int) { return httpResponse(200, "OK", ""); });
+
+    QbtClient client;
+    client.setBaseUrl(server.url());
+
+    const QbtResult<QByteArray> result =
+        await(this, client.transferBanPeers(QStringList{QStringLiteral("10.0.0.2:6881")}));
+    QVERIFY2(!result.isError(), qPrintable(result.error().toString()));
+    QCOMPARE(server.requests.at(0).method, QByteArray("POST"));
+    QCOMPARE(server.requests.at(0).target, QByteArrayLiteral("/api/v2/transfer/banPeers"));
+    const QUrlQuery body(QString::fromUtf8(server.requests.at(0).body));
+    QCOMPARE(body.queryItemValue(QStringLiteral("peers"), QUrl::FullyDecoded),
+             QStringLiteral("10.0.0.2:6881"));
+}
 
 void TestQbtClientActionsFake::removeTrackersSendsTheHashAndPipedUrls()
 {
