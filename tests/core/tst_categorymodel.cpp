@@ -28,6 +28,7 @@ private slots:
     void rolesCarryNameAndSavePath();
     void partialAddsAndRemoves();
     void partialSavePathChangeKeepsTheRows();
+    void partialWithoutSavePathKeepsIt();
     void clearEmptiesIt();
 };
 
@@ -106,6 +107,27 @@ void TestCategoryModel::partialSavePathChangeKeepsTheRows()
     QCOMPARE(reset.count(), 0);
     QCOMPARE(changed.first().at(2).value<QList<int>>(),
              QList<int>({int(CategoryModel::SavePathRole)}));
+}
+
+// NET-2: qBittorrent's partial `categories` entry holds only the changed keys. Editing just
+// the download path sends {"movies": {"download_path": "/x"}}, with no savePath and no name.
+void TestCategoryModel::partialWithoutSavePathKeepsIt()
+{
+    CategoryModel model;
+    model.applyFullUpdate(QJsonObject{
+        {QStringLiteral("movies"), category(QStringLiteral("movies"), QStringLiteral("/data/m"))}});
+
+    QSignalSpy changed(&model, &QAbstractItemModel::dataChanged);
+    QSignalSpy reset(&model, &QAbstractItemModel::modelReset);
+    model.applyPartial(
+        QJsonObject{{QStringLiteral("movies"),
+                     QJsonObject{{QStringLiteral("download_path"), QStringLiteral("/x")}}}},
+        QJsonArray());
+
+    QCOMPARE(model.names(), QStringList({QStringLiteral("movies")}));
+    QCOMPARE(model.savePathOf(QStringLiteral("movies")), QStringLiteral("/data/m"));
+    QCOMPARE(changed.count(), 0);
+    QCOMPARE(reset.count(), 0);
 }
 
 void TestCategoryModel::clearEmptiesIt()

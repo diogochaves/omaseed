@@ -20,19 +20,14 @@ Rectangle {
     signal rightClicked
     signal doubleClicked
 
-    // The spec derives this from `color-mix(in srgb, var(--fg) 5%, transparent)`; it has no
-    // named Theme role of its own, so it is kept here as the one place that alpha is spelled
-    // out.
-    readonly property real rowHairlineAlpha: 0.05
     readonly property bool both: root.selected && root.hasCursor
     readonly property color textColor: root.selected ? Theme.brightForeground : Theme.foreground
 
     border.color: root.hasCursor && !root.both ? Theme.fill(Theme.borderHover) : "transparent"
     border.width: root.hasCursor && !root.both ? 1 : 0
-    color: root.both ? Theme.fill(0.24) : root.selected ? Theme.fill(Theme.fillSelected) :
-                                                          root.hasCursor ? Theme.fill(
-                                                                               Theme.fillHover) :
-                                                                           "transparent"
+    color: root.both ? Theme.fill(Theme.fillSelectedCursor)
+                     : root.selected ? Theme.fill(Theme.fillSelected)
+                                     : root.hasCursor ? Theme.fill(Theme.fillHover) : "transparent"
     height: Theme.rowHeight
     implicitHeight: Theme.rowHeight
 
@@ -52,7 +47,7 @@ Rectangle {
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.right: parent.right
-        color: Theme.fill(root.rowHairlineAlpha)
+        color: Theme.fill(Theme.rowRuleAlpha)
         height: 1
     }
 

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QDBusConnection>
 #include <QFileSystemWatcher>
 #include <QHash>
 #include <QObject>
@@ -59,10 +60,12 @@ public:
     /// Re-read everything now and emit changed() if anything actually differs.
     Q_INVOKABLE void reload();
 
-    /// Put a `Reload()` method on the session bus at AppIdentity::dbusThemeObjectPath() so
-    /// the theme-set hook can poke us without waiting out the debounce. The application
-    /// calls this once; tests leave it alone. False when there is no session bus.
-    bool exportToDBus();
+    /// Put a `Reload()` method at AppIdentity::dbusThemeObjectPath() on `connection` so the
+    /// theme-set hook can poke us without waiting out the debounce. The hook addresses the
+    /// app's well-known name, and the bus delivers that to the connection owning the name, so
+    /// this must be SingleInstance::connection(). Never claims a name itself. False when the
+    /// connection is not connected or the path is taken.
+    bool exportToDBus(QDBusConnection connection);
 
     // ---- the pure parts, so the tests can hit them without a filesystem ----------------
 

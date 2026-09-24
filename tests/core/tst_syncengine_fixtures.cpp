@@ -173,7 +173,10 @@ private slots:
     void ridStartsAtZeroAndFollowsTheServer();
     void onlyOnePollInFlight();
     void cadenceFollowsVisibility();
-    void completionIsAnnouncedOnceAndNeverOnFullUpdates();
+    void completionIsAnnouncedOnceAndNeverOnTheFirstFullUpdate();
+    void aCompletionSeenOnlyInALaterFullUpdateIsAnnounced();
+    void aCompletionAfterARestartIsAnnounced();
+    void aStalePollIsNotAppliedAfterAServerSwitch();
     void aTorrentAddedAndFinishedBetweenPollsIsAnnounced();
     void trackerErrorFlagReachesTheRowWithoutANotice();
     void diskAlmostFullFiresOncePerCrossing();
@@ -368,12 +371,12 @@ void TestSyncEngineFixtures::cadenceFollowsVisibility()
     engine.stop();
 }
 
-void TestSyncEngineFixtures::completionIsAnnouncedOnceAndNeverOnFullUpdates()
+void TestSyncEngineFixtures::completionIsAnnouncedOnceAndNeverOnTheFirstFullUpdate()
 {
     FixtureServer server;
     QVERIFY(server.start());
     // full, completion, then the same completion again (the engine must stay quiet), then a
-    // fresh full update (which must never announce anything).
+    // fresh full update where the torrent is incomplete again (nothing to announce).
     server.setMainData({m_full, m_completion, m_completion, m_full});
 
     QbtClient client;
@@ -397,6 +400,135 @@ void TestSyncEngineFixtures::completionIsAnnouncedOnceAndNeverOnFullUpdates()
     QCOMPARE(args.at(2).toLongLong(), 1404304589);
     QCOMPARE(args.at(3).toString(), QStringLiteral("fixtures"));
     QVERIFY(args.at(4).toString().endsWith(QStringLiteral("fixture-one")));
+}
+
+// NET-6: a lost server (or one that forgot our rid) answers with a full update. A torrent
+// that finished during the gap must still be announced; only the very first full update
+// is silent.
+void TestSyncEngineFixtures::aCompletionSeenOnlyInALaterFullUpdateIsAnnounced()
+{
+    const QString hash = QStringLiteral("4a4e3b1d2d0c1a8d1e6a9f0b3c2d4e5f6a7b8c9d");
+    QJsonObject later = QJsonDocument::fromJson(m_full).object();
+    QJsonObject torrents = later.value(QStringLiteral("torrents")).toObject();
+    QJsonObject row = torrents.value(hash).toObject();
+    row.insert(QStringLiteral("progress"), 1);
+    row.insert(QStringLiteral("completion_on"), 1789834338);
+    row.insert(QStringLiteral("downloaded"), 1412693197);
+    row.insert(QStringLiteral("state"), QStringLiteral("uploading"));
+    torrents.insert(hash, row);
+    later.insert(QStringLiteral("torrents"), torrents);
+    later.insert(QStringLiteral("rid"), 9);
+
+    FixtureServer server;
+    QVERIFY(server.start());
+    server.setMainData({m_full, QJsonDocument(later).toJson(QJsonDocument::Compact)});
+
+    QbtClient client;
+    client.setBaseUrl(server.url());
+    SyncEngine engine;
+    engine.setClient(&client);
+    engine.setIntervals(std::chrono::milliseconds(10),
+                        std::chrono::milliseconds(10),
+                        std::chrono::milliseconds(10),
+                        std::chrono::milliseconds(10));
+
+    QSignalSpy completed(&engine, &SyncEngine::torrentCompleted);
+    engine.start();
+    QVERIFY(waitFor([&] { return server.mainDataRequests >= 4; }));
+    engine.stop();
+
+    QCOMPARE(completed.count(), 1); // once, not once per repeated full update
+    QCOMPARE(completed.first().at(0).toString(), hash);
+}
+
+// REG-5: stop() and start() again (App::retryNow after authRequired) keep the rows, so the
+// full update that follows still announces what finished while the engine was stopped.
+void TestSyncEngineFixtures::aCompletionAfterARestartIsAnnounced()
+{
+    const QString hash = QStringLiteral("4a4e3b1d2d0c1a8d1e6a9f0b3c2d4e5f6a7b8c9d");
+    QJsonObject later = QJsonDocument::fromJson(m_full).object();
+    QJsonObject torrents = later.value(QStringLiteral("torrents")).toObject();
+    QJsonObject row = torrents.value(hash).toObject();
+    row.insert(QStringLiteral("progress"), 1);
+    row.insert(QStringLiteral("completion_on"), 1789834338);
+    row.insert(QStringLiteral("downloaded"), 1412693197);
+    row.insert(QStringLiteral("state"), QStringLiteral("uploading"));
+    torrents.insert(hash, row);
+    later.insert(QStringLiteral("torrents"), torrents);
+    later.insert(QStringLiteral("rid"), 9);
+
+    FixtureServer server;
+    QVERIFY(server.start());
+    server.setMainData({m_full});
+
+    QbtClient client;
+    client.setBaseUrl(server.url());
+    SyncEngine engine;
+    engine.setClient(&client);
+    engine.setIntervals(std::chrono::milliseconds(10000),
+                        std::chrono::milliseconds(10000),
+                        std::chrono::milliseconds(10000),
+                        std::chrono::milliseconds(10000));
+    QSignalSpy completed(&engine, &SyncEngine::torrentCompleted);
+    QSignalSpy firstSync(&engine, &SyncEngine::firstSyncFinished);
+
+    engine.start();
+    QVERIFY(firstSync.wait(5000));
+    engine.stop();
+    QCOMPARE(completed.count(), 0);
+
+    // The download finishes while the engine is stopped; the restart polls from rid 0.
+    server.setMainData({QJsonDocument(later).toJson(QJsonDocument::Compact)});
+    const int before = server.mainDataRequests;
+    engine.start();
+    QVERIFY(waitFor([&] { return server.mainDataRequests > before && engine.rid() == 9; }));
+    engine.stop();
+
+    QCOMPARE(completed.count(), 1);
+    QCOMPARE(completed.first().at(0).toString(), hash);
+}
+
+// NET-4 / APP-1: App switches servers on one client with stop(), setClient(nullptr),
+// setClient(client), then a new base URL and start(). The old server's poll, still in
+// flight, must never land in the new server's models.
+void TestSyncEngineFixtures::aStalePollIsNotAppliedAfterAServerSwitch()
+{
+    FixtureServer oldServer;
+    QVERIFY(oldServer.start());
+    oldServer.setMainData({m_full});
+    oldServer.setDelayMs(300);
+    FixtureServer newServer;
+    QVERIFY(newServer.start());
+    newServer.setMainData(
+        {QByteArrayLiteral(R"({"rid":7,"full_update":true,"torrents":{},"server_state":{}})")});
+
+    QbtClient client;
+    client.setBaseUrl(oldServer.url());
+    SyncEngine engine;
+    engine.setClient(&client);
+    engine.setIntervals(std::chrono::milliseconds(10000),
+                        std::chrono::milliseconds(10000),
+                        std::chrono::milliseconds(10000),
+                        std::chrono::milliseconds(10000));
+    QSignalSpy firstSync(&engine, &SyncEngine::firstSyncFinished);
+
+    engine.start();
+    QVERIFY(waitFor([&] { return oldServer.mainDataRequests == 1; }));
+
+    engine.stop();
+    engine.setClient(nullptr);
+    engine.setClient(&client);
+    client.clearAuth();
+    client.setBaseUrl(newServer.url());
+    engine.start();
+
+    QVERIFY(waitFor([&] { return firstSync.count() == 1; }));
+    spin(500); // past the old server's answer
+    QCOMPARE(firstSync.count(), 1);
+    QCOMPARE(engine.torrents()->count(), 0);
+    QCOMPARE(engine.rid(), 7);
+    QCOMPARE(newServer.seenRids, QList<int>({0}));
+    engine.stop();
 }
 
 void TestSyncEngineFixtures::aTorrentAddedAndFinishedBetweenPollsIsAnnounced()
@@ -539,6 +671,9 @@ void TestSyncEngineFixtures::serverLostOnceThenBackWithAFullUpdate()
     QVERIFY(waitFor([&] { return back.count() == 1; }));
     QCOMPARE(engine.torrents()->count(), 4);
     QCOMPARE(engine.globalState()->connected(), true);
+    // NET-7: the probe failed at start; it is retried, so the versions are known now.
+    QCOMPARE(engine.globalState()->serverVersion(), QStringLiteral("v5.2.3"));
+    QCOMPARE(engine.globalState()->apiVersion(), QStringLiteral("2.15.1"));
     QCOMPARE(server.seenRids.first(), 0);
     engine.stop();
 }

@@ -52,6 +52,7 @@ ctest --test-dir build --output-on-failure        # unit + qml tests
 QT_QPA_PLATFORM=offscreen ./build/omaseed --help  # headless smoke
 ./build/omaseed                                   # real run under Hyprland
 qmllint src/ui/qml/**/*.qml && qmlformat -i <file>
+scripts/dev/shellcheck.sh                          # every tracked shell script (also ctest -R shellcheck)
 scripts/dev/test-server.sh start|stop|status|reset|seed [--strict]
 scripts/dev/swarm.sh start|seed|status|break CASE|fix|reset|stop   # offline swarm: real downloads on :8081
 scripts/dev/swarm-walk.sh [OUT] | --interactive   # every torrent state, shown in the app in an omabox
@@ -72,6 +73,9 @@ Theme switch test: `omarchy-theme-set <name>` changes the live theme; put it bac
   parent ownership, `QStringLiteral`, no exceptions across Qt boundaries.
 - QML: one component per file, `Kit/` components take only `Theme` tokens, views take models.
   `required property` for model data. No `Component.onCompleted` hacks for layout.
+- Shell is shellcheck-clean (`scripts/dev/shellcheck.sh`, `.shellcheckrc`). Point each
+  non-constant `source` at its file with `# shellcheck source=…`; any other exception is a
+  per-line `# shellcheck disable=SCxxxx # reason`, never a behaviour change.
 - Tests before UI: every `core` class ships with a QtTest. Kit components ship a
   `tst_<Name>.qml`.
 - The user (Diogo) is often away. Do not stop to ask about things the plan already decides.

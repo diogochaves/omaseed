@@ -23,6 +23,7 @@ namespace {
 Q_LOGGING_CATEGORY(lcQbt, "omaseed.qbt")
 
 constexpr auto kApiPrefix = "/api/v2/";
+constexpr int kMaxRetriesCap = 10;
 
 /// QUrlQuery stores items already percent-encoded, so every value goes through this.
 void addItem(QUrlQuery &query, const QString &key, const QString &value)
@@ -95,6 +96,36 @@ QString contentLayoutName(QbtClient::ContentLayout layout)
     return QStringLiteral("Original");
 }
 
+/// A ratio limit as plain decimal text. QString::number's default ('g', 6 significant
+/// digits) turns 1.2345678 into 1.23457 and 1234567.5 into 1.23457e+06.
+QString ratioText(double ratio)
+{
+    QString text = QString::number(ratio, 'f', 4);
+    if (text.contains(QLatin1Char('.'))) {
+        while (text.endsWith(QLatin1Char('0')))
+            text.chop(1);
+        if (text.endsWith(QLatin1Char('.')))
+            text.chop(1);
+    }
+    return text;
+}
+
+/// A multipart filename qBittorrent can read: it ignores the name anyway, and quotes, CR/LF
+/// or non-Latin-1 characters would break the header (Qt sends it as Latin-1).
+QString safeUploadName(const QString &fileName)
+{
+    QString out;
+    out.reserve(fileName.size());
+    for (const QChar c : fileName) {
+        const char16_t u = c.unicode();
+        if (u < 0x20 || u >= 0x7f || u == u'"' || u == u'\\')
+            out += QLatin1Char('_');
+        else
+            out += c;
+    }
+    return out.isEmpty() ? QStringLiteral("upload.torrent") : out;
+}
+
 void addBoolItem(QUrlQuery &query, const QString &key, bool value)
 {
     addItem(query, key, value ? QStringLiteral("true") : QStringLiteral("false"));
@@ -125,7 +156,7 @@ void applyAddOptions(QUrlQuery &form, const QbtClient::AddOptions &options)
     if (options.dlLimit)
         addItem(form, QStringLiteral("dlLimit"), QString::number(*options.dlLimit));
     if (options.ratioLimit)
-        addItem(form, QStringLiteral("ratioLimit"), QString::number(*options.ratioLimit));
+        addItem(form, QStringLiteral("ratioLimit"), ratioText(*options.ratioLimit));
     if (options.seedingTimeLimit)
         addItem(
             form, QStringLiteral("seedingTimeLimit"), QString::number(*options.seedingTimeLimit));
@@ -192,7 +223,13 @@ QUrl QbtClient::baseUrl() const
 
 void QbtClient::setBaseUrl(const QUrl &baseUrl)
 {
+    if (m_baseUrl == baseUrl)
+        return;
     m_baseUrl = baseUrl;
+    // Every job builds its URL when it is sent, so anything still queued, waiting for a
+    // login or backing off would otherwise go to the new server with the old server's
+    // intent (a delete, a setLocation, a torrent id). Drop it all instead.
+    cancelAll();
 }
 
 void QbtClient::setApiKey(const QString &apiKey)
@@ -207,12 +244,19 @@ bool QbtClient::hasApiKey() const
 
 void QbtClient::setCredentials(const QString &username, const QString &password)
 {
+    // Whoever sets credentials (again) wants them tried: lift the "server said no" latch.
+    m_loginRejected = false;
     if (m_username == username && m_password == password)
         return;
     m_username = username;
     m_password = password;
     // A different credential means any session cookie we hold is the wrong one.
     m_nam->setCookieJar(new QNetworkCookieJar());
+}
+
+void QbtClient::allowLoginAgain()
+{
+    m_loginRejected = false;
 }
 
 bool QbtClient::hasCredentials() const
@@ -225,7 +269,10 @@ void QbtClient::clearAuth()
     m_apiKey.clear();
     m_username.clear();
     m_password.clear();
+    m_loginRejected = false;
     m_nam->setCookieJar(new QNetworkCookieJar());
+    // Queued work was built for the identity just forgotten; see setBaseUrl().
+    cancelAll();
     setAuthState(AuthState::Unknown);
 }
 
@@ -251,7 +298,8 @@ int QbtClient::maxRetries() const
 
 void QbtClient::setMaxRetries(int retries)
 {
-    m_maxRetries = qMax(0, retries);
+    // Capped so the doubling back-off (1 << attempt) can never overflow.
+    m_maxRetries = qBound(0, retries, kMaxRetriesCap);
 }
 
 std::chrono::milliseconds QbtClient::retryBackoff() const
@@ -337,8 +385,12 @@ void QbtClient::pump()
 void QbtClient::send(const JobPtr &job)
 {
     QNetworkRequest request(endpointUrl(job->spec.path, job->spec.query));
-    const QByteArray origin =
-        m_baseUrl.toString(QUrl::RemovePath | QUrl::RemoveQuery | QUrl::RemoveFragment).toUtf8();
+    // RemoveUserInfo: a URL typed as http://user:pass@host must not leak the password
+    // into every Origin/Referer header.
+    const QByteArray origin = m_baseUrl
+                                  .toString(QUrl::RemoveUserInfo | QUrl::RemovePath |
+                                            QUrl::RemoveQuery | QUrl::RemoveFragment)
+                                  .toUtf8();
     request.setRawHeader("Referer", origin);
     request.setRawHeader("Origin", origin);
     request.setHeader(QNetworkRequest::UserAgentHeader,
@@ -349,9 +401,13 @@ void QbtClient::send(const JobPtr &job)
 
     QNetworkReply *networkReply = nullptr;
     if (job->spec.verb == QLatin1String("POST")) {
-        if (job->spec.multiPart) {
-            // QNetworkAccessManager sets its own Content-Type (with the boundary) for us.
-            networkReply = m_nam->post(request, job->spec.multiPart.get());
+        if (job->spec.buildMultiPart) {
+            // A fresh body per attempt, owned by the reply that sends it, so the one-shot
+            // re-login retry can resend it. QNetworkAccessManager sets its own Content-Type
+            // (with the boundary) for us.
+            QHttpMultiPart *multiPart = job->spec.buildMultiPart();
+            networkReply = m_nam->post(request, multiPart);
+            multiPart->setParent(networkReply);
         } else {
             request.setHeader(QNetworkRequest::ContentTypeHeader,
                               QStringLiteral("application/x-www-form-urlencoded"));
@@ -385,13 +441,25 @@ void QbtClient::onJobReplyFinished(const JobPtr &job)
     ++job->attempt;
 
     ApiError error = mapError(job, status, reason);
-    if (!error.isError() && job->spec.isLogin) {
-        // 5.x answers 204; older builds answer 200 with "Ok." or "Fails.".
-        const QByteArray trimmed = body.trimmed();
-        if (!trimmed.isEmpty() && trimmed != QByteArrayLiteral("Ok.")) {
-            error = ApiError(ApiError::Kind::Unauthorized,
-                             QStringLiteral("auth/login: %1").arg(firstLine(body)),
-                             status);
+    if (job->spec.isLogin) {
+        if (!error.isError()) {
+            // 5.x answers 204; older builds answer 200 with "Ok." or "Fails.".
+            const QByteArray trimmed = body.trimmed();
+            if (!trimmed.isEmpty() && trimmed != QByteArrayLiteral("Ok.")) {
+                error = ApiError(ApiError::Kind::Unauthorized,
+                                 QStringLiteral("auth/login: %1").arg(firstLine(body)),
+                                 status);
+            }
+        }
+        // qBittorrent bans the client IP after a handful of failed logins (5 by default,
+        // for an hour), so once the server has said no we stop logging in by ourselves
+        // until someone hands us credentials again.
+        if (!error.isError())
+            m_loginRejected = false;
+        else if (error.kind() == ApiError::Kind::Unauthorized ||
+                 error.kind() == ApiError::Kind::Forbidden) {
+            m_loginRejected = true;
+            m_loginRejectedKind = error.kind();
         }
     }
 
@@ -405,7 +473,7 @@ void QbtClient::onJobReplyFinished(const JobPtr &job)
     const bool authFailure =
         error.kind() == ApiError::Kind::Unauthorized || error.kind() == ApiError::Kind::Forbidden;
     if (authFailure && !job->spec.isLogin && !job->relogged && hasCredentials() &&
-        job->spec.allowReloginRetry) {
+        !m_loginRejected && job->spec.allowReloginRetry) {
         job->relogged = true;
         m_waitingForLogin.append(job);
         qCDebug(lcQbt) << "auth failure on" << job->spec.path << "- logging in and retrying";
@@ -413,12 +481,27 @@ void QbtClient::onJobReplyFinished(const JobPtr &job)
         pump();
         return;
     }
+    if (authFailure && !job->spec.isLogin && !job->relogged && hasCredentials() &&
+        m_loginRejected && job->spec.allowReloginRetry) {
+        // The re-login this call would have made is held back because the server already
+        // refused the credential. Answer as that login did (a wrong password stays
+        // Unauthorized / NeedsCredential), not with the bare 403 an unauthenticated call gets.
+        error = ApiError(m_loginRejectedKind,
+                         QStringLiteral("%1 %2: sign-in was refused, not retried")
+                             .arg(job->spec.verb, job->spec.path),
+                         error.httpStatus());
+    }
 
     if (error.isTransient() && job->spec.retryOnTransient && job->attempt <= m_maxRetries) {
         const auto delay = m_retryBackoff * (1 << (job->attempt - 1));
         qCDebug(lcQbt) << "retrying" << job->spec.path << "attempt" << job->attempt + 1 << "in"
                        << delay.count() << "ms";
+        // Parked in m_backingOff so abort()/cancelAll() can still find it; a job cancelled
+        // meanwhile is gone from the list and the timer does nothing.
+        m_backingOff.append(job);
         QTimer::singleShot(delay, this, [this, job]() {
+            if (!m_backingOff.removeOne(job))
+                return;
             m_queued.prepend(job);
             pump();
         });
@@ -477,7 +560,8 @@ void QbtClient::cancelJob(const JobPtr &job)
     const ApiError cancelled(
         ApiError::Kind::Cancelled,
         QStringLiteral("%1 %2: cancelled").arg(job->spec.verb, job->spec.path));
-    if (m_queued.removeOne(job) || m_waitingForLogin.removeOne(job)) {
+    if (m_queued.removeOne(job) || m_waitingForLogin.removeOne(job) ||
+        m_backingOff.removeOne(job)) {
         finishJob(job, QByteArray(), cancelled);
         pump();
         return;
@@ -492,7 +576,7 @@ void QbtClient::cancelJob(const JobPtr &job)
 
 void QbtClient::cancelAll()
 {
-    const QList<JobPtr> jobs = m_queued + m_waitingForLogin + m_active;
+    const QList<JobPtr> jobs = m_queued + m_waitingForLogin + m_backingOff + m_active;
     for (const JobPtr &job : jobs)
         cancelJob(job);
 }
@@ -528,6 +612,15 @@ void QbtClient::onLoginFinished(const ApiError &error)
     m_loginInFlight = false;
     const QList<JobPtr> waiting = m_waitingForLogin;
     m_waitingForLogin.clear();
+
+    if (error.kind() == ApiError::Kind::Cancelled) {
+        // cancelAll() or the destructor dropped the login: that says nothing about the
+        // credentials, so the auth state stays as it was.
+        for (const JobPtr &job : waiting)
+            finishJob(job, QByteArray(), error);
+        pump();
+        return;
+    }
 
     if (error.isError()) {
         setAuthState(error.kind() == ApiError::Kind::Forbidden ? AuthState::Forbidden
@@ -790,15 +883,24 @@ QbtReply<ServerInfo> *QbtClient::probe()
             guard->complete(QbtResult<ServerInfo>(*info));
     };
 
-    appVersion()->then(this, [info, step](const QbtResult<QString> &result) {
-        if (result.isValid())
-            info->version = result.value();
-        step(result.error());
-    });
-    webApiVersion()->then(this, [info, step](const QbtResult<QString> &result) {
-        if (result.isValid())
-            info->apiVersion = result.value();
-        step(result.error());
+    QPointer<QbtReplyBase> versionReply =
+        appVersion()->then(this, [info, step](const QbtResult<QString> &result) {
+            if (result.isValid())
+                info->version = result.value();
+            step(result.error());
+        });
+    QPointer<QbtReplyBase> apiReply =
+        webApiVersion()->then(this, [info, step](const QbtResult<QString> &result) {
+            if (result.isValid())
+                info->apiVersion = result.value();
+            step(result.error());
+        });
+    // abort() on the probe drops both halves; the first Cancelled finishes the probe.
+    connect(reply, &QbtReplyBase::abortRequested, this, [versionReply, apiReply]() {
+        if (!versionReply.isNull())
+            versionReply->abort();
+        if (!apiReply.isNull())
+            apiReply->abort();
     });
     return reply;
 }
@@ -841,6 +943,15 @@ QbtReply<QByteArray> *QbtClient::torrentsRecheck(const QStringList &hashes)
 QbtReply<QByteArray> *QbtClient::torrentsReannounce(const QStringList &hashes)
 {
     return post(QStringLiteral("torrents/reannounce"), hashesForm(hashes));
+}
+
+QbtReply<QByteArray> *QbtClient::torrentsRemoveTrackers(const QString &hash,
+                                                        const QStringList &urls)
+{
+    QUrlQuery form;
+    addItem(form, QStringLiteral("hash"), hash);
+    addItem(form, QStringLiteral("urls"), urls.join(QLatin1Char('|')));
+    return post(QStringLiteral("torrents/removeTrackers"), form);
 }
 
 QbtReply<QByteArray> *QbtClient::torrentsSetCategory(const QStringList &hashes,
@@ -974,7 +1085,7 @@ QbtClient::torrentsSetShareLimits(const QStringList &hashes,
                                   std::optional<ShareLimitAction> shareLimitAction)
 {
     QUrlQuery form = hashesForm(hashes);
-    addItem(form, QStringLiteral("ratioLimit"), QString::number(ratioLimit));
+    addItem(form, QStringLiteral("ratioLimit"), ratioText(ratioLimit));
     addItem(form, QStringLiteral("seedingTimeLimit"), QString::number(seedingTimeLimit));
     addItem(form,
             QStringLiteral("inactiveSeedingTimeLimit"),
@@ -1090,29 +1201,35 @@ QbtReply<QByteArray> *QbtClient::torrentsAddFile(const QString &fileName,
                                                  const QByteArray &bytes,
                                                  const AddOptions &options)
 {
-    auto *multiPart = new QHttpMultiPart(QHttpMultiPart::FormDataType);
-
-    QHttpPart filePart;
-    filePart.setHeader(QNetworkRequest::ContentTypeHeader,
-                       QStringLiteral("application/x-bittorrent"));
-    filePart.setHeader(
-        QNetworkRequest::ContentDispositionHeader,
-        QStringLiteral("form-data; name=\"torrents\"; filename=\"%1\"").arg(fileName));
-    filePart.setBody(bytes);
-    multiPart->append(filePart);
-
     QUrlQuery optionsForm;
     applyAddOptions(optionsForm, options);
     const QList<QPair<QString, QString>> items = optionsForm.queryItems(QUrl::FullyDecoded);
-    for (const auto &[key, value] : items) {
-        QHttpPart part;
-        part.setHeader(QNetworkRequest::ContentDispositionHeader,
-                       QStringLiteral("form-data; name=\"%1\"").arg(key));
-        part.setBody(value.toUtf8());
-        multiPart->append(part);
-    }
+    const QString uploadName = safeUploadName(fileName);
 
-    return postMultipart(QStringLiteral("torrents/add"), multiPart);
+    // Built again for every attempt (see postMultipart), from values captured by copy.
+    auto build = [uploadName, bytes, items]() {
+        auto *multiPart = new QHttpMultiPart(QHttpMultiPart::FormDataType);
+
+        QHttpPart filePart;
+        filePart.setHeader(QNetworkRequest::ContentTypeHeader,
+                           QStringLiteral("application/x-bittorrent"));
+        filePart.setHeader(
+            QNetworkRequest::ContentDispositionHeader,
+            QStringLiteral("form-data; name=\"torrents\"; filename=\"%1\"").arg(uploadName));
+        filePart.setBody(bytes);
+        multiPart->append(filePart);
+
+        for (const auto &[key, value] : items) {
+            QHttpPart part;
+            part.setHeader(QNetworkRequest::ContentDispositionHeader,
+                           QStringLiteral("form-data; name=\"%1\"").arg(key));
+            part.setBody(value.toUtf8());
+            multiPart->append(part);
+        }
+        return multiPart;
+    };
+
+    return postMultipart(QStringLiteral("torrents/add"), std::move(build));
 }
 
 QbtReply<QByteArray> *QbtClient::transferSetDownloadLimit(qint64 bytesPerSec)
@@ -1129,14 +1246,14 @@ QbtReply<QByteArray> *QbtClient::transferSetUploadLimit(qint64 bytesPerSec)
     return post(QStringLiteral("transfer/setUploadLimit"), form);
 }
 
-QbtReply<QByteArray> *QbtClient::postMultipart(const QString &path, QHttpMultiPart *multiPart)
+QbtReply<QByteArray> *QbtClient::postMultipart(const QString &path,
+                                               std::function<QHttpMultiPart *()> buildMultiPart)
 {
     RequestSpec spec;
     spec.verb = QStringLiteral("POST");
     spec.path = path;
     spec.retryOnTransient = false;
-    spec.allowReloginRetry = false;
-    spec.multiPart = std::shared_ptr<QHttpMultiPart>(multiPart);
+    spec.buildMultiPart = std::move(buildMultiPart);
     return submit<QByteArray>(std::move(spec),
                               [](const QByteArray &body) { return QbtResult<QByteArray>(body); });
 }

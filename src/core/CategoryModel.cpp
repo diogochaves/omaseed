@@ -106,10 +106,15 @@ void CategoryModel::applyPartial(const QJsonObject &changed, const QJsonArray &r
         const auto found = std::find_if(next.begin(), next.end(), [&category](const Category &c) {
             return c.name == category.name;
         });
-        if (found != next.end())
-            *found = category;
-        else
+        if (found == next.end()) {
             next.append(category);
+            continue;
+        }
+        // A partial update carries only the keys that changed (e.g. just `download_path`):
+        // a field it leaves out keeps its old value rather than falling back to empty.
+        const QJsonObject object = it.value().toObject();
+        if (object.contains(QStringLiteral("savePath")))
+            found->savePath = category.savePath;
     }
     setCategories(std::move(next));
 }

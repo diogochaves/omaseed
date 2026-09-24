@@ -37,6 +37,7 @@ hypr_dest="${HOME}/.config/hypr/omaseed.lua"
 menu_src="${data_dir}/omarchy-menu.jsonc"
 menu_dest="${HOME}/.config/omarchy/extensions/omarchy-menu.jsonc"
 menu_marker="\"torrents\":"
+menu_comment="omaseed T1.8 (scripts/dev/install-omarchy-extras.sh --menu)"
 
 mode="install"
 do_menu=0
@@ -45,7 +46,7 @@ for arg in "$@"; do
         --uninstall) mode="uninstall" ;;
         --menu) do_menu=1 ;;
         -h | --help)
-            sed -n '2,25p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+            sed -n '2,/^set -e/p' "${BASH_SOURCE[0]}" | sed '$d' | sed 's/^# \{0,1\}//'
             exit 0
             ;;
         *)
@@ -104,24 +105,81 @@ install_menu() {
     row=$(grep -F "${menu_marker}" "${menu_src}")
     local tmp
     tmp="$(mktemp)"
-    # Insert the row (with a marker comment) before the file's last line, which is the
-    # closing "}". Every row in this file already ends its own line with a comma, so a row
-    # inserted immediately before the closing brace is always valid trailing-comma JSONC.
-    head -n -1 "${menu_dest}" > "${tmp}"
-    {
-        echo "  // ---- omaseed T1.8 (scripts/dev/install-omarchy-extras.sh --menu) ----"
-        echo "  ${row}"
-        tail -n 1 "${menu_dest}"
-    } >> "${tmp}"
-    mv "${tmp}" "${menu_dest}"
+    # The row goes in before the top-level object's closing brace: the last line that is
+    # only "}" (trailing blank lines or comments after it are kept where they are). The last
+    # entry before it gets a comma if it has none; one that ends in a comment is left alone
+    # and the file is not touched, since a comma cannot be added safely there.
+    if ! awk -v comment="  // ---- ${menu_comment} ----" -v row="  ${row}" '
+        # True when the line has a // or /* outside a string ("https://..." is not one).
+        function has_comment(s,    i, c, in_str) {
+            in_str = 0
+            for (i = 1; i <= length(s); i++) {
+                c = substr(s, i, 1)
+                if (in_str) {
+                    if (c == "\\") i++
+                    else if (c == "\"") in_str = 0
+                } else if (c == "\"") {
+                    in_str = 1
+                } else if (c == "/" && (substr(s, i + 1, 1) == "/" || substr(s, i + 1, 1) == "*")) {
+                    return 1
+                }
+            }
+            return 0
+        }
+        { line[NR] = $0 }
+        /^[[:space:]]*}[[:space:]]*$/ { close_at = NR }
+        END {
+            if (!close_at) { print "no closing brace on a line of its own" > "/dev/stderr"; exit 2 }
+            prev = 0
+            for (i = close_at - 1; i >= 1; i--) {
+                t = line[i]
+                sub(/^[[:space:]]+/, "", t)
+                sub(/[[:space:]]+$/, "", t)
+                if (t == "" || t ~ /^\/\//) continue
+                prev = i
+                break
+            }
+            if (prev) {
+                t = line[prev]
+                sub(/[[:space:]]+$/, "", t)
+                if (has_comment(t) || t ~ /\*\/$/) {
+                    print "the entry before the closing brace ends in a comment" > "/dev/stderr"
+                    exit 2
+                }
+                if (t !~ /[,{]$/) line[prev] = t ","
+            }
+            for (i = 1; i <= NR; i++) {
+                if (i == close_at) { print comment; print row }
+                print line[i]
+            }
+        }
+    ' "${menu_dest}" > "${tmp}"; then
+        rm -f "${tmp}"
+        echo "cannot find where to add the row, leaving ${menu_dest} untouched;" \
+            "add it yourself from ${menu_src}" >&2
+        return
+    fi
+    # Written through the existing file (not mv): its inode, mode and any symlink stay the
+    # user's; mktemp's 0600 would otherwise replace their permissions.
+    cat "${tmp}" > "${menu_dest}"
+    rm -f "${tmp}"
     echo "appended menu row to: ${menu_dest}"
 }
 
+# Removes the marker comment and the one row right after it (the row install_menu wrote),
+# nothing else: a "torrents" row the user added themselves elsewhere in the file stays.
 uninstall_menu() {
-    if [[ -f "${menu_dest}" ]] && grep -q "omaseed T1.8 (scripts/dev/install-omarchy-extras.sh --menu)" "${menu_dest}"; then
-        grep -v -e "omaseed T1.8 (scripts/dev/install-omarchy-extras.sh --menu)" -e "${menu_marker}" \
-            "${menu_dest}" > "${menu_dest}.tmp"
-        mv "${menu_dest}.tmp" "${menu_dest}"
+    if [[ -f "${menu_dest}" ]] && grep -qF "${menu_comment}" "${menu_dest}"; then
+        local tmp
+        tmp="$(mktemp)"
+        awk -v comment="${menu_comment}" -v marker="${menu_marker}" '
+            skip && index($0, marker) { skip = 0; next }
+            { skip = 0 }
+            index($0, comment) { skip = 1; next }
+            { print }
+        ' "${menu_dest}" > "${tmp}"
+        cat "${tmp}" > "${menu_dest}"
+        rm -f "${tmp}"
         echo "removed menu row from: ${menu_dest}"
     fi
 }

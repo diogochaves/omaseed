@@ -67,7 +67,7 @@ Item {
                     anchors.bottom: parent.bottom
                     anchors.left: parent.left
                     anchors.right: parent.right
-                    color: Theme.fill(0.06)
+                    color: Theme.fill(Theme.keyValueRuleAlpha)
                     height: 1
                 }
             }

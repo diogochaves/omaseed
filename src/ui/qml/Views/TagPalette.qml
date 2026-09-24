@@ -20,7 +20,8 @@ Palette {
     /// The tags checked when `enter` was pressed, as a list of names.
     signal chosen(var tags)
 
-    footerRight: qsTr("new name creates it")
+    footerRight: root._commaInQuery ? qsTr("\",\" cannot be part of a tag") : qsTr(
+                                          "new name creates it")
     glyph: Glyphs.tag
     hints: [
         {
@@ -45,6 +46,9 @@ Palette {
     /// Bumped by `_toggle()` so `_rows` (a plain read of `_state`) re-evaluates: QML cannot
     /// see through a mutation of a JS object held in a property.
     property int _rev: 0
+    /// The Web API sends tags as one comma-separated list, so qBittorrent would split a
+    /// name with a comma into two tags (review RUN-3): such a query offers no create row.
+    readonly property bool _commaInQuery: root.query.indexOf(",") >= 0
 
     readonly property var _rows: {
         void root._rev; // dependency: re-run whenever a toggle bumps it
@@ -52,6 +56,8 @@ Palette {
         // `tags()` call itself (see JumpPalette's `items` for why that matters here).
         void App.tags.count;
         const q = root.query;
+        // qBittorrent trims a new tag's name; the create row names what it will get.
+        const created = q.trim();
         const rows = [];
         const names = App.tags.tags();
         // In choice mode a tag the caller already carries may not be on the server yet (it
@@ -73,10 +79,10 @@ Palette {
                 "key": name
             });
         }
-        if (q.length > 0 && names.indexOf(q) < 0)
+        if (created.length > 0 && names.indexOf(created) < 0 && !root._commaInQuery)
             rows.push({
-                "title": qsTr("create \"%1\"").arg(q),
-                "key": q,
+                "title": qsTr("create \"%1\"").arg(created),
+                "key": created,
                 "isCreate": true
             });
         return rows;

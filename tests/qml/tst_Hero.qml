@@ -212,6 +212,155 @@ TestCase {
         verify(hero.addButton.visible);
     }
 
+    // The right edge of the rightmost thing the row draws, against the row's own width.
+    function overflow(hero) {
+        const row = hero.children[0];
+        let right = 0;
+        for (const child of row.children) {
+            if (child.visible && child.width > 0)
+                right = Math.max(right, child.x + child.width);
+        }
+        return right - row.width;
+    }
+
+    // KIT-5: the filter chips (shown while the rail is hidden) count in the ladder and fold to
+    // glyph and ✕ from step 3, so `+` and ⋯ never leave the window with a chip up.
+    function test_filter_chips_never_push_the_buttons_out() {
+        const hero = createTemporaryObject(heroComponent, testCase, {
+                                               "downSpeed": "12.3 MB/s",
+                                               "upSpeed": "999.9 KB/s",
+                                               "altSpeedActive": true,
+                                               "altDownLimit": "10.0 MB/s",
+                                               "altUpLimit": "1.00 MB/s",
+                                               "altDownLimitShort": "10.0M",
+                                               "altUpLimitShort": "1.00M",
+                                               "serverLine": "home · qBittorrent 5.2.3",
+                                               "serverLineShort": "home"
+                                           });
+        const sets = [[], [{
+                               "key": "category",
+                               "glyph": Glyphs.folder,
+                               "text": "linux-isos"
+                           }], [{
+                                    "key": "category",
+                                    "glyph": Glyphs.folder,
+                                    "text": "linux-isos"
+                                }, {
+                                    "key": "tag",
+                                    "glyph": Glyphs.tag,
+                                    "text": "archive-2026"
+                                }]];
+        const over = [];
+        for (const chips of sets) {
+            hero.filterChips = chips;
+            for (const w of [1400, 1286, 1100, 1000, 900, 800, 700, 600, 540, 480]) {
+                for (const open of [false, true]) {
+                    hero.width = Theme.space(w);
+                    hero.searchOpen = open;
+                    waitForItemPolished(hero.children[0]);
+                    verify(hero.level < 3 || hero.chipsFolded);
+                    // Step 4 is the ladder's last: what gives there with chips up is still
+                    // Diogo's call (docs/QUESTIONS.md), so only steps 0–3 must fit.
+                    if (hero.level < 4 && overflow(hero) > 0.5)
+                        over.push(chips.length + " chips at " + w + (open ? " open" : "") + ", level "
+                                  + hero.level + ": " + Math.round(overflow(hero)) + " px over");
+                }
+            }
+        }
+        hero.searchOpen = false;
+        compare(over, []);
+    }
+
+    // Review VER-6: three chips at a wide window (1 276 px at base 14) folded the chips, the
+    // filter and the server line although the row had room to spare. The chips take the
+    // slack first; a step is taken only when the row no longer holds them.
+    function test_filter_chips_fold_only_when_the_row_is_full() {
+        const hero = createTemporaryObject(heroComponent, testCase, {
+                                               "downSpeed": "0 B/s",
+                                               "upSpeed": "0 B/s",
+                                               "serverLine": "playground · qBittorrent 5.1.2",
+                                               "serverLineShort": "playground",
+                                               "filterChips": [{
+                                                       "key": "status",
+                                                       "glyph": Glyphs.statusStopped,
+                                                       "text": "stopped"
+                                                   }, {
+                                                       "key": "category",
+                                                       "glyph": Glyphs.folder,
+                                                       "text": "fixtures"
+                                                   }, {
+                                                       "key": "tag",
+                                                       "glyph": Glyphs.tag,
+                                                       "text": "beta"
+                                                   }]
+                                           });
+        // Just short of step 2's threshold plus the whole chips: the old ladder folded here.
+        const width = Theme.space(771) + hero._chipsWidth(false) - Theme.space(40);
+        hero.width = width;
+        waitForItemPolished(hero.children[0]);
+        verify(hero.level <= 2, "level " + hero.level + " at " + width + " with three chips");
+        verify(!hero.chipsFolded);
+        verify(!hero.searchFolded);
+        verify(overflow(hero) <= 0.5, "the row runs " + overflow(hero) + " px over");
+
+        // With the room gone, the chips still fold rather than push the buttons out.
+        hero.width = Theme.space(700);
+        waitForItemPolished(hero.children[0]);
+        verify(hero.level >= 3);
+        verify(overflow(hero) <= 0.5, "the row runs " + overflow(hero) + " px over");
+
+        // No chips: the plain ladder, untouched.
+        hero.filterChips = [];
+        for (const [w, step] of [[1400, 0], [1100, 1], [800, 2], [650, 3], [500, 4]]) {
+            hero.width = w;
+            compare(hero.level, step, "at " + w);
+        }
+    }
+
+    // KIT-9: the server line elides only when the row really has no room left for it.
+    function test_the_server_line_does_not_elide_while_there_is_room() {
+        const hero = createTemporaryObject(heroComponent, testCase, {
+                                               "downSpeed": "12.3 MB/s",
+                                               "upSpeed": "999.9 KB/s",
+                                               "serverLine": "seedbox-in-a-far-away-datacentre.a-rather-long-domain.example.org · qBittorrent 5.2.3",
+                                               "serverLineShort": "seedbox-in-a-far-away-datacentre.a-rather-long-domain.example.org"
+                                           });
+        const identity = findChild(hero, "serverLine").parent.parent;
+        const spacer = hero.children[0].children.find(c => c.objectName === "speedsSpacerRight");
+        verify(spacer, "no right spacer");
+        let squeezedOnce = false;
+        for (let w = 700; w <= 1300; w += 10) {
+            hero.width = Theme.space(w);
+            waitForItemPolished(hero.children[0]);
+            verify(overflow(hero) <= 0.5, "at " + w + " the row runs " + overflow(hero) + " px over");
+            if (!identity.squeezed)
+                continue;
+            squeezedOnce = true;
+            // Eliding, the slack spacer must have nothing left to give it.
+            verify(spacer.width < 1, "at " + w + " the server line elides with " + spacer.width
+                   + " px spare");
+        }
+        verify(squeezedOnce, "the probe never squeezed the server line");
+    }
+
+    // KIT-8: the whole server line opens below the hero, not over the line it spells out.
+    function test_the_server_tip_opens_below_the_hero() {
+        const hero = createTemporaryObject(heroComponent, testCase, {
+                                               "serverLine": "home · qBittorrent 5.2.3",
+                                               "serverLineShort": "home"
+                                           });
+        hero.width = Theme.space(1000); // step 1: the tip carries the version
+        const server = findChild(hero, "serverLine");
+        waitForItemPolished(hero.children[0]);
+        mouseMove(server, 2, server.height / 2);
+        tryVerify(() => hero.serverTip.shown, 2000, "the tip never opened");
+        const panel = hero.serverTip.panelItem;
+        const top = panel.mapToItem(hero, 0, 0).y;
+        verify(top >= hero.height, "the tip covers the hero: its top is at " + top);
+        compare(hero.serverTip.text, "home · qBittorrent 5.2.3");
+        mouseMove(testCase, testCase.width - 1, testCase.height - 1);
+    }
+
     function test_step_four_keeps_the_dot_beside_the_mark() {
         const hero = createTemporaryObject(heroComponent, testCase);
         hero.width = Theme.space(500);

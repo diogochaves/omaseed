@@ -12,8 +12,8 @@ import Omaseed.Kit
 //
 // Everything on screen comes from two properties: `details` (the controller and its three
 // models) and `torrent` (the table's cursor row, as a plain object with the roles named
-// below). Actions leave as signals; only the file priority goes straight to App, because it
-// is the one thing the pane changes in Phase 3.
+// below). Most actions leave as signals for MainView; the Files tab's priority and rename,
+// and General's option rows, call App directly.
 Item {
     id: root
 
@@ -58,7 +58,17 @@ Item {
     property int filesCursor: 0
     property int trackersCursor: 0
     property int peersCursor: 0
+    /// Every poll re-sorts the peers by speed, so the cursor also holds its peer's address
+    /// and follows it to the new row: `y` copies, and `b` bans, the peer it was left on.
+    property string peersCursorAddress: ""
     property int generalCursor: 0
+    /// The file the Files cursor is on, and the one being renamed. A sync that re-sorts the
+    /// tab (by progress, remaining, availability) rebuilds the rows, so the index alone would
+    /// land on another file; these find the row again (as the table follows its hash).
+    property string filesCursorPath: ""
+    property string _renamePath: ""
+
+    onFilesCursorChanged: root.filesCursorPath = root.details.files.pathAt(root.filesCursor)
 
     /// `o` on a file row: the path inside the torrent, for Xdg to reveal.
     signal openFolderRequested(string path)
@@ -246,24 +256,46 @@ Item {
     function startRename() {
         if (root.currentTab !== 1 || root.details.files.count === 0)
             return;
+        root._renamePath = root.details.files.pathAt(root.filesCursor);
         filesTab.renameText = root.details.files.nameAt(root.filesCursor);
+        filesTab.renameFresh = true;
         filesTab.renamingRow = root.filesCursor;
     }
 
     function commitRename(text: string) {
-        const row = filesTab.renamingRow;
+        const open = filesTab.renamingRow >= 0;
+        const path = root._renamePath;
         filesTab.renamingRow = -1;
+        root._renamePath = "";
         root.forceActiveFocus();
-        if (row < 0 || text.length === 0 || text === root.details.files.nameAt(row))
+        // By the path the rename started on: a re-sort may have moved the rows since, so
+        // the name and the file-or-folder kind come from the row that path is on now.
+        const row = path.length > 0 ? root.details.files.rowOfPath(path) : -1;
+        if (!open || row < 0 || text.length === 0
+                || text === root.details.files.nameAt(row))
             return;
-        App.renameTorrentFile(root.details.hash, root.details.files.pathAt(row), text,
-                              root.details.files.isFolder(row));
+        App.renameTorrentFile(root.details.hash, path, text, root.details.files.isFolder(row));
+    }
+
+    /// The rows moved or were rebuilt: an open rename follows its file, or is dropped when
+    /// that file is gone.
+    function _followRename() {
+        if (filesTab.renamingRow < 0)
+            return;
+        const row = root.details.files.rowOfPath(root._renamePath);
+        if (row < 0) {
+            root.cancelRename();
+        } else if (row !== filesTab.renamingRow) {
+            filesTab.renamingRow = row;
+            Qt.callLater(filesTab.focusRenameEditor);
+        }
     }
 
     function cancelRename() {
         if (filesTab.renamingRow < 0)
             return;
         filesTab.renamingRow = -1;
+        root._renamePath = "";
         root.forceActiveFocus();
     }
 
@@ -525,23 +557,30 @@ Item {
             if (root.currentTab !== 0 || !root.toggleGeneralOption(root.generalCursor))
                 return;
             break;
+        // The Trackers and Peers keys (Fig. 3/4) belong to those tabs only: anywhere else the
+        // key goes on to the window, so `a` still adds a torrent from General or Files.
         case Qt.Key_A:
             if (root.currentTab === 2)
                 root.trackerAction("add", "");
             else if (root.currentTab === 3)
                 root.peerAction("add", "");
+            else
+                return;
             break;
         case Qt.Key_D:
-            if (root.currentTab === 2)
-                root.trackerAction("remove", root.details.trackers.urlAt(root.trackersCursor));
+            if (root.currentTab !== 2)
+                return;
+            root.trackerAction("remove", root.details.trackers.urlAt(root.trackersCursor));
             break;
         case Qt.Key_R:
-            if (root.currentTab === 2 && (event.modifiers & Qt.ShiftModifier))
-                root.trackerAction("reannounce", root.details.trackers.urlAt(root.trackersCursor));
+            if (root.currentTab !== 2 || !(event.modifiers & Qt.ShiftModifier))
+                return;
+            root.trackerAction("reannounce", root.details.trackers.urlAt(root.trackersCursor));
             break;
         case Qt.Key_B:
-            if (root.currentTab === 3)
-                root.peerAction("ban", root.details.peers.addressAt(root.peersCursor));
+            if (root.currentTab !== 3)
+                return;
+            root.peerAction("ban", root.details.peers.addressAt(root.peersCursor));
             break;
         default:
             return;
@@ -564,8 +603,11 @@ Item {
         anchors.left: parent.left
         anchors.leftMargin: Theme.space(16)
         anchors.top: parent.top
-        width: (root.wide ? root.width - root.bandStripWidth : root.width) - Theme.space(32)
+        // Never negative: at the window's narrowest a negative width let the texts draw
+        // unclipped over the rail (review RUN-6).
+        width: Math.max(0, (root.wide ? root.width - root.bandStripWidth : root.width) - Theme.space(32))
         height: headColumn.implicitHeight + Theme.space(12) + Theme.space(8)
+        clip: true
 
         Column {
             id: headColumn
@@ -604,6 +646,11 @@ Item {
                 }
                 readonly property string added: root.torrent && root.torrent.addedOnText
                                                 ? root.torrent.addedOnText : ""
+                /// The labels show only while a few characters of them fit next to the date;
+                /// below that they go, and the ` · ` that joined them to the date goes too.
+                readonly property bool labelsFit: metaLine.labels.length > 0
+                                                  && metaLine.width - joinedMetrics.advanceWidth
+                                                  >= Theme.space(40)
 
                 height: addedText.implicitHeight
                 width: parent.width
@@ -617,21 +664,56 @@ Item {
                     font.pixelSize: Theme.font.small
                     objectName: "headLabels"
                     text: !root.torrent ? qsTr("pick a row in the table") : metaLine.labels
-                    width: Math.min(implicitWidth, metaLine.width - addedText.implicitWidth)
+                    visible: !root.torrent || metaLine.labelsFit
+                    // Measured with a TextMetrics, not implicitWidth: an eliding Text handed
+                    // its text while its width was 0 kept an implicitWidth of 0 once shown,
+                    // so the head read " · added …" with no labels (review VER-2).
+                    width: !root.torrent ? Math.min(Math.ceil(labelsMetrics.advanceWidth), metaLine.width)
+                                         : Math.max(0, Math.min(Math.ceil(labelsMetrics.advanceWidth),
+                                                                metaLine.width - Math.ceil(
+                                                                    joinedMetrics.advanceWidth)))
+                }
+
+                TextMetrics {
+                    id: labelsMetrics
+
+                    font: labelsText.font
+                    text: labelsText.text
+                }
+
+                // The date with its separator, measured apart from `addedText` (whose text
+                // depends on whether the labels fit, which depends on this width).
+                TextMetrics {
+                    id: joinedMetrics
+
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.font.small
+                    text: metaLine.added.length > 0 ? " · " + metaLine.added : ""
                 }
 
                 Text {
                     id: addedText
 
-                    anchors.left: labelsText.right
+                    anchors.left: labelsText.visible ? labelsText.right : parent.left
                     color: Theme.dimForeground
+                    elide: Text.ElideRight
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.font.small
                     objectName: "headAdded"
-                    // The separator travels with the date, so it survives the labels' cut.
-                    text: !root.torrent || metaLine.added.length === 0 ? "" : metaLine.labels.length
-                                                                             > 0 ? " · " + metaLine.added
-                                                                                 : metaLine.added
+                    // The separator travels with the date, so it survives the labels' cut,
+                    // and leaves with the labels when they no longer fit at all.
+                    text: !root.torrent || metaLine.added.length === 0 ? "" : metaLine.labelsFit
+                                                                             ? " · " + metaLine.added
+                                                                             : metaLine.added
+                    width: Math.max(0, Math.min(Math.ceil(addedMetrics.advanceWidth),
+                                                metaLine.width - (labelsText.visible ? labelsText.width : 0)))
+                }
+
+                TextMetrics {
+                    id: addedMetrics
+
+                    font: addedText.font
+                    text: addedText.text
                 }
             }
         }
@@ -749,6 +831,7 @@ Item {
         DetailsFilesTab {
             id: filesTab
 
+            objectName: "filesTab"
             anchors.fill: parent
             cursorIndex: root.filesCursor
             model: root.details.files
@@ -856,12 +939,9 @@ Item {
                                     "label": Keymap.labelOf("details", "/")
                                 }
                             ];
+                // Fig. 3/4's `a` add and `b` ban are not built yet (review VIEW-6).
                 if (root.currentTab === 2)
                     return [
-                                {
-                                    "key": "a",
-                                    "label": qsTr("add")
-                                },
                                 {
                                     "key": "d",
                                     "label": qsTr("remove")
@@ -876,14 +956,6 @@ Item {
                                 }
                             ];
                 return [
-                            {
-                                "key": "b",
-                                "label": qsTr("ban")
-                            },
-                            {
-                                "key": "a",
-                                "label": qsTr("add peer")
-                            },
                             {
                                 "key": "y",
                                 "label": qsTr("copy")
@@ -1041,9 +1113,58 @@ Item {
         function onCountChanged(): void {
             if (root.filesCursor >= root.details.files.count)
                 root.filesCursor = Math.max(0, root.details.files.count - 1);
+            root.filesCursorPath = root.details.files.pathAt(root.filesCursor);
+        }
+
+        // Sorted by progress or remaining, a poll moves the rows: the cursor and an open
+        // rename keep their file (review REG-1).
+        function onReordered(): void {
+            const row = root.details.files.rowOfPath(root.filesCursorPath);
+            if (row >= 0)
+                root.filesCursor = row;
+            root.filesCursorPath = root.details.files.pathAt(root.filesCursor);
+            root._followRename();
+        }
+
+        // Rows rebuilt (a live re-sort, a filter, a fold): the cursor and an open rename
+        // follow their file, and a rename whose file is gone is dropped.
+        function onModelReset(): void {
+            const files = root.details.files;
+            const path = root.filesCursorPath;
+            const row = path.length > 0 ? files.rowOfPath(path) : -1;
+            if (row >= 0 && row !== root.filesCursor)
+                root.filesCursor = row;
+            else
+                root.filesCursorPath = files.pathAt(root.filesCursor);
+            root._followRename();
         }
 
         target: root.details.files
+    }
+
+    // Another torrent may have fewer trackers: keep the cursor on a row, so `y` never
+    // copies nothing (review VIEW-13).
+    Connections {
+        function onCountChanged(): void {
+            if (root.trackersCursor >= root.details.trackers.count)
+                root.trackersCursor = Math.max(0, root.details.trackers.count - 1);
+        }
+
+        target: root.details.trackers
+    }
+
+    // A poll has moved the peers: put the cursor back on the one it was on, or keep it on
+    // a row when that peer is gone.
+    Connections {
+        function onApplied(): void {
+            const peers = root.details.peers;
+            const row = peers.rowOfAddress(root.peersCursorAddress);
+            root.peersCursor = row >= 0 ? row : Math.max(0, Math.min(root.peersCursor,
+                                                                     peers.count - 1));
+            root.peersCursorAddress = peers.addressAt(root.peersCursor);
+        }
+
+        target: root.details.peers
     }
 
     // The Peers tab is the only one whose poll costs the server real work, so App is told
@@ -1057,4 +1178,5 @@ Item {
         App.setPeersTabActive(!root.collapsed && root.currentTab === 3);
         App.setGeneralTabActive(!root.collapsed && root.currentTab === 0);
     }
+    onPeersCursorChanged: root.peersCursorAddress = root.details.peers.addressAt(root.peersCursor)
 }

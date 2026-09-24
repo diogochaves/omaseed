@@ -103,6 +103,41 @@ TestCase {
         }
     }
 
+    // A view holding a sheet, which records every key that gets past it.
+    Component {
+        id: hostComponent
+
+        Item {
+            property alias sheet: hostedSheet
+            property var seen: []
+
+            anchors.fill: parent
+
+            Keys.onPressed: event => seen.push(event.key)
+
+            Sheet {
+                id: hostedSheet
+
+                actions: [
+                    {
+                        "text": "cancel",
+                        "cancel": true
+                    },
+                    {
+                        "text": "add",
+                        "primary": true
+                    }
+                ]
+                anchors.fill: parent
+                title: "Add torrent"
+
+                Toggle {
+                    text: "sequential download"
+                }
+            }
+        }
+    }
+
     // Fig. 10's shape: buttons, and a body that holds nothing the keyboard can reach.
     Component {
         id: confirmSheetComponent
@@ -256,6 +291,70 @@ TestCase {
         compare(triggered.count, 1);
         compare(triggered.signalArguments[0][0], "add stopped");
         compare(accepted.count, 0, "the secondary action is not an accept");
+    }
+
+    // KIT-1: a `cancel` button closes the sheet, as `esc` does, and rejects once — Rename,
+    // Location and Global limits handle only `accepted` and rely on it.
+    function test_the_cancel_action_closes_and_rejects_once() {
+        const sheet = createTemporaryObject(keySheetComponent, testCase);
+        const rejected = createTemporaryObject(rejectedSpy, testCase, {
+                                                   "target": sheet
+                                               });
+        sheet.open();
+        const cancel = sheet.actionButtons()[0];
+        compare(cancel.text, "cancel");
+        cancel.clicked();
+        compare(sheet.opened, false, "cancel left the sheet open");
+        compare(rejected.count, 1);
+    }
+
+    function test_enter_on_the_focused_cancel_button_closes_the_sheet() {
+        const sheet = createTemporaryObject(keySheetComponent, testCase);
+        const accepted = createTemporaryObject(acceptedSpy, testCase, {
+                                                   "target": sheet
+                                               });
+        sheet.open();
+        keyClick(Qt.Key_Tab); // toggle -> cancel
+        compare(sheet.focusedIndex(), 1);
+        keyClick(Qt.Key_Return);
+        compare(sheet.opened, false);
+        compare(accepted.count, 0, "enter on cancel ran the primary");
+    }
+
+    // KIT-7: keypad enter on a focused button runs that button, as Return does, not the
+    // sheet's primary action.
+    function test_keypad_enter_on_the_focused_cancel_runs_cancel() {
+        const sheet = createTemporaryObject(keySheetComponent, testCase);
+        const accepted = createTemporaryObject(acceptedSpy, testCase, {
+                                                   "target": sheet
+                                               });
+        const triggered = createTemporaryObject(triggeredSpy, testCase, {
+                                                    "target": sheet
+                                                });
+        sheet.open();
+        keyClick(Qt.Key_Tab); // toggle -> cancel
+        keyClick(Qt.Key_Enter, Qt.KeypadModifier);
+        compare(triggered.count, 1);
+        compare(triggered.signalArguments[0][0], "cancel");
+        compare(accepted.count, 0, "keypad enter ran the primary");
+        compare(sheet.opened, false);
+    }
+
+    // KIT-6: an open sheet is modal — a letter pressed on one of its buttons stops at the
+    // sheet instead of reaching the view that holds it; ctrl+q still goes on.
+    function test_keys_the_sheet_does_not_use_stop_at_it() {
+        const host = createTemporaryObject(hostComponent, testCase);
+        host.sheet.open();
+        keyClick(Qt.Key_Tab); // toggle -> cancel, a Button
+        compare(host.sheet.focusedIndex(), 1);
+
+        keyClick("x");
+        keyClick(Qt.Key_K, Qt.ControlModifier);
+        compare(host.seen.length, 0, "a key reached the view behind the sheet");
+        compare(host.sheet.opened, true);
+
+        keyClick(Qt.Key_Q, Qt.ControlModifier);
+        compare(host.seen, [Qt.Key_Q], "ctrl+q did not go on");
     }
 
     // ---- the focus trap ---------------------------------------------------------------

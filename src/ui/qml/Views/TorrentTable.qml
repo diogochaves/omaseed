@@ -596,6 +596,26 @@ Item {
         list.positionViewAtIndex(wanted, ListView.Contain);
     }
 
+    /// Put the cursor on `hash`, first clearing every filter that hides it (text, status,
+    /// category, tag, tracker), so a notice's "show", the duplicate sheet's `show it` and the
+    /// jump palette always land. False when the library does not hold `hash`.
+    function revealHash(hash: string): bool {
+        if (hash.length === 0)
+            return false;
+        if (root.filtered.rowOfHash(hash) < 0) {
+            root.filtered.text = "";
+            root.filtered.clearCategory();
+            root.filtered.clearTag();
+            root.filtered.clearTracker();
+            root.filtered.statusFilter = TorrentFilterModel.All;
+        }
+        const row = root.filtered.rowOfHash(hash);
+        if (row < 0)
+            return false;
+        root.moveCursorTo(row);
+        return true;
+    }
+
     function selectAll(): void {
         const count = root.filtered.count;
         for (let row = 0; row < count; ++row)
@@ -676,9 +696,13 @@ Item {
         if (!root.renaming)
             return;
         const hash = internal.renameHash;
-        const name = root.renameText;
+        // Trimmed like the add sheet's Name, and not sent at all when nothing changed.
+        const name = root.renameText.trim();
         internal.closeRename();
-        if (name.length > 0)
+        const row = root.filtered.rowOfHash(hash);
+        const current = row >= 0 ? root.filtered.data(root.filtered.index(row, 0),
+                                                      TorrentModel.NameRole) : "";
+        if (name.length > 0 && name !== current)
             root.renameRequested(hash, name);
     }
 

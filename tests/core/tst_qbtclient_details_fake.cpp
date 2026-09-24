@@ -4,6 +4,8 @@
 // (tst_qbtclient_live only proves it answers at all).
 
 #include "core/QbtClient.hpp"
+#include "core/TorrentDetails.hpp"
+#include "core/TorrentModel.hpp"
 
 #include <QEventLoop>
 #include <QJsonArray>
@@ -22,6 +24,8 @@ using omaseed::core::ApiError;
 using omaseed::core::QbtClient;
 using omaseed::core::QbtReply;
 using omaseed::core::QbtResult;
+using omaseed::core::TorrentDetails;
+using omaseed::core::TorrentModel;
 
 namespace {
 
@@ -33,6 +37,11 @@ QByteArray jsonResponse(const QByteArray &body)
     response += "Connection: close\r\n\r\n";
     response += body;
     return response;
+}
+
+QByteArray notFoundResponse()
+{
+    return "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
 }
 
 /// Speaks just enough HTTP to answer QNetworkAccessManager, and remembers the targets.
@@ -107,6 +116,8 @@ private Q_SLOTS:
     void filesTrackersAndPropertiesSendTheHash();
     void filePrioPostsTheIdList();
     void pieceStatesSendsTheHashAndParsesTheArray();
+    void aDeletedTorrentStopsThePollQuietly();
+    void aHashTheModelNoLongerHoldsIsNotAsked();
 };
 
 void TestQbtClientDetailsFake::syncTorrentPeersSendsHashAndRid()
@@ -232,4 +243,53 @@ void TestQbtClientDetailsFake::filePrioPostsTheIdList()
 }
 
 QTEST_MAIN(TestQbtClientDetailsFake)
+// Review RUN-10: after `D` the pane kept asking about the deleted torrent (four 404s a tick)
+// and put the 404 up as its error line.
+void TestQbtClientDetailsFake::aDeletedTorrentStopsThePollQuietly()
+{
+    FakeServer server;
+    server.setHandler([](const QByteArray &) { return notFoundResponse(); });
+    QbtClient client;
+    client.setBaseUrl(server.url());
+
+    TorrentDetails details;
+    details.setPollInterval(30);
+    details.setClient(&client);
+    details.setHash(QStringLiteral("deleted"));
+
+    QTRY_VERIFY(server.targets.size() >= 3);
+    QTest::qWait(250); // several poll intervals
+    const qsizetype asked = server.targets.size();
+    QVERIFY2(asked <= 4, qPrintable(QStringLiteral("%1 requests for a gone torrent").arg(asked)));
+    QCOMPARE(details.lastError(), QString());
+
+    // Another torrent is asked about again.
+    details.setHash(QStringLiteral("another"));
+    QTRY_VERIFY(server.targets.size() > asked);
+}
+
+void TestQbtClientDetailsFake::aHashTheModelNoLongerHoldsIsNotAsked()
+{
+    FakeServer server;
+    server.setHandler([](const QByteArray &) { return jsonResponse("{}"); });
+    QbtClient client;
+    client.setBaseUrl(server.url());
+
+    TorrentModel torrents;
+    QJsonObject map;
+    map.insert(QStringLiteral("kept"), QJsonObject{{QStringLiteral("name"), QStringLiteral("k")}});
+    torrents.applyFullUpdate(map);
+
+    TorrentDetails details;
+    details.setPollInterval(30);
+    details.setTorrentModel(&torrents);
+    details.setClient(&client);
+    details.setHash(QStringLiteral("removed"));
+    QTest::qWait(150);
+    QCOMPARE(server.targets.size(), 0);
+
+    details.setHash(QStringLiteral("kept"));
+    QTRY_VERIFY(!server.targets.isEmpty());
+}
+
 #include "tst_qbtclient_details_fake.moc"

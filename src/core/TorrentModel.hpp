@@ -6,18 +6,21 @@
 // keys) that moved. applyPartial() therefore never resets: it merges, emits one dataChanged()
 // per contiguous run of touched rows, and only removes what `torrents_removed` names.
 //
-// Rows are appended in the order the API listed them and never reordered; sorting belongs to
+// Rows are appended in the order they arrive and never reordered — a full update comes out
+// of a JSON object, which iterates by key, so its rows are in hash order; sorting belongs to
 // TorrentFilterModel, so a sort change costs nothing here and row indices stay stable for the
 // views that remember a cursor.
 
 #include "core/Torrent.hpp"
 
 #include <QAbstractListModel>
+#include <QDateTime>
 #include <QHash>
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QList>
 #include <QStringList>
+#include <QTimer>
 
 namespace omaseed::core {
 
@@ -74,6 +77,7 @@ public:
         UpLimitRole,
         RatioLimitRole,
         SeedingTimeLimitRole,
+        InactiveSeedingTimeLimitRole,
         ShareLimitActionRole,
         AvailabilityRole,
         AmountLeftRole,
@@ -131,6 +135,13 @@ public:
     /// The roles that change when the named JSON key changes, derived roles included.
     static QList<int> rolesForJsonKey(const QString &key);
 
+    /// The texts that say "today" or "yesterday", which a new day changes with no poll.
+    static QList<int> dayRelativeRoles();
+    /// Milliseconds from `now` to just after the next local midnight.
+    static qint64 msecsToNextMidnight(const QDateTime &now);
+    /// One dataChanged over every row for dayRelativeRoles(); the midnight timer calls it.
+    void refreshDayRelativeTexts();
+
 Q_SIGNALS:
     void countChanged();
     /// Emitted once per applyPartial/applyFullUpdate that touched anything, after all the
@@ -139,9 +150,11 @@ Q_SIGNALS:
 
 private:
     void emitRunsFor(const QList<QPair<int, QList<int>>> &touched);
+    void scheduleMidnight();
 
     QList<Torrent> m_rows;
     QHash<QString, int> m_indexByHash;
+    QTimer *m_midnight = nullptr; ///< fires once a day, just after local midnight
 };
 
 } // namespace omaseed::core

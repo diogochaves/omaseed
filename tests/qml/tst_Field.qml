@@ -39,12 +39,45 @@ TestCase {
         compare(cleared, 1);
     }
 
+    // Review RUN-5: a form field opened with a value passes esc on instead of clearing it.
+    function test_a_field_that_does_not_clear_on_esc_keeps_its_text() {
+        const field = createTemporaryObject(fieldComponent, testCase, {
+                                                "text": "/data/torrents",
+                                                "escClears": false
+                                            });
+        let cleared = 0;
+        field.cleared.connect(() => cleared++);
+        field.focusInput();
+        keyClick(Qt.Key_Escape);
+        compare(field.text, "/data/torrents");
+        compare(cleared, 0);
+
+        field.escClears = true;
+        keyClick(Qt.Key_Escape);
+        compare(field.text, "");
+        compare(cleared, 1);
+    }
+
     function test_accepted_signal_fires() {
         const field = createTemporaryObject(fieldComponent, testCase);
         let accepted = 0;
         field.accepted.connect(() => accepted++);
         field.accepted();
         compare(accepted, 1);
+    }
+
+    // KIT-7: Return and keypad Enter both accept; shift+enter is left for the sheet.
+    function test_return_and_keypad_enter_both_accept() {
+        const field = createTemporaryObject(fieldComponent, testCase);
+        let accepted = 0;
+        field.accepted.connect(() => accepted++);
+        field.focusInput();
+        keyClick(Qt.Key_Return);
+        compare(accepted, 1);
+        keyClick(Qt.Key_Enter, Qt.KeypadModifier);
+        compare(accepted, 2, "keypad enter did not accept");
+        keyClick(Qt.Key_Enter, Qt.KeypadModifier | Qt.ShiftModifier);
+        compare(accepted, 2, "shift+keypad enter was swallowed by the field");
     }
 
     // T4.5: a field that holds a secret (spec §3 Fig. 9's `Key`) draws bullets instead of the

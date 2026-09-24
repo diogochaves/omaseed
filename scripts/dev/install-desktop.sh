@@ -59,6 +59,14 @@ if [[ ! -x "$binary" ]]; then
     exit 1
 fi
 binary="$(cd "$(dirname "$binary")" && pwd)/$(basename "$binary")"
+# The path goes unquoted into a sed replacement and into Exec= lines, where a space, &, #, %,
+# a quote or a backslash would each need their own escaping (and the Desktop Entry spec's
+# quoting rules differ from D-Bus's). A checkout path needs none of those, so refuse them.
+if [[ ! "$binary" =~ ^[A-Za-z0-9/._+@,=:-]+$ ]]; then
+    echo "install-desktop.sh: $binary has characters Exec= would need escaped; use a checkout path" \
+        "made of letters, digits and / . _ + @ , = : -" >&2
+    exit 1
+fi
 
 mkdir -p "$apps_dir" "$services_dir" "$icons_dir"
 

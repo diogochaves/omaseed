@@ -461,6 +461,10 @@ QJsonObject torrentJson(int index,
     json.insert(QStringLiteral("up_limit"), 0);
     json.insert(QStringLiteral("ratio_limit"), -2.0);
     json.insert(QStringLiteral("seeding_time_limit"), -2);
+    // One row with an inactive seeding limit of its own (45 minutes), so the tests can see
+    // the Limits sheet carry a value it has no field for.
+    json.insert(QStringLiteral("inactive_seeding_time_limit"),
+                name.startsWith(QLatin1String("Tears of Steel")) ? 45 : -2);
     // T5.5 Q14: one row with a share-limit action of its own, so the Limits sheet's fifth
     // row has something to prefill from; every other row leaves it to the global setting.
     json.insert(QStringLiteral("share_limit_action"),
@@ -717,7 +721,7 @@ QJsonObject trackerJson(const QString &url,
                         int status,
                         int seeds,
                         int peers,
-                        qint64 nextAnnounce,
+                        qint64 nextAnnounce, ///< seconds from now; 0 for none
                         const QString &msg = QString())
 {
     QJsonObject tracker;
@@ -728,7 +732,9 @@ QJsonObject trackerJson(const QString &url,
     tracker.insert(QStringLiteral("num_peers"), peers);
     tracker.insert(QStringLiteral("num_leeches"), peers);
     tracker.insert(QStringLiteral("num_downloaded"), seeds > 0 ? seeds * 34 : -1);
-    tracker.insert(QStringLiteral("next_announce"), nextAnnounce);
+    // qBittorrent 5.x sends the next announce as a Unix time, not as seconds left.
+    tracker.insert(QStringLiteral("next_announce"),
+                   nextAnnounce > 0 ? QDateTime::currentSecsSinceEpoch() + nextAnnounce : 0);
     tracker.insert(QStringLiteral("msg"), msg);
     return tracker;
 }

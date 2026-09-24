@@ -98,10 +98,12 @@ TestCase {
                 "p priority · space select · enter menu · r rename · s sort · / filter");
 
         model.detailsTab = 2;
-        compare(testCase.line(model.hints), "a add · d remove · R reannounce · y copy");
+        // Fig. 3/4's `a` add and `b` ban are not built yet: the footer does not teach them
+        // (review VIEW-6).
+        compare(testCase.line(model.hints), "d remove · R reannounce · y copy");
 
         model.detailsTab = 3;
-        compare(testCase.line(model.hints), "b ban · a add peer · y copy");
+        compare(testCase.line(model.hints), "y copy");
     }
 
     function test_the_empty_state_teaches_figure_22() {

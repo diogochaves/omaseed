@@ -1,0 +1,4 @@
+# git archive (and so GitHub's tag archive, which packaging/arch/PKGBUILD downloads) leaves
+# these out of the release tarball. scripts/release.sh builds the same archive locally.
+/docs/evidence export-ignore
+/.github export-ignore

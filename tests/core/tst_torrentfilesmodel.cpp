@@ -4,9 +4,12 @@
 
 #include "core/TorrentFilesModel.hpp"
 
+#include <QAbstractItemModelTester>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QJsonObject>
 #include <QSignalSpy>
 #include <QTest>
 
@@ -45,6 +48,9 @@ private Q_SLOTS:
     void empty_input_clears();
     void sorting_by_name_keeps_the_tree_and_puts_folders_first();
     void sorting_by_a_number_mixes_folders_and_files();
+    void a_poll_that_reorders_moves_rows_instead_of_resetting();
+    void a_long_list_reorders_in_one_layout_change();
+    void a_priority_on_every_file_of_a_huge_torrent_is_linear();
     void sort_by_flips_the_current_key_and_picks_a_direction_for_a_new_one();
     void the_filter_keeps_the_folders_of_a_match();
     void a_folder_acts_on_the_files_the_filter_shows();
@@ -177,9 +183,16 @@ void TestTorrentFilesModel::updates_in_place_when_the_shape_is_unchanged()
     QCOMPARE(changed.count(), 1);
     QCOMPARE(model.count(), 7);
 
-    // 120 B done + 4096 B half done + 10 B done, out of 4226.
+    // 120 B done and 10 B done; the 4096 B file half done is skipped, so, as in qBittorrent's
+    // content view, the folder has everything it wants: 100 %, and nothing remaining.
     QCOMPARE(at(model, 0, TorrentFilesModel::PriorityTextRole).toString(), QStringLiteral("mixed"));
-    QVERIFY(qAbs(at(model, 0, TorrentFilesModel::ProgressRole).toDouble() - 0.5156) < 0.001);
+    QCOMPARE(at(model, 0, TorrentFilesModel::ProgressRole).toDouble(), 1.0);
+    QCOMPARE(at(model, 0, TorrentFilesModel::RemainingRole).toLongLong(), 0LL);
+
+    // Skip everything and the folder shows what is on disk over its full size:
+    // 120 + 2048 + 10 of 4226.
+    model.setLocalPriority(QVariantList{0, 2}, int(FilePriority::Skip));
+    QVERIFY(qAbs(at(model, 0, TorrentFilesModel::ProgressRole).toDouble() - 0.5154) < 0.001);
 }
 
 void TestTorrentFilesModel::a_new_shape_resets_the_model()
@@ -310,6 +323,129 @@ void TestTorrentFilesModel::sorting_by_a_number_mixes_folders_and_files()
     // A poll that changes nothing keeps the order; equal sizes keep the torrent's order.
     model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
     QCOMPARE(at(model, 3, TorrentFilesModel::NameRole).toString(), QStringLiteral("bbb.en.srt"));
+}
+
+void TestTorrentFilesModel::a_poll_that_reorders_moves_rows_instead_of_resetting()
+{
+    TorrentFilesModel model;
+    QAbstractItemModelTester tester(&model, QAbstractItemModelTester::FailureReportingMode::QtTest);
+    const QJsonArray files = fixture(QStringLiteral("files-fig2.json"));
+    model.applyFiles(files);
+    model.setSortKey(QStringLiteral("progress"));
+    model.setSortDescending(true);
+
+    // Both videos are done, the 2160p one first; the 1080p one overtakes it. A poll that
+    // only moves numbers.
+    QJsonArray next = files;
+    int a = -1;
+    int b = -1;
+    for (int i = 0; i < next.size(); ++i) {
+        const QString name = next.at(i).toObject().value(QStringLiteral("name")).toString();
+        if (name.endsWith(QStringLiteral("1080p_30fps.mp4")))
+            a = i;
+        else if (name.endsWith(QStringLiteral("2160p_60fps.mp4")))
+            b = i;
+    }
+    QVERIFY(a >= 0 && b >= 0);
+    QJsonObject fileA = next.at(a).toObject();
+    QJsonObject fileB = next.at(b).toObject();
+    fileA.insert(QStringLiteral("progress"), 0.99);
+    fileB.insert(QStringLiteral("progress"), 0.01);
+    next.replace(a, fileA);
+    next.replace(b, fileB);
+
+    const QString heldPath = fileA.value(QStringLiteral("name")).toString();
+    const QString otherPath = fileB.value(QStringLiteral("name")).toString();
+    QVERIFY(model.rowOfPath(heldPath) > model.rowOfPath(otherPath));
+
+    QSignalSpy reset(&model, &QAbstractItemModel::modelReset);
+    QSignalSpy moved(&model, &QAbstractItemModel::rowsMoved);
+    QSignalSpy reordered(&model, &TorrentFilesModel::reordered);
+    model.applyFiles(next);
+
+    QCOMPARE(reset.count(), 0); // the delegates, the scroll and the cursor survive
+    QVERIFY(moved.count() > 0);
+    QCOMPARE(reordered.count(), 1);
+    // It overtook the other video, and rowOfPath finds it where it went.
+    QVERIFY(model.rowOfPath(heldPath) >= 0);
+    QVERIFY(model.rowOfPath(heldPath) < model.rowOfPath(otherPath));
+    QCOMPARE(model.count(), 7);
+
+    // A local priority change that re-sorts moves rows too.
+    model.setSortKey(QStringLiteral("remaining"));
+    reset.clear();
+    model.setLocalPriority(QVariantList{fileB.value(QStringLiteral("index")).toInt()},
+                           int(FilePriority::Skip));
+    QCOMPARE(reset.count(), 0);
+}
+
+void TestTorrentFilesModel::a_long_list_reorders_in_one_layout_change()
+{
+    // Past a couple of thousand rows the moves give way to one layoutChanged, which must
+    // still carry persistent indexes to their files.
+    constexpr int kFiles = 2500;
+    const auto build = [](int fastest) {
+        QJsonArray files;
+        for (int i = 0; i < kFiles; ++i) {
+            files.append(QJsonObject{
+                {QStringLiteral("index"), i},
+                {QStringLiteral("name"), QStringLiteral("f%1.bin").arg(i, 5, 10, QLatin1Char('0'))},
+                {QStringLiteral("size"), 1000},
+                {QStringLiteral("progress"), i == fastest ? 0.9 : 0.1},
+                {QStringLiteral("priority"), 1},
+            });
+        }
+        return files;
+    };
+
+    TorrentFilesModel model;
+    QAbstractItemModelTester tester(&model, QAbstractItemModelTester::FailureReportingMode::QtTest);
+    model.applyFiles(build(10));
+    model.setSortKey(QStringLiteral("progress"));
+    model.setSortDescending(true);
+    QCOMPARE(model.rowOfPath(QStringLiteral("f00010.bin")), 0);
+
+    const QPersistentModelIndex held = model.index(model.rowOfPath(QStringLiteral("f00020.bin")));
+    QSignalSpy reset(&model, &QAbstractItemModel::modelReset);
+    QSignalSpy layout(&model, &QAbstractItemModel::layoutChanged);
+    QSignalSpy reordered(&model, &TorrentFilesModel::reordered);
+
+    model.applyFiles(build(20));
+    QCOMPARE(reset.count(), 0);
+    QCOMPARE(layout.count(), 1);
+    QCOMPARE(reordered.count(), 1);
+    QCOMPARE(model.rowOfPath(QStringLiteral("f00020.bin")), 0);
+    QVERIFY(held.isValid());
+    QCOMPARE(held.row(), 0);
+}
+
+void TestTorrentFilesModel::a_priority_on_every_file_of_a_huge_torrent_is_linear()
+{
+    constexpr int kFiles = 20000;
+    QJsonArray files;
+    QVariantList ids;
+    for (int i = 0; i < kFiles; ++i) {
+        files.append(QJsonObject{
+            {QStringLiteral("index"), i},
+            {QStringLiteral("name"), QStringLiteral("pack/f%1.bin").arg(i)},
+            {QStringLiteral("size"), 1000},
+            {QStringLiteral("progress"), 0.0},
+            {QStringLiteral("priority"), 1},
+        });
+        ids.append(i);
+    }
+    TorrentFilesModel model;
+    model.applyFiles(files);
+
+    QElapsedTimer timer;
+    timer.start();
+    model.setLocalPriority(ids, int(FilePriority::Skip));
+    const double ms = double(timer.nsecsElapsed()) / 1e6;
+    qInfo("setLocalPriority on %d files: %.1f ms", kFiles, ms);
+
+    QCOMPARE(at(model, 0, TorrentFilesModel::PriorityRole).toInt(), int(FilePriority::Skip));
+    // A scan of the tree per id took seconds here in a Debug build.
+    QVERIFY2(ms < 1000.0, qPrintable(QStringLiteral("took %1 ms").arg(ms)));
 }
 
 void TestTorrentFilesModel::sort_by_flips_the_current_key_and_picks_a_direction_for_a_new_one()

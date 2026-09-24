@@ -95,6 +95,14 @@ void TestTorrentDetails::general_tab_strings_from_a_recorded_properties()
     // No torrent row, so no magnet.
     QCOMPARE(properties.value(QStringLiteral("magnet")).toString(), QString());
     QCOMPARE(properties.value(QStringLiteral("availability")).toString(), QStringLiteral("0.00"));
+
+    // A seeding torrent: qBittorrent says -1, and the row is left out.
+    QJsonObject seeding = fixture(QStringLiteral("properties-unicode-pack.json")).object();
+    seeding.insert(QStringLiteral("availability"), -1);
+    QJsonObject seedingDemo = demo;
+    seedingDemo.insert(QStringLiteral("properties"), seeding);
+    details.applyDemo(seedingDemo);
+    QCOMPARE(details.properties().value(QStringLiteral("availability")).toString(), QString());
     QCOMPARE(properties.value(QStringLiteral("seeds")).toString(),
              QStringLiteral("0 connected · 0 total"));
     QCOMPARE(properties.value(QStringLiteral("timeActive")).toString(), QStringLiteral("0 s"));

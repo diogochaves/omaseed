@@ -8,6 +8,7 @@
 #include "core/ServerDetector.hpp"
 
 #include <QDir>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QSignalSpy>
 #include <QTcpServer>
@@ -50,6 +51,8 @@ private slots:
     void dockerMissingBinaryIsNotFound();
     void pgrepFoundGivesCandidate();
     void noneFoundGivesNoCandidates();
+    void aHangingCommandTimesOut();
+    void pgrepNamesTheMatchedProcess();
 };
 
 void TestServerDetector::openPortIsFound()
@@ -216,6 +219,74 @@ void TestServerDetector::noneFoundGivesNoCandidates()
 
     const auto candidates = spy.first().first().value<QList<DetectedServer>>();
     QCOMPARE(candidates.size(), 0);
+}
+
+// NET-11: `docker ps` against a wedged daemon never exits; the first-run screen must not
+// wait for it forever.
+void TestServerDetector::aHangingCommandTimesOut()
+{
+    quint16 closedPort = 0;
+    {
+        QTcpServer probe;
+        QVERIFY(probe.listen(QHostAddress::LocalHost));
+        closedPort = probe.serverPort();
+    }
+
+    QTemporaryDir dir;
+    const QString hang = dir.filePath(QStringLiteral("hang.sh"));
+    {
+        QFile file(hang);
+        QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text));
+        file.write("#!/bin/sh\nexec sleep 30\n");
+        file.close();
+        file.setPermissions(file.permissions() | QFileDevice::ExeOwner | QFileDevice::ExeUser);
+    }
+    const QString noCmd = writeFakeCommand(dir, QStringLiteral("nocmd.sh"), 1, QString());
+
+    ServerDetector detector;
+    detector.setProbePort(closedPort);
+    detector.setProbeTimeoutMs(300);
+    detector.setCommandTimeoutMs(400);
+    detector.setDockerCommand(hang);
+    detector.setPgrepCommand(noCmd);
+
+    QSignalSpy spy(&detector, &ServerDetector::finished);
+    QElapsedTimer clock;
+    clock.start();
+    detector.start();
+    QVERIFY(spy.wait(3000));
+    QVERIFY2(clock.elapsed() < 2500, "the hanging command was waited for");
+    QCOMPARE(spy.first().first().value<QList<DetectedServer>>().size(), 0);
+}
+
+void TestServerDetector::pgrepNamesTheMatchedProcess()
+{
+    quint16 closedPort = 0;
+    {
+        QTcpServer probe;
+        QVERIFY(probe.listen(QHostAddress::LocalHost));
+        closedPort = probe.serverPort();
+    }
+
+    QTemporaryDir dir;
+    // What `pgrep -l -x 'qbittorrent(-nox)?'` prints for the desktop client.
+    const QString pgrepCmd =
+        writeFakeCommand(dir, QStringLiteral("pgrep.sh"), 0, QStringLiteral("4242 qbittorrent"));
+    const QString noCmd = writeFakeCommand(dir, QStringLiteral("nocmd.sh"), 1, QString());
+
+    ServerDetector detector;
+    detector.setProbePort(closedPort);
+    detector.setProbeTimeoutMs(300);
+    detector.setDockerCommand(noCmd);
+    detector.setPgrepCommand(pgrepCmd);
+
+    QSignalSpy spy(&detector, &ServerDetector::finished);
+    detector.start();
+    QVERIFY(spy.wait(3000));
+    const auto candidates = spy.first().first().value<QList<DetectedServer>>();
+    QCOMPARE(candidates.size(), 1);
+    QCOMPARE(candidates.first().kind, QStringLiteral("process"));
+    QVERIFY(candidates.first().detail.endsWith(QStringLiteral("qbittorrent running")));
 }
 
 QTEST_GUILESS_MAIN(TestServerDetector)

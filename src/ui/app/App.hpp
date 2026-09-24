@@ -42,6 +42,7 @@
 #include "core/TrackerModel.hpp"
 #include "integration/Tray.hpp"
 
+#include <QDeadlineTimer>
 #include <QHash>
 #include <QJsonObject>
 #include <QObject>
@@ -49,9 +50,12 @@
 #include <QProcess>
 #include <QString>
 #include <QStringList>
+#include <QTemporaryDir>
 #include <QTimer>
 #include <QVariantList>
 #include <QVariantMap>
+
+#include <memory>
 
 QT_BEGIN_NAMESPACE
 class QQmlEngine;
@@ -144,6 +148,8 @@ public:
     bool hasServer() const { return m_hasServer; }
     int serverCount() const;
     bool isDemoMode() const { return m_demoMode; }
+    /// True after serverLost/authRequired until a sync succeeds again (drives the tray).
+    bool isServerLost() const { return m_serverLost; }
 
     /// The tray's icon state for a given world (spec §6 Fig. 17). Highest priority first:
     /// disconnected, error, alt-speed, downloading, idle. Static and pure so the mapping is
@@ -169,10 +175,10 @@ Q_SIGNALS:
     void serverChanged();
     void demoModeChanged();
 
-    /// Raised by the tray menu, the hero's gear and `,`. Phase 4 opens the settings modal on
-    /// it; until then it is only a signal QML may emit and listen to.
+    /// Raised by the tray menu, the hero's gear, `,` and a notice's "settings". MainView opens
+    /// the settings modal on it; main.cpp brings the window up.
     void openSettings();
-    /// Raised by the tray menu, the hero's `+` and `a`. Phase 4 opens the add sheet.
+    /// Raised by the tray menu, the hero's `+` and `a`. MainView opens the add sheet.
     void addRequested();
 
 private:
@@ -195,6 +201,8 @@ private:
     bool m_hasServer = false;
     bool m_demoMode = false;
     bool m_serverLost = false;
+    /// Bumped whenever the live server changes; late keychain answers compare against it.
+    quint64 m_serverGeneration = 0;
 
     // --- T3.4: details -------------------------------------------------------------------
     // Everything the details pane (spec §2) adds to App lives in this one block, at the end
@@ -232,9 +240,9 @@ public:
     Q_INVOKABLE QString demoTab() const;
 
 Q_SIGNALS:
-    /// Phase 4 wires these to the tracker and peer endpoints; Phase 3 only emits them, so
-    /// the details pane's `a`/`d`/`R`/`b` keys already have somewhere to go.
-    /// `action` is one of "add", "remove", "reannounce" / "ban", "add".
+    /// Declared in Phase 3 for the details pane's `a`/`d`/`R`/`b` keys; nothing in the app
+    /// emits or connects them today. `action` is one of "add", "remove", "reannounce" /
+    /// "ban", "add".
     void trackerActionRequested(const QString &hash, const QString &action, const QString &url);
     void peerActionRequested(const QString &hash, const QString &action, const QString &address);
 
@@ -249,11 +257,10 @@ private:
     // Same arrangement as the T3.4 block: everything the main window adds to App sits at the
     // end of the class so the parallel Phase 3 branches merge without touching each other.
 public:
-    /// Every key of spec §7 Fig. 26's "act" column that still needs Phase 4 leaves through
-    /// here (`p P d D c R C t m L r [ ] o y Y`, plus `rename` from the table's inline
-    /// editor). `MainView` collects the hashes — the selection, or the cursor row alone —
-    /// and calls this; Phase 4 connects the signal to the real endpoints, the confirm dialog
-    /// and the sheets. QML cannot emit a C++ signal, hence the invokable.
+    /// A key of spec §7 Fig. 26's "act" column, re-emitted as `torrentActionRequested`.
+    /// `MainView` collects the hashes — the selection, or the cursor row alone — and calls
+    /// this. The actions themselves run through the T4.3 invokables below; the signal is only
+    /// logged (main.cpp). QML cannot emit a C++ signal, hence the invokable.
     Q_INVOKABLE void requestTorrentAction(const QString &action, const QStringList &hashes);
 
     /// `Format::size` for QML (the loading state prints how much of the first sync arrived).
@@ -318,9 +325,14 @@ private:
     void onNotifierActionInvoked(const QString &eventClass,
                                  const QString &subjectId,
                                  const QString &actionKey);
+
+public:
     /// The chosen server's PathMap applied to a server-side content path; the input unchanged
-    /// (and unusable as a local path) when no mapping applies.
+    /// (and unusable as a local path) when no mapping applies or Settings' "apply path map"
+    /// (`pathMapEnabled`) is off.
     QString mapContentPathToLocal(const QString &remotePath) const;
+
+private:
     /// "host:port" of the chosen server, for the server-lost body (spec §6 Fig. 21).
     QString serverHostPortText() const;
     /// Strips a `serverLost` ApiError down to the reason text the notice wants.
@@ -486,6 +498,12 @@ private:
     void loadSettings();
     void saveSettings();
     void applyAppearance();
+    /// state.json, section by section. A demo reads it but never writes it: its changes
+    /// (appearance, notices, columns, the delete default) stay in memory, so an agent's
+    /// `--demo` run cannot change how the real app starts next time.
+    QJsonObject stateSection(const QString &key) const;
+    void writeStateSection(const QString &key, const QJsonObject &value);
+    QJsonObject m_demoState;
     /// The shared tail of `testServer()`: run the probe with the secret already resolved.
     void runServerTest(const omaseed::core::Server &server, const QString &secret);
 
@@ -527,6 +545,8 @@ public:
     Q_INVOKABLE void forceStart(const QStringList &hashes);
     Q_INVOKABLE void recheck(const QStringList &hashes);
     Q_INVOKABLE void reannounce(const QStringList &hashes);
+    /// The Trackers tab's `d` (Fig. 3): one tracker off one torrent.
+    Q_INVOKABLE void removeTracker(const QString &hash, const QString &url);
 
     Q_INVOKABLE void setCategory(const QStringList &hashes, const QString &name);
     Q_INVOKABLE void addTags(const QStringList &hashes, const QStringList &tags);
@@ -540,13 +560,16 @@ public:
     /// reached — Default, Stop, Remove, RemoveWithContent, EnableSuperSeeding; empty reads
     /// as Default. It goes on the wire when `supportsShareLimitAction` is true (Default
     /// included: 5.2.3 answers 400 without the field) and is left off for a server known to
-    /// be older than API 2.15.1.
+    /// be older than API 2.15.1. `inactiveSeedingMinutes` rides in the same call (same
+    /// sentinels); the sheet has no field for it, so it passes each torrent's own value
+    /// (`torrentRow().inactiveSeedingTimeLimit`) and an untouched limit survives the apply.
     Q_INVOKABLE void setLimits(const QStringList &hashes,
                                qint64 dl,
                                qint64 ul,
                                double ratio,
                                qint64 seedingMinutes,
-                               const QString &shareLimitAction = QString());
+                               const QString &shareLimitAction = QString(),
+                               qint64 inactiveSeedingMinutes = -2);
 
     /// The sheet's fallback rename (the table's inline editor is the primary one).
     Q_INVOKABLE void rename(const QString &hash, const QString &name);
@@ -586,9 +609,30 @@ Q_SIGNALS:
 private:
     /// True (and logged) in demo mode, where none of these actions may touch a network.
     bool demoGuard(const QString &action, int count);
-    /// G4: the hashes whose `field` is not `on` yet (what a toggle endpoint must flip).
-    QStringList
-    hashesNotAt(const QStringList &hashes, bool on, bool omaseed::core::Torrent::*field) const;
+    /// A toggle sent to the server whose result the model may not show yet (the next sync is
+    /// 1.5–5 s away): the value the torrent is heading to, and until when to believe it.
+    struct PendingToggle
+    {
+        bool target = false;
+        QDeadlineTimer expiry;
+    };
+    using PendingToggles = QHash<QString, PendingToggle>;
+    /// G4: the hashes whose `field` is not `on` yet (what a toggle endpoint must flip). A
+    /// toggle still in `pending` counts as done, so a second press before the next sync
+    /// does not flip the same torrents back.
+    QStringList hashesNotAt(const QStringList &hashes,
+                            bool on,
+                            bool omaseed::core::Torrent::*field,
+                            PendingToggles &pending) const;
+    /// Sends `toggle` for `flip` and records the expected values in `pending`; a failed
+    /// request forgets them again.
+    void sendToggle(const QStringList &flip,
+                    bool on,
+                    PendingToggles &pending,
+                    omaseed::core::QbtReply<QByteArray> *reply,
+                    const QString &action);
+    PendingToggles m_pendingSeqDl;
+    PendingToggles m_pendingFirstLast;
     /// G4 in demo mode: sets `key` to `on` on the fictional rows and returns true.
     bool applyDemoOption(const QStringList &hashes, const QString &key, bool on);
     void reportActionResult(const QString &action,
@@ -623,6 +667,10 @@ public:
 
     /// POST torrents/createCategory with no save path (Fig. 13's "new name creates it").
     Q_INVOKABLE void createCategory(const QString &name);
+    /// The category palette's `create "x"` on torrents: set the category only once the server
+    /// has created it (two parallel requests could set it first and get a 409). Both
+    /// failures reach the footer.
+    Q_INVOKABLE void createAndApplyCategory(const QStringList &hashes, const QString &name);
     /// POST torrents/setCategory. A no-op in demo mode beyond a log line.
     Q_INVOKABLE void applyCategory(const QStringList &hashes, const QString &name);
 
@@ -699,8 +747,8 @@ public:
     Q_INVOKABLE void pickTorrentFile();
 
     /// Fig. 10's test: the library row either infohash already occupies (`torrentRow`'s
-    /// fields), or an empty map. v2 is matched against the maindata `infohash_v2` field as
-    /// well as the key, because a hybrid torrent is keyed by its v1 hash.
+    /// fields), or an empty map. Both hashes are matched against the maindata `infohash_v1`/
+    /// `infohash_v2` fields as well as the key (see `TorrentFile::torrentIdFor`).
     Q_INVOKABLE QVariantMap findDuplicate(const QString &hashV1, const QString &hashV2) const;
 
     /// Adds what the sheet holds: `parseAddable`'s map plus `category`, `tags` (list),
@@ -720,7 +768,8 @@ public:
     /// Fig. 5 and Fig. 10 can be screenshot reproducibly. Empty everywhere else.
     Q_INVOKABLE QString demoAddText() const;
     /// The example `.torrent` behind `OMASEED_DEMO_ADD=torrent` (DemoData::demoTorrentBytes),
-    /// written to the temp directory; its path. Empty outside demo mode.
+    /// written once into a private temporary directory of this process; its path. Empty
+    /// outside demo mode.
     Q_INVOKABLE QString demoTorrentPath() const;
 
     /// The URI hand-off: this process's own argv and every `SingleInstance::openRequested`
@@ -749,17 +798,34 @@ private:
         QString torrentId;
     };
 
-    /// Parses `bytes` on the global thread pool and emits `addableParsed` back here.
-    void parseTorrentBytes(const QString &token,
-                           const QString &fileName,
-                           const QString &value,
-                           const QByteArray &bytes);
-    /// Turns a finished TorrentFile into the map above and remembers its bytes.
-    QVariantMap torrentFileMap(const QString &token,
-                               const QString &fileName,
-                               const QString &value,
-                               const QByteArray &bytes,
-                               omaseed::core::TorrentFile *parsedOut = nullptr) const;
+    /// Reads `path` (when `bytes` is empty) and parses the .torrent on the global thread pool
+    /// — bencode and both info-hashes, never on the GUI thread (plan §4 T4.2) — then emits
+    /// `addableParsed` back here and remembers the bytes under `token`.
+    void parseTorrentInBackground(const QString &token,
+                                  const QString &fileName,
+                                  const QString &value,
+                                  const QString &path,
+                                  const QByteArray &bytes);
+    /// The addable map for a parsed (or failed) .torrent. Pure: no App state.
+    static QVariantMap torrentFileMap(const QString &token,
+                                      const QString &fileName,
+                                      const QString &value,
+                                      const omaseed::core::TorrentFile &parsed,
+                                      const QString &error);
+
+    /// Keeps a parsed file for addTorrent, dropping the oldest past a fixed number, so files
+    /// parsed and then abandoned do not pile up for the life of the process.
+    void rememberTorrentFile(const QString &token, const PendingTorrentFile &file);
+    void forgetTorrentFile(const QString &token);
+
+public:
+    /// The thread that ran the most recent .torrent parse, so a test can check it was not the
+    /// GUI thread.
+    static QThread *lastTorrentParseThread();
+    /// How many parsed .torrent files are held for a later add (bounded).
+    int pendingTorrentFileCount() const;
+
+private:
     /// After a stopped add: `torrents/filePrio` for each group of `priorities`, then
     /// `torrents/start` unless `keepStopped`, then `addFinished`. A just-added torrent can
     /// take a moment to exist on an older server, so a 404/409 is retried for a few seconds.
@@ -774,6 +840,9 @@ private:
     void watchForAddedHash(const QString &hash);
 
     QHash<QString, PendingTorrentFile> m_pendingTorrentFiles;
+    QStringList m_pendingTorrentOrder; ///< tokens of m_pendingTorrentFiles, oldest first
+    mutable std::unique_ptr<QTemporaryDir> m_demoTempDir;
+    mutable QString m_demoTorrentPath;
     QString m_awaitedAddHash;
     QTimer *m_addWatchTimer = nullptr;
     QMetaObject::Connection m_addWatch;
@@ -795,6 +864,12 @@ public:
     Q_PROPERTY(bool firstRunNeeded READ firstRunNeeded NOTIFY serverChanged)
     bool firstRunNeeded() const { return m_servers->count() == 0; }
 
+    /// Why `servers.json` could not be read at start (corrupt, or from a newer build); empty
+    /// otherwise. First run then shows although the user has servers: this says why. The
+    /// unreadable file is never overwritten: the next save moves it aside first.
+    Q_PROPERTY(QString serversLoadError READ serversLoadError NOTIFY serverChanged)
+    QString serversLoadError() const { return m_servers->loadError(); }
+
     /// Starts `ServerDetector` (a TCP probe of 127.0.0.1:8080 — connect-and-close only, never
     /// an HTTP request — plus a `docker ps` and a `pgrep` check). Answers with
     /// `serversDetected()`, always exactly once. Safe to call again while a previous run is
@@ -802,13 +877,18 @@ public:
     Q_INVOKABLE void detectServers();
 
     /// The exact shell commands the install step's copyable field shows, one per line: the
-    /// package, then enabling the per-user template unit qbittorrent-nox ships
+    /// package (`sudo pacman -S …`: text for the user to run in their own terminal, never
+    /// run by the app), then enabling the per-user template unit qbittorrent-nox ships
     /// (`qbittorrent-nox@.service`, `pacman -Ql qbittorrent-nox | grep service`).
     Q_INVOKABLE QString installCommandsText() const;
     /// Runs `pkexec pacman -S --noconfirm qbittorrent-nox` — never `sudo` from inside the
     /// app. Answers with `installFinished()`. Does not enable the service: that needs a user
     /// systemd instance the installer cannot assume is the one running this session.
     Q_INVOKABLE void runInstallWithPkexec();
+    /// What runInstallWithPkexec runs, with the command left open so a test can drive the
+    /// failure paths (a crash, a missing program) with something harmless. Always exactly
+    /// one `installFinished()` per call.
+    void runInstall(const QString &program, const QStringList &arguments);
 
 Q_SIGNALS:
     /// One `detectServers()` answer: each candidate is `{kind: "port"|"docker"|"process",
@@ -842,7 +922,8 @@ Q_SIGNALS:
                          qint64 ul,
                          double ratio,
                          qint64 seedingMinutes,
-                         QString shareLimitAction);
+                         QString shareLimitAction,
+                         qint64 inactiveSeedingMinutes);
     // --- end T5.5 Q14 ----------------------------------------------------------------------
 
     // --- docs/08 §3: the hero's ⋯ menu -----------------------------------------------------

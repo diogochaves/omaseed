@@ -7,6 +7,8 @@
 
 #include "core/QbtClient.hpp"
 
+#include "LiveServer.hpp"
+
 #include <QEventLoop>
 #include <QJsonArray>
 #include <QJsonObject>
@@ -78,15 +80,12 @@ private:
 
 void TestQbtClientLive::initTestCase()
 {
-    m_playground = QUrl(env("QBT_TEST_URL"));
-    m_strict = QUrl(env("QBT_STRICT_URL"));
+    m_playground = LiveServer::playground();
+    m_strict = LiveServer::strict();
     m_user = env("QBT_STRICT_USER");
     m_password = env("QBT_STRICT_PASS");
     m_apiKey = env("QBT_STRICT_API_KEY");
 
-    if (m_playground.isEmpty() || m_strict.isEmpty()) {
-        QSKIP("QBT_TEST_URL / QBT_STRICT_URL are unset: source ~/.config/omaseed/dev.env");
-    }
     if (!answers(m_playground) || !answers(m_strict))
         QSKIP("the development servers do not answer: scripts/dev/test-server.sh start");
 }

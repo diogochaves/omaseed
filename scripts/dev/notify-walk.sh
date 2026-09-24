@@ -23,7 +23,11 @@ set -euo pipefail
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$repo"
 SWARM="$repo/scripts/dev/swarm.sh"
-PLAY="http://127.0.0.1:8081/api/v2"
+# shellcheck source=scripts/dev/home-guard.sh
+. "$repo/scripts/dev/home-guard.sh"
+PLAY_PORT="${OMASEED_TEST_PORT:-8081}"
+PLAY="http://127.0.0.1:$PLAY_PORT/api/v2"
+refuse_home "$PLAY"
 DOWNLOADS="${OMASEED_TEST_PROFILE:-$HOME/.local/share/omaseed-test}/downloads"
 APP_ID=io.github.diogochaves.omaseed
 BOX=notify-walk
@@ -32,7 +36,7 @@ OUT=""
 case "${1:-}" in
 --interactive) INTERACTIVE=1 ;;
 -h | --help) sed -n '2,/^set -e/p' "$0" | sed '$d'; exit 0 ;;
-*) OUT="${1:-${TMPDIR:-/tmp}/omaseed-notify-walk-$(date +%Y%m%d-%H%M%S)}" ;;
+*) OUT="${1:-$(mktemp -d "${TMPDIR:-/tmp}/omaseed-notify-walk-$(date +%Y%m%d-%H%M%S)-XXXX")}" ;;
 esac
 
 [ -x build/omaseed ] || { echo "build first: cmake --build build" >&2; exit 1; }
@@ -150,6 +154,7 @@ toast_up() {
 
 STEP=0
 CHECKS=""
+FAILED=0
 # watch "title" "what to look for": a screenshot (headless); interactive, the same words but
 # no pause, for a step whose screen must not wait on the reader (a toast times out).
 watch() {
@@ -181,7 +186,7 @@ step() {
 check() {
     local what="$1"; shift
     local mark="FAIL"
-    if "$@"; then mark="ok"; fi
+    if "$@"; then mark="ok"; else FAILED=$((FAILED + 1)); fi
     CHECKS+="- $mark: $what"$'\n'
     echo "  check $mark: $what"
 }
@@ -202,20 +207,22 @@ mkdir -p "$DOWNLOADS"
 echo "starting the box"
 omabox down -b "$BOX" >/dev/null 2>&1 || true
 if [ "$INTERACTIVE" = 1 ]; then
-    omabox up "$BOX" --interactive --net isolated --allow 8081 --ro-bind "$DOWNLOADS" >/dev/null
+    omabox up "$BOX" --interactive --net isolated --allow "$PLAY_PORT" --ro-bind "$DOWNLOADS" >/dev/null
 else
     mkdir -p "$OUT"
+    # shellcheck disable=SC2016 # backticks are Markdown, not command substitution
     printf '# Notification walk %s\n\nBuild `%s`. Each shot: what should be on screen.\n\n' \
         "$(date '+%Y-%m-%d %H:%M')" "$(git rev-parse --short HEAD)" >"$OUT/index.md"
-    omabox up "$BOX" --net isolated --allow 8081 --ro-bind "$DOWNLOADS" >/dev/null
+    omabox up "$BOX" --net isolated --allow "$PLAY_PORT" --ro-bind "$DOWNLOADS" >/dev/null
 fi
 home="$(omabox path -b "$BOX")/home"
 mkdir -p "$home/.config/omaseed" && chmod 700 "$home/.config/omaseed"
-printf '%s' '{"version":1,"defaultId":"playground","servers":[{"id":"playground","name":"playground","url":"http://127.0.0.1:8081","authMode":"none","username":"","pathMap":[],"isDefault":true,"addedAt":"2026-09-23T00:00:00Z"}]}' \
+printf '{"version":1,"defaultId":"playground","servers":[{"id":"playground","name":"playground","url":"http://127.0.0.1:%s","authMode":"none","username":"","pathMap":[],"isDefault":true,"addedAt":"2026-09-23T00:00:00Z"}]}' "$PLAY_PORT" \
     >"$home/.config/omaseed/servers.json"
 chmod 600 "$home/.config/omaseed/servers.json"
 # The desktop entry and icon, so the shell can resolve the notice's icon and desktop-entry.
 omabox run -b "$BOX" -- scripts/dev/install-desktop.sh >/dev/null 2>&1
+# shellcheck disable=SC2016 # the box's $HOME, expanded inside the box
 omabox run -b "$BOX" -d -- sh -c \
     'exec dbus-monitor --session "interface=org.freedesktop.Notifications" >"$HOME/bus.log" 2>&1' >/dev/null
 launch
@@ -274,4 +281,9 @@ if [ "$INTERACTIVE" = 1 ]; then
     echo "done. The box stays up for a look around; close it with: omabox down $BOX"
 else
     echo "done: $OUT/index.md"
+fi
+# A failed check fails the walk, so a caller need not read index.md to know.
+if [ "$FAILED" -gt 0 ]; then
+    echo "$FAILED check(s) failed" >&2
+    exit 1
 fi

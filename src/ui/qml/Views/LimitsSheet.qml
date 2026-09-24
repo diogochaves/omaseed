@@ -6,9 +6,18 @@ import Omaseed.Kit
 
 // "Limits" (spec v2 §3 Fig. 8, `.sheet`): download/upload speed, share ratio (with a "use the
 // global default" chip) and seeding time, prefilled from the cursor torrent (the first of
-// `hashes`). `apply` converts every field to the units `App.setLimits` wants: 0 means
-// unlimited for a speed field left empty, `global` on the ratio chip is -2, an empty seeding
-// time is -1 (no limit).
+// `hashes`). `apply` converts every field to the units `App.setLimits` wants, and only the
+// fields the user changed travel: an untouched speed is -1 (unchanged), an untouched ratio,
+// seeding time or action is each torrent's own value (so a `global` seeding time stays -2 and
+// a multi-selection keeps its differences). A changed field that is empty means no limit
+// (0 for a speed, -1 for ratio and seeding time), as the `∞` placeholder says and as the
+// global Speed limits sheet reads it; `global` on the ratio chip is -2. Seeding time is in
+// days and may be fractional (90 minutes reads 0.06 and, untouched, stays 90 minutes). A
+// field that is not a number stops `apply` with a red line instead of sending NaN.
+//
+// qBittorrent's inactive seeding time limit has no field here (the spec has none), but it
+// travels in the same `torrents/setShareLimits` call, so each torrent's own value
+// (`inactiveSeedingTimeLimit`) is sent back unchanged; only `reset` puts it back on global.
 //
 // T5.5 Q14 adds qBittorrent's own fifth row, "when the limit is reached" (qui's share-limit
 // action row): one chip per `shareLimitAction` the server knows, shown only on a Web API
@@ -30,6 +39,15 @@ Sheet {
                                         qsTr("remove with content"), qsTr("super seed")]
     /// True when `hashes` disagree on their action, until the row is touched.
     property bool _actionMixed: false
+    /// The fields as `openFor` filled them, to tell what the user changed.
+    property var _initial: ({})
+    /// Why `apply` refused, shown over the fields; empty hides it.
+    property string errorText: ""
+
+    readonly property alias downloadField: dlField
+    readonly property alias uploadField: ulField
+    readonly property alias ratioField: ratioField
+    readonly property alias seedingField: seedingField
 
     actions: [
         {
@@ -59,12 +77,74 @@ Sheet {
         dlField.text = row.dlLimit > 0 ? String(Math.round(row.dlLimit / 1024)) : "";
         ulField.text = row.upLimit > 0 ? String(Math.round(row.upLimit / 1024)) : "";
         root._setRatio(row.ratioLimit !== undefined ? row.ratioLimit : -2);
-        seedingField.text = row.seedingTimeLimit !== undefined && row.seedingTimeLimit >= 0 ?
-                                                                       String(Math.round(
-                                                                                  row.seedingTimeLimit
-                                                                                  / 1440)) : "";
+        seedingField.text = row.seedingTimeLimit !== undefined && row.seedingTimeLimit >= 0
+                ? root._daysText(row.seedingTimeLimit) : "";
         root._setAction(row.shareLimitAction, hashes);
+        root.errorText = "";
+        root._initial = {
+            "dl": dlField.text,
+            "ul": ulField.text,
+            "ratio": ratioField.text,
+            "ratioGlobal": root._ratioGlobal,
+            "seeding": seedingField.text
+        };
         root.open();
+    }
+
+    /// Minutes as days for the field: whole days plainly, anything else to two decimals.
+    function _daysText(minutes: real): string {
+        return minutes % 1440 === 0 ? String(minutes / 1440) : String(Number((minutes / 1440).toFixed(2)));
+    }
+
+    /// A number the user typed, or NaN when it is not one (empty is handled by the callers).
+    function _number(text: string): real {
+        const value = Number(text.trim());
+        return Number.isFinite(value) && value >= 0 ? value : NaN;
+    }
+
+    /// What `apply` sends, or `{error}` naming the first field that is not a number.
+    /// `speed` values are bytes/s with -1 for unchanged; `ratio`/`seeding` are null when
+    /// untouched, meaning "each torrent keeps its own".
+    function _formValues(): var {
+        const out = {
+            "dl": root._speedValue(dlField.text, root._initial.dl),
+            "ul": root._speedValue(ulField.text, root._initial.ul),
+            "ratio": null,
+            "seeding": null
+        };
+        if (Number.isNaN(out.dl))
+            return {"error": qsTr("Download is not a number")};
+        if (Number.isNaN(out.ul))
+            return {"error": qsTr("Upload is not a number")};
+        // qBittorrent keeps a speed limit in an int of bytes/s; past it the server wraps the
+        // value to "no limit" without a word (review RUN-2 (e)).
+        if (out.dl > root.maxSpeedBytes)
+            return {"error": qsTr("Download is over the largest limit qBittorrent takes")};
+        if (out.ul > root.maxSpeedBytes)
+            return {"error": qsTr("Upload is over the largest limit qBittorrent takes")};
+        if (root._ratioGlobal !== root._initial.ratioGlobal
+                || (!root._ratioGlobal && ratioField.text.trim() !== String(root._initial.ratio).trim())) {
+            if (root._ratioGlobal) {
+                out.ratio = -2;
+            } else if (ratioField.text.trim().length === 0) {
+                out.ratio = -1;
+            } else {
+                out.ratio = root._number(ratioField.text);
+                if (Number.isNaN(out.ratio))
+                    return {"error": qsTr("Share ratio is not a number")};
+            }
+        }
+        if (seedingField.text.trim() !== String(root._initial.seeding).trim()) {
+            if (seedingField.text.trim().length === 0) {
+                out.seeding = -1;
+            } else {
+                const days = root._number(seedingField.text);
+                if (Number.isNaN(days))
+                    return {"error": qsTr("Seeding time is not a number")};
+                out.seeding = Math.round(days * 1440);
+            }
+        }
+        return out;
     }
 
     /// Puts the chip on `name`'s text (unknown or empty reads as `default`); when the other
@@ -105,16 +185,22 @@ Sheet {
         }
     }
 
-    /// Bytes/s for a speed field: empty means unchanged (-1), "0" or blank-with-placeholder
-    /// means unlimited (0), otherwise KB/s converted to bytes/s.
-    function _speedValue(text: string): real {
-        if (text.length === 0)
+    /// Bytes/s for a speed field: -1 while it still reads what it opened with (unchanged),
+    /// 0 (unlimited) when emptied or "0", otherwise KB/s converted to bytes/s; NaN when it is
+    /// not a number.
+    function _speedValue(text: string, initial: var): real {
+        const typed = text.trim();
+        if (initial !== undefined && typed === String(initial).trim())
             return -1;
-        const kb = Number(text);
-        return Number.isFinite(kb) ? Math.max(0, Math.round(kb * 1024)) : -1;
+        if (typed.length === 0)
+            return 0;
+        const kb = root._number(typed);
+        return Number.isNaN(kb) ? NaN : Math.round(kb * 1024);
     }
 
     property bool _ratioGlobal: true
+    /// The largest speed limit the Web API stores (a signed 32-bit bytes/s).
+    readonly property real maxSpeedBytes: 2147483647
 
     onActionTriggered: text => {
         if (text !== qsTr("reset"))
@@ -124,17 +210,59 @@ Sheet {
         root._setRatio(-2);
         seedingField.text = "";
         root._setAction("Default", []);
-        App.setLimits(root.hashes, 0, 0, -2, -2, "Default");
+        root.errorText = "";
+        App.setLimits(root.hashes, 0, 0, -2, -2, "Default", -2);
         root.close();
     }
+    // `torrents/setShareLimits` always takes ratio, seeding time and action together, so the
+    // torrents are grouped by what they end up with: a field left alone keeps each torrent's
+    // own value instead of the cursor torrent's (or -1) overwriting all of them.
     onAccepted: {
-        const ratio = root._ratioGlobal ? -2 : (ratioField.text.length > 0 ? Number(
-                                                    ratioField.text) : -1);
-        const seedingMinutes = seedingField.text.length > 0 ? Math.round(
-                                   Number(seedingField.text) * 1440) : -1;
-        App.setLimits(root.hashes, root._speedValue(dlField.text), root._speedValue(
-                          ulField.text), ratio, seedingMinutes, root.actionValue());
+        const values = root._formValues();
+        if (values.error !== undefined) {
+            root.errorText = values.error; // and the sheet stays up, like the add sheet's refusal
+            return;
+        }
+        root.errorText = "";
+        const groups = [];
+        const byKey = {};
+        for (let i = 0; i < root.hashes.length; ++i) {
+            const row = App.torrentRow(root.hashes[i]);
+            const ratio = values.ratio !== null ? values.ratio
+                                                : (row.ratioLimit !== undefined ? row.ratioLimit : -2);
+            const seeding = values.seeding !== null ? values.seeding
+                                                    : (row.seedingTimeLimit !== undefined ? row.seedingTimeLimit : -2);
+            const action = root._actionMixed ? root.actionNames[Math.max(0, root.actionNames.indexOf(
+                                                                             row.shareLimitAction))]
+                                             : root.actionValue();
+            const inactive = row.inactiveSeedingTimeLimit !== undefined ? row.inactiveSeedingTimeLimit
+                                                                        : -2;
+            const key = ratio + "|" + seeding + "|" + action + "|" + inactive;
+            if (byKey[key] === undefined) {
+                byKey[key] = groups.length;
+                groups.push({
+                                "hashes": [],
+                                "ratio": ratio,
+                                "seeding": seeding,
+                                "action": action,
+                                "inactive": inactive
+                            });
+            }
+            groups[byKey[key]].hashes.push(root.hashes[i]);
+        }
+        for (let g = 0; g < groups.length; ++g)
+            App.setLimits(groups[g].hashes, values.dl, values.ul, groups[g].ratio,
+                          groups[g].seeding, groups[g].action, groups[g].inactive);
         root.close();
+    }
+
+    // A field that is not a number: the kit's error Banner, the red surface the add sheet
+    // already uses for a refusal.
+    Banner {
+        Layout.fillWidth: true
+        kind: "error"
+        text: root.errorText
+        visible: root.errorText.length > 0
     }
 
     // Spec §3 Fig. 8 lays the four rows out as `.sheet .cols`
@@ -154,6 +282,7 @@ Sheet {
                 id: dlField
 
                 Layout.fillWidth: true
+                escClears: false
                 placeholder: "∞" // ∞
                 trailing: qsTr("KB/s")
 
@@ -170,6 +299,7 @@ Sheet {
                 id: ulField
 
                 Layout.fillWidth: true
+                escClears: false
                 placeholder: "∞"
                 trailing: qsTr("KB/s")
 
@@ -190,6 +320,7 @@ Sheet {
                     id: ratioField
 
                     Layout.fillWidth: true
+                    escClears: false
                     enabled: !root._ratioGlobal
                     // Empty is no limit, as in the speed fields; under `global` the chip
                     // says it all and the field has nothing to add (batch-2 J6).
@@ -216,6 +347,7 @@ Sheet {
                 id: seedingField
 
                 Layout.fillWidth: true
+                escClears: false
                 placeholder: "∞"
                 trailing: qsTr("days")
 

@@ -115,6 +115,13 @@ class Theme : public QObject
     Q_PROPERTY(qreal borderIdle READ borderIdle NOTIFY changed FINAL)
     Q_PROPERTY(qreal borderHover READ borderHover NOTIFY changed FINAL)
     Q_PROPERTY(qreal hairlineAlpha READ hairlineAlpha NOTIFY changed FINAL)
+    /// The spec's three alphas outside the shell's set, fixed by the spec rather than read
+    /// from shell.toml: the rule between table and palette rows (`.tbl .r`, `.palette .it`,
+    /// 5 %), a selected row under the cursor (`.tbl .r.sel.cur`, 24 %) and the rule under a
+    /// key/value row (`.kv`, 6 %).
+    Q_PROPERTY(qreal rowRuleAlpha READ rowRuleAlpha CONSTANT FINAL)
+    Q_PROPERTY(qreal fillSelectedCursor READ fillSelectedCursor CONSTANT FINAL)
+    Q_PROPERTY(qreal keyValueRuleAlpha READ keyValueRuleAlpha CONSTANT FINAL)
 
     // ---- identity and window -----------------------------------------------------------
     Q_PROPERTY(QString mode READ mode NOTIFY changed FINAL)
@@ -168,6 +175,9 @@ public:
     qreal borderIdle() const { return m_borderIdle; }
     qreal borderHover() const { return m_borderHover; }
     qreal hairlineAlpha() const { return m_hairlineAlpha; }
+    static constexpr qreal rowRuleAlpha() { return 0.05; }
+    static constexpr qreal fillSelectedCursor() { return 0.24; }
+    static constexpr qreal keyValueRuleAlpha() { return 0.06; }
 
     QString mode() const { return m_mode; }
     QString themeName() const { return m_themeName; }

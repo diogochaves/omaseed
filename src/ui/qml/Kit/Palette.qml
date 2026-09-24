@@ -14,10 +14,15 @@ import Omaseed.Kit
 //
 // Keys: `up`/`down` and `ctrl+p`/`ctrl+n` move (never `j`/`k` — in a palette those are typed
 // text), `enter` activates, `tab` asks for the secondary action (Fig. 12's "tab actions"),
-// `space` toggles when `multi` is set, `esc` closes. `inline: true` drops the scrim and the
+// `space` toggles when `multi` is set, `esc` clears a typed query and closes when there is
+// none (the escape ladder: clear, then close). `inline: true` drops the scrim and the
 // centring, for the gallery. A `reorderable` list (the columns palette, N2) also asks to move
 // the cursor's row with `alt+up`/`alt+down` (`alt+k`/`alt+j`) and to put the default order back
 // with `ctrl+r`; the caller owns the order, as it owns `checked`.
+//
+// Do NOT run `qmlformat` on this file: with the project's 100-column wrap it re-indents the
+// typed functions further on every pass (the defect MainView.qml and TorrentTable.qml note).
+// It is hand-formatted to qmlformat's own style instead.
 Item {
     id: root
 
@@ -39,6 +44,9 @@ Item {
     property var hints: []
     property string footerRight: ""
     property bool inline: false
+    /// While open, keys the palette has no use for stop here instead of reaching the view
+    /// behind the scrim (KIT-6); only `ctrl+q` goes on, since quitting is never modal.
+    property bool modal: true
     /// The panel's maximum width; the spec's `.palette` is 480.
     property int paletteWidth: Theme.space(480)
     /// The row the keyboard is on.
@@ -53,7 +61,7 @@ Item {
     readonly property alias listView: list
     /// The row under the cursor, or null.
     readonly property var currentItem: root.cursorIndex >= 0 && root.cursorIndex < root.items.length
-                                       ? root.items[root.cursorIndex] : null
+            ? root.items[root.cursorIndex] : null
 
     /// `enter` on a row.
     signal activated(int index, var item)
@@ -75,31 +83,32 @@ Item {
     readonly property int _margin: Theme.space(16)
     /// The rule between rows: the spec's `.palette .it` uses the foreground at 5 %, lighter
     /// than the 12 % hairline everywhere else.
-    readonly property color _rowRule: Theme.fill(0.05)
+    readonly property color _rowRule: Theme.fill(Theme.rowRuleAlpha)
 
     function open(): void {
-    if (root._opened)
-    return;
-    root._previousFocus = root.Window.activeFocusItem;
-    root._opened = true;
-    root.focusQuery();
-}
+        if (root._opened)
+            return;
+        root._previousFocus = root.Window.activeFocusItem;
+        root._opened = true;
+        root.focusQuery();
+    }
 
     function close(): void {
-                          if (!root._opened)
-                          return;
-                          root._opened = false;
-                          const previous = root._previousFocus;
-                          root._previousFocus = null;
-                          if (previous)
-                          previous.forceActiveFocus();
-                      }
+        if (!root._opened)
+            return;
+        root._opened = false;
+        const previous = root._previousFocus;
+        root._previousFocus = null;
+        if (previous)
+            previous.forceActiveFocus();
+    }
 
     /// Open with the cursor on the row whose `key` is `key` (the current value) instead of
     /// on row 0 — spec §4 Fig. 14 draws the cursor on "download speed · ▾ current". Falls
     /// back to row 0 when no row carries that key.
     function openOn(key: var): void {
         root.open();
+        root.cursorIndex = 0; // the fallback, not the row the last session left it on
         root.cursorToKey(key);
     }
 
@@ -116,16 +125,16 @@ Item {
 
     /// Put the caret in the query row.
     function focusQuery(): void {
-    input.forceActiveFocus();
-}
+        input.forceActiveFocus();
+    }
 
     /// Move the cursor by `delta` rows, clamped at both ends, keeping it in view.
     function moveCursor(delta: int): void {
-    if (root.items.length === 0)
-    return;
-    root.cursorIndex = Math.max(0, Math.min(root.items.length - 1, root.cursorIndex + delta));
-    root._showRow(root.cursorIndex);
-}
+        if (root.items.length === 0)
+            return;
+        root.cursorIndex = Math.max(0, Math.min(root.items.length - 1, root.cursorIndex + delta));
+        root._showRow(root.cursorIndex);
+    }
 
     /// Scroll row `index` into view and clear of the hint's bands or fades.
     function _showRow(index: int): void {
@@ -167,7 +176,8 @@ Item {
         }
         return -1;
     }
-    readonly property int _rawAbove: Math.max(0, root._rowAt(list.contentY + 1, root._layoutRevision))
+    readonly property int _rawAbove: Math.max(0,
+            root._rowAt(list.contentY + 1, root._layoutRevision))
     readonly property int _rawBelow: {
         const last = root._rowAt(list.contentY + list.height - 1, root._layoutRevision);
         return last < 0 ? 0 : list.count - 1 - last;
@@ -175,352 +185,373 @@ Item {
     readonly property int _rowsAbove: {
         if (root._rawAbove === 0)
             return 0;
-        return Math.max(root._rawAbove, root._rowAt(list.contentY + hint.bandHeight + 1,
-                                                    root._layoutRevision));
+        return Math.max(root._rawAbove,
+                root._rowAt(list.contentY + hint.bandHeight + 1, root._layoutRevision));
     }
     readonly property int _rowsBelow: {
         if (root._rawBelow === 0)
             return 0;
         const last = root._rowAt(list.contentY + list.height - hint.bandHeight - 1,
-                                 root._layoutRevision);
+                root._layoutRevision);
         return last < 0 ? root._rawBelow : list.count - 1 - last;
     }
 
     /// `enter`: hand the cursor's row to the caller. The caller closes the palette.
     function activate(): void {
-                             if (root.currentItem)
-                             root.activated(root.cursorIndex, root.currentItem);
-                         }
+        if (root.currentItem)
+            root.activated(root.cursorIndex, root.currentItem);
+    }
 
     /// The shared matcher, so a caller filtering for this palette need not import anything.
     function match(text: string, query: string): bool {
         return Fuzzy.match(text, query);
     }
 
+    /// The one key a modal overlay lets through: `ctrl+q`.
+    function _passesThrough(event: var): bool {
+        return (event.modifiers & Qt.ControlModifier) !== 0 && event.key === Qt.Key_Q;
+    }
+
     function _onKey(event: var): void {
-    const ctrl = (event.modifiers & Qt.ControlModifier) !== 0;
-    const alt = (event.modifiers & Qt.AltModifier) !== 0;
-    if (root.reorderable && alt && !ctrl) {
-        let delta = 0;
-        if (event.key === Qt.Key_Up || event.key === Qt.Key_K)
-            delta = -1;
-        else if (event.key === Qt.Key_Down || event.key === Qt.Key_J)
-            delta = 1;
-        if (delta !== 0) {
-            if (root.currentItem)
-                root.moveRequested(root.cursorIndex, root.currentItem, delta);
+        const ctrl = (event.modifiers & Qt.ControlModifier) !== 0;
+        const alt = (event.modifiers & Qt.AltModifier) !== 0;
+        if (root.reorderable && alt && !ctrl) {
+            let delta = 0;
+            if (event.key === Qt.Key_Up || event.key === Qt.Key_K)
+                delta = -1;
+            else if (event.key === Qt.Key_Down || event.key === Qt.Key_J)
+                delta = 1;
+            if (delta !== 0) {
+                if (root.currentItem)
+                    root.moveRequested(root.cursorIndex, root.currentItem, delta);
+                event.accepted = true;
+                return;
+            }
+        }
+        if (root.reorderable && ctrl && event.key === Qt.Key_R) {
+            root.resetRequested();
             event.accepted = true;
             return;
         }
-    }
-    if (root.reorderable && ctrl && event.key === Qt.Key_R) {
-        root.resetRequested();
-        event.accepted = true;
-        return;
-    }
-    if (ctrl && (event.key === Qt.Key_N || event.key === Qt.Key_P)) {
-        root.moveCursor(event.key === Qt.Key_N ? 1 : -1);
-        event.accepted = true;
-        return;
-    }
+        if (ctrl && (event.key === Qt.Key_N || event.key === Qt.Key_P)) {
+            root.moveCursor(event.key === Qt.Key_N ? 1 : -1);
+            event.accepted = true;
+            return;
+        }
         if (ctrl)
-        return;
+            return;
         switch (event.key) {
-            case Qt.Key_Escape:
-                root.close();
+        case Qt.Key_Escape:
+            if (root.query.length > 0) {
+                root.query = "";
+                break;
+            }
+            root.close();
             root.rejected();
             break;
-            case Qt.Key_Down:
-                root.moveCursor(1);
+        case Qt.Key_Down:
+            root.moveCursor(1);
             break;
-            case Qt.Key_Up:
-                root.moveCursor(-1);
+        case Qt.Key_Up:
+            root.moveCursor(-1);
             break;
-            case Qt.Key_Return:
-                case Qt.Key_Enter:
-                root.activate();
+        case Qt.Key_Return:
+        case Qt.Key_Enter:
+            root.activate();
             break;
-            case Qt.Key_Tab:
-                case Qt.Key_Backtab:
-                if (root.currentItem)
-            root.secondary(root.cursorIndex, root.currentItem);
-            break;
-            case Qt.Key_Space:
-                if (!root.multi)
-                    return;
+        case Qt.Key_Tab:
+        case Qt.Key_Backtab:
             if (root.currentItem)
-            root.toggled(root.cursorIndex, root.currentItem);
+                root.secondary(root.cursorIndex, root.currentItem);
             break;
-            default:
+        case Qt.Key_Space:
+            if (!root.multi)
                 return;
+            if (root.currentItem)
+                root.toggled(root.cursorIndex, root.currentItem);
+            break;
+        default:
+            return;
         }
         event.accepted = true;
     }
 
-        implicitHeight: panel.implicitHeight
-        implicitWidth: root.paletteWidth
-        visible: root.inline || root._opened
+    implicitHeight: panel.implicitHeight
+    implicitWidth: root.paletteWidth
+    visible: root.inline || root._opened
 
-        Keys.onPressed: event => root._onKey(event)
-        onItemsChanged: root.cursorIndex = Math.max(0, Math.min(root.cursorIndex, root.items.length
-                                                                - 1))
+    Keys.onPressed: event => {
+        root._onKey(event);
+        if (root.modal && root._opened && !event.accepted)
+            event.accepted = !root._passesThrough(event);
+    }
+    onItemsChanged: root.cursorIndex = Math.max(0,
+            Math.min(root.cursorIndex, root.items.length - 1))
 
-        onQueryChanged: root.cursorIndex = 0
+    onQueryChanged: root.cursorIndex = 0
 
-        Scrim {
-            anchors.fill: parent
-            visible: !root.inline
+    Scrim {
+        anchors.fill: parent
+        visible: !root.inline
 
-            onDismissed: {
-                root.close();
-                root.rejected();
-            }
+        onDismissed: {
+            root.close();
+            root.rejected();
         }
+    }
 
-        Rectangle {
-            id: panel
+    Rectangle {
+        id: panel
 
-            border.color: Theme.accent
-            border.width: 1
-            color: Theme.background
-            implicitHeight: layout.implicitHeight
-            radius: Theme.cornerRadius
-            width: Math.min(root.paletteWidth, root.inline ? root.paletteWidth : Math.max(0,
-                                                                                          root.width
-                                                                                          - 2 * root._margin))
-            x: root.inline ? 0 : Math.round((root.width - width) / 2)
-            y: root.inline ? 0 : Math.round((root.height - height) / 2)
+        border.color: Theme.accent
+        border.width: 1
+        color: Theme.background
+        implicitHeight: layout.implicitHeight
+        radius: Theme.cornerRadius
+        width: Math.min(root.paletteWidth, root.inline ? root.paletteWidth
+                : Math.max(0, root.width - 2 * root._margin))
+        x: root.inline ? 0 : Math.round((root.width - width) / 2)
+        y: root.inline ? 0 : Math.round((root.height - height) / 2)
 
-            ColumnLayout {
-                id: layout
+        ColumnLayout {
+            id: layout
 
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.top: parent.top
-                spacing: 0
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            spacing: 0
 
-                // the query row (`.palette .q`) -----------------------------------------
-                Item {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: Theme.controlHeight + Theme.space(8)
+            // the query row (`.palette .q`) -----------------------------------------
+            Item {
+                Layout.fillWidth: true
+                Layout.preferredHeight: Theme.controlHeight + Theme.space(8)
 
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: Theme.space(14)
-                        anchors.rightMargin: Theme.space(14)
-                        spacing: Theme.space(10)
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: Theme.space(14)
+                    anchors.rightMargin: Theme.space(14)
+                    spacing: Theme.space(10)
 
-                        Glyph {
-                            color: Theme.dimForeground
-                            text: root.glyph
-                            visible: root.glyph.length > 0
-                        }
+                    Glyph {
+                        color: Theme.dimForeground
+                        text: root.glyph
+                        visible: root.glyph.length > 0
+                    }
 
-                        Item {
-                            Layout.fillHeight: true
-                            Layout.fillWidth: true
+                    Item {
+                        Layout.fillHeight: true
+                        Layout.fillWidth: true
 
-                            TextInput {
-                                id: input
+                        TextInput {
+                            id: input
 
-                                anchors.left: parent.left
-                                anchors.right: parent.right
-                                anchors.verticalCenter: parent.verticalCenter
-                                clip: true
-                                color: Theme.brightForeground
-                                font.family: Theme.fontFamily
-                                font.pixelSize: Theme.font.body
-                                selectByMouse: true
-                                selectionColor: Theme.selection
+                            Accessible.name: root.title
+                            Accessible.role: Accessible.EditableText
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            clip: true
+                            color: Theme.brightForeground
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.font.body
+                            selectByMouse: true
+                            selectionColor: Theme.selection
 
-                                cursorDelegate: Rectangle {
-                                    color: Theme.accent
-                                    width: 1
-                                }
-
-                                Keys.onPressed: event => root._onKey(event)
+                            cursorDelegate: Rectangle {
+                                color: Theme.accent
+                                width: 1
                             }
 
-                            Label {
-                                anchors.left: parent.left
-                                anchors.right: parent.right
-                                anchors.verticalCenter: parent.verticalCenter
-                                dim: true
-                                elide: Text.ElideRight
-                                text: root.title
-                                visible: root.title.length > 0 && input.text.length === 0
-                            }
+                            Keys.onPressed: event => root._onKey(event)
                         }
 
                         Label {
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
                             dim: true
-                            size: "caption"
-                            text: root.counter
-                            visible: root.counter.length > 0
+                            elide: Text.ElideRight
+                            text: root.title
+                            visible: root.title.length > 0 && input.text.length === 0
                         }
                     }
 
-                    Hairline {
+                    Label {
+                        dim: true
+                        size: "caption"
+                        text: root.counter
+                        visible: root.counter.length > 0
+                    }
+                }
+
+                Hairline {
+                    anchors.bottom: parent.bottom
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                }
+            }
+
+            // the rows (`.palette .it`) ---------------------------------------------
+            ListView {
+                id: list
+
+                Accessible.role: Accessible.List
+                Layout.fillWidth: true
+                Layout.preferredHeight: Math.min(contentHeight, Theme.space(360))
+                boundsBehavior: Flickable.StopAtBounds
+                clip: true
+                model: root.items
+
+                delegate: Rectangle {
+                    id: row
+
+                    required property int index
+                    required property var modelData
+
+                    readonly property bool current: row.index === root.cursorIndex
+
+                    Accessible.name: row.modelData.title ?? ""
+                    Accessible.role: Accessible.ListItem
+                    Accessible.selected: row.current
+                    color: row.current ? Theme.fill(Theme.fillHover) : "transparent"
+                    height: rowColumn.implicitHeight + 2 * Theme.space(6)
+                    width: ListView.view.width
+
+                    // `indexAt` notifies nothing, so a row that comes, goes, moves or
+                    // resizes asks the scroll-hint counts to look again.
+                    Component.onCompleted: root._setRowBox(row.index, row, false)
+                    Component.onDestruction: root._setRowBox(row.index, row, true)
+                    onHeightChanged: root._setRowBox(row.index, row, false)
+                    onYChanged: root._setRowBox(row.index, row, false)
+
+                    Rectangle {
+                        anchors.fill: parent
+                        border.color: Theme.fill(Theme.borderHover)
+                        border.width: 1
+                        color: "transparent"
+                        visible: row.current
+                    }
+
+                    Rectangle {
                         anchors.bottom: parent.bottom
                         anchors.left: parent.left
                         anchors.right: parent.right
+                        color: root._rowRule
+                        height: 1
                     }
-                }
 
-                // the rows (`.palette .it`) ---------------------------------------------
-                ListView {
-                    id: list
-
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: Math.min(contentHeight, Theme.space(360))
-                    boundsBehavior: Flickable.StopAtBounds
-                    clip: true
-                    model: root.items
-
-                    delegate: Rectangle {
-                        id: row
-
-                        required property int index
-                        required property var modelData
-
-                        readonly property bool current: row.index === root.cursorIndex
-
-                        color: row.current ? Theme.fill(Theme.fillHover) : "transparent"
-                        height: rowColumn.implicitHeight + 2 * Theme.space(6)
-                        width: ListView.view.width
-
-                        // `indexAt` notifies nothing, so a row that comes, goes, moves or
-                        // resizes asks the scroll-hint counts to look again.
-                        Component.onCompleted: root._setRowBox(row.index, row, false)
-                        Component.onDestruction: root._setRowBox(row.index, row, true)
-                        onHeightChanged: root._setRowBox(row.index, row, false)
-                        onYChanged: root._setRowBox(row.index, row, false)
-
-                        Rectangle {
-                            anchors.fill: parent
-                            border.color: Theme.fill(Theme.borderHover)
-                            border.width: 1
-                            color: "transparent"
-                            visible: row.current
-                        }
-
-                        Rectangle {
-                            anchors.bottom: parent.bottom
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-                            color: root._rowRule
-                            height: 1
-                        }
-
-                        RowLayout {
-                            anchors.left: parent.left
-                            anchors.leftMargin: Theme.space(14)
-                            anchors.right: parent.right
-                            anchors.rightMargin: Theme.space(14)
-                            anchors.verticalCenter: parent.verticalCenter
-                            spacing: Theme.space(8)
-
-                            Label {
-                                Layout.alignment: Qt.AlignTop
-                                Layout.preferredWidth: Theme.space(14)
-                                bright: row.modelData.checked === true
-                                dim: row.modelData.checked !== true
-                                horizontalAlignment: Text.AlignHCenter
-                                text: row.modelData.checked === true ? Glyphs.check : Glyphs.middot
-                                visible: root.multi
-                            }
-
-                            ColumnLayout {
-                                id: rowColumn
-
-                                Layout.fillWidth: true
-                                spacing: Theme.space(1)
-
-                                RowLayout {
-                                    Layout.fillWidth: true
-                                    spacing: Theme.space(8)
-
-                                    Label {
-                                        Layout.fillWidth: true
-                                        bright: true
-                                        elide: Text.ElideRight
-                                        font.weight: Font.Medium
-                                        text: row.modelData.title !== undefined
-                                              ? row.modelData.title : ""
-                                    }
-
-                                    Label {
-                                        dim: true
-                                        size: "small"
-                                        text: row.modelData.meta !== undefined ? row.modelData.meta :
-                                                                                 ""
-                                        visible: text.length > 0
-                                    }
-                                }
-
-                                Label {
-                                    Layout.fillWidth: true
-                                    dim: true
-                                    elide: Text.ElideRight
-                                    size: "small"
-                                    text: row.modelData.detail !== undefined ? row.modelData.detail :
-                                                                               ""
-                                    visible: text.length > 0
-                                }
-                            }
-                        }
-
-                        MouseArea {
-                            anchors.fill: parent
-                            hoverEnabled: false
-
-                            onClicked: {
-                                root.cursorIndex = row.index;
-                                root.activate();
-                            }
-                        }
-                    }
-                }
-
-                // the hint line (`.palette .ft`) ----------------------------------------
-                Item {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: footerHints.implicitHeight + 2 * Theme.space(6)
-                    visible: root.hints.length > 0 || root.footerRight.length > 0
-
-                    KeyHints {
-                        id: footerHints
-
+                    RowLayout {
                         anchors.left: parent.left
                         anchors.leftMargin: Theme.space(14)
                         anchors.right: parent.right
                         anchors.rightMargin: Theme.space(14)
                         anchors.verticalCenter: parent.verticalCenter
-                        model: root.hints
-                        pinned: root.footerRight.length > 0 ? {
-                                                                  "key": "",
-                                                                  "label": root.footerRight
-                                                              } : null
-                        size: "caption"
+                        spacing: Theme.space(8)
+
+                        Label {
+                            Layout.alignment: Qt.AlignTop
+                            Layout.preferredWidth: Theme.space(14)
+                            bright: row.modelData.checked === true
+                            dim: row.modelData.checked !== true
+                            horizontalAlignment: Text.AlignHCenter
+                            text: row.modelData.checked === true ? Glyphs.check : Glyphs.middot
+                            visible: root.multi
+                        }
+
+                        ColumnLayout {
+                            id: rowColumn
+
+                            Layout.fillWidth: true
+                            spacing: Theme.space(1)
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: Theme.space(8)
+
+                                Label {
+                                    Layout.fillWidth: true
+                                    bright: true
+                                    elide: Text.ElideRight
+                                    font.weight: Font.Medium
+                                    text: row.modelData.title ?? ""
+                                }
+
+                                Label {
+                                    dim: true
+                                    size: "small"
+                                    text: row.modelData.meta !== undefined ? row.modelData.meta : ""
+                                    visible: text.length > 0
+                                }
+                            }
+
+                            Label {
+                                Layout.fillWidth: true
+                                dim: true
+                                elide: Text.ElideRight
+                                size: "small"
+                                text: row.modelData.detail !== undefined ? row.modelData.detail : ""
+                                visible: text.length > 0
+                            }
+                        }
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        hoverEnabled: false
+
+                        // In a multi-select a click is `space` on that row, not `enter`:
+                        // `enter` applies the whole selection (the tags picker), so a
+                        // click that activated could never pick a tag (KIT-4).
+                        onClicked: {
+                            root.cursorIndex = row.index;
+                            if (root.multi)
+                                root.toggled(row.index, row.modelData);
+                            else
+                                root.activate();
+                        }
                     }
                 }
             }
 
-            // N3: more rows above or below, in the look the scroll-hint setting picks. Inset
-            // by the panel's 1 px edge, so a band never covers the accent border.
-            ScrollHint {
-                id: hint
+            // the hint line (`.palette .ft`) ----------------------------------------
+            Item {
+                Layout.fillWidth: true
+                Layout.preferredHeight: footerHints.implicitHeight + 2 * Theme.space(6)
+                visible: root.hints.length > 0 || root.footerRight.length > 0
 
-                countAbove: root._rowsAbove
-                countBelow: root._rowsBelow
-                flickable: list
-                height: list.height
-                objectName: "scrollHint"
-                revealed: root._opened
-                style: root.scrollHint
-                width: list.width - 2 * panel.border.width
-                x: list.x + panel.border.width
-                y: layout.y + list.y
+                KeyHints {
+                    id: footerHints
+
+                    anchors.left: parent.left
+                    anchors.leftMargin: Theme.space(14)
+                    anchors.right: parent.right
+                    anchors.rightMargin: Theme.space(14)
+                    anchors.verticalCenter: parent.verticalCenter
+                    model: root.hints
+                    pinned: root.footerRight.length > 0 ? {
+                        "key": "",
+                        "label": root.footerRight
+                    } : null
+                    size: "caption"
+                }
             }
         }
+
+        // N3: more rows above or below, in the look the scroll-hint setting picks. Inset
+        // by the panel's 1 px edge, so a band never covers the accent border.
+        ScrollHint {
+            id: hint
+
+            countAbove: root._rowsAbove
+            countBelow: root._rowsBelow
+            flickable: list
+            height: list.height
+            objectName: "scrollHint"
+            revealed: root._opened
+            style: root.scrollHint
+            width: list.width - 2 * panel.border.width
+            x: list.x + panel.border.width
+            y: layout.y + list.y
+        }
     }
+}

@@ -260,6 +260,26 @@ TestCase {
         compare(last.key, "brand-new-tag");
     }
 
+    // Review RUN-3: the Web API sends tags comma-separated, so "alpha,beta" would become two.
+    function test_a_name_with_a_comma_offers_no_create_row_and_says_why() {
+        tagPalette.openFor([App.filtered.hashAt(0)]);
+        tagPalette.query = "alpha,beta";
+        verify(!tagPalette.items.some(item => item.isCreate === true),
+               "a tag with a comma can be created");
+        verify(tagPalette.footerRight.indexOf(",") >= 0, "nothing says why");
+        tagPalette.query = "alpha";
+        verify(tagPalette.items.some(item => item.isCreate === true));
+        compare(tagPalette.footerRight, "new name creates it");
+    }
+
+    function test_the_create_row_trims_the_name() {
+        tagPalette.openFor([App.filtered.hashAt(0)]);
+        tagPalette.query = "  spaced  ";
+        const last = tagPalette.items[tagPalette.items.length - 1];
+        verify(last.isCreate === true);
+        compare(last.key, "spaced");
+    }
+
     // ---- sort (`s`, Fig. 14) --------------------------------------------------------------
     function test_sort_marks_the_current_role_descending() {
         sortPalette.open();

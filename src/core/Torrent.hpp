@@ -26,6 +26,7 @@ enum class TorrentState {
     Downloading,
     StalledDownload,
     MetaDownload,
+    ForcedMetaDownload, ///< "forcedMetaDL": a force-started magnet still fetching metadata
     ForcedDownload,
     QueuedDownload,
     CheckingDownload,
@@ -116,6 +117,9 @@ struct Torrent
     qint64 upLimit = 0;
     double ratioLimit = -2.0;     ///< -2 global, -1 unlimited
     qint64 seedingTimeLimit = -2; ///< minutes; -2 global, -1 unlimited
+    /// Minutes without traffic before the share limit acts (qBittorrent 4.6, API 2.9.x);
+    /// -2 global, -1 unlimited. Older servers never send it, so it stays -2.
+    qint64 inactiveSeedingTimeLimit = -2;
     /// What happens when a share limit is reached, as qBittorrent 5.2 (API 2.15.1) spells it:
     /// Default, Stop, Remove, RemoveWithContent or EnableSuperSeeding. Older servers never
     /// send the key, so the value stays "Default" (use the global setting).

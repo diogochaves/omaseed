@@ -22,7 +22,11 @@ set -euo pipefail
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$repo"
 SWARM="$repo/scripts/dev/swarm.sh"
-PLAY="http://127.0.0.1:8081/api/v2"
+# shellcheck source=scripts/dev/home-guard.sh
+. "$repo/scripts/dev/home-guard.sh"
+PLAY_PORT="${OMASEED_TEST_PORT:-8081}"
+PLAY="http://127.0.0.1:$PLAY_PORT/api/v2"
+refuse_home "$PLAY"
 DOWNLOADS="${OMASEED_TEST_PROFILE:-$HOME/.local/share/omaseed-test}/downloads"
 TORRENTS="${OMASEED_SWARM_PROFILE:-$HOME/.local/share/omaseed-swarm}/torrents"
 APP_ID=io.github.diogochaves.omaseed
@@ -32,13 +36,12 @@ OUT=""
 case "${1:-}" in
 --interactive) INTERACTIVE=1 ;;
 -h | --help) sed -n '2,/^set -e/p' "$0" | sed '$d'; exit 0 ;;
-*) OUT="${1:-${TMPDIR:-/tmp}/omaseed-magnet-walk-$(date +%Y%m%d-%H%M%S)}" ;;
+*) OUT="${1:-$(mktemp -d "${TMPDIR:-/tmp}/omaseed-magnet-walk-$(date +%Y%m%d-%H%M%S)-XXXX")}" ;;
 esac
 
 [ -x build/omaseed ] || { echo "build first: cmake --build build" >&2; exit 1; }
 
 TINY="tiny-notes.txt"
-UNICODE_FILE="$(find "$TORRENTS" -name '*Spaces & Symbols*.torrent' -print -quit 2>/dev/null || true)"
 
 # field NAME KEY: KEY of the playground's torrent whose name contains NAME ("" if none).
 field() {
@@ -74,6 +77,32 @@ finished() {
         sleep 0.5
     done
     return 1
+}
+
+# force_start NAME true|false: run NAME past the queue's download slots, or back in line.
+force_start() {
+    local hash
+    hash="$(field "$1" hash)"
+    [ -n "$hash" ] || return 0
+    curl -fs -X POST "$PLAY/torrents/setForceStart" -d "hashes=$hash" -d "value=$2" >/dev/null
+}
+
+# hold_others: stop every other unfinished download on the playground, remembering which, so
+# the torrent under test gets the seeder's upload to itself; release_others starts them again.
+HELD=""
+hold_others() {
+    HELD="$(curl -fs "$PLAY/torrents/info" | python3 -c '
+import json, sys
+busy = {"downloading", "stalledDL", "queuedDL", "forcedDL", "metaDL", "forcedMetaDL", "checkingDL"}
+print("|".join(t["hash"] for t in json.load(sys.stdin)
+               if t["state"] in busy and sys.argv[1] not in t["name"]))' "$1")"
+    [ -n "$HELD" ] || return 0
+    curl -fs -X POST "$PLAY/torrents/stop" -d "hashes=$HELD" >/dev/null
+}
+release_others() {
+    [ -n "$HELD" ] || return 0
+    curl -fs -X POST "$PLAY/torrents/start" -d "hashes=$HELD" >/dev/null
+    HELD=""
 }
 
 # take_off NAME: delete NAME from the playground with its files, and wait until it is gone.
@@ -114,6 +143,7 @@ keys() { omabox keys -b "$BOX" "$@" >/dev/null; }
 
 STEP=0
 CHECKS=""
+FAILED=0
 # step "title" "what to look for": a screenshot (headless) or a pause (interactive).
 step() {
     STEP=$((STEP + 1))
@@ -133,7 +163,7 @@ step() {
 check() {
     local what="$1"; shift
     local mark="FAIL"
-    if "$@"; then mark="ok"; fi
+    if "$@"; then mark="ok"; else FAILED=$((FAILED + 1)); fi
     CHECKS+="- $mark: $what"$'\n'
     echo "  check $mark: $what"
 }
@@ -143,9 +173,11 @@ check() {
 # unicode torrent gets the swarm's category and folder back.
 cleanup() {
     local hash
+    release_others 2>/dev/null || true
     take_off "$TINY" 2>/dev/null || true
     hash="$(field "Spaces & Symbols" hash 2>/dev/null || true)"
     if [ -n "$hash" ]; then
+        force_start "Spaces & Symbols" false 2>/dev/null || true
         curl -fs -X POST "$PLAY/torrents/setCategory" -d "hashes=$hash" -d category=swarm >/dev/null 2>&1 || true
         curl -fs -X POST "$PLAY/torrents/setLocation" -d "hashes=$hash" \
             --data-urlencode "location=$DOWNLOADS/swarm" >/dev/null 2>&1 || true
@@ -158,6 +190,9 @@ trap cleanup EXIT
 echo "preparing the swarm (tiny-notes.txt and the unicode torrent come off the playground)"
 "$SWARM" start >/dev/null
 "$SWARM" seed >/dev/null
+# Looked for only now: on a machine never seeded (or after swarm.sh reset) the seed above is
+# what writes it.
+UNICODE_FILE="$(find "$TORRENTS" -name '*Spaces & Symbols*.torrent' -print -quit 2>/dev/null || true)"
 [ -f "$UNICODE_FILE" ] || { echo "no unicode .torrent under $TORRENTS: run scripts/dev/swarm.sh seed" >&2; exit 1; }
 MAGNET="$(field "$TINY" magnet_uri)"
 [ -n "$MAGNET" ] || { echo "the playground has no $TINY: run scripts/dev/swarm.sh seed" >&2; exit 1; }
@@ -168,28 +203,32 @@ mkdir -p "$DOWNLOADS"
 echo "starting the box"
 omabox down -b "$BOX" >/dev/null 2>&1 || true
 if [ "$INTERACTIVE" = 1 ]; then
-    omabox up "$BOX" --interactive --net isolated --allow 8081 --ro-bind "$DOWNLOADS" >/dev/null
+    omabox up "$BOX" --interactive --net isolated --allow "$PLAY_PORT" --ro-bind "$DOWNLOADS" >/dev/null
 else
     mkdir -p "$OUT"
+    # shellcheck disable=SC2016 # backticks are Markdown, not command substitution
     printf '# Magnet walk %s\n\nBuild `%s`. Each shot: what should be on screen.\n\n' \
         "$(date '+%Y-%m-%d %H:%M')" "$(git rev-parse --short HEAD)" >"$OUT/index.md"
-    omabox up "$BOX" --net isolated --allow 8081 --ro-bind "$DOWNLOADS" >/dev/null
+    omabox up "$BOX" --net isolated --allow "$PLAY_PORT" --ro-bind "$DOWNLOADS" >/dev/null
 fi
 home="$(omabox path -b "$BOX")/home"
 mkdir -p "$home/.config/omaseed" && chmod 700 "$home/.config/omaseed"
-printf '%s' '{"version":1,"defaultId":"playground","servers":[{"id":"playground","name":"playground","url":"http://127.0.0.1:8081","authMode":"none","username":"","pathMap":[],"isDefault":true,"addedAt":"2026-09-23T00:00:00Z"}]}' \
+printf '{"version":1,"defaultId":"playground","servers":[{"id":"playground","name":"playground","url":"http://127.0.0.1:%s","authMode":"none","username":"","pathMap":[],"isDefault":true,"addedAt":"2026-09-23T00:00:00Z"}]}' "$PLAY_PORT" \
     >"$home/.config/omaseed/servers.json"
 chmod 600 "$home/.config/omaseed/servers.json"
 omabox run -b "$BOX" -- scripts/dev/install-desktop.sh --set-default >/dev/null 2>&1
 # A browser's download, where the box's own file manager would find it. `home` is that
 # directory from the host; inside the box it is the box's $HOME.
+# shellcheck disable=SC2016 # the box's $HOME, expanded inside the box
 HOME_IN_BOX="$(omabox run -b "$BOX" -- sh -c 'printf %s "$HOME"')"
 mkdir -p "$home/Downloads"
 cp "$UNICODE_FILE" "$home/Downloads/unicode.torrent"
 
 # ---- the walk -----------------------------------------------------------------------------
+# shellcheck disable=SC2016 # expands in the inner sh, which gets the values as $1, $2
 check "omaseed is the box's magnet: handler" \
     sh -c '[ "$(omabox run -b "$1" -- xdg-mime query default x-scheme-handler/magnet)" = "$2.desktop" ]' _ "$BOX" "$APP_ID"
+# shellcheck disable=SC2016 # expands in the inner sh, which gets the values as $1, $2
 check "and its .torrent handler" \
     sh -c '[ "$(omabox run -b "$1" -- xdg-mime query default application/x-bittorrent)" = "$2.desktop" ]' _ "$BOX" "$APP_ID"
 
@@ -219,7 +258,14 @@ check "still one omaseed process (the second launch handed the file over)" one_p
 step "Torrent file, app in the tray" "The window is back with the sheet: the unicode torrent's long name (elided, not cut mid-glyph), 5.00 MB, from browser, and its three files listed."
 keys Return
 check "enter added the file to the playground" on_playground "Spaces & Symbols"
+# After the swarm or notify walk the playground's two download slots are busy for minutes
+# and the other downloads take nearly all of the seeder's upload, so the new torrent would
+# sit queued, then crawl. Force-start it and hold the others while it runs (cleanup takes
+# the force off again; the others start straight after).
+force_start "Spaces & Symbols" true || true
+hold_others "Spaces & Symbols" || true
 check "and it downloaded" finished "Spaces & Symbols"
+release_others || true
 
 # 3. Already there: the same magnet again finds the torrent instead of adding a second one.
 sleep 2
@@ -240,4 +286,9 @@ if [ "$INTERACTIVE" = 1 ]; then
     echo "done. The box stays up for a look around; close it with: omabox down $BOX"
 else
     echo "done: $OUT/index.md"
+fi
+# A failed check fails the walk, so a caller need not read index.md to know.
+if [ "$FAILED" -gt 0 ]; then
+    echo "$FAILED check(s) failed" >&2
+    exit 1
 fi

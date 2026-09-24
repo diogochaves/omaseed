@@ -1,9 +1,11 @@
 # Maintainer: Diogo Chaves <diogochaves@me.com>
 #
-# Builds from the tagged GitHub release source tarball (T5.3's scripts/release.sh cuts the
-# tag, builds the tarball and replaces the sha256sums placeholder below). For a local build
-# before any tag exists, or while iterating on packaging itself, use PKGBUILD.local next to
-# this file instead -- it builds from the working tree.
+# Builds from GitHub's archive of the release tag. scripts/release.sh --publish tags the
+# release with sha256sums=('SKIP') below (the tagged tree cannot hold its own checksum), then
+# commits the archive's checksum here on main right after the tag; that version of this file
+# is the one for omarchy-pkgs. `--bump` keeps pkgver in step with CMakeLists.txt. For a local
+# build before any tag exists, or while iterating on packaging itself, use PKGBUILD.local
+# next to this file instead -- it builds from the working tree.
 pkgname=omaseed
 pkgver=0.1.0
 pkgrel=1

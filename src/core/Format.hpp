@@ -29,7 +29,7 @@ QString eta(qint64 seconds);
 QString etaShort(qint64 seconds);
 
 /// "0.15" — two decimals; a negative (qBittorrent's "no ratio yet") gives "0.00" and
-/// anything at or above 10000 gives "∞" the way the WebUI does.
+/// anything at or above 9999 (qBittorrent's MAX_RATIO) gives "∞" the way the WebUI does.
 QString ratio(double value);
 
 /// 0.489 → "48.9 %", 1.0 → "100 %" (spec §2 strip "done 48.9 %").

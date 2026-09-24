@@ -274,7 +274,8 @@ struct ServerListModelForeign
 // model roles because `Views/AddSheet.qml` reads them the same way a delegate reads a role.
 //
 // `App.parseAddable(text)` -> QVariantMap, and the same map again through
-// `App.addableParsed(map)` when a `.torrent` finishes hashing on its worker thread:
+// `App.addableParsed(map)` once a `.torrent` has been read and hashed on the thread pool
+// (a file that cannot be read answers there too, with `error`):
 //   kind         string   "magnet" | "url" | "file" | "none"
 //   valid        bool     false when nothing usable was found (see `error`)
 //   pending      bool     true while a `.torrent` is still being read and hashed
@@ -284,11 +285,15 @@ struct ServerListModelForeign
 //   value        string   what goes to the server (the magnet, the URL, the file path)
 //   token        string   the key `App.addTorrent` uses to find a picked file's bytes
 //   error        string   why `valid` is false
+//   fileCount    int      a `.torrent`'s number of files (its tree: `App.loadAddFiles(token)`)
 //
 // `App.addTorrent(request)` takes that map plus the sheet's rows: `category` string, `tags`
 // list<string>, `savePath` string, `autoTMM` bool, `contentLayout` "Original" | "Subfolder" |
-// "NoSubfolder", `upLimitKb` int (0 = unlimited), `sequentialDownload`, `skipChecking` and
-// `stopped` bools. It answers with `App.addFinished(ok, message, hash)`.
+// "NoSubfolder", `upLimitKb` and `dlLimitKb` ints (0 = unlimited), `sequentialDownload`,
+// `skipChecking`, `firstLastPiecePrio` and `stopped` bools, `rename` string (empty keeps the
+// torrent's own name) and, for a `.torrent`, `filePriorities` (one per file id). It answers
+// with `App.addFinished(ok, message, hash)`, `hash` being the id the server keys the torrent
+// by (its v2 hash cut to 40 characters when it has one, else its v1 hash).
 //
 // `App.findDuplicate(hashV1, hashV2)` -> `App.torrentRow`'s map for the torrent already in
 // the library, or an empty map.

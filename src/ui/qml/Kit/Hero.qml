@@ -59,6 +59,8 @@ Item {
     readonly property alias altChip: altChip
     /// The `+`, so a test can see how it is drawn.
     readonly property alias addButton: addButton
+    /// The whole-server-line tooltip. It lives on the window's content item, not in the hero.
+    readonly property alias serverTip: serverTip
     property int searchCount: 0
     /// What the field's trailing count prints. Fig. 1 shows the bare count, Fig. 24 shows
     /// "0 of 142"; the caller decides, and the plain count is the default.
@@ -73,14 +75,68 @@ Item {
     /// docs/10 §2: the step the hero is on, from its own width (the window's). Thresholds are
     /// base-12 pixels through `Theme.space`, so they scale with the base size: 1500, 1150,
     /// 900 and 700 px at base 14.
+    /// With filter chips up (`filterChips`, KIT-5) the step is also the first one whose row,
+    /// measured part by part (`_rowWidth`), still holds the chips: whole for steps 0–2, folded
+    /// to glyph and ✕ for 3–4, which is how they are drawn there. The chips use the slack the
+    /// thresholds leave before anything folds (review VER-6: subtracting them from the
+    /// window's width and then asking for the no-chip thresholds folded three steps early).
     readonly property int level: {
+        let step = 4;
         if (root.width >= Theme.space(1286))
-            return 0;
-        if (root.width >= Theme.space(986))
-            return 1;
-        if (root.width >= Theme.space(771))
-            return 2;
-        return root.width >= Theme.space(600) ? 3 : 4;
+            step = 0;
+        else if (root.width >= Theme.space(986))
+            step = 1;
+        else if (root.width >= Theme.space(771))
+            step = 2;
+        else if (root.width >= Theme.space(600))
+            step = 3;
+        if (root.filterChips.length === 0)
+            return step;
+        const room = root.width - Theme.space(32);
+        while (step < 4 && root._rowWidth(step) + root._chipsWidth(step >= 3) > room)
+            ++step;
+        return step;
+    }
+
+    /// The row's width at `step` without the chips and with nothing elided, from hidden
+    /// copies of the parts that change with the step (`ladderMeasure`), so it does not read
+    /// the drawn row, whose parts follow `level`.
+    function _rowWidth(step: int): real {
+        const buttons = step >= 2 ? 2 : 4;
+        const identityWidth = step >= 4 ? loneDot.implicitWidth
+                                        : Math.max(appNameText.implicitWidth,
+                                                   Theme.space(7) + Theme.space(6)
+                                                   + (step >= 1 && root.serverLineShort.length > 0
+                                                      ? measureServerShort.implicitWidth
+                                                      : measureServerFull.implicitWidth)
+                                                   + (networkLabel.visible
+                                                      ? Theme.space(6) + networkLabel.implicitWidth
+                                                      : 0));
+        const altWidth = step >= 3 ? measureAltGlyph.implicitWidth
+                                   : step >= 1 ? measureAltShort.implicitWidth
+                                               : measureAltFull.implicitWidth;
+        const searchWidth = step >= 3 ? addButton.implicitWidth : Theme.space([220, 180, 140][step]);
+        // mark, identity (or the dot), two spacers, two speeds, search, alt-speed, buttons:
+        // nine items and eight spacings; the chips bring their own (`_chipsWidth`).
+        return Theme.space(24) + identityWidth + Theme.space(6) + measureDown.implicitWidth
+                + measureUp.implicitWidth + searchWidth + altWidth
+                + buttons * addButton.implicitWidth + (buttons - 1) * Theme.space(2)
+                + 8 * heroRow.spacing;
+    }
+    /// The filter chips fold to their glyph and ✕ from step 3, as the alt-speed chip does.
+    readonly property bool chipsFolded: root.level >= 3
+
+    /// The room the filter chips take in the row, spacing included, drawn whole or folded.
+    /// Measured on hidden copies (`chipMeasure`), so it does not depend on `level`.
+    function _chipsWidth(folded: bool): real {
+        let width = 0;
+        for (let i = 0; i < chipMeasure.count; ++i) {
+            // Each copy holds the whole chip (child 0) and the folded one (child 1).
+            const measured = chipMeasure.itemAt(i);
+            if (measured)
+                width += measured.children[folded ? 1 : 0].implicitWidth + heroRow.spacing;
+        }
+        return width;
     }
     /// From step 2 the gear and `?` are not in the hero; the caller puts them in ⋯.
     readonly property bool compact: root.level >= 2
@@ -118,6 +174,8 @@ Item {
     /// The ✕ of one of `filterChips`.
     signal filterChipCleared(string key)
     signal searchChanged(string text)
+    /// `enter` in the search field: the filter is already live, so this only says "done".
+    signal searchAccepted(string text)
     signal searchCleared
     signal settingsClicked
 
@@ -195,11 +253,16 @@ Item {
                 for (const child of heroRow.children) {
                     if (!child.visible)
                         continue;
+                    // The layout leaves the Repeater out, so no spacing sits beside it (KIT-9).
+                    // The two spacers stay in, even at no width, and do take a spacing.
+                    if (child === chipRepeater)
+                        continue;
                     shown += 1;
                     if (child === identity)
                         continue;
+                    // Rounded up, as the layout rounds each item onto whole pixels.
                     used += child === searchField ? Theme.space([220, 180, 140, 140, 140][root.level])
-                                                  : child.implicitWidth;
+                                                  : Math.ceil(child.implicitWidth);
                 }
                 return heroRow.width - used - Math.max(0, shown - 1) * heroRow.spacing
                         - Theme.space(6); // the download figure's left margin
@@ -283,7 +346,10 @@ Item {
         // the search field, per `speedsAlignment`. Exactly one of the two spacers takes the
         // slack, so the pair moves without the row being declared twice.
         Item {
+            id: spacerLeft
+
             Layout.fillWidth: root.speedsAlignment === "right"
+            objectName: "speedsSpacerLeft"
         }
 
         Stat {
@@ -308,10 +374,15 @@ Item {
         }
 
         Item {
+            id: spacerRight
+
             Layout.fillWidth: root.speedsAlignment !== "right"
+            objectName: "speedsSpacerRight"
         }
 
         Repeater {
+            id: chipRepeater
+
             model: root.filterChips
 
             Chip {
@@ -319,10 +390,11 @@ Item {
 
                 required property var modelData
 
+                Accessible.name: filterChip.modelData.text
                 Layout.alignment: Qt.AlignVCenter
                 glyph: filterChip.modelData.glyph
                 objectName: "filterChip_" + filterChip.modelData.key
-                text: filterChip.modelData.text + "  " + Glyphs.close
+                text: root.chipsFolded ? Glyphs.close : filterChip.modelData.text + "  " + Glyphs.close
 
                 onClicked: root.filterChipCleared(filterChip.modelData.key)
             }
@@ -354,7 +426,10 @@ Item {
             text: root.searchText
             trailing: root.searchCountText
 
-            onAccepted: root.searchChanged(searchField.text)
+            onAccepted: {
+                root.searchChanged(searchField.text);
+                root.searchAccepted(searchField.text);
+            }
             onCleared: root.searchCleared()
             onEditingChanged: {
                 if (!searchField.editing)
@@ -425,6 +500,98 @@ Item {
         }
     }
 
+    // Hidden copies of the parts whose width changes with the step, so `level` can measure
+    // the row at every step without reading the drawn one (review VER-6).
+    Item {
+        id: ladderMeasure
+
+        visible: false
+
+        Label {
+            id: measureServerFull
+
+            text: root.serverLine
+            tracked: true
+        }
+
+        Label {
+            id: measureServerShort
+
+            text: root.serverLineShort
+            tracked: true
+        }
+
+        // With their captions: the wider of the two forms, so the measure never falls short.
+        Stat {
+            id: measureDown
+
+            glyph: Glyphs.arrowDown
+            label: qsTr("download")
+            value: root.downSpeed
+        }
+
+        Stat {
+            id: measureUp
+
+            glyph: Glyphs.arrowUp
+            label: qsTr("upload")
+            value: root.upSpeed
+        }
+
+        Chip {
+            id: measureAltFull
+
+            glyph: Glyphs.altSpeed
+            text: root.altSpeedActive ? qsTr("↓%1 ↑%2").arg(root.altDownLimit).arg(root.altUpLimit)
+                                      : qsTr("alt-speed")
+        }
+
+        Chip {
+            id: measureAltShort
+
+            glyph: Glyphs.altSpeed
+            text: root.altSpeedActive ? qsTr("↓%1 ↑%2").arg(root.altDownLimitShort).arg(
+                                            root.altUpLimitShort) : ""
+        }
+
+        Chip {
+            id: measureAltGlyph
+
+            glyph: Glyphs.altSpeed
+            text: ""
+        }
+    }
+
+    // Hidden copies of the filter chips, whole and folded, so `level` can count their width
+    // without reading the drawn chips, whose text follows `level`.
+    Repeater {
+        id: chipMeasure
+
+        model: root.filterChips
+
+        Item {
+            id: measured
+
+            required property var modelData
+
+            visible: false
+
+            Chip {
+                id: fullChip
+
+                glyph: measured.modelData.glyph
+                text: measured.modelData.text + "  " + Glyphs.close
+            }
+
+            Chip {
+                id: foldedChip
+
+                glyph: measured.modelData.glyph
+                text: Glyphs.close
+            }
+        }
+    }
+
     // The whole server line, whenever the hero shows less of it (from step 1, or elided).
     Tooltip {
         id: serverTip
@@ -437,13 +604,18 @@ Item {
                                            : root.serverLine
 
         objectName: "serverTip"
+        // Over the whole window rather than the hero (KIT-8): clamped inside a hero one line
+        // tall, the panel had no room below and landed on the very line it spells out.
+        parent: root.Window.window ? root.Window.window.contentItem : root
         z: 5
 
         onWantedChanged: {
-            if (serverTip.wanted)
-                serverTip.showAt(mark.x, root.height, serverTip.fullLine);
-            else
+            if (serverTip.wanted) {
+                const at = root.mapToItem(serverTip, mark.x, root.height);
+                serverTip.showAt(at.x, at.y, serverTip.fullLine);
+            } else {
                 serverTip.hide();
+            }
         }
     }
 

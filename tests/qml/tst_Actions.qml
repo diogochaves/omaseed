@@ -172,6 +172,36 @@ TestCase {
         compare(view.deleteConfirmPanel.body.children[0].checked, true);
     }
 
+    // Review VER: flipping the toggle and cancelling leaves the remembered default alone; a
+    // confirmed delete with the toggle flipped remembers it, and `D`'s forced "on" does not.
+    function test_the_toggle_is_remembered_only_on_a_confirmed_delete() {
+        const confirm = view.deleteConfirmPanel;
+        const toggle = confirm.body.children[0];
+        App.deleteFilesDefault = false;
+
+        confirm.openFor([], false);
+        toggle.checked = true;
+        toggle.toggled();
+        confirm.cancel();
+        compare(App.deleteFilesDefault, false, "a cancelled flip was remembered");
+
+        confirm.openFor([], true); // `D`
+        confirm.confirm();
+        compare(App.deleteFilesDefault, false, "D's forced toggle was remembered");
+
+        confirm.openFor([], false);
+        toggle.checked = true;
+        toggle.toggled();
+        confirm.confirm();
+        compare(App.deleteFilesDefault, true);
+
+        confirm.openFor([], true);
+        toggle.checked = false;
+        toggle.toggled();
+        confirm.confirm();
+        compare(App.deleteFilesDefault, false);
+    }
+
     // Batch-2 J7: the title counts, the line under it names the torrent and its size once.
     function test_delete_confirm_names_a_single_torrent() {
         const hash = hashByName("Elephants Dream 1080p (CC-BY)");
@@ -218,7 +248,57 @@ TestCase {
         compare(field.text, savePath);
     }
 
+    // Review VIEW-18: an emptied path is not sent; the sheet waits for one.
+    function test_location_sheet_does_not_move_to_an_empty_path() {
+        keyClick("m");
+        const field = view.locationSheetPanel.focusables()[0];
+        field.text = "   ";
+        view.locationSheetPanel.triggerPrimary();
+        compare(view.locationSheetPanel.opened, true, "an empty path was sent");
+    }
+
+    // Review RUN-5: one esc in a prefilled field cancels the sheet; it does not wipe the value
+    // and leave the sheet up to collect the next keys.
+    function test_one_esc_in_a_prefilled_field_closes_the_sheet() {
+        keyClick("m");
+        compare(view.locationSheetPanel.opened, true);
+        const field = view.locationSheetPanel.focusables()[0];
+        const path = field.text;
+        verify(path.length > 0);
+        tryVerify(() => field.editing, 1000, "the path field does not have the keyboard");
+        keyClick(Qt.Key_Escape);
+        compare(view.locationSheetPanel.opened, false, "esc left the location sheet open");
+        compare(field.text, path, "esc wiped the path");
+
+        view.renameSheetPanel.openFor(view.cursorHash);
+        compare(view.renameSheetPanel.opened, true);
+        tryVerify(() => view.renameSheetPanel.focusables()[0].editing, 1000);
+        keyClick(Qt.Key_Escape);
+        compare(view.renameSheetPanel.opened, false, "esc left the rename sheet open");
+
+        view.limitsSheetPanel.openFor([view.cursorHash]);
+        compare(view.limitsSheetPanel.opened, true);
+        tryVerify(() => view.limitsSheetPanel.downloadField.editing, 1000,
+                  "the download field does not have the keyboard");
+        keyClick("5");
+        compare(view.limitsSheetPanel.downloadField.text, "5");
+        keyClick(Qt.Key_Escape);
+        compare(view.limitsSheetPanel.opened, false, "esc left the limits sheet open");
+    }
+
     // ---- the limits sheet (Fig. 8) ---------------------------------------------------------
+    // A LimitsSheet function once shadowed the kit Sheet's `_collect(item, out)`, so the sheet
+    // found no fields: it opened on `cancel` and tab never reached a field.
+    function test_limits_sheet_opens_in_the_download_field_and_tab_reaches_the_others() {
+        view.limitsSheetPanel.openFor([view.cursorHash]);
+        const fields = view.limitsSheetPanel.bodyFocusables();
+        verify(fields.indexOf(view.limitsSheetPanel.downloadField) >= 0, "the fields are not found");
+        verify(fields.indexOf(view.limitsSheetPanel.seedingField) >= 0);
+        tryVerify(() => view.limitsSheetPanel.downloadField.editing, 1000);
+        keyClick(Qt.Key_Tab);
+        verify(view.limitsSheetPanel.uploadField.editing, "tab did not reach the upload field");
+    }
+
     function test_limits_sheet_prefills_from_the_cursor_torrent() {
         const hash = hashByName("Big Buck Bunny 4K (CC-BY)");
         view.table.moveCursorTo(App.filtered.rowOfHash(hash));
@@ -233,15 +313,143 @@ TestCase {
         view.table.moveCursorTo(App.filtered.rowOfHash(hash));
         keyClick(Qt.Key_L, Qt.ShiftModifier);
         compare(view.limitsSheetPanel.opened, true);
-        // left blank: the speed fields stay -1 (unchanged), the ratio chip stays "global"
-        // (-2) and the seeding time stays -1 (no limit) — see `_speedValue()`/`onAccepted`.
-        compare(view.limitsSheetPanel._speedValue(""), -1);
-        compare(view.limitsSheetPanel._speedValue("0"), 0);
+        // A speed field that still reads what it opened with is -1 (unchanged); emptied, it
+        // lifts the limit (0), as the `∞` placeholder and the global sheet say.
+        compare(view.limitsSheetPanel._speedValue("", ""), -1);
+        compare(view.limitsSheetPanel._speedValue("500", "500"), -1);
+        compare(view.limitsSheetPanel._speedValue("", "500"), 0);
+        compare(view.limitsSheetPanel._speedValue("0", ""), 0);
+        compare(view.limitsSheetPanel._speedValue("1.5", ""), 1536);
+        verify(Number.isNaN(view.limitsSheetPanel._speedValue("abc", "")));
         compare(view.limitsSheetPanel._ratioGlobal, true);
         view.limitsSheetPanel.triggerPrimary();
         // demo mode: App.setLimits no-ops after logging, so this only asserts the sheet
         // closes itself the way `enter` should.
         compare(view.limitsSheetPanel.opened, false);
+    }
+
+    // ---- review VIEW-5: apply sends only what the user changed --------------------------
+    function test_limits_untouched_keep_global_seeding_time_and_speeds() {
+        const spy = createTemporaryObject(limitsSpy, testCase);
+        const hash = hashByName("Big Buck Bunny 4K (CC-BY)");
+        compare(App.torrentRow(hash).seedingTimeLimit, -2);
+        view.limitsSheetPanel.openFor([hash]);
+        view.limitsSheetPanel.downloadField.text = "300";
+        view.limitsSheetPanel.triggerPrimary();
+        compare(spy.count, 1);
+        const a = spy.signalArguments[0]; // hashes, dl, ul, ratio, seedingMinutes, action
+        compare(a[1], 300 * 1024);
+        compare(a[2], -1, "an untouched upload field changed the limit");
+        compare(a[3], -2, "the global ratio was lost");
+        compare(a[4], -2, "an untouched seeding time left the global limit");
+    }
+
+    function test_limits_a_cleared_speed_lifts_the_limit() {
+        const spy = createTemporaryObject(limitsSpy, testCase);
+        const sheet = view.limitsSheetPanel;
+        sheet.openFor([hashByName("Big Buck Bunny 4K (CC-BY)")]);
+        // As if the torrent had opened with 500 KB/s, which the user then clears.
+        const initial = Object.assign({}, sheet._initial);
+        initial.dl = "500";
+        sheet._initial = initial;
+        sheet.downloadField.text = "";
+        sheet.triggerPrimary();
+        compare(spy.signalArguments[0][1], 0, "an emptied speed field did not lift the limit");
+    }
+
+    function test_limits_seeding_time_keeps_minutes_and_reads_fractional_days() {
+        const spy = createTemporaryObject(limitsSpy, testCase);
+        const sheet = view.limitsSheetPanel;
+        compare(sheet._daysText(90), "0.06");
+        compare(sheet._daysText(2880), "2");
+        sheet.openFor([hashByName("Big Buck Bunny 4K (CC-BY)")]);
+        // A 90-minute limit opens as 0.06 days; left alone it must stay 90 minutes, not 0.
+        const initial = Object.assign({}, sheet._initial);
+        initial.seeding = "0.06";
+        sheet._initial = initial;
+        sheet.seedingField.text = "0.06";
+        compare(sheet._formValues().seeding, null);
+        sheet.seedingField.text = "0.5";
+        compare(sheet._formValues().seeding, 720);
+        sheet.seedingField.text = "";
+        compare(sheet._formValues().seeding, -1);
+        sheet.close();
+        compare(spy.count, 0);
+    }
+
+    function test_limits_refuse_a_value_that_is_not_a_number() {
+        const spy = createTemporaryObject(limitsSpy, testCase);
+        const sheet = view.limitsSheetPanel;
+        sheet.openFor([hashByName("Big Buck Bunny 4K (CC-BY)")]);
+        sheet._ratioGlobal = false;
+        sheet.ratioField.text = "abc";
+        sheet.triggerPrimary();
+        compare(spy.count, 0, "NaN went to the server");
+        compare(sheet.opened, true);
+        verify(sheet.errorText.length > 0);
+        sheet.ratioField.text = "1.5";
+        sheet.triggerPrimary();
+        compare(spy.count, 1);
+        compare(spy.signalArguments[0][3], 1.5);
+        compare(sheet.opened, false);
+    }
+
+    // Review RUN-2 (e): a speed past qBittorrent's int is refused, not wrapped to "no limit".
+    function test_limits_refuse_a_speed_past_the_servers_range() {
+        const spy = createTemporaryObject(limitsSpy, testCase);
+        const sheet = view.limitsSheetPanel;
+        sheet.openFor([hashByName("Big Buck Bunny 4K (CC-BY)")]);
+        sheet.uploadField.text = "99999999999";
+        sheet.triggerPrimary();
+        compare(spy.count, 0, "an out-of-range speed went to the server");
+        verify(sheet.errorText.length > 0);
+        sheet.uploadField.text = "2097151"; // just under 2^31 bytes/s
+        sheet.triggerPrimary();
+        compare(spy.count, 1);
+    }
+
+    function test_limits_a_mixed_selection_keeps_each_torrents_own_action() {
+        const spy = createTemporaryObject(limitsSpy, testCase);
+        const stopHash = hashByName("Tears of Steel 4K (CC-BY)");
+        const defaultHash = hashByName("Big Buck Bunny 4K (CC-BY)");
+        view.limitsSheetPanel.openFor([stopHash, defaultHash]);
+        compare(view.limitsSheetPanel._actionMixed, true);
+        view.limitsSheetPanel.triggerPrimary();
+        compare(spy.count, 2);
+        const actions = {};
+        actions[spy.signalArguments[0][0][0]] = spy.signalArguments[0][5];
+        actions[spy.signalArguments[1][0][0]] = spy.signalArguments[1][5];
+        compare(actions[stopHash], "Stop");
+        compare(actions[defaultHash], "Default");
+    }
+
+    // Review VIEW-5 (d): the sheet has no inactive-seeding field, so each torrent's own value
+    // goes back unchanged instead of -2 wiping it (Tears of Steel carries 45 in the demo).
+    function test_limits_keep_each_torrents_inactive_seeding_time() {
+        const spy = createTemporaryObject(limitsSpy, testCase);
+        const customHash = hashByName("Tears of Steel 4K (CC-BY)");
+        const globalHash = hashByName("Big Buck Bunny 4K (CC-BY)");
+        compare(App.torrentRow(customHash).inactiveSeedingTimeLimit, 45);
+        compare(App.torrentRow(globalHash).inactiveSeedingTimeLimit, -2);
+        view.limitsSheetPanel.openFor([customHash, globalHash]);
+        view.limitsSheetPanel.downloadField.text = "300";
+        view.limitsSheetPanel.triggerPrimary();
+        compare(spy.count, 2);
+        const inactive = {};
+        for (let i = 0; i < spy.count; ++i) {
+            compare(spy.signalArguments[i][0].length, 1);
+            inactive[spy.signalArguments[i][0][0]] = spy.signalArguments[i][6];
+        }
+        compare(inactive[customHash], 45, "the torrent's inactive limit was not carried");
+        compare(inactive[globalHash], -2);
+    }
+
+    function test_limits_reset_puts_inactive_seeding_time_back_on_global() {
+        const spy = createTemporaryObject(limitsSpy, testCase);
+        view.limitsSheetPanel.openFor([hashByName("Tears of Steel 4K (CC-BY)")]);
+        view.limitsSheetPanel.actionTriggered(qsTr("reset"));
+        compare(spy.count, 1);
+        compare(spy.signalArguments[0][6], -2);
     }
 
     // ---- the limits sheet's share-limit action row (T5.5 Q14) ------------------------------

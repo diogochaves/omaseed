@@ -23,8 +23,11 @@
 #                   this profile casually: the key lives in it.
 set -euo pipefail
 
+# shellcheck source=scripts/dev/home-guard.sh
+. "$(dirname "${BASH_SOURCE[0]}")/home-guard.sh"
+
 STRICT=0
-if [ "${@: -1}" = "--strict" ]; then STRICT=1; set -- "${@:1:$(($#-1))}"; fi
+if [ "${!#}" = "--strict" ]; then STRICT=1; set -- "${@:1:$(($#-1))}"; fi
 if [ "$STRICT" = 1 ]; then
   PROFILE="${OMASEED_STRICT_PROFILE:-$HOME/.local/share/omaseed-test-strict}"
   PORT="${OMASEED_STRICT_PORT:-8082}"
@@ -42,6 +45,7 @@ BASE="http://127.0.0.1:$PORT"
 PIDFILE="$PROFILE/qbt.pid"
 LOGFILE="$PROFILE/qbt.log"
 CONF="$PROFILE/qBittorrent/config/qBittorrent.conf"
+refuse_home "$PORT" "$BT_PORT"
 
 need() { command -v "$1" >/dev/null 2>&1 || { echo "missing: $1 (sudo pacman -S $2)" >&2; exit 1; }; }
 
@@ -84,6 +88,9 @@ General\\Locale=en
 
 [BitTorrent]
 Session\\Port=$BT_PORT
+Session\\Interface=lo
+Session\\InterfaceName=lo
+Session\\InterfaceAddress=127.0.0.1
 Session\\DHTEnabled=false
 Session\\PeXEnabled=false
 Session\\LSDEnabled=false
@@ -91,7 +98,24 @@ Session\\DefaultSavePath=$PROFILE/downloads
 Session\\TempPathEnabled=false
 Session\\QueueingSystemEnabled=true
 Session\\MaxActiveDownloads=2
+
+[Network]
+PortForwardingEnabled=false
 EOF
+}
+
+# ours: the server answering on $BASE saves into this profile, so it is the one we started and
+# not a stranger that already held the port (the new qbittorrent-nox then fails to bind, and
+# wait_up alone would happily configure whatever answered).
+ours() {
+  api /api/v2/app/preferences 2>/dev/null | python3 -c '
+import json, os, sys
+try:
+    path = json.load(sys.stdin).get("save_path", "")
+except ValueError:
+    sys.exit(1)
+sys.exit(0 if path and os.path.normpath(path) == os.path.normpath(sys.argv[1]) else 1)
+' "$PROFILE/downloads"
 }
 
 is_running() { [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; }
@@ -108,13 +132,26 @@ wait_up() {
 cmd_start() {
   need qbittorrent-nox qbittorrent-nox
   if is_running; then echo "already running (pid $(cat "$PIDFILE")) on $BASE"; return 0; fi
+  if curl -s -o /dev/null --max-time 2 "$BASE/"; then
+    echo "something already answers on $BASE, and $PIDFILE names no live server of this profile;" \
+      "refusing to start or configure it (stop it first)" >&2
+    exit 1
+  fi
   [ -f "$CONF" ] || write_conf
   nohup qbittorrent-nox --profile="$PROFILE" --webui-port="$PORT" --confirm-legal-notice \
     >"$LOGFILE" 2>&1 &
-  echo $! > "$PIDFILE"
+  local pid=$!
+  echo "$pid" > "$PIDFILE"
   wait_up
-  # Peers on loopback only, no UPnP: a test server is never reachable from the LAN (the WebUI
-  # already binds 127.0.0.1; the BitTorrent port used to listen on every interface).
+  kill -0 "$pid" 2>/dev/null || { echo "qbittorrent-nox exited at once; see $LOGFILE" >&2; rm -f "$PIDFILE"; exit 1; }
+  if ! ours; then
+    echo "the server on $BASE does not save into $PROFILE/downloads: not ours, refusing to configure it" >&2
+    kill "$pid" 2>/dev/null || true
+    rm -f "$PIDFILE"
+    exit 1
+  fi
+  # Peers on loopback only, no UPnP: a test server is never reachable from the LAN. A fresh
+  # profile's conf says so from the first start (write_conf); this is for older profiles.
   api /api/v2/app/setPreferences -X POST --data-urlencode \
     'json={"current_network_interface":"lo","current_interface_address":"127.0.0.1","upnp":false}' >/dev/null
   echo "qBittorrent $(api /api/v2/app/version) · API $(api /api/v2/app/webapiVersion) · $BASE · profile $PROFILE$([ "$STRICT" = 1 ] && echo ' · strict auth')"
@@ -139,13 +176,14 @@ cmd_status() {
     api /api/v2/torrents/info | python3 -c 'import json,sys; t=json.load(sys.stdin); print(len(t), "torrents")'
   else
     echo "not running"
+    return 1
   fi
 }
 
 cmd_seed() {
-  is_running || cmd_start
   [ "$STRICT" = 1 ] && { echo "seed only targets the :8081 playground" >&2; exit 2; }
-  # Public, legal, well-seeded fixtures. Added stopped so the test box never downloads.
+  is_running || cmd_start
+  # Made-up hashes, added stopped: they never fetch metadata and never download anything.
   local magnets=(
     "magnet:?xt=urn:btih:4a4e3b1d2d0c1a8d1e6a9f0b3c2d4e5f6a7b8c9d&dn=fixture-one"
     "magnet:?xt=urn:btih:b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0&dn=fixture-two"
@@ -171,5 +209,5 @@ case "${1:-}" in
   reset) cmd_reset ;;
   seed) cmd_seed ;;
   log) tail -n 50 -f "$LOGFILE" ;;
-  *) sed -n '2,25p' "$0"; exit 2 ;;
+  *) sed -n '2,/^set -e/p' "$0" | sed '$d'; exit 2 ;;
 esac

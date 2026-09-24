@@ -5,6 +5,7 @@
 #include <QDBusInterface>
 #include <QDBusMessage>
 #include <QDBusReply>
+#include <QDBusServiceWatcher>
 #include <QVariant>
 #include <QVariantMap>
 #include <QtDebug>
@@ -19,6 +20,7 @@ const QString kInterface = QStringLiteral("org.freedesktop.Notifications");
 
 constexpr uchar kUrgencyLow = 0;
 constexpr uchar kUrgencyNormal = 1;
+constexpr int kCallTimeoutMs = 2000;
 
 } // namespace
 
@@ -27,6 +29,21 @@ Notifier::Notifier(QDBusConnection connection, QObject *parent)
     , m_connection(std::move(connection))
     , m_interface(new QDBusInterface(kService, kPath, kInterface, m_connection, this))
 {
+    // Every call is synchronous (callers use the id it returns); never let a wedged daemon
+    // (the shell restarting) hold the GUI thread for Qt's default 25 s.
+    m_interface->setTimeout(kCallTimeoutMs);
+
+    // A notification daemon that restarts (or first appears after us) starts its ids again
+    // at 1: the ids we keep would name *its* notices, perhaps another app's, so forget them,
+    // and ask again whether the service exists.
+    auto *watcher = new QDBusServiceWatcher(
+        kService, m_connection, QDBusServiceWatcher::WatchForOwnerChange, this);
+    connect(watcher, &QDBusServiceWatcher::serviceOwnerChanged, this, [this]() {
+        m_liveIdByKey.clear();
+        m_liveNoticeById.clear();
+        m_serviceChecked = false;
+    });
+
     m_connection.connect(kService,
                          kPath,
                          kInterface,

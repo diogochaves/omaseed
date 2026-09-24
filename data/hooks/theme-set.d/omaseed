@@ -14,13 +14,15 @@
 # busctl is systemd's D-Bus client and is always present on Omarchy, unlike gdbus or
 # dbus-send, so it needs no extra dependency.
 #
-# omaseed may not be running. A call to a bus name with no owner fails immediately and
-# cheaply (activation is not requested: T1.4 has not wired D-Bus activation up yet), so we
-# do not probe for the name first -- we just swallow the failure and always exit 0. A theme
-# switch must never be held up, or fail, because omaseed happens to be closed.
+# omaseed may not be running, and the package installs a D-Bus service file for its name
+# (DBusActivatable), so a plain `busctl call` would *start* omaseed on every theme switch and
+# hold the switch up while it came up. --auto-start=no means a closed omaseed is simply not
+# there: the call fails at once. --timeout bounds a running but hung one. The failure is
+# swallowed and we always exit 0: a theme switch must never be held up, or fail, because of
+# omaseed.
 set -u
 
-busctl --user call \
+busctl --user --auto-start=no --timeout=2 call \
     io.github.diogochaves.omaseed \
     /io/github/diogochaves/omaseed/Theme \
     io.github.diogochaves.omaseed.Theme \

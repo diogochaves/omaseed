@@ -38,6 +38,9 @@ Sheet {
     property string clipboardAddable: ""
     /// The server's refusal, drawn as an error Banner above the rows; "" hides it.
     property string errorText: ""
+    /// Why the field's text is not addable, as `App.parseAddable` put it ("" when it gave no
+    /// reason); shown when `enter` is pressed on it (review RUN-8).
+    property string _parseError: ""
     /// False once the save path has been typed into: the add then carries `autoTMM: false`.
     property bool autoTMM: true
     /// Names the category/tag palette answered with that the server does not list (yet):
@@ -187,6 +190,8 @@ Sheet {
     /// holds a magnet or a URL (and from `OMASEED_DEMO_ADD` under `--demo`, so Fig. 5 and
     /// Fig. 10 can be screenshot reproducibly).
     function openBlank(): void {
+    if (sheet.opened) // already up (the tray's add while the form is half filled): keep it
+    return;
     sheet.reset();
     const demo = App.demoAddText();
     const prefill = demo.length > 0 ? demo : sheet.clipboardText();
@@ -200,16 +205,27 @@ Sheet {
 
     /// One source, from a known place ("drop", "browser", …).
     function openWith(text: string, from: string): void {
-    sheet.reset();
-    sheet.loadText(text, from);
-    sheet.open();
+    sheet.openList([text], from);
 }
 
-    /// Several: the first opens the sheet, the rest queue behind it.
+    /// Several: the first opens the sheet, the rest queue behind it. A hand-off that arrives
+    /// while the sheet is already up never wipes the form the user is in: it joins the queue
+    /// (or fills the field, when that is still empty).
     function openList(list: var, from: string): void {
     if (!list || list.length === 0)
     return;
-    sheet.openWith(list[0], from);
+    if (sheet.opened) {
+        let rest = list;
+        if (sourceField.text.trim().length === 0) {
+            sheet.loadText(list[0], from);
+            rest = list.slice(1);
+        }
+        sheet.queue = sheet.queue.concat(rest);
+        return;
+    }
+    sheet.reset();
+    sheet.loadText(list[0], from);
+    sheet.open();
     sheet.queue = list.slice(1);
 }
 
@@ -233,6 +249,7 @@ Sheet {
                                const map = App.parseAddable(sourceField.text);
                                sheet._pendingToken = map.token;
                                sheet.addable = (map.valid || map.pending) ? map : null;
+                               sheet._parseError = map.error || "";
                                if (sheet.source.length === 0 && map.kind === "magnet")
                                sheet.source = "magnet";
                                else if (sheet.source.length === 0 && map.kind === "file")
@@ -249,8 +266,8 @@ Sheet {
     map["savePath"] = savePathField.text;
     map["autoTMM"] = sheet.autoTMM;
     map["contentLayout"] = sheet.layoutValue();
-    map["upLimitKb"] = parseInt(upLimitField.text, 10) || 0;
-    map["dlLimitKb"] = parseInt(dlLimitField.text, 10) || 0;
+    map["upLimitKb"] = sheet._limitKb(upLimitField.text);
+    map["dlLimitKb"] = sheet._limitKb(dlLimitField.text);
     map["rename"] = renameField.text.trim();
     map["firstLastPiecePrio"] = firstLastToggle.checked;
     map["filePriorities"] = sheet.showFiles && App.addFiles.customised
@@ -260,6 +277,17 @@ Sheet {
     map["stopped"] = stopped;
     return map;
 }
+
+    /// KB/s for a limit field, read as the Limits sheets read theirs: empty is no limit (0),
+    /// "1.5" is 2 (the API takes whole KB here), and anything else is NaN, which `submit`
+    /// refuses instead of adding the torrent unlimited.
+    function _limitKb(text: string): real {
+        const typed = text.trim();
+        if (typed.length === 0)
+            return 0;
+        const kb = Number(typed);
+        return Number.isFinite(kb) && kb >= 0 ? Math.round(kb) : NaN;
+    }
 
     /// The chip that is on, or "" for no category.
     function chosenCategory(): string {
@@ -301,10 +329,20 @@ Sheet {
 
         /// `enter` / `shift+enter` and the two buttons. A duplicate never leaves as an add.
         function submit(stopped: bool): void {
+        if (!sheet.addable && sourceField.text.trim().length > 0) {
+            sheet.errorText = sheet._parseError.length > 0
+                    ? sheet._parseError : qsTr("not a magnet link, URL or .torrent file");
+            return;
+        }
         if (!sheet.addable || sheet.addable.valid !== true)
         return;
         if (sheet.showFiles && App.addFiles.wantedCount === 0) {
             sheet.errorText = qsTr("every file is skipped: check at least one");
+            return;
+        }
+        if (Number.isNaN(sheet._limitKb(dlLimitField.text))
+                || Number.isNaN(sheet._limitKb(upLimitField.text))) {
+            sheet.errorText = qsTr("a speed limit is not a number");
             return;
         }
         const duplicate = App.findDuplicate(sheet.addable.infoHashV1, sheet.addable.infoHashV2);
@@ -326,6 +364,12 @@ Sheet {
             if (sheet.queue.length > 0) {
                 const next = sheet.queue[0];
                 sheet.queue = sheet.queue.slice(1);
+                // The Name row (docs/11 D1) belongs to the torrent just added; category, tags,
+                // path, limits and toggles stay on purpose, as one batch's settings.
+                sheet._programmatic = true;
+                renameField.text = "";
+                sheet._programmatic = false;
+                sheet.errorText = "";
                 sheet.loadText(next, sheet.source);
                 return;
             }
@@ -492,6 +536,7 @@ Sheet {
                                 if (sheet._programmatic)
                                     return;
                                 sheet.source = "";
+                                sheet.errorText = "";
                                 sheet.parseField();
                             }
                             // `ctrl+o` has to be taken inside the field: a TextInput with the caret swallows

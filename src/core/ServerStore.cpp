@@ -2,6 +2,7 @@
 
 #include "core/Paths.hpp"
 
+#include <QDateTime>
 #include <QDir>
 #include <QFile>
 #include <QFileDevice>
@@ -9,11 +10,14 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonParseError>
+#include <QLoggingCategory>
 #include <QSaveFile>
 
 namespace omaseed::core {
 
 namespace {
+
+Q_LOGGING_CATEGORY(lcServers, "omaseed.servers")
 
 constexpr int kFileVersion = 1;
 
@@ -47,6 +51,13 @@ int ServerStore::indexOf(const QString &id) const
     return -1;
 }
 
+void ServerStore::failLoad(const QString &message)
+{
+    m_loadError = message;
+    qCWarning(lcServers).noquote() << message;
+    Q_EMIT loadFailed(message);
+}
+
 bool ServerStore::load()
 {
     QFile file(filePath());
@@ -54,8 +65,7 @@ bool ServerStore::load()
         return true; // nothing on disk yet; not an error
 
     if (!file.open(QIODevice::ReadOnly)) {
-        Q_EMIT loadFailed(
-            QStringLiteral("could not open %1: %2").arg(file.fileName(), file.errorString()));
+        failLoad(QStringLiteral("could not open %1: %2").arg(file.fileName(), file.errorString()));
         return false;
     }
 
@@ -65,20 +75,21 @@ bool ServerStore::load()
     QJsonParseError parseError;
     const QJsonDocument doc = QJsonDocument::fromJson(bytes, &parseError);
     if (parseError.error != QJsonParseError::NoError || !doc.isObject()) {
-        Q_EMIT loadFailed(QStringLiteral("%1 is not valid JSON: %2")
-                              .arg(file.fileName(), parseError.errorString()));
+        failLoad(QStringLiteral("%1 is not valid JSON: %2")
+                     .arg(file.fileName(), parseError.errorString()));
         return false;
     }
 
     const QJsonObject root = doc.object();
     const int version = root.value(QStringLiteral("version")).toInt(kFileVersion);
     if (version > kFileVersion) {
-        Q_EMIT loadFailed(QStringLiteral("%1 has version %2, this build understands up to %3")
-                              .arg(file.fileName())
-                              .arg(version)
-                              .arg(kFileVersion));
+        failLoad(QStringLiteral("%1 has version %2, this build understands up to %3")
+                     .arg(file.fileName())
+                     .arg(version)
+                     .arg(kFileVersion));
         return false;
     }
+    m_loadError.clear();
 
     QList<Server> loaded;
     for (const QJsonValue &value : root.value(QStringLiteral("servers")).toArray()) {
@@ -110,6 +121,28 @@ bool ServerStore::save() const
     const QString dir = paths::configDir();
     QDir().mkpath(dir);
     QFile::setPermissions(dir, ownerReadWriteExec());
+
+    // The file on disk could not be read (corrupt, or written by a newer build): it may hold
+    // the user's whole server list, so it is moved aside, never overwritten. If it cannot be
+    // moved, nothing is written at all.
+    if (!m_loadError.isEmpty() && QFile::exists(filePath())) {
+        const QString stem =
+            filePath() + QStringLiteral(".unreadable-") +
+            QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd-HHmmss"));
+        QString aside = stem;
+        for (int n = 1; QFile::exists(aside); ++n)
+            aside = stem + QStringLiteral("-%1").arg(n);
+        if (!QFile::rename(filePath(), aside)) {
+            qCWarning(lcServers).noquote()
+                << QStringLiteral("not saving: %1 is unreadable and could not be moved to %2")
+                       .arg(filePath(), aside);
+            return false;
+        }
+        qCWarning(lcServers).noquote()
+            << QStringLiteral("moved the unreadable %1 to %2").arg(filePath(), aside);
+        m_loadError.clear();
+        m_setAsidePath = aside;
+    }
 
     QJsonArray array;
     for (const Server &server : m_servers) {

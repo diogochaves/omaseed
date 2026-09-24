@@ -443,6 +443,25 @@ TestCase {
         compare(peers.addressAt(0), "185.21.216.140:51413");
     }
 
+    // Review VIEW-13: a shorter list pulls the Trackers cursor back onto a row.
+    function test_the_trackers_cursor_stays_on_a_row_when_the_list_shrinks() {
+        const view = testCase.select(testCase.archName);
+        view.activateTab(2);
+        const trackers = App.details.trackers;
+        view.moveCursor(trackers.count);
+        compare(view.trackersCursor, trackers.count - 1);
+        const longest = trackers.count;
+        let shorter = "";
+        for (let row = 0; row < App.filtered.count && shorter.length === 0; ++row) {
+            App.selectTorrent(App.filtered.hashAt(row));
+            if (trackers.count > 0 && trackers.count < longest)
+                shorter = App.filtered.hashAt(row);
+        }
+        if (shorter.length === 0)
+            skip("the demo library has no torrent with fewer trackers");
+        verify(view.trackersCursor < trackers.count, "the cursor was left past the end");
+    }
+
     function test_copy_emits_the_row_the_cursor_is_on() {
         const view = testCase.select(testCase.archName);
         copySpy.target = view;
@@ -751,6 +770,53 @@ TestCase {
         compare(files.nameAt(4), "en.srt");
     }
 
+    // Review VIEW-7: a sync that re-sorts the rows under an open rename (sorted by progress,
+    // say) must not move the rename or the cursor onto another file.
+    function test_a_resort_under_a_rename_keeps_the_file() {
+        const view = testCase.filesView();
+        const files = App.details.files;
+        // A file that the name sort moves.
+        let from = -1;
+        const before = [];
+        for (let r = 0; r < files.count; ++r)
+            before.push(files.pathAt(r));
+        files.sortBy("name");
+        for (let r = 0; r < before.length && from < 0; ++r) {
+            if (!files.isFolder(files.rowOfPath(before[r])) && files.rowOfPath(before[r]) !== r)
+                from = r;
+        }
+        files.sortKey = "";
+        verify(from >= 0);
+        const path = before[from];
+        compare(files.pathAt(from), path);
+        view.moveCursor(-files.count);
+        view.moveCursor(from);
+        compare(files.pathAt(view.cursorIndex), path);
+        renameSpy.target = App;
+        renameSpy.clear();
+
+        keyClick("r");
+        verify(view.editing);
+        keyClick("L"); // replaces the selected stem
+        // What a sync does when the sort key's numbers move: the rows are rebuilt in a new
+        // order, without the pane asking for it.
+        files.sortBy("name");
+        verify(files.rowOfPath(path) !== from, "the re-sort did not move the row");
+        compare(files.pathAt(view.cursorIndex), path, "the cursor stayed on the old index");
+        verify(view.editing, "the rename closed");
+        compare(findChild(view, "filesTab").renamingRow, files.rowOfPath(path),
+                "the editor stayed on the old index");
+        wait(0); // the editor takes the keyboard back once the reset has settled
+        keyClick("x");
+        keyClick(Qt.Key_Return);
+        compare(renameSpy.count, 1);
+        compare(renameSpy.signalArguments[0][1], path, "the rename went to another file");
+        compare(renameSpy.signalArguments[0][3], false, "a file was renamed as a folder");
+        const dir = path.substring(0, path.lastIndexOf("/") + 1);
+        const ext = path.substring(path.lastIndexOf("."));
+        compare(renameSpy.signalArguments[0][2], dir + "Lx" + ext);
+    }
+
     function test_H_and_L_fold_and_open_every_folder() {
         const view = testCase.filesView();
         const files = App.details.files;
@@ -798,9 +864,70 @@ TestCase {
         const added = findChild(view, "headAdded");
         verify(labels !== null && added !== null);
         verify(added.text.startsWith(" · added"));
-        compare(added.width, added.implicitWidth);
+        verify(!added.truncated, "the date was cut");
         verify(labels.truncated, "the tags did not give way");
         verify(added.x + added.width <= view.width);
+    }
+
+    // Review RUN-6: narrower still, the labels go with their ` · `, and nothing draws past
+    // the head, even where the head has no room at all.
+    function test_the_head_drops_the_labels_and_their_separator_when_they_cannot_show() {
+        const view = testCase.select(testCase.bbbName);
+        const labels = findChild(view, "headLabels");
+        const added = findChild(view, "headAdded");
+        view.width = Theme.space(32) + added.implicitWidth + Theme.space(10);
+        verify(!labels.visible, "a sliver of the labels is still drawn");
+        verify(!added.text.startsWith(" · "), "the separator stayed without its labels");
+        verify(added.x + added.width <= view.width);
+
+        view.width = Theme.space(20);
+        verify(added.width <= 0 || added.x + added.width <= view.width, "the date drew past the pane");
+    }
+
+    // Review VER-2: the pane is created with the torrent but no width yet (the first
+    // layout), then opens. The category and tags must show, not a bare ` · added …`.
+    function test_the_head_shows_the_labels_when_the_pane_widens_after_the_torrent() {
+        testCase.select(testCase.bbbName);
+        const row = App.torrentRow(testCase.hashOf(testCase.bbbName));
+        const view = createTemporaryObject(detailsComponent, testCase, {"width": 0, "torrent": row});
+        wait(0);
+        view.width = 450;
+        wait(0);
+        const labels = findChild(view, "headLabels");
+        const added = findChild(view, "headAdded");
+        verify(labels.text.length > 0, "the demo row has no category or tags");
+        verify(labels.visible, "the labels are hidden at 450 px");
+        verify(labels.width > 0, "the labels are laid out with no width");
+        verify(!labels.truncated, "the labels are cut with room to spare");
+        verify(added.text.startsWith(" · added"));
+        verify(added.x >= labels.width, "the date overlaps the labels");
+    }
+
+    // Review VER-2: a fresh pane at a normal width shows the labels straight away.
+    function test_a_fresh_head_shows_the_labels() {
+        const view = testCase.select(testCase.bbbName);
+        wait(0);
+        const labels = findChild(view, "headLabels");
+        verify(labels.visible);
+        verify(labels.width > 0, "the labels are laid out with no width");
+    }
+
+    TextMetrics {
+        id: sizeSample
+
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.font.small
+        text: "999.9 MB"
+    }
+
+    // Review RUN-6: the Size column holds a whole size in the font on screen, whatever the
+    // spacing scale, so the unit is never cut.
+    function test_the_size_column_holds_a_whole_size() {
+        const view = testCase.filesView();
+        wait(0);
+        const header = findChild(view, "fileHeader_size");
+        verify(header.width >= Math.ceil(sizeSample.advanceWidth),
+               header.width + " < " + sizeSample.advanceWidth);
     }
 
     // docs/11 J2: every header starts where its column's text does.

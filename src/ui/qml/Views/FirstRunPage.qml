@@ -85,7 +85,7 @@ Item {
     property int cursorIndex: 0
 
     // ---- the page's state machine --------------------------------------------------------
-    /// "choose" | "install" | "apikey" | "handler"
+    /// "welcome" | "choose" | "install" | "apikey" | "handler" | "done"
     property string page: root.autoDetect ? "welcome" : "choose"
 
     // Each step puts the keyboard where typing starts: the page root's own `Keys` only
@@ -950,11 +950,11 @@ Flickable {
 
                 Rectangle {
                     Layout.alignment: Qt.AlignTop
-                    Layout.topMargin: Math.round((resultText.font.pixelSize * 1.4 - height) / 2)
+                    Layout.preferredHeight: Theme.space(7)
+                    Layout.preferredWidth: Theme.space(7)
+                    Layout.topMargin: Math.round((resultText.font.pixelSize * 1.4 - Theme.space(7)) / 2)
                     color: root.testOk ? Theme.green : Theme.red
-                    height: Theme.space(7)
-                    radius: height / 2
-                    width: height
+                    radius: Theme.space(7) / 2
                 }
 
                 Label {

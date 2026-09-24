@@ -20,6 +20,20 @@ TestCase {
         compare(button.height, Theme.controlHeight);
     }
 
+    // KIT-13: a text glyph can stand in for the name; an SVG one ("icon:gear") cannot.
+    function test_the_accessible_name_never_reads_an_icon_path() {
+        const plain = createTemporaryObject(buttonComponent, testCase, {
+                                                "glyph": "+"
+                                            });
+        compare(plain.Accessible.name, "+");
+        const svg = createTemporaryObject(buttonComponent, testCase, {
+                                              "glyph": "icon:gear"
+                                          });
+        compare(svg.Accessible.name, "");
+        svg.text = "settings";
+        compare(svg.Accessible.name, "settings");
+    }
+
     function test_idle_has_no_chrome() {
         const button = createTemporaryObject(buttonComponent, testCase, {
                                                  "text": "Add"

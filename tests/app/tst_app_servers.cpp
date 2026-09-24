@@ -8,8 +8,12 @@
 // Two environment variables keep this test out of the real profile: `XDG_CONFIG_HOME` points
 // `servers.json`, `state.json` and the file-backed secrets at a temporary directory, and
 // `OMASEED_SECRET_SERVICE` gives the keychain backend a service name of its own, so nothing
-// here can touch an entry the application itself wrote.
+// here can touch an entry the application itself wrote. Every server these tests add lands
+// in that service (the strict key among them), and a failed QVERIFY skips the test's own
+// removeServer, so initTestCase and cleanupTestCase empty the whole test service.
 
+#include "core/ApiError.hpp"
+#include "core/QbtClient.hpp"
 #include "core/SecretStore.hpp"
 #include "core/ServerListModel.hpp"
 #include "core/SyncEngine.hpp"
@@ -17,8 +21,10 @@
 #include "integration/ThemeReader.hpp"
 #include "ui/app/App.hpp"
 
+#include <QProcess>
 #include <QProcessEnvironment>
 #include <QSignalSpy>
+#include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QVariantMap>
@@ -39,6 +45,26 @@ QString strictKey()
     return QProcessEnvironment::systemEnvironment().value(QStringLiteral("QBT_STRICT_API_KEY"));
 }
 
+/// Deletes every keyring entry in the test service, whatever its key. QtKeychain cannot list
+/// a service, so this goes through libsecret's own CLI; QtKeychain's libsecret schema stores
+/// the service as the `server` attribute. Only ever `kSecretService`, never the app's own.
+void clearTestSecretService()
+{
+    const QString tool = QStandardPaths::findExecutable(QStringLiteral("secret-tool"));
+    if (tool.isEmpty()) {
+        qWarning("secret-tool not found: entries in %s are left behind",
+                 qPrintable(kSecretService));
+        return;
+    }
+    QProcess clear;
+    clear.start(tool, {QStringLiteral("clear"), QStringLiteral("server"), kSecretService});
+    if (!clear.waitForFinished(10000)) {
+        clear.kill();
+        clear.waitForFinished(1000);
+        qWarning("secret-tool clear timed out (a locked keyring?)");
+    }
+}
+
 QVariantMap strictFields()
 {
     return QVariantMap{
@@ -56,6 +82,7 @@ class TestAppServers : public QObject
 
 private Q_SLOTS:
     void initTestCase();
+    void cleanupTestCase();
     void init();
 
     void testServerReportsVersionAndCount();
@@ -63,6 +90,8 @@ private Q_SLOTS:
     void setDefaultServerMovesTheEngine();
     void removeServerDeletesTheSecret();
     void appearanceOverridesReachTheTheme();
+    void aLateKeychainAnswerStaysWithItsServer();
+    void aGoodSyncAfterAuthRequiredClearsServerLost();
 
 private:
     QTemporaryDir m_config;
@@ -75,6 +104,12 @@ void TestAppServers::initTestCase()
     qputenv("OMASEED_SECRET_SERVICE", kSecretService.toUtf8());
     // App falls back to the environment when no server is stored; these tests want the store.
     qunsetenv("OMASEED_SERVER_URL");
+    clearTestSecretService(); // whatever a crashed earlier run left
+}
+
+void TestAppServers::cleanupTestCase()
+{
+    clearTestSecretService();
 }
 
 void TestAppServers::init()
@@ -298,6 +333,68 @@ void TestAppServers::appearanceOverridesReachTheTheme()
     QCOMPARE(reopened.detailsPlacement(), QStringLiteral("bottom"));
     QCOMPARE(reopened.baseSizeOverride(), 0);
     QCOMPARE(reopened.followOmarchyTheme(), false);
+}
+
+// APP-2 / INT-6: switch to an API-key server and away again before its keychain read
+// returns. The late answer must not put that key on the client, which by then points at the
+// next server. Neither URL is ever contacted successfully: both are closed local ports.
+void TestAppServers::aLateKeychainAnswerStaysWithItsServer()
+{
+    App app;
+    app.start();
+
+    const QVariantMap keyed{
+        {QStringLiteral("name"), QStringLiteral("keyed")},
+        {QStringLiteral("url"), QStringLiteral("http://127.0.0.1:9")},
+        {QStringLiteral("authMode"), QStringLiteral("apiKey")},
+    };
+    const QVariantMap open{
+        {QStringLiteral("name"), QStringLiteral("open")},
+        {QStringLiteral("url"), QStringLiteral("http://127.0.0.1:7")},
+        {QStringLiteral("authMode"), QStringLiteral("none")},
+    };
+    // The first server added becomes the live one, and its key read is queued behind the
+    // write; the switch below happens before either has run.
+    const QString keyedId = app.addServer(keyed, QStringLiteral("key-of-the-first-server"));
+    QVERIFY(!keyedId.isEmpty());
+    const QString openId = app.addServer(open, QString());
+    QVERIFY(!openId.isEmpty());
+    QVERIFY(app.setDefaultServer(openId));
+    QCOMPARE(app.serverName(), QStringLiteral("open"));
+
+    // Wait until the first server's secret is readable (App's write has landed), then give
+    // App's own queued read time to answer too.
+    SecretStore secrets(kSecretService);
+    bool stored = false;
+    for (int attempt = 0; attempt < 50 && !stored; ++attempt) {
+        auto *job = secrets.secret(keyedId, SecretStore::Kind::ApiKey);
+        QSignalSpy finished(job, &omaseed::core::SecretStoreJob::finished);
+        QVERIFY(finished.wait(5000));
+        stored = finished.at(0).at(0).toBool();
+        if (!stored)
+            QTest::qWait(100);
+    }
+    QVERIFY(stored);
+    QTest::qWait(1000);
+
+    QVERIFY2(!app.client()->hasApiKey(), "the first server's key reached the second server");
+    QCOMPARE(app.client()->baseUrl(), QUrl(QStringLiteral("http://127.0.0.1:7")));
+
+    QVERIFY(app.removeServer(keyedId));
+    QVERIFY(app.removeServer(openId));
+}
+
+// APP-3: authRequired marks the server lost; serverBack never follows it, so the first
+// successful sync afterwards has to clear the mark (and with it the tray's "disconnected").
+void TestAppServers::aGoodSyncAfterAuthRequiredClearsServerLost()
+{
+    App app;
+    QVERIFY(!app.isServerLost());
+    Q_EMIT app.engine()->authRequired(
+        omaseed::core::ApiError(omaseed::core::ApiError::Kind::Forbidden, QStringLiteral("403")));
+    QVERIFY(app.isServerLost());
+    Q_EMIT app.engine()->synced(false);
+    QVERIFY(!app.isServerLost());
 }
 
 QTEST_MAIN(TestAppServers)

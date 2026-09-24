@@ -28,6 +28,8 @@
 set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# shellcheck source=scripts/dev/home-guard.sh
+. "$repo/scripts/dev/home-guard.sh"
 SWARM="${OMASEED_SWARM_PROFILE:-$HOME/.local/share/omaseed-swarm}"
 SEEDER_PORT=8083
 SEEDER_BT_PORT=26997
@@ -35,13 +37,15 @@ TRACKER_PORT=26996
 TRACKER="http://127.0.0.1:$TRACKER_PORT/announce"
 DEAD_TRACKER="http://127.0.0.1:9/announce"
 SEEDER="http://127.0.0.1:$SEEDER_PORT/api/v2"
-PLAY="http://127.0.0.1:${OMASEED_TEST_PORT:-8081}/api/v2"
+PLAY_PORT="${OMASEED_TEST_PORT:-8081}"
+PLAY="http://127.0.0.1:$PLAY_PORT/api/v2"
 PLAY_DOWNLOADS="${OMASEED_TEST_PROFILE:-$HOME/.local/share/omaseed-test}/downloads"
 CONTENT="$SWARM/content"
 TORRENTS="$SWARM/torrents"
 CONTROL="$SWARM/control.json"
 TRACKER_PID="$SWARM/tracker.pid"
 CATEGORY=swarm
+refuse_home "$SEEDER_PORT" "$SEEDER_BT_PORT" "$TRACKER_PORT" "$PLAY"
 
 seeder_server() {
     OMASEED_TEST_PROFILE="$SWARM" OMASEED_TEST_PORT=$SEEDER_PORT OMASEED_TEST_BT_PORT=$SEEDER_BT_PORT \
@@ -54,7 +58,7 @@ tracker_running() { [ -f "$TRACKER_PID" ] && kill -0 "$(cat "$TRACKER_PID")" 2>/
 # control KEY JSON_VALUE: set one key of the tracker's control file (read on every announce).
 control() {
     python3 - "$CONTROL" "$1" "$2" <<'PY'
-import json, sys
+import json, os, sys
 path, key, value = sys.argv[1], sys.argv[2], json.loads(sys.argv[3])
 try:
     data = json.load(open(path))
@@ -64,7 +68,10 @@ if value is None:
     data.pop(key, None)
 else:
     data[key] = value
-json.dump(data, open(path, "w"))
+tmp = path + ".tmp"
+with open(tmp, "w") as f:
+    json.dump(data, f)
+os.replace(tmp, path)  # the tracker reads it on every announce: never a half-written file
 PY
 }
 
@@ -124,7 +131,7 @@ cmd_stop() {
     if tracker_running; then kill "$(cat "$TRACKER_PID")"; fi
     rm -f "$TRACKER_PID"
     seeder_server stop | sed 's/^/seeder: /'
-    echo "the playground on :8081 is left running"
+    echo "the playground on :$PLAY_PORT is left running"
 }
 
 # The fixtures: name, then a Python expression listing (relative path, size in bytes), then
@@ -197,6 +204,7 @@ create_torrent() {
         sleep 0.5
     done
     curl -fs -X POST "$SEEDER/torrentcreator/deleteTask" -d "taskID=$task" >/dev/null || true
+    [ "$status" = Finished ] || { echo "creating $name timed out after 5 minutes ($status)" >&2; exit 1; }
     echo "created  $name ($format)"
 }
 
@@ -261,14 +269,16 @@ cmd_break() {
         v1="$(find_torrent "$name" infohash_v1)"; v2="$(find_torrent "$name" infohash_v2)"
         wake "$(find_torrent "$name")"
         python3 - "$CONTROL" "$v1" "${v2:0:40}" <<'PY'
-import json, sys
+import json, os, sys
 path = sys.argv[1]
 data = json.load(open(path))
 fail = data.setdefault("fail", {})
 for h in sys.argv[2:]:
     if h:
         fail[h] = "unregistered torrent (omaseed swarm)"
-json.dump(data, open(path, "w"))
+with open(path + ".tmp", "w") as f:
+    json.dump(data, f)
+os.replace(path + ".tmp", path)
 PY
         reannounce
         echo "the tracker now fails $(find_torrent "$name" name)" ;;
@@ -336,13 +346,18 @@ print("|".join(t["hash"] for t in json.load(sys.stdin)))')"
 
 cmd_reset() {
     local hashes
+    # The playground may be down: the seeder's torrents and the files still go.
     hashes="$(curl -fs "$PLAY/torrents/info?category=$CATEGORY" | python3 -c '
 import json, sys
-print("|".join(t["hash"] for t in json.load(sys.stdin)))')"
-    [ -n "$hashes" ] && curl -fs -X POST "$PLAY/torrents/delete" -d "hashes=$hashes" -d deleteFiles=true >/dev/null
+print("|".join(t["hash"] for t in json.load(sys.stdin)))')" || hashes=""
+    if [ -n "$hashes" ]; then
+        curl -fs -X POST "$PLAY/torrents/delete" -d "hashes=$hashes" -d deleteFiles=true >/dev/null ||
+            echo "the playground did not take the delete; its swarm torrents stay" >&2
+    fi
     curl -fs -X POST "$SEEDER/torrents/delete" -d hashes=all -d deleteFiles=false >/dev/null || true
-    [ -d "$PLAY_DOWNLOADS/$CATEGORY-readonly" ] && chmod 755 "$PLAY_DOWNLOADS/$CATEGORY-readonly"
-    rm -rf -- "$PLAY_DOWNLOADS/$CATEGORY" "$PLAY_DOWNLOADS/$CATEGORY-readonly" "$TORRENTS" "$CONTENT"
+    if [ -d "$PLAY_DOWNLOADS/$CATEGORY-readonly" ]; then chmod 755 "$PLAY_DOWNLOADS/$CATEGORY-readonly"; fi
+    rm -rf -- "${PLAY_DOWNLOADS:?}/$CATEGORY" "${PLAY_DOWNLOADS:?}/$CATEGORY-readonly" \
+        "${TORRENTS:?}" "${CONTENT:?}"
     echo '{}' >"$CONTROL"
     control exemptPorts "[$SEEDER_BT_PORT]"
     echo "swarm torrents and files removed from both sides; run seed again"

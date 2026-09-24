@@ -5,6 +5,7 @@
 
 #include "core/TorrentPeersModel.hpp"
 
+#include <QAbstractItemModelTester>
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -38,6 +39,7 @@ private Q_SLOTS:
     void a_partial_update_merges_and_removes();
     void clearing_forgets_the_rid();
     void an_ip_is_recovered_from_the_key();
+    void a_poll_moves_rows_and_never_resets();
 };
 
 void TestTorrentPeersModel::the_figure_row_by_row()
@@ -160,6 +162,49 @@ void TestTorrentPeersModel::an_ip_is_recovered_from_the_key()
     QCOMPARE(model.count(), 1);
     QCOMPARE(at(model, 0, TorrentPeersModel::IpRole).toString(), QStringLiteral("198.51.100.4"));
     QCOMPARE(at(model, 0, TorrentPeersModel::DlSpeedTextRole).toString(), QStringLiteral("2 KB/s"));
+}
+
+void TestTorrentPeersModel::a_poll_moves_rows_and_never_resets()
+{
+    TorrentPeersModel model;
+    QAbstractItemModelTester tester(&model, QAbstractItemModelTester::FailureReportingMode::QtTest);
+    model.applyPeers(fixture(QStringLiteral("peers-full.json")));
+
+    // The cursor sits on the peer in the last row; the diff re-sorts, drops one and adds one.
+    const QString held = model.addressAt(model.count() - 1);
+    QSignalSpy reset(&model, &QAbstractItemModel::modelReset);
+    QSignalSpy moved(&model, &QAbstractItemModel::rowsMoved);
+    QSignalSpy applied(&model, &TorrentPeersModel::applied);
+
+    model.applyPeers(fixture(QStringLiteral("peers-diff.json")));
+    QCOMPARE(reset.count(), 0);
+    QCOMPARE(applied.count(), 1);
+
+    // The held peer is still found by address, wherever its speed took it.
+    const int row = model.rowOfAddress(held);
+    QVERIFY(row >= 0);
+    QCOMPARE(model.addressAt(row), held);
+    QCOMPARE(model.rowOfAddress(QStringLiteral("2a01:4f8:c0c::1:6881")), -1);
+    QCOMPARE(model.rowOfAddress(QString()), -1);
+
+    // Speeds swap between two polls: the two peers trade rows by a move, same count.
+    const QString first = model.addressAt(0);
+    const QString second = model.addressAt(1);
+    QJsonObject swap{{QStringLiteral("rid"), 3},
+                     {QStringLiteral("peers"),
+                      QJsonObject{{first, QJsonObject{{QStringLiteral("dl_speed"), 1}}},
+                                  {second, QJsonObject{{QStringLiteral("dl_speed"), 99999999}}}}}};
+    moved.clear();
+    model.applyPeers(swap);
+    QCOMPARE(reset.count(), 0);
+    QVERIFY(moved.count() > 0);
+    QCOMPARE(model.addressAt(0), second);
+    QCOMPARE(model.count(), 4);
+
+    // And the rows really are in speed order afterwards.
+    for (int r = 1; r < model.count(); ++r)
+        QVERIFY(model.data(model.index(r - 1), TorrentPeersModel::DlSpeedRole).toLongLong() >=
+                model.data(model.index(r), TorrentPeersModel::DlSpeedRole).toLongLong());
 }
 
 QTEST_MAIN(TestTorrentPeersModel)

@@ -4,6 +4,7 @@
 #include "core/Torrent.hpp"
 #include "core/TrackerModel.hpp"
 
+#include <QElapsedTimer>
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QSignalSpy>
@@ -23,6 +24,7 @@ private slots:
     void partialMergesAndRemovals();
     void trackerlessRowIsLastAndOptional();
     void clearEmptiesIt();
+    void aBigHostRebuildsInLinearTime();
 };
 
 void TestTrackerModel::hostFromUrl_data()
@@ -140,6 +142,32 @@ void TestTrackerModel::clearEmptiesIt()
     model.setTrackerlessHashes(QStringList({QStringLiteral("bbbb")}));
     model.clear();
     QCOMPARE(model.count(), 0);
+}
+
+void TestTrackerModel::aBigHostRebuildsInLinearTime()
+{
+    // One tracker, two announce URLs (udp + http), 20 000 torrents on both: the de-dupe per
+    // host used to be a QStringList::contains, quadratic in the torrents of the host.
+    constexpr int kTorrents = 20000;
+    QJsonArray hashes;
+    for (int i = 0; i < kTorrents; ++i)
+        hashes.append(QStringLiteral("%1").arg(i, 40, 16, QLatin1Char('0')));
+    const QJsonObject map{
+        {QStringLiteral("udp://tracker.opentrackr.org:1337/announce"), hashes},
+        {QStringLiteral("https://tracker.opentrackr.org:443/announce"), hashes},
+    };
+
+    TrackerModel model;
+    QElapsedTimer timer;
+    timer.start();
+    model.applyFullUpdate(map);
+    const double ms = double(timer.nsecsElapsed()) / 1e6;
+    qInfo("TrackerModel rebuild, 2 URLs x %d torrents: %.1f ms", kTorrents, ms);
+
+    QCOMPARE(model.count(), 1);
+    QCOMPARE(model.hashesFor(QStringLiteral("tracker.opentrackr.org")).size(), kTorrents);
+    // The quadratic version took seconds here even in Release; linear is tens of ms in Debug.
+    QVERIFY2(ms < 1000.0, qPrintable(QStringLiteral("rebuild took %1 ms").arg(ms)));
 }
 
 QTEST_MAIN(TestTrackerModel)

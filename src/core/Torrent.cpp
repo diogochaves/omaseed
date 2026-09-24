@@ -80,6 +80,7 @@ const StateName *stateTable(int &count)
         {TorrentState::Downloading, QLatin1StringView("downloading")},
         {TorrentState::StalledDownload, QLatin1StringView("stalledDL")},
         {TorrentState::MetaDownload, QLatin1StringView("metaDL")},
+        {TorrentState::ForcedMetaDownload, QLatin1StringView("forcedMetaDL")},
         {TorrentState::ForcedDownload, QLatin1StringView("forcedDL")},
         {TorrentState::QueuedDownload, QLatin1StringView("queuedDL")},
         {TorrentState::CheckingDownload, QLatin1StringView("checkingDL")},
@@ -199,6 +200,11 @@ QStringList Torrent::applyJson(const QJsonObject &json)
     take(json, QLatin1StringView("up_limit"), upLimit, asInteger, changed);
     take(json, QLatin1StringView("ratio_limit"), ratioLimit, asDouble, changed);
     take(json, QLatin1StringView("seeding_time_limit"), seedingTimeLimit, asInteger, changed);
+    take(json,
+         QLatin1StringView("inactive_seeding_time_limit"),
+         inactiveSeedingTimeLimit,
+         asInteger,
+         changed);
     take(json, QLatin1StringView("share_limit_action"), shareLimitAction, asString, changed);
 
     take(json, QLatin1StringView("availability"), availability, asDouble, changed);
@@ -230,6 +236,7 @@ StatusGroups Torrent::statusGroups() const
     case TorrentState::Downloading:
     case TorrentState::StalledDownload:
     case TorrentState::MetaDownload:
+    case TorrentState::ForcedMetaDownload:
     case TorrentState::ForcedDownload:
     case TorrentState::QueuedDownload:
     case TorrentState::CheckingDownload:
@@ -282,7 +289,8 @@ StatusGroups Torrent::statusGroups() const
 
     const bool forcedOrMoving =
         state == TorrentState::Downloading || state == TorrentState::Uploading ||
-        state == TorrentState::ForcedDownload || state == TorrentState::ForcedUpload;
+        state == TorrentState::ForcedDownload || state == TorrentState::ForcedMetaDownload ||
+        state == TorrentState::ForcedUpload;
     if (dlspeed > 0 || upspeed > 0 || forcedOrMoving)
         groups |= StatusGroup::Active;
 
@@ -301,6 +309,7 @@ QString Torrent::stateText() const
     case TorrentState::ForcedDownload:
         return QStringLiteral("downloading");
     case TorrentState::MetaDownload:
+    case TorrentState::ForcedMetaDownload:
         return QStringLiteral("metadata");
     case TorrentState::StalledDownload:
         return QStringLiteral("stalled");
@@ -379,6 +388,7 @@ bool Torrent::hasEta() const
     case TorrentState::Downloading:
     case TorrentState::ForcedDownload:
     case TorrentState::MetaDownload:
+    case TorrentState::ForcedMetaDownload:
     case TorrentState::StalledDownload:
         return true;
     default:

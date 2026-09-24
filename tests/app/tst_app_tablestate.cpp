@@ -6,6 +6,7 @@
 
 #include "ui/app/App.hpp"
 
+#include <QFile>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
@@ -77,11 +78,17 @@ void TestAppTableState::saveThenLoadRoundTrips()
     const QStringList columns = loaded.value(QStringLiteral("columns")).toStringList();
     QCOMPARE(columns, (QStringList{QStringLiteral("name"), QStringLiteral("size")}));
 
-    // A second App, same XDG_CONFIG_HOME, reads what the first one wrote.
+    // APP-16: a demo keeps it in memory only. A second App, same XDG_CONFIG_HOME, does not
+    // see it, and state.json was never written.
     App second;
     second.startDemo(16);
-    QCOMPARE(second.tableState(key).value(QStringLiteral("sortRole")).toString(),
-             QStringLiteral("name"));
+    QVERIFY(second.tableState(key).isEmpty());
+    QVERIFY(!QFile::exists(m_dir.path() + QStringLiteral("/omaseed/state.json")));
+
+    // The same holds for settings, notices and the delete default.
+    app.setRailHidden(!app.railHidden());
+    app.setDeleteFilesDefault(!app.deleteFilesDefault());
+    QVERIFY(!QFile::exists(m_dir.path() + QStringLiteral("/omaseed/state.json")));
 }
 
 void TestAppTableState::unknownKeyGivesEmptyMap()

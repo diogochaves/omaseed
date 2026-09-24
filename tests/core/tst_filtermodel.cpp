@@ -4,6 +4,7 @@
 #include "core/Torrent.hpp"
 #include "core/TorrentFilterModel.hpp"
 #include "core/TorrentModel.hpp"
+#include "core/TrackerModel.hpp"
 
 #include <QJsonArray>
 #include <QJsonObject>
@@ -127,6 +128,7 @@ private slots:
     void categoryFilterIsThreeValued();
     void tagFilterIsThreeValued();
     void trackerFilterGroupsByHostAndTrackerless();
+    void trackerFilterListsWhatTheRailCounts();
     void textMatchesNameHashCategoryAndTags();
     void filtersCombine();
     void sortsNamesNaturally();
@@ -245,6 +247,53 @@ void TestFilterModel::trackerFilterGroupsByHostAndTrackerless()
     QCOMPARE(m_proxy.rowCount(), 6);
 }
 
+void TestFilterModel::trackerFilterListsWhatTheRailCounts()
+{
+    // 1111 announces to archlinux now and also lists opentrackr; 5555's only tracker is
+    // opentrackr. 4444's trackers all fail, so its current tracker is "" (trackerless), but
+    // it still has an opentrackr URL. The rail counts opentrackr 3; the filter lists 3.
+    const QString arch = QStringLiteral("udp://tracker.archlinux.org:6969/announce");
+    const QString open = QStringLiteral("https://tracker.opentrackr.org:443/announce");
+    TrackerModel trackers;
+    trackers.applyFullUpdate(QJsonObject{
+        {arch, QJsonArray{QStringLiteral("1111"), QStringLiteral("3333")}},
+        {open,
+         QJsonArray{QStringLiteral("1111"),
+                    QStringLiteral("2222"),
+                    QStringLiteral("4444"),
+                    QStringLiteral("5555")}},
+    });
+    trackers.setTrackerlessHashes({QStringLiteral("4444"), QStringLiteral("6666")});
+    m_proxy.setTrackerModel(&trackers);
+
+    const QString host = QStringLiteral("tracker.opentrackr.org");
+    m_proxy.setTracker(host);
+    QStringList shown = visibleHashes(m_proxy);
+    shown.sort();
+    QCOMPARE(shown, trackers.hashesFor(host));
+    QCOMPARE(m_proxy.count(), 4);
+
+    // The trackerless row keeps the current-tracker rule, which is what it counts.
+    m_proxy.setTracker(trackerlessKey());
+    shown = visibleHashes(m_proxy);
+    shown.sort();
+    QCOMPARE(shown, trackers.hashesFor(trackerlessKey()));
+
+    // A poll that drops 1111's opentrackr URL re-filters the open row.
+    m_proxy.setTracker(host);
+    QSignalSpy count(&m_proxy, &TorrentFilterModel::countChanged);
+    trackers.applyPartial(
+        QJsonObject{
+            {open,
+             QJsonArray{QStringLiteral("2222"), QStringLiteral("4444"), QStringLiteral("5555")}}},
+        QJsonArray());
+    QCOMPARE(m_proxy.count(), 3);
+    QVERIFY(count.count() > 0);
+    QVERIFY(!visibleHashes(m_proxy).contains(QStringLiteral("1111")));
+
+    m_proxy.setTrackerModel(nullptr);
+}
+
 void TestFilterModel::textMatchesNameHashCategoryAndTags()
 {
     m_proxy.setText(QStringLiteral("ARCHLINUX")); // case-insensitive on the name
@@ -300,6 +349,11 @@ void TestFilterModel::sortByRoleNameAndOrder()
 
     m_proxy.setSortOrder(Qt::DescendingOrder);
     QCOMPARE(visibleHashes(m_proxy).first(), QStringLiteral("2222")); // the biggest
+
+    // A new role re-sorts by itself, in the order already chosen.
+    m_proxy.setSortByRoleName(QStringLiteral("name"));
+    QCOMPARE(visibleHashes(m_proxy).first(), QStringLiteral("6666")); // NixOS, z to a
+    m_proxy.setSortByRoleName(QStringLiteral("size"));
 
     m_proxy.setSortByRoleName(QStringLiteral("nonsense"));
     QCOMPARE(m_proxy.sortRole(), int(TorrentModel::SizeRole)); // unchanged

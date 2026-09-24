@@ -146,6 +146,7 @@ private slots:
     void tagsArePercentEncoded();
     void deleteFilesFlag();
     void shareLimitsSendsAllFiveFields();
+    void shareLimitsKeepRatioPrecision();
     void shareLimitActionNames_data();
     void shareLimitActionNames();
     void shareLimitActionIsOmittedForAnOldApi();
@@ -154,7 +155,30 @@ private slots:
     void a500OnActionIsNotRetried();
     void a409OnActionMapsToConflict();
     void setPreferencesSendsOnlyTheChangedKeysAsJson();
+    void removeTrackersSendsTheHashAndPipedUrls();
 };
+
+void TestQbtClientActionsFake::removeTrackersSendsTheHashAndPipedUrls()
+{
+    FakeServer server;
+    server.setHandler([](const Recorded &, int) { return httpResponse(200, "OK", ""); });
+
+    QbtClient client;
+    client.setBaseUrl(server.url());
+
+    const QbtResult<QByteArray> result = await(
+        this,
+        client.torrentsRemoveTrackers(QStringLiteral("h1"),
+                                      QStringList{QStringLiteral("udp://a.example:1337/announce"),
+                                                  QStringLiteral("https://b.example/announce")}));
+    QVERIFY2(!result.isError(), qPrintable(result.error().toString()));
+    QCOMPARE(server.requests.size(), 1);
+    QCOMPARE(server.requests.at(0).target, QByteArrayLiteral("/api/v2/torrents/removeTrackers"));
+    const QUrlQuery body(QString::fromUtf8(server.requests.at(0).body));
+    QCOMPARE(body.queryItemValue(QStringLiteral("hash"), QUrl::FullyDecoded), QStringLiteral("h1"));
+    QCOMPARE(body.queryItemValue(QStringLiteral("urls"), QUrl::FullyDecoded),
+             QStringLiteral("udp://a.example:1337/announce|https://b.example/announce"));
+}
 
 void TestQbtClientActionsFake::setPreferencesSendsOnlyTheChangedKeysAsJson()
 {
@@ -262,6 +286,29 @@ void TestQbtClientActionsFake::shareLimitsSendsAllFiveFields()
     // 5.2.3 answers 400 without this field, so the default argument is Default, not "omit".
     QCOMPARE(body.queryItemValue(QStringLiteral("shareLimitAction"), QUrl::FullyDecoded),
              QStringLiteral("Default"));
+}
+
+void TestQbtClientActionsFake::shareLimitsKeepRatioPrecision()
+{
+    FakeServer server;
+    server.setHandler([](const Recorded &, int) { return httpResponse(200, "OK", ""); });
+    QbtClient client;
+    client.setBaseUrl(server.url());
+
+    QVERIFY(
+        !await(this,
+               client.torrentsSetShareLimits(QStringList{QStringLiteral("h1")}, 1234567.5, -2, -2))
+             .isError());
+    QVERIFY(
+        !await(this, client.torrentsSetShareLimits(QStringList{QStringLiteral("h1")}, 1.25, -2, -2))
+             .isError());
+    const auto ratioOf = [&server](int index) {
+        return QUrlQuery(QString::fromUtf8(server.requests.at(index).body))
+            .queryItemValue(QStringLiteral("ratioLimit"), QUrl::FullyDecoded);
+    };
+    // The default QString::number would send 1.23457e+06.
+    QCOMPARE(ratioOf(0), QStringLiteral("1234567.5"));
+    QCOMPARE(ratioOf(1), QStringLiteral("1.25"));
 }
 
 void TestQbtClientActionsFake::shareLimitActionNames_data()

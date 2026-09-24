@@ -147,6 +147,25 @@ TestCase {
         signalName: "closed"
     }
 
+    // Review RUN-14: lowercase buttons, and a server without a credential has no secret to lose.
+    function test_removing_a_server_without_auth_does_not_mention_a_secret() {
+        const id = App.serverList.add({
+                                          "name": "open",
+                                          "url": "http://127.0.0.1:8081",
+                                          "authMode": "none"
+                                      }, "");
+        verify(id.length > 0);
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        modal.showPane(1);
+        modal.paneCursor = 0;
+        modal.removeCursorServer();
+        verify(modal.confirm.subtitle.indexOf("secret") < 0, modal.confirm.subtitle);
+        compare(modal.confirm.confirmText, "remove");
+        compare(modal.confirm.cancelText, "cancel");
+        modal.confirm.close();
+    }
+
     function test_the_servers_pane_prints_url_auth_and_count() {
         const id = testCase.addTestServer("playground", "http://127.0.0.1:8081");
         verify(id.length > 0);
@@ -174,8 +193,26 @@ TestCase {
         // A failed test turns the row red and says "retrying".
         App.serverList.setProbeResult(id, false, "", "", -1, 12, "connection refused");
         compare(row.failing, true);
+        verify(Qt.colorEqual(testCase.childNamed(row, "serverDot").color, Theme.red));
         // ...and keeps the version and count it had.
         compare(row.description, "http://127.0.0.1:8081 · API key · v5.2.3 · 3 torrents");
+    }
+
+    // Review RUN-9: a server nobody has tested has a dim dot, not the green of one that
+    // answered; one that failed and is not the app's own says "unreachable", not "retrying".
+    function test_an_untested_server_is_not_green_and_a_failed_one_is_unreachable() {
+        testCase.addTestServer("first", "http://127.0.0.1:8081");
+        const id = testCase.addTestServer("dead", "http://127.0.0.1:9");
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        modal.showPane(1);
+        const row = testCase.childNamed(modal, "serverRow1");
+        verify(row.untested);
+        verify(Qt.colorEqual(testCase.childNamed(row, "serverDot").color, Theme.dimForeground));
+        App.serverList.setProbeResult(id, false, "", "", -1, 12, "connection refused");
+        compare(row.status, "unreachable");
+        App.serverList.setProbeResult(id, true, "v5.2.3", "2.15.1", 0, 3, "");
+        verify(Qt.colorEqual(testCase.childNamed(row, "serverDot").color, Theme.green));
     }
 
     // Q23: a `test` pressed in a new server's sheet before `save` is not lost with the
@@ -265,6 +302,23 @@ TestCase {
         modal.serverSheet.close();
     }
 
+    // Review RUN-15: saving an empty form says what is missing instead of doing nothing.
+    function test_saving_an_empty_server_says_name_and_url_are_required() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        modal.showPane(1);
+        const sheet = modal.serverSheet;
+        sheet.openNew();
+        sheet.actionTriggered("save");
+        verify(sheet.opened);
+        compare(App.serverList.count, 0);
+        compare(sheet.errorText, "name and URL are required");
+        sheet.close();
+        sheet.openNew();
+        compare(sheet.errorText, "", "the refusal outlived the sheet");
+        sheet.close();
+    }
+
     function test_the_server_sheet_masks_the_key_and_switches_to_the_fields() {
         const id = testCase.addTestServer("playground", "http://127.0.0.1:8081");
         const modal = createTemporaryObject(modalComponent, testCase);
@@ -292,6 +346,21 @@ TestCase {
         compare(sheet.fieldMap().url, "http://127.0.0.1:8081");
         compare(sheet.fieldMap().authMode, "apiKey");
         compare(sheet.fieldMap().pathMapRemote, "/downloads");
+        sheet.close();
+    }
+
+    // Review RUN-9: the footer's `enter` names the button the keyboard is on.
+    function test_the_enter_hint_follows_the_focused_button() {
+        const id = testCase.addTestServer("playground", "http://127.0.0.1:8081");
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        const sheet = modal.serverSheet;
+        sheet.openFor(App.serverList.serverMap(id));
+        const buttons = sheet.actionButtons();
+        buttons[0].forceActiveFocus(); // test
+        compare(sheet.hints[0].label, "test");
+        buttons[2].forceActiveFocus(); // edit
+        compare(sheet.hints[0].label, "edit");
         sheet.close();
     }
 
@@ -484,6 +553,28 @@ TestCase {
         verify(field !== null);
         compare(field.placeholder, String(Math.round(Theme.defaultWindowAlpha * 100)));
         compare(field.placeholder, "95");
+    }
+
+    // Review RUN-4: an override stored earlier shows in its field, and a refused value does
+    // not stay there as if it applied.
+    function test_the_appearance_fields_show_the_stored_overrides() {
+        App.windowAlphaOverride = 80;
+        App.baseSizeOverride = 16;
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        keyClick(Qt.Key_5);
+        const field = testCase.childNamed(modal, "windowAlphaField");
+        compare(field.text, "80", "the stored transparency does not show");
+        compare(testCase.childNamed(modal, "baseSizeField").text, "16");
+
+        field.focusInput();
+        field.text = "40"; // outside 50–100: App stores "follow the shell"
+        field.accepted();
+        compare(App.windowAlphaOverride, 0);
+        compare(field.text, "", "the refused 40 stayed in the field");
+
+        App.baseSizeOverride = 0;
+        compare(testCase.childNamed(modal, "baseSizeField").text, "");
     }
 
     function test_the_about_pane_prints_the_version_and_the_install_line() {

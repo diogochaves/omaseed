@@ -11,6 +11,7 @@
 #include <QJsonObject>
 #include <QSignalSpy>
 #include <QTest>
+#include <QTimeZone>
 
 using namespace omaseed::core;
 
@@ -83,8 +84,11 @@ private slots:
     void partialMergesOnlyThePresentKeys();
     void shareLimitActionParsesAndDefaults();
     void perTorrentOptionsParse();
+    void inactiveSeedingTimeLimitParsesAndDefaults();
     void partialAppendsUnknownHashes();
     void partialRemovesInContiguousRuns();
+    void aHashRemovedTwiceRemovesOneRow();
+    void aNewDayRefreshesTheRelativeTexts();
     void dataChangedIsBatchedPerRun();
     void dataChangedNamesOnlyTheChangedRoles();
     void statusGroupsFollowTheRail();
@@ -175,7 +179,7 @@ void TestTorrentModel::rolesCoverTheTableAndTheDetails()
     QVERIFY(model.data(first, TorrentModel::LastActivityRole).toDateTime().isValid());
     QVERIFY(!model.data(first, TorrentModel::LastActivityTextRole).toString().isEmpty());
 
-    QCOMPARE(model.roleNames().size(), 73);
+    QCOMPARE(model.roleNames().size(), 74);
     QCOMPARE(roleOf(model, "stateText"), int(TorrentModel::StateTextRole));
     QCOMPARE(roleOf(model, "stateRole"), int(TorrentModel::StateColorRoleRole));
     QCOMPARE(roleOf(model, "seedsPeersText"), int(TorrentModel::SeedsPeersTextRole));
@@ -248,6 +252,27 @@ void TestTorrentModel::perTorrentOptionsParse()
     QCOMPARE(updated.count(), 1);
 }
 
+void TestTorrentModel::inactiveSeedingTimeLimitParsesAndDefaults()
+{
+    // qBittorrent 4.6 (API 2.9.x) sends `inactive_seeding_time_limit`; a server that does
+    // not leaves it on the global sentinel, -2, which is what the Limits sheet sends back.
+    TorrentModel model;
+    model.applyFullUpdate(threeTorrents());
+    const int role = roleOf(model, "inactiveSeedingTimeLimit");
+    QCOMPARE(role, int(TorrentModel::InactiveSeedingTimeLimitRole));
+    QCOMPARE(model.torrent(QStringLiteral("aaaa")).inactiveSeedingTimeLimit, qint64(-2));
+
+    QSignalSpy changed(&model, &QAbstractItemModel::dataChanged);
+    model.applyPartial(
+        QJsonObject{{QStringLiteral("aaaa"),
+                     QJsonObject{{QStringLiteral("inactive_seeding_time_limit"), 30}}}},
+        QJsonArray());
+    QCOMPARE(model.torrent(QStringLiteral("aaaa")).inactiveSeedingTimeLimit, qint64(30));
+    QCOMPARE(model.data(model.index(0), role).toLongLong(), qint64(30));
+    QCOMPARE(changed.count(), 1);
+    QVERIFY(changed.first().at(2).value<QList<int>>().contains(role));
+}
+
 void TestTorrentModel::partialAppendsUnknownHashes()
 {
     TorrentModel model;
@@ -286,6 +311,34 @@ void TestTorrentModel::partialRemovesInContiguousRuns()
     QCOMPARE(model.hashes(), QStringList({QStringLiteral("aaaa"), QStringLiteral("dddd")}));
     QCOMPARE(model.indexOfHash(QStringLiteral("dddd")), 1); // the index map followed the shift
     QCOMPARE(removed.count(), 2);                           // {4} and {1,2}, not three signals
+}
+
+void TestTorrentModel::aHashRemovedTwiceRemovesOneRow()
+{
+    TorrentModel model;
+    model.applyFullUpdate(threeTorrents());
+    model.applyPartial(QJsonObject(), QJsonArray({QStringLiteral("bbbb"), QStringLiteral("bbbb")}));
+    QCOMPARE(model.hashes(), QStringList({QStringLiteral("aaaa"), QStringLiteral("cccc")}));
+}
+
+void TestTorrentModel::aNewDayRefreshesTheRelativeTexts()
+{
+    const QTimeZone zone = QTimeZone::systemTimeZone();
+    const QDateTime evening(QDate(2026, 9, 23), QTime(23, 59, 0), zone);
+    QCOMPARE(TorrentModel::msecsToNextMidnight(evening), qint64(61000));
+    const QDateTime morning(QDate(2026, 9, 24), QTime(0, 0, 30), zone);
+    QCOMPARE(TorrentModel::msecsToNextMidnight(morning), qint64(86400000 - 30000 + 1000));
+
+    TorrentModel model;
+    model.applyFullUpdate(threeTorrents());
+    QSignalSpy changed(&model, &QAbstractItemModel::dataChanged);
+    model.refreshDayRelativeTexts();
+    QCOMPARE(changed.count(), 1);
+    QCOMPARE(changed.first().at(0).toModelIndex().row(), 0);
+    QCOMPARE(changed.first().at(1).toModelIndex().row(), 2);
+    const auto roles = changed.first().at(2).value<QList<int>>();
+    QVERIFY(roles.contains(TorrentModel::AddedOnTextRole));
+    QVERIFY(roles.contains(TorrentModel::LastActivityTextRole));
 }
 
 void TestTorrentModel::dataChangedIsBatchedPerRun()
@@ -386,6 +439,13 @@ void TestTorrentModel::statusGroupsFollowTheRail()
     QVERIFY(stoppedIncomplete.inGroup(StatusGroup::Downloading));
     QVERIFY(!stoppedIncomplete.inGroup(StatusGroup::Completed));
 
+    // A force-started magnet still fetching metadata (qBittorrent 4.6+).
+    Torrent forcedMeta;
+    forcedMeta.applyJson(torrentJson(QStringLiteral("m"), QStringLiteral("forcedMetaDL"), 0.0));
+    QVERIFY(forcedMeta.inGroup(StatusGroup::Downloading));
+    QVERIFY(forcedMeta.inGroup(StatusGroup::Active));
+    QVERIFY(!forcedMeta.inGroup(StatusGroup::Stopped));
+
     Torrent checking;
     checking.applyJson(torrentJson(QStringLiteral("c"), QStringLiteral("checkingUP"), 1.0));
     QVERIFY(checking.inGroup(StatusGroup::Checking));
@@ -413,6 +473,8 @@ void TestTorrentModel::stateTextAndColourRole_data()
                               << QStringLiteral("stateDownloading");
     QTest::newRow("metaDL") << QStringLiteral("metaDL") << QStringLiteral("metadata")
                             << QStringLiteral("stateDownloading");
+    QTest::newRow("forcedMetaDL") << QStringLiteral("forcedMetaDL") << QStringLiteral("metadata")
+                                  << QStringLiteral("stateDownloading");
     QTest::newRow("uploading") << QStringLiteral("uploading") << QStringLiteral("seeding")
                                << QStringLiteral("stateSeeding");
     QTest::newRow("stalledDL") << QStringLiteral("stalledDL") << QStringLiteral("stalled")
@@ -468,6 +530,8 @@ void TestTorrentModel::etaTextFollowsTheState_data()
     const QString infinity = Format::etaShort(8640000);
     QTest::newRow("downloading") << QStringLiteral("downloading") << 0.5 << qint64(160) << twoForty;
     QTest::newRow("forcedDL") << QStringLiteral("forcedDL") << 0.5 << qint64(160) << twoForty;
+    QTest::newRow("forcedMetaDL") << QStringLiteral("forcedMetaDL") << 0.0 << qint64(8640000)
+                                  << infinity;
     QTest::newRow("stalledDL") << QStringLiteral("stalledDL") << 0.5 << qint64(8640000) << infinity;
     // The rest keep whatever estimate the server last sent; it no longer means anything.
     QTest::newRow("error") << QStringLiteral("error") << 0.5 << qint64(985) << dash;

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QDBusConnection>
 #include <QObject>
 #include <QString>
 #include <QStringList>
@@ -20,7 +21,12 @@ class SingleInstanceDBusAdaptor;
 ///
 /// When the session bus is unreachable (headless, or a broken environment), the same
 /// primary/secondary handshake runs over a `QLocalServer` named after the application id
-/// under `XDG_RUNTIME_DIR`.
+/// under `XDG_RUNTIME_DIR` (the temp dir only when that is unset), user-only, with a lock
+/// file beside it so two simultaneous starts cannot both become primary.
+///
+/// A secondary checks the primary's answer. When the call fails (the primary is quitting,
+/// hung, or the name's owner is not omaseed) it tries once to take the name itself; when that
+/// fails too it says so on stderr rather than dropping the URIs silently.
 class SingleInstance : public QObject
 {
     Q_OBJECT
@@ -43,6 +49,19 @@ public:
 
     bool isPrimary() const { return m_isPrimary; }
 
+    /// The D-Bus connection that owns the well-known name, once start() made this process
+    /// primary on the bus; a disconnected connection otherwise (secondary, or the local-socket
+    /// fallback). Anything else the app exports for callers addressing the name (the theme's
+    /// `Reload`) has to be registered on this connection: the bus routes a call sent to a
+    /// well-known name to the connection that owns it, not to the process's default one.
+    QDBusConnection connection() const;
+
+    /// The launch arguments made independent of this process's working directory, so a
+    /// primary with a different cwd opens the same file: an argument that is not already a
+    /// magnet, http(s) or file URI and names an existing file (relative or absolute) becomes a
+    /// `file://` URI of its absolute path. Everything else passes through unchanged.
+    static QStringList absoluteUris(const QStringList &arguments, const QString &workingDirectory);
+
     /// The `activation-token` hint from the most recent Activate/Open call's platform_data,
     /// if the caller supplied one (the freedesktop.Application convention for XDG activation
     /// tokens), consumed on read. Empty when none was supplied.
@@ -61,6 +80,10 @@ private:
 
     bool startOnSessionBus(const QString &busAddress, const QStringList &uris);
     bool startOnLocalSocket(const QStringList &uris);
+    bool becomePrimaryOnBus(QDBusConnection &connection,
+                            const QString &connectionName,
+                            const QStringList &uris);
+    void deliverOwnUris(const QStringList &uris);
     void acceptLocalConnection();
 
     void handleActivate(const QVariantMap &platformData);

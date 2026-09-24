@@ -2,9 +2,12 @@
 
 #include "core/Format.hpp"
 
+#include <QDateTime>
 #include <QHash>
 #include <QJsonObject>
 #include <QUrl>
+
+#include <algorithm>
 
 namespace omaseed::core {
 
@@ -55,11 +58,18 @@ QString TorrentTrackersModel::statusText(int status, const QString &msg, qint64 
                                 : QStringLiteral("working");
     case int(TrackerStatus::Updating):
         return QStringLiteral("updating");
-    case int(TrackerStatus::NotWorking): {
+    case int(TrackerStatus::NotWorking):
+    case int(TrackerStatus::TrackerError):
+    case int(TrackerStatus::Unreachable): {
         // The figure's "timed out · retry 4 min": the server's own words, then when it will
         // try again. `msg` is what a real tracker sends back ("timed out", "unregistered
-        // torrent"); without one there is nothing to say but that it is not working.
-        const QString reason = msg.isEmpty() ? QStringLiteral("not working") : msg;
+        // torrent"); without one there is nothing to say but how it failed.
+        QString reason = msg;
+        if (reason.isEmpty()) {
+            reason = status == int(TrackerStatus::TrackerError)  ? QStringLiteral("tracker error")
+                     : status == int(TrackerStatus::Unreachable) ? QStringLiteral("unreachable")
+                                                                 : QStringLiteral("not working");
+        }
         return nextAnnounce > 0
                    ? QStringLiteral("%1 · retry %2").arg(reason, Format::duration(nextAnnounce))
                    : reason;
@@ -67,6 +77,16 @@ QString TorrentTrackersModel::statusText(int status, const QString &msg, qint64 
     default:
         return msg.isEmpty() ? QStringLiteral("unknown") : msg;
     }
+}
+
+qint64 TorrentTrackersModel::secondsUntilAnnounce(qint64 nextAnnounce, qint64 nowSecs)
+{
+    constexpr qint64 kEpochThreshold = 1'000'000'000;
+    if (nextAnnounce <= 0)
+        return 0;
+    if (nextAnnounce < kEpochThreshold)
+        return nextAnnounce;
+    return std::max<qint64>(0, nextAnnounce - nowSecs);
 }
 
 TorrentTrackersModel::TorrentTrackersModel(QObject *parent)
@@ -125,7 +145,7 @@ QVariant TorrentTrackersModel::data(const QModelIndex &index, int role) const
             return QStringLiteral("dimForeground");
         if (row.status == int(TrackerStatus::Working))
             return QStringLiteral("green");
-        if (row.status == int(TrackerStatus::NotWorking))
+        if (isTrackerFailure(row.status))
             return QStringLiteral("yellow");
         return QStringLiteral("dimForeground");
     case SeedsRole:
@@ -152,7 +172,7 @@ QVariant TorrentTrackersModel::data(const QModelIndex &index, int role) const
 bool TorrentTrackersModel::hasError() const
 {
     for (const TorrentTracker &row : m_rows) {
-        if (!row.isPseudo && row.status == int(TrackerStatus::NotWorking))
+        if (!row.isPseudo && isTrackerFailure(row.status))
             return true;
     }
     return false;
@@ -164,6 +184,11 @@ QString TorrentTrackersModel::urlAt(int row) const
 }
 
 void TorrentTrackersModel::applyTrackers(const QJsonArray &trackers)
+{
+    applyTrackers(trackers, QDateTime::currentSecsSinceEpoch());
+}
+
+void TorrentTrackersModel::applyTrackers(const QJsonArray &trackers, qint64 nowSecs)
 {
     QList<TorrentTracker> rows;
     rows.reserve(trackers.size());
@@ -182,7 +207,9 @@ void TorrentTrackersModel::applyTrackers(const QJsonArray &trackers)
         row.peers = entry.value(QStringLiteral("num_peers")).toInt(-1);
         row.leeches = entry.value(QStringLiteral("num_leeches")).toInt(-1);
         row.downloaded = entry.value(QStringLiteral("num_downloaded")).toInt(-1);
-        row.nextAnnounce = qint64(entry.value(QStringLiteral("next_announce")).toDouble());
+        // Kept as seconds left, worked out now: each poll then moves the figure along.
+        row.nextAnnounce = secondsUntilAnnounce(
+            qint64(entry.value(QStringLiteral("next_announce")).toDouble()), nowSecs);
         row.msg = entry.value(QStringLiteral("msg")).toString();
         rows.append(row);
     }

@@ -15,8 +15,10 @@ namespace omaseed::integration {
 /// per (event class, subject id): a second notice for the same key replaces the first in
 /// place (replaces_id), and the key is forgotten once the shell reports the notice closed.
 ///
-/// If the notification service is absent, the first call logs once and every notice after
-/// that is silently dropped.
+/// If the notification service is absent, the call logs and the notice is dropped; notices
+/// are dropped until the service's owner changes (the shell starts or restarts), when it is
+/// asked again. An owner change also forgets every live id: a new daemon numbers from 1
+/// again. Calls are synchronous, with a 2 s timeout.
 class Notifier : public QObject
 {
     Q_OBJECT

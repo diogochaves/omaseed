@@ -33,6 +33,10 @@ import Omaseed.Kit
 // `enter` runs the primary and not the first button, which is usually `cancel`), else to the
 // first button, else to the body's first child, so a sheet of plain content still owns the
 // keyboard. `close()` gives the focus back.
+//
+// Do NOT run `qmlformat` on this file: with the project's 100-column wrap it re-indents the
+// typed functions further on every pass (the defect MainView.qml and TorrentTable.qml note).
+// It is hand-formatted to qmlformat's own style instead.
 Item {
     id: root
 
@@ -53,6 +57,9 @@ Item {
     property string footerRight: ""
     /// Draw the panel alone, with no scrim and no centring (the gallery).
     property bool inline: false
+    /// While open, keys the sheet has no use for stop here instead of reaching the view
+    /// behind the scrim (KIT-6); only `ctrl+q` goes on, since quitting is never modal.
+    property bool modal: true
 
     /// The caller's rows. They are a `ColumnLayout`'s children: use `Layout.fillWidth`.
     default property alias content: bodyColumn.data
@@ -92,23 +99,23 @@ Item {
 
     /// Show the sheet, remembering what had the focus.
     function open(): void {
-    if (root._opened)
-    return;
-    root._previousFocus = root.Window.activeFocusItem;
-    root._opened = true;
-    root.focusFirst();
-}
+        if (root._opened)
+            return;
+        root._previousFocus = root.Window.activeFocusItem;
+        root._opened = true;
+        root.focusFirst();
+    }
 
     /// Hide it and give the focus back to whatever had it before `open()`.
     function close(): void {
-                          if (!root._opened)
-                          return;
-                          root._opened = false;
-                          const previous = root._previousFocus;
-                          root._previousFocus = null;
-                          if (previous)
-                          previous.forceActiveFocus();
-                      }
+        if (!root._opened)
+            return;
+        root._opened = false;
+        const previous = root._previousFocus;
+        root._previousFocus = null;
+        if (previous)
+            previous.forceActiveFocus();
+    }
 
     /// Everything inside the sheet that the keyboard can reach, in tab order: the body's own
     /// focusable rows first, then the action buttons. A Kit `Field` is bordered rather than
@@ -120,375 +127,368 @@ Item {
     /// sheet takes `activeFocusOnTab` off what it finds and cycles the list itself; `_known`
     /// keeps recognising those items afterwards.
     function focusables(): var {
-    return root.bodyFocusables().concat(root.actionButtons());
-}
+        return root.bodyFocusables().concat(root.actionButtons());
+    }
 
     /// Only the caller's rows, in tab order. `focusFirst()` needs to tell "the body has
     /// something to type in" from "this sheet is a question with buttons and nothing else".
     function bodyFocusables(): var {
-    const out = [];
-    root._collect(bodyColumn, out);
-    for (let i = 0; i < out.length; ++i)
-    root._claim(out[i]);
-    return out;
-}
-
-        /// The foot's buttons, in the order `actions` lists them. The row also holds the
-        /// `Repeater` that made them, so its `children` cannot be used directly.
-        function actionButtons(): var {
-                                      const out = [];
-                                      for (let i = 0; i < actionsRow.children.length; ++i) {
-                                          const child = actionsRow.children[i];
-                                          if (child.enabled && root._isFocusable(child))
-                                          out.push(child);
-                                      }
-                                      for (let i = 0; i < out.length; ++i)
-                                      root._claim(out[i]);
-                                      return out;
-                                  }
-
-        /// The button of the action flagged `primary`, or null when there is none.
-        function primaryButton(): var {
-                                     const buttons = root.actionButtons();
-                                     for (let i = 0; i < buttons.length; ++i) {
-                                         if (buttons[i].primary === true)
-                                         return buttons[i];
-                                     }
-                                     return null;
-                                 }
-
-        function _isFocusable(item: var): bool {
-            return item.activeFocusOnTab === true || typeof item.focusInput === "function"
-                    || root._known.indexOf(item) >= 0;
-        }
-
-        function _claim(item: var): void {
-        if (root._known.indexOf(item) < 0)
-        root._known.push(item);
-        if (item.activeFocusOnTab === true)
-        item.activeFocusOnTab = false;
+        const out = [];
+        root._collect(bodyColumn, out);
+        for (let i = 0; i < out.length; ++i)
+            root._claim(out[i]);
+        return out;
     }
 
-        /// Which of `focusables()` holds the keyboard right now, or -1. A Kit `Field` counts as
-        /// focused when its inner `TextInput` has the caret, hence the walk up the parents.
-        function focusedIndex(): int {
-            const list = root.focusables();
-            let item = root.Window.activeFocusItem;
-            while (item) {
-                const at = list.indexOf(item);
-                if (at >= 0)
+    /// The foot's buttons, in the order `actions` lists them. The row also holds the
+    /// `Repeater` that made them, so its `children` cannot be used directly.
+    function actionButtons(): var {
+        const out = [];
+        for (let i = 0; i < actionsRow.children.length; ++i) {
+            const child = actionsRow.children[i];
+            if (child.enabled && root._isFocusable(child))
+                out.push(child);
+        }
+        for (let i = 0; i < out.length; ++i)
+            root._claim(out[i]);
+        return out;
+    }
+
+    /// The button of the action flagged `primary`, or null when there is none.
+    function primaryButton(): var {
+        const buttons = root.actionButtons();
+        for (let i = 0; i < buttons.length; ++i) {
+            if (buttons[i].primary === true)
+                return buttons[i];
+        }
+        return null;
+    }
+
+    function _isFocusable(item: var): bool {
+        return item.activeFocusOnTab === true || typeof item.focusInput === "function"
+                || root._known.indexOf(item) >= 0;
+    }
+
+    function _claim(item: var): void {
+        if (root._known.indexOf(item) < 0)
+            root._known.push(item);
+        if (item.activeFocusOnTab === true)
+            item.activeFocusOnTab = false;
+    }
+
+    /// Which of `focusables()` holds the keyboard right now, or -1. A Kit `Field` counts as
+    /// focused when its inner `TextInput` has the caret, hence the walk up the parents.
+    function focusedIndex(): int {
+        const list = root.focusables();
+        let item = root.Window.activeFocusItem;
+        while (item) {
+            const at = list.indexOf(item);
+            if (at >= 0)
                 return at;
-                item = item.parent;
-            }
-                return -1;
-            }
+            item = item.parent;
+        }
+        return -1;
+    }
 
-                /// Put the keyboard inside the sheet (see the class comment for the fallbacks).
-                function focusFirst(): void {
-                                           const rows = root.bodyFocusables();
-                                           if (rows.length > 0) {
-                                               root._focus(rows[0]);
-                                               return;
-                                           }
-                                           // A sheet whose body is plain content (Fig. 10, a
-                                           // confirm) has only its buttons. `enter` must run
-                                           // the primary one, so that is what the keyboard
-                                           // lands on — not `cancel`, which is drawn first.
-                                           const primary = root.primaryButton();
-                                           if (primary) {
-                                               root._focus(primary);
-                                               return;
-                                           }
-                                           const buttons = root.actionButtons();
-                                           if (buttons.length > 0) {
-                                               root._focus(buttons[0]);
-                                               return;
-                                           }
-                                           for (let i = 0; i < bodyColumn.children.length; ++i) {
-                                               if (bodyColumn.children[i].visible) {
-                                                   bodyColumn.children[i].forceActiveFocus();
-                                                   return;
-                                               }
-                                           }
-                                           panel.forceActiveFocus();
-                                       }
+    /// Put the keyboard inside the sheet (see the class comment for the fallbacks).
+    function focusFirst(): void {
+        const rows = root.bodyFocusables();
+        if (rows.length > 0) {
+            root._focus(rows[0]);
+            return;
+        }
+        // A sheet whose body is plain content (Fig. 10, a confirm) has only its buttons.
+        // `enter` must run the primary one, so that is what the keyboard lands on — not
+        // `cancel`, which is drawn first.
+        const primary = root.primaryButton();
+        if (primary) {
+            root._focus(primary);
+            return;
+        }
+        const buttons = root.actionButtons();
+        if (buttons.length > 0) {
+            root._focus(buttons[0]);
+            return;
+        }
+        for (let i = 0; i < bodyColumn.children.length; ++i) {
+            if (bodyColumn.children[i].visible) {
+                bodyColumn.children[i].forceActiveFocus();
+                return;
+            }
+        }
+        panel.forceActiveFocus();
+    }
 
-                /// Run the `primary` action, as `enter` does. Callers wire a field's `accepted` to this,
-                /// because a focused `TextInput` swallows the key before the sheet sees it.
-                function triggerPrimary(): void {
-                const action = root._actionFlagged("primary");
-                if (action)
+    /// Run the `primary` action, as `enter` does. Callers wire a field's `accepted` to this,
+    /// because a focused `TextInput` swallows the key before the sheet sees it.
+    function triggerPrimary(): void {
+        const action = root._actionFlagged("primary");
+        if (action)
+            root._trigger(action);
+    }
+
+    /// Run the `secondary` action, as `shift+enter` does.
+    function triggerSecondary(): void {
+        const action = root._actionFlagged("secondary");
+        if (action)
+            root._trigger(action);
+    }
+
+    function _actionFlagged(flag: string): var {
+        for (let i = 0; i < root.actions.length; ++i) {
+            if (root.actions[i][flag] === true)
+                return root.actions[i];
+        }
+        return null;
+    }
+
+    function _trigger(action: var): void {
+        root.actionTriggered(action.text);
+        if (action.primary === true) {
+            root.accepted();
+        } else if (action.cancel === true) {
+            // The same as `esc`: a `cancel` button closes the sheet itself. `close()` does
+            // nothing when the caller already closed it from `actionTriggered`.
+            root.close();
+            root.rejected();
+        }
+    }
+
+    function _collect(item: var, out: var): void {
+        for (let i = 0; i < item.children.length; ++i) {
+            const child = item.children[i];
+            if (!child.visible || !child.enabled)
+                continue;
+            if (root._isFocusable(child)) {
+                out.push(child);
+                continue;
+            }
+            root._collect(child, out);
+        }
+    }
+
+    function _focus(item: var): void {
+        if (typeof item.focusInput === "function")
+            item.focusInput();
+        else
+            item.forceActiveFocus();
+    }
+
+    function _cycleFocus(delta: int): void {
+        const list = root.focusables();
+        if (list.length === 0)
+            return;
+        const at = root.focusedIndex();
+        const next = at < 0 ? (delta > 0 ? 0 : list.length - 1)
+                : (at + delta + list.length) % list.length;
+        root._focus(list[next]);
+    }
+
+    /// The one key a modal overlay lets through: `ctrl+q`.
+    function _passesThrough(event: var): bool {
+        return (event.modifiers & Qt.ControlModifier) !== 0 && event.key === Qt.Key_Q;
+    }
+
+    function _onKey(event: var): void {
+        if (event.key === Qt.Key_Escape) {
+            root.close();
+            root.rejected();
+            event.accepted = true;
+            return;
+        }
+        if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+            const action = (event.modifiers & Qt.ShiftModifier) ? root._actionFlagged("secondary")
+                    : root._actionFlagged("primary");
+            if (action) {
                 root._trigger(action);
+                event.accepted = true;
+            }
+            return;
+        }
+        if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
+            const backwards = event.key === Qt.Key_Backtab || (event.modifiers & Qt.ShiftModifier);
+            root._cycleFocus(backwards ? -1 : 1);
+            event.accepted = true;
+        }
+    }
+
+    implicitHeight: panel.implicitHeight
+    implicitWidth: root.sheetWidth
+    visible: root.inline || root._opened
+
+    Keys.onPressed: event => {
+        root._onKey(event);
+        if (root.modal && root._opened && !event.accepted)
+            event.accepted = !root._passesThrough(event);
+    }
+
+    Scrim {
+        anchors.fill: parent
+        visible: !root.inline
+
+        onDismissed: {
+            root.close();
+            root.rejected();
+        }
+    }
+
+    Rectangle {
+        id: panel
+
+        readonly property int padding: Theme.space(16)
+
+        Accessible.name: root.title
+        Accessible.role: Accessible.Dialog
+        border.color: Theme.accent
+        border.width: 1
+        color: Theme.background
+        height: root.inline ? implicitHeight
+                : Math.min(implicitHeight, Math.max(0, root.height - 2 * root._margin))
+        implicitHeight: layout.implicitHeight + 2 * panel.padding
+        radius: Theme.cornerRadius
+        width: Math.min(root.sheetWidth, root.inline ? root.sheetWidth
+                : Math.max(0, root.width - 2 * root._margin))
+        x: root.inline ? 0 : Math.round((root.width - width) / 2)
+        y: root.inline ? 0 : Math.round((root.height - height) / 2)
+
+        ColumnLayout {
+            id: layout
+
+            anchors.fill: parent
+            anchors.margins: panel.padding
+            spacing: Theme.space(12)
+
+            // head (`.sheet .hd`) ---------------------------------------------------
+            RowLayout {
+                id: head
+
+                Layout.fillWidth: true
+                spacing: Theme.space(10)
+                visible: root.glyph.length > 0 || root.title.length > 0
+
+                Rectangle {
+                    Layout.alignment: Qt.AlignTop
+                    Layout.preferredHeight: Theme.space(30)
+                    Layout.preferredWidth: Theme.space(30)
+                    border.color: Theme.fill(Theme.borderIdle)
+                    border.width: 1
+                    color: "transparent"
+                    radius: Theme.cornerRadius
+                    visible: root.glyph.length > 0
+
+                    Glyph {
+                        anchors.centerIn: parent
+                        color: Theme.foreground
+                        pixelSize: Theme.font.subtitle
+                        text: root.glyph
+                    }
+                }
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: Theme.space(1)
+
+                    Label {
+                        Layout.fillWidth: true
+                        bright: true
+                        elide: Text.ElideRight
+                        font.weight: Font.DemiBold
+                        text: root.title
+                    }
+
+                    Label {
+                        Layout.fillWidth: true
+                        dim: true
+                        elide: Text.ElideRight
+                        size: "small"
+                        text: root.subtitle
+                        visible: root.subtitle.length > 0
+                    }
+                }
+
+                Label {
+                    Layout.alignment: Qt.AlignTop
+                    dim: true
+                    size: "caption"
+                    text: root.escText
+                    visible: root.escText.length > 0
+                }
             }
 
-                /// Run the `secondary` action, as `shift+enter` does.
-                function triggerSecondary(): void {
-                                                 const action = root._actionFlagged("secondary");
-                                                 if (action)
-                                                 root._trigger(action);
-                                             }
+            // the caller's rows ------------------------------------------------------
+            Flickable {
+                Layout.fillHeight: true
+                Layout.fillWidth: true
+                Layout.maximumHeight: bodyColumn.implicitHeight
+                Layout.preferredHeight: bodyColumn.implicitHeight
+                boundsBehavior: Flickable.StopAtBounds
+                clip: true
+                contentHeight: bodyColumn.implicitHeight
+                contentWidth: width
+                visible: bodyColumn.children.length > 0
 
-                function _actionFlagged(flag: string): var {
-                for (let i = 0; i < root.actions.length; ++i) {
-                    if (root.actions[i][flag] === true)
-                    return root.actions[i];
+                ColumnLayout {
+                    id: bodyColumn
+
+                    spacing: Theme.space(12)
+                    width: parent.width
                 }
-                    return null;
+            }
+
+            // the buttons (`.sheet .acts`) -------------------------------------------
+            RowLayout {
+                id: actionsRow
+
+                Layout.fillWidth: true
+                Layout.topMargin: Theme.space(4)
+                spacing: Theme.space(8)
+                visible: root.actions.length > 0
+
+                Repeater {
+                    model: root.actions
+
+                    Button {
+                        id: actionButton
+
+                        required property var modelData
+
+                        Layout.fillWidth: true
+                        Layout.preferredWidth: 1
+                        // Spec §3 draws every sheet action as `.btn b`: a hairline
+                        // outline at idle. §8's "idle buttons have no chrome" is about
+                        // the hero's bare glyph buttons.
+                        bordered: true
+                        danger: actionButton.modelData.danger === true
+                        primary: actionButton.modelData.primary === true
+                        text: actionButton.modelData.text
+
+                        onClicked: root._trigger(actionButton.modelData)
+                    }
+                }
+            }
+
+            // the hint line (`.sheet .ft`) -------------------------------------------
+            ColumnLayout {
+                id: foot
+
+                Layout.fillWidth: true
+                spacing: Theme.space(8)
+                visible: root.hints.length > 0 || root.footerRight.length > 0
+
+                Hairline {
+                    Layout.fillWidth: true
                 }
 
-                    function _trigger(action: var): void {
-                    root.actionTriggered(action.text);
-                    if (action.primary === true)
-                    root.accepted();
-                    else if (action.cancel === true)
-                    root.rejected();
+                KeyHints {
+                    Layout.fillWidth: true
+                    model: root.hints
+                    pinned: root.footerRight.length > 0 ? {
+                        "key": "",
+                        "label": root.footerRight
+                    } : null
+                    size: "caption"
                 }
-
-                    function _collect(item: var, out: var): void {
-                    for (let i = 0; i < item.children.length; ++i) {
-                        const child = item.children[i];
-                        if (!child.visible || !child.enabled)
-                        continue;
-                        if (root._isFocusable(child)) {
-                            out.push(child);
-                            continue;
-                        }
-                            root._collect(child, out);
-                        }
-                        }
-
-                            function _focus(item: var): void {
-                            if (typeof item.focusInput === "function")
-                            item.focusInput();
-                            else
-                            item.forceActiveFocus();
-                        }
-
-                            function _cycleFocus(delta: int): void {
-                            const list = root.focusables();
-                            if (list.length === 0)
-                            return;
-                            const at = root.focusedIndex();
-                            const next = at < 0 ? (delta > 0 ? 0 : list.length - 1) : (at + delta
-                            + list.length) % list.length;
-                            root._focus(list[next]);
-                        }
-
-                            function _onKey(event: var): void {
-                            if (event.key === Qt.Key_Escape) {
-                                root.close();
-                                root.rejected();
-                                event.accepted = true;
-                                return;
-                            }
-                                if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                                    const action = (event.modifiers & Qt.ShiftModifier)
-                                    ? root._actionFlagged("secondary") : root._actionFlagged(
-                                                                             "primary");
-                                    if (action) {
-                                        root._trigger(action);
-                                        event.accepted = true;
-                                    }
-                                        return;
-                                    }
-                                        if (event.key === Qt.Key_Tab || event.key
-                                        === Qt.Key_Backtab) {
-                                            const backwards = event.key === Qt.Key_Backtab || (
-                                            event.modifiers & Qt.ShiftModifier);
-                                            root._cycleFocus(backwards ? -1 : 1);
-                                            event.accepted = true;
-                                        }
-                                        }
-
-                                            implicitHeight: panel.implicitHeight
-                                            implicitWidth: root.sheetWidth
-                                            visible: root.inline || root._opened
-
-                                            Keys.onPressed: event => root._onKey(event)
-
-                                            Scrim {
-                                                anchors.fill: parent
-                                                visible: !root.inline
-
-                                                onDismissed: {
-                                                    root.close();
-                                                    root.rejected();
-                                                }
-                                            }
-
-                                            Rectangle {
-                                                id: panel
-
-                                                readonly property int padding: Theme.space(16)
-
-                                                border.color: Theme.accent
-                                                border.width: 1
-                                                color: Theme.background
-                                                height: root.inline ? implicitHeight : Math.min(
-                                                                          implicitHeight, Math.max(0,
-                                                                                                   root.height
-                                                                                                   - 2 * root._margin))
-                                                implicitHeight: layout.implicitHeight + 2
-                                                                * panel.padding
-                                                radius: Theme.cornerRadius
-                                                width: Math.min(root.sheetWidth, root.inline
-                                                                ? root.sheetWidth : Math.max(0,
-                                                                                             root.width
-                                                                                             - 2 * root._margin))
-                                                x: root.inline ? 0 : Math.round((root.width
-                                                                                 - width) / 2)
-                                                y: root.inline ? 0 : Math.round((root.height
-                                                                                 - height) / 2)
-
-                                                ColumnLayout {
-                                                    id: layout
-
-                                                    anchors.fill: parent
-                                                    anchors.margins: panel.padding
-                                                    spacing: Theme.space(12)
-
-                                                    // head (`.sheet .hd`) ---------------------------------------------------
-                                                    RowLayout {
-                                                        id: head
-
-                                                        Layout.fillWidth: true
-                                                        spacing: Theme.space(10)
-                                                        visible: root.glyph.length > 0
-                                                                 || root.title.length > 0
-
-                                                        Rectangle {
-                                                            Layout.alignment: Qt.AlignTop
-                                                            Layout.preferredHeight: Theme.space(30)
-                                                            Layout.preferredWidth: Theme.space(30)
-                                                            border.color: Theme.fill(
-                                                                              Theme.borderIdle)
-                                                            border.width: 1
-                                                            color: "transparent"
-                                                            radius: Theme.cornerRadius
-                                                            visible: root.glyph.length > 0
-
-                                                            Glyph {
-                                                                anchors.centerIn: parent
-                                                                color: Theme.foreground
-                                                                pixelSize: Theme.font.subtitle
-                                                                text: root.glyph
-                                                            }
-                                                        }
-
-                                                        ColumnLayout {
-                                                            Layout.fillWidth: true
-                                                            spacing: Theme.space(1)
-
-                                                            Label {
-                                                                Layout.fillWidth: true
-                                                                bright: true
-                                                                elide: Text.ElideRight
-                                                                font.weight: Font.DemiBold
-                                                                text: root.title
-                                                            }
-
-                                                            Label {
-                                                                Layout.fillWidth: true
-                                                                dim: true
-                                                                elide: Text.ElideRight
-                                                                size: "small"
-                                                                text: root.subtitle
-                                                                visible: root.subtitle.length > 0
-                                                            }
-                                                        }
-
-                                                        Label {
-                                                            Layout.alignment: Qt.AlignTop
-                                                            dim: true
-                                                            size: "caption"
-                                                            text: root.escText
-                                                            visible: root.escText.length > 0
-                                                        }
-                                                    }
-
-                                                    // the caller's rows ------------------------------------------------------
-                                                    Flickable {
-                                                        Layout.fillHeight: true
-                                                        Layout.fillWidth: true
-                                                        Layout.maximumHeight:
-                                                            bodyColumn.implicitHeight
-                                                        Layout.preferredHeight:
-                                                            bodyColumn.implicitHeight
-                                                        boundsBehavior: Flickable.StopAtBounds
-                                                        clip: true
-                                                        contentHeight: bodyColumn.implicitHeight
-                                                        contentWidth: width
-                                                        visible: bodyColumn.children.length > 0
-
-                                                        ColumnLayout {
-                                                            id: bodyColumn
-
-                                                            spacing: Theme.space(12)
-                                                            width: parent.width
-                                                        }
-                                                    }
-
-                                                    // the buttons (`.sheet .acts`) -------------------------------------------
-                                                    RowLayout {
-                                                        id: actionsRow
-
-                                                        Layout.fillWidth: true
-                                                        Layout.topMargin: Theme.space(4)
-                                                        spacing: Theme.space(8)
-                                                        visible: root.actions.length > 0
-
-                                                        Repeater {
-                                                            model: root.actions
-
-                                                            Button {
-                                                                id: actionButton
-
-                                                                required property var modelData
-
-                                                                Layout.fillWidth: true
-                                                                Layout.preferredWidth: 1
-                                                                // Spec §3 draws every sheet
-                                                                // action as `.btn b`: a
-                                                                // hairline outline at idle.
-                                                                // §8's "idle buttons have no
-                                                                // chrome" is about the hero's
-                                                                // bare glyph buttons.
-                                                                bordered: true
-                                                                danger: actionButton.modelData.danger
-                                                                        === true
-                                                                primary: actionButton.modelData.primary
-                                                                         === true
-                                                                text: actionButton.modelData.text
-
-                                                                onClicked: root._trigger(
-                                                                               actionButton.modelData)
-                                                            }
-                                                        }
-                                                    }
-
-                                                    // the hint line (`.sheet .ft`) -------------------------------------------
-                                                    ColumnLayout {
-                                                        id: foot
-
-                                                        Layout.fillWidth: true
-                                                        spacing: Theme.space(8)
-                                                        visible: root.hints.length > 0
-                                                                 || root.footerRight.length > 0
-
-                                                        Hairline {
-                                                            Layout.fillWidth: true
-                                                        }
-
-                                                        KeyHints {
-                                                            Layout.fillWidth: true
-                                                            model: root.hints
-                                                            pinned: root.footerRight.length > 0 ? {
-                                                                                                      "key": "",
-                                                                                                      "label": root.footerRight
-                                                                                                  } : null
-                                                            size: "caption"
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
+            }
+        }
+    }
+}

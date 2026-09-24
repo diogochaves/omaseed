@@ -102,6 +102,7 @@ Sheet {
                 id: dlField
 
                 Layout.fillWidth: true
+                escClears: false
                 placeholder: "∞"
                 trailing: qsTr("KB/s")
 
@@ -118,6 +119,7 @@ Sheet {
                 id: ulField
 
                 Layout.fillWidth: true
+                escClears: false
                 placeholder: "∞"
                 trailing: qsTr("KB/s")
 
@@ -134,6 +136,7 @@ Sheet {
                 id: altDlField
 
                 Layout.fillWidth: true
+                escClears: false
                 placeholder: "∞"
                 trailing: qsTr("KB/s")
 
@@ -150,6 +153,7 @@ Sheet {
                 id: altUlField
 
                 Layout.fillWidth: true
+                escClears: false
                 placeholder: "∞"
                 trailing: qsTr("KB/s")
 

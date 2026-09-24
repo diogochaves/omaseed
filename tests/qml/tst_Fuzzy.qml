@@ -50,4 +50,31 @@ TestCase {
         compare(Fuzzy.words("  Deb   DVD "), ["deb", "dvd"]);
         compare(Fuzzy.words(""), []);
     }
+
+    // KIT-10: accents and the Unicode form do not stop a match.
+    function test_accents_are_ignored_both_ways() {
+        verify(Fuzzy.match("Café del Mar", "cafe"));
+        verify(Fuzzy.match("Cafe del Mar", "café"));
+        verify(Fuzzy.match("Łódź-2026", "odz"));
+        verify(!Fuzzy.match("Café", "cafx"));
+    }
+
+    function test_a_composed_query_finds_a_decomposed_name() {
+        const nfd = "Cafe\u0301"; // what macOS writes
+        const nfc = "Caf\u00e9";
+        verify(Fuzzy.match(nfd, nfc));
+        verify(Fuzzy.match(nfc, nfd));
+        compare(Fuzzy.score(nfd, nfc), 0);
+    }
+
+    function test_a_tighter_subsequence_scores_better() {
+        verify(Fuzzy.score("axxxxbxc", "abc") > Fuzzy.score("xxxxxxxxxxxxxxxxxxxab-c", "abc"),
+               "a looser hit ranked above a tighter one");
+        compare(Fuzzy.score("a-b-c", "abc"), 1005);
+    }
+
+    function test_a_late_substring_still_beats_any_subsequence() {
+        const late = "x".repeat(1500) + "fedora";
+        verify(Fuzzy.score(late, "fedora") < Fuzzy.score("f-e-d-o-r-a", "fedora"));
+    }
 }

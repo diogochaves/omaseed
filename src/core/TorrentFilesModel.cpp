@@ -3,6 +3,7 @@
 #include "core/Format.hpp"
 
 #include <QCollator>
+#include <QHash>
 #include <QJsonObject>
 #include <QStringList>
 
@@ -347,17 +348,10 @@ void TorrentFilesModel::updateInPlace(const QJsonArray &files)
         aggregate(root);
     applyFilter();
 
-    // Sorted by a number that moved, the rows may have to change places.
-    if (!m_sortKey.isEmpty() && m_sortKey != QLatin1String("name")) {
-        const QList<int> next = computeVisible();
-        if (next != m_visible) {
-            beginResetModel();
-            m_visible = next;
-            endResetModel();
-            Q_EMIT countChanged();
-            return;
-        }
-    }
+    // Sorted by a number that moved, the rows may have to change places: they move, so the
+    // view keeps its delegates and scroll, and the cursor follows its file (reordered()).
+    if (!m_sortKey.isEmpty() && m_sortKey != QLatin1String("name"))
+        relayout();
 
     emitAllChanged({SizeRole,
                     SizeTextRole,
@@ -383,6 +377,8 @@ void TorrentFilesModel::aggregate(int at)
     qint64 size = 0;
     qint64 remaining = 0;
     double done = 0.0;
+    qint64 wantedSize = 0;
+    double wantedDone = 0.0;
     double available = 0.0;
     qint64 availableOver = 0;
     int priority = int(FilePriority::Mixed);
@@ -399,6 +395,12 @@ void TorrentFilesModel::aggregate(int at)
         size += kid.size;
         remaining += kid.remaining;
         done += double(kid.size) * kid.progress;
+        // Progress counts the wanted files only, as qBittorrent's content view does: a
+        // folder whose wanted files are all done reads 100 %, whatever it skips.
+        if (kid.priority != int(FilePriority::Skip)) {
+            wantedSize += kid.size;
+            wantedDone += double(kid.size) * kid.progress;
+        }
         ids.append(kid.fileIndexes);
         // Availability is weighted by size over the files that are wanted, as qBittorrent's
         // content view does: a skipped file's pieces say nothing about this download.
@@ -422,7 +424,10 @@ void TorrentFilesModel::aggregate(int at)
     Node &node = m_nodes[at];
     node.size = size;
     node.remaining = remaining;
-    node.progress = size > 0 ? done / double(size) : 0.0;
+    // A folder that skips everything still shows what is on disk, over its full size.
+    node.progress = wantedSize > 0 ? wantedDone / double(wantedSize)
+                    : size > 0     ? done / double(size)
+                                   : 0.0;
     node.availability = availableOver > 0 ? available / double(availableOver) : -1.0;
     node.priority = first ? int(FilePriority::Normal) : priority;
     node.fileIndexes = ids;
@@ -634,15 +639,67 @@ void TorrentFilesModel::rebuildVisible()
     m_visible = computeVisible();
 }
 
-void TorrentFilesModel::relayout()
+bool TorrentFilesModel::relayout()
 {
     const QList<int> next = computeVisible();
     if (next == m_visible)
-        return;
+        return false;
+
+    QList<int> before = m_visible;
+    QList<int> after = next;
+    std::sort(before.begin(), before.end());
+    std::sort(after.begin(), after.end());
+    if (before == after) {
+        reorderVisible(next);
+        return true;
+    }
+
     beginResetModel();
     m_visible = next;
     endResetModel();
     Q_EMIT countChanged();
+    return true;
+}
+
+void TorrentFilesModel::reorderVisible(const QList<int> &next)
+{
+    // Moves keep every delegate and the scroll position in a QML view (a layoutChanged
+    // rebuilds them all). Each move is a linear search, so a very long list takes the one
+    // layoutChanged instead, with the persistent indexes carried over by node.
+    constexpr int kMoveLimit = 2000;
+    if (int(next.size()) <= kMoveLimit) {
+        for (int target = 0; target < int(next.size()); ++target) {
+            if (m_visible.at(target) == next.at(target))
+                continue;
+            const int from = int(m_visible.indexOf(next.at(target), target + 1));
+            if (from < 0)
+                continue; // cannot happen: the two lists hold the same nodes
+            beginMoveRows(QModelIndex(), from, from, QModelIndex(), target);
+            m_visible.move(from, target);
+            endMoveRows();
+        }
+    } else {
+        Q_EMIT layoutAboutToBeChanged({}, QAbstractItemModel::VerticalSortHint);
+        const QModelIndexList persistent = persistentIndexList();
+        QList<int> nodes;
+        nodes.reserve(persistent.size());
+        for (const QModelIndex &index : persistent)
+            nodes.append(m_visible.value(index.row(), -1));
+        m_visible = next;
+        QHash<int, int> rowOfNode;
+        rowOfNode.reserve(m_visible.size());
+        for (int row = 0; row < int(m_visible.size()); ++row)
+            rowOfNode.insert(m_visible.at(row), row);
+        QModelIndexList moved;
+        moved.reserve(persistent.size());
+        for (int node : std::as_const(nodes)) {
+            const int row = rowOfNode.value(node, -1);
+            moved.append(row < 0 ? QModelIndex() : index(row));
+        }
+        changePersistentIndexList(persistent, moved);
+        Q_EMIT layoutChanged({}, QAbstractItemModel::VerticalSortHint);
+    }
+    Q_EMIT reordered();
 }
 
 void TorrentFilesModel::updateSummary()
@@ -918,20 +975,25 @@ QVariantList TorrentFilesModel::shownOrderGroups(int cursorRow) const
     return result;
 }
 
-int TorrentFilesModel::leafOfFileIndex(int fileIndex) const
+QHash<int, int> TorrentFilesModel::leavesByFileIndex() const
 {
+    QHash<int, int> leaves;
+    leaves.reserve(m_fileCount);
     for (int at = 0; at < int(m_nodes.size()); ++at) {
-        if (!m_nodes.at(at).isFolder && m_nodes.at(at).fileIndex == fileIndex)
-            return at;
+        if (!m_nodes.at(at).isFolder)
+            leaves.insert(m_nodes.at(at).fileIndex, at);
     }
-    return -1;
+    return leaves;
 }
 
 void TorrentFilesModel::setLocalPriority(const QVariantList &fileIndexes, int priority)
 {
+    // One pass to index the leaves, then a lookup per id: select-all on a 20 000-file
+    // torrent was a scan of the tree per id.
+    const QHash<int, int> leaves = leavesByFileIndex();
     bool changed = false;
     for (int id : toIntList(fileIndexes)) {
-        const int leaf = leafOfFileIndex(id);
+        const int leaf = leaves.value(id, -1);
         if (leaf < 0 || m_nodes.at(leaf).priority == priority)
             continue;
         Node &node = m_nodes[leaf];
@@ -947,14 +1009,7 @@ void TorrentFilesModel::setLocalPriority(const QVariantList &fileIndexes, int pr
         aggregate(root);
     updateSummary();
 
-    const QList<int> next = computeVisible();
-    if (next != m_visible) {
-        beginResetModel();
-        m_visible = next;
-        endResetModel();
-        Q_EMIT countChanged();
-        return;
-    }
+    relayout();
     emitAllChanged({PriorityRole,
                     PriorityTextRole,
                     RemainingRole,

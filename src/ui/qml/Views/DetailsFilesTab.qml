@@ -26,6 +26,10 @@ Item {
     /// The row being renamed (`r`), or -1; the text lives in `renameText`.
     property int renamingRow: -1
     property string renameText: ""
+    /// True until the editor has opened once: it selects the name then. An editor rebuilt
+    /// because the rows moved under it puts the caret back at `renameCaret` instead.
+    property bool renameFresh: false
+    property int renameCaret: 0
     /// `/` was pressed: show the filter field even while it is still empty.
     property bool filterOpen: false
 
@@ -69,13 +73,53 @@ Item {
 
     // The spec's `.files { grid-template-columns: 1fr 70px 56px 72px }`, trimmed to fit the
     // real docked column (spec §2's Fig. 2 is a 400 px mock). Each fixed column holds its
-    // widest value ("81.4 GB", "100 %", "maximal", "3860–3911").
-    readonly property int sizeWidth: Theme.space(60)
-    readonly property int doneWidth: root.compact ? Theme.space(46) : Theme.space(86)
-    readonly property int priorityWidth: Theme.space(58)
-    readonly property int remainingWidth: Theme.space(60)
+    // widest value ("81.4 GB", "100 %", "maximal", "3860–3911"). The spacing scale need not
+    // follow the font (shell.toml), so each is also at least its widest value as measured in
+    // the font on screen: at base 18 a fixed 60 u cut "84.0 MB" to "84.0 …" (review RUN-6).
+    readonly property int sizeWidth: Math.max(Theme.space(60), root._measured(sizeMetrics))
+    readonly property int doneTextWidth: Math.max(Theme.space(40), root._measured(doneMetrics))
+    readonly property int doneWidth: root.compact ? Math.max(Theme.space(46), root.doneTextWidth + Theme.space(6))
+                                                  : Math.max(Theme.space(86), root.doneTextWidth + Theme.space(46))
+    readonly property int priorityWidth: Math.max(Theme.space(58), root._measured(priorityMetrics))
+    readonly property int remainingWidth: root.sizeWidth
     readonly property int availabilityWidth: Theme.space(50)
-    readonly property int piecesWidth: Theme.space(78)
+    readonly property int piecesWidth: Math.max(Theme.space(78), root._measured(piecesMetrics))
+
+    function _measured(metrics: TextMetrics): int {
+        return Math.ceil(metrics.advanceWidth) + 1;
+    }
+
+    TextMetrics {
+        id: sizeMetrics
+
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.font.small
+        text: "999.9 MB"
+    }
+
+    TextMetrics {
+        id: doneMetrics
+
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.font.small
+        text: "100 %"
+    }
+
+    TextMetrics {
+        id: priorityMetrics
+
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.font.small
+        text: "maximal"
+    }
+
+    TextMetrics {
+        id: piecesMetrics
+
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.font.small
+        text: "3860–3911"
+    }
 
     /// Dragged narrower than the default: the progress line goes, its percent stays.
     readonly property bool compact: root.width < Theme.space(360)
@@ -103,6 +147,27 @@ Item {
         root.filterOpen = true;
         filterField.focusInput();
         return true;
+    }
+
+    /// Give the keyboard back to the open rename's editor. A model reset rebuilds every row
+    /// while the list is still being laid out, and an editor built then cannot take the
+    /// focus itself; the pane calls this once the reset has settled.
+    function focusRenameEditor(): void {
+        const delegate = root.renamingRow >= 0 ? list.itemAtIndex(root.renamingRow) : null;
+        const editor = delegate ? root._findEditor(delegate) : null;
+        if (editor && !editor.activeFocus)
+            editor.forceActiveFocus();
+    }
+
+    function _findEditor(item: Item): Item {
+        if (item.objectName === "fileRenameEditor")
+            return item;
+        for (let i = 0; i < item.children.length; ++i) {
+            const found = root._findEditor(item.children[i]);
+            if (found)
+                return found;
+        }
+        return null;
     }
 
     implicitHeight: Theme.space(200)
@@ -476,9 +541,10 @@ Item {
                         anchors.right: parent.right
                         anchors.rightMargin: doneText.width + Theme.space(6)
                         anchors.verticalCenter: parent.verticalCenter
-                        // Complete in the seeding colour, from where the percent reads
-                        // "100 %" (a folder of 3.9 GB is never exactly 1 with 18 KB skipped).
-                        color: row.progress >= 0.99995 ? Theme.stateSeeding : Theme.accent
+                        // Complete in the seeding colour, where the percent reads "100 %":
+                        // exactly 1, as Format::percentCompact has it (a folder's progress
+                        // leaves out what it skips, so a folder that is done is exactly 1).
+                        color: row.progress >= 1 ? Theme.stateSeeding : Theme.accent
                         showText: false
                         value: row.progress
                         visible: !root.compact
@@ -494,7 +560,7 @@ Item {
                         font.pixelSize: Theme.font.small
                         horizontalAlignment: Text.AlignRight
                         text: row.progressText
-                        width: Theme.space(40)
+                        width: root.doneTextWidth
                     }
                 }
 
@@ -595,15 +661,26 @@ Item {
                 Keys.onEscapePressed: root.renameCancelled()
                 onAccepted: root.renameCommitted(editor.text)
                 onTextChanged: root.renameText = editor.text
+                onCursorPositionChanged: {
+                    if (editor.ready)
+                        root.renameCaret = editor.cursorPosition;
+                }
+
+                property bool ready: false
 
                 Component.onCompleted: {
                     // A file opens with its name selected and its extension left alone, as
                     // a file manager's rename does; a folder with all of it.
                     const dot = editor.text.lastIndexOf(".");
-                    if (dot > 0 && !root.model.isFolder(root.renamingRow))
+                    if (!root.renameFresh)
+                        editor.cursorPosition = Math.min(root.renameCaret, editor.text.length);
+                    else if (dot > 0 && !root.model.isFolder(root.renamingRow))
                         editor.select(0, dot);
                     else
                         editor.selectAll();
+                    root.renameFresh = false;
+                    editor.ready = true;
+                    root.renameCaret = editor.cursorPosition;
                     editor.forceActiveFocus();
                 }
             }

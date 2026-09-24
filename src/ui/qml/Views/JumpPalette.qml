@@ -44,21 +44,11 @@ Palette {
         return App.jumpMatches(root.query, 50);
     }
 
-    /// Moves `table`'s cursor to `hash`, clearing the filter (and the status rail) first
-    /// when the row is not currently visible.
+    /// Moves `table`'s cursor to `hash`, clearing every filter first when the row is not
+    /// currently visible (the same helper MainView's `showTorrent` uses).
     function jumpTo(hash: string): void {
-        if (hash.length === 0 || root.table === null)
-            return;
-        if (App.filtered.rowOfHash(hash) < 0) {
-            App.filtered.text = "";
-            App.filtered.clearCategory();
-            App.filtered.clearTag();
-            App.filtered.clearTracker();
-            App.filtered.statusFilter = TorrentFilterModel.All;
-        }
-        const row = App.filtered.rowOfHash(hash);
-        if (row >= 0)
-            root.table.moveCursorTo(row);
+        if (root.table !== null)
+            root.table.revealHash(hash);
     }
 
     // Every jump starts from an empty query, like the other palettes: the last one's text
@@ -76,8 +66,7 @@ Palette {
         const hash = item.key;
         root.jumpTo(hash);
         root.close();
-        // T4.3 has no actions-menu signal on this branch yet; MainView's `Connections {
-        // target: App }` block is where a future `showActionsRequested` handler lands.
+        // MainView answers it with Fig. 11 on that row.
         App.showActionsRequested(hash);
     }
 }

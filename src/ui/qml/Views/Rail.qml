@@ -297,6 +297,10 @@ Item {
     width: root.implicitWidth
 
     Keys.onPressed: event => {
+        // ctrl and alt chords belong to the window (`ctrl+k` jumps, `ctrl+b` hides this
+        // rail), as in the table and the details pane.
+        if (event.modifiers & (Qt.ControlModifier | Qt.AltModifier))
+            return;
         switch (event.key) {
         case Qt.Key_J:
             root.moveCursor(1);
