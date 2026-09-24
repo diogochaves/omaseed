@@ -150,6 +150,18 @@ toast_up() {
 
 STEP=0
 CHECKS=""
+# watch "title" "what to look for": a screenshot (headless); interactive, the same words but
+# no pause, for a step whose screen must not wait on the reader (a toast times out).
+watch() {
+    if [ "$INTERACTIVE" = 1 ]; then
+        STEP=$((STEP + 1))
+        printf '\n\033[1m%02d %s\033[0m\n    %s\n' "$STEP" "$1" "$2"
+        sleep 3
+    else
+        step "$@"
+    fi
+}
+
 # step "title" "what to look for": a screenshot (headless) or a pause (interactive).
 step() {
     STEP=$((STEP + 1))
@@ -207,9 +219,12 @@ omabox run -b "$BOX" -- scripts/dev/install-desktop.sh >/dev/null 2>&1
 omabox run -b "$BOX" -d -- sh -c \
     'exec dbus-monitor --session "interface=org.freedesktop.Notifications" >"$HOME/bus.log" 2>&1' >/dev/null
 launch
-# Toasts stack from the top-right corner, newest on top; this is the middle of the top one.
-width="$(omabox hyprctl -b "$BOX" -j monitors | python3 -c 'import json, sys; print(json.load(sys.stdin)[0]["width"])')"
-TOAST_X=$((width - 230))
+# toast_x: the middle of the top toast (newest on top, stacked from the top-right corner).
+# Read at use time: an interactive box's screen follows its window, which Hyprland may tile
+# or the viewer may resize after the box starts.
+toast_x() {
+    omabox hyprctl -b "$BOX" -j monitors | python3 -c 'import json, sys; print(json.load(sys.stdin)[0]["width"] - 230)'
+}
 TOAST_Y=75
 
 # ---- the walk -----------------------------------------------------------------------------
@@ -230,9 +245,9 @@ wait_state "$UNICODE" "UP|^uploading" 90 || true
 toast_up "$UNICODE" 15 || true
 # The newest toast is the top one. A toast under the pointer does not time out, so park the
 # pointer there before the shot; the click then finds it whatever the timing.
-omabox pointer -b "$BOX" -- move "$TOAST_X" "$TOAST_Y" >/dev/null
-step "Toast while hidden" "Only the wallpaper and the bar: the window is in the tray, and the unicode torrent's notice is the top one (its long name wraps whole words; the pointer rests on it, which keeps it up). Interactive: keep your mouse off the box; the script clicks the toast after enter."
-omabox click -b "$BOX" "$TOAST_X" "$TOAST_Y"
+omabox pointer -b "$BOX" -- move "$(toast_x)" "$TOAST_Y" >/dev/null
+watch "Toast while hidden" "Only the wallpaper and the bar: the window is in the tray, and the unicode torrent's notice is the top one (its long name wraps whole words; the pointer rests on it, which keeps it up). Interactive: watch it, the script clicks it in 3 s."
+omabox click -b "$BOX" "$(toast_x)" "$TOAST_Y"
 sleep 2
 check "a click on the toast sends the \"default\" action" invoked_default
 check "the click brings the hidden window back" window_shown
