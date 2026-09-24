@@ -146,6 +146,7 @@ private slots:
     void tagsArePercentEncoded();
     void deleteFilesFlag();
     void shareLimitsSendsAllFiveFields();
+    void shareLimitsKeepRatioPrecision();
     void shareLimitActionNames_data();
     void shareLimitActionNames();
     void shareLimitActionIsOmittedForAnOldApi();
@@ -262,6 +263,28 @@ void TestQbtClientActionsFake::shareLimitsSendsAllFiveFields()
     // 5.2.3 answers 400 without this field, so the default argument is Default, not "omit".
     QCOMPARE(body.queryItemValue(QStringLiteral("shareLimitAction"), QUrl::FullyDecoded),
              QStringLiteral("Default"));
+}
+
+void TestQbtClientActionsFake::shareLimitsKeepRatioPrecision()
+{
+    FakeServer server;
+    server.setHandler([](const Recorded &, int) { return httpResponse(200, "OK", ""); });
+    QbtClient client;
+    client.setBaseUrl(server.url());
+
+    QVERIFY(!await(this,
+                   client.torrentsSetShareLimits(QStringList{QStringLiteral("h1")}, 1234567.5, -2, -2))
+                 .isError());
+    QVERIFY(!await(this,
+                   client.torrentsSetShareLimits(QStringList{QStringLiteral("h1")}, 1.25, -2, -2))
+                 .isError());
+    const auto ratioOf = [&server](int index) {
+        return QUrlQuery(QString::fromUtf8(server.requests.at(index).body))
+            .queryItemValue(QStringLiteral("ratioLimit"), QUrl::FullyDecoded);
+    };
+    // The default QString::number would send 1.23457e+06.
+    QCOMPARE(ratioOf(0), QStringLiteral("1234567.5"));
+    QCOMPARE(ratioOf(1), QStringLiteral("1.25"));
 }
 
 void TestQbtClientActionsFake::shareLimitActionNames_data()
