@@ -36,6 +36,9 @@ Item {
     property int paneCursor: 0
     /// "nav" or "pane": which half of the modal the keyboard is in.
     property string area: "nav"
+    /// Where API keys and passwords sit in plain files when no keychain answered; the
+    /// Servers pane names it in one muted warning row (review Q10). Empty otherwise.
+    property string plainSecretsPath: App.plainSecretsPath
 
     signal closed
 
@@ -776,6 +779,34 @@ Item {
                                     root.paneCursor = App.serverList.count;
                                     root.area = "pane";
                                     serverSheet.openNew();
+                                }
+                            }
+
+                            // Review Q10: not a cursor row, only a fact about where the
+                            // secrets above live.
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Layout.topMargin: Theme.space(6)
+                                objectName: "plainSecretsRow"
+                                spacing: Theme.space(8)
+                                visible: root.plainSecretsPath.length > 0
+
+                                Label {
+                                    Layout.alignment: Qt.AlignTop
+                                    color: Theme.yellow
+                                    size: "small"
+                                    text: "!"
+                                }
+
+                                Label {
+                                    Layout.fillWidth: true
+                                    dim: true
+                                    objectName: "plainSecretsText"
+                                    size: "small"
+                                    text: qsTr(
+                                              "No keychain answered, so API keys and passwords are kept in plain files, readable only by you, in %1").arg(
+                                              root.plainSecretsPath)
+                                    wrapMode: Text.WrapAtWordBoundaryOrAnywhere
                                 }
                             }
 

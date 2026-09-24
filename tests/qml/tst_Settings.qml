@@ -166,6 +166,27 @@ TestCase {
         modal.confirm.close();
     }
 
+    // Review Q10: secrets in plain files get one muted warning row naming the directory,
+    // and no row while a keychain holds them.
+    function test_the_servers_pane_names_the_plain_secrets_directory() {
+        const modal = createTemporaryObject(modalComponent, testCase, {
+                                                "plainSecretsPath": ""
+                                            });
+        modal.open();
+        modal.showPane(1);
+        const row = findChild(modal, "plainSecretsRow");
+        verify(row);
+        verify(!row.visible);
+
+        modal.plainSecretsPath = "/home/someone/.config/omaseed/secrets";
+        verify(row.visible);
+        const text = findChild(modal, "plainSecretsText").text;
+        verify(text.indexOf("/home/someone/.config/omaseed/secrets") >= 0, text);
+        verify(text.indexOf("plain files") >= 0, text);
+        // Not a row the cursor walks: the servers, then "add a server", as before.
+        compare(modal.paneRowCount, App.serverList.count + 1);
+    }
+
     function test_the_servers_pane_prints_url_auth_and_count() {
         const id = testCase.addTestServer("playground", "http://127.0.0.1:8081");
         verify(id.length > 0);

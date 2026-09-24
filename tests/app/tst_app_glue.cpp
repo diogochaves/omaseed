@@ -67,6 +67,10 @@ private slots:
     // APP-11
     void removingTheLiveServerClearsItsWorld();
 
+    // Review rulings Q9, Q10
+    void anUnreadableServersFileIsNamedWhereItWasKept();
+    void secretsInAPlainFileAreNamed();
+
 private:
     QTemporaryDir m_dir;
     QByteArray m_previousConfigHome;
@@ -489,6 +493,83 @@ void TestAppGlue::removingTheLiveServerClearsItsWorld()
     const int before = server.requests;
     QTest::qWait(2000);
     QCOMPARE(server.requests, before);
+}
+
+void TestAppGlue::anUnreadableServersFileIsNamedWhereItWasKept()
+{
+    // Review Q9: first run shows although the user had servers; App says why and where the
+    // unreadable file went, before anything new is saved.
+    QTemporaryDir home;
+    qputenv("XDG_CONFIG_HOME", home.path().toUtf8());
+    qunsetenv("OMASEED_SERVER_URL");
+    const QString configDir = home.path() + QStringLiteral("/omaseed");
+    QVERIFY(QDir().mkpath(configDir));
+    const QString filePath = configDir + QStringLiteral("/servers.json");
+    const QByteArray corrupt = "{ \"version\": 1, \"servers\": [ oops";
+    {
+        QFile file(filePath);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write(corrupt);
+    }
+
+    App app;
+    QCOMPARE(app.serversKeptPath(), QString());
+    QSignalSpy changed(&app, &App::serverChanged);
+    app.start();
+    QVERIFY(changed.count() >= 1);
+    QVERIFY(app.firstRunNeeded());
+    QVERIFY(!app.serversLoadError().isEmpty());
+    const QString kept = app.serversKeptPath();
+    QVERIFY2(kept.startsWith(filePath + QStringLiteral(".unreadable-")), qPrintable(kept));
+    QFile file(kept);
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    QCOMPARE(file.readAll(), corrupt);
+}
+
+void TestAppGlue::secretsInAPlainFileAreNamed()
+{
+    // Review Q10: with no keychain, the first secret settles the store on the file backend,
+    // and App names the directory. The probe and the keychain are stand-ins: the bogus
+    // DBUS_SESSION_BUS_ADDRESS above does NOT keep libsecret off the desktop's keyring.
+    QTemporaryDir home;
+    qputenv("XDG_CONFIG_HOME", home.path().toUtf8());
+    qunsetenv("OMASEED_SERVER_URL");
+
+    App app;
+    using omaseed::core::SecretStore;
+    int probes = 0;
+    app.secretStore()->setProbeRunner([&probes](std::function<void(bool)> done) {
+        ++probes;
+        done(false); // no keychain answered
+    });
+    const auto answerNothing = [](const QString &, SecretStore::KeychainAnswer answer) {
+        answer(SecretStore::KeychainStatus::NotFound, QString(), QString());
+    };
+    app.secretStore()->setKeychainHooks(SecretStore::KeychainHooks{
+        answerNothing,
+        [](const QString &, const QString &, SecretStore::KeychainAnswer answer) {
+            answer(SecretStore::KeychainStatus::Failed, QString(), QStringLiteral("no keychain"));
+        },
+        answerNothing,
+    });
+
+    QCOMPARE(app.plainSecretsPath(), QString()); // not known yet...
+    QCOMPARE(probes, 0);                         // ...and asking did not probe
+    QSignalSpy changed(&app, &App::plainSecretsPathChanged);
+    const QString id = app.addServer(
+        QVariantMap{
+            {QStringLiteral("name"), QStringLiteral("keyed")},
+            {QStringLiteral("url"), QStringLiteral("http://127.0.0.1:9")},
+            {QStringLiteral("authMode"), QStringLiteral("apiKey")},
+        },
+        QStringLiteral("not-a-real-key"));
+    QVERIFY(!id.isEmpty());
+    QTRY_VERIFY_WITH_TIMEOUT(changed.count() >= 1, 5000);
+    QCOMPARE(app.plainSecretsPath(), home.path() + QStringLiteral("/omaseed/secrets"));
+    QTRY_VERIFY_WITH_TIMEOUT(
+        QFileInfo::exists(app.plainSecretsPath() + QLatin1Char('/') + id + QStringLiteral(".json")),
+        5000);
+    app.engine()->stop();
 }
 
 QTEST_MAIN(TestAppGlue)
