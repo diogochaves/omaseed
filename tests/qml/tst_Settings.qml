@@ -486,6 +486,28 @@ TestCase {
         compare(field.placeholder, "95");
     }
 
+    // Review RUN-4: an override stored earlier shows in its field, and a refused value does
+    // not stay there as if it applied.
+    function test_the_appearance_fields_show_the_stored_overrides() {
+        App.windowAlphaOverride = 80;
+        App.baseSizeOverride = 16;
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        keyClick(Qt.Key_5);
+        const field = testCase.childNamed(modal, "windowAlphaField");
+        compare(field.text, "80", "the stored transparency does not show");
+        compare(testCase.childNamed(modal, "baseSizeField").text, "16");
+
+        field.focusInput();
+        field.text = "40"; // outside 50–100: App stores "follow the shell"
+        field.accepted();
+        compare(App.windowAlphaOverride, 0);
+        compare(field.text, "", "the refused 40 stayed in the field");
+
+        App.baseSizeOverride = 0;
+        compare(testCase.childNamed(modal, "baseSizeField").text, "");
+    }
+
     function test_the_about_pane_prints_the_version_and_the_install_line() {
         const modal = createTemporaryObject(modalComponent, testCase);
         modal.open();

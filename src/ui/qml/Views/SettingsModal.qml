@@ -212,6 +212,17 @@ Item {
         thresholdField.text = String(App.lowDiskThresholdGiB);
     }
 
+    /// Base size and transparency likewise show a stored override, and nothing (the
+    /// placeholder: follow / the shell's value) when there is none, so an override set in an
+    /// earlier session is visible, and a value App refused does not stay in the field. A
+    /// field with the caret is left alone: another setting changing must not eat its typing.
+    function _syncAppearanceFields(): void {
+        if (!baseSizeField.editing)
+            baseSizeField.text = App.baseSizeOverride > 0 ? String(App.baseSizeOverride) : "";
+        if (!alphaField.editing)
+            alphaField.text = App.windowAlphaOverride > 0 ? String(App.windowAlphaOverride) : "";
+    }
+
     function _nextTrayMode(): string {
         const modes = ["auto", "always", "never"];
         return modes[(modes.indexOf(App.trayIconMode) + 1) % modes.length];
@@ -353,12 +364,18 @@ Item {
             root._syncThresholdField();
         }
 
+        function onSettingsChanged(): void {
+            root._syncAppearanceFields();
+        }
+
         target: App
     }
 
     onOpenedChanged: {
-        if (root.opened)
+        if (root.opened) {
             root._syncThresholdField();
+            root._syncAppearanceFields();
+        }
     }
     onPaneIndexChanged: paneStack.contentY = 0
     onPaneCursorChanged: Qt.callLater(root._revealCursor)
@@ -968,6 +985,7 @@ Item {
                                 Field {
                                     id: baseSizeField
 
+                                    objectName: "baseSizeField"
                                     implicitWidth: Theme.space(110)
                                     placeholder: qsTr("follow")
                                     trailing: qsTr("px")
@@ -975,6 +993,7 @@ Item {
                                     onAccepted: {
                                         App.baseSizeOverride = parseInt(text, 10) || 0;
                                         bodyItem.forceActiveFocus();
+                                        root._syncAppearanceFields();
                                     }
                                     onCleared: {
                                         App.baseSizeOverride = 0;
@@ -1007,6 +1026,7 @@ Item {
                                     onAccepted: {
                                         App.windowAlphaOverride = parseInt(text, 10) || 0;
                                         bodyItem.forceActiveFocus();
+                                        root._syncAppearanceFields();
                                     }
                                     onCleared: {
                                         App.windowAlphaOverride = 0;
