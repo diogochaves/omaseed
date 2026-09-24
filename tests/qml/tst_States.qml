@@ -93,6 +93,20 @@ TestCase {
         compare(filtered.message, "Nothing matches \"fedora 45\"");
     }
 
+    // Review RUN-13: "0 shows all statuses" only when a status narrows the table.
+    function test_the_all_statuses_hint_shows_only_under_a_status() {
+        const narrowed = createTemporaryObject(filteredEmptyComponent, testCase, {
+                                                   "text": "x",
+                                                   "statusName": "Downloading"
+                                               });
+        verify(findChild(narrowed, "allStatusesHint").visible);
+        const all = createTemporaryObject(filteredEmptyComponent, testCase, {
+                                              "text": "x",
+                                              "statusName": "All"
+                                          });
+        verify(!findChild(all, "allStatusesHint").visible);
+    }
+
     function test_filtered_empty_scope_only_message() {
         const filtered = createTemporaryObject(filteredEmptyComponent, testCase, {
                                                    "scopeName": "movies"

@@ -58,7 +58,7 @@ QtObject {
             "rank": 4,
             "helpKeys": "/",
             "help": qsTr("filter"),
-            "about": qsTr("Filter the table by name")
+            "about": qsTr("Filter the table by name, category, tag or hash")
         },
         {
             "area": "global",

@@ -69,6 +69,7 @@ Item {
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.font.small
                 text: "·"
+                visible: root._hasStatus
             }
 
             Text {
@@ -77,13 +78,17 @@ Item {
                 font.letterSpacing: Math.max(1, Math.round(Theme.font.caption * 0.08))
                 font.pixelSize: Theme.font.caption
                 text: "0"
+                visible: root._hasStatus
             }
 
             Text {
                 color: Theme.dimForeground
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.font.small
+                objectName: "allStatusesHint"
                 text: qsTr("shows all statuses")
+                // Nothing to widen when the status is already "all" (review RUN-13).
+                visible: root._hasStatus
             }
         }
     }
