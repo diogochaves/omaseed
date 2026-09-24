@@ -13,9 +13,11 @@
 # What the app sent is read from the box's session bus (dbus-monitor), what the shell drew from
 # its state files (~/.local/state/omarchy/notifications/, one JSON per toast on screen,
 # moved to history/ when it leaves), so no check depends on catching a 5-second toast in a
-# shot. It resets the swarm (scripts/dev/swarm.sh reset + seed) and serves it at 256 KiB/s, so
-# tiny-notes.txt (4 KB) finishes at once and the unicode torrent (5 MB) about 20 s later. The
-# seeder's rate goes back to 4 MiB/s at the end. The box's network reaches :8081 alone.
+# shot. It resets the swarm (scripts/dev/swarm.sh reset + seed) and holds the playground's
+# downloads at 2 KiB/s: tiny-notes.txt (4 KB) finishes in seconds, the unicode torrent (5 MB)
+# only once the limit is lifted, after the window is in the tray. So a slow read of a step
+# never lets a toast come and go unseen. The limit is restored at the end (also on ^C). The
+# box's network reaches :8081 alone.
 set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -121,8 +123,8 @@ print(sum(1 for c in calls if c["summary"] == "Download complete" and sys.argv[1
 tiny_notice() {
     notices | python3 -c '
 import json, sys
-c = [c for c in json.load(sys.stdin)["calls"] if "tiny-notes" in c["body"]][0]
-sys.exit(0 if eval(sys.argv[2]) else 1)' "$APP_ID" "$1"
+c = next((c for c in json.load(sys.stdin)["calls"] if "tiny-notes" in c["body"]), None)
+sys.exit(0 if c is not None and eval(sys.argv[2]) else 1)' "$APP_ID" "$1"
 }
 
 window_hidden() { ! window_shown; }
@@ -172,8 +174,9 @@ check() {
     echo "  check $mark: $what"
 }
 
+PLAY_DL_LIMIT="$(curl -fs "$PLAY/transfer/downloadLimit" || echo 0)"
 cleanup() {
-    "$SWARM" rate 4096 >/dev/null 2>&1 || true
+    curl -fs -X POST "$PLAY/transfer/setDownloadLimit" -d "limit=$PLAY_DL_LIMIT" >/dev/null 2>&1 || true
     [ "$INTERACTIVE" = 1 ] || omabox down -b "$BOX" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
@@ -181,7 +184,7 @@ trap cleanup EXIT
 echo "resetting the swarm (the playground's swarm downloads start over)"
 "$SWARM" start >/dev/null
 "$SWARM" reset >/dev/null
-"$SWARM" rate 256 >/dev/null
+curl -fs -X POST "$PLAY/transfer/setDownloadLimit" -d limit=2048 >/dev/null
 mkdir -p "$DOWNLOADS"
 
 echo "starting the box"
@@ -204,6 +207,10 @@ omabox run -b "$BOX" -- scripts/dev/install-desktop.sh >/dev/null 2>&1
 omabox run -b "$BOX" -d -- sh -c \
     'exec dbus-monitor --session "interface=org.freedesktop.Notifications" >"$HOME/bus.log" 2>&1' >/dev/null
 launch
+# Toasts stack from the top-right corner, newest on top; this is the middle of the top one.
+width="$(omabox hyprctl -b "$BOX" -j monitors | python3 -c 'import json, sys; print(json.load(sys.stdin)[0]["width"])')"
+TOAST_X=$((width - 230))
+TOAST_Y=75
 
 # ---- the walk -----------------------------------------------------------------------------
 # Seeded only now, so every swarm torrent finishes while the app watches.
@@ -218,13 +225,14 @@ step "Toast" "Top right, over the app: \"Download complete\", \"tiny-notes.txt Â
 omabox hyprctl -b "$BOX" dispatch "hl.dsp.window.close(\"class:$APP_ID\")" >/dev/null
 sleep 1
 check "closing the window hides it to the tray" window_hidden
+curl -fs -X POST "$PLAY/transfer/setDownloadLimit" -d "limit=$PLAY_DL_LIMIT" >/dev/null
 wait_state "$UNICODE" "UP|^uploading" 90 || true
 toast_up "$UNICODE" 15 || true
 # The newest toast is the top one. A toast under the pointer does not time out, so park the
 # pointer there before the shot; the click then finds it whatever the timing.
-omabox pointer -b "$BOX" -- move 1690 75 >/dev/null
-step "Toast while hidden" "Only the wallpaper and the bar: the window is in the tray, and the unicode torrent's notice is the top one (its long name wraps whole words; the pointer rests on it)."
-omabox click -b "$BOX" 1690 75
+omabox pointer -b "$BOX" -- move "$TOAST_X" "$TOAST_Y" >/dev/null
+step "Toast while hidden" "Only the wallpaper and the bar: the window is in the tray, and the unicode torrent's notice is the top one (its long name wraps whole words; the pointer rests on it, which keeps it up). Interactive: keep your mouse off the box; the script clicks the toast after enter."
+omabox click -b "$BOX" "$TOAST_X" "$TOAST_Y"
 sleep 2
 check "a click on the toast sends the \"default\" action" invoked_default
 check "the click brings the hidden window back" window_shown
