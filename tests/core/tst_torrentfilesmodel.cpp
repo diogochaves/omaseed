@@ -5,6 +5,7 @@
 #include "core/TorrentFilesModel.hpp"
 
 #include <QAbstractItemModelTester>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -49,6 +50,7 @@ private Q_SLOTS:
     void sorting_by_a_number_mixes_folders_and_files();
     void a_poll_that_reorders_moves_rows_instead_of_resetting();
     void a_long_list_reorders_in_one_layout_change();
+    void a_priority_on_every_file_of_a_huge_torrent_is_linear();
     void sort_by_flips_the_current_key_and_picks_a_direction_for_a_new_one();
     void the_filter_keeps_the_folders_of_a_match();
     void a_folder_acts_on_the_files_the_filter_shows();
@@ -415,6 +417,35 @@ void TestTorrentFilesModel::a_long_list_reorders_in_one_layout_change()
     QCOMPARE(model.rowOfPath(QStringLiteral("f00020.bin")), 0);
     QVERIFY(held.isValid());
     QCOMPARE(held.row(), 0);
+}
+
+void TestTorrentFilesModel::a_priority_on_every_file_of_a_huge_torrent_is_linear()
+{
+    constexpr int kFiles = 20000;
+    QJsonArray files;
+    QVariantList ids;
+    for (int i = 0; i < kFiles; ++i) {
+        files.append(QJsonObject{
+            {QStringLiteral("index"), i},
+            {QStringLiteral("name"), QStringLiteral("pack/f%1.bin").arg(i)},
+            {QStringLiteral("size"), 1000},
+            {QStringLiteral("progress"), 0.0},
+            {QStringLiteral("priority"), 1},
+        });
+        ids.append(i);
+    }
+    TorrentFilesModel model;
+    model.applyFiles(files);
+
+    QElapsedTimer timer;
+    timer.start();
+    model.setLocalPriority(ids, int(FilePriority::Skip));
+    const double ms = double(timer.nsecsElapsed()) / 1e6;
+    qInfo("setLocalPriority on %d files: %.1f ms", kFiles, ms);
+
+    QCOMPARE(at(model, 0, TorrentFilesModel::PriorityRole).toInt(), int(FilePriority::Skip));
+    // A scan of the tree per id took seconds here in a Debug build.
+    QVERIFY2(ms < 1000.0, qPrintable(QStringLiteral("took %1 ms").arg(ms)));
 }
 
 void TestTorrentFilesModel::sort_by_flips_the_current_key_and_picks_a_direction_for_a_new_one()

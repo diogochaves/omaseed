@@ -975,20 +975,25 @@ QVariantList TorrentFilesModel::shownOrderGroups(int cursorRow) const
     return result;
 }
 
-int TorrentFilesModel::leafOfFileIndex(int fileIndex) const
+QHash<int, int> TorrentFilesModel::leavesByFileIndex() const
 {
+    QHash<int, int> leaves;
+    leaves.reserve(m_fileCount);
     for (int at = 0; at < int(m_nodes.size()); ++at) {
-        if (!m_nodes.at(at).isFolder && m_nodes.at(at).fileIndex == fileIndex)
-            return at;
+        if (!m_nodes.at(at).isFolder)
+            leaves.insert(m_nodes.at(at).fileIndex, at);
     }
-    return -1;
+    return leaves;
 }
 
 void TorrentFilesModel::setLocalPriority(const QVariantList &fileIndexes, int priority)
 {
+    // One pass to index the leaves, then a lookup per id: select-all on a 20 000-file
+    // torrent was a scan of the tree per id.
+    const QHash<int, int> leaves = leavesByFileIndex();
     bool changed = false;
     for (int id : toIntList(fileIndexes)) {
-        const int leaf = leafOfFileIndex(id);
+        const int leaf = leaves.value(id, -1);
         if (leaf < 0 || m_nodes.at(leaf).priority == priority)
             continue;
         Node &node = m_nodes[leaf];

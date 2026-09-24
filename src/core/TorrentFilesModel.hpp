@@ -281,7 +281,8 @@ private:
     /// ignored), filter respected.
     QList<int> targetLeaves(int cursorRow) const;
     void collectLeaves(int node, QList<int> &out) const;
-    int leafOfFileIndex(int fileIndex) const;
+    /// The API's file index → the leaf's node index.
+    QHash<int, int> leavesByFileIndex() const;
     void emitAllChanged(const QList<int> &roles);
     /// Recounts folders, skipped files and the total size; emits summaryChanged() on a change.
     void updateSummary();
