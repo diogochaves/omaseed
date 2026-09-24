@@ -29,6 +29,10 @@ private slots:
     void aTorrentFileIsReadAndHashedOffTheGuiThread();
     void anUnreadableTorrentFileAnswersWithItsError();
 
+    // APP-6
+    void torrentIdIsTheTruncatedV2HashWhenThereIsOne();
+    void aHybridMagnetIsAddedUnderItsV2Id();
+
 private:
     QTemporaryDir m_dir;
     QByteArray m_previousConfigHome;
@@ -135,6 +139,34 @@ void TestAppGlue::anUnreadableTorrentFileAnswersWithItsError()
     QVERIFY(!map.value(QStringLiteral("valid")).toBool());
     QVERIFY(!map.value(QStringLiteral("error")).toString().isEmpty());
     QFile::setPermissions(path, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+}
+
+namespace {
+const QString kV1 = QStringLiteral("fdc2dabac7590000000000000000000000000001");
+const QString kV2 =
+    QStringLiteral("81f2da56846c00000000000000000000000000000000000000000000000000ff");
+} // namespace
+
+void TestAppGlue::torrentIdIsTheTruncatedV2HashWhenThereIsOne()
+{
+    // As qBittorrent keys them (checked live on :8081: a hybrid's `hash` is its v2 hash's
+    // first 40 characters, `infohash_v1` differs).
+    QCOMPARE(App::torrentIdFor(kV1, kV2), kV2.left(40));
+    QCOMPARE(App::torrentIdFor(QString(), kV2), kV2.left(40));
+    QCOMPARE(App::torrentIdFor(kV1.toUpper(), QString()), kV1);
+}
+
+void TestAppGlue::aHybridMagnetIsAddedUnderItsV2Id()
+{
+    App app;
+    app.startDemo(4);
+    QSignalSpy finished(&app, &App::addFinished);
+    const QVariantMap map = app.parseAddable(
+        QStringLiteral("magnet:?xt=urn:btih:%1&xt=urn:btmh:1220%2&dn=hybrid").arg(kV1, kV2));
+    QVERIFY(map.value(QStringLiteral("valid")).toBool());
+    app.addTorrent(map);
+    QCOMPARE(finished.count(), 1);
+    QCOMPARE(finished.constFirst().at(2).toString(), kV2.left(40));
 }
 
 QTEST_MAIN(TestAppGlue)

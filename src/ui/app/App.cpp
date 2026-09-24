@@ -1272,6 +1272,12 @@ void App::pickTorrentFile()
                                     });
 }
 
+QString App::torrentIdFor(const QString &infoHashV1, const QString &infoHashV2)
+{
+    const QString v2 = infoHashV2.trimmed().toLower();
+    return v2.isEmpty() ? infoHashV1.trimmed().toLower() : v2.left(40);
+}
+
 QVariantMap App::findDuplicate(const QString &hashV1, const QString &hashV2) const
 {
     const auto lower = [](const QString &hash) { return hash.trimmed().toLower(); };
@@ -1285,8 +1291,11 @@ QVariantMap App::findDuplicate(const QString &hashV1, const QString &hashV2) con
         if (!candidate.isEmpty() && model->indexOfHash(candidate) >= 0)
             return torrentRow(candidate);
     }
-    // A hybrid torrent is keyed by its v1 hash, so a v2-only magnet has to be looked up in
-    // the rows' own infohash fields.
+    // A torrent with a v2 hash is keyed by that hash cut to 40 characters, not by its v1 hash,
+    // so anything the key misses is looked up in the rows' own infohash fields.
+    const QString id = torrentIdFor(v1, v2);
+    if (model->indexOfHash(id) >= 0)
+        return torrentRow(id);
     for (int row = 0; row < model->count(); ++row) {
         const QModelIndex index = model->index(row);
         const QString rowV1 = lower(model->data(index, TorrentModel::InfohashV1Role).toString());
@@ -1351,7 +1360,9 @@ void App::addTorrent(const QVariantMap &request)
     const QString kind = request.value(QStringLiteral("kind")).toString();
     const QString value = request.value(QStringLiteral("value")).toString();
     const QString token = request.value(QStringLiteral("token")).toString();
-    const QString hash = request.value(QStringLiteral("infoHashV1")).toString().toLower();
+    // The key the new row will have in maindata, which is what the cursor and QML look for.
+    const QString hash = torrentIdFor(request.value(QStringLiteral("infoHashV1")).toString(),
+                                      request.value(QStringLiteral("infoHashV2")).toString());
 
     if (kind != QLatin1String("magnet") && kind != QLatin1String("url") &&
         kind != QLatin1String("file")) {
@@ -1386,7 +1397,7 @@ void App::addTorrent(const QVariantMap &request)
     QString torrentId = hash;
     if (kind == QLatin1String("file")) {
         const PendingTorrentFile file = m_pendingTorrentFiles.value(token);
-        if (!file.torrentId.isEmpty())
+        if (torrentId.isEmpty())
             torrentId = file.torrentId;
         if (file.bytes.isEmpty()) {
             Q_EMIT addFinished(false, tr("the .torrent was not read; pick it again"), QString());
@@ -1411,9 +1422,9 @@ void App::addTorrent(const QVariantMap &request)
         }
         if (!token.isEmpty())
             m_pendingTorrentFiles.remove(token);
-        watchForAddedHash(hash);
+        watchForAddedHash(torrentId);
         if (!withPriorities) {
-            Q_EMIT addFinished(true, QString(), hash);
+            Q_EMIT addFinished(true, QString(), torrentId);
             return;
         }
         // 5.x answers with the ids it added; an older server says "Ok." and the metainfo's
