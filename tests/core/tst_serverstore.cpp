@@ -307,9 +307,8 @@ void TestServerStore::anUnmovableFileIsKeptInPlaceUntilASaveCanMoveIt()
     QVERIFY(QFile::setPermissions(configDir, QFileDevice::ReadOwner | QFileDevice::ExeOwner));
     ServerStore store;
     QVERIFY(!store.load());
-    QVERIFY(QFile::setPermissions(configDir,
-                                  QFileDevice::ReadOwner | QFileDevice::WriteOwner |
-                                      QFileDevice::ExeOwner));
+    QVERIFY(QFile::setPermissions(
+        configDir, QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner));
     QCOMPARE(store.keptPath(), filePath);
 
     // The next save moves it first, then writes the new list.
