@@ -93,6 +93,7 @@ private slots:
     void deleteRemovesOnlyWhatThisTestAdded();
     void deleteFilesDefaultPersists();
     void perTorrentOptionsRoundTrip();
+    void trackersPeersAndBansReachTheServer();
 
 private:
     QJsonObject torrentInfo(const QString &hash);
@@ -421,6 +422,54 @@ void TestAppActions::perTorrentOptionsRoundTrip()
     QVERIFY(appSees(&omaseed::core::Torrent::superSeeding, true));
     m_app->setSuperSeeding({kFixtureTwo}, false);
     QVERIFY(serverHas("super_seeding", false));
+}
+
+void TestAppActions::trackersPeersAndBansReachTheServer()
+{
+    // Ruling Q4: the Trackers tab's `a`, the Peers tab's `a` and `b`. A TEST-NET address
+    // (RFC 5737) is banned, and the playground's own IP filter is put back afterwards.
+    const QString url = QStringLiteral("udp://q4-tracker.invalid:1337/announce");
+    const QString peer = QStringLiteral("192.0.2.77:6881");
+    QSignalSpy failed(m_app.get(), &App::actionFailed);
+
+    const auto hasTracker = [this, &url]() {
+        const QbtResult<QJsonArray> trackers =
+            await(this, m_app->client()->torrentsTrackers(kFixtureOne));
+        if (trackers.isError())
+            return false;
+        for (const QJsonValue &row : trackers.value()) {
+            if (row.toObject().value(QStringLiteral("url")).toString() == url)
+                return true;
+        }
+        return false;
+    };
+
+    m_app->addTrackers(kFixtureOne, {url});
+    QVERIFY2(waitFor(hasTracker, 8000), "the added tracker never showed up");
+    m_app->removeTracker(kFixtureOne, url);
+    QVERIFY2(waitFor([&hasTracker]() { return !hasTracker(); }, 8000),
+             "the added tracker was never removed again");
+
+    m_app->addPeers(kFixtureOne, {peer});
+    const QbtResult<QJsonObject> before = await(this, m_app->client()->appPreferences());
+    QVERIFY2(!before.isError(), qPrintable(before.error().toString()));
+    const QString bannedBefore = before.value().value(QStringLiteral("banned_IPs")).toString();
+
+    m_app->banPeer(peer);
+    const bool banned = waitFor(
+        [this]() {
+            const QbtResult<QJsonObject> prefs = await(this, m_app->client()->appPreferences());
+            return !prefs.isError() && prefs.value()
+                                           .value(QStringLiteral("banned_IPs"))
+                                           .toString()
+                                           .contains(QStringLiteral("192.0.2.77"));
+        },
+        8000);
+    await(this,
+          m_app->client()->appSetPreferences(
+              QJsonObject{{QStringLiteral("banned_IPs"), bannedBefore}}));
+    QVERIFY2(banned, "the banned address never reached the IP filter");
+    QCOMPARE(failed.count(), 0);
 }
 
 QTEST_MAIN(TestAppActions)

@@ -547,6 +547,19 @@ public:
     Q_INVOKABLE void reannounce(const QStringList &hashes);
     /// The Trackers tab's `d` (Fig. 3): one tracker off one torrent.
     Q_INVOKABLE void removeTracker(const QString &hash, const QString &url);
+    /// The Trackers tab's `a` (ruling Q4): announce URLs onto one torrent. The details pane
+    /// polls again once the server has them.
+    Q_INVOKABLE void addTrackers(const QString &hash, const QStringList &urls);
+    /// The Peers tab's `a` (ruling Q4): `host:port` peers onto one torrent.
+    Q_INVOKABLE void addPeers(const QString &hash, const QStringList &peers);
+    /// The Peers tab's `b` (ruling Q4): one `host:port` into qBittorrent's IP filter. The
+    /// ban is permanent and global (every torrent, until removed in qBittorrent's settings),
+    /// so the view asks first.
+    Q_INVOKABLE void banPeer(const QString &address);
+    /// The add-tracker and add-peer sheets' light check (core::PeerInput): `{entries,
+    /// invalid}`, the accepted entries and the first refused one ("" when none was).
+    Q_INVOKABLE QVariantMap checkTrackerUrls(const QString &text) const;
+    Q_INVOKABLE QVariantMap checkPeers(const QString &text) const;
 
     Q_INVOKABLE void setCategory(const QStringList &hashes, const QString &name);
     Q_INVOKABLE void addTags(const QStringList &hashes, const QStringList &tags);

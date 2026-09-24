@@ -3,6 +3,7 @@
 #include "core/Format.hpp"
 #include "core/MagnetLink.hpp"
 #include "core/PathMap.hpp"
+#include "core/PeerInput.hpp"
 #include "core/StateFile.hpp"
 #include "core/TorrentFile.hpp"
 #include "core/Version.hpp"
@@ -1764,6 +1765,64 @@ void App::removeTracker(const QString &hash, const QString &url)
         ->then(this, [this](const QbtResult<QByteArray> &result) {
             reportActionResult(QStringLiteral("remove tracker"), result);
         });
+}
+
+void App::addTrackers(const QString &hash, const QStringList &urls)
+{
+    if (hash.isEmpty() || urls.isEmpty() || demoGuard(QStringLiteral("add trackers"), 1) ||
+        !m_hasServer)
+        return;
+    m_client->torrentsAddTrackers(hash, urls)
+        ->then(this, [this, hash](const QbtResult<QByteArray> &result) {
+            reportActionResult(QStringLiteral("add tracker"), result);
+            if (!result.isError() && m_details->hash() == hash)
+                m_details->refreshNow();
+        });
+}
+
+void App::addPeers(const QString &hash, const QStringList &peers)
+{
+    if (hash.isEmpty() || peers.isEmpty() || demoGuard(QStringLiteral("add peers"), 1) ||
+        !m_hasServer)
+        return;
+    m_client->torrentsAddPeers(QStringList{hash}, peers)
+        ->then(this, [this, hash](const QbtResult<QByteArray> &result) {
+            reportActionResult(QStringLiteral("add peer"), result);
+            if (!result.isError() && m_details->hash() == hash)
+                m_details->refreshNow();
+        });
+}
+
+void App::banPeer(const QString &address)
+{
+    if (address.isEmpty() || demoGuard(QStringLiteral("ban peer"), 1) || !m_hasServer)
+        return;
+    m_client->transferBanPeers(QStringList{address})
+        ->then(this, [this](const QbtResult<QByteArray> &result) {
+            reportActionResult(QStringLiteral("ban"), result);
+            if (!result.isError())
+                m_details->refreshNow();
+        });
+}
+
+namespace {
+
+QVariantMap peerInputMap(const core::PeerInputResult &result)
+{
+    return QVariantMap{{QStringLiteral("entries"), result.entries},
+                       {QStringLiteral("invalid"), result.invalid}};
+}
+
+} // namespace
+
+QVariantMap App::checkTrackerUrls(const QString &text) const
+{
+    return peerInputMap(core::PeerInput::trackerUrls(text));
+}
+
+QVariantMap App::checkPeers(const QString &text) const
+{
+    return peerInputMap(core::PeerInput::peers(text));
 }
 
 void App::setCategory(const QStringList &hashes, const QString &name)
