@@ -116,7 +116,9 @@ void SyncEngine::start()
     m_running = true;
     m_lost = false;
     m_rid = 0;
-    m_hadFullUpdate = false;
+    // m_hadFullUpdate stays: a restart (retry after a refused login, a window-driven start)
+    // keeps the rows the next full update is compared against, so a download that finished
+    // meanwhile is still announced. setClient(), the server switch, clears both (REG-5).
     m_globalState->setSyncing(true);
     m_globalState->setRetryInSeconds(0);
     Q_EMIT runningChanged();

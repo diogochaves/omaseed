@@ -105,7 +105,8 @@ Q_SIGNALS:
     void visibleChanged();
     void lowDiskThresholdChanged();
 
-    /// The first full update has been applied.
+    /// The first full update for this client has been applied (once per setClient(), not
+    /// again after a stop() and start()).
     void firstSyncFinished();
     /// Every applied poll, full or partial.
     void synced(bool fullUpdate);
