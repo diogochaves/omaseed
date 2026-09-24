@@ -7,6 +7,8 @@ function(omaseed_add_test name)
 
     qt_add_executable(${name} ${arg_SOURCES})
     target_link_libraries(${name} PRIVATE omaseed::warnings Qt6::Test ${arg_LIBRARIES})
+    # tests/LiveServer.hpp: every live test's server URL, behind the :8080 guard.
+    target_include_directories(${name} PRIVATE "${PROJECT_SOURCE_DIR}/tests")
     if(arg_DEFINES)
         target_compile_definitions(${name} PRIVATE ${arg_DEFINES})
     endif()
@@ -40,4 +42,20 @@ if(NOT WIN32)
         LABELS "release"
         TIMEOUT 120
     )
+
+    # scripts/dev/home-guard.sh: every dev script refuses :8080 before it does anything.
+    # Starts no server and sends no request.
+    add_test(
+        NAME dev_home_guard
+        COMMAND bash "${CMAKE_SOURCE_DIR}/tests/dev/test_home_guard.sh"
+    )
+    set_tests_properties(dev_home_guard PROPERTIES TIMEOUT 60)
+
+    # data/hooks/theme-set.d/omaseed on a private bus: it must never D-Bus-activate omaseed
+    # or hold omarchy-theme-set up.
+    add_test(
+        NAME theme_set_hook
+        COMMAND bash "${CMAKE_SOURCE_DIR}/tests/dev/test_theme_hook.sh"
+    )
+    set_tests_properties(theme_set_hook PROPERTIES TIMEOUT 60 SKIP_RETURN_CODE 77)
 endif()

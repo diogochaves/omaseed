@@ -16,6 +16,8 @@
 #include "core/TorrentModel.hpp"
 #include "ui/app/App.hpp"
 
+#include "LiveServer.hpp"
+
 #include <QElapsedTimer>
 #include <QEventLoop>
 #include <QJsonArray>
@@ -41,11 +43,6 @@ namespace {
 
 const QString kFixtureOne = QStringLiteral("4a4e3b1d2d0c1a8d1e6a9f0b3c2d4e5f6a7b8c9d");
 const QString kFixtureTwo = QStringLiteral("b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0");
-
-QString env(const char *name)
-{
-    return QProcessEnvironment::systemEnvironment().value(QString::fromLatin1(name));
-}
 
 bool answers(const QUrl &url)
 {
@@ -139,8 +136,7 @@ QJsonObject TestAppActions::pollUntil(const QString &hash,
 
 void TestAppActions::initTestCase()
 {
-    m_playground = QUrl(env("QBT_TEST_URL").isEmpty() ? QStringLiteral("http://127.0.0.1:8081")
-                                                      : env("QBT_TEST_URL"));
+    m_playground = LiveServer::playground();
     if (!answers(m_playground))
         QSKIP("the :8081 playground does not answer: scripts/dev/test-server.sh start && "
               "scripts/dev/test-server.sh seed");

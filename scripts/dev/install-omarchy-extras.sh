@@ -37,6 +37,7 @@ hypr_dest="${HOME}/.config/hypr/omaseed.lua"
 menu_src="${data_dir}/omarchy-menu.jsonc"
 menu_dest="${HOME}/.config/omarchy/extensions/omarchy-menu.jsonc"
 menu_marker="\"torrents\":"
+menu_comment="omaseed T1.8 (scripts/dev/install-omarchy-extras.sh --menu)"
 
 mode="install"
 do_menu=0
@@ -45,7 +46,7 @@ for arg in "$@"; do
         --uninstall) mode="uninstall" ;;
         --menu) do_menu=1 ;;
         -h | --help)
-            sed -n '2,25p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+            sed -n '2,/^set -e/p' "${BASH_SOURCE[0]}" | sed '$d' | sed 's/^# \{0,1\}//'
             exit 0
             ;;
         *)
@@ -109,19 +110,31 @@ install_menu() {
     # inserted immediately before the closing brace is always valid trailing-comma JSONC.
     head -n -1 "${menu_dest}" > "${tmp}"
     {
-        echo "  // ---- omaseed T1.8 (scripts/dev/install-omarchy-extras.sh --menu) ----"
+        echo "  // ---- ${menu_comment} ----"
         echo "  ${row}"
         tail -n 1 "${menu_dest}"
     } >> "${tmp}"
-    mv "${tmp}" "${menu_dest}"
+    # Written through the existing file (not mv): its inode, mode and any symlink stay the
+    # user's; mktemp's 0600 would otherwise replace their permissions.
+    cat "${tmp}" > "${menu_dest}"
+    rm -f "${tmp}"
     echo "appended menu row to: ${menu_dest}"
 }
 
+# Removes the marker comment and the one row right after it (the row install_menu wrote),
+# nothing else: a "torrents" row the user added themselves elsewhere in the file stays.
 uninstall_menu() {
-    if [[ -f "${menu_dest}" ]] && grep -q "omaseed T1.8 (scripts/dev/install-omarchy-extras.sh --menu)" "${menu_dest}"; then
-        grep -v -e "omaseed T1.8 (scripts/dev/install-omarchy-extras.sh --menu)" -e "${menu_marker}" \
-            "${menu_dest}" > "${menu_dest}.tmp"
-        mv "${menu_dest}.tmp" "${menu_dest}"
+    if [[ -f "${menu_dest}" ]] && grep -qF "${menu_comment}" "${menu_dest}"; then
+        local tmp
+        tmp="$(mktemp)"
+        awk -v comment="${menu_comment}" -v marker="${menu_marker}" '
+            skip && index($0, marker) { skip = 0; next }
+            { skip = 0 }
+            index($0, comment) { skip = 1; next }
+            { print }
+        ' "${menu_dest}" > "${tmp}"
+        cat "${tmp}" > "${menu_dest}"
+        rm -f "${tmp}"
         echo "removed menu row from: ${menu_dest}"
     fi
 }

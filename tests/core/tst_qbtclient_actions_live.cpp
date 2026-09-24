@@ -8,6 +8,8 @@
 
 #include "core/QbtClient.hpp"
 
+#include "LiveServer.hpp"
+
 #include <QDir>
 #include <QElapsedTimer>
 #include <QEventLoop>
@@ -169,9 +171,7 @@ QbtResult<QByteArray> TestQbtClientActionsLive::reAddFile(const QString &hash,
 
 void TestQbtClientActionsLive::initTestCase()
 {
-    m_playground = QUrl(env("QBT_TEST_URL"));
-    if (m_playground.isEmpty())
-        QSKIP("QBT_TEST_URL is unset: source ~/.config/omaseed/dev.env");
+    m_playground = LiveServer::playground();
     if (!answers(m_playground))
         QSKIP("the playground does not answer: scripts/dev/test-server.sh start");
 

@@ -24,7 +24,8 @@ depends=(
     'qtkeychain-qt6'
     'hicolor-icon-theme'
 )
-makedepends=('cmake' 'ninja' 'librsvg')
+# git and rsync: prepare() copies the working tree with them (PKGBUILD downloads a tarball).
+makedepends=('cmake' 'ninja' 'librsvg' 'git' 'rsync')
 optdepends=(
     'qbittorrent-nox: local engine, if you want omaseed to manage one for you on first run'
     'xdg-desktop-portal: native file picker for choosing .torrent files and download folders'
@@ -46,10 +47,12 @@ prepare() {
     local root
     root="$(_repo_root)"
     rm -rf "$srcdir/$pkgname-$pkgver"
-    # Copy the working tree, excluding build artefacts and VCS metadata, so a dirty build/
-    # directory in the repo never leaks into the package source.
-    rsync -a --exclude='.git' --exclude='build*' --exclude='build-debug' \
-        "$root/" "$srcdir/$pkgname-$pkgver/"
+    # Copy the working tree as git sees it: tracked files plus new ones, nothing gitignored.
+    # That leaves out build*/, dist/, .local/ scratch and reference/, the GPL clones read for
+    # behaviour only, which must never sit inside this MIT package's sources.
+    git -C "$root" ls-files -z --cached --others --exclude-standard |
+        rsync -a --from0 --files-from=- --ignore-missing-args \
+            "$root/" "$srcdir/$pkgname-$pkgver/"
 }
 
 build() {

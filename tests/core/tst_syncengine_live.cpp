@@ -10,6 +10,8 @@
 #include "core/SyncEngine.hpp"
 #include "core/TorrentModel.hpp"
 
+#include "LiveServer.hpp"
+
 #include <QElapsedTimer>
 #include <QEventLoop>
 #include <QProcessEnvironment>
@@ -32,9 +34,7 @@ const char *kTestName = "omaseed-syncengine-live-fixture";
 
 QUrl playgroundUrl()
 {
-    const QString fromEnv =
-        QProcessEnvironment::systemEnvironment().value(QStringLiteral("QBT_TEST_URL"));
-    return QUrl(fromEnv.isEmpty() ? QStringLiteral("http://127.0.0.1:8081") : fromEnv);
+    return LiveServer::playground();
 }
 
 bool answers(const QUrl &url)
