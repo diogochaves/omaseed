@@ -178,7 +178,21 @@ void TestQbtClientActionsLive::initTestCase()
     m_client = std::make_unique<QbtClient>();
     m_client->setBaseUrl(m_playground);
 
-    m_downloadsRoot = QDir::homePath() + QStringLiteral("/.local/share/omaseed-test/downloads");
+    // The server's default save path, not one built from this process's HOME: the server
+    // creates these directories, and it need not share a HOME with the test (an omabox box,
+    // another user, a remote playground). Only the fallback matches test-server.sh.
+    const QbtResult<QJsonObject> prefs = await(this, m_client->appPreferences());
+    if (!prefs.isError())
+        m_downloadsRoot = prefs.value().value(QStringLiteral("save_path")).toString();
+    while (m_downloadsRoot.size() > 1 && m_downloadsRoot.endsWith(QLatin1Char('/')))
+        m_downloadsRoot.chop(1);
+    if (m_downloadsRoot.isEmpty()) {
+        const QString profile = env("OMASEED_TEST_PROFILE");
+        m_downloadsRoot = (profile.isEmpty()
+                               ? QDir::homePath() + QStringLiteral("/.local/share/omaseed-test")
+                               : profile)
+                          + QStringLiteral("/downloads");
+    }
 }
 
 void TestQbtClientActionsLive::cleanupTestCase()

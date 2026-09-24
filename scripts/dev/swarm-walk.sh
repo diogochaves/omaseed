@@ -61,9 +61,7 @@ launch() {
 }
 
 # show NAME TAB: put the cursor on NAME (the jump palette) and open details tab TAB (1-4).
-# NAME is typed, so keep it ASCII: the box's keyboard cannot type every character.
-# Only the first `omabox keys` call after the app starts reaches it (omabox finding 41(a),
-# which hits app windows too), so each step restarts the app and sends its keys in one call.
+# Each step restarts the app so it starts from the same state whatever the last step did.
 show() {
     launch
     omabox keys -b "$BOX" ctrl+k -t "$1" Return l "$2" >/dev/null
