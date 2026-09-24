@@ -223,6 +223,8 @@ Item {
 
         readonly property int padding: Theme.space(18)
 
+        Accessible.name: root.message
+        Accessible.role: Accessible.AlertMessage
         border.color: Theme.accent
         border.width: 1
         color: Theme.background

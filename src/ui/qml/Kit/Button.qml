@@ -49,7 +49,8 @@ Rectangle {
                                                                                  Theme.borderIdle) :
                                                                              "transparent"
 
-    Accessible.name: root.text.length > 0 ? root.text : root.glyph
+    Accessible.name: root.text.length > 0 ? root.text : root.glyph.startsWith("icon:") ? ""
+                                                                                     : root.glyph
     Accessible.role: Accessible.Button
 
     activeFocusOnTab: root.enabled

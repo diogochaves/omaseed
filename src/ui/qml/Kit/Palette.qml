@@ -339,6 +339,8 @@ Item {
                         TextInput {
                             id: input
 
+                            Accessible.name: root.title
+                            Accessible.role: Accessible.EditableText
                             anchors.left: parent.left
                             anchors.right: parent.right
                             anchors.verticalCenter: parent.verticalCenter
@@ -387,6 +389,7 @@ Item {
             ListView {
                 id: list
 
+                Accessible.role: Accessible.List
                 Layout.fillWidth: true
                 Layout.preferredHeight: Math.min(contentHeight, Theme.space(360))
                 boundsBehavior: Flickable.StopAtBounds
@@ -401,6 +404,9 @@ Item {
 
                     readonly property bool current: row.index === root.cursorIndex
 
+                    Accessible.name: row.modelData.title ?? ""
+                    Accessible.role: Accessible.ListItem
+                    Accessible.selected: row.current
                     color: row.current ? Theme.fill(Theme.fillHover) : "transparent"
                     height: rowColumn.implicitHeight + 2 * Theme.space(6)
                     width: ListView.view.width

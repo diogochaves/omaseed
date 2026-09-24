@@ -96,7 +96,7 @@ TestCase {
         id: hostComponent
 
         Item {
-            property alias palette: hostedPalette
+            property alias hosted: hostedPalette
             property var seen: []
 
             anchors.fill: parent
@@ -532,15 +532,15 @@ TestCase {
     // except ctrl+q.
     function test_keys_the_palette_does_not_use_stop_at_it() {
         const host = createTemporaryObject(hostComponent, testCase);
-        host.palette.open();
+        host.hosted.open();
 
         keyClick(Qt.Key_F5);
         compare(host.seen.length, 0, "a key reached the view behind the palette");
-        compare(host.palette.opened, true);
+        compare(host.hosted.opened, true);
 
         keyClick(Qt.Key_Q, Qt.ControlModifier);
         compare(host.seen, [Qt.Key_Q], "ctrl+q did not go on");
-        host.palette.close();
+        host.hosted.close();
     }
 
     // ---- inline (the gallery) ---------------------------------------------------------

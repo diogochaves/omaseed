@@ -40,7 +40,9 @@ Rectangle {
                                                                                  Theme.borderIdle) :
                                                                              "transparent"
 
-    Accessible.name: root.tooltip.length > 0 ? root.tooltip : root.glyph
+    // An SVG glyph ("icon:gear") is no name to read out.
+    Accessible.name: root.tooltip.length > 0 ? root.tooltip : root.glyph.startsWith("icon:") ? ""
+                                                                                         : root.glyph
     Accessible.role: Accessible.Button
 
     activeFocusOnTab: root.enabled

@@ -56,6 +56,8 @@ Row {
 
             required property var modelData
 
+            Accessible.name: actionText.modelData.label
+            Accessible.role: Accessible.Link
             anchors.verticalCenter: parent.verticalCenter
             color: Theme.accent
             font.family: Theme.fontFamily

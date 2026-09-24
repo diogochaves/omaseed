@@ -337,6 +337,8 @@ Item {
 
         readonly property int padding: Theme.space(16)
 
+        Accessible.name: root.title
+        Accessible.role: Accessible.Dialog
         border.color: Theme.accent
         border.width: 1
         color: Theme.background

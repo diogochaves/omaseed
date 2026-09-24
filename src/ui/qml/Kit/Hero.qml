@@ -96,9 +96,10 @@ Item {
     function _chipsWidth(folded: bool): real {
         let width = 0;
         for (let i = 0; i < chipMeasure.count; ++i) {
+            // Each copy holds the whole chip (child 0) and the folded one (child 1).
             const measured = chipMeasure.itemAt(i);
             if (measured)
-                width += (folded ? measured.foldedWidth : measured.fullWidth) + heroRow.spacing;
+                width += measured.children[folded ? 1 : 0].implicitWidth + heroRow.spacing;
         }
         return width;
     }
@@ -470,9 +471,6 @@ Item {
             id: measured
 
             required property var modelData
-
-            readonly property real foldedWidth: foldedChip.implicitWidth
-            readonly property real fullWidth: fullChip.implicitWidth
 
             visible: false
 

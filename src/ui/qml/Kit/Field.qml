@@ -106,6 +106,8 @@ Rectangle {
     TextInput {
         id: input
 
+        Accessible.name: root.placeholder
+        Accessible.role: Accessible.EditableText
         anchors.left: hintText.visible ? hintText.right : parent.left
         anchors.leftMargin: hintText.visible ? Theme.space(6) : Theme.space(10)
         anchors.right: trailingText.visible ? trailingText.left : trailingCap.visible

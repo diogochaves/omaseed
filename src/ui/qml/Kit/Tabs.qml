@@ -42,6 +42,9 @@ Item {
                 readonly property bool current: tab.index === root.currentIndex
                 readonly property bool hot: tab.current || mouseArea.containsMouse
 
+                Accessible.name: tab.modelData.text
+                Accessible.role: Accessible.PageTab
+                Accessible.selected: tab.current
                 height: root._tabHeight
                 implicitWidth: content.implicitWidth + Theme.space(16)
 

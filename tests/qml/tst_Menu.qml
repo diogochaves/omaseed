@@ -266,6 +266,18 @@ TestCase {
         compare(menu.opened, false, "esc no longer reached the menu");
     }
 
+    // KIT-13: a screen reader hears a popup menu of named items.
+    function test_the_rows_are_named_menu_items() {
+        const menu = createTemporaryObject(menuComponent, testCase);
+        menu.open();
+        compare(menu.panel.Accessible.role, Accessible.PopupMenu);
+        const rows = menu.panel.children[0].children;
+        compare(rows[0].Accessible.role, Accessible.MenuItem);
+        compare(rows[0].Accessible.name, "start");
+        compare(rows[2].Accessible.role, Accessible.Separator);
+        menu.close();
+    }
+
     // KIT-6: an open menu is modal — what it does not use stops at it, except ctrl+q.
     function test_keys_the_menu_does_not_use_stop_at_it() {
         const host = createTemporaryObject(hostComponent, testCase);

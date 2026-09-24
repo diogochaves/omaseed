@@ -196,6 +196,7 @@ Item {
 
         readonly property int padding: Theme.space(6)
 
+        Accessible.role: Accessible.PopupMenu
         border.color: Theme.accent
         border.width: 1
         color: Theme.background
@@ -230,6 +231,8 @@ Item {
                     readonly property bool disabled: menuRow.modelData.disabled === true
                     readonly property bool separator: menuRow.modelData.separator === true
 
+                    Accessible.name: menuRow.modelData.text ?? ""
+                    Accessible.role: menuRow.separator ? Accessible.Separator : Accessible.MenuItem
                     Layout.fillWidth: true
                     Layout.preferredHeight: menuRow.separator ? 2 * Theme.space(4) + 1
                             : Theme.railRowHeight
