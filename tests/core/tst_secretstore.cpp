@@ -26,6 +26,13 @@ struct JobResult
     QString error;
 };
 
+/// The two tests that talk to the desktop's real login keyring (a locked one raises an
+/// unlock prompt on the real desktop, review OPS-18) run only when asked for.
+bool realKeyringAllowed()
+{
+    return qEnvironmentVariable("OMASEED_TEST_KEYRING") == QLatin1String("1");
+}
+
 JobResult run(SecretStore::Job *job)
 {
     JobResult result;
@@ -63,6 +70,7 @@ private slots:
     void keychainBackendRoundTrips();
 
     void probeResolvesAsynchronously();
+    void probeAndQueueKeepOrderWithoutTheRealKeyring();
     void probeTimeoutFallsBackToFile();
     void probeRunnerDecidesTheBackend();
 
@@ -236,6 +244,8 @@ void TestSecretStore::forcedFileBackendSkipsProbe()
 
 void TestSecretStore::keychainBackendRoundTrips()
 {
+    if (!realKeyringAllowed())
+        QSKIP("touches the real login keyring; set OMASEED_TEST_KEYRING=1 to run it");
     if (!QKeychain::isAvailable())
         QSKIP("no libsecret/keychain backend available on this machine (QKeychain::isAvailable() "
               "== false)");
@@ -269,6 +279,9 @@ void TestSecretStore::probeResolvesAsynchronously()
     // decision must arrive through the signal without anyone blocking, and a read queued
     // right behind a write must see the written value (the T4.5 regression: the probe and
     // the write are both asynchronous now, and the queue is the only thing keeping order).
+    // probeAndQueueKeepOrderWithoutTheRealKeyring checks the same order on every run.
+    if (!realKeyringAllowed())
+        QSKIP("touches the real login keyring; set OMASEED_TEST_KEYRING=1 to run it");
     SecretStore store(QStringLiteral("io.github.diogochaves.omaseed-test"));
     QSignalSpy resolved(&store, &SecretStore::backendResolved);
 
@@ -515,6 +528,49 @@ void TestSecretStore::aCorruptFileIsNotRewritten()
     QFile file(dir + QStringLiteral("/c.json"));
     QVERIFY(file.open(QIODevice::ReadOnly));
     QCOMPARE(file.readAll(), garbage);
+}
+
+void TestSecretStore::probeAndQueueKeepOrderWithoutTheRealKeyring()
+{
+    // probeResolvesAsynchronously's T4.5 regression, against an in-memory keychain and a
+    // probe that answers on a later tick: the probe, a write and a read queued behind it all
+    // wait, then run in order, and the read sees the write.
+    FakeKeychain keychain;
+    SecretStore store(QStringLiteral("io.github.diogochaves.omaseed-test"));
+    store.setKeychainHooks(keychain.hooks());
+    store.setProbeRunner([](std::function<void(bool)> done) {
+        QTimer::singleShot(10, [done = std::move(done)]() { done(true); });
+    });
+    QSignalSpy resolved(&store, &SecretStore::backendResolved);
+
+    QCOMPARE(store.backend(), std::nullopt);
+    QCOMPARE(store.backendName(), QStringLiteral("detecting"));
+
+    const QString serverId = QStringLiteral("probe-server-1");
+    SecretStore::Job *write =
+        store.setSecret(serverId, SecretStore::Kind::ApiKey, QStringLiteral("pr0be-s3cr3t"));
+    QSignalSpy writeFinished(write, &SecretStore::Job::finished);
+    SecretStore::Job *read = store.secret(serverId, SecretStore::Kind::ApiKey);
+    QSignalSpy readFinished(read, &SecretStore::Job::finished);
+    QCOMPARE(resolved.count(), 0);
+    QCOMPARE(writeFinished.count(), 0);
+    QVERIFY(keychain.entries.isEmpty());
+
+    QTRY_COMPARE_WITH_TIMEOUT(resolved.count(), 1, 2000);
+    QCOMPARE(resolved.at(0).at(0).value<SecretStore::Backend>(), SecretStore::Backend::Keychain);
+    QCOMPARE(store.backendName(), QStringLiteral("libsecret"));
+
+    QTRY_COMPARE_WITH_TIMEOUT(readFinished.count(), 1, 2000);
+    QCOMPARE(writeFinished.count(), 1);
+    QVERIFY(writeFinished.at(0).at(0).toBool());
+    QVERIFY(readFinished.at(0).at(0).toBool());
+    QCOMPARE(readFinished.at(0).at(1).toString(), QStringLiteral("pr0be-s3cr3t"));
+    QCOMPARE(keychain.entries.size(), 1);
+
+    JobResult remove = run(store.removeSecret(serverId, SecretStore::Kind::ApiKey));
+    QVERIFY(remove.ok);
+    QVERIFY(keychain.entries.isEmpty());
+    QCOMPARE(resolved.count(), 1);
 }
 
 QTEST_GUILESS_MAIN(TestSecretStore)
