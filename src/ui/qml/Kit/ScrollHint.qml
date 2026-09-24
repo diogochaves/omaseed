@@ -191,14 +191,25 @@ Item {
             color: Theme.fill(Theme.hairlineAlpha)
         }
 
+        // The thumb, with `Kit/ScrollBar`'s maths (KIT-12): read from the geometry, since
+        // `visibleArea` only catches up on the next viewport move, and moved over the travel
+        // the thumb leaves, so it reaches the bottom exactly when the list does even while its
+        // minimum length is in play.
         Rectangle {
+            id: thumb
+
+            readonly property real range: root.flickable === null ? 0
+                    : root.flickable.contentHeight - root.flickable.height
+            readonly property real ratio: root.flickable === null || root.flickable.contentHeight <= 0
+                    ? 1 : Math.min(1, root.flickable.height / root.flickable.contentHeight)
+
             color: Theme.fill(Theme.borderIdle)
-            height: root.flickable === null ? 0 : Math.max(Theme.space(16), parent.height
-                                                           * root.flickable.visibleArea.heightRatio)
+            height: Math.min(parent.height, Math.max(Theme.space(16), parent.height * thumb.ratio))
+            objectName: "scrollThumb"
             width: parent.width
-            y: root.flickable === null ? 0 : Math.max(0, Math.min(parent.height - height,
-                                                                  root.flickable.visibleArea.yPosition
-                                                                  * parent.height))
+            y: thumb.range <= 0 ? 0 : Math.max(0, Math.min(parent.height - height,
+                    (root.flickable.contentY - root.flickable.originY) / thumb.range
+                    * (parent.height - height)))
         }
     }
 }
