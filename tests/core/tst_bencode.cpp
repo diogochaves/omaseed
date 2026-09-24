@@ -1,6 +1,9 @@
 #include "core/Bencode.hpp"
 
+#include <QRandomGenerator>
 #include <QTest>
+
+#include <iterator>
 
 using namespace omaseed::core::bencode;
 
@@ -27,6 +30,10 @@ private slots:
     void encodeSortsDictKeysByByteValue();
     void roundTripsThroughEncodeDecode();
     void recordsTopLevelSpans();
+    void rejectsHugeStringLength_data();
+    void rejectsHugeStringLength();
+    void rejectsDuplicateDictKeys();
+    void survivesMutatedInput();
 };
 
 void TestBencode::decodesIntegers_data()
@@ -214,6 +221,93 @@ void TestBencode::recordsTopLevelSpans()
     QVERIFY(!infoError.hasError);
     QCOMPARE(infoValue.value("name").toString(), QByteArrayLiteral("spam"));
     QCOMPARE(root.value("info").value("name").toString(), QByteArrayLiteral("spam"));
+}
+
+void TestBencode::rejectsHugeStringLength_data()
+{
+    QTest::addColumn<QByteArray>("data");
+    QTest::newRow("list, max qint64") << QByteArrayLiteral("l9223372036854775807:xe");
+    QTest::newRow("dict key, near max") << QByteArrayLiteral("d9223372036854775800:xe");
+    QTest::newRow("dict value") << QByteArrayLiteral("d1:a9223372036854775807:xe");
+    QTest::newRow("top level") << QByteArrayLiteral("9223372036854775807:x");
+    QTest::newRow("past qint64") << QByteArrayLiteral("l99999999999999999999:xe");
+    QTest::newRow("one byte short") << QByteArrayLiteral("l3:xye");
+}
+
+void TestBencode::rejectsHugeStringLength()
+{
+    QFETCH(QByteArray, data);
+    ParseError error;
+    SpanMap spans;
+    decode(data, &error, &spans);
+    QVERIFY(error.hasError);
+}
+
+void TestBencode::rejectsDuplicateDictKeys()
+{
+    ParseError error;
+    SpanMap spans;
+    decode(QByteArrayLiteral("d4:infod1:ai1ee4:infod1:ai2eee"), &error, &spans);
+    QVERIFY(error.hasError);
+
+    ParseError nestedError;
+    decode(QByteArrayLiteral("d1:xd1:ai1e1:ai2eee"), &nestedError);
+    QVERIFY(nestedError.hasError);
+}
+
+// A cheap fuzz pass: every truncation of a realistic torrent, and a few thousand seeded
+// random byte flips, digit-run insertions and length rewrites. Nothing may crash or assert;
+// the parser either decodes or reports an error.
+void TestBencode::survivesMutatedInput()
+{
+    const QByteArray seed = QByteArrayLiteral(
+        "d8:announce19:http://t.example/an4:infod5:filesld6:lengthi5e4:pathl1:aeed6:lengthi7e4:"
+        "pathl1:b1:ceee4:name4:demo12:piece lengthi16384e6:pieces20:01234567890123456789ee");
+    ParseError seedError;
+    decode(seed, &seedError);
+    QVERIFY(!seedError.hasError);
+
+    for (qsizetype n = 0; n <= seed.size(); ++n) {
+        ParseError error;
+        SpanMap spans;
+        decode(seed.left(n), &error, &spans);
+    }
+
+    QRandomGenerator rng(0x5eed);
+    static const char alphabet[] = "0123456789:ilde-";
+    const QByteArray bigDigits[] = {QByteArrayLiteral("9223372036854775807"),
+                                    QByteArrayLiteral("9223372036854775808"),
+                                    QByteArrayLiteral("18446744073709551615"),
+                                    QByteArrayLiteral("4294967296"),
+                                    QByteArrayLiteral("2147483647")};
+    for (int round = 0; round < 5000; ++round) {
+        QByteArray data = seed;
+        const int edits = 1 + int(rng.bounded(4));
+        for (int e = 0; e < edits && !data.isEmpty(); ++e) {
+            const qsizetype at = rng.bounded(int(data.size()));
+            switch (rng.bounded(4)) {
+            case 0:
+                data[at] = alphabet[rng.bounded(int(sizeof(alphabet) - 1))];
+                break;
+            case 1:
+                data.insert(at, bigDigits[rng.bounded(int(std::size(bigDigits)))]);
+                break;
+            case 2:
+                data.remove(at, 1 + rng.bounded(8));
+                break;
+            default:
+                data[at] = char(rng.bounded(256));
+                break;
+            }
+        }
+        ParseError error;
+        SpanMap spans;
+        const Value value = decode(data, &error, &spans);
+        if (!error.hasError) {
+            // Whatever decodes must also re-encode without trouble.
+            (void)encode(value);
+        }
+    }
 }
 
 QTEST_APPLESS_MAIN(TestBencode)
