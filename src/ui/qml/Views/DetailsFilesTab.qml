@@ -541,9 +541,10 @@ Item {
                         anchors.right: parent.right
                         anchors.rightMargin: doneText.width + Theme.space(6)
                         anchors.verticalCenter: parent.verticalCenter
-                        // Complete in the seeding colour, from where the percent reads
-                        // "100 %" (a folder of 3.9 GB is never exactly 1 with 18 KB skipped).
-                        color: row.progress >= 0.99995 ? Theme.stateSeeding : Theme.accent
+                        // Complete in the seeding colour, where the percent reads "100 %":
+                        // exactly 1, as Format::percentCompact has it (a folder's progress
+                        // leaves out what it skips, so a folder that is done is exactly 1).
+                        color: row.progress >= 1 ? Theme.stateSeeding : Theme.accent
                         showText: false
                         value: row.progress
                         visible: !root.compact
