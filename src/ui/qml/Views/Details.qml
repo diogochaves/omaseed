@@ -587,8 +587,11 @@ Item {
         anchors.left: parent.left
         anchors.leftMargin: Theme.space(16)
         anchors.top: parent.top
-        width: (root.wide ? root.width - root.bandStripWidth : root.width) - Theme.space(32)
+        // Never negative: at the window's narrowest a negative width let the texts draw
+        // unclipped over the rail (review RUN-6).
+        width: Math.max(0, (root.wide ? root.width - root.bandStripWidth : root.width) - Theme.space(32))
         height: headColumn.implicitHeight + Theme.space(12) + Theme.space(8)
+        clip: true
 
         Column {
             id: headColumn
@@ -627,6 +630,11 @@ Item {
                 }
                 readonly property string added: root.torrent && root.torrent.addedOnText
                                                 ? root.torrent.addedOnText : ""
+                /// The labels show only while a few characters of them fit next to the date;
+                /// below that they go, and the ` · ` that joined them to the date goes too.
+                readonly property bool labelsFit: metaLine.labels.length > 0
+                                                  && metaLine.width - joinedMetrics.advanceWidth
+                                                  >= Theme.space(40)
 
                 height: addedText.implicitHeight
                 width: parent.width
@@ -640,7 +648,21 @@ Item {
                     font.pixelSize: Theme.font.small
                     objectName: "headLabels"
                     text: !root.torrent ? qsTr("pick a row in the table") : metaLine.labels
-                    width: Math.min(implicitWidth, metaLine.width - addedText.implicitWidth)
+                    visible: !root.torrent || metaLine.labelsFit
+                    width: !visible ? 0 : !root.torrent ? Math.min(implicitWidth, metaLine.width)
+                                                        : Math.max(0, Math.min(implicitWidth,
+                                                                               metaLine.width - Math.ceil(
+                                                                                   joinedMetrics.advanceWidth)))
+                }
+
+                // The date with its separator, measured apart from `addedText` (whose text
+                // depends on whether the labels fit, which depends on this width).
+                TextMetrics {
+                    id: joinedMetrics
+
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.font.small
+                    text: metaLine.added.length > 0 ? " · " + metaLine.added : ""
                 }
 
                 Text {
@@ -648,13 +670,16 @@ Item {
 
                     anchors.left: labelsText.right
                     color: Theme.dimForeground
+                    elide: Text.ElideRight
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.font.small
                     objectName: "headAdded"
-                    // The separator travels with the date, so it survives the labels' cut.
-                    text: !root.torrent || metaLine.added.length === 0 ? "" : metaLine.labels.length
-                                                                             > 0 ? " · " + metaLine.added
-                                                                                 : metaLine.added
+                    // The separator travels with the date, so it survives the labels' cut,
+                    // and leaves with the labels when they no longer fit at all.
+                    text: !root.torrent || metaLine.added.length === 0 ? "" : metaLine.labelsFit
+                                                                             ? " · " + metaLine.added
+                                                                             : metaLine.added
+                    width: Math.min(implicitWidth, metaLine.width - labelsText.width)
                 }
             }
         }

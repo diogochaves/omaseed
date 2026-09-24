@@ -866,6 +866,39 @@ TestCase {
         verify(added.x + added.width <= view.width);
     }
 
+    // Review RUN-6: narrower still, the labels go with their ` · `, and nothing draws past
+    // the head, even where the head has no room at all.
+    function test_the_head_drops_the_labels_and_their_separator_when_they_cannot_show() {
+        const view = testCase.select(testCase.bbbName);
+        const labels = findChild(view, "headLabels");
+        const added = findChild(view, "headAdded");
+        view.width = Theme.space(32) + added.implicitWidth + Theme.space(10);
+        verify(!labels.visible, "a sliver of the labels is still drawn");
+        verify(!added.text.startsWith(" · "), "the separator stayed without its labels");
+        verify(added.x + added.width <= view.width);
+
+        view.width = Theme.space(20);
+        verify(added.width <= 0 || added.x + added.width <= view.width, "the date drew past the pane");
+    }
+
+    TextMetrics {
+        id: sizeSample
+
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.font.small
+        text: "999.9 MB"
+    }
+
+    // Review RUN-6: the Size column holds a whole size in the font on screen, whatever the
+    // spacing scale, so the unit is never cut.
+    function test_the_size_column_holds_a_whole_size() {
+        const view = testCase.filesView();
+        wait(0);
+        const header = findChild(view, "fileHeader_size");
+        verify(header.width >= Math.ceil(sizeSample.advanceWidth),
+               header.width + " < " + sizeSample.advanceWidth);
+    }
+
     // docs/11 J2: every header starts where its column's text does.
     function test_file_headers_line_up_with_the_rows() {
         const view = testCase.filesView();

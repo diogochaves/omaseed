@@ -73,13 +73,53 @@ Item {
 
     // The spec's `.files { grid-template-columns: 1fr 70px 56px 72px }`, trimmed to fit the
     // real docked column (spec §2's Fig. 2 is a 400 px mock). Each fixed column holds its
-    // widest value ("81.4 GB", "100 %", "maximal", "3860–3911").
-    readonly property int sizeWidth: Theme.space(60)
-    readonly property int doneWidth: root.compact ? Theme.space(46) : Theme.space(86)
-    readonly property int priorityWidth: Theme.space(58)
-    readonly property int remainingWidth: Theme.space(60)
+    // widest value ("81.4 GB", "100 %", "maximal", "3860–3911"). The spacing scale need not
+    // follow the font (shell.toml), so each is also at least its widest value as measured in
+    // the font on screen: at base 18 a fixed 60 u cut "84.0 MB" to "84.0 …" (review RUN-6).
+    readonly property int sizeWidth: Math.max(Theme.space(60), root._measured(sizeMetrics))
+    readonly property int doneTextWidth: Math.max(Theme.space(40), root._measured(doneMetrics))
+    readonly property int doneWidth: root.compact ? Math.max(Theme.space(46), root.doneTextWidth + Theme.space(6))
+                                                  : Math.max(Theme.space(86), root.doneTextWidth + Theme.space(46))
+    readonly property int priorityWidth: Math.max(Theme.space(58), root._measured(priorityMetrics))
+    readonly property int remainingWidth: root.sizeWidth
     readonly property int availabilityWidth: Theme.space(50)
-    readonly property int piecesWidth: Theme.space(78)
+    readonly property int piecesWidth: Math.max(Theme.space(78), root._measured(piecesMetrics))
+
+    function _measured(metrics: TextMetrics): int {
+        return Math.ceil(metrics.advanceWidth) + 1;
+    }
+
+    TextMetrics {
+        id: sizeMetrics
+
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.font.small
+        text: "999.9 MB"
+    }
+
+    TextMetrics {
+        id: doneMetrics
+
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.font.small
+        text: "100 %"
+    }
+
+    TextMetrics {
+        id: priorityMetrics
+
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.font.small
+        text: "maximal"
+    }
+
+    TextMetrics {
+        id: piecesMetrics
+
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.font.small
+        text: "3860–3911"
+    }
 
     /// Dragged narrower than the default: the progress line goes, its percent stays.
     readonly property bool compact: root.width < Theme.space(360)
@@ -519,7 +559,7 @@ Item {
                         font.pixelSize: Theme.font.small
                         horizontalAlignment: Text.AlignRight
                         text: row.progressText
-                        width: Theme.space(40)
+                        width: root.doneTextWidth
                     }
                 }
 
