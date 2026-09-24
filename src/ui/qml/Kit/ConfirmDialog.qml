@@ -14,6 +14,10 @@ import Omaseed.Kit
 // kit's accent-outlined primary.
 //
 // `inline: true` drops the scrim and the centring, for the gallery.
+//
+// Do NOT run `qmlformat` on this file: with the project's 100-column wrap it re-indents the
+// typed functions further on every pass (the defect MainView.qml and TorrentTable.qml note).
+// It is hand-formatted to qmlformat's own style instead.
 Item {
     id: root
 
@@ -48,73 +52,73 @@ Item {
 
     /// Show it, remembering the focus and putting the cursor where the kind of question says.
     function open(): void {
-    if (root._opened)
-    return;
-    root._previousFocus = root.Window.activeFocusItem;
-    root.cursor = root.destructive ? 0 : 1;
-    root._opened = true;
-    root.forceActiveFocus();
-}
+        if (root._opened)
+            return;
+        root._previousFocus = root.Window.activeFocusItem;
+        root.cursor = root.destructive ? 0 : 1;
+        root._opened = true;
+        root.forceActiveFocus();
+    }
 
     function close(): void {
-                          if (!root._opened)
-                          return;
-                          root._opened = false;
-                          const previous = root._previousFocus;
-                          root._previousFocus = null;
-                          if (previous)
-                          previous.forceActiveFocus();
-                      }
+        if (!root._opened)
+            return;
+        root._opened = false;
+        const previous = root._previousFocus;
+        root._previousFocus = null;
+        if (previous)
+            previous.forceActiveFocus();
+    }
 
     /// Move the cursor between the two buttons; it does not wrap (there are only two).
     function moveCursor(delta: int): void {
-    root.cursor = Math.max(0, Math.min(1, root.cursor + delta));
-}
+        root.cursor = Math.max(0, Math.min(1, root.cursor + delta));
+    }
 
     /// Run the button under the cursor.
     function activate(): void {
-                             if (root.cursor === 1)
-                             root.confirm();
-                             else
-                             root.cancel();
-                         }
+        if (root.cursor === 1)
+            root.confirm();
+        else
+            root.cancel();
+    }
 
     function confirm(): void {
-    root.close();
-    root.accepted();
-}
+        root.close();
+        root.accepted();
+    }
 
     function cancel(): void {
-                           root.close();
-                           root.rejected();
-                       }
+        root.close();
+        root.rejected();
+    }
 
     function _onKey(event: var): void {
-    switch (event.key) {
+        switch (event.key) {
         case Qt.Key_Escape:
             root.cancel();
-        break;
+            break;
         case Qt.Key_H:
-            case Qt.Key_Left:
-            case Qt.Key_Backtab:
+        case Qt.Key_Left:
+        case Qt.Key_Backtab:
             root.moveCursor(-1);
-        break;
+            break;
         case Qt.Key_L:
-            case Qt.Key_Right:
+        case Qt.Key_Right:
             root.moveCursor(1);
-        break;
+            break;
         case Qt.Key_Tab:
             root.moveCursor((event.modifiers & Qt.ShiftModifier) ? -1 : 1);
-        break;
+            break;
         case Qt.Key_Return:
-            case Qt.Key_Enter:
+        case Qt.Key_Enter:
             root.activate();
-        break;
+            break;
         default:
-        return;
+            return;
+        }
+        event.accepted = true;
     }
-    event.accepted = true;
-}
 
     implicitHeight: panel.implicitHeight
     implicitWidth: Theme.space(370)
@@ -139,8 +143,8 @@ Item {
         color: Theme.background
         implicitHeight: layout.implicitHeight + 2 * panel.padding
         radius: Theme.cornerRadius
-        width: Math.min(Theme.space(370), root.inline ? Theme.space(370) : Math.max(0, root.width
-                                                                                    - 2 * root._margin))
+        width: Math.min(Theme.space(370), root.inline ? Theme.space(370)
+                : Math.max(0, root.width - 2 * root._margin))
         x: root.inline ? 0 : Math.round((root.width - width) / 2)
         y: root.inline ? 0 : Math.round((root.height - height) / 2)
 
