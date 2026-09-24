@@ -1,9 +1,12 @@
 #include "core/ServerDetector.hpp"
 
+#include <QPointer>
 #include <QProcess>
 #include <QRegularExpression>
 #include <QTcpSocket>
 #include <QTimer>
+
+#include <memory>
 
 namespace omaseed::core {
 
@@ -33,6 +36,51 @@ void ServerDetector::setProbeTimeoutMs(int ms)
     m_probeTimeoutMs = ms;
 }
 
+void ServerDetector::setCommandTimeoutMs(int ms)
+{
+    m_commandTimeoutMs = ms;
+}
+
+void ServerDetector::runCommand(QProcess *process,
+                                const QString &program,
+                                const QStringList &arguments,
+                                std::function<void(QProcess *)> onFinished,
+                                bool *done)
+{
+    // One way out per run, whichever comes first: finished, an error, or the timeout (a
+    // `docker ps` against a wedged daemon never returns). Settling disconnects the process
+    // from us, so a later signal from it (finished after errorOccurred, say) cannot count
+    // twice, and hands it to deleteLater so repeated start() calls do not pile them up.
+    QPointer<QProcess> guard(process);
+    auto settled = std::make_shared<bool>(false);
+    auto settle = [this, guard, done, settled](bool kill) {
+        if (*settled || guard.isNull())
+            return;
+        *settled = true;
+        disconnect(guard, nullptr, this, nullptr);
+        if (kill && guard->state() != QProcess::NotRunning)
+            guard->kill();
+        guard->deleteLater();
+        *done = true;
+        maybeFinish();
+    };
+
+    connect(process,
+            &QProcess::finished,
+            this,
+            [process, onFinished, settle](int exitCode, QProcess::ExitStatus status) {
+                if (status == QProcess::NormalExit && exitCode == 0)
+                    onFinished(process);
+                settle(false);
+            });
+    connect(process, &QProcess::errorOccurred, this, [settle](QProcess::ProcessError) {
+        settle(true);
+    });
+    QTimer::singleShot(m_commandTimeoutMs, this, [settle]() { settle(true); });
+
+    process->start(program, arguments);
+}
+
 void ServerDetector::start()
 {
     m_finished = false;
@@ -55,6 +103,9 @@ void ServerDetector::startPortProbe()
 
     connect(m_socket, &QTcpSocket::connected, this, [this]() {
         m_portFound = true;
+        // The errorOccurred handler below must not undo the find if the peer closes
+        // before deleteLater has run.
+        disconnect(m_socket, nullptr, this, nullptr);
         m_socket->disconnectFromHost();
         m_socket->deleteLater();
         m_socket = nullptr;
@@ -90,9 +141,14 @@ void ServerDetector::startPortProbe()
 void ServerDetector::startDockerProbe()
 {
     m_dockerProcess = new QProcess(this);
-    connect(m_dockerProcess, &QProcess::finished, this, [this](int exitCode, QProcess::ExitStatus) {
-        if (exitCode == 0) {
-            const QString output = QString::fromUtf8(m_dockerProcess->readAllStandardOutput());
+    runCommand(
+        m_dockerProcess,
+        m_dockerCommand,
+        {QStringLiteral("ps"),
+         QStringLiteral("--format"),
+         QStringLiteral("{{.Names}} {{.Image}} {{.Ports}}")},
+        [this](QProcess *process) {
+            const QString output = QString::fromUtf8(process->readAllStandardOutput());
             const auto lines = output.split(QLatin1Char('\n'), Qt::SkipEmptyParts);
             for (const QString &line : lines) {
                 const QStringList parts = line.split(QLatin1Char(' '), Qt::SkipEmptyParts);
@@ -114,43 +170,29 @@ void ServerDetector::startDockerProbe()
                     break;
                 }
             }
-        }
-        m_dockerDone = true;
-        maybeFinish();
-    });
-    connect(m_dockerProcess, &QProcess::errorOccurred, this, [this](QProcess::ProcessError) {
-        m_dockerDone = true;
-        maybeFinish();
-    });
-
-    m_dockerProcess->start(m_dockerCommand,
-                           {QStringLiteral("ps"),
-                            QStringLiteral("--format"),
-                            QStringLiteral("{{.Names}} {{.Image}} {{.Ports}}")});
+        },
+        &m_dockerDone);
 }
 
 void ServerDetector::startProcessProbe()
 {
     m_pgrepProcess = new QProcess(this);
-    connect(m_pgrepProcess, &QProcess::finished, this, [this](int exitCode, QProcess::ExitStatus) {
-        if (exitCode == 0) {
-            const QString output =
-                QString::fromUtf8(m_pgrepProcess->readAllStandardOutput()).trimmed();
-            if (!output.isEmpty()) {
-                m_processFound = true;
-                m_processName = QStringLiteral("qbittorrent-nox");
-            }
-        }
-        m_processDone = true;
-        maybeFinish();
-    });
-    connect(m_pgrepProcess, &QProcess::errorOccurred, this, [this](QProcess::ProcessError) {
-        m_processDone = true;
-        maybeFinish();
-    });
-
-    m_pgrepProcess->start(m_pgrepCommand,
-                          {QStringLiteral("-x"), QStringLiteral("qbittorrent-nox")});
+    // pgrep takes an extended regex: the headless daemon or the desktop client. `-l` adds
+    // the matched name after the pid.
+    runCommand(
+        m_pgrepProcess,
+        m_pgrepCommand,
+        {QStringLiteral("-l"), QStringLiteral("-x"), QStringLiteral("qbittorrent(-nox)?")},
+        [this](QProcess *process) {
+            const QString output = QString::fromUtf8(process->readAllStandardOutput()).trimmed();
+            if (output.isEmpty())
+                return;
+            m_processFound = true;
+            const QStringList first =
+                output.section(QLatin1Char('\n'), 0, 0).split(QLatin1Char(' '), Qt::SkipEmptyParts);
+            m_processName = first.size() > 1 ? first.at(1) : QStringLiteral("qbittorrent-nox");
+        },
+        &m_processDone);
 }
 
 void ServerDetector::maybeFinish()

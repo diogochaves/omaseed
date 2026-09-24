@@ -10,12 +10,16 @@
 // :8081/:8082 in production; the port is only injectable so the test does not have to bind
 // the real 8080.
 //
-// finished() fires once, after every probe has answered (or timed out), with whatever
-// candidates were found, `port` first when present.
+// finished() fires once, after every probe has answered (or timed out: the commands too,
+// after setCommandTimeoutMs), with at most one candidate: the docker container, else the
+// open port, else the running process.
 
 #include <QList>
 #include <QObject>
 #include <QString>
+#include <QStringList>
+
+#include <functional>
 
 QT_BEGIN_NAMESPACE
 class QProcess;
@@ -63,6 +67,9 @@ public:
 
     /// Test-only: the connect timeout, default 1000 ms.
     void setProbeTimeoutMs(int ms);
+    /// Test-only: how long `docker ps` and `pgrep` may run before they are killed and
+    /// counted as "nothing found", default 3000 ms.
+    void setCommandTimeoutMs(int ms);
 
 Q_SIGNALS:
     void finished(QList<omaseed::core::DetectedServer> candidates);
@@ -71,6 +78,13 @@ private:
     void startPortProbe();
     void startDockerProbe();
     void startProcessProbe();
+    /// Starts `process` and marks `*done` exactly once, on finish, error or timeout;
+    /// `onFinished` reads its output only after a clean exit 0.
+    void runCommand(QProcess *process,
+                    const QString &program,
+                    const QStringList &arguments,
+                    std::function<void(QProcess *)> onFinished,
+                    bool *done);
     void maybeFinish();
 
     QTcpSocket *m_socket = nullptr;
@@ -81,6 +95,7 @@ private:
     QString m_dockerCommand = QStringLiteral("docker");
     QString m_pgrepCommand = QStringLiteral("pgrep");
     int m_probeTimeoutMs = 1000;
+    int m_commandTimeoutMs = 3000;
 
     bool m_portDone = false;
     bool m_dockerDone = false;
