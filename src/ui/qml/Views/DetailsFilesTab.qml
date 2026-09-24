@@ -26,6 +26,10 @@ Item {
     /// The row being renamed (`r`), or -1; the text lives in `renameText`.
     property int renamingRow: -1
     property string renameText: ""
+    /// True until the editor has opened once: it selects the name then. An editor rebuilt
+    /// because the rows moved under it puts the caret back at `renameCaret` instead.
+    property bool renameFresh: false
+    property int renameCaret: 0
     /// `/` was pressed: show the filter field even while it is still empty.
     property bool filterOpen: false
 
@@ -103,6 +107,27 @@ Item {
         root.filterOpen = true;
         filterField.focusInput();
         return true;
+    }
+
+    /// Give the keyboard back to the open rename's editor. A model reset rebuilds every row
+    /// while the list is still being laid out, and an editor built then cannot take the
+    /// focus itself; the pane calls this once the reset has settled.
+    function focusRenameEditor(): void {
+        const delegate = root.renamingRow >= 0 ? list.itemAtIndex(root.renamingRow) : null;
+        const editor = delegate ? root._findEditor(delegate) : null;
+        if (editor && !editor.activeFocus)
+            editor.forceActiveFocus();
+    }
+
+    function _findEditor(item: Item): Item {
+        if (item.objectName === "fileRenameEditor")
+            return item;
+        for (let i = 0; i < item.children.length; ++i) {
+            const found = root._findEditor(item.children[i]);
+            if (found)
+                return found;
+        }
+        return null;
     }
 
     implicitHeight: Theme.space(200)
@@ -595,15 +620,26 @@ Item {
                 Keys.onEscapePressed: root.renameCancelled()
                 onAccepted: root.renameCommitted(editor.text)
                 onTextChanged: root.renameText = editor.text
+                onCursorPositionChanged: {
+                    if (editor.ready)
+                        root.renameCaret = editor.cursorPosition;
+                }
+
+                property bool ready: false
 
                 Component.onCompleted: {
                     // A file opens with its name selected and its extension left alone, as
                     // a file manager's rename does; a folder with all of it.
                     const dot = editor.text.lastIndexOf(".");
-                    if (dot > 0 && !root.model.isFolder(root.renamingRow))
+                    if (!root.renameFresh)
+                        editor.cursorPosition = Math.min(root.renameCaret, editor.text.length);
+                    else if (dot > 0 && !root.model.isFolder(root.renamingRow))
                         editor.select(0, dot);
                     else
                         editor.selectAll();
+                    root.renameFresh = false;
+                    editor.ready = true;
+                    root.renameCaret = editor.cursorPosition;
                     editor.forceActiveFocus();
                 }
             }

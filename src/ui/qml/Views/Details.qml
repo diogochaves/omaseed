@@ -59,6 +59,13 @@ Item {
     property int trackersCursor: 0
     property int peersCursor: 0
     property int generalCursor: 0
+    /// The file the Files cursor is on, and the one being renamed. A sync that re-sorts the
+    /// tab (by progress, remaining, availability) rebuilds the rows, so the index alone would
+    /// land on another file; these find the row again (as the table follows its hash).
+    property string filesCursorPath: ""
+    property string _renamePath: ""
+
+    onFilesCursorChanged: root.filesCursorPath = root.details.files.pathAt(root.filesCursor)
 
     /// `o` on a file row: the path inside the torrent, for Xdg to reveal.
     signal openFolderRequested(string path)
@@ -246,24 +253,30 @@ Item {
     function startRename() {
         if (root.currentTab !== 1 || root.details.files.count === 0)
             return;
+        root._renamePath = root.details.files.pathAt(root.filesCursor);
         filesTab.renameText = root.details.files.nameAt(root.filesCursor);
+        filesTab.renameFresh = true;
         filesTab.renamingRow = root.filesCursor;
     }
 
     function commitRename(text: string) {
         const row = filesTab.renamingRow;
+        const path = root._renamePath;
         filesTab.renamingRow = -1;
+        root._renamePath = "";
         root.forceActiveFocus();
-        if (row < 0 || text.length === 0 || text === root.details.files.nameAt(row))
+        // By the path the rename started on: a re-sort may have moved the rows since.
+        if (row < 0 || path.length === 0 || text.length === 0
+                || text === root.details.files.nameAt(row))
             return;
-        App.renameTorrentFile(root.details.hash, root.details.files.pathAt(row), text,
-                              root.details.files.isFolder(row));
+        App.renameTorrentFile(root.details.hash, path, text, root.details.files.isFolder(row));
     }
 
     function cancelRename() {
         if (filesTab.renamingRow < 0)
             return;
         filesTab.renamingRow = -1;
+        root._renamePath = "";
         root.forceActiveFocus();
     }
 
@@ -1039,7 +1052,48 @@ Item {
                 root.filesCursor = Math.max(0, root.details.files.count - 1);
         }
 
+        // Rows rebuilt (a live re-sort, a filter, a fold): the cursor and an open rename
+        // follow their file, and a rename whose file is gone is dropped.
+        function onModelReset(): void {
+            const files = root.details.files;
+            const path = root.filesCursorPath;
+            const row = path.length > 0 ? files.rowOfPath(path) : -1;
+            if (row >= 0 && row !== root.filesCursor)
+                root.filesCursor = row;
+            else
+                root.filesCursorPath = files.pathAt(root.filesCursor);
+            if (filesTab.renamingRow >= 0) {
+                const renaming = files.rowOfPath(root._renamePath);
+                if (renaming < 0) {
+                    root.cancelRename();
+                } else {
+                    filesTab.renamingRow = renaming;
+                    Qt.callLater(filesTab.focusRenameEditor);
+                }
+            }
+        }
+
         target: root.details.files
+    }
+
+    // Peers come and go every 2 s and another torrent may have fewer trackers: keep both
+    // cursors on a row, so `y` never copies nothing (review VIEW-13).
+    Connections {
+        function onCountChanged(): void {
+            if (root.trackersCursor >= root.details.trackers.count)
+                root.trackersCursor = Math.max(0, root.details.trackers.count - 1);
+        }
+
+        target: root.details.trackers
+    }
+
+    Connections {
+        function onCountChanged(): void {
+            if (root.peersCursor >= root.details.peers.count)
+                root.peersCursor = Math.max(0, root.details.peers.count - 1);
+        }
+
+        target: root.details.peers
     }
 
     // The Peers tab is the only one whose poll costs the server real work, so App is told
