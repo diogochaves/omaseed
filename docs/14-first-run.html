@@ -124,8 +124,9 @@ figcaption b { color:var(--fg); font-weight:500; }
 .found .ok { color:var(--green); }
 .found .no { color:var(--fg-dark); }
 .big { display:grid; gap:1em; justify-items:start; }
-.big .mark { width:4.2em; height:4.2em; }
-.big .name { font-size:2em; font-weight:600; color:var(--fg-bright); line-height:1; }
+.big .lockup { display:flex; align-items:center; gap:.9em; }
+.big .mark { width:3.4em; height:3.4em; }
+.big .name { font-size:2.4em; font-weight:600; color:var(--fg-bright); line-height:1; }
 .big .line { color:var(--fg-dark); }
 .ghost { position:absolute; inset:0; display:grid; grid-template-columns:13em 1fr; opacity:.18; pointer-events:none; }
 .ghost div { border-right:1px solid var(--fg); }
@@ -188,8 +189,7 @@ button:hover { background:color-mix(in srgb, var(--accent) 12%, transparent); }
           <div class="bar none"></div>
           <div class="body">
             <div class="setup big">
-              <svg class="mark" viewBox="0 0 24 24"><use href="#mark"/></svg>
-              <div class="name">omaseed</div>
+              <div class="lockup"><svg class="mark" viewBox="0 0 24 24"><use href="#mark"/></svg><div class="name">omaseed</div></div>
               <div class="line">Torrents for Omarchy, powered by qBittorrent.</div>
               <div class="found">
                 <div class="ok">✓ qBittorrent 5.2.3 answers on 127.0.0.1:8080</div>
