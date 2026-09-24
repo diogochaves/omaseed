@@ -5,7 +5,9 @@
 function(omaseed_add_test name)
     cmake_parse_arguments(PARSE_ARGV 1 arg "LIVE" "" "SOURCES;LIBRARIES;DEFINES")
 
-    qt_add_executable(${name} ${arg_SOURCES})
+    # OffscreenDefault.cpp: a test run outside ctest still never opens a window
+    # (OMASEED_TEST_PLATFORM names another platform on purpose).
+    qt_add_executable(${name} ${arg_SOURCES} "${PROJECT_SOURCE_DIR}/tests/OffscreenDefault.cpp")
     target_link_libraries(${name} PRIVATE omaseed::warnings Qt6::Test ${arg_LIBRARIES})
     # tests/LiveServer.hpp: every live test's server URL, behind the :8080 guard.
     target_include_directories(${name} PRIVATE "${PROJECT_SOURCE_DIR}/tests")

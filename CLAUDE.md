@@ -67,6 +67,11 @@ scripts/dev/notify-walk.sh [OUT] | --interactive  # downloads finish: one notice
 scripts/dev/magnet-walk.sh [OUT] | --interactive  # xdg-open a magnet / .torrent: the add sheet, closed, in the tray, duplicate
 ```
 
+Anything that can open a window, reach the session D-Bus or the keyring runs in an omabox
+(load the omabox skill first) or through `ctest`, never straight on the desktop. Test binaries
+force Qt's offscreen platform even when run directly; `OMASEED_TEST_PLATFORM` overrides that,
+and only inside an omabox.
+
 Visual checks under Hyprland: run the app, find it with `hyprctl -j clients`, screenshot with
 `grim -g "X,Y WxH" out.png`, and look at the image. Close what you open.
 Theme switch test: `omarchy-theme-set <name>` changes the live theme; put it back afterwards
