@@ -218,6 +218,9 @@ Q_SIGNALS:
     void sortChanged();
     void selectionChanged();
     void summaryChanged();
+    /// The same rows changed places (a sort, or a poll moving the number sorted by). The
+    /// cursor is a row number, so the view re-finds its file by path (rowOfPath).
+    void reordered();
 
 private:
     struct Node
@@ -268,9 +271,12 @@ private:
     bool lessThan(int left, int right) const;
     QList<int> computeVisible() const;
     void rebuildVisible();
-    /// Recomputes the row list after a change of fold, filter or sort: a reset when the set
-    /// of rows changed, a layoutChanged when only their order did.
-    void relayout();
+    /// Recomputes the row list after a change of fold, filter, sort or values: a reset when
+    /// the set of rows changed, row moves (or one layoutChanged on a very long list) when
+    /// only their order did. True when anything changed.
+    bool relayout();
+    /// Brings m_visible to `next`, which holds the same node indexes in another order.
+    void reorderVisible(const QList<int> &next);
     /// Files under the target rows, in the order the tree is drawn (sort applied, folds
     /// ignored), filter respected.
     QList<int> targetLeaves(int cursorRow) const;

@@ -56,6 +56,8 @@ Item {
 
     // One cursor per list, so switching tabs and coming back keeps the place.
     property int filesCursor: 0
+    /// The file under the files cursor, so a re-sort by a moving number keeps it (reordered).
+    property string filesCursorPath: ""
     property int trackersCursor: 0
     property int peersCursor: 0
     /// Every poll re-sorts the peers by speed, so the cursor also holds its peer's address
@@ -1044,6 +1046,15 @@ Item {
         function onCountChanged(): void {
             if (root.filesCursor >= root.details.files.count)
                 root.filesCursor = Math.max(0, root.details.files.count - 1);
+            root.filesCursorPath = root.details.files.pathAt(root.filesCursor);
+        }
+
+        // Sorted by progress or remaining, a poll moves the rows: the cursor keeps its file.
+        function onReordered(): void {
+            const row = root.details.files.rowOfPath(root.filesCursorPath);
+            if (row >= 0)
+                root.filesCursor = row;
+            root.filesCursorPath = root.details.files.pathAt(root.filesCursor);
         }
 
         target: root.details.files
@@ -1073,5 +1084,6 @@ Item {
         App.setPeersTabActive(!root.collapsed && root.currentTab === 3);
         App.setGeneralTabActive(!root.collapsed && root.currentTab === 0);
     }
+    onFilesCursorChanged: root.filesCursorPath = root.details.files.pathAt(root.filesCursor)
     onPeersCursorChanged: root.peersCursorAddress = root.details.peers.addressAt(root.peersCursor)
 }
