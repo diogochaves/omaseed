@@ -115,6 +115,12 @@ Sheet {
             return {"error": qsTr("Download is not a number")};
         if (Number.isNaN(out.ul))
             return {"error": qsTr("Upload is not a number")};
+        // qBittorrent keeps a speed limit in an int of bytes/s; past it the server wraps the
+        // value to "no limit" without a word (review RUN-2 (e)).
+        if (out.dl > root.maxSpeedBytes)
+            return {"error": qsTr("Download is over the largest limit qBittorrent takes")};
+        if (out.ul > root.maxSpeedBytes)
+            return {"error": qsTr("Upload is over the largest limit qBittorrent takes")};
         if (root._ratioGlobal !== root._initial.ratioGlobal
                 || (!root._ratioGlobal && ratioField.text.trim() !== String(root._initial.ratio).trim())) {
             if (root._ratioGlobal) {
@@ -192,6 +198,8 @@ Sheet {
     }
 
     property bool _ratioGlobal: true
+    /// The largest speed limit the Web API stores (a signed 32-bit bytes/s).
+    readonly property real maxSpeedBytes: 2147483647
 
     onActionTriggered: text => {
         if (text !== qsTr("reset"))

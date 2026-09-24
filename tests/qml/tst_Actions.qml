@@ -364,6 +364,20 @@ TestCase {
         compare(sheet.opened, false);
     }
 
+    // Review RUN-2 (e): a speed past qBittorrent's int is refused, not wrapped to "no limit".
+    function test_limits_refuse_a_speed_past_the_servers_range() {
+        const spy = createTemporaryObject(limitsSpy, testCase);
+        const sheet = view.limitsSheetPanel;
+        sheet.openFor([hashByName("Big Buck Bunny 4K (CC-BY)")]);
+        sheet.uploadField.text = "99999999999";
+        sheet.triggerPrimary();
+        compare(spy.count, 0, "an out-of-range speed went to the server");
+        verify(sheet.errorText.length > 0);
+        sheet.uploadField.text = "2097151"; // just under 2^31 bytes/s
+        sheet.triggerPrimary();
+        compare(spy.count, 1);
+    }
+
     function test_limits_a_mixed_selection_keeps_each_torrents_own_action() {
         const spy = createTemporaryObject(limitsSpy, testCase);
         const stopHash = hashByName("Tears of Steel 4K (CC-BY)");
