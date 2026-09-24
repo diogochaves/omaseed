@@ -49,6 +49,7 @@ Sheet {
             id: nameField
 
             Layout.fillWidth: true
+            escClears: false
 
             onAccepted: root.triggerPrimary()
         }

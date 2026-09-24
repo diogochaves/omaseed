@@ -139,6 +139,8 @@ Item {
     /// The ✕ of one of `filterChips`.
     signal filterChipCleared(string key)
     signal searchChanged(string text)
+    /// `enter` in the search field: the filter is already live, so this only says "done".
+    signal searchAccepted(string text)
     signal searchCleared
     signal settingsClicked
 
@@ -389,7 +391,10 @@ Item {
             text: root.searchText
             trailing: root.searchCountText
 
-            onAccepted: root.searchChanged(searchField.text)
+            onAccepted: {
+                root.searchChanged(searchField.text);
+                root.searchAccepted(searchField.text);
+            }
             onCleared: root.searchCleared()
             onEditingChanged: {
                 if (!searchField.editing)

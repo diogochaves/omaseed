@@ -307,6 +307,17 @@ Item {
         rail.selectStatus(index);
     }
 
+    /// Put `text` on the clipboard and say `note`. An empty value leaves the clipboard as it
+    /// was, so the footer must not claim a copy (review RUN-7: `Y` on a v2-only torrent).
+    function copyText(text: string, note: string): void {
+        if (text.length === 0) {
+            root.flashFooterNote(qsTr("nothing to copy"));
+            return;
+        }
+        App.copyToClipboard(text);
+        root.flashFooterNote(note);
+    }
+
     /// The hashes a table action applies to: the selection, or the cursor row alone.
     function actionHashes(): var {
         if (table.selectedCount > 0)
@@ -362,16 +373,17 @@ Item {
             App.queueDown(hashes);
             break;
         case "copyMagnet":
-            App.copyToClipboard(App.torrentRow(root.cursorHash).magnetUri || "");
-            root.flashFooterNote(qsTr("copied"));
+            root.copyText(App.torrentRow(root.cursorHash).magnetUri || "", qsTr("copied"));
             break;
-        case "copyHash":
-            App.copyToClipboard(App.torrentRow(root.cursorHash).infohashV1 || "");
-            root.flashFooterNote(qsTr("copied"));
+        case "copyHash": {
+            // A v2-only torrent has no v1 hash: its v2 one (or the id qBittorrent keys it by)
+            // rather than nothing.
+            const row = App.torrentRow(root.cursorHash);
+            root.copyText(row.infohashV1 || row.infohashV2 || row.hash || "", qsTr("copied"));
             break;
+        }
         case "copyName":
-            App.copyToClipboard(App.torrentRow(root.cursorHash).name || "");
-            root.flashFooterNote(qsTr("copied"));
+            root.copyText(App.torrentRow(root.cursorHash).name || "", qsTr("copied"));
             break;
         case "openFolder":
             App.openFolder(root.cursorHash);
@@ -952,6 +964,9 @@ Item {
             z: -1
         }
         onSearchChanged: text => App.filtered.text = text
+        // Review RUN-12: enter keeps the filter and gives the table back its keys, as `/`
+        // then enter does in vim or less.
+        onSearchAccepted: root.focusHome()
         onSearchCleared: root.clearFilter()
         onSettingsClicked: App.openSettings()
     }
@@ -1140,17 +1155,11 @@ Item {
             wide: !split.docked
 
             onFocusTable: table.forceActiveFocus()
-            onCopyRequested: text => {
-                App.copyToClipboard(text);
-                root.flashFooterNote(qsTr("copied"));
-            }
+            onCopyRequested: text => root.copyText(text, qsTr("copied"))
             onOpenFileRequested: path => App.openTorrentFile(App.details.hash, path)
             onNoteRequested: text => root.flashFooterNote(text)
             // docs/12 G5: "copied hash v1".
-            onValueCopyRequested: (text, name) => {
-                App.copyToClipboard(text);
-                root.flashFooterNote(qsTr("copied %1").arg(name));
-            }
+            onValueCopyRequested: (text, name) => root.copyText(text, qsTr("copied %1").arg(name))
 
             Rectangle {
                 anchors.fill: parent

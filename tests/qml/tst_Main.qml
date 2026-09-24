@@ -147,6 +147,21 @@ TestCase {
         compare(view.focusArea, "table");
     }
 
+    // Review RUN-12: enter keeps the filter and hands the keyboard back to the table.
+    function test_enter_in_the_field_keeps_the_filter_and_goes_back_to_the_table() {
+        keyClick("/");
+        keyClick("f");
+        keyClick("e");
+        keyClick("d");
+        keyClick(Qt.Key_Return);
+        compare(App.filtered.text, "fed");
+        verify(view.table.activeFocus, "the caret stayed in the filter");
+        compare(view.focusArea, "table");
+        keyClick("j");
+        compare(App.filtered.text, "fed", "j was typed into the filter");
+        view.clearFilter();
+    }
+
     // docs/13: under the table the pane starts 260 tall, room for the band over the tabs.
     function test_the_bottom_pane_defaults_to_two_hundred_and_sixty() {
         compare(view.split.defaultSideHeight, Theme.space(260));
@@ -374,6 +389,9 @@ TestCase {
         keyClick("i");
         compare(view.details.collapsed, collapsed, "`i` reached the window under the palette");
 
+        // `i` was typed into the query: the first esc clears it (review RUN-11), the second closes.
+        keyClick(Qt.Key_Escape);
+        compare(view.sortPalette.query, "");
         keyClick(Qt.Key_Escape);
         compare(view.sortPalette.opened, false);
         compare(view.overlayOpen, false);
@@ -728,6 +746,16 @@ TestCase {
         App.serverChanged();
         compare(view._stateKey, "demo");
         view.table.visibleColumns = before;
+    }
+
+    // ---- review RUN-7: an empty value is not "copied" -----------------------------------
+    function test_copying_nothing_does_not_say_copied() {
+        view.footerNote = "";
+        view.copyText("", "copied");
+        compare(view.footerNote, "nothing to copy");
+        view.copyText("fixture", "copied name");
+        compare(view.footerNote, "copied name");
+        App.copyToClipboard("omaseed test: nothing to add here");
     }
 
     // ---- the `?` sheet closes and runs (review VIEW-8, VIEW-9) ---------------------------

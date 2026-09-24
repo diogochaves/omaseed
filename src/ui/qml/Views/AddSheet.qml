@@ -38,6 +38,9 @@ Sheet {
     property string clipboardAddable: ""
     /// The server's refusal, drawn as an error Banner above the rows; "" hides it.
     property string errorText: ""
+    /// Why the field's text is not addable, as `App.parseAddable` put it ("" when it gave no
+    /// reason); shown when `enter` is pressed on it (review RUN-8).
+    property string _parseError: ""
     /// False once the save path has been typed into: the add then carries `autoTMM: false`.
     property bool autoTMM: true
     /// Names the category/tag palette answered with that the server does not list (yet):
@@ -246,6 +249,7 @@ Sheet {
                                const map = App.parseAddable(sourceField.text);
                                sheet._pendingToken = map.token;
                                sheet.addable = (map.valid || map.pending) ? map : null;
+                               sheet._parseError = map.error || "";
                                if (sheet.source.length === 0 && map.kind === "magnet")
                                sheet.source = "magnet";
                                else if (sheet.source.length === 0 && map.kind === "file")
@@ -325,6 +329,11 @@ Sheet {
 
         /// `enter` / `shift+enter` and the two buttons. A duplicate never leaves as an add.
         function submit(stopped: bool): void {
+        if (!sheet.addable && sourceField.text.trim().length > 0) {
+            sheet.errorText = sheet._parseError.length > 0
+                    ? sheet._parseError : qsTr("not a magnet link, URL or .torrent file");
+            return;
+        }
         if (!sheet.addable || sheet.addable.valid !== true)
         return;
         if (sheet.showFiles && App.addFiles.wantedCount === 0) {
@@ -527,6 +536,7 @@ Sheet {
                                 if (sheet._programmatic)
                                     return;
                                 sheet.source = "";
+                                sheet.errorText = "";
                                 sheet.parseField();
                             }
                             // `ctrl+o` has to be taken inside the field: a TextInput with the caret swallows

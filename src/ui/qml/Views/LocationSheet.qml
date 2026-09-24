@@ -66,6 +66,7 @@ Sheet {
             id: pathField
 
             Layout.fillWidth: true
+            escClears: false
             trailing: qsTr("ctrl+o browse")
 
             // Field's own `Keys.onReturnPressed` already marks the key accepted (it emits

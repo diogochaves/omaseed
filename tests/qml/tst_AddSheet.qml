@@ -429,6 +429,21 @@ TestCase {
         verify(Number.isNaN(sheet._limitKb("abc")));
     }
 
+    // Review RUN-8: enter on text that is not addable says why instead of doing nothing.
+    function test_enter_on_something_that_is_not_addable_says_why() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        sheet.openBlank();
+        sheet.sourceField.text = "magnet:?xt=urn:btih:zzzz";
+        sheet.submit(false);
+        verify(sheet.errorText.length > 0, "a bad magnet was ignored silently");
+        compare(sheet.opened, true);
+        sheet.sourceField.text = "/etc/passwd";
+        compare(sheet.errorText, "", "the error outlived the edit");
+        sheet.submit(false);
+        verify(sheet.errorText.length > 0);
+        sheet.dismiss();
+    }
+
     // Review VIEW-11: the Name row is the torrent's own; the next queued one starts without it.
     function test_the_next_queued_source_does_not_inherit_the_name() {
         const sheet = createTemporaryObject(addSheetComponent, testCase);

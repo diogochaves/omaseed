@@ -16,11 +16,14 @@
 // setVisible(false) stops everything (the window went away); setHash({}) means "no torrent",
 // clears the models and stops the timers. Errors are values: a failed poll is logged once
 // per selection, left in `lastError`, and retried on the next tick — the pane keeps showing
-// the numbers it already has rather than blanking.
+// the numbers it already has rather than blanking. A 404 is the exception: the torrent is
+// gone (deleted under the pane), so polling stops quietly until another hash is set, and a
+// hash the synced TorrentModel no longer holds is not asked about at all.
 //
 // applyDemo() is the door for `--demo details` and for the QML tests: it fills the same
 // models and the same `properties` from a JSON object, with no client and no timers.
 
+#include "core/ApiError.hpp"
 #include "core/TorrentFilesModel.hpp"
 #include "core/TorrentPeersModel.hpp"
 #include "core/TorrentTrackersModel.hpp"
@@ -131,7 +134,10 @@ private:
     void updateTimers();
     void applyProperties(const QJsonObject &json);
     void setPieceStates(const QByteArray &states);
-    void noteError(const QString &what, const QString &message);
+    void noteError(const QString &what, const ApiError &error);
+    /// False once the torrent is known to be gone (a 404, or no longer in the synced
+    /// model): nothing more is asked about it until another hash is selected.
+    bool torrentExists() const;
     void noteSuccess();
     void setLastError(const QString &message);
 
@@ -157,6 +163,7 @@ private:
     bool m_demo = false;
     bool m_errorLogged = false;
     bool m_trackerError = false;
+    bool m_gone = false; ///< the server answered 404 for m_hash: deleted under the pane
 };
 
 } // namespace omaseed::core

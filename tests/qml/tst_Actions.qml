@@ -227,7 +227,48 @@ TestCase {
         compare(view.locationSheetPanel.opened, true, "an empty path was sent");
     }
 
+    // Review RUN-5: one esc in a prefilled field cancels the sheet; it does not wipe the value
+    // and leave the sheet up to collect the next keys.
+    function test_one_esc_in_a_prefilled_field_closes_the_sheet() {
+        keyClick("m");
+        compare(view.locationSheetPanel.opened, true);
+        const field = view.locationSheetPanel.focusables()[0];
+        const path = field.text;
+        verify(path.length > 0);
+        tryVerify(() => field.editing, 1000, "the path field does not have the keyboard");
+        keyClick(Qt.Key_Escape);
+        compare(view.locationSheetPanel.opened, false, "esc left the location sheet open");
+        compare(field.text, path, "esc wiped the path");
+
+        view.renameSheetPanel.openFor(view.cursorHash);
+        compare(view.renameSheetPanel.opened, true);
+        tryVerify(() => view.renameSheetPanel.focusables()[0].editing, 1000);
+        keyClick(Qt.Key_Escape);
+        compare(view.renameSheetPanel.opened, false, "esc left the rename sheet open");
+
+        view.limitsSheetPanel.openFor([view.cursorHash]);
+        compare(view.limitsSheetPanel.opened, true);
+        tryVerify(() => view.limitsSheetPanel.downloadField.editing, 1000,
+                  "the download field does not have the keyboard");
+        keyClick("5");
+        compare(view.limitsSheetPanel.downloadField.text, "5");
+        keyClick(Qt.Key_Escape);
+        compare(view.limitsSheetPanel.opened, false, "esc left the limits sheet open");
+    }
+
     // ---- the limits sheet (Fig. 8) ---------------------------------------------------------
+    // A LimitsSheet function once shadowed the kit Sheet's `_collect(item, out)`, so the sheet
+    // found no fields: it opened on `cancel` and tab never reached a field.
+    function test_limits_sheet_opens_in_the_download_field_and_tab_reaches_the_others() {
+        view.limitsSheetPanel.openFor([view.cursorHash]);
+        const fields = view.limitsSheetPanel.bodyFocusables();
+        verify(fields.indexOf(view.limitsSheetPanel.downloadField) >= 0, "the fields are not found");
+        verify(fields.indexOf(view.limitsSheetPanel.seedingField) >= 0);
+        tryVerify(() => view.limitsSheetPanel.downloadField.editing, 1000);
+        keyClick(Qt.Key_Tab);
+        verify(view.limitsSheetPanel.uploadField.editing, "tab did not reach the upload field");
+    }
+
     function test_limits_sheet_prefills_from_the_cursor_torrent() {
         const hash = hashByName("Big Buck Bunny 4K (CC-BY)");
         view.table.moveCursorTo(App.filtered.rowOfHash(hash));
@@ -297,11 +338,11 @@ TestCase {
         initial.seeding = "0.06";
         sheet._initial = initial;
         sheet.seedingField.text = "0.06";
-        compare(sheet._collect().seeding, null);
+        compare(sheet._formValues().seeding, null);
         sheet.seedingField.text = "0.5";
-        compare(sheet._collect().seeding, 720);
+        compare(sheet._formValues().seeding, 720);
         sheet.seedingField.text = "";
-        compare(sheet._collect().seeding, -1);
+        compare(sheet._formValues().seeding, -1);
         sheet.close();
         compare(spy.count, 0);
     }
@@ -321,6 +362,20 @@ TestCase {
         compare(spy.count, 1);
         compare(spy.signalArguments[0][3], 1.5);
         compare(sheet.opened, false);
+    }
+
+    // Review RUN-2 (e): a speed past qBittorrent's int is refused, not wrapped to "no limit".
+    function test_limits_refuse_a_speed_past_the_servers_range() {
+        const spy = createTemporaryObject(limitsSpy, testCase);
+        const sheet = view.limitsSheetPanel;
+        sheet.openFor([hashByName("Big Buck Bunny 4K (CC-BY)")]);
+        sheet.uploadField.text = "99999999999";
+        sheet.triggerPrimary();
+        compare(spy.count, 0, "an out-of-range speed went to the server");
+        verify(sheet.errorText.length > 0);
+        sheet.uploadField.text = "2097151"; // just under 2^31 bytes/s
+        sheet.triggerPrimary();
+        compare(spy.count, 1);
     }
 
     function test_limits_a_mixed_selection_keeps_each_torrents_own_action() {

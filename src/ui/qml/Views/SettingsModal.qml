@@ -193,7 +193,10 @@ Item {
         const map = App.serverList.serverMap(id);
         confirm.pendingId = id;
         confirm.message = qsTr("Remove the server %1?").arg(map.name);
-        confirm.subtitle = qsTr("%1 · the stored secret goes with it. Nothing on the server is touched.").arg(map.url);
+        // Only a server with a credential has a stored secret to lose (review RUN-14).
+        confirm.subtitle = map.authMode === "none"
+                ? qsTr("%1 · nothing on the server is touched.").arg(map.url)
+                : qsTr("%1 · the stored secret goes with it. Nothing on the server is touched.").arg(map.url);
         confirm.open();
     }
 
@@ -210,6 +213,17 @@ Item {
     /// and whenever App changes the value (a clamp, or the field's own accept).
     function _syncThresholdField(): void {
         thresholdField.text = String(App.lowDiskThresholdGiB);
+    }
+
+    /// Base size and transparency likewise show a stored override, and nothing (the
+    /// placeholder: follow / the shell's value) when there is none, so an override set in an
+    /// earlier session is visible, and a value App refused does not stay in the field. A
+    /// field with the caret is left alone: another setting changing must not eat its typing.
+    function _syncAppearanceFields(): void {
+        if (!baseSizeField.editing)
+            baseSizeField.text = App.baseSizeOverride > 0 ? String(App.baseSizeOverride) : "";
+        if (!alphaField.editing)
+            alphaField.text = App.windowAlphaOverride > 0 ? String(App.windowAlphaOverride) : "";
     }
 
     function _nextTrayMode(): string {
@@ -353,12 +367,18 @@ Item {
             root._syncThresholdField();
         }
 
+        function onSettingsChanged(): void {
+            root._syncAppearanceFields();
+        }
+
         target: App
     }
 
     onOpenedChanged: {
-        if (root.opened)
+        if (root.opened) {
             root._syncThresholdField();
+            root._syncAppearanceFields();
+        }
     }
     onPaneIndexChanged: paneStack.contentY = 0
     onPaneCursorChanged: Qt.callLater(root._revealCursor)
@@ -710,13 +730,28 @@ Item {
                                             parts.push(serverRow.lastError);
                                         return parts.join(" · ");
                                     }
+                                    /// The server the app is on (`tableStateKey()` is its id; the
+                                    /// serverName read re-runs this on a switch).
+                                    readonly property bool current: {
+                                        void App.serverName;
+                                        return App.hasServer && !App.demoMode
+                                                && App.serverList.idAt(serverRow.index) === App.tableStateKey();
+                                    }
+                                    /// ...and syncing with it: known to answer without a test.
+                                    readonly property bool live: serverRow.current && App.globalState.connected
+
                                     failing: serverRow.reachableText.length > 0
                                              && !serverRow.reachable
+                                    untested: serverRow.reachableText.length === 0 && !serverRow.live
                                     hasCursor: root.area === "pane"
                                                && root.paneCursor === serverRow.index
                                     title: serverRow.name
-                                    status: serverRow.isDefault ? qsTr("default") : (serverRow.reachableText.length
-                                                                                     > 0 && !serverRow.reachable ? qsTr("retrying") : "")
+                                    // Only the server being synced is retried; another one that failed
+                                    // its test is just unreachable.
+                                    status: serverRow.isDefault ? qsTr("default")
+                                                                : !serverRow.failing ? ""
+                                                                                     : serverRow.current ? qsTr("retrying")
+                                                                                                         : qsTr("unreachable")
 
                                     onClicked: {
                                         root.paneCursor = serverRow.index;
@@ -968,6 +1003,7 @@ Item {
                                 Field {
                                     id: baseSizeField
 
+                                    objectName: "baseSizeField"
                                     implicitWidth: Theme.space(110)
                                     placeholder: qsTr("follow")
                                     trailing: qsTr("px")
@@ -975,6 +1011,7 @@ Item {
                                     onAccepted: {
                                         App.baseSizeOverride = parseInt(text, 10) || 0;
                                         bodyItem.forceActiveFocus();
+                                        root._syncAppearanceFields();
                                     }
                                     onCleared: {
                                         App.baseSizeOverride = 0;
@@ -1007,6 +1044,7 @@ Item {
                                     onAccepted: {
                                         App.windowAlphaOverride = parseInt(text, 10) || 0;
                                         bodyItem.forceActiveFocus();
+                                        root._syncAppearanceFields();
                                     }
                                     onCleared: {
                                         App.windowAlphaOverride = 0;
@@ -1307,7 +1345,7 @@ Item {
         property string pendingId: ""
 
         anchors.fill: parent
-        confirmText: qsTr("Remove")
+        confirmText: qsTr("remove")
         destructive: true
         z: 2
 

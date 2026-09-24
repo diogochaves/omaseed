@@ -104,7 +104,7 @@ Sheet {
     /// What `apply` sends, or `{error}` naming the first field that is not a number.
     /// `speed` values are bytes/s with -1 for unchanged; `ratio`/`seeding` are null when
     /// untouched, meaning "each torrent keeps its own".
-    function _collect(): var {
+    function _formValues(): var {
         const out = {
             "dl": root._speedValue(dlField.text, root._initial.dl),
             "ul": root._speedValue(ulField.text, root._initial.ul),
@@ -115,6 +115,12 @@ Sheet {
             return {"error": qsTr("Download is not a number")};
         if (Number.isNaN(out.ul))
             return {"error": qsTr("Upload is not a number")};
+        // qBittorrent keeps a speed limit in an int of bytes/s; past it the server wraps the
+        // value to "no limit" without a word (review RUN-2 (e)).
+        if (out.dl > root.maxSpeedBytes)
+            return {"error": qsTr("Download is over the largest limit qBittorrent takes")};
+        if (out.ul > root.maxSpeedBytes)
+            return {"error": qsTr("Upload is over the largest limit qBittorrent takes")};
         if (root._ratioGlobal !== root._initial.ratioGlobal
                 || (!root._ratioGlobal && ratioField.text.trim() !== String(root._initial.ratio).trim())) {
             if (root._ratioGlobal) {
@@ -192,6 +198,8 @@ Sheet {
     }
 
     property bool _ratioGlobal: true
+    /// The largest speed limit the Web API stores (a signed 32-bit bytes/s).
+    readonly property real maxSpeedBytes: 2147483647
 
     onActionTriggered: text => {
         if (text !== qsTr("reset"))
@@ -209,7 +217,7 @@ Sheet {
     // torrents are grouped by what they end up with: a field left alone keeps each torrent's
     // own value instead of the cursor torrent's (or -1) overwriting all of them.
     onAccepted: {
-        const values = root._collect();
+        const values = root._formValues();
         if (values.error !== undefined) {
             root.errorText = values.error; // and the sheet stays up, like the add sheet's refusal
             return;
@@ -270,6 +278,7 @@ Sheet {
                 id: dlField
 
                 Layout.fillWidth: true
+                escClears: false
                 placeholder: "∞" // ∞
                 trailing: qsTr("KB/s")
 
@@ -286,6 +295,7 @@ Sheet {
                 id: ulField
 
                 Layout.fillWidth: true
+                escClears: false
                 placeholder: "∞"
                 trailing: qsTr("KB/s")
 
@@ -306,6 +316,7 @@ Sheet {
                     id: ratioField
 
                     Layout.fillWidth: true
+                    escClears: false
                     enabled: !root._ratioGlobal
                     // Empty is no limit, as in the speed fields; under `global` the chip
                     // says it all and the field has nothing to add (batch-2 J6).
@@ -332,6 +343,7 @@ Sheet {
                 id: seedingField
 
                 Layout.fillWidth: true
+                escClears: false
                 placeholder: "∞"
                 trailing: qsTr("days")
 

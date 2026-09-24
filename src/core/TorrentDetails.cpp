@@ -76,6 +76,7 @@ void TorrentDetails::setHash(const QString &hash)
         return;
 
     m_hash = hash;
+    m_gone = false;
     m_rawProperties = QJsonObject();
     m_properties.clear();
     m_errorLogged = false;
@@ -148,7 +149,8 @@ void TorrentDetails::setVisible(bool visible)
 
 void TorrentDetails::updateTimers()
 {
-    const bool canPoll = !m_demo && !m_client.isNull() && !m_hash.isEmpty() && m_visible;
+    const bool canPoll =
+        !m_demo && !m_client.isNull() && !m_hash.isEmpty() && m_visible && !m_gone;
     if (canPoll && !m_timer->isActive())
         m_timer->start();
     else if (!canPoll && m_timer->isActive())
@@ -170,9 +172,19 @@ void TorrentDetails::refreshNow()
 
 // --- polling -----------------------------------------------------------------------------
 
+bool TorrentDetails::torrentExists() const
+{
+    if (m_gone)
+        return false;
+    // The sync model drops a deleted torrent before the cursor moves off it; a model that
+    // has rows but not this hash means there is nothing left to ask about.
+    return m_torrents.isNull() || m_torrents->rowCount() == 0
+           || m_torrents->indexOfHash(m_hash) >= 0;
+}
+
 void TorrentDetails::poll()
 {
-    if (m_demo || m_client.isNull() || m_hash.isEmpty())
+    if (m_demo || m_client.isNull() || m_hash.isEmpty() || !torrentExists())
         return;
 
     const QString hash = m_hash;
@@ -182,7 +194,7 @@ void TorrentDetails::poll()
             if (hash != m_hash)
                 return; // the selection moved on while this was in flight
             if (result.isError()) {
-                noteError(QStringLiteral("properties"), result.error().toString());
+                noteError(QStringLiteral("properties"), result.error());
                 return;
             }
             noteSuccess();
@@ -194,7 +206,7 @@ void TorrentDetails::poll()
         if (hash != m_hash)
             return;
         if (result.isError()) {
-            noteError(QStringLiteral("files"), result.error().toString());
+            noteError(QStringLiteral("files"), result.error());
             return;
         }
         noteSuccess();
@@ -205,7 +217,7 @@ void TorrentDetails::poll()
         if (hash != m_hash)
             return;
         if (result.isError()) {
-            noteError(QStringLiteral("trackers"), result.error().toString());
+            noteError(QStringLiteral("trackers"), result.error());
             return;
         }
         noteSuccess();
@@ -218,7 +230,7 @@ void TorrentDetails::poll()
 
 void TorrentDetails::pollPieceStates()
 {
-    if (m_demo || m_client.isNull() || m_hash.isEmpty() || !m_generalActive)
+    if (m_demo || m_client.isNull() || m_hash.isEmpty() || !m_generalActive || !torrentExists())
         return;
 
     const QString hash = m_hash;
@@ -227,7 +239,7 @@ void TorrentDetails::pollPieceStates()
             if (hash != m_hash || !m_generalActive)
                 return;
             if (result.isError()) {
-                noteError(QStringLiteral("pieceStates"), result.error().toString());
+                noteError(QStringLiteral("pieceStates"), result.error());
                 return;
             }
             noteSuccess();
@@ -237,7 +249,7 @@ void TorrentDetails::pollPieceStates()
 
 void TorrentDetails::pollPeers()
 {
-    if (m_demo || m_client.isNull() || m_hash.isEmpty() || !m_peersActive)
+    if (m_demo || m_client.isNull() || m_hash.isEmpty() || !m_peersActive || !torrentExists())
         return;
 
     const QString hash = m_hash;
@@ -246,7 +258,7 @@ void TorrentDetails::pollPeers()
             if (hash != m_hash || !m_peersActive)
                 return;
             if (result.isError()) {
-                noteError(QStringLiteral("peers"), result.error().toString());
+                noteError(QStringLiteral("peers"), result.error());
                 return;
             }
             noteSuccess();
@@ -254,8 +266,16 @@ void TorrentDetails::pollPeers()
         });
 }
 
-void TorrentDetails::noteError(const QString &what, const QString &message)
+void TorrentDetails::noteError(const QString &what, const ApiError &error)
 {
+    // 404: the torrent was deleted (here or elsewhere) while the pane still showed it. That
+    // is not a failure to report; stop asking until the cursor lands on another torrent.
+    if (error.kind() == ApiError::Kind::NotFound) {
+        m_gone = true;
+        updateTimers();
+        return;
+    }
+    const QString message = error.toString();
     if (!m_errorLogged) {
         m_errorLogged = true;
         qWarning().noquote()

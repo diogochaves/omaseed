@@ -453,6 +453,26 @@ TestCase {
         compare(palette.opened, false);
     }
 
+    // Review RUN-11: the escape ladder, as in the help sheet and the filter: clear, then close.
+    function test_escape_clears_a_typed_query_before_it_closes() {
+        const palette = createTemporaryObject(paletteComponent, testCase);
+        const rejected = createTemporaryObject(rejectedSpy, testCase, {
+                                                   "target": palette
+                                               });
+        palette.open();
+        keyClick("a");
+        compare(palette.query, "a");
+
+        keyClick(Qt.Key_Escape);
+        compare(palette.query, "");
+        compare(palette.opened, true, "the first esc closed a palette with a query");
+        compare(rejected.count, 0);
+
+        keyClick(Qt.Key_Escape);
+        compare(palette.opened, false);
+        compare(rejected.count, 1);
+    }
+
     function test_the_focus_comes_back_to_what_had_it_before() {
         const probe = createTemporaryObject(probeComponent, testCase);
         probe.forceActiveFocus();

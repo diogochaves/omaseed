@@ -39,6 +39,25 @@ TestCase {
         compare(cleared, 1);
     }
 
+    // Review RUN-5: a form field opened with a value passes esc on instead of clearing it.
+    function test_a_field_that_does_not_clear_on_esc_keeps_its_text() {
+        const field = createTemporaryObject(fieldComponent, testCase, {
+                                                "text": "/data/torrents",
+                                                "escClears": false
+                                            });
+        let cleared = 0;
+        field.cleared.connect(() => cleared++);
+        field.focusInput();
+        keyClick(Qt.Key_Escape);
+        compare(field.text, "/data/torrents");
+        compare(cleared, 0);
+
+        field.escClears = true;
+        keyClick(Qt.Key_Escape);
+        compare(field.text, "");
+        compare(cleared, 1);
+    }
+
     function test_accepted_signal_fires() {
         const field = createTemporaryObject(fieldComponent, testCase);
         let accepted = 0;
