@@ -59,6 +59,8 @@ Item {
     readonly property alias altChip: altChip
     /// The `+`, so a test can see how it is drawn.
     readonly property alias addButton: addButton
+    /// The whole-server-line tooltip. It lives on the window's content item, not in the hero.
+    readonly property alias serverTip: serverTip
     property int searchCount: 0
     /// What the field's trailing count prints. Fig. 1 shows the bare count, Fig. 24 shows
     /// "0 of 142"; the caller decides, and the plain count is the default.
@@ -73,14 +75,33 @@ Item {
     /// docs/10 §2: the step the hero is on, from its own width (the window's). Thresholds are
     /// base-12 pixels through `Theme.space`, so they scale with the base size: 1500, 1150,
     /// 900 and 700 px at base 14.
+    /// The filter chips (`filterChips`) take their width off the hero's before the ladder
+    /// looks at it (KIT-5), at full size for steps 0–2 and folded to glyph and ✕ for 3–4,
+    /// which is how they are drawn there.
     readonly property int level: {
-        if (root.width >= Theme.space(1286))
+        const full = root.width - root._chipsWidth(false);
+        if (full >= Theme.space(1286))
             return 0;
-        if (root.width >= Theme.space(986))
+        if (full >= Theme.space(986))
             return 1;
-        if (root.width >= Theme.space(771))
+        if (full >= Theme.space(771))
             return 2;
-        return root.width >= Theme.space(600) ? 3 : 4;
+        return root.width - root._chipsWidth(true) >= Theme.space(600) ? 3 : 4;
+    }
+    /// The filter chips fold to their glyph and ✕ from step 3, as the alt-speed chip does.
+    readonly property bool chipsFolded: root.level >= 3
+
+    /// The room the filter chips take in the row, spacing included, drawn whole or folded.
+    /// Measured on hidden copies (`chipMeasure`), so it does not depend on `level`.
+    function _chipsWidth(folded: bool): real {
+        let width = 0;
+        for (let i = 0; i < chipMeasure.count; ++i) {
+            // Each copy holds the whole chip (child 0) and the folded one (child 1).
+            const measured = chipMeasure.itemAt(i);
+            if (measured)
+                width += measured.children[folded ? 1 : 0].implicitWidth + heroRow.spacing;
+        }
+        return width;
     }
     /// From step 2 the gear and `?` are not in the hero; the caller puts them in ⋯.
     readonly property bool compact: root.level >= 2
@@ -195,11 +216,16 @@ Item {
                 for (const child of heroRow.children) {
                     if (!child.visible)
                         continue;
+                    // The layout leaves the Repeater out, so no spacing sits beside it (KIT-9).
+                    // The two spacers stay in, even at no width, and do take a spacing.
+                    if (child === chipRepeater)
+                        continue;
                     shown += 1;
                     if (child === identity)
                         continue;
+                    // Rounded up, as the layout rounds each item onto whole pixels.
                     used += child === searchField ? Theme.space([220, 180, 140, 140, 140][root.level])
-                                                  : child.implicitWidth;
+                                                  : Math.ceil(child.implicitWidth);
                 }
                 return heroRow.width - used - Math.max(0, shown - 1) * heroRow.spacing
                         - Theme.space(6); // the download figure's left margin
@@ -283,7 +309,10 @@ Item {
         // the search field, per `speedsAlignment`. Exactly one of the two spacers takes the
         // slack, so the pair moves without the row being declared twice.
         Item {
+            id: spacerLeft
+
             Layout.fillWidth: root.speedsAlignment === "right"
+            objectName: "speedsSpacerLeft"
         }
 
         Stat {
@@ -308,10 +337,15 @@ Item {
         }
 
         Item {
+            id: spacerRight
+
             Layout.fillWidth: root.speedsAlignment !== "right"
+            objectName: "speedsSpacerRight"
         }
 
         Repeater {
+            id: chipRepeater
+
             model: root.filterChips
 
             Chip {
@@ -319,10 +353,11 @@ Item {
 
                 required property var modelData
 
+                Accessible.name: filterChip.modelData.text
                 Layout.alignment: Qt.AlignVCenter
                 glyph: filterChip.modelData.glyph
                 objectName: "filterChip_" + filterChip.modelData.key
-                text: filterChip.modelData.text + "  " + Glyphs.close
+                text: root.chipsFolded ? Glyphs.close : filterChip.modelData.text + "  " + Glyphs.close
 
                 onClicked: root.filterChipCleared(filterChip.modelData.key)
             }
@@ -425,6 +460,36 @@ Item {
         }
     }
 
+    // Hidden copies of the filter chips, whole and folded, so `level` can count their width
+    // without reading the drawn chips, whose text follows `level`.
+    Repeater {
+        id: chipMeasure
+
+        model: root.filterChips
+
+        Item {
+            id: measured
+
+            required property var modelData
+
+            visible: false
+
+            Chip {
+                id: fullChip
+
+                glyph: measured.modelData.glyph
+                text: measured.modelData.text + "  " + Glyphs.close
+            }
+
+            Chip {
+                id: foldedChip
+
+                glyph: measured.modelData.glyph
+                text: Glyphs.close
+            }
+        }
+    }
+
     // The whole server line, whenever the hero shows less of it (from step 1, or elided).
     Tooltip {
         id: serverTip
@@ -437,13 +502,18 @@ Item {
                                            : root.serverLine
 
         objectName: "serverTip"
+        // Over the whole window rather than the hero (KIT-8): clamped inside a hero one line
+        // tall, the panel had no room below and landed on the very line it spells out.
+        parent: root.Window.window ? root.Window.window.contentItem : root
         z: 5
 
         onWantedChanged: {
-            if (serverTip.wanted)
-                serverTip.showAt(mark.x, root.height, serverTip.fullLine);
-            else
+            if (serverTip.wanted) {
+                const at = root.mapToItem(serverTip, mark.x, root.height);
+                serverTip.showAt(at.x, at.y, serverTip.fullLine);
+            } else {
                 serverTip.hide();
+            }
         }
     }
 

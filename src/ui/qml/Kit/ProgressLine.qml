@@ -3,9 +3,9 @@ import Omaseed.Kit
 
 // The torrent table's progress cell (spec v2 §2 Fig. 2 `.tbl > div.pg`): a 2 px hairline
 // track, a filled bar in `color` (defaults `Theme.accent`, the caller passes a state colour
-// such as `Theme.stateSeeding`), and an optional right-aligned percent. `value` is 0..1;
-// the percent reads "100%" at 1 and one decimal place otherwise (e.g. "48.9%"), matching the
-// spec's percent column (`.tbl .pg span`).
+// such as `Theme.stateSeeding`), and an optional right-aligned percent. `value` is 0..1; the
+// percent reads "100%" once it rounds to 100 and one decimal place below (e.g. "48.9%"), as
+// the spec's percent column does (`.tbl .pg span`).
 Item {
     id: root
 
@@ -14,9 +14,11 @@ Item {
     property bool showText: true
 
     readonly property real _clamped: Math.max(0, Math.min(1, root.value))
-    readonly property string _percentText: root._clamped >= 1 ? qsTr("100%") : qsTr("%1%").arg((root._clamped
-                                                                                                * 100).toFixed(
-                                                                                                   1))
+    // What rounds to 100 prints as "100%", never "100.0%" (KIT-15), as `Format::percentCompact`
+    // does for the spec's Fig. 2 root row: 0.9996 reads like the finished rows beside it.
+    readonly property real _tenths: Math.round(root._clamped * 1000) / 10
+    readonly property string _percentText: root._tenths >= 100 ? qsTr("100%")
+                                                               : qsTr("%1%").arg(root._tenths.toFixed(1))
 
     height: implicitHeight
     implicitHeight: Theme.space(2)

@@ -41,6 +41,32 @@ TestCase {
         }
     }
 
+    // A view holding the dialog, which records every key that gets past it.
+    Component {
+        id: hostComponent
+
+        Item {
+            property alias dialog: hostedDialog
+            property var seen: []
+
+            anchors.fill: parent
+
+            Keys.onPressed: event => seen.push(event.key)
+
+            ConfirmDialog {
+                id: hostedDialog
+
+                anchors.fill: parent
+                destructive: true
+                message: "Delete 2 torrents?"
+
+                Toggle {
+                    text: "also delete files from disk"
+                }
+            }
+        }
+    }
+
     Component {
         id: plainComponent
 
@@ -139,6 +165,92 @@ TestCase {
         compare(dialog.cursor, 0);
     }
 
+    // KIT-3: the keyboard reaches Fig. 6's "also delete files" toggle, so a remembered "on"
+    // can be turned off without the mouse.
+    function test_shift_tab_from_cancel_reaches_the_body_toggle_and_space_flips_it() {
+        const dialog = createTemporaryObject(deleteComponent, testCase);
+        const toggle = dialog.body.children[0];
+        const toggled = createTemporaryObject(toggledSpy, testCase, {
+                                                  "target": toggle
+                                              });
+        dialog.open();
+        compare(dialog.cursor, 0);
+
+        keyClick(Qt.Key_Backtab);
+        verify(toggle.activeFocus, "shift+tab did not reach the toggle");
+        compare(dialog.bodyFocusIndex(), 0);
+        keyClick(Qt.Key_Space);
+        compare(toggle.checked, false);
+        compare(toggled.count, 1);
+        compare(dialog.opened, true, "space on the toggle closed the dialog");
+    }
+
+    function test_tab_cycles_toggle_cancel_confirm_and_wraps() {
+        const dialog = createTemporaryObject(deleteComponent, testCase);
+        const toggle = dialog.body.children[0];
+        dialog.open();
+
+        keyClick(Qt.Key_Tab);
+        compare(dialog.cursor, 1);
+        verify(dialog.activeFocus, "the buttons lost the keyboard");
+        keyClick(Qt.Key_Tab);
+        verify(toggle.activeFocus, "tab from confirm did not wrap to the toggle");
+        keyClick(Qt.Key_Tab);
+        verify(dialog.activeFocus, "tab from the toggle left the dialog");
+        compare(dialog.cursor, 0);
+        compare(dialog.opened, true);
+    }
+
+    function test_enter_on_the_toggle_runs_the_button_under_the_cursor() {
+        const dialog = createTemporaryObject(deleteComponent, testCase);
+        const rejected = createTemporaryObject(rejectedSpy, testCase, {
+                                                   "target": dialog
+                                               });
+        dialog.open();
+        keyClick(Qt.Key_Backtab); // cancel -> toggle
+        keyClick(Qt.Key_Return);
+        compare(rejected.count, 1, "enter on the toggle did not run cancel");
+        compare(dialog.opened, false);
+    }
+
+    function test_l_from_the_toggle_goes_back_to_the_buttons() {
+        const dialog = createTemporaryObject(deleteComponent, testCase);
+        dialog.open();
+        keyClick(Qt.Key_Backtab);
+        keyClick("l");
+        verify(dialog.activeFocus, "`l` left the keyboard on the toggle");
+        compare(dialog.cursor, 1);
+    }
+
+    function test_a_dialog_without_rows_still_clamps_tab_between_its_buttons() {
+        const dialog = createTemporaryObject(plainComponent, testCase);
+        dialog.open();
+        compare(dialog.cursor, 1);
+        keyClick(Qt.Key_Tab);
+        compare(dialog.cursor, 1);
+        verify(dialog.activeFocus);
+        keyClick(Qt.Key_Backtab);
+        keyClick(Qt.Key_Backtab);
+        compare(dialog.cursor, 0);
+        verify(dialog.activeFocus);
+    }
+
+    // KIT-6: an open dialog is modal — even from its body's toggle, what it does not use
+    // stops at it; ctrl+q still goes on.
+    function test_keys_the_dialog_does_not_use_stop_at_it() {
+        const host = createTemporaryObject(hostComponent, testCase);
+        host.dialog.open();
+        keyClick("x");
+        keyClick(Qt.Key_Backtab); // cancel -> toggle
+        keyClick("x");
+        keyClick(Qt.Key_K, Qt.ControlModifier);
+        compare(host.seen.length, 0, "a key reached the view behind the dialog");
+        compare(host.dialog.opened, true);
+
+        keyClick(Qt.Key_Q, Qt.ControlModifier);
+        compare(host.seen, [Qt.Key_Q], "ctrl+q did not go on");
+    }
+
     // ---- the destructive colours ------------------------------------------------------
     function test_the_destructive_button_reads_red_and_outlines_red_under_the_cursor() {
         const dialog = createTemporaryObject(deleteComponent, testCase);
@@ -231,6 +343,14 @@ TestCase {
 
         SignalSpy {
             signalName: "rejected"
+        }
+    }
+
+    Component {
+        id: toggledSpy
+
+        SignalSpy {
+            signalName: "toggled"
         }
     }
 }

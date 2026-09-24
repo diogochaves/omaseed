@@ -69,6 +69,27 @@ TestCase {
         }
     }
 
+    // A view holding the menu, which records every key that gets past it.
+    Component {
+        id: hostComponent
+
+        Item {
+            property alias menu: hostedMenu
+            property var seen: []
+
+            anchors.fill: parent
+
+            Keys.onPressed: event => seen.push(event.key)
+
+            Menu {
+                id: hostedMenu
+
+                anchors.fill: parent
+                items: testCase.actionRows
+            }
+        }
+    }
+
     // ---- geometry ---------------------------------------------------------------------
     function test_the_panel_is_two_hundred_and_eighty_wide_with_an_accent_edge() {
         const menu = createTemporaryObject(menuComponent, testCase);
@@ -222,6 +243,60 @@ TestCase {
 
         menu.close();
         verify(probe.activeFocus, "the focus was not restored");
+    }
+
+    // KIT-2: `tab` stays in the menu. Unaccepted, Qt moved the focus to the next tab stop
+    // behind the scrim and the still-drawn menu stopped hearing esc, j/k and enter.
+    function test_tab_keeps_the_keyboard_in_the_menu() {
+        const behind = createTemporaryObject(probeComponent, testCase);
+        const menu = createTemporaryObject(menuComponent, testCase);
+        behind.forceActiveFocus();
+        menu.open();
+        compare(menu.cursorIndex, 0);
+
+        keyClick(Qt.Key_Tab);
+        verify(menu.activeFocus, "tab took the keyboard out of the menu");
+        verify(!behind.activeFocus);
+        compare(menu.cursorIndex, 3, "tab did not move the cursor down");
+        keyClick(Qt.Key_Backtab);
+        verify(menu.activeFocus);
+        compare(menu.cursorIndex, 0);
+
+        keyClick(Qt.Key_Escape);
+        compare(menu.opened, false, "esc no longer reached the menu");
+    }
+
+    // KIT-13: a screen reader hears a popup menu of named items.
+    function test_the_rows_are_named_menu_items() {
+        const menu = createTemporaryObject(menuComponent, testCase);
+        menu.open();
+        compare(menu.panel.Accessible.role, Accessible.PopupMenu);
+        const rows = menu.panel.children[0].children;
+        compare(rows[0].Accessible.role, Accessible.MenuItem);
+        compare(rows[0].Accessible.name, "start");
+        compare(rows[2].Accessible.role, Accessible.Separator);
+        menu.close();
+    }
+
+    // KIT-6: an open menu is modal — what it does not use stops at it, except ctrl+q.
+    function test_keys_the_menu_does_not_use_stop_at_it() {
+        const host = createTemporaryObject(hostComponent, testCase);
+        host.menu.open();
+
+        keyClick("x");
+        keyClick(Qt.Key_K, Qt.ControlModifier);
+        compare(host.seen.length, 0, "a key reached the view behind the menu");
+        compare(host.menu.opened, true);
+
+        keyClick(Qt.Key_Q, Qt.ControlModifier);
+        compare(host.seen, [Qt.Key_Q], "ctrl+q did not go on");
+    }
+
+    function test_a_closed_menu_lets_keys_through() {
+        const host = createTemporaryObject(hostComponent, testCase);
+        host.menu.forceActiveFocus();
+        keyClick("x");
+        compare(host.seen, [Qt.Key_X]);
     }
 
     // ---- inline (the gallery) ---------------------------------------------------------

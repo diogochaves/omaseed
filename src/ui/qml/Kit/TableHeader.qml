@@ -19,6 +19,9 @@ Item {
 
     readonly property int _pixelSize: Theme.font.caption
 
+    Accessible.name: root.text
+    Accessible.role: Accessible.ColumnHeader
+
     height: root.implicitHeight
     implicitHeight: Theme.font.body * 2
 

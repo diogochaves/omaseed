@@ -86,6 +86,26 @@ TestCase {
         compare(findChild(t.hint, "scrollbar").visible, false, "shown for a list that fits");
     }
 
+    // KIT-12: with the thumb at its minimum length (a long list), it moves over the travel it
+    // leaves, so it reaches the bottom exactly when the list does and not before.
+    function test_the_thumb_reaches_the_bottom_only_at_the_end() {
+        const t = make("scrollbar", 0, 5);
+        t.flick.contentHeight = 20000;
+        t.hint.revealed = true;
+        const track = findChild(t.hint, "scrollbar");
+        const thumb = findChild(t.hint, "scrollThumb");
+        compare(thumb.height, Theme.space(16), "the minimum length is not in play");
+        compare(thumb.y, 0);
+
+        const range = t.flick.contentHeight - t.flick.height;
+        t.flick.contentY = range * 0.97;
+        verify(thumb.y + thumb.height < track.height - 0.5, "the thumb hit the bottom at 97 %");
+        t.flick.contentY = range / 2;
+        fuzzyCompare(thumb.y, (track.height - thumb.height) / 2, 0.5);
+        t.flick.contentY = range;
+        fuzzyCompare(thumb.y + thumb.height, track.height, 0.5);
+    }
+
     function test_an_unknown_style_draws_nothing() {
         const t = make("none", 4, 4);
         t.hint.revealed = true;

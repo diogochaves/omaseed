@@ -91,6 +91,27 @@ TestCase {
         }
     }
 
+    // A view holding the palette, which records every key that gets past it.
+    Component {
+        id: hostComponent
+
+        Item {
+            property alias hosted: hostedPalette
+            property var seen: []
+
+            anchors.fill: parent
+
+            Keys.onPressed: event => seen.push(event.key)
+
+            Palette {
+                id: hostedPalette
+
+                anchors.fill: parent
+                items: testCase.jumpRows
+            }
+        }
+    }
+
     // ---- geometry ---------------------------------------------------------------------
     function test_the_panel_is_four_hundred_and_eighty_wide_with_an_accent_edge() {
         const palette = createTemporaryObject(paletteComponent, testCase);
@@ -328,6 +349,42 @@ TestCase {
         compare(multi.query, "", "space was typed into a multi-select's query");
     }
 
+    // KIT-4: in a multi-select a click toggles the clicked row; it does not activate (which
+    // applies the whole selection and closes the tags picker).
+    function test_a_click_in_a_multi_select_toggles_that_row() {
+        const multi = createTemporaryObject(multiComponent, testCase);
+        const toggled = createTemporaryObject(toggledSpy, testCase, {
+                                                  "target": multi
+                                              });
+        const activated = createTemporaryObject(activatedSpy, testCase, {
+                                                    "target": multi
+                                                });
+        multi.open();
+        waitForRendering(multi.listView);
+        const row = multi.listView.itemAtIndex(2);
+        verify(row, "row 2 is not laid out");
+        mouseClick(row);
+        compare(toggled.count, 1, "the click did not toggle the row");
+        compare(toggled.signalArguments[0][0], 2);
+        compare(toggled.signalArguments[0][1].title, "movies");
+        compare(activated.count, 0, "the click activated the palette");
+        compare(multi.cursorIndex, 2);
+        multi.close();
+    }
+
+    function test_a_click_in_a_single_select_activates_that_row() {
+        const palette = createTemporaryObject(paletteComponent, testCase);
+        const activated = createTemporaryObject(activatedSpy, testCase, {
+                                                    "target": palette
+                                                });
+        palette.open();
+        waitForRendering(palette.listView);
+        mouseClick(palette.listView.itemAtIndex(1));
+        compare(activated.count, 1);
+        compare(activated.signalArguments[0][0], 1);
+        palette.close();
+    }
+
     // N2: a reorderable list asks to move the cursor's row; the caller owns the order.
     function test_alt_arrows_ask_to_move_the_row_in_a_reorderable_list() {
         const palette = createTemporaryObject(multiComponent, testCase, {
@@ -447,6 +504,12 @@ TestCase {
         palette.openOn("movies");
         compare(palette.cursorIndex, 0);
         palette.close();
+
+        // KIT-16: not whatever row the last session left the cursor on.
+        palette.cursorIndex = 2;
+        palette.openOn("movies");
+        compare(palette.cursorIndex, 0, "an unknown key kept the previous cursor");
+        palette.close();
     }
 
     function test_cursor_to_key_moves_an_already_open_palette() {
@@ -469,6 +532,21 @@ TestCase {
         palette.cursorToKey("nope");
         compare(palette.cursorIndex, 1, "an unknown key moved the cursor");
         palette.close();
+    }
+
+    // KIT-6: an open palette is modal — what neither it nor its query row uses stops at it,
+    // except ctrl+q.
+    function test_keys_the_palette_does_not_use_stop_at_it() {
+        const host = createTemporaryObject(hostComponent, testCase);
+        host.hosted.open();
+
+        keyClick(Qt.Key_F5);
+        compare(host.seen.length, 0, "a key reached the view behind the palette");
+        compare(host.hosted.opened, true);
+
+        keyClick(Qt.Key_Q, Qt.ControlModifier);
+        compare(host.seen, [Qt.Key_Q], "ctrl+q did not go on");
+        host.hosted.close();
     }
 
     // ---- inline (the gallery) ---------------------------------------------------------

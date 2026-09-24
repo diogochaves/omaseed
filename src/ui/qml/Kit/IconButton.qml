@@ -40,7 +40,9 @@ Rectangle {
                                                                                  Theme.borderIdle) :
                                                                              "transparent"
 
-    Accessible.name: root.tooltip.length > 0 ? root.tooltip : root.glyph
+    // An SVG glyph ("icon:gear") is no name to read out.
+    Accessible.name: root.tooltip.length > 0 ? root.tooltip : root.glyph.startsWith("icon:") ? ""
+                                                                                         : root.glyph
     Accessible.role: Accessible.Button
 
     activeFocusOnTab: root.enabled
@@ -52,10 +54,12 @@ Rectangle {
                                                  ? Theme.fill(Theme.fillHover) : root.selected
                                                    ? Theme.fill(Theme.fillSelected) : root.bordered
                                                      ? Theme.fill(Theme.fillIdle) : "transparent"
-    height: Theme.controlHeight
+    // Implicit, not fixed: a layout (the hero's `room`) reads `implicitWidth`, and a fixed
+    // `width` left it at 0.
+    implicitHeight: Theme.controlHeight
+    implicitWidth: Theme.controlHeight
     opacity: root.enabled ? 1.0 : 0.4
     radius: Theme.cornerRadius
-    width: Theme.controlHeight
 
     Behavior on color {
         ColorAnimation {
@@ -103,6 +107,10 @@ Rectangle {
         visible: root.tooltip.length > 0 && (mouseArea.containsMouse || root.activeFocus)
     }
 
+    // Keypad `enter` is its own key (`Qt.Key_Enter`); without it the key went on to the
+    // Sheet, which ran its primary action instead of this button (KIT-7).
+    Keys.onEnterPressed: if (root.enabled)
+                             root.clicked()
     Keys.onReturnPressed: if (root.enabled)
                               root.clicked()
     Keys.onSpacePressed: if (root.enabled)
