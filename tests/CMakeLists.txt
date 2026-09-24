@@ -7,6 +7,8 @@ function(omaseed_add_test name)
 
     qt_add_executable(${name} ${arg_SOURCES})
     target_link_libraries(${name} PRIVATE omaseed::warnings Qt6::Test ${arg_LIBRARIES})
+    # tests/LiveServer.hpp: every live test's server URL, behind the :8080 guard.
+    target_include_directories(${name} PRIVATE "${PROJECT_SOURCE_DIR}/tests")
     if(arg_DEFINES)
         target_compile_definitions(${name} PRIVATE ${arg_DEFINES})
     endif()
@@ -40,4 +42,5 @@ if(NOT WIN32)
         LABELS "release"
         TIMEOUT 120
     )
+
 endif()

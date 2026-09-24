@@ -15,6 +15,8 @@
 #include "core/TorrentModel.hpp"
 #include "ui/app/App.hpp"
 
+#include "LiveServer.hpp"
+
 #include <QElapsedTimer>
 #include <QEventLoop>
 #include <QFile>
@@ -41,9 +43,7 @@ const QString kCategory = QStringLiteral("omaseed-n1-live");
 
 QUrl playgroundUrl()
 {
-    const QString fromEnv =
-        QProcessEnvironment::systemEnvironment().value(QStringLiteral("QBT_TEST_URL"));
-    return QUrl(fromEnv.isEmpty() ? QStringLiteral("http://127.0.0.1:8081") : fromEnv);
+    return LiveServer::playground();
 }
 
 bool answers(const QUrl &url)

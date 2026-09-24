@@ -23,6 +23,8 @@
 #include "ui/app/App.hpp"
 #include "ui/app/DemoData.hpp"
 
+#include "LiveServer.hpp"
+
 #include <QElapsedTimer>
 #include <QFile>
 #include <QJsonObject>
@@ -47,9 +49,7 @@ namespace {
 
 QUrl playgroundUrl()
 {
-    const QString fromEnv =
-        QProcessEnvironment::systemEnvironment().value(QStringLiteral("QBT_TEST_URL"));
-    return QUrl(fromEnv.isEmpty() ? QStringLiteral("http://127.0.0.1:8081") : fromEnv);
+    return LiveServer::playground();
 }
 
 bool answers(const QUrl &url)
