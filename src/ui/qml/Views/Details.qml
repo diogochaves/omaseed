@@ -43,6 +43,11 @@ Item {
     /// docs/13: the strip's width in the band. Fixed, so the name does not shift as the ETA
     /// changes length; never more than half the pane, so the name keeps room.
     readonly property int bandStripWidth: Math.min(Theme.space(440), Math.floor(root.width / 2))
+    /// The head and the strip share one line: `wide`, and at least 700 px at base 14
+    /// (docs/15 Q2 A). Narrower, half the pane left every fact eliding, so the band stops
+    /// sharing its line: the name on top, the four facts across the whole width under it,
+    /// then the tabs, as when the pane is docked at the side.
+    readonly property bool band: root.wide && root.width >= Theme.space(600)
 
     /// Where the cursor sits inside the current tab's list; General's rows are a list too (G5).
     readonly property int cursorIndex: root.currentTab === 1 ? root.filesCursor : root.currentTab
@@ -605,7 +610,7 @@ Item {
         anchors.top: parent.top
         // Never negative: at the window's narrowest a negative width let the texts draw
         // unclipped over the rail (review RUN-6).
-        width: Math.max(0, (root.wide ? root.width - root.bandStripWidth : root.width) - Theme.space(32))
+        width: Math.max(0, (root.band ? root.width - root.bandStripWidth : root.width) - Theme.space(32))
         height: headColumn.implicitHeight + Theme.space(12) + Theme.space(8)
         clip: true
 
@@ -726,13 +731,13 @@ Item {
         // the band's own rule closes it.
         anchors.right: parent.right
         objectName: "strip"
-        rule: !root.wide
-        width: root.wide ? root.bandStripWidth : root.width
+        rule: !root.band
+        width: root.band ? root.bandStripWidth : root.width
         // A y binding rather than anchors: swapping anchors.top for anchors.verticalCenter
         // when `wide` flips leaves the strip where it was. Centred, the head's text sits 2
         // below its middle (12 over, 8 under) and the strip's 2 above its own (6 over, 10
         // under).
-        y: root.wide ? head.y + (head.height - height) / 2 + Theme.space(2) + Theme.space(2)
+        y: root.band ? head.y + (head.height - height) / 2 + Theme.space(2) + Theme.space(2)
                      : head.y + head.height
         items: [
             {
@@ -761,7 +766,7 @@ Item {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: head.bottom
-        visible: root.wide
+        visible: root.band
     }
 
     Tabs {
@@ -769,7 +774,7 @@ Item {
 
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.top: root.wide ? bandRule.bottom : strip.bottom
+        anchors.top: root.band ? bandRule.bottom : strip.bottom
         currentIndex: root.currentTab
         objectName: "detailsTabs"
         // Set once; activateTab() keeps it in step afterwards.
