@@ -241,10 +241,14 @@ Item {
 
     function _trigger(action: var): void {
         root.actionTriggered(action.text);
-        if (action.primary === true)
+        if (action.primary === true) {
             root.accepted();
-        else if (action.cancel === true)
+        } else if (action.cancel === true) {
+            // The same as `esc`: a `cancel` button closes the sheet itself. `close()` does
+            // nothing when the caller already closed it from `actionTriggered`.
+            root.close();
             root.rejected();
+        }
     }
 
     function _collect(item: var, out: var): void {

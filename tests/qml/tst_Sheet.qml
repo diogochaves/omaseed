@@ -258,6 +258,34 @@ TestCase {
         compare(accepted.count, 0, "the secondary action is not an accept");
     }
 
+    // KIT-1: a `cancel` button closes the sheet, as `esc` does, and rejects once — Rename,
+    // Location and Global limits handle only `accepted` and rely on it.
+    function test_the_cancel_action_closes_and_rejects_once() {
+        const sheet = createTemporaryObject(keySheetComponent, testCase);
+        const rejected = createTemporaryObject(rejectedSpy, testCase, {
+                                                   "target": sheet
+                                               });
+        sheet.open();
+        const cancel = sheet.actionButtons()[0];
+        compare(cancel.text, "cancel");
+        cancel.clicked();
+        compare(sheet.opened, false, "cancel left the sheet open");
+        compare(rejected.count, 1);
+    }
+
+    function test_enter_on_the_focused_cancel_button_closes_the_sheet() {
+        const sheet = createTemporaryObject(keySheetComponent, testCase);
+        const accepted = createTemporaryObject(acceptedSpy, testCase, {
+                                                   "target": sheet
+                                               });
+        sheet.open();
+        keyClick(Qt.Key_Tab); // toggle -> cancel
+        compare(sheet.focusedIndex(), 1);
+        keyClick(Qt.Key_Return);
+        compare(sheet.opened, false);
+        compare(accepted.count, 0, "enter on cancel ran the primary");
+    }
+
     // ---- the focus trap ---------------------------------------------------------------
     function test_open_puts_the_keyboard_on_the_first_focusable_row() {
         const sheet = createTemporaryObject(formSheetComponent, testCase);
