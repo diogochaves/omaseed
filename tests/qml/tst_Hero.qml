@@ -212,6 +212,91 @@ TestCase {
         verify(hero.addButton.visible);
     }
 
+    // The right edge of the rightmost thing the row draws, against the row's own width.
+    function overflow(hero) {
+        const row = hero.children[0];
+        let right = 0;
+        for (const child of row.children) {
+            if (child.visible && child.width > 0)
+                right = Math.max(right, child.x + child.width);
+        }
+        return right - row.width;
+    }
+
+    // KIT-5: the filter chips (shown while the rail is hidden) count in the ladder and fold to
+    // glyph and ✕ from step 3, so `+` and ⋯ never leave the window with a chip up.
+    function test_filter_chips_never_push_the_buttons_out() {
+        const hero = createTemporaryObject(heroComponent, testCase, {
+                                               "downSpeed": "12.3 MB/s",
+                                               "upSpeed": "999.9 KB/s",
+                                               "altSpeedActive": true,
+                                               "altDownLimit": "10.0 MB/s",
+                                               "altUpLimit": "1.00 MB/s",
+                                               "altDownLimitShort": "10.0M",
+                                               "altUpLimitShort": "1.00M",
+                                               "serverLine": "home · qBittorrent 5.2.3",
+                                               "serverLineShort": "home"
+                                           });
+        const sets = [[], [{
+                               "key": "category",
+                               "glyph": Glyphs.folder,
+                               "text": "linux-isos"
+                           }], [{
+                                    "key": "category",
+                                    "glyph": Glyphs.folder,
+                                    "text": "linux-isos"
+                                }, {
+                                    "key": "tag",
+                                    "glyph": Glyphs.tag,
+                                    "text": "archive-2026"
+                                }]];
+        const over = [];
+        for (const chips of sets) {
+            hero.filterChips = chips;
+            for (const w of [1400, 1286, 1100, 1000, 900, 800, 700, 600, 540, 480]) {
+                for (const open of [false, true]) {
+                    hero.width = Theme.space(w);
+                    hero.searchOpen = open;
+                    waitForItemPolished(hero.children[0]);
+                    verify(hero.level < 3 || hero.chipsFolded);
+                    // Step 4 is the ladder's last: what gives there with chips up is still
+                    // Diogo's call (docs/QUESTIONS.md), so only steps 0–3 must fit.
+                    if (hero.level < 4 && overflow(hero) > 0.5)
+                        over.push(chips.length + " chips at " + w + (open ? " open" : "") + ", level "
+                                  + hero.level + ": " + Math.round(overflow(hero)) + " px over");
+                }
+            }
+        }
+        hero.searchOpen = false;
+        compare(over, []);
+    }
+
+    // KIT-9: the server line elides only when the row really has no room left for it.
+    function test_the_server_line_does_not_elide_while_there_is_room() {
+        const hero = createTemporaryObject(heroComponent, testCase, {
+                                               "downSpeed": "12.3 MB/s",
+                                               "upSpeed": "999.9 KB/s",
+                                               "serverLine": "seedbox-in-a-far-away-datacentre.a-rather-long-domain.example.org · qBittorrent 5.2.3",
+                                               "serverLineShort": "seedbox-in-a-far-away-datacentre.a-rather-long-domain.example.org"
+                                           });
+        const identity = findChild(hero, "serverLine").parent.parent;
+        const spacer = hero.children[0].children.find(c => c.objectName === "speedsSpacerRight");
+        verify(spacer, "no right spacer");
+        let squeezedOnce = false;
+        for (let w = 700; w <= 1300; w += 10) {
+            hero.width = Theme.space(w);
+            waitForItemPolished(hero.children[0]);
+            verify(overflow(hero) <= 0.5, "at " + w + " the row runs " + overflow(hero) + " px over");
+            if (!identity.squeezed)
+                continue;
+            squeezedOnce = true;
+            // Eliding, the slack spacer must have nothing left to give it.
+            verify(spacer.width < 1, "at " + w + " the server line elides with " + spacer.width
+                   + " px spare");
+        }
+        verify(squeezedOnce, "the probe never squeezed the server line");
+    }
+
     function test_step_four_keeps_the_dot_beside_the_mark() {
         const hero = createTemporaryObject(heroComponent, testCase);
         hero.width = Theme.space(500);

@@ -52,10 +52,12 @@ Rectangle {
                                                  ? Theme.fill(Theme.fillHover) : root.selected
                                                    ? Theme.fill(Theme.fillSelected) : root.bordered
                                                      ? Theme.fill(Theme.fillIdle) : "transparent"
-    height: Theme.controlHeight
+    // Implicit, not fixed: a layout (the hero's `room`) reads `implicitWidth`, and a fixed
+    // `width` left it at 0.
+    implicitHeight: Theme.controlHeight
+    implicitWidth: Theme.controlHeight
     opacity: root.enabled ? 1.0 : 0.4
     radius: Theme.cornerRadius
-    width: Theme.controlHeight
 
     Behavior on color {
         ColorAnimation {
