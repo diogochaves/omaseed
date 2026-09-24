@@ -386,6 +386,13 @@ void TestTorrentModel::statusGroupsFollowTheRail()
     QVERIFY(stoppedIncomplete.inGroup(StatusGroup::Downloading));
     QVERIFY(!stoppedIncomplete.inGroup(StatusGroup::Completed));
 
+    // A force-started magnet still fetching metadata (qBittorrent 4.6+).
+    Torrent forcedMeta;
+    forcedMeta.applyJson(torrentJson(QStringLiteral("m"), QStringLiteral("forcedMetaDL"), 0.0));
+    QVERIFY(forcedMeta.inGroup(StatusGroup::Downloading));
+    QVERIFY(forcedMeta.inGroup(StatusGroup::Active));
+    QVERIFY(!forcedMeta.inGroup(StatusGroup::Stopped));
+
     Torrent checking;
     checking.applyJson(torrentJson(QStringLiteral("c"), QStringLiteral("checkingUP"), 1.0));
     QVERIFY(checking.inGroup(StatusGroup::Checking));
@@ -413,6 +420,8 @@ void TestTorrentModel::stateTextAndColourRole_data()
                               << QStringLiteral("stateDownloading");
     QTest::newRow("metaDL") << QStringLiteral("metaDL") << QStringLiteral("metadata")
                             << QStringLiteral("stateDownloading");
+    QTest::newRow("forcedMetaDL") << QStringLiteral("forcedMetaDL") << QStringLiteral("metadata")
+                                  << QStringLiteral("stateDownloading");
     QTest::newRow("uploading") << QStringLiteral("uploading") << QStringLiteral("seeding")
                                << QStringLiteral("stateSeeding");
     QTest::newRow("stalledDL") << QStringLiteral("stalledDL") << QStringLiteral("stalled")
@@ -468,6 +477,8 @@ void TestTorrentModel::etaTextFollowsTheState_data()
     const QString infinity = Format::etaShort(8640000);
     QTest::newRow("downloading") << QStringLiteral("downloading") << 0.5 << qint64(160) << twoForty;
     QTest::newRow("forcedDL") << QStringLiteral("forcedDL") << 0.5 << qint64(160) << twoForty;
+    QTest::newRow("forcedMetaDL") << QStringLiteral("forcedMetaDL") << 0.0 << qint64(8640000)
+                                  << infinity;
     QTest::newRow("stalledDL") << QStringLiteral("stalledDL") << 0.5 << qint64(8640000) << infinity;
     // The rest keep whatever estimate the server last sent; it no longer means anything.
     QTest::newRow("error") << QStringLiteral("error") << 0.5 << qint64(985) << dash;
