@@ -117,28 +117,40 @@ fi
 home="$(omabox path -b "$BOX")/home"
 config="$home/.config/omaseed"
 
-# In first run's choose step the rows are [this machine?], remote, install: j to the bottom
-# and one k up lands on "remote" whether or not a local server was found.
-REMOTE="j j j k Return"
+# First run opens on the welcome (enter sets up). In step 1 the rows are [this machine?],
+# remote, install: j to the bottom and one k up lands on "remote" whether or not a local
+# server was found. In step 2 the tab order is URL, name, the three auth chips, the chosen
+# mode's field(s), then test, open web UI, save anyway (after a failed test), continue.
+REMOTE="Return -s 500 j j j k Return"
 
 # ---- cookie ---------------------------------------------------------------------------------
 launch
-step "First run" "The choose step: connect to a remote server, install qbittorrent-nox, and a row for this machine only if it found one. The box cannot reach :8080."
+step "Welcome" "docs/14 screen 0, no top bar: the mark with omaseed beside it, the pitch, the server search's answer (the box cannot reach :8080, so most likely nothing found), set up / quit, the version in the footer."
+
+keys Return -s 800
+step "Step 1: server" "Centred column: the mark, 1 server · 2 sign in · 3 links, the question, the rows (remote, install; this machine only if found). Footer: step 1 of 3, j k choose, enter continue, esc quit."
+keys Escape -s 1500
+check "esc on step 1 quits, as the footer says" \
+    sh -c '! omabox hyprctl -b "$1" -j clients | grep -q "io.github.diogochaves.omaseed"' _ "$BOX"
+launch
 
 # URL, name, the cookie chip (API key, cookie, none are three tab stops), user, password, test.
 # shellcheck disable=SC2086
 keys $REMOTE -s 500 -t "$STRICT" Tab -t strict Tab Tab space Tab Tab -t "$QBT_STRICT_USER" \
-    Tab -t "not-the-password" Tab Tab Return -s 3000
-step "Wrong password" "Cookie chosen: Username and Password fields (no Key field). Red: wrong username or password, the raw 401 dim underneath; continue stays off."
+    Tab -t "not-the-password" Tab Return -s 3000
+step "Wrong password" "✓ server · 2 sign in. URL and name on one row; cookie shows Username and Password. A red dot and wrong username or password, the raw 401 dim underneath, then test / open web UI / save anyway / continue (off)."
 
-keys shift+Tab shift+Tab ctrl+a -t "$QBT_STRICT_PASS" Tab Tab Return -s 3000
-step "Cookie test passes" "qBittorrent 5.2.3 · API 2.15.1 · 3 torrents under the buttons; continue is on."
+keys shift+Tab ctrl+a -t "$QBT_STRICT_PASS" Tab Return -s 3000
+step "Cookie test passes" "A green dot: signed in · qBittorrent 5.2.3 · API 2.15.1 · 3 torrents, above the buttons; save anyway gone, continue on."
 
 keys Tab Tab Return -s 1500
-step "Magnet handler" "Step 3 of 3: make omaseed the magnet and .torrent handler; the script answers not now."
+step "Magnet handler" "✓ server ✓ sign in 3 links: Open magnet links and .torrent files with omaseed?, the dim line, open them with omaseed / not now; the script answers not now."
 
-keys Tab Return -s 3000
-step "Signed in with a cookie" "The table: fixture-one, -two, -three (stopped); the hero says STRICT · QBITTORRENT 5.2.3; no banner."
+keys Tab Return -s 2000
+step "Done" "✓ ✓ ✓. You're connected to strict. qBittorrent 5.2.3 · 3 torrents (· free space once synced); magnet links still open elsewhere; a / , / ? hints; open the library. Footer: setup done."
+
+keys Return -s 2500
+step "Signed in with a cookie" "The library with its top bar back: fixture-one, -two, -three (stopped); the hero says STRICT · QBITTORRENT 5.2.3; no banner."
 
 check "servers.json keeps the user but not the password" \
     sh -c 'grep -q "\"authMode\": *\"cookie\"" "$1" && grep -q "\"username\": *\"$2\"" "$1" && ! grep -qF "$3" "$1"' \
@@ -159,13 +171,13 @@ launch
 # URL, name, the API key chip, then three tabs (cookie, none, Key) and a wrong key first.
 # shellcheck disable=SC2086
 keys $REMOTE -s 500 -t "$STRICT" Tab -t strict-key Tab space Tab Tab Tab -t "not-a-real-key" \
-    Tab Tab Return -s 3000
+    Tab Return -s 3000
 step "Wrong API key" "API key chosen: one Key field (no Username / Password). Red: the server refused this API key, the raw 403 dim underneath; continue stays off."
 
-keys shift+Tab shift+Tab ctrl+a ctrl+v Tab Tab Return -s 3000
+keys shift+Tab ctrl+a ctrl+v Tab Return -s 3000
 step "API key test passes" "The pasted key (dots) tests fine: qBittorrent 5.2.3 · API 2.15.1 · 3 torrents; continue is on."
 
-keys Tab Tab Return -s 1500 Tab Return -s 3000
+keys Tab Tab Return -s 1500 Tab Return -s 1500 Return -s 3000
 omabox run -b "$BOX" -- wl-copy --clear >/dev/null 2>&1 || true
 step "Signed in with an API key" "The same three fixtures; the hero says STRICT-KEY · QBITTORRENT 5.2.3."
 

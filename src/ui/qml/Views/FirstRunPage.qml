@@ -10,7 +10,14 @@ import Omaseed.Kit
 // this instead of the body when `App.firstRunNeeded` (the store is empty) and there is no
 // demo server standing in.
 //
-// Three steps (the footer's "step N of 3"):
+// docs/14 (approved 2026-09-23) made it one "setup surface": no library chrome (MainView
+// hides its hero and footer while this shows), one 520-unit column centred in the window,
+// the mark and the named steps above each step's question, a welcome before step 1 and a
+// done screen after step 3. The page draws its own footer at the window's bottom edge.
+//
+//   welcome     shown first on a real first run: the name, the pitch and the server search
+//               as it runs; `enter` sets up, `esc` quits.
+// Three steps (the footer's "step N of 3", the column's "server · sign in · links"):
 //   1 choose    `App.detectServers()` on `Component.onCompleted`; rows for a detected local
 //               server, "connect to a remote server", and "install qbittorrent-nox here" —
 //               the last one dimmed and captioned "a local server was already found" when
@@ -21,15 +28,19 @@ import Omaseed.Kit
 //               and "remote", or the install page (copyable commands, `run with pkexec`) for
 //               "install", which itself continues into the API-key page pointed at
 //               127.0.0.1:8080.
-//   3 handler   `Xdg.isDefaultMagnetHandler()`'s answer, `register`/`not now`.
+//   3 handler   `Xdg.isDefaultMagnetHandler()`'s answer, "open them with omaseed"/`not now`.
+//   done        the server's name, version and count, three keys, "open the library".
 //
-// `finished()` fires once step 3 is answered; `MainView` has nothing else to do — `App`'s
+// `esc` quits from welcome and step 1, goes back to step 1 from the install and server
+// pages, and does nothing once the server is saved. `finished()` fires from the done screen; `MainView` has nothing else to do — `App`'s
 // `serverChanged`/`firstRunNeeded` already flip the moment `addServer`/`setDefaultServer` run,
 // so the table appears underneath this page a moment before it closes.
 Item {
     id: root
 
     signal finished
+    /// `esc` on the welcome or step 1: leave the app, as the footer says.
+    signal quitRequested
 
     /// Off for `--demo firstrun`: the demo host sets `candidates`/`page` itself with fake
     /// data, instead of this page running the real `ServerDetector` against this machine.
@@ -37,6 +48,8 @@ Item {
 
     // ---- step 1: candidates ------------------------------------------------------------
     property var candidates: []
+    /// True until `App.serversDetected` answers; the welcome shows the search while it runs.
+    property bool detecting: root.autoDetect
     readonly property bool hasLocal: root.candidates.length > 0
     readonly property var _localCandidate: root.hasLocal ? root.candidates[0] : ({})
 
@@ -73,7 +86,7 @@ Item {
 
     // ---- the page's state machine --------------------------------------------------------
     /// "choose" | "install" | "apikey" | "handler"
-    property string page: "choose"
+    property string page: root.autoDetect ? "welcome" : "choose"
 
     // Each step puts the keyboard where typing starts: the page root's own `Keys` only
     // serve the choose step, and the window's tab chain starts at the hero, not here.
@@ -82,17 +95,53 @@ Item {
             urlField.focusInput();
         else if (root.page === "handler")
             registerButton.forceActiveFocus();
+        else if (root.page === "done")
+            openLibraryButton.forceActiveFocus();
         else if (root.page === "install")
             commandsField.focusInput();
         else
             root.forceActiveFocus();
     })
-    readonly property int stepNumber: root.page === "choose" ? 1 : root.page === "handler" ? 3 : 2
+    /// The footer's keys for this page; `esc` is pinned right, as in the library's footer.
+    readonly property var _footerHints: {
+        const hint = (key, label) => ({
+                                          "key": key,
+                                          "label": label
+                                      });
+        switch (root.page) {
+        case "welcome":
+            return [hint("enter", qsTr("set up"))];
+        case "choose":
+            return [hint("j k", qsTr("choose")), hint("enter", qsTr("continue"))];
+        case "apikey":
+            return [hint("tab", qsTr("next field"))];
+        case "handler":
+            return [hint("tab", qsTr("switch")), hint("enter", qsTr("choose"))];
+        case "done":
+            return [hint("enter", qsTr("open the library"))];
+        }
+        return [];
+    }
+    readonly property var _footerPinned: root.page === "welcome" || root.page === "choose" ? {
+                                                                                                 "key": "esc",
+                                                                                                 "label": qsTr("quit")
+                                                                                             } : root.page === "install"
+                                                                                                 || root.page === "apikey" ? {
+                                                                                                                                 "key": "esc",
+                                                                                                                                 "label": qsTr("back")
+                                                                                                                             } : null
+
+    /// 1 server (choose, install), 2 sign in, 3 links; 0 on the welcome, 4 once done.
+    readonly property int stepNumber: root.page === "welcome" ? 0 : root.page === "choose"
+                                                                  || root.page === "install" ? 1 :
+                                                                                              root.page === "apikey" ? 2 :
+                                                                                                                       root.page === "handler" ? 3 : 4
     /// Each step asks its own question; step 1's would read wrong above a server's details or
     /// the magnet handler.
     readonly property string heading: root.page === "install" ? qsTr("Install qBittorrent on this machine?") :
                                       root.page === "apikey" ? qsTr("Where is it, and how does omaseed sign in?") :
                                       root.page === "handler" ? qsTr("Open magnet links and .torrent files with omaseed?") :
+                                      root.page === "done" ? qsTr("You're connected to %1.").arg(root.connectedName) :
                                       qsTr("Which qBittorrent should omaseed talk to?")
 
     // ---- step 2 buffers --------------------------------------------------------------------
@@ -122,6 +171,10 @@ Item {
     property string testErrorDetail: ""
 
     readonly property string _newServerId: ""
+    /// The saved server's name for the done screen ("strict"); the URL's host when unnamed.
+    property string connectedName: ""
+    /// Whether step 3 made omaseed the handler, for the done screen's second line.
+    property bool registered: false
 
     function _fieldMap(): var {
     return {
@@ -198,6 +251,7 @@ function continueFromApiKey(): void {
         App.serverList.setProbeResult(id, root.testOk, root.testVersion, root.testApiVersion,
                                       root.testCount, root.testLatency, root.testError);
     App.setDefaultServer(id);
+    root.connectedName = root.editName.length > 0 ? root.editName : App.serverName;
     root._openHandlerStep();
 }
 
@@ -211,12 +265,27 @@ property string currentHandlerText: ""
 function registerHandler(): void {
     Xdg.registerAsDefaultHandler();
     Xdg.setFirstRunPromptAsked();
-    root.finished();
+    root.registered = true;
+    root.page = "done";
 }
 
 function skipHandler(): void {
     Xdg.setFirstRunPromptAsked();
+    root.registered = false;
+    root.page = "done";
+}
+
+function openLibrary(): void {
     root.finished();
+}
+
+/// `esc`: quit before anything is chosen, back to step 1 while filling one in, and nothing
+/// once the server is saved (steps 3 and done).
+function goBack(): void {
+    if (root.page === "welcome" || root.page === "choose")
+        root.quitRequested();
+    else if (root.page === "install" || root.page === "apikey")
+        root.page = "choose";
 }
 
 Component.onCompleted: {
@@ -232,6 +301,7 @@ Connections {
     function onServersDetected(list: var): void {
         root.candidates = list;
         root.cursorIndex = 0;
+        root.detecting = false;
     }
 
     target: App
@@ -277,14 +347,16 @@ function _apiKeyTabOrder(): list<Item> {
         order.push(keyField);
     else if (root.editAuthMode === "cookie")
         order.push(userField, passField);
-    order.push(openWebUiButton, testButton, skipTestButton);
+    order.push(testButton, openWebUiButton);
+    if (saveAnywayButton.visible)
+        order.push(saveAnywayButton);
     if (continueButton.enabled)
         order.push(continueButton);
     return order;
 }
 
 function _cycleApiKeyFocus(delta: int): void {
-    const order = root.page === "handler" ? [notNowButton, registerButton] : root._apiKeyTabOrder();
+    const order = root.page === "handler" ? [registerButton, notNowButton] : root._apiKeyTabOrder();
     let current = -1;
     for (let i = 0; i < order.length; ++i) {
         const item = order[i];
@@ -299,6 +371,19 @@ function _cycleApiKeyFocus(delta: int): void {
 }
 
 Keys.onPressed: event => {
+    if (event.key === Qt.Key_Escape) {
+        root.goBack();
+        event.accepted = true;
+        return;
+    }
+    if ((root.page === "welcome" || root.page === "done") && (event.key === Qt.Key_Return || event.key === Qt.Key_Enter)) {
+        if (root.page === "welcome")
+            root.page = "choose";
+        else
+            root.openLibrary();
+        event.accepted = true;
+        return;
+    }
     if ((root.page === "apikey" || root.page === "handler") && (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab)) {
         root._cycleApiKeyFocus(event.key === Qt.Key_Tab ? 1 : -1);
         event.accepted = true;
@@ -321,16 +406,146 @@ Keys.onPressed: event => {
 focus: true
 
 // ---- layout -----------------------------------------------------------------------
+// docs/14 C1: one column, centred both ways in the space above the footer, its text
+// left-aligned. Each step is a different height, so the column re-centres between steps.
 ColumnLayout {
-    anchors.horizontalCenter: parent.horizontalCenter
-    anchors.top: parent.top
-    anchors.topMargin: Theme.space(72)
+    id: column
+
+    objectName: "setupColumn"
     spacing: Theme.space(18)
-    width: Theme.space(520)
+    width: Math.min(Theme.space(520), root.width - Theme.space(48))
+    x: Math.round((root.width - column.width) / 2)
+    y: Math.max(Theme.space(24), Math.round((root.height - setupFooter.height - column.height) / 2))
+
+    // ---- welcome (docs/14 screen 0) -----------------------------------------------------
+    RowLayout {
+        spacing: Theme.space(14)
+        visible: root.page === "welcome"
+
+        Icon {
+            color: Theme.accent
+            implicitHeight: Theme.font.display * 2
+            implicitWidth: Theme.font.display * 2
+            name: "mark"
+        }
+
+        Label {
+            bright: true
+            font.weight: Font.DemiBold
+            size: "display"
+            text: qsTr("omaseed")
+        }
+    }
 
     Label {
-        text: qsTr("first run")
-        tracked: true
+        Layout.fillWidth: true
+        dim: true
+        text: qsTr("Torrents for Omarchy, powered by qBittorrent.")
+        visible: root.page === "welcome"
+        wrapMode: Text.WordWrap
+    }
+
+    // The server search, as it runs: what step 1 will offer.
+    ColumnLayout {
+        Layout.fillWidth: true
+        objectName: "detectLines"
+        spacing: Theme.space(4)
+        visible: root.page === "welcome"
+
+        Label {
+            Layout.fillWidth: true
+            dim: true
+            size: "small"
+            text: qsTr("· looking for qBittorrent on this machine…")
+            visible: root.detecting
+        }
+
+        Repeater {
+            model: root.detecting ? [] : root.candidates
+
+            Label {
+                required property var modelData
+
+                Layout.fillWidth: true
+                color: Theme.green
+                size: "small"
+                text: qsTr("✓ found %1").arg(modelData.detail || modelData.url || "")
+                wrapMode: Text.WordWrap
+            }
+        }
+
+        Label {
+            Layout.fillWidth: true
+            dim: true
+            size: "small"
+            text: qsTr("· no qBittorrent on this machine yet")
+            visible: !root.detecting && !root.hasLocal
+            wrapMode: Text.WordWrap
+        }
+    }
+
+    RowLayout {
+        spacing: Theme.space(8)
+        visible: root.page === "welcome"
+
+        Button {
+            id: setUpButton
+
+            primary: true
+            text: qsTr("set up")
+
+            onClicked: root.page = "choose"
+        }
+
+        Button {
+            text: qsTr("quit")
+
+            onClicked: root.quitRequested()
+        }
+    }
+
+    // ---- every other page: the mark, the named steps, the question -----------------------
+    RowLayout {
+        spacing: Theme.space(8)
+        visible: root.page !== "welcome"
+
+        Icon {
+            color: Theme.accent
+            implicitHeight: Theme.font.title
+            implicitWidth: Theme.font.title
+            name: "mark"
+        }
+
+        Label {
+            bright: true
+            font.weight: Font.DemiBold
+            text: qsTr("omaseed")
+        }
+    }
+
+    // docs/14 D1: done steps in green with a tick, the current one bright, the rest dim.
+    Row {
+        objectName: "setupSteps"
+        spacing: Theme.space(18)
+        visible: root.page !== "welcome"
+
+        Repeater {
+            model: [qsTr("server"), qsTr("sign in"), qsTr("links")]
+
+            Label {
+                required property int index
+                required property string modelData
+
+                readonly property int number: index + 1
+
+                bright: number === root.stepNumber
+                color: number < root.stepNumber ? Theme.green : number === root.stepNumber
+                                                                ? Theme.brightForeground :
+                                                                  Theme.dimForeground
+                size: "small"
+                text: number < root.stepNumber ? "✓ " + modelData : number + " " + modelData
+            }
+        }
     }
 
     Label {
@@ -339,15 +554,7 @@ ColumnLayout {
         bright: true
         objectName: "heading"
         text: root.heading
-        wrapMode: Text.WordWrap
-    }
-
-    Label {
-        Layout.fillWidth: true
-        dim: true
-        text: root.hasLocal ? qsTr("omaseed is a client. It found one server on this machine.") :
-                              qsTr("omaseed is a client. It found no server on this machine.")
-        visible: root.page === "choose"
+        visible: root.page !== "welcome"
         wrapMode: Text.WordWrap
     }
 
@@ -477,7 +684,7 @@ ColumnLayout {
             Rectangle {
                 Layout.alignment: Qt.AlignTop
                 Layout.preferredHeight: portWarningText.implicitHeight
-                Layout.preferredWidth: 2
+                Layout.horizontalStretchFactor: 2
                 color: Theme.yellow
             }
 
@@ -558,31 +765,38 @@ ColumnLayout {
         spacing: Theme.space(12)
         visible: root.page === "apikey"
 
-        FormRow {
+        RowLayout {
             Layout.fillWidth: true
-            label: qsTr("URL")
+            spacing: Theme.space(10)
 
-            Field {
-                id: urlField
-
+            FormRow {
                 Layout.fillWidth: true
-                placeholder: qsTr("http://127.0.0.1:8080")
+                Layout.horizontalStretchFactor: 3
+                label: qsTr("URL")
 
-                onTextChanged: root.editUrl = text
+                Field {
+                    id: urlField
+
+                    Layout.fillWidth: true
+                    placeholder: qsTr("http://127.0.0.1:8080")
+
+                    onTextChanged: root.editUrl = text
+                }
             }
-        }
 
-        FormRow {
-            Layout.fillWidth: true
-            label: qsTr("Server name")
-
-            Field {
-                id: nameField
-
+            FormRow {
                 Layout.fillWidth: true
-                placeholder: qsTr("home")
+                Layout.horizontalStretchFactor: 2
+                label: qsTr("Server name")
 
-                onTextChanged: root.editName = text
+                Field {
+                    id: nameField
+
+                    Layout.fillWidth: true
+                    placeholder: qsTr("home")
+
+                    onTextChanged: root.editName = text
+                }
             }
         }
 
@@ -685,18 +899,49 @@ ColumnLayout {
             }
         }
 
+        // docs/14 screen 2: the answer sits above the buttons it decides, with a dot for
+        // its state; a refused credential keeps the raw error dim underneath.
+        RowLayout {
+            Layout.fillWidth: true
+            objectName: "testResult"
+            spacing: Theme.space(8)
+            visible: root.testResultText.length > 0
+
+            Rectangle {
+                Layout.alignment: Qt.AlignTop
+                Layout.topMargin: Math.round((resultText.font.pixelSize * 1.4 - height) / 2)
+                color: root.testOk ? Theme.green : Theme.red
+                height: Theme.space(7)
+                radius: height / 2
+                width: height
+            }
+
+            Label {
+                id: resultText
+
+                Layout.fillWidth: true
+                color: root.tested && !root.testOk ? Theme.red : Theme.foreground
+                text: root.testOk ? qsTr("%1 · %2").arg(root.editAuthMode === "none" ? qsTr("reached") :
+                                                                                       qsTr("signed in")).arg(
+                                        root.testResultText) : root.testResultText
+                wrapMode: Text.WordWrap
+            }
+        }
+
+        Label {
+            Layout.fillWidth: true
+            Layout.leftMargin: Theme.space(15)
+            Layout.topMargin: -Theme.space(8)
+            dim: true
+            objectName: "testErrorDetail"
+            size: "small"
+            text: root.testErrorDetail
+            visible: root.tested && !root.testOk && root.testErrorDetail.length > 0
+            wrapMode: Text.WordWrap
+        }
+
         RowLayout {
             spacing: Theme.space(8)
-
-            Button {
-                id: openWebUiButton
-
-                activeFocusOnTab: false // the page cycles tab itself (see _cycleApiKeyFocus)
-
-                text: qsTr("open web UI")
-
-                onClicked: Qt.openUrlExternally(root.editUrl)
-            }
 
             Button {
                 id: testButton
@@ -708,16 +953,30 @@ ColumnLayout {
                 onClicked: root.runTest()
             }
 
+            Button {
+                id: openWebUiButton
+
+                activeFocusOnTab: false // the page cycles tab itself (see _cycleApiKeyFocus)
+
+                text: qsTr("open web UI")
+
+                onClicked: Qt.openUrlExternally(root.editUrl)
+            }
+
             Item {
                 Layout.fillWidth: true
             }
 
+            // docs/14: "skip test" left the row. A server that is down right now can still be
+            // saved, but only once a test has said so.
             Button {
-                id: skipTestButton
+                id: saveAnywayButton
 
                 activeFocusOnTab: false // the page cycles tab itself (see _cycleApiKeyFocus)
 
-                text: qsTr("skip test")
+                objectName: "saveAnywayButton"
+                text: qsTr("save anyway")
+                visible: root.tested && !root.testOk
 
                 onClicked: root.continueFromApiKey()
             }
@@ -734,25 +993,6 @@ ColumnLayout {
 
                 onClicked: root.continueFromApiKey()
             }
-        }
-
-        Label {
-            Layout.fillWidth: true
-            color: root.tested && !root.testOk ? Theme.red : Theme.foreground
-            text: root.testResultText
-            visible: root.testResultText.length > 0
-            wrapMode: Text.WordWrap
-        }
-
-        Label {
-            Layout.fillWidth: true
-            Layout.topMargin: -Theme.space(8)
-            dim: true
-            objectName: "testErrorDetail"
-            size: "small"
-            text: root.testErrorDetail
-            visible: root.tested && !root.testOk && root.testErrorDetail.length > 0
-            wrapMode: Text.WordWrap
         }
     }
 
@@ -781,6 +1021,17 @@ ColumnLayout {
             spacing: Theme.space(8)
 
             Button {
+                id: registerButton
+
+                activeFocusOnTab: false // the page cycles tab itself (see _cycleApiKeyFocus)
+
+                primary: true
+                text: qsTr("open them with omaseed")
+
+                onClicked: root.registerHandler()
+            }
+
+            Button {
                 id: notNowButton
 
                 activeFocusOnTab: false // the page cycles tab itself (see _cycleApiKeyFocus)
@@ -790,46 +1041,115 @@ ColumnLayout {
                 onClicked: root.skipHandler()
             }
 
-            Button {
-                id: registerButton
-
-                activeFocusOnTab: false // the page cycles tab itself (see _cycleApiKeyFocus)
-
-                primary: true
-                text: qsTr("register")
-
-                onClicked: root.registerHandler()
-            }
-
             Item {
                 Layout.fillWidth: true
             }
         }
     }
 
-    KeyHints {
+    // ---- done (docs/14 screen 4) -------------------------------------------------------------
+    ColumnLayout {
         Layout.fillWidth: true
-        Layout.topMargin: Theme.space(18)
-        model: [
-            {
-                "key": "",
-                "label": qsTr("step %1 of 3").arg(root.stepNumber)
+        objectName: "doneColumn"
+        spacing: Theme.space(12)
+        visible: root.page === "done"
+
+        Label {
+            Layout.fillWidth: true
+            objectName: "doneFacts"
+            text: {
+                const parts = [];
+                const version = (root.testVersion || App.globalState.serverVersion).replace(/^v/, "");
+                if (version.length > 0)
+                    parts.push(qsTr("qBittorrent %1").arg(version));
+                const count = App.torrents.count > 0 ? App.torrents.count : root.testCount;
+                if (count >= 0)
+                    parts.push(count === 1 ? qsTr("1 torrent") : qsTr("%1 torrents").arg(count));
+                if (App.globalState.freeSpaceOnDisk > 0)
+                    parts.push(qsTr("%1 free").arg(App.globalState.freeSpaceText));
+                return parts.join(" · ");
             }
-        ].concat(root.page === "choose" ? [
-                                              {
-                                                  "key": "j k",
-                                                  "label": qsTr("choose")
-                                              },
-                                              {
-                                                  "key": "enter",
-                                                  "label": qsTr("continue")
-                                              }
-                                          ] : [])
-        pinned: {
-            "key": "esc",
-            "label": qsTr("quit")
+            wrapMode: Text.WordWrap
         }
-        size: "caption"
+
+        Label {
+            Layout.fillWidth: true
+            dim: true
+            text: root.registered ? qsTr("Magnet links and .torrent files open here.") :
+                                    qsTr("Magnet links still open elsewhere; Settings can change that.")
+            wrapMode: Text.WordWrap
+        }
+
+        KeyHints {
+            Layout.fillWidth: true
+            Layout.topMargin: Theme.space(4)
+            model: [
+                {
+                    "key": "a",
+                    "label": qsTr("add a torrent")
+                },
+                {
+                    "key": ",",
+                    "label": qsTr("settings and servers")
+                },
+                {
+                    "key": "?",
+                    "label": qsTr("every shortcut")
+                }
+            ]
+        }
+
+        RowLayout {
+            spacing: Theme.space(8)
+
+            Button {
+                id: openLibraryButton
+
+                objectName: "openLibraryButton"
+                primary: true
+                text: qsTr("open the library")
+
+                onClicked: root.openLibrary()
+            }
+        }
+    }
+}
+
+// ---- footer: the window's bottom edge, as the library's footer is ----------------------
+Item {
+    id: setupFooter
+
+    anchors.bottom: parent.bottom
+    anchors.left: parent.left
+    anchors.right: parent.right
+    height: Math.round(Theme.font.baseSize * 2.2)
+
+    Hairline {
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+    }
+
+    RowLayout {
+        anchors.fill: parent
+        anchors.leftMargin: Theme.space(16)
+        anchors.rightMargin: Theme.space(16)
+        spacing: Theme.space(16)
+
+        Label {
+            dim: true
+            objectName: "setupFacts"
+            size: "small"
+            text: root.page === "welcome" ? App.versionText : root.page === "done" ? qsTr("setup done") :
+                                                                                     qsTr("step %1 of 3").arg(root.stepNumber)
+        }
+
+        KeyHints {
+            Layout.fillWidth: true
+            model: root._footerHints
+            pinned: root._footerPinned
+            size: "small"
+        }
     }
 }
 }

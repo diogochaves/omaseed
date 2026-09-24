@@ -794,6 +794,8 @@ Item {
         id: hero
 
         filterChips: root.activeFilterChips
+        // docs/14 A1: setup has no library chrome; FirstRunPage draws its own footer.
+        visible: !root.firstRun
 
         anchors.left: parent.left
         anchors.right: parent.right
@@ -1108,6 +1110,7 @@ Item {
     Item {
         id: footer
 
+        visible: !root.firstRun
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.right: parent.right
@@ -1610,6 +1613,7 @@ Item {
                 root.firstRun = false;
                 table.forceActiveFocus();
             }
+            onQuitRequested: root.quitRequested()
         }
         // Whatever the window focused while starting up, the page gets the keyboard once it
         // exists (FirstRunPage also asks for it itself; this covers a later re-appearance).

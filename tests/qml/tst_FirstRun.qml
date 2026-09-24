@@ -270,20 +270,123 @@ TestCase {
         compare(App.serverList.count, 0);
     }
 
-    function test_handler_step_not_now_asks_Xdg_and_finishes() {
+    // docs/14 E1: "not now" leads to the done screen; only "open the library" finishes.
+    function test_handler_step_not_now_asks_Xdg_then_the_done_screen_finishes() {
         const page = createTemporaryObject(pageComponent, testCase, {
                                                "candidates": [localCandidate]
                                            });
-        // Reset the sandboxed state.json first: another test in this run may have already
-        // marked the prompt asked.
         page.page = "handler";
         const finishedSpy = createTemporaryObject(signalSpyComponent, testCase, {
                                                        "target": page,
                                                        "signalName": "finished"
                                                    });
         page.skipHandler();
-        compare(finishedSpy.count, 1);
         compare(Xdg.firstRunPromptNeeded(), false);
+        compare(page.page, "done");
+        compare(page.registered, false);
+        compare(finishedSpy.count, 0);
+        verify(findChild(page, "doneColumn").visible);
+        compare(findChild(page, "setupFacts").text, "setup done");
+
+        page.forceActiveFocus();
+        keyClick(Qt.Key_Return);
+        compare(finishedSpy.count, 1);
+    }
+
+    // docs/14 B1: the welcome comes first on a real first run; enter moves on to step 1 and
+    // esc quits, as its footer says. The search's answer is listed as it arrives.
+    function test_welcome_enter_sets_up_and_esc_quits() {
+        const page = createTemporaryObject(pageComponent, testCase, {
+                                               "candidates": [],
+                                               "page": "welcome"
+                                           });
+        const quitSpy = createTemporaryObject(signalSpyComponent, testCase, {
+                                                   "target": page,
+                                                   "signalName": "quitRequested"
+                                               });
+        verify(findChild(page, "detectLines").visible);
+        verify(!findChild(page, "heading").visible);
+        verify(!findChild(page, "setupSteps").visible);
+        page.forceActiveFocus();
+        keyClick(Qt.Key_Escape);
+        compare(quitSpy.count, 1);
+        keyClick(Qt.Key_Return);
+        compare(page.page, "choose");
+        verify(findChild(page, "setupSteps").visible);
+    }
+
+    // esc backs out of a half-filled step, quits from step 1, and does nothing once the server
+    // is saved (there is no un-saving it from here).
+    function test_esc_goes_back_then_quits() {
+        const page = createTemporaryObject(pageComponent, testCase, {
+                                               "candidates": []
+                                           });
+        const quitSpy = createTemporaryObject(signalSpyComponent, testCase, {
+                                                   "target": page,
+                                                   "signalName": "quitRequested"
+                                               });
+        page.chooseCursor();
+        compare(page.page, "apikey");
+        page.goBack();
+        compare(page.page, "choose");
+        compare(quitSpy.count, 0);
+        page.page = "install";
+        page.goBack();
+        compare(page.page, "choose");
+        page.goBack();
+        compare(quitSpy.count, 1);
+        page.page = "handler";
+        page.goBack();
+        compare(page.page, "handler");
+        compare(quitSpy.count, 1);
+    }
+
+    // docs/14 D1: the named steps above the question, done ones ticked.
+    function test_steps_name_where_you_are() {
+        const page = createTemporaryObject(pageComponent, testCase, {
+                                               "candidates": []
+                                           });
+        const steps = findChild(page, "setupSteps");
+        const labels = () => {
+            const out = [];
+            for (const child of steps.children)
+                if (child.text !== undefined)
+                    out.push(child.text);
+            return out;
+        };
+        compare(labels(), ["1 server", "2 sign in", "3 links"]);
+        page.page = "apikey";
+        compare(labels(), ["✓ server", "2 sign in", "3 links"]);
+        page.page = "done";
+        compare(labels(), ["✓ server", "✓ sign in", "✓ links"]);
+        compare(findChild(page, "heading").text.indexOf("You're connected to"), 0);
+    }
+
+    // docs/14 C1: the column sits in the middle of the space above the footer.
+    function test_the_column_is_centred() {
+        const page = createTemporaryObject(pageComponent, testCase, {
+                                               "candidates": [],
+                                               "width": 900,
+                                               "height": 700
+                                           });
+        const column = findChild(page, "setupColumn");
+        const footer = findChild(page, "setupFacts").parent.parent;
+        tryVerify(() => column.height > 0);
+        fuzzyCompare(column.x + column.width / 2, 450, 1);
+        fuzzyCompare(column.y + column.height / 2, (700 - footer.height) / 2, 1);
+    }
+
+    // A server that is down right now can still be saved, but only after a test said so.
+    function test_save_anyway_only_after_a_failed_test() {
+        const page = createTemporaryObject(pageComponent, testCase, {
+                                               "candidates": []
+                                           });
+        page.chooseCursor();
+        const saveAnyway = findChild(page, "saveAnywayButton");
+        verify(!saveAnyway.visible);
+        App.serverTested("", false, "", "", -1, 4, "network: Connection refused", "");
+        verify(saveAnyway.visible);
+        verify(!findChild(page, "continueButton").enabled);
     }
 
     Component {
