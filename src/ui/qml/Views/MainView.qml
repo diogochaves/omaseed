@@ -699,7 +699,10 @@ Item {
     /// The startup state. `Component.onCompleted` of a Window runs before its composite
     /// children's, so this is deferred a frame (T3.3's finding).
     function _applyStartupState(): void {
-        if (!root.firstRun) // the first-run page (T4.6) already asked for the keyboard
+        // The first-run page (T4.6) already asked for the keyboard, and so has the add sheet
+        // when the app was started with a magnet or a .torrent: that hand-off opens it before
+        // this runs, and `enter` has to add, not open the table's actions behind it.
+        if (!root.firstRun && !addSheet.opened)
             table.forceActiveFocus();
         root.refreshDetails();
         App.setDetailsVisible(!details.collapsed);
