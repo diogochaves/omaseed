@@ -8,7 +8,11 @@
 // actions carry.
 //
 // Rows are sorted by download speed, fastest first, then by address — the order the figure
-// draws and the one that keeps the interesting peers on screen. Speeds print through
+// draws and the one that keeps the interesting peers on screen. Speeds move on every poll,
+// so an update never resets: peers that left are removed, newcomers inserted, the rest
+// changed in place and moved (beginMoveRows) to where their speed now puts them. The view
+// keeps its delegates and scroll, and the cursor follows its peer by address through
+// rowOfAddress() once `applied` fires. Speeds print through
 // Format::speed ("1.02 MB/s"), the units the main table prints (docs/11 J2; Fig. 4 drew
 // "1.02 M", which read as a different unit beside the table).
 
@@ -87,13 +91,18 @@ public:
     void clear();
 
     Q_INVOKABLE QString addressAt(int row) const;
+    /// The row showing the peer at `address` ("ip:port"), or -1.
+    Q_INVOKABLE int rowOfAddress(const QString &address) const;
 
 Q_SIGNALS:
     void countChanged();
     void ridChanged();
+    /// One applyPeers() has finished moving rows: the moment to put a cursor back on its peer.
+    void applied();
 
 private:
-    void rebuildRows();
+    /// Turns m_rows into `next` (already sorted) with removes, inserts, dataChanged and moves.
+    void syncRows(const QList<TorrentPeer> &next);
 
     QHash<QString, TorrentPeer> m_peers;
     QList<TorrentPeer> m_rows;

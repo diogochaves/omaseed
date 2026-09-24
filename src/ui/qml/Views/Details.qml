@@ -58,6 +58,9 @@ Item {
     property int filesCursor: 0
     property int trackersCursor: 0
     property int peersCursor: 0
+    /// Every poll re-sorts the peers by speed, so the cursor also holds its peer's address
+    /// and follows it to the new row: `y` copies, and `b` bans, the peer it was left on.
+    property string peersCursorAddress: ""
     property int generalCursor: 0
 
     /// `o` on a file row: the path inside the torrent, for Xdg to reveal.
@@ -1046,6 +1049,19 @@ Item {
         target: root.details.files
     }
 
+    // A poll has moved the peers: put the cursor back on the one it was on.
+    Connections {
+        function onApplied(): void {
+            const peers = root.details.peers;
+            const row = peers.rowOfAddress(root.peersCursorAddress);
+            root.peersCursor = row >= 0 ? row : Math.max(0, Math.min(root.peersCursor,
+                                                                     peers.count - 1));
+            root.peersCursorAddress = peers.addressAt(root.peersCursor);
+        }
+
+        target: root.details.peers
+    }
+
     // The Peers tab is the only one whose poll costs the server real work, so App is told
     // when it comes and goes (spec §2: peers refresh every 2 s while the tab is on show).
     // The pane's overall visibility is Main's to report, through App.setDetailsVisible().
@@ -1057,4 +1073,5 @@ Item {
         App.setPeersTabActive(!root.collapsed && root.currentTab === 3);
         App.setGeneralTabActive(!root.collapsed && root.currentTab === 0);
     }
+    onPeersCursorChanged: root.peersCursorAddress = root.details.peers.addressAt(root.peersCursor)
 }
