@@ -7,7 +7,9 @@
 #include "integration/Tray.hpp"
 #include "ui/app/App.hpp"
 
+#include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QSignalSpy>
 #include <QThread>
 #include <QTemporaryDir>
@@ -42,6 +44,9 @@ private slots:
 
     // APP-10
     void aSavedNeverTrayModeHidesTheIconAtStartup();
+
+    // APP-15
+    void theDemoTorrentLivesInAPrivateDirectory();
 
 private:
     QTemporaryDir m_dir;
@@ -221,6 +226,19 @@ void TestAppGlue::aSavedNeverTrayModeHidesTheIconAtStartup()
     app.setTrayIconMode(QStringLiteral("bogus")); // unknown values fall back to auto
     QCOMPARE(app.trayIconMode(), QStringLiteral("auto"));
     QVERIFY(tray.iconWanted());
+}
+
+void TestAppGlue::theDemoTorrentLivesInAPrivateDirectory()
+{
+    App app;
+    QVERIFY(app.demoTorrentPath().isEmpty()); // not a demo
+    app.startDemo(4);
+    const QString path = app.demoTorrentPath();
+    QVERIFY(!path.isEmpty());
+    QVERIFY(QFile::exists(path));
+    // Not a fixed name straight in the shared temp dir, and written once.
+    QVERIFY(QFileInfo(path).absolutePath() != QDir(QDir::tempPath()).absolutePath());
+    QCOMPARE(app.demoTorrentPath(), path);
 }
 
 QTEST_MAIN(TestAppGlue)

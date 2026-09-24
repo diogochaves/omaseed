@@ -466,8 +466,12 @@ void TestAppNotifications::lowDiskThresholdPersistsReachesTheEngineAndClamps()
     QCOMPARE(changed.count(), 2);
 
     // A fresh App reads the stored value back, and its engine gets it before any poll —
-    // through the property alone, without a notifier attached.
-    app.setLowDiskThresholdGiB(7);
+    // through the property alone, without a notifier attached. (Written by an App that is
+    // not in demo mode: `app` is one since applyDemoData, and a demo never writes state.json.)
+    {
+        App writer;
+        writer.setLowDiskThresholdGiB(7);
+    }
     App reopened;
     QCOMPARE(reopened.lowDiskThresholdGiB(), 7);
     QCOMPARE(reopened.engine()->lowDiskThreshold(), 7 * kGiB);

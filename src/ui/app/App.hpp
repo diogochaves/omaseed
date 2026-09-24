@@ -49,9 +49,12 @@
 #include <QProcess>
 #include <QString>
 #include <QStringList>
+#include <QTemporaryDir>
 #include <QTimer>
 #include <QVariantList>
 #include <QVariantMap>
+
+#include <memory>
 
 QT_BEGIN_NAMESPACE
 class QQmlEngine;
@@ -490,6 +493,12 @@ private:
     void loadSettings();
     void saveSettings();
     void applyAppearance();
+    /// state.json, section by section. A demo reads it but never writes it: its changes
+    /// (appearance, notices, columns, the delete default) stay in memory, so an agent's
+    /// `--demo` run cannot change how the real app starts next time.
+    QJsonObject stateSection(const QString &key) const;
+    void writeStateSection(const QString &key, const QJsonObject &value);
+    QJsonObject m_demoState;
     /// The shared tail of `testServer()`: run the probe with the secret already resolved.
     void runServerTest(const omaseed::core::Server &server, const QString &secret);
 
@@ -728,7 +737,8 @@ public:
     /// Fig. 5 and Fig. 10 can be screenshot reproducibly. Empty everywhere else.
     Q_INVOKABLE QString demoAddText() const;
     /// The example `.torrent` behind `OMASEED_DEMO_ADD=torrent` (DemoData::demoTorrentBytes),
-    /// written to the temp directory; its path. Empty outside demo mode.
+    /// written once into a private temporary directory of this process; its path. Empty
+    /// outside demo mode.
     Q_INVOKABLE QString demoTorrentPath() const;
 
     /// The URI hand-off: this process's own argv and every `SingleInstance::openRequested`
@@ -792,6 +802,8 @@ private:
     void watchForAddedHash(const QString &hash);
 
     QHash<QString, PendingTorrentFile> m_pendingTorrentFiles;
+    mutable std::unique_ptr<QTemporaryDir> m_demoTempDir;
+    mutable QString m_demoTorrentPath;
     QString m_awaitedAddHash;
     QTimer *m_addWatchTimer = nullptr;
     QMetaObject::Connection m_addWatch;

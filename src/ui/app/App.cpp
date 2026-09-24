@@ -776,7 +776,7 @@ void App::loadNotificationToggles()
         return;
     m_notificationTogglesLoaded = true;
 
-    const QJsonObject section = StateFile::readSection(QStringLiteral("notifications"));
+    const QJsonObject section = stateSection(QStringLiteral("notifications"));
     m_notifyCompletedEnabled = section.value(QStringLiteral("completed")).toBool(true);
     m_notifyServerLostEnabled = section.value(QStringLiteral("serverLost")).toBool(true);
     m_notifyDiskFullEnabled = section.value(QStringLiteral("diskFull")).toBool(true);
@@ -791,7 +791,7 @@ void App::saveNotificationToggles()
     section.insert(QStringLiteral("serverLost"), m_notifyServerLostEnabled);
     section.insert(QStringLiteral("diskFull"), m_notifyDiskFullEnabled);
     section.insert(QStringLiteral("lowDiskThresholdGiB"), m_lowDiskThresholdGiB);
-    StateFile::writeSection(QStringLiteral("notifications"), section);
+    writeStateSection(QStringLiteral("notifications"), section);
 }
 
 void App::applyLowDiskThreshold()
@@ -1059,16 +1059,16 @@ void App::saveTableState(const QString &key, const QVariantMap &state)
 {
     if (key.isEmpty())
         return;
-    QJsonObject section = StateFile::readSection(QStringLiteral("tables"));
+    QJsonObject section = stateSection(QStringLiteral("tables"));
     section.insert(key, QJsonObject::fromVariantMap(state));
-    StateFile::writeSection(QStringLiteral("tables"), section);
+    writeStateSection(QStringLiteral("tables"), section);
 }
 
 QVariantMap App::tableState(const QString &key) const
 {
     if (key.isEmpty())
         return {};
-    const QJsonObject section = StateFile::readSection(QStringLiteral("tables"));
+    const QJsonObject section = stateSection(QStringLiteral("tables"));
     return section.value(key).toObject().toVariantMap();
 }
 
@@ -1563,12 +1563,20 @@ QString App::demoTorrentPath() const
 {
     if (!m_demoMode)
         return QString();
-    const QString path =
-        QDir(QDir::tempPath()).filePath(QStringLiteral("Blender Open Movies.torrent"));
+    // Written once, into a private directory of this process: a fixed name in the shared
+    // /tmp could be a symlink another user planted, and the write would follow it.
+    if (!m_demoTorrentPath.isEmpty() && QFile::exists(m_demoTorrentPath))
+        return m_demoTorrentPath;
+    if (!m_demoTempDir)
+        m_demoTempDir = std::make_unique<QTemporaryDir>();
+    if (!m_demoTempDir->isValid())
+        return QString();
+    const QString path = m_demoTempDir->filePath(QStringLiteral("Blender Open Movies.torrent"));
     QFile file(path);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate))
+    if (!file.open(QIODevice::NewOnly))
         return QString();
     file.write(DemoData::demoTorrentBytes());
+    m_demoTorrentPath = path;
     return path;
 }
 
@@ -1596,7 +1604,7 @@ void App::setDeleteFilesDefault(bool value)
     m_deleteFilesDefault = value;
     QJsonObject section;
     section.insert(QStringLiteral("value"), value);
-    StateFile::writeSection(QStringLiteral("deleteFiles"), section);
+    writeStateSection(QStringLiteral("deleteFiles"), section);
     Q_EMIT deleteFilesDefaultChanged();
 }
 
@@ -1605,7 +1613,7 @@ void App::loadDeleteFilesDefault()
     if (m_deleteFilesDefaultLoaded)
         return;
     m_deleteFilesDefaultLoaded = true;
-    const QJsonObject section = StateFile::readSection(QStringLiteral("deleteFiles"));
+    const QJsonObject section = stateSection(QStringLiteral("deleteFiles"));
     m_deleteFilesDefault = section.value(QStringLiteral("value")).toBool(false);
 }
 
@@ -2377,17 +2385,33 @@ QString App::pluginAddCommand() const
     return QStringLiteral("omarchy plugin add https://github.com/diogochaves/omaseed-bar");
 }
 
+QJsonObject App::stateSection(const QString &key) const
+{
+    if (m_demoMode && m_demoState.contains(key))
+        return m_demoState.value(key).toObject();
+    return StateFile::readSection(key);
+}
+
+void App::writeStateSection(const QString &key, const QJsonObject &value)
+{
+    if (m_demoMode) {
+        m_demoState.insert(key, value);
+        return;
+    }
+    StateFile::writeSection(key, value);
+}
+
 void App::loadSettings()
 {
     if (m_settingsLoaded)
         return;
     m_settingsLoaded = true;
 
-    const QJsonObject general = StateFile::readSection(QStringLiteral("general"));
+    const QJsonObject general = stateSection(QStringLiteral("general"));
     m_showServersGroup = general.value(QStringLiteral("showServersGroup")).toBool(true);
     m_pathMapEnabled = general.value(QStringLiteral("pathMapEnabled")).toBool(true);
 
-    const QJsonObject appearance = StateFile::readSection(QStringLiteral("appearance"));
+    const QJsonObject appearance = stateSection(QStringLiteral("appearance"));
     m_followOmarchyTheme = appearance.value(QStringLiteral("followOmarchyTheme")).toBool(true);
     m_baseSizeOverride = appearance.value(QStringLiteral("baseSizeOverride")).toInt(0);
     m_windowAlphaOverride = appearance.value(QStringLiteral("windowAlphaOverride")).toInt(0);
@@ -2413,7 +2437,7 @@ void App::saveSettings()
     QJsonObject general;
     general[QStringLiteral("showServersGroup")] = m_showServersGroup;
     general[QStringLiteral("pathMapEnabled")] = m_pathMapEnabled;
-    StateFile::writeSection(QStringLiteral("general"), general);
+    writeStateSection(QStringLiteral("general"), general);
 
     QJsonObject appearance;
     appearance[QStringLiteral("followOmarchyTheme")] = m_followOmarchyTheme;
@@ -2426,7 +2450,7 @@ void App::saveSettings()
     appearance[QStringLiteral("trackerHostStyle")] = m_trackerHostStyle;
     appearance[QStringLiteral("railHidden")] = m_railHidden;
     appearance[QStringLiteral("detailsPlacement")] = m_detailsPlacement;
-    StateFile::writeSection(QStringLiteral("appearance"), appearance);
+    writeStateSection(QStringLiteral("appearance"), appearance);
 }
 
 void App::applyAppearance()
