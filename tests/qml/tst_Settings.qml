@@ -193,8 +193,26 @@ TestCase {
         // A failed test turns the row red and says "retrying".
         App.serverList.setProbeResult(id, false, "", "", -1, 12, "connection refused");
         compare(row.failing, true);
+        verify(Qt.colorEqual(testCase.childNamed(row, "serverDot").color, Theme.red));
         // ...and keeps the version and count it had.
         compare(row.description, "http://127.0.0.1:8081 · API key · v5.2.3 · 3 torrents");
+    }
+
+    // Review RUN-9: a server nobody has tested has a dim dot, not the green of one that
+    // answered; one that failed and is not the app's own says "unreachable", not "retrying".
+    function test_an_untested_server_is_not_green_and_a_failed_one_is_unreachable() {
+        testCase.addTestServer("first", "http://127.0.0.1:8081");
+        const id = testCase.addTestServer("dead", "http://127.0.0.1:9");
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        modal.showPane(1);
+        const row = testCase.childNamed(modal, "serverRow1");
+        verify(row.untested);
+        verify(Qt.colorEqual(testCase.childNamed(row, "serverDot").color, Theme.dimForeground));
+        App.serverList.setProbeResult(id, false, "", "", -1, 12, "connection refused");
+        compare(row.status, "unreachable");
+        App.serverList.setProbeResult(id, true, "v5.2.3", "2.15.1", 0, 3, "");
+        verify(Qt.colorEqual(testCase.childNamed(row, "serverDot").color, Theme.green));
     }
 
     // Q23: a `test` pressed in a new server's sheet before `save` is not lost with the
@@ -311,6 +329,21 @@ TestCase {
         compare(sheet.fieldMap().url, "http://127.0.0.1:8081");
         compare(sheet.fieldMap().authMode, "apiKey");
         compare(sheet.fieldMap().pathMapRemote, "/downloads");
+        sheet.close();
+    }
+
+    // Review RUN-9: the footer's `enter` names the button the keyboard is on.
+    function test_the_enter_hint_follows_the_focused_button() {
+        const id = testCase.addTestServer("playground", "http://127.0.0.1:8081");
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        const sheet = modal.serverSheet;
+        sheet.openFor(App.serverList.serverMap(id));
+        const buttons = sheet.actionButtons();
+        buttons[0].forceActiveFocus(); // test
+        compare(sheet.hints[0].label, "test");
+        buttons[2].forceActiveFocus(); // edit
+        compare(sheet.hints[0].label, "edit");
         sheet.close();
     }
 

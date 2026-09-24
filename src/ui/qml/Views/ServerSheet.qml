@@ -228,14 +228,22 @@ Sheet {
         },
         {
             "key": "enter",
-            "label": qsTr("save")
+            "label": root._enterLabel
         }
     ] : [
         {
             "key": "enter",
-            "label": qsTr("edit")
+            "label": root._enterLabel
         }
     ]
+    /// What `enter` runs: the focused button, else the primary one (review RUN-9: with the
+    /// keyboard on `test` the footer still said "enter edit").
+    readonly property string _enterLabel: {
+        const item = root.Window.activeFocusItem;
+        if (item && item.text !== undefined && root.actionButtons().indexOf(item) >= 0)
+            return String(item.text);
+        return root.editing ? qsTr("save") : qsTr("edit");
+    }
     sheetWidth: Theme.space(460)
     subtitle: {
         const parts = [];

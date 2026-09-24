@@ -730,13 +730,28 @@ Item {
                                             parts.push(serverRow.lastError);
                                         return parts.join(" · ");
                                     }
+                                    /// The server the app is on (`tableStateKey()` is its id; the
+                                    /// serverName read re-runs this on a switch).
+                                    readonly property bool current: {
+                                        void App.serverName;
+                                        return App.hasServer && !App.demoMode
+                                                && App.serverList.idAt(serverRow.index) === App.tableStateKey();
+                                    }
+                                    /// ...and syncing with it: known to answer without a test.
+                                    readonly property bool live: serverRow.current && App.globalState.connected
+
                                     failing: serverRow.reachableText.length > 0
                                              && !serverRow.reachable
+                                    untested: serverRow.reachableText.length === 0 && !serverRow.live
                                     hasCursor: root.area === "pane"
                                                && root.paneCursor === serverRow.index
                                     title: serverRow.name
-                                    status: serverRow.isDefault ? qsTr("default") : (serverRow.reachableText.length
-                                                                                     > 0 && !serverRow.reachable ? qsTr("retrying") : "")
+                                    // Only the server being synced is retried; another one that failed
+                                    // its test is just unreachable.
+                                    status: serverRow.isDefault ? qsTr("default")
+                                                                : !serverRow.failing ? ""
+                                                                                     : serverRow.current ? qsTr("retrying")
+                                                                                                         : qsTr("unreachable")
 
                                     onClicked: {
                                         root.paneCursor = serverRow.index;

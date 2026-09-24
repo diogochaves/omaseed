@@ -15,6 +15,9 @@ Rectangle {
     property string status: ""
     /// Red status word and a red dot: the server's last test failed.
     property bool failing: false
+    /// Nothing is known yet (never tested, not the one the app is synced with): a dim dot,
+    /// not the green of a server that answered (review RUN-9).
+    property bool untested: false
     /// No dot, dim title, dashed outline — Fig. 16's "add a server" row.
     property bool dashed: false
     property string glyph: ""
@@ -56,11 +59,13 @@ Rectangle {
         anchors.verticalCenter: parent.verticalCenter
         spacing: Theme.space(10)
 
-        // `.srv .it .dot` — green when the last test answered, red when it did not.
+        // `.srv .it .dot` — green when the last test answered, red when it did not, dim
+        // while nothing is known.
         Rectangle {
             Layout.preferredHeight: Theme.space(7)
             Layout.preferredWidth: Theme.space(7)
-            color: root.failing ? Theme.red : Theme.green
+            objectName: "serverDot"
+            color: root.failing ? Theme.red : root.untested ? Theme.dimForeground : Theme.green
             radius: width / 2
             visible: !root.dashed
         }
