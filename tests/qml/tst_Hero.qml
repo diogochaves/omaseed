@@ -453,13 +453,25 @@ TestCase {
         mouseClick(button);
         compare(asked, 2);
 
+        // A button like its neighbours: Tab reaches it, enter opens the menu, and it shows
+        // the kit's ring and tooltip while it holds the focus (review Q6, Q8).
+        verify(button.activeFocusOnTab);
+        button.forceActiveFocus();
+        verify(findChild(button, "focusRing").visible);
+        keyClick(Qt.Key_Return);
+        compare(asked, 3);
+        const tip = findChild(testCase.Window.window.contentItem, "filterButtonTip");
+        tryCompare(tip, "shown", true);
+        compare(tip.text, button.Accessible.name);
+        button.focus = false;
+
         // No chips: the lone name filter keeps today's `/`, which opens the field.
         hero.filterChips = [];
         verify(!button.visible);
         verify(findChild(hero, "searchButton").visible);
         verify(findChild(hero, "searchButton").accent);
         hero.openSearch();
-        compare(asked, 2);
+        compare(asked, 3);
         verify(hero.searchOpen);
         hero.searchField.text = "";
     }

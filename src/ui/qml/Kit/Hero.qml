@@ -446,6 +446,7 @@ Item {
             Accessible.name: qsTr("%n filter(s) · /", "", root.filterCount)
             Accessible.role: Accessible.Button
             Layout.alignment: Qt.AlignVCenter
+            activeFocusOnTab: true
             border.color: Theme.accent
             border.width: 1
             color: filterMouse.containsMouse ? Theme.fill(Theme.fillHover) : Theme.fill(
@@ -489,6 +490,32 @@ Item {
                 hoverEnabled: true
 
                 onClicked: root.filtersClicked()
+            }
+
+            // A button like its IconButton neighbours: reached by Tab, ringed while it holds
+            // the focus (review Q6), and named in the kit's one tooltip (review Q8).
+            FocusRing {}
+
+            Tooltip {
+                id: filterTip
+
+                readonly property bool wanted: filterButton.visible && (filterMouse.containsMouse
+                                                                        || filterButton.activeFocus)
+
+                objectName: "filterButtonTip"
+                parent: filterButton.Window.window ? filterButton.Window.window.contentItem : filterButton
+                z: 1000
+
+                onWantedChanged: filterTip.wanted ? filterTip.showFor(filterButton, filterButton.Accessible.name)
+                                                  : filterTip.hide()
+            }
+
+            Keys.onPressed: event => {
+                if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter
+                        || event.key === Qt.Key_Space) {
+                    root.filtersClicked();
+                    event.accepted = true;
+                }
             }
         }
 
