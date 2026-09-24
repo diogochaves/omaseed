@@ -85,6 +85,7 @@ private slots:
     void perTorrentOptionsParse();
     void partialAppendsUnknownHashes();
     void partialRemovesInContiguousRuns();
+    void aHashRemovedTwiceRemovesOneRow();
     void dataChangedIsBatchedPerRun();
     void dataChangedNamesOnlyTheChangedRoles();
     void statusGroupsFollowTheRail();
@@ -286,6 +287,15 @@ void TestTorrentModel::partialRemovesInContiguousRuns()
     QCOMPARE(model.hashes(), QStringList({QStringLiteral("aaaa"), QStringLiteral("dddd")}));
     QCOMPARE(model.indexOfHash(QStringLiteral("dddd")), 1); // the index map followed the shift
     QCOMPARE(removed.count(), 2);                           // {4} and {1,2}, not three signals
+}
+
+void TestTorrentModel::aHashRemovedTwiceRemovesOneRow()
+{
+    TorrentModel model;
+    model.applyFullUpdate(threeTorrents());
+    model.applyPartial(QJsonObject(),
+                       QJsonArray({QStringLiteral("bbbb"), QStringLiteral("bbbb")}));
+    QCOMPARE(model.hashes(), QStringList({QStringLiteral("aaaa"), QStringLiteral("cccc")}));
 }
 
 void TestTorrentModel::dataChangedIsBatchedPerRun()

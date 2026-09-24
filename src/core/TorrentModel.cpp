@@ -401,6 +401,9 @@ void TorrentModel::applyPartial(const QJsonObject &torrents, const QJsonArray &r
         }
         if (!rows.isEmpty()) {
             std::sort(rows.begin(), rows.end(), std::greater<int>());
+            // A hash named twice must not remove twice: the second pass would take whatever
+            // row had moved into the freed slot.
+            rows.erase(std::unique(rows.begin(), rows.end()), rows.end());
             int i = 0;
             while (i < rows.size()) {
                 const int last = rows.at(i);
