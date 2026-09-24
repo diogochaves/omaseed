@@ -16,7 +16,7 @@ add_dependencies(tst_demo_offline omaseed)
 # App glue that needs no server (install runner, path map, tray mode, demo isolation).
 omaseed_add_test(tst_app_glue
     SOURCES tst_app_glue.cpp
-    LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::Widgets
+    LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::Widgets Qt6::Network
     DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
 )
 

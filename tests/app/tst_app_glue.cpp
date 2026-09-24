@@ -13,7 +13,11 @@
 #include <QSignalSpy>
 #include <QThread>
 #include <QTemporaryDir>
+#include <QTcpServer>
+#include <QTcpSocket>
 #include <QTest>
+
+#include <memory>
 
 using omaseed::app::App;
 
@@ -50,6 +54,9 @@ private slots:
 
     // APP-14
     void abandonedTorrentParsesAreBounded();
+
+    // APP-12
+    void aSecondPressBeforeTheNextSyncDoesNotUndoTheToggle();
 
 private:
     QTemporaryDir m_dir;
@@ -255,6 +262,86 @@ void TestAppGlue::abandonedTorrentParsesAreBounded()
     QTRY_COMPARE_WITH_TIMEOUT(parsed.count(), kParses, 10000);
     QVERIFY(app.pendingTorrentFileCount() > 0);
     QVERIFY(app.pendingTorrentFileCount() <= 64);
+}
+
+namespace {
+
+/// Just enough qBittorrent for a toggle: one torrent that stays `seq_dl: false` in every
+/// maindata (as it would until the server's next answer shows the change), and a count of
+/// toggle requests.
+class ToggleServer : public QTcpServer
+{
+public:
+    int toggles = 0;
+    QString hash = QStringLiteral("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+
+protected:
+    void incomingConnection(qintptr descriptor) override
+    {
+        auto *socket = new QTcpSocket(this);
+        socket->setSocketDescriptor(descriptor);
+        connect(socket, &QTcpSocket::disconnected, socket, &QObject::deleteLater);
+        auto buffer = std::make_shared<QByteArray>();
+        connect(socket, &QTcpSocket::readyRead, socket, [this, socket, buffer]() {
+            buffer->append(socket->readAll());
+            const qsizetype headerEnd = buffer->indexOf("\r\n\r\n");
+            if (headerEnd < 0)
+                return;
+            qsizetype length = 0;
+            for (const QByteArray &line : buffer->left(headerEnd).split('\n'))
+                if (line.toLower().startsWith("content-length:"))
+                    length = line.mid(15).trimmed().toLongLong();
+            if (buffer->size() < headerEnd + 4 + length)
+                return;
+            const QByteArray target = buffer->left(buffer->indexOf('\n')).split(' ').value(1);
+            buffer->clear();
+            QByteArray body = "Ok.";
+            if (target.startsWith("/api/v2/app/version"))
+                body = "v5.2.3";
+            else if (target.startsWith("/api/v2/app/webapiVersion"))
+                body = "2.15.1";
+            else if (target.startsWith("/api/v2/sync/maindata"))
+                body = QStringLiteral(R"({"rid":1,"full_update":true,"torrents":{"%1":)"
+                                      R"({"name":"t","seq_dl":false,"state":"downloading"}}})")
+                           .arg(hash)
+                           .toUtf8();
+            else if (target.startsWith("/api/v2/torrents/toggleSequentialDownload"))
+                ++toggles;
+            socket->write("HTTP/1.1 200 OK\r\nContent-Length: " + QByteArray::number(body.size()) +
+                          "\r\nConnection: close\r\n\r\n" + body);
+            socket->disconnectFromHost();
+        });
+    }
+};
+
+} // namespace
+
+void TestAppGlue::aSecondPressBeforeTheNextSyncDoesNotUndoTheToggle()
+{
+    ToggleServer server;
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    QTemporaryDir home;
+    qputenv("XDG_CONFIG_HOME", home.path().toUtf8());
+    qputenv("OMASEED_SERVER_URL",
+            QStringLiteral("http://127.0.0.1:%1").arg(server.serverPort()).toUtf8());
+
+    App app;
+    app.start();
+    QTRY_COMPARE_WITH_TIMEOUT(app.torrents()->count(), 1, 5000);
+
+    // "sequential" pressed twice before a sync shows the first: one toggle, not two.
+    app.setSequentialDownload({server.hash}, true);
+    app.setSequentialDownload({server.hash}, true);
+    QTRY_COMPARE_WITH_TIMEOUT(server.toggles, 1, 3000);
+    QTest::qWait(300);
+    QCOMPARE(server.toggles, 1);
+
+    // Turning it off again is a real change, still before the model caught up.
+    app.setSequentialDownload({server.hash}, false);
+    QTRY_COMPARE_WITH_TIMEOUT(server.toggles, 2, 3000);
+
+    app.engine()->stop();
+    qunsetenv("OMASEED_SERVER_URL");
 }
 
 QTEST_MAIN(TestAppGlue)
