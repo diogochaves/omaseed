@@ -17,6 +17,7 @@
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QTest>
+#include <QUrlQuery>
 
 #include <memory>
 
@@ -58,6 +59,7 @@ private slots:
 
     // APP-12
     void aSecondPressBeforeTheNextSyncDoesNotUndoTheToggle();
+    void limitsCarryTheTorrentsInactiveSeedingTime();
 
 private:
     QTemporaryDir m_dir;
@@ -269,11 +271,12 @@ namespace {
 
 /// Just enough qBittorrent for a toggle: one torrent that stays `seq_dl: false` in every
 /// maindata (as it would until the server's next answer shows the change), and a count of
-/// toggle requests.
+/// toggle requests. It also keeps the last torrents/setShareLimits body.
 class ToggleServer : public QTcpServer
 {
 public:
     int toggles = 0;
+    QByteArray shareLimitsBody;
     QString hash = QStringLiteral("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
 
 protected:
@@ -295,6 +298,7 @@ protected:
             if (buffer->size() < headerEnd + 4 + length)
                 return;
             const QByteArray target = buffer->left(buffer->indexOf('\n')).split(' ').value(1);
+            const QByteArray requestBody = buffer->mid(headerEnd + 4, length);
             buffer->clear();
             QByteArray body = "Ok.";
             if (target.startsWith("/api/v2/app/version"))
@@ -303,11 +307,14 @@ protected:
                 body = "2.15.1";
             else if (target.startsWith("/api/v2/sync/maindata"))
                 body = QStringLiteral(R"({"rid":1,"full_update":true,"torrents":{"%1":)"
-                                      R"({"name":"t","seq_dl":false,"state":"downloading"}}})")
+                                      R"({"name":"t","seq_dl":false,"state":"downloading",)"
+                                      R"("inactive_seeding_time_limit":45}}})")
                            .arg(hash)
                            .toUtf8();
             else if (target.startsWith("/api/v2/torrents/toggleSequentialDownload"))
                 ++toggles;
+            else if (target.startsWith("/api/v2/torrents/setShareLimits"))
+                shareLimitsBody = requestBody;
             socket->write("HTTP/1.1 200 OK\r\nContent-Length: " + QByteArray::number(body.size()) +
                           "\r\nConnection: close\r\n\r\n" + body);
             socket->disconnectFromHost();
@@ -340,6 +347,42 @@ void TestAppGlue::aSecondPressBeforeTheNextSyncDoesNotUndoTheToggle()
     // Turning it off again is a real change, still before the model caught up.
     app.setSequentialDownload({server.hash}, false);
     QTRY_COMPARE_WITH_TIMEOUT(server.toggles, 2, 3000);
+
+    app.engine()->stop();
+    qunsetenv("OMASEED_SERVER_URL");
+}
+
+void TestAppGlue::limitsCarryTheTorrentsInactiveSeedingTime()
+{
+    // Review VIEW-5 (d): the row carries `inactive_seeding_time_limit`, and setLimits sends
+    // what it is given (the Limits sheet passes the row's own value) instead of -2.
+    ToggleServer server;
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    QTemporaryDir home;
+    qputenv("XDG_CONFIG_HOME", home.path().toUtf8());
+    qputenv("OMASEED_SERVER_URL",
+            QStringLiteral("http://127.0.0.1:%1").arg(server.serverPort()).toUtf8());
+
+    App app;
+    app.start();
+    QTRY_COMPARE_WITH_TIMEOUT(app.torrents()->count(), 1, 5000);
+    const qint64 inactive =
+        app.torrentRow(server.hash).value(QStringLiteral("inactiveSeedingTimeLimit")).toLongLong();
+    QCOMPARE(inactive, qint64(45));
+
+    app.setLimits({server.hash}, -1, -1, -2, -2, QStringLiteral("Default"), inactive);
+    QTRY_VERIFY_WITH_TIMEOUT(!server.shareLimitsBody.isEmpty(), 3000);
+    const QUrlQuery body(QString::fromUtf8(server.shareLimitsBody));
+    QCOMPARE(body.queryItemValue(QStringLiteral("inactiveSeedingTimeLimit")), QStringLiteral("45"));
+    QCOMPARE(body.queryItemValue(QStringLiteral("seedingTimeLimit")), QStringLiteral("-2"));
+
+    // Called without it (the C++ default), the global sentinel still goes out.
+    server.shareLimitsBody.clear();
+    app.setLimits({server.hash}, -1, -1, -2, -2);
+    QTRY_VERIFY_WITH_TIMEOUT(!server.shareLimitsBody.isEmpty(), 3000);
+    QCOMPARE(QUrlQuery(QString::fromUtf8(server.shareLimitsBody))
+                 .queryItemValue(QStringLiteral("inactiveSeedingTimeLimit")),
+             QStringLiteral("-2"));
 
     app.engine()->stop();
     qunsetenv("OMASEED_SERVER_URL");

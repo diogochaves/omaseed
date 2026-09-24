@@ -627,6 +627,7 @@ QVariantMap App::torrentRow(const QString &hash) const
     row.insert(QStringLiteral("upLimit"), torrent.upLimit);
     row.insert(QStringLiteral("ratioLimit"), torrent.ratioLimit);
     row.insert(QStringLiteral("seedingTimeLimit"), torrent.seedingTimeLimit);
+    row.insert(QStringLiteral("inactiveSeedingTimeLimit"), torrent.inactiveSeedingTimeLimit);
     row.insert(QStringLiteral("shareLimitAction"), torrent.shareLimitAction);
     row.insert(QStringLiteral("sizeText"), Format::size(torrent.size));
     row.insert(QStringLiteral("progressText"), Format::percent(torrent.progress));
@@ -1854,9 +1855,11 @@ void App::setLimits(const QStringList &hashes,
                     qint64 ul,
                     double ratio,
                     qint64 seedingMinutes,
-                    const QString &shareLimitAction)
+                    const QString &shareLimitAction,
+                    qint64 inactiveSeedingMinutes)
 {
-    Q_EMIT limitsRequested(hashes, dl, ul, ratio, seedingMinutes, shareLimitAction);
+    Q_EMIT limitsRequested(
+        hashes, dl, ul, ratio, seedingMinutes, shareLimitAction, inactiveSeedingMinutes);
     if (hashes.isEmpty() || demoGuard(QStringLiteral("limits"), hashes.size()) || !m_hasServer)
         return;
 
@@ -1882,7 +1885,7 @@ void App::setLimits(const QStringList &hashes,
     std::optional<QbtClient::ShareLimitAction> action;
     if (apiVersion.isEmpty() || QbtClient::supportsShareLimitAction(apiVersion))
         action = QbtClient::shareLimitActionFromName(shareLimitAction);
-    m_client->torrentsSetShareLimits(hashes, ratio, seedingMinutes, -2, action)
+    m_client->torrentsSetShareLimits(hashes, ratio, seedingMinutes, inactiveSeedingMinutes, action)
         ->then(this, [this](const QbtResult<QByteArray> &result) {
             reportActionResult(QStringLiteral("limits"), result);
         });

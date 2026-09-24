@@ -461,6 +461,10 @@ QJsonObject torrentJson(int index,
     json.insert(QStringLiteral("up_limit"), 0);
     json.insert(QStringLiteral("ratio_limit"), -2.0);
     json.insert(QStringLiteral("seeding_time_limit"), -2);
+    // One row with an inactive seeding limit of its own (45 minutes), so the tests can see
+    // the Limits sheet carry a value it has no field for.
+    json.insert(QStringLiteral("inactive_seeding_time_limit"),
+                name.startsWith(QLatin1String("Tears of Steel")) ? 45 : -2);
     // T5.5 Q14: one row with a share-limit action of its own, so the Limits sheet's fifth
     // row has something to prefill from; every other row leaves it to the global setting.
     json.insert(QStringLiteral("share_limit_action"),

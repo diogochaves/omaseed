@@ -559,13 +559,16 @@ public:
     /// reached — Default, Stop, Remove, RemoveWithContent, EnableSuperSeeding; empty reads
     /// as Default. It goes on the wire when `supportsShareLimitAction` is true (Default
     /// included: 5.2.3 answers 400 without the field) and is left off for a server known to
-    /// be older than API 2.15.1.
+    /// be older than API 2.15.1. `inactiveSeedingMinutes` rides in the same call (same
+    /// sentinels); the sheet has no field for it, so it passes each torrent's own value
+    /// (`torrentRow().inactiveSeedingTimeLimit`) and an untouched limit survives the apply.
     Q_INVOKABLE void setLimits(const QStringList &hashes,
                                qint64 dl,
                                qint64 ul,
                                double ratio,
                                qint64 seedingMinutes,
-                               const QString &shareLimitAction = QString());
+                               const QString &shareLimitAction = QString(),
+                               qint64 inactiveSeedingMinutes = -2);
 
     /// The sheet's fallback rename (the table's inline editor is the primary one).
     Q_INVOKABLE void rename(const QString &hash, const QString &name);
@@ -918,7 +921,8 @@ Q_SIGNALS:
                          qint64 ul,
                          double ratio,
                          qint64 seedingMinutes,
-                         QString shareLimitAction);
+                         QString shareLimitAction,
+                         qint64 inactiveSeedingMinutes);
     // --- end T5.5 Q14 ----------------------------------------------------------------------
 
     // --- docs/08 §3: the hero's ⋯ menu -----------------------------------------------------

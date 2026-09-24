@@ -15,8 +15,9 @@ import Omaseed.Kit
 // days and may be fractional (90 minutes reads 0.06 and, untouched, stays 90 minutes). A
 // field that is not a number stops `apply` with a red line instead of sending NaN.
 //
-// Not yet: qBittorrent's inactive seeding time limit. The torrent rows do not carry it, so
-// `App.setLimits` sends -2 (global) for it (review VIEW-5 (d), flagged for App/TorrentModel).
+// qBittorrent's inactive seeding time limit has no field here (the spec has none), but it
+// travels in the same `torrents/setShareLimits` call, so each torrent's own value
+// (`inactiveSeedingTimeLimit`) is sent back unchanged; only `reset` puts it back on global.
 //
 // T5.5 Q14 adds qBittorrent's own fifth row, "when the limit is reached" (qui's share-limit
 // action row): one chip per `shareLimitAction` the server knows, shown only on a Web API
@@ -210,7 +211,7 @@ Sheet {
         seedingField.text = "";
         root._setAction("Default", []);
         root.errorText = "";
-        App.setLimits(root.hashes, 0, 0, -2, -2, "Default");
+        App.setLimits(root.hashes, 0, 0, -2, -2, "Default", -2);
         root.close();
     }
     // `torrents/setShareLimits` always takes ratio, seeding time and action together, so the
@@ -234,21 +235,24 @@ Sheet {
             const action = root._actionMixed ? root.actionNames[Math.max(0, root.actionNames.indexOf(
                                                                              row.shareLimitAction))]
                                              : root.actionValue();
-            const key = ratio + "|" + seeding + "|" + action;
+            const inactive = row.inactiveSeedingTimeLimit !== undefined ? row.inactiveSeedingTimeLimit
+                                                                        : -2;
+            const key = ratio + "|" + seeding + "|" + action + "|" + inactive;
             if (byKey[key] === undefined) {
                 byKey[key] = groups.length;
                 groups.push({
                                 "hashes": [],
                                 "ratio": ratio,
                                 "seeding": seeding,
-                                "action": action
+                                "action": action,
+                                "inactive": inactive
                             });
             }
             groups[byKey[key]].hashes.push(root.hashes[i]);
         }
         for (let g = 0; g < groups.length; ++g)
             App.setLimits(groups[g].hashes, values.dl, values.ul, groups[g].ratio,
-                          groups[g].seeding, groups[g].action);
+                          groups[g].seeding, groups[g].action, groups[g].inactive);
         root.close();
     }
 

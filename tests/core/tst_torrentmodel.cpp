@@ -84,6 +84,7 @@ private slots:
     void partialMergesOnlyThePresentKeys();
     void shareLimitActionParsesAndDefaults();
     void perTorrentOptionsParse();
+    void inactiveSeedingTimeLimitParsesAndDefaults();
     void partialAppendsUnknownHashes();
     void partialRemovesInContiguousRuns();
     void aHashRemovedTwiceRemovesOneRow();
@@ -178,7 +179,7 @@ void TestTorrentModel::rolesCoverTheTableAndTheDetails()
     QVERIFY(model.data(first, TorrentModel::LastActivityRole).toDateTime().isValid());
     QVERIFY(!model.data(first, TorrentModel::LastActivityTextRole).toString().isEmpty());
 
-    QCOMPARE(model.roleNames().size(), 73);
+    QCOMPARE(model.roleNames().size(), 74);
     QCOMPARE(roleOf(model, "stateText"), int(TorrentModel::StateTextRole));
     QCOMPARE(roleOf(model, "stateRole"), int(TorrentModel::StateColorRoleRole));
     QCOMPARE(roleOf(model, "seedsPeersText"), int(TorrentModel::SeedsPeersTextRole));
@@ -249,6 +250,27 @@ void TestTorrentModel::perTorrentOptionsParse()
     QVERIFY(after.autoTmm);
     // Views that snapshot the row (the details pane) hear about it.
     QCOMPARE(updated.count(), 1);
+}
+
+void TestTorrentModel::inactiveSeedingTimeLimitParsesAndDefaults()
+{
+    // qBittorrent 4.6 (API 2.9.x) sends `inactive_seeding_time_limit`; a server that does
+    // not leaves it on the global sentinel, -2, which is what the Limits sheet sends back.
+    TorrentModel model;
+    model.applyFullUpdate(threeTorrents());
+    const int role = roleOf(model, "inactiveSeedingTimeLimit");
+    QCOMPARE(role, int(TorrentModel::InactiveSeedingTimeLimitRole));
+    QCOMPARE(model.torrent(QStringLiteral("aaaa")).inactiveSeedingTimeLimit, qint64(-2));
+
+    QSignalSpy changed(&model, &QAbstractItemModel::dataChanged);
+    model.applyPartial(QJsonObject{{QStringLiteral("aaaa"),
+                                    QJsonObject{{QStringLiteral("inactive_seeding_time_limit"),
+                                                 30}}}},
+                       QJsonArray());
+    QCOMPARE(model.torrent(QStringLiteral("aaaa")).inactiveSeedingTimeLimit, qint64(30));
+    QCOMPARE(model.data(model.index(0), role).toLongLong(), qint64(30));
+    QCOMPARE(changed.count(), 1);
+    QVERIFY(changed.first().at(2).value<QList<int>>().contains(role));
 }
 
 void TestTorrentModel::partialAppendsUnknownHashes()
