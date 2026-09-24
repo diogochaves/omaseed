@@ -87,6 +87,24 @@ force_start() {
     curl -fs -X POST "$PLAY/torrents/setForceStart" -d "hashes=$hash" -d "value=$2" >/dev/null
 }
 
+# hold_others: stop every other unfinished download on the playground, remembering which, so
+# the torrent under test gets the seeder's upload to itself; release_others starts them again.
+HELD=""
+hold_others() {
+    HELD="$(curl -fs "$PLAY/torrents/info" | python3 -c '
+import json, sys
+busy = {"downloading", "stalledDL", "queuedDL", "forcedDL", "metaDL", "forcedMetaDL", "checkingDL"}
+print("|".join(t["hash"] for t in json.load(sys.stdin)
+               if t["state"] in busy and sys.argv[1] not in t["name"]))' "$1")"
+    [ -n "$HELD" ] || return 0
+    curl -fs -X POST "$PLAY/torrents/stop" -d "hashes=$HELD" >/dev/null
+}
+release_others() {
+    [ -n "$HELD" ] || return 0
+    curl -fs -X POST "$PLAY/torrents/start" -d "hashes=$HELD" >/dev/null
+    HELD=""
+}
+
 # take_off NAME: delete NAME from the playground with its files, and wait until it is gone.
 take_off() {
     local hash
@@ -155,6 +173,7 @@ check() {
 # unicode torrent gets the swarm's category and folder back.
 cleanup() {
     local hash
+    release_others 2>/dev/null || true
     take_off "$TINY" 2>/dev/null || true
     hash="$(field "Spaces & Symbols" hash 2>/dev/null || true)"
     if [ -n "$hash" ]; then
@@ -235,11 +254,14 @@ check "still one omaseed process (the second launch handed the file over)" one_p
 step "Torrent file, app in the tray" "The window is back with the sheet: the unicode torrent's long name (elided, not cut mid-glyph), 5.00 MB, from browser, and its three files listed."
 keys Return
 check "enter added the file to the playground" on_playground "Spaces & Symbols"
-# The playground runs two downloads at a time; after the swarm or notify walk both slots are
-# busy for minutes, so the new torrent would wait in the queue. Force-start it (cleanup
-# takes the force off again).
+# After the swarm or notify walk the playground's two download slots are busy for minutes
+# and the other downloads take nearly all of the seeder's upload, so the new torrent would
+# sit queued, then crawl. Force-start it and hold the others while it runs (cleanup takes
+# the force off again; the others start straight after).
 force_start "Spaces & Symbols" true || true
+hold_others "Spaces & Symbols" || true
 check "and it downloaded" finished "Spaces & Symbols"
+release_others || true
 
 # 3. Already there: the same magnet again finds the torrent instead of adding a second one.
 sleep 2
