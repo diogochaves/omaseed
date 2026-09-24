@@ -271,6 +271,52 @@ TestCase {
         compare(over, []);
     }
 
+    // Review VER-6: three chips at a wide window (1 276 px at base 14) folded the chips, the
+    // filter and the server line although the row had room to spare. The chips take the
+    // slack first; a step is taken only when the row no longer holds them.
+    function test_filter_chips_fold_only_when_the_row_is_full() {
+        const hero = createTemporaryObject(heroComponent, testCase, {
+                                               "downSpeed": "0 B/s",
+                                               "upSpeed": "0 B/s",
+                                               "serverLine": "playground · qBittorrent 5.1.2",
+                                               "serverLineShort": "playground",
+                                               "filterChips": [{
+                                                       "key": "status",
+                                                       "glyph": Glyphs.statusStopped,
+                                                       "text": "stopped"
+                                                   }, {
+                                                       "key": "category",
+                                                       "glyph": Glyphs.folder,
+                                                       "text": "fixtures"
+                                                   }, {
+                                                       "key": "tag",
+                                                       "glyph": Glyphs.tag,
+                                                       "text": "beta"
+                                                   }]
+                                           });
+        // Just short of step 2's threshold plus the whole chips: the old ladder folded here.
+        const width = Theme.space(771) + hero._chipsWidth(false) - Theme.space(40);
+        hero.width = width;
+        waitForItemPolished(hero.children[0]);
+        verify(hero.level <= 2, "level " + hero.level + " at " + width + " with three chips");
+        verify(!hero.chipsFolded);
+        verify(!hero.searchFolded);
+        verify(overflow(hero) <= 0.5, "the row runs " + overflow(hero) + " px over");
+
+        // With the room gone, the chips still fold rather than push the buttons out.
+        hero.width = Theme.space(700);
+        waitForItemPolished(hero.children[0]);
+        verify(hero.level >= 3);
+        verify(overflow(hero) <= 0.5, "the row runs " + overflow(hero) + " px over");
+
+        // No chips: the plain ladder, untouched.
+        hero.filterChips = [];
+        for (const [w, step] of [[1400, 0], [1100, 1], [800, 2], [650, 3], [500, 4]]) {
+            hero.width = w;
+            compare(hero.level, step, "at " + w);
+        }
+    }
+
     // KIT-9: the server line elides only when the row really has no room left for it.
     function test_the_server_line_does_not_elide_while_there_is_room() {
         const hero = createTemporaryObject(heroComponent, testCase, {

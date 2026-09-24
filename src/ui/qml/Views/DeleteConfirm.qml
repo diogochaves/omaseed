@@ -8,7 +8,8 @@ import Omaseed.Kit
 // title only counts ("Delete this torrent?", "Delete 3 torrents?"); the names and the total
 // size are said once, in the line under it, one name per line, the first three and then "and
 // N more" (batch-2 J7: the title used to repeat the name and wrap in the middle of it). The
-// body's toggle remembers whether the files come with it (`App.deleteFilesDefault`). `d`
+// body's toggle remembers whether the files come with it (`App.deleteFilesDefault`), but only
+// once a delete with it flipped is confirmed: a flip and a cancel leave the default alone. `d`
 // opens with the toggle as remembered; `D` opens it forced on.
 ConfirmDialog {
     id: root
@@ -18,6 +19,8 @@ ConfirmDialog {
     property var hashes: []
     property var _names: []
     property var _totalSize: 0
+    /// The toggle was flipped by hand since `openFor()`: confirming then remembers it.
+    property bool _flipped: false
 
     cancelText: qsTr("cancel")
     confirmText: qsTr("delete")
@@ -54,6 +57,7 @@ ConfirmDialog {
         root._names = names;
         root._totalSize = totalSize;
         alsoDelete.checked = filesOn;
+        root._flipped = false;
         root.open();
     }
 
@@ -63,8 +67,14 @@ ConfirmDialog {
         Layout.fillWidth: true
         text: qsTr("also delete files from disk")
 
-        onToggled: App.deleteFilesDefault = alsoDelete.checked
+        onToggled: root._flipped = true
     }
 
-    onAccepted: App.remove(root.hashes, alsoDelete.checked)
+    onAccepted: {
+        // The remembered default follows deliberate choices only: a flip that was then
+        // cancelled, or `D`'s forced "on", does not change what `d` opens with.
+        if (root._flipped)
+            App.deleteFilesDefault = alsoDelete.checked;
+        App.remove(root.hashes, alsoDelete.checked);
+    }
 }

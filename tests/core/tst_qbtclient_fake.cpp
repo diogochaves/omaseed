@@ -516,9 +516,11 @@ void TestQbtClientFake::rejectedLoginIsNotRepeated()
     for (int i = 0; i < 4; ++i) {
         const QbtResult<QString> result = await(this, client.appVersion());
         QVERIFY(result.isError());
+        // VER-1: the 403s after the refused login report the login's verdict, not Forbidden.
+        QCOMPARE(result.error().kind(), ApiError::Kind::Unauthorized);
     }
     QCOMPARE(logins(), 1);
-    QCOMPARE(client.authState(), QbtClient::AuthState::Forbidden);
+    QCOMPARE(client.authState(), QbtClient::AuthState::NeedsCredential);
 
     // New credentials lift the latch: one fresh login, which works.
     client.setCredentials(QStringLiteral("admin"), QStringLiteral("right"));
@@ -556,7 +558,11 @@ void TestQbtClientFake::allowLoginAgainTriesOneMoreLogin()
     client.setCredentials(QStringLiteral("admin"), QStringLiteral("secret"));
 
     QVERIFY(await(this, client.appVersion()).isError());
-    QVERIFY(await(this, client.appVersion()).isError());
+    const QbtResult<QString> latched = await(this, client.appVersion());
+    QVERIFY(latched.isError());
+    // A banned login (403) stays Forbidden while latched.
+    QCOMPARE(latched.error().kind(), ApiError::Kind::Forbidden);
+    QCOMPARE(client.authState(), QbtClient::AuthState::Forbidden);
     QCOMPARE(logins(), 1);
 
     // Still banned: the retry logs in once, is refused, and latches again.

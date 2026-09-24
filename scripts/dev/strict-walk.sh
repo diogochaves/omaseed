@@ -105,6 +105,7 @@ sys.exit(0 if ok else 1)
 
 STEP=0
 CHECKS=""
+FAILED=0
 # step "title" "what to look for": a screenshot (headless) or a pause (interactive).
 step() {
     STEP=$((STEP + 1))
@@ -124,7 +125,7 @@ step() {
 check() {
     local what="$1"; shift
     local mark="FAIL"
-    if "$@"; then mark="ok"; fi
+    if "$@"; then mark="ok"; else FAILED=$((FAILED + 1)); fi
     CHECKS+="- $mark: $what"$'\n'
     echo "  check $mark: $what"
 }
@@ -257,4 +258,9 @@ if [ "$INTERACTIVE" = 1 ]; then
     echo "done. The box stays up for a look around; close it with: omabox down $BOX"
 else
     echo "done: $OUT/index.md"
+fi
+# A failed check fails the walk, so a caller need not read index.md to know.
+if [ "$FAILED" -gt 0 ]; then
+    echo "$FAILED check(s) failed" >&2
+    exit 1
 fi

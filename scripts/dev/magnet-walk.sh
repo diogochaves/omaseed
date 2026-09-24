@@ -79,6 +79,32 @@ finished() {
     return 1
 }
 
+# force_start NAME true|false: run NAME past the queue's download slots, or back in line.
+force_start() {
+    local hash
+    hash="$(field "$1" hash)"
+    [ -n "$hash" ] || return 0
+    curl -fs -X POST "$PLAY/torrents/setForceStart" -d "hashes=$hash" -d "value=$2" >/dev/null
+}
+
+# hold_others: stop every other unfinished download on the playground, remembering which, so
+# the torrent under test gets the seeder's upload to itself; release_others starts them again.
+HELD=""
+hold_others() {
+    HELD="$(curl -fs "$PLAY/torrents/info" | python3 -c '
+import json, sys
+busy = {"downloading", "stalledDL", "queuedDL", "forcedDL", "metaDL", "forcedMetaDL", "checkingDL"}
+print("|".join(t["hash"] for t in json.load(sys.stdin)
+               if t["state"] in busy and sys.argv[1] not in t["name"]))' "$1")"
+    [ -n "$HELD" ] || return 0
+    curl -fs -X POST "$PLAY/torrents/stop" -d "hashes=$HELD" >/dev/null
+}
+release_others() {
+    [ -n "$HELD" ] || return 0
+    curl -fs -X POST "$PLAY/torrents/start" -d "hashes=$HELD" >/dev/null
+    HELD=""
+}
+
 # take_off NAME: delete NAME from the playground with its files, and wait until it is gone.
 take_off() {
     local hash
@@ -117,6 +143,7 @@ keys() { omabox keys -b "$BOX" "$@" >/dev/null; }
 
 STEP=0
 CHECKS=""
+FAILED=0
 # step "title" "what to look for": a screenshot (headless) or a pause (interactive).
 step() {
     STEP=$((STEP + 1))
@@ -136,7 +163,7 @@ step() {
 check() {
     local what="$1"; shift
     local mark="FAIL"
-    if "$@"; then mark="ok"; fi
+    if "$@"; then mark="ok"; else FAILED=$((FAILED + 1)); fi
     CHECKS+="- $mark: $what"$'\n'
     echo "  check $mark: $what"
 }
@@ -146,9 +173,11 @@ check() {
 # unicode torrent gets the swarm's category and folder back.
 cleanup() {
     local hash
+    release_others 2>/dev/null || true
     take_off "$TINY" 2>/dev/null || true
     hash="$(field "Spaces & Symbols" hash 2>/dev/null || true)"
     if [ -n "$hash" ]; then
+        force_start "Spaces & Symbols" false 2>/dev/null || true
         curl -fs -X POST "$PLAY/torrents/setCategory" -d "hashes=$hash" -d category=swarm >/dev/null 2>&1 || true
         curl -fs -X POST "$PLAY/torrents/setLocation" -d "hashes=$hash" \
             --data-urlencode "location=$DOWNLOADS/swarm" >/dev/null 2>&1 || true
@@ -225,7 +254,14 @@ check "still one omaseed process (the second launch handed the file over)" one_p
 step "Torrent file, app in the tray" "The window is back with the sheet: the unicode torrent's long name (elided, not cut mid-glyph), 5.00 MB, from browser, and its three files listed."
 keys Return
 check "enter added the file to the playground" on_playground "Spaces & Symbols"
+# After the swarm or notify walk the playground's two download slots are busy for minutes
+# and the other downloads take nearly all of the seeder's upload, so the new torrent would
+# sit queued, then crawl. Force-start it and hold the others while it runs (cleanup takes
+# the force off again; the others start straight after).
+force_start "Spaces & Symbols" true || true
+hold_others "Spaces & Symbols" || true
 check "and it downloaded" finished "Spaces & Symbols"
+release_others || true
 
 # 3. Already there: the same magnet again finds the torrent instead of adding a second one.
 sleep 2
@@ -246,4 +282,9 @@ if [ "$INTERACTIVE" = 1 ]; then
     echo "done. The box stays up for a look around; close it with: omabox down $BOX"
 else
     echo "done: $OUT/index.md"
+fi
+# A failed check fails the walk, so a caller need not read index.md to know.
+if [ "$FAILED" -gt 0 ]; then
+    echo "$FAILED check(s) failed" >&2
+    exit 1
 fi

@@ -75,18 +75,53 @@ Item {
     /// docs/10 §2: the step the hero is on, from its own width (the window's). Thresholds are
     /// base-12 pixels through `Theme.space`, so they scale with the base size: 1500, 1150,
     /// 900 and 700 px at base 14.
-    /// The filter chips (`filterChips`) take their width off the hero's before the ladder
-    /// looks at it (KIT-5), at full size for steps 0–2 and folded to glyph and ✕ for 3–4,
-    /// which is how they are drawn there.
+    /// With filter chips up (`filterChips`, KIT-5) the step is also the first one whose row,
+    /// measured part by part (`_rowWidth`), still holds the chips: whole for steps 0–2, folded
+    /// to glyph and ✕ for 3–4, which is how they are drawn there. The chips use the slack the
+    /// thresholds leave before anything folds (review VER-6: subtracting them from the
+    /// window's width and then asking for the no-chip thresholds folded three steps early).
     readonly property int level: {
-        const full = root.width - root._chipsWidth(false);
-        if (full >= Theme.space(1286))
-            return 0;
-        if (full >= Theme.space(986))
-            return 1;
-        if (full >= Theme.space(771))
-            return 2;
-        return root.width - root._chipsWidth(true) >= Theme.space(600) ? 3 : 4;
+        let step = 4;
+        if (root.width >= Theme.space(1286))
+            step = 0;
+        else if (root.width >= Theme.space(986))
+            step = 1;
+        else if (root.width >= Theme.space(771))
+            step = 2;
+        else if (root.width >= Theme.space(600))
+            step = 3;
+        if (root.filterChips.length === 0)
+            return step;
+        const room = root.width - Theme.space(32);
+        while (step < 4 && root._rowWidth(step) + root._chipsWidth(step >= 3) > room)
+            ++step;
+        return step;
+    }
+
+    /// The row's width at `step` without the chips and with nothing elided, from hidden
+    /// copies of the parts that change with the step (`ladderMeasure`), so it does not read
+    /// the drawn row, whose parts follow `level`.
+    function _rowWidth(step: int): real {
+        const buttons = step >= 2 ? 2 : 4;
+        const identityWidth = step >= 4 ? loneDot.implicitWidth
+                                        : Math.max(appNameText.implicitWidth,
+                                                   Theme.space(7) + Theme.space(6)
+                                                   + (step >= 1 && root.serverLineShort.length > 0
+                                                      ? measureServerShort.implicitWidth
+                                                      : measureServerFull.implicitWidth)
+                                                   + (networkLabel.visible
+                                                      ? Theme.space(6) + networkLabel.implicitWidth
+                                                      : 0));
+        const altWidth = step >= 3 ? measureAltGlyph.implicitWidth
+                                   : step >= 1 ? measureAltShort.implicitWidth
+                                               : measureAltFull.implicitWidth;
+        const searchWidth = step >= 3 ? addButton.implicitWidth : Theme.space([220, 180, 140][step]);
+        // mark, identity (or the dot), two spacers, two speeds, search, alt-speed, buttons:
+        // nine items and eight spacings; the chips bring their own (`_chipsWidth`).
+        return Theme.space(24) + identityWidth + Theme.space(6) + measureDown.implicitWidth
+                + measureUp.implicitWidth + searchWidth + altWidth
+                + buttons * addButton.implicitWidth + (buttons - 1) * Theme.space(2)
+                + 8 * heroRow.spacing;
     }
     /// The filter chips fold to their glyph and ✕ from step 3, as the alt-speed chip does.
     readonly property bool chipsFolded: root.level >= 3
@@ -462,6 +497,68 @@ Item {
 
                 onClicked: root.helpClicked()
             }
+        }
+    }
+
+    // Hidden copies of the parts whose width changes with the step, so `level` can measure
+    // the row at every step without reading the drawn one (review VER-6).
+    Item {
+        id: ladderMeasure
+
+        visible: false
+
+        Label {
+            id: measureServerFull
+
+            text: root.serverLine
+            tracked: true
+        }
+
+        Label {
+            id: measureServerShort
+
+            text: root.serverLineShort
+            tracked: true
+        }
+
+        // With their captions: the wider of the two forms, so the measure never falls short.
+        Stat {
+            id: measureDown
+
+            glyph: Glyphs.arrowDown
+            label: qsTr("download")
+            value: root.downSpeed
+        }
+
+        Stat {
+            id: measureUp
+
+            glyph: Glyphs.arrowUp
+            label: qsTr("upload")
+            value: root.upSpeed
+        }
+
+        Chip {
+            id: measureAltFull
+
+            glyph: Glyphs.altSpeed
+            text: root.altSpeedActive ? qsTr("↓%1 ↑%2").arg(root.altDownLimit).arg(root.altUpLimit)
+                                      : qsTr("alt-speed")
+        }
+
+        Chip {
+            id: measureAltShort
+
+            glyph: Glyphs.altSpeed
+            text: root.altSpeedActive ? qsTr("↓%1 ↑%2").arg(root.altDownLimitShort).arg(
+                                            root.altUpLimitShort) : ""
+        }
+
+        Chip {
+            id: measureAltGlyph
+
+            glyph: Glyphs.altSpeed
+            text: ""
         }
     }
 
