@@ -262,8 +262,8 @@ Sheet {
     map["savePath"] = savePathField.text;
     map["autoTMM"] = sheet.autoTMM;
     map["contentLayout"] = sheet.layoutValue();
-    map["upLimitKb"] = parseInt(upLimitField.text, 10) || 0;
-    map["dlLimitKb"] = parseInt(dlLimitField.text, 10) || 0;
+    map["upLimitKb"] = sheet._limitKb(upLimitField.text);
+    map["dlLimitKb"] = sheet._limitKb(dlLimitField.text);
     map["rename"] = renameField.text.trim();
     map["firstLastPiecePrio"] = firstLastToggle.checked;
     map["filePriorities"] = sheet.showFiles && App.addFiles.customised
@@ -273,6 +273,17 @@ Sheet {
     map["stopped"] = stopped;
     return map;
 }
+
+    /// KB/s for a limit field, read as the Limits sheets read theirs: empty is no limit (0),
+    /// "1.5" is 2 (the API takes whole KB here), and anything else is NaN, which `submit`
+    /// refuses instead of adding the torrent unlimited.
+    function _limitKb(text: string): real {
+        const typed = text.trim();
+        if (typed.length === 0)
+            return 0;
+        const kb = Number(typed);
+        return Number.isFinite(kb) && kb >= 0 ? Math.round(kb) : NaN;
+    }
 
     /// The chip that is on, or "" for no category.
     function chosenCategory(): string {
@@ -318,6 +329,11 @@ Sheet {
         return;
         if (sheet.showFiles && App.addFiles.wantedCount === 0) {
             sheet.errorText = qsTr("every file is skipped: check at least one");
+            return;
+        }
+        if (Number.isNaN(sheet._limitKb(dlLimitField.text))
+                || Number.isNaN(sheet._limitKb(upLimitField.text))) {
+            sheet.errorText = qsTr("a speed limit is not a number");
             return;
         }
         const duplicate = App.findDuplicate(sheet.addable.infoHashV1, sheet.addable.infoHashV2);

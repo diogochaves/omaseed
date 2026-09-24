@@ -696,9 +696,13 @@ Item {
         if (!root.renaming)
             return;
         const hash = internal.renameHash;
-        const name = root.renameText;
+        // Trimmed like the add sheet's Name, and not sent at all when nothing changed.
+        const name = root.renameText.trim();
         internal.closeRename();
-        if (name.length > 0)
+        const row = root.filtered.rowOfHash(hash);
+        const current = row >= 0 ? root.filtered.data(root.filtered.index(row, 0),
+                                                      TorrentModel.NameRole) : "";
+        if (name.length > 0 && name !== current)
             root.renameRequested(hash, name);
     }
 

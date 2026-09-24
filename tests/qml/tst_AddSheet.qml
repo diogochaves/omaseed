@@ -420,6 +420,15 @@ TestCase {
         compare(sheet.opened, false, "and closes when the queue is empty");
     }
 
+    // Review VIEW-18: the limit fields read as the Limits sheets read theirs.
+    function test_a_limit_that_is_not_a_number_is_refused() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        compare(sheet._limitKb(""), 0);
+        compare(sheet._limitKb("1.5"), 2);
+        compare(sheet._limitKb("300"), 300);
+        verify(Number.isNaN(sheet._limitKb("abc")));
+    }
+
     // Review VIEW-11: the Name row is the torrent's own; the next queued one starts without it.
     function test_the_next_queued_source_does_not_inherit_the_name() {
         const sheet = createTemporaryObject(addSheetComponent, testCase);

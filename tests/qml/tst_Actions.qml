@@ -218,6 +218,15 @@ TestCase {
         compare(field.text, savePath);
     }
 
+    // Review VIEW-18: an emptied path is not sent; the sheet waits for one.
+    function test_location_sheet_does_not_move_to_an_empty_path() {
+        keyClick("m");
+        const field = view.locationSheetPanel.focusables()[0];
+        field.text = "   ";
+        view.locationSheetPanel.triggerPrimary();
+        compare(view.locationSheetPanel.opened, true, "an empty path was sent");
+    }
+
     // ---- the limits sheet (Fig. 8) ---------------------------------------------------------
     function test_limits_sheet_prefills_from_the_cursor_torrent() {
         const hash = hashByName("Big Buck Bunny 4K (CC-BY)");

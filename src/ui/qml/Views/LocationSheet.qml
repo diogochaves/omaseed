@@ -49,7 +49,12 @@ Sheet {
     }
 
     onAccepted: {
-        App.setLocation(root.hashes, pathField.text);
+        // An emptied field is no place to move to (the server would answer a bare 400/409):
+        // `move` does nothing and the sheet stays until there is a path or `esc`.
+        const path = pathField.text.trim();
+        if (path.length === 0)
+            return;
+        App.setLocation(root.hashes, path);
         root.close();
     }
 
