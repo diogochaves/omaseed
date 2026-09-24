@@ -227,8 +227,8 @@ void App::configureFromStore()
         return;
     }
 
-    qInfo().noquote()
-        << QStringLiteral("server: %1 (%2)").arg(chosen->url.toString(), chosen->name);
+    qInfo().noquote() << QStringLiteral("server: %1 (%2)")
+                             .arg(chosen->url.toString(QUrl::RemoveUserInfo), chosen->name);
     applyServer(*chosen);
 }
 

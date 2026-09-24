@@ -52,6 +52,8 @@ private Q_SLOTS:
     void probeResultsFillTheRow();
     void persistsToJson();
     void secretsFollowTheServer();
+    void credentialsInTheUrlNeverReachTheFile(); // INT-11
+    void changingTheAuthModeDropsTheOldSecret(); // INT-12
 
 private:
     QTemporaryDir m_config;
@@ -326,6 +328,84 @@ void TestServerListModel::secretsFollowTheServer()
 
     QVERIFY(model.remove(id));
     QTRY_VERIFY(!QFile::exists(secretFile));
+}
+
+namespace {
+
+QString readSecret(SecretStore &secrets, const QString &id, SecretStore::Kind kind, bool *found)
+{
+    SecretStore::Job *job = secrets.secret(id, kind);
+    QSignalSpy spy(job, &SecretStore::Job::finished);
+    if (!spy.wait(3000))
+        return {};
+    *found = spy.constFirst().at(0).toBool();
+    return spy.constFirst().at(1).toString();
+}
+
+} // namespace
+
+void TestServerListModel::credentialsInTheUrlNeverReachTheFile()
+{
+    ServerStore store;
+    SecretStore secrets(QStringLiteral("io.github.diogochaves.omaseed-t45-test"));
+    secrets.setForcedBackend(SecretStore::Backend::File);
+    ServerListModel model(&store, &secrets);
+
+    QVariantMap fields = homeFields();
+    fields[QStringLiteral("url")] = QStringLiteral("http://bob:hunter2@nas.invalid:9090");
+    fields[QStringLiteral("authMode")] = QStringLiteral("cookie");
+    const QString id = model.add(fields);
+    QVERIFY(!id.isEmpty());
+
+    const Server server = *store.byId(id);
+    QCOMPARE(server.url, QUrl(QStringLiteral("http://nas.invalid:9090")));
+    QCOMPARE(server.username, QStringLiteral("bob"));
+    bool found = false;
+    QCOMPARE(readSecret(secrets, id, SecretStore::Kind::Password, &found), QStringLiteral("hunter2"));
+    QVERIFY(found);
+
+    QFile file(m_config.path() + QStringLiteral("/omaseed/servers.json"));
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    const QByteArray json = file.readAll();
+    QVERIFY(!json.contains("hunter2"));
+    QVERIFY(!json.contains("bob@"));
+
+    // Even a Server built by hand with user info is written without it.
+    Server manual;
+    manual.url = QUrl(QStringLiteral("http://eve:pw@host:1"));
+    QCOMPARE(manual.toJson().value(QStringLiteral("url")).toString(),
+             QStringLiteral("http://host:1"));
+}
+
+void TestServerListModel::changingTheAuthModeDropsTheOldSecret()
+{
+    ServerStore store;
+    SecretStore secrets(QStringLiteral("io.github.diogochaves.omaseed-t45-test"));
+    secrets.setForcedBackend(SecretStore::Backend::File);
+    ServerListModel model(&store, &secrets);
+
+    const QString id = model.add(homeFields(), QStringLiteral("old-api-key"));
+    QVERIFY(!id.isEmpty());
+    bool found = false;
+    QCOMPARE(readSecret(secrets, id, SecretStore::Kind::ApiKey, &found),
+             QStringLiteral("old-api-key"));
+
+    // API key → cookie: the key goes, the password arrives.
+    QVariantMap fields = model.serverMap(id);
+    fields[QStringLiteral("authMode")] = QStringLiteral("cookie");
+    fields[QStringLiteral("username")] = QStringLiteral("admin");
+    QVERIFY(model.update(fields, QStringLiteral("pw")));
+    readSecret(secrets, id, SecretStore::Kind::ApiKey, &found);
+    QVERIFY(!found);
+    QCOMPARE(readSecret(secrets, id, SecretStore::Kind::Password, &found), QStringLiteral("pw"));
+
+    // Cookie → none, without retyping anything: nothing is left.
+    fields[QStringLiteral("authMode")] = QStringLiteral("none");
+    QVERIFY(model.update(fields));
+    readSecret(secrets, id, SecretStore::Kind::Password, &found);
+    QVERIFY(!found);
+    readSecret(secrets, id, SecretStore::Kind::ApiKey, &found);
+    QVERIFY(!found);
 }
 
 QTEST_MAIN(TestServerListModel)
