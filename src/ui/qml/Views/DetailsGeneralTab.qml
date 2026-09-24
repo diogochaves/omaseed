@@ -59,9 +59,10 @@ Flickable {
         return null;
     }
 
-    /// `[{label, rows: [{index, key, value, copy, name, color?, dim?, option?, on?}]}]`, empty
+    /// `[{label, rows: [{index, key, value, copy, name, color?, dim?, halves?, option?, on?}]}]`, empty
     /// groups dropped. `option` names a G4 on/off row ("sequential", "firstLast",
-    /// "superSeeding", "autoManagement") and `on` its state. `copy` is what `y` puts on the clipboard: the whole value, never the
+    /// "superSeeding", "autoManagement") and `on` its state; `halves` breaks a value that does
+    /// not fit at its middle (the hashes). `copy` is what `y` puts on the clipboard: the whole value, never the
     /// shortened text on screen (the magnet); `name` is how the footer says what was copied.
     readonly property var groups: {
         const map = root.properties || {};
@@ -102,8 +103,13 @@ Flickable {
         const information = make();
         add(information, qsTr("Save path"), map.savePath);
         add(information, qsTr("Pieces"), map.pieces);
-        add(information, qsTr("Hash v1"), map.hashV1);
-        add(information, qsTr("Hash v2"), map.hashV2);
+        // Broken in half, not wherever the width runs out, when it does not fit on one line.
+        add(information, qsTr("Hash v1"), map.hashV1, {
+                "halves": true
+            });
+        add(information, qsTr("Hash v2"), map.hashV2, {
+                "halves": true
+            });
         // Shortened for the eye, in the dim colour that says so.
         add(information, qsTr("Magnet"), map.magnetText, {
                 "dim": true,
