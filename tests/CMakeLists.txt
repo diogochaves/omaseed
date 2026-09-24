@@ -51,6 +51,15 @@ if(NOT WIN32)
     )
     set_tests_properties(dev_home_guard PROPERTIES TIMEOUT 60)
 
+    # test-server.sh --strict makes, keeps and rotates its own login and API key, on a
+    # throwaway qbittorrent-nox (free port, scratch profile and dev.env): the :8081/:8082
+    # servers and the developer's dev.env are never touched. Skips without qbittorrent-nox.
+    add_test(
+        NAME dev_strict_credentials
+        COMMAND bash "${CMAKE_SOURCE_DIR}/tests/dev/test_strict_credentials.sh"
+    )
+    set_tests_properties(dev_strict_credentials PROPERTIES TIMEOUT 180 SKIP_RETURN_CODE 77)
+
     # data/hooks/theme-set.d/omaseed on a private bus: it must never D-Bus-activate omaseed
     # or hold omarchy-theme-set up.
     add_test(

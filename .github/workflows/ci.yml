@@ -2,7 +2,8 @@
 # and shellcheck every script: on an Arch container, the distribution omaseed ships for.
 #
 # Live tests (ctest label `live`) talk to the :8081/:8082 qBittorrent test servers and stay
-# local (scripts/dev/test-server.sh). Nothing here needs a desktop: Qt runs offscreen, the
+# local (scripts/dev/test-server.sh); dev_strict_credentials runs here, on a throwaway
+# qbittorrent-nox of its own. Nothing here needs a desktop: Qt runs offscreen, the
 # tests get a private session bus from dbus-run-session, and the two tests that touch a real
 # login keyring skip unless OMASEED_TEST_KEYRING=1 (tests/core/tst_secretstore.cpp).
 name: CI
@@ -38,7 +39,7 @@ jobs:
             gcc cmake ninja git \
             qt6-base qt6-declarative qt6-svg qt6-wayland qtkeychain-qt6 \
             librsvg hicolor-icon-theme \
-            clang shellcheck python dbus systemd \
+            clang shellcheck python dbus systemd qbittorrent-nox \
             fontconfig ttf-jetbrains-mono-nerd ttf-liberation
 
       # The QML tests measure text: give "monospace" the font Omarchy maps it to
