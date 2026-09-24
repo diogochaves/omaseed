@@ -335,6 +335,7 @@ Sheet {
                 id: nameField
 
                 Layout.fillWidth: true
+                escClears: false
                 placeholder: qsTr("home")
 
                 onAccepted: root.triggerPrimary()
@@ -350,6 +351,7 @@ Sheet {
                 id: urlField
 
                 Layout.fillWidth: true
+                escClears: false
                 placeholder: qsTr("http://127.0.0.1:8080")
 
                 onAccepted: root.triggerPrimary()
@@ -408,6 +410,7 @@ Sheet {
                 id: keyField
 
                 Layout.fillWidth: true
+                escClears: false
                 echoMode: TextInput.Password
                 placeholder: root.isNew ? qsTr("paste the API key") : qsTr("unchanged")
 
@@ -429,6 +432,7 @@ Sheet {
                     id: userField
 
                     Layout.fillWidth: true
+                    escClears: false
 
                     onAccepted: root.triggerPrimary()
                     onTextChanged: root.editUsername = text
@@ -443,6 +447,7 @@ Sheet {
                     id: passField
 
                     Layout.fillWidth: true
+                    escClears: false
                     echoMode: TextInput.Password
                     placeholder: root.isNew ? "" : qsTr("unchanged")
 
@@ -464,6 +469,7 @@ Sheet {
                     id: remoteField
 
                     Layout.fillWidth: true
+                    escClears: false
                     placeholder: qsTr("/downloads")
 
                     onAccepted: root.triggerPrimary()
@@ -479,6 +485,7 @@ Sheet {
                     id: localField
 
                     Layout.fillWidth: true
+                    escClears: false
                     placeholder: qsTr("/data/torrents")
 
                     onAccepted: root.triggerPrimary()

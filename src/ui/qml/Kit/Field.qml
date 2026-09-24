@@ -21,6 +21,10 @@ Rectangle {
     property bool hasCursor: false
     /// `TextInput.Password` for a secret (spec §3 Fig. 9's `Key` field). Normal by default.
     property int echoMode: TextInput.Normal
+    /// Whether `esc` clears the text first. A filter wants that (the escape ladder); a form
+    /// field opened with a value to edit does not: there `esc` goes straight to the sheet,
+    /// which cancels, rather than wiping the value and leaving the next keys to land in it.
+    property bool escClears: true
 
     /// True while the caret is in the field: the caller (Main) reads it to know that the
     /// search box, not the table, owns the keyboard.
@@ -152,7 +156,7 @@ Rectangle {
         // sheet, palette or view around the field still gets its turn (spec §7 Fig. 26's
         // escape ladder: "clear, then filter, then close").
         Keys.onEscapePressed: event => {
-            if (input.text.length === 0) {
+            if (!root.escClears || input.text.length === 0) {
                 event.accepted = false;
                 return;
             }
