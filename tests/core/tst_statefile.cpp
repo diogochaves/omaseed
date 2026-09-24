@@ -2,6 +2,7 @@
 
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonObject>
 #include <QTemporaryDir>
 #include <QTest>
@@ -20,6 +21,7 @@ private slots:
     void writeSectionCreatesTheFile();
     void writeSectionKeepsOtherSections();
     void readSectionOfUnknownKeyIsEmpty();
+    void writeLeavesOnlyTheStateFile();
 
 private:
     QTemporaryDir m_dir;
@@ -79,6 +81,18 @@ void TestStateFile::writeSectionKeepsOtherSections()
 void TestStateFile::readSectionOfUnknownKeyIsEmpty()
 {
     QVERIFY(StateFile::readSection(QStringLiteral("nope")).isEmpty());
+}
+
+// The write goes through a temporary file renamed into place (QSaveFile); nothing of it may
+// be left next to state.json afterwards.
+void TestStateFile::writeLeavesOnlyTheStateFile()
+{
+    StateFile::writeSection(QStringLiteral("a"), QJsonObject{{QStringLiteral("x"), 1}});
+    StateFile::writeSection(QStringLiteral("b"), QJsonObject{{QStringLiteral("y"), 2}});
+    const QDir dir = QFileInfo(StateFile::path()).absoluteDir();
+    QCOMPARE(dir.entryList(QDir::Files | QDir::Hidden),
+             QStringList({QStringLiteral("state.json")}));
+    QCOMPARE(StateFile::readSection(QStringLiteral("a")).value(QStringLiteral("x")).toInt(), 1);
 }
 
 QTEST_GUILESS_MAIN(TestStateFile)

@@ -22,10 +22,12 @@
 //   authRequired      401/403: polling stops until start() is called again.
 
 #include "core/ApiError.hpp"
+#include "core/QbtReply.hpp"
 
 #include <QDateTime>
 #include <QJsonObject>
 #include <QObject>
+#include <QPointer>
 #include <QStringList>
 
 #include <chrono>
@@ -143,6 +145,10 @@ private:
     bool m_running = false;
     bool m_visible = true;
     bool m_pollInFlight = false;
+    /// The probe or sync/maindata request in flight, so stop() can abort it.
+    QPointer<QbtReplyBase> m_pollReply;
+    /// Bumped by stop() (and so by setClient()); a reply from an older generation is dropped.
+    quint64 m_generation = 0;
     bool m_probed = false;
     bool m_hadFullUpdate = false;
     bool m_lost = false;

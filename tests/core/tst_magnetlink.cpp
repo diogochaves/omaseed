@@ -18,6 +18,8 @@ private slots:
     void nonMagnetInputIsInvalid();
     void garbageHashIsInvalid();
     void toStringIsCanonicalAndRoundTrips();
+    void numberedTopicsAreRead();
+    void nonAsciiHashAndNegativeLengthAreRejected();
 };
 
 void TestMagnetLink::parsesHexInfoHash()
@@ -113,6 +115,32 @@ void TestMagnetLink::toStringIsCanonicalAndRoundTrips()
     QCOMPARE(reparsed.displayName, link.displayName);
     QCOMPARE(reparsed.trackers, link.trackers);
     QCOMPARE(reparsed.toString(), canonical);
+}
+
+void TestMagnetLink::numberedTopicsAreRead()
+{
+    const QString v1 = QStringLiteral("0123456789abcdef0123456789abcdef01234567");
+    const QString v2 =
+        QStringLiteral("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef");
+    const MagnetLink link = MagnetLink::parse(
+        QStringLiteral("magnet:?xt.1=urn:btih:%1&xt.2=urn:btmh:1220%2").arg(v1, v2));
+    QVERIFY(link.isValid());
+    QCOMPARE(link.infoHashV1, v1);
+    QCOMPARE(link.infoHashV2, v2);
+    // Not a number after the dot: not a topic.
+    QVERIFY(!MagnetLink::parse(QStringLiteral("magnet:?xt.a=urn:btih:%1").arg(v1)).isValid());
+}
+
+void TestMagnetLink::nonAsciiHashAndNegativeLengthAreRejected()
+{
+    // 40 characters, one of them U+00E9: must not reach std::isxdigit as a negative char.
+    const QString hash = QStringLiteral("0123456789abcdef0123456789abcdef0123456\u00e9");
+    QVERIFY(!MagnetLink::parse(QStringLiteral("magnet:?xt=urn:btih:") + hash).isValid());
+
+    const MagnetLink link = MagnetLink::parse(
+        QStringLiteral("magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567&xl=-5"));
+    QVERIFY(link.isValid());
+    QCOMPARE(link.exactLength, qint64(-1));
 }
 
 QTEST_APPLESS_MAIN(TestMagnetLink)

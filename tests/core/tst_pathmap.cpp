@@ -17,6 +17,7 @@ private slots:
     void toRemoteIsTheInverseOfToLocal();
     void normalisesSeparatorsAndTrailingSlashes();
     void jsonRoundTrips();
+    void rootPrefixKeepsTheSeparator();
 };
 
 void TestPathMap::unmappedPathIsUnchanged()
@@ -87,6 +88,21 @@ void TestPathMap::jsonRoundTrips()
 
     const PathMap restored = PathMap::fromJson(json);
     QCOMPARE(restored.mappings(), map.mappings());
+}
+
+void TestPathMap::rootPrefixKeepsTheSeparator()
+{
+    PathMap fromRoot;
+    fromRoot.addMapping(QStringLiteral("/"), QStringLiteral("/mnt/nas"));
+    QCOMPARE(fromRoot.toLocal(QStringLiteral("/data/file")), QStringLiteral("/mnt/nas/data/file"));
+    QCOMPARE(fromRoot.toLocal(QStringLiteral("/")), QStringLiteral("/mnt/nas"));
+    QCOMPARE(fromRoot.toRemote(QStringLiteral("/mnt/nas/data/file")), QStringLiteral("/data/file"));
+    QCOMPARE(fromRoot.toRemote(QStringLiteral("/mnt/nas")), QStringLiteral("/"));
+
+    PathMap toRoot;
+    toRoot.addMapping(QStringLiteral("/downloads"), QStringLiteral("/"));
+    QCOMPARE(toRoot.toLocal(QStringLiteral("/downloads/a")), QStringLiteral("/a"));
+    QCOMPARE(toRoot.toRemote(QStringLiteral("/home/x")), QStringLiteral("/downloads/home/x"));
 }
 
 QTEST_APPLESS_MAIN(TestPathMap)

@@ -1,5 +1,7 @@
 #include "core/Bencode.hpp"
 
+#include <QSet>
+
 #include <algorithm>
 
 namespace omaseed::core::bencode {
@@ -188,7 +190,9 @@ private:
             fail(QStringLiteral("invalid string length"));
             return {};
         }
-        if (m_pos + len > m_data.size()) {
+        // Compare against the bytes left rather than computing m_pos + len: a 19-digit
+        // length would overflow the addition and slip past the check.
+        if (len > m_data.size() - m_pos) {
             fail(QStringLiteral("string runs past the end of data"));
             return {};
         }
@@ -221,6 +225,7 @@ private:
     {
         m_pos++; // skip 'd'
         Dict entries;
+        QSet<QByteArray> seenKeys;
         const bool topLevel = (depth == 0);
         while (true) {
             if (m_pos >= m_data.size()) {
@@ -235,9 +240,18 @@ private:
                 fail(QStringLiteral("dict key must be a string"));
                 return {};
             }
+            const qsizetype keyStart = m_pos;
             const Value key = parseString();
             if (m_failed)
                 return {};
+            // A repeated key makes the dict ambiguous: value() would return the first entry
+            // while the top-level span (used to hash "info") would point at the last.
+            if (seenKeys.contains(key.toString())) {
+                m_pos = keyStart;
+                fail(QStringLiteral("duplicate dict key"));
+                return {};
+            }
+            seenKeys.insert(key.toString());
             const qsizetype valueStart = m_pos;
             const Value value = parseValue(depth + 1);
             if (m_failed)

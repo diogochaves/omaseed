@@ -98,6 +98,7 @@
 #include <QUrlQuery>
 
 #include <chrono>
+#include <functional>
 #include <memory>
 #include <optional>
 
@@ -147,7 +148,8 @@ public:
 
     // --- configuration -------------------------------------------------------------------
     QUrl baseUrl() const;
-    /// The server root, e.g. http://127.0.0.1:8081 — without the /api/v2 part.
+    /// The server root, e.g. http://127.0.0.1:8081 — without the /api/v2 part. A different
+    /// URL cancels all outstanding work first (see cancelAll()).
     void setBaseUrl(const QUrl &baseUrl);
 
     void setApiKey(const QString &apiKey);
@@ -155,7 +157,7 @@ public:
 
     void setCredentials(const QString &username, const QString &password);
     bool hasCredentials() const;
-    /// Forgets key, credentials and any session cookie.
+    /// Forgets key, credentials and any session cookie, and cancels all outstanding work.
     void clearAuth();
 
     AuthState authState() const;
@@ -316,13 +318,16 @@ public:
     QbtReply<QByteArray> *transferSetDownloadLimit(qint64 bytesPerSec);
     QbtReply<QByteArray> *transferSetUploadLimit(qint64 bytesPerSec);
 
-    /// A POST whose body is a caller-built multipart form (e.g. torrentsAddFile). Takes
-    /// ownership of `multiPart`. Never retried, including the one-shot re-login retry:
-    /// a QHttpMultiPart holding file bytes cannot be safely replayed, so an auth failure
-    /// here is reported straight to the caller instead.
-    QbtReply<QByteArray> *postMultipart(const QString &path, QHttpMultiPart *multiPart);
+    /// A POST whose body is a multipart form (e.g. torrentsAddFile). `buildMultiPart` makes
+    /// a fresh, unparented QHttpMultiPart for every attempt (the client parents it to the
+    /// QNetworkReply that sends it), so the one-shot re-login retry can resend the body
+    /// after an expired session. Never retried for a transient failure.
+    QbtReply<QByteArray> *postMultipart(const QString &path,
+                                        std::function<QHttpMultiPart *()> buildMultiPart);
 
-    /// Drops every queued and in-flight request; each reply finishes with Kind::Cancelled.
+    /// Drops every queued, backing-off, login-waiting and in-flight request; each reply
+    /// finishes with Kind::Cancelled. setBaseUrl() (to a new URL) and clearAuth() do this
+    /// too, so nothing meant for one server is ever sent to the next.
     void cancelAll();
 
 Q_SIGNALS:
@@ -343,9 +348,9 @@ private:
         bool retryOnTransient = true;
         bool isLogin = false;
         bool allowReloginRetry = true;
-        /// Set instead of `form` for a multipart POST. Owned by the spec (and so by the
-        /// job): never rebuilt or resent, see postMultipart().
-        std::shared_ptr<QHttpMultiPart> multiPart;
+        /// Set instead of `form` for a multipart POST: called once per attempt, see
+        /// postMultipart().
+        std::function<QHttpMultiPart *()> buildMultiPart;
     };
 
     template<class T, class Fn>
@@ -378,7 +383,11 @@ private:
     QList<JobPtr> m_queued;
     QList<JobPtr> m_active;
     QList<JobPtr> m_waitingForLogin;
+    QList<JobPtr> m_backingOff; ///< GETs waiting out a retry delay
     bool m_loginInFlight = false;
+    /// The server rejected our username/password. No automatic re-login until
+    /// setCredentials() or clearAuth(): repeated failures get the IP banned.
+    bool m_loginRejected = false;
 };
 
 } // namespace omaseed::core

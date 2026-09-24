@@ -108,6 +108,14 @@ App::App(QObject *parent)
         qWarning().noquote() << QStringLiteral("authentication required: %1").arg(error.toString());
         updateTray();
     });
+    // serverBack only follows serverLost; after authRequired (a retry, a fixed password) the
+    // first good sync is what says the server is back.
+    connect(m_engine, &SyncEngine::synced, this, [this]() {
+        if (!m_serverLost)
+            return;
+        m_serverLost = false;
+        updateTray();
+    });
 }
 
 App::~App()
@@ -270,8 +278,13 @@ bool App::configureFromEnvironment()
 
 void App::applyServer(const Server &server)
 {
+    // A keychain read for the previous server may still be on its way; its answer must not
+    // put that server's secret on a client now pointed at this one.
+    const quint64 generation = ++m_serverGeneration;
     m_server = server;
     m_hasServer = true;
+    // clearAuth() and a new base URL also cancel everything still queued, in flight or
+    // backing off for the previous server (QbtClient::cancelAll).
     m_client->clearAuth();
     m_client->setBaseUrl(server.url);
     m_engine->globalState()->setServerName(server.name);
@@ -284,7 +297,9 @@ void App::applyServer(const Server &server)
         connect(job,
                 &SecretStoreJob::finished,
                 this,
-                [this](bool ok, const QString &value, const QString &error) {
+                [this, generation](bool ok, const QString &value, const QString &error) {
+                    if (generation != m_serverGeneration)
+                        return; // another server (or none) took over meanwhile
                     if (ok && !value.isEmpty())
                         m_client->setApiKey(value);
                     else
@@ -300,7 +315,9 @@ void App::applyServer(const Server &server)
         connect(job,
                 &SecretStoreJob::finished,
                 this,
-                [this, username](bool ok, const QString &value, const QString &error) {
+                [this, username, generation](bool ok, const QString &value, const QString &error) {
+                    if (generation != m_serverGeneration)
+                        return; // another server (or none) took over meanwhile
                     if (ok)
                         m_client->setCredentials(username, value);
                     else
@@ -1945,9 +1962,17 @@ bool App::removeServer(const QString &id)
         return false;
     qInfo().noquote() << QStringLiteral("server removed: %1").arg(id);
     if (wasLive) {
+        // Same teardown as a switch: nothing of the removed server may keep running, reach
+        // the next one, or stay on screen when there is no next one.
+        ++m_serverGeneration;
         m_engine->stop();
+        m_engine->setClient(nullptr);
+        m_engine->setClient(m_client);
+        m_client->clearAuth();
+        m_serverLost = false;
         m_hasServer = false;
         m_server = Server();
+        updateTray();
         const std::optional<Server> next = m_servers->defaultServer();
         if (next)
             setDefaultServer(next->id);
