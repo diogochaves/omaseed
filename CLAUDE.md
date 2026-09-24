@@ -55,6 +55,7 @@ qmllint src/ui/qml/**/*.qml && qmlformat -i <file>
 scripts/dev/test-server.sh start|stop|status|reset|seed [--strict]
 scripts/dev/swarm.sh start|seed|status|break CASE|fix|reset|stop   # offline swarm: real downloads on :8081
 scripts/dev/swarm-walk.sh [OUT] | --interactive   # every torrent state, shown in the app in an omabox
+scripts/dev/strict-walk.sh [OUT] | --interactive  # first run + cookie / API key login against :8082, in an omabox
 ```
 
 Visual checks under Hyprland: run the app, find it with `hyprctl -j clients`, screenshot with
