@@ -54,7 +54,15 @@ QString PathMap::remap(const QString &path, bool remoteToLocal) const
 
     const QString &fromPrefix = remoteToLocal ? best->remote : best->local;
     const QString &toPrefix = remoteToLocal ? best->local : best->remote;
-    const QString suffix = normalizedPath.mid(fromPrefix.size());
+    // Join on exactly one '/': a "/" prefix on either side keeps its slash after
+    // normalize(), so the suffix may or may not start with one.
+    QString suffix = normalizedPath.mid(fromPrefix.size());
+    if (suffix.isEmpty())
+        return toPrefix;
+    if (!suffix.startsWith(QLatin1Char('/')))
+        suffix.prepend(QLatin1Char('/'));
+    if (toPrefix.endsWith(QLatin1Char('/')))
+        return toPrefix + suffix.mid(1);
     return toPrefix + suffix;
 }
 
