@@ -112,6 +112,8 @@ Item {
     property int testCount: -1
     property int testLatency: -1
     property string testError: ""
+    /// The raw error under a friendly one ("wrong username or password"), drawn dim.
+    property string testErrorDetail: ""
 
     readonly property string _newServerId: ""
 
@@ -135,6 +137,7 @@ function _resetTest(): void {
     root.testCount = -1;
     root.testLatency = -1;
     root.testError = "";
+    root.testErrorDetail = "";
 }
 
 function openRow(kind: string, url: string): void {
@@ -230,7 +233,7 @@ Connections {
 
 Connections {
     function onServerTested(id: string, ok: bool, version: string, apiVersion: string, torrentCount: int,
-                            latencyMs: int, error: string): void {
+                            latencyMs: int, error: string, errorDetail: string): void {
         if (id.length > 0)
         return; // a saved server's own test, not first run's throwaway probe
         root.testing = false;
@@ -241,6 +244,7 @@ Connections {
         root.testCount = torrentCount;
         root.testLatency = latencyMs;
         root.testError = error;
+        root.testErrorDetail = errorDetail;
         root.testResultText = ok ? qsTr("qBittorrent %1 · API %2 · %3 torrents").arg(version.replace(
                                                                                          /^v/, "")).arg(
                                        apiVersion).arg(torrentCount) : error;
@@ -730,6 +734,17 @@ ColumnLayout {
             color: root.tested && !root.testOk ? Theme.red : Theme.foreground
             text: root.testResultText
             visible: root.testResultText.length > 0
+            wrapMode: Text.WordWrap
+        }
+
+        Label {
+            Layout.fillWidth: true
+            Layout.topMargin: -Theme.space(8)
+            dim: true
+            objectName: "testErrorDetail"
+            size: "small"
+            text: root.testErrorDetail
+            visible: root.tested && !root.testOk && root.testErrorDetail.length > 0
             wrapMode: Text.WordWrap
         }
     }

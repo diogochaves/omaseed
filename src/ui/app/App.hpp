@@ -470,13 +470,17 @@ Q_SIGNALS:
     void settingsChanged();
     /// One `testServer()` finished. `id` is the id the caller passed in `fields` (empty for a
     /// server that is not saved yet), so a sheet can tell its own answer from another's.
+    /// When the server turned the credential down, `error` says so in words
+    /// (`credentialRefusedText`) and `errorDetail` carries the raw error, for a dim second
+    /// line; otherwise `error` is the raw error and `errorDetail` is empty.
     void serverTested(const QString &id,
                       bool ok,
                       const QString &version,
                       const QString &apiVersion,
                       int torrentCount,
                       int latencyMs,
-                      const QString &error);
+                      const QString &error,
+                      const QString &errorDetail);
 
 private:
     void loadSettings();

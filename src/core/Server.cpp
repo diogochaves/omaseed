@@ -1,5 +1,7 @@
 #include "core/Server.hpp"
 
+#include "core/ApiError.hpp"
+
 #include <QJsonArray>
 #include <QUuid>
 
@@ -32,6 +34,25 @@ AuthMode authModeFromString(const QString &text, bool *ok)
     if (ok)
         *ok = false;
     return AuthMode::None;
+}
+
+QString credentialRefusedText(const ApiError &error, AuthMode mode)
+{
+    // qBittorrent answers a bad login with 401 and a bad Bearer key with 403 (5.2), but the
+    // two have moved between versions, so either counts as "turned down".
+    const bool refused =
+        error.kind() == ApiError::Kind::Unauthorized || error.kind() == ApiError::Kind::Forbidden;
+    if (!refused)
+        return {};
+    switch (mode) {
+    case AuthMode::Cookie:
+        return QStringLiteral("wrong username or password");
+    case AuthMode::ApiKey:
+        return QStringLiteral("the server refused this API key");
+    case AuthMode::None:
+        break;
+    }
+    return {};
 }
 
 QJsonObject PathMapping::toJson() const

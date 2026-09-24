@@ -135,11 +135,11 @@ void TestAppServers::testServerRejectsAWrongKey()
 
     const QList<QVariant> answer = tested.takeFirst();
     QVERIFY(!answer.at(1).toBool());
-    const QString error = answer.at(6).toString();
-    QVERIFY2(error.contains(QStringLiteral("401")) || error.contains(QStringLiteral("403")) ||
-                 error.contains(QStringLiteral("orbidden")) ||
-                 error.contains(QStringLiteral("nauthorized")),
-             qPrintable(error));
+    // The words first, the raw error kept for the dim line under them.
+    QCOMPARE(answer.at(6).toString(), QStringLiteral("the server refused this API key"));
+    const QString detail = answer.at(7).toString();
+    QVERIFY2(detail.contains(QStringLiteral("401")) || detail.contains(QStringLiteral("403")),
+             qPrintable(detail));
 }
 
 void TestAppServers::setDefaultServerMovesTheEngine()

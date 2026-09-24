@@ -8,6 +8,8 @@
 
 namespace omaseed::core {
 
+class ApiError;
+
 /// How a `Server` authenticates. The secret itself (API key or password) is never stored
 /// here; it lives in `SecretStore`, keyed by `Server::id`.
 enum class AuthMode {
@@ -18,6 +20,12 @@ enum class AuthMode {
 
 QString authModeToString(AuthMode mode);
 AuthMode authModeFromString(const QString &text, bool *ok = nullptr);
+
+/// What a person reads when the server turned the credential down: "wrong username or
+/// password" for a cookie login, "the server refused this API key" for a key. Empty for any
+/// other failure (unreachable, timed out, …) and for `AuthMode::None`, where the raw error is
+/// all there is to say.
+QString credentialRefusedText(const ApiError &error, AuthMode mode);
 
 /// One remote-to-local path rewrite, for servers whose download root is mounted at a
 /// different path locally (see the charter's `PathMap`). T2.3 may adapt the shape; kept

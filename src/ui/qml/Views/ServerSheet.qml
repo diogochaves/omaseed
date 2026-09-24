@@ -36,6 +36,10 @@ Sheet {
     property int testCount: -1
     property int testLatency: -1
     property string testError: ""
+    /// The raw error under a friendly one ("wrong username or password"), drawn dim.
+    property string testErrorDetail: ""
+    readonly property bool _credentialRefused: !root.testing && root.tested && !root.testOk
+                                               && root.testErrorDetail.length > 0
     property bool testing: false
 
     // the edit buffers; `save` turns them back into a field map
@@ -94,6 +98,7 @@ Sheet {
         root.testCount = -1;
         root.testLatency = -1;
         root.testError = "";
+        root.testErrorDetail = "";
         root.testing = false;
     }
 
@@ -269,7 +274,7 @@ Sheet {
     }
 
     Connections {
-        function onServerTested(id: string, ok: bool, version: string, apiVersion: string, torrentCount: int, latencyMs: int, error: string): void {
+        function onServerTested(id: string, ok: bool, version: string, apiVersion: string, torrentCount: int, latencyMs: int, error: string, errorDetail: string): void {
             if (id !== root.serverId)
                 return;
             root.testing = false;
@@ -280,6 +285,7 @@ Sheet {
             root.testCount = torrentCount;
             root.testLatency = latencyMs;
             root.testError = error;
+            root.testErrorDetail = errorDetail;
         }
 
         target: App
@@ -490,10 +496,24 @@ Sheet {
                                                                                     root.editUrl).arg(root.testVersion.replace(
                                                                                                           /^v/, "")).arg(
                                                                                     root.testApiVersion).arg(
-                                                                                    root.testCount) : qsTr(
+                                                                                    root.testCount) : root._credentialRefused
+                                                                                   ? root.testError : qsTr(
                                                                                     "not reachable · %1").arg(
                                                                                     root.testError)) : ""
+            color: root._credentialRefused ? Theme.red : Theme.dimForeground
             visible: root.testing || root.tested
+            wrapMode: Text.WordWrap
+        }
+
+        // The server was reached and turned the credential down: the raw error, dim, under
+        // the words above.
+        Label {
+            Layout.fillWidth: true
+            dim: true
+            objectName: "testErrorDetail"
+            size: "small"
+            text: root.testErrorDetail
+            visible: root._credentialRefused
             wrapMode: Text.WordWrap
         }
     }

@@ -125,6 +125,27 @@ TestCase {
         compare(page.editSecret, "");
     }
 
+    // A turned-down credential reads in words, in red, with the raw error dim underneath.
+    function test_a_refused_login_says_so_with_the_raw_error_under_it() {
+        const page = createTemporaryObject(pageComponent, testCase, {
+                                               "candidates": []
+                                           });
+        page.chooseCursor();
+        const detail = findChild(page, "testErrorDetail");
+        verify(!detail.visible);
+
+        App.serverTested("", false, "", "", -1, 4, "wrong username or password",
+                         "unauthorized (401): POST auth/login: Host requires authentication");
+        compare(page.testResultText, "wrong username or password");
+        verify(detail.visible);
+        compare(detail.text, "unauthorized (401): POST auth/login: Host requires authentication");
+
+        // Any other failure has only the raw error, and no second line.
+        App.serverTested("", false, "", "", -1, 4, "network: Connection refused", "");
+        compare(page.testResultText, "network: Connection refused");
+        verify(!detail.visible);
+    }
+
     function test_enter_on_the_install_row_opens_the_install_step() {
         const page = createTemporaryObject(pageComponent, testCase, {
                                                "candidates": []

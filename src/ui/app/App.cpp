@@ -1991,6 +1991,7 @@ void App::testServer(const QVariantMap &fields, const QString &secret)
                                 QStringLiteral("2.15.1"),
                                 142,
                                 3,
+                                QString(),
                                 QString());
         });
         return;
@@ -1998,7 +1999,8 @@ void App::testServer(const QVariantMap &fields, const QString &secret)
 
     if (!server.url.isValid() || server.url.host().isEmpty()) {
         QTimer::singleShot(0, this, [this, server]() {
-            Q_EMIT serverTested(server.id, false, QString(), QString(), -1, -1, tr("not a URL"));
+            Q_EMIT serverTested(
+                server.id, false, QString(), QString(), -1, -1, tr("not a URL"), QString());
         });
         return;
     }
@@ -2041,30 +2043,36 @@ void App::runServerTest(const Server &server, const QString &secret)
     elapsed.start();
     const QString id = server.id;
 
-    client->probe()->then(this, [this, client, elapsed, id](const QbtResult<ServerInfo> &result) {
-        const int latency = int(elapsed.elapsed());
-        if (result.isError()) {
-            const QString error = result.error().toString();
-            client->deleteLater();
-            m_serverList->setProbeResult(id, false, QString(), QString(), -1, latency, error);
-            Q_EMIT serverTested(id, false, QString(), QString(), -1, latency, error);
-            return;
-        }
-
-        const ServerInfo info = result.value();
-        // sync/maindata would do this too, but it also allocates a rid on the server; a
-        // plain torrents/info is the cheaper way to count what is there.
-        client->torrentsInfo()->then(
-            this, [this, client, id, info, latency](const QbtResult<QJsonArray> &listResult) {
-                const int count = listResult.isError() ? -1 : int(listResult.value().size());
-                const QString version = info.version;
-                const QString apiVersion = info.apiVersion;
+    const AuthMode mode = server.authMode;
+    client->probe()->then(
+        this, [this, client, elapsed, id, mode](const QbtResult<ServerInfo> &result) {
+            const int latency = int(elapsed.elapsed());
+            if (result.isError()) {
+                const QString raw = result.error().toString();
+                const QString refused = credentialRefusedText(result.error(), mode);
+                const QString error = refused.isEmpty() ? raw : refused;
+                const QString detail = refused.isEmpty() ? QString() : raw;
                 client->deleteLater();
-                m_serverList->setProbeResult(
-                    id, true, version, apiVersion, count, latency, QString());
-                Q_EMIT serverTested(id, true, version, apiVersion, count, latency, QString());
-            });
-    });
+                m_serverList->setProbeResult(id, false, QString(), QString(), -1, latency, error);
+                Q_EMIT serverTested(id, false, QString(), QString(), -1, latency, error, detail);
+                return;
+            }
+
+            const ServerInfo info = result.value();
+            // sync/maindata would do this too, but it also allocates a rid on the server; a
+            // plain torrents/info is the cheaper way to count what is there.
+            client->torrentsInfo()->then(
+                this, [this, client, id, info, latency](const QbtResult<QJsonArray> &listResult) {
+                    const int count = listResult.isError() ? -1 : int(listResult.value().size());
+                    const QString version = info.version;
+                    const QString apiVersion = info.apiVersion;
+                    client->deleteLater();
+                    m_serverList->setProbeResult(
+                        id, true, version, apiVersion, count, latency, QString());
+                    Q_EMIT serverTested(
+                        id, true, version, apiVersion, count, latency, QString(), QString());
+                });
+        });
 }
 
 // --- the persisted flags ---------------------------------------------------------------

@@ -125,7 +125,7 @@ step "First run" "The choose step: connect to a remote server, install qbittorre
 # shellcheck disable=SC2086
 keys $REMOTE -s 500 -t "$STRICT" Tab -t strict Tab Tab space Tab Tab -t "$QBT_STRICT_USER" \
     Tab -t "not-the-password" Tab Tab Return -s 3000
-step "Wrong password" "Cookie chosen: Username and Password fields (no Key field). The test fails in red and continue stays off. Is the wording clear enough for a person?"
+step "Wrong password" "Cookie chosen: Username and Password fields (no Key field). Red: wrong username or password, the raw 401 dim underneath; continue stays off."
 
 keys shift+Tab shift+Tab ctrl+a -t "$QBT_STRICT_PASS" Tab Tab Return -s 3000
 step "Cookie test passes" "qBittorrent 5.2.3 · API 2.15.1 · 3 torrents under the buttons; continue is on."
@@ -156,7 +156,7 @@ launch
 # shellcheck disable=SC2086
 keys $REMOTE -s 500 -t "$STRICT" Tab -t strict-key Tab space Tab Tab Tab -t "not-a-real-key" \
     Tab Tab Return -s 3000
-step "Wrong API key" "API key chosen: one Key field (no Username / Password). The test fails in red; continue stays off."
+step "Wrong API key" "API key chosen: one Key field (no Username / Password). Red: the server refused this API key, the raw 403 dim underneath; continue stays off."
 
 keys shift+Tab shift+Tab ctrl+a ctrl+v Tab Tab Return -s 3000
 step "API key test passes" "The pasted key (dots) tests fine: qBittorrent 5.2.3 · API 2.15.1 · 3 torrents; continue is on."

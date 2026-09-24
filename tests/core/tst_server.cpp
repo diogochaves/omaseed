@@ -1,9 +1,11 @@
+#include "core/ApiError.hpp"
 #include "core/Server.hpp"
 
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QTest>
 
+using omaseed::core::ApiError;
 using omaseed::core::AuthMode;
 using omaseed::core::PathMapping;
 using omaseed::core::Server;
@@ -20,6 +22,7 @@ private slots:
     void missingIdFailsToParse();
     void comparesByValue();
     void authModeRoundTrips();
+    void credentialRefusedSaysWhichCredential();
 };
 
 void TestServer::newIdIsStableAndUnique()
@@ -131,6 +134,30 @@ void TestServer::authModeRoundTrips()
     bool ok = true;
     omaseed::core::authModeFromString(QStringLiteral("bogus"), &ok);
     QVERIFY(!ok);
+}
+
+void TestServer::credentialRefusedSaysWhichCredential()
+{
+    using omaseed::core::credentialRefusedText;
+    // What qBittorrent 5.2 sends: 401 for a bad login, 403 for a bad key. Either way round
+    // reads the same, since the two have moved between versions.
+    const ApiError login(ApiError::Kind::Unauthorized, QStringLiteral("auth/login: Fails."), 401);
+    const ApiError key(ApiError::Kind::Forbidden, QStringLiteral("app/version: Forbidden"), 403);
+    QCOMPARE(credentialRefusedText(login, AuthMode::Cookie),
+             QStringLiteral("wrong username or password"));
+    QCOMPARE(credentialRefusedText(key, AuthMode::Cookie),
+             QStringLiteral("wrong username or password"));
+    QCOMPARE(credentialRefusedText(key, AuthMode::ApiKey),
+             QStringLiteral("the server refused this API key"));
+    QCOMPARE(credentialRefusedText(login, AuthMode::ApiKey),
+             QStringLiteral("the server refused this API key"));
+
+    // Nothing to say beyond the raw error: no credential was sent, or it never got that far.
+    QVERIFY(credentialRefusedText(key, AuthMode::None).isEmpty());
+    const ApiError refused(ApiError::Kind::Network, QStringLiteral("Connection refused"));
+    QVERIFY(credentialRefusedText(refused, AuthMode::Cookie).isEmpty());
+    const ApiError timeout(ApiError::Kind::Timeout, QStringLiteral("8 s"));
+    QVERIFY(credentialRefusedText(timeout, AuthMode::ApiKey).isEmpty());
 }
 
 QTEST_APPLESS_MAIN(TestServer)
