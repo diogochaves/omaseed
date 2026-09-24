@@ -438,7 +438,10 @@ int main(int argc, char *argv[])
     // Theme singleton the QML engine creates binds to this reader.
     omaseed::integration::ThemeReader theme;
     omaseed::integration::Theme::setDefaultReader(&theme);
-    theme.exportToDBus();
+    // On the connection that owns the app's name, where the theme-set hook's call arrives. A
+    // demo owns no name and exports nothing: it must never answer for the real app.
+    if (demo.isEmpty())
+        theme.exportToDBus(singleInstance->connection());
     qInfo().noquote() << QStringLiteral("theme: %1 (%2) from %3")
                              .arg(theme.themeName(), theme.mode(), theme.source());
 

@@ -5,18 +5,27 @@
 #include <QCoreApplication>
 #include <QDBusAbstractAdaptor>
 #include <QDBusConnection>
+#include <QDBusConnectionInterface>
 #include <QDBusMessage>
 #include <QDBusPendingCall>
+#include <QDBusReply>
+#include <QDir>
 #include <QElapsedTimer>
 #include <QEventLoop>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLocalServer>
 #include <QLocalSocket>
+#include <QLockFile>
+#include <QLoggingCategory>
 #include <QProcessEnvironment>
+#include <QTextStream>
 #include <QTimer>
+#include <QUrl>
 
+#include <algorithm>
 #include <utility>
 
 namespace omaseed::integration {
@@ -24,6 +33,40 @@ namespace omaseed::integration {
 namespace {
 
 const char *kApplicationInterface = "org.freedesktop.Application";
+
+Q_LOGGING_CATEGORY(lcInstance, "omaseed.instance")
+
+/// How long a secondary waits for the primary's answer to Open/Activate.
+constexpr int kForwardTimeoutMs = 5000;
+
+enum class NameClaim { Registered, Owned, Failed };
+
+/// Asks the bus for the name without queueing, so "someone else has it" (Owned) and "the bus
+/// said no" (Failed: a policy denial, a broken bus) are told apart.
+NameClaim claimName(QDBusConnection &connection, const QString &name)
+{
+    QDBusConnectionInterface *bus = connection.interface();
+    if (!bus)
+        return NameClaim::Failed;
+    const QDBusReply<QDBusConnectionInterface::RegisterServiceReply> reply =
+        bus->registerService(name,
+                             QDBusConnectionInterface::DontQueueService,
+                             QDBusConnectionInterface::DontAllowReplacement);
+    if (!reply.isValid()) {
+        qCWarning(lcInstance).noquote()
+            << QStringLiteral("could not request %1: %2").arg(name, reply.error().message());
+        return NameClaim::Failed;
+    }
+    return reply.value() == QDBusConnectionInterface::ServiceRegistered ? NameClaim::Registered
+                                                                        : NameClaim::Owned;
+}
+
+/// One line on stderr whatever the logging rules say: the user launched us and nothing else
+/// will tell them their link went nowhere.
+void tellUser(const QString &line)
+{
+    QTextStream(stderr) << QStringLiteral("omaseed: ") << line << Qt::endl;
+}
 
 } // namespace
 
@@ -54,8 +97,8 @@ public slots:
                         const QVariantList &parameter,
                         const QVariantMap &platform_data)
     {
-        // No actions are published yet; the tray (T1.5) and notifier (T1.6) menus will add
-        // some later. Accepting and ignoring keeps us spec-compliant in the meantime.
+        // No actions are published: the tray and the notices talk to the running process
+        // directly. Accepting and ignoring keeps us spec-compliant.
         Q_UNUSED(action_name);
         Q_UNUSED(parameter);
         Q_UNUSED(platform_data);
@@ -77,13 +120,70 @@ SingleInstance::~SingleInstance()
         m_localServer->close();
 }
 
-bool SingleInstance::start(const QStringList &uris)
+QDBusConnection SingleInstance::connection() const
 {
+    if (m_connectionName.isEmpty())
+        return QDBusConnection(QStringLiteral("omaseed-single-instance-none"));
+    return QDBusConnection(m_connectionName);
+}
+
+QStringList SingleInstance::absoluteUris(const QStringList &arguments,
+                                         const QString &workingDirectory)
+{
+    static const QStringList uriPrefixes{
+        QStringLiteral("magnet:"),
+        QStringLiteral("http://"),
+        QStringLiteral("https://"),
+        QStringLiteral("file:"),
+    };
+    const QDir base(workingDirectory);
+    QStringList result;
+    result.reserve(arguments.size());
+    for (const QString &argument : arguments) {
+        const bool isUri =
+            std::any_of(uriPrefixes.cbegin(), uriPrefixes.cend(), [&](const QString &prefix) {
+                return argument.startsWith(prefix, Qt::CaseInsensitive);
+            });
+        if (isUri || argument.isEmpty()) {
+            result.append(argument);
+            continue;
+        }
+        const QFileInfo info(base, argument);
+        result.append(info.exists() ? QUrl::fromLocalFile(info.absoluteFilePath()).toString()
+                                    : argument);
+    }
+    return result;
+}
+
+bool SingleInstance::start(const QStringList &arguments)
+{
+    // A path is resolved here, against this process's working directory: the primary that
+    // ends up opening it may have been started somewhere else entirely.
+    const QStringList uris = absoluteUris(arguments, QDir::currentPath());
     const QString busAddress =
         QProcessEnvironment::systemEnvironment().value(QStringLiteral("DBUS_SESSION_BUS_ADDRESS"));
     if (!busAddress.isEmpty())
         return startOnSessionBus(busAddress, uris);
     return startOnLocalSocket(uris);
+}
+
+void SingleInstance::deliverOwnUris(const QStringList &uris)
+{
+    if (uris.isEmpty())
+        return;
+    QTimer::singleShot(0, this, [this, uris]() { emit openRequested(uris); });
+}
+
+bool SingleInstance::becomePrimaryOnBus(QDBusConnection &connection,
+                                        const QString &connectionName,
+                                        const QStringList &uris)
+{
+    m_connectionName = connectionName;
+    m_isPrimary = true;
+    new SingleInstanceDBusAdaptor(this);
+    connection.registerObject(AppIdentity::dbusObjectPath(), this, QDBusConnection::ExportAdaptors);
+    deliverOwnUris(uris);
+    return true;
 }
 
 bool SingleInstance::startOnSessionBus(const QString &busAddress, const QStringList &uris)
@@ -102,19 +202,16 @@ bool SingleInstance::startOnSessionBus(const QString &busAddress, const QStringL
     }
 
     const QString serviceName = AppIdentity::dbusServiceName();
-    if (connection.registerService(serviceName)) {
-        m_connectionName = connectionName;
-        m_isPrimary = true;
-        new SingleInstanceDBusAdaptor(this);
-        connection.registerObject(
-            AppIdentity::dbusObjectPath(), this, QDBusConnection::ExportAdaptors);
-
-        if (!uris.isEmpty()) {
-            const QStringList capturedUris = uris;
-            QTimer::singleShot(
-                0, this, [this, capturedUris]() { emit openRequested(capturedUris); });
-        }
-        return true;
+    switch (claimName(connection, serviceName)) {
+    case NameClaim::Registered:
+        return becomePrimaryOnBus(connection, connectionName, uris);
+    case NameClaim::Failed:
+        // The bus refused outright (not "someone has it"): single-instance over the bus is
+        // impossible, but the app itself can still run, guarded by the local socket instead.
+        QDBusConnection::disconnectFromBus(connectionName);
+        return startOnLocalSocket(uris);
+    case NameClaim::Owned:
+        break;
     }
 
     // Another instance already owns the name: hand our URIs (or a plain activation) to it,
@@ -137,66 +234,115 @@ bool SingleInstance::startOnSessionBus(const QString &busAddress, const QStringL
     else
         message << QVariant(platformData);
 
-    QDBusPendingCall pending = connection.asyncCall(message);
+    QDBusPendingCall pending = connection.asyncCall(message, kForwardTimeoutMs);
     QElapsedTimer timer;
     timer.start();
-    while (!pending.isFinished() && timer.elapsed() < 5000)
+    while (!pending.isFinished() && timer.elapsed() < kForwardTimeoutMs + 500)
         QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
+
+    if (pending.isFinished() && !pending.isError()) {
+        QDBusConnection::disconnectFromBus(connectionName);
+        m_isPrimary = false;
+        return false;
+    }
+
+    // The owner did not take the hand-off: it is quitting (the name may be free by now), hung,
+    // or not omaseed at all. Try once to become the primary ourselves so the URIs still land.
+    const QString why = pending.isFinished()
+                            ? pending.error().message()
+                            : QStringLiteral("no answer within %1 s").arg(kForwardTimeoutMs / 1000);
+    qCWarning(lcInstance).noquote()
+        << QStringLiteral("the running instance did not take %1: %2").arg(methodName, why);
+    if (claimName(connection, serviceName) == NameClaim::Registered)
+        return becomePrimaryOnBus(connection, connectionName, uris);
 
     QDBusConnection::disconnectFromBus(connectionName);
     m_isPrimary = false;
+    tellUser(QStringLiteral("another process owns %1 and did not take the hand-off (%2)%3")
+                 .arg(serviceName,
+                      why,
+                      uris.isEmpty()
+                          ? QString()
+                          : QStringLiteral("; not opened: ") + uris.join(QLatin1Char(' '))));
     return false;
 }
 
 QString SingleInstance::localSocketName() const
 {
-    // One socket per app id per user; only used when the session bus is unreachable.
-    return AppIdentity::applicationId() + QStringLiteral(".instance");
+    // One socket per app id per user; only used when the session bus is unreachable. It
+    // lives in the user's runtime dir (0700), never the shared temp dir, where another user
+    // could plant a socket of the same name first.
+    QString dir = qEnvironmentVariable("XDG_RUNTIME_DIR");
+    if (dir.isEmpty() || !QFileInfo(dir).isDir())
+        dir = QDir::tempPath();
+    return dir + QLatin1Char('/') + AppIdentity::applicationId() + QStringLiteral(".instance");
 }
 
 bool SingleInstance::startOnLocalSocket(const QStringList &uris)
 {
     const QString name = localSocketName();
 
-    // Try to connect to an existing primary first.
-    {
+    const auto forward = [&]() {
         QLocalSocket probe;
         probe.connectToServer(name);
-        if (probe.waitForConnected(200)) {
-            QJsonObject payload;
-            payload.insert(QStringLiteral("command"),
-                           uris.isEmpty() ? QStringLiteral("activate") : QStringLiteral("open"));
-            if (!uris.isEmpty())
-                payload.insert(QStringLiteral("uris"), QJsonArray::fromStringList(uris));
-            QByteArray line = QJsonDocument(payload).toJson(QJsonDocument::Compact);
-            line.append('\n');
-            probe.write(line);
-            probe.waitForBytesWritten(500);
-            probe.disconnectFromServer();
-            if (probe.state() != QLocalSocket::UnconnectedState)
-                probe.waitForDisconnected(500);
-            m_isPrimary = false;
+        if (!probe.waitForConnected(200))
             return false;
-        }
+        QJsonObject payload;
+        payload.insert(QStringLiteral("command"),
+                       uris.isEmpty() ? QStringLiteral("activate") : QStringLiteral("open"));
+        if (!uris.isEmpty())
+            payload.insert(QStringLiteral("uris"), QJsonArray::fromStringList(uris));
+        QByteArray line = QJsonDocument(payload).toJson(QJsonDocument::Compact);
+        line.append('\n');
+        probe.write(line);
+        probe.waitForBytesWritten(500);
+        probe.disconnectFromServer();
+        if (probe.state() != QLocalSocket::UnconnectedState)
+            probe.waitForDisconnected(500);
+        return true;
+    };
+
+    if (forward()) {
+        m_isPrimary = false;
+        return false;
+    }
+
+    // Two launches at the same moment would both miss each other's server and both listen,
+    // the second unlinking the first's socket. The lock makes "check again, then listen" one
+    // step; once listening, the socket itself is the guard and the lock goes. A lock left by
+    // a process that is gone is taken over by QLockFile itself.
+    QLockFile lock(name + QStringLiteral(".lock"));
+    const bool locked = lock.tryLock(2000);
+    if (forward()) {
+        m_isPrimary = false;
+        return false;
     }
 
     // Nobody answered: either we are first, or a crashed instance left a stale socket file.
-    QLocalServer::removeServer(name);
+    // Only the lock holder may remove it; without the lock we might unlink a live server.
+    if (locked)
+        QLocalServer::removeServer(name);
     auto *server = new QLocalServer(this);
+    server->setSocketOptions(QLocalServer::UserAccessOption);
     if (!server->listen(name)) {
         delete server;
-        m_isPrimary = false;
-        return false;
+        // Someone may have got there between our probe and listen: hand over if so. Otherwise
+        // run without the guard rather than quit as if we were the secondary.
+        if (forward()) {
+            m_isPrimary = false;
+            return false;
+        }
+        qCWarning(lcInstance).noquote()
+            << QStringLiteral("no single-instance guard: could not listen on %1").arg(name);
+        m_isPrimary = true;
+        deliverOwnUris(uris);
+        return true;
     }
 
     m_localServer = server;
     connect(server, &QLocalServer::newConnection, this, &SingleInstance::acceptLocalConnection);
     m_isPrimary = true;
-
-    if (!uris.isEmpty()) {
-        const QStringList capturedUris = uris;
-        QTimer::singleShot(0, this, [this, capturedUris]() { emit openRequested(capturedUris); });
-    }
+    deliverOwnUris(uris);
     return true;
 }
 

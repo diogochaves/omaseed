@@ -153,24 +153,20 @@ void ThemeReader::connectWatcher()
     connect(&m_watcher, &QFileSystemWatcher::fileChanged, this, touched);
 }
 
-bool ThemeReader::exportToDBus()
+bool ThemeReader::exportToDBus(QDBusConnection connection)
 {
-    QDBusConnection bus = QDBusConnection::sessionBus();
-    if (!bus.isConnected()) {
-        qCInfo(lcTheme) << "no session bus; the theme-set hook cannot reach us";
+    if (!connection.isConnected()) {
+        qCInfo(lcTheme) << "not on the session bus; the theme-set hook cannot reach us";
         return false;
     }
 
-    new ThemeDBusAdaptor(this);
-    if (!bus.registerObject(AppIdentity::dbusThemeObjectPath(), this)) {
+    // One adaptor per reader, however many connections it is exported on.
+    if (!findChild<ThemeDBusAdaptor *>(QString(), Qt::FindDirectChildrenOnly))
+        new ThemeDBusAdaptor(this);
+    if (!connection.registerObject(AppIdentity::dbusThemeObjectPath(), this)) {
         qCWarning(lcTheme) << "could not export" << AppIdentity::dbusThemeObjectPath();
         return false;
     }
-
-    // T1.4 owns the bus name for real. Until it lands, take it ourselves so the hook has an
-    // address to call; when someone already owns it, leave it alone and keep the object.
-    if (!bus.registerService(AppIdentity::dbusServiceName()))
-        qCInfo(lcTheme) << "bus name already owned; the theme object is exported anyway";
     return true;
 }
 
