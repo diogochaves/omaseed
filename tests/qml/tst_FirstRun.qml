@@ -146,6 +146,21 @@ TestCase {
         verify(!detail.visible);
     }
 
+    // The heading asks the step's own question, not step 1's on every page.
+    function test_each_step_has_its_own_heading() {
+        const page = createTemporaryObject(pageComponent, testCase, {
+                                               "candidates": []
+                                           });
+        const heading = findChild(page, "heading");
+        compare(heading.text, "Which qBittorrent should omaseed talk to?");
+        page.chooseCursor(); // remote
+        compare(heading.text, "Where is it, and how does omaseed sign in?");
+        page.page = "install";
+        compare(heading.text, "Install qBittorrent on this machine?");
+        page.page = "handler";
+        compare(heading.text, "Open magnet links and .torrent files with omaseed?");
+    }
+
     function test_enter_on_the_install_row_opens_the_install_step() {
         const page = createTemporaryObject(pageComponent, testCase, {
                                                "candidates": []

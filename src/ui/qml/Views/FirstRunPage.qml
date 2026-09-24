@@ -88,6 +88,12 @@ Item {
             root.forceActiveFocus();
     })
     readonly property int stepNumber: root.page === "choose" ? 1 : root.page === "handler" ? 3 : 2
+    /// Each step asks its own question; step 1's would read wrong above a server's details or
+    /// the magnet handler.
+    readonly property string heading: root.page === "install" ? qsTr("Install qBittorrent on this machine?") :
+                                      root.page === "apikey" ? qsTr("Where is it, and how does omaseed sign in?") :
+                                      root.page === "handler" ? qsTr("Open magnet links and .torrent files with omaseed?") :
+                                      qsTr("Which qBittorrent should omaseed talk to?")
 
     // ---- step 2 buffers --------------------------------------------------------------------
     property string chosenKind: ""
@@ -331,7 +337,8 @@ ColumnLayout {
         Layout.fillWidth: true
         size: "heading"
         bright: true
-        text: qsTr("Which qBittorrent should omaseed talk to?")
+        objectName: "heading"
+        text: root.heading
         wrapMode: Text.WordWrap
     }
 
@@ -757,8 +764,8 @@ ColumnLayout {
 
         Label {
             Layout.fillWidth: true
-            bright: true
-            text: qsTr("Make omaseed the handler for magnet links and .torrent files?")
+            dim: true
+            text: qsTr("Magnet links you click in a browser and .torrent files you open go straight to omaseed.")
             wrapMode: Text.WordWrap
         }
 
