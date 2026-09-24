@@ -14,7 +14,8 @@ import Omaseed.Kit
 //
 // Keys: `up`/`down` and `ctrl+p`/`ctrl+n` move (never `j`/`k` — in a palette those are typed
 // text), `enter` activates, `tab` asks for the secondary action (Fig. 12's "tab actions"),
-// `space` toggles when `multi` is set, `esc` closes. `inline: true` drops the scrim and the
+// `space` toggles when `multi` is set, `esc` clears a typed query and closes when there is
+// none (the escape ladder: clear, then close). `inline: true` drops the scrim and the
 // centring, for the gallery. A `reorderable` list (the columns palette, N2) also asks to move
 // the cursor's row with `alt+up`/`alt+down` (`alt+k`/`alt+j`) and to put the default order back
 // with `ctrl+r`; the caller owns the order, as it owns `checked`.
@@ -241,6 +242,10 @@ Item {
             return;
         switch (event.key) {
         case Qt.Key_Escape:
+            if (root.query.length > 0) {
+                root.query = "";
+                break;
+            }
             root.close();
             root.rejected();
             break;

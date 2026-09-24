@@ -389,6 +389,9 @@ TestCase {
         keyClick("i");
         compare(view.details.collapsed, collapsed, "`i` reached the window under the palette");
 
+        // `i` was typed into the query: the first esc clears it (review RUN-11), the second closes.
+        keyClick(Qt.Key_Escape);
+        compare(view.sortPalette.query, "");
         keyClick(Qt.Key_Escape);
         compare(view.sortPalette.opened, false);
         compare(view.overlayOpen, false);

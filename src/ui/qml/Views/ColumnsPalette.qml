@@ -20,15 +20,20 @@ Palette {
     readonly property string resetKey: "__resetOrder"
 
     // From the Keymap's `columns` area, so the row here, the footer and `?` say the same.
+    // While a query narrows the list the order cannot be moved (review RUN-11), so the
+    // `alt+↑↓` hint gives way to how to get it back.
     hints: [
         {
             "key": "space",
             "label": Keymap.labelOf("columns", "space")
         },
-        {
-            "key": "alt+↑↓",
-            "label": Keymap.labelOf("columns", "alt+↑")
-        },
+        root.query.length > 0 ? {
+                                    "key": "esc",
+                                    "label": qsTr("clear to move")
+                                } : {
+                                    "key": "alt+↑↓",
+                                    "label": Keymap.labelOf("columns", "alt+↑")
+                                },
         {
             "key": "ctrl+r",
             "label": Keymap.labelOf("columns", "ctrl+r")
