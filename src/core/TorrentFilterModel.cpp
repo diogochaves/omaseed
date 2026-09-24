@@ -303,7 +303,12 @@ bool TorrentFilterModel::filterAcceptsRow(int sourceRow, const QModelIndex &sour
     }
 
     if (m_tracker) {
-        if (usesTrackerMembership()) {
+        // The trackerless row (and the three-valued "none"): no tracker at all, as
+        // FilterCounts counts it (review Q11).
+        if (m_tracker->isEmpty() || *m_tracker == trackerlessKey()) {
+            if (!t.isTrackerless())
+                return false;
+        } else if (usesTrackerMembership()) {
             if (!m_trackerHashes.contains(t.hash))
                 return false;
         } else if (t.trackerHostKey() != *m_tracker) {

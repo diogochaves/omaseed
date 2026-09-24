@@ -46,6 +46,10 @@ Item {
     /// data, instead of this page running the real `ServerDetector` against this machine.
     property bool autoDetect: true
 
+    /// Where an unreadable `servers.json` was kept (review Q9): first run then shows although
+    /// the user had servers, and one plain line on the welcome and step 1 says why.
+    property string serversKeptPath: App.serversKeptPath
+
     // ---- step 1: candidates ------------------------------------------------------------
     property var candidates: []
     /// True until `App.serversDetected` answers; the welcome shows the search while it runs.
@@ -597,6 +601,19 @@ Flickable {
             text: root.heading
             visible: root.page !== "welcome"
             wrapMode: Text.WordWrap
+        }
+
+        // Review Q9: under the welcome's buttons, or step 1's question.
+        Label {
+            Layout.fillWidth: true
+            color: Theme.yellow
+            objectName: "serversKeptLine"
+            size: "small"
+            text: qsTr("Your servers.json could not be read. It was kept as %1.").arg(
+                      root.serversKeptPath)
+            visible: root.serversKeptPath.length > 0
+                     && (root.page === "welcome" || root.page === "choose")
+            wrapMode: Text.WrapAtWordBoundaryOrAnywhere
         }
 
         // ---- step 1: choose --------------------------------------------------------------

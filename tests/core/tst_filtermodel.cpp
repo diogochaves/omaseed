@@ -31,6 +31,8 @@ QJsonObject torrentJson(const QString &name,
         {QStringLiteral("category"), category},
         {QStringLiteral("tags"), tags},
         {QStringLiteral("tracker"), tracker},
+        // One announce URL, or none; a test that needs failing trackers raises it.
+        {QStringLiteral("trackers_count"), tracker.isEmpty() ? 0 : 1},
         {QStringLiteral("dlspeed"), dlspeed},
         {QStringLiteral("size"), size},
     };
@@ -250,8 +252,12 @@ void TestFilterModel::trackerFilterGroupsByHostAndTrackerless()
 void TestFilterModel::trackerFilterListsWhatTheRailCounts()
 {
     // 1111 announces to archlinux now and also lists opentrackr; 5555's only tracker is
-    // opentrackr. 4444's trackers all fail, so its current tracker is "" (trackerless), but
-    // it still has an opentrackr URL. The rail counts opentrackr 3; the filter lists 3.
+    // opentrackr. 4444's trackers all fail, so its current tracker is "", but it still has an
+    // opentrackr URL. The rail counts opentrackr 4; the filter lists 4. Review Q11: 4444 has
+    // a tracker, so it is not trackerless; only 6666 (trackers_count 0) is.
+    m_source.applyPartial(
+        QJsonObject{{QStringLiteral("4444"), QJsonObject{{QStringLiteral("trackers_count"), 1}}}},
+        QJsonArray());
     const QString arch = QStringLiteral("udp://tracker.archlinux.org:6969/announce");
     const QString open = QStringLiteral("https://tracker.opentrackr.org:443/announce");
     TrackerModel trackers;
@@ -263,7 +269,7 @@ void TestFilterModel::trackerFilterListsWhatTheRailCounts()
                     QStringLiteral("4444"),
                     QStringLiteral("5555")}},
     });
-    trackers.setTrackerlessHashes({QStringLiteral("4444"), QStringLiteral("6666")});
+    trackers.setTrackerlessHashes({QStringLiteral("6666")});
     m_proxy.setTrackerModel(&trackers);
 
     const QString host = QStringLiteral("tracker.opentrackr.org");
@@ -273,11 +279,15 @@ void TestFilterModel::trackerFilterListsWhatTheRailCounts()
     QCOMPARE(shown, trackers.hashesFor(host));
     QCOMPARE(m_proxy.count(), 4);
 
-    // The trackerless row keeps the current-tracker rule, which is what it counts.
+    // The trackerless row lists what it counts: no tracker at all. 4444 is only under its
+    // host.
     m_proxy.setTracker(trackerlessKey());
     shown = visibleHashes(m_proxy);
     shown.sort();
     QCOMPARE(shown, trackers.hashesFor(trackerlessKey()));
+    QCOMPARE(shown, QStringList({QStringLiteral("6666")}));
+    m_proxy.setTracker(QStringLiteral("")); // the three-valued "none" is the same row
+    QCOMPARE(visibleHashes(m_proxy), QStringList({QStringLiteral("6666")}));
 
     // A poll that drops 1111's opentrackr URL re-filters the open row.
     m_proxy.setTracker(host);

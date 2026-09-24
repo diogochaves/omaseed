@@ -375,6 +375,11 @@ QString Torrent::trackerHostKey() const
     return trackerHost(tracker);
 }
 
+bool Torrent::isTrackerless() const
+{
+    return trackersCount == 0 && tracker.trimmed().isEmpty();
+}
+
 bool Torrent::isComplete() const
 {
     return progress >= 1.0;

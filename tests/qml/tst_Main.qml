@@ -564,6 +564,25 @@ TestCase {
         compare(view.table.cursorHash, hash);
     }
 
+    // ---- ruling Q12: ctrl+q quits from the Add and Duplicate sheets, like every overlay -------
+    function test_ctrl_q_quits_from_the_add_and_duplicate_sheets() {
+        const quit = quitSpy;
+        quit.clear();
+
+        App.addRequested();
+        verify(view.addSheet.opened);
+        compare(quit.count, 0);
+        keyClick(Qt.Key_Q, Qt.ControlModifier);
+        compare(quit.count, 1, "ctrl+q did not quit from the add sheet");
+        view.addSheet.dismiss();
+
+        view.duplicateSheet.openFor(App.torrentRow(App.filtered.hashAt(0)));
+        verify(view.duplicateSheet.opened);
+        keyClick(Qt.Key_Q, Qt.ControlModifier);
+        compare(quit.count, 2, "ctrl+q did not quit from the duplicate sheet");
+        view.duplicateSheet.close();
+    }
+
     // ---- the add sheet's `…` chips open T4.4's palettes over it (T4.8) ------------------------
     function test_the_category_chip_opens_the_palette_over_the_sheet_and_comes_back() {
         App.addRequested();
@@ -764,6 +783,41 @@ TestCase {
         compare(view.footerNote, "nothing to copy");
         view.copyText("fixture", "copied name");
         compare(view.footerNote, "copied name");
+        App.copyToClipboard("omaseed test: nothing to add here");
+    }
+
+    // Ruling Q14: y / Y / n copy one line per selected torrent, else the cursor row.
+    function test_copy_takes_the_selection_one_line_each() {
+        const first = App.filtered.hashAt(0);
+        const second = App.filtered.hashAt(1);
+        view.table.selectOnly(0);
+        view.table.toggleSelection(1);
+        compare(view.table.selectedCount, 2);
+        compare(view.actionHashes().length, 2);
+
+        const names = view.copyLines("copyName", view.actionHashes());
+        compare(names.length, 2);
+        verify(names.indexOf(App.torrentRow(first).name) >= 0);
+        verify(names.indexOf(App.torrentRow(second).name) >= 0);
+        const hashes = view.copyLines("copyHash", [first]);
+        compare(hashes, [App.torrentRow(first).infohashV1 || App.torrentRow(first).infohashV2
+                         || first]);
+
+        view.footerNote = "";
+        view.torrentAction("copyName");
+        compare(view.footerNote, "copied 2 names");
+
+        // A torrent with nothing to copy is skipped, and the note says so.
+        view.copyTorrents("copyName", [first, "not-a-torrent"]);
+        compare(view.footerNote, "copied 1 of 2 names");
+        view.copyTorrents("copyName", ["not-a-torrent", "nor-this"]);
+        compare(view.footerNote, "nothing to copy");
+
+        // No selection: the cursor row alone, and a plain "copied".
+        view.table.clearSelection();
+        compare(view.actionHashes(), [view.cursorHash]);
+        view.torrentAction("copyHash");
+        compare(view.footerNote, "copied");
         App.copyToClipboard("omaseed test: nothing to add here");
     }
 

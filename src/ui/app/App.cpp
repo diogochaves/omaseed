@@ -77,6 +77,8 @@ App::App(QObject *parent)
     // Here rather than in start(): demo and QML-test Apps never call start(), and their
     // `serverCount`/`firstRunNeeded` bindings must follow the store all the same.
     connect(m_servers, &ServerStore::changed, this, &App::serverChanged);
+    // Settings › Servers warns while secrets go to a plain file (review Q10).
+    connect(m_secrets, &SecretStore::backendResolved, this, &App::plainSecretsPathChanged);
 
     // The hero, the footer and the tray all read GlobalState and FilterCounts, so the tray
     // only has to be told when either of them moved.
@@ -194,6 +196,13 @@ QString App::serverUrlText() const
     return hostPort(m_server.url);
 }
 
+QString App::plainSecretsPath() const
+{
+    if (m_demoMode || m_secrets->knownBackend() != SecretStore::Backend::File)
+        return {};
+    return SecretStore::fileBackendDir();
+}
+
 int App::serverCount() const
 {
     return m_servers->count();
@@ -207,9 +216,8 @@ void App::start()
         return;
 
     if (!m_servers->load())
-        qWarning().noquote() << QStringLiteral("servers: %1; it is kept, and moved aside "
-                                               "before anything new is saved")
-                                    .arg(m_servers->loadError());
+        qWarning().noquote() << QStringLiteral("servers: %1; it is kept as %2")
+                                    .arg(m_servers->loadError(), m_servers->keptPath());
 
     if (m_servers->count() > 0) {
         configureFromStore();
@@ -400,8 +408,10 @@ void App::applyDemoData(const QJsonObject &maindata)
     qInfo().noquote() << QStringLiteral("demo: %1 fictional torrents, no server")
                              .arg(m_engine->torrents()->count());
 
-    if (!wasDemo)
+    if (!wasDemo) {
         Q_EMIT demoModeChanged();
+        Q_EMIT plainSecretsPathChanged();
+    }
     Q_EMIT serverChanged();
     updateTray();
 }

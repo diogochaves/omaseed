@@ -414,6 +414,29 @@ TestCase {
         verify(!findChild(page, "continueButton").enabled);
     }
 
+    // Review Q9: an unreadable servers.json is named where it was kept, on the welcome and
+    // step 1 only; nothing is said when it loaded.
+    function test_an_unreadable_servers_file_is_named() {
+        const page = createTemporaryObject(pageComponent, testCase, {
+                                               "candidates": [],
+                                               "page": "welcome"
+                                           });
+        const line = findChild(page, "serversKeptLine");
+        verify(line);
+        compare(App.serversKeptPath, "", "the test App loaded no servers.json");
+        verify(!line.visible);
+
+        const kept = "/home/someone/.config/omaseed/servers.json.unreadable-20260924-101500";
+        page.serversKeptPath = kept;
+        verify(line.visible);
+        compare(line.text, "Your servers.json could not be read. It was kept as " + kept + ".");
+        page.page = "choose";
+        verify(line.visible);
+        page.chooseCursor(); // on to the server details: the line has said its piece
+        verify(page.page !== "choose");
+        verify(!line.visible);
+    }
+
     Component {
         id: signalSpyComponent
 

@@ -141,6 +141,8 @@ public:
     omaseed::core::SyncEngine *engine() const { return m_engine; }
     omaseed::core::ServerStore *servers() const { return m_servers; }
     omaseed::core::QbtClient *client() const { return m_client; }
+    /// For tests: its probe runner and keychain hooks keep them off the desktop's keyring.
+    omaseed::core::SecretStore *secretStore() const { return m_secrets; }
 
     // --- the chosen server ---------------------------------------------------------------
     QString serverName() const;
@@ -879,9 +881,21 @@ public:
 
     /// Why `servers.json` could not be read at start (corrupt, or from a newer build); empty
     /// otherwise. First run then shows although the user has servers: this says why. The
-    /// unreadable file is never overwritten: the next save moves it aside first.
+    /// unreadable file is never overwritten: it is moved aside as soon as it fails to load.
     Q_PROPERTY(QString serversLoadError READ serversLoadError NOTIFY serverChanged)
     QString serversLoadError() const { return m_servers->loadError(); }
+    /// Where that unreadable file is kept (`servers.json.unreadable-<timestamp>`, or
+    /// `servers.json` itself if it could not be moved); empty when servers.json loaded. The
+    /// first-run page names it (review Q9).
+    Q_PROPERTY(QString serversKeptPath READ serversKeptPath NOTIFY serverChanged)
+    QString serversKeptPath() const { return m_servers->keptPath(); }
+
+    /// The directory that holds the API keys and passwords in plain (0600) files while no
+    /// keychain answered, so Settings › Servers can say so (review Q10); empty while the
+    /// keychain is in use, before the backend is known, and in a demo. Reading it never
+    /// starts the keychain probe.
+    Q_PROPERTY(QString plainSecretsPath READ plainSecretsPath NOTIFY plainSecretsPathChanged)
+    QString plainSecretsPath() const;
 
     /// Starts `ServerDetector` (a TCP probe of 127.0.0.1:8080 — connect-and-close only, never
     /// an HTTP request — plus a `docker ps` and a `pgrep` check). Answers with
@@ -909,6 +923,7 @@ Q_SIGNALS:
     void serversDetected(QVariantList candidates);
     /// One `runInstallWithPkexec()` answer.
     void installFinished(bool ok, QString message);
+    void plainSecretsPathChanged();
 
 private:
     QPointer<omaseed::core::ServerDetector> m_serverDetector;

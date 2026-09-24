@@ -325,6 +325,43 @@ Item {
         root.flashFooterNote(note);
     }
 
+    /// `y` / `Y` / `n` (ruling Q14): the magnet, hash or name of each of `hashes`, one per
+    /// line, skipping torrents that have none (a magnet still fetching its metadata). A
+    /// v2-only torrent has no v1 hash: its v2 one (or the id qBittorrent keys it by) instead.
+    function copyLines(action: string, hashes: var): var {
+        const lines = [];
+        for (const hash of hashes) {
+            const row = App.torrentRow(hash);
+            let value = row.name;
+            if (action === "copyMagnet")
+                value = row.magnetUri;
+            else if (action === "copyHash")
+                value = row.infohashV1 || row.infohashV2 || row.hash;
+            if (value)
+                lines.push(value);
+        }
+        return lines;
+    }
+
+    /// Copies `copyLines()`. One torrent says "copied"; a selection says how many, and of how
+    /// many when some had nothing to copy.
+    function copyTorrents(action: string, hashes: var): void {
+        const lines = root.copyLines(action, hashes);
+        if (hashes.length <= 1 || lines.length === 0) {
+            root.copyText(lines.join("\n"), qsTr("copied"));
+            return;
+        }
+        let noun = qsTr("names");
+        if (action === "copyMagnet")
+            noun = qsTr("magnets");
+        else if (action === "copyHash")
+            noun = qsTr("hashes");
+        const note = lines.length === hashes.length
+                   ? qsTr("copied %1 %2").arg(lines.length).arg(noun)
+                   : qsTr("copied %1 of %2 %3").arg(lines.length).arg(hashes.length).arg(noun);
+        root.copyText(lines.join("\n"), note);
+    }
+
     /// The hashes a table action applies to: the selection, or the cursor row alone.
     function actionHashes(): var {
         if (table.selectedCount > 0)
@@ -380,17 +417,9 @@ Item {
             App.queueDown(hashes);
             break;
         case "copyMagnet":
-            root.copyText(App.torrentRow(root.cursorHash).magnetUri || "", qsTr("copied"));
-            break;
-        case "copyHash": {
-            // A v2-only torrent has no v1 hash: its v2 one (or the id qBittorrent keys it by)
-            // rather than nothing.
-            const row = App.torrentRow(root.cursorHash);
-            root.copyText(row.infohashV1 || row.infohashV2 || row.hash || "", qsTr("copied"));
-            break;
-        }
+        case "copyHash":
         case "copyName":
-            root.copyText(App.torrentRow(root.cursorHash).name || "", qsTr("copied"));
+            root.copyTorrents(action, hashes);
             break;
         case "openFolder":
             App.openFolder(root.cursorHash);

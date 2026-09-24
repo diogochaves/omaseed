@@ -15,10 +15,11 @@ namespace omaseed::core {
 /// `{ "version": 1, "servers": [ Server::toJson()... ], "defaultId": "<id or empty>" }`.
 ///
 /// `load()` tolerates a missing file (nothing to load, not an error). A file whose
-/// `version` is newer than this build understands, or whose JSON does not parse, is left
-/// untouched on disk and `loadFailed()` is emitted; nothing already in memory is discarded.
-/// The next save never overwrites such a file: it renames it to
-/// `servers.json.unreadable-<timestamp>` first, and writes nothing if that rename fails.
+/// `version` is newer than this build understands, or whose JSON does not parse, is never
+/// overwritten: load() renames it to `servers.json.unreadable-<timestamp>` (with a `-N`
+/// suffix if taken) straight away, `keptPath()` says where, and `loadFailed()` is emitted;
+/// nothing already in memory is discarded. If that rename fails, the file stays in place,
+/// the next save tries again, and writes nothing if it still cannot move it.
 class ServerStore : public QObject
 {
     Q_OBJECT
@@ -40,10 +41,12 @@ public:
     bool isPersistent() const { return m_persistent; }
 
     /// Why the last load() could not use the file on disk; empty when it could (or there was
-    /// none). Cleared once a save has moved that file aside.
+    /// none). Kept until a load succeeds, so the first-run page can still say it.
     QString loadError() const { return m_loadError; }
-    /// Where the unreadable file was moved by the last save, if one was.
-    QString setAsidePath() const { return m_setAsidePath; }
+    /// Where the file the last load() could not use is now: the `.unreadable-<timestamp>`
+    /// path it was moved to, or `servers.json` itself while it could not be moved. Empty
+    /// when the last load succeeded.
+    QString keptPath() const { return m_keptPath; }
 
     QList<Server> servers() const;
     int count() const;
@@ -75,11 +78,16 @@ private:
     QList<Server> m_servers;
     QString m_defaultId;
     bool m_persistent = true;
-    // Set while the file on disk is one load() could not use; save() moves it aside first.
-    mutable QString m_loadError;
-    mutable QString m_setAsidePath;
+    QString m_loadError;
+    // Where the unreadable file is kept; see keptPath().
+    mutable QString m_keptPath;
+    // True while servers.json itself is the unreadable file: save() must move it first.
+    mutable bool m_fileUnreadable = false;
 
     void failLoad(const QString &message);
+    /// Renames an unreadable servers.json to `.unreadable-<timestamp>`; false while it is
+    /// still in place. Const because save() calls it.
+    bool moveUnreadableAside() const;
     static QString filePath();
     int indexOf(const QString &id) const;
 };

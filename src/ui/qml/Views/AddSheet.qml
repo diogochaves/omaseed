@@ -470,15 +470,6 @@ Sheet {
                 }
                 title: qsTr("Add torrent")
 
-                // Modal: nothing that lands here goes on to the window behind the scrim. A `Keys.onPressed`
-                // in a derived component does not replace the base's — both handlers run on the same
-                // attached object — so Sheet's own `esc`/`enter`/`tab` handling still happens and this one
-                // only marks whatever is left as consumed, before MainView's `_route` could see it.
-                Keys.onPressed: event => {
-                    if (sheet.opened)
-                        event.accepted = true;
-                }
-
                 onAddableChanged: sheet._syncFiles()
                 onRejected: sheet.dismiss()
                 onActionTriggered: text => {

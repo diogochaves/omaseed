@@ -167,13 +167,21 @@ void TestFilterCounts::countsCategoriesTagsAndTrackers()
         {QStringLiteral("c"),
          QJsonObject{{QStringLiteral("category"), QString()},
                      {QStringLiteral("tags"), QString()},
-                     {QStringLiteral("tracker"), QString()}}},
+                     {QStringLiteral("tracker"), QString()},
+                     {QStringLiteral("trackers_count"), 0}}},
+        // Review Q11: stopped, or every tracker failing: no current tracker, but it has two.
+        // Not trackerless (qBittorrent 5: trackers_count == 0), and no current host either.
+        {QStringLiteral("d"),
+         QJsonObject{{QStringLiteral("category"), QStringLiteral("linux")},
+                     {QStringLiteral("tags"), QStringLiteral("keep")},
+                     {QStringLiteral("tracker"), QString()},
+                     {QStringLiteral("trackers_count"), 2}}},
     });
 
-    QCOMPARE(counts.categoryCount(QStringLiteral("linux")), 2);
+    QCOMPARE(counts.categoryCount(QStringLiteral("linux")), 3);
     QCOMPARE(counts.uncategorised(), 1);
     QCOMPARE(counts.categoryCount(QString()), 1);
-    QCOMPARE(counts.tagCount(QStringLiteral("keep")), 2);
+    QCOMPARE(counts.tagCount(QStringLiteral("keep")), 3);
     QCOMPARE(counts.tagCount(QStringLiteral("private")), 1);
     QCOMPARE(counts.untagged(), 1);
     // Two announce URLs, one host.
