@@ -1451,7 +1451,8 @@ void App::addTorrent(const QVariantMap &request)
             Q_EMIT addFinished(false, result.error().message(), QString());
             return;
         }
-        // qBittorrent answers "Fails." with 200 when it refuses the payload outright.
+        // qBittorrent 4.x answers "Fails." with 200 when it refuses the payload outright; 5.x
+        // answers 409 Conflict instead, which arrives above as an error.
         const QString body = QString::fromUtf8(result.value()).trimmed();
         if (body.compare(QStringLiteral("Fails."), Qt::CaseInsensitive) == 0) {
             Q_EMIT addFinished(false, tr("the server refused this torrent"), QString());

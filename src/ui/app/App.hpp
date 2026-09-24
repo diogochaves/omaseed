@@ -173,10 +173,10 @@ Q_SIGNALS:
     void serverChanged();
     void demoModeChanged();
 
-    /// Raised by the tray menu, the hero's gear and `,`. Phase 4 opens the settings modal on
-    /// it; until then it is only a signal QML may emit and listen to.
+    /// Raised by the tray menu, the hero's gear, `,` and a notice's "settings". MainView opens
+    /// the settings modal on it; main.cpp brings the window up.
     void openSettings();
-    /// Raised by the tray menu, the hero's `+` and `a`. Phase 4 opens the add sheet.
+    /// Raised by the tray menu, the hero's `+` and `a`. MainView opens the add sheet.
     void addRequested();
 
 private:
@@ -236,9 +236,9 @@ public:
     Q_INVOKABLE QString demoTab() const;
 
 Q_SIGNALS:
-    /// Phase 4 wires these to the tracker and peer endpoints; Phase 3 only emits them, so
-    /// the details pane's `a`/`d`/`R`/`b` keys already have somewhere to go.
-    /// `action` is one of "add", "remove", "reannounce" / "ban", "add".
+    /// Declared in Phase 3 for the details pane's `a`/`d`/`R`/`b` keys; nothing in the app
+    /// emits or connects them today. `action` is one of "add", "remove", "reannounce" /
+    /// "ban", "add".
     void trackerActionRequested(const QString &hash, const QString &action, const QString &url);
     void peerActionRequested(const QString &hash, const QString &action, const QString &address);
 
@@ -253,11 +253,10 @@ private:
     // Same arrangement as the T3.4 block: everything the main window adds to App sits at the
     // end of the class so the parallel Phase 3 branches merge without touching each other.
 public:
-    /// Every key of spec §7 Fig. 26's "act" column that still needs Phase 4 leaves through
-    /// here (`p P d D c R C t m L r [ ] o y Y`, plus `rename` from the table's inline
-    /// editor). `MainView` collects the hashes — the selection, or the cursor row alone —
-    /// and calls this; Phase 4 connects the signal to the real endpoints, the confirm dialog
-    /// and the sheets. QML cannot emit a C++ signal, hence the invokable.
+    /// A key of spec §7 Fig. 26's "act" column, re-emitted as `torrentActionRequested`.
+    /// `MainView` collects the hashes — the selection, or the cursor row alone — and calls
+    /// this. The actions themselves run through the T4.3 invokables below; the signal is only
+    /// logged (main.cpp). QML cannot emit a C++ signal, hence the invokable.
     Q_INVOKABLE void requestTorrentAction(const QString &action, const QStringList &hashes);
 
     /// `Format::size` for QML (the loading state prints how much of the first sync arrived).
@@ -868,7 +867,8 @@ public:
     Q_INVOKABLE void detectServers();
 
     /// The exact shell commands the install step's copyable field shows, one per line: the
-    /// package, then enabling the per-user template unit qbittorrent-nox ships
+    /// package (`sudo pacman -S …`: text for the user to run in their own terminal, never
+    /// run by the app), then enabling the per-user template unit qbittorrent-nox ships
     /// (`qbittorrent-nox@.service`, `pacman -Ql qbittorrent-nox | grep service`).
     Q_INVOKABLE QString installCommandsText() const;
     /// Runs `pkexec pacman -S --noconfirm qbittorrent-nox` — never `sudo` from inside the
