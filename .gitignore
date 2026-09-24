@@ -10,3 +10,6 @@ reference/
 
 # Local scratch (design drafts, assets not yet in the tree)
 .local/
+
+# scripts/release.sh output
+/dist/

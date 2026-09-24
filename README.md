@@ -282,8 +282,9 @@ Two PKGBUILDs live in `packaging/arch/`:
 - **`PKGBUILD`** — the real recipe, the one that eventually goes to the `omarchy-pkgs` PR.
   Builds from the tagged GitHub release source tarball
   (`https://github.com/diogochaves/omaseed/archive/refs/tags/v$pkgver.tar.gz`); needs a
-  pushed tag to resolve. `sha256sums` is filled in by `scripts/release.sh` once a release
-  is cut.
+  pushed tag to resolve. The tagged tree says `sha256sums=('SKIP')`; `scripts/release.sh
+  --publish` commits the archive's checksum on `main` right after the tag (see
+  `docs/RELEASING.md`).
 - **`PKGBUILD.local`** — builds from the working tree instead (`prepare()` copies the repo
   two directories up via `rsync`, excluding `.git` and build directories), so the package can
   be built and tried before any tag exists, or while iterating on packaging itself. Otherwise
@@ -308,9 +309,8 @@ QT_QPA_PLATFORM=offscreen /tmp/pkgroot/usr/bin/omaseed --help
 
 **`packaging/omarchy/`** holds `package.json` (and a `package.json.md` explaining every
 field), the `.omarchy/package.json` shape the `omarchy-pkgs` PR needs alongside
-`packaging/arch/PKGBUILD` (charter §6). `scripts/release.sh` fills in the real source
-tarball checksum once a tag exists; opening the PR itself is Diogo's step, guided by
-`docs/RELEASING.md`.
+`packaging/arch/PKGBUILD` (charter §6). It has no checksum field (omarchy-pkgs takes it
+from the PKGBUILD); opening the PR itself is Diogo's step, guided by `docs/RELEASING.md`.
 
 ## Documents
 

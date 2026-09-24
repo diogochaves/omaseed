@@ -1,13 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Exercises scripts/release.sh end to end in a throwaway clone, so a ctest run never
-# touches this checkout's git state (no tags, no commits, no network) and does not
-# require CHANGELOG.md/CMakeLists.txt to be in any particular uncommitted state.
+# Exercises scripts/release.sh end to end in a throwaway clone, with a synthetic version
+# (99.0.0) so the test keeps working after every real release and bump: all of the clone's
+# tags are dropped, a CHANGELOG section is added there, and "origin" is a bare repository in
+# the scratch directory. `gh` is a stub on PATH that records its arguments and plays GitHub:
+# it writes GitHub's tag archive (git archive | gzip -n of the pushed tag) where release.sh
+# is told to download it from. No network, and this checkout's git state is never touched.
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/omaseed-release-test.XXXXXX")"
 CLONE="$WORK/omaseed"
+ORIGIN="$WORK/origin.git"
+VERSION=99.0.0
+TAG="v$VERSION"
 
 cleanup() {
     rm -rf "$WORK"
@@ -19,67 +25,119 @@ fail() {
     exit 1
 }
 
+SOURCE_STATUS_BEFORE="$(git -C "$REPO_ROOT" status --porcelain)"
+SOURCE_TAGS_BEFORE="$(git -C "$REPO_ROOT" tag -l)"
+
 echo "==> Cloning $REPO_ROOT into $CLONE"
 git clone --quiet --no-hardlinks "$REPO_ROOT" "$CLONE"
+cd "$CLONE"
+git config user.name "omaseed release test"
+git config user.email "release-test@invalid"
+git config commit.gpgsign false
+git config tag.gpgsign false
+# release.sh requires main; the checkout may be on a task branch.
+[[ "$(git rev-parse --abbrev-ref HEAD)" == main ]] || git branch -m main
+git tag -l | xargs -r git tag -d >/dev/null
+git init --quiet --bare "$ORIGIN"
+git remote set-url origin "$ORIGIN"
+git push --quiet origin main
 
-# This checkout may be on a task branch, not main; scripts/release.sh requires main, so
-# rename the clone's current branch locally. This never touches the source repository.
-CLONE_BRANCH="$(cd "$CLONE" && git rev-parse --abbrev-ref HEAD)"
-if [[ "$CLONE_BRANCH" != "main" ]]; then
-    (cd "$CLONE" && git branch -m main)
+printf '\n## %s — test\n\nA synthetic release for tests/release/test_release.sh.\n' "$TAG" >>CHANGELOG.md
+git commit --quiet -am "Add a synthetic $TAG changelog section"
+git push --quiet origin main
+
+# ---- dry run --------------------------------------------------------------------------------
+echo "==> A dry run without --bump refuses the version mismatch"
+if bash scripts/release.sh "$VERSION" --dry-run >/dev/null 2>&1; then
+    fail "the dry run accepted $VERSION while CMakeLists.txt is at another version"
 fi
 
-grep -q '^## v0.1.0' "$CLONE/CHANGELOG.md" || fail "CHANGELOG.md has no '## v0.1.0' section"
-
-echo "==> Running scripts/release.sh 0.1.0 --dry-run"
-OUTPUT="$(cd "$CLONE" && bash scripts/release.sh 0.1.0 --dry-run)"
+HEAD_BEFORE="$(git rev-parse HEAD)"
+echo "==> scripts/release.sh $VERSION --bump --dry-run"
+OUTPUT="$(bash scripts/release.sh "$VERSION" --bump --dry-run)"
 echo "$OUTPUT"
 
-TARBALL="$CLONE/dist/omaseed-0.1.0.tar.gz"
+TARBALL="$CLONE/dist/omaseed-$VERSION.tar.gz"
 SUMS="$CLONE/dist/SHA256SUMS"
 NOTES="$CLONE/dist/RELEASE_NOTES.md"
-
 [[ -f "$TARBALL" ]] || fail "tarball not created: $TARBALL"
 [[ -f "$SUMS" ]] || fail "SHA256SUMS not created: $SUMS"
 [[ -f "$NOTES" ]] || fail "RELEASE_NOTES.md not created: $NOTES"
 
+echo "==> The dry run left git alone: no tag, no commit, a clean tree"
+git rev-parse -q --verify "refs/tags/$TAG" >/dev/null && fail "the dry run created $TAG"
+[[ "$(git rev-parse HEAD)" == "$HEAD_BEFORE" ]] || fail "the dry run made a commit"
+[[ -z "$(git status --porcelain)" ]] || fail "the dry run dirtied the tree: $(git status --porcelain)"
+
 TAR_LISTING="$(tar tf "$TARBALL")"
-
-echo "==> Checking the tarball name and prefix"
+echo "==> The tarball's prefix"
 FIRST_ENTRY="$(printf '%s\n' "$TAR_LISTING" | head -n1)"
-case "$FIRST_ENTRY" in
-    omaseed-0.1.0/*) ;;
-    *) fail "tarball's first entry is not prefixed omaseed-0.1.0/: $FIRST_ENTRY" ;;
-esac
+[[ "$FIRST_ENTRY" == "omaseed-$VERSION/"* ]] || fail "tarball's first entry is not prefixed omaseed-$VERSION/: $FIRST_ENTRY"
 
-echo "==> Checking docs/evidence and build*/ are excluded"
-if printf '%s\n' "$TAR_LISTING" | grep -qE '^omaseed-0\.1\.0/(docs/evidence/|build)'; then
-    fail "docs/evidence or a build*/ directory leaked into the tarball"
+echo "==> docs/evidence is export-ignored"
+if printf '%s\n' "$TAR_LISTING" | grep -qE "^omaseed-$VERSION/(docs/evidence/|build|dist/)"; then
+    fail "docs/evidence, build*/ or dist/ leaked into the tarball"
 fi
+printf '%s\n' "$TAR_LISTING" | grep -qx "omaseed-$VERSION/CMakeLists.txt" || fail "CMakeLists.txt is missing from the tarball"
 
-echo "==> Checking the SHA256SUMS line format"
-grep -qE '^[0-9a-f]{64}  omaseed-0\.1\.0\.tar\.gz$' "$SUMS" || fail "SHA256SUMS has the wrong line format"
-
-echo "==> Verifying the checksum actually matches the tarball"
+echo "==> SHA256SUMS"
+grep -qE "^[0-9a-f]{64}  omaseed-${VERSION//./\\.}\.tar\.gz$" "$SUMS" || fail "SHA256SUMS has the wrong line format"
 (cd "$CLONE/dist" && sha256sum --check --status SHA256SUMS) || fail "SHA256SUMS does not verify against the tarball"
-
-echo "==> Checking the release notes title"
-head -n1 "$NOTES" | grep -qE '^# omaseed v0\.1\.0$' || fail "RELEASE_NOTES.md title is wrong: $(head -n1 "$NOTES")"
-
-echo "==> Checking the printed gh release create command"
+head -n1 "$NOTES" | grep -qxF "# omaseed $TAG" || fail "RELEASE_NOTES.md title is wrong: $(head -n1 "$NOTES")"
 echo "$OUTPUT" | grep -qF \
-    'gh release create v0.1.0 dist/omaseed-0.1.0.tar.gz dist/SHA256SUMS --notes-file dist/RELEASE_NOTES.md' \
-    || fail "did not print the expected gh release create command"
+    "gh release create $TAG dist/omaseed-$VERSION.tar.gz dist/SHA256SUMS --notes-file dist/RELEASE_NOTES.md" ||
+    fail "did not print the expected gh release create command"
 
-echo "==> Checking the tag exists only in the clone"
-(cd "$CLONE" && git rev-parse -q --verify refs/tags/v0.1.0 >/dev/null) \
-    || fail "tag v0.1.0 was not created in the clone"
-if (cd "$REPO_ROOT" && git rev-parse -q --verify refs/tags/v0.1.0 >/dev/null 2>&1); then
-    fail "tag v0.1.0 leaked into $REPO_ROOT"
+# ---- publish --------------------------------------------------------------------------------
+mkdir "$WORK/bin"
+cat >"$WORK/bin/gh" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >>"$WORK/gh.log"
+# GitHub: the tag's archive, as served at /archive/refs/tags/<tag>.tar.gz.
+if [[ "\$1 \$2" == "release create" ]]; then
+    git -C "$ORIGIN" archive --format=tar --prefix="omaseed-$VERSION/" "\$3" | gzip -n >"$WORK/github-archive.tar.gz"
+fi
+EOF
+chmod +x "$WORK/bin/gh"
+
+echo "==> scripts/release.sh $VERSION --bump --publish (stub gh, local origin)"
+PATH="$WORK/bin:$PATH" OMASEED_RELEASE_ARCHIVE_URL="file://$WORK/github-archive.tar.gz" \
+    bash scripts/release.sh "$VERSION" --bump --publish
+
+echo "==> The tag, on origin, carries the bumped versions and no checksum"
+git -C "$ORIGIN" rev-parse -q --verify "refs/tags/$TAG" >/dev/null || fail "$TAG was not pushed"
+git -C "$ORIGIN" show "$TAG:CMakeLists.txt" | grep -qE "^[[:space:]]*VERSION[[:space:]]+$VERSION\$" ||
+    fail "the tagged CMakeLists.txt is not at $VERSION"
+TAGGED_PKGBUILD="$(git -C "$ORIGIN" show "$TAG:packaging/arch/PKGBUILD")"
+grep -qx "pkgver=$VERSION" <<<"$TAGGED_PKGBUILD" || fail "the tagged PKGBUILD is not at pkgver=$VERSION"
+grep -qx "pkgrel=1" <<<"$TAGGED_PKGBUILD" || fail "the tagged PKGBUILD is not at pkgrel=1"
+grep -qx "sha256sums=('SKIP')" <<<"$TAGGED_PKGBUILD" || fail "the tagged PKGBUILD carries a checksum"
+git -C "$ORIGIN" show "$TAG:packaging/arch/PKGBUILD.local" | grep -qx "pkgver=$VERSION" ||
+    fail "the tagged PKGBUILD.local is not at pkgver=$VERSION"
+
+echo "==> main, on origin, has GitHub's archive checksum in the PKGBUILD, after the tag"
+ARCHIVE_SHA="$(sha256sum "$WORK/github-archive.tar.gz" | cut -d' ' -f1)"
+git -C "$ORIGIN" show "main:packaging/arch/PKGBUILD" | grep -qx "sha256sums=('$ARCHIVE_SHA')" ||
+    fail "origin's main PKGBUILD does not carry the archive checksum $ARCHIVE_SHA"
+[[ "$(git -C "$ORIGIN" rev-parse "main^")" == "$(git -C "$ORIGIN" rev-parse "$TAG^{commit}")" ]] ||
+    fail "the checksum commit is not the one right after the tag"
+[[ "$(git rev-parse HEAD)" == "$(git -C "$ORIGIN" rev-parse main)" ]] || fail "local main and origin differ"
+
+echo "==> The local tarball is GitHub's archive, byte for byte"
+[[ "$(cut -d' ' -f1 "$SUMS")" == "$ARCHIVE_SHA" ]] || fail "dist/ tarball and GitHub's archive differ"
+
+echo "==> gh was asked for the release"
+grep -qxF "release create $TAG dist/omaseed-$VERSION.tar.gz dist/SHA256SUMS --notes-file dist/RELEASE_NOTES.md" "$WORK/gh.log" ||
+    fail "gh was not called as expected: $(cat "$WORK/gh.log")"
+[[ -z "$(git status --porcelain)" ]] || fail "publish left the tree dirty: $(git status --porcelain)"
+
+echo "==> A second publish of the same version is refused"
+if PATH="$WORK/bin:$PATH" bash scripts/release.sh "$VERSION" --publish >/dev/null 2>&1; then
+    fail "a second publish of $TAG went through"
 fi
 
-echo "==> Checking the dry run did not push or touch the source repo"
-SOURCE_STATUS="$(cd "$REPO_ROOT" && git status --porcelain)"
-[[ -z "$SOURCE_STATUS" ]] || fail "source repo working tree is no longer clean: $SOURCE_STATUS"
+echo "==> This checkout is untouched"
+[[ "$(git -C "$REPO_ROOT" status --porcelain)" == "$SOURCE_STATUS_BEFORE" ]] || fail "the source repo's working tree changed"
+[[ "$(git -C "$REPO_ROOT" tag -l)" == "$SOURCE_TAGS_BEFORE" ]] || fail "the source repo's tags changed"
 
 echo "ALL CHECKS PASSED"
