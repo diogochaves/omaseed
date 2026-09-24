@@ -253,7 +253,9 @@ Sheet {
     /// What `enter` runs: the focused button, else the primary one (review RUN-9: with the
     /// keyboard on `test` the footer still said "enter edit").
     readonly property string _enterLabel: {
-        const item = root.Window.activeFocusItem as Button;
+        // Only while open: a closed sheet asking actionButtons() (which claims its buttons)
+        // whenever another overlay's button takes the focus was a binding loop.
+        const item = root.opened ? root.Window.activeFocusItem as Button : null;
         if (item && root.actionButtons().indexOf(item) >= 0)
             return String(item.text);
         return root.editing ? qsTr("save") : qsTr("edit");
