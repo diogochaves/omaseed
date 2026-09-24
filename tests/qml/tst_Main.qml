@@ -72,6 +72,7 @@ TestCase {
         view.moreMenu.close();
         view.globalLimitsSheet.close();
         view.helpOpen = false;
+        view._testServerLost = false;
         App.railHidden = false;
         view.details.collapsed = false;
         view.details.activateTab(0);
@@ -621,6 +622,131 @@ TestCase {
         App.details.files.clearSelection();
         verify(!view.factsText.includes("files selected"));
         view.details.activateTab(0);
+    }
+
+    // ---- focusHome (review VIEW-1) -------------------------------------------------------
+    /// True when the window's keyboard is on `item` or inside it.
+    function _focusInside(item) {
+        let node = view.Window.activeFocusItem;
+        while (node) {
+            if (node === item)
+                return true;
+            node = node.parent;
+        }
+        return false;
+    }
+
+    function test_a_server_dropping_and_coming_back_leaves_an_open_sheet_its_keyboard() {
+        keyClick(Qt.Key_L, Qt.ShiftModifier);
+        compare(view.limitsSheetPanel.opened, true);
+        verify(testCase._focusInside(view.limitsSheetPanel), "the sheet did not take the keyboard");
+
+        view._testServerLost = true;
+        verify(testCase._focusInside(view.limitsSheetPanel), "a lost server took the sheet's keyboard");
+        view._testServerLost = false;
+        verify(testCase._focusInside(view.limitsSheetPanel), "the server's return took the sheet's keyboard");
+        verify(!view.table.activeFocus);
+    }
+
+    function test_an_overlay_closed_while_the_server_is_lost_leaves_the_table_read_only() {
+        keyClick(Qt.Key_L, Qt.ShiftModifier);
+        compare(view.limitsSheetPanel.opened, true);
+        view._testServerLost = true;
+        view.limitsSheetPanel.close();
+        wait(0);
+        verify(!view.table.activeFocus, "the table took the keyboard past the read-only guard");
+        keyClick("d");
+        compare(view.deleteConfirmPanel.opened, false, "`d` reached a disconnected table");
+
+        view._testServerLost = false;
+        verify(view.table.activeFocus, "the table did not get the keyboard back with the server");
+    }
+
+    function test_help_closed_while_the_server_is_lost_stays_behind_the_guard() {
+        view._testServerLost = true;
+        keyClick(Qt.Key_Question);
+        compare(view.helpOpen, true);
+        keyClick(Qt.Key_Escape);
+        compare(view.helpOpen, false);
+        wait(0);
+        verify(!view.table.activeFocus, "closing help handed a disconnected table the keyboard");
+        keyClick("p");
+        compare(actionSpy.count, 0);
+    }
+
+    // ---- show (review VIEW-2) ------------------------------------------------------------
+    function test_show_torrent_reaches_a_row_the_rail_status_hides() {
+        let hash = "";
+        for (let r = 0; r < App.filtered.count; ++r) {
+            const h = App.filtered.hashAt(r);
+            const state = App.torrentRow(h).stateText;
+            if (state === "seeding" || state === "completed") {
+                hash = h;
+                break;
+            }
+        }
+        verify(hash.length > 0);
+        App.filtered.statusFilter = TorrentFilterModel.Downloading;
+        verify(App.filtered.rowOfHash(hash) < 0);
+
+        App.showTorrentRequested(hash);
+        compare(view.cursorHash, hash, "show did not reach a torrent the status filter hides");
+        compare(App.filtered.statusFilter, TorrentFilterModel.All);
+    }
+
+    function test_show_torrent_under_an_open_sheet_keeps_the_sheets_keyboard() {
+        const hash = App.filtered.hashAt(3);
+        keyClick(Qt.Key_L, Qt.ShiftModifier);
+        compare(view.limitsSheetPanel.opened, true);
+        App.showTorrentRequested(hash);
+        compare(view.cursorHash, hash);
+        verify(testCase._focusInside(view.limitsSheetPanel), "a notice's show took the sheet's keyboard");
+    }
+
+    function test_the_jump_palette_clears_the_heros_field_with_the_filter() {
+        const hash = App.filtered.hashAt(2);
+        view.hero.searchField.text = "archlinux";
+        verify(App.filtered.rowOfHash(hash) < 0 || App.filtered.hashAt(0) === hash);
+        view.jumpPalette.jumpTo(hash);
+        compare(view.cursorHash, hash);
+        compare(App.filtered.text, "");
+        compare(view.hero.searchField.text, "", "the hero kept a word that no longer filters");
+    }
+
+    // ---- server switch (review VIEW-3) ---------------------------------------------------
+    function test_a_server_switch_restores_that_servers_layout_and_saves_nothing_before() {
+        const saved = App.tableState("demo");
+        const savedColumns = saved.columns !== undefined ? JSON.stringify(saved.columns) : "";
+        const before = view.table.visibleColumns;
+        // As if the table still showed another server's layout when the key moved to "demo".
+        view._stateKey = "elsewhere";
+        view.table.visibleColumns = before.filter(c => c !== "eta");
+        const after = App.tableState("demo");
+        compare(after.columns !== undefined ? JSON.stringify(after.columns) : "", savedColumns,
+                "the old layout was saved under the new server's key");
+
+        App.serverChanged();
+        compare(view._stateKey, "demo");
+        view.table.visibleColumns = before;
+    }
+
+    // ---- first run (review VIEW-4) -------------------------------------------------------
+    function test_a_link_handed_over_during_first_run_waits_for_setup() {
+        const magnet = "magnet:?xt=urn:btih:0102030405060708090a0b0c0d0e0f1011121314&dn=waiting";
+        view._firstRunDetect = false;
+        view.firstRun = true;
+        verify(view.firstRunLoader.item !== null);
+        App.addUrisRequested([magnet]);
+        compare(view.addSheet.opened, false, "the add sheet opened under the first-run page");
+        view.addDropped([magnet + "2"]);
+        compare(view.addSheet.opened, false, "a drop opened the add sheet under the page");
+
+        view.firstRunLoader.item.finished();
+        compare(view.firstRun, false);
+        compare(view.addSheet.opened, true, "the waiting link did not open once setup was done");
+        compare(view.addSheet.sourceField.text, magnet);
+        compare(view.addSheet.queue.length, 1);
+        view.addSheet.dismiss();
     }
 
     function test_the_details_pane_follows_the_cursor() {

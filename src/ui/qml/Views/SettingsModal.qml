@@ -348,63 +348,7 @@ Item {
         event.accepted = true;
     }
 
-    /// Take the keyboard back. A server switch tears the main window's state down and back
-    /// up — the table hides, the loading state appears, the empty state appears — and
-    /// MainView hands the focus to the table at each step; the modal is on top, so it takes
-    /// it back. Found in the T4.5 manual run: `d` in the Servers pane left the modal on
-    /// screen but deaf to every key after it.
-    function refocus(): void {
-        if (confirm.opened)
-            confirm.forceActiveFocus();
-        else if (serverSheet.opened)
-            serverSheet.focusFirst();
-        else if (sheet.opened)
-            sheet.focusFirst();
-    }
-
-    /// True when `item` is this modal or something inside it.
-    function focusIsInside(item: Item): bool {
-        let node = item;
-        while (node) {
-            if (node === root)
-                return true;
-            node = node.parent;
-        }
-        return false;
-    }
-
-    // Moving the default is not one hand-over but several, spread over the second or so the
-    // new server takes to answer: first sync, then loading, then either the table or the
-    // empty state, and MainView aims the keyboard at the table at each step. So the modal
-    // watches for a short while after the switch rather than for one frame, and stops as
-    // soon as the churn is over.
-    Timer {
-        id: regrab
-
-        property int ticks: 0
-
-        interval: 60
-        repeat: true
-
-        onTriggered: {
-            regrab.ticks++;
-            if (!sheet.opened || regrab.ticks > 30) {
-                regrab.stop();
-                return;
-            }
-            if (!root.focusIsInside(root.Window.activeFocusItem))
-                root.refocus();
-        }
-    }
-
     Connections {
-        function onServerChanged(): void {
-            if (!sheet.opened)
-                return;
-            regrab.ticks = 0;
-            regrab.restart();
-        }
-
         function onLowDiskThresholdGiBChanged(): void {
             root._syncThresholdField();
         }

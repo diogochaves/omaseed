@@ -596,6 +596,26 @@ Item {
         list.positionViewAtIndex(wanted, ListView.Contain);
     }
 
+    /// Put the cursor on `hash`, first clearing every filter that hides it (text, status,
+    /// category, tag, tracker), so a notice's "show", the duplicate sheet's `show it` and the
+    /// jump palette always land. False when the library does not hold `hash`.
+    function revealHash(hash: string): bool {
+        if (hash.length === 0)
+            return false;
+        if (root.filtered.rowOfHash(hash) < 0) {
+            root.filtered.text = "";
+            root.filtered.clearCategory();
+            root.filtered.clearTag();
+            root.filtered.clearTracker();
+            root.filtered.statusFilter = TorrentFilterModel.All;
+        }
+        const row = root.filtered.rowOfHash(hash);
+        if (row < 0)
+            return false;
+        root.moveCursorTo(row);
+        return true;
+    }
+
     function selectAll(): void {
         const count = root.filtered.count;
         for (let row = 0; row < count; ++row)
