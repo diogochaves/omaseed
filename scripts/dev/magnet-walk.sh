@@ -22,7 +22,11 @@ set -euo pipefail
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$repo"
 SWARM="$repo/scripts/dev/swarm.sh"
-PLAY="http://127.0.0.1:8081/api/v2"
+# shellcheck source=scripts/dev/home-guard.sh
+. "$repo/scripts/dev/home-guard.sh"
+PLAY_PORT="${OMASEED_TEST_PORT:-8081}"
+PLAY="http://127.0.0.1:$PLAY_PORT/api/v2"
+refuse_home "$PLAY"
 DOWNLOADS="${OMASEED_TEST_PROFILE:-$HOME/.local/share/omaseed-test}/downloads"
 TORRENTS="${OMASEED_SWARM_PROFILE:-$HOME/.local/share/omaseed-swarm}/torrents"
 APP_ID=io.github.diogochaves.omaseed
@@ -32,13 +36,12 @@ OUT=""
 case "${1:-}" in
 --interactive) INTERACTIVE=1 ;;
 -h | --help) sed -n '2,/^set -e/p' "$0" | sed '$d'; exit 0 ;;
-*) OUT="${1:-${TMPDIR:-/tmp}/omaseed-magnet-walk-$(date +%Y%m%d-%H%M%S)}" ;;
+*) OUT="${1:-$(mktemp -d "${TMPDIR:-/tmp}/omaseed-magnet-walk-$(date +%Y%m%d-%H%M%S)-XXXX")}" ;;
 esac
 
 [ -x build/omaseed ] || { echo "build first: cmake --build build" >&2; exit 1; }
 
 TINY="tiny-notes.txt"
-UNICODE_FILE="$(find "$TORRENTS" -name '*Spaces & Symbols*.torrent' -print -quit 2>/dev/null || true)"
 
 # field NAME KEY: KEY of the playground's torrent whose name contains NAME ("" if none).
 field() {
@@ -158,6 +161,9 @@ trap cleanup EXIT
 echo "preparing the swarm (tiny-notes.txt and the unicode torrent come off the playground)"
 "$SWARM" start >/dev/null
 "$SWARM" seed >/dev/null
+# Looked for only now: on a machine never seeded (or after swarm.sh reset) the seed above is
+# what writes it.
+UNICODE_FILE="$(find "$TORRENTS" -name '*Spaces & Symbols*.torrent' -print -quit 2>/dev/null || true)"
 [ -f "$UNICODE_FILE" ] || { echo "no unicode .torrent under $TORRENTS: run scripts/dev/swarm.sh seed" >&2; exit 1; }
 MAGNET="$(field "$TINY" magnet_uri)"
 [ -n "$MAGNET" ] || { echo "the playground has no $TINY: run scripts/dev/swarm.sh seed" >&2; exit 1; }
@@ -168,16 +174,16 @@ mkdir -p "$DOWNLOADS"
 echo "starting the box"
 omabox down -b "$BOX" >/dev/null 2>&1 || true
 if [ "$INTERACTIVE" = 1 ]; then
-    omabox up "$BOX" --interactive --net isolated --allow 8081 --ro-bind "$DOWNLOADS" >/dev/null
+    omabox up "$BOX" --interactive --net isolated --allow "$PLAY_PORT" --ro-bind "$DOWNLOADS" >/dev/null
 else
     mkdir -p "$OUT"
     printf '# Magnet walk %s\n\nBuild `%s`. Each shot: what should be on screen.\n\n' \
         "$(date '+%Y-%m-%d %H:%M')" "$(git rev-parse --short HEAD)" >"$OUT/index.md"
-    omabox up "$BOX" --net isolated --allow 8081 --ro-bind "$DOWNLOADS" >/dev/null
+    omabox up "$BOX" --net isolated --allow "$PLAY_PORT" --ro-bind "$DOWNLOADS" >/dev/null
 fi
 home="$(omabox path -b "$BOX")/home"
 mkdir -p "$home/.config/omaseed" && chmod 700 "$home/.config/omaseed"
-printf '%s' '{"version":1,"defaultId":"playground","servers":[{"id":"playground","name":"playground","url":"http://127.0.0.1:8081","authMode":"none","username":"","pathMap":[],"isDefault":true,"addedAt":"2026-09-23T00:00:00Z"}]}' \
+printf '{"version":1,"defaultId":"playground","servers":[{"id":"playground","name":"playground","url":"http://127.0.0.1:%s","authMode":"none","username":"","pathMap":[],"isDefault":true,"addedAt":"2026-09-23T00:00:00Z"}]}' "$PLAY_PORT" \
     >"$home/.config/omaseed/servers.json"
 chmod 600 "$home/.config/omaseed/servers.json"
 omabox run -b "$BOX" -- scripts/dev/install-desktop.sh --set-default >/dev/null 2>&1

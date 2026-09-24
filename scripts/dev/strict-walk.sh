@@ -9,24 +9,29 @@
 #                                               # script still does the typing, then says what to
 #                                               # check and waits for enter
 #
-# Credentials come from ~/.config/omaseed/dev.env and are never printed. The API key reaches
-# the box through its clipboard (stdin, then ctrl+v in the Key field), so it is on no command
-# line. The box's network reaches :8082 alone, and its keyring and HOME are thrown away with
-# it. The server locks 127.0.0.1 out for an hour after 5 failed logins, so the walk makes one
+# Credentials come from ~/.config/omaseed/dev.env and are never printed. The password and the
+# API key reach the box through its clipboard (stdin, then ctrl+v in the field), and the checks
+# that they were not written to disk read them from the environment, so neither is ever on a
+# command line (where /proc/PID/cmdline would show it to every user). The box's network
+# reaches :8082 alone, and its keyring and HOME are thrown away with it. The server locks 127.0.0.1 out for an hour after 5 failed logins, so the walk makes one
 # wrong cookie login and no more. Needs `scripts/dev/test-server.sh start --strict` (started
 # here if it is not running); never `reset --strict`, the API key lives in that profile.
 set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$repo"
-STRICT="http://127.0.0.1:8082"
+# shellcheck source=scripts/dev/home-guard.sh
+. "$repo/scripts/dev/home-guard.sh"
+STRICT_PORT="${OMASEED_STRICT_PORT:-8082}"
+STRICT="http://127.0.0.1:$STRICT_PORT"
+refuse_home "$STRICT"
 BOX=strict-walk
 INTERACTIVE=0
 OUT=""
 case "${1:-}" in
 --interactive) INTERACTIVE=1 ;;
 -h | --help) sed -n '2,/^set -e/p' "$0" | sed '$d'; exit 0 ;;
-*) OUT="${1:-${TMPDIR:-/tmp}/omaseed-strict-walk-$(date +%Y%m%d-%H%M%S)}" ;;
+*) OUT="${1:-$(mktemp -d "${TMPDIR:-/tmp}/omaseed-strict-walk-$(date +%Y%m%d-%H%M%S)-XXXX")}" ;;
 esac
 
 [ -x build/omaseed ] || { echo "build first: cmake --build build" >&2; exit 1; }
@@ -75,6 +80,29 @@ sys.exit(1)' "$@"
 # keys ARGS…: `omabox keys` into the app, quietly.
 keys() { omabox keys -b "$BOX" "$@" >/dev/null; }
 
+# clip VAR: put the value of the environment variable VAR on the box's clipboard. It goes on
+# stdin (printf is a builtin), so it is on no command line; ctrl+v then types it. Done before
+# a launch, while the app is not up, as the API key always was.
+clip() {
+    printf '%s' "${!1}" | omabox run -b "$BOX" -- wl-copy
+}
+
+# servers_json_is FILE MODE SECRET_VAR: FILE's one server has auth mode MODE (and, for cookie,
+# QBT_STRICT_USER as its user), and FILE does not contain the value of SECRET_VAR. Python reads
+# the credentials from its environment (dev.env is exported), never from its arguments.
+servers_json_is() {
+    python3 -c '
+import json, os, sys
+path, mode, secret = sys.argv[1], sys.argv[2], os.environ[sys.argv[3]]
+text = open(path, encoding="utf-8").read()
+server = json.loads(text)["servers"][0]
+ok = server.get("authMode") == mode and secret not in text
+if mode == "cookie":
+    ok = ok and server.get("username") == os.environ["QBT_STRICT_USER"]
+sys.exit(0 if ok else 1)
+' "$@"
+}
+
 STEP=0
 CHECKS=""
 # step "title" "what to look for": a screenshot (headless) or a pause (interactive).
@@ -106,6 +134,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# `status` exits 1 when the server is down; `start` is a no-op when it is up.
 scripts/dev/test-server.sh status --strict >/dev/null 2>&1 || scripts/dev/test-server.sh start --strict >/dev/null
 # The playground's three stopped fixtures, so the table has rows. qBittorrent answers 409
 # for one it already has, which is fine.
@@ -121,12 +150,12 @@ done
 echo "starting the box"
 omabox down -b "$BOX" >/dev/null 2>&1 || true
 if [ "$INTERACTIVE" = 1 ]; then
-    omabox up "$BOX" --interactive --net isolated --allow 8082 >/dev/null
+    omabox up "$BOX" --interactive --net isolated --allow "$STRICT_PORT" >/dev/null
 else
     mkdir -p "$OUT"
     printf '# Strict walk %s\n\nBuild `%s`, against %s. Each shot: what should be on screen.\n\n' \
         "$(date '+%Y-%m-%d %H:%M')" "$(git rev-parse --short HEAD)" "$STRICT" >"$OUT/index.md"
-    omabox up "$BOX" --net isolated --allow 8082 >/dev/null
+    omabox up "$BOX" --net isolated --allow "$STRICT_PORT" >/dev/null
 fi
 home="$(omabox path -b "$BOX")/home"
 config="$home/.config/omaseed"
@@ -147,6 +176,7 @@ step "Step 1: server" "Centred column: the mark, 1 server · 2 sign in · 3 link
 keys Escape -s 1500
 check "esc on step 1 quits, as the footer says" \
     sh -c '! omabox hyprctl -b "$1" -j clients | grep -q "io.github.diogochaves.omaseed"' _ "$BOX"
+clip QBT_STRICT_PASS
 launch
 
 # URL, name, the cookie chip (API key, cookie, none are three tab stops), user, password, test.
@@ -155,7 +185,8 @@ keys $REMOTE -s 500 -t "$STRICT" Tab -t strict Tab Tab space Tab Tab -t "$QBT_ST
     Tab -t "not-the-password" Tab Return -s 3000
 step "Wrong password" "✓ server · 2 sign in. URL and name on one row; cookie shows Username and Password. A red dot and wrong username or password, the raw 401 dim underneath, then test / open web UI / save anyway / continue (off)."
 
-keys shift+Tab ctrl+a -t "$QBT_STRICT_PASS" Tab Return -s 3000
+keys shift+Tab ctrl+a ctrl+v Tab Return -s 3000
+omabox run -b "$BOX" -- wl-copy --clear >/dev/null 2>&1 || true
 step "Cookie test passes" "A green dot: signed in · qBittorrent 5.2.3 · API 2.15.1 · 3 torrents, above the buttons; save anyway gone, continue on."
 
 keys Tab Tab Return -s 1500
@@ -169,8 +200,7 @@ check "after setup the window tiles like any other launch" window_is tiled
 step "Signed in with a cookie" "The library, tiled full size, with its top bar back: fixture-one, -two, -three (stopped); the hero says STRICT · QBITTORRENT 5.2.3; no banner."
 
 check "servers.json keeps the user but not the password" \
-    sh -c 'grep -q "\"authMode\": *\"cookie\"" "$1" && grep -q "\"username\": *\"$2\"" "$1" && ! grep -qF "$3" "$1"' \
-    _ "$config/servers.json" "$QBT_STRICT_USER" "$QBT_STRICT_PASS"
+    servers_json_is "$config/servers.json" cookie QBT_STRICT_PASS
 check "no plain-file secret (the keyring took it)" test ! -e "$config/secrets"
 check "the box's keyring holds <server id>/password" \
     sh -c 'omabox run -b "$1" -- secret-tool search --all server io.github.diogochaves.omaseed 2>&1 | grep -q "^attribute.user = .*/password$"' _ "$BOX"
@@ -183,7 +213,7 @@ step "Cookie after a restart" "Straight to the table, no first run and no banner
 # A fresh first run: the server list goes, the keyring entry can stay (it is keyed by server id).
 omabox run -b "$BOX" -- pkill -x omaseed >/dev/null 2>&1 || true
 rm -f "$config/servers.json"
-printf '%s' "$QBT_STRICT_API_KEY" | omabox run -b "$BOX" -- wl-copy
+clip QBT_STRICT_API_KEY
 launch
 # URL, name, the API key chip, then three tabs (cookie, none, Key) and a wrong key first.
 # shellcheck disable=SC2086
@@ -199,8 +229,7 @@ omabox run -b "$BOX" -- wl-copy --clear >/dev/null 2>&1 || true
 step "Signed in with an API key" "The same three fixtures; the hero says STRICT-KEY · QBITTORRENT 5.2.3."
 
 check "servers.json has the API key mode and not the key" \
-    sh -c 'grep -q "\"authMode\": *\"apiKey\"" "$1" && ! grep -qF "$2" "$1"' \
-    _ "$config/servers.json" "$QBT_STRICT_API_KEY"
+    servers_json_is "$config/servers.json" apiKey QBT_STRICT_API_KEY
 check "the box's keyring holds <server id>/apiKey" \
     sh -c 'omabox run -b "$1" -- secret-tool search --all server io.github.diogochaves.omaseed 2>&1 | grep -q "^attribute.user = .*/apiKey$"' _ "$BOX"
 

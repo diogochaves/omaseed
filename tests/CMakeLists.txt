@@ -43,4 +43,11 @@ if(NOT WIN32)
         TIMEOUT 120
     )
 
+    # scripts/dev/home-guard.sh: every dev script refuses :8080 before it does anything.
+    # Starts no server and sends no request.
+    add_test(
+        NAME dev_home_guard
+        COMMAND bash "${CMAKE_SOURCE_DIR}/tests/dev/test_home_guard.sh"
+    )
+    set_tests_properties(dev_home_guard PROPERTIES TIMEOUT 60)
 endif()
