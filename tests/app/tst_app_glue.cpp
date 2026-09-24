@@ -48,6 +48,9 @@ private slots:
     // APP-15
     void theDemoTorrentLivesInAPrivateDirectory();
 
+    // APP-14
+    void abandonedTorrentParsesAreBounded();
+
 private:
     QTemporaryDir m_dir;
     QByteArray m_previousConfigHome;
@@ -239,6 +242,19 @@ void TestAppGlue::theDemoTorrentLivesInAPrivateDirectory()
     // Not a fixed name straight in the shared temp dir, and written once.
     QVERIFY(QFileInfo(path).absolutePath() != QDir(QDir::tempPath()).absolutePath());
     QCOMPARE(app.demoTorrentPath(), path);
+}
+
+void TestAppGlue::abandonedTorrentParsesAreBounded()
+{
+    App app;
+    QSignalSpy parsed(&app, &App::addableParsed);
+    const QString path = QStringLiteral(OMASEED_FIXTURES_DIR "/single_file_v1.torrent");
+    constexpr int kParses = 80;
+    for (int i = 0; i < kParses; ++i)
+        app.parseAddable(path);
+    QTRY_COMPARE_WITH_TIMEOUT(parsed.count(), kParses, 10000);
+    QVERIFY(app.pendingTorrentFileCount() > 0);
+    QVERIFY(app.pendingTorrentFileCount() <= 64);
 }
 
 QTEST_MAIN(TestAppGlue)

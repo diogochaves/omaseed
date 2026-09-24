@@ -713,6 +713,15 @@ void App::attachNotifier(omaseed::integration::Notifier *notifier)
             &omaseed::integration::Notifier::actionInvoked,
             this,
             &App::onNotifierActionInvoked);
+    // A closed "completed" notice can no longer ask for its folder: drop its path (the
+    // action, if any, arrives before the close), so the map does not grow for ever.
+    connect(notifier,
+            &omaseed::integration::Notifier::noticeClosed,
+            this,
+            [this](const QString &eventClass, const QString &subjectId) {
+                if (eventClass == QLatin1String("completed"))
+                    m_completedContentPaths.remove(subjectId);
+            });
 }
 
 void App::attachXdg(omaseed::integration::Xdg *xdg)
@@ -814,10 +823,7 @@ QString App::mapContentPathToLocal(const QString &remotePath) const
 
 QString App::serverHostPortText() const
 {
-    const QUrl &url = m_server.url;
-    if (!url.isValid() || url.host().isEmpty())
-        return QString();
-    return url.port() > 0 ? QStringLiteral("%1:%2").arg(url.host()).arg(url.port()) : url.host();
+    return hostPort(m_server.url);
 }
 
 QString App::errorReasonText(const QString &text)
@@ -1207,9 +1213,34 @@ namespace {
 /// reading a huge file someone named `.torrent` into memory.
 constexpr qint64 kMaxTorrentFileBytes = 100 * 1024 * 1024;
 
+/// How many parsed .torrent files are kept for a later add.
+constexpr int kMaxPendingTorrentFiles = 64;
+
 std::atomic<QThread *> s_lastTorrentParseThread{nullptr};
 
 } // namespace
+
+void App::rememberTorrentFile(const QString &token, const PendingTorrentFile &file)
+{
+    // Every parse (typed, dropped, picked, then abandoned) used to stay for the life of the
+    // process. Keep the most recent ones only: more than a sheet's queue ever holds.
+    m_pendingTorrentFiles.insert(token, file);
+    m_pendingTorrentOrder.removeAll(token);
+    m_pendingTorrentOrder.append(token);
+    while (m_pendingTorrentOrder.size() > kMaxPendingTorrentFiles)
+        m_pendingTorrentFiles.remove(m_pendingTorrentOrder.takeFirst());
+}
+
+void App::forgetTorrentFile(const QString &token)
+{
+    m_pendingTorrentFiles.remove(token);
+    m_pendingTorrentOrder.removeAll(token);
+}
+
+int App::pendingTorrentFileCount() const
+{
+    return m_pendingTorrentFiles.size();
+}
 
 QThread *App::lastTorrentParseThread()
 {
@@ -1253,11 +1284,10 @@ void App::parseTorrentInBackground(const QString &token,
                 if (self.isNull())
                     return;
                 const QVariantMap map = torrentFileMap(token, fileName, value, parsed, error);
-                if (parsed.isValid()) {
-                    self->m_pendingTorrentFiles.insert(
+                if (parsed.isValid())
+                    self->rememberTorrentFile(
                         token,
                         PendingTorrentFile{fileName, bytes, parsed.files, parsed.torrentId()});
-                }
                 Q_EMIT self->addableParsed(map);
             },
             Qt::QueuedConnection);
@@ -1428,7 +1458,7 @@ void App::addTorrent(const QVariantMap &request)
             return;
         }
         if (!token.isEmpty())
-            m_pendingTorrentFiles.remove(token);
+            forgetTorrentFile(token);
         watchForAddedHash(torrentId);
         if (!withPriorities) {
             Q_EMIT addFinished(true, QString(), torrentId);

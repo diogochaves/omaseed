@@ -782,10 +782,17 @@ private:
                                       const omaseed::core::TorrentFile &parsed,
                                       const QString &error);
 
+    /// Keeps a parsed file for addTorrent, dropping the oldest past a fixed number, so files
+    /// parsed and then abandoned do not pile up for the life of the process.
+    void rememberTorrentFile(const QString &token, const PendingTorrentFile &file);
+    void forgetTorrentFile(const QString &token);
+
 public:
     /// The thread that ran the most recent .torrent parse, so a test can check it was not the
     /// GUI thread.
     static QThread *lastTorrentParseThread();
+    /// How many parsed .torrent files are held for a later add (bounded).
+    int pendingTorrentFileCount() const;
 
 private:
     /// After a stopped add: `torrents/filePrio` for each group of `priorities`, then
@@ -802,6 +809,7 @@ private:
     void watchForAddedHash(const QString &hash);
 
     QHash<QString, PendingTorrentFile> m_pendingTorrentFiles;
+    QStringList m_pendingTorrentOrder; ///< tokens of m_pendingTorrentFiles, oldest first
     mutable std::unique_ptr<QTemporaryDir> m_demoTempDir;
     mutable QString m_demoTorrentPath;
     QString m_awaitedAddHash;
