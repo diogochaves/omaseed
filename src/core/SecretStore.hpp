@@ -102,6 +102,15 @@ public:
     std::optional<Backend> backend();
     /// "libsecret", "file" or "detecting" (same semantics as `backend()`).
     QString backendName();
+    /// The backend in use if it is already known (forced, or settled by the probe), without
+    /// ever queueing the probe: safe to read from a property getter.
+    std::optional<Backend> knownBackend() const
+    {
+        return m_forcedBackend ? m_forcedBackend : m_detectedBackend;
+    }
+    /// Where the file backend keeps its secrets: one `<serverId>.json` per server, 0600, in
+    /// a 0700 directory. Settings names it when no keychain answered (review Q10).
+    static QString fileBackendDir();
 
     /// Skips the probe and pins the backend, for tests. Pass `std::nullopt` to go back to
     /// auto-detection.

@@ -255,9 +255,14 @@ QString SecretStore::backendName()
     return resolved ? backendLabel(*resolved) : QStringLiteral("detecting");
 }
 
+QString SecretStore::fileBackendDir()
+{
+    return paths::secretsDir();
+}
+
 QString SecretStore::secretFilePath(const QString &serverId)
 {
-    return paths::secretsDir() + QStringLiteral("/") + serverId + QStringLiteral(".json");
+    return fileBackendDir() + QStringLiteral("/") + serverId + QStringLiteral(".json");
 }
 
 // --- keychain backend --------------------------------------------------------------------

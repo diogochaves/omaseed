@@ -73,6 +73,7 @@ private slots:
     void probeAndQueueKeepOrderWithoutTheRealKeyring();
     void probeTimeoutFallsBackToFile();
     void probeRunnerDecidesTheBackend();
+    void knownBackendNeverStartsTheProbe();
 
     // INT-7: a secret stored under the other backend is still found.
     void keychainSessionFindsAndMovesAFileSecret();
@@ -374,6 +375,41 @@ void TestSecretStore::probeRunnerDecidesTheBackend()
     QTest::qWait(60); // past the timeout: it must not flip the answer
     QCOMPARE(resolved.count(), 1);
     QCOMPARE(store.backend(), std::optional(SecretStore::Backend::Keychain));
+}
+
+void TestSecretStore::knownBackendNeverStartsTheProbe()
+{
+    // Settings reads it from a property getter (review Q10): asking must not probe the
+    // keyring, only report what a real operation already settled.
+    SecretStore store(QStringLiteral("io.github.diogochaves.omaseed-test"));
+    store.setProbeTimeout(std::chrono::milliseconds(20));
+    int runnerCalls = 0;
+    std::function<void(bool)> answer;
+    store.setProbeRunner([&](std::function<void(bool)> done) {
+        ++runnerCalls;
+        answer = std::move(done);
+    });
+
+    QCOMPARE(store.knownBackend(), std::nullopt);
+    QTest::qWait(40);
+    QCOMPARE(runnerCalls, 0);
+
+    // A write settles it: the runner answers "no keychain", so File. (A write, not a read:
+    // a read that misses on File would look in the real keychain.)
+    SecretStore::Job *write =
+        store.setSecret(QStringLiteral("known"), SecretStore::Kind::ApiKey, QStringLiteral("k"));
+    QSignalSpy readFinished(write, &SecretStore::Job::finished);
+    QTRY_VERIFY(static_cast<bool>(answer));
+    answer(false);
+    QTRY_COMPARE(readFinished.count(), 1);
+    QCOMPARE(runnerCalls, 1);
+    QCOMPARE(store.knownBackend(), std::optional(SecretStore::Backend::File));
+    QCOMPARE(SecretStore::fileBackendDir(), m_dir.path() + QStringLiteral("/omaseed/secrets"));
+
+    // A forced backend is known at once.
+    SecretStore forced(QStringLiteral("io.github.diogochaves.omaseed-test"));
+    forced.setForcedBackend(SecretStore::Backend::Keychain);
+    QCOMPARE(forced.knownBackend(), std::optional(SecretStore::Backend::Keychain));
 }
 
 namespace {
