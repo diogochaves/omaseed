@@ -63,8 +63,10 @@ public:
     /// Pure parser: what does this one line of text look like? No I/O except `QFile::exists`
     /// for a bare local path ending in `.torrent`.
     static Addable parseAddable(const QString &text);
-    /// Splits `text` into lines (also comma/whitespace separated single tokens) and parses
-    /// each one, dropping lines that parse to `Kind::None`.
+    /// Splits `text` into lines and parses each one, dropping what parses to `Kind::None`. A
+    /// line with whitespace in it that is not an existing `.torrent` path (which may contain
+    /// spaces) is split on the whitespace and each token parsed: two magnets pasted side by
+    /// side are two addables.
     static QList<Addable> parseAddableList(const QString &text);
 
     /// Reveals `path` in the file manager: a file is highlighted (`ShowItems`), a directory is
