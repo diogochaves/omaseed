@@ -17,6 +17,8 @@ namespace omaseed::core {
 /// `load()` tolerates a missing file (nothing to load, not an error). A file whose
 /// `version` is newer than this build understands, or whose JSON does not parse, is left
 /// untouched on disk and `loadFailed()` is emitted; nothing already in memory is discarded.
+/// The next save never overwrites such a file: it renames it to
+/// `servers.json.unreadable-<timestamp>` first, and writes nothing if that rename fails.
 class ServerStore : public QObject
 {
     Q_OBJECT
@@ -36,6 +38,12 @@ public:
     /// and may add or remove more, but must never touch the user's real `servers.json`.
     void setPersistent(bool persistent) { m_persistent = persistent; }
     bool isPersistent() const { return m_persistent; }
+
+    /// Why the last load() could not use the file on disk; empty when it could (or there was
+    /// none). Cleared once a save has moved that file aside.
+    QString loadError() const { return m_loadError; }
+    /// Where the unreadable file was moved by the last save, if one was.
+    QString setAsidePath() const { return m_setAsidePath; }
 
     QList<Server> servers() const;
     int count() const;
@@ -67,7 +75,11 @@ private:
     QList<Server> m_servers;
     QString m_defaultId;
     bool m_persistent = true;
+    // Set while the file on disk is one load() could not use; save() moves it aside first.
+    mutable QString m_loadError;
+    mutable QString m_setAsidePath;
 
+    void failLoad(const QString &message);
     static QString filePath();
     int indexOf(const QString &id) const;
 };

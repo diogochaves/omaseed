@@ -81,7 +81,7 @@ QJsonObject Server::toJson() const
     QJsonObject object;
     object[QStringLiteral("id")] = id;
     object[QStringLiteral("name")] = name;
-    object[QStringLiteral("url")] = url.toString();
+    object[QStringLiteral("url")] = url.toString(QUrl::RemoveUserInfo);
     object[QStringLiteral("authMode")] = authModeToString(authMode);
     object[QStringLiteral("username")] = username;
 

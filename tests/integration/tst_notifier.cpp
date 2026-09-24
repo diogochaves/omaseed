@@ -28,6 +28,8 @@ private slots:
     void actionInvokedCarriesClassSubjectAndKey();
     void clickOnTheBodyActsAsTheMainButton();
     void notificationClosedForgetsTheKey();
+    void aDaemonRestartForgetsTheLiveIds();  // INT-9
+    void aServiceThatAppearsLaterIsUsed();   // INT-9
 
 private:
     FakeNotificationBus m_bus;
@@ -213,6 +215,36 @@ void TestNotifier::notificationClosedForgetsTheKey()
     m_notifier->notifyDiskAlmostFull(QStringLiteral("home"), QStringLiteral("1.2 GB"));
     QCOMPARE(m_server->calls.size(), 2);
     QCOMPARE(m_server->calls.at(1).replacesId, 0u);
+}
+
+void TestNotifier::aDaemonRestartForgetsTheLiveIds()
+{
+    const quint32 id =
+        m_notifier->notifyDiskAlmostFull(QStringLiteral("home"), QStringLiteral("1.8 GB"));
+    QVERIFY(id != 0);
+
+    // The shell restarts: the name goes away and comes back (a new daemon, ids from 1).
+    const QString name = QStringLiteral("org.freedesktop.Notifications");
+    QVERIFY(m_bus.connection().unregisterService(name));
+    QVERIFY(m_bus.connection().registerService(name));
+    QTest::qWait(200); // the owner-change signals
+
+    m_notifier->notifyDiskAlmostFull(QStringLiteral("home"), QStringLiteral("1.2 GB"));
+    QCOMPARE(m_server->calls.size(), 2);
+    // A stale replaces_id could replace some other app's notice in the new daemon.
+    QCOMPARE(m_server->calls.at(1).replacesId, 0u);
+}
+
+void TestNotifier::aServiceThatAppearsLaterIsUsed()
+{
+    const QString name = QStringLiteral("org.freedesktop.Notifications");
+    QVERIFY(m_bus.connection().unregisterService(name));
+    Notifier early(m_bus.connection());
+    QCOMPARE(early.notifyDiskAlmostFull(QStringLiteral("home"), QStringLiteral("1 GB")), 0u);
+
+    QVERIFY(m_bus.connection().registerService(name));
+    QTest::qWait(200);
+    QVERIFY(early.notifyDiskAlmostFull(QStringLiteral("home"), QStringLiteral("1 GB")) != 0u);
 }
 
 QTEST_GUILESS_MAIN(TestNotifier)

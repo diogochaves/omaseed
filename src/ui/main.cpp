@@ -380,8 +380,11 @@ int main(int argc, char *argv[])
     if (windowDemo && demo != QStringLiteral("table"))
         demoHost = QStringLiteral("Demo") + demo.at(0).toUpper() + demo.mid(1);
 
-    if (headless)
-        qInfo().noquote() << QStringLiteral("headless is implemented for --demo table only");
+    // Everything below opens a window; `--headless` promised there would be none.
+    if (headless) {
+        qWarning().noquote() << QStringLiteral("--headless works with --demo table only");
+        return 2;
+    }
 
     const QStringList uris = parser.positionalArguments();
 
@@ -438,7 +441,10 @@ int main(int argc, char *argv[])
     // Theme singleton the QML engine creates binds to this reader.
     omaseed::integration::ThemeReader theme;
     omaseed::integration::Theme::setDefaultReader(&theme);
-    theme.exportToDBus();
+    // On the connection that owns the app's name, where the theme-set hook's call arrives. A
+    // demo owns no name and exports nothing: it must never answer for the real app.
+    if (demo.isEmpty())
+        theme.exportToDBus(singleInstance->connection());
     qInfo().noquote() << QStringLiteral("theme: %1 (%2) from %3")
                              .arg(theme.themeName(), theme.mode(), theme.source());
 
@@ -449,9 +455,12 @@ int main(int argc, char *argv[])
     // The Appearance pane's "follow the Omarchy theme" and base-size override live in
     // state.json; App applies them to the reader here, before the first frame (T4.5).
     omaseedApp.attachTheme(&theme);
+    // Only a real launch loads servers.json and polls. Every demo stays offline: the default
+    // server is somebody's real library, and a demo must never talk to it. The gallery needs
+    // no models at all, so its App stays serverless.
     if (windowDemo)
         omaseedApp.startDemo(demoRows);
-    else
+    else if (demo.isEmpty())
         omaseedApp.start();
 
     QQmlApplicationEngine engine;
@@ -478,8 +487,8 @@ int main(int argc, char *argv[])
     window = qobject_cast<QWindow *>(engine.rootObjects().constFirst());
 
     // The tray, created once the window exists so toggleWindowRequested has something to
-    // show. Its own signals become window control (toggle, raise), a real quit, or -- for
-    // everything Phase 3 wires up (add, alt-speed, stop/start all, settings) -- a log line.
+    // show. Its window signals become window control (toggle, raise) and a real quit here;
+    // the rest of its menu is App's (attachTray below).
     omaseed::integration::Tray tray(&theme);
 
     QQuickWindow *rootWindow = qobject_cast<QQuickWindow *>(engine.rootObjects().constFirst());
@@ -540,9 +549,8 @@ int main(int argc, char *argv[])
                          [&omaseedApp](bool shown) { omaseedApp.setVisible(shown); });
     }
 
-    // Everything spec §7 Fig. 26's "act" column promises but Phase 4 implements. MainView
-    // already logs the key and the row count; this is the one place that will grow into the
-    // real calls.
+    // Spec §7 Fig. 26's "act" keys, as MainView reports them. The actions themselves run
+    // through App's own invokables; this only logs the key and the row count.
     QObject::connect(
         &omaseedApp,
         &omaseed::app::App::torrentActionRequested,

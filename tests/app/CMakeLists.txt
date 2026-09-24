@@ -5,6 +5,21 @@ omaseed_add_test(tst_app LIVE
     LIBRARIES omaseed::app omaseed::core omaseed::integration omaseed-qmlplugin Qt6::Qml
 )
 
+# APP-7: every `--demo` stays offline; runs the real binary against a trap listener.
+omaseed_add_test(tst_demo_offline
+    SOURCES tst_demo_offline.cpp
+    LIBRARIES omaseed::core Qt6::Network
+    DEFINES OMASEED_BINARY="$<TARGET_FILE:omaseed>"
+)
+add_dependencies(tst_demo_offline omaseed)
+
+# App glue that needs no server (install runner, path map, tray mode, demo isolation).
+omaseed_add_test(tst_app_glue
+    SOURCES tst_app_glue.cpp
+    LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::Widgets Qt6::Network
+    DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
+)
+
 omaseed_add_test(tst_app_notifications
     SOURCES tst_app_notifications.cpp ../integration/FakeNotificationServer.hpp
     LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::DBus

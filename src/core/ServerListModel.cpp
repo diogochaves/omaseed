@@ -150,14 +150,16 @@ QVariantMap ServerListModel::serverMap(const QString &id) const
     return map;
 }
 
-QString ServerListModel::add(const QVariantMap &fields, const QString &secret)
+QString ServerListModel::add(const QVariantMap &fields, const QString &secretIn)
 {
     if (m_store == nullptr)
         return {};
 
-    Server server = serverFromMap(fields);
+    QString urlPassword;
+    Server server = serverFromMap(fields, &urlPassword);
     if (!server.url.isValid() || server.url.host().isEmpty())
         return {};
+    const QString secret = secretIn.isEmpty() ? urlPassword : secretIn;
     if (server.id.isEmpty())
         server.id = Server::newId();
     if (server.name.isEmpty())
@@ -172,12 +174,13 @@ QString ServerListModel::add(const QVariantMap &fields, const QString &secret)
     return server.id;
 }
 
-bool ServerListModel::update(const QVariantMap &fields, const QString &secret)
+bool ServerListModel::update(const QVariantMap &fields, const QString &secretIn)
 {
     if (m_store == nullptr)
         return false;
 
-    Server server = serverFromMap(fields);
+    QString urlPassword;
+    Server server = serverFromMap(fields, &urlPassword);
     const std::optional<Server> existing = m_store->byId(server.id);
     if (!existing)
         return false;
@@ -187,9 +190,17 @@ bool ServerListModel::update(const QVariantMap &fields, const QString &secret)
         server.name = server.url.host();
     server.addedAt = existing->addedAt;
     server.isDefault = existing->isDefault;
+    const QString secret = secretIn.isEmpty() ? urlPassword : secretIn;
 
     if (!m_store->update(server))
         return false;
+    if (m_secrets != nullptr && existing->authMode != server.authMode) {
+        // The kind the old mode used is dead now; for "none" neither kind is.
+        if (existing->authMode == AuthMode::Cookie || server.authMode == AuthMode::None)
+            m_secrets->removeSecret(server.id, SecretStore::Kind::Password);
+        if (existing->authMode != AuthMode::Cookie || server.authMode == AuthMode::None)
+            m_secrets->removeSecret(server.id, SecretStore::Kind::ApiKey);
+    }
     writeSecret(server, secret);
     return true;
 }
@@ -251,7 +262,7 @@ void ServerListModel::setProbeResult(const QString &id,
                         VersionTextRole});
 }
 
-Server ServerListModel::serverFromMap(const QVariantMap &fields)
+Server ServerListModel::serverFromMap(const QVariantMap &fields, QString *urlPassword)
 {
     Server server;
     server.id = stringField(fields, "id");
@@ -268,6 +279,17 @@ Server ServerListModel::serverFromMap(const QVariantMap &fields)
     const AuthMode mode = authModeFromString(stringField(fields, "authMode"), &ok);
     server.authMode = ok ? mode : AuthMode::None;
     server.username = stringField(fields, "username");
+
+    // `http://user:pass@host` typed into the URL field: credentials never stay in the URL
+    // (it is written to servers.json and logged). The user name moves to its field; the
+    // password is handed back as the cookie login's secret, or dropped.
+    if (!server.url.userInfo().isEmpty()) {
+        if (server.username.isEmpty())
+            server.username = server.url.userName();
+        if (urlPassword != nullptr && server.authMode == AuthMode::Cookie)
+            *urlPassword = server.url.password();
+        server.url.setUserInfo(QString());
+    }
 
     const QString remote = stringField(fields, "pathMapRemote");
     const QString local = stringField(fields, "pathMapLocal");

@@ -27,11 +27,13 @@
 #include <QProcessEnvironment>
 #include <QQmlEngine>
 #include <QRegularExpression>
+#include <QThread>
 #include <QThreadPool>
 #include <QTimer>
 #include <QUrl>
 #include <QtGlobal>
 
+#include <atomic>
 #include <chrono>
 
 using namespace omaseed::core;
@@ -70,6 +72,10 @@ App::App(QObject *parent)
     m_filtered->setSourceModel(m_engine->torrents());
     // A tracker row lists what the rail counts for it: every torrent on that host.
     m_filtered->setTrackerModel(m_engine->trackers());
+
+    // Here rather than in start(): demo and QML-test Apps never call start(), and their
+    // `serverCount`/`firstRunNeeded` bindings must follow the store all the same.
+    connect(m_servers, &ServerStore::changed, this, &App::serverChanged);
 
     // The hero, the footer and the tray all read GlobalState and FilterCounts, so the tray
     // only has to be told when either of them moved.
@@ -199,8 +205,10 @@ void App::start()
     if (m_demoMode)
         return;
 
-    m_servers->load();
-    connect(m_servers, &ServerStore::changed, this, &App::serverChanged);
+    if (!m_servers->load())
+        qWarning().noquote() << QStringLiteral("servers: %1; it is kept, and moved aside "
+                                               "before anything new is saved")
+                                    .arg(m_servers->loadError());
 
     if (m_servers->count() > 0) {
         configureFromStore();
@@ -229,8 +237,8 @@ void App::configureFromStore()
         return;
     }
 
-    qInfo().noquote()
-        << QStringLiteral("server: %1 (%2)").arg(chosen->url.toString(), chosen->name);
+    qInfo().noquote() << QStringLiteral("server: %1 (%2)")
+                             .arg(chosen->url.toString(QUrl::RemoveUserInfo), chosen->name);
     applyServer(*chosen);
 }
 
@@ -478,6 +486,11 @@ void App::attachTray(Tray *tray)
     connect(tray, &Tray::stopAllRequested, this, &App::stopAll);
     connect(tray, &Tray::startAllRequested, this, &App::startAll);
 
+    // The Tray shows its icon when it is built; a saved "never" has to be applied here, not
+    // only when the setting changes.
+    loadSettings();
+    tray->setIconVisible(m_trayIconMode != QLatin1String("never"));
+
     updateTray();
 }
 
@@ -719,6 +732,15 @@ void App::attachNotifier(omaseed::integration::Notifier *notifier)
             &omaseed::integration::Notifier::actionInvoked,
             this,
             &App::onNotifierActionInvoked);
+    // A closed "completed" notice can no longer ask for its folder: drop its path (the
+    // action, if any, arrives before the close), so the map does not grow for ever.
+    connect(notifier,
+            &omaseed::integration::Notifier::noticeClosed,
+            this,
+            [this](const QString &eventClass, const QString &subjectId) {
+                if (eventClass == QLatin1String("completed"))
+                    m_completedContentPaths.remove(subjectId);
+            });
 }
 
 void App::attachXdg(omaseed::integration::Xdg *xdg)
@@ -782,7 +804,7 @@ void App::loadNotificationToggles()
         return;
     m_notificationTogglesLoaded = true;
 
-    const QJsonObject section = StateFile::readSection(QStringLiteral("notifications"));
+    const QJsonObject section = stateSection(QStringLiteral("notifications"));
     m_notifyCompletedEnabled = section.value(QStringLiteral("completed")).toBool(true);
     m_notifyServerLostEnabled = section.value(QStringLiteral("serverLost")).toBool(true);
     m_notifyDiskFullEnabled = section.value(QStringLiteral("diskFull")).toBool(true);
@@ -797,7 +819,7 @@ void App::saveNotificationToggles()
     section.insert(QStringLiteral("serverLost"), m_notifyServerLostEnabled);
     section.insert(QStringLiteral("diskFull"), m_notifyDiskFullEnabled);
     section.insert(QStringLiteral("lowDiskThresholdGiB"), m_lowDiskThresholdGiB);
-    StateFile::writeSection(QStringLiteral("notifications"), section);
+    writeStateSection(QStringLiteral("notifications"), section);
 }
 
 void App::applyLowDiskThreshold()
@@ -809,6 +831,8 @@ QString App::mapContentPathToLocal(const QString &remotePath) const
 {
     if (remotePath.isEmpty())
         return QString();
+    if (!pathMapEnabled())
+        return remotePath;
 
     PathMap map;
     for (const PathMapping &mapping : m_server.pathMap)
@@ -818,10 +842,7 @@ QString App::mapContentPathToLocal(const QString &remotePath) const
 
 QString App::serverHostPortText() const
 {
-    const QUrl &url = m_server.url;
-    if (!url.isValid() || url.host().isEmpty())
-        return QString();
-    return url.port() > 0 ? QStringLiteral("%1:%2").arg(url.host()).arg(url.port()) : url.host();
+    return hostPort(m_server.url);
 }
 
 QString App::errorReasonText(const QString &text)
@@ -1089,16 +1110,16 @@ void App::saveTableState(const QString &key, const QVariantMap &state)
 {
     if (key.isEmpty())
         return;
-    QJsonObject section = StateFile::readSection(QStringLiteral("tables"));
+    QJsonObject section = stateSection(QStringLiteral("tables"));
     section.insert(key, QJsonObject::fromVariantMap(state));
-    StateFile::writeSection(QStringLiteral("tables"), section);
+    writeStateSection(QStringLiteral("tables"), section);
 }
 
 QVariantMap App::tableState(const QString &key) const
 {
     if (key.isEmpty())
         return {};
-    const QJsonObject section = StateFile::readSection(QStringLiteral("tables"));
+    const QJsonObject section = stateSection(QStringLiteral("tables"));
     return section.value(key).toObject().toVariantMap();
 }
 
@@ -1179,21 +1200,15 @@ QVariantMap App::parseAddable(const QString &textIn)
     case integration::Addable::Kind::TorrentFile: {
         const QString token =
             QStringLiteral("file-%1").arg(++m_nextAddableToken, 4, 10, QLatin1Char('0'));
-        QFile file(addable.value);
-        if (!file.open(QIODevice::ReadOnly)) {
-            map[QStringLiteral("kind")] = QStringLiteral("file");
-            map[QStringLiteral("value")] = addable.value;
-            map[QStringLiteral("error")] = tr("cannot read %1").arg(addable.value);
-            return map;
-        }
-        const QByteArray bytes = file.readAll();
-        file.close();
         map[QStringLiteral("kind")] = QStringLiteral("file");
         map[QStringLiteral("value")] = addable.value;
         map[QStringLiteral("token")] = token;
         map[QStringLiteral("pending")] = true;
         map[QStringLiteral("name")] = QFileInfo(addable.value).fileName();
-        parseTorrentBytes(token, QFileInfo(addable.value).fileName(), addable.value, bytes);
+        // Read and parsed off the GUI thread; a file that cannot be read comes back through
+        // addableParsed with its error, like one that does not parse.
+        parseTorrentInBackground(
+            token, QFileInfo(addable.value).fileName(), addable.value, addable.value, QByteArray());
         return map;
     }
     case integration::Addable::Kind::None:
@@ -1207,8 +1222,8 @@ QVariantMap App::parseAddable(const QString &textIn)
 QVariantMap App::torrentFileMap(const QString &token,
                                 const QString &fileName,
                                 const QString &value,
-                                const QByteArray &bytes,
-                                TorrentFile *parsedOut) const
+                                const TorrentFile &parsed,
+                                const QString &error)
 {
     QVariantMap map{
         {QStringLiteral("kind"), QStringLiteral("file")},
@@ -1224,10 +1239,6 @@ QVariantMap App::torrentFileMap(const QString &token,
         {QStringLiteral("fileCount"), 0},
     };
 
-    QString error;
-    const TorrentFile parsed = TorrentFile::parse(bytes, &error);
-    if (parsedOut)
-        *parsedOut = parsed;
     if (!parsed.isValid()) {
         map[QStringLiteral("error")] = error.isEmpty() ? tr("this file is not a .torrent") : error;
         return map;
@@ -1241,31 +1252,87 @@ QVariantMap App::torrentFileMap(const QString &token,
     return map;
 }
 
-void App::parseTorrentBytes(const QString &token,
-                            const QString &fileName,
-                            const QString &value,
-                            const QByteArray &bytes)
+namespace {
+
+/// Bigger than any real .torrent (qBittorrent itself refuses past 100 MiB); a guard against
+/// reading a huge file someone named `.torrent` into memory.
+constexpr qint64 kMaxTorrentFileBytes = 100 * 1024 * 1024;
+
+/// How many parsed .torrent files are kept for a later add.
+constexpr int kMaxPendingTorrentFiles = 64;
+
+std::atomic<QThread *> s_lastTorrentParseThread{nullptr};
+
+} // namespace
+
+void App::rememberTorrentFile(const QString &token, const PendingTorrentFile &file)
 {
-    // SHA-1 of a large .torrent is the one piece of parsing worth keeping off the GUI thread
-    // (plan §4 T4.2). QThreadPool rather than QtConcurrent so omaseed-app keeps its current
-    // link line; the hop back is an ordinary queued call onto this object's thread.
+    // Every parse (typed, dropped, picked, then abandoned) used to stay for the life of the
+    // process. Keep the most recent ones only: more than a sheet's queue ever holds.
+    m_pendingTorrentFiles.insert(token, file);
+    m_pendingTorrentOrder.removeAll(token);
+    m_pendingTorrentOrder.append(token);
+    while (m_pendingTorrentOrder.size() > kMaxPendingTorrentFiles)
+        m_pendingTorrentFiles.remove(m_pendingTorrentOrder.takeFirst());
+}
+
+void App::forgetTorrentFile(const QString &token)
+{
+    m_pendingTorrentFiles.remove(token);
+    m_pendingTorrentOrder.removeAll(token);
+}
+
+int App::pendingTorrentFileCount() const
+{
+    return m_pendingTorrentFiles.size();
+}
+
+QThread *App::lastTorrentParseThread()
+{
+    return s_lastTorrentParseThread.load();
+}
+
+void App::parseTorrentInBackground(const QString &token,
+                                   const QString &fileName,
+                                   const QString &value,
+                                   const QString &path,
+                                   const QByteArray &bytesIn)
+{
+    // Reading, bencode and the SHA-1/SHA-256 of the info dict all run on the pool (plan §4
+    // T4.2). QThreadPool rather than QtConcurrent so omaseed-app keeps its current link line.
+    // The worker touches nothing of App's: it hops back through the application object,
+    // which outlives every App, and only there is the QPointer to App read.
     QPointer<App> self(this);
-    QThreadPool::globalInstance()->start([self, token, fileName, value, bytes]() {
-        if (self.isNull())
+    QThreadPool::globalInstance()->start([self, token, fileName, value, path, bytesIn]() {
+        QByteArray bytes = bytesIn;
+        QString error;
+        TorrentFile parsed;
+        if (!path.isEmpty()) {
+            QFile file(path);
+            if (!file.open(QIODevice::ReadOnly))
+                error = tr("cannot read %1").arg(path);
+            else if (file.size() > kMaxTorrentFileBytes)
+                error = tr("%1 is too large to be a .torrent").arg(path);
+            else
+                bytes = file.readAll();
+        }
+        if (error.isEmpty())
+            parsed = TorrentFile::parse(bytes, &error);
+        s_lastTorrentParseThread.store(QThread::currentThread());
+
+        QCoreApplication *application = QCoreApplication::instance();
+        if (!application)
             return;
         QMetaObject::invokeMethod(
-            self,
-            [self, token, fileName, value, bytes]() {
+            application,
+            [self, token, fileName, value, bytes, parsed, error]() {
                 if (self.isNull())
                     return;
-                TorrentFile parsed;
-                const QVariantMap map =
-                    self->torrentFileMap(token, fileName, value, bytes, &parsed);
-                if (map.value(QStringLiteral("valid")).toBool()) {
-                    self->m_pendingTorrentFiles.insert(
+                const QVariantMap map = torrentFileMap(token, fileName, value, parsed, error);
+                if (parsed.isValid())
+                    self->rememberTorrentFile(
                         token,
                         PendingTorrentFile{fileName, bytes, parsed.files, parsed.torrentId()});
-                }
                 Q_EMIT self->addableParsed(map);
             },
             Qt::QueuedConnection);
@@ -1282,8 +1349,15 @@ void App::pickTorrentFile()
                                             return; // cancelled
                                         const QString token = QStringLiteral("file-%1").arg(
                                             ++m_nextAddableToken, 4, 10, QLatin1Char('0'));
-                                        parseTorrentBytes(token, fileName, fileName, bytes);
+                                        parseTorrentInBackground(
+                                            token, fileName, fileName, QString(), bytes);
                                     });
+}
+
+QString App::torrentIdFor(const QString &infoHashV1, const QString &infoHashV2)
+{
+    const QString v2 = infoHashV2.trimmed().toLower();
+    return v2.isEmpty() ? infoHashV1.trimmed().toLower() : v2.left(40);
 }
 
 QVariantMap App::findDuplicate(const QString &hashV1, const QString &hashV2) const
@@ -1299,8 +1373,11 @@ QVariantMap App::findDuplicate(const QString &hashV1, const QString &hashV2) con
         if (!candidate.isEmpty() && model->indexOfHash(candidate) >= 0)
             return torrentRow(candidate);
     }
-    // A hybrid torrent is keyed by its v1 hash, so a v2-only magnet has to be looked up in
-    // the rows' own infohash fields.
+    // A torrent with a v2 hash is keyed by that hash cut to 40 characters, not by its v1 hash,
+    // so anything the key misses is looked up in the rows' own infohash fields.
+    const QString id = torrentIdFor(v1, v2);
+    if (model->indexOfHash(id) >= 0)
+        return torrentRow(id);
     for (int row = 0; row < model->count(); ++row) {
         const QModelIndex index = model->index(row);
         const QString rowV1 = lower(model->data(index, TorrentModel::InfohashV1Role).toString());
@@ -1365,7 +1442,9 @@ void App::addTorrent(const QVariantMap &request)
     const QString kind = request.value(QStringLiteral("kind")).toString();
     const QString value = request.value(QStringLiteral("value")).toString();
     const QString token = request.value(QStringLiteral("token")).toString();
-    const QString hash = request.value(QStringLiteral("infoHashV1")).toString().toLower();
+    // The key the new row will have in maindata, which is what the cursor and QML look for.
+    const QString hash = torrentIdFor(request.value(QStringLiteral("infoHashV1")).toString(),
+                                      request.value(QStringLiteral("infoHashV2")).toString());
 
     if (kind != QLatin1String("magnet") && kind != QLatin1String("url") &&
         kind != QLatin1String("file")) {
@@ -1400,7 +1479,7 @@ void App::addTorrent(const QVariantMap &request)
     QString torrentId = hash;
     if (kind == QLatin1String("file")) {
         const PendingTorrentFile file = m_pendingTorrentFiles.value(token);
-        if (!file.torrentId.isEmpty())
+        if (torrentId.isEmpty())
             torrentId = file.torrentId;
         if (file.bytes.isEmpty()) {
             Q_EMIT addFinished(false, tr("the .torrent was not read; pick it again"), QString());
@@ -1417,17 +1496,18 @@ void App::addTorrent(const QVariantMap &request)
             Q_EMIT addFinished(false, result.error().message(), QString());
             return;
         }
-        // qBittorrent answers "Fails." with 200 when it refuses the payload outright.
+        // qBittorrent 4.x answers "Fails." with 200 when it refuses the payload outright; 5.x
+        // answers 409 Conflict instead, which arrives above as an error.
         const QString body = QString::fromUtf8(result.value()).trimmed();
         if (body.compare(QStringLiteral("Fails."), Qt::CaseInsensitive) == 0) {
             Q_EMIT addFinished(false, tr("the server refused this torrent"), QString());
             return;
         }
         if (!token.isEmpty())
-            m_pendingTorrentFiles.remove(token);
-        watchForAddedHash(hash);
+            forgetTorrentFile(token);
+        watchForAddedHash(torrentId);
         if (!withPriorities) {
-            Q_EMIT addFinished(true, QString(), hash);
+            Q_EMIT addFinished(true, QString(), torrentId);
             return;
         }
         // 5.x answers with the ids it added; an older server says "Ok." and the metainfo's
@@ -1559,12 +1639,20 @@ QString App::demoTorrentPath() const
 {
     if (!m_demoMode)
         return QString();
-    const QString path =
-        QDir(QDir::tempPath()).filePath(QStringLiteral("Blender Open Movies.torrent"));
+    // Written once, into a private directory of this process: a fixed name in the shared
+    // /tmp could be a symlink another user planted, and the write would follow it.
+    if (!m_demoTorrentPath.isEmpty() && QFile::exists(m_demoTorrentPath))
+        return m_demoTorrentPath;
+    if (!m_demoTempDir)
+        m_demoTempDir = std::make_unique<QTemporaryDir>();
+    if (!m_demoTempDir->isValid())
+        return QString();
+    const QString path = m_demoTempDir->filePath(QStringLiteral("Blender Open Movies.torrent"));
     QFile file(path);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate))
+    if (!file.open(QIODevice::NewOnly))
         return QString();
     file.write(DemoData::demoTorrentBytes());
+    m_demoTorrentPath = path;
     return path;
 }
 
@@ -1592,7 +1680,7 @@ void App::setDeleteFilesDefault(bool value)
     m_deleteFilesDefault = value;
     QJsonObject section;
     section.insert(QStringLiteral("value"), value);
-    StateFile::writeSection(QStringLiteral("deleteFiles"), section);
+    writeStateSection(QStringLiteral("deleteFiles"), section);
     Q_EMIT deleteFilesDefaultChanged();
 }
 
@@ -1601,7 +1689,7 @@ void App::loadDeleteFilesDefault()
     if (m_deleteFilesDefaultLoaded)
         return;
     m_deleteFilesDefaultLoaded = true;
-    const QJsonObject section = StateFile::readSection(QStringLiteral("deleteFiles"));
+    const QJsonObject section = stateSection(QStringLiteral("deleteFiles"));
     m_deleteFilesDefault = section.value(QStringLiteral("value")).toBool(false);
 }
 
@@ -1840,15 +1928,46 @@ void App::queueDown(const QStringList &hashes)
 // to them. In demo mode the fictional rows flip locally, through the same merge a sync diff
 // takes, so the pane and the menu show the change.
 
-QStringList App::hashesNotAt(const QStringList &hashes, bool on, bool Torrent::*field) const
+QStringList App::hashesNotAt(const QStringList &hashes,
+                             bool on,
+                             bool Torrent::*field,
+                             PendingToggles &pending) const
 {
     QStringList wrong;
     const TorrentModel *torrents = m_engine->torrents();
     for (const QString &hash : hashes) {
-        if (torrents->indexOfHash(hash) >= 0 && torrents->torrent(hash).*field != on)
+        if (torrents->indexOfHash(hash) < 0)
+            continue;
+        bool current = torrents->torrent(hash).*field;
+        const auto it = pending.find(hash);
+        if (it != pending.end()) {
+            // The model caught up (or never will: the entry is old): trust it again.
+            if (current == it->target || it->expiry.hasExpired())
+                pending.erase(it);
+            else
+                current = it->target;
+        }
+        if (current != on)
             wrong.append(hash);
     }
     return wrong;
+}
+
+void App::sendToggle(const QStringList &flip,
+                     bool on,
+                     PendingToggles &pending,
+                     QbtReply<QByteArray> *reply,
+                     const QString &action)
+{
+    for (const QString &hash : flip)
+        pending.insert(hash, PendingToggle{on, QDeadlineTimer(10000)});
+    reply->then(this, [this, flip, &pending, action](const QbtResult<QByteArray> &result) {
+        if (result.isError()) {
+            for (const QString &hash : flip)
+                pending.remove(hash);
+        }
+        reportActionResult(action, result);
+    });
 }
 
 bool App::applyDemoOption(const QStringList &hashes, const QString &key, bool on)
@@ -1865,25 +1984,28 @@ bool App::applyDemoOption(const QStringList &hashes, const QString &key, bool on
 
 void App::setSequentialDownload(const QStringList &hashes, bool on)
 {
-    const QStringList flip = hashesNotAt(hashes, on, &Torrent::seqDl);
+    const QStringList flip = hashesNotAt(hashes, on, &Torrent::seqDl, m_pendingSeqDl);
     if (flip.isEmpty() || applyDemoOption(flip, QStringLiteral("seq_dl"), on) || !m_hasServer)
         return;
-    m_client->torrentsToggleSequentialDownload(flip)->then(
-        this, [this](const QbtResult<QByteArray> &result) {
-            reportActionResult(QStringLiteral("sequential"), result);
-        });
+    sendToggle(flip,
+               on,
+               m_pendingSeqDl,
+               m_client->torrentsToggleSequentialDownload(flip),
+               QStringLiteral("sequential"));
 }
 
 void App::setFirstLastPiecePrio(const QStringList &hashes, bool on)
 {
-    const QStringList flip = hashesNotAt(hashes, on, &Torrent::firstLastPiecePrio);
+    const QStringList flip =
+        hashesNotAt(hashes, on, &Torrent::firstLastPiecePrio, m_pendingFirstLast);
     if (flip.isEmpty() || applyDemoOption(flip, QStringLiteral("f_l_piece_prio"), on) ||
         !m_hasServer)
         return;
-    m_client->torrentsToggleFirstLastPiecePrio(flip)->then(
-        this, [this](const QbtResult<QByteArray> &result) {
-            reportActionResult(QStringLiteral("firstLast"), result);
-        });
+    sendToggle(flip,
+               on,
+               m_pendingFirstLast,
+               m_client->torrentsToggleFirstLastPiecePrio(flip),
+               QStringLiteral("firstLast"));
 }
 
 void App::setSuperSeeding(const QStringList &hashes, bool on)
@@ -2258,6 +2380,8 @@ const QStringList kDetailsPlacements{
     QStringLiteral("auto"), QStringLiteral("right"), QStringLiteral("bottom")};
 const QStringList kTrackerHostStyles{
     QStringLiteral("prefix"), QStringLiteral("left"), QStringLiteral("right")};
+const QStringList kTrayIconModes{
+    QStringLiteral("auto"), QStringLiteral("always"), QStringLiteral("never")};
 
 int tintStep(int percent)
 {
@@ -2359,16 +2483,14 @@ QString App::trayIconMode() const
 void App::setTrayIconMode(const QString &mode)
 {
     loadSettings();
-    static const QStringList known{
-        QStringLiteral("auto"), QStringLiteral("always"), QStringLiteral("never")};
-    const QString next = known.contains(mode) ? mode : QStringLiteral("auto");
+    const QString next = oneOf(mode, kTrayIconModes);
     if (m_trayIconMode == next)
         return;
     m_trayIconMode = next;
     saveSettings();
     // `auto` behaves as `always` until the companion widget's heartbeat exists (plan T6.3).
-    if (m_tray && m_tray->systemTrayIcon() != nullptr)
-        m_tray->systemTrayIcon()->setVisible(next != QStringLiteral("never"));
+    if (m_tray)
+        m_tray->setIconVisible(next != QStringLiteral("never"));
     Q_EMIT settingsChanged();
 }
 
@@ -2392,22 +2514,38 @@ QString App::pluginAddCommand() const
     return QStringLiteral("omarchy plugin add https://github.com/diogochaves/omaseed-bar");
 }
 
+QJsonObject App::stateSection(const QString &key) const
+{
+    if (m_demoMode && m_demoState.contains(key))
+        return m_demoState.value(key).toObject();
+    return StateFile::readSection(key);
+}
+
+void App::writeStateSection(const QString &key, const QJsonObject &value)
+{
+    if (m_demoMode) {
+        m_demoState.insert(key, value);
+        return;
+    }
+    StateFile::writeSection(key, value);
+}
+
 void App::loadSettings()
 {
     if (m_settingsLoaded)
         return;
     m_settingsLoaded = true;
 
-    const QJsonObject general = StateFile::readSection(QStringLiteral("general"));
+    const QJsonObject general = stateSection(QStringLiteral("general"));
     m_showServersGroup = general.value(QStringLiteral("showServersGroup")).toBool(true);
     m_pathMapEnabled = general.value(QStringLiteral("pathMapEnabled")).toBool(true);
 
-    const QJsonObject appearance = StateFile::readSection(QStringLiteral("appearance"));
+    const QJsonObject appearance = stateSection(QStringLiteral("appearance"));
     m_followOmarchyTheme = appearance.value(QStringLiteral("followOmarchyTheme")).toBool(true);
     m_baseSizeOverride = appearance.value(QStringLiteral("baseSizeOverride")).toInt(0);
     m_windowAlphaOverride = appearance.value(QStringLiteral("windowAlphaOverride")).toInt(0);
-    m_trayIconMode =
-        appearance.value(QStringLiteral("trayIconMode")).toString(QStringLiteral("auto"));
+    m_trayIconMode = oneOf(appearance.value(QStringLiteral("trayIconMode")).toString(),
+                           kTrayIconModes);
     m_speedsAlignment =
         appearance.value(QStringLiteral("speedsAlignment")).toString(QStringLiteral("left")) ==
                 QLatin1String("right")
@@ -2428,7 +2566,7 @@ void App::saveSettings()
     QJsonObject general;
     general[QStringLiteral("showServersGroup")] = m_showServersGroup;
     general[QStringLiteral("pathMapEnabled")] = m_pathMapEnabled;
-    StateFile::writeSection(QStringLiteral("general"), general);
+    writeStateSection(QStringLiteral("general"), general);
 
     QJsonObject appearance;
     appearance[QStringLiteral("followOmarchyTheme")] = m_followOmarchyTheme;
@@ -2441,7 +2579,7 @@ void App::saveSettings()
     appearance[QStringLiteral("trackerHostStyle")] = m_trackerHostStyle;
     appearance[QStringLiteral("railHidden")] = m_railHidden;
     appearance[QStringLiteral("detailsPlacement")] = m_detailsPlacement;
-    StateFile::writeSection(QStringLiteral("appearance"), appearance);
+    writeStateSection(QStringLiteral("appearance"), appearance);
 }
 
 void App::applyAppearance()
@@ -2494,37 +2632,57 @@ QString App::installCommandsText() const
 
 void App::runInstallWithPkexec()
 {
+    // Never `sudo` from inside the app (CLAUDE.md): `pkexec` is the polkit-mediated
+    // equivalent, and it is the user who authorizes it, not this process.
+    runInstall(QStringLiteral("pkexec"),
+               {QStringLiteral("pacman"),
+                QStringLiteral("-S"),
+                QStringLiteral("--noconfirm"),
+                QStringLiteral("qbittorrent-nox")});
+}
+
+void App::runInstall(const QString &program, const QStringList &arguments)
+{
     if (m_installProcess) {
         Q_EMIT installFinished(false, tr("an install is already running"));
         return;
     }
 
-    m_installProcess = new QProcess(this);
-    connect(m_installProcess,
+    auto *process = new QProcess(this);
+    m_installProcess = process;
+    // A crash or a kill emits errorOccurred(Crashed) and *then* finished(CrashExit); a read,
+    // write or timeout error is followed by finished too. Only FailedToStart comes alone. So
+    // finished answers every run that started, errorOccurred only the one that did not, and
+    // each handler works on the process it was connected to, not the member.
+    connect(process,
             &QProcess::finished,
             this,
-            [this](int exitCode, QProcess::ExitStatus status) {
+            [this, process](int exitCode, QProcess::ExitStatus status) {
                 const bool ok = status == QProcess::NormalExit && exitCode == 0;
-                const QString message =
-                    ok ? QString() : QString::fromUtf8(m_installProcess->readAllStandardError());
-                m_installProcess->deleteLater();
-                m_installProcess = nullptr;
+                QString message;
+                if (!ok) {
+                    message = QString::fromUtf8(process->readAllStandardError()).trimmed();
+                    if (message.isEmpty())
+                        message = status == QProcess::CrashExit
+                                      ? process->errorString()
+                                      : tr("the installer exited with code %1").arg(exitCode);
+                }
+                process->deleteLater();
+                if (m_installProcess == process)
+                    m_installProcess = nullptr;
                 Q_EMIT installFinished(ok, message);
             });
-    connect(m_installProcess, &QProcess::errorOccurred, this, [this](QProcess::ProcessError) {
-        const QString message = m_installProcess->errorString();
-        m_installProcess->deleteLater();
-        m_installProcess = nullptr;
+    connect(process, &QProcess::errorOccurred, this, [this, process](QProcess::ProcessError error) {
+        if (error != QProcess::FailedToStart)
+            return;
+        const QString message = process->errorString();
+        process->deleteLater();
+        if (m_installProcess == process)
+            m_installProcess = nullptr;
         Q_EMIT installFinished(false, message);
     });
 
-    // Never `sudo` from inside the app (CLAUDE.md): `pkexec` is the polkit-mediated
-    // equivalent, and it is the user who authorizes it, not this process.
-    m_installProcess->start(QStringLiteral("pkexec"),
-                            {QStringLiteral("pacman"),
-                             QStringLiteral("-S"),
-                             QStringLiteral("--noconfirm"),
-                             QStringLiteral("qbittorrent-nox")});
+    process->start(program, arguments);
 }
 
 // --- end T4.6 ------------------------------------------------------------------------------

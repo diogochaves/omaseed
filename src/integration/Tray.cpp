@@ -3,6 +3,8 @@
 #include "integration/ThemeReader.hpp"
 
 #include <QAction>
+#include <QDBusConnection>
+#include <QDBusServiceWatcher>
 #include <QFile>
 #include <QFont>
 #include <QMenu>
@@ -44,13 +46,41 @@ Tray::Tray(ThemeReader *reader, QObject *parent)
         refreshIcon();
     }
 
-    if (!isAvailable()) {
-        m_loggedUnavailable = true;
-        qWarning().noquote() << QStringLiteral(
-            "Tray: no StatusNotifierHost available; staying inert");
+    setIconVisible(true);
+}
+
+void Tray::setIconVisible(bool visible)
+{
+    m_iconWanted = visible;
+    if (visible && !isAvailable()) {
+        waitForHost();
         return;
     }
-    m_trayIcon->show();
+    m_trayIcon->setVisible(visible);
+}
+
+void Tray::waitForHost()
+{
+    if (!m_loggedUnavailable) {
+        m_loggedUnavailable = true;
+        qWarning().noquote() << QStringLiteral(
+            "Tray: no StatusNotifierHost available; the icon appears when a bar starts one");
+    }
+    if (m_hostWatcher)
+        return;
+    // The bar may start after us (autostart order) or restart while we sit in the tray:
+    // show the icon as soon as its StatusNotifierWatcher is back.
+    m_hostWatcher = new QDBusServiceWatcher(QStringLiteral("org.kde.StatusNotifierWatcher"),
+                                            QDBusConnection::sessionBus(),
+                                            QDBusServiceWatcher::WatchForRegistration,
+                                            this);
+    connect(m_hostWatcher, &QDBusServiceWatcher::serviceRegistered, this, [this]() {
+        if (!m_iconWanted)
+            return;
+        qInfo().noquote() << QStringLiteral("Tray: a StatusNotifierHost appeared; showing the "
+                                            "icon");
+        m_trayIcon->show();
+    });
 }
 
 Tray::~Tray()

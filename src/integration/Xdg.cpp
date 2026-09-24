@@ -1,5 +1,6 @@
 #include "integration/Xdg.hpp"
 
+#include "core/StateFile.hpp"
 #include "integration/AppIdentity.hpp"
 
 #include <QClipboard>
@@ -35,9 +36,13 @@ QString ourDesktopId()
 
 bool looksLikeMagnet(const QString &text)
 {
-    static const QRegularExpression btihHex(QStringLiteral("xt=urn:btih:([0-9A-Fa-f]{40})(?:&|$)"));
-    static const QRegularExpression btihB32(QStringLiteral("xt=urn:btih:([A-Za-z2-7]{32})(?:&|$)"));
-    static const QRegularExpression btmh(QStringLiteral("xt=urn:btmh:([0-9A-Fa-f]+)(?:&|$)"));
+    // `xt` must be a parameter of its own (after `?` or `&`), not the tail of another one
+    // such as `foo_xt=`; the hash ends at `&` or the end of the text.
+    static const QRegularExpression btihHex(
+        QStringLiteral("[?&]xt=urn:btih:([0-9A-Fa-f]{40})(?:&|$)"));
+    static const QRegularExpression btihB32(
+        QStringLiteral("[?&]xt=urn:btih:([A-Za-z2-7]{32})(?:&|$)"));
+    static const QRegularExpression btmh(QStringLiteral("[?&]xt=urn:btmh:([0-9A-Fa-f]+)(?:&|$)"));
 
     if (!text.startsWith(QStringLiteral("magnet:"), Qt::CaseInsensitive))
         return false;
@@ -99,12 +104,29 @@ Addable Xdg::parseAddable(const QString &textIn)
 
 QList<Addable> Xdg::parseAddableList(const QString &text)
 {
+    static const QRegularExpression whitespace(QStringLiteral("\\s+"));
     QList<Addable> result;
     const QStringList lines = text.split(QLatin1Char('\n'), Qt::SkipEmptyParts);
-    for (const QString &line : lines) {
-        const Addable addable = parseAddable(line);
-        if (addable.kind != Addable::Kind::None)
-            result.append(addable);
+    for (const QString &rawLine : lines) {
+        const QString line = rawLine.trimmed();
+        const Addable whole = parseAddable(line);
+        // A path with spaces in it is one file; any other line holding whitespace may be
+        // several links pasted side by side, each parsed on its own.
+        if (whole.kind == Addable::Kind::TorrentFile || !line.contains(whitespace)) {
+            if (whole.kind != Addable::Kind::None)
+                result.append(whole);
+            continue;
+        }
+        QList<Addable> tokens;
+        for (const QString &token : line.split(whitespace, Qt::SkipEmptyParts)) {
+            const Addable addable = parseAddable(token);
+            if (addable.kind != Addable::Kind::None)
+                tokens.append(addable);
+        }
+        if (!tokens.isEmpty())
+            result.append(tokens);
+        else if (whole.kind != Addable::Kind::None)
+            result.append(whole);
     }
     return result;
 }
@@ -203,37 +225,20 @@ void Xdg::registerAsDefaultHandler()
     process->start();
 }
 
+// state.json has one implementation, core::StateFile (an atomic rewrite); these delegate.
 QString Xdg::stateFilePath()
 {
-    QString configHome = qEnvironmentVariable("XDG_CONFIG_HOME");
-    if (configHome.isEmpty())
-        configHome = QDir::homePath() + QStringLiteral("/.config");
-    return configHome + QStringLiteral("/omaseed/state.json");
+    return core::StateFile::path();
 }
 
 QJsonObject Xdg::readState()
 {
-    QFile file(stateFilePath());
-    if (!file.open(QIODevice::ReadOnly))
-        return QJsonObject{{QStringLiteral("version"), 1}};
-
-    const QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
-    if (!doc.isObject())
-        return QJsonObject{{QStringLiteral("version"), 1}};
-
-    return doc.object();
+    return core::StateFile::read();
 }
 
 void Xdg::writeState(const QJsonObject &state)
 {
-    const QString path = stateFilePath();
-    QDir().mkpath(QFileInfo(path).absolutePath());
-
-    QFile file(path);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate))
-        return;
-
-    file.write(QJsonDocument(state).toJson(QJsonDocument::Indented));
+    core::StateFile::write(state);
 }
 
 bool Xdg::firstRunPromptNeeded() const

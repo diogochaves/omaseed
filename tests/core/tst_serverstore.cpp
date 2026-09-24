@@ -41,6 +41,8 @@ private slots:
     void filePermissionsAreOwnerOnly();
     void corruptJsonFailsWithoutLosingTheFile();
     void futureVersionFailsWithoutLoading();
+    void anAddAfterAFailedLoadKeepsTheUnreadableFile_data();
+    void anAddAfterAFailedLoadKeepsTheUnreadableFile();
 
 private:
     QTemporaryDir m_dir;
@@ -236,6 +238,45 @@ void TestServerStore::futureVersionFailsWithoutLoading()
     QFile file(filePath);
     QVERIFY(file.open(QIODevice::ReadOnly));
     QCOMPARE(file.readAll(), futureFile);
+}
+
+void TestServerStore::anAddAfterAFailedLoadKeepsTheUnreadableFile_data()
+{
+    QTest::addColumn<QByteArray>("unreadable");
+    QTest::newRow("corrupt") << QByteArray("{ \"version\": 1, \"servers\": [ oops");
+    QTest::newRow("newer version") << QByteArray(R"({"version":2,"servers":[{"id":"x"}]})");
+}
+
+void TestServerStore::anAddAfterAFailedLoadKeepsTheUnreadableFile()
+{
+    QFETCH(QByteArray, unreadable);
+    const QString configDir = m_dir.path() + QStringLiteral("/omaseed");
+    QVERIFY(QDir().mkpath(configDir));
+    const QString filePath = configDir + QStringLiteral("/servers.json");
+    for (const QString &old : QDir(configDir).entryList({QStringLiteral("servers.json*")}))
+        QFile::remove(configDir + QLatin1Char('/') + old);
+    {
+        QFile file(filePath);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write(unreadable);
+    }
+
+    ServerStore store;
+    QVERIFY(!store.load());
+    QVERIFY(!store.loadError().isEmpty());
+
+    // First run then adds a server: the new list is saved, the old bytes survive beside it.
+    QVERIFY(store.add(makeServer(QStringLiteral("new"), QUrl(QStringLiteral("http://nas:8080")))));
+    QVERIFY(store.loadError().isEmpty());
+    const QString aside = store.setAsidePath();
+    QVERIFY(aside.startsWith(filePath + QStringLiteral(".unreadable-")));
+    QFile kept(aside);
+    QVERIFY(kept.open(QIODevice::ReadOnly));
+    QCOMPARE(kept.readAll(), unreadable);
+
+    ServerStore reread;
+    QVERIFY(reread.load());
+    QCOMPARE(reread.count(), 1);
 }
 
 QTEST_APPLESS_MAIN(TestServerStore)

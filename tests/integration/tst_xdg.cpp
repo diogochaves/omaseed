@@ -76,6 +76,8 @@ private slots:
     void parseAddableRejectsGarbage();
     void parseAddableTrimsWhitespace();
     void parseAddableListKeepsOrderAndDropsJunk();
+    void parseAddableListSplitsLinksOnOneLine(); // INT-14
+    void magnetXtMustBeItsOwnParameter();        // INT-14
 
     void stateFileRoundTrips();
 
@@ -203,6 +205,38 @@ void TestXdg::parseAddableListKeepsOrderAndDropsJunk()
     QCOMPARE(addables.at(0).value, magnet);
     QCOMPARE(addables.at(1).kind, Addable::Kind::HttpUrl);
     QCOMPARE(addables.at(1).value, url);
+}
+
+void TestXdg::parseAddableListSplitsLinksOnOneLine()
+{
+    const QString a = QStringLiteral("magnet:?xt=urn:btih:c12fe1c06bba254a9dc9f519b335aa7c1367a88a");
+    const QString b = QStringLiteral("magnet:?xt=urn:btih:d12fe1c06bba254a9dc9f519b335aa7c1367a88b");
+    const QList<Addable> addables =
+        Xdg::parseAddableList(QStringLiteral("%1 %2\thttps://example.com/c.torrent").arg(a, b));
+    QCOMPARE(addables.size(), 3);
+    QCOMPARE(addables.at(0).value, a);
+    QCOMPARE(addables.at(1).value, b);
+    QCOMPARE(addables.at(2).kind, Addable::Kind::HttpUrl);
+
+    // A local path with spaces stays one file.
+    QTemporaryDir dir;
+    const QString path = dir.path() + QStringLiteral("/my movie.torrent");
+    QFile file(path);
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    file.close();
+    const QList<Addable> one = Xdg::parseAddableList(path);
+    QCOMPARE(one.size(), 1);
+    QCOMPARE(one.at(0).kind, Addable::Kind::TorrentFile);
+    QCOMPARE(one.at(0).value, path);
+}
+
+void TestXdg::magnetXtMustBeItsOwnParameter()
+{
+    const QString hash = QStringLiteral("c12fe1c06bba254a9dc9f519b335aa7c1367a88a");
+    QCOMPARE(Xdg::parseAddable(QStringLiteral("magnet:?foo_xt=urn:btih:%1").arg(hash)).kind,
+             Addable::Kind::None);
+    QCOMPARE(Xdg::parseAddable(QStringLiteral("magnet:?dn=x&xt=urn:btih:%1").arg(hash)).kind,
+             Addable::Kind::Magnet);
 }
 
 void TestXdg::stateFileRoundTrips()

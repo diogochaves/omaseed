@@ -88,7 +88,9 @@ public:
     /// `SecretStore` under the auth mode's kind.
     Q_INVOKABLE QString add(const QVariantMap &fields, const QString &secret = QString());
     /// Replaces the server `fields["id"]` names. An empty `secret` leaves the stored one
-    /// alone — that is what "edit without retyping the key" needs.
+    /// alone — that is what "edit without retyping the key" needs — unless the auth mode
+    /// changed: the old mode's secret is then removed (both, for "none"), so a stale key is
+    /// neither kept nor silently reused on a switch back.
     Q_INVOKABLE bool update(const QVariantMap &fields, const QString &secret = QString());
     /// Removes the server and both of its secrets.
     Q_INVOKABLE bool remove(const QString &id);
@@ -110,8 +112,10 @@ public:
     // ---- the pure parts, so a test needs no store -------------------------------------
 
     /// Builds a `Server` from the QML field map: `id`, `name`, `url`, `authMode`
-    /// ("apiKey" | "cookie" | "none"), `username`, `pathMapRemote`, `pathMapLocal`.
-    static Server serverFromMap(const QVariantMap &fields);
+    /// ("apiKey" | "cookie" | "none"), `username`, `pathMapRemote`, `pathMapLocal`. User info
+    /// typed into the URL never stays there: the user name fills an empty `username`, and for
+    /// a cookie server the password comes back through `urlPassword` (dropped otherwise).
+    static Server serverFromMap(const QVariantMap &fields, QString *urlPassword = nullptr);
     /// "API key" / "cookie" / "none" — what Fig. 9 and Fig. 16 print.
     static QString authModeText(AuthMode mode);
     /// "127.0.0.1:8080", the host:port half of the dim line.
