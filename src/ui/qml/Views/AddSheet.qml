@@ -187,6 +187,8 @@ Sheet {
     /// holds a magnet or a URL (and from `OMASEED_DEMO_ADD` under `--demo`, so Fig. 5 and
     /// Fig. 10 can be screenshot reproducibly).
     function openBlank(): void {
+    if (sheet.opened) // already up (the tray's add while the form is half filled): keep it
+    return;
     sheet.reset();
     const demo = App.demoAddText();
     const prefill = demo.length > 0 ? demo : sheet.clipboardText();
@@ -200,16 +202,27 @@ Sheet {
 
     /// One source, from a known place ("drop", "browser", …).
     function openWith(text: string, from: string): void {
-    sheet.reset();
-    sheet.loadText(text, from);
-    sheet.open();
+    sheet.openList([text], from);
 }
 
-    /// Several: the first opens the sheet, the rest queue behind it.
+    /// Several: the first opens the sheet, the rest queue behind it. A hand-off that arrives
+    /// while the sheet is already up never wipes the form the user is in: it joins the queue
+    /// (or fills the field, when that is still empty).
     function openList(list: var, from: string): void {
     if (!list || list.length === 0)
     return;
-    sheet.openWith(list[0], from);
+    if (sheet.opened) {
+        let rest = list;
+        if (sourceField.text.trim().length === 0) {
+            sheet.loadText(list[0], from);
+            rest = list.slice(1);
+        }
+        sheet.queue = sheet.queue.concat(rest);
+        return;
+    }
+    sheet.reset();
+    sheet.loadText(list[0], from);
+    sheet.open();
     sheet.queue = list.slice(1);
 }
 
@@ -326,6 +339,12 @@ Sheet {
             if (sheet.queue.length > 0) {
                 const next = sheet.queue[0];
                 sheet.queue = sheet.queue.slice(1);
+                // The Name row (docs/11 D1) belongs to the torrent just added; category, tags,
+                // path, limits and toggles stay on purpose, as one batch's settings.
+                sheet._programmatic = true;
+                renameField.text = "";
+                sheet._programmatic = false;
+                sheet.errorText = "";
                 sheet.loadText(next, sheet.source);
                 return;
             }

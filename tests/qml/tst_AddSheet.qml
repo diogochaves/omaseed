@@ -420,6 +420,32 @@ TestCase {
         compare(sheet.opened, false, "and closes when the queue is empty");
     }
 
+    // Review VIEW-11: the Name row is the torrent's own; the next queued one starts without it.
+    function test_the_next_queued_source_does_not_inherit_the_name() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        sheet.openList([testCase.freshMagnet,
+                        "magnet:?xt=urn:btih:0102030405060708090a0b0c0d0e0f1011121314&dn=second"],
+                       "browser");
+        sheet.renameField.text = "my custom name";
+        sheet.finish(true, "");
+        compare(sheet.addable.name, "second");
+        compare(sheet.renameField.text, "", "the second torrent kept the first one's name");
+    }
+
+    // Review VIEW-11: a hand-off while the form is up queues instead of wiping it.
+    function test_a_hand_off_while_open_joins_the_queue() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        sheet.openWith(testCase.freshMagnet, "clipboard");
+        sheet.renameField.text = "half typed";
+        sheet.openList(["magnet:?xt=urn:btih:0102030405060708090a0b0c0d0e0f1011121314&dn=second"],
+                       "browser");
+        compare(sheet.sourceField.text, testCase.freshMagnet, "the open form was replaced");
+        compare(sheet.renameField.text, "half typed");
+        compare(sheet.queue.length, 1);
+        sheet.openBlank();
+        compare(sheet.renameField.text, "half typed", "`a` while open wiped the form");
+    }
+
     function test_a_refused_add_stays_open_in_red() {
         const sheet = createTemporaryObject(addSheetComponent, testCase);
         sheet.openWith(testCase.freshMagnet, "clipboard");
