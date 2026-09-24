@@ -843,6 +843,15 @@ QbtReply<QByteArray> *QbtClient::torrentsReannounce(const QStringList &hashes)
     return post(QStringLiteral("torrents/reannounce"), hashesForm(hashes));
 }
 
+QbtReply<QByteArray> *QbtClient::torrentsRemoveTrackers(const QString &hash,
+                                                        const QStringList &urls)
+{
+    QUrlQuery form;
+    addItem(form, QStringLiteral("hash"), hash);
+    addItem(form, QStringLiteral("urls"), urls.join(QLatin1Char('|')));
+    return post(QStringLiteral("torrents/removeTrackers"), form);
+}
+
 QbtReply<QByteArray> *QbtClient::torrentsSetCategory(const QStringList &hashes,
                                                      const QString &category)
 {

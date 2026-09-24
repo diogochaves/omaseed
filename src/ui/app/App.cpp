@@ -1623,6 +1623,17 @@ void App::reannounce(const QStringList &hashes)
     });
 }
 
+void App::removeTracker(const QString &hash, const QString &url)
+{
+    if (hash.isEmpty() || url.isEmpty() || demoGuard(QStringLiteral("remove tracker"), 1)
+        || !m_hasServer)
+        return;
+    m_client->torrentsRemoveTrackers(hash, QStringList{url})
+        ->then(this, [this](const QbtResult<QByteArray> &result) {
+            reportActionResult(QStringLiteral("remove tracker"), result);
+        });
+}
+
 void App::setCategory(const QStringList &hashes, const QString &name)
 {
     if (hashes.isEmpty() || demoGuard(QStringLiteral("category"), hashes.size()) || !m_hasServer)

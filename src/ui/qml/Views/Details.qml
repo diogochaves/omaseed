@@ -525,23 +525,30 @@ Item {
             if (root.currentTab !== 0 || !root.toggleGeneralOption(root.generalCursor))
                 return;
             break;
+        // The Trackers and Peers keys (Fig. 3/4) belong to those tabs only: anywhere else the
+        // key goes on to the window, so `a` still adds a torrent from General or Files.
         case Qt.Key_A:
             if (root.currentTab === 2)
                 root.trackerAction("add", "");
             else if (root.currentTab === 3)
                 root.peerAction("add", "");
+            else
+                return;
             break;
         case Qt.Key_D:
-            if (root.currentTab === 2)
-                root.trackerAction("remove", root.details.trackers.urlAt(root.trackersCursor));
+            if (root.currentTab !== 2)
+                return;
+            root.trackerAction("remove", root.details.trackers.urlAt(root.trackersCursor));
             break;
         case Qt.Key_R:
-            if (root.currentTab === 2 && (event.modifiers & Qt.ShiftModifier))
-                root.trackerAction("reannounce", root.details.trackers.urlAt(root.trackersCursor));
+            if (root.currentTab !== 2 || !(event.modifiers & Qt.ShiftModifier))
+                return;
+            root.trackerAction("reannounce", root.details.trackers.urlAt(root.trackersCursor));
             break;
         case Qt.Key_B:
-            if (root.currentTab === 3)
-                root.peerAction("ban", root.details.peers.addressAt(root.peersCursor));
+            if (root.currentTab !== 3)
+                return;
+            root.peerAction("ban", root.details.peers.addressAt(root.peersCursor));
             break;
         default:
             return;
@@ -856,12 +863,9 @@ Item {
                                     "label": Keymap.labelOf("details", "/")
                                 }
                             ];
+                // Fig. 3/4's `a` add and `b` ban are not built yet (review VIEW-6).
                 if (root.currentTab === 2)
                     return [
-                                {
-                                    "key": "a",
-                                    "label": qsTr("add")
-                                },
                                 {
                                     "key": "d",
                                     "label": qsTr("remove")
@@ -876,14 +880,6 @@ Item {
                                 }
                             ];
                 return [
-                            {
-                                "key": "b",
-                                "label": qsTr("ban")
-                            },
-                            {
-                                "key": "a",
-                                "label": qsTr("add peer")
-                            },
                             {
                                 "key": "y",
                                 "label": qsTr("copy")

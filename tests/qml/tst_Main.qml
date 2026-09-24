@@ -730,6 +730,29 @@ TestCase {
         view.table.visibleColumns = before;
     }
 
+    // ---- the details pane's row keys (review VIEW-6) ------------------------------------
+    function test_a_in_the_general_tab_still_adds_a_torrent() {
+        view.details.activateTab(0);
+        view.details.forceActiveFocus();
+        keyClick("a");
+        compare(addSpy.count, 1, "the details pane swallowed the window's `a`");
+    }
+
+    function test_tracker_keys_act_and_the_unbuilt_ones_say_so() {
+        testCase._cursorOn("Big Buck Bunny 4K (CC-BY)");
+        view.details.activateTab(2);
+        view.details.forceActiveFocus();
+        keyClick(Qt.Key_R, Qt.ShiftModifier);
+        compare(view.footerNote, "reannounced");
+        keyClick("a");
+        compare(view.footerNote, "not in this version yet");
+        compare(addSpy.count, 0, "`a` in Trackers opened the add sheet");
+        view.details.activateTab(3);
+        keyClick("b");
+        compare(view.footerNote, "not in this version yet");
+        view.details.activateTab(0);
+    }
+
     // ---- first run (review VIEW-4) -------------------------------------------------------
     function test_a_link_handed_over_during_first_run_waits_for_setup() {
         const magnet = "magnet:?xt=urn:btih:0102030405060708090a0b0c0d0e0f1011121314&dn=waiting";

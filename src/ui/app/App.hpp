@@ -527,6 +527,8 @@ public:
     Q_INVOKABLE void forceStart(const QStringList &hashes);
     Q_INVOKABLE void recheck(const QStringList &hashes);
     Q_INVOKABLE void reannounce(const QStringList &hashes);
+    /// The Trackers tab's `d` (Fig. 3): one tracker off one torrent.
+    Q_INVOKABLE void removeTracker(const QString &hash, const QString &url);
 
     Q_INVOKABLE void setCategory(const QStringList &hashes, const QString &name);
     Q_INVOKABLE void addTags(const QStringList &hashes, const QStringList &tags);

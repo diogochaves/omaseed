@@ -125,14 +125,13 @@ QtObject {
                                                                                            "enter"),
                     root._hint("details", "r"), root._hint("details", "s"), root._hint("details",
                                                                                        "/")];
+        // Fig. 3/4 also teach `a` add (tracker, peer) and `b` ban; those are not built yet
+        // (review VIEW-6, waiting on a design), so the footer does not promise them.
         case 2: // Fig. 3, Trackers
-            return [root._hint("details", "a"), root._hint("details", "d"), root._hint("details",
-                                                                                       "R"), root._hint(
-                        "details", "y")];
+            return [root._hint("details", "d"), root._hint("details", "R"), root._hint("details",
+                                                                                       "y")];
         case 3: // Fig. 4, Peers
-            return [root._hint("details", "b"),
-                    // The figure says "add peer" where the Trackers tab says "add".
-                    root._hint("details", "a", qsTr("add peer")), root._hint("details", "y")];
+            return [root._hint("details", "y")];
         default:
             // docs/12 G5 and G4: General's rows are a list with a cursor, `y` copies a value
             // and `enter` changes an option row.

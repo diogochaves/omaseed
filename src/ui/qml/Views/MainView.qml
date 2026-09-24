@@ -396,6 +396,28 @@ Item {
         }
     }
 
+    /// The Trackers and Peers tabs' keys (Fig. 3/4). `R` reannounces the torrent (the API has
+    /// no per-tracker reannounce) and `d` removes the tracker under the cursor. Adding a
+    /// tracker or a peer needs an input sheet and banning a peer is a permanent IP ban; both
+    /// wait for a design (review VIEW-6), so they say so instead of doing nothing.
+    function detailsRowAction(kind: string, action: string, value: string): void {
+        const hash = App.details.hash;
+        if (hash.length === 0)
+            return;
+        if (kind === "tracker" && action === "reannounce") {
+            App.reannounce([hash]);
+            root.flashFooterNote(qsTr("reannounced"));
+        } else if (kind === "tracker" && action === "remove") {
+            // DHT, PeX and LSD are rows of the list but not trackers of the torrent.
+            if (value.length === 0 || value.startsWith("** ["))
+                return;
+            App.removeTracker(hash, value);
+            root.flashFooterNote(qsTr("removed %1").arg(value));
+        } else {
+            root.flashFooterNote(qsTr("not in this version yet"));
+        }
+    }
+
     /// The details pane follows the table's cursor. It is a snapshot, not a binding, so it
     /// is taken again on every sync (see the Connections below).
     function refreshDetails(): void {
@@ -1104,8 +1126,8 @@ Item {
                 z: -1
             }
             onOpenFolderRequested: path => App.revealTorrentFile(App.details.hash, path)
-            onPeerAction: (action, address) => console.log("peer:", action, address)
-            onTrackerAction: (action, url) => console.log("tracker:", action, url)
+            onPeerAction: (action, address) => root.detailsRowAction("peer", action, address)
+            onTrackerAction: (action, url) => root.detailsRowAction("tracker", action, url)
         }
 
         // §7's whole-body states
