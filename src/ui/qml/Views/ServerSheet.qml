@@ -45,6 +45,8 @@ Sheet {
     // the edit buffers; `save` turns them back into a field map
     property string editName: ""
     property string editUrl: ""
+    /// Why `save` refused, over the fields (review RUN-15); empty hides it.
+    property string errorText: ""
     property string editAuthMode: "none"
     property string editUsername: ""
     property string editSecret: ""
@@ -63,6 +65,7 @@ Sheet {
     function openFor(map: var): void {
         root.server = map;
         root.editing = false;
+        root.errorText = "";
         root._resetTest();
         root._loadBuffers();
         root.open();
@@ -72,6 +75,7 @@ Sheet {
     function openNew(): void {
         root.server = {};
         root.editing = true;
+        root.errorText = "";
         root._resetTest();
         root._loadBuffers();
         root.open();
@@ -134,17 +138,27 @@ Sheet {
 
     function _save(): void {
         const map = root.fieldMap();
+        if (root.editName.trim().length === 0 || root.editUrl.trim().length === 0) {
+            root.errorText = qsTr("name and URL are required");
+            return;
+        }
+        root.errorText = "";
         if (root.isNew) {
             const id = App.addServer(map, root.editSecret);
-            if (id.length === 0)
-                return; // no usable URL: the sheet stays open with the fields as typed
+            if (id.length === 0) {
+                // No usable URL: the sheet stays open with the fields as typed.
+                root.errorText = qsTr("that URL cannot be used");
+                return;
+            }
             root._carryTestResult(id);
             root.server = App.serverList.serverMap(id);
             root.editing = false;
             root.saved(id);
         } else {
-            if (!App.updateServer(map, root.editSecret))
+            if (!App.updateServer(map, root.editSecret)) {
+                root.errorText = qsTr("that URL cannot be used");
                 return;
+            }
             root.server = App.serverList.serverMap(root.serverId);
             root.editing = false;
             root.saved(root.serverId);
@@ -329,6 +343,14 @@ Sheet {
         visible: !root.editing
     }
 
+    // A refused save: the kit's error Banner, as the add and limits sheets show theirs.
+    Banner {
+        Layout.fillWidth: true
+        kind: "error"
+        text: root.errorText
+        visible: root.errorText.length > 0
+    }
+
     // ---- edit mode ("Edit opens the fields in place") --------------------------------------
     ColumnLayout {
         Layout.fillWidth: true
@@ -360,7 +382,8 @@ Sheet {
 
                 Layout.fillWidth: true
                 escClears: false
-                placeholder: qsTr("http://127.0.0.1:8080")
+                // An example, not a value: it must not read as a prefilled address.
+                placeholder: qsTr("http://host:8080")
 
                 onAccepted: root.triggerPrimary()
                 onTextChanged: root.editUrl = text

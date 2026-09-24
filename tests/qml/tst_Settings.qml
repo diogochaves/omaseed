@@ -302,6 +302,23 @@ TestCase {
         modal.serverSheet.close();
     }
 
+    // Review RUN-15: saving an empty form says what is missing instead of doing nothing.
+    function test_saving_an_empty_server_says_name_and_url_are_required() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        modal.showPane(1);
+        const sheet = modal.serverSheet;
+        sheet.openNew();
+        sheet.actionTriggered("save");
+        verify(sheet.opened);
+        compare(App.serverList.count, 0);
+        compare(sheet.errorText, "name and URL are required");
+        sheet.close();
+        sheet.openNew();
+        compare(sheet.errorText, "", "the refusal outlived the sheet");
+        sheet.close();
+    }
+
     function test_the_server_sheet_masks_the_key_and_switches_to_the_fields() {
         const id = testCase.addTestServer("playground", "http://127.0.0.1:8081");
         const modal = createTemporaryObject(modalComponent, testCase);
