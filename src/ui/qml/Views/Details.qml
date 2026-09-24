@@ -665,10 +665,20 @@ Item {
                     objectName: "headLabels"
                     text: !root.torrent ? qsTr("pick a row in the table") : metaLine.labels
                     visible: !root.torrent || metaLine.labelsFit
-                    width: !visible ? 0 : !root.torrent ? Math.min(implicitWidth, metaLine.width)
-                                                        : Math.max(0, Math.min(implicitWidth,
-                                                                               metaLine.width - Math.ceil(
-                                                                                   joinedMetrics.advanceWidth)))
+                    // Measured with a TextMetrics, not implicitWidth: an eliding Text handed
+                    // its text while its width was 0 kept an implicitWidth of 0 once shown,
+                    // so the head read " · added …" with no labels (review VER-2).
+                    width: !root.torrent ? Math.min(Math.ceil(labelsMetrics.advanceWidth), metaLine.width)
+                                         : Math.max(0, Math.min(Math.ceil(labelsMetrics.advanceWidth),
+                                                                metaLine.width - Math.ceil(
+                                                                    joinedMetrics.advanceWidth)))
+                }
+
+                TextMetrics {
+                    id: labelsMetrics
+
+                    font: labelsText.font
+                    text: labelsText.text
                 }
 
                 // The date with its separator, measured apart from `addedText` (whose text
@@ -684,7 +694,7 @@ Item {
                 Text {
                     id: addedText
 
-                    anchors.left: labelsText.right
+                    anchors.left: labelsText.visible ? labelsText.right : parent.left
                     color: Theme.dimForeground
                     elide: Text.ElideRight
                     font.family: Theme.fontFamily
@@ -695,7 +705,15 @@ Item {
                     text: !root.torrent || metaLine.added.length === 0 ? "" : metaLine.labelsFit
                                                                              ? " · " + metaLine.added
                                                                              : metaLine.added
-                    width: Math.min(implicitWidth, metaLine.width - labelsText.width)
+                    width: Math.max(0, Math.min(Math.ceil(addedMetrics.advanceWidth),
+                                                metaLine.width - (labelsText.visible ? labelsText.width : 0)))
+                }
+
+                TextMetrics {
+                    id: addedMetrics
+
+                    font: addedText.font
+                    text: addedText.text
                 }
             }
         }

@@ -864,7 +864,7 @@ TestCase {
         const added = findChild(view, "headAdded");
         verify(labels !== null && added !== null);
         verify(added.text.startsWith(" · added"));
-        compare(added.width, added.implicitWidth);
+        verify(!added.truncated, "the date was cut");
         verify(labels.truncated, "the tags did not give way");
         verify(added.x + added.width <= view.width);
     }
@@ -882,6 +882,34 @@ TestCase {
 
         view.width = Theme.space(20);
         verify(added.width <= 0 || added.x + added.width <= view.width, "the date drew past the pane");
+    }
+
+    // Review VER-2: the pane is created with the torrent but no width yet (the first
+    // layout), then opens. The category and tags must show, not a bare ` · added …`.
+    function test_the_head_shows_the_labels_when_the_pane_widens_after_the_torrent() {
+        testCase.select(testCase.bbbName);
+        const row = App.torrentRow(testCase.hashOf(testCase.bbbName));
+        const view = createTemporaryObject(detailsComponent, testCase, {"width": 0, "torrent": row});
+        wait(0);
+        view.width = 450;
+        wait(0);
+        const labels = findChild(view, "headLabels");
+        const added = findChild(view, "headAdded");
+        verify(labels.text.length > 0, "the demo row has no category or tags");
+        verify(labels.visible, "the labels are hidden at 450 px");
+        verify(labels.width > 0, "the labels are laid out with no width");
+        verify(!labels.truncated, "the labels are cut with room to spare");
+        verify(added.text.startsWith(" · added"));
+        verify(added.x >= labels.width, "the date overlaps the labels");
+    }
+
+    // Review VER-2: a fresh pane at a normal width shows the labels straight away.
+    function test_a_fresh_head_shows_the_labels() {
+        const view = testCase.select(testCase.bbbName);
+        wait(0);
+        const labels = findChild(view, "headLabels");
+        verify(labels.visible);
+        verify(labels.width > 0, "the labels are laid out with no width");
     }
 
     TextMetrics {
