@@ -487,9 +487,15 @@ Item {
                         anchors.fill: parent
                         hoverEnabled: false
 
+                        // In a multi-select a click is `space` on that row, not `enter`:
+                        // `enter` applies the whole selection (the tags picker), so a
+                        // click that activated could never pick a tag (KIT-4).
                         onClicked: {
                             root.cursorIndex = row.index;
-                            root.activate();
+                            if (root.multi)
+                                root.toggled(row.index, row.modelData);
+                            else
+                                root.activate();
                         }
                     }
                 }

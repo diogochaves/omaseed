@@ -349,6 +349,42 @@ TestCase {
         compare(multi.query, "", "space was typed into a multi-select's query");
     }
 
+    // KIT-4: in a multi-select a click toggles the clicked row; it does not activate (which
+    // applies the whole selection and closes the tags picker).
+    function test_a_click_in_a_multi_select_toggles_that_row() {
+        const multi = createTemporaryObject(multiComponent, testCase);
+        const toggled = createTemporaryObject(toggledSpy, testCase, {
+                                                  "target": multi
+                                              });
+        const activated = createTemporaryObject(activatedSpy, testCase, {
+                                                    "target": multi
+                                                });
+        multi.open();
+        waitForRendering(multi.listView);
+        const row = multi.listView.itemAtIndex(2);
+        verify(row, "row 2 is not laid out");
+        mouseClick(row);
+        compare(toggled.count, 1, "the click did not toggle the row");
+        compare(toggled.signalArguments[0][0], 2);
+        compare(toggled.signalArguments[0][1].title, "movies");
+        compare(activated.count, 0, "the click activated the palette");
+        compare(multi.cursorIndex, 2);
+        multi.close();
+    }
+
+    function test_a_click_in_a_single_select_activates_that_row() {
+        const palette = createTemporaryObject(paletteComponent, testCase);
+        const activated = createTemporaryObject(activatedSpy, testCase, {
+                                                    "target": palette
+                                                });
+        palette.open();
+        waitForRendering(palette.listView);
+        mouseClick(palette.listView.itemAtIndex(1));
+        compare(activated.count, 1);
+        compare(activated.signalArguments[0][0], 1);
+        palette.close();
+    }
+
     // N2: a reorderable list asks to move the cursor's row; the caller owns the order.
     function test_alt_arrows_ask_to_move_the_row_in_a_reorderable_list() {
         const palette = createTemporaryObject(multiComponent, testCase, {
