@@ -160,6 +160,9 @@ public:
     bool hasCredentials() const;
     /// Forgets key, credentials and any session cookie, and cancels all outstanding work.
     void clearAuth();
+    /// Lets the next auth failure log in once more after the server refused a login. For a
+    /// deliberate user retry only: the latch exists because repeated failures ban the IP.
+    void allowLoginAgain();
 
     AuthState authState() const;
 
@@ -389,7 +392,7 @@ private:
     QList<JobPtr> m_backingOff; ///< GETs waiting out a retry delay
     bool m_loginInFlight = false;
     /// The server rejected our username/password. No automatic re-login until
-    /// setCredentials() or clearAuth(): repeated failures get the IP banned.
+    /// setCredentials(), clearAuth() or allowLoginAgain(): repeated failures get the IP banned.
     bool m_loginRejected = false;
 };
 

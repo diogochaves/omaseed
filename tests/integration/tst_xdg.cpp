@@ -209,8 +209,10 @@ void TestXdg::parseAddableListKeepsOrderAndDropsJunk()
 
 void TestXdg::parseAddableListSplitsLinksOnOneLine()
 {
-    const QString a = QStringLiteral("magnet:?xt=urn:btih:c12fe1c06bba254a9dc9f519b335aa7c1367a88a");
-    const QString b = QStringLiteral("magnet:?xt=urn:btih:d12fe1c06bba254a9dc9f519b335aa7c1367a88b");
+    const QString a =
+        QStringLiteral("magnet:?xt=urn:btih:c12fe1c06bba254a9dc9f519b335aa7c1367a88a");
+    const QString b =
+        QStringLiteral("magnet:?xt=urn:btih:d12fe1c06bba254a9dc9f519b335aa7c1367a88b");
     const QList<Addable> addables =
         Xdg::parseAddableList(QStringLiteral("%1 %2\thttps://example.com/c.torrent").arg(a, b));
     QCOMPARE(addables.size(), 3);

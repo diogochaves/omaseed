@@ -804,11 +804,14 @@ TestCase {
         verify(files.rowOfPath(path) !== from, "the re-sort did not move the row");
         compare(files.pathAt(view.cursorIndex), path, "the cursor stayed on the old index");
         verify(view.editing, "the rename closed");
+        compare(findChild(view, "filesTab").renamingRow, files.rowOfPath(path),
+                "the editor stayed on the old index");
         wait(0); // the editor takes the keyboard back once the reset has settled
         keyClick("x");
         keyClick(Qt.Key_Return);
         compare(renameSpy.count, 1);
         compare(renameSpy.signalArguments[0][1], path, "the rename went to another file");
+        compare(renameSpy.signalArguments[0][3], false, "a file was renamed as a folder");
         const dir = path.substring(0, path.lastIndexOf("/") + 1);
         const ext = path.substring(path.lastIndexOf("."));
         compare(renameSpy.signalArguments[0][2], dir + "Lx" + ext);

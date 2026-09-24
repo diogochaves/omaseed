@@ -4,6 +4,7 @@
 #include "core/Server.hpp"
 #include "core/ServerStore.hpp"
 #include "core/SyncEngine.hpp"
+#include "core/TorrentFile.hpp"
 #include "integration/Tray.hpp"
 #include "ui/app/App.hpp"
 
@@ -11,11 +12,12 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QSignalSpy>
-#include <QThread>
-#include <QTemporaryDir>
 #include <QTcpServer>
 #include <QTcpSocket>
+#include <QTemporaryDir>
 #include <QTest>
+#include <QThread>
+#include <QUrlQuery>
 
 #include <memory>
 
@@ -57,6 +59,10 @@ private slots:
 
     // APP-12
     void aSecondPressBeforeTheNextSyncDoesNotUndoTheToggle();
+    void limitsCarryTheTorrentsInactiveSeedingTime();
+
+    // REG-2
+    void retryAfterARefusedLoginLogsInOnceMore();
 
 private:
     QTemporaryDir m_dir;
@@ -176,9 +182,9 @@ void TestAppGlue::torrentIdIsTheTruncatedV2HashWhenThereIsOne()
 {
     // As qBittorrent keys them (checked live on :8081: a hybrid's `hash` is its v2 hash's
     // first 40 characters, `infohash_v1` differs).
-    QCOMPARE(App::torrentIdFor(kV1, kV2), kV2.left(40));
-    QCOMPARE(App::torrentIdFor(QString(), kV2), kV2.left(40));
-    QCOMPARE(App::torrentIdFor(kV1.toUpper(), QString()), kV1);
+    QCOMPARE(omaseed::core::TorrentFile::torrentIdFor(kV1, kV2), kV2.left(40));
+    QCOMPARE(omaseed::core::TorrentFile::torrentIdFor(QString(), kV2), kV2.left(40));
+    QCOMPARE(omaseed::core::TorrentFile::torrentIdFor(kV1.toUpper(), QString()), kV1);
 }
 
 void TestAppGlue::aHybridMagnetIsAddedUnderItsV2Id()
@@ -268,12 +274,18 @@ namespace {
 
 /// Just enough qBittorrent for a toggle: one torrent that stays `seq_dl: false` in every
 /// maindata (as it would until the server's next answer shows the change), and a count of
-/// toggle requests.
+/// toggle requests. It also keeps the last torrents/setShareLimits body.
 class ToggleServer : public QTcpServer
 {
 public:
     int toggles = 0;
+    QByteArray shareLimitsBody;
     QString hash = QStringLiteral("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+    /// With requireLogin, everything but auth/login wants the SID cookie, and a login is
+    /// refused while refuseLogin is set.
+    bool requireLogin = false;
+    bool refuseLogin = false;
+    int logins = 0;
 
 protected:
     void incomingConnection(qintptr descriptor) override
@@ -294,21 +306,39 @@ protected:
             if (buffer->size() < headerEnd + 4 + length)
                 return;
             const QByteArray target = buffer->left(buffer->indexOf('\n')).split(' ').value(1);
+            const QByteArray requestBody = buffer->mid(headerEnd + 4, length);
+            const bool hasCookie = buffer->left(headerEnd).contains("SID=ok");
             buffer->clear();
+            QByteArray status = "200 OK";
+            QByteArray extraHeaders;
             QByteArray body = "Ok.";
-            if (target.startsWith("/api/v2/app/version"))
+            if (target.startsWith("/api/v2/auth/login")) {
+                ++logins;
+                if (refuseLogin) {
+                    status = "403 Forbidden";
+                    body = "Forbidden";
+                } else {
+                    extraHeaders = "Set-Cookie: SID=ok; path=/\r\n";
+                }
+            } else if (requireLogin && !hasCookie) {
+                status = "403 Forbidden";
+                body = "Forbidden";
+            } else if (target.startsWith("/api/v2/app/version"))
                 body = "v5.2.3";
             else if (target.startsWith("/api/v2/app/webapiVersion"))
                 body = "2.15.1";
             else if (target.startsWith("/api/v2/sync/maindata"))
                 body = QStringLiteral(R"({"rid":1,"full_update":true,"torrents":{"%1":)"
-                                      R"({"name":"t","seq_dl":false,"state":"downloading"}}})")
+                                      R"({"name":"t","seq_dl":false,"state":"downloading",)"
+                                      R"("inactive_seeding_time_limit":45}}})")
                            .arg(hash)
                            .toUtf8();
             else if (target.startsWith("/api/v2/torrents/toggleSequentialDownload"))
                 ++toggles;
-            socket->write("HTTP/1.1 200 OK\r\nContent-Length: " + QByteArray::number(body.size()) +
-                          "\r\nConnection: close\r\n\r\n" + body);
+            else if (target.startsWith("/api/v2/torrents/setShareLimits"))
+                shareLimitsBody = requestBody;
+            socket->write("HTTP/1.1 " + status + "\r\n" + extraHeaders + "Content-Length: " +
+                          QByteArray::number(body.size()) + "\r\nConnection: close\r\n\r\n" + body);
             socket->disconnectFromHost();
         });
     }
@@ -342,6 +372,76 @@ void TestAppGlue::aSecondPressBeforeTheNextSyncDoesNotUndoTheToggle()
 
     app.engine()->stop();
     qunsetenv("OMASEED_SERVER_URL");
+}
+
+void TestAppGlue::limitsCarryTheTorrentsInactiveSeedingTime()
+{
+    // Review VIEW-5 (d): the row carries `inactive_seeding_time_limit`, and setLimits sends
+    // what it is given (the Limits sheet passes the row's own value) instead of -2.
+    ToggleServer server;
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    QTemporaryDir home;
+    qputenv("XDG_CONFIG_HOME", home.path().toUtf8());
+    qputenv("OMASEED_SERVER_URL",
+            QStringLiteral("http://127.0.0.1:%1").arg(server.serverPort()).toUtf8());
+
+    App app;
+    app.start();
+    QTRY_COMPARE_WITH_TIMEOUT(app.torrents()->count(), 1, 5000);
+    const qint64 inactive =
+        app.torrentRow(server.hash).value(QStringLiteral("inactiveSeedingTimeLimit")).toLongLong();
+    QCOMPARE(inactive, qint64(45));
+
+    app.setLimits({server.hash}, -1, -1, -2, -2, QStringLiteral("Default"), inactive);
+    QTRY_VERIFY_WITH_TIMEOUT(!server.shareLimitsBody.isEmpty(), 3000);
+    const QUrlQuery body(QString::fromUtf8(server.shareLimitsBody));
+    QCOMPARE(body.queryItemValue(QStringLiteral("inactiveSeedingTimeLimit")), QStringLiteral("45"));
+    QCOMPARE(body.queryItemValue(QStringLiteral("seedingTimeLimit")), QStringLiteral("-2"));
+
+    // Called without it (the C++ default), the global sentinel still goes out.
+    server.shareLimitsBody.clear();
+    app.setLimits({server.hash}, -1, -1, -2, -2);
+    QTRY_VERIFY_WITH_TIMEOUT(!server.shareLimitsBody.isEmpty(), 3000);
+    QCOMPARE(QUrlQuery(QString::fromUtf8(server.shareLimitsBody))
+                 .queryItemValue(QStringLiteral("inactiveSeedingTimeLimit")),
+             QStringLiteral("-2"));
+
+    app.engine()->stop();
+    qunsetenv("OMASEED_SERVER_URL");
+}
+
+void TestAppGlue::retryAfterARefusedLoginLogsInOnceMore()
+{
+    // Review REG-2: after one refused login the client stops logging in by itself (IP bans),
+    // but the lost-server "retry" is the user asking for one more attempt.
+    ToggleServer server;
+    server.requireLogin = true;
+    server.refuseLogin = true;
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    QTemporaryDir home;
+    qputenv("XDG_CONFIG_HOME", home.path().toUtf8());
+    qputenv("OMASEED_SERVER_URL",
+            QStringLiteral("http://127.0.0.1:%1").arg(server.serverPort()).toUtf8());
+    qputenv("OMASEED_USERNAME", "admin");
+    qputenv("OMASEED_PASSWORD", "secret");
+
+    App app;
+    QSignalSpy authRequired(app.engine(), &omaseed::core::SyncEngine::authRequired);
+    app.start();
+    QTRY_COMPARE_WITH_TIMEOUT(authRequired.count(), 1, 5000);
+    QCOMPARE(server.logins, 1);
+
+    // The ban has expired: retry logs in again and the torrent arrives.
+    server.refuseLogin = false;
+    app.retryNow();
+    QTRY_COMPARE_WITH_TIMEOUT(app.torrents()->count(), 1, 5000);
+    QCOMPARE(server.logins, 2);
+    QCOMPARE(authRequired.count(), 1);
+
+    app.engine()->stop();
+    qunsetenv("OMASEED_SERVER_URL");
+    qunsetenv("OMASEED_USERNAME");
+    qunsetenv("OMASEED_PASSWORD");
 }
 
 QTEST_MAIN(TestAppGlue)

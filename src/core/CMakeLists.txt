@@ -16,6 +16,7 @@ qt_add_library(omaseed-core STATIC
     Format.hpp
     GlobalState.cpp
     GlobalState.hpp
+    HomeGuard.hpp
     MagnetLink.cpp
     MagnetLink.hpp
     PathMap.cpp

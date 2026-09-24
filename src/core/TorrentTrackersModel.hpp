@@ -35,8 +35,7 @@ enum class TrackerStatus {
 /// NotWorking, TrackerError and Unreachable: the three ways an announce can fail.
 constexpr bool isTrackerFailure(int status)
 {
-    return status == int(TrackerStatus::NotWorking) ||
-           status == int(TrackerStatus::TrackerError) ||
+    return status == int(TrackerStatus::NotWorking) || status == int(TrackerStatus::TrackerError) ||
            status == int(TrackerStatus::Unreachable);
 }
 

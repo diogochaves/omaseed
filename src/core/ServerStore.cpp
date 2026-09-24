@@ -126,8 +126,9 @@ bool ServerStore::save() const
     // the user's whole server list, so it is moved aside, never overwritten. If it cannot be
     // moved, nothing is written at all.
     if (!m_loadError.isEmpty() && QFile::exists(filePath())) {
-        const QString stem = filePath() + QStringLiteral(".unreadable-") +
-                             QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd-HHmmss"));
+        const QString stem =
+            filePath() + QStringLiteral(".unreadable-") +
+            QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd-HHmmss"));
         QString aside = stem;
         for (int n = 1; QFile::exists(aside); ++n)
             aside = stem + QStringLiteral("-%1").arg(n);

@@ -53,9 +53,14 @@ public:
     qint64 pieceCount = 0;
 
     /// The id qBittorrent keys this torrent by, and that every `hash=` parameter after the
-    /// add takes: the v1 infohash when the torrent has v1 metadata (v1 or hybrid), otherwise
-    /// the v2 infohash cut to its first 40 hex digits (BEP-52's truncated form).
+    /// add takes: see `torrentIdFor`.
     QString torrentId() const;
+
+    /// The id qBittorrent (libtorrent 2's `info_hash_t::get_best()`) keys a torrent by in
+    /// maindata: its v2 infohash cut to its first 40 hex digits (BEP-52's truncated form)
+    /// whenever it has one, hybrid and v2-only alike, else its v1 infohash. Lower case.
+    /// The one place this rule lives; App uses it for magnets and parsed files.
+    static QString torrentIdFor(const QString &infoHashV1, const QString &infoHashV2);
 
     /// Builds a magnet link (`magnet:?xt=urn:btih:...&dn=...&tr=...`) for this torrent: the
     /// v1 topic when it has v1 metadata, `xt=urn:btmh:1220<sha256>` when it has v2 (both for

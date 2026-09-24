@@ -149,8 +149,7 @@ void TorrentDetails::setVisible(bool visible)
 
 void TorrentDetails::updateTimers()
 {
-    const bool canPoll =
-        !m_demo && !m_client.isNull() && !m_hash.isEmpty() && m_visible && !m_gone;
+    const bool canPoll = !m_demo && !m_client.isNull() && !m_hash.isEmpty() && m_visible && !m_gone;
     if (canPoll && !m_timer->isActive())
         m_timer->start();
     else if (!canPoll && m_timer->isActive())
@@ -178,8 +177,8 @@ bool TorrentDetails::torrentExists() const
         return false;
     // The sync model drops a deleted torrent before the cursor moves off it; a model that
     // has rows but not this hash means there is nothing left to ask about.
-    return m_torrents.isNull() || m_torrents->rowCount() == 0
-           || m_torrents->indexOfHash(m_hash) >= 0;
+    return m_torrents.isNull() || m_torrents->rowCount() == 0 ||
+           m_torrents->indexOfHash(m_hash) >= 0;
 }
 
 void TorrentDetails::poll()

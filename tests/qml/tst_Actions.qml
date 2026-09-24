@@ -393,6 +393,35 @@ TestCase {
         compare(actions[defaultHash], "Default");
     }
 
+    // Review VIEW-5 (d): the sheet has no inactive-seeding field, so each torrent's own value
+    // goes back unchanged instead of -2 wiping it (Tears of Steel carries 45 in the demo).
+    function test_limits_keep_each_torrents_inactive_seeding_time() {
+        const spy = createTemporaryObject(limitsSpy, testCase);
+        const customHash = hashByName("Tears of Steel 4K (CC-BY)");
+        const globalHash = hashByName("Big Buck Bunny 4K (CC-BY)");
+        compare(App.torrentRow(customHash).inactiveSeedingTimeLimit, 45);
+        compare(App.torrentRow(globalHash).inactiveSeedingTimeLimit, -2);
+        view.limitsSheetPanel.openFor([customHash, globalHash]);
+        view.limitsSheetPanel.downloadField.text = "300";
+        view.limitsSheetPanel.triggerPrimary();
+        compare(spy.count, 2);
+        const inactive = {};
+        for (let i = 0; i < spy.count; ++i) {
+            compare(spy.signalArguments[i][0].length, 1);
+            inactive[spy.signalArguments[i][0][0]] = spy.signalArguments[i][6];
+        }
+        compare(inactive[customHash], 45, "the torrent's inactive limit was not carried");
+        compare(inactive[globalHash], -2);
+    }
+
+    function test_limits_reset_puts_inactive_seeding_time_back_on_global() {
+        const spy = createTemporaryObject(limitsSpy, testCase);
+        view.limitsSheetPanel.openFor([hashByName("Tears of Steel 4K (CC-BY)")]);
+        view.limitsSheetPanel.actionTriggered(qsTr("reset"));
+        compare(spy.count, 1);
+        compare(spy.signalArguments[0][6], -2);
+    }
+
     // ---- the limits sheet's share-limit action row (T5.5 Q14) ------------------------------
     function test_action_row_shows_only_on_a_server_that_knows_the_field() {
         // The demo library reports API 2.15.1 (App::applyDemoData), the version the row

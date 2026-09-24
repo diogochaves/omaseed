@@ -4,8 +4,8 @@ import Omaseed.Kit
 // The torrent table's progress cell (spec v2 §2 Fig. 2 `.tbl > div.pg`): a 2 px hairline
 // track, a filled bar in `color` (defaults `Theme.accent`, the caller passes a state colour
 // such as `Theme.stateSeeding`), and an optional right-aligned percent. `value` is 0..1; the
-// percent reads "100%" once it rounds to 100 and one decimal place below (e.g. "48.9%"), as
-// the spec's percent column does (`.tbl .pg span`).
+// percent reads "100%" only when complete and one decimal place, truncated, below it (e.g.
+// "48.9%"), as the spec's percent column does (`.tbl .pg span`).
 Item {
     id: root
 
@@ -14,11 +14,12 @@ Item {
     property bool showText: true
 
     readonly property real _clamped: Math.max(0, Math.min(1, root.value))
-    // What rounds to 100 prints as "100%", never "100.0%" (KIT-15), as `Format::percentCompact`
-    // does for the spec's Fig. 2 root row: 0.9996 reads like the finished rows beside it.
-    readonly property real _tenths: Math.round(root._clamped * 1000) / 10
-    readonly property string _percentText: root._tenths >= 100 ? qsTr("100%")
-                                                               : qsTr("%1%").arg(root._tenths.toFixed(1))
+    // The rule of `Format::percentCompact` (review REG-3): truncated, as qBittorrent does, so
+    // an unfinished torrent never reads "100%"; 0.9996 is "99.9%". Complete is "100%", never
+    // "100.0%" (KIT-15). The epsilon keeps 0.489 * 1000 (488.99999…) at 48.9.
+    readonly property real _tenths: Math.min(99.9, Math.floor(root._clamped * 1000 + 1e-6) / 10)
+    readonly property string _percentText: root._clamped >= 1 ? qsTr("100%")
+                                                              : qsTr("%1%").arg(root._tenths.toFixed(1))
 
     height: implicitHeight
     implicitHeight: Theme.space(2)

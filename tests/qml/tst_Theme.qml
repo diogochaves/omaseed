@@ -70,6 +70,13 @@ TestCase {
         fuzzyCompare(Theme.hairlineAlpha, 0.12, 0.001);
     }
 
+    // Review KIT-17: the spec's other alphas are named roles, at the spec's values.
+    function test_the_spec_only_alphas_are_roles() {
+        fuzzyCompare(Theme.rowRuleAlpha, 0.05, 0.0001);
+        fuzzyCompare(Theme.fillSelectedCursor, 0.24, 0.0001);
+        fuzzyCompare(Theme.keyValueRuleAlpha, 0.06, 0.0001);
+    }
+
     function test_window_alpha_starts_at_the_shells_default_and_is_writable() {
         // The harness points XDG at an empty directory, so no shell.toml: the fallback of
         // QUESTIONS Q1 applies, and the ground starts there.

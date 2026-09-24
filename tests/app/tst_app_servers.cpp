@@ -8,7 +8,9 @@
 // Two environment variables keep this test out of the real profile: `XDG_CONFIG_HOME` points
 // `servers.json`, `state.json` and the file-backed secrets at a temporary directory, and
 // `OMASEED_SECRET_SERVICE` gives the keychain backend a service name of its own, so nothing
-// here can touch an entry the application itself wrote.
+// here can touch an entry the application itself wrote. Every server these tests add lands
+// in that service (the strict key among them), and a failed QVERIFY skips the test's own
+// removeServer, so initTestCase and cleanupTestCase empty the whole test service.
 
 #include "core/ApiError.hpp"
 #include "core/QbtClient.hpp"
@@ -19,8 +21,10 @@
 #include "integration/ThemeReader.hpp"
 #include "ui/app/App.hpp"
 
+#include <QProcess>
 #include <QProcessEnvironment>
 #include <QSignalSpy>
+#include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QVariantMap>
@@ -41,6 +45,26 @@ QString strictKey()
     return QProcessEnvironment::systemEnvironment().value(QStringLiteral("QBT_STRICT_API_KEY"));
 }
 
+/// Deletes every keyring entry in the test service, whatever its key. QtKeychain cannot list
+/// a service, so this goes through libsecret's own CLI; QtKeychain's libsecret schema stores
+/// the service as the `server` attribute. Only ever `kSecretService`, never the app's own.
+void clearTestSecretService()
+{
+    const QString tool = QStandardPaths::findExecutable(QStringLiteral("secret-tool"));
+    if (tool.isEmpty()) {
+        qWarning("secret-tool not found: entries in %s are left behind",
+                 qPrintable(kSecretService));
+        return;
+    }
+    QProcess clear;
+    clear.start(tool, {QStringLiteral("clear"), QStringLiteral("server"), kSecretService});
+    if (!clear.waitForFinished(10000)) {
+        clear.kill();
+        clear.waitForFinished(1000);
+        qWarning("secret-tool clear timed out (a locked keyring?)");
+    }
+}
+
 QVariantMap strictFields()
 {
     return QVariantMap{
@@ -58,6 +82,7 @@ class TestAppServers : public QObject
 
 private Q_SLOTS:
     void initTestCase();
+    void cleanupTestCase();
     void init();
 
     void testServerReportsVersionAndCount();
@@ -79,6 +104,12 @@ void TestAppServers::initTestCase()
     qputenv("OMASEED_SECRET_SERVICE", kSecretService.toUtf8());
     // App falls back to the environment when no server is stored; these tests want the store.
     qunsetenv("OMASEED_SERVER_URL");
+    clearTestSecretService(); // whatever a crashed earlier run left
+}
+
+void TestAppServers::cleanupTestCase()
+{
+    clearTestSecretService();
 }
 
 void TestAppServers::init()

@@ -361,7 +361,8 @@ void TestServerListModel::credentialsInTheUrlNeverReachTheFile()
     QCOMPARE(server.url, QUrl(QStringLiteral("http://nas.invalid:9090")));
     QCOMPARE(server.username, QStringLiteral("bob"));
     bool found = false;
-    QCOMPARE(readSecret(secrets, id, SecretStore::Kind::Password, &found), QStringLiteral("hunter2"));
+    QCOMPARE(readSecret(secrets, id, SecretStore::Kind::Password, &found),
+             QStringLiteral("hunter2"));
     QVERIFY(found);
 
     QFile file(m_config.path() + QStringLiteral("/omaseed/servers.json"));

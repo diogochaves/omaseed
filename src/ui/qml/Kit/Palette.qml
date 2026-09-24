@@ -83,7 +83,7 @@ Item {
     readonly property int _margin: Theme.space(16)
     /// The rule between rows: the spec's `.palette .it` uses the foreground at 5 %, lighter
     /// than the 12 % hairline everywhere else.
-    readonly property color _rowRule: Theme.fill(0.05)
+    readonly property color _rowRule: Theme.fill(Theme.rowRuleAlpha)
 
     function open(): void {
         if (root._opened)

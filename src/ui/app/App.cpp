@@ -411,6 +411,9 @@ void App::retryNow()
 {
     if (m_demoMode || !m_hasServer)
         return;
+    // A retry the user asked for is one deliberate attempt: after a refused login (the ban
+    // expired, the password was fixed on the server) it may log in again (review REG-2).
+    m_client->allowLoginAgain();
     if (m_engine->isRunning())
         m_engine->retryNow();
     else
@@ -627,6 +630,7 @@ QVariantMap App::torrentRow(const QString &hash) const
     row.insert(QStringLiteral("upLimit"), torrent.upLimit);
     row.insert(QStringLiteral("ratioLimit"), torrent.ratioLimit);
     row.insert(QStringLiteral("seedingTimeLimit"), torrent.seedingTimeLimit);
+    row.insert(QStringLiteral("inactiveSeedingTimeLimit"), torrent.inactiveSeedingTimeLimit);
     row.insert(QStringLiteral("shareLimitAction"), torrent.shareLimitAction);
     row.insert(QStringLiteral("sizeText"), Format::size(torrent.size));
     row.insert(QStringLiteral("progressText"), Format::percent(torrent.progress));
@@ -1343,21 +1347,15 @@ void App::pickTorrentFile()
 {
     // The portal's chooser, not a widget window of ours: main() selects Qt's
     // xdgdesktopportal platform theme, which serves QFileDialog's static pickers.
-    QFileDialog::getOpenFileContent(tr("Torrent files (*.torrent);;All files (*)"),
-                                    [this](const QString &fileName, const QByteArray &bytes) {
-                                        if (fileName.isEmpty())
-                                            return; // cancelled
-                                        const QString token = QStringLiteral("file-%1").arg(
-                                            ++m_nextAddableToken, 4, 10, QLatin1Char('0'));
-                                        parseTorrentInBackground(
-                                            token, fileName, fileName, QString(), bytes);
-                                    });
-}
-
-QString App::torrentIdFor(const QString &infoHashV1, const QString &infoHashV2)
-{
-    const QString v2 = infoHashV2.trimmed().toLower();
-    return v2.isEmpty() ? infoHashV1.trimmed().toLower() : v2.left(40);
+    QFileDialog::getOpenFileContent(
+        tr("Torrent files (*.torrent);;All files (*)"),
+        [this](const QString &fileName, const QByteArray &bytes) {
+            if (fileName.isEmpty())
+                return; // cancelled
+            const QString token =
+                QStringLiteral("file-%1").arg(++m_nextAddableToken, 4, 10, QLatin1Char('0'));
+            parseTorrentInBackground(token, fileName, fileName, QString(), bytes);
+        });
 }
 
 QVariantMap App::findDuplicate(const QString &hashV1, const QString &hashV2) const
@@ -1375,7 +1373,7 @@ QVariantMap App::findDuplicate(const QString &hashV1, const QString &hashV2) con
     }
     // A torrent with a v2 hash is keyed by that hash cut to 40 characters, not by its v1 hash,
     // so anything the key misses is looked up in the rows' own infohash fields.
-    const QString id = torrentIdFor(v1, v2);
+    const QString id = TorrentFile::torrentIdFor(v1, v2);
     if (model->indexOfHash(id) >= 0)
         return torrentRow(id);
     for (int row = 0; row < model->count(); ++row) {
@@ -1443,8 +1441,9 @@ void App::addTorrent(const QVariantMap &request)
     const QString value = request.value(QStringLiteral("value")).toString();
     const QString token = request.value(QStringLiteral("token")).toString();
     // The key the new row will have in maindata, which is what the cursor and QML look for.
-    const QString hash = torrentIdFor(request.value(QStringLiteral("infoHashV1")).toString(),
-                                      request.value(QStringLiteral("infoHashV2")).toString());
+    const QString hash =
+        TorrentFile::torrentIdFor(request.value(QStringLiteral("infoHashV1")).toString(),
+                                  request.value(QStringLiteral("infoHashV2")).toString());
 
     if (kind != QLatin1String("magnet") && kind != QLatin1String("url") &&
         kind != QLatin1String("file")) {
@@ -1758,8 +1757,8 @@ void App::reannounce(const QStringList &hashes)
 
 void App::removeTracker(const QString &hash, const QString &url)
 {
-    if (hash.isEmpty() || url.isEmpty() || demoGuard(QStringLiteral("remove tracker"), 1)
-        || !m_hasServer)
+    if (hash.isEmpty() || url.isEmpty() || demoGuard(QStringLiteral("remove tracker"), 1) ||
+        !m_hasServer)
         return;
     m_client->torrentsRemoveTrackers(hash, QStringList{url})
         ->then(this, [this](const QbtResult<QByteArray> &result) {
@@ -1860,9 +1859,11 @@ void App::setLimits(const QStringList &hashes,
                     qint64 ul,
                     double ratio,
                     qint64 seedingMinutes,
-                    const QString &shareLimitAction)
+                    const QString &shareLimitAction,
+                    qint64 inactiveSeedingMinutes)
 {
-    Q_EMIT limitsRequested(hashes, dl, ul, ratio, seedingMinutes, shareLimitAction);
+    Q_EMIT limitsRequested(
+        hashes, dl, ul, ratio, seedingMinutes, shareLimitAction, inactiveSeedingMinutes);
     if (hashes.isEmpty() || demoGuard(QStringLiteral("limits"), hashes.size()) || !m_hasServer)
         return;
 
@@ -1888,7 +1889,7 @@ void App::setLimits(const QStringList &hashes,
     std::optional<QbtClient::ShareLimitAction> action;
     if (apiVersion.isEmpty() || QbtClient::supportsShareLimitAction(apiVersion))
         action = QbtClient::shareLimitActionFromName(shareLimitAction);
-    m_client->torrentsSetShareLimits(hashes, ratio, seedingMinutes, -2, action)
+    m_client->torrentsSetShareLimits(hashes, ratio, seedingMinutes, inactiveSeedingMinutes, action)
         ->then(this, [this](const QbtResult<QByteArray> &result) {
             reportActionResult(QStringLiteral("limits"), result);
         });
@@ -2544,8 +2545,8 @@ void App::loadSettings()
     m_followOmarchyTheme = appearance.value(QStringLiteral("followOmarchyTheme")).toBool(true);
     m_baseSizeOverride = appearance.value(QStringLiteral("baseSizeOverride")).toInt(0);
     m_windowAlphaOverride = appearance.value(QStringLiteral("windowAlphaOverride")).toInt(0);
-    m_trayIconMode = oneOf(appearance.value(QStringLiteral("trayIconMode")).toString(),
-                           kTrayIconModes);
+    m_trayIconMode =
+        oneOf(appearance.value(QStringLiteral("trayIconMode")).toString(), kTrayIconModes);
     m_speedsAlignment =
         appearance.value(QStringLiteral("speedsAlignment")).toString(QStringLiteral("left")) ==
                 QLatin1String("right")

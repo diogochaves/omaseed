@@ -121,10 +121,9 @@ void TestTorrentTrackersModel::status_text_says_what_the_figure_says()
              QStringLiteral("tracker error · retry 4 min"));
     QCOMPARE(M::statusText(int(TrackerStatus::Unreachable), QString(), 0),
              QStringLiteral("unreachable"));
-    QCOMPARE(M::statusText(int(TrackerStatus::TrackerError),
-                           QStringLiteral("unregistered torrent"),
-                           0),
-             QStringLiteral("unregistered torrent"));
+    QCOMPARE(
+        M::statusText(int(TrackerStatus::TrackerError), QStringLiteral("unregistered torrent"), 0),
+        QStringLiteral("unregistered torrent"));
     QCOMPARE(M::statusText(int(TrackerStatus::NotContacted), QString(), 0),
              QStringLiteral("not contacted"));
     QCOMPARE(M::statusText(int(TrackerStatus::Updating), QString(), 0), QStringLiteral("updating"));
@@ -248,12 +247,13 @@ void TestTorrentTrackersModel::next_announce_is_an_epoch_time_or_seconds_left()
 void TestTorrentTrackersModel::a_relative_next_announce_still_reads()
 {
     TorrentTrackersModel model;
-    model.applyTrackers(QJsonArray{QJsonObject{
-                            {QStringLiteral("url"), QStringLiteral("udp://tracker.example.net:1/a")},
-                            {QStringLiteral("status"), int(TrackerStatus::Working)},
-                            {QStringLiteral("next_announce"), 1620},
-                        }},
-                        1790226000);
+    model.applyTrackers(
+        QJsonArray{QJsonObject{
+            {QStringLiteral("url"), QStringLiteral("udp://tracker.example.net:1/a")},
+            {QStringLiteral("status"), int(TrackerStatus::Working)},
+            {QStringLiteral("next_announce"), 1620},
+        }},
+        1790226000);
     QCOMPARE(at(model, 0, TorrentTrackersModel::StatusTextRole).toString(),
              QStringLiteral("working · 27 min"));
 
@@ -261,8 +261,7 @@ void TestTorrentTrackersModel::a_relative_next_announce_still_reads()
     model.applyTrackers(QJsonArray{QJsonObject{
         {QStringLiteral("url"), QStringLiteral("udp://tracker.example.net:1/a")},
         {QStringLiteral("status"), int(TrackerStatus::Working)},
-        {QStringLiteral("next_announce"),
-         double(QDateTime::currentSecsSinceEpoch() + 1650)},
+        {QStringLiteral("next_announce"), double(QDateTime::currentSecsSinceEpoch() + 1650)},
     }});
     const QString text = at(model, 0, TorrentTrackersModel::StatusTextRole).toString();
     QVERIFY2(text.startsWith(QStringLiteral("working · 27 min")), qPrintable(text));

@@ -1,6 +1,7 @@
 #include "core/ApiError.hpp"
 #include "core/FilterCounts.hpp"
 #include "core/GlobalState.hpp"
+#include "core/HomeGuard.hpp"
 #include "core/QbtClient.hpp"
 #include "core/SyncEngine.hpp"
 #include "core/TorrentModel.hpp"
@@ -184,7 +185,16 @@ int runSyncDemo()
 
     const QString fromEnv =
         QProcessEnvironment::systemEnvironment().value(QStringLiteral("QBT_TEST_URL"));
-    const QUrl url(fromEnv.isEmpty() ? QStringLiteral("http://127.0.0.1:8081") : fromEnv);
+    const QString urlText = fromEnv.isEmpty() ? QStringLiteral("http://127.0.0.1:8081") : fromEnv;
+    // The live tests' rule (review REG-7): a mistyped QBT_TEST_URL must not read the real
+    // library on :8080.
+    if (isHomeUrl(urlText)) {
+        qWarning().noquote() << QStringLiteral("refusing --demo sync against %1: port 8080 is "
+                                               "the real library (use :8081 or :8082)")
+                                    .arg(urlText);
+        return 2;
+    }
+    const QUrl url(urlText);
 
     QbtClient client;
     client.setBaseUrl(url);

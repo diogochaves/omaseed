@@ -325,6 +325,7 @@ private:
     void onNotifierActionInvoked(const QString &eventClass,
                                  const QString &subjectId,
                                  const QString &actionKey);
+
 public:
     /// The chosen server's PathMap applied to a server-side content path; the input unchanged
     /// (and unusable as a local path) when no mapping applies or Settings' "apply path map"
@@ -559,13 +560,16 @@ public:
     /// reached — Default, Stop, Remove, RemoveWithContent, EnableSuperSeeding; empty reads
     /// as Default. It goes on the wire when `supportsShareLimitAction` is true (Default
     /// included: 5.2.3 answers 400 without the field) and is left off for a server known to
-    /// be older than API 2.15.1.
+    /// be older than API 2.15.1. `inactiveSeedingMinutes` rides in the same call (same
+    /// sentinels); the sheet has no field for it, so it passes each torrent's own value
+    /// (`torrentRow().inactiveSeedingTimeLimit`) and an untouched limit survives the apply.
     Q_INVOKABLE void setLimits(const QStringList &hashes,
                                qint64 dl,
                                qint64 ul,
                                double ratio,
                                qint64 seedingMinutes,
-                               const QString &shareLimitAction = QString());
+                               const QString &shareLimitAction = QString(),
+                               qint64 inactiveSeedingMinutes = -2);
 
     /// The sheet's fallback rename (the table's inline editor is the primary one).
     Q_INVOKABLE void rename(const QString &hash, const QString &name);
@@ -744,12 +748,8 @@ public:
 
     /// Fig. 10's test: the library row either infohash already occupies (`torrentRow`'s
     /// fields), or an empty map. Both hashes are matched against the maindata `infohash_v1`/
-    /// `infohash_v2` fields as well as the key (see `torrentIdFor`).
+    /// `infohash_v2` fields as well as the key (see `TorrentFile::torrentIdFor`).
     Q_INVOKABLE QVariantMap findDuplicate(const QString &hashV1, const QString &hashV2) const;
-
-    /// The id qBittorrent keys a torrent by in maindata: its v2 info-hash cut to 40 hex
-    /// characters when it has one (v2-only and hybrid alike), else its v1 hash. Lower case.
-    static QString torrentIdFor(const QString &infoHashV1, const QString &infoHashV2);
 
     /// Adds what the sheet holds: `parseAddable`'s map plus `category`, `tags` (list),
     /// `savePath`, `autoTMM`, `contentLayout` ("Original" | "Subfolder" | "NoSubfolder"),
@@ -922,7 +922,8 @@ Q_SIGNALS:
                          qint64 ul,
                          double ratio,
                          qint64 seedingMinutes,
-                         QString shareLimitAction);
+                         QString shareLimitAction,
+                         qint64 inactiveSeedingMinutes);
     // --- end T5.5 Q14 ----------------------------------------------------------------------
 
     // --- docs/08 §3: the hero's ⋯ menu -----------------------------------------------------

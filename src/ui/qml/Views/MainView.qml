@@ -850,7 +850,10 @@ Item {
     Connections {
         /// `a`, the hero's `+`, the tray.
         function onAddRequested(): void {
-            addSheet.openBlank();
+            if (root.firstRun) // the tray's `add…`: held like a hand-off (review REG-6)
+                root._pendingBlankAdd = true;
+            else
+                addSheet.openBlank();
         }
 
         /// The browser's `magnet:` / `.torrent` hand-off (T1.4's second instance).
@@ -863,7 +866,10 @@ Item {
 
         /// `,`, the hero's gear, the tray's `settings…`, the disconnected banner.
         function onOpenSettings(): void {
-            settingsModal.open();
+            if (root.firstRun) // the tray's `settings…`: held like a hand-off (review REG-6)
+                root._pendingSettings = true;
+            else
+                settingsModal.open();
         }
 
         /// T4.3's seam: an action the server refused, on the footer for a few seconds.
@@ -1719,15 +1725,27 @@ Item {
     /// would open invisible under the page and take its keyboard, with no server to add to;
     /// they wait here and open the sheet once setup is done.
     property var _pendingAdds: []
+    /// The tray's `add…` and `settings…` during first run, held the same way.
+    property bool _pendingBlankAdd: false
+    property bool _pendingSettings: false
     /// The page, for the tests; `_firstRunDetect: false` keeps them off port 8080's probe.
     readonly property alias firstRunLoader: firstRunLoader
     property bool _firstRunDetect: true
 
     function _openPendingAdds(): void {
         const pending = root._pendingAdds;
+        const blank = root._pendingBlankAdd;
+        const settings = root._pendingSettings;
         root._pendingAdds = [];
+        root._pendingBlankAdd = false;
+        root._pendingSettings = false;
+        // One overlay at a time: an add asked for wins over settings.
         if (pending.length > 0)
             addSheet.openList(pending, "browser");
+        else if (blank)
+            addSheet.openBlank();
+        else if (settings)
+            settingsModal.open();
     }
 
     // The one release besides `finished()`: a demo library arriving later (the QML tests

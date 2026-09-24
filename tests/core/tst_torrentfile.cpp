@@ -37,6 +37,7 @@ private slots:
     void padFilesAreLeftOut();
     void filesKeepTheirMetainfoOrder();
     void torrentIdIsV1WhenPresentAndTruncatedV2Otherwise();
+    void torrentIdOfAHybridIsItsTruncatedV2Hash();
     void rejectsGarbage();
 };
 
@@ -191,6 +192,40 @@ void TestTorrentFile::torrentIdIsV1WhenPresentAndTruncatedV2Otherwise()
     QCOMPARE(v2.torrentId(), v2.infoHashV2.left(40));
     QCOMPARE(v2.files.size(), 1);
     QCOMPARE(v2.files.first().path, QStringLiteral("V2Stub.bin"));
+}
+
+void TestTorrentFile::torrentIdOfAHybridIsItsTruncatedV2Hash()
+{
+    // A hybrid (v1 "pieces" and v2 "file tree" in one info dict). qBittorrent keys it by
+    // libtorrent's info_hash_t::get_best(): the v2 hash cut to 40 hex digits, not the v1 hash.
+    // The parser does not check that the two piece layouts agree, so a stub is enough.
+    const QByteArray info = QByteArrayLiteral("d"
+                                              "9:file treed6:Hy.bind0:d6:lengthi16384e"
+                                              "11:pieces root32:") +
+                            QByteArray(32, 'r') +
+                            QByteArrayLiteral("eee"
+                                              "6:lengthi16384e"
+                                              "12:meta versioni2e"
+                                              "4:name6:Hy.bin"
+                                              "12:piece lengthi16384e"
+                                              "6:pieces20:") +
+                            QByteArray(20, 'p') + QByteArrayLiteral("e");
+    const TorrentFile hybrid =
+        TorrentFile::parse(QByteArrayLiteral("d4:info") + info + QByteArrayLiteral("e"));
+    QVERIFY(hybrid.isValid());
+    QCOMPARE(hybrid.infoHashV1.size(), 40);
+    QCOMPARE(hybrid.infoHashV2.size(), 64);
+    QVERIFY(hybrid.infoHashV1 != hybrid.infoHashV2.left(40));
+    QCOMPARE(hybrid.torrentId(), hybrid.infoHashV2.left(40));
+    QVERIFY(hybrid.magnetLink().contains(QStringLiteral("urn:btih:") + hybrid.infoHashV1));
+
+    // The rule itself, as App uses it for magnets: trimmed, lower-cased, v2 wins.
+    const QString v1 = QStringLiteral("fdc2dabac7590000000000000000000000000001");
+    const QString v2 =
+        QStringLiteral("81f2da56846c00000000000000000000000000000000000000000000000000ff");
+    QCOMPARE(TorrentFile::torrentIdFor(v1, v2.toUpper()), v2.left(40));
+    QCOMPARE(TorrentFile::torrentIdFor(QStringLiteral(" ") + v1.toUpper(), QString()), v1);
+    QCOMPARE(TorrentFile::torrentIdFor(QString(), QString()), QString());
 }
 
 void TestTorrentFile::rejectsGarbage()

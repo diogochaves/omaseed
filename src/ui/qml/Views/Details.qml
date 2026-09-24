@@ -263,16 +263,32 @@ Item {
     }
 
     function commitRename(text: string) {
-        const row = filesTab.renamingRow;
+        const open = filesTab.renamingRow >= 0;
         const path = root._renamePath;
         filesTab.renamingRow = -1;
         root._renamePath = "";
         root.forceActiveFocus();
-        // By the path the rename started on: a re-sort may have moved the rows since.
-        if (row < 0 || path.length === 0 || text.length === 0
+        // By the path the rename started on: a re-sort may have moved the rows since, so
+        // the name and the file-or-folder kind come from the row that path is on now.
+        const row = path.length > 0 ? root.details.files.rowOfPath(path) : -1;
+        if (!open || row < 0 || text.length === 0
                 || text === root.details.files.nameAt(row))
             return;
         App.renameTorrentFile(root.details.hash, path, text, root.details.files.isFolder(row));
+    }
+
+    /// The rows moved or were rebuilt: an open rename follows its file, or is dropped when
+    /// that file is gone.
+    function _followRename() {
+        if (filesTab.renamingRow < 0)
+            return;
+        const row = root.details.files.rowOfPath(root._renamePath);
+        if (row < 0) {
+            root.cancelRename();
+        } else if (row !== filesTab.renamingRow) {
+            filesTab.renamingRow = row;
+            Qt.callLater(filesTab.focusRenameEditor);
+        }
     }
 
     function cancelRename() {
@@ -797,6 +813,7 @@ Item {
         DetailsFilesTab {
             id: filesTab
 
+            objectName: "filesTab"
             anchors.fill: parent
             cursorIndex: root.filesCursor
             model: root.details.files
@@ -1081,12 +1098,14 @@ Item {
             root.filesCursorPath = root.details.files.pathAt(root.filesCursor);
         }
 
-        // Sorted by progress or remaining, a poll moves the rows: the cursor keeps its file.
+        // Sorted by progress or remaining, a poll moves the rows: the cursor and an open
+        // rename keep their file (review REG-1).
         function onReordered(): void {
             const row = root.details.files.rowOfPath(root.filesCursorPath);
             if (row >= 0)
                 root.filesCursor = row;
             root.filesCursorPath = root.details.files.pathAt(root.filesCursor);
+            root._followRename();
         }
 
         // Rows rebuilt (a live re-sort, a filter, a fold): the cursor and an open rename
@@ -1099,15 +1118,7 @@ Item {
                 root.filesCursor = row;
             else
                 root.filesCursorPath = files.pathAt(root.filesCursor);
-            if (filesTab.renamingRow >= 0) {
-                const renaming = files.rowOfPath(root._renamePath);
-                if (renaming < 0) {
-                    root.cancelRename();
-                } else {
-                    filesTab.renamingRow = renaming;
-                    Qt.callLater(filesTab.focusRenameEditor);
-                }
-            }
+            root._followRename();
         }
 
         target: root.details.files

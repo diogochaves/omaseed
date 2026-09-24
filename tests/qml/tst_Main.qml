@@ -833,12 +833,43 @@ TestCase {
         view.addDropped([magnet + "2"]);
         compare(view.addSheet.opened, false, "a drop opened the add sheet under the page");
 
-        view.firstRunLoader.item.finished();
+        (view.firstRunLoader.item as FirstRunPage).finished();
         compare(view.firstRun, false);
         compare(view.addSheet.opened, true, "the waiting link did not open once setup was done");
         compare(view.addSheet.sourceField.text, magnet);
         compare(view.addSheet.queue.length, 1);
         view.addSheet.dismiss();
+    }
+
+    // REG-6: the tray's `add…` and `settings…` during first run would open under the page
+    // and take its keyboard; they wait for setup like a hand-off does.
+    function test_the_trays_add_during_first_run_waits_for_setup() {
+        view._firstRunDetect = false;
+        view.firstRun = true;
+        verify(view.firstRunLoader.item !== null);
+        App.addRequested();
+        compare(view.addSheet.opened, false, "the tray's add… opened under the first-run page");
+        App.openSettings();
+        compare(view.settingsModal.opened, false, "settings… opened under the first-run page");
+
+        (view.firstRunLoader.item as FirstRunPage).finished();
+        compare(view.firstRun, false);
+        compare(view.addSheet.opened, true, "the waiting add… did not open once setup was done");
+        compare(view.settingsModal.opened, false, "two overlays opened at once");
+        view.addSheet.dismiss();
+    }
+
+    function test_the_trays_settings_during_first_run_waits_for_setup() {
+        view._firstRunDetect = false;
+        view.firstRun = true;
+        verify(view.firstRunLoader.item !== null);
+        App.openSettings();
+        compare(view.settingsModal.opened, false, "settings… opened under the first-run page");
+
+        (view.firstRunLoader.item as FirstRunPage).finished();
+        compare(view.firstRun, false);
+        compare(view.settingsModal.opened, true, "the waiting settings… did not open after setup");
+        view.settingsModal.close();
     }
 
     function test_the_details_pane_follows_the_cursor() {

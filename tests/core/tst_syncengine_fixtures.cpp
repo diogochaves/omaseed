@@ -175,6 +175,7 @@ private slots:
     void cadenceFollowsVisibility();
     void completionIsAnnouncedOnceAndNeverOnTheFirstFullUpdate();
     void aCompletionSeenOnlyInALaterFullUpdateIsAnnounced();
+    void aCompletionAfterARestartIsAnnounced();
     void aStalePollIsNotAppliedAfterAServerSwitch();
     void aTorrentAddedAndFinishedBetweenPollsIsAnnounced();
     void trackerErrorFlagReachesTheRowWithoutANotice();
@@ -437,6 +438,53 @@ void TestSyncEngineFixtures::aCompletionSeenOnlyInALaterFullUpdateIsAnnounced()
     engine.stop();
 
     QCOMPARE(completed.count(), 1); // once, not once per repeated full update
+    QCOMPARE(completed.first().at(0).toString(), hash);
+}
+
+// REG-5: stop() and start() again (App::retryNow after authRequired) keep the rows, so the
+// full update that follows still announces what finished while the engine was stopped.
+void TestSyncEngineFixtures::aCompletionAfterARestartIsAnnounced()
+{
+    const QString hash = QStringLiteral("4a4e3b1d2d0c1a8d1e6a9f0b3c2d4e5f6a7b8c9d");
+    QJsonObject later = QJsonDocument::fromJson(m_full).object();
+    QJsonObject torrents = later.value(QStringLiteral("torrents")).toObject();
+    QJsonObject row = torrents.value(hash).toObject();
+    row.insert(QStringLiteral("progress"), 1);
+    row.insert(QStringLiteral("completion_on"), 1789834338);
+    row.insert(QStringLiteral("downloaded"), 1412693197);
+    row.insert(QStringLiteral("state"), QStringLiteral("uploading"));
+    torrents.insert(hash, row);
+    later.insert(QStringLiteral("torrents"), torrents);
+    later.insert(QStringLiteral("rid"), 9);
+
+    FixtureServer server;
+    QVERIFY(server.start());
+    server.setMainData({m_full});
+
+    QbtClient client;
+    client.setBaseUrl(server.url());
+    SyncEngine engine;
+    engine.setClient(&client);
+    engine.setIntervals(std::chrono::milliseconds(10000),
+                        std::chrono::milliseconds(10000),
+                        std::chrono::milliseconds(10000),
+                        std::chrono::milliseconds(10000));
+    QSignalSpy completed(&engine, &SyncEngine::torrentCompleted);
+    QSignalSpy firstSync(&engine, &SyncEngine::firstSyncFinished);
+
+    engine.start();
+    QVERIFY(firstSync.wait(5000));
+    engine.stop();
+    QCOMPARE(completed.count(), 0);
+
+    // The download finishes while the engine is stopped; the restart polls from rid 0.
+    server.setMainData({QJsonDocument(later).toJson(QJsonDocument::Compact)});
+    const int before = server.mainDataRequests;
+    engine.start();
+    QVERIFY(waitFor([&] { return server.mainDataRequests > before && engine.rid() == 9; }));
+    engine.stop();
+
+    QCOMPARE(completed.count(), 1);
     QCOMPARE(completed.first().at(0).toString(), hash);
 }
 
