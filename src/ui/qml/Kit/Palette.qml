@@ -107,6 +107,7 @@ Item {
     /// back to row 0 when no row carries that key.
     function openOn(key: var): void {
         root.open();
+        root.cursorIndex = 0; // the fallback, not the row the last session left it on
         root.cursorToKey(key);
     }
 

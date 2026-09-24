@@ -504,6 +504,12 @@ TestCase {
         palette.openOn("movies");
         compare(palette.cursorIndex, 0);
         palette.close();
+
+        // KIT-16: not whatever row the last session left the cursor on.
+        palette.cursorIndex = 2;
+        palette.openOn("movies");
+        compare(palette.cursorIndex, 0, "an unknown key kept the previous cursor");
+        palette.close();
     }
 
     function test_cursor_to_key_moves_an_already_open_palette() {
