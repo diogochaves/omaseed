@@ -318,9 +318,13 @@ private:
     void onNotifierActionInvoked(const QString &eventClass,
                                  const QString &subjectId,
                                  const QString &actionKey);
+public:
     /// The chosen server's PathMap applied to a server-side content path; the input unchanged
-    /// (and unusable as a local path) when no mapping applies.
+    /// (and unusable as a local path) when no mapping applies or Settings' "apply path map"
+    /// (`pathMapEnabled`) is off.
     QString mapContentPathToLocal(const QString &remotePath) const;
+
+private:
     /// "host:port" of the chosen server, for the server-lost body (spec §6 Fig. 21).
     QString serverHostPortText() const;
     /// Strips a `serverLost` ApiError down to the reason text the notice wants.

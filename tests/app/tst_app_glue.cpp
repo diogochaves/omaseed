@@ -1,6 +1,9 @@
 // Regression tests for App glue that needs no server: the install runner's failure paths,
 // and the other small App behaviours the 2026-09 review found broken.
 
+#include "core/Server.hpp"
+#include "core/ServerStore.hpp"
+#include "core/SyncEngine.hpp"
 #include "ui/app/App.hpp"
 
 #include <QFile>
@@ -32,6 +35,9 @@ private slots:
     // APP-6
     void torrentIdIsTheTruncatedV2HashWhenThereIsOne();
     void aHybridMagnetIsAddedUnderItsV2Id();
+
+    // APP-9
+    void pathMapFollowsItsSetting();
 
 private:
     QTemporaryDir m_dir;
@@ -167,6 +173,32 @@ void TestAppGlue::aHybridMagnetIsAddedUnderItsV2Id()
     app.addTorrent(map);
     QCOMPARE(finished.count(), 1);
     QCOMPARE(finished.constFirst().at(2).toString(), kV2.left(40));
+}
+
+void TestAppGlue::pathMapFollowsItsSetting()
+{
+    QTemporaryDir home;
+    qputenv("XDG_CONFIG_HOME", home.path().toUtf8());
+    {
+        // A server nobody listens on (port 9 on loopback): start() may poll it, harmlessly.
+        omaseed::core::Server server;
+        server.id = QStringLiteral("nas");
+        server.name = QStringLiteral("nas");
+        server.url = QUrl(QStringLiteral("http://127.0.0.1:9"));
+        server.pathMap.append({QStringLiteral("/srv/downloads"), QStringLiteral("/mnt/nas")});
+        omaseed::core::ServerStore store;
+        QVERIFY(store.add(server));
+    }
+
+    App app;
+    app.start();
+    const QString remote = QStringLiteral("/srv/downloads/iso/arch.iso");
+    QCOMPARE(app.mapContentPathToLocal(remote), QStringLiteral("/mnt/nas/iso/arch.iso"));
+    app.setPathMapEnabled(false);
+    QCOMPARE(app.mapContentPathToLocal(remote), remote);
+    app.setPathMapEnabled(true);
+    QCOMPARE(app.mapContentPathToLocal(remote), QStringLiteral("/mnt/nas/iso/arch.iso"));
+    app.engine()->stop();
 }
 
 QTEST_MAIN(TestAppGlue)

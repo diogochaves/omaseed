@@ -798,6 +798,8 @@ QString App::mapContentPathToLocal(const QString &remotePath) const
 {
     if (remotePath.isEmpty())
         return QString();
+    if (!pathMapEnabled())
+        return remotePath;
 
     PathMap map;
     for (const PathMapping &mapping : m_server.pathMap)
