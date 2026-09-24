@@ -103,6 +103,41 @@ TestCase {
         }
     }
 
+    // A view holding a sheet, which records every key that gets past it.
+    Component {
+        id: hostComponent
+
+        Item {
+            property alias sheet: hostedSheet
+            property var seen: []
+
+            anchors.fill: parent
+
+            Keys.onPressed: event => seen.push(event.key)
+
+            Sheet {
+                id: hostedSheet
+
+                actions: [
+                    {
+                        "text": "cancel",
+                        "cancel": true
+                    },
+                    {
+                        "text": "add",
+                        "primary": true
+                    }
+                ]
+                anchors.fill: parent
+                title: "Add torrent"
+
+                Toggle {
+                    text: "sequential download"
+                }
+            }
+        }
+    }
+
     // Fig. 10's shape: buttons, and a body that holds nothing the keyboard can reach.
     Component {
         id: confirmSheetComponent
@@ -284,6 +319,23 @@ TestCase {
         keyClick(Qt.Key_Return);
         compare(sheet.opened, false);
         compare(accepted.count, 0, "enter on cancel ran the primary");
+    }
+
+    // KIT-6: an open sheet is modal — a letter pressed on one of its buttons stops at the
+    // sheet instead of reaching the view that holds it; ctrl+q still goes on.
+    function test_keys_the_sheet_does_not_use_stop_at_it() {
+        const host = createTemporaryObject(hostComponent, testCase);
+        host.sheet.open();
+        keyClick(Qt.Key_Tab); // toggle -> cancel, a Button
+        compare(host.sheet.focusedIndex(), 1);
+
+        keyClick("x");
+        keyClick(Qt.Key_K, Qt.ControlModifier);
+        compare(host.seen.length, 0, "a key reached the view behind the sheet");
+        compare(host.sheet.opened, true);
+
+        keyClick(Qt.Key_Q, Qt.ControlModifier);
+        compare(host.seen, [Qt.Key_Q], "ctrl+q did not go on");
     }
 
     // ---- the focus trap ---------------------------------------------------------------

@@ -41,6 +41,32 @@ TestCase {
         }
     }
 
+    // A view holding the dialog, which records every key that gets past it.
+    Component {
+        id: hostComponent
+
+        Item {
+            property alias dialog: hostedDialog
+            property var seen: []
+
+            anchors.fill: parent
+
+            Keys.onPressed: event => seen.push(event.key)
+
+            ConfirmDialog {
+                id: hostedDialog
+
+                anchors.fill: parent
+                destructive: true
+                message: "Delete 2 torrents?"
+
+                Toggle {
+                    text: "also delete files from disk"
+                }
+            }
+        }
+    }
+
     Component {
         id: plainComponent
 
@@ -207,6 +233,22 @@ TestCase {
         keyClick(Qt.Key_Backtab);
         compare(dialog.cursor, 0);
         verify(dialog.activeFocus);
+    }
+
+    // KIT-6: an open dialog is modal — even from its body's toggle, what it does not use
+    // stops at it; ctrl+q still goes on.
+    function test_keys_the_dialog_does_not_use_stop_at_it() {
+        const host = createTemporaryObject(hostComponent, testCase);
+        host.dialog.open();
+        keyClick("x");
+        keyClick(Qt.Key_Backtab); // cancel -> toggle
+        keyClick("x");
+        keyClick(Qt.Key_K, Qt.ControlModifier);
+        compare(host.seen.length, 0, "a key reached the view behind the dialog");
+        compare(host.dialog.opened, true);
+
+        keyClick(Qt.Key_Q, Qt.ControlModifier);
+        compare(host.seen, [Qt.Key_Q], "ctrl+q did not go on");
     }
 
     // ---- the destructive colours ------------------------------------------------------

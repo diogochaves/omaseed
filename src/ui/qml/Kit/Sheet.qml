@@ -57,6 +57,9 @@ Item {
     property string footerRight: ""
     /// Draw the panel alone, with no scrim and no centring (the gallery).
     property bool inline: false
+    /// While open, keys the sheet has no use for stop here instead of reaching the view
+    /// behind the scrim (KIT-6); only `ctrl+q` goes on, since quitting is never modal.
+    property bool modal: true
 
     /// The caller's rows. They are a `ColumnLayout`'s children: use `Layout.fillWidth`.
     default property alias content: bodyColumn.data
@@ -281,6 +284,11 @@ Item {
         root._focus(list[next]);
     }
 
+    /// The one key a modal overlay lets through: `ctrl+q`.
+    function _passesThrough(event: var): bool {
+        return (event.modifiers & Qt.ControlModifier) !== 0 && event.key === Qt.Key_Q;
+    }
+
     function _onKey(event: var): void {
         if (event.key === Qt.Key_Escape) {
             root.close();
@@ -308,7 +316,11 @@ Item {
     implicitWidth: root.sheetWidth
     visible: root.inline || root._opened
 
-    Keys.onPressed: event => root._onKey(event)
+    Keys.onPressed: event => {
+        root._onKey(event);
+        if (root.modal && root._opened && !event.accepted)
+            event.accepted = !root._passesThrough(event);
+    }
 
     Scrim {
         anchors.fill: parent

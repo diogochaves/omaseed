@@ -34,6 +34,9 @@ Item {
     /// Whether the scrim behind the panel paints the spec's 70 % ground (Fig. 11) or stays
     /// invisible while still eating the clicks underneath.
     property bool dimmed: true
+    /// While open, keys the menu has no use for stop here instead of reaching the view
+    /// behind the scrim (KIT-6); only `ctrl+q` goes on, since quitting is never modal.
+    property bool modal: true
 
     readonly property bool opened: root._opened
     readonly property alias panel: panel
@@ -120,6 +123,11 @@ Item {
         return -1;
     }
 
+    /// The one key a modal overlay lets through: `ctrl+q`.
+    function _passesThrough(event: var): bool {
+        return (event.modifiers & Qt.ControlModifier) !== 0 && event.key === Qt.Key_Q;
+    }
+
     function _onKey(event: var): void {
         if ((event.modifiers & Qt.ControlModifier) !== 0)
             return;
@@ -140,6 +148,14 @@ Item {
         case Qt.Key_Enter:
             root.activate(root.cursorIndex);
             break;
+        // KIT-2: unaccepted, `tab` goes on to the window, which moves the focus to whatever
+        // is next behind the scrim; the menu stays drawn but deaf. It moves the cursor.
+        case Qt.Key_Tab:
+            root.moveCursor((event.modifiers & Qt.ShiftModifier) ? -1 : 1);
+            break;
+        case Qt.Key_Backtab:
+            root.moveCursor(-1);
+            break;
         default:
             {
                 const at = root.indexOfKey(event.text);
@@ -156,7 +172,11 @@ Item {
     implicitWidth: root.menuWidth
     visible: root.inline || root._opened
 
-    Keys.onPressed: event => root._onKey(event)
+    Keys.onPressed: event => {
+        root._onKey(event);
+        if (root.modal && root._opened && !event.accepted)
+            event.accepted = !root._passesThrough(event);
+    }
 
     Scrim {
         id: scrim

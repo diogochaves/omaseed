@@ -91,6 +91,27 @@ TestCase {
         }
     }
 
+    // A view holding the palette, which records every key that gets past it.
+    Component {
+        id: hostComponent
+
+        Item {
+            property alias palette: hostedPalette
+            property var seen: []
+
+            anchors.fill: parent
+
+            Keys.onPressed: event => seen.push(event.key)
+
+            Palette {
+                id: hostedPalette
+
+                anchors.fill: parent
+                items: testCase.jumpRows
+            }
+        }
+    }
+
     // ---- geometry ---------------------------------------------------------------------
     function test_the_panel_is_four_hundred_and_eighty_wide_with_an_accent_edge() {
         const palette = createTemporaryObject(paletteComponent, testCase);
@@ -469,6 +490,21 @@ TestCase {
         palette.cursorToKey("nope");
         compare(palette.cursorIndex, 1, "an unknown key moved the cursor");
         palette.close();
+    }
+
+    // KIT-6: an open palette is modal — what neither it nor its query row uses stops at it,
+    // except ctrl+q.
+    function test_keys_the_palette_does_not_use_stop_at_it() {
+        const host = createTemporaryObject(hostComponent, testCase);
+        host.palette.open();
+
+        keyClick(Qt.Key_F5);
+        compare(host.seen.length, 0, "a key reached the view behind the palette");
+        compare(host.palette.opened, true);
+
+        keyClick(Qt.Key_Q, Qt.ControlModifier);
+        compare(host.seen, [Qt.Key_Q], "ctrl+q did not go on");
+        host.palette.close();
     }
 
     // ---- inline (the gallery) ---------------------------------------------------------

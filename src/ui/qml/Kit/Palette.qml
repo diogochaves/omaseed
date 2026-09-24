@@ -43,6 +43,9 @@ Item {
     property var hints: []
     property string footerRight: ""
     property bool inline: false
+    /// While open, keys the palette has no use for stop here instead of reaching the view
+    /// behind the scrim (KIT-6); only `ctrl+q` goes on, since quitting is never modal.
+    property bool modal: true
     /// The panel's maximum width; the spec's `.palette` is 480.
     property int paletteWidth: Theme.space(480)
     /// The row the keyboard is on.
@@ -202,6 +205,11 @@ Item {
         return Fuzzy.match(text, query);
     }
 
+    /// The one key a modal overlay lets through: `ctrl+q`.
+    function _passesThrough(event: var): bool {
+        return (event.modifiers & Qt.ControlModifier) !== 0 && event.key === Qt.Key_Q;
+    }
+
     function _onKey(event: var): void {
         const ctrl = (event.modifiers & Qt.ControlModifier) !== 0;
         const alt = (event.modifiers & Qt.AltModifier) !== 0;
@@ -266,7 +274,11 @@ Item {
     implicitWidth: root.paletteWidth
     visible: root.inline || root._opened
 
-    Keys.onPressed: event => root._onKey(event)
+    Keys.onPressed: event => {
+        root._onKey(event);
+        if (root.modal && root._opened && !event.accepted)
+            event.accepted = !root._passesThrough(event);
+    }
     onItemsChanged: root.cursorIndex = Math.max(0,
             Math.min(root.cursorIndex, root.items.length - 1))
 

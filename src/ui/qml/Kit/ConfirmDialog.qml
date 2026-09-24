@@ -32,6 +32,9 @@ Item {
     /// Red confirm button, and the cursor starts on cancel.
     property bool destructive: false
     property bool inline: false
+    /// While open, keys the dialog has no use for stop here instead of reaching the view
+    /// behind the scrim (KIT-6); only `ctrl+q` goes on, since quitting is never modal.
+    property bool modal: true
     /// 0 = cancel, 1 = confirm.
     property int cursor: 0
 
@@ -160,6 +163,11 @@ Item {
         }
     }
 
+    /// The one key a modal overlay lets through: `ctrl+q`.
+    function _passesThrough(event: var): bool {
+        return (event.modifiers & Qt.ControlModifier) !== 0 && event.key === Qt.Key_Q;
+    }
+
     function _onKey(event: var): void {
         switch (event.key) {
         case Qt.Key_Escape:
@@ -197,7 +205,11 @@ Item {
     implicitWidth: Theme.space(370)
     visible: root.inline || root._opened
 
-    Keys.onPressed: event => root._onKey(event)
+    Keys.onPressed: event => {
+        root._onKey(event);
+        if (root.modal && root._opened && !event.accepted)
+            event.accepted = !root._passesThrough(event);
+    }
 
     Scrim {
         anchors.fill: parent
