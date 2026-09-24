@@ -956,6 +956,32 @@ void App::createCategory(const QString &name)
     });
 }
 
+void App::createAndApplyCategory(const QStringList &hashes, const QString &name)
+{
+    if (name.isEmpty())
+        return;
+    if (m_demoMode || !m_hasServer) {
+        qInfo().noquote() << QStringLiteral("demo: create category %1 on %2 torrents")
+                                 .arg(name)
+                                 .arg(hashes.size());
+        return;
+    }
+    m_client->torrentsCreateCategory(name)->then(
+        this, [this, hashes, name](const QbtResult<QByteArray> &result) {
+            // 409 is "it exists already", which is what the set needs anyway.
+            if (result.isError() && result.error().kind() != ApiError::Kind::Conflict) {
+                reportActionResult(QStringLiteral("category"), result);
+                return;
+            }
+            if (hashes.isEmpty() || !m_hasServer)
+                return;
+            m_client->torrentsSetCategory(hashes, name)
+                ->then(this, [this](const QbtResult<QByteArray> &set) {
+                    reportActionResult(QStringLiteral("category"), set);
+                });
+        });
+}
+
 void App::applyCategory(const QStringList &hashes, const QString &name)
 {
     if (hashes.isEmpty())

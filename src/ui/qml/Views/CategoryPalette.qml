@@ -104,6 +104,12 @@ Palette {
     }
 
     onActivated: (index, item) => {
+        // On torrents, a new category is set only once the server has created it.
+        if (item.isCreate === true && !root.choiceMode) {
+            App.createAndApplyCategory(root.hashes, item.key);
+            root.close();
+            return;
+        }
         if (item.isCreate === true)
             App.createCategory(item.key);
         if (root.choiceMode) {

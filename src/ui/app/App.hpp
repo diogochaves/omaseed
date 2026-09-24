@@ -625,6 +625,10 @@ public:
 
     /// POST torrents/createCategory with no save path (Fig. 13's "new name creates it").
     Q_INVOKABLE void createCategory(const QString &name);
+    /// The category palette's `create "x"` on torrents: set the category only once the server
+    /// has created it (two parallel requests could set it first and get a 409). Both
+    /// failures reach the footer.
+    Q_INVOKABLE void createAndApplyCategory(const QStringList &hashes, const QString &name);
     /// POST torrents/setCategory. A no-op in demo mode beyond a log line.
     Q_INVOKABLE void applyCategory(const QStringList &hashes, const QString &name);
 
