@@ -964,6 +964,9 @@ Item {
             z: -1
         }
         onSearchChanged: text => App.filtered.text = text
+        // Review RUN-12: enter keeps the filter and gives the table back its keys, as `/`
+        // then enter does in vim or less.
+        onSearchAccepted: root.focusHome()
         onSearchCleared: root.clearFilter()
         onSettingsClicked: App.openSettings()
     }

@@ -147,6 +147,21 @@ TestCase {
         compare(view.focusArea, "table");
     }
 
+    // Review RUN-12: enter keeps the filter and hands the keyboard back to the table.
+    function test_enter_in_the_field_keeps_the_filter_and_goes_back_to_the_table() {
+        keyClick("/");
+        keyClick("f");
+        keyClick("e");
+        keyClick("d");
+        keyClick(Qt.Key_Return);
+        compare(App.filtered.text, "fed");
+        verify(view.table.activeFocus, "the caret stayed in the filter");
+        compare(view.focusArea, "table");
+        keyClick("j");
+        compare(App.filtered.text, "fed", "j was typed into the filter");
+        view.clearFilter();
+    }
+
     // docs/13: under the table the pane starts 260 tall, room for the band over the tabs.
     function test_the_bottom_pane_defaults_to_two_hundred_and_sixty() {
         compare(view.split.defaultSideHeight, Theme.space(260));
