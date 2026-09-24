@@ -795,6 +795,12 @@ public:
     Q_PROPERTY(bool firstRunNeeded READ firstRunNeeded NOTIFY serverChanged)
     bool firstRunNeeded() const { return m_servers->count() == 0; }
 
+    /// Why `servers.json` could not be read at start (corrupt, or from a newer build); empty
+    /// otherwise. First run then shows although the user has servers: this says why. The
+    /// unreadable file is never overwritten: the next save moves it aside first.
+    Q_PROPERTY(QString serversLoadError READ serversLoadError NOTIFY serverChanged)
+    QString serversLoadError() const { return m_servers->loadError(); }
+
     /// Starts `ServerDetector` (a TCP probe of 127.0.0.1:8080 — connect-and-close only, never
     /// an HTTP request — plus a `docker ps` and a `pgrep` check). Answers with
     /// `serversDetected()`, always exactly once. Safe to call again while a previous run is

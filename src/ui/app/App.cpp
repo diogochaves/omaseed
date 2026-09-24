@@ -69,6 +69,10 @@ App::App(QObject *parent)
     m_engine->setClient(m_client);
     m_filtered->setSourceModel(m_engine->torrents());
 
+    // Here rather than in start(): demo and QML-test Apps never call start(), and their
+    // `serverCount`/`firstRunNeeded` bindings must follow the store all the same.
+    connect(m_servers, &ServerStore::changed, this, &App::serverChanged);
+
     // The hero, the footer and the tray all read GlobalState and FilterCounts, so the tray
     // only has to be told when either of them moved.
     connect(m_engine->globalState(), &GlobalState::connectedChanged, this, &App::updateTray);
@@ -189,8 +193,10 @@ void App::start()
     if (m_demoMode)
         return;
 
-    m_servers->load();
-    connect(m_servers, &ServerStore::changed, this, &App::serverChanged);
+    if (!m_servers->load())
+        qWarning().noquote() << QStringLiteral("servers: %1; it is kept, and moved aside "
+                                               "before anything new is saved")
+                                    .arg(m_servers->loadError());
 
     if (m_servers->count() > 0) {
         configureFromStore();
