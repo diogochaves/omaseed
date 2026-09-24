@@ -187,6 +187,8 @@ Sheet {
     /// holds a magnet or a URL (and from `OMASEED_DEMO_ADD` under `--demo`, so Fig. 5 and
     /// Fig. 10 can be screenshot reproducibly).
     function openBlank(): void {
+    if (sheet.opened) // already up (the tray's add while the form is half filled): keep it
+    return;
     sheet.reset();
     const demo = App.demoAddText();
     const prefill = demo.length > 0 ? demo : sheet.clipboardText();
@@ -200,16 +202,27 @@ Sheet {
 
     /// One source, from a known place ("drop", "browser", …).
     function openWith(text: string, from: string): void {
-    sheet.reset();
-    sheet.loadText(text, from);
-    sheet.open();
+    sheet.openList([text], from);
 }
 
-    /// Several: the first opens the sheet, the rest queue behind it.
+    /// Several: the first opens the sheet, the rest queue behind it. A hand-off that arrives
+    /// while the sheet is already up never wipes the form the user is in: it joins the queue
+    /// (or fills the field, when that is still empty).
     function openList(list: var, from: string): void {
     if (!list || list.length === 0)
     return;
-    sheet.openWith(list[0], from);
+    if (sheet.opened) {
+        let rest = list;
+        if (sourceField.text.trim().length === 0) {
+            sheet.loadText(list[0], from);
+            rest = list.slice(1);
+        }
+        sheet.queue = sheet.queue.concat(rest);
+        return;
+    }
+    sheet.reset();
+    sheet.loadText(list[0], from);
+    sheet.open();
     sheet.queue = list.slice(1);
 }
 
@@ -249,8 +262,8 @@ Sheet {
     map["savePath"] = savePathField.text;
     map["autoTMM"] = sheet.autoTMM;
     map["contentLayout"] = sheet.layoutValue();
-    map["upLimitKb"] = parseInt(upLimitField.text, 10) || 0;
-    map["dlLimitKb"] = parseInt(dlLimitField.text, 10) || 0;
+    map["upLimitKb"] = sheet._limitKb(upLimitField.text);
+    map["dlLimitKb"] = sheet._limitKb(dlLimitField.text);
     map["rename"] = renameField.text.trim();
     map["firstLastPiecePrio"] = firstLastToggle.checked;
     map["filePriorities"] = sheet.showFiles && App.addFiles.customised
@@ -260,6 +273,17 @@ Sheet {
     map["stopped"] = stopped;
     return map;
 }
+
+    /// KB/s for a limit field, read as the Limits sheets read theirs: empty is no limit (0),
+    /// "1.5" is 2 (the API takes whole KB here), and anything else is NaN, which `submit`
+    /// refuses instead of adding the torrent unlimited.
+    function _limitKb(text: string): real {
+        const typed = text.trim();
+        if (typed.length === 0)
+            return 0;
+        const kb = Number(typed);
+        return Number.isFinite(kb) && kb >= 0 ? Math.round(kb) : NaN;
+    }
 
     /// The chip that is on, or "" for no category.
     function chosenCategory(): string {
@@ -307,6 +331,11 @@ Sheet {
             sheet.errorText = qsTr("every file is skipped: check at least one");
             return;
         }
+        if (Number.isNaN(sheet._limitKb(dlLimitField.text))
+                || Number.isNaN(sheet._limitKb(upLimitField.text))) {
+            sheet.errorText = qsTr("a speed limit is not a number");
+            return;
+        }
         const duplicate = App.findDuplicate(sheet.addable.infoHashV1, sheet.addable.infoHashV2);
         if (duplicate && duplicate.hash) {
             sheet.duplicateFound(duplicate);
@@ -326,6 +355,12 @@ Sheet {
             if (sheet.queue.length > 0) {
                 const next = sheet.queue[0];
                 sheet.queue = sheet.queue.slice(1);
+                // The Name row (docs/11 D1) belongs to the torrent just added; category, tags,
+                // path, limits and toggles stay on purpose, as one batch's settings.
+                sheet._programmatic = true;
+                renameField.text = "";
+                sheet._programmatic = false;
+                sheet.errorText = "";
                 sheet.loadText(next, sheet.source);
                 return;
             }

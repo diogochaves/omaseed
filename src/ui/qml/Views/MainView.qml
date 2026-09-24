@@ -105,16 +105,19 @@ Item {
         return null;
     }
 
-    /// True while anything is over the window.
     /// The rail groups folded on this server (docs/08 §5), saved with the table's state.
     property var railFolded: []
 
+    /// True while anything is over the window.
     readonly property bool overlayOpen: root.activeOverlay !== null
 
     // the window's state (spec §7)
     /// A configured, non-demo server that stopped answering: Fig. 23.
-    readonly property bool serverLost: App.hasServer && !App.demoMode
-                                       && !App.globalState.connected && !root.firstSync
+    readonly property bool serverLost: root._testServerLost
+                                       || (App.hasServer && !App.demoMode
+                                           && !App.globalState.connected && !root.firstSync)
+    /// A test seam: the QML tests run on the demo library, which never loses its server.
+    property bool _testServerLost: false
     /// A server that has not finished its first sync yet: Fig. 25.
     readonly property bool firstSync: App.hasServer && !App.demoMode
                                       && App.globalState.syncing && App.torrents.count === 0
@@ -223,7 +226,38 @@ Item {
     function clearFilter(): void {
         hero.searchField.text = "";
         App.filtered.text = "";
-        table.forceActiveFocus();
+        root.focusHome();
+    }
+
+    /// Where the keyboard lives when nothing else claims it: the table, or the read-only
+    /// guard over it while the server is lost (Fig. 23). Never while an overlay or the
+    /// first-run page is up: they own the keyboard until they close, and a state change
+    /// underneath them (the server dropping or coming back) must not take it away.
+    function focusHome(): void {
+        if (root.firstRun || root.overlayOpen)
+            return;
+        if (root.serverLost)
+            dimmed.forceActiveFocus();
+        else
+            table.forceActiveFocus();
+    }
+
+    /// An overlay that closes hands the keyboard back to whatever had it when it opened. That
+    /// may no longer be a fair home: the table while the server is lost (it would act past
+    /// the read-only guard), the guard once the server is back, or an item hidden meanwhile.
+    function _settleFocus(): void {
+        if (root.firstRun || root.overlayOpen)
+            return;
+        const item = root.Window.activeFocusItem;
+        const wrong = root.serverLost ? !dimmed.activeFocus
+                                      : (dimmed.activeFocus || !item || !item.visible);
+        if (wrong)
+            root.focusHome();
+    }
+
+    onOverlayOpenChanged: {
+        if (!root.overlayOpen)
+            Qt.callLater(root._settleFocus);
     }
 
     /// `i`: fold the details pane away (and stop its polls).
@@ -253,10 +287,6 @@ Item {
 
     /// `esc`, in the order Fig. 26 promises: clear, then filter, then close.
     function handleEscape(): void {
-        if (root.helpOpen) {
-            root.helpOpen = false;
-            return;
-        }
         if (table.selectedCount > 0) {
             table.clearSelection();
             return;
@@ -366,6 +396,28 @@ Item {
         }
     }
 
+    /// The Trackers and Peers tabs' keys (Fig. 3/4). `R` reannounces the torrent (the API has
+    /// no per-tracker reannounce) and `d` removes the tracker under the cursor. Adding a
+    /// tracker or a peer needs an input sheet and banning a peer is a permanent IP ban; both
+    /// wait for a design (review VIEW-6), so they say so instead of doing nothing.
+    function detailsRowAction(kind: string, action: string, value: string): void {
+        const hash = App.details.hash;
+        if (hash.length === 0)
+            return;
+        if (kind === "tracker" && action === "reannounce") {
+            App.reannounce([hash]);
+            root.flashFooterNote(qsTr("reannounced"));
+        } else if (kind === "tracker" && action === "remove") {
+            // DHT, PeX and LSD are rows of the list but not trackers of the torrent.
+            if (value.length === 0 || value.startsWith("** ["))
+                return;
+            App.removeTracker(hash, value);
+            root.flashFooterNote(qsTr("removed %1").arg(value));
+        } else {
+            root.flashFooterNote(qsTr("not in this version yet"));
+        }
+    }
+
     /// The details pane follows the table's cursor. It is a snapshot, not a binding, so it
     /// is taken again on every sync (see the Connections below).
     function refreshDetails(): void {
@@ -378,9 +430,8 @@ Item {
         if (root.helpOpen) {
             helpSheet.filterField.text = ""; // every opening starts on the whole map
             helpSheetPanel.open(); // the sheet hands the keyboard to HelpSheet and remembers
-        } else {                   // what had it, so `esc` lands back on the table
+        } else {                   // what had it, so `esc` lands back where it came from
             helpSheetPanel.close();
-            table.forceActiveFocus();
         }
     }
 
@@ -491,53 +542,81 @@ Item {
     }
 
     /// Runs a Keymap row's action from the help sheet's `enter` (docs/08 §4). Rows that name a
-    /// movement rather than a command (j k, g G, h l, 0–8, 1–4, space, v, esc) do nothing.
-    function runKeymapAction(action: string): void {
+    /// movement rather than a command (j k, g G, h l, 0–8, 1–4, space, v, esc) do nothing and
+    /// say so in the footer. False when nothing ran.
+    function runKeymapAction(action: string): bool {
+        // Fig. 23's read-only guard: from the `?` sheet of a lost server, only what the
+        // guard itself still lets through runs.
+        if (root.serverLost && ["settings", "hide", "quit"].indexOf(action) < 0)
+            return false;
         switch (action) {
+        case "cycleDetailsPlacement":
+            root.cycleDetailsPlacement();
+            return true;
+        case "detailsSmaller":
+            if (details.collapsed)
+                root.toggleDetails();
+            split.resizeBy(-Theme.space(40));
+            return true;
+        // The Files tab's commands run on the file under its cursor, as the keys would.
+        case "priorityMenu":
+        case "openFile":
+        case "collapseAll":
+            root._runInFiles(action === "priorityMenu" ? "priority" : action);
+            return true;
+        case "copy":
+            if (details.collapsed)
+                root.toggleDetails();
+            details.forceActiveFocus();
+            details.copyCurrent();
+            return true;
+        case "moveColumnUp": // the columns palette is where the columns move
+            columnsPalette.open();
+            return true;
         case "filter":
             root.focusSearch();
-            return;
+            return true;
         case "jump":
             jumpPalette.open();
-            return;
+            return true;
         case "selectAll":
             table.forceActiveFocus();
             table.selectAll();
-            return;
+            return true;
         case "add":
             App.addRequested();
-            return;
+            return true;
         case "actions":
             table.forceActiveFocus();
             table.requestActions();
-            return;
+            return true;
         case "toggleDetails":
             root.toggleDetails();
-            return;
+            return true;
         case "sort":
             sortPalette.openOnCurrent();
-            return;
+            return true;
         case "columns":
             columnsPalette.open();
-            return;
+            return true;
         case "altSpeed":
             App.toggleAltSpeed();
-            return;
+            return true;
         case "settings":
             App.openSettings();
-            return;
+            return true;
         case "more":
             root.openMoreMenu();
-            return;
+            return true;
         case "toggleRail":
             root.toggleRail();
-            return;
+            return true;
         case "hide":
             root.hideRequested();
-            return;
+            return true;
         case "quit":
             root.quitRequested();
-            return;
+            return true;
         case "stopStart":
         case "delete":
         case "recheck":
@@ -547,10 +626,19 @@ Item {
         case "copyMagnet":
             table.forceActiveFocus();
             root.torrentAction(action);
-            return;
+            return true;
         default:
-            return;
+            return false;
         }
+    }
+
+    /// A Files tab command from the help sheet: the pane shows, on Files, with the keyboard.
+    function _runInFiles(action: string): void {
+        if (details.collapsed)
+            root.toggleDetails();
+        details.activateTab(1);
+        details.forceActiveFocus();
+        details.fileAction(action);
     }
 
     /// `ctrl+b` (docs/08 §5): hide or show the rail. Hiding it never hides a filter: while it
@@ -651,8 +739,8 @@ Item {
         }
     }
 
-    /// Fig. 26's "act" column, for the table only: every one of these needs Phase 4, so they
-    /// travel as `App.torrentActionRequested` and log.
+    /// Fig. 26's "act" column, for the table only: each key goes through `torrentAction()`,
+    /// which calls App or opens the overlay that asks first.
     function _tableAction(event, shift) {
         switch (event.key) {
         case Qt.Key_P:
@@ -702,8 +790,7 @@ Item {
         // The first-run page (T4.6) already asked for the keyboard, and so has the add sheet
         // when the app was started with a magnet or a .torrent: that hand-off opens it before
         // this runs, and `enter` has to add, not open the table's actions behind it.
-        if (!root.firstRun && !addSheet.opened)
-            table.forceActiveFocus();
+        root.focusHome();
         root.refreshDetails();
         App.setDetailsVisible(!details.collapsed);
         if (!App.demoMode || App.torrents.count !== 16)
@@ -756,7 +843,10 @@ Item {
 
         /// The browser's `magnet:` / `.torrent` hand-off (T1.4's second instance).
         function onAddUrisRequested(uris: list<string>): void {
-            addSheet.openList(uris, "browser");
+            if (root.firstRun) // held until there is a server to add them to
+                root._pendingAdds = root._pendingAdds.concat(uris);
+            else
+                addSheet.openList(uris, "browser");
         }
 
         /// `,`, the hero's gear, the tray's `settings…`, the disconnected banner.
@@ -790,6 +880,11 @@ Item {
         /// `t` / the menu's tags row.
         function onTagPickerRequested(hashes: list<string>): void {
             tagPalette.openFor(hashes);
+        }
+
+        /// Another server's columns, order, sort, folds and pane size.
+        function onServerChanged(): void {
+            root.restoreTableState();
         }
 
         target: App
@@ -1027,12 +1122,8 @@ Item {
                 onQuitRequested: root.quitRequested()
                 onRetryRequested: App.retryNow()
                 onSettingsRequested: App.openSettings()
-                onVisibleChanged: {
-                    if (dimmed.visible)
-                        dimmed.forceActiveFocus();
-                    else if (!root.firstRun) // the first-run page owns the keyboard until it is done
-                        table.forceActiveFocus();
-                }
+                // Not under an open overlay or the first-run page: `focusHome` knows.
+                onVisibleChanged: root.focusHome()
             }
         }
 
@@ -1068,8 +1159,8 @@ Item {
                 z: -1
             }
             onOpenFolderRequested: path => App.revealTorrentFile(App.details.hash, path)
-            onPeerAction: (action, address) => console.log("peer:", action, address)
-            onTrackerAction: (action, url) => console.log("tracker:", action, url)
+            onPeerAction: (action, address) => root.detailsRowAction("peer", action, address)
+            onTrackerAction: (action, url) => root.detailsRowAction("tracker", action, url)
         }
 
         // §7's whole-body states
@@ -1229,7 +1320,8 @@ Item {
             onCloseRequested: root.helpOpen = false
             onRunRequested: action => {
                 root.helpOpen = false;
-                root.runKeymapAction(action);
+                if (!root.runKeymapAction(action))
+                    root.flashFooterNote(qsTr("a key to press where it applies, not a command"));
             }
         }
     }
@@ -1410,6 +1502,15 @@ Item {
             root.saveTableState();
         }
 
+        // A filter cleared from elsewhere (the jump palette, a notice's "show") empties the
+        // hero's field too, which would otherwise keep a word that no longer filters.
+        // Only the emptying: the model trims, so mirroring every change would eat a space
+        // the user is still typing.
+        function onTextChanged() {
+            if (App.filtered.text.length === 0 && hero.searchField.text.trim().length > 0)
+                hero.searchField.text = "";
+        }
+
         target: App.filtered
     }
 
@@ -1430,7 +1531,9 @@ Item {
     // a click) can change `App.filtered`'s sort at any time; all of it round-trips through `state.json`, keyed by the chosen server (or "demo").
     function saveTableState(): void {
         const key = App.tableStateKey();
-        if (key.length === 0)
+        // Not halfway through a restore, and never the layout of another server under this
+        // one's key: after a switch nothing is saved until the new key has been read.
+        if (key.length === 0 || root._restoringState || key !== root._stateKey)
             return;
         App.saveTableState(key, {
                                "columns": table.visibleColumns,
@@ -1450,8 +1553,24 @@ Item {
                            });
     }
 
+    /// The key `restoreTableState` last read: the server whose layout the table shows.
+    property string _stateKey: ""
+    property bool _restoringState: false
+
+    /// Read the chosen server's layout, unless it is the one already shown. Runs at startup,
+    /// on every server switch (the rail's SERVERS group, Settings › Servers `d`) and when
+    /// first run hands over.
     function restoreTableState(): void {
-        const state = App.tableState(App.tableStateKey());
+        const key = App.tableStateKey();
+        if (key.length === 0 || key === root._stateKey)
+            return;
+        root._restoringState = true;
+        root._applyTableState(App.tableState(key));
+        root._stateKey = key;
+        root._restoringState = false;
+    }
+
+    function _applyTableState(state: var): void {
         root.railFolded = state.railFolded !== undefined ? state.railFolded : [];
         // 340 was the default before docs/11 J1, saved by every earlier version whether or
         // not anybody dragged it; it reads as "the default" so the wider one arrives.
@@ -1537,7 +1656,9 @@ Item {
 
     /// The drop target in `Main.qml` hands its addables over here.
     function addDropped(values: var): void {
-        if (values.length === 1)
+        if (root.firstRun)
+            root._pendingAdds = root._pendingAdds.concat(values);
+        else if (values.length === 1)
             addSheet.openWith(values[0], "drop");
         else
             addSheet.openList(values, "drop");
@@ -1545,17 +1666,11 @@ Item {
 
     /// Move the table's cursor to `hash` and let the details pane follow. Used by the add
     /// flow once a new torrent turns up, and by T4.7's "show" notification action, which may
-    /// well name a row the filter of the moment hides.
+    /// well name a row the filter of the moment hides (a finished download under the rail's
+    /// "Downloading"): `revealHash` clears whatever hides it, as the jump palette does.
     function showTorrent(hash: string): void {
-        let row = App.filtered.rowOfHash(hash);
-        if (row < 0) {
-            root.clearFilter();
-            row = App.filtered.rowOfHash(hash);
-        }
-        if (row < 0)
-            return;
-        table.moveCursorTo(row);
-        table.forceActiveFocus();
+        if (table.revealHash(hash))
+            root.focusHome();
     }
 
     // --- end T4.2 ---
@@ -1569,8 +1684,6 @@ Item {
 
         anchors.fill: parent
         z: 11
-
-        onClosed: table.forceActiveFocus()
     }
 
     // The Appearance pane's transparency override; 0 keeps the shell's `[launcher]
@@ -1593,6 +1706,21 @@ Item {
     // binding unloaded the page the moment step 2 saved the server, and step 3 never showed.
     property bool firstRun: false // latched below in Component.onCompleted, never a binding
 
+    /// Magnets and .torrent files handed over (or dropped) during first run. The add sheet
+    /// would open invisible under the page and take its keyboard, with no server to add to;
+    /// they wait here and open the sheet once setup is done.
+    property var _pendingAdds: []
+    /// The page, for the tests; `_firstRunDetect: false` keeps them off port 8080's probe.
+    readonly property alias firstRunLoader: firstRunLoader
+    property bool _firstRunDetect: true
+
+    function _openPendingAdds(): void {
+        const pending = root._pendingAdds;
+        root._pendingAdds = [];
+        if (pending.length > 0)
+            addSheet.openList(pending, "browser");
+    }
+
     // The one release besides `finished()`: a demo library arriving later (the QML tests
     // create MainView first and `App.loadDemo()` afterwards) is never a first run.
     Connections {
@@ -1610,15 +1738,20 @@ Item {
     // qmltestrunner, a configured server) a plain `visible: root.firstRun` child would still
     // instantiate and complete once.
     Loader {
+        id: firstRunLoader
+
         active: root.firstRun
         anchors.fill: parent
         z: 20
 
         sourceComponent: FirstRunPage {
+            autoDetect: root._firstRunDetect
             onFinished: {
                 root.firstRun = false;
-                table.forceActiveFocus();
+                root.restoreTableState();
+                root.focusHome();
                 root.setupFinished();
+                root._openPendingAdds();
             }
             onQuitRequested: root.quitRequested()
         }

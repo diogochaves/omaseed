@@ -4,7 +4,8 @@ import QtQuick
 // The one table of keys (spec v2 §7 Fig. 26, "the same map as v1"). Everything that binds a
 // key in omaseed reads it from here: `MainView` routes presses through it, `HintModel`
 // derives the footer's hints from it, and `HelpSheet` draws the `?` sheet from it. Nothing
-// else may invent a key.
+// else may invent a window key. A menu's own row letters (Fig. 11's actions menu, the Files
+// tab's menus) are part of that menu's rows and live with it.
 //
 // Every entry is plain data:
 //   area      where the key applies: "global" (anywhere), "table", "rail", "details",
@@ -41,7 +42,7 @@ QtObject {
     readonly property var columnAbout: ({
                                             "navigate": qsTr("Get around the window without the mouse."),
                                             "select": qsTr("Most actions apply to the selection, or to the cursor row when nothing is selected."),
-                                            "act": qsTr("On the selection, or the cursor row."),
+                                            "act": qsTr("On the selection, or the cursor row. Copy, open folder and rename take the cursor row."),
                                             "view": qsTr("What the window shows."),
                                             "app": ""
                                         })
@@ -145,7 +146,7 @@ QtObject {
             "rank": 3,
             "helpKeys": "s",
             "help": qsTr("sort"),
-            "about": qsTr("Sort by any column")
+            "about": qsTr("Sort by name, size, progress, speed, ratio, eta or date added; a click on a header sorts by any column")
         },
         {
             "area": "global",
@@ -491,7 +492,7 @@ QtObject {
             "rank": 6,
             "helpKeys": "C t m L r",
             "help": qsTr("category · tags · location · limits · rename"),
-            "about": qsTr("Set category · tags · location · limits · rename")
+            "about": qsTr("Set category · tags · location · limits; rename the cursor row")
         },
         {
             "area": "table",
@@ -563,7 +564,7 @@ QtObject {
             "rank": 8,
             "helpKeys": "o",
             "help": qsTr("open folder"),
-            "about": qsTr("Open the folder in the file manager")
+            "about": qsTr("Open the cursor row's folder in the file manager")
         },
         {
             "area": "table",
@@ -574,7 +575,7 @@ QtObject {
             "rank": 9,
             "helpKeys": "y Y n",
             "help": qsTr("copy magnet · hash · name"),
-            "about": qsTr("Copy magnet · hash · name")
+            "about": qsTr("Copy the cursor row's magnet · hash · name")
         },
         {
             "area": "table",
@@ -683,7 +684,7 @@ QtObject {
             "help": ""
         },
         {
-            "area": "rail",
+            "area": "global", // handled by the window from the table, rail and details alike
             // Fig. 26 prints 0–9, but the rail has nine status rows, 0 (all) to 8 (errored),
             // so `9` does nothing; the sheet prints the keys that work (batch-2 S1, REVIEW §9).
             "key": "0–8",
@@ -746,7 +747,7 @@ QtObject {
             "rank": 2,
             "helpKeys": "1–4",
             "help": qsTr("details tab"),
-            "about": qsTr("In the details: general, files, trackers, peers tab")
+            "about": qsTr("In the details: general, files, trackers, peers tab; 0 and 5–8 still pick a status there")
         },
         {
             "area": "details",

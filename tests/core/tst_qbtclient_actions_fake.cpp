@@ -155,7 +155,30 @@ private slots:
     void a500OnActionIsNotRetried();
     void a409OnActionMapsToConflict();
     void setPreferencesSendsOnlyTheChangedKeysAsJson();
+    void removeTrackersSendsTheHashAndPipedUrls();
 };
+
+void TestQbtClientActionsFake::removeTrackersSendsTheHashAndPipedUrls()
+{
+    FakeServer server;
+    server.setHandler([](const Recorded &, int) { return httpResponse(200, "OK", ""); });
+
+    QbtClient client;
+    client.setBaseUrl(server.url());
+
+    const QbtResult<QByteArray> result = await(
+        this,
+        client.torrentsRemoveTrackers(QStringLiteral("h1"),
+                                      QStringList{QStringLiteral("udp://a.example:1337/announce"),
+                                                  QStringLiteral("https://b.example/announce")}));
+    QVERIFY2(!result.isError(), qPrintable(result.error().toString()));
+    QCOMPARE(server.requests.size(), 1);
+    QCOMPARE(server.requests.at(0).target, QByteArrayLiteral("/api/v2/torrents/removeTrackers"));
+    const QUrlQuery body(QString::fromUtf8(server.requests.at(0).body));
+    QCOMPARE(body.queryItemValue(QStringLiteral("hash"), QUrl::FullyDecoded), QStringLiteral("h1"));
+    QCOMPARE(body.queryItemValue(QStringLiteral("urls"), QUrl::FullyDecoded),
+             QStringLiteral("udp://a.example:1337/announce|https://b.example/announce"));
+}
 
 void TestQbtClientActionsFake::setPreferencesSendsOnlyTheChangedKeysAsJson()
 {

@@ -363,6 +363,20 @@ TestCase {
         compare(loader.item, null);
     }
 
+    // Review VIEW-18: trimmed like the add sheet's Name; an unchanged name is not sent.
+    function test_rename_trims_and_skips_an_unchanged_name() {
+        table.startRename();
+        table.renameText = "  archlinux-trimmed.iso ";
+        table.commitRename();
+        compare(renameSpy.count, 1);
+        compare(renameSpy.signalArguments[0][1], "archlinux-trimmed.iso");
+
+        table.startRename();
+        table.renameText = table.renameText + " ";
+        table.commitRename();
+        compare(renameSpy.count, 1, "an unchanged name went to the server");
+    }
+
     function test_rename_cancel_emits_nothing() {
         table.startRename();
         table.renameText = "ignored";

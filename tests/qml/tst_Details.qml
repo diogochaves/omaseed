@@ -443,6 +443,25 @@ TestCase {
         compare(peers.addressAt(0), "185.21.216.140:51413");
     }
 
+    // Review VIEW-13: a shorter list pulls the Trackers cursor back onto a row.
+    function test_the_trackers_cursor_stays_on_a_row_when_the_list_shrinks() {
+        const view = testCase.select(testCase.archName);
+        view.activateTab(2);
+        const trackers = App.details.trackers;
+        view.moveCursor(trackers.count);
+        compare(view.trackersCursor, trackers.count - 1);
+        const longest = trackers.count;
+        let shorter = "";
+        for (let row = 0; row < App.filtered.count && shorter.length === 0; ++row) {
+            App.selectTorrent(App.filtered.hashAt(row));
+            if (trackers.count > 0 && trackers.count < longest)
+                shorter = App.filtered.hashAt(row);
+        }
+        if (shorter.length === 0)
+            skip("the demo library has no torrent with fewer trackers");
+        verify(view.trackersCursor < trackers.count, "the cursor was left past the end");
+    }
+
     function test_copy_emits_the_row_the_cursor_is_on() {
         const view = testCase.select(testCase.archName);
         copySpy.target = view;
@@ -749,6 +768,50 @@ TestCase {
         compare(renameSpy.signalArguments[0][2], "Big Buck Bunny 4K/subs/en.srt");
         verify(!view.editing);
         compare(files.nameAt(4), "en.srt");
+    }
+
+    // Review VIEW-7: a sync that re-sorts the rows under an open rename (sorted by progress,
+    // say) must not move the rename or the cursor onto another file.
+    function test_a_resort_under_a_rename_keeps_the_file() {
+        const view = testCase.filesView();
+        const files = App.details.files;
+        // A file that the name sort moves.
+        let from = -1;
+        const before = [];
+        for (let r = 0; r < files.count; ++r)
+            before.push(files.pathAt(r));
+        files.sortBy("name");
+        for (let r = 0; r < before.length && from < 0; ++r) {
+            if (!files.isFolder(files.rowOfPath(before[r])) && files.rowOfPath(before[r]) !== r)
+                from = r;
+        }
+        files.sortKey = "";
+        verify(from >= 0);
+        const path = before[from];
+        compare(files.pathAt(from), path);
+        view.moveCursor(-files.count);
+        view.moveCursor(from);
+        compare(files.pathAt(view.cursorIndex), path);
+        renameSpy.target = App;
+        renameSpy.clear();
+
+        keyClick("r");
+        verify(view.editing);
+        keyClick("L"); // replaces the selected stem
+        // What a sync does when the sort key's numbers move: the rows are rebuilt in a new
+        // order, without the pane asking for it.
+        files.sortBy("name");
+        verify(files.rowOfPath(path) !== from, "the re-sort did not move the row");
+        compare(files.pathAt(view.cursorIndex), path, "the cursor stayed on the old index");
+        verify(view.editing, "the rename closed");
+        wait(0); // the editor takes the keyboard back once the reset has settled
+        keyClick("x");
+        keyClick(Qt.Key_Return);
+        compare(renameSpy.count, 1);
+        compare(renameSpy.signalArguments[0][1], path, "the rename went to another file");
+        const dir = path.substring(0, path.lastIndexOf("/") + 1);
+        const ext = path.substring(path.lastIndexOf("."));
+        compare(renameSpy.signalArguments[0][2], dir + "Lx" + ext);
     }
 
     function test_H_and_L_fold_and_open_every_folder() {

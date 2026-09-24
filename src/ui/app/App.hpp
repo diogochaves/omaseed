@@ -531,6 +531,8 @@ public:
     Q_INVOKABLE void forceStart(const QStringList &hashes);
     Q_INVOKABLE void recheck(const QStringList &hashes);
     Q_INVOKABLE void reannounce(const QStringList &hashes);
+    /// The Trackers tab's `d` (Fig. 3): one tracker off one torrent.
+    Q_INVOKABLE void removeTracker(const QString &hash, const QString &url);
 
     Q_INVOKABLE void setCategory(const QStringList &hashes, const QString &name);
     Q_INVOKABLE void addTags(const QStringList &hashes, const QStringList &tags);
@@ -627,6 +629,10 @@ public:
 
     /// POST torrents/createCategory with no save path (Fig. 13's "new name creates it").
     Q_INVOKABLE void createCategory(const QString &name);
+    /// The category palette's `create "x"` on torrents: set the category only once the server
+    /// has created it (two parallel requests could set it first and get a 409). Both
+    /// failures reach the footer.
+    Q_INVOKABLE void createAndApplyCategory(const QStringList &hashes, const QString &name);
     /// POST torrents/setCategory. A no-op in demo mode beyond a log line.
     Q_INVOKABLE void applyCategory(const QStringList &hashes, const QString &name);
 

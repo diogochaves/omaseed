@@ -4,9 +4,9 @@ import QtQuick.Layouts
 import Omaseed
 import Omaseed.Kit
 
-// The menu/multi-selection fallback rename: the table's inline editor is the primary way to
-// rename one torrent, this is what `r` (from the menu, or with more than one row selected)
-// falls back to. Always renames one torrent — the cursor's — never the whole selection.
+// The actions menu's rename: the table's inline editor (`r`, always) is the primary way to
+// rename a torrent; this sheet is what the menu's rename row opens. Always renames one
+// torrent — the cursor's — never the whole selection.
 Sheet {
     id: root
 
@@ -34,8 +34,10 @@ Sheet {
     }
 
     onAccepted: {
-        if (nameField.text.length > 0)
-            App.rename(root.hash, nameField.text);
+        // Trimmed like the add sheet's Name, and not sent at all when nothing changed.
+        const name = nameField.text.trim();
+        if (name.length > 0 && name !== App.torrentRow(root.hash).name)
+            App.rename(root.hash, name);
         root.close();
     }
 

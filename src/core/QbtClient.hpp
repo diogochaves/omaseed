@@ -52,6 +52,7 @@
 //   POST torrents/setForceStart         torrentsSetForceStart(hashes, value)
 //   POST torrents/recheck               torrentsRecheck(hashes)
 //   POST torrents/reannounce            torrentsReannounce(hashes)
+//   POST torrents/removeTrackers        torrentsRemoveTrackers(hash, urls)
 //   POST torrents/setCategory           torrentsSetCategory(hashes, category)
 //   POST torrents/createCategory        torrentsCreateCategory(name, savePath)
 //   POST torrents/editCategory          torrentsEditCategory(name, savePath)
@@ -217,6 +218,8 @@ public:
     QbtReply<QByteArray> *torrentsSetForceStart(const QStringList &hashes, bool value);
     QbtReply<QByteArray> *torrentsRecheck(const QStringList &hashes);
     QbtReply<QByteArray> *torrentsReannounce(const QStringList &hashes);
+    /// POST torrents/removeTrackers: one torrent, `urls` joined with '|'.
+    QbtReply<QByteArray> *torrentsRemoveTrackers(const QString &hash, const QStringList &urls);
 
     QbtReply<QByteArray> *torrentsSetCategory(const QStringList &hashes, const QString &category);
     QbtReply<QByteArray> *torrentsCreateCategory(const QString &name,

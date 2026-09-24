@@ -973,6 +973,32 @@ void App::createCategory(const QString &name)
     });
 }
 
+void App::createAndApplyCategory(const QStringList &hashes, const QString &name)
+{
+    if (name.isEmpty())
+        return;
+    if (m_demoMode || !m_hasServer) {
+        qInfo().noquote() << QStringLiteral("demo: create category %1 on %2 torrents")
+                                 .arg(name)
+                                 .arg(hashes.size());
+        return;
+    }
+    m_client->torrentsCreateCategory(name)->then(
+        this, [this, hashes, name](const QbtResult<QByteArray> &result) {
+            // 409 is "it exists already", which is what the set needs anyway.
+            if (result.isError() && result.error().kind() != ApiError::Kind::Conflict) {
+                reportActionResult(QStringLiteral("category"), result);
+                return;
+            }
+            if (hashes.isEmpty() || !m_hasServer)
+                return;
+            m_client->torrentsSetCategory(hashes, name)
+                ->then(this, [this](const QbtResult<QByteArray> &set) {
+                    reportActionResult(QStringLiteral("category"), set);
+                });
+        });
+}
+
 void App::applyCategory(const QStringList &hashes, const QString &name)
 {
     if (hashes.isEmpty())
@@ -1638,6 +1664,17 @@ void App::reannounce(const QStringList &hashes)
     m_client->torrentsReannounce(hashes)->then(this, [this](const QbtResult<QByteArray> &result) {
         reportActionResult(QStringLiteral("reannounce"), result);
     });
+}
+
+void App::removeTracker(const QString &hash, const QString &url)
+{
+    if (hash.isEmpty() || url.isEmpty() || demoGuard(QStringLiteral("remove tracker"), 1)
+        || !m_hasServer)
+        return;
+    m_client->torrentsRemoveTrackers(hash, QStringList{url})
+        ->then(this, [this](const QbtResult<QByteArray> &result) {
+            reportActionResult(QStringLiteral("remove tracker"), result);
+        });
 }
 
 void App::setCategory(const QStringList &hashes, const QString &name)
