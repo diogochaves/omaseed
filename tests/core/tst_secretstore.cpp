@@ -1,6 +1,9 @@
 #include "core/SecretStore.hpp"
 
+#include <QDir>
+#include <QElapsedTimer>
 #include <QEventLoop>
+#include <QHash>
 #include <QFile>
 #include <QFileInfo>
 #include <QSignalSpy>
@@ -62,6 +65,15 @@ private slots:
     void probeResolvesAsynchronously();
     void probeTimeoutFallsBackToFile();
     void probeRunnerDecidesTheBackend();
+
+    // INT-7: a secret stored under the other backend is still found.
+    void keychainSessionFindsAndMovesAFileSecret();
+    void fileSessionFindsAKeychainSecret();
+    void fileSessionKeychainLookupIsBounded();
+    void removeClearsBothBackends();
+    void lateKeychainAnswerSwitchesToKeychain();
+    // INT-8
+    void aCorruptFileIsNotRewritten();
 
 private:
     QTemporaryDir m_dir;
@@ -349,6 +361,160 @@ void TestSecretStore::probeRunnerDecidesTheBackend()
     QTest::qWait(60); // past the timeout: it must not flip the answer
     QCOMPARE(resolved.count(), 1);
     QCOMPARE(store.backend(), std::optional(SecretStore::Backend::Keychain));
+}
+
+namespace {
+
+/// An in-memory keychain behind SecretStore's hooks: the cross-backend tests never touch the
+/// desktop's real keyring.
+struct FakeKeychain
+{
+    QHash<QString, QString> entries;
+    bool hang = false;
+
+    SecretStore::KeychainHooks hooks()
+    {
+        using Status = SecretStore::KeychainStatus;
+        SecretStore::KeychainHooks h;
+        h.read = [this](const QString &key, SecretStore::KeychainAnswer answer) {
+            if (hang)
+                return;
+            if (entries.contains(key))
+                answer(Status::Ok, entries.value(key), QString());
+            else
+                answer(Status::NotFound, QString(), QStringLiteral("not found"));
+        };
+        h.write = [this](const QString &key,
+                         const QString &value,
+                         SecretStore::KeychainAnswer answer) {
+            entries.insert(key, value);
+            answer(Status::Ok, QString(), QString());
+        };
+        h.remove = [this](const QString &key, SecretStore::KeychainAnswer answer) {
+            answer(entries.remove(key) ? Status::Ok : Status::NotFound, QString(), QString());
+        };
+        return h;
+    }
+};
+
+} // namespace
+
+void TestSecretStore::keychainSessionFindsAndMovesAFileSecret()
+{
+    // A session that settled on File (locked keyring at login) stored the key in a file.
+    {
+        SecretStore fileSession;
+        fileSession.setForcedBackend(SecretStore::Backend::File);
+        QVERIFY(run(fileSession.setSecret(QStringLiteral("s"), SecretStore::Kind::ApiKey,
+                                          QStringLiteral("from-file")))
+                    .ok);
+    }
+
+    FakeKeychain keychain;
+    SecretStore store;
+    store.setForcedBackend(SecretStore::Backend::Keychain);
+    store.setKeychainHooks(keychain.hooks());
+
+    const JobResult read = run(store.secret(QStringLiteral("s"), SecretStore::Kind::ApiKey));
+    QVERIFY(read.ok);
+    QCOMPARE(read.value, QStringLiteral("from-file"));
+    // Moved: in the keychain now, gone from the plaintext file.
+    QTRY_COMPARE(keychain.entries.value(QStringLiteral("s/apiKey")), QStringLiteral("from-file"));
+    QTRY_VERIFY(!QFileInfo::exists(m_dir.path() + QStringLiteral("/omaseed/secrets/s.json")));
+}
+
+void TestSecretStore::fileSessionFindsAKeychainSecret()
+{
+    FakeKeychain keychain;
+    keychain.entries.insert(QStringLiteral("s/password"), QStringLiteral("from-keychain"));
+    SecretStore store;
+    store.setForcedBackend(SecretStore::Backend::File);
+    store.setKeychainHooks(keychain.hooks());
+
+    const JobResult read = run(store.secret(QStringLiteral("s"), SecretStore::Kind::Password));
+    QVERIFY(read.ok);
+    QCOMPARE(read.value, QStringLiteral("from-keychain"));
+}
+
+void TestSecretStore::fileSessionKeychainLookupIsBounded()
+{
+    FakeKeychain keychain;
+    keychain.hang = true;
+    SecretStore store;
+    store.setForcedBackend(SecretStore::Backend::File);
+    store.setKeychainHooks(keychain.hooks());
+    store.setProbeTimeout(std::chrono::milliseconds(50));
+
+    QElapsedTimer timer;
+    timer.start();
+    const JobResult read = run(store.secret(QStringLiteral("s"), SecretStore::Kind::ApiKey));
+    QVERIFY(!read.ok);
+    QVERIFY(timer.elapsed() < 2000);
+
+    // The queue moved on: the next operation runs.
+    QVERIFY(run(store.setSecret(QStringLiteral("s"), SecretStore::Kind::ApiKey,
+                                QStringLiteral("x")))
+                .ok);
+}
+
+void TestSecretStore::removeClearsBothBackends()
+{
+    {
+        SecretStore fileSession;
+        fileSession.setForcedBackend(SecretStore::Backend::File);
+        QVERIFY(run(fileSession.setSecret(QStringLiteral("s"), SecretStore::Kind::ApiKey,
+                                          QStringLiteral("stale")))
+                    .ok);
+    }
+    FakeKeychain keychain;
+    keychain.entries.insert(QStringLiteral("s/apiKey"), QStringLiteral("current"));
+    SecretStore store;
+    store.setForcedBackend(SecretStore::Backend::Keychain);
+    store.setKeychainHooks(keychain.hooks());
+
+    QVERIFY(run(store.removeSecret(QStringLiteral("s"), SecretStore::Kind::ApiKey)).ok);
+    // Neither copy may come back through the cross-backend read.
+    QVERIFY(!run(store.secret(QStringLiteral("s"), SecretStore::Kind::ApiKey)).ok);
+    QVERIFY(keychain.entries.isEmpty());
+}
+
+void TestSecretStore::lateKeychainAnswerSwitchesToKeychain()
+{
+    SecretStore store(QStringLiteral("io.github.diogochaves.omaseed-test"));
+    QSignalSpy resolved(&store, &SecretStore::backendResolved);
+    store.setProbeTimeout(std::chrono::milliseconds(30));
+    std::function<void(bool)> answer;
+    store.setProbeRunner([&answer](std::function<void(bool)> done) { answer = std::move(done); });
+
+    QCOMPARE(store.backend(), std::nullopt);
+    QTRY_COMPARE(resolved.count(), 1);
+    QCOMPARE(store.backend(), std::optional(SecretStore::Backend::File));
+
+    answer(true); // the user unlocked the keyring at the prompt
+    QCOMPARE(resolved.count(), 2);
+    QCOMPARE(resolved.at(1).at(0).value<SecretStore::Backend>(), SecretStore::Backend::Keychain);
+    QCOMPARE(store.backend(), std::optional(SecretStore::Backend::Keychain));
+}
+
+void TestSecretStore::aCorruptFileIsNotRewritten()
+{
+    // Rewriting a file that does not parse would drop whatever else it held.
+    const QString dir = m_dir.path() + QStringLiteral("/omaseed/secrets");
+    QVERIFY(QDir().mkpath(dir));
+    const QByteArray garbage = "{\"apiKey\": \"keep-me\", oops";
+    {
+        QFile file(dir + QStringLiteral("/c.json"));
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write(garbage);
+    }
+    SecretStore store;
+    store.setForcedBackend(SecretStore::Backend::File);
+    QVERIFY(!run(store.setSecret(QStringLiteral("c"), SecretStore::Kind::Password,
+                                 QStringLiteral("p")))
+                 .ok);
+    QFile file(dir + QStringLiteral("/c.json"));
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    QCOMPARE(file.readAll(), garbage);
 }
 
 QTEST_GUILESS_MAIN(TestSecretStore)

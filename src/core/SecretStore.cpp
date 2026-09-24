@@ -11,6 +11,7 @@
 #include <QLoggingCategory>
 #include <QPointer>
 #include <QProcessEnvironment>
+#include <QSaveFile>
 #include <QTimer>
 
 #include <qt6keychain/keychain.h>
@@ -161,9 +162,24 @@ void SecretStore::runProbe(Done done)
     });
     timer->start();
 
+    // The timeout settled on File, but the keychain answered after all (the user unlocked it
+    // at the prompt): use it from now on. Secrets already written to files in between are
+    // still found, and moved over, by the cross-backend read.
+    const auto answeredLate = [this, probe](bool keychainOk) {
+        if (!probe->settled || !keychainOk || m_detectedBackend != Backend::File)
+            return false;
+        m_detectedBackend = Backend::Keychain;
+        qCInfo(lcSecrets) << "the keychain answered after the probe timeout; secrets go to the "
+                             "keychain from now on";
+        Q_EMIT backendResolved(Backend::Keychain);
+        return true;
+    };
+
     if (m_probeRunner) {
-        m_probeRunner(
-            [finish](bool keychainOk) { finish(keychainOk ? Backend::Keychain : Backend::File); });
+        m_probeRunner([finish, answeredLate](bool keychainOk) {
+            if (!answeredLate(keychainOk))
+                finish(keychainOk ? Backend::Keychain : Backend::File);
+        });
         return;
     }
 
@@ -173,12 +189,18 @@ void SecretStore::runProbe(Done done)
     // raw pointer to a running job, so deleting one mid-flight (a store torn down while the
     // probe is out, which every QML test file does) crashes inside Job::finished. They are
     // left to qtkeychain's own auto-delete once finished; the slots have `this` as their
-    // context, so a dead store simply stops listening. A job abandoned by the timeout is
-    // disconnected and its late answer ignored.
+    // context, so a dead store simply stops listening. A write that answers after the timeout
+    // upgrades File to Keychain (answeredLate) instead of being ignored.
     auto *write = new QKeychain::WritePasswordJob(m_service);
     write->setKey(QLatin1String(kProbeKey));
     write->setTextData(QStringLiteral("probe"));
-    connect(write, &QKeychain::Job::finished, this, [this, finish](QKeychain::Job *job) {
+    connect(write, &QKeychain::Job::finished, this, [this, finish, answeredLate](QKeychain::Job *job) {
+        if (answeredLate(job->error() == QKeychain::NoError)) {
+            auto *remove = new QKeychain::DeletePasswordJob(m_service);
+            remove->setKey(QLatin1String(kProbeKey));
+            remove->start(); // best effort, off the queue: the entry is harmless
+            return;
+        }
         if (job->error() != QKeychain::NoError) {
             qCInfo(lcSecrets).noquote()
                 << QStringLiteral("keychain probe write failed (%1); storing secrets in 0600 "
@@ -194,9 +216,6 @@ void SecretStore::runProbe(Done done)
             finish(std::nullopt); // best effort: the entry is harmless if this failed
         });
         remove->start();
-    });
-    connect(timer, &QTimer::timeout, write, [this, write]() {
-        QObject::disconnect(write, nullptr, this, nullptr);
     });
     write->start();
 }
@@ -245,71 +264,127 @@ QString SecretStore::secretFilePath(const QString &serverId)
 // in runProbe(): a running job must outlive the store rather than be deleted under
 // libsecret's callback.
 
-void SecretStore::runKeychainWrite(
-    Job *job, const QString &serverId, Kind kind, const QString &value, Done done)
+QString SecretStore::keychainKey(const QString &serverId, Kind kind)
 {
-    auto *write = new QKeychain::WritePasswordJob(m_service);
-    write->setKey(serverId + QStringLiteral("/") + keyFor(kind));
-    write->setTextData(value);
-    QPointer<Job> alive(job);
-    connect(write, &QKeychain::Job::finished, this, [alive, done](QKeychain::Job *finished) {
-        if (alive) {
-            if (finished->error() == QKeychain::NoError)
-                Q_EMIT alive->finished(true, QString(), QString());
-            else
-                Q_EMIT alive->finished(false, QString(), finished->errorString());
-        }
-        done();
-    });
-    write->start();
+    return serverId + QStringLiteral("/") + keyFor(kind);
 }
 
-void SecretStore::runKeychainRead(Job *job, const QString &serverId, Kind kind, Done done)
+void SecretStore::setKeychainHooks(KeychainHooks hooks)
 {
+    m_keychainHooks = std::move(hooks);
+}
+
+bool SecretStore::crossBackendFallback() const
+{
+    if (m_keychainHooks.read)
+        return true;
+    return !m_forcedBackend && QKeychain::isAvailable();
+}
+
+void SecretStore::keychainRead(const QString &key, KeychainAnswer answer)
+{
+    if (m_keychainHooks.read) {
+        m_keychainHooks.read(key, std::move(answer));
+        return;
+    }
     auto *read = new QKeychain::ReadPasswordJob(m_service);
-    read->setKey(serverId + QStringLiteral("/") + keyFor(kind));
-    QPointer<Job> alive(job);
-    connect(read, &QKeychain::Job::finished, this, [alive, done, read](QKeychain::Job *) {
-        if (alive) {
-            const QKeychain::Error error = read->error();
-            if (error == QKeychain::NoError)
-                Q_EMIT alive->finished(true, read->textData(), QString());
-            else if (error == QKeychain::EntryNotFound)
-                Q_EMIT alive->finished(false, QString(), QStringLiteral("not found"));
-            else
-                Q_EMIT alive->finished(false, QString(), read->errorString());
-        }
-        done();
+    read->setKey(key);
+    connect(read, &QKeychain::Job::finished, this, [answer, read](QKeychain::Job *) {
+        const QKeychain::Error error = read->error();
+        if (error == QKeychain::NoError)
+            answer(KeychainStatus::Ok, read->textData(), QString());
+        else if (error == QKeychain::EntryNotFound)
+            answer(KeychainStatus::NotFound, QString(), QStringLiteral("not found"));
+        else
+            answer(KeychainStatus::Failed, QString(), read->errorString());
     });
     read->start();
 }
 
-void SecretStore::runKeychainRemove(Job *job, const QString &serverId, Kind kind, Done done)
+void SecretStore::keychainWrite(const QString &key, const QString &value, KeychainAnswer answer)
 {
+    if (m_keychainHooks.write) {
+        m_keychainHooks.write(key, value, std::move(answer));
+        return;
+    }
+    auto *write = new QKeychain::WritePasswordJob(m_service);
+    write->setKey(key);
+    write->setTextData(value);
+    connect(write, &QKeychain::Job::finished, this, [answer](QKeychain::Job *finished) {
+        if (finished->error() == QKeychain::NoError)
+            answer(KeychainStatus::Ok, QString(), QString());
+        else
+            answer(KeychainStatus::Failed, QString(), finished->errorString());
+    });
+    write->start();
+}
+
+void SecretStore::keychainRemove(const QString &key, KeychainAnswer answer)
+{
+    if (m_keychainHooks.remove) {
+        m_keychainHooks.remove(key, std::move(answer));
+        return;
+    }
     auto *remove = new QKeychain::DeletePasswordJob(m_service);
-    remove->setKey(serverId + QStringLiteral("/") + keyFor(kind));
-    QPointer<Job> alive(job);
-    connect(remove, &QKeychain::Job::finished, this, [alive, done](QKeychain::Job *finished) {
-        if (alive) {
-            const QKeychain::Error error = finished->error();
-            // Removing an absent entry is not a failure: the end state the caller wants
-            // already holds.
-            if (error == QKeychain::NoError || error == QKeychain::EntryNotFound)
-                Q_EMIT alive->finished(true, QString(), QString());
-            else
-                Q_EMIT alive->finished(false, QString(), finished->errorString());
-        }
-        done();
+    remove->setKey(key);
+    connect(remove, &QKeychain::Job::finished, this, [answer](QKeychain::Job *finished) {
+        const QKeychain::Error error = finished->error();
+        if (error == QKeychain::NoError)
+            answer(KeychainStatus::Ok, QString(), QString());
+        else if (error == QKeychain::EntryNotFound)
+            answer(KeychainStatus::NotFound, QString(), QString());
+        else
+            answer(KeychainStatus::Failed, QString(), finished->errorString());
     });
     remove->start();
 }
 
 // --- file backend --------------------------------------------------------------------------
 
-void SecretStore::runFileWrite(Job *job,
-                               const QString &serverId,
-                               Kind kind,
-                               const QString &value) const
+namespace {
+
+/// Writes `root` to `path` through QSaveFile: a crash or a full disk leaves the old file
+/// whole instead of an empty one, and a failed write is reported, not swallowed.
+bool writeSecretFile(const QString &path, const QJsonObject &root, QString *error)
+{
+    QSaveFile file(path);
+    if (!file.open(QIODevice::WriteOnly)) {
+        *error = file.errorString();
+        return false;
+    }
+    // The temporary file is created with the old file's permissions, or the umask's for a
+    // new one; restrict it before the secret is in it. The directory is 0700 either way.
+    file.setPermissions(ownerReadWrite());
+    const QByteArray bytes = QJsonDocument(root).toJson(QJsonDocument::Indented);
+    if (file.write(bytes) != bytes.size() || !file.commit()) {
+        *error = file.errorString();
+        return false;
+    }
+    QFile::setPermissions(path, ownerReadWrite());
+    return true;
+}
+
+} // namespace
+
+SecretStore::FileAnswer SecretStore::fileRead(const QString &serverId, Kind kind)
+{
+    QFile file(secretFilePath(serverId));
+    if (!file.open(QIODevice::ReadOnly))
+        return {KeychainStatus::NotFound, QString(), QStringLiteral("not found")};
+
+    QJsonParseError parseError;
+    const QJsonDocument doc = QJsonDocument::fromJson(file.readAll(), &parseError);
+    if (parseError.error != QJsonParseError::NoError || !doc.isObject())
+        return {KeychainStatus::Failed, QString(), QStringLiteral("corrupt secret file")};
+
+    const QJsonValue value = doc.object().value(fieldFor(kind));
+    if (!value.isString())
+        return {KeychainStatus::NotFound, QString(), QStringLiteral("not found")};
+    return {KeychainStatus::Ok, value.toString(), QString()};
+}
+
+SecretStore::FileAnswer
+SecretStore::fileWrite(const QString &serverId, Kind kind, const QString &value)
 {
     const QString dir = paths::secretsDir();
     QDir().mkpath(dir);
@@ -317,63 +392,33 @@ void SecretStore::runFileWrite(Job *job,
 
     const QString path = secretFilePath(serverId);
     QJsonObject root;
-    root[QStringLiteral("version")] = kSecretFileVersion;
-
     QFile existing(path);
     if (existing.open(QIODevice::ReadOnly)) {
         QJsonParseError parseError;
         const QJsonDocument doc = QJsonDocument::fromJson(existing.readAll(), &parseError);
         existing.close();
-        if (parseError.error == QJsonParseError::NoError && doc.isObject())
+        if (parseError.error == QJsonParseError::NoError && doc.isObject()) {
             root = doc.object();
+        } else if (existing.size() > 0) {
+            // Rewriting would silently drop the other kind of secret held in it.
+            return {KeychainStatus::Failed, QString(), QStringLiteral("corrupt secret file")};
+        }
     }
-
+    root[QStringLiteral("version")] = kSecretFileVersion;
     root[fieldFor(kind)] = value;
 
-    QFile file(path);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-        Q_EMIT job->finished(false, QString(), file.errorString());
-        return;
-    }
-    file.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
-    file.close();
-    QFile::setPermissions(path, ownerReadWrite());
-
-    Q_EMIT job->finished(true, QString(), QString());
+    QString error;
+    if (!writeSecretFile(path, root, &error))
+        return {KeychainStatus::Failed, QString(), error};
+    return {KeychainStatus::Ok, QString(), QString()};
 }
 
-void SecretStore::runFileRead(Job *job, const QString &serverId, Kind kind) const
-{
-    QFile file(secretFilePath(serverId));
-    if (!file.open(QIODevice::ReadOnly)) {
-        Q_EMIT job->finished(false, QString(), QStringLiteral("not found"));
-        return;
-    }
-
-    QJsonParseError parseError;
-    const QJsonDocument doc = QJsonDocument::fromJson(file.readAll(), &parseError);
-    if (parseError.error != QJsonParseError::NoError || !doc.isObject()) {
-        Q_EMIT job->finished(false, QString(), QStringLiteral("corrupt secret file"));
-        return;
-    }
-
-    const QJsonValue value = doc.object().value(fieldFor(kind));
-    if (!value.isString()) {
-        Q_EMIT job->finished(false, QString(), QStringLiteral("not found"));
-        return;
-    }
-
-    Q_EMIT job->finished(true, value.toString(), QString());
-}
-
-void SecretStore::runFileRemove(Job *job, const QString &serverId, Kind kind) const
+SecretStore::FileAnswer SecretStore::fileRemove(const QString &serverId, Kind kind)
 {
     const QString path = secretFilePath(serverId);
     QFile file(path);
-    if (!file.open(QIODevice::ReadOnly)) {
-        Q_EMIT job->finished(true, QString(), QString()); // nothing to remove
-        return;
-    }
+    if (!file.open(QIODevice::ReadOnly))
+        return {KeychainStatus::NotFound, QString(), QString()}; // nothing to remove
 
     QJsonParseError parseError;
     const QJsonDocument doc = QJsonDocument::fromJson(file.readAll(), &parseError);
@@ -381,27 +426,22 @@ void SecretStore::runFileRemove(Job *job, const QString &serverId, Kind kind) co
     QJsonObject root = (parseError.error == QJsonParseError::NoError && doc.isObject())
                            ? doc.object()
                            : QJsonObject();
+    if (!root.contains(fieldFor(kind)) && !root.isEmpty())
+        return {KeychainStatus::NotFound, QString(), QString()};
     root.remove(fieldFor(kind));
 
     const bool hasApiKey = root.contains(QStringLiteral("apiKey"));
     const bool hasPassword = root.contains(QStringLiteral("password"));
     if (!hasApiKey && !hasPassword) {
         QFile::remove(path);
-        Q_EMIT job->finished(true, QString(), QString());
-        return;
+        return {KeychainStatus::Ok, QString(), QString()};
     }
 
     root[QStringLiteral("version")] = kSecretFileVersion;
-    QFile write(path);
-    if (!write.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-        Q_EMIT job->finished(false, QString(), write.errorString());
-        return;
-    }
-    write.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
-    write.close();
-    QFile::setPermissions(path, ownerReadWrite());
-
-    Q_EMIT job->finished(true, QString(), QString());
+    QString error;
+    if (!writeSecretFile(path, root, &error))
+        return {KeychainStatus::Failed, QString(), error};
+    return {KeychainStatus::Ok, QString(), QString()};
 }
 
 // --- public API, dispatch to the resolved backend -------------------------------------------
@@ -443,6 +483,16 @@ void SecretStore::startNext()
     });
 }
 
+namespace {
+
+void answerJob(const QPointer<SecretStoreJob> &job, bool ok, const QString &value, const QString &error)
+{
+    if (job)
+        Q_EMIT job->finished(ok, value, error);
+}
+
+} // namespace
+
 SecretStore::Job *
 SecretStore::setSecret(const QString &serverId, Kind kind, const QString &value, QObject *parent)
 {
@@ -451,14 +501,101 @@ SecretStore::setSecret(const QString &serverId, Kind kind, const QString &value,
     enqueue([this, alive, serverId, kind, value](Done done) {
         if (!alive) {
             done();
-        } else if (resolvedBackend() == Backend::Keychain) {
-            runKeychainWrite(alive, serverId, kind, value, std::move(done));
-        } else {
-            runFileWrite(alive, serverId, kind, value);
-            done();
+            return;
         }
+        if (resolvedBackend() == Backend::File) {
+            const FileAnswer written = fileWrite(serverId, kind, value);
+            answerJob(alive, written.status == KeychainStatus::Ok, QString(), written.error);
+            done();
+            return;
+        }
+        keychainWrite(keychainKey(serverId, kind),
+                      value,
+                      [this, alive, serverId, kind, done](KeychainStatus status,
+                                                          const QString &,
+                                                          const QString &error) {
+                          // A copy left in a file by a session that could not reach the
+                          // keychain is stale now, and plaintext: drop it.
+                          if (status == KeychainStatus::Ok && crossBackendFallback())
+                              fileRemove(serverId, kind);
+                          answerJob(alive, status == KeychainStatus::Ok, QString(), error);
+                          done();
+                      });
     });
     return job;
+}
+
+void SecretStore::runRead(const QPointer<Job> &alive, const QString &serverId, Kind kind, Done done)
+{
+    const QString key = keychainKey(serverId, kind);
+
+    if (resolvedBackend() == Backend::Keychain) {
+        keychainRead(key,
+                     [this, alive, serverId, kind, key, done](KeychainStatus status,
+                                                              const QString &value,
+                                                              const QString &error) {
+                         if (status == KeychainStatus::Ok || !crossBackendFallback()) {
+                             answerJob(alive, status == KeychainStatus::Ok, value, error);
+                             done();
+                             return;
+                         }
+                         const FileAnswer fromFile = fileRead(serverId, kind);
+                         if (fromFile.status != KeychainStatus::Ok) {
+                             answerJob(alive, false, QString(), error);
+                             done();
+                             return;
+                         }
+                         // Stored while this machine's keychain was out of reach: answer it,
+                         // then move it where it belongs.
+                         answerJob(alive, true, fromFile.value, QString());
+                         qCInfo(lcSecrets).noquote()
+                             << QStringLiteral("moving the %1 secret from its file into the "
+                                               "keychain")
+                                    .arg(key);
+                         keychainWrite(key,
+                                       fromFile.value,
+                                       [serverId, kind, done](KeychainStatus written,
+                                                              const QString &,
+                                                              const QString &) {
+                                           if (written == KeychainStatus::Ok)
+                                               fileRemove(serverId, kind);
+                                           done();
+                                       });
+                     });
+        return;
+    }
+
+    const FileAnswer fromFile = fileRead(serverId, kind);
+    if (fromFile.status != KeychainStatus::NotFound || !crossBackendFallback()) {
+        answerJob(alive, fromFile.status == KeychainStatus::Ok, fromFile.value, fromFile.error);
+        done();
+        return;
+    }
+
+    // Not in the file: maybe an earlier session stored it in the keychain. Ask, but never
+    // longer than the probe was allowed to take, since the keychain already failed to answer
+    // once this session.
+    struct Lookup
+    {
+        bool settled = false;
+    };
+    auto lookup = std::make_shared<Lookup>();
+    auto *timer = new QTimer(this);
+    timer->setSingleShot(true);
+    const auto finish = [lookup, timer, alive, done](bool ok, const QString &value) {
+        if (lookup->settled)
+            return;
+        lookup->settled = true;
+        timer->stop();
+        timer->deleteLater();
+        answerJob(alive, ok, value, ok ? QString() : QStringLiteral("not found"));
+        done();
+    };
+    connect(timer, &QTimer::timeout, this, [finish]() { finish(false, QString()); });
+    timer->start(m_probeTimeout);
+    keychainRead(key, [finish](KeychainStatus status, const QString &value, const QString &) {
+        finish(status == KeychainStatus::Ok, value);
+    });
 }
 
 SecretStore::Job *SecretStore::secret(const QString &serverId, Kind kind, QObject *parent)
@@ -468,12 +605,9 @@ SecretStore::Job *SecretStore::secret(const QString &serverId, Kind kind, QObjec
     enqueue([this, alive, serverId, kind](Done done) {
         if (!alive) {
             done();
-        } else if (resolvedBackend() == Backend::Keychain) {
-            runKeychainRead(alive, serverId, kind, std::move(done));
-        } else {
-            runFileRead(alive, serverId, kind);
-            done();
+            return;
         }
+        runRead(alive, serverId, kind, std::move(done));
     });
     return job;
 }
@@ -485,12 +619,31 @@ SecretStore::Job *SecretStore::removeSecret(const QString &serverId, Kind kind, 
     enqueue([this, alive, serverId, kind](Done done) {
         if (!alive) {
             done();
-        } else if (resolvedBackend() == Backend::Keychain) {
-            runKeychainRemove(alive, serverId, kind, std::move(done));
-        } else {
-            runFileRemove(alive, serverId, kind);
-            done();
+            return;
         }
+        const QString key = keychainKey(serverId, kind);
+        if (resolvedBackend() == Backend::File) {
+            const FileAnswer removed = fileRemove(serverId, kind);
+            // A copy an earlier session stored in the keychain would come back through the
+            // cross-backend read: clear it too, best effort and off the queue (the keychain
+            // may not answer at all this session).
+            if (crossBackendFallback())
+                keychainRemove(key, [](KeychainStatus, const QString &, const QString &) {});
+            answerJob(alive, removed.status != KeychainStatus::Failed, QString(), removed.error);
+            done();
+            return;
+        }
+        keychainRemove(key,
+                       [this, alive, serverId, kind, done](KeychainStatus status,
+                                                           const QString &,
+                                                           const QString &error) {
+                           if (crossBackendFallback())
+                               fileRemove(serverId, kind);
+                           // Removing an absent entry is not a failure: the end state the
+                           // caller wants already holds.
+                           answerJob(alive, status != KeychainStatus::Failed, QString(), error);
+                           done();
+                       });
     });
     return job;
 }

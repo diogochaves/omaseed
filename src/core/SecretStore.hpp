@@ -2,6 +2,7 @@
 
 #include <QList>
 #include <QObject>
+#include <QPointer>
 #include <QString>
 
 #include <chrono>
@@ -45,7 +46,15 @@ Q_SIGNALS:
 /// probe that has not answered within `probeTimeout()` (3 s by default, Q4) decides File.
 /// The result is cached, announced by `backendResolved()` and readable through `backend()`
 /// / `backendName()`, neither of which blocks. `setForcedBackend()` skips the probe for
-/// tests.
+/// tests. A probe that timed out keeps listening: if the keychain answers late (the user
+/// unlocked it), the store switches to Keychain for the rest of the session.
+///
+/// The choice is made per session, so a secret may sit in the backend not in use (stored
+/// while the keyring was locked, or the other way round). A read that misses therefore looks
+/// in the other backend too: a secret found in the file while on Keychain is answered and
+/// moved into the keychain; one found only in the keychain while on File is answered as is
+/// (that lookup is bounded by the probe timeout). A write on Keychain drops any stale file
+/// copy, and a remove clears both.
 ///
 /// Nothing in the store spins a nested event loop: every operation — the probe included —
 /// runs through one queue, strictly one at a time, and the next one starts only once the
@@ -106,8 +115,30 @@ public:
     /// Test hook, see `ProbeRunner`. An empty runner restores the real keychain probe.
     void setProbeRunner(ProbeRunner runner);
 
+    /// How a keychain operation ended.
+    enum class KeychainStatus {
+        Ok,
+        NotFound,
+        Failed,
+    };
+    using KeychainAnswer =
+        std::function<void(KeychainStatus status, const QString &value, const QString &error)>;
+    /// Test hook: stands in for libsecret, so the cross-backend paths can be tested without
+    /// the desktop's keyring. `key` is `<serverId>/<kind>`. Each function must call its
+    /// answer exactly once (or never, to play a keychain that hangs).
+    struct KeychainHooks
+    {
+        std::function<void(const QString &key, KeychainAnswer answer)> read;
+        std::function<void(const QString &key, const QString &value, KeychainAnswer answer)>
+            write;
+        std::function<void(const QString &key, KeychainAnswer answer)> remove;
+    };
+    /// Empty hooks restore the real keychain.
+    void setKeychainHooks(KeychainHooks hooks);
+
 Q_SIGNALS:
-    /// Fired once, when auto-detection settles (never for a forced backend).
+    /// Fired when auto-detection settles (never for a forced backend), and once more if a
+    /// keychain that missed the probe timeout answers after all: File then becomes Keychain.
     void backendResolved(omaseed::core::SecretStore::Backend backend);
 
 private:
@@ -136,21 +167,38 @@ private:
 
     static QString keyFor(Kind kind);
     static QString fieldFor(Kind kind);
+    static QString keychainKey(const QString &serverId, Kind kind);
 
-    void
-    runKeychainWrite(Job *job, const QString &serverId, Kind kind, const QString &value, Done done);
-    void runKeychainRead(Job *job, const QString &serverId, Kind kind, Done done);
-    void runKeychainRemove(Job *job, const QString &serverId, Kind kind, Done done);
+    // The keychain, as three callbacks (libsecret, or the test hooks).
+    void keychainRead(const QString &key, KeychainAnswer answer);
+    void keychainWrite(const QString &key, const QString &value, KeychainAnswer answer);
+    void keychainRemove(const QString &key, KeychainAnswer answer);
+    /// Whether a read may also look in the backend that is not in use (INT-7): a session
+    /// that settled on the other backend (a locked keyring at login, say) must still find
+    /// what an earlier session stored. Always on in the app; a forced backend (tests) turns
+    /// it off unless keychain hooks stand in for the real keyring.
+    bool crossBackendFallback() const;
 
     void enqueue(Operation operation);
     void scheduleNext();
     void startNext();
 
-    void runFileWrite(Job *job, const QString &serverId, Kind kind, const QString &value) const;
-    void runFileRead(Job *job, const QString &serverId, Kind kind) const;
-    void runFileRemove(Job *job, const QString &serverId, Kind kind) const;
+    // The file backend, synchronous. A status of NotFound covers a missing file or field.
+    struct FileAnswer
+    {
+        KeychainStatus status = KeychainStatus::NotFound;
+        QString value;
+        QString error;
+    };
+    static FileAnswer fileRead(const QString &serverId, Kind kind);
+    static FileAnswer fileWrite(const QString &serverId, Kind kind, const QString &value);
+    static FileAnswer fileRemove(const QString &serverId, Kind kind);
+
+    void runRead(const QPointer<Job> &job, const QString &serverId, Kind kind, Done done);
 
     static QString secretFilePath(const QString &serverId);
+
+    KeychainHooks m_keychainHooks;
 };
 
 } // namespace omaseed::core
