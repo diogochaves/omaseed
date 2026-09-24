@@ -269,6 +269,8 @@ public:
     Q_INVOKABLE QString sizeText(qint64 bytes) const;
     /// A rate limit in the hero's short form ("1.00M", "200K"); "∞" when there is none.
     Q_INVOKABLE static QString limitShortText(qint64 bytesPerSecond);
+    /// A speed in the same short form ("4.21M", "812K", "0"), for the hero's last step.
+    Q_INVOKABLE static QString speedShortText(qint64 bytesPerSecond);
 
     /// A client error ("network: GET sync/maindata: Connection refused") stripped to the
     /// reason Fig. 21's notice and Fig. 23's banner print ("connection refused").

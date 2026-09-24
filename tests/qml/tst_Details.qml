@@ -172,6 +172,40 @@ TestCase {
         compare(strip.rule, true);
     }
 
+    // docs/15 Q2 A: below 700 px (base 14) the band stops sharing its line. The name goes on
+    // top at the full width, the four facts across the whole width under it, then the tabs.
+    function test_a_narrow_band_puts_the_facts_under_the_name() {
+        const view = testCase.select(testCase.archName);
+        view.wide = true;
+        const strip = findChild(view, "strip");
+        const tabs = findChild(view, "detailsTabs");
+        const name = findChild(view, "headLabels").parent.parent; // the head's column
+
+        view.width = Theme.space(600);
+        wait(0);
+        verify(view.band);
+        compare(strip.width, Math.floor(view.width / 2));
+
+        view.width = Theme.space(599);
+        wait(0);
+        verify(!view.band);
+        compare(strip.width, view.width);
+        compare(strip.mapToItem(view, 0, 0).x, 0);
+        compare(name.width, view.width - 2 * Theme.space(16));
+        verify(strip.mapToItem(view, 0, 0).y >= name.mapToItem(view, 0, 0).y + name.height,
+               "the facts are not under the name");
+        verify(tabs.mapToItem(view, 0, 0).y >= strip.mapToItem(view, 0, 0).y + strip.height,
+               "the tabs overlap the facts");
+        compare(strip.rule, true);
+        compare(strip.items.length, 4);
+
+        // And at the 560 px floor the facts keep the whole width.
+        view.width = Theme.space(480);
+        wait(0);
+        verify(!view.band);
+        compare(strip.width, view.width);
+    }
+
     // docs/12 G3: the pieces bar tops General, drawn from the demo's piece states.
     function test_the_pieces_bar_tops_general() {
         const view = testCase.select(testCase.archName);

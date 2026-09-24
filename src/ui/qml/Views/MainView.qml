@@ -48,6 +48,7 @@ Item {
     readonly property alias locationSheetPanel: locationSheetPanel
     readonly property alias limitsSheetPanel: limitsSheetPanel
     readonly property alias moreMenu: moreMenu
+    readonly property alias filterMenu: filterMenu
     readonly property alias globalLimitsSheet: globalLimitsSheet
     readonly property alias renameSheetPanel: renameSheetPanel
     // ruling Q4: the Trackers/Peers tabs' `a` and the Peers tab's `b`
@@ -109,6 +110,8 @@ Item {
             return actionsMenuPanel;
         if (moreMenu.opened)
             return moreMenu;
+        if (filterMenu.opened)
+            return filterMenu;
         return null;
     }
 
@@ -753,6 +756,22 @@ Item {
         }
     }
 
+    /// Every filter off: the rail's (shown as chips) and the name filter.
+    function clearAllFilters(): void {
+        for (const chip of root.activeFilterChips)
+            root.clearOneFilter(chip.key);
+        root.clearFilter();
+    }
+
+    /// docs/15 Q1 A: the hero's filters on its last step, hung under its `/` button with
+    /// their right edges flush.
+    function openFilterMenu(): void {
+        const button = hero.filterButton;
+        const corner = button.mapToItem(root, button.width, button.height);
+        filterMenu.openAt(Math.round(corner.x - filterMenu.menuWidth), Math.round(corner.y
+                                                                                  + Theme.space(4)));
+    }
+
     /// The hero's ⋯ menu, hung under its button with their right edges flush.
     function openMoreMenu(): void {
         const button = hero.moreButton;
@@ -968,6 +987,7 @@ Item {
         connectionStatus: App.globalState.connectionStatus
         serverConfigured: App.hasServer
         downSpeed: root.live ? App.globalState.dlSpeedText : "—"
+        downSpeedShort: root.live ? App.speedShortText(App.globalState.dlInfoSpeed) : "—"
         searchCount: App.filtered.count
         searchCountText: App.filtered.text.length > 0 ? qsTr("%1 of %2").arg(
                                                             App.filtered.count).arg(
@@ -995,11 +1015,13 @@ Item {
         speedsAlignment: App.speedsAlignment
         syncing: root.firstSync
         upSpeed: root.live ? App.globalState.upSpeedText : "—"
+        upSpeedShort: root.live ? App.speedShortText(App.globalState.upInfoSpeed) : "—"
 
         onAddClicked: App.addRequested()
         onAltSpeedClicked: App.toggleAltSpeed()
         onHelpClicked: root.helpOpen = true
         onFilterChipCleared: key => root.clearOneFilter(key)
+        onFiltersClicked: root.openFilterMenu()
         onMoreClicked: root.openMoreMenu()
 
         Rectangle {
@@ -1443,6 +1465,22 @@ Item {
         z: 9
 
         onActivated: action => root.moreAction(action)
+    }
+
+    FilterMenu {
+        id: filterMenu
+
+        anchors.fill: parent
+        countText: hero.searchCountText
+        filters: root.activeFilterChips
+        text: App.filtered.text
+        z: 9
+
+        onAllCleared: root.clearAllFilters()
+        onFilterCleared: key => root.clearOneFilter(key)
+        // The hero's field stays the one source: it writes the model and keeps the text for
+        // when the window widens again.
+        onTextEdited: text => hero.searchField.text = text
     }
 
     GlobalLimitsSheet {

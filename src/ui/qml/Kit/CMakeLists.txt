@@ -18,6 +18,7 @@ qt_add_qml_module(omaseed-kit
         Chip.qml
         ConfirmDialog.qml
         Field.qml
+        FilterMenu.qml
         FocusRing.qml
         FormRow.qml
         Fuzzy.qml

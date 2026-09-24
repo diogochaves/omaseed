@@ -215,6 +215,11 @@ QString speedShort(qint64 bytesPerSecond)
                                        QString::fromLatin1(units.at(unit)));
 }
 
+QString speedCompact(qint64 bytesPerSecond)
+{
+    return speedShort(bytesPerSecond).remove(QLatin1Char(' '));
+}
+
 QString count(qint64 value)
 {
     // The spec's figures group with a plain space ("1 264", "1 204 total"), not with the

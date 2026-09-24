@@ -40,6 +40,28 @@ TestCase {
         }
     }
 
+    // docs/15 Q3 A: a window at the 560 px floor (base 14).
+    Component {
+        id: narrowHostComponent
+
+        Item {
+            height: 720
+            width: Theme.space(480)
+        }
+    }
+
+    Component {
+        id: rowComponent
+
+        SettingsRow {
+            description: "Off keeps the bundled Tokyo Night whatever the desktop does."
+            glyph: Glyphs.appearance
+            title: "Follow the Omarchy theme"
+
+            Toggle {}
+        }
+    }
+
     Component {
         id: probeComponent
 
@@ -656,5 +678,81 @@ TestCase {
         keyClick(Qt.Key_Tab);
         keyClick(Qt.Key_1);
         compare(scroller.contentY, 0);
+    }
+
+    // docs/15 Q3 A: below 700 px the nav folds into tabs across the top, the rows take the
+    // sheet's whole width, and h/l or [/] move between the sections.
+    function test_a_narrow_window_folds_the_nav_into_tabs() {
+        const host = createTemporaryObject(narrowHostComponent, testCase);
+        const modal = createTemporaryObject(modalComponent, host);
+        modal.open();
+        verify(modal.folded);
+        const nav = testCase.childNamed(modal, "settingsNav");
+        const tabs = testCase.childNamed(modal, "settingsTabs");
+        verify(!nav.visible);
+        verify(tabs.visible);
+        compare(modal.area, "pane");
+
+        // Every tab fits across the sheet.
+        const tabRow = tabs.children[0];
+        verify(Theme.space(10) + tabRow.implicitWidth <= tabs.width, "tabs need "
+               + (Theme.space(10) + tabRow.implicitWidth) + " of " + tabs.width);
+        // The pane starts where the tabs do: no nav beside it.
+        const scroller = testCase.childNamed(modal, "paneScroller");
+        compare(scroller.mapToItem(modal, 0, 0).x, tabs.mapToItem(modal, 0, 0).x);
+
+        keyClick(Qt.Key_L);
+        compare(modal.paneIndex, 1);
+        compare(tabs.currentIndex, 1);
+        keyClick(Qt.Key_BracketRight);
+        compare(modal.paneIndex, 2);
+        keyClick(Qt.Key_BracketLeft);
+        compare(modal.paneIndex, 1);
+        keyClick(Qt.Key_H);
+        keyClick(Qt.Key_H);
+        compare(modal.paneIndex, 5); // wraps, as j/k do in the nav
+        keyClick(Qt.Key_5);
+        compare(modal.paneIndex, 4);
+        compare(tabs.currentIndex, 4);
+        // j/k still walk the pane's rows, and tab has no nav to go to.
+        keyClick(Qt.Key_J);
+        compare(modal.paneCursor, 1);
+        keyClick(Qt.Key_Tab);
+        compare(modal.area, "pane");
+
+        tabs.activated(0);
+        compare(modal.paneIndex, 0);
+
+        // At the fold and above, the nav is back.
+        host.width = Theme.space(600);
+        verify(!modal.folded);
+        verify(nav.visible);
+        verify(!tabs.visible);
+    }
+
+    // docs/15 Q3 A: a row under about 380 px (base 14) moves its control under the text,
+    // lined up with the text's left edge; wider, the control stays at the row's end.
+    function test_a_narrow_row_stacks_its_control_under_the_text() {
+        const row = createTemporaryObject(rowComponent, testCase, {
+                                              "width": Theme.space(400)
+                                          });
+        const control = testCase.childNamed(row, "settingsRowControl");
+        const text = testCase.childNamed(row, "settingsRowText");
+        verify(!row.stacked);
+        waitForItemPolished(control.parent);
+        const wideAt = control.mapToItem(row, 0, 0);
+        verify(wideAt.x + control.width > row.width - Theme.space(12) - 1,
+               "the control left the row's end");
+        verify(wideAt.x > text.mapToItem(row, 0, 0).x + text.width - 1);
+        const wideHeight = row.implicitHeight;
+
+        row.width = Theme.space(325);
+        verify(row.stacked);
+        waitForItemPolished(control.parent);
+        const at = control.mapToItem(row, 0, 0);
+        const textAt = text.mapToItem(row, 0, 0);
+        compare(at.x, textAt.x);
+        verify(at.y >= textAt.y + text.height, "the control is not under the text");
+        verify(row.implicitHeight > wideHeight);
     }
 }

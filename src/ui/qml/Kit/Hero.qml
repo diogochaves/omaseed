@@ -14,6 +14,9 @@ import Omaseed.Kit
 // folds into a `/` button that opens over the speeds and the chip keeps only its glyph (3),
 // and the name and server line give way to the dot (4). The mark, the dot, both speeds, `+`
 // and ⋯ never leave, and if something still does not fit the server line elides first.
+// On step 4 the speeds print short (`↓4.21M ↑812K`) and the filter chips leave the row: the
+// `/` button carries them, lit with their count, and `filtersClicked` asks the caller for the
+// menu that lists them (docs/15 Q1 A).
 Item {
     id: root
 
@@ -44,6 +47,9 @@ Item {
     property string altDownLimitShort: root.altDownLimit
     property string altUpLimitShort: root.altUpLimit
     property string downSpeed: "—"
+    /// The speeds in their short form ("4.21M"), printed on step 4 (docs/15 Q1 A).
+    property string downSpeedShort: root.downSpeed
+    property string upSpeedShort: root.upSpeed
     // Exposed read-only so `tst_Hero.qml` can drive the inner Field directly instead of
     // simulating keystrokes.
     property alias searchField: searchField
@@ -53,6 +59,8 @@ Item {
     readonly property alias downStat: downStat
     /// The network word after the server line, for tests.
     readonly property alias networkLabel: networkLabel
+    /// The step-4 filter button, so the caller can hang the filters' menu under it.
+    readonly property alias filterButton: filterButton
     /// The ⋯ button, so the caller can hang its menu under it.
     readonly property alias moreButton: moreButton
     /// The alt-speed chip.
@@ -80,6 +88,8 @@ Item {
     /// to glyph and ✕ for 3–4, which is how they are drawn there. The chips use the slack the
     /// thresholds leave before anything folds (review VER-6: subtracting them from the
     /// window's width and then asking for the no-chip thresholds folded three steps early).
+    /// Step 4 is where the ladder ends and the chips stop counting: there they go into the
+    /// `/` button (`filtersInButton`, docs/15 Q1 A), so the row is as wide as with none.
     readonly property int level: {
         let step = 4;
         if (root.width >= Theme.space(1286))
@@ -138,6 +148,12 @@ Item {
         }
         return width;
     }
+    /// Step 4 with filter chips up: the chips leave the row and the `/` button carries them
+    /// (docs/15 Q1 A). A name filter alone stays in the field the button opens.
+    readonly property bool filtersInButton: root.level >= 4 && root.filterChips.length > 0
+    /// Every filter that is up: the chips, and the name filter when it holds text.
+    readonly property int filterCount: root.filterChips.length
+                                       + (searchField.text.length > 0 ? 1 : 0)
     /// From step 2 the gear and `?` are not in the hero; the caller puts them in ⋯.
     readonly property bool compact: root.level >= 2
     /// From step 3 the filter is a button; this is true while it is open over the speeds.
@@ -153,8 +169,13 @@ Item {
                                : qsTr("↓%1 ↑%2").arg(root.altDownLimit).arg(root.altUpLimit);
     }
 
-    /// `/`: focus the filter, opening it first when it is folded into its button.
+    /// `/`: focus the filter, opening it first when it is folded into its button. While the
+    /// button carries the filters (step 4), it asks for their menu instead.
     function openSearch(): void {
+        if (root.filtersInButton) {
+            root.filtersClicked();
+            return;
+        }
         root.searchOpen = true;
         searchField.focusInput();
     }
@@ -171,6 +192,8 @@ Item {
     signal altSpeedClicked
     signal helpClicked
     signal moreClicked
+    /// The filter button on step 4, or `/` there: the caller opens the filters' menu.
+    signal filtersClicked
     /// The ✕ of one of `filterChips`.
     signal filterChipCleared(string key)
     signal searchChanged(string text)
@@ -360,7 +383,7 @@ Item {
             glyph: Glyphs.arrowDown
             glyphColor: Theme.stateDownloading
             label: root.level >= 2 ? "" : qsTr("download")
-            value: root.downSpeed
+            value: root.level >= 4 ? root.downSpeedShort : root.downSpeed
             visible: !(root.level >= 3 && root.searchOpen)
         }
 
@@ -369,7 +392,7 @@ Item {
             glyph: Glyphs.arrowUp
             glyphColor: Theme.stateSeeding
             label: root.level >= 2 ? "" : qsTr("upload")
-            value: root.upSpeed
+            value: root.level >= 4 ? root.upSpeedShort : root.upSpeed
             visible: !(root.level >= 3 && root.searchOpen)
         }
 
@@ -395,6 +418,7 @@ Item {
                 glyph: filterChip.modelData.glyph
                 objectName: "filterChip_" + filterChip.modelData.key
                 text: root.chipsFolded ? Glyphs.close : filterChip.modelData.text + "  " + Glyphs.close
+                visible: !root.filtersInButton
 
                 onClicked: root.filterChipCleared(filterChip.modelData.key)
             }
@@ -404,14 +428,68 @@ Item {
         IconButton {
             id: searchButton
 
-            accent: root.searchText.length > 0
+            accent: searchField.text.length > 0
             glyph: Glyphs.search
             objectName: "searchButton"
-            tooltip: root.searchText.length > 0 ? qsTr("filter: %1 · /").arg(root.searchText)
-                                                : qsTr("filter · /")
-            visible: root.searchFolded
+            tooltip: searchField.text.length > 0 ? qsTr("filter: %1 · /").arg(searchField.text)
+                                                 : qsTr("filter · /")
+            visible: root.searchFolded && !root.filtersInButton
 
             onClicked: root.openSearch()
+        }
+
+        // Step 4 with filters up (docs/15 Q1 A): the search glyph and how many filters are
+        // up, lit in the accent, drawn as a chip. It is never wider than a few digits.
+        Rectangle {
+            id: filterButton
+
+            Accessible.name: qsTr("%n filter(s) · /", "", root.filterCount)
+            Accessible.role: Accessible.Button
+            Layout.alignment: Qt.AlignVCenter
+            border.color: Theme.accent
+            border.width: 1
+            color: filterMouse.containsMouse ? Theme.fill(Theme.fillHover) : Theme.fill(
+                                                   Theme.fillIdle)
+            implicitHeight: Theme.space(22)
+            implicitWidth: filterContent.implicitWidth + Theme.space(16)
+            objectName: "filterButton"
+            radius: Theme.cornerRadius
+            visible: root.filtersInButton
+
+            Row {
+                id: filterContent
+
+                anchors.centerIn: parent
+                spacing: Theme.space(5)
+
+                Glyph {
+                    anchors.verticalCenter: parent.verticalCenter
+                    color: Theme.accent
+                    height: Theme.font.small
+                    pixelSize: Theme.font.small
+                    text: Glyphs.search
+                    width: Theme.font.small
+                }
+
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    color: Theme.accent
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.font.small
+                    objectName: "filterCount"
+                    text: String(root.filterCount)
+                }
+            }
+
+            MouseArea {
+                id: filterMouse
+
+                anchors.fill: parent
+                cursorShape: Qt.PointingHandCursor
+                hoverEnabled: true
+
+                onClicked: root.filtersClicked()
+            }
         }
 
         Field {

@@ -33,6 +33,8 @@ private slots:
     void seedsPeers();
     void speedShort_data();
     void speedShort();
+    void speedCompact_data();
+    void speedCompact();
     void percentNeverRoundsUpTo100();
     void countGroupsWithSpaces();
     void piecesRow();
@@ -252,6 +254,27 @@ void TestFormat::speedShort()
     QFETCH(qint64, bytesPerSecond);
     QFETCH(QString, text);
     QCOMPARE(Format::speedShort(bytesPerSecond), text);
+}
+
+void TestFormat::speedCompact_data()
+{
+    QTest::addColumn<qint64>("bytesPerSecond");
+    QTest::addColumn<QString>("text");
+
+    // docs/15 Q1 A: the hero's last step, `↓4.21M ↑812K`.
+    QTest::newRow("4.21M") << qint64(4414505) << QStringLiteral("4.21M");
+    QTest::newRow("812K") << qint64(831488) << QStringLiteral("812K");
+    QTest::newRow("tens of megabytes") << qint64(48LL * 1024 * 1024) << QStringLiteral("48.0M");
+    QTest::newRow("bare bytes") << qint64(512) << QStringLiteral("512");
+    QTest::newRow("zero") << qint64(0) << QStringLiteral("0");
+    QTest::newRow("negative is zero") << qint64(-5) << QStringLiteral("0");
+}
+
+void TestFormat::speedCompact()
+{
+    QFETCH(qint64, bytesPerSecond);
+    QFETCH(QString, text);
+    QCOMPARE(Format::speedCompact(bytesPerSecond), text);
 }
 
 void TestFormat::percentNeverRoundsUpTo100()
