@@ -449,9 +449,12 @@ int main(int argc, char *argv[])
     // The Appearance pane's "follow the Omarchy theme" and base-size override live in
     // state.json; App applies them to the reader here, before the first frame (T4.5).
     omaseedApp.attachTheme(&theme);
+    // Only a real launch loads servers.json and polls. Every demo stays offline: the default
+    // server is somebody's real library, and a demo must never talk to it. The gallery needs
+    // no models at all, so its App stays serverless.
     if (windowDemo)
         omaseedApp.startDemo(demoRows);
-    else
+    else if (demo.isEmpty())
         omaseedApp.start();
 
     QQmlApplicationEngine engine;
