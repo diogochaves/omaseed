@@ -730,6 +730,47 @@ TestCase {
         view.table.visibleColumns = before;
     }
 
+    // ---- the `?` sheet closes and runs (review VIEW-8, VIEW-9) ---------------------------
+    function test_question_and_f1_close_the_help_sheet_they_opened() {
+        keyClick(Qt.Key_Question);
+        compare(view.helpOpen, true);
+        keyClick(Qt.Key_Question);
+        compare(view.helpSheet.query, "", "? was typed into the filter");
+        compare(view.helpOpen, false, "? did not close the sheet");
+
+        keyClick(Qt.Key_F1);
+        compare(view.helpOpen, true);
+        keyClick(Qt.Key_F1);
+        compare(view.helpOpen, false, "F1 did not close the sheet");
+    }
+
+    function test_enter_on_the_details_placement_row_moves_the_pane() {
+        const before = App.detailsPlacement;
+        keyClick(Qt.Key_Question);
+        for (const letter of "right")
+            keyClick(letter);
+        compare(view.helpSheet.cursorRow.action, "cycleDetailsPlacement");
+        keyClick(Qt.Key_Return);
+        compare(view.helpOpen, false);
+        verify(App.detailsPlacement !== before, "enter on the row did nothing");
+        App.detailsPlacement = before;
+    }
+
+    function test_a_movement_row_runs_nothing_and_says_so() {
+        compare(view.runKeymapAction("moveDown"), false);
+        compare(view.runKeymapAction("columns"), true);
+        view.columnsPalette.close();
+    }
+
+    // ---- ctrl chords from the rail (review VIEW-10) -------------------------------------
+    function test_ctrl_k_from_the_rail_opens_jump() {
+        view.rail.forceActiveFocus();
+        const cursor = view.rail.cursorIndex;
+        keyClick(Qt.Key_K, Qt.ControlModifier);
+        compare(view.jumpPalette.opened, true, "ctrl+k in the rail did not open jump");
+        compare(view.rail.cursorIndex, cursor, "ctrl+k moved the rail's cursor");
+    }
+
     // ---- the details pane's row keys (review VIEW-6) ------------------------------------
     function test_a_in_the_general_tab_still_adds_a_torrent() {
         view.details.activateTab(0);

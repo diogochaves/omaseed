@@ -542,57 +542,81 @@ Item {
     }
 
     /// Runs a Keymap row's action from the help sheet's `enter` (docs/08 §4). Rows that name a
-    /// movement rather than a command (j k, g G, h l, 0–8, 1–4, space, v, esc) do nothing.
-    function runKeymapAction(action: string): void {
+    /// movement rather than a command (j k, g G, h l, 0–8, 1–4, space, v, esc) do nothing and
+    /// say so in the footer. False when nothing ran.
+    function runKeymapAction(action: string): bool {
         // Fig. 23's read-only guard: from the `?` sheet of a lost server, only what the
         // guard itself still lets through runs.
         if (root.serverLost && ["settings", "hide", "quit"].indexOf(action) < 0)
-            return;
+            return false;
         switch (action) {
+        case "cycleDetailsPlacement":
+            root.cycleDetailsPlacement();
+            return true;
+        case "detailsSmaller":
+            if (details.collapsed)
+                root.toggleDetails();
+            split.resizeBy(-Theme.space(40));
+            return true;
+        // The Files tab's commands run on the file under its cursor, as the keys would.
+        case "priorityMenu":
+        case "openFile":
+        case "collapseAll":
+            root._runInFiles(action === "priorityMenu" ? "priority" : action);
+            return true;
+        case "copy":
+            if (details.collapsed)
+                root.toggleDetails();
+            details.forceActiveFocus();
+            details.copyCurrent();
+            return true;
+        case "moveColumnUp": // the columns palette is where the columns move
+            columnsPalette.open();
+            return true;
         case "filter":
             root.focusSearch();
-            return;
+            return true;
         case "jump":
             jumpPalette.open();
-            return;
+            return true;
         case "selectAll":
             table.forceActiveFocus();
             table.selectAll();
-            return;
+            return true;
         case "add":
             App.addRequested();
-            return;
+            return true;
         case "actions":
             table.forceActiveFocus();
             table.requestActions();
-            return;
+            return true;
         case "toggleDetails":
             root.toggleDetails();
-            return;
+            return true;
         case "sort":
             sortPalette.openOnCurrent();
-            return;
+            return true;
         case "columns":
             columnsPalette.open();
-            return;
+            return true;
         case "altSpeed":
             App.toggleAltSpeed();
-            return;
+            return true;
         case "settings":
             App.openSettings();
-            return;
+            return true;
         case "more":
             root.openMoreMenu();
-            return;
+            return true;
         case "toggleRail":
             root.toggleRail();
-            return;
+            return true;
         case "hide":
             root.hideRequested();
-            return;
+            return true;
         case "quit":
             root.quitRequested();
-            return;
+            return true;
         case "stopStart":
         case "delete":
         case "recheck":
@@ -602,10 +626,19 @@ Item {
         case "copyMagnet":
             table.forceActiveFocus();
             root.torrentAction(action);
-            return;
+            return true;
         default:
-            return;
+            return false;
         }
+    }
+
+    /// A Files tab command from the help sheet: the pane shows, on Files, with the keyboard.
+    function _runInFiles(action: string): void {
+        if (details.collapsed)
+            root.toggleDetails();
+        details.activateTab(1);
+        details.forceActiveFocus();
+        details.fileAction(action);
     }
 
     /// `ctrl+b` (docs/08 §5): hide or show the rail. Hiding it never hides a filter: while it
@@ -1287,7 +1320,8 @@ Item {
             onCloseRequested: root.helpOpen = false
             onRunRequested: action => {
                 root.helpOpen = false;
-                root.runKeymapAction(action);
+                if (!root.runKeymapAction(action))
+                    root.flashFooterNote(qsTr("a key to press where it applies, not a command"));
             }
         }
     }

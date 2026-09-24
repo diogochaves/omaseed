@@ -126,7 +126,9 @@ FocusScope {
         event.accepted = true;
     }
     Keys.onPressed: event => {
-        if (event.key === Qt.Key_Question && root.query.length === 0) {
+        // F1 opened the sheet (Keymap "f1"), so it closes it too. A `?` is typed text for the
+        // filter's TextInput, which takes it before this handler: see `filterField`.
+        if (event.key === Qt.Key_F1 || (event.key === Qt.Key_Question && root.query.length === 0)) {
             root.closeRequested();
             event.accepted = true;
         } else if (event.key === Qt.Key_Down || event.key === Qt.Key_Up) {
@@ -171,6 +173,14 @@ FocusScope {
 
             onAccepted: if (root.cursorRow)
                             root.runRequested(root.cursorRow.action)
+            // `?` with nothing typed closes, the way it opened: the field has the caret and
+            // swallows the printable key, so the check is on what it typed.
+            onTextChanged: {
+                if (filterField.text === "?") {
+                    filterField.text = "";
+                    root.closeRequested();
+                }
+            }
         }
 
         Flickable {
