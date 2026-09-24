@@ -119,7 +119,7 @@ Item {
         /// From the pointer (`showAt`), clear of the cursor's own shape.
         readonly property int gap: Theme.space(12)
         /// From the item's edge (`showFor`).
-        readonly property int itemGap: Theme.space(4)
+        readonly property int itemGap: Theme.focusExtent + Theme.space(4) // clear of a FocusRing
         readonly property int padding: Theme.space(6)
         readonly property real wantX: internal.below
                                       ? internal.itemX + (internal.itemWidth - panel.width) / 2
