@@ -144,6 +144,8 @@ public:
     bool hasServer() const { return m_hasServer; }
     int serverCount() const;
     bool isDemoMode() const { return m_demoMode; }
+    /// True after serverLost/authRequired until a sync succeeds again (drives the tray).
+    bool isServerLost() const { return m_serverLost; }
 
     /// The tray's icon state for a given world (spec §6 Fig. 17). Highest priority first:
     /// disconnected, error, alt-speed, downloading, idle. Static and pure so the mapping is
@@ -195,6 +197,8 @@ private:
     bool m_hasServer = false;
     bool m_demoMode = false;
     bool m_serverLost = false;
+    /// Bumped whenever the live server changes; late keychain answers compare against it.
+    quint64 m_serverGeneration = 0;
 
     // --- T3.4: details -------------------------------------------------------------------
     // Everything the details pane (spec §2) adds to App lives in this one block, at the end
