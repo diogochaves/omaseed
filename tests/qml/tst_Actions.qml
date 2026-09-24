@@ -293,7 +293,11 @@ TestCase {
         view.limitsSheetPanel.openFor([view.cursorHash]);
         const fields = view.limitsSheetPanel.bodyFocusables();
         verify(fields.indexOf(view.limitsSheetPanel.downloadField) >= 0, "the fields are not found");
-        verify(fields.indexOf(view.limitsSheetPanel.seedingField) >= 0);
+        // Global seeding time (the demo's -2) disables the field; its chip is the way in.
+        verify(fields.indexOf(view.limitsSheetPanel.seedingGlobalChip) >= 0,
+               "the seeding time's global chip is out of the tab order");
+        view.limitsSheetPanel._seedingGlobal = false;
+        verify(view.limitsSheetPanel.bodyFocusables().indexOf(view.limitsSheetPanel.seedingField) >= 0);
         tryVerify(() => view.limitsSheetPanel.downloadField.editing, 1000);
         keyClick(Qt.Key_Tab);
         verify(view.limitsSheetPanel.uploadField.editing, "tab did not reach the upload field");
@@ -366,7 +370,9 @@ TestCase {
         // A 90-minute limit opens as 0.06 days; left alone it must stay 90 minutes, not 0.
         const initial = Object.assign({}, sheet._initial);
         initial.seeding = "0.06";
+        initial.seedingGlobal = false;
         sheet._initial = initial;
+        sheet._seedingGlobal = false;
         sheet.seedingField.text = "0.06";
         compare(sheet._formValues().seeding, null);
         sheet.seedingField.text = "0.5";
@@ -375,6 +381,49 @@ TestCase {
         compare(sheet._formValues().seeding, -1);
         sheet.close();
         compare(spy.count, 0);
+    }
+
+    // Ruling Q5: seeding time on the global limit shows the ratio's `global` chip, not `∞`.
+    function test_limits_global_seeding_time_shows_the_global_chip() {
+        const spy = createTemporaryObject(limitsSpy, testCase);
+        const sheet = view.limitsSheetPanel;
+        const hash = hashByName("Big Buck Bunny 4K (CC-BY)");
+        compare(App.torrentRow(hash).seedingTimeLimit, -2);
+        sheet.openFor([hash]);
+        compare(sheet._seedingGlobal, true);
+        compare(sheet.seedingGlobalChip.selected, true);
+        compare(sheet.seedingField.enabled, false);
+        compare(sheet.seedingField.placeholder, "", "the global seeding time still reads ∞");
+        compare(sheet._formValues().seeding, null, "an untouched chip changed the limit");
+
+        // Chip off with nothing typed: no limit, as the `∞` placeholder then says.
+        mouseClick(sheet.seedingGlobalChip);
+        compare(sheet._seedingGlobal, false);
+        compare(sheet.seedingField.enabled, true);
+        compare(sheet.seedingField.placeholder, "∞");
+        compare(sheet._formValues().seeding, -1);
+        sheet.seedingField.text = "2";
+        compare(sheet._formValues().seeding, 2880);
+
+        // Back on: global again, whatever the field held.
+        mouseClick(sheet.seedingGlobalChip);
+        compare(sheet._formValues().seeding, null);
+        sheet.close();
+
+        // A torrent with its own seeding time opens with the chip off, and turning it on
+        // sends -2.
+        sheet.openFor([hash]);
+        sheet._setSeeding(90);
+        const initial = Object.assign({}, sheet._initial);
+        initial.seeding = sheet.seedingField.text;
+        initial.seedingGlobal = false;
+        sheet._initial = initial;
+        compare(sheet.seedingGlobalChip.selected, false);
+        compare(sheet.seedingField.text, "0.06");
+        mouseClick(sheet.seedingGlobalChip);
+        sheet.triggerPrimary();
+        compare(spy.count, 1);
+        compare(spy.signalArguments[0][4], -2, "the chip did not put seeding time on global");
     }
 
     function test_limits_refuse_a_value_that_is_not_a_number() {

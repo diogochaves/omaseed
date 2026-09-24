@@ -4,14 +4,15 @@ import QtQuick.Layouts
 import Omaseed
 import Omaseed.Kit
 
-// "Limits" (spec v2 §3 Fig. 8, `.sheet`): download/upload speed, share ratio (with a "use the
-// global default" chip) and seeding time, prefilled from the cursor torrent (the first of
+// "Limits" (spec v2 §3 Fig. 8, `.sheet`): download/upload speed, share ratio and seeding time
+// (each with a "use the global default" chip; seeding time's is ruling Q5, review VIEW-5),
+// prefilled from the cursor torrent (the first of
 // `hashes`). `apply` converts every field to the units `App.setLimits` wants, and only the
 // fields the user changed travel: an untouched speed is -1 (unchanged), an untouched ratio,
 // seeding time or action is each torrent's own value (so a `global` seeding time stays -2 and
 // a multi-selection keeps its differences). A changed field that is empty means no limit
 // (0 for a speed, -1 for ratio and seeding time), as the `∞` placeholder says and as the
-// global Speed limits sheet reads it; `global` on the ratio chip is -2. Seeding time is in
+// global Speed limits sheet reads it; `global` on either chip is -2. Seeding time is in
 // days and may be fractional (90 minutes reads 0.06 and, untouched, stays 90 minutes). A
 // field that is not a number stops `apply` with a red line instead of sending NaN.
 //
@@ -48,6 +49,7 @@ Sheet {
     readonly property alias uploadField: ulField
     readonly property alias ratioField: ratioField
     readonly property alias seedingField: seedingField
+    readonly property alias seedingGlobalChip: seedingGlobalChip
 
     actions: [
         {
@@ -77,8 +79,7 @@ Sheet {
         dlField.text = row.dlLimit > 0 ? String(Math.round(row.dlLimit / 1024)) : "";
         ulField.text = row.upLimit > 0 ? String(Math.round(row.upLimit / 1024)) : "";
         root._setRatio(row.ratioLimit !== undefined ? row.ratioLimit : -2);
-        seedingField.text = row.seedingTimeLimit !== undefined && row.seedingTimeLimit >= 0
-                ? root._daysText(row.seedingTimeLimit) : "";
+        root._setSeeding(row.seedingTimeLimit !== undefined ? row.seedingTimeLimit : -2);
         root._setAction(row.shareLimitAction, hashes);
         root.errorText = "";
         root._initial = {
@@ -86,7 +87,8 @@ Sheet {
             "ul": ulField.text,
             "ratio": ratioField.text,
             "ratioGlobal": root._ratioGlobal,
-            "seeding": seedingField.text
+            "seeding": seedingField.text,
+            "seedingGlobal": root._seedingGlobal
         };
         root.open();
     }
@@ -134,8 +136,11 @@ Sheet {
                     return {"error": qsTr("Share ratio is not a number")};
             }
         }
-        if (seedingField.text.trim() !== String(root._initial.seeding).trim()) {
-            if (seedingField.text.trim().length === 0) {
+        if (root._seedingGlobal !== root._initial.seedingGlobal
+                || (!root._seedingGlobal && seedingField.text.trim() !== String(root._initial.seeding).trim())) {
+            if (root._seedingGlobal) {
+                out.seeding = -2;
+            } else if (seedingField.text.trim().length === 0) {
                 out.seeding = -1;
             } else {
                 const days = root._number(seedingField.text);
@@ -185,6 +190,17 @@ Sheet {
         }
     }
 
+    /// The same for seeding time, in minutes: -2 is the chip, anything else fills in days.
+    function _setSeeding(minutes: real): void {
+        if (minutes === -2) {
+            root._seedingGlobal = true;
+            seedingField.text = "";
+        } else {
+            root._seedingGlobal = false;
+            seedingField.text = minutes >= 0 ? root._daysText(minutes) : "";
+        }
+    }
+
     /// Bytes/s for a speed field: -1 while it still reads what it opened with (unchanged),
     /// 0 (unlimited) when emptied or "0", otherwise KB/s converted to bytes/s; NaN when it is
     /// not a number.
@@ -199,6 +215,7 @@ Sheet {
     }
 
     property bool _ratioGlobal: true
+    property bool _seedingGlobal: true
     /// The largest speed limit the Web API stores (a signed 32-bit bytes/s).
     readonly property real maxSpeedBytes: 2147483647
 
@@ -208,7 +225,7 @@ Sheet {
         dlField.text = "";
         ulField.text = "";
         root._setRatio(-2);
-        seedingField.text = "";
+        root._setSeeding(-2);
         root._setAction("Default", []);
         root.errorText = "";
         App.setLimits(root.hashes, 0, 0, -2, -2, "Default", -2);
@@ -329,7 +346,10 @@ Sheet {
                     onAccepted: root.triggerPrimary()
                 }
 
+                // In the tab order (`space` flips it): with the field disabled under
+                // `global`, the chip is the only way off it from the keyboard.
                 Chip {
+                    focusable: true
                     selected: root._ratioGlobal
                     text: qsTr("global ▾")
 
@@ -343,15 +363,33 @@ Sheet {
             Layout.preferredWidth: 1
             label: qsTr("Seeding time")
 
-            Field {
-                id: seedingField
-
+            // Ruling Q5: the ratio row's chip, for the same reason. A torrent on the global
+            // seeding time used to show `∞`, which reads as "no limit".
+            RowLayout {
                 Layout.fillWidth: true
-                escClears: false
-                placeholder: "∞"
-                trailing: qsTr("days")
+                spacing: Theme.space(8)
 
-                onAccepted: root.triggerPrimary()
+                Field {
+                    id: seedingField
+
+                    Layout.fillWidth: true
+                    escClears: false
+                    enabled: !root._seedingGlobal
+                    placeholder: root._seedingGlobal ? "" : "∞"
+                    trailing: root._seedingGlobal ? "" : qsTr("days")
+
+                    onAccepted: root.triggerPrimary()
+                }
+
+                Chip {
+                    id: seedingGlobalChip
+
+                    focusable: true
+                    selected: root._seedingGlobal
+                    text: qsTr("global ▾")
+
+                    onClicked: root._seedingGlobal = !root._seedingGlobal
+                }
             }
         }
 
