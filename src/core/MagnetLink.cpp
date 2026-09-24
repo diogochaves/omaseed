@@ -32,8 +32,10 @@ QByteArray base32Decode(const QString &input)
 
 bool isHex(const QString &s)
 {
-    return !s.isEmpty() &&
-           std::all_of(s.begin(), s.end(), [](QChar c) { return std::isxdigit(c.toLatin1()); });
+    // ASCII only: toLatin1() of U+0080..U+00FF is a negative char, which <cctype> may not see.
+    return !s.isEmpty() && std::all_of(s.begin(), s.end(), [](QChar c) {
+               return c.unicode() < 128 && std::isxdigit(static_cast<unsigned char>(c.unicode()));
+           });
 }
 
 /// Normalises a btih hash (40-hex or 32-char base32) to lowercase hex. Empty on failure.
@@ -78,6 +80,15 @@ bool parseExactTopic(const QString &value, MagnetLink &out)
     return false;
 }
 
+bool isNumberedTopic(const QString &key)
+{
+    if (!key.startsWith(QStringLiteral("xt.")) || key.size() == 3)
+        return false;
+    return std::all_of(key.begin() + 3, key.end(), [](QChar c) {
+        return c >= QLatin1Char('0') && c <= QLatin1Char('9');
+    });
+}
+
 QString decodePercent(const QString &raw, bool plusAsSpace = false)
 {
     QByteArray bytes = raw.toUtf8();
@@ -107,7 +118,8 @@ MagnetLink MagnetLink::parse(const QString &uri)
         const QString rawValue = eq >= 0 ? pair.mid(eq + 1) : QString();
         const QString key = decodePercent(rawKey).toLower();
 
-        if (key == QStringLiteral("xt")) {
+        // BEP 9 numbers repeated topics as xt.1, xt.2, ... (a hybrid's v1 and v2 hash).
+        if (key == QStringLiteral("xt") || isNumberedTopic(key)) {
             if (parseExactTopic(decodePercent(rawValue), result))
                 hasHash = true;
         } else if (key == QStringLiteral("dn")) {
@@ -119,7 +131,7 @@ MagnetLink MagnetLink::parse(const QString &uri)
         } else if (key == QStringLiteral("xl")) {
             bool ok = false;
             const qint64 len = decodePercent(rawValue).toLongLong(&ok);
-            if (ok)
+            if (ok && len >= 0)
                 result.exactLength = len;
         } else if (key == QStringLiteral("x.pe")) {
             result.peers.append(decodePercent(rawValue));
