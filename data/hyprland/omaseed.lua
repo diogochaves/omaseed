@@ -37,14 +37,7 @@ local class = "io.github.diogochaves.omaseed"
 -- drop the tag and force the window itself to full opacity.
 o.window(class, { tag = "-default-opacity", opacity = "1 1" })
 
--- First-run window: float, centre, fixed size.
---
--- T4.6's first-run detector titles its window exactly "omaseed · first run" while that page
--- is showing (and only then -- this is the contract other tasks should honour: match on
--- this literal title, restore the normal float/tile behaviour once the title changes back).
--- The wizard is short and not meant to be tiled or resized, so float+centre+size it at a
--- size that comfortably fits the spec's server-add and library-detector steps.
-o.window(
-  { class = class, title = "^omaseed · first run$" },
-  { float = true, center = true, size = { 1360, 800 } }
-)
+-- First run needs no rule: its window fixes its own size (min = max, 875 x 600), which
+-- Hyprland floats and centres by itself, and it maps again unlocked, so tiled, when setup is
+-- done (src/ui/qml/Main.qml). The title-matched rule that used to sit here never matched:
+-- the window never took the "omaseed · first run" title it expected.
