@@ -56,4 +56,46 @@ TestCase {
                                          });
         compare(kv.implicitHeight, Theme.space(20));
     }
+
+    // Ruling Q7 (review KIT-17): the spec's `.kv` look.
+    function test_the_value_is_bright_and_the_key_one_pixel_under_caption() {
+        const kv = createTemporaryObject(keyValueComponent, testCase, {
+                                             "items": [testCase.sampleItems[1]],
+                                             "width": 400
+                                         });
+        const row = findChild(kv, "keyValueRow");
+        verify(row !== null);
+        compare(row.valueText.color, Theme.brightForeground);
+        const key = findChild(kv, "keyValueKey");
+        compare(key.font.pixelSize, Theme.font.caption - 1);
+        compare(key.font.capitalization, Font.AllUppercase);
+    }
+
+    function test_a_long_value_stays_on_one_line_with_an_ellipsis() {
+        const long = "/home/someone/Downloads/a/very/long/save/path/that/cannot/fit/in/the/column";
+        const short = createTemporaryObject(keyValueComponent, testCase, {
+                                                "items": [
+                                                    {
+                                                        "key": "path",
+                                                        "value": "/tmp"
+                                                    }
+                                                ],
+                                                "width": 240
+                                            });
+        const kv = createTemporaryObject(keyValueComponent, testCase, {
+                                             "items": [
+                                                 {
+                                                     "key": "path",
+                                                     "value": long
+                                                 }
+                                             ],
+                                             "width": 240
+                                         });
+        const row = findChild(kv, "keyValueRow");
+        compare(row.valueText.lineCount, 1);
+        verify(row.valueText.truncated, "a value wider than the column did not elide");
+        compare(row.valueText.text, long, "the full text is what the tooltip shows");
+        compare(kv.implicitHeight, short.implicitHeight, "a long value made the row taller");
+        verify(!findChild(short, "keyValueRow").valueText.truncated);
+    }
 }

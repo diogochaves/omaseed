@@ -1,17 +1,25 @@
 pragma ComponentBehavior: Bound
 import QtQuick
+import QtQuick.Controls
 import QtQuick.Layouts
 import Omaseed.Kit
 
-// The details General tab's key/value block (spec v2 §3 Fig. 9 `.kv`): a fixed key column and
-// a flexible value column, each row closed by a hairline. `items` is
-// `[{key, value, color?}]`; `color` lets a caller pick a state colour for the value (e.g. the
-// status row in `Theme.stateDownloading`), defaulting to `foreground`. Rows are
-// `Theme.space(26)` tall, or taller when a value wraps to more than one line.
+// The key/value block of spec v2 §3 Fig. 9 (`.kv`): a fixed key column and a flexible value
+// column, each row closed by a hairline. `items` is `[{key, value, color?}]`; `color` lets a
+// caller pick a state colour for the value (e.g. the status row in `Theme.stateDownloading`),
+// defaulting to `brightForeground`.
+//
+// The spec's own look (ruling Q7, review KIT-17): `.kv .k` is a tracked caption one pixel
+// under `caption` (as Strip's labels are), `.kv .v` is fg-bright on a single line with an
+// ellipsis. Every row is therefore `Theme.space(26)` tall; a value that had to elide shows in
+// full in a tooltip (IconButton's look) while the pointer rests on it.
 Item {
     id: root
 
     property var items: []
+
+    /// `.kv .k`: one pixel under the caption size.
+    readonly property int _keySize: Math.max(1, Theme.font.caption - 1)
 
     height: implicitHeight
     implicitHeight: column.implicitHeight + Theme.space(20)
@@ -35,7 +43,10 @@ Item {
 
                 required property var modelData
 
+                readonly property alias valueText: valueText
+
                 height: Math.max(Theme.space(26), rowLayout.implicitHeight)
+                objectName: "keyValueRow"
                 width: column.width
 
                 RowLayout {
@@ -46,20 +57,58 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: Theme.space(10)
 
-                    Label {
-                        Layout.alignment: Qt.AlignTop
+                    Text {
                         Layout.preferredWidth: Theme.space(92)
+                        color: Theme.dimForeground
+                        elide: Text.ElideRight
+                        font.capitalization: Font.AllUppercase
+                        font.family: Theme.fontFamily
+                        font.letterSpacing: Math.max(1, Math.round(root._keySize * 0.08))
+                        font.pixelSize: root._keySize
+                        objectName: "keyValueKey"
                         text: rowItem.modelData.key
-                        tracked: true
+                        textFormat: Text.PlainText
                     }
 
                     Text {
+                        id: valueText
+
                         Layout.fillWidth: true
-                        color: rowItem.modelData.color ? rowItem.modelData.color : Theme.foreground
+                        color: rowItem.modelData.color ? rowItem.modelData.color :
+                                                         Theme.brightForeground
+                        elide: Text.ElideRight
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.font.small
+                        maximumLineCount: 1
                         text: rowItem.modelData.value
-                        wrapMode: Text.Wrap
+                        textFormat: Text.PlainText
+                        wrapMode: Text.NoWrap
+
+                        HoverHandler {
+                            id: valueHover
+                        }
+
+                        ToolTip {
+                            background: Rectangle {
+                                border.color: Theme.accent
+                                border.width: 1
+                                color: Theme.background
+                                radius: Theme.cornerRadius
+                            }
+                            contentItem: Text {
+                                color: Theme.foreground
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.font.small
+                                text: valueText.text
+                                textFormat: Text.PlainText
+                                wrapMode: Text.WrapAnywhere
+                            }
+                            delay: 400
+                            padding: Theme.space(6)
+                            text: valueText.text
+                            visible: valueText.truncated && valueHover.hovered
+                            width: Math.min(implicitWidth, Theme.space(420))
+                        }
                     }
                 }
 
