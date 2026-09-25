@@ -1002,6 +1002,10 @@ Item {
         appName: qsTr("omaseed")
         connected: !root.serverLost
         connectionStatus: App.globalState.connectionStatus
+        // docs/16 §5: the port behind "not reachable", and anonymous mode with private
+        // torrents in the library.
+        listenPort: App.serverPrefs.values.listen_port ?? 0
+        anonymousWarning: App.serverPrefs.values.anonymous_mode === true && App.counts.privateCount > 0
         serverConfigured: App.hasServer
         downSpeed: root.live ? App.globalState.dlSpeedText : "—"
         downSpeedShort: root.live ? App.speedShortText(App.globalState.dlInfoSpeed) : "—"

@@ -38,6 +38,35 @@ Item {
                                               && (root.connectionStatus === "firewalled"
                                                   || root.connectionStatus === "disconnected"))
                                              ? root.connectionStatus : ""
+    /// qBittorrent's listening port (docs/16 §5): "firewalled" then reads "port 26999 not
+    /// reachable". 0 while it is not known, and the plain word stays.
+    property int listenPort: 0
+    /// docs/16 §5: anonymous mode is on while private torrents are in the library. The server
+    /// line says so in the warning colour; most private trackers refuse such a client.
+    property bool anonymousWarning: false
+    /// What the server line adds after itself, in words: the network's state and the
+    /// anonymous-mode warning, joined; "" when there is nothing to say.
+    readonly property string networkText: {
+        const parts = [];
+        if (root.networkWarning === "firewalled")
+            parts.push(root.listenPort > 0 ? qsTr("port %1 not reachable").arg(root.listenPort)
+                                           : qsTr("firewalled"));
+        else if (root.networkWarning === "disconnected")
+            parts.push(qsTr("disconnected"));
+        if (root.anonymousWarning && root.connected && !root.syncing && root.serverConfigured)
+            parts.push(qsTr("anonymous mode"));
+        return parts.join(" · ");
+    }
+    /// What hovering the warning explains: what it means and where to change it.
+    readonly property string networkAdvice: {
+        const lines = [];
+        if (root.networkWarning === "firewalled")
+            lines.push(qsTr("Peers cannot reach port %1. Forward it on your router, or turn on UPnP in Settings › Connection (ctrl+shift+,).").arg(
+                           root.listenPort > 0 ? root.listenPort : "?"));
+        if (root.anonymousWarning && root.connected && !root.syncing && root.serverConfigured)
+            lines.push(qsTr("Anonymous mode hides which client you use, and most private trackers refuse clients they cannot name. Settings › Discovery and privacy."));
+        return lines.join("\n");
+    }
     /// The server is on its alternative speed limits: the glyph turns accent (`.btn.icon.on`).
     property bool altSpeedActive: false
     /// The limits in force while alt-speed is on ("10 KB/s", "∞"); the chip prints them.
@@ -326,7 +355,7 @@ Item {
                     id: statusDot
 
                     anchors.verticalCenter: parent.verticalCenter
-                    color: !root.serverConfigured ? Theme.dimForeground : root.syncing ? Theme.yellow : !root.connected ? Theme.red : root.networkWarning === "firewalled" ? Theme.yellow : root.networkWarning === "disconnected" ? Theme.red : Theme.green
+                    color: !root.serverConfigured ? Theme.dimForeground : root.syncing ? Theme.yellow : !root.connected ? Theme.red : root.networkWarning === "disconnected" ? Theme.red : root.networkWarning === "firewalled" || root.anonymousWarning ? Theme.yellow : Theme.green
                     height: Theme.space(7)
                     radius: width / 2
                     width: Theme.space(7)
@@ -353,12 +382,15 @@ Item {
                     id: networkLabel
 
                     anchors.verticalCenter: parent.verticalCenter
-                    color: root.networkWarning === "firewalled" ? Theme.yellow : Theme.red
+                    color: root.networkWarning === "disconnected" ? Theme.red : Theme.yellow
                     elide: Text.ElideRight
-                    text: "· " + (root.networkWarning === "firewalled" ? qsTr("firewalled")
-                                                                         : qsTr("disconnected"))
+                    text: "· " + root.networkText
                     tracked: true
-                    visible: root.networkWarning.length > 0
+                    visible: root.networkText.length > 0
+
+                    HoverHandler {
+                        id: networkHover
+                    }
                     width: Math.max(0, Math.min(networkLabel.implicitWidth, identity.width
                                                 - statusDot.width - Theme.space(6)))
                 }
@@ -702,11 +734,15 @@ Item {
         id: serverTip
 
         readonly property bool wanted: (identityHover.hovered && (serverLabel.truncated
-                                                                  || root.level >= 1))
+                                                                  || root.level >= 1
+                                                                  || networkHover.hovered))
                                        || dotHover.hovered || (markHover.hovered && root.level >= 4)
-        readonly property string fullLine: root.networkWarning.length > 0
-                                           ? root.serverLine + " · " + root.networkWarning
-                                           : root.serverLine
+        // With a warning up, the tip also says what it means and where to change it.
+        readonly property string fullLine: (root.networkText.length > 0
+                                            ? root.serverLine + " · " + root.networkText
+                                            : root.serverLine)
+                                           + (root.networkAdvice.length > 0 ? "\n" + root.networkAdvice
+                                                                            : "")
 
         objectName: "serverTip"
         // Over the whole window rather than the hero (KIT-8): clamped inside a hero one line

@@ -51,6 +51,12 @@ TestCase {
         compare(hero.networkLabel.color, Theme.yellow);
         compare(hero.statusDot.color, Theme.yellow);
 
+        // docs/16 §5: with the port known, the line says which one peers cannot reach.
+        hero.listenPort = 26999;
+        verify(hero.networkLabel.text.indexOf("port 26999 not reachable") >= 0,
+               hero.networkLabel.text);
+        verify(hero.networkAdvice.indexOf("UPnP") >= 0);
+
         hero.connectionStatus = "disconnected";
         compare(hero.networkLabel.color, Theme.red);
         compare(hero.statusDot.color, Theme.red);
@@ -62,6 +68,25 @@ TestCase {
         hero.connected = true;
         hero.syncing = true;
         compare(hero.networkWarning, "");
+    }
+
+    // docs/16 §5: anonymous mode with private torrents is named in the warning colour.
+    function test_anonymous_mode_is_named_while_it_is_on() {
+        const hero = createTemporaryObject(heroComponent, testCase);
+        verify(!hero.networkLabel.visible);
+        hero.anonymousWarning = true;
+        verify(hero.networkLabel.visible);
+        verify(hero.networkLabel.text.indexOf("anonymous mode") >= 0, hero.networkLabel.text);
+        compare(hero.networkLabel.color, Theme.yellow);
+        compare(hero.statusDot.color, Theme.yellow);
+        verify(hero.networkAdvice.indexOf("private trackers") >= 0);
+        // Both at once, joined.
+        hero.connectionStatus = "firewalled";
+        hero.listenPort = 26999;
+        compare(hero.networkText, "port 26999 not reachable · anonymous mode");
+        // Not while the API itself is down: that is what the line says then.
+        hero.connected = false;
+        compare(hero.networkText, "");
     }
 
     // docs/08 §3: alt-speed is a chip that names itself, and prints the limits while on.

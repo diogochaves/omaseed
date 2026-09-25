@@ -1027,6 +1027,8 @@ Item {
             required property string etaText
             required property string hash
             required property int index
+            /// docs/16 §5: carries the private flag; "private" follows the category.
+            required property bool isPrivate
             required property string name
             required property real progress
             required property string progressText
@@ -1071,11 +1073,10 @@ Item {
                     id: nameCell
 
                     readonly property int inner: nameCell.width - 2 * Theme.space(8)
-                    readonly property int tail: {
-                        if (!categoryText.visible)
-                            return 0;
-                        return categoryText.implicitWidth + Theme.space(8);
-                    }
+                    readonly property int tail: (categoryText.visible ? categoryText.implicitWidth
+                                                                        + Theme.space(8) : 0)
+                                                + (privateText.visible ? privateText.implicitWidth
+                                                                         + Theme.space(8) : 0)
 
                     clip: true
                     height: parent.height
@@ -1113,6 +1114,22 @@ Item {
                         objectName: "category_" + row.index
                         text: row.category
                         visible: !row.editing && row.category.length > 0
+                    }
+
+                    // docs/16 §5: the word "private", in magenta, after the category (or
+                    // after the name when there is none).
+                    Text {
+                        id: privateText
+
+                        anchors.left: categoryText.visible ? categoryText.right : nameText.right
+                        anchors.leftMargin: Theme.space(8)
+                        anchors.verticalCenter: parent.verticalCenter
+                        color: Theme.magenta
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.font.small
+                        objectName: "private_" + row.index
+                        text: qsTr("private")
+                        visible: !row.editing && row.isPrivate
                     }
                 }
 

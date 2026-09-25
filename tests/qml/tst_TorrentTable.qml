@@ -228,6 +228,28 @@ TestCase {
         compare(testCase.cellProbe.font.pixelSize, Theme.font.small);
     }
 
+    // docs/16 §5: "private", in magenta, after the category of a private torrent only (the
+    // demo's movies, tv and music rows).
+    function test_private_torrents_say_so_after_the_category() {
+        let seen = 0;
+        for (let i = 0; i < 16; ++i) {
+            testCase.cellProbe = findChild(table, "category_" + i);
+            if (!testCase.cellProbe)
+                continue; // below the fold: no delegate
+            const category = testCase.cellProbe.visible ? testCase.cellProbe.text : "";
+            testCase.cellProbe = findChild(table, "private_" + i);
+            verify(testCase.cellProbe, "no private marker cell on row " + i);
+            const expected = ["movies", "tv", "music"].indexOf(category) >= 0;
+            compare(testCase.cellProbe.visible, expected, "row " + i + " (" + category + ")");
+            if (expected) {
+                ++seen;
+                compare(testCase.cellProbe.text, "private");
+                compare(testCase.cellProbe.color, Theme.magenta);
+            }
+        }
+        verify(seen > 0, "no private row drawn");
+    }
+
     function test_status_cell_uses_the_state_glyph_and_colour() {
         testCase.glyphProbe = findChild(table, "statusGlyph_0");
         verify(testCase.glyphProbe);
