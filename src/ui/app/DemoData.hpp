@@ -16,6 +16,7 @@
 #include "core/Torrent.hpp"
 
 #include <QJsonObject>
+#include <QVariantMap>
 #include <QStringList>
 
 namespace omaseed::app::DemoData {
@@ -53,5 +54,9 @@ QJsonObject details(const omaseed::core::Torrent &torrent);
 /// "Blender Open Movies", eight files in four folders and two `subs` folders, about 16 GB.
 /// Only the metainfo is real; its piece hashes are made up, so no swarm ever answers it.
 QByteArray demoTorrentBytes();
+
+/// The demo server's qBittorrent preferences, shaped like `app/preferences` (docs/16): the
+/// qBittorrent group in Settings draws and changes these, with nothing sent anywhere.
+QVariantMap preferences();
 
 } // namespace omaseed::app::DemoData

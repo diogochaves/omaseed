@@ -116,6 +116,7 @@ private slots:
     void ignoredValueComesBackAsTheServers();
     void resetDropsLateAnswers();
     void numbersCompareByValue();
+    void offlineChangesLandAtOnce();
 };
 
 void TestServerPreferences::loadsEveryKey()
@@ -216,6 +217,22 @@ void TestServerPreferences::numbersCompareByValue()
     QVERIFY(!ServerPreferences::sameValue(1, 2));
     QVERIFY(ServerPreferences::sameValue(QStringLiteral("a"), QStringLiteral("a")));
     QVERIFY(!ServerPreferences::sameValue(true, 1));
+}
+
+void TestServerPreferences::offlineChangesLandAtOnce()
+{
+    ServerPreferences prefs(nullptr);
+    prefs.setOffline({{QStringLiteral("dht"), false}});
+    QVERIFY(prefs.isLoaded());
+    QSignalSpy applied(&prefs, &ServerPreferences::applied);
+    QSignalSpy posted(&prefs, &ServerPreferences::posted);
+    prefs.apply({{QStringLiteral("dht"), true}});
+    QCOMPARE(prefs.value(QStringLiteral("dht")).toBool(), true);
+    QCOMPARE(applied.count(), 1);
+    QCOMPARE(posted.count(), 1);
+    QCOMPARE(posted.at(0).at(1).toMap().value(QStringLiteral("dht")).toBool(), false);
+    prefs.reset();
+    QVERIFY(!prefs.isLoaded());
 }
 
 QTEST_GUILESS_MAIN(TestServerPreferences)

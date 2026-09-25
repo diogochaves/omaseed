@@ -70,6 +70,7 @@ App::App(QObject *parent)
     , m_secrets(new SecretStore(SecretStore::defaultServiceName(), this))
 {
     m_engine->setClient(m_client);
+    m_prefs = new ServerPreferences(m_client, this);
     m_filtered->setSourceModel(m_engine->torrents());
     // A tracker row lists what the rail counts for it: every torrent on that host.
     m_filtered->setTrackerModel(m_engine->trackers());
@@ -83,6 +84,14 @@ App::App(QObject *parent)
     // The hero, the footer and the tray all read GlobalState and FilterCounts, so the tray
     // only has to be told when either of them moved.
     connect(m_engine->globalState(), &GlobalState::connectedChanged, this, &App::updateTray);
+    // docs/16: the hero reads the listening port and anonymous mode, so the preferences are
+    // read as soon as a server answers, and again whenever it comes back.
+    connect(m_engine->globalState(), &GlobalState::connectedChanged, this, [this]() {
+        if (!m_demoMode && m_hasServer && m_engine->globalState()->connected())
+            m_prefs->reload();
+    });
+    connect(m_prefs, &ServerPreferences::posted, this, &App::followServerPreferences);
+    connect(m_prefs, &ServerPreferences::apiKeyRotated, this, &App::followRotatedApiKey);
     connect(
         m_engine->globalState(), &GlobalState::useAltSpeedLimitsChanged, this, &App::updateTray);
     connect(m_engine->globalState(), &GlobalState::dlInfoSpeedChanged, this, &App::updateTray);
@@ -306,6 +315,7 @@ void App::applyServer(const Server &server)
     // backing off for the previous server (QbtClient::cancelAll).
     m_client->clearAuth();
     m_client->setBaseUrl(server.url);
+    m_prefs->reset();
     m_engine->globalState()->setServerName(server.name);
 
     // The secret is a keychain round trip, so the engine starts in the callback: polling
@@ -396,6 +406,7 @@ void App::applyDemoData(const QJsonObject &maindata)
     // True on purpose: there is a (fictional) library to draw, so the views show the table
     // and not the first-run page. `demoMode` is what tells them not to touch the network.
     m_hasServer = true;
+    m_prefs->setOffline(DemoData::preferences());
 
     GlobalState *state = m_engine->globalState();
     state->setServerName(m_server.name);
@@ -1928,6 +1939,77 @@ void App::setGlobalLimits(qint64 dl, qint64 up, qint64 altDl, qint64 altUp)
     });
 }
 
+QUrl App::urlAfterPreferences(const QUrl &url,
+                              const QVariantMap &changes,
+                              const QVariantMap &before)
+{
+    QUrl moved = url;
+    const QString portKey = QStringLiteral("web_ui_port");
+    const QString httpsKey = QStringLiteral("use_https");
+    const bool wasHttps = url.scheme() == QLatin1String("https");
+    if (changes.contains(portKey)) {
+        const int oldPort = before.value(portKey).toInt();
+        const int newPort = changes.value(portKey).toInt();
+        if (oldPort > 0 && newPort > 0 && url.port(wasHttps ? 443 : 80) == oldPort)
+            moved.setPort(newPort);
+    }
+    if (changes.contains(httpsKey)) {
+        const int port = moved.port(wasHttps ? 443 : 80);
+        const int webUiPort = changes.value(portKey, before.value(portKey)).toInt();
+        // Only a URL that talks to qBittorrent itself changes scheme; a proxy in front
+        // keeps its own.
+        if (webUiPort <= 0 || port == webUiPort)
+            moved.setScheme(changes.value(httpsKey).toBool() ? QStringLiteral("https")
+                                                             : QStringLiteral("http"));
+    }
+    return moved;
+}
+
+void App::followServerPreferences(const QVariantMap &changes, const QVariantMap &before)
+{
+    if (m_demoMode || !m_hasServer || m_server.id == QLatin1String("environment"))
+        return;
+    QVariantMap fields = m_serverList->serverMap(m_server.id);
+    if (fields.isEmpty())
+        return;
+    bool touched = false;
+    QString secret;
+    const QUrl url = urlAfterPreferences(m_server.url, changes, before);
+    if (url != m_server.url) {
+        fields.insert(QStringLiteral("url"), url.toString());
+        touched = true;
+    }
+    if (m_server.authMode == AuthMode::Cookie) {
+        const QString userKey = QStringLiteral("web_ui_username");
+        const QString passKey = QStringLiteral("web_ui_password");
+        if (changes.contains(userKey) && changes.value(userKey).toString() != m_server.username) {
+            fields.insert(QStringLiteral("username"), changes.value(userKey).toString());
+            touched = true;
+        }
+        if (changes.contains(passKey) && !changes.value(passKey).toString().isEmpty()) {
+            secret = changes.value(passKey).toString();
+            touched = true;
+        }
+    }
+    if (!touched)
+        return;
+    qInfo().noquote() << QStringLiteral("server: following its own Web UI change");
+    // qBittorrent moves its Web UI once it has answered; give it a moment before the next
+    // request goes to the new place.
+    QTimer::singleShot(750, this, [this, fields, secret]() { updateServer(fields, secret); });
+}
+
+void App::followRotatedApiKey(const QString &key)
+{
+    if (m_demoMode || !m_hasServer || m_server.authMode != AuthMode::ApiKey)
+        return;
+    const QVariantMap fields = m_serverList->serverMap(m_server.id);
+    if (fields.isEmpty())
+        return;
+    m_client->setApiKey(key);
+    updateServer(fields, key);
+}
+
 void App::setLimits(const QStringList &hashes,
                     qint64 dl,
                     qint64 ul,
@@ -2206,6 +2288,7 @@ bool App::removeServer(const QString &id)
         m_engine->setClient(m_client);
         m_client->clearAuth();
         m_client->setBaseUrl(QUrl());
+        m_prefs->reset();
         m_engine->globalState()->setServerName(QString());
         m_serverLost = false;
         m_hasServer = false;

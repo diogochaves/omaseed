@@ -36,6 +36,7 @@ void ServerPreferences::reset()
 {
     ++m_generation;
     m_reads = 0;
+    m_offline = false;
     const bool had = !m_values.isEmpty();
     m_values.clear();
     const bool hadPending = !m_pending.isEmpty();
@@ -53,8 +54,20 @@ void ServerPreferences::reset()
     Q_EMIT interfacesChanged();
 }
 
+void ServerPreferences::setOffline(const QVariantMap &values)
+{
+    reset();
+    m_offline = true;
+    m_values = values;
+    m_loaded = true;
+    Q_EMIT stateChanged();
+    Q_EMIT valuesChanged();
+}
+
 void ServerPreferences::reload()
 {
+    if (m_offline)
+        return;
     readBack({});
 }
 
@@ -108,7 +121,21 @@ void ServerPreferences::readBack(const QVariantMap &sent)
 
 void ServerPreferences::apply(const QVariantMap &changes)
 {
-    if (m_client == nullptr || changes.isEmpty())
+    if (changes.isEmpty())
+        return;
+    if (m_offline) {
+        QVariantMap before;
+        for (auto it = changes.constBegin(); it != changes.constEnd(); ++it) {
+            before.insert(it.key(), m_values.value(it.key()));
+            if (m_values.contains(it.key()))
+                m_values.insert(it.key(), it.value());
+        }
+        Q_EMIT valuesChanged();
+        Q_EMIT posted(changes, before);
+        Q_EMIT applied(changes.keys(), {});
+        return;
+    }
+    if (m_client == nullptr)
         return;
     const quint64 generation = m_generation;
 
@@ -141,13 +168,23 @@ void ServerPreferences::apply(const QVariantMap &changes)
                 Q_EMIT applyFailed(changes.keys(), result.error().toString());
                 return;
             }
-            Q_EMIT posted(changes);
+            Q_EMIT posted(changes, before);
             readBack(changes);
         });
 }
 
 void ServerPreferences::loadInterfaces(const QString &iface)
 {
+    if (m_offline) {
+        m_interfaces = {QVariantMap{{QStringLiteral("name"), QStringLiteral("eth0")},
+                                    {QStringLiteral("value"), QStringLiteral("eth0")}},
+                        QVariantMap{{QStringLiteral("name"), QStringLiteral("wg0")},
+                                    {QStringLiteral("value"), QStringLiteral("wg0")}}};
+        m_addresses = {QStringLiteral("192.168.1.20")};
+        Q_UNUSED(iface)
+        Q_EMIT interfacesChanged();
+        return;
+    }
     if (m_client == nullptr)
         return;
     const quint64 generation = m_generation;
@@ -184,7 +221,7 @@ void ServerPreferences::loadInterfaces(const QString &iface)
 
 void ServerPreferences::rotateApiKey()
 {
-    if (m_client == nullptr)
+    if (m_client == nullptr || m_offline)
         return;
     const quint64 generation = m_generation;
     m_client->post(QStringLiteral("app/rotateAPIKey"))

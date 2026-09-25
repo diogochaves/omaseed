@@ -32,6 +32,7 @@
 #include "core/Server.hpp"
 #include "core/ServerDetector.hpp"
 #include "core/ServerListModel.hpp"
+#include "core/ServerPreferences.hpp"
 #include "core/ServerStore.hpp"
 #include "core/SyncEngine.hpp"
 #include "core/TagModel.hpp"
@@ -964,6 +965,28 @@ public:
     /// Write the global limits through app/setPreferences. -1 leaves a value as it is, 0 lifts
     /// it; only the values that are not -1 are sent.
     Q_INVOKABLE void setGlobalLimits(qint64 dl, qint64 up, qint64 altDl, qint64 altUp);
+
+    /// docs/16: qBittorrent's own settings for the server the app is on. Emptied on a switch,
+    /// read when the server connects and whenever Settings asks.
+    Q_PROPERTY(omaseed::core::ServerPreferences *serverPrefs READ serverPrefs CONSTANT)
+    omaseed::core::ServerPreferences *serverPrefs() const { return m_prefs; }
+
+private:
+    /// A change the server took may move omaseed's own way in (docs/16 §3): the Web UI's
+    /// port or HTTPS switch changes the saved URL, and its login changes a cookie server's
+    /// saved username and password.
+    void followServerPreferences(const QVariantMap &changes, const QVariantMap &before);
+    /// A new Web UI API key: a server signed in with a key keeps working with the new one.
+    void followRotatedApiKey(const QString &key);
+    omaseed::core::ServerPreferences *m_prefs = nullptr;
+
+public:
+    /// The URL the saved server should have after `changes` (docs/16 §3), or the same URL
+    /// when nothing in them moves it. Only a URL on the Web UI's own port follows a port
+    /// change: one behind a reverse proxy does not.
+    static QUrl urlAfterPreferences(const QUrl &url,
+                                    const QVariantMap &changes,
+                                    const QVariantMap &before);
 
 Q_SIGNALS:
     void globalLimitsLoaded(qint64 dl, qint64 up, qint64 altDl, qint64 altUp);

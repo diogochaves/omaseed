@@ -69,6 +69,8 @@ public:
 
     /// Forget the server: no values, nothing pending, and late answers are dropped.
     void reset();
+    /// The demo's server: these values, and changes that land at once with no client.
+    void setOffline(const QVariantMap &values);
 
     /// `a == b` the way the server's JSON means it: 10240 and 10240.0 are the same number.
     static bool sameValue(const QVariant &a, const QVariant &b);
@@ -80,7 +82,8 @@ Q_SIGNALS:
     void interfacesChanged();
     /// The server accepted the POST (before the read-back). App follows a Web UI port or
     /// login change here, since the read-back may already go to a server that moved.
-    void posted(const QVariantMap &changes);
+    /// `before` holds what each key showed before the change.
+    void posted(const QVariantMap &changes, const QVariantMap &before);
     /// The read-back after a change landed. `kept` lists the keys the server left as they
     /// were instead of taking the value sent.
     void applied(const QStringList &keys, const QStringList &kept);
@@ -104,6 +107,7 @@ private:
     int m_reads = 0;
     bool m_loaded = false;
     bool m_loading = false;
+    bool m_offline = false;
 };
 
 } // namespace omaseed::core

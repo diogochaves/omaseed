@@ -41,6 +41,7 @@
 //   trackerHost     string    "tracker.example.org" or "trackerless"
 //   trackersCount   int
 //   hasTrackerError bool
+//   isPrivate       bool      the private flag (docs/16 §5: the marker after the category)
 //   priority        int       queue position   seqDl bool   firstLastPiecePrio bool
 //   dlLimit         qint64    upLimit qint64   ratioLimit double  seedingTimeLimit qint64
 //   shareLimitAction string   Default | Stop | Remove | RemoveWithContent | EnableSuperSeeding
@@ -92,6 +93,7 @@
 #include "core/CategoryModel.hpp"
 #include "core/FilterCounts.hpp"
 #include "core/GlobalState.hpp"
+#include "core/ServerPreferences.hpp"
 #include "core/ServerStore.hpp"
 #include "core/SyncEngine.hpp"
 #include "core/TagModel.hpp"
@@ -163,6 +165,14 @@ struct GlobalStateForeign
     QML_FOREIGN(omaseed::core::GlobalState)
     QML_NAMED_ELEMENT(GlobalState)
     QML_UNCREATABLE("GlobalState is App.globalState; it is not created from QML.")
+};
+
+struct ServerPreferencesForeign
+{
+    Q_GADGET
+    QML_FOREIGN(omaseed::core::ServerPreferences)
+    QML_NAMED_ELEMENT(ServerPreferences)
+    QML_UNCREATABLE("ServerPreferences is App.serverPrefs; it is not created from QML.")
 };
 
 struct SyncEngineForeign

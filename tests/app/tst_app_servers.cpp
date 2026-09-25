@@ -92,6 +92,7 @@ private Q_SLOTS:
     void appearanceOverridesReachTheTheme();
     void aLateKeychainAnswerStaysWithItsServer();
     void aGoodSyncAfterAuthRequiredClearsServerLost();
+    void webUiChangesMoveTheSavedUrl();
 
 private:
     QTemporaryDir m_config;
@@ -398,6 +399,26 @@ void TestAppServers::aGoodSyncAfterAuthRequiredClearsServerLost()
     QVERIFY(app.isServerLost());
     Q_EMIT app.engine()->synced(false);
     QVERIFY(!app.isServerLost());
+}
+
+void TestAppServers::webUiChangesMoveTheSavedUrl()
+{
+    // docs/16 §3: a Web UI port or HTTPS change moves the saved server with it, unless the
+    // saved URL goes through something else (a reverse proxy on its own port).
+    using omaseed::app::App;
+    const QUrl direct(QStringLiteral("http://127.0.0.1:8081"));
+    const QVariantMap before{{QStringLiteral("web_ui_port"), 8081},
+                             {QStringLiteral("use_https"), false}};
+    QCOMPARE(App::urlAfterPreferences(direct, {{QStringLiteral("web_ui_port"), 9091}}, before),
+             QUrl(QStringLiteral("http://127.0.0.1:9091")));
+    QCOMPARE(App::urlAfterPreferences(direct, {{QStringLiteral("use_https"), true}}, before),
+             QUrl(QStringLiteral("https://127.0.0.1:8081")));
+    const QUrl proxied(QStringLiteral("https://torrents.example.org/qbt/"));
+    QCOMPARE(App::urlAfterPreferences(proxied, {{QStringLiteral("web_ui_port"), 9091}}, before),
+             proxied);
+    QCOMPARE(App::urlAfterPreferences(proxied, {{QStringLiteral("use_https"), false}}, before),
+             proxied);
+    QCOMPARE(App::urlAfterPreferences(direct, {{QStringLiteral("dht"), true}}, before), direct);
 }
 
 QTEST_MAIN(TestAppServers)
