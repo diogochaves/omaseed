@@ -276,6 +276,10 @@ public:
     /// A client error ("network: GET sync/maindata: Connection refused") stripped to the
     /// reason Fig. 21's notice and Fig. 23's banner print ("connection refused").
     Q_INVOKABLE static QString errorReasonText(const QString &text);
+    /// The lost-server banner's reason for `lastError` (GlobalState::lastError): a refused
+    /// login in words for the server's auth mode ("this server asks for a login" when it has
+    /// none), otherwise `errorReasonText`.
+    Q_INVOKABLE QString lostReasonText(const QString &lastError) const;
 
 Q_SIGNALS:
     void torrentActionRequested(const QString &action, const QStringList &hashes);

@@ -152,8 +152,13 @@ void TestServer::credentialRefusedSaysWhichCredential()
     QCOMPARE(credentialRefusedText(login, AuthMode::ApiKey),
              QStringLiteral("the server refused this API key"));
 
-    // Nothing to say beyond the raw error: no credential was sent, or it never got that far.
-    QVERIFY(credentialRefusedText(key, AuthMode::None).isEmpty());
+    // No credential sent to a server that wants one: say so, not "forbidden".
+    QCOMPARE(credentialRefusedText(key, AuthMode::None),
+             QStringLiteral("this server asks for a login"));
+    QCOMPARE(credentialRefusedText(login, AuthMode::None),
+             QStringLiteral("this server asks for a login"));
+
+    // Nothing to say beyond the raw error: it never got that far.
     const ApiError refused(ApiError::Kind::Network, QStringLiteral("Connection refused"));
     QVERIFY(credentialRefusedText(refused, AuthMode::Cookie).isEmpty());
     const ApiError timeout(ApiError::Kind::Timeout, QStringLiteral("8 s"));

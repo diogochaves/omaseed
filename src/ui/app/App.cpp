@@ -890,6 +890,21 @@ QString App::errorReasonText(const QString &text)
     return reason;
 }
 
+QString App::lostReasonText(const QString &lastError) const
+{
+    // GlobalState keeps only ApiError::toString(), which starts with the kind's name.
+    const bool unauthorized = lastError.startsWith(QLatin1String("unauthorized"));
+    const bool forbidden = lastError.startsWith(QLatin1String("forbidden"));
+    if (unauthorized || forbidden) {
+        const ApiError error(forbidden ? ApiError::Kind::Forbidden : ApiError::Kind::Unauthorized,
+                             lastError);
+        const QString words = credentialRefusedText(error, m_server.authMode);
+        if (!words.isEmpty())
+            return words;
+    }
+    return errorReasonText(lastError);
+}
+
 QString App::serverLostReasonText(const ApiError &error)
 {
     const QString reason = errorReasonText(error.message());

@@ -50,7 +50,8 @@ QString credentialRefusedText(const ApiError &error, AuthMode mode)
     case AuthMode::ApiKey:
         return QStringLiteral("the server refused this API key");
     case AuthMode::None:
-        break;
+        // No credential went out, and the server wants one.
+        return QStringLiteral("this server asks for a login");
     }
     return {};
 }
