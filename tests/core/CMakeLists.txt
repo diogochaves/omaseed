@@ -92,6 +92,11 @@ omaseed_add_test(tst_qbtclient_fake
     LIBRARIES omaseed::core
 )
 
+omaseed_add_test(tst_serverpreferences
+    SOURCES tst_serverpreferences.cpp
+    LIBRARIES omaseed::core
+)
+
 omaseed_add_test(tst_qbtclient_live LIVE
     SOURCES tst_qbtclient_live.cpp
     LIBRARIES omaseed::core

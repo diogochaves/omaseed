@@ -113,6 +113,9 @@ struct Torrent
     bool firstLastPiecePrio = false;
     bool superSeeding = false; ///< docs/12 G4: per-torrent super seeding
     bool autoTmm = false;      ///< docs/12 G4: automatic torrent management
+    /// The torrent carries the private flag (maindata `private`, qBittorrent 5.0+): no DHT,
+    /// PeX or LSD, its trackers only (docs/16 §5). A magnet without metadata yet has none.
+    bool isPrivate = false;
     qint64 dlLimit = 0;
     qint64 upLimit = 0;
     double ratioLimit = -2.0;     ///< -2 global, -1 unlimited

@@ -217,6 +217,14 @@ void TestFilterCounts::recomputesWhenTheModelChanges()
         QJsonArray());
     QCOMPARE(spy.count(), 0);
 
+    // docs/16 §5: the private count, for the hero's anonymous-mode warning.
+    QCOMPARE(counts.privateCount(), 0);
+    model.applyPartial(
+        QJsonObject{{QStringLiteral("a"), QJsonObject{{QStringLiteral("private"), true}}}},
+        QJsonArray());
+    QCOMPARE(counts.privateCount(), 1);
+    QCOMPARE(spy.count(), 1);
+
     model.applyPartial(QJsonObject(), QJsonArray({QStringLiteral("a")}));
     QCOMPARE(counts.total(), 0);
 }

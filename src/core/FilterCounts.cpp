@@ -93,6 +93,7 @@ void FilterCounts::recompute()
 {
     const int oldTotal = m_total;
     const int oldInProgress = m_inProgress;
+    const int oldPrivate = m_private;
     const QHash<QString, int> oldCategories = m_categoryCounts;
     const QHash<QString, int> oldTags = m_tagCounts;
     const QHash<QString, int> oldTrackers = m_trackerCounts;
@@ -102,6 +103,7 @@ void FilterCounts::recompute()
     m_total = 0;
     m_untagged = 0;
     m_inProgress = 0;
+    m_private = 0;
     for (int &slot : m_groupCounts)
         slot = 0;
     m_categoryCounts.clear();
@@ -125,6 +127,8 @@ void FilterCounts::recompute()
             ++m_inProgress;
 
         ++m_categoryCounts[t.category];
+        if (t.isPrivate)
+            ++m_private;
 
         if (t.tags.isEmpty())
             ++m_untagged;
@@ -148,7 +152,8 @@ void FilterCounts::recompute()
 
     const bool sameGroups =
         std::equal(std::begin(m_groupCounts), std::end(m_groupCounts), std::begin(oldGroups));
-    if (oldTotal == m_total && oldInProgress == m_inProgress && sameGroups &&
+    if (oldTotal == m_total && oldInProgress == m_inProgress && oldPrivate == m_private &&
+        sameGroups &&
         oldCategories == m_categoryCounts && oldTags == m_tagCounts &&
         oldTrackers == m_trackerCounts)
         return;

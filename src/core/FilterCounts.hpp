@@ -35,6 +35,9 @@ class FilterCounts : public QObject
     Q_PROPERTY(int uncategorised READ uncategorised NOTIFY changed)
     Q_PROPERTY(int untagged READ untagged NOTIFY changed)
     Q_PROPERTY(int trackerless READ trackerless NOTIFY changed)
+    /// Torrents with the private flag: the hero warns about anonymous mode only when there
+    /// is one (docs/16 §5).
+    Q_PROPERTY(int privateCount READ privateCount NOTIFY changed)
     /// Moves on every `changed`. The per-name lookups below are methods, which a QML binding
     /// does not re-run by itself; a binding that passes `revision` along does.
     Q_PROPERTY(int revision READ revision NOTIFY changed)
@@ -61,6 +64,7 @@ public:
     int errored() const { return count(StatusGroup::Errored); }
     int uncategorised() const { return m_categoryCounts.value(QString()); }
     int untagged() const { return m_untagged; }
+    int privateCount() const { return m_private; }
     int trackerless() const { return m_trackerCounts.value(trackerlessKey()); }
     int revision() const { return m_revision; }
 
@@ -94,6 +98,7 @@ private:
 
     int m_total = 0;
     int m_untagged = 0;
+    int m_private = 0;
     int m_inProgress = 0;
     int m_revision = 0;
     int m_groupCounts[8] = {};

@@ -70,6 +70,7 @@ public:
         TrackerHostRole,
         TrackersCountRole,
         HasTrackerErrorRole,
+        IsPrivateRole,
         PriorityRole,
         SeqDlRole,
         FirstLastPiecePrioRole,

@@ -179,7 +179,7 @@ void TestTorrentModel::rolesCoverTheTableAndTheDetails()
     QVERIFY(model.data(first, TorrentModel::LastActivityRole).toDateTime().isValid());
     QVERIFY(!model.data(first, TorrentModel::LastActivityTextRole).toString().isEmpty());
 
-    QCOMPARE(model.roleNames().size(), 74);
+    QCOMPARE(model.roleNames().size(), 75);
     QCOMPARE(roleOf(model, "stateText"), int(TorrentModel::StateTextRole));
     QCOMPARE(roleOf(model, "stateRole"), int(TorrentModel::StateColorRoleRole));
     QCOMPARE(roleOf(model, "seedsPeersText"), int(TorrentModel::SeedsPeersTextRole));
@@ -250,6 +250,14 @@ void TestTorrentModel::perTorrentOptionsParse()
     QVERIFY(after.autoTmm);
     // Views that snapshot the row (the details pane) hear about it.
     QCOMPARE(updated.count(), 1);
+
+    // docs/16 §5: the private flag, for the table's marker.
+    QVERIFY(!after.isPrivate);
+    model.applyPartial(QJsonObject{{QStringLiteral("aaaa"),
+                                    QJsonObject{{QStringLiteral("private"), true}}}},
+                       QJsonArray());
+    QVERIFY(model.torrent(QStringLiteral("aaaa")).isPrivate);
+    QCOMPARE(roleOf(model, "isPrivate"), int(TorrentModel::IsPrivateRole));
 }
 
 void TestTorrentModel::inactiveSeedingTimeLimitParsesAndDefaults()

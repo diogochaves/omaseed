@@ -39,6 +39,8 @@ qt_add_library(omaseed-core STATIC
     ServerDetector.hpp
     ServerListModel.cpp
     ServerListModel.hpp
+    ServerPreferences.cpp
+    ServerPreferences.hpp
     ServerStore.cpp
     ServerStore.hpp
     StateFile.cpp

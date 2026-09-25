@@ -64,6 +64,7 @@ const QHash<QString, QList<int>> &keyToRoles()
         {QStringLiteral("trackers_count"), {M::TrackersCountRole}},
         {QStringLiteral("has_tracker_error"), {M::HasTrackerErrorRole}},
         {QStringLiteral("priority"), {M::PriorityRole, M::PriorityTextRole}},
+        {QStringLiteral("private"), {M::IsPrivateRole}},
         {QStringLiteral("seq_dl"), {M::SeqDlRole}},
         {QStringLiteral("f_l_piece_prio"), {M::FirstLastPiecePrioRole}},
         {QStringLiteral("dl_limit"), {M::DlLimitRole, M::DlLimitTextRole}},
@@ -218,6 +219,8 @@ QVariant TorrentModel::data(const QModelIndex &index, int role) const
         return t.trackersCount;
     case HasTrackerErrorRole:
         return t.hasTrackerError;
+    case IsPrivateRole:
+        return t.isPrivate;
     case PriorityRole:
         return t.priority;
     case SeqDlRole:
@@ -339,6 +342,7 @@ QHash<int, QByteArray> TorrentModel::roleNames() const
         {TrackerHostRole, "trackerHost"},
         {TrackersCountRole, "trackersCount"},
         {HasTrackerErrorRole, "hasTrackerError"},
+        {IsPrivateRole, "isPrivate"},
         {PriorityRole, "priority"},
         {SeqDlRole, "seqDl"},
         {FirstLastPiecePrioRole, "firstLastPiecePrio"},
