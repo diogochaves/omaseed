@@ -253,9 +253,9 @@ void TestTorrentModel::perTorrentOptionsParse()
 
     // docs/16 §5: the private flag, for the table's marker.
     QVERIFY(!after.isPrivate);
-    model.applyPartial(QJsonObject{{QStringLiteral("aaaa"),
-                                    QJsonObject{{QStringLiteral("private"), true}}}},
-                       QJsonArray());
+    model.applyPartial(
+        QJsonObject{{QStringLiteral("aaaa"), QJsonObject{{QStringLiteral("private"), true}}}},
+        QJsonArray());
     QVERIFY(model.torrent(QStringLiteral("aaaa")).isPrivate);
     QCOMPARE(roleOf(model, "isPrivate"), int(TorrentModel::IsPrivateRole));
 }

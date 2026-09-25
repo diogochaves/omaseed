@@ -984,9 +984,8 @@ public:
     /// The URL the saved server should have after `changes` (docs/16 §3), or the same URL
     /// when nothing in them moves it. Only a URL on the Web UI's own port follows a port
     /// change: one behind a reverse proxy does not.
-    static QUrl urlAfterPreferences(const QUrl &url,
-                                    const QVariantMap &changes,
-                                    const QVariantMap &before);
+    static QUrl
+    urlAfterPreferences(const QUrl &url, const QVariantMap &changes, const QVariantMap &before);
 
 Q_SIGNALS:
     void globalLimitsLoaded(qint64 dl, qint64 up, qint64 altDl, qint64 altUp);

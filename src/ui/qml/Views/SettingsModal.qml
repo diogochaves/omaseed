@@ -20,6 +20,12 @@ import Omaseed.Kit
 //   a x d       Servers pane only: add, remove (confirmed), make default
 //   esc         close — or, while the server sheet is up, close that first, because the
 //               sheet has the keyboard and traps the key itself.
+//
+// docs/16: a second group in the nav, "qBittorrent · <server> <version>", holds the server's
+// own settings in nine sections (`QbtSettingsSections`, drawn by `QbtSettingsPane`). Its
+// panes follow omaseed's six in `paneIndex` (6–14). There the digits pick a section of that
+// group, space flips a switch, enter edits, `d` puts an Advanced row back to its default and
+// `s` moves the app to the next server. `openQbt()` (ctrl+shift+,) opens straight on it.
 Item {
     id: root
 
@@ -29,8 +35,9 @@ Item {
     readonly property alias serverSheet: serverSheet
     readonly property alias confirm: confirm
 
-    /// Which pane is on show, 0–5 (General, Servers, Notifications, Keybindings, Appearance,
-    /// About) — the order of `navRows`.
+    /// Which pane is on show: 0–5 are omaseed's own (General, Servers, Notifications,
+    /// Keybindings, Appearance, About, the order of `navRows`), 6 on the qBittorrent group's
+    /// sections (`qbtSections`).
     property int paneIndex: 0
     /// The row cursor inside the pane, -1 when the pane has no rows.
     property int paneCursor: 0
@@ -81,8 +88,34 @@ Item {
         }
     ]
 
+    /// docs/16: the qBittorrent group's sections.
+    readonly property var qbtSections: qbtSchema.sections
+    /// Where the qBittorrent group starts in `paneIndex`.
+    readonly property int qbtStart: root.navRows.length
+    readonly property int paneCount: root.navRows.length + root.qbtSections.length
+    /// The pane on show is one of the qBittorrent group's.
+    readonly property bool inQbt: root.paneIndex >= root.qbtStart
+    readonly property var qbtSection: root.inQbt ? root.qbtSections[root.paneIndex - root.qbtStart]
+                                                 : null
+    /// Every nav row in `paneIndex` order, both groups.
+    readonly property var allRows: root.navRows.concat(root.qbtSections.map(section => ({
+                                                                                          "glyph": section.glyph,
+                                                                                          "text": section.name,
+                                                                                          "shortText": section.shortName
+                                                                                      })))
+    /// The qBittorrent group's head: "playground 5.2.3".
+    readonly property string qbtServerText: {
+        const version = App.globalState.serverVersion.replace(/^v/, "");
+        return App.serverName + (version.length > 0 ? " " + version : "");
+    }
+    /// A line for the pane's head after a change: why the server said no, or what it kept.
+    property string qbtNote: ""
+    property bool qbtNoteError: false
+
     /// How many cursor rows the pane on show has. Keybindings is a read-only list in v1.
     readonly property int paneRowCount: {
+        if (root.inQbt)
+            return qbtPane.cursorCount;
         switch (root.paneIndex) {
         case 0:
             return 4;
@@ -105,6 +138,141 @@ Item {
         if (root.folded)
             root.area = "pane";
         sheet.open();
+        if (root.inQbt)
+            root._readQbt();
+    }
+
+    /// ctrl+shift+, (docs/16 §2): Settings, on the qBittorrent group.
+    function openQbt(): void {
+        if (!root.inQbt)
+            root.showPane(root.qbtStart);
+        root.open();
+    }
+
+    /// The server's settings again, when a qBittorrent pane comes up, and its network
+    /// interfaces for Connection.
+    function _readQbt(): void {
+        if (!App.serverPrefs.loading)
+            App.serverPrefs.reload();
+        if (root.qbtSection && root.qbtSection.id === "connection")
+            App.serverPrefs.loadInterfaces(App.serverPrefs.values.current_network_interface ?? "");
+    }
+
+    function _flashQbtNote(text: string, error: bool): void {
+        root.qbtNote = text;
+        root.qbtNoteError = error;
+        qbtNoteTimer.restart();
+    }
+
+    /// A change from the qBittorrent group: through the confirm when it can cut you off
+    /// (docs/16 §3), straight to the server otherwise.
+    function qbtRequest(changes: var, confirmKind: string, what: string): void {
+        if (confirmKind.length === 0) {
+            App.serverPrefs.apply(changes);
+            return;
+        }
+        const first = Object.keys(changes)[0];
+        const value = changes[first];
+        let message = "";
+        let subtitle = "";
+        let confirmText = qsTr("change");
+        switch (confirmKind) {
+        case "port":
+            message = qsTr("Move the listening port to %1?").arg(value);
+            subtitle = qsTr("Peers learn the new port at the next announce. Your router has to forward it too, or UPnP has to, or nobody can reach you.");
+            break;
+        case "anon":
+            message = qsTr("Turn on anonymous mode?");
+            subtitle = qsTr("It hides which client you use. Most private trackers allow only known clients, and may refuse you while it is on.");
+            confirmText = qsTr("turn on");
+            break;
+        case "iface":
+            message = first === "current_network_interface"
+                    ? qsTr("Bind qBittorrent to %1?").arg(value ? value : qsTr("every interface"))
+                    : qsTr("Use only %1?").arg(value ? value : qsTr("every address"));
+            subtitle = qsTr("If that interface goes away (a VPN that drops, say), every transfer stops until it is back.");
+            break;
+        case "ipfilter":
+            message = qsTr("Block the addresses in the filter?");
+            subtitle = qsTr("Every address in the file is refused. A wrong file can block every peer, and your trackers too if you asked for that.");
+            break;
+        case "rotateKey":
+            message = qsTr("Make a new API key?");
+            subtitle = qsTr("The old key stops working at once, for anything that uses it. omaseed takes the new one if it signs in with a key.");
+            confirmText = qsTr("new key");
+            break;
+        default: // "webui"
+            message = qsTr("Change the Web UI's %1?").arg(what.toLowerCase());
+            subtitle = qsTr("omaseed signs in through the Web UI. It follows a new port, HTTPS or login by itself; anything else that shuts it out has to be put back in qBittorrent.");
+            break;
+        }
+        qbtConfirm.pending = changes;
+        qbtConfirm.kind = confirmKind;
+        qbtConfirm.message = message;
+        qbtConfirm.subtitle = subtitle;
+        qbtConfirm.confirmText = confirmText;
+        qbtConfirm.open();
+    }
+
+    /// A row's button: a random port, or a new API key.
+    function qbtAction(action: string): void {
+        if (action === "randomPort") {
+            const port = 1024 + Math.floor(Math.random() * (65535 - 1024));
+            root.qbtRequest({
+                                "listen_port": port
+                            }, "port", qsTr("Listening port"));
+        } else if (action === "rotateKey") {
+            root.qbtRequest({}, "rotateKey", qsTr("API key"));
+        }
+    }
+
+    /// The list sheet for a row's `list` (docs/16 §4).
+    function qbtOpenList(list: var, what: string, confirmKind: string): void {
+        const value = App.serverPrefs.values[list.key];
+        const lines = list.dirs ? Object.keys(value ?? {}) : String(value ?? "").split(list.sep).map(
+                                      line => line.trim()).filter(line => line.length > 0);
+        qbtListSheet.list = list;
+        qbtListSheet.confirmKind = confirmKind;
+        qbtListSheet.openWith(what, list.what ?? "", lines);
+    }
+
+    /// The menu for a row's `pick`, under the row's button.
+    function qbtOpenPick(pick: var, anchor: Item, confirmKind: string): void {
+        let options = pick.options ?? [];
+        if (pick.source === "interfaces")
+            options = [["", qsTr("any")]].concat(App.serverPrefs.networkInterfaces.map(entry => [entry.value,
+                                                                                                 entry.name]));
+        else if (pick.source === "addresses")
+            options = [["", qsTr("every address")]].concat(App.serverPrefs.interfaceAddresses.filter(
+                                                               address => address.length > 0).map(
+                                                               address => [address, address]));
+        const current = App.serverPrefs.values[pick.key];
+        qbtMenu.pick = pick;
+        qbtMenu.options = options;
+        qbtMenu.confirmKind = confirmKind;
+        qbtMenu.items = options.map((option, index) => ({
+                                                            "text": option[1],
+                                                            "glyph": option[0] === current ? Glyphs.check : "",
+                                                            "action": String(index)
+                                                        }));
+        const at = anchor.mapToItem(root, 0, anchor.height + Theme.space(4));
+        qbtMenu.openAt(Math.round(at.x), Math.round(at.y));
+        // On the value the server has now, not the first row.
+        qbtMenu.cursorIndex = Math.max(0, options.findIndex(option => option[0] === current));
+    }
+
+    /// `s` in the qBittorrent group: the app moves to the next server, and the group with it.
+    function qbtNextServer(): void {
+        const count = App.serverList.count;
+        if (count < 2)
+            return;
+        const current = App.tableStateKey();
+        let at = -1;
+        for (let i = 0; i < count; ++i) {
+            if (App.serverList.idAt(i) === current)
+                at = i;
+        }
+        App.setDefaultServer(App.serverList.idAt((at + 1) % count));
     }
 
     function close(): void {
@@ -113,14 +281,19 @@ Item {
 
     /// Go to a pane by index and put the cursor on its first row.
     function showPane(index: int): void {
-        if (index < 0 || index >= root.navRows.length)
+        if (index < 0 || index >= root.paneCount)
             return;
         root.paneIndex = index;
         root.paneCursor = 0;
     }
 
-    /// `enter` / `space` on the cursor row of the pane on show.
-    function activateRow(): void {
+    /// `enter` / `space` on the cursor row of the pane on show. `how` is "enter" or "space":
+    /// on a qBittorrent row with a switch and a field, space flips and enter edits.
+    function activateRow(how = "enter"): void {
+        if (root.inQbt) {
+            qbtPane.activate(root.paneCursor, how);
+            return;
+        }
         if (root.paneIndex === 0) {
             if (root.paneCursor === 0)
                 App.showServersGroup = !App.showServersGroup;
@@ -259,9 +432,10 @@ Item {
                                               * Theme.space(16) - Theme.space(12) - Theme.space(8) - 1
                                               - Math.ceil(captionMetrics.height))
 
-    /// The pane on show, in `navRows` order.
-    readonly property Item _paneOnShow: [generalPane, serversPane, notificationsPane, keysPane,
-        appearancePane, aboutPane][root.paneIndex]
+    /// The pane on show, in `navRows` order; every qBittorrent section is the one pane.
+    readonly property Item _paneOnShow: root.inQbt ? qbtPane : [generalPane, serversPane,
+                                                                notificationsPane, keysPane,
+                                                                appearancePane, aboutPane][root.paneIndex]
 
     /// Scrolls the pane just enough to show the row with the cursor, so `j`/`k` never move
     /// it out of sight on a pane taller than the modal.
@@ -292,7 +466,21 @@ Item {
     }
 
     function _moveNav(delta: int): void {
-        root.showPane((root.paneIndex + delta + root.navRows.length) % root.navRows.length);
+        root.showPane((root.paneIndex + delta + root.paneCount) % root.paneCount);
+    }
+
+    /// Scrolls the nav to keep its current row in view (both groups are taller than a short
+    /// window).
+    function _revealNav(): void {
+        const row = root.paneIndex < root.qbtStart ? navRepeater.itemAt(root.paneIndex)
+                                                   : qbtNavRepeater.itemAt(root.paneIndex - root.qbtStart);
+        if (!row)
+            return;
+        const top = row.mapToItem(navColumn, 0, 0).y;
+        if (top < navScroller.contentY)
+            navScroller.contentY = Math.max(0, top - Theme.space(24));
+        else if (top + row.height > navScroller.contentY + navScroller.height)
+            navScroller.contentY = top + row.height - navScroller.height;
     }
 
     function _movePane(delta: int): void {
@@ -337,8 +525,19 @@ Item {
             event.accepted = true;
             return;
         }
-        if (event.key >= Qt.Key_1 && event.key <= Qt.Key_6) {
-            root.showPane(event.key - Qt.Key_1);
+        // The digits pick a section of the group on show: 1–6 in omaseed's, 1–9 in the
+        // qBittorrent group's.
+        if (event.key >= Qt.Key_1 && event.key <= Qt.Key_9) {
+            const base = root.inQbt ? root.qbtStart : 0;
+            const count = root.inQbt ? root.qbtSections.length : root.navRows.length;
+            const at = event.key - Qt.Key_1;
+            if (at < count)
+                root.showPane(base + at);
+            event.accepted = true;
+            return;
+        }
+        if (event.key === Qt.Key_S && root.inQbt) {
+            root.qbtNextServer();
             event.accepted = true;
             return;
         }
@@ -380,8 +579,10 @@ Item {
             break;
         case Qt.Key_Return:
         case Qt.Key_Enter:
+            root.activateRow("enter");
+            break;
         case Qt.Key_Space:
-            root.activateRow();
+            root.activateRow("space");
             break;
         case Qt.Key_A:
             if (root.paneIndex === 1)
@@ -395,6 +596,8 @@ Item {
         case Qt.Key_D:
             if (root.paneIndex === 1)
                 App.setDefaultServer(root.cursorServerId());
+            else if (root.inQbt)
+                qbtPane.resetDefaults(root.paneCursor);
             break;
         default:
             break;
@@ -411,7 +614,52 @@ Item {
             root._syncAppearanceFields();
         }
 
+        // Another server: its settings, read afresh.
+        function onServerChanged(): void {
+            if (root.opened && root.inQbt)
+                Qt.callLater(root._readQbt);
+        }
+
         target: App
+    }
+
+    Connections {
+        function onApplyFailed(keys: var, error: string): void {
+            root._flashQbtNote(qsTr("not changed: %1").arg(error), true);
+            qbtPane.syncFields();
+        }
+
+        function onApplied(keys: var, kept: var): void {
+            if (keys.indexOf("current_network_interface") >= 0)
+                App.serverPrefs.loadInterfaces(App.serverPrefs.values.current_network_interface ?? "");
+            if (kept.length > 0)
+                root._flashQbtNote(qsTr("the server kept its own value for %1").arg(kept.join(", ")),
+                                   true);
+            else
+                root._flashQbtNote(qsTr("saved"), false);
+        }
+
+        function onApiKeyRotated(key: string): void {
+            root._flashQbtNote(qsTr("new API key made"), false);
+        }
+
+        function onApiKeyRotateFailed(error: string): void {
+            root._flashQbtNote(qsTr("no new key: %1").arg(error), true);
+        }
+
+        target: App.serverPrefs
+    }
+
+    QbtSettingsSections {
+        id: qbtSchema
+    }
+
+    Timer {
+        id: qbtNoteTimer
+
+        interval: 6000
+
+        onTriggered: root.qbtNote = ""
     }
 
     onOpenedChanged: {
@@ -423,7 +671,14 @@ Item {
     onPaneIndexChanged: {
         paneStack.contentY = 0;
         // A click on a tab sets the tabs' own index, which ends a binding; keep them in step.
-        sectionTabs.currentIndex = root.paneIndex;
+        // From paneIndex itself: `inQbt` may not have caught up yet inside this handler.
+        const qbt = root.paneIndex >= root.qbtStart;
+        sectionTabs.currentIndex = root.paneIndex - (qbt ? root.qbtStart : 0);
+        groupTabs.currentIndex = qbt ? 1 : 0;
+        root.qbtNote = "";
+        Qt.callLater(root._revealNav);
+        if (root.opened && qbt)
+            Qt.callLater(root._readQbt);
     }
     onPaneCursorChanged: Qt.callLater(root._revealCursor)
     onAreaChanged: Qt.callLater(root._revealCursor)
@@ -439,7 +694,8 @@ Item {
     // what the sheet, the server sheet and the confirm leave unhandled stops here.
     Keys.onPressed: event => {
         if (event.key !== Qt.Key_Escape
-                && (sheet.opened || serverSheet.opened || confirm.opened))
+                && (sheet.opened || serverSheet.opened || confirm.opened || qbtConfirm.opened
+                    || qbtListSheet.opened || qbtMenu.opened))
             event.accepted = true;
     }
 
@@ -458,23 +714,41 @@ Item {
         // The head belongs to the pane in this figure, not to the sheet: no glyph, no title,
         // and no `esc` chip up there either.
         escText: ""
-        hints: [
-            {
-                "key": "j k",
-                "label": qsTr("move")
-            },
-            root.folded ? {
-                              "key": "h l",
-                              "label": qsTr("section")
-                          } : {
-                              "key": "tab",
-                              "label": qsTr("pane")
-                          },
-            {
-                "key": "enter",
-                "label": qsTr("act")
-            }
-        ]
+        hints: {
+            const hints = [{
+                               "key": "j k",
+                               "label": qsTr("move")
+                           }, root.folded ? {
+                                                "key": "h l",
+                                                "label": qsTr("section")
+                                            } : {
+                                                "key": "tab",
+                                                "label": qsTr("pane")
+                                            }];
+            if (!root.inQbt)
+                return hints.concat([{
+                                         "key": "enter",
+                                         "label": qsTr("act")
+                                     }]);
+            hints.push({
+                           "key": "space",
+                           "label": qsTr("toggle")
+                       }, {
+                           "key": "enter",
+                           "label": qsTr("edit")
+                       });
+            if (root.qbtSection && root.qbtSection.id === "advanced")
+                hints.push({
+                               "key": "d",
+                               "label": qsTr("default")
+                           });
+            if (App.serverList.count > 1)
+                hints.push({
+                               "key": "s",
+                               "label": qsTr("server")
+                           });
+            return hints;
+        }
         sheetWidth: Theme.space(760)
         title: ""
 
@@ -505,51 +779,113 @@ Item {
                 spacing: 0
 
                 // ---- the nav (`.settings .nav`) ---------------------------------------
-                // A nested Layout fills by default, so the nav has to say it does not: the
-                // pane is the one that takes what is left.
-                ColumnLayout {
+                // Two groups (docs/16 §2): omaseed's own six, then the server's nine under a
+                // head that names it. Taller than a short window, so it scrolls.
+                Flickable {
+                    id: navScroller
+
                     Layout.fillHeight: true
                     Layout.fillWidth: false
                     Layout.maximumWidth: Theme.space(150)
                     Layout.preferredWidth: Theme.space(150)
+                    boundsBehavior: Flickable.StopAtBounds
+                    clip: true
+                    contentHeight: navColumn.implicitHeight
+                    contentWidth: width
                     objectName: "settingsNav"
-                    spacing: 1
                     visible: !root.folded
 
-                    Label {
-                        Layout.bottomMargin: Theme.space(8)
-                        Layout.fillWidth: true
-                        Layout.leftMargin: Theme.space(4)
-                        text: qsTr("settings")
-                        tracked: true
-                    }
+                    ColumnLayout {
+                        id: navColumn
 
-                    Repeater {
-                        model: root.navRows
+                        spacing: 1
+                        width: navScroller.width
 
-                        RailRow {
-                            id: navRow
-
-                            required property int index
-                            required property var modelData
-
+                        Label {
+                            Layout.bottomMargin: Theme.space(8)
                             Layout.fillWidth: true
-                            objectName: "navRow" + navRow.index
-                            glyph: navRow.modelData.glyph
-                            hasCursor: root.area === "nav" && root.paneIndex === navRow.index
-                            selected: root.paneIndex === navRow.index
-                            text: navRow.modelData.text
+                            Layout.leftMargin: Theme.space(4)
+                            text: qsTr("settings")
+                            tracked: true
+                        }
 
-                            onClicked: {
-                                root.showPane(navRow.index);
-                                root.area = "nav";
-                                bodyItem.forceActiveFocus();
+                        Repeater {
+                            id: navRepeater
+
+                            model: root.navRows
+
+                            RailRow {
+                                id: navRow
+
+                                required property int index
+                                required property var modelData
+
+                                Layout.fillWidth: true
+                                objectName: "navRow" + navRow.index
+                                glyph: navRow.modelData.glyph
+                                hasCursor: root.area === "nav" && root.paneIndex === navRow.index
+                                selected: root.paneIndex === navRow.index
+                                text: navRow.modelData.text
+
+                                onClicked: {
+                                    root.showPane(navRow.index);
+                                    root.area = "nav";
+                                    bodyItem.forceActiveFocus();
+                                }
                             }
                         }
-                    }
 
-                    Item {
-                        Layout.fillHeight: true
+                        // docs/16 §2: the group's head names the server it edits:
+                        // "qbittorrent", then "playground 5.2.3" under it.
+                        Label {
+                            Layout.fillWidth: true
+                            Layout.leftMargin: Theme.space(4)
+                            Layout.topMargin: Theme.space(14)
+                            objectName: "qbtNavHead"
+                            text: qsTr("qbittorrent")
+                            tracked: true
+                        }
+
+                        Label {
+                            Layout.bottomMargin: Theme.space(8)
+                            Layout.fillWidth: true
+                            Layout.leftMargin: Theme.space(4)
+                            dim: true
+                            elide: Text.ElideRight
+                            objectName: "qbtNavServer"
+                            size: "small"
+                            text: root.qbtServerText
+                            visible: root.qbtServerText.length > 0
+                        }
+
+                        Repeater {
+                            id: qbtNavRepeater
+
+                            model: root.qbtSections
+
+                            RailRow {
+                                id: qbtNavRow
+
+                                required property int index
+                                required property var modelData
+                                readonly property int pane: root.qbtStart + qbtNavRow.index
+
+                                Layout.fillWidth: true
+                                objectName: "qbtNavRow" + qbtNavRow.index
+                                glyph: qbtNavRow.modelData.glyph
+                                hasCursor: root.area === "nav" && root.paneIndex === qbtNavRow.pane
+                                selected: root.paneIndex === qbtNavRow.pane
+                                // The short name: the nav is 150 px, the pane's head has
+                                // the whole one.
+                                text: qbtNavRow.modelData.shortName
+
+                                onClicked: {
+                                    root.showPane(qbtNavRow.pane);
+                                    root.area = "nav";
+                                    bodyItem.forceActiveFocus();
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -567,21 +903,45 @@ Item {
                     Layout.fillWidth: true
                     spacing: Theme.space(12)
 
+                    // docs/16 §2: folded, the tabs start with a two-way switch between the
+                    // groups, and the section tabs below it follow the group.
+                    Tabs {
+                        id: groupTabs
+
+                        Layout.fillWidth: true
+                        currentIndex: root.inQbt ? 1 : 0
+                        model: [{
+                                "text": qsTr("omaseed")
+                            }, {
+                                "text": qsTr("qBittorrent")
+                            }]
+                        objectName: "settingsGroupTabs"
+                        visible: root.folded
+
+                        onActivated: index => {
+                            if ((index === 1) !== root.inQbt)
+                                root.showPane(index === 1 ? root.qbtStart : 0);
+                            root.area = "pane";
+                            bodyItem.forceActiveFocus();
+                        }
+                    }
+
                     // docs/15 Q3 A: the nav, folded into tabs across the top of the sheet.
                     Tabs {
                         id: sectionTabs
 
                         Layout.fillWidth: true
                         clip: true
-                        currentIndex: root.paneIndex
-                        model: root.navRows.map(row => ({
-                                                            "text": row.shortText ?? row.text
-                                                        }))
+                        currentIndex: root.paneIndex - (root.inQbt ? root.qbtStart : 0)
+                        model: (root.inQbt ? root.allRows.slice(root.qbtStart) : root.navRows).map(
+                                   row => ({
+                                           "text": row.shortText ?? row.text
+                                       }))
                         objectName: "settingsTabs"
                         visible: root.folded
 
                         onActivated: index => {
-                            root.showPane(index);
+                            root.showPane(index + (root.inQbt ? root.qbtStart : 0));
                             root.area = "pane";
                             bodyItem.forceActiveFocus();
                         }
@@ -599,7 +959,22 @@ Item {
                             elide: Text.ElideRight
                             font.weight: Font.DemiBold
                             size: "subtitle"
-                            text: root.navRows[root.paneIndex].text
+                            text: root.allRows[root.paneIndex].text
+                        }
+
+                        // docs/16 §3: which server this is, and that a change is saved as it
+                        // is made; after a change, what the server said about it.
+                        Label {
+                            Layout.maximumWidth: Theme.space(320)
+                            color: root.qbtNote.length > 0 ? (root.qbtNoteError ? Theme.yellow
+                                                                                 : Theme.green)
+                                                           : Theme.dimForeground
+                            elide: Text.ElideRight
+                            objectName: "qbtHeadNote"
+                            size: "caption"
+                            text: root.qbtNote.length > 0 ? root.qbtNote : qsTr("%1 · saved as you change it").arg(
+                                                                               App.serverName)
+                            visible: root.inQbt
                         }
 
                         Label {
@@ -1354,6 +1729,39 @@ Item {
                             }
                         }
 
+                        // ---- qBittorrent (docs/16) -------------------------------------
+                        QbtSettingsPane {
+                            id: qbtPane
+
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.top: parent.top
+                            cursor: root.paneCursor
+                            keyboard: root.area === "pane"
+                            objectName: "qbtPane"
+                            prefs: App.serverPrefs
+                            section: root.qbtSection
+                            serverName: App.serverName
+                            visible: root.inQbt
+
+                            onActionRequested: action => root.qbtAction(action)
+                            onChangeRequested: (changes, confirmKind, what) => root.qbtRequest(changes,
+                                                                                               confirmKind,
+                                                                                               what)
+                            onFieldDone: bodyItem.forceActiveFocus()
+                            onListRequested: (list, what, confirmKind) => root.qbtOpenList(list, what,
+                                                                                           confirmKind)
+                            onNoteRequested: text => root._flashQbtNote(text, true)
+                            onPickRequested: (pick, anchor, confirmKind) => root.qbtOpenPick(pick,
+                                                                                             anchor,
+                                                                                             confirmKind)
+                            onRowClicked: index => {
+                                if (index >= 0)
+                                    root.paneCursor = index;
+                                root.area = "pane";
+                            }
+                        }
+
                         // ---- About -------------------------------------------------------
                         ColumnLayout {
                             id: aboutPane
@@ -1435,6 +1843,90 @@ Item {
             root.paneCursor = Math.max(0, App.serverList.indexOfId(id));
             root.area = "pane";
         }
+    }
+
+    // docs/16 §3: a change that can cut you off asks first.
+    ConfirmDialog {
+        id: qbtConfirm
+
+        property var pending: ({})
+        property string kind: ""
+
+        anchors.fill: parent
+        objectName: "qbtConfirm"
+        z: 2
+
+        onAccepted: {
+            if (qbtConfirm.kind === "rotateKey")
+                App.serverPrefs.rotateApiKey();
+            else
+                App.serverPrefs.apply(qbtConfirm.pending);
+            qbtConfirm.pending = {};
+            bodyItem.forceActiveFocus();
+        }
+        onRejected: {
+            qbtConfirm.pending = {};
+            qbtPane.syncFields();
+            bodyItem.forceActiveFocus();
+        }
+    }
+
+    QbtListSheet {
+        id: qbtListSheet
+
+        property var list: ({})
+        property string confirmKind: ""
+
+        anchors.fill: parent
+        objectName: "qbtListSheet"
+        z: 1
+
+        onSaved: lines => {
+            const list = qbtListSheet.list;
+            let value;
+            if (list.dirs) {
+                // scan_dirs is {path: where to save}; a folder already there keeps its choice,
+                // a new one saves to the default path (0).
+                const before = App.serverPrefs.values[list.key] ?? {};
+                value = {};
+                for (const line of lines)
+                    value[line] = before[line] !== undefined ? before[line] : 0;
+            } else {
+                value = lines.join(list.sep);
+            }
+            root.qbtRequest({
+                                [list.key]: value
+                            }, qbtListSheet.confirmKind, qbtListSheet.title);
+        }
+    }
+
+    Menu {
+        id: qbtMenu
+
+        property var pick: ({})
+        property var options: []
+        property string confirmKind: ""
+
+        anchors.fill: parent
+        dimmed: false
+        objectName: "qbtMenu"
+        z: 1
+
+        onActivated: action => {
+            const option = qbtMenu.options[parseInt(action, 10)];
+            if (!option)
+                return;
+            const changes = {
+                [qbtMenu.pick.key]: option[0]
+            };
+            // A new interface starts on all of its addresses.
+            if (qbtMenu.pick.key === "current_network_interface")
+                changes.current_interface_address = "";
+            if (option[0] !== App.serverPrefs.values[qbtMenu.pick.key])
+                root.qbtRequest(changes, qbtMenu.confirmKind, qbtMenu.pick.key);
+            bodyItem.forceActiveFocus();
+        }
+        onRejected: bodyItem.forceActiveFocus()
     }
 
     ConfirmDialog {

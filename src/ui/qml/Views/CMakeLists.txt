@@ -46,6 +46,10 @@ qt_add_qml_module(omaseed-views
         LocationSheet.qml
         MainView.qml
         MoreMenu.qml
+        QbtListSheet.qml
+        QbtSettingRow.qml
+        QbtSettingsPane.qml
+        QbtSettingsSections.qml
         Rail.qml
         RailGroup.qml
         RenameSheet.qml

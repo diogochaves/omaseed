@@ -74,8 +74,9 @@ protected:
 private:
     static QByteArray reply(int code, const QByteArray &body)
     {
-        return "HTTP/1.1 " + QByteArray::number(code) + " X\r\nContent-Length: "
-               + QByteArray::number(body.size()) + "\r\nConnection: close\r\n\r\n" + body;
+        return "HTTP/1.1 " + QByteArray::number(code) +
+               " X\r\nContent-Length: " + QByteArray::number(body.size()) +
+               "\r\nConnection: close\r\n\r\n" + body;
     }
 
     QByteArray answer(const QByteArray &target, const QByteArray &body)

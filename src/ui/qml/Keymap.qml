@@ -183,6 +183,18 @@ QtObject {
             "helpKeys": "",
             "help": ""
         },
+        // docs/16 §2: Settings, straight on the qBittorrent group.
+        {
+            "area": "global",
+            "key": "ctrl+shift+,",
+            "action": "qbtSettings",
+            "label": qsTr("qBittorrent settings"),
+            "column": "app",
+            "rank": 2,
+            "helpKeys": "ctrl+shift+,",
+            "help": qsTr("qBittorrent settings"),
+            "about": qsTr("Settings, open on the server's own: speed, discovery, port, seeding, queue…")
+        },
         // docs/08 §5: hide or show the rail (the sidebar key of most editors).
         {
             "area": "global",

@@ -131,13 +131,15 @@ TestCase {
         keyClick(Qt.Key_Tab);
         compare(modal.area, "nav");
 
-        // j and k walk the nav and wrap.
+        // j and k walk the nav, through both groups (docs/16 §2), and wrap.
         keyClick(Qt.Key_J);
         compare(modal.paneIndex, 2);
         keyClick(Qt.Key_K);
         keyClick(Qt.Key_K);
         keyClick(Qt.Key_K);
-        compare(modal.paneIndex, 5);
+        compare(modal.paneIndex, modal.paneCount - 1);
+        keyClick(Qt.Key_J);
+        compare(modal.paneIndex, 0);
 
         keyClick(Qt.Key_6);
         compare(modal.paneIndex, 5);
@@ -710,7 +712,9 @@ TestCase {
         compare(modal.paneIndex, 1);
         keyClick(Qt.Key_H);
         keyClick(Qt.Key_H);
-        compare(modal.paneIndex, 5); // wraps, as j/k do in the nav
+        compare(modal.paneIndex, modal.paneCount - 1); // wraps, as j/k do in the nav
+        keyClick(Qt.Key_L);
+        compare(modal.paneIndex, 0);
         keyClick(Qt.Key_5);
         compare(modal.paneIndex, 4);
         compare(tabs.currentIndex, 4);

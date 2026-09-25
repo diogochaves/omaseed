@@ -17,6 +17,19 @@ Item {
     signal activated(int index)
 
     readonly property int _tabHeight: Math.round(Theme.font.body * 2.2)
+    /// How far the row slides left so the current tab stays in view when the tabs are wider
+    /// than the strip (Settings' nine qBittorrent sections, folded: docs/16 §2). The caller
+    /// clips.
+    readonly property real _shift: {
+        // itemAt() is not a binding: the count and the row's width say when to look again.
+        void tabRepeater.count;
+        void row.width;
+        const tab = tabRepeater.itemAt(root.currentIndex);
+        if (!tab)
+            return 0;
+        const room = root.width - Theme.space(10);
+        return Math.max(0, tab.x + tab.width - room);
+    }
 
     height: implicitHeight
     implicitHeight: root._tabHeight
@@ -24,13 +37,13 @@ Item {
     Row {
         id: row
 
-        anchors.left: parent.left
-        anchors.leftMargin: Theme.space(10)
-        anchors.right: parent.right
         anchors.top: parent.top
         spacing: 0
+        x: Theme.space(10) - root._shift
 
         Repeater {
+            id: tabRepeater
+
             model: root.model
 
             Item {

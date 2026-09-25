@@ -153,8 +153,7 @@ void FilterCounts::recompute()
     const bool sameGroups =
         std::equal(std::begin(m_groupCounts), std::end(m_groupCounts), std::begin(oldGroups));
     if (oldTotal == m_total && oldInProgress == m_inProgress && oldPrivate == m_private &&
-        sameGroups &&
-        oldCategories == m_categoryCounts && oldTags == m_tagCounts &&
+        sameGroups && oldCategories == m_categoryCounts && oldTags == m_tagCounts &&
         oldTrackers == m_trackerCounts)
         return;
 

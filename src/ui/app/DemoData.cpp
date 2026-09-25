@@ -458,6 +458,11 @@ QJsonObject torrentJson(int index,
     // docs/12 G4: the rows with a category let qBittorrent manage their save path.
     json.insert(QStringLiteral("super_seeding"), false);
     json.insert(QStringLiteral("auto_tmm"), !category.isEmpty());
+    // docs/16 §5: the movies, tv and music rows come from private trackers, so the table
+    // shows its "private" marker; linux ISOs are public.
+    json.insert(QStringLiteral("private"),
+                category == QLatin1String("movies") || category == QLatin1String("tv") ||
+                    category == QLatin1String("music"));
     json.insert(QStringLiteral("dl_limit"), 0);
     json.insert(QStringLiteral("up_limit"), 0);
     json.insert(QStringLiteral("ratio_limit"), -2.0);

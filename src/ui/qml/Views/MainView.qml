@@ -517,7 +517,13 @@ Item {
                 jumpPalette.open();
                 break;
             case Qt.Key_Comma: // the desktop's settings key, beside bare `,` (Keymap "ctrl+,")
-                App.openSettings();
+                if (shift)
+                    root.openQbtSettings();
+                else
+                    App.openSettings();
+                break;
+            case Qt.Key_Less: // shift+, on most layouts: the qBittorrent group (docs/16 §2)
+                root.openQbtSettings();
                 break;
             case Qt.Key_Period:
                 root.openMoreMenu();
@@ -659,6 +665,9 @@ Item {
         case "settings":
             App.openSettings();
             return true;
+        case "qbtSettings":
+            root.openQbtSettings();
+            return true;
         case "more":
             root.openMoreMenu();
             return true;
@@ -778,6 +787,14 @@ Item {
         const corner = button.mapToItem(root, button.width, button.height);
         moreMenu.openAt(Math.round(corner.x - moreMenu.menuWidth), Math.round(corner.y
                                                                               + Theme.space(4)));
+    }
+
+    /// ctrl+shift+, (docs/16 §2): Settings on the qBittorrent group. First run holds it like
+    /// `,` does.
+    function openQbtSettings(): void {
+        if (root.firstRun)
+            return;
+        settingsModal.openQbt();
     }
 
     /// Runs a row of the ⋯ menu (docs/08 §3). The menu has closed and given the focus back.

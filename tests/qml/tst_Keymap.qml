@@ -125,7 +125,8 @@ TestCase {
                                                 "< >", "H L"]);
 
         const application = Keymap.helpRows("app");
-        compare(application.map(row => row.helpKeys), ["A", ", ctrl+,", "ctrl+.", "q", "ctrl+q",
+        compare(application.map(row => row.helpKeys), ["A", ", ctrl+,", "ctrl+shift+,", "ctrl+.",
+                                                       "q", "ctrl+q",
                                                        "super+t"]);
     }
 

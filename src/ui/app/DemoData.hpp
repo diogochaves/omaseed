@@ -16,8 +16,8 @@
 #include "core/Torrent.hpp"
 
 #include <QJsonObject>
-#include <QVariantMap>
 #include <QStringList>
+#include <QVariantMap>
 
 namespace omaseed::app::DemoData {
 
