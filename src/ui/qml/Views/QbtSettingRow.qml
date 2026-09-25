@@ -105,7 +105,7 @@ SettingsRow {
             return;
         }
         if (fieldRepeater.count > 0) {
-            row._cell(0).field.focusInput();
+            row._editField(0);
             return;
         }
         if (row.spec.list) {
@@ -249,6 +249,13 @@ SettingsRow {
         return fieldRepeater.itemAt(index);
     }
 
+    /// The caret into field `index`, at the end of its text (shown from the start at rest).
+    function _editField(index: int): void {
+        const field = row._cell(index).field;
+        field.focusInput();
+        field.cursorPosition = field.text.length;
+    }
+
     function commit(field: var, input: var): void {
         if (input.text === input.lastSent)
             return;
@@ -339,6 +346,8 @@ SettingsRow {
                     if (!input.editing) {
                         input.text = row.display(fieldCell.modelData);
                         input.lastSent = input.text;
+                        // A long value (a path, the DHT nodes) reads from its start.
+                        input.cursorPosition = 0;
                     }
                 }
 
@@ -368,9 +377,8 @@ SettingsRow {
 
                     onAccepted: {
                         row.commit(fieldCell.modelData, input);
-                        const next = row._cell(fieldCell.index + 1);
-                        if (next)
-                            next.field.focusInput();
+                        if (row._cell(fieldCell.index + 1))
+                            row._editField(fieldCell.index + 1);
                         else
                             row.fieldDone();
                     }
@@ -378,6 +386,7 @@ SettingsRow {
                     onCleared: {
                         input.text = row.display(fieldCell.modelData);
                         input.lastSent = input.text;
+                        input.cursorPosition = 0;
                         row.fieldDone();
                     }
                     onEditingChanged: {

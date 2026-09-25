@@ -86,6 +86,17 @@ TestCase {
         compare(modal.paneIndex, 0);
     }
 
+    // A long value reads from its start at rest, and editing starts at its end.
+    function test_a_long_field_shows_its_start() {
+        const modal = openOn(1);
+        const field = testCase.childNamed(modal, "field-dht_bootstrap_nodes");
+        verify(field.text.length > 40, field.text);
+        compare(field.cursorPosition, 0);
+        testCase.childNamed(modal, "qbtRow-dht_bootstrap_nodes").activate("enter");
+        verify(field.editing);
+        compare(field.cursorPosition, field.text.length);
+    }
+
     function test_space_flips_a_switch_on_the_server() {
         const modal = openOn(1); // Discovery and privacy
         compare(App.serverPrefs.values.dht, true);

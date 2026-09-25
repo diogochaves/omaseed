@@ -15,6 +15,9 @@ Rectangle {
     id: root
 
     property alias text: input.text
+    /// Where the caret is. A value written from outside leaves it at the end, which scrolls a
+    /// long text to its tail; 0 shows it from the start (docs/16's long path fields).
+    property alias cursorPosition: input.cursorPosition
     property string placeholder: ""
     property string hint: ""
     property string trailing: ""
