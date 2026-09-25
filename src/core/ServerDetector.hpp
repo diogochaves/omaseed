@@ -13,6 +13,10 @@
 // finished() fires once, after every probe has answered (or timed out: the commands too,
 // after setCommandTimeoutMs), with at most one candidate: the docker container, else the
 // open port, else the running process.
+//
+// A running process gets its Web UI port from qBittorrent's own config file (read, never
+// written): a desktop qBittorrent often has its Web UI on another port, and ships with it
+// off, which the candidate's detail then says, with where to turn it on.
 
 #include <QList>
 #include <QObject>
@@ -65,6 +69,11 @@ public:
     void setDockerCommand(const QString &command);
     void setPgrepCommand(const QString &command);
 
+    /// Test-only: the qBittorrent config files to read for a running process's Web UI, first
+    /// existing one wins. Defaults to `~/.config/qBittorrent/qBittorrent.conf` and the
+    /// Flatpak's copy; a test points it at its own file (or none).
+    void setConfigPaths(const QStringList &paths);
+
     /// Test-only: the connect timeout, default 1000 ms.
     void setProbeTimeoutMs(int ms);
     /// Test-only: how long `docker ps` and `pgrep` may run before they are killed and
@@ -94,6 +103,7 @@ private:
     quint16 m_probePort = 8080;
     QString m_dockerCommand = QStringLiteral("docker");
     QString m_pgrepCommand = QStringLiteral("pgrep");
+    QStringList m_configPaths;
     int m_probeTimeoutMs = 1000;
     int m_commandTimeoutMs = 3000;
 

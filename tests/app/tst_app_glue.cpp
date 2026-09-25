@@ -489,7 +489,10 @@ void TestAppGlue::removingTheLiveServerClearsItsWorld()
     QVERIFY(!tray.tooltip().contains(QStringLiteral("gone-soon")));
     QCOMPARE(tray.state(), omaseed::integration::Tray::Disconnected);
 
-    // Nothing polls the removed server afterwards.
+    // Nothing polls the removed server afterwards. A request already on the wire when the
+    // server was removed (the connect-time preferences read, say) may still land: let it,
+    // then count.
+    QTest::qWait(300);
     const int before = server.requests;
     QTest::qWait(2000);
     QCOMPARE(server.requests, before);

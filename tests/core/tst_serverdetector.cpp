@@ -53,6 +53,7 @@ private slots:
     void noneFoundGivesNoCandidates();
     void aHangingCommandTimesOut();
     void pgrepNamesTheMatchedProcess();
+    void aDesktopClientsConfigGivesItsPortAndSwitch();
 };
 
 void TestServerDetector::openPortIsFound()
@@ -65,6 +66,7 @@ void TestServerDetector::openPortIsFound()
     const QString noCmd = writeFakeCommand(dir, QStringLiteral("nocmd.sh"), 1, QString());
 
     ServerDetector detector;
+    detector.setConfigPaths({}); // never this machine's own qBittorrent config
     detector.setProbePort(fake.serverPort());
     detector.setDockerCommand(noCmd);
     detector.setPgrepCommand(noCmd);
@@ -93,6 +95,7 @@ void TestServerDetector::closedPortIsNotFound()
     const QString noCmd = writeFakeCommand(dir, QStringLiteral("nocmd.sh"), 1, QString());
 
     ServerDetector detector;
+    detector.setConfigPaths({}); // never this machine's own qBittorrent config
     detector.setProbePort(freePort);
     detector.setProbeTimeoutMs(500);
     detector.setDockerCommand(noCmd);
@@ -126,6 +129,7 @@ void TestServerDetector::dockerFoundGivesCandidate()
     const QString noCmd = writeFakeCommand(dir, QStringLiteral("nocmd.sh"), 1, QString());
 
     ServerDetector detector;
+    detector.setConfigPaths({}); // never this machine's own qBittorrent config
     detector.setProbePort(closedPort);
     detector.setProbeTimeoutMs(500);
     detector.setDockerCommand(dockerCmd);
@@ -152,6 +156,7 @@ void TestServerDetector::dockerMissingBinaryIsNotFound()
     }
 
     ServerDetector detector;
+    detector.setConfigPaths({}); // never this machine's own qBittorrent config
     detector.setProbePort(closedPort);
     detector.setProbeTimeoutMs(500);
     // No such binary: QProcess::errorOccurred must still resolve the probe as "not found".
@@ -181,6 +186,7 @@ void TestServerDetector::pgrepFoundGivesCandidate()
     const QString noCmd = writeFakeCommand(dir, QStringLiteral("nocmd.sh"), 1, QString());
 
     ServerDetector detector;
+    detector.setConfigPaths({}); // never this machine's own qBittorrent config
     detector.setProbePort(closedPort);
     detector.setProbeTimeoutMs(500);
     detector.setDockerCommand(noCmd);
@@ -208,6 +214,7 @@ void TestServerDetector::noneFoundGivesNoCandidates()
     const QString noCmd = writeFakeCommand(dir, QStringLiteral("nocmd.sh"), 1, QString());
 
     ServerDetector detector;
+    detector.setConfigPaths({}); // never this machine's own qBittorrent config
     detector.setProbePort(closedPort);
     detector.setProbeTimeoutMs(500);
     detector.setDockerCommand(noCmd);
@@ -244,6 +251,7 @@ void TestServerDetector::aHangingCommandTimesOut()
     const QString noCmd = writeFakeCommand(dir, QStringLiteral("nocmd.sh"), 1, QString());
 
     ServerDetector detector;
+    detector.setConfigPaths({}); // never this machine's own qBittorrent config
     detector.setProbePort(closedPort);
     detector.setProbeTimeoutMs(300);
     detector.setCommandTimeoutMs(400);
@@ -275,6 +283,7 @@ void TestServerDetector::pgrepNamesTheMatchedProcess()
     const QString noCmd = writeFakeCommand(dir, QStringLiteral("nocmd.sh"), 1, QString());
 
     ServerDetector detector;
+    detector.setConfigPaths({}); // never this machine's own qBittorrent config
     detector.setProbePort(closedPort);
     detector.setProbeTimeoutMs(300);
     detector.setDockerCommand(noCmd);
@@ -287,6 +296,52 @@ void TestServerDetector::pgrepNamesTheMatchedProcess()
     QCOMPARE(candidates.size(), 1);
     QCOMPARE(candidates.first().kind, QStringLiteral("process"));
     QVERIFY(candidates.first().detail.endsWith(QStringLiteral("qbittorrent running")));
+}
+
+void TestServerDetector::aDesktopClientsConfigGivesItsPortAndSwitch()
+{
+    quint16 closedPort = 0;
+    {
+        QTcpServer probe;
+        QVERIFY(probe.listen(QHostAddress::LocalHost));
+        closedPort = probe.serverPort();
+    }
+
+    QTemporaryDir dir;
+    const QString pgrepCmd =
+        writeFakeCommand(dir, QStringLiteral("pgrep.sh"), 0, QStringLiteral("4242 qbittorrent"));
+    const QString noCmd = writeFakeCommand(dir, QStringLiteral("nocmd.sh"), 1, QString());
+    const QString conf = dir.filePath(QStringLiteral("qBittorrent.conf"));
+    const auto writeConf = [&conf](const QByteArray &body) {
+        QFile file(conf);
+        QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+        file.write(body);
+    };
+
+    const auto detect = [&]() {
+        ServerDetector detector;
+        detector.setConfigPaths({dir.filePath(QStringLiteral("missing.conf")), conf});
+        detector.setProbePort(closedPort);
+        detector.setProbeTimeoutMs(300);
+        detector.setDockerCommand(noCmd);
+        detector.setPgrepCommand(pgrepCmd);
+        QSignalSpy spy(&detector, &ServerDetector::finished);
+        detector.start();
+        [&spy]() { QVERIFY(spy.wait(3000)); }();
+        return spy.first().first().value<QList<DetectedServer>>().value(0);
+    };
+
+    // Its Web UI on another port: that is the URL to try.
+    writeConf("[Preferences]\nWebUI\\Enabled=true\nWebUI\\Port=9090\n");
+    DetectedServer found = detect();
+    QCOMPARE(found.url, QStringLiteral("http://127.0.0.1:9090"));
+    QCOMPARE(found.detail, QStringLiteral("127.0.0.1:9090 · qbittorrent running"));
+
+    // Off, as the desktop client ships: say so, and where to turn it on.
+    writeConf("[Preferences]\nWebUI\\Enabled=false\n");
+    found = detect();
+    QCOMPARE(found.url, QStringLiteral("http://127.0.0.1:8080"));
+    QVERIFY2(found.detail.contains(QStringLiteral("Web UI is off")), qPrintable(found.detail));
 }
 
 QTEST_GUILESS_MAIN(TestServerDetector)

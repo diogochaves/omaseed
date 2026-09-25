@@ -1,8 +1,12 @@
 #include "core/ServerDetector.hpp"
 
+#include <QDir>
+#include <QFile>
 #include <QPointer>
 #include <QProcess>
 #include <QRegularExpression>
+#include <QSettings>
+#include <QStandardPaths>
 #include <QTcpSocket>
 #include <QTimer>
 
@@ -10,9 +14,48 @@
 
 namespace omaseed::core {
 
+namespace {
+
+/// What qBittorrent's config says about its Web UI: the port (0 when it does not say) and
+/// whether it is on (the desktop client's switch; qbittorrent-nox always serves it).
+struct WebUiConfig
+{
+    int port = 0;
+    bool enabled = true;
+};
+
+WebUiConfig readWebUiConfig(const QStringList &paths)
+{
+    WebUiConfig config;
+    for (const QString &path : paths) {
+        if (!QFile::exists(path))
+            continue;
+        // qBittorrent writes Qt's own INI: `[Preferences]` `WebUI\Port=8080`.
+        const QSettings settings(path, QSettings::IniFormat);
+        config.port = settings.value(QStringLiteral("Preferences/WebUI/Port"), 0).toInt();
+        config.enabled = settings.value(QStringLiteral("Preferences/WebUI/Enabled"), true).toBool();
+        break;
+    }
+    return config;
+}
+
+} // namespace
+
 ServerDetector::ServerDetector(QObject *parent)
     : QObject(parent)
+    , m_configPaths{
+          QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) +
+              QStringLiteral("/qBittorrent/qBittorrent.conf"),
+          QDir::homePath() +
+              QStringLiteral("/.var/app/org.qbittorrent.qBittorrent/config/qBittorrent/"
+                             "qBittorrent.conf"),
+      }
 {}
+
+void ServerDetector::setConfigPaths(const QStringList &paths)
+{
+    m_configPaths = paths;
+}
 
 ServerDetector::~ServerDetector() = default;
 
@@ -222,9 +265,18 @@ void ServerDetector::maybeFinish()
     } else if (m_processFound) {
         DetectedServer candidate;
         candidate.kind = QStringLiteral("process");
-        candidate.url = QStringLiteral("http://127.0.0.1:8080");
+        const WebUiConfig config = readWebUiConfig(m_configPaths);
+        const QString port = QString::number(config.port > 0 ? config.port : 8080);
+        candidate.url = QStringLiteral("http://127.0.0.1:%1").arg(port);
         candidate.label = tr("Use the server on this machine");
-        candidate.detail = QStringLiteral("127.0.0.1:8080 · %1 running").arg(m_processName);
+        // The desktop client ships with its Web UI off, and omaseed can only talk to that.
+        const bool desktop = m_processName == QLatin1String("qbittorrent");
+        candidate.detail =
+            desktop && !config.enabled
+                ? QStringLiteral("127.0.0.1:%1 · qbittorrent running, its Web UI is off: turn "
+                                 "it on in Tools › Options › Web UI")
+                      .arg(port)
+                : QStringLiteral("127.0.0.1:%1 · %2 running").arg(port, m_processName);
         candidates.append(candidate);
     }
 
