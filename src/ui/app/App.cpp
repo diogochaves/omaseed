@@ -1701,7 +1701,15 @@ void App::openUris(const QStringList &uris)
 {
     if (uris.isEmpty())
         return;
-    Q_EMIT addUrisRequested(uris);
+    // A file manager hands over file:// URIs (%U), percent-encoded; the sheet's field shows
+    // the path as a person reads it, and the parse takes either.
+    QStringList readable;
+    readable.reserve(uris.size());
+    for (const QString &uri : uris) {
+        const QUrl url(uri);
+        readable.append(url.isLocalFile() ? url.toLocalFile() : uri);
+    }
+    Q_EMIT addUrisRequested(readable);
 }
 // --- end T4.2 -----------------------------------------------------------------------------------
 

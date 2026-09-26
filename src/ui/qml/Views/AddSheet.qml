@@ -28,8 +28,9 @@ Sheet {
     /// `App.parseAddable`'s map for what is in the field, or null while it holds nothing
     /// recognisable. `valid`, `name`, `sizeText`, `infoHashV1/V2`, `kind`, `value`, `token`.
     property var addable: null
-    /// Where the current text came from: "clipboard", "magnet", "file", "drop", "browser",
-    /// or "" when it was typed. Only the head's subtitle reads it.
+    /// Where the current text came from: "clipboard", "magnet", "file", "drop", "handoff" (a
+    /// browser or a file manager opened it with omaseed), or "" when it was typed. Only the
+    /// head's subtitle reads it.
     property string source: ""
     /// The sources waiting behind this one (a drop or a hand-off of several links).
     property var queue: []
@@ -165,8 +166,17 @@ Sheet {
             return qsTr("from file");
         case "drop":
             return qsTr("from drop");
-        case "browser":
-            return qsTr("from browser");
+        case "handoff":
+            // A browser and a file manager hand over the same way, so name what arrived.
+            switch (sheet.addable ? sheet.addable.kind : "") {
+            case "magnet":
+                return qsTr("from magnet link");
+            case "file":
+                return qsTr("from file");
+            case "url":
+                return qsTr("from link");
+            }
+            return "";
         }
         return "";
     }
@@ -203,7 +213,7 @@ Sheet {
     sheet.open();
 }
 
-    /// One source, from a known place ("drop", "browser", …).
+    /// One source, from a known place ("drop", "handoff", …).
     function openWith(text: string, from: string): void {
     sheet.openList([text], from);
 }

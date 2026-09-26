@@ -931,12 +931,12 @@ Item {
                 addSheet.openBlank();
         }
 
-        /// The browser's `magnet:` / `.torrent` hand-off (T1.4's second instance).
+        /// A browser's or file manager's `magnet:` / `.torrent` hand-off (T1.4's second instance).
         function onAddUrisRequested(uris: list<string>): void {
             if (root.firstRun) // held until there is a server to add them to
                 root._pendingAdds = root._pendingAdds.concat(uris);
             else
-                addSheet.openList(uris, "browser");
+                addSheet.openList(uris, "handoff");
         }
 
         /// `,`, the hero's gear, the tray's `settings…`, the disconnected banner.
@@ -1853,7 +1853,7 @@ Item {
         root._pendingSettings = false;
         // One overlay at a time: an add asked for wins over settings.
         if (pending.length > 0)
-            addSheet.openList(pending, "browser");
+            addSheet.openList(pending, "handoff");
         else if (blank)
             addSheet.openBlank();
         else if (settings)

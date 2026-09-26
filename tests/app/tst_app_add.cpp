@@ -132,6 +132,7 @@ private slots:
     void parsesAMagnet();
     void parsesAnHttpUrl();
     void refusesNonsense();
+    void handsOverAFileUriAsAPath();
     void parsesATorrentFileOffTheMainThread();
     void findsADuplicateInTheLibrary();
     void findsNoDuplicateForAnUnknownHash();
@@ -252,6 +253,21 @@ void TestAppAdd::refusesNonsense()
     QCOMPARE(map.value(QStringLiteral("kind")).toString(), QStringLiteral("none"));
     QVERIFY(!map.value(QStringLiteral("valid")).toBool());
     QVERIFY(!map.value(QStringLiteral("error")).toString().isEmpty());
+}
+
+// A file manager opens a .torrent with a percent-encoded file:// URI; the sheet's field gets
+// the path a person reads, and a magnet passes through untouched.
+void TestAppAdd::handsOverAFileUriAsAPath()
+{
+    App app;
+    QSignalSpy handed(&app, &App::addUrisRequested);
+    const QString magnet = QStringLiteral("magnet:?xt=urn:btih:9a4f6c1e2b3d4f50617283940a1b2c3d4e5f6071");
+    app.openUris({QStringLiteral("file:///home/sbx/Downloads/Field%20Recordings%20Vol.%203%20%5BFLAC%5D.torrent"),
+                  magnet});
+    QCOMPARE(handed.count(), 1);
+    QCOMPARE(handed.at(0).at(0).toStringList(),
+             QStringList({QStringLiteral("/home/sbx/Downloads/Field Recordings Vol. 3 [FLAC].torrent"),
+                          magnet}));
 }
 
 void TestAppAdd::parsesATorrentFileOffTheMainThread()

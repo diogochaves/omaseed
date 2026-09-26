@@ -405,10 +405,10 @@ TestCase {
         const sheet = createTemporaryObject(addSheetComponent, testCase);
         sheet.openList([testCase.freshMagnet,
                         "magnet:?xt=urn:btih:0102030405060708090a0b0c0d0e0f1011121314&dn=second"],
-                       "browser");
+                       "handoff");
 
         compare(sheet.sourceField.text, testCase.freshMagnet);
-        compare(sheet.source, "browser");
+        compare(sheet.source, "handoff");
         compare(sheet.queue.length, 1);
 
         sheet.finish(true, "");
@@ -449,7 +449,7 @@ TestCase {
         const sheet = createTemporaryObject(addSheetComponent, testCase);
         sheet.openList([testCase.freshMagnet,
                         "magnet:?xt=urn:btih:0102030405060708090a0b0c0d0e0f1011121314&dn=second"],
-                       "browser");
+                       "handoff");
         sheet.renameField.text = "my custom name";
         sheet.finish(true, "");
         compare(sheet.addable.name, "second");
@@ -462,7 +462,7 @@ TestCase {
         sheet.openWith(testCase.freshMagnet, "clipboard");
         sheet.renameField.text = "half typed";
         sheet.openList(["magnet:?xt=urn:btih:0102030405060708090a0b0c0d0e0f1011121314&dn=second"],
-                       "browser");
+                       "handoff");
         compare(sheet.sourceField.text, testCase.freshMagnet, "the open form was replaced");
         compare(sheet.renameField.text, "half typed");
         compare(sheet.queue.length, 1);
