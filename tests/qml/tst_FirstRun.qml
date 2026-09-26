@@ -293,6 +293,40 @@ TestCase {
         compare(finishedSpy.count, 1);
     }
 
+    // When omaseed already answers for magnet: links (often only because nothing else claims
+    // them), the step offers to keep it instead of asking to switch, and a skip still ends on
+    // "open here". Only the answer is faked; the real handler is never registered here.
+    function test_handler_step_when_omaseed_already_opens_them() {
+        const page = createTemporaryObject(pageComponent, testCase, {
+                                               "candidates": [localCandidate]
+                                           });
+        page._openHandlerStep();
+        Xdg.isDefaultMagnetHandlerResult(true, "io.github.diogochaves.omaseed.desktop");
+        compare(page.alreadyHandler, true);
+        compare(page.heading, "Magnet links and .torrent files already open with omaseed.");
+        compare(findChild(page, "registerButton").text, "keep omaseed");
+        verify(findChild(page, "handlerText").text.startsWith("Keep it that way"));
+
+        page.skipHandler();
+        compare(page.registered, false);
+        compare(findChild(page, "doneHandler").text, "Magnet links and .torrent files open here.");
+    }
+
+    // Another app answers: the step asks, as docs/14 drew it.
+    function test_handler_step_when_another_app_opens_them() {
+        const page = createTemporaryObject(pageComponent, testCase, {
+                                               "candidates": [localCandidate]
+                                           });
+        page._openHandlerStep();
+        Xdg.isDefaultMagnetHandlerResult(false, "org.qbittorrent.qBittorrent.desktop");
+        compare(page.alreadyHandler, false);
+        compare(page.heading, "Open magnet links and .torrent files with omaseed?");
+        compare(findChild(page, "registerButton").text, "open them with omaseed");
+        page.skipHandler();
+        compare(findChild(page, "doneHandler").text,
+                "Magnet links still open elsewhere; Settings can change that.");
+    }
+
     // docs/14 B1: the welcome comes first on a real first run; enter moves on to step 1 and
     // esc quits, as its footer says. The search's answer is listed as it arrives.
     function test_welcome_enter_sets_up_and_esc_quits() {

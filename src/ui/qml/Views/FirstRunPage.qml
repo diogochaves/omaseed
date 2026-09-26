@@ -144,7 +144,8 @@ Item {
     /// the magnet handler.
     readonly property string heading: root.page === "install" ? qsTr("Install qBittorrent on this machine?") :
                                       root.page === "apikey" ? qsTr("Where is it, and how does omaseed sign in?") :
-                                      root.page === "handler" ? qsTr("Open magnet links and .torrent files with omaseed?") :
+                                      root.page === "handler" ? (root.alreadyHandler ? qsTr("Magnet links and .torrent files already open with omaseed.") :
+                                                                                  qsTr("Open magnet links and .torrent files with omaseed?")) :
                                       root.page === "done" ? qsTr("You're connected to %1.").arg(root.connectedName) :
                                       qsTr("Which qBittorrent should omaseed talk to?")
 
@@ -261,10 +262,14 @@ function continueFromApiKey(): void {
 
 function _openHandlerStep(): void {
     root.page = "handler";
+    root.alreadyHandler = false;
     Xdg.isDefaultMagnetHandler();
 }
 
 property string currentHandlerText: ""
+/// True when omaseed already answers for magnet: links, often only because nothing else on
+/// the machine claims them: the step then offers to keep it rather than asking to switch.
+property bool alreadyHandler: false
 
 function registerHandler(): void {
     Xdg.registerAsDefaultHandler();
@@ -336,6 +341,7 @@ Connections {
 Connections {
     function onIsDefaultMagnetHandlerResult(isDefault: bool, currentHandler: string): void {
         root.currentHandlerText = isDefault ? qsTr("omaseed") : currentHandler;
+        root.alreadyHandler = isDefault;
     }
 
     target: Xdg
@@ -1063,7 +1069,9 @@ Flickable {
             Label {
                 Layout.fillWidth: true
                 dim: true
-                text: qsTr("Magnet links you click in a browser and .torrent files you open go straight to omaseed.")
+                objectName: "handlerText"
+                text: root.alreadyHandler ? qsTr("Keep it that way, so a torrent app installed later does not take them.") :
+                                            qsTr("Magnet links you click in a browser and .torrent files you open go straight to omaseed.")
                 wrapMode: Text.WordWrap
             }
 
@@ -1072,7 +1080,7 @@ Flickable {
                 dim: true
                 text: root.currentHandlerText.length > 0 ? qsTr("currently: %1").arg(
                                                                root.currentHandlerText) : ""
-                visible: root.currentHandlerText.length > 0
+                visible: root.currentHandlerText.length > 0 && !root.alreadyHandler
             }
 
             RowLayout {
@@ -1083,8 +1091,9 @@ Flickable {
 
                     activeFocusOnTab: false // the page cycles tab itself (see _cycleApiKeyFocus)
 
+                    objectName: "registerButton"
                     primary: true
-                    text: qsTr("open them with omaseed")
+                    text: root.alreadyHandler ? qsTr("keep omaseed") : qsTr("open them with omaseed")
 
                     onClicked: root.registerHandler()
                 }
@@ -1133,7 +1142,8 @@ Flickable {
             Label {
                 Layout.fillWidth: true
                 dim: true
-                text: root.registered ? qsTr("Magnet links and .torrent files open here.") :
+                objectName: "doneHandler"
+                text: root.registered || root.alreadyHandler ? qsTr("Magnet links and .torrent files open here.") :
                                         qsTr("Magnet links still open elsewhere; Settings can change that.")
                 wrapMode: Text.WordWrap
             }
