@@ -65,6 +65,7 @@ scripts/dev/swarm-walk.sh [OUT] | --interactive   # every torrent state, shown i
 scripts/dev/strict-walk.sh [OUT] | --interactive  # first run + cookie / API key login against :8082, in an omabox
 scripts/dev/notify-walk.sh [OUT] | --interactive  # downloads finish: one notice each, a click shows the torrent
 scripts/dev/magnet-walk.sh [OUT] | --interactive  # xdg-open a magnet / .torrent: the add sheet, closed, in the tray, duplicate
+scripts/dev/manual-box.sh [--headless] | down          # throwaway desktop for manual tests: omaseed installed, its own qBittorrent
 ```
 
 Anything that can open a window, reach the session D-Bus or the keyring runs in an omabox

@@ -1,5 +1,6 @@
 build/
 build-release/
+build-box/
 .cache/
 *.user
 .qmlls.ini
