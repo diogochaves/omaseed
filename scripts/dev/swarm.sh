@@ -4,7 +4,10 @@
 # A seeder qBittorrent (:8083, its own profile) shares generated content through a tracker
 # on 127.0.0.1 (scripts/dev/swarm-tracker.py); the playground (:8081) downloads it for real.
 # Both clients listen on loopback only and the torrents are private, so nothing leaves the
-# machine and the real library on :8080 is never involved.
+# machine and the real library on :8080 is never involved. One fixture, the Public Domain
+# Sampler, is not private: a magnet can fetch its metadata from the seeder (libtorrent never
+# sends a private torrent's). Only the seeder has it; manual-box.sh hands its magnet out. The
+# seeder has DHT, PeX and LSD off and listens on loopback, so it stays on this machine too.
 #
 #   scripts/dev/swarm.sh start            # seeder + tracker (and the playground if it is down)
 #   scripts/dev/swarm.sh seed             # generate the fixtures, share them, add them to :8081
@@ -183,16 +186,22 @@ tree("Ünïcødé ✓ Spaces & Symbols (100%) [v2] {test} — a deliberately lon
     ("emoji 🎬 clip.mp4", 3 * MB),
 ])
 tree("unwritable-fixture.bin", [("", 3 * MB)])
+tree("Public Domain Sampler", [
+    ("sampler.mkv", 24 * MB),
+    ("sampler.srt", 42 * 1024),
+    ("README.txt", 812),
+])
 PY
 }
 
-# create NAME FORMAT: have the seeder build NAME's .torrent and start seeding it.
+# create NAME FORMAT [PRIVATE]: have the seeder build NAME's .torrent and start seeding it.
+# PRIVATE is true unless given.
 create_torrent() {
-    local name="$1" format="$2" out="$TORRENTS/$1.torrent" task status
+    local name="$1" format="$2" private="${3:-true}" out="$TORRENTS/$1.torrent" task status
     [ -f "$out" ] && return 0
     task="$(curl -fs -X POST "$SEEDER/torrentcreator/addTask" \
         --data-urlencode "sourcePath=$CONTENT/$name" --data-urlencode "torrentFilePath=$out" \
-        -d private=true -d startSeeding=true -d "format=$format" --data-urlencode "trackers=$TRACKER" |
+        -d "private=$private" -d startSeeding=true -d "format=$format" --data-urlencode "trackers=$TRACKER" |
         python3 -c 'import json,sys; print(json.load(sys.stdin)["taskID"])')"
     for _ in $(seq 1 600); do
         status="$(curl -fs "$SEEDER/torrentcreator/status?taskID=$task" |
@@ -229,6 +238,7 @@ cmd_seed() {
     create_torrent "photo-archive-2019-2025" hybrid
     create_torrent "$unicode" v2
     create_torrent "unwritable-fixture.bin" hybrid
+    create_torrent "Public Domain Sampler" hybrid false # the seeder's only: see the top
     # The small one first, so something is seeding within seconds; the playground runs two
     # downloads at a time, so the rest queue behind them.
     add_torrent "tiny-notes.txt"
