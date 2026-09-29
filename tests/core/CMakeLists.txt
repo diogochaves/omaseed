@@ -39,6 +39,12 @@ omaseed_add_test(tst_torrentfile
     DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
 )
 
+omaseed_add_test(tst_torrentfolderscan
+    SOURCES tst_torrentfolderscan.cpp
+    LIBRARIES omaseed::core
+    DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
+)
+
 # The live tests' URL guard (tests/LiveServer.hpp): nothing may reach :8080.
 omaseed_add_test(tst_liveserver
     SOURCES tst_liveserver.cpp
