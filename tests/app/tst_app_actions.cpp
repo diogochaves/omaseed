@@ -85,6 +85,7 @@ private slots:
     void cleanupTestCase();
 
     void stopStartTogglesTheFixture();
+    void startAndStopEachGoOneWay();
     void categorySetAndUnset();
     void tagsAddAndRemove();
     void locationRoundTrips();
@@ -228,6 +229,36 @@ void TestAppActions::stopStartTogglesTheFixture()
     });
     QVERIFY2(info.value(QStringLiteral("state")).toString().startsWith(QStringLiteral("stopped")),
              "stopStart did not stop the now-running fixture");
+}
+
+void TestAppActions::startAndStopEachGoOneWay()
+{
+    // The selection bar's two buttons (docs/17 M9.3): unlike `stopStart`, neither looks at the
+    // torrent first. `stop` on a stopped torrent leaves it stopped, `start` starts it, and a
+    // second `start` leaves it running. Ends stopped, as the seed has it.
+    const auto isStopped = [](const QJsonObject &t) {
+        return t.value(QStringLiteral("state")).toString().startsWith(QStringLiteral("stopped"));
+    };
+    QJsonObject info = pollUntil(kFixtureOne, [](const QJsonObject &) { return true; });
+    QVERIFY2(isStopped(info), "fixture-one was not stopped at the start of this test");
+
+    m_app->stopTorrents({kFixtureOne});
+    QTest::qWait(1500);
+    info = pollUntil(kFixtureOne, [](const QJsonObject &) { return true; });
+    QVERIFY2(isStopped(info), "stop started a stopped torrent");
+
+    m_app->startTorrents({kFixtureOne});
+    info = pollUntil(kFixtureOne, [&](const QJsonObject &t) { return !isStopped(t); });
+    QVERIFY2(!isStopped(info), "start did not start the stopped fixture");
+
+    m_app->startTorrents({kFixtureOne});
+    QTest::qWait(1500);
+    info = pollUntil(kFixtureOne, [](const QJsonObject &) { return true; });
+    QVERIFY2(!isStopped(info), "a second start stopped the running fixture");
+
+    m_app->stopTorrents({kFixtureOne});
+    info = pollUntil(kFixtureOne, isStopped);
+    QVERIFY2(isStopped(info), "stop did not stop the running fixture");
 }
 
 void TestAppActions::categorySetAndUnset()

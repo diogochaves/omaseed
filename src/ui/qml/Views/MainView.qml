@@ -44,6 +44,7 @@ Item {
     readonly property alias helpSheet: helpSheet
     // T4.3
     readonly property alias actionsMenuPanel: actionsMenuPanel
+    readonly property alias selectionBar: selectionBar
     readonly property alias deleteConfirmPanel: deleteConfirmPanel
     readonly property alias locationSheetPanel: locationSheetPanel
     readonly property alias limitsSheetPanel: limitsSheetPanel
@@ -445,6 +446,31 @@ Item {
             console.log("action:", action, hashes.length, "torrents");
             break;
         }
+    }
+
+    /// The selection bar's buttons (docs/17 M9.3): the actions menu's own path, plus start
+    /// and stop as two buttons, since a selection can hold both kinds and `stopStart`
+    /// follows the cursor torrent alone.
+    function selectionBarAction(action: string): void {
+        const hashes = root.actionHashes();
+        if (action === "start")
+            App.startTorrents(hashes);
+        else if (action === "stop")
+            App.stopTorrents(hashes);
+        else
+            root.torrentAction(action);
+    }
+
+    /// The selection bar's ⋯: the full actions menu hung over the button, right edges flush,
+    /// with the actions the bar folded away at this width listed first (docs/17 M9.5).
+    function openSelectionMore(button: Item, folded: var): void {
+        const corner = button.mapToItem(root, button.width, 0);
+        const hash = root.cursorHash;
+        actionsMenuPanel.cursorStopped = hash.length > 0 && App.torrentRow(hash).stopped === true;
+        actionsMenuPanel.cursorRow = hash.length > 0 ? App.torrentRow(hash) : ({});
+        actionsMenuPanel.leadActions = folded;
+        actionsMenuPanel.openAbove(Math.round(corner.x - actionsMenuPanel.menuWidth),
+                                   Math.round(corner.y - Theme.space(4)));
     }
 
     /// The Trackers and Peers tabs' keys (Fig. 3/4). `R` reannounces the torrent (the API has
@@ -1173,6 +1199,8 @@ Item {
                 anchors.leftMargin: Theme.space(16)
                 anchors.rightMargin: Theme.space(16)
                 anchors.topMargin: Theme.space(12)
+                // docs/17 M9.6: the last row can always scroll clear of the selection bar.
+                bottomRoom: selectionBar.visible ? selectionBar.height + Theme.space(12) : 0
                 filtered: App.filtered
                 // Fig. 23: the last list stays, dimmed and read-only.
                 opacity: root.serverLost ? 0.45 : 1.0
@@ -1186,6 +1214,7 @@ Item {
                     const point = table.mapToItem(root, x, y);
                     actionsMenuPanel.cursorStopped = App.torrentRow(hash).stopped === true;
                     actionsMenuPanel.cursorRow = App.torrentRow(hash);
+                    actionsMenuPanel.leadActions = [];
                     actionsMenuPanel.openAt(point.x, point.y);
                 }
                 onActivated: hash => console.log("activated:", hash)
@@ -1211,6 +1240,25 @@ Item {
                 statusName: root.statusName(App.filtered.statusFilter)
                 text: App.filtered.text
                 visible: root.filterEmpty
+            }
+
+            // docs/17 M9: over the table, centred, 12 u above its bottom edge, while one or
+            // more torrents are selected. Never while the server is lost (Fig. 23 is
+            // read-only) or with no rows on show.
+            SelectionBar {
+                id: selectionBar
+
+                anchors.bottom: table.bottom
+                anchors.bottomMargin: Theme.space(12)
+                anchors.horizontalCenter: table.horizontalCenter
+                availableWidth: table.width - Theme.space(16)
+                count: table.selectedCount
+                height: implicitHeight
+                visible: table.selectedCount > 0 && table.visible && !root.serverLost
+                width: implicitWidth
+
+                onMoreRequested: (button, folded) => root.openSelectionMore(button, folded)
+                onTriggered: action => root.selectionBarAction(action)
             }
 
             // Fig. 23's read-only guard: it eats every click and every key but the five the

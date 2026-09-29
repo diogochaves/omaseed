@@ -1833,6 +1833,24 @@ void App::stopStart(const QStringList &hashes)
     });
 }
 
+void App::startTorrents(const QStringList &hashes)
+{
+    if (hashes.isEmpty() || demoGuard(QStringLiteral("start"), hashes.size()) || !m_hasServer)
+        return;
+    m_client->torrentsStart(hashes)->then(this, [this](const QbtResult<QByteArray> &result) {
+        reportActionResult(QStringLiteral("start"), result);
+    });
+}
+
+void App::stopTorrents(const QStringList &hashes)
+{
+    if (hashes.isEmpty() || demoGuard(QStringLiteral("stop"), hashes.size()) || !m_hasServer)
+        return;
+    m_client->torrentsStop(hashes)->then(this, [this](const QbtResult<QByteArray> &result) {
+        reportActionResult(QStringLiteral("stop"), result);
+    });
+}
+
 void App::forceStart(const QStringList &hashes)
 {
     if (hashes.isEmpty() || demoGuard(QStringLiteral("forceStart"), hashes.size()) || !m_hasServer)

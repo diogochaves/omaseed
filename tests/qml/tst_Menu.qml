@@ -115,6 +115,22 @@ TestCase {
         compare(menu.panel.y, 200);
     }
 
+    // docs/17 M9: the selection bar's ⋯ hangs the menu over the button.
+    function test_open_above_puts_the_bottom_edge_at_the_anchor() {
+        const menu = createTemporaryObject(menuComponent, testCase);
+        menu.openAbove(120, 300);
+        compare(menu.panel.x, 120);
+        compare(menu.panel.y + menu.panel.height, 300);
+        menu.close();
+        // Too near the top: clamped inside, as openAt is.
+        menu.openAbove(120, 10);
+        compare(menu.panel.y, Theme.space(8));
+        menu.close();
+        // openAt after openAbove anchors the top edge again.
+        menu.openAt(120, 200);
+        compare(menu.panel.y, 200);
+    }
+
     function test_it_clamps_itself_inside_the_window() {
         const menu = createTemporaryObject(menuComponent, testCase);
         menu.openAt(testCase.width + 400, testCase.height + 400);

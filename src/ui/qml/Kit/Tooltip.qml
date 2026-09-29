@@ -59,7 +59,9 @@ Item {
 
     /// Ask for the panel under `item`, centred on it; above it when there is no room below.
     /// The position is taken now: call again if the item moves while the panel is up.
-    function showFor(item: Item, text: string): void {
+    /// `above` turns the preference round: over the item, under it when there is no room
+    /// above (the selection bar, docs/17, sits at the table's bottom edge).
+    function showFor(item: Item, text: string, above = false): void {
         if (!item || text.length === 0) {
             root.hide();
             return;
@@ -67,6 +69,7 @@ Item {
         const at = item.mapToItem(root, 0, 0);
         root.text = text;
         internal.below = true;
+        internal.above = above;
         internal.itemX = at.x;
         internal.itemY = at.y;
         internal.itemWidth = item.width;
@@ -96,6 +99,8 @@ Item {
 
         /// Placed under an item (`showFor`) rather than beside the pointer (`showAt`).
         property bool below: false
+        /// `showFor(…, true)`: over the item first.
+        property bool above: false
         property int wantX: 0
         property int wantY: 0
         property real itemX: 0
@@ -139,10 +144,12 @@ Item {
         radius: Theme.cornerRadius
         visible: root._open
         // Below the pointer or the item, pulled back inside the view at either edge; above it
-        // when there is no room below.
+        // when there is no room below (or the other way round for `above`).
         x: Math.round(Math.max(0, Math.min(panel.wantX, root.width - panel.width)))
-        y: Math.round(panel.underY + panel.height <= root.height ? panel.underY
-                                                                 : Math.max(0, panel.overY))
+        y: Math.round(internal.below && internal.above
+                      ? (panel.overY >= 0 ? panel.overY : panel.underY)
+                      : panel.underY + panel.height <= root.height ? panel.underY
+                                                                   : Math.max(0, panel.overY))
 
         Text {
             id: label

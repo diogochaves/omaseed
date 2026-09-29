@@ -421,6 +421,90 @@ TestCase {
         compare(view.deleteConfirmPanel.body.children[0].checked, true);
     }
 
+    // ---- docs/17 M9: the selection bar ---------------------------------------------------------
+    function selectTwo() {
+        view.table.toggleCursorSelection();
+        view.table.moveCursor(1);
+        view.table.toggleCursorSelection();
+        compare(view.table.selectedCount, 2);
+    }
+
+    function test_the_selection_bar_shows_with_a_selection_only() {
+        verify(!view.selectionBar.visible, "no selection, no bar");
+        compare(view.table.bottomRoom, 0);
+        view.table.moveCursor(2);
+        verify(!view.selectionBar.visible, "the cursor alone is not a selection (M9.2)");
+        view.table.toggleCursorSelection();
+        verify(view.selectionBar.visible);
+        compare(view.selectionBar.count, 1);
+        // M9.6: the last row can scroll clear of it.
+        compare(view.table.bottomRoom, view.selectionBar.height + Theme.space(12));
+        view.table.clearSelection();
+        verify(!view.selectionBar.visible);
+        compare(view.table.bottomRoom, 0);
+    }
+
+    function test_the_selection_bar_floats_centred_over_the_tables_bottom() {
+        testCase.selectTwo();
+        const bar = view.selectionBar;
+        const table = view.table;
+        const barAt = bar.mapToItem(view, 0, 0);
+        const tableAt = table.mapToItem(view, 0, 0);
+        fuzzyCompare(barAt.x + bar.width / 2, tableAt.x + table.width / 2, 1);
+        compare(barAt.y + bar.height, tableAt.y + table.height - Theme.space(12));
+        verify(bar.width <= table.width - Theme.space(16), "at 1360 the whole bar fits");
+        compare(bar.folded, []);
+    }
+
+    function test_a_bar_button_acts_on_the_selection_and_keeps_the_keyboard() {
+        testCase.selectTwo();
+        const hashes = view.table.selectedHashes();
+        waitForRendering(view);
+        mouseClick(findChild(view.selectionBar, "bar_delete"));
+        compare(view.deleteConfirmPanel.opened, true);
+        compare(view.deleteConfirmPanel.hashes.slice().sort(), hashes.slice().sort());
+        view.deleteConfirmPanel.close();
+        verify(view.table.activeFocus, "the bar took the keyboard from the table (M9.4)");
+    }
+
+    function test_the_bars_more_hangs_the_menu_over_it() {
+        testCase.selectTwo();
+        waitForRendering(view);
+        mouseClick(findChild(view.selectionBar, "bar_more"));
+        compare(view.actionsMenuPanel.opened, true);
+        compare(view.actionsMenuPanel.leadActions, []);
+        const panel = view.actionsMenuPanel.panel;
+        const bottom = panel.mapToItem(view, 0, panel.height).y;
+        verify(bottom <= view.selectionBar.mapToItem(view, 0, 0).y,
+               "the menu should open above the bar, not over it");
+        view.actionsMenuPanel.close();
+        verify(view.table.activeFocus);
+    }
+
+    function test_the_bars_more_lists_what_folded_first() {
+        testCase.width = 620;
+        testCase.selectTwo();
+        waitForRendering(view);
+        const folded = view.selectionBar.folded;
+        verify(folded.length > 0, "at 620 some buttons should have folded");
+        mouseClick(findChild(view.selectionBar, "bar_more"));
+        compare(view.actionsMenuPanel.opened, true);
+        const items = view.actionsMenuPanel.items;
+        const lead = items.slice(0, folded.length).map(item => item.action);
+        compare(lead.slice().sort(), folded.slice().sort());
+        compare(items[folded.length].separator, true);
+        // Moved, not copied: each folded action is in the menu once.
+        for (const action of folded)
+            compare(items.filter(item => item.action === action).length, 1, action);
+        view.actionsMenuPanel.close();
+        // `enter` gets Fig. 11's menu as it always was.
+        view.table.forceActiveFocus();
+        view.table.requestActions();
+        compare(view.actionsMenuPanel.opened, true);
+        compare(view.actionsMenuPanel.leadActions, []);
+        compare(view.actionsMenuPanel.items[0].action, "stopStart");
+    }
+
     // ---- overlays are modal, and give the keyboard back (T4.8) -------------------------------
     function test_an_overlay_keeps_the_windows_keys_to_itself() {
         keyClick("s"); // the sort palette

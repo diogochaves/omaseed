@@ -550,6 +550,10 @@ public:
     /// `hashes`), applied to every hash in the selection; `forceStart` always starts with the
     /// force flag set.
     Q_INVOKABLE void stopStart(const QStringList &hashes);
+    /// The selection bar's two buttons (docs/17 M9.3): a selection can hold stopped and
+    /// running torrents, so each one says which way it goes instead of following the first.
+    Q_INVOKABLE void startTorrents(const QStringList &hashes);
+    Q_INVOKABLE void stopTorrents(const QStringList &hashes);
     Q_INVOKABLE void forceStart(const QStringList &hashes);
     Q_INVOKABLE void recheck(const QStringList &hashes);
     Q_INVOKABLE void reannounce(const QStringList &hashes);

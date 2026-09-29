@@ -82,6 +82,32 @@ Item {
                                            "stroke": "M4 6 H14 M4 12 H14 M4 18 H14 M19.5 3.5 V20.5",
                                            "fill": "M18 7 H21 V13 H18 Z"
                                        },
+                                       // docs/17 M9.3: the selection bar's new buttons, drawn
+                                       // to the rules above on the 24-unit grid.
+                                       "start": {
+                                           "stroke": "M8 5 L19 12 L8 19 Z",
+                                           "fill": ""
+                                       },
+                                       "stop": {
+                                           "stroke": "M6.5 6.5 H17.5 V17.5 H6.5 Z",
+                                           "fill": ""
+                                       },
+                                       "reannounce": {
+                                           "stroke": "M8.5 8.5 A5 5 0 0 0 8.5 15.5 M15.5 8.5 A5 5 0 0 1 15.5 15.5 M5.6 5.6 A9 9 0 0 0 5.6 18.4 M18.4 5.6 A9 9 0 0 1 18.4 18.4 M11 11 H13 V13 H11 Z",
+                                           "fill": ""
+                                       },
+                                       "location": {
+                                           "stroke": "M3.5 6 H10 L12 8.2 H20.5 V18.5 H3.5 Z M8.5 13.5 H15.5 M13 11 L15.5 13.5 L13 16",
+                                           "fill": ""
+                                       },
+                                       "openFolder": {
+                                           "stroke": "M3.5 18.5 V6 H10 L12 8.2 H18.5 V10.5 M3.5 18.5 L6.5 10.5 H21 L18 18.5 Z",
+                                           "fill": ""
+                                       },
+                                       "delete": {
+                                           "stroke": "M4 7 H20 M9 7 V4.5 H15 V7 M6.5 7 L7.5 20 H16.5 L17.5 7 M10 11 V16 M14 11 V16",
+                                           "fill": ""
+                                       },
                                        // Batch-2 J8: a globe, for the tracker-host setting.
                                        "globe": {
                                            "stroke": "M20.5 12 A8.5 8.5 0 1 1 3.5 12 A8.5 8.5 0 1 1 20.5 12 Z M3.5 12 H20.5 M12 3.5 C8 7.5 8 16.5 12 20.5 M12 3.5 C16 7.5 16 16.5 12 20.5",
