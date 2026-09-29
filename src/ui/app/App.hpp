@@ -43,7 +43,6 @@
 #include "core/TrackerModel.hpp"
 #include "integration/Tray.hpp"
 
-#include <QDeadlineTimer>
 #include <QHash>
 #include <QJsonObject>
 #include <QObject>
@@ -631,30 +630,21 @@ Q_SIGNALS:
 private:
     /// True (and logged) in demo mode, where none of these actions may touch a network.
     bool demoGuard(const QString &action, int count);
-    /// A toggle sent to the server whose result the model may not show yet (the next sync is
-    /// 1.5–5 s away): the value the torrent is heading to, and until when to believe it.
-    struct PendingToggle
-    {
-        bool target = false;
-        QDeadlineTimer expiry;
-    };
-    using PendingToggles = QHash<QString, PendingToggle>;
-    /// G4: the hashes whose `field` is not `on` yet (what a toggle endpoint must flip). A
-    /// toggle still in `pending` counts as done, so a second press before the next sync
-    /// does not flip the same torrents back.
+    /// G4: the hashes whose `field` is not `on` yet (what an endpoint must change). A change
+    /// still pending in the engine (`key` is its maindata name) counts as done, so a second
+    /// press before the server has answered does not flip the same torrents back.
     QStringList hashesNotAt(const QStringList &hashes,
                             bool on,
                             bool omaseed::core::Torrent::*field,
-                            PendingToggles &pending) const;
-    /// Sends `toggle` for `flip` and records the expected values in `pending`; a failed
-    /// request forgets them again.
-    void sendToggle(const QStringList &flip,
+                            const QString &key) const;
+    /// G4 / M12: shows `key` = `on` on `hashes` at once (SyncEngine's pending values) and
+    /// sends `reply`'s request; its answer settles them, a refusal puts the old value back.
+    void sendOption(const QStringList &hashes,
                     bool on,
-                    PendingToggles &pending,
+                    bool omaseed::core::Torrent::*field,
+                    const QString &key,
                     omaseed::core::QbtReply<QByteArray> *reply,
                     const QString &action);
-    PendingToggles m_pendingSeqDl;
-    PendingToggles m_pendingFirstLast;
     /// G4 in demo mode: sets `key` to `on` on the fictional rows and returns true.
     bool applyDemoOption(const QStringList &hashes, const QString &key, bool on);
     void reportActionResult(const QString &action,

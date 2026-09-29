@@ -2161,49 +2161,100 @@ void App::queueDown(const QStringList &hashes)
 //
 // Each call sets every hash to one value, so a mixed selection comes out uniform. The two
 // toggle endpoints flip whatever they are given, so only the hashes not already at `on` go
-// to them. In demo mode the fictional rows flip locally, through the same merge a sync diff
-// takes, so the pane and the menu show the change.
+// to any of them. In demo mode the fictional rows flip locally, through the same merge a sync
+// diff takes, so the pane and the menu show the change. Against a server the change shows at
+// once too (M12), as a pending value in the engine that the server's answer settles.
 
-QStringList App::hashesNotAt(const QStringList &hashes,
-                             bool on,
-                             bool Torrent::*field,
-                             PendingToggles &pending) const
+QStringList
+App::hashesNotAt(const QStringList &hashes, bool on, bool Torrent::*field, const QString &key) const
 {
     QStringList wrong;
     const TorrentModel *torrents = m_engine->torrents();
     for (const QString &hash : hashes) {
         if (torrents->indexOfHash(hash) < 0)
             continue;
-        bool current = torrents->torrent(hash).*field;
-        const auto it = pending.find(hash);
-        if (it != pending.end()) {
-            // The model caught up (or never will: the entry is old): trust it again.
-            if (current == it->target || it->expiry.hasExpired())
-                pending.erase(it);
-            else
-                current = it->target;
-        }
+        const std::optional<QJsonValue> pending = m_engine->pendingTorrentValue(hash, key);
+        const bool current = pending ? pending->toBool() : torrents->torrent(hash).*field;
         if (current != on)
             wrong.append(hash);
     }
     return wrong;
 }
 
-void App::sendToggle(const QStringList &flip,
+void App::sendOption(const QStringList &hashes,
                      bool on,
-                     PendingToggles &pending,
+                     bool Torrent::*field,
+                     const QString &key,
                      QbtReply<QByteArray> *reply,
                      const QString &action)
 {
-    for (const QString &hash : flip)
-        pending.insert(hash, PendingToggle{on, QDeadlineTimer(10000)});
-    reply->then(this, [this, flip, &pending, action](const QbtResult<QByteArray> &result) {
-        if (result.isError()) {
-            for (const QString &hash : flip)
-                pending.remove(hash);
+    const TorrentModel *torrents = m_engine->torrents();
+    for (const QString &hash : hashes)
+        m_engine->setPendingTorrentValue(hash, key, on, torrents->torrent(hash).*field);
+    const QPointer<SyncEngine> engine(m_engine);
+    reply->then(this, [this, engine, hashes, key, action](const QbtResult<QByteArray> &result) {
+        if (engine) {
+            for (const QString &hash : hashes)
+                engine->settlePendingTorrentValue(hash, key, result.isError());
         }
         reportActionResult(action, result);
     });
+}
+
+void App::setSequentialDownload(const QStringList &hashes, bool on)
+{
+    const QString key = QStringLiteral("seq_dl");
+    const QStringList flip = hashesNotAt(hashes, on, &Torrent::seqDl, key);
+    if (flip.isEmpty() || applyDemoOption(flip, key, on) || !m_hasServer)
+        return;
+    sendOption(flip,
+               on,
+               &Torrent::seqDl,
+               key,
+               m_client->torrentsToggleSequentialDownload(flip),
+               QStringLiteral("sequential"));
+}
+
+void App::setFirstLastPiecePrio(const QStringList &hashes, bool on)
+{
+    const QString key = QStringLiteral("f_l_piece_prio");
+    const QStringList flip = hashesNotAt(hashes, on, &Torrent::firstLastPiecePrio, key);
+    if (flip.isEmpty() || applyDemoOption(flip, key, on) || !m_hasServer)
+        return;
+    sendOption(flip,
+               on,
+               &Torrent::firstLastPiecePrio,
+               key,
+               m_client->torrentsToggleFirstLastPiecePrio(flip),
+               QStringLiteral("firstLast"));
+}
+
+void App::setSuperSeeding(const QStringList &hashes, bool on)
+{
+    const QString key = QStringLiteral("super_seeding");
+    const QStringList change = hashesNotAt(hashes, on, &Torrent::superSeeding, key);
+    if (change.isEmpty() || applyDemoOption(change, key, on) || !m_hasServer)
+        return;
+    sendOption(change,
+               on,
+               &Torrent::superSeeding,
+               key,
+               m_client->torrentsSetSuperSeeding(change, on),
+               QStringLiteral("superSeeding"));
+}
+
+void App::setAutoManagement(const QStringList &hashes, bool on)
+{
+    const QString key = QStringLiteral("auto_tmm");
+    const QStringList change = hashesNotAt(hashes, on, &Torrent::autoTmm, key);
+    if (change.isEmpty() || applyDemoOption(change, key, on) || !m_hasServer)
+        return;
+    sendOption(change,
+               on,
+               &Torrent::autoTmm,
+               key,
+               m_client->torrentsSetAutoManagement(change, on),
+               QStringLiteral("autoManagement"));
 }
 
 bool App::applyDemoOption(const QStringList &hashes, const QString &key, bool on)
@@ -2216,53 +2267,6 @@ bool App::applyDemoOption(const QStringList &hashes, const QString &key, bool on
     m_engine->applyDemoData(QJsonObject{{QStringLiteral("torrents"), torrents}});
     qInfo().noquote() << QStringLiteral("demo: %1 %2 on %3").arg(key).arg(on).arg(hashes.size());
     return true;
-}
-
-void App::setSequentialDownload(const QStringList &hashes, bool on)
-{
-    const QStringList flip = hashesNotAt(hashes, on, &Torrent::seqDl, m_pendingSeqDl);
-    if (flip.isEmpty() || applyDemoOption(flip, QStringLiteral("seq_dl"), on) || !m_hasServer)
-        return;
-    sendToggle(flip,
-               on,
-               m_pendingSeqDl,
-               m_client->torrentsToggleSequentialDownload(flip),
-               QStringLiteral("sequential"));
-}
-
-void App::setFirstLastPiecePrio(const QStringList &hashes, bool on)
-{
-    const QStringList flip =
-        hashesNotAt(hashes, on, &Torrent::firstLastPiecePrio, m_pendingFirstLast);
-    if (flip.isEmpty() || applyDemoOption(flip, QStringLiteral("f_l_piece_prio"), on) ||
-        !m_hasServer)
-        return;
-    sendToggle(flip,
-               on,
-               m_pendingFirstLast,
-               m_client->torrentsToggleFirstLastPiecePrio(flip),
-               QStringLiteral("firstLast"));
-}
-
-void App::setSuperSeeding(const QStringList &hashes, bool on)
-{
-    if (hashes.isEmpty() || applyDemoOption(hashes, QStringLiteral("super_seeding"), on) ||
-        !m_hasServer)
-        return;
-    m_client->torrentsSetSuperSeeding(hashes, on)
-        ->then(this, [this](const QbtResult<QByteArray> &result) {
-            reportActionResult(QStringLiteral("superSeeding"), result);
-        });
-}
-
-void App::setAutoManagement(const QStringList &hashes, bool on)
-{
-    if (hashes.isEmpty() || applyDemoOption(hashes, QStringLiteral("auto_tmm"), on) || !m_hasServer)
-        return;
-    m_client->torrentsSetAutoManagement(hashes, on)
-        ->then(this, [this](const QbtResult<QByteArray> &result) {
-            reportActionResult(QStringLiteral("autoManagement"), result);
-        });
 }
 
 void App::remove(const QStringList &hashes, bool deleteFiles)
