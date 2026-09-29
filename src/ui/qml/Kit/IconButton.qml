@@ -4,12 +4,15 @@ import Omaseed.Kit
 // A square icon-only control, `Theme.controlHeight` on each side (spec v2 §1 Fig. 1 `.acts`:
 // add, alt-speed, settings, help). Same state machine as `Button`; see that file's header for
 // the priority order. `tooltip` shows the kit's `Tooltip` under the button on hover or
-// keyboard focus.
+// keyboard focus (over it with `tooltipAbove`).
 Rectangle {
     id: root
 
     property string glyph: ""
     property string tooltip: ""
+    /// The tip over the button rather than under it: a control at the bottom of the view
+    /// (the selection bar, docs/17 M9).
+    property bool tooltipAbove: false
     property bool primary: false
     property bool danger: false
     property bool hasCursor: false
@@ -99,10 +102,10 @@ Rectangle {
         parent: root.Window.window ? root.Window.window.contentItem : root
         z: 1000
 
-        onWantedChanged: tip.wanted ? tip.showFor(root, root.tooltip) : tip.hide()
+        onWantedChanged: tip.wanted ? tip.showFor(root, root.tooltip, root.tooltipAbove) : tip.hide()
     }
 
-    onTooltipChanged: tip.wanted ? tip.showFor(root, root.tooltip) : tip.hide()
+    onTooltipChanged: tip.wanted ? tip.showFor(root, root.tooltip, root.tooltipAbove) : tip.hide()
 
     // Keypad `enter` is its own key (`Qt.Key_Enter`); without it the key went on to the
     // Sheet, which ran its primary action instead of this button (KIT-7).

@@ -79,6 +79,24 @@ TestCase {
         verify(panel.y + panel.height <= item.target.y, "the panel was not flipped above the item");
     }
 
+    // docs/17 M9: the selection bar's tips open over it, and under it only without room.
+    function test_show_for_above_puts_the_panel_over_the_item() {
+        const item = createTemporaryObject(host, testCase);
+        item.tip.showFor(item.target, "recheck · c", true);
+        tryCompare(item.tip, "shown", true);
+        const panel = item.tip.panelItem;
+        verify(panel.y + panel.height <= item.target.y, "the panel is not over the item");
+        fuzzyCompare(panel.x + panel.width / 2, item.target.x + item.target.width / 2, 1);
+    }
+
+    function test_show_for_above_flips_under_an_item_at_the_top_edge() {
+        const item = createTemporaryObject(host, testCase);
+        item.target.y = 0;
+        item.tip.showFor(item.target, "recheck · c", true);
+        tryCompare(item.tip, "shown", true);
+        verify(item.tip.panelItem.y >= item.target.height, "the panel was not flipped under");
+    }
+
     function test_show_for_nothing_hides() {
         const item = createTemporaryObject(host, testCase);
         item.tip.showFor(item.target, "");

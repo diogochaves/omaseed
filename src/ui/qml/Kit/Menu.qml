@@ -48,6 +48,8 @@ Item {
 
     property bool _opened: false
     property Item _previousFocus: null
+    /// `openAbove()`: `anchorY` is where the panel's bottom edge wants to be.
+    property bool _up: false
 
     readonly property int _edge: Theme.space(8)
 
@@ -62,6 +64,16 @@ Item {
 
     /// Open the menu with its top-left corner at `x`, `y` (clamped inside this item).
     function openAt(x: int, y: int): void {
+        root._up = false;
+        root.anchorX = x;
+        root.anchorY = y;
+        root.open();
+    }
+
+    /// Open the menu with its bottom-left corner at `x`, `y` (clamped inside this item): the
+    /// panel grows up from a control at the bottom of the view (the selection bar's ⋯).
+    function openAbove(x: int, y: int): void {
+        root._up = true;
         root.anchorX = x;
         root.anchorY = y;
         root.open();
@@ -207,7 +219,8 @@ Item {
         x: root.inline ? 0
                 : Math.max(root._edge, Math.min(root.anchorX, root.width - width - root._edge))
         y: root.inline ? 0
-                : Math.max(root._edge, Math.min(root.anchorY, root.height - height - root._edge))
+                : Math.max(root._edge, Math.min(root._up ? root.anchorY - height : root.anchorY,
+                                                root.height - height - root._edge))
 
         ColumnLayout {
             id: rows

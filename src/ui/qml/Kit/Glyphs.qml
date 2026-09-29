@@ -75,6 +75,15 @@ QtObject {
     readonly property string home: "⌂" // Fig. 16's path-mapping row, Fig. 7's head
     readonly property string plus: "+"
 
+    // ---- the selection bar, docs/17 M9.3 (limits and more are the ⋯ menu's below) ----
+    readonly property string start: "icon:start"
+    readonly property string stop: "icon:stop"
+    readonly property string recheck: "icon:checking"
+    readonly property string reannounce: "icon:reannounce"
+    readonly property string location: "icon:location"
+    readonly property string openFolder: "icon:openFolder"
+    readonly property string trash: "icon:delete"
+
     // ---- hero ⋯ menu, docs/08 §3 -------------------------------------------------------
     readonly property string more: "icon:more"
     readonly property string columns: "icon:columns"
