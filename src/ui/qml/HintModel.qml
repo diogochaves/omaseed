@@ -37,6 +37,8 @@ QtObject {
     /// draws an overlay's hints inside the overlay, and the window underneath is modal, so
     /// the footer must stop teaching table keys that nothing will answer.
     property bool overlayOpen: false
+    /// The details pane is folded (docs/17 M10): the table's line adds `i`, the way back.
+    property bool detailsFolded: false
 
     // what the footer reads ---------------------------------------------------------
     /// The state the hints describe. A window-wide state (lost server, empty library,
@@ -111,11 +113,12 @@ QtObject {
             return [root._hint("table", "enter", qsTr("apply")), root._hint("table", "esc", qsTr(
                                                                                 "cancel"))];
         }
-        // Fig. 1, in the figure's order.
-        return [root._hint("table", "j k"), root._hint("table", "space"), root._hint("table",
-                                                                                     "enter"), root._hint(
-                    "table", "p"), root._hint("table", "d"), root._hint("table", "o"), root._hint("global",
-                                                                                                  "/")];
+        // Fig. 1, in the figure's order; then `i` while the details pane is folded (docs/17
+        // M16), since nothing else on screen names the key that brings it back.
+        const hints = [root._hint("table", "j k"), root._hint("table", "space"), root._hint(
+                           "table", "enter"), root._hint("table", "p"), root._hint("table", "d"),
+                       root._hint("table", "o"), root._hint("global", "/")];
+        return root.detailsFolded ? hints.concat([root._hint("global", "i")]) : hints;
     }
 
     function _detailsHints() {

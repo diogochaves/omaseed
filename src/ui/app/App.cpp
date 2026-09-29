@@ -661,6 +661,11 @@ QVariantMap App::torrentRow(const QString &hash) const
     row.insert(QStringLiteral("ratioText"), Format::ratio(torrent.ratio));
     row.insert(QStringLiteral("etaLongText"),
                torrent.hasEta() ? Format::eta(torrent.eta) : QStringLiteral("—"));
+    // docs/17 M10.1: the folded pane's strip reads the table's own words for these.
+    row.insert(QStringLiteral("etaText"),
+               torrent.hasEta() ? Format::etaShort(torrent.eta) : QStringLiteral("—"));
+    row.insert(QStringLiteral("dlspeedText"), Format::speed(torrent.dlspeed));
+    row.insert(QStringLiteral("upspeedText"), Format::speed(torrent.upspeed));
     row.insert(QStringLiteral("stateText"), torrent.stateText());
     row.insert(QStringLiteral("stateRole"), torrent.stateRole());
     row.insert(QStringLiteral("hasTrackerError"), torrent.hasTrackerError);
