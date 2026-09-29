@@ -15,7 +15,7 @@
 #   127.0.0.1:BOX_QBT_PORT with a login (admin and a random password, printed at the end and
 #   kept in the box's ~/qbittorrent-login.txt). First run finds it: the process, then the port
 #   from that config.
-# - ~/Downloads: four of the swarm's .torrent files, and links.html with the Public Domain
+# - ~/Downloads: five of the swarm's .torrent files, and links.html with the Public Domain
 #   Sampler's magnet (the only swarm torrent that is not private, so the magnet gets its
 #   metadata). Open them from Files (Nautilus) and Chromium, both in the box.
 #
@@ -144,7 +144,7 @@ done
 
 echo "filling ~/Downloads"
 for name in "tiny-notes.txt" "Field Recordings Vol. 3 [FLAC]" "distro-2026.09-x86_64.iso" \
-    "Ünïcødé ✓ Spaces & Symbols"; do
+    "Ünïcødé ✓ Spaces & Symbols" "Nested Library Sampler"; do
     # A plain prefix match: [FLAC] would be a character class to find -name.
     for file in "$TORRENTS"/*.torrent; do
         [[ "$(basename "$file")" == "$name"* ]] && cp "$file" "$home/Downloads/"
