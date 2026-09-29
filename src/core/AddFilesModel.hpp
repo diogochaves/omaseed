@@ -100,6 +100,11 @@ public:
     Q_INVOKABLE bool rename(int row, const QString &name);
     /// The row's name without a folder's "/", for the inline field to start from.
     Q_INVOKABLE QString plainName(int row) const;
+    /// A row's path inside the torrent (after the renames), and the row showing a path (-1
+    /// when none does, e.g. inside a folded folder): the tree keeps its cursor on a row the
+    /// rename moved.
+    Q_INVOKABLE QString pathOf(int row) const { return pathAt(row); }
+    Q_INVOKABLE int rowOfPath(const QString &path) const;
     /// The renames in the order they were made, each `{kind: "file"|"folder", from, to}` with
     /// paths inside the torrent (no root folder): replayed on the server after the add,
     /// through `torrents/renameFile` / `torrents/renameFolder`.

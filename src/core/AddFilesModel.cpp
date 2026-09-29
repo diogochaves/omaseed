@@ -276,6 +276,15 @@ QString AddFilesModel::originalPathAt(int row) const
     return original.section(QLatin1Char('/'), 0, depthAt(row));
 }
 
+int AddFilesModel::rowOfPath(const QString &path) const
+{
+    for (int row = 0; row < rowCount(); ++row) {
+        if (pathAt(row) == path)
+            return row;
+    }
+    return -1;
+}
+
 QString AddFilesModel::plainName(int row) const
 {
     return pathAt(row).section(QLatin1Char('/'), -1);

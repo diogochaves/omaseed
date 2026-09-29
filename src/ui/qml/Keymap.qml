@@ -1001,6 +1001,17 @@ QtObject {
             "helpKeys": "",
             "help": ""
         },
+        // Manual box M18: `r` (or F2) renames the row before the add.
+        {
+            "area": "addFiles",
+            "key": "r",
+            "action": "rename",
+            "label": qsTr("rename"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
 
         // The add sheet's "in Downloads" list (manual box M7). `tab` stays the sheet's.
         {

@@ -784,6 +784,129 @@ TestCase {
         compare(App.addFiles.wantedCount, 8);
     }
 
+    // ---- manual box M18: renaming before the add ------------------------------------
+
+    /// The tree with the keyboard, its cursor on `name`.
+    function focusRow(sheet, name) {
+        const tree = sheet.filesTree;
+        const row = testCase.rowNamed(sheet, name);
+        verify(row >= 0, name);
+        tree.forceActiveFocus();
+        tree.cursorIndex = row;
+        return row;
+    }
+
+    function renameInput(sheet) {
+        const view = sheet.filesTree.view;
+        view.currentIndex = sheet.filesTree.editingRow;
+        return findChild(view.currentItem, "addFilesRenameInput");
+    }
+
+    function test_r_opens_the_field_and_enter_keeps_the_name() {
+        const sheet = testCase.openTorrent(addSheetComponent);
+        const added = createTemporaryObject(addSpy, testCase, {
+                                                "target": sheet
+                                            });
+        testCase.focusRow(sheet, "README.txt");
+        compare(sheet.hints[5].key, "r");
+        keyClick("r");
+        verify(sheet.filesTree.editing);
+        const input = testCase.renameInput(sheet);
+        tryVerify(() => input.activeFocus, 1000, "the field takes the keyboard");
+        // The stem is selected, the extension kept.
+        compare(input.selectedText, "README");
+        compare(sheet.hints[0].key, "enter");
+        compare(sheet.hints[1].key, "esc");
+        keyClick("n");
+        keyClick("o");
+        keyClick("t");
+        keyClick("e");
+        keyClick("s");
+        keyClick(Qt.Key_Return);
+
+        verify(!sheet.filesTree.editing);
+        compare(added.count, 0, "enter in the field renames, it does not add");
+        verify(testCase.rowNamed(sheet, "notes.txt") >= 0);
+        compare(App.addFiles.renameList().length, 1);
+        compare(sheet.filesTree.cursorIndex, testCase.rowNamed(sheet, "notes.txt"));
+        verify(sheet.filesTree.activeFocus, "the keyboard is back in the tree");
+        const view = sheet.filesTree.view;
+        view.currentIndex = sheet.filesTree.cursorIndex;
+        verify(findChild(view.currentItem, "addFilesWas").visible);
+        compare(findChild(view.currentItem, "addFilesWas").text, "was README.txt");
+    }
+
+    function test_esc_in_the_field_cancels_and_stops_there() {
+        const sheet = testCase.openTorrent(addSheetComponent);
+        testCase.focusRow(sheet, "Sintel/");
+        keyClick(Qt.Key_F2);
+        verify(sheet.filesTree.editing);
+        const input = testCase.renameInput(sheet);
+        tryVerify(() => input.activeFocus, 1000);
+        compare(input.selectedText, "Sintel", "a folder's whole name is selected");
+        keyClick("x");
+        keyClick(Qt.Key_Escape);
+
+        verify(!sheet.filesTree.editing);
+        compare(sheet.opened, true);
+        verify(sheet.filesTree.activeFocus, "esc went to the field, not to the sheet's cancel");
+        compare(App.addFiles.renameList().length, 0);
+        verify(testCase.rowNamed(sheet, "Sintel/") >= 0);
+    }
+
+    function test_a_refused_name_stays_in_the_field_in_red() {
+        const sheet = testCase.openTorrent(addSheetComponent);
+        testCase.focusRow(sheet, "Sintel/");
+        keyClick("r");
+        const input = testCase.renameInput(sheet);
+        tryVerify(() => input.activeFocus, 1000);
+        keyClick(Qt.Key_A, Qt.ControlModifier);
+        keyClick("a");
+        keyClick("/");
+        keyClick("b");
+        keyClick(Qt.Key_Return);
+
+        verify(sheet.filesTree.editing, "still in the field");
+        verify(sheet.filesTree.renameError.length > 0);
+        const view = sheet.filesTree.view;
+        view.currentIndex = sheet.filesTree.editingRow;
+        verify(findChild(view.currentItem, "addFilesRenameError").visible);
+        compare(App.addFiles.renameList().length, 0);
+        // Typing again clears the complaint.
+        keyClick(Qt.Key_Backspace);
+        compare(sheet.filesTree.renameError, "");
+        keyClick(Qt.Key_Escape);
+    }
+
+    function test_the_pencil_opens_the_field() {
+        const sheet = testCase.openTorrent(addSheetComponent);
+        const row = testCase.rowItem(sheet, "Tears of Steel/");
+        const pencil = findChild(row, "addFilesPencil");
+        verify(pencil);
+        mouseMove(pencil);
+        mouseClick(pencil);
+        verify(sheet.filesTree.editing);
+        compare(sheet.filesTree.editingRow, row.index);
+        keyClick(Qt.Key_Escape);
+    }
+
+    function test_the_renames_travel_with_the_add() {
+        const sheet = testCase.openTorrent(addSheetComponent);
+        const added = createTemporaryObject(addSpy, testCase, {
+                                                "target": sheet
+                                            });
+        verify(App.addFiles.rename(testCase.rowNamed(sheet, "Sintel/"), "Sintel (2010)"));
+        sheet.submit(false);
+
+        compare(added.count, 1);
+        const request = added.signalArguments[0][0];
+        compare(request.fileRenames.length, 1);
+        compare(request.fileRenames[0].kind, "folder");
+        compare(request.fileRenames[0].from, "Sintel");
+        compare(request.fileRenames[0].to, "Sintel (2010)");
+        compare(request.renameAnchor.index, 0);
+    }
+
     function test_the_file_choices_travel_with_the_add() {
         const sheet = testCase.openTorrent(addSheetComponent);
         const added = createTemporaryObject(addSpy, testCase, {

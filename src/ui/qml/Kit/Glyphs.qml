@@ -60,6 +60,7 @@ QtObject {
     readonly property string check: "✓"
     readonly property string middot: "·" // unchecked row of a multi-select palette, spec §4
     readonly property string close: "✕"
+    readonly property string rename: "✎" // the add sheet's file tree (manual box M18)
     readonly property string dot: "●"
 
     // ---- settings rows, batch-2 J8: the rows that had only a typographic dot -----------

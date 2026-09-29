@@ -267,6 +267,10 @@ void TestAddFilesModel::renamesAFile()
     QCOMPARE(op.value(QStringLiteral("from")).toString(), QStringLiteral("README.txt"));
     QCOMPARE(op.value(QStringLiteral("to")).toString(), QStringLiteral("read me first.txt"));
 
+    QCOMPARE(model.pathOf(renamed), QStringLiteral("read me first.txt"));
+    QCOMPARE(model.rowOfPath(QStringLiteral("read me first.txt")), renamed);
+    QCOMPARE(model.rowOfPath(QStringLiteral("README.txt")), -1);
+
     // The same name again changes nothing and logs nothing.
     QVERIFY(model.rename(renamed, QStringLiteral("read me first.txt")));
     QCOMPARE(model.renameList().size(), 1);
