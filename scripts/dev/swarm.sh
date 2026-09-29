@@ -114,12 +114,15 @@ cmd_start() {
     # Two downloads at a time, so the rest show as queued; but finished swarm torrents must not
     # use up the active slots (5 by default), or a later download sits "stalled" with its peer
     # right there, held back by the queue. Announcing to every tier lets `break dead`'s tracker
-    # (a tier of its own) be tried, not skipped while the first one works.
+    # (a tier of its own) be tried, not skipped while the first one works. Every peer of the
+    # swarm is 127.0.0.1, so each qBittorrent must allow several connections from one IP: with
+    # it off, libtorrent keeps one peer per IP (the last port the tracker named) and turns away
+    # a second peer from 127.0.0.1 (M15: the manual box never reached the seeder).
     curl -fs -X POST "$PLAY/app/setPreferences" --data-urlencode \
-        'json={"max_active_downloads":2,"max_active_uploads":20,"max_active_torrents":20,"announce_to_all_tiers":true,"announce_to_all_trackers":true}' >/dev/null
+        'json={"max_active_downloads":2,"max_active_uploads":20,"max_active_torrents":20,"announce_to_all_tiers":true,"announce_to_all_trackers":true,"enable_multi_connections_from_same_ip":true}' >/dev/null
     seeder_server start | sed 's/^/seeder:     /'
     curl -fs -X POST "$SEEDER/app/setPreferences" --data-urlencode \
-        "json={\"enable_embedded_tracker\":false,\"queueing_enabled\":false,\"up_limit\":$((${OMASEED_SWARM_RATE:-4096} * 1024))}" >/dev/null
+        "json={\"enable_embedded_tracker\":false,\"queueing_enabled\":false,\"enable_multi_connections_from_same_ip\":true,\"up_limit\":$((${OMASEED_SWARM_RATE:-4096} * 1024))}" >/dev/null
     if ! tracker_running; then
         nohup python3 "$repo/scripts/dev/swarm-tracker.py" $TRACKER_PORT "$CONTROL" \
             >"$SWARM/tracker.log" 2>&1 &

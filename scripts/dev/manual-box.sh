@@ -110,6 +110,9 @@ salt = os.urandom(16)
 key = hashlib.pbkdf2_hmac("sha512", os.environ["PASS"].encode(), salt, 100000, dklen=64)
 print(base64.b64encode(salt).decode() + ":" + base64.b64encode(key).decode())')"
 mkdir -p "$home/.config/qBittorrent" "$home/Downloads"
+# MultiConnectionsPerIp: every peer of this swarm is 127.0.0.1 (the seeder, the playground,
+# this box). With it off, libtorrent keeps one peer per IP, the last port the tracker named,
+# so the box could be left trying only the playground's port, closed in here (M15).
 cat >"$home/.config/qBittorrent/qBittorrent.conf" <<EOF
 [LegalNotice]
 Accepted=true
@@ -117,6 +120,7 @@ Accepted=true
 [BitTorrent]
 Session\\Port=$BOX_BT_PORT
 Session\\DefaultSavePath=$BOX_HOME/Downloads
+Session\\MultiConnectionsPerIp=true
 
 [Preferences]
 WebUI\\Enabled=true
