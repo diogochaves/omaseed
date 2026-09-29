@@ -219,6 +219,17 @@ TestCase {
         view.split.placement = Qt.binding(() => App.detailsPlacement);
     }
 
+    // docs/UX-NOTES M16: the footer's note sits in the footer's own line, never over the pane.
+    function test_the_footer_note_stays_in_the_footer() {
+        view.flashFooterNote("details: bottom · I to change");
+        const note = findChild(view, "footerNote");
+        verify(note.visible);
+        const top = note.mapToItem(view, 0, 0).y;
+        const footerTop = view.height - Math.round(Theme.font.baseSize * 2.2);
+        verify(top >= footerTop, "the note is drawn above the footer, at " + top);
+        view.footerNote = "";
+    }
+
     // ---- `h` / `l` --------------------------------------------------------------------------
     function test_h_and_l_hand_the_focus_across_the_window() {
         verify(view.table.activeFocus);

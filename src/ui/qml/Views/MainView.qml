@@ -1395,6 +1395,20 @@ Item {
                 }
             }
 
+            // The note sits in the footer's own line, after the facts (docs/UX-NOTES M16): it
+            // used to float above the footer and covered whatever was there, the details
+            // pane's first column included. The hints after it drop what no longer fits.
+            Label {
+                id: footerNoteText
+
+                Layout.alignment: Qt.AlignVCenter
+                color: Theme.accent
+                objectName: "footerNote"
+                size: "small"
+                text: root.footerNote
+                visible: root.footerNote.length > 0
+            }
+
             KeyHints {
                 Layout.alignment: Qt.AlignVCenter
                 Layout.fillWidth: true
@@ -1469,37 +1483,6 @@ Item {
         interval: root._footerNoteSeconds * 1000
 
         onTriggered: root.footerNote = ""
-    }
-
-    Row {
-        id: footerNoteRow
-
-        anchors.bottom: footer.top
-        anchors.bottomMargin: Theme.space(4)
-        anchors.left: parent.left
-        anchors.leftMargin: Theme.space(16)
-        visible: root.footerNote.length > 0
-        z: 8
-
-        // Backed by the ground and a hairline, so the note never reads through whatever it
-        // sits on (the rail's "▾ 9 below", a table row).
-        Rectangle {
-            border.color: Theme.fill(Theme.hairlineAlpha)
-            border.width: 1
-            color: Theme.background
-            height: noteText.implicitHeight + Theme.space(6)
-            width: noteText.implicitWidth + Theme.space(16)
-
-            Text {
-                id: noteText
-
-                anchors.centerIn: parent
-                color: Theme.accent
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.font.small
-                text: root.footerNote
-            }
-        }
     }
 
     MoreMenu {
