@@ -161,9 +161,8 @@ int AddFilesModel::priority(int row) const
     return m_tree->priority(row);
 }
 
-void AddFilesModel::setPriority(int row, int priority)
+bool AddFilesModel::setIds(const QList<int> &ids, int priority)
 {
-    const QList<int> ids = idsAt(row);
     bool changed = false;
     for (int id : ids) {
         if (id >= 0 && id < int(m_priorities.size()) && m_priorities.at(id) != priority) {
@@ -171,7 +170,12 @@ void AddFilesModel::setPriority(int row, int priority)
             changed = true;
         }
     }
-    if (!changed)
+    return changed;
+}
+
+void AddFilesModel::setPriority(int row, int priority)
+{
+    if (!setIds(idsAt(row), priority))
         return;
     applyToTree();
     Q_EMIT choicesChanged();
@@ -191,6 +195,52 @@ void AddFilesModel::raise(int row)
 void AddFilesModel::lower(int row)
 {
     setPriority(row, TorrentFilesModel::loweredPriority(priority(row)));
+}
+
+void AddFilesModel::cyclePriority(int row)
+{
+    QList<int> wanted;
+    int common = -1;
+    bool agree = true;
+    for (int id : idsAt(row)) {
+        const int priority = m_priorities.value(id, kNormal);
+        if (priority == kSkip)
+            continue;
+        if (wanted.isEmpty())
+            common = priority;
+        else if (priority != common)
+            agree = false;
+        wanted.append(id);
+    }
+    if (wanted.isEmpty()) {
+        setPriority(row, kNormal);
+        return;
+    }
+    int next = kNormal;
+    if (agree && common == kNormal)
+        next = int(FilePriority::High);
+    else if (agree && common == int(FilePriority::High))
+        next = int(FilePriority::Maximal);
+    if (!setIds(wanted, next))
+        return;
+    applyToTree();
+    Q_EMIT choicesChanged();
+}
+
+void AddFilesModel::setAllWanted(bool wanted)
+{
+    bool changed = false;
+    for (int &priority : m_priorities) {
+        const int next = wanted ? (priority == kSkip ? kNormal : priority) : kSkip;
+        if (next != priority) {
+            priority = next;
+            changed = true;
+        }
+    }
+    if (!changed)
+        return;
+    applyToTree();
+    Q_EMIT choicesChanged();
 }
 
 QVariantList AddFilesModel::priorityList() const

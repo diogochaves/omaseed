@@ -57,6 +57,9 @@ private slots:
     void spaceSkipsAFolderAndBringsItBack();
     void partlySkippedFolderIsHalfChecked();
     void raiseAndLowerWalkTheLadder();
+    void clickCyclesPriorityAndKeepsSkipsSkipped();
+    void clickOnASkippedRowBringsItBackAtNormal();
+    void allAndNone();
     void groupsLeaveNormalOut();
     void foldingKeepsTheChoices();
     void loadingAnotherTorrentStartsOver();
@@ -156,6 +159,83 @@ void TestAddFilesModel::raiseAndLowerWalkTheLadder()
     QCOMPARE(roleAt(model, tears, "wanted").toInt(), 0);
     model.setPriority(tears, 1);
     QVERIFY(!model.isCustomised());
+}
+
+// M17: a click on the priority text cycles normal -> high -> maximal -> normal, on the files
+// that are wanted; the ones the folder's check mark skipped stay skipped.
+void TestAddFilesModel::clickCyclesPriorityAndKeepsSkipsSkipped()
+{
+    AddFilesModel model;
+    model.load(fixture("open_movies_v1.torrent").files);
+    const int srt = rowNamed(model, QStringLiteral("bbb.de.srt"));
+    model.toggleWanted(srt); // skipped
+    const int bunny = rowNamed(model, QStringLiteral("Big Buck Bunny/"));
+    QCOMPARE(roleAt(model, bunny, "wanted").toInt(), 1);
+
+    QSignalSpy changed(&model, &AddFilesModel::choicesChanged);
+    model.cyclePriority(bunny);
+    QCOMPARE(changed.count(), 1);
+    const int mkv = rowNamed(model, QStringLiteral("bbb_sunflower_2160p_60fps.mp4"));
+    QVERIFY(mkv >= 0);
+    QCOMPARE(model.priority(mkv), 6);
+    QCOMPARE(model.priority(srt), 0); // still skipped
+    QCOMPARE(roleAt(model, bunny, "wanted").toInt(), 1);
+
+    model.cyclePriority(bunny);
+    QCOMPARE(model.priority(mkv), 7);
+    model.cyclePriority(bunny);
+    QCOMPARE(model.priority(mkv), 1);
+    QCOMPARE(model.priority(srt), 0);
+
+    // A row whose wanted files disagree starts over at normal.
+    model.cyclePriority(mkv);
+    QCOMPARE(model.priority(mkv), 6);
+    model.cyclePriority(bunny);
+    QCOMPARE(model.priority(mkv), 1);
+    QCOMPARE(model.priority(srt), 0);
+}
+
+void TestAddFilesModel::clickOnASkippedRowBringsItBackAtNormal()
+{
+    AddFilesModel model;
+    model.load(fixture("open_movies_v1.torrent").files);
+    const int sintel = rowNamed(model, QStringLiteral("Sintel/"));
+    model.toggleWanted(sintel);
+    QCOMPARE(roleAt(model, sintel, "wanted").toInt(), 0);
+
+    model.cyclePriority(sintel);
+    QCOMPARE(roleAt(model, sintel, "wanted").toInt(), 2);
+    QCOMPARE(model.priority(sintel), 1);
+    QCOMPARE(model.wantedCount(), 8);
+}
+
+// The header's "all" and "none".
+void TestAddFilesModel::allAndNone()
+{
+    AddFilesModel model;
+    model.load(fixture("open_movies_v1.torrent").files);
+    const int tears = rowNamed(model, QStringLiteral("Tears of Steel/"));
+    model.raise(tears); // high
+    const int sintel = rowNamed(model, QStringLiteral("Sintel/"));
+    model.toggleWanted(sintel); // skipped
+
+    model.setAllWanted(true);
+    QCOMPARE(model.wantedCount(), 8);
+    QCOMPARE(model.priority(tears), 6); // kept
+    QCOMPARE(model.priority(sintel), 1);
+
+    QSignalSpy changed(&model, &AddFilesModel::choicesChanged);
+    model.setAllWanted(false);
+    QCOMPARE(changed.count(), 1);
+    QCOMPARE(model.wantedCount(), 0);
+    for (int row = 0; row < model.count(); ++row)
+        QCOMPARE(roleAt(model, row, "wanted").toInt(), 0);
+    model.setAllWanted(false); // nothing to change: no signal
+    QCOMPARE(changed.count(), 1);
+
+    model.setAllWanted(true);
+    QCOMPARE(model.wantedCount(), 8);
+    QVERIFY(!model.isCustomised()); // "none" dropped the high, "all" brings back normal
 }
 
 void TestAddFilesModel::groupsLeaveNormalOut()

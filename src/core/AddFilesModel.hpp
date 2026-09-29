@@ -79,6 +79,14 @@ public:
     /// `+` / `-`: one step up or down skip → normal → high → maximal, on the whole row.
     Q_INVOKABLE void raise(int row);
     Q_INVOKABLE void lower(int row);
+    /// A click on a row's priority (manual box M17): normal → high → maximal → normal, on the
+    /// row's wanted files only, so a folder's skipped files stay skipped. A mixed row starts
+    /// over at normal; a row with nothing wanted comes back at normal (the click reads as
+    /// "stop skipping this").
+    Q_INVOKABLE void cyclePriority(int row);
+    /// The header's "all" (every skipped file back to normal, the others keep their
+    /// priority) and "none" (every file skipped).
+    Q_INVOKABLE void setAllWanted(bool wanted);
 
     /// One priority per file, in file-id order.
     QList<int> priorities() const { return m_priorities; }
@@ -98,6 +106,8 @@ private:
     /// Pushes m_priorities into the tree (same shape, so it updates rows in place).
     void applyToTree();
     QList<int> idsAt(int row) const;
+    /// Sets each of `ids` to `priority`; true when any changed (the caller then applies).
+    bool setIds(const QList<int> &ids, int priority);
 
     TorrentFilesModel *m_tree = nullptr;
     QList<TorrentFileEntry> m_files;
