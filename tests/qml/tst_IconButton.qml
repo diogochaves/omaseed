@@ -84,6 +84,28 @@ TestCase {
         compare(tip.shown, false);
     }
 
+    // M8: a click leaves the keyboard where it was, so no ring stays behind and the tip is
+    // the hover's alone (tst_Main checks it goes once settings closes over the hero's gear;
+    // this runner never delivers the hover leaving a lone button).
+    function test_a_click_does_not_take_the_focus() {
+        const holder = createTemporaryQmlObject("import QtQuick; Item { width: 10; height: 10 }",
+                                                testCase);
+        const button = createTemporaryObject(iconButtonComponent, testCase, {
+                                                 "glyph": "+",
+                                                 "tooltip": "settings",
+                                                 "x": 40,
+                                                 "y": 40
+                                             });
+        let clicks = 0;
+        button.clicked.connect(() => clicks++);
+        holder.forceActiveFocus();
+        mouseClick(button);
+        compare(clicks, 1);
+        verify(holder.activeFocus, "the click took the keyboard");
+        compare(button.activeFocus, false);
+        compare(findChild(button, "focusRing").shown, false);
+    }
+
     function test_no_tooltip_text_never_shows() {
         const button = createTemporaryObject(iconButtonComponent, testCase, {
                                                  "glyph": "+"

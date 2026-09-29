@@ -506,6 +506,27 @@ TestCase {
                                       "the settings modal");
     }
 
+    // M8: the hero's gear opens settings with the mouse and leaves the keyboard where it was,
+    // so closing settings gives it back to the table: no ring or tip left on the gear, and
+    // `j` moves the cursor.
+    function test_a_click_on_the_gear_gives_the_keyboard_back_to_the_table() {
+        const gear = findChild(view.hero, "settingsButton");
+        verify(gear && gear.visible, "no settings button in the hero");
+        const row = view.table.cursorIndex;
+        mouseClick(gear);
+        compare(view.settingsModal.opened, true, "the gear did not open settings");
+        keyClick(Qt.Key_Escape);
+        compare(view.settingsModal.opened, false);
+        mouseMove(view.table, view.table.width / 2, view.table.height / 2);
+        compare(gear.activeFocus, false, "the gear kept the keyboard");
+        compare(findChild(gear, "focusRing").shown, false);
+        tryCompare(gear.tooltipItem, "shown", false);
+        verify(view.table.activeFocus, "the table did not get the keyboard back");
+        keyClick("j");
+        compare(view.table.cursorIndex, row + 1);
+        view.table.moveCursorTo(row);
+    }
+
     // Batch-2 D3: with a sheet, palette, modal or menu up, the window footer keeps its facts
     // and prints no hints, so nothing repeats the overlay's own row or contradicts it; the
     // table's hints come back when it closes.

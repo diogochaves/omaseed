@@ -16,6 +16,11 @@ import Omaseed.Kit
 // `primary` is an accent outline with accent text (never a fill — see §9 item 10). `danger`
 // is red text; when `danger` is also `primary` or `selected` the outline turns red too (spec
 // `.btn.danger.sel`). Every colour comes from `Theme`.
+//
+// A click runs `clicked()` and does not take the focus (IconButton and Chip do the same): the
+// keyboard stays where it was, so a mouse click never leaves the focus ring (or IconButton's
+// tooltip) behind, and an overlay the click opens gives the keyboard back to what had it —
+// the table, not the hero's gear (docs/UX-NOTES M8). `tab` still focuses and rings it.
 Rectangle {
     id: root
 
@@ -121,10 +126,8 @@ Rectangle {
         enabled: root.enabled
         hoverEnabled: true
 
-        onClicked: {
-            root.forceActiveFocus();
-            root.clicked();
-        }
+        // A click leaves the keyboard where it was (see Button's header).
+        onClicked: root.clicked()
     }
 
     // Keypad `enter` is its own key (`Qt.Key_Enter`); without it the key went on to the

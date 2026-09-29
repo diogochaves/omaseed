@@ -83,10 +83,8 @@ Rectangle {
         enabled: root.enabled
         hoverEnabled: true
 
-        onClicked: {
-            root.forceActiveFocus();
-            root.clicked();
-        }
+        // A click leaves the keyboard where it was (see Button's header).
+        onClicked: root.clicked()
     }
 
     // On the window's content item, not in the button: clamped inside a button one control

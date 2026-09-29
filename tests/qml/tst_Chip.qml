@@ -5,7 +5,11 @@ import Omaseed.Kit
 TestCase {
     id: testCase
 
+    height: 300
     name: "Chip"
+    visible: true
+    when: windowShown
+    width: 400
 
     Component {
         id: chipComponent
@@ -84,5 +88,25 @@ TestCase {
         compare(clicks, 1);
         keyClick(Qt.Key_Return);
         compare(clicks, 2);
+    }
+
+    // M8: a focusable chip (the hero's alt-speed) runs on a click and leaves the keyboard
+    // where it was, as Button does.
+    function test_a_click_does_not_take_the_focus() {
+        const holder = createTemporaryQmlObject("import QtQuick; Item { width: 10; height: 10 }",
+                                                testCase);
+        const chip = createTemporaryObject(chipComponent, testCase, {
+                                               "text": "alt-speed",
+                                               "focusable": true,
+                                               "x": 40,
+                                               "y": 40
+                                           });
+        let clicks = 0;
+        chip.clicked.connect(() => clicks++);
+        holder.forceActiveFocus();
+        mouseClick(chip);
+        compare(clicks, 1);
+        verify(holder.activeFocus, "the click took the keyboard");
+        compare(chip.activeFocus, false);
     }
 }

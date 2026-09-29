@@ -82,11 +82,8 @@ Rectangle {
         cursorShape: Qt.PointingHandCursor
         hoverEnabled: true
 
-        onClicked: {
-            if (root.focusable)
-                root.forceActiveFocus();
-            root.clicked();
-        }
+        // A click leaves the keyboard where it was, as Button's does.
+        onClicked: root.clicked()
     }
 
     // Keypad `enter` too (KIT-7).

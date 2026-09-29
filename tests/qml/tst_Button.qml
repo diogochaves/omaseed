@@ -5,8 +5,11 @@ import Omaseed.Kit
 TestCase {
     id: testCase
 
+    height: 300
     name: "Button"
+    visible: true
     when: windowShown
+    width: 400
 
     Component {
         id: buttonComponent
@@ -99,6 +102,26 @@ TestCase {
         compare(ring.shown, true);
         compare(ring.x, -Theme.focusExtent);
         compare(button.border.width, 0);
+    }
+
+    // M8: a click runs the button and leaves the keyboard where it was, so no ring stays
+    // behind and whatever had the focus keeps its keys.
+    function test_a_click_does_not_take_the_focus() {
+        const holder = createTemporaryQmlObject("import QtQuick; Item { width: 10; height: 10 }",
+                                                testCase);
+        const button = createTemporaryObject(buttonComponent, testCase, {
+                                                 "text": "test",
+                                                 "x": 40,
+                                                 "y": 40
+                                             });
+        let clicks = 0;
+        button.clicked.connect(() => clicks++);
+        holder.forceActiveFocus();
+        mouseClick(button);
+        compare(clicks, 1);
+        verify(holder.activeFocus, "the click took the keyboard");
+        compare(button.activeFocus, false);
+        compare(findChild(button, "focusRing").shown, false);
     }
 
     function test_a_focused_primary_keeps_its_outline_inside_the_ring() {
