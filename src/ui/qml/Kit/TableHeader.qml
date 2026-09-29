@@ -6,7 +6,9 @@ import Omaseed.Kit
 // (`.tbl .num`); `sorted` brightens the label to `foreground` and shows a `▾`/`▴` glyph,
 // direction picked by `descending` (`.tbl > div.h.sort`). The row takes its width from the
 // parent; only `implicitHeight` (2 × `font.body`, the spec's `calc(var(--base)*2)`) matters
-// here.
+// here. `dragging` is set on every cell while a column is being dragged along the header
+// (N2, M13): the pointer then shows a closed hand wherever it is over the header, instead of
+// the pointing hand that says "click to sort".
 Item {
     id: root
 
@@ -14,6 +16,8 @@ Item {
     property bool alignRight: false
     property bool sorted: false
     property bool descending: false
+    /// A column is being dragged along the header.
+    property bool dragging: false
 
     signal clicked
 
@@ -65,8 +69,9 @@ Item {
         id: mouseArea
 
         anchors.fill: parent
-        cursorShape: Qt.PointingHandCursor
+        cursorShape: root.dragging ? Qt.ClosedHandCursor : Qt.PointingHandCursor
         hoverEnabled: true
+        objectName: "headerMouse"
 
         onClicked: root.clicked()
     }

@@ -808,9 +808,11 @@ Item {
         property string renameHash: ""
         property string cursorHash: ""
 
-        // A header cell being dragged (N2): its key, and the pointer's x in the header.
+        // A header cell being dragged (N2): its key, the pointer's x in the header, and where
+        // in the cell it was grabbed (so the ghost stays under the pointer as it was picked up).
         property string dragKey: ""
         property real dragX: 0
+        property real dragGrab: 0
         /// `{key, after, x}`: the column the drag would land beside, or null while nothing
         /// is dragged or the drop would change nothing.
         readonly property var dropTarget: {
@@ -945,6 +947,7 @@ Item {
 
                 alignRight: headerCell.modelData.align === Qt.AlignRight
                 descending: root.filtered.sortOrder === Qt.DescendingOrder
+                dragging: internal.dragKey.length > 0
                 objectName: "header_" + headerCell.modelData.key
                 sorted: root.sortRoleName === headerCell.modelData.role
                 text: headerCell.modelData.title
@@ -966,6 +969,7 @@ Item {
 
                     onActiveChanged: {
                         if (headerDrag.active) {
+                            internal.dragGrab = headerDrag.centroid.pressPosition.x;
                             internal.dragX = headerCell.x + headerDrag.centroid.position.x;
                             internal.dragKey = headerCell.modelData.key;
                         } else {
@@ -987,15 +991,52 @@ Item {
             }
         }
 
-        // Where the dragged column would land.
+        // Where the dragged column would land: a 1 px accent line on the boundary (M13),
+        // drawn over the ghost, which usually sits right on it.
         Rectangle {
             color: Theme.accent
             height: parent.height
             objectName: "dropMarker"
             visible: internal.dropTarget !== null
-            width: 2
+            width: 1
+            z: 3
             x: internal.dropTarget !== null ? Math.max(0, Math.min(parent.width - width,
-                                                                   internal.dropTarget.x - 1)) : 0
+                                                                   internal.dropTarget.x)) : 0
+        }
+
+        // M13: a ghost of the dragged cell rides under the pointer, held where it was
+        // grabbed, so the drag reads as carrying the column. Opaque over the cells it passes,
+        // outlined in the accent; `enabled: false`, so it never takes the pointer.
+        Rectangle {
+            id: dragGhost
+
+            readonly property var column: internal.dragKey.length === 0 ? null
+                                          : root.activeColumns.find(column => column.key
+                                                                    === internal.dragKey) ?? null
+            readonly property real cellWidth: dragGhost.column !== null
+                                              ? root.columnLayout[internal.dragKey].w : 0
+
+            border.color: Theme.accent
+            border.width: 1
+            color: Theme.background
+            enabled: false
+            height: parent.height
+            objectName: "dragGhost"
+            radius: Theme.cornerRadius
+            visible: dragGhost.column !== null
+            width: dragGhost.cellWidth
+            x: Math.max(0, Math.min(parent.width - dragGhost.width,
+                                    internal.dragX - internal.dragGrab))
+            z: 2
+
+            TableHeader {
+                alignRight: dragGhost.column !== null && dragGhost.column.align === Qt.AlignRight
+                anchors.fill: parent
+                descending: root.filtered.sortOrder === Qt.DescendingOrder
+                enabled: false
+                sorted: dragGhost.column !== null && root.sortRoleName === dragGhost.column.role
+                text: dragGhost.column !== null ? dragGhost.column.title : ""
+            }
         }
     }
 

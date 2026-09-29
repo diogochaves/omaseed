@@ -54,4 +54,14 @@ TestCase {
         header.clicked();
         compare(clicks, 1);
     }
+
+    function test_a_drag_shows_the_closed_hand() {
+        const header = createTemporaryObject(headerComponent, testCase, {
+                                                 "text": "size"
+                                             });
+        const mouse = findChild(header, "headerMouse");
+        compare(mouse.cursorShape, Qt.PointingHandCursor);
+        header.dragging = true;
+        compare(mouse.cursorShape, Qt.ClosedHandCursor);
+    }
 }
