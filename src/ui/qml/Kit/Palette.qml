@@ -20,6 +20,13 @@ import Omaseed.Kit
 // the cursor's row with `alt+up`/`alt+down` (`alt+k`/`alt+j`) and to put the default order back
 // with `ctrl+r`; the caller owns the order, as it owns `checked`.
 //
+// `draggable` (opt-in, M13) lets the mouse order the rows too: press a row and drag it past
+// the start-drag distance, a 1 px accent line shows where it will land, and the release asks
+// the caller with `dropRequested(index, item, slot)`. A press that never travels that far is
+// still a click. An item with `pinned: true` cannot be dragged, and the pinned rows at either
+// end of the list keep their ends: nothing lands above a leading one or below a trailing one.
+// Near the list's top or bottom edge the list scrolls on its own; `esc` drops the drag.
+//
 // Do NOT run `qmlformat` on this file: with the project's 100-column wrap it re-indents the
 // typed functions further on every pass (the defect MainView.qml and TorrentTable.qml note).
 // It is hand-formatted to qmlformat's own style instead.
@@ -34,13 +41,15 @@ Item {
     /// The dim caption at the right of the query row (`.q .c`), e.g. "2 of 142".
     property string counter: ""
     property alias query: input.text
-    /// `[{title, meta, detail, checked, key}]`.
+    /// `[{title, meta, detail, checked, key, pinned}]`.
     property var items: []
     /// Show the check column and let `space` toggle rows (the tags picker).
     property bool multi: false
     /// Let `alt+up`/`alt+down` ask to move the cursor's row and `ctrl+r` ask for the default
     /// order (`moveRequested`, `resetRequested`).
     property bool reorderable: false
+    /// Let the mouse drag rows to a new place (`dropRequested`); see the header.
+    property bool draggable: false
     property var hints: []
     property string footerRight: ""
     property bool inline: false
@@ -76,8 +85,25 @@ Item {
     signal moveRequested(int index, var item, int delta)
     /// `ctrl+r` while `reorderable` is set.
     signal resetRequested
+    /// A dragged row was let go (`draggable`): put row `index` before row `slot`, or after
+    /// the last row when `slot` is `items.length`. Never sent for a drop where it started.
+    signal dropRequested(int index, var item, int slot)
+
+    /// True while a row is being dragged.
+    readonly property bool dragging: root._dragFrom >= 0
+    /// Where the dragged row would land (the `slot` of `dropRequested`), or -1 while nothing
+    /// is dragged or the row would stay where it is.
+    readonly property int dropSlot: {
+        if (root._dragFrom < 0)
+            return -1;
+        const slot = root._slotAt(list.contentY + root._dragY, root._layoutRevision);
+        return slot === root._dragFrom || slot === root._dragFrom + 1 ? -1 : slot;
+    }
 
     property bool _opened: false
+    /// The row being dragged, or -1; and the pointer's y over the list while it is.
+    property int _dragFrom: -1
+    property real _dragY: 0
     property Item _previousFocus: null
 
     readonly property int _margin: Theme.space(16)
@@ -97,6 +123,7 @@ Item {
         if (!root._opened)
             return;
         root._opened = false;
+        root._cancelDrag();
         const previous = root._previousFocus;
         root._previousFocus = null;
         if (previous)
@@ -196,6 +223,74 @@ Item {
         return last < 0 ? root._rawBelow : list.count - 1 - last;
     }
 
+    // ---- dragging a row (`draggable`) ----------------------------------------------------
+    /// Whether row `index` may be picked up.
+    function canDrag(index: int): bool {
+        return root.draggable && index >= 0 && index < root.items.length
+                && root.items[index].pinned !== true;
+    }
+
+    /// The slots a drop may use, `[first, last]`: the pinned rows at the list's two ends keep
+    /// their places, so the slots stop short of them.
+    function _slotRange(): var {
+        let first = 0;
+        while (first < root.items.length && root.items[first].pinned === true)
+            ++first;
+        let last = root.items.length;
+        while (last > first && root.items[last - 1].pinned === true)
+            --last;
+        return [first, last];
+    }
+
+    /// The slot for content `y`: before the row under it when `y` is in its top half, after
+    /// it in the bottom half, clamped to `_slotRange()`.
+    function _slotAt(y: real, revision: int): int {
+        if (revision < 0)
+            return -1;
+        let slot = y < 0 ? 0 : root.items.length;
+        for (const key in root._rowBoxes) {
+            const box = root._rowBoxes[key];
+            if (y >= box[0] && y < box[0] + box[1]) {
+                slot = Number(key) + (y < box[0] + box[1] / 2 ? 0 : 1);
+                break;
+            }
+        }
+        const range = root._slotRange();
+        return Math.max(range[0], Math.min(range[1], slot));
+    }
+
+    /// The content y of the line drawn for `slot`: the top of the row it goes before, or the
+    /// bottom of the last row. -1 while that row is not laid out.
+    function _slotY(slot: int, revision: int): real {
+        if (slot < 0 || revision < 0)
+            return -1;
+        if (slot < root.items.length) {
+            const box = root._rowBoxes[slot];
+            return box === undefined ? -1 : box[0];
+        }
+        const last = root._rowBoxes[root.items.length - 1];
+        return last === undefined ? -1 : last[0] + last[1];
+    }
+
+    function _startDrag(index: int, y: real): void {
+        root.cursorIndex = index;
+        root._dragY = y;
+        root._dragFrom = index;
+    }
+
+    /// Let go: ask the caller to move the row, unless it would land where it started.
+    function _finishDrag(): void {
+        const from = root._dragFrom;
+        const slot = root.dropSlot;
+        root._dragFrom = -1;
+        if (from >= 0 && slot >= 0)
+            root.dropRequested(from, root.items[from], slot);
+    }
+
+    function _cancelDrag(): void {
+        root._dragFrom = -1;
+    }
+
     /// `enter`: hand the cursor's row to the caller. The caller closes the palette.
     function activate(): void {
         if (root.currentItem)
@@ -215,6 +310,12 @@ Item {
     function _onKey(event: var): void {
         const ctrl = (event.modifiers & Qt.ControlModifier) !== 0;
         const alt = (event.modifiers & Qt.AltModifier) !== 0;
+        // `esc` mid-drag drops the drag, and only that: the query and the palette stay.
+        if (root.dragging && event.key === Qt.Key_Escape) {
+            root._cancelDrag();
+            event.accepted = true;
+            return;
+        }
         if (root.reorderable && alt && !ctrl) {
             let delta = 0;
             if (event.key === Qt.Key_Up || event.key === Qt.Key_K)
@@ -289,6 +390,36 @@ Item {
             Math.min(root.cursorIndex, root.items.length - 1))
 
     onQueryChanged: root.cursorIndex = 0
+
+    // A drag held near the list's top or bottom edge scrolls it, faster the closer it gets;
+    // `dropSlot` follows the scroll on its own.
+    Timer {
+        id: edgeScroll
+
+        readonly property real zone: Theme.space(28)
+        readonly property real speed: {
+            if (!root.dragging)
+                return 0;
+            const zone = edgeScroll.zone;
+            const top = zone - root._dragY;
+            if (top > 0)
+                return -Math.ceil(Math.min(top, zone) / zone * Theme.space(10));
+            const bottom = root._dragY - (list.height - zone);
+            if (bottom > 0)
+                return Math.ceil(Math.min(bottom, zone) / zone * Theme.space(10));
+            return 0;
+        }
+
+        interval: 16
+        repeat: true
+        running: edgeScroll.speed !== 0
+
+        onTriggered: {
+            const first = list.originY;
+            const last = list.originY + Math.max(0, list.contentHeight - list.height);
+            list.contentY = Math.max(first, Math.min(last, list.contentY + edgeScroll.speed));
+        }
+    }
 
     Scrim {
         anchors.fill: parent
@@ -409,11 +540,15 @@ Item {
                     required property var modelData
 
                     readonly property bool current: row.index === root.cursorIndex
+                    /// This row is the one being dragged: it keeps the selected fill until
+                    /// it lands.
+                    readonly property bool lifted: row.index === root._dragFrom
 
                     Accessible.name: row.modelData.title ?? ""
                     Accessible.role: Accessible.ListItem
                     Accessible.selected: row.current
-                    color: row.current ? Theme.fill(Theme.fillHover) : "transparent"
+                    color: row.lifted ? Theme.fill(Theme.fillSelected) : row.current
+                            ? Theme.fill(Theme.fillHover) : "transparent"
                     height: rowColumn.implicitHeight + 2 * Theme.space(6)
                     width: ListView.view.width
 
@@ -535,6 +670,79 @@ Item {
                     size: "caption"
                 }
             }
+        }
+
+        // M13: a `draggable` list takes its presses here, over the rows (under the scroll
+        // hint's bands, which page on a click), so the drag keeps its grab even when the row
+        // it started on scrolls out and its delegate goes. A press that never travels the
+        // start-drag distance is the row's click, as the delegate's own MouseArea has it.
+        // Wheel events are not taken, so they still reach the list.
+        MouseArea {
+            id: dragArea
+
+            property real pressY: 0
+            property int pressRow: -1
+            property bool dragged: false
+
+            cursorShape: root.dragging ? Qt.ClosedHandCursor : Qt.ArrowCursor
+            enabled: root.draggable
+            height: list.height
+            objectName: "paletteDragArea"
+            preventStealing: true
+            width: list.width
+            x: list.x
+            y: layout.y + list.y
+
+            onCanceled: root._cancelDrag()
+            onClicked: {
+                const index = dragArea.pressRow;
+                if (dragArea.dragged || index < 0 || index >= root.items.length)
+                    return;
+                root.cursorIndex = index;
+                if (root.multi)
+                    root.toggled(index, root.items[index]);
+                else
+                    root.activate();
+            }
+            onPositionChanged: mouse => {
+                if (dragArea.dragged) {
+                    root._dragY = mouse.y;
+                    return;
+                }
+                if (!root.canDrag(dragArea.pressRow)
+                        || Math.abs(mouse.y - dragArea.pressY)
+                        < Application.styleHints.startDragDistance)
+                    return;
+                dragArea.dragged = true;
+                root._startDrag(dragArea.pressRow, mouse.y);
+            }
+            onPressed: mouse => {
+                dragArea.pressY = mouse.y;
+                dragArea.pressRow = root._rowAt(list.contentY + mouse.y, root._layoutRevision);
+                dragArea.dragged = false;
+            }
+            onReleased: {
+                if (root.dragging)
+                    root._finishDrag();
+            }
+        }
+
+        // Where the dragged row lands: a 1 px accent line on the rule between two rows.
+        Rectangle {
+            id: dropIndicator
+
+            readonly property real at: root._slotY(root.dropSlot, root._layoutRevision)
+                    - list.contentY
+
+            color: Theme.accent
+            height: 1
+            objectName: "dropIndicator"
+            visible: root.dropSlot >= 0 && dropIndicator.at >= 0
+                     && dropIndicator.at <= list.height
+            width: list.width - 2 * panel.border.width
+            x: list.x + panel.border.width
+            y: layout.y + list.y + Math.min(list.height - 1,
+                    Math.max(0, Math.round(dropIndicator.at) - 1))
         }
 
         // N3: more rows above or below, in the look the scroll-hint setting picks. Inset

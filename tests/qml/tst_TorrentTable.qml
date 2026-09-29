@@ -503,6 +503,53 @@ TestCase {
         compare(findChild(table, "dropMarker").visible, false);
     }
 
+    // M13: mid-drag, a ghost of the cell rides under the pointer where it was grabbed, a
+    // 1 px line marks the landing, and every header cell shows the closed hand; all of it
+    // goes on release.
+    function test_a_header_drag_carries_a_ghost_and_marks_the_landing() {
+        const eta = header("eta");
+        const size = header("size");
+        const grab = eta.width / 2;
+        const y = eta.height / 2;
+        mousePress(eta, grab, y);
+        const target = size.x - eta.x + 5;
+        const steps = 10;
+        for (let i = 1; i <= steps; ++i)
+            mouseMove(eta, grab + (target - grab) * i / steps, y);
+
+        const ghost = findChild(table, "dragGhost");
+        verify(ghost.visible, "no ghost mid-drag");
+        compare(ghost.width, eta.width);
+        verify(Math.abs(ghost.x + grab - (eta.x + target)) <= 1,
+               "the ghost is not under the pointer: " + ghost.x);
+        const marker = findChild(table, "dropMarker");
+        verify(marker.visible, "no landing line");
+        compare(marker.width, 1);
+        compare(marker.x, size.x, "the line is not on Size's left edge");
+        verify(marker.z > ghost.z, "the ghost hides the landing line");
+        verify(size.dragging && eta.dragging, "the header cells do not show the drag");
+
+        mouseRelease(eta, target, y);
+        verify(!ghost.visible, "the ghost stayed after the drop");
+        verify(!size.dragging);
+        compare(table.activeColumns.map(column => column.key).slice(0, 3), ["name", "eta",
+                                                                            "size"]);
+        compare(App.filtered.sortRoleName, "dlspeed", "the drag also sorted");
+    }
+
+    function test_a_header_click_still_sorts_and_name_does_not_drag() {
+        const size = header("size");
+        mouseClick(size, size.width / 2, size.height / 2);
+        compare(App.filtered.sortRoleName, "size");
+
+        const name = header("name");
+        mouseDrag(name, name.width / 2, name.height / 2, 300, 0, Qt.LeftButton, Qt.NoModifier,
+                  20);
+        verify(!findChild(table, "dragGhost").visible);
+        compare(table.columnOrder[0], "name");
+        verify(table.columnOrderIsDefault, "dragging Name moved a column");
+    }
+
     // A saved order is repaired, not trusted: Name first, no strangers or repeats, and a
     // column it does not know yet goes back beside its default neighbour.
     function test_a_saved_order_is_made_whole() {

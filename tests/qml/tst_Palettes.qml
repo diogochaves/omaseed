@@ -402,10 +402,115 @@ TestCase {
         verify(table.visibleColumns.indexOf("eta") < 0);
     }
 
+    // ---- dragging a column (M13) -------------------------------------------------------
+    /// The palette's drag surface and the centre of row `index` in its coordinates.
+    function dragArea() {
+        return findChild(columnsPalette, "paletteDragArea");
+    }
+    function rowCentre(index) {
+        const row = columnsPalette.listView.itemAtIndex(index);
+        verify(row !== null, "row " + index + " is not laid out");
+        return row.y - columnsPalette.listView.contentY + row.height / 2;
+    }
+    function rowTop(index) {
+        const row = columnsPalette.listView.itemAtIndex(index);
+        return row.y - columnsPalette.listView.contentY;
+    }
+    /// Press on row `from`, travel in steps to `y`, and hand back before releasing so a
+    /// caller can look mid-drag.
+    function dragTo(from, y) {
+        const area = dragArea();
+        const x = area.width / 2;
+        const start = rowCentre(from);
+        mousePress(area, x, start);
+        const steps = 6;
+        for (let i = 1; i <= steps; ++i)
+            mouseMove(area, x, start + (y - start) * i / steps);
+        return area;
+    }
+
+    function test_a_dragged_row_lands_where_the_line_shows() {
+        columnsPalette.open();
+        waitForRendering(columnsPalette);
+        const keys = columnsPalette.items.map(item => item.key);
+        const area = dragTo(3, rowTop(2) + 3);
+        verify(columnsPalette.dragging, "the drag did not start");
+        compare(columnsPalette.dropSlot, 2);
+        verify(findChild(columnsPalette, "dropIndicator").visible, "no drop line");
+        mouseRelease(area, area.width / 2, rowTop(2) + 3);
+
+        verify(!columnsPalette.dragging);
+        compare(table.columnOrder.indexOf(keys[3]), 2, "row 3 did not move above row 2");
+        compare(table.columnOrder.indexOf(keys[2]), 3);
+        compare(columnsPalette.currentItem.key, keys[3], "the cursor did not follow");
+        verify(table.visibleColumns.indexOf(keys[3]) >= 0, "the drag toggled the column");
+    }
+
+    function test_a_row_dropped_on_name_lands_after_it() {
+        columnsPalette.open();
+        waitForRendering(columnsPalette);
+        const moved = columnsPalette.items[3].key;
+        const area = dragTo(3, rowTop(0) + 2);
+        compare(columnsPalette.dropSlot, 1, "the slot went above the pinned Name");
+        mouseRelease(area, area.width / 2, rowTop(0) + 2);
+        compare(table.columnOrder[0], "name");
+        compare(table.columnOrder[1], moved);
+    }
+
+    function test_name_cannot_be_dragged() {
+        columnsPalette.open();
+        waitForRendering(columnsPalette);
+        const area = dragTo(0, rowCentre(3));
+        verify(!columnsPalette.dragging, "Name was picked up");
+        mouseRelease(area, area.width / 2, rowCentre(3));
+        verify(table.columnOrderIsDefault);
+    }
+
+    function test_a_press_that_does_not_travel_toggles() {
+        columnsPalette.open();
+        waitForRendering(columnsPalette);
+        const index = 2;
+        const key = columnsPalette.items[index].key;
+        mouseClick(dragArea(), dragArea().width / 2, rowCentre(index));
+        verify(table.visibleColumns.indexOf(key) < 0, "the click did not toggle the column");
+        verify(table.columnOrderIsDefault, "the click moved the column");
+        compare(columnsPalette.currentItem.key, key);
+    }
+
+    function test_a_drop_where_it_started_changes_nothing() {
+        columnsPalette.open();
+        waitForRendering(columnsPalette);
+        const area = dragTo(2, rowCentre(2) + 8);
+        compare(columnsPalette.dropSlot, -1, "a drop in place offered a slot");
+        verify(!findChild(columnsPalette, "dropIndicator").visible);
+        mouseRelease(area, area.width / 2, rowCentre(2) + 8);
+        verify(table.columnOrderIsDefault);
+    }
+
+    function test_esc_drops_the_drag_and_keeps_the_palette() {
+        columnsPalette.open();
+        waitForRendering(columnsPalette);
+        const area = dragTo(3, rowTop(1) + 2);
+        verify(columnsPalette.dragging);
+        keyClick(Qt.Key_Escape);
+        verify(!columnsPalette.dragging);
+        verify(columnsPalette.opened, "esc closed the palette mid-drag");
+        mouseRelease(area, area.width / 2, rowTop(1) + 2);
+        verify(table.columnOrderIsDefault, "the dropped drag still moved the column");
+    }
+
+    function test_a_filtered_list_is_not_draggable() {
+        columnsPalette.open();
+        verify(columnsPalette.draggable);
+        columnsPalette.query = "time";
+        verify(!columnsPalette.draggable);
+        verify(!tagPalette.draggable, "only the columns palette opts in");
+    }
+
     // The palette's own hint row, the footer and `?` read the same Keymap entries.
     function test_the_hints_come_from_the_keymap() {
         const keys = columnsPalette.hints.map(hint => hint.key);
-        compare(keys, ["space", "alt+↑↓", "ctrl+r"]);
+        compare(keys, ["space", "drag · alt+↑↓", "ctrl+r"]);
         compare(columnsPalette.hints[1].label, Keymap.find("columns", "alt+↑").label);
         compare(columnsPalette.hints[2].label, Keymap.find("columns", "ctrl+r").label);
     }

@@ -876,7 +876,7 @@ QtObject {
             "rank": 4.5,
             "helpKeys": "alt+↑ alt+↓",
             "help": qsTr("column order"),
-            "about": qsTr("In the columns palette: move a column up or down; ctrl+r puts back the default order")
+            "about": qsTr("In the columns palette: move a column up or down, or drag it; ctrl+r puts back the default order")
         },
         {
             "area": "columns",
