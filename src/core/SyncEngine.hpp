@@ -25,12 +25,17 @@
 #include "core/QbtReply.hpp"
 
 #include <QDateTime>
+#include <QDeadlineTimer>
+#include <QHash>
+#include <QJsonArray>
 #include <QJsonObject>
+#include <QJsonValue>
 #include <QObject>
 #include <QPointer>
 #include <QStringList>
 
 #include <chrono>
+#include <optional>
 
 class QTimer;
 
@@ -85,6 +90,28 @@ public:
     /// the object carries one.
     void applyDemoData(const QJsonObject &data);
 
+    /// A torrent field the server has been asked to change (a torrent option from the menu or
+    /// General, M12). The model shows `value` at once instead of 1.5–5 s later, and no poll
+    /// puts the old value back while the request is out: a poll that carries `key` for `hash`
+    /// only tells the engine what the server holds. `current` is that value as the model had
+    /// it, which is what the server holds until a poll says otherwise. Calls stack: each one is
+    /// answered by one settlePendingTorrentValue().
+    void setPendingTorrentValue(const QString &hash,
+                                const QString &key,
+                                const QJsonValue &value,
+                                const QJsonValue &current);
+    /// The server answered one request for `key` on `hash`. Refused, and with nothing else
+    /// asked meanwhile, the model goes back to what the server holds at once; accepted, it
+    /// keeps `value` until a poll sent after this answer has been applied, and from then on
+    /// maindata is authoritative again — the value the server reported (or, when no poll
+    /// carried the field, the one it held before) replaces it. A server that took the request
+    /// and ignored it therefore ends up showing its real value.
+    void settlePendingTorrentValue(const QString &hash, const QString &key, bool refused);
+    /// The value a pending change is heading to, or nothing when `key` is not pending on `hash`.
+    std::optional<QJsonValue> pendingTorrentValue(const QString &hash, const QString &key) const;
+    /// How many torrent fields are pending; the tests read it.
+    int pendingTorrentValueCount() const;
+
     /// Shortens every interval; the tests use it to watch the cadence without waiting.
     void setIntervals(std::chrono::milliseconds visible,
                       std::chrono::milliseconds hidden,
@@ -130,6 +157,29 @@ private:
     void enterLostState(const ApiError &error);
     void tickCountdown();
     std::chrono::milliseconds normalInterval() const;
+    /// Keeps pending values over what a poll carries, noting what the server reported.
+    QJsonObject withPendingValues(QJsonObject torrents, const QJsonArray &removed, bool full);
+    /// Hands the fields whose pending time is over back to what the server holds.
+    void settleAnsweredValues();
+    /// Puts `released` ({hash: {key: value}}) into the rows that still exist.
+    void patchTorrents(const QJsonObject &released);
+
+    /// setPendingTorrentValue()'s bookkeeping for one field of one torrent.
+    struct PendingValue
+    {
+        QJsonValue target;           ///< what the model shows meanwhile
+        QJsonValue serverValue;      ///< what the server holds, as far as the polls said
+        int unanswered = 0;          ///< requests sent and not answered yet
+        bool answered = false;       ///< every request answered and accepted
+        quint64 settleAfterPoll = 0; ///< answered: settle once a later poll is applied
+        QDeadlineTimer expiry;       ///< a server that never answers does not pin it forever
+    };
+    /// hash → JSON key → the pending change.
+    QHash<QString, QHash<QString, PendingValue>> m_pending;
+    /// sync/maindata requests sent so far, and the number of the last one applied; a poll
+    /// sent after an answer is the first that is sure to show it.
+    quint64 m_pollsSent = 0;
+    quint64 m_appliedPoll = 0;
 
     QbtClient *m_client = nullptr;
 
