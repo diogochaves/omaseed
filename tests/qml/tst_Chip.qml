@@ -109,4 +109,32 @@ TestCase {
         verify(holder.activeFocus, "the click took the keyboard");
         compare(chip.activeFocus, false);
     }
+
+    // Manual box M14: a chip can carry the kit's Tooltip (the hero's alt-speed, glyph only
+    // while off), shown on keyboard focus as on hover.
+    function test_a_chip_tooltip_shows_on_focus() {
+        const chip = createTemporaryObject(chipComponent, testCase, {
+                                               "glyph": "⇅",
+                                               "focusable": true,
+                                               "tooltip": "alt-speed · A"
+                                           });
+        const tip = chip.tooltipItem;
+        compare(tip.parent, chip.Window.window.contentItem);
+        compare(tip.shown, false);
+        chip.forceActiveFocus();
+        tryCompare(tip, "shown", true);
+        compare(tip.text, "alt-speed · A");
+        chip.focus = false;
+        compare(tip.shown, false);
+    }
+
+    function test_a_chip_without_tooltip_never_shows_one() {
+        const chip = createTemporaryObject(chipComponent, testCase, {
+                                               "text": "linux",
+                                               "focusable": true
+                                           });
+        chip.forceActiveFocus();
+        wait(450);
+        compare(chip.tooltipItem.shown, false);
+    }
 }

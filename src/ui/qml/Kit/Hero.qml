@@ -192,8 +192,9 @@ Item {
     readonly property string altChipText: {
         if (root.level >= 3)
             return "";
+        // Off, the glyph alone at every step; the tooltip names it (manual box M14).
         if (!root.altSpeedActive)
-            return root.level >= 1 ? "" : qsTr("alt-speed");
+            return "";
         return root.level >= 1 ? qsTr("↓%1 ↑%2").arg(root.altDownLimitShort).arg(root.altUpLimitShort)
                                : qsTr("↓%1 ↑%2").arg(root.altDownLimit).arg(root.altUpLimit);
     }
@@ -575,15 +576,17 @@ Item {
             onTextChanged: root.searchChanged(searchField.text)
         }
 
-        // Alt-speed names itself and, while it throttles, prints the limits in the warning
-        // role, so the state reads from across the room (docs/08 §3; Fig. 1 had the `⏷` glyph,
-        // which read as a dropdown). `A` still toggles it.
+        // Alt-speed is its glyph alone while off, named by its tooltip (manual box M14), and
+        // while it throttles prints the limits in the warning role, so the state reads from
+        // across the room (docs/08 §3; Fig. 1 had the `⏷` glyph, which read as a dropdown).
+        // `A` still toggles it.
         Chip {
             id: altChip
 
             Layout.alignment: Qt.AlignVCenter
             glyph: Glyphs.altSpeed
             text: root.altChipText
+            tooltip: root.altSpeedActive ? qsTr("alt-speed on · A") : qsTr("alt-speed · A")
             visible: !(root.level >= 3 && root.searchOpen)
             warn: root.altSpeedActive
 
@@ -680,7 +683,7 @@ Item {
 
             glyph: Glyphs.altSpeed
             text: root.altSpeedActive ? qsTr("↓%1 ↑%2").arg(root.altDownLimit).arg(root.altUpLimit)
-                                      : qsTr("alt-speed")
+                                      : ""
         }
 
         Chip {

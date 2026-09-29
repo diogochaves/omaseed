@@ -89,16 +89,19 @@ TestCase {
         compare(hero.networkText, "");
     }
 
-    // docs/08 §3: alt-speed is a chip that names itself, and prints the limits while on.
+    // docs/08 §3 and manual box M14: off, alt-speed is its glyph alone, named by its tooltip;
+    // on, it prints the limits.
     function test_the_alt_speed_chip_shows_the_limits_while_on() {
         const hero = createTemporaryObject(heroComponent, testCase, {
                                                "altDownLimit": "10 KB/s",
                                                "altUpLimit": "∞"
                                            });
-        compare(hero.altChip.text, "alt-speed");
+        compare(hero.altChip.text, "");
+        compare(hero.altChip.tooltip, "alt-speed · A");
         verify(!hero.altChip.warn);
         hero.altSpeedActive = true;
         compare(hero.altChip.text, "↓10 KB/s ↑∞");
+        compare(hero.altChip.tooltip, "alt-speed on · A");
         verify(hero.altChip.warn);
         compare(hero.altChip.border.color, Theme.yellow);
 
