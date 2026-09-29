@@ -56,8 +56,15 @@ Item {
         f.contentY = Math.max(top, Math.min(bottom, f.contentY + f.height * fraction));
     }
 
+    // On the list, not on this overlay. An item that holds a HoverHandler takes the hover
+    // events of the items under it (`blocking: false` does not change that), and the hint
+    // lies over the whole list: its rows never heard the pointer come or go, and a row a
+    // click had marked as under the pointer stayed hovered (docs/UX-NOTES M11). The list
+    // is the rows' ancestor, so its handler hears the pointer alongside them.
     HoverHandler {
         id: hover
+
+        parent: root.flickable !== null ? root.flickable : root
     }
 
     // "chevrons" ------------------------------------------------------------------------
