@@ -276,12 +276,14 @@ TestCase {
         const split = createTemporaryObject(splitComponent, testCase, {
                                                 "width": 1400,
                                                 "height": 600,
-                                                "placement": "right",
+                                                "placement": "bottom",
                                                 "main": createTemporaryObject(itemComponent, testCase),
                                                 "side": createTemporaryObject(itemComponent, testCase),
                                                 "foldedBar": createTemporaryObject(barComponent,
                                                                                    testCase)
                                             });
+        // Moved from the bottom, as `I` does: the column's chevron must follow.
+        split.placement = "right";
         waitForRendering(split);
         mouseDoubleClickSequence(findChild(split, "grip"), 3, 300);
         compare(split.folded, true);
@@ -291,6 +293,10 @@ TestCase {
         compare(column.height, 600);
         compare(split.main.width, 1400 - Theme.space(12) - 1);
         verify(!split.foldedBar.parent.visible, "the bottom strip showed on the right");
+        const chevron = findChild(split, "foldedChevron");
+        const at = chevron.mapToItem(column, 0, 0);
+        verify(at.x >= 0 && at.x + chevron.width <= column.width,
+               "the ‹ is drawn outside its column, at " + at.x);
 
         mouseClick(column, column.width / 2, 300);
         compare(split.folded, false);

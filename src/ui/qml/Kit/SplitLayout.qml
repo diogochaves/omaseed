@@ -215,16 +215,15 @@ Item {
             width: root.docked ? Theme.space(3) : Theme.space(28)
         }
 
+        // Placed by x/y, not anchors: anchors switched by `docked` kept the old ones and drew
+        // the chevron in the middle of the table after a placement change.
         Label {
-            anchors.horizontalCenter: root.docked ? parent.horizontalCenter : undefined
-            anchors.left: root.docked ? undefined : parent.left
-            anchors.leftMargin: Theme.space(14)
-            anchors.top: root.docked ? parent.top : undefined
-            anchors.topMargin: Theme.space(10)
-            anchors.verticalCenter: root.docked ? undefined : parent.verticalCenter
             color: Theme.accent
+            objectName: "foldedChevron"
             size: "small"
             text: root.docked ? Glyphs.chevronLeft : Glyphs.chevronUp
+            x: root.docked ? Math.round((foldedColumn.width - width) / 2) : Theme.space(14)
+            y: root.docked ? Theme.space(10) : Math.round((foldedColumn.height - height) / 2)
         }
 
         MouseArea {
