@@ -162,8 +162,23 @@ Sheet {
             "label": Keymap.labelOf("addFiles", "h")
         },
         {
+            "key": "r",
+            "label": Keymap.labelOf("addFiles", "r")
+        },
+        {
             "key": "enter",
             "label": qsTr("add")
+        }
+    ]
+    /// While a file tree row is being renamed (M18): its field takes both keys.
+    readonly property var _renameHints: [
+        {
+            "key": "enter",
+            "label": qsTr("rename")
+        },
+        {
+            "key": "esc",
+            "label": qsTr("cancel")
         }
     ]
 
@@ -319,6 +334,9 @@ Sheet {
     map["firstLastPiecePrio"] = firstLastToggle.checked;
     map["filePriorities"] = sheet.showFiles && App.addFiles.customised
             ? App.addFiles.priorityList() : [];
+    // M18: the file and folder renames, replayed on the server after the add.
+    map["fileRenames"] = sheet.showFiles ? App.addFiles.renameList() : [];
+    map["renameAnchor"] = sheet.showFiles ? App.addFiles.renameAnchor() : ({});
     map["sequentialDownload"] = sequentialToggle.checked;
     map["skipChecking"] = skipCheckToggle.checked;
     map["stopped"] = stopped;
@@ -503,8 +521,11 @@ Sheet {
                 glyph: Glyphs.add
                 // Manual box M5: a stray click or `esc` must not lose a half-filled add.
                 guarded: true
-                hints: filesTree.activeFocus ? sheet._treeHints : downloadsList.activeFocus
-                                                              ? sheet._downloadsHints : sheet._formHints
+                hints: filesTree.editing ? sheet._renameHints : filesTree.activeFocus
+                                                                ? sheet._treeHints
+                                                                : downloadsList.activeFocus
+                                                                  ? sheet._downloadsHints
+                                                                  : sheet._formHints
                 sheetWidth: Theme.space(600)
                 subtitle: {
                     if (!sheet.addable)
@@ -864,6 +885,44 @@ Sheet {
                                 dim: true
                                 size: "caption"
                                 text: App.addFiles.summaryText
+                            }
+
+                            // M17: every file wanted, or none, with one click. Words, not
+                            // buttons, like the field's "browse"; the keyboard stays put.
+                            Label {
+                                color: allMouse.containsMouse ? Theme.accent : Theme.dimForeground
+                                objectName: "addFilesAll"
+                                size: "caption"
+                                text: qsTr("all")
+
+                                MouseArea {
+                                    id: allMouse
+
+                                    anchors.fill: parent
+                                    anchors.margins: -Theme.space(4)
+                                    cursorShape: Qt.PointingHandCursor
+                                    hoverEnabled: true
+
+                                    onClicked: App.addFiles.setAllWanted(true)
+                                }
+                            }
+
+                            Label {
+                                color: noneMouse.containsMouse ? Theme.accent : Theme.dimForeground
+                                objectName: "addFilesNone"
+                                size: "caption"
+                                text: qsTr("none")
+
+                                MouseArea {
+                                    id: noneMouse
+
+                                    anchors.fill: parent
+                                    anchors.margins: -Theme.space(4)
+                                    cursorShape: Qt.PointingHandCursor
+                                    hoverEnabled: true
+
+                                    onClicked: App.addFiles.setAllWanted(false)
+                                }
                             }
                         }
 

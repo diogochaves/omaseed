@@ -1514,8 +1514,14 @@ void App::addTorrent(const QVariantMap &request)
         kind == QLatin1String("file") ? request.value(QStringLiteral("filePriorities")).toList()
                                       : QVariantList();
     const bool withPriorities = !AddFilesModel::priorityGroups(filePriorities).isEmpty();
+    // M18: the Web API's add takes no per-file names either; they go on the same way.
+    const QVariantList renames = kind == QLatin1String("file")
+                                     ? request.value(QStringLiteral("fileRenames")).toList()
+                                     : QVariantList();
+    const QVariantMap renameAnchor = request.value(QStringLiteral("renameAnchor")).toMap();
+    const bool withRenames = !renames.isEmpty();
     const bool keepStopped = request.value(QStringLiteral("stopped")).toBool();
-    if (withPriorities)
+    if (withPriorities || withRenames)
         options.stopped = true;
 
     QbtReply<QByteArray> *reply = nullptr;
@@ -1549,7 +1555,7 @@ void App::addTorrent(const QVariantMap &request)
         if (!token.isEmpty())
             forgetTorrentFile(token);
         watchForAddedHash(torrentId);
-        if (!withPriorities) {
+        if (!withPriorities && !withRenames) {
             Q_EMIT addFinished(true, QString(), torrentId);
             return;
         }
@@ -1560,7 +1566,105 @@ void App::addTorrent(const QVariantMap &request)
                                      .value(QStringLiteral("added_torrent_ids"))
                                      .toArray();
         const QString id = added.isEmpty() ? torrentId : added.first().toString();
-        applyAddFilePriorities(id, filePriorities, keepStopped);
+        if (withRenames)
+            applyAddRenames(id, renames, renameAnchor, filePriorities, keepStopped);
+        else
+            applyAddFilePriorities(id, filePriorities, keepStopped);
+    });
+}
+
+void App::applyAddRenames(const QString &id,
+                          const QVariantList &renames,
+                          const QVariantMap &anchor,
+                          const QVariantList &priorities,
+                          bool keepStopped,
+                          int attempt)
+{
+    if (id.isEmpty()) {
+        Q_EMIT addFinished(false, tr("added stopped, but the new names were not applied"), id);
+        return;
+    }
+    const auto retry = [=, this]() {
+        QTimer::singleShot(250, this, [=, this]() {
+            applyAddRenames(id, renames, anchor, priorities, keepStopped, attempt + 1);
+        });
+    };
+    m_client->torrentsFiles(id)->then(this, [=, this](const QbtResult<QJsonArray> &result) {
+        if (result.isError()) {
+            const ApiError::Kind kind = result.error().kind();
+            if ((kind == ApiError::Kind::NotFound || kind == ApiError::Kind::Conflict) &&
+                attempt < 20) {
+                retry();
+                return;
+            }
+            Q_EMIT addFinished(false,
+                               tr("added stopped, but the new names were not applied: %1")
+                                   .arg(result.error().message()),
+                               id);
+            return;
+        }
+        // No files yet: the server has not loaded the metadata. Same wait as a 409.
+        if (result.value().isEmpty() && attempt < 20) {
+            retry();
+            return;
+        }
+        // The server's paths are the metainfo's with the torrent's root folder in front (or
+        // none, with "no subfolder"): the anchor file tells which.
+        const int index = anchor.value(QStringLiteral("index")).toInt();
+        const QString path = anchor.value(QStringLiteral("path")).toString();
+        QString served;
+        for (const QJsonValue &value : result.value()) {
+            const QJsonObject file = value.toObject();
+            if (file.value(QStringLiteral("index")).toInt(-1) == index) {
+                served = file.value(QStringLiteral("name")).toString();
+                break;
+            }
+        }
+        const QString root = served.left(served.size() - path.size());
+        if (path.isEmpty() || !served.endsWith(path) ||
+            !(root.isEmpty() || root.endsWith(QLatin1Char('/')))) {
+            qWarning().noquote()
+                << QStringLiteral("add: renames: file %1 is %2 on the server").arg(path, served);
+            Q_EMIT addFinished(
+                false,
+                tr("added stopped, but the new names were not applied: the server's file list "
+                   "did not match the .torrent"),
+                id);
+            return;
+        }
+        sendAddRename(id, renames, 0, root, priorities, keepStopped);
+    });
+}
+
+void App::sendAddRename(const QString &id,
+                        const QVariantList &renames,
+                        int at,
+                        const QString &root,
+                        const QVariantList &priorities,
+                        bool keepStopped)
+{
+    if (at >= renames.size()) {
+        applyAddFilePriorities(id, priorities, keepStopped);
+        return;
+    }
+    const QVariantMap rename = renames.at(at).toMap();
+    const QString from = root + rename.value(QStringLiteral("from")).toString();
+    const QString to = root + rename.value(QStringLiteral("to")).toString();
+    QbtReply<QByteArray> *reply =
+        rename.value(QStringLiteral("kind")).toString() == QLatin1String("folder")
+            ? m_client->torrentsRenameFolder(id, from, to)
+            : m_client->torrentsRenameFile(id, from, to);
+    reply->then(this, [=, this](const QbtResult<QByteArray> &result) {
+        if (result.isError()) {
+            qWarning().noquote() << QStringLiteral("add: rename %1 -> %2 failed: %3")
+                                        .arg(from, to, result.error().toString());
+            Q_EMIT addFinished(false,
+                               tr("added stopped, but the new names were not applied: %1")
+                                   .arg(result.error().message()),
+                               id);
+            return;
+        }
+        sendAddRename(id, renames, at + 1, root, priorities, keepStopped);
     });
 }
 

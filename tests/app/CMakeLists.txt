@@ -49,6 +49,13 @@ omaseed_add_test(tst_app_add LIVE
     DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
 )
 
+# Manual box M18: renames after the add, against a fake server (not live).
+omaseed_add_test(tst_app_add_renames
+    SOURCES tst_app_add_renames.cpp
+    LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::Network
+    DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
+)
+
 # T4.3, against the :8081 playground; QSKIPs the whole file when it is not running.
 omaseed_add_test(tst_app_actions LIVE
     SOURCES tst_app_actions.cpp

@@ -526,8 +526,20 @@ void TestAppAdd::addsWithFileChoicesRenameAndLimits()
             files->setPriority(row, 7);
     }
     QVERIFY(files->isCustomised());
+    // M18: a folder and a file renamed before the add.
+    const auto rowOf = [files](const QString &name) {
+        for (int row = 0; row < files->count(); ++row) {
+            if (files->data(files->index(row, 0), TorrentFilesModel::NameRole).toString() == name)
+                return row;
+        }
+        return -1;
+    };
+    QVERIFY(files->rename(rowOf(QStringLiteral("Tears of Steel/")), QStringLiteral("Tears (2012)")));
+    QVERIFY(files->rename(rowOf(QStringLiteral("README.txt")), QStringLiteral("read me.txt")));
 
     request.insert(QStringLiteral("filePriorities"), files->priorityList());
+    request.insert(QStringLiteral("fileRenames"), files->renameList());
+    request.insert(QStringLiteral("renameAnchor"), files->renameAnchor());
     request.insert(QStringLiteral("rename"), QString::fromLatin1(kTreeRename));
     request.insert(QStringLiteral("dlLimitKb"), 300);
     request.insert(QStringLiteral("firstLastPiecePrio"), true);
@@ -572,6 +584,17 @@ void TestAppAdd::addsWithFileChoicesRenameAndLimits()
     for (const QJsonValue &row : rows)
         priorities.append(row.toObject().value(QStringLiteral("priority")).toInt());
     QCOMPARE(priorities, (QList<int>{1, 1, 1, 0, 0, 1, 1, 7}));
+    // The renames reached the server, under the torrent's root folder.
+    const auto nameOf = [&rows](int index) {
+        for (const QJsonValue &row : rows) {
+            if (row.toObject().value(QStringLiteral("index")).toInt() == index)
+                return row.toObject().value(QStringLiteral("name")).toString();
+        }
+        return QString();
+    };
+    QVERIFY2(nameOf(5).endsWith(QStringLiteral("Tears (2012)/tears_of_steel_4k.mov")),
+             qPrintable(nameOf(5)));
+    QVERIFY2(nameOf(7).endsWith(QStringLiteral("read me.txt")), qPrintable(nameOf(7)));
 
     app.engine()->stop();
 }

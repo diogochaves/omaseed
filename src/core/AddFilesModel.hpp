@@ -19,6 +19,7 @@
 #include <QMap>
 #include <QString>
 #include <QVariantList>
+#include <QVariantMap>
 
 namespace omaseed::core {
 
@@ -42,6 +43,8 @@ public:
     /// The extra role, after TorrentFilesModel's own.
     enum Role {
         WantedRole = Qt::UserRole + 100, ///< 0 all skipped, 1 some, 2 none skipped
+        RenamedRole,                     ///< the row's own name differs from the metainfo's
+        OriginalNameRole,                ///< the metainfo's name for the row (no "/")
     };
     Q_ENUM(Role)
 
@@ -79,6 +82,36 @@ public:
     /// `+` / `-`: one step up or down skip → normal → high → maximal, on the whole row.
     Q_INVOKABLE void raise(int row);
     Q_INVOKABLE void lower(int row);
+    /// A click on a row's priority (manual box M17): normal → high → maximal → normal, on the
+    /// row's wanted files only, so a folder's skipped files stay skipped. A mixed row starts
+    /// over at normal; a row with nothing wanted comes back at normal (the click reads as
+    /// "stop skipping this").
+    Q_INVOKABLE void cyclePriority(int row);
+    /// The header's "all" (every skipped file back to normal, the others keep their
+    /// priority) and "none" (every file skipped).
+    Q_INVOKABLE void setAllWanted(bool wanted);
+
+    // --- renaming (manual box M18) -----------------------------------------------------
+    /// Why `name` cannot be `row`'s new name ("" when it can): empty, ".", "..", a "/" or
+    /// "\", or a sibling already called that.
+    Q_INVOKABLE QString renameError(int row, const QString &name) const;
+    /// Renames a file, or a folder (every path under it follows). False, and nothing
+    /// changes, when `renameError()` says no. Renaming to the current name does nothing.
+    Q_INVOKABLE bool rename(int row, const QString &name);
+    /// The row's name without a folder's "/", for the inline field to start from.
+    Q_INVOKABLE QString plainName(int row) const;
+    /// A row's path inside the torrent (after the renames), and the row showing a path (-1
+    /// when none does, e.g. inside a folded folder): the tree keeps its cursor on a row the
+    /// rename moved.
+    Q_INVOKABLE QString pathOf(int row) const { return pathAt(row); }
+    Q_INVOKABLE int rowOfPath(const QString &path) const;
+    /// The renames in the order they were made, each `{kind: "file"|"folder", from, to}` with
+    /// paths inside the torrent (no root folder): replayed on the server after the add,
+    /// through `torrents/renameFile` / `torrents/renameFolder`.
+    Q_INVOKABLE QVariantList renameList() const { return m_renames; }
+    /// A file's id and metainfo path, for App to find the server's root folder in front of
+    /// the paths (`{index, path}`, or empty with no files).
+    Q_INVOKABLE QVariantMap renameAnchor() const;
 
     /// One priority per file, in file-id order.
     QList<int> priorities() const { return m_priorities; }
@@ -98,10 +131,19 @@ private:
     /// Pushes m_priorities into the tree (same shape, so it updates rows in place).
     void applyToTree();
     QList<int> idsAt(int row) const;
+    /// Sets each of `ids` to `priority`; true when any changed (the caller then applies).
+    bool setIds(const QList<int> &ids, int priority);
+
+    /// A row's path as shown (after renames), and its metainfo path.
+    QString pathAt(int row) const;
+    QString originalPathAt(int row) const;
 
     TorrentFilesModel *m_tree = nullptr;
     QList<TorrentFileEntry> m_files;
     QList<int> m_priorities;
+    /// Each file's path after the renames so far (m_files keeps the metainfo's).
+    QList<QString> m_paths;
+    QVariantList m_renames;
 };
 
 } // namespace omaseed::core

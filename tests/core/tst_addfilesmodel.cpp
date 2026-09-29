@@ -57,6 +57,13 @@ private slots:
     void spaceSkipsAFolderAndBringsItBack();
     void partlySkippedFolderIsHalfChecked();
     void raiseAndLowerWalkTheLadder();
+    void clickCyclesPriorityAndKeepsSkipsSkipped();
+    void clickOnASkippedRowBringsItBackAtNormal();
+    void allAndNone();
+    void renamesAFile();
+    void renamesAFolderAndEverythingUnderIt();
+    void refusesNamesThatCannotBe();
+    void renamesKeepTheChoicesAndStartOverOnLoad();
     void groupsLeaveNormalOut();
     void foldingKeepsTheChoices();
     void loadingAnotherTorrentStartsOver();
@@ -156,6 +163,208 @@ void TestAddFilesModel::raiseAndLowerWalkTheLadder()
     QCOMPARE(roleAt(model, tears, "wanted").toInt(), 0);
     model.setPriority(tears, 1);
     QVERIFY(!model.isCustomised());
+}
+
+// M17: a click on the priority text cycles normal -> high -> maximal -> normal, on the files
+// that are wanted; the ones the folder's check mark skipped stay skipped.
+void TestAddFilesModel::clickCyclesPriorityAndKeepsSkipsSkipped()
+{
+    AddFilesModel model;
+    model.load(fixture("open_movies_v1.torrent").files);
+    const int srt = rowNamed(model, QStringLiteral("bbb.de.srt"));
+    model.toggleWanted(srt); // skipped
+    const int bunny = rowNamed(model, QStringLiteral("Big Buck Bunny/"));
+    QCOMPARE(roleAt(model, bunny, "wanted").toInt(), 1);
+
+    QSignalSpy changed(&model, &AddFilesModel::choicesChanged);
+    model.cyclePriority(bunny);
+    QCOMPARE(changed.count(), 1);
+    const int mkv = rowNamed(model, QStringLiteral("bbb_sunflower_2160p_60fps.mp4"));
+    QVERIFY(mkv >= 0);
+    QCOMPARE(model.priority(mkv), 6);
+    QCOMPARE(model.priority(srt), 0); // still skipped
+    QCOMPARE(roleAt(model, bunny, "wanted").toInt(), 1);
+
+    model.cyclePriority(bunny);
+    QCOMPARE(model.priority(mkv), 7);
+    model.cyclePriority(bunny);
+    QCOMPARE(model.priority(mkv), 1);
+    QCOMPARE(model.priority(srt), 0);
+
+    // A row whose wanted files disagree starts over at normal.
+    model.cyclePriority(mkv);
+    QCOMPARE(model.priority(mkv), 6);
+    model.cyclePriority(bunny);
+    QCOMPARE(model.priority(mkv), 1);
+    QCOMPARE(model.priority(srt), 0);
+}
+
+void TestAddFilesModel::clickOnASkippedRowBringsItBackAtNormal()
+{
+    AddFilesModel model;
+    model.load(fixture("open_movies_v1.torrent").files);
+    const int sintel = rowNamed(model, QStringLiteral("Sintel/"));
+    model.toggleWanted(sintel);
+    QCOMPARE(roleAt(model, sintel, "wanted").toInt(), 0);
+
+    model.cyclePriority(sintel);
+    QCOMPARE(roleAt(model, sintel, "wanted").toInt(), 2);
+    QCOMPARE(model.priority(sintel), 1);
+    QCOMPARE(model.wantedCount(), 8);
+}
+
+// The header's "all" and "none".
+void TestAddFilesModel::allAndNone()
+{
+    AddFilesModel model;
+    model.load(fixture("open_movies_v1.torrent").files);
+    const int tears = rowNamed(model, QStringLiteral("Tears of Steel/"));
+    model.raise(tears); // high
+    const int sintel = rowNamed(model, QStringLiteral("Sintel/"));
+    model.toggleWanted(sintel); // skipped
+
+    model.setAllWanted(true);
+    QCOMPARE(model.wantedCount(), 8);
+    QCOMPARE(model.priority(tears), 6); // kept
+    QCOMPARE(model.priority(sintel), 1);
+
+    QSignalSpy changed(&model, &AddFilesModel::choicesChanged);
+    model.setAllWanted(false);
+    QCOMPARE(changed.count(), 1);
+    QCOMPARE(model.wantedCount(), 0);
+    for (int row = 0; row < model.count(); ++row)
+        QCOMPARE(roleAt(model, row, "wanted").toInt(), 0);
+    model.setAllWanted(false); // nothing to change: no signal
+    QCOMPARE(changed.count(), 1);
+
+    model.setAllWanted(true);
+    QCOMPARE(model.wantedCount(), 8);
+    QVERIFY(!model.isCustomised()); // "none" dropped the high, "all" brings back normal
+}
+
+// M18: renaming before the add.
+void TestAddFilesModel::renamesAFile()
+{
+    AddFilesModel model;
+    model.load(fixture("open_movies_v1.torrent").files);
+    const int readme = rowNamed(model, QStringLiteral("README.txt"));
+    QCOMPARE(model.plainName(readme), QStringLiteral("README.txt"));
+    QCOMPARE(roleAt(model, readme, "renamed").toBool(), false);
+
+    QSignalSpy changed(&model, &AddFilesModel::choicesChanged);
+    QVERIFY(model.rename(readme, QStringLiteral("read me first.txt")));
+    QCOMPARE(changed.count(), 1);
+    const int renamed = rowNamed(model, QStringLiteral("read me first.txt"));
+    QVERIFY(renamed >= 0);
+    QCOMPARE(rowNamed(model, QStringLiteral("README.txt")), -1);
+    QCOMPARE(roleAt(model, renamed, "renamed").toBool(), true);
+    QCOMPARE(roleAt(model, renamed, "originalName").toString(), QStringLiteral("README.txt"));
+
+    const QVariantList renames = model.renameList();
+    QCOMPARE(renames.size(), 1);
+    const QVariantMap op = renames.first().toMap();
+    QCOMPARE(op.value(QStringLiteral("kind")).toString(), QStringLiteral("file"));
+    QCOMPARE(op.value(QStringLiteral("from")).toString(), QStringLiteral("README.txt"));
+    QCOMPARE(op.value(QStringLiteral("to")).toString(), QStringLiteral("read me first.txt"));
+
+    QCOMPARE(model.pathOf(renamed), QStringLiteral("read me first.txt"));
+    QCOMPARE(model.rowOfPath(QStringLiteral("read me first.txt")), renamed);
+    QCOMPARE(model.rowOfPath(QStringLiteral("README.txt")), -1);
+
+    // The same name again changes nothing and logs nothing.
+    QVERIFY(model.rename(renamed, QStringLiteral("read me first.txt")));
+    QCOMPARE(model.renameList().size(), 1);
+}
+
+void TestAddFilesModel::renamesAFolderAndEverythingUnderIt()
+{
+    AddFilesModel model;
+    model.load(fixture("open_movies_v1.torrent").files);
+    const int subs = [&] {
+        // Sintel's own subs folder (Big Buck Bunny has one too).
+        const int sintel = rowNamed(model, QStringLiteral("Sintel/"));
+        for (int row = sintel + 1; row < model.count(); ++row) {
+            if (roleAt(model, row, "name").toString() == QLatin1String("subs/"))
+                return row;
+        }
+        return -1;
+    }();
+    QVERIFY(subs >= 0);
+    QVERIFY(model.rename(subs, QStringLiteral("Subtitles")));
+
+    const int folder = rowNamed(model, QStringLiteral("Subtitles/"));
+    QVERIFY(folder >= 0);
+    QCOMPARE(roleAt(model, folder, "renamed").toBool(), true);
+    QCOMPARE(roleAt(model, folder, "originalName").toString(), QStringLiteral("subs"));
+    // The file under it moved with it, and kept its own name.
+    const int srt = rowNamed(model, QStringLiteral("sintel.en.srt"));
+    QCOMPARE(roleAt(model, srt, "path").toString(),
+             QStringLiteral("Sintel/Subtitles/sintel.en.srt"));
+    QCOMPARE(roleAt(model, srt, "renamed").toBool(), false);
+    // Big Buck Bunny's subs folder is another folder and stays.
+    QCOMPARE(roleAt(model, rowNamed(model, QStringLiteral("bbb.en.srt")), "path").toString(),
+             QStringLiteral("Big Buck Bunny/subs/bbb.en.srt"));
+
+    // A rename inside the renamed folder is logged with the new folder's path.
+    QVERIFY(model.rename(srt, QStringLiteral("english.srt")));
+    const QVariantList renames = model.renameList();
+    QCOMPARE(renames.size(), 2);
+    QCOMPARE(renames.at(0).toMap().value(QStringLiteral("kind")).toString(),
+             QStringLiteral("folder"));
+    QCOMPARE(renames.at(0).toMap().value(QStringLiteral("from")).toString(),
+             QStringLiteral("Sintel/subs"));
+    QCOMPARE(renames.at(0).toMap().value(QStringLiteral("to")).toString(),
+             QStringLiteral("Sintel/Subtitles"));
+    QCOMPARE(renames.at(1).toMap().value(QStringLiteral("from")).toString(),
+             QStringLiteral("Sintel/Subtitles/sintel.en.srt"));
+    QCOMPARE(renames.at(1).toMap().value(QStringLiteral("to")).toString(),
+             QStringLiteral("Sintel/Subtitles/english.srt"));
+
+    const QVariantMap anchor = model.renameAnchor();
+    QCOMPARE(anchor.value(QStringLiteral("index")).toInt(), 0);
+    QCOMPARE(anchor.value(QStringLiteral("path")).toString(),
+             QStringLiteral("Big Buck Bunny/bbb_sunflower_2160p_60fps.mp4"));
+}
+
+void TestAddFilesModel::refusesNamesThatCannotBe()
+{
+    AddFilesModel model;
+    model.load(fixture("open_movies_v1.torrent").files);
+    const int sintel = rowNamed(model, QStringLiteral("Sintel/"));
+    QVERIFY(!model.renameError(sintel, QString()).isEmpty());
+    QVERIFY(!model.renameError(sintel, QStringLiteral("   ")).isEmpty());
+    QVERIFY(!model.renameError(sintel, QStringLiteral("a/b")).isEmpty());
+    QVERIFY(!model.renameError(sintel, QStringLiteral("a\\b")).isEmpty());
+    QVERIFY(!model.renameError(sintel, QStringLiteral("..")).isEmpty());
+    // A sibling of that name, folder or file.
+    QVERIFY(!model.renameError(sintel, QStringLiteral("Tears of Steel")).isEmpty());
+    QVERIFY(!model.renameError(sintel, QStringLiteral("README.txt")).isEmpty());
+    QVERIFY(model.renameError(sintel, QStringLiteral("Sintel (2010)")).isEmpty());
+    // A name that exists elsewhere, not beside it, is fine.
+    QVERIFY(model.renameError(sintel, QStringLiteral("subs")).isEmpty());
+
+    QSignalSpy changed(&model, &AddFilesModel::choicesChanged);
+    QVERIFY(!model.rename(sintel, QStringLiteral("a/b")));
+    QCOMPARE(changed.count(), 0);
+    QVERIFY(model.renameList().isEmpty());
+}
+
+void TestAddFilesModel::renamesKeepTheChoicesAndStartOverOnLoad()
+{
+    const TorrentFile torrent = fixture("open_movies_v1.torrent");
+    AddFilesModel model;
+    model.load(torrent.files);
+    const int sintel = rowNamed(model, QStringLiteral("Sintel/"));
+    model.toggleWanted(sintel);
+    QVERIFY(model.rename(sintel, QStringLiteral("Sintel (2010)")));
+    // The priorities follow the file ids, not the names.
+    QCOMPARE(model.priorities().at(3), 0);
+    QCOMPARE(model.priorities().at(4), 0);
+    QCOMPARE(roleAt(model, rowNamed(model, QStringLiteral("Sintel (2010)/")), "wanted").toInt(), 0);
+
+    model.load(torrent.files);
+    QVERIFY(model.renameList().isEmpty());
+    QVERIFY(rowNamed(model, QStringLiteral("Sintel/")) >= 0);
 }
 
 void TestAddFilesModel::groupsLeaveNormalOut()

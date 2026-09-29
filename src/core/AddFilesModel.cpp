@@ -27,11 +27,19 @@ QHash<int, QByteArray> AddFilesModel::roleNames() const
 {
     QHash<int, QByteArray> names = m_tree->roleNames();
     names.insert(WantedRole, "wanted");
+    names.insert(RenamedRole, "renamed");
+    names.insert(OriginalNameRole, "originalName");
     return names;
 }
 
 QVariant AddFilesModel::data(const QModelIndex &index, int role) const
 {
+    if (role == RenamedRole || role == OriginalNameRole) {
+        const QString original = originalPathAt(index.row()).section(QLatin1Char('/'), -1);
+        if (role == OriginalNameRole)
+            return original;
+        return !original.isEmpty() && original != pathAt(index.row()).section(QLatin1Char('/'), -1);
+    }
     if (role != WantedRole)
         return QIdentityProxyModel::data(index, role);
 
@@ -93,6 +101,10 @@ void AddFilesModel::load(const QList<TorrentFileEntry> &files)
 {
     m_files = files;
     m_priorities = QList<int>(files.size(), kNormal);
+    m_paths.clear();
+    for (const TorrentFileEntry &file : files)
+        m_paths.append(file.path);
+    m_renames.clear();
     // A different torrent: forget the folds of the last one.
     m_tree->clear();
     applyToTree();
@@ -105,6 +117,8 @@ void AddFilesModel::clear()
         return;
     m_files.clear();
     m_priorities.clear();
+    m_paths.clear();
+    m_renames.clear();
     m_tree->clear();
     Q_EMIT choicesChanged();
 }
@@ -114,7 +128,7 @@ void AddFilesModel::applyToTree()
     QJsonArray rows;
     for (int id = 0; id < int(m_files.size()); ++id) {
         QJsonObject row;
-        row.insert(QStringLiteral("name"), m_files.at(id).path);
+        row.insert(QStringLiteral("name"), m_paths.value(id, m_files.at(id).path));
         row.insert(QStringLiteral("size"), double(m_files.at(id).size));
         row.insert(QStringLiteral("progress"), 0.0);
         row.insert(QStringLiteral("priority"), m_priorities.at(id));
@@ -123,9 +137,11 @@ void AddFilesModel::applyToTree()
         rows.append(row);
     }
     m_tree->applyFiles(rows);
-    // The tree reports the roles it changed; the check mark is ours, so it goes out too.
+    // The tree reports the roles it changed; the check mark and the rename marks are ours,
+    // so they go out too.
     if (rowCount() > 0)
-        Q_EMIT dataChanged(index(0, 0), index(rowCount() - 1, 0), {WantedRole});
+        Q_EMIT dataChanged(
+            index(0, 0), index(rowCount() - 1, 0), {WantedRole, RenamedRole, OriginalNameRole});
 }
 
 QList<int> AddFilesModel::idsAt(int row) const
@@ -161,9 +177,8 @@ int AddFilesModel::priority(int row) const
     return m_tree->priority(row);
 }
 
-void AddFilesModel::setPriority(int row, int priority)
+bool AddFilesModel::setIds(const QList<int> &ids, int priority)
 {
-    const QList<int> ids = idsAt(row);
     bool changed = false;
     for (int id : ids) {
         if (id >= 0 && id < int(m_priorities.size()) && m_priorities.at(id) != priority) {
@@ -171,7 +186,12 @@ void AddFilesModel::setPriority(int row, int priority)
             changed = true;
         }
     }
-    if (!changed)
+    return changed;
+}
+
+void AddFilesModel::setPriority(int row, int priority)
+{
+    if (!setIds(idsAt(row), priority))
         return;
     applyToTree();
     Q_EMIT choicesChanged();
@@ -191,6 +211,149 @@ void AddFilesModel::raise(int row)
 void AddFilesModel::lower(int row)
 {
     setPriority(row, TorrentFilesModel::loweredPriority(priority(row)));
+}
+
+void AddFilesModel::cyclePriority(int row)
+{
+    QList<int> wanted;
+    int common = -1;
+    bool agree = true;
+    for (int id : idsAt(row)) {
+        const int priority = m_priorities.value(id, kNormal);
+        if (priority == kSkip)
+            continue;
+        if (wanted.isEmpty())
+            common = priority;
+        else if (priority != common)
+            agree = false;
+        wanted.append(id);
+    }
+    if (wanted.isEmpty()) {
+        setPriority(row, kNormal);
+        return;
+    }
+    int next = kNormal;
+    if (agree && common == kNormal)
+        next = int(FilePriority::High);
+    else if (agree && common == int(FilePriority::High))
+        next = int(FilePriority::Maximal);
+    if (!setIds(wanted, next))
+        return;
+    applyToTree();
+    Q_EMIT choicesChanged();
+}
+
+void AddFilesModel::setAllWanted(bool wanted)
+{
+    bool changed = false;
+    for (int &priority : m_priorities) {
+        const int next = wanted ? (priority == kSkip ? kNormal : priority) : kSkip;
+        if (next != priority) {
+            priority = next;
+            changed = true;
+        }
+    }
+    if (!changed)
+        return;
+    applyToTree();
+    Q_EMIT choicesChanged();
+}
+
+QString AddFilesModel::pathAt(int row) const
+{
+    return data(index(row, 0), TorrentFilesModel::PathRole).toString();
+}
+
+QString AddFilesModel::originalPathAt(int row) const
+{
+    const QList<int> ids = idsAt(row);
+    if (ids.isEmpty() || ids.first() < 0 || ids.first() >= int(m_files.size()))
+        return QString();
+    const QString original = m_files.at(ids.first()).path;
+    if (!isFolder(row))
+        return original;
+    // A rename keeps the number of segments, so the folder's depth finds it in the original.
+    return original.section(QLatin1Char('/'), 0, depthAt(row));
+}
+
+int AddFilesModel::rowOfPath(const QString &path) const
+{
+    for (int row = 0; row < rowCount(); ++row) {
+        if (pathAt(row) == path)
+            return row;
+    }
+    return -1;
+}
+
+QString AddFilesModel::plainName(int row) const
+{
+    return pathAt(row).section(QLatin1Char('/'), -1);
+}
+
+QString AddFilesModel::renameError(int row, const QString &name) const
+{
+    if (row < 0 || row >= rowCount())
+        return tr("nothing to rename");
+    if (name.trimmed().isEmpty())
+        return tr("a name is needed");
+    if (name.contains(QLatin1Char('/')) || name.contains(QLatin1Char('\\')))
+        return tr("a name cannot hold / or \\");
+    if (name == QLatin1String(".") || name == QLatin1String(".."))
+        return tr("that is not a name");
+
+    const QString oldPath = pathAt(row);
+    const QString parent = oldPath.section(QLatin1Char('/'), 0, -2);
+    const QString newPath = parent.isEmpty() ? name : parent + QLatin1Char('/') + name;
+    if (newPath == oldPath)
+        return QString();
+    // A file or a folder of that name beside it would merge the two on the server.
+    const QString asFolder = newPath + QLatin1Char('/');
+    for (const QString &path : m_paths) {
+        if (path == newPath || path.startsWith(asFolder))
+            return tr("%1 is already there").arg(name);
+    }
+    return QString();
+}
+
+bool AddFilesModel::rename(int row, const QString &name)
+{
+    if (!renameError(row, name).isEmpty())
+        return false;
+    const QString oldPath = pathAt(row);
+    const QString parent = oldPath.section(QLatin1Char('/'), 0, -2);
+    const QString newPath = parent.isEmpty() ? name : parent + QLatin1Char('/') + name;
+    if (newPath == oldPath)
+        return true;
+
+    const bool folder = isFolder(row);
+    if (folder) {
+        const QString under = oldPath + QLatin1Char('/');
+        for (QString &path : m_paths) {
+            if (path.startsWith(under))
+                path = newPath + QLatin1Char('/') + path.mid(under.size());
+        }
+    } else {
+        for (int id : idsAt(row)) {
+            if (id >= 0 && id < int(m_paths.size()))
+                m_paths[id] = newPath;
+        }
+    }
+    m_renames.append(QVariantMap{
+        {QStringLiteral("kind"), folder ? QStringLiteral("folder") : QStringLiteral("file")},
+        {QStringLiteral("from"), oldPath},
+        {QStringLiteral("to"), newPath},
+    });
+    applyToTree();
+    Q_EMIT choicesChanged();
+    return true;
+}
+
+QVariantMap AddFilesModel::renameAnchor() const
+{
+    if (m_files.isEmpty())
+        return {};
+    return QVariantMap{{QStringLiteral("index"), 0},
+                       {QStringLiteral("path"), m_files.first().path}};
 }
 
 QVariantList AddFilesModel::priorityList() const

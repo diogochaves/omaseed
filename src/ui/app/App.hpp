@@ -874,6 +874,26 @@ private:
                                 const QVariantList &priorities,
                                 bool keepStopped,
                                 int attempt = 0);
+    /// After a stopped add, before the priorities (manual box M18): reads `torrents/files`
+    /// once to learn the root folder the server puts in front of the paths (`anchor` is a
+    /// file id and its metainfo path), then sends each of `renames` in order through
+    /// `torrents/renameFile` / `torrents/renameFolder`, then goes on to
+    /// `applyAddFilePriorities`. A failed rename stops there: the torrent stays stopped and
+    /// `addFinished` says the names were not applied. A 404/409 or an empty file list (the
+    /// metadata not loaded yet) is retried for a few seconds, as the priorities are.
+    void applyAddRenames(const QString &id,
+                         const QVariantList &renames,
+                         const QVariantMap &anchor,
+                         const QVariantList &priorities,
+                         bool keepStopped,
+                         int attempt = 0);
+    /// Sends `renames[at]` (paths prefixed with `root`) and the rest after it.
+    void sendAddRename(const QString &id,
+                       const QVariantList &renames,
+                       int at,
+                       const QString &root,
+                       const QVariantList &priorities,
+                       bool keepStopped);
 
     /// Builds the client's options from the sheet's payload.
     omaseed::core::QbtClient::AddOptions addOptionsFrom(const QVariantMap &request) const;
