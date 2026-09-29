@@ -174,7 +174,8 @@ Sheet {
         if (root.editAuthMode === "apiKey")
             return qsTr("API key · stored in %1").arg(qsTr("libsecret"));
         if (root.editAuthMode === "cookie")
-            return qsTr("cookie · %1").arg(root.editUsername.length > 0 ? root.editUsername : qsTr("no user"));
+            return qsTr("username and password · %1").arg(root.editUsername.length > 0 ? root.editUsername :
+                                                                                         qsTr("no user"));
         return qsTr("none");
     }
 
@@ -407,7 +408,8 @@ Sheet {
                         },
                         {
                             "mode": "cookie",
-                            "text": qsTr("cookie")
+                            // M1: as first run says it; a cookie login is a username and password.
+                            "text": qsTr("username and password")
                         },
                         {
                             "mode": "none",
