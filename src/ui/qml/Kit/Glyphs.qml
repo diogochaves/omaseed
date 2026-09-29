@@ -54,6 +54,7 @@ QtObject {
 
     // ---- generic chrome ---------------------------------------------------------------
     readonly property string chevronRight: "›"
+    readonly property string chevronLeft: "‹" // docs/17 M10.4: the folded right dock
     readonly property string chevronDown: "▾"
     readonly property string chevronUp:
         "▴" // table header sort-ascending, spec §2 `.tbl > div.h.sort`

@@ -86,7 +86,7 @@ TestCase {
         view.helpOpen = false;
         view._testServerLost = false;
         App.railHidden = false;
-        view.details.collapsed = false;
+        view.split.folded = false;
         view.details.activateTab(0);
         view.table.cancelRename();
         view.table.clearSelection();
@@ -183,15 +183,58 @@ TestCase {
     // ---- `i` ------------------------------------------------------------------------------
     function test_i_folds_the_details_pane_away() {
         compare(view.details.collapsed, false);
-        compare(view.split.sideVisible, true);
+        compare(view.split.folded, false);
 
         keyClick("i");
         compare(view.details.collapsed, true);
-        compare(view.split.sideVisible, false);
+        compare(view.split.folded, true);
 
         keyClick("i");
         compare(view.details.collapsed, false);
-        compare(view.split.sideVisible, true);
+        compare(view.split.folded, false);
+    }
+
+    // docs/17 M10.3: `i` and the divider's double-click are one fold, and a folded pane at the
+    // bottom leaves the strip with the cursor torrent on it; `i` joins the footer (M16).
+    function test_i_and_the_divider_share_one_fold_and_the_strip_shows_the_cursor_row() {
+        view.split.placement = "bottom";
+        const strip = findChild(view, "stripName");
+        const iHint = () => view.hintModel.hints.some(h => h.key === "i");
+        verify(!iHint(), "the footer teaches i while the pane is open");
+
+        keyClick("i");
+        compare(view.split.folded, true);
+        verify(strip.visible);
+        compare(strip.text, App.torrentRow(view.cursorHash).name);
+        verify(findChild(view, "stripStats").text.indexOf(App.torrentRow(view.cursorHash)
+                                                          .progressText) === 0);
+        verify(iHint(), "the footer does not teach the way back");
+        verify(view.table.activeFocus);
+
+        // The same state the divider's double-click unfolds.
+        mouseDoubleClickSequence(findChild(view.split, "grip"), 40, 3);
+        compare(view.split.folded, false);
+        compare(view.details.collapsed, false);
+        verify(!strip.visible);
+
+        // …and a click on the strip's ▴, in the window, unfolds it too.
+        keyClick("i");
+        compare(view.split.folded, true);
+        const chevron = findChild(view, "stripChevron");
+        mouseClick(chevron, chevron.width / 2, chevron.height / 2);
+        compare(view.split.folded, false);
+        view.split.placement = Qt.binding(() => App.detailsPlacement);
+    }
+
+    // docs/UX-NOTES M16: the footer's note sits in the footer's own line, never over the pane.
+    function test_the_footer_note_stays_in_the_footer() {
+        view.flashFooterNote("details: bottom · I to change");
+        const note = findChild(view, "footerNote");
+        verify(note.visible);
+        const top = note.mapToItem(view, 0, 0).y;
+        const footerTop = view.height - Math.round(Theme.font.baseSize * 2.2);
+        verify(top >= footerTop, "the note is drawn above the footer, at " + top);
+        view.footerNote = "";
     }
 
     // ---- `h` / `l` --------------------------------------------------------------------------

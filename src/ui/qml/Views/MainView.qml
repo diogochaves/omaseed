@@ -271,12 +271,23 @@ Item {
             Qt.callLater(root._settleFocus);
     }
 
-    /// `i`: fold the details pane away (and stop its polls).
+    /// `i`: fold the details pane to its strip, or unfold it (docs/17 M10.3: the same fold as
+    /// a double-click on the divider). The split owns the state; `details.collapsed` follows.
     function toggleDetails(): void {
-        const wasFocused = details.activeFocus;
-        details.collapsed = !details.collapsed;
-        App.setDetailsVisible(!details.collapsed);
-        if (details.collapsed && wasFocused)
+        split.toggleFold();
+    }
+
+    /// A fold stops the details' polls, and gives the keyboard to the table when the pane
+    /// that held it went away (a folded pane takes no keys).
+    function _detailsFoldChanged(): void {
+        App.setDetailsVisible(!split.folded);
+        if (split.folded)
+            Qt.callLater(root._focusAfterFold);
+    }
+
+    function _focusAfterFold(): void {
+        const item = root.Window.activeFocusItem;
+        if (item === null || item === root || item === root.Window.contentItem || !item.visible)
             table.forceActiveFocus();
     }
 
@@ -1180,10 +1191,22 @@ Item {
             defaultSideWidth: Theme.space(400)
             // docs/10 §5: Settings -> Appearance, or `I`; the sizes are the table state's.
             placement: App.detailsPlacement
-            sideVisible: !details.collapsed
+            // docs/17 M10.1: folded at the bottom, the pane leaves this one line.
+            foldedBar: detailsStrip
             visible: !root.libraryEmpty && !root.firstSync
 
+            onFoldToggled: root.saveTableState()
+            onFoldedChanged: root._detailsFoldChanged()
             onResized: root.saveTableState()
+        }
+
+        DetailsStrip {
+            id: detailsStrip
+
+            // The row `details` already holds, refreshed on every sync: no polls of its own.
+            torrent: details.torrent
+
+            onUnfoldRequested: split.toggleFold()
         }
 
         // `main` and `side` are reparented into the split; they are declared here so the
@@ -1281,6 +1304,8 @@ Item {
         Details {
             id: details
 
+            // docs/17 M10: `i`, the divider and the strip fold it, all through the split.
+            collapsed: split.folded
             details: App.details
             // Main's footer carries the hints for every tab (Fig. 1), so the pane does not
             // repeat them inside the window.
@@ -1336,6 +1361,7 @@ Item {
         id: hintModel
 
         connected: !root.serverLost
+        detailsFolded: split.folded
         detailsTab: details.currentTab
         filterText: App.filtered.text
         filteredCount: App.filtered.count
@@ -1417,6 +1443,20 @@ Item {
                 }
             }
 
+            // The note sits in the footer's own line, after the facts (docs/UX-NOTES M16): it
+            // used to float above the footer and covered whatever was there, the details
+            // pane's first column included. The hints after it drop what no longer fits.
+            Label {
+                id: footerNoteText
+
+                Layout.alignment: Qt.AlignVCenter
+                color: Theme.accent
+                objectName: "footerNote"
+                size: "small"
+                text: root.footerNote
+                visible: root.footerNote.length > 0
+            }
+
             KeyHints {
                 Layout.alignment: Qt.AlignVCenter
                 Layout.fillWidth: true
@@ -1491,37 +1531,6 @@ Item {
         interval: root._footerNoteSeconds * 1000
 
         onTriggered: root.footerNote = ""
-    }
-
-    Row {
-        id: footerNoteRow
-
-        anchors.bottom: footer.top
-        anchors.bottomMargin: Theme.space(4)
-        anchors.left: parent.left
-        anchors.leftMargin: Theme.space(16)
-        visible: root.footerNote.length > 0
-        z: 8
-
-        // Backed by the ground and a hairline, so the note never reads through whatever it
-        // sits on (the rail's "▾ 9 below", a table row).
-        Rectangle {
-            border.color: Theme.fill(Theme.hairlineAlpha)
-            border.width: 1
-            color: Theme.background
-            height: noteText.implicitHeight + Theme.space(6)
-            width: noteText.implicitWidth + Theme.space(16)
-
-            Text {
-                id: noteText
-
-                anchors.centerIn: parent
-                color: Theme.accent
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.font.small
-                text: root.footerNote
-            }
-        }
     }
 
     MoreMenu {
@@ -1724,7 +1733,9 @@ Item {
                                                                                                 * 12
                                                                                                 / Theme.font.baseSize),
                                "detailsHeight": Math.round(split.sideHeight * 12
-                                                           / Theme.font.baseSize)
+                                                           / Theme.font.baseSize),
+                               // docs/17 M10.5: a restart reopens it as it was left.
+                               "detailsFolded": split.folded
                            });
     }
 
@@ -1754,6 +1765,8 @@ Item {
         // Likewise 220 for the height, the default before docs/13's band.
         split.sideHeight = state.detailsHeight > 0 && state.detailsHeight !== 220
                 ? Theme.space(state.detailsHeight) : split.defaultSideHeight;
+        // Absent before docs/17 (an older state file): open, as every earlier version started.
+        split.folded = state.detailsFolded === true;
         if (state.columns !== undefined && state.columns.length > 0)
             table.visibleColumns = state.columns;
         table.setColumnOrder(state.columnOrder !== undefined ? state.columnOrder
