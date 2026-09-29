@@ -134,6 +134,7 @@ TestCase {
         const detail = findChild(page, "testErrorDetail");
         verify(!detail.visible);
 
+        page.testing = true; // as runTest() leaves it: only an answer to a running test counts
         App.serverTested("", false, "", "", -1, 4, "wrong username or password",
                          "unauthorized (401): POST auth/login: Host requires authentication");
         compare(page.testResultText, "wrong username or password");
@@ -141,6 +142,7 @@ TestCase {
         compare(detail.text, "unauthorized (401): POST auth/login: Host requires authentication");
 
         // Any other failure has only the raw error, and no second line.
+        page.testing = true;
         App.serverTested("", false, "", "", -1, 4, "network: Connection refused", "");
         compare(page.testResultText, "network: Connection refused");
         verify(!detail.visible);
@@ -235,6 +237,121 @@ TestCase {
         compare(page.tested, true);
         compare(page.testOk, true);
         compare(button.enabled, true);
+    }
+
+    // Manual box M2: until a test passes, `test` is the highlighted action and `continue` is
+    // dimmed with "test first"; after a pass the two swap.
+    function test_test_leads_until_a_pass_then_continue_does() {
+        App.loadDemo(16);
+        const page = createTemporaryObject(pageComponent, testCase, {
+                                               "candidates": [localCandidate]
+                                           });
+        page.chooseCursor();
+        const testButton = findChild(page, "testButton");
+        const continueButton = findChild(page, "continueButton");
+        const hint = findChild(page, "continueHint");
+        verify(testButton.primary);
+        verify(!continueButton.primary);
+        verify(!continueButton.enabled);
+        verify(hint.visible);
+        compare(hint.text, "test first");
+
+        const spy = createTemporaryObject(signalSpyComponent, testCase, {
+                                              "target": App,
+                                              "signalName": "serverTested"
+                                          });
+        page.runTest();
+        spy.wait(2000);
+        verify(!testButton.primary);
+        verify(continueButton.primary);
+        verify(continueButton.enabled);
+        verify(!hint.visible);
+    }
+
+    // M2: `enter` does whichever is next: test first, then continue.
+    function test_enter_tests_first_then_continues() {
+        App.loadDemo(16);
+        const page = createTemporaryObject(pageComponent, testCase, {
+                                               "candidates": [localCandidate]
+                                           });
+        page.chooseCursor();
+        page.forceActiveFocus();
+        const spy = createTemporaryObject(signalSpyComponent, testCase, {
+                                              "target": App,
+                                              "signalName": "serverTested"
+                                          });
+        keyClick(Qt.Key_Return);
+        compare(page.page, "apikey", "the first enter tests, it does not save");
+        spy.wait(2000);
+        verify(page.testOk);
+
+        keyClick(Qt.Key_Return);
+        compare(page.page, "handler");
+        compare(App.serverList.count, 1);
+        App.serverList.remove(App.serverList.idAt(0));
+        compare(App.serverList.count, 0);
+    }
+
+    // M2: a pass is for what it tested. A new address or login asks for a new test; a new
+    // name, only a label, keeps it. An answer for fields changed since is dropped.
+    function test_changing_the_address_or_login_asks_for_a_new_test() {
+        App.loadDemo(16);
+        const page = createTemporaryObject(pageComponent, testCase, {
+                                               "candidates": [localCandidate]
+                                           });
+        page.chooseCursor();
+        const spy = createTemporaryObject(signalSpyComponent, testCase, {
+                                              "target": App,
+                                              "signalName": "serverTested"
+                                          });
+        page.runTest();
+        spy.wait(2000);
+        verify(page.testOk);
+        page.editName = "home";
+        verify(page.testOk, "the name is only a label");
+        page.editUrl = "http://127.0.0.1:8081";
+        verify(!page.tested);
+        verify(!findChild(page, "continueButton").enabled);
+
+        page.runTest();
+        page.editAuthMode = "cookie"; // changed while the test runs: its answer is stale
+        spy.wait(2000);
+        verify(!page.tested, "an answer for the fields before the change does not count");
+    }
+
+    // M1: the cookie choice says what it asks for.
+    function test_the_cookie_choice_reads_username_and_password() {
+        const page = createTemporaryObject(pageComponent, testCase, {
+                                               "candidates": []
+                                           });
+        page.chooseCursor();
+        const texts = [];
+        const walk = item => {
+            for (const child of item.children) {
+                if (child.text !== undefined && child.selected !== undefined)
+                    texts.push(child.text);
+                walk(child);
+            }
+        };
+        walk(page); // chips and buttons alike: the auth choices sit together among them
+        const at = texts.indexOf("API key");
+        verify(at >= 0);
+        compare(texts.slice(at, at + 3), ["API key", "username and password", "none"]);
+        verify(texts.indexOf("cookie") < 0);
+    }
+
+    // M3: the footer no longer counts steps; it keeps the version until the done screen.
+    function test_the_footer_does_not_count_steps() {
+        const page = createTemporaryObject(pageComponent, testCase, {
+                                               "candidates": []
+                                           });
+        const facts = findChild(page, "setupFacts");
+        compare(facts.text, App.versionText);
+        page.chooseCursor();
+        compare(facts.text, App.versionText);
+        verify(facts.text.indexOf("step") < 0);
+        page.page = "done";
+        compare(facts.text, "setup done");
     }
 
     // Q23: step 2's test runs before the server exists; `continue` gives its answer to the
@@ -388,9 +505,10 @@ TestCase {
                     out.push(child.text);
             return out;
         };
-        compare(labels(), ["1 server", "2 sign in", "3 links"]);
+        // Manual box M3: names only, no numbers.
+        compare(labels(), ["server", "sign in", "links"]);
         page.page = "apikey";
-        compare(labels(), ["✓ server", "2 sign in", "3 links"]);
+        compare(labels(), ["✓ server", "sign in", "links"]);
         page.page = "done";
         compare(labels(), ["✓ server", "✓ sign in", "✓ links"]);
         compare(findChild(page, "heading").text.indexOf("You're connected to"), 0);
@@ -443,6 +561,7 @@ TestCase {
         page.chooseCursor();
         const saveAnyway = findChild(page, "saveAnywayButton");
         verify(!saveAnyway.visible);
+        page.testing = true;
         App.serverTested("", false, "", "", -1, 4, "network: Connection refused", "");
         verify(saveAnyway.visible);
         verify(!findChild(page, "continueButton").enabled);

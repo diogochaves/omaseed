@@ -17,7 +17,8 @@ import Omaseed.Kit
 //
 //   welcome     shown first on a real first run: the name, the pitch and the server search
 //               as it runs; `enter` sets up, `esc` quits.
-// Three steps (the footer's "step N of 3", the column's "server · sign in · links"):
+// Three steps, named above the question ("server · sign in · links", the current one bright;
+// no numbers, manual box M3):
 //   1 choose    `App.detectServers()` on `Component.onCompleted`; rows for a detected local
 //               server, "connect to a remote server", and "install qbittorrent-nox here" —
 //               the last one dimmed and captioned "a local server was already found" when
@@ -25,6 +26,9 @@ import Omaseed.Kit
 //               with its own profile and port, but the packaged service is one instance on
 //               8080 and would not start next to a server already answering there).
 //   2 details   either the API-key page (URL/name/auth/key, `test`, `continue`) for "local"
+//               (M2: `test` is the primary action and `continue` waits, dimmed with "test
+//               first", until a test passes; `enter` in a field does whichever is next, and
+//               changing the address or the login clears an earlier pass)
 //               and "remote", or the install page (copyable commands, `run with pkexec`) for
 //               "install", which itself continues into the API-key page pointed at
 //               127.0.0.1:8080.
@@ -71,8 +75,8 @@ Item {
                       "kind": "remote",
                       "glyph": "⇢",
                       "title": qsTr("Connect to a remote server"),
-                      "detail": qsTr(
-                                    "A seedbox, a NAS, or qui's proxy. You will enter a URL and an API key."),
+                      // docs/14's wording: an API key is only one of the ways to sign in (M1).
+                      "detail": qsTr("A seedbox, a NAS, or qui's proxy."),
                       "dimmed": false
                   });
         rows.push({
@@ -118,7 +122,8 @@ Item {
         case "choose":
             return [hint("j k", qsTr("choose")), hint("enter", qsTr("continue"))];
         case "apikey":
-            return [hint("tab", qsTr("next field"))];
+            return [hint("tab", qsTr("next field")), hint("enter", root.tested && root.testOk
+                                                                  ? qsTr("continue") : qsTr("test"))];
         case "handler":
             return [hint("tab", qsTr("switch")), hint("enter", qsTr("choose"))];
         case "done":
@@ -159,8 +164,16 @@ Item {
 
     // The secret is the visible field's: a key typed, then "cookie" chosen, must not go out
     // as the password.
-    onEditAuthModeChanged: root.editSecret = root.editAuthMode === "apiKey" ? keyField.text :
-                                             root.editAuthMode === "cookie" ? passField.text : ""
+    onEditAuthModeChanged: {
+        root.editSecret = root.editAuthMode === "apiKey" ? keyField.text : root.editAuthMode
+                                                                          === "cookie" ? passField.text : "";
+        root._resetTest();
+    }
+    // M2: a pass is for the address and login it tested; changing either asks for a new test.
+    // The name is only a label, so it keeps the pass.
+    onEditUrlChanged: root._resetTest()
+    onEditUsernameChanged: root._resetTest()
+    onEditSecretChanged: root._resetTest()
 
     property bool tested: false
     property bool testOk: false
@@ -246,6 +259,16 @@ function runTest(): void {
     App.testServer(root._fieldMap(), root.editSecret);
 }
 
+/// `enter` on the sign-in page (M2): test until a test has passed, then continue.
+function enterOnApiKey(): void {
+    if (root.testing)
+        return;
+    if (root.tested && root.testOk)
+        root.continueFromApiKey();
+    else
+        root.runTest();
+}
+
 function continueFromApiKey(): void {
     const id = App.addServer(root._fieldMap(), root.editSecret);
     if (id.length === 0)
@@ -321,6 +344,8 @@ Connections {
                             latencyMs: int, error: string, errorDetail: string): void {
         if (id.length > 0)
         return; // a saved server's own test, not first run's throwaway probe
+        if (!root.testing)
+        return; // an answer for fields changed since (M2): `_resetTest()` dropped it
         root.testing = false;
         root.tested = true;
         root.testOk = ok;
@@ -405,6 +430,11 @@ Keys.onPressed: event => {
             root.page = "choose";
         else
             root.openLibrary();
+        event.accepted = true;
+        return;
+    }
+    if (root.page === "apikey" && (event.key === Qt.Key_Return || event.key === Qt.Key_Enter)) {
+        root.enterOnApiKey();
         event.accepted = true;
         return;
     }
@@ -594,7 +624,7 @@ Flickable {
                                                                     ? Theme.brightForeground :
                                                                       Theme.dimForeground
                     size: "small"
-                    text: number < root.stepNumber ? "✓ " + modelData : number + " " + modelData
+                    text: number < root.stepNumber ? "✓ " + modelData : modelData
                 }
             }
         }
@@ -844,6 +874,7 @@ Flickable {
                         Layout.fillWidth: true
                         placeholder: qsTr("http://127.0.0.1:8080")
 
+                        onAccepted: root.enterOnApiKey()
                         onTextChanged: root.editUrl = text
                     }
                 }
@@ -859,6 +890,7 @@ Flickable {
                         Layout.fillWidth: true
                         placeholder: qsTr("home")
 
+                        onAccepted: root.enterOnApiKey()
                         onTextChanged: root.editName = text
                     }
                 }
@@ -881,7 +913,8 @@ Flickable {
                             },
                             {
                                 "mode": "cookie",
-                                "text": qsTr("cookie")
+                                // M1: a cookie login is a username and a password; say so.
+                                "text": qsTr("username and password")
                             },
                             {
                                 "mode": "none",
@@ -923,6 +956,7 @@ Flickable {
                     echoMode: TextInput.Password
                     placeholder: qsTr("paste the API key")
 
+                    onAccepted: root.enterOnApiKey()
                     onTextChanged: root.editSecret = text
                 }
             }
@@ -943,6 +977,7 @@ Flickable {
                         Layout.fillWidth: true
                         objectName: "userField"
 
+                        onAccepted: root.enterOnApiKey()
                         onTextChanged: root.editUsername = text
                     }
                 }
@@ -958,6 +993,7 @@ Flickable {
                         objectName: "passField"
                         echoMode: TextInput.Password
 
+                        onAccepted: root.enterOnApiKey()
                         onTextChanged: root.editSecret = text
                     }
                 }
@@ -1012,6 +1048,9 @@ Flickable {
 
                     activeFocusOnTab: false // the page cycles tab itself (see _cycleApiKeyFocus)
 
+                    objectName: "testButton"
+                    // M2: the next thing to do is the highlighted one: test, then continue.
+                    primary: !(root.tested && root.testOk)
                     text: root.testing ? qsTr("testing…") : qsTr("test")
 
                     onClicked: root.runTest()
@@ -1045,6 +1084,15 @@ Flickable {
                     onClicked: root.continueFromApiKey()
                 }
 
+                // M2: why `continue` is dimmed, until a test has said anything.
+                Label {
+                    dim: true
+                    objectName: "continueHint"
+                    size: "small"
+                    text: qsTr("test first")
+                    visible: !root.tested
+                }
+
                 Button {
                     id: continueButton
 
@@ -1052,7 +1100,7 @@ Flickable {
 
                     enabled: root.tested && root.testOk
                     objectName: "continueButton"
-                    primary: true
+                    primary: root.tested && root.testOk
                     text: qsTr("continue")
 
                     onClicked: root.continueFromApiKey()
@@ -1209,8 +1257,8 @@ Item {
             dim: true
             objectName: "setupFacts"
             size: "small"
-            text: root.page === "welcome" ? App.versionText : root.page === "done" ? qsTr("setup done") :
-                                                                                     qsTr("step %1 of 3").arg(root.stepNumber)
+            // M3: no "step N of 3"; the steps line above the question says where you are.
+            text: root.page === "done" ? qsTr("setup done") : App.versionText
         }
 
         KeyHints {
