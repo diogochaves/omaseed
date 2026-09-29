@@ -114,12 +114,15 @@ cmd_start() {
     # Two downloads at a time, so the rest show as queued; but finished swarm torrents must not
     # use up the active slots (5 by default), or a later download sits "stalled" with its peer
     # right there, held back by the queue. Announcing to every tier lets `break dead`'s tracker
-    # (a tier of its own) be tried, not skipped while the first one works.
+    # (a tier of its own) be tried, not skipped while the first one works. Every peer of the
+    # swarm is 127.0.0.1, so each qBittorrent must allow several connections from one IP: with
+    # it off, libtorrent keeps one peer per IP (the last port the tracker named) and turns away
+    # a second peer from 127.0.0.1 (M15: the manual box never reached the seeder).
     curl -fs -X POST "$PLAY/app/setPreferences" --data-urlencode \
-        'json={"max_active_downloads":2,"max_active_uploads":20,"max_active_torrents":20,"announce_to_all_tiers":true,"announce_to_all_trackers":true}' >/dev/null
+        'json={"max_active_downloads":2,"max_active_uploads":20,"max_active_torrents":20,"announce_to_all_tiers":true,"announce_to_all_trackers":true,"enable_multi_connections_from_same_ip":true}' >/dev/null
     seeder_server start | sed 's/^/seeder:     /'
     curl -fs -X POST "$SEEDER/app/setPreferences" --data-urlencode \
-        "json={\"enable_embedded_tracker\":false,\"queueing_enabled\":false,\"up_limit\":$((${OMASEED_SWARM_RATE:-4096} * 1024))}" >/dev/null
+        "json={\"enable_embedded_tracker\":false,\"queueing_enabled\":false,\"enable_multi_connections_from_same_ip\":true,\"up_limit\":$((${OMASEED_SWARM_RATE:-4096} * 1024))}" >/dev/null
     if ! tracker_running; then
         nohup python3 "$repo/scripts/dev/swarm-tracker.py" $TRACKER_PORT "$CONTROL" \
             >"$SWARM/tracker.log" 2>&1 &
@@ -139,7 +142,7 @@ cmd_stop() {
 
 # The fixtures: name, then a Python expression listing (relative path, size in bytes), then
 # the torrent format. Files are sparse zeros on the seeder side: free to create, real bytes on
-# the downloader side. About 1.4 GB in all.
+# the downloader side. About 1.5 GB in all.
 generate_content() {
     python3 - "$CONTENT" <<'PY'
 import os, random, sys
@@ -191,6 +194,39 @@ tree("Public Domain Sampler", [
     ("sampler.srt", 42 * 1024),
     ("README.txt", 812),
 ])
+
+# Many files in deep folders (the add sheet's tree, M17/M18). tests/fixtures/make_torrents.py's
+# nested_library_files() lists the same tree (same seed, same order): keep the two in step.
+def nested_library():
+    rng = random.Random(29)
+    files = []
+    for season, eps in ((1, 10), (2, 8)):
+        for e in range(1, eps + 1):
+            base = f"Season {season:02d}/S{season:02d}E{e:02d} - Episode {e}"
+            files.append((f"{base}.mkv", rng.randint(2, 5) * MB + rng.randint(0, 99999)))
+            for lang in ("en", "pt-BR", "ja"):
+                files.append((f"Season {season:02d}/Subs/S{season:02d}E{e:02d}.{lang}.srt",
+                              rng.randint(30, 60) * 1024))
+    for day in range(1, 6):
+        for c in range(1, rng.randint(3, 6)):
+            files.append((f"Extras/Behind the Scenes/Day {day:02d}/clip {c:02d}.mkv",
+                          rng.randint(1, 3) * MB))
+    for who in ("Director", "Composer", "Lead Actor", "Café Owner (cameo)"):
+        files.append((f"Extras/Interviews/{who}.mp4", rng.randint(2, 4) * MB))
+    for i in range(1, 13):
+        files.append((f"Artwork/Stills/still_{i:03d}.png", rng.randint(200, 900) * 1024))
+    for p in ("Poster [A]", "Poster [B]", "ポスター (Japan)"):
+        files.append((f"Artwork/Posters/{p}.jpg", rng.randint(300, 1200) * 1024))
+    return files + [
+        ("Docs/README.md", 4321), ("Docs/Changelog.txt", 2100),
+        ("Docs/licenses/LICENSE-CC-BY-4.0.txt", 18_000), ("Docs/licenses/LICENSE-MIT.txt", 1_070),
+        ("deep/a/b/c/d/e/f/the deepest file.txt", 512),
+        ("Soundtrack/01 - Opening.flac", 3 * MB), ("Soundtrack/02 - Main Theme.flac", 4 * MB),
+        ("Soundtrack/03 - Credits (Extended Mix).flac", 5 * MB), ("Soundtrack/cover.jpg", 400 * 1024),
+        ("sample.mkv", 2 * MB), ("checksums.sha256", 9000),
+    ]
+
+tree("Nested Library Sampler (2026)", nested_library())
 PY
 }
 
@@ -239,6 +275,7 @@ cmd_seed() {
     create_torrent "$unicode" v2
     create_torrent "unwritable-fixture.bin" hybrid
     create_torrent "Public Domain Sampler" hybrid false # the seeder's only: see the top
+    create_torrent "Nested Library Sampler (2026)" hybrid # the seeder's only: for the add sheet
     # The small one first, so something is seeding within seconds; the playground runs two
     # downloads at a time, so the rest queue behind them.
     add_torrent "tiny-notes.txt"

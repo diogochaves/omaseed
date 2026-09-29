@@ -210,6 +210,66 @@ def build_open_movies_v1():
     return "open_movies_v1.torrent", torrent
 
 
+def nested_library_files():
+    """The Nested Library Sampler's tree: 113 files in two seasons with a Subs folder each,
+    extras a folder per day, artwork, a soundtrack and one folder seven levels deep, with
+    unicode, brackets and spaces in the names. scripts/dev/swarm.sh generates the same tree
+    (same seed, same order) and seeds it for real; keep the two in step."""
+    import random
+
+    mb, kb = 1024 * 1024, 1024
+    rng = random.Random(29)
+    files = []
+    for season, eps in ((1, 10), (2, 8)):
+        for e in range(1, eps + 1):
+            base = f"Season {season:02d}/S{season:02d}E{e:02d} - Episode {e}"
+            files.append((f"{base}.mkv", rng.randint(2, 5) * mb + rng.randint(0, 99999)))
+            for lang in ("en", "pt-BR", "ja"):
+                files.append((f"Season {season:02d}/Subs/S{season:02d}E{e:02d}.{lang}.srt",
+                              rng.randint(30, 60) * kb))
+    for day in range(1, 6):
+        for c in range(1, rng.randint(3, 6)):
+            files.append((f"Extras/Behind the Scenes/Day {day:02d}/clip {c:02d}.mkv",
+                          rng.randint(1, 3) * mb))
+    for who in ("Director", "Composer", "Lead Actor", "Café Owner (cameo)"):
+        files.append((f"Extras/Interviews/{who}.mp4", rng.randint(2, 4) * mb))
+    for i in range(1, 13):
+        files.append((f"Artwork/Stills/still_{i:03d}.png", rng.randint(200, 900) * kb))
+    for p in ("Poster [A]", "Poster [B]", "ポスター (Japan)"):
+        files.append((f"Artwork/Posters/{p}.jpg", rng.randint(300, 1200) * kb))
+    files += [
+        ("Docs/README.md", 4321), ("Docs/Changelog.txt", 2100),
+        ("Docs/licenses/LICENSE-CC-BY-4.0.txt", 18_000), ("Docs/licenses/LICENSE-MIT.txt", 1_070),
+        ("deep/a/b/c/d/e/f/the deepest file.txt", 512),
+        ("Soundtrack/01 - Opening.flac", 3 * mb), ("Soundtrack/02 - Main Theme.flac", 4 * mb),
+        ("Soundtrack/03 - Credits (Extended Mix).flac", 5 * mb), ("Soundtrack/cover.jpg", 400 * kb),
+        ("sample.mkv", 2 * mb), ("checksums.sha256", 9000),
+    ]
+    return files
+
+
+def build_nested_library_v1():
+    """Many files in deep, nested folders (the add sheet's tree with the mouse, M17, and
+    renaming, M18): the Nested Library Sampler's own tree, private, fake pieces."""
+    piece_length = 256 * 1024
+    files = [{"length": size, "path": rel.split("/")} for rel, size in nested_library_files()]
+    total = sum(f["length"] for f in files)
+    info = {
+        "name": "Nested Library Sampler (2026)",
+        "piece length": piece_length,
+        "pieces": fake_pieces(ceil_div(total, piece_length), "nested-library"),
+        "private": 1,
+        "files": files,
+    }
+    torrent = {
+        "announce": "http://127.0.0.1:26996/announce",
+        "comment": "omaseed fixture: many files in nested folders",
+        "creation date": FIXED_CREATION_DATE,
+        "info": info,
+    }
+    return "nested_library_v1.torrent", torrent
+
+
 def main():
     fixtures_dir = os.path.dirname(os.path.abspath(__file__))
     builders = [
@@ -219,6 +279,7 @@ def main():
         build_v2_stub,
         build_multi_file_padded_v1,
         build_open_movies_v1,
+        build_nested_library_v1,
     ]
 
     manifest = []

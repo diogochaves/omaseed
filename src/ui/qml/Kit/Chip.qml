@@ -19,6 +19,11 @@ Rectangle {
     /// (spec §3 Fig. 9's auth row, where the three chips are the only way to choose). Off by
     /// default, so a chip that is only ever clicked stays out of everyone's tab order.
     property bool focusable: false
+    /// Shown under the chip on hover or keyboard focus, as IconButton's (the hero's alt-speed,
+    /// which is its glyph alone while off). "" shows nothing.
+    property string tooltip: ""
+    /// The chip's tooltip, which lives on the window's content item (the tests read it).
+    readonly property alias tooltipItem: tip
 
     signal clicked
 
@@ -85,6 +90,22 @@ Rectangle {
         // A click leaves the keyboard where it was, as Button's does.
         onClicked: root.clicked()
     }
+
+    // On the window's content item, not in the chip, as IconButton's tip (KIT-8).
+    Tooltip {
+        id: tip
+
+        readonly property bool wanted: root.visible && root.tooltip.length > 0
+                                       && (mouseArea.containsMouse || root.activeFocus)
+
+        objectName: "chipTip"
+        parent: root.Window.window ? root.Window.window.contentItem : root
+        z: 1000
+
+        onWantedChanged: tip.wanted ? tip.showFor(root, root.tooltip) : tip.hide()
+    }
+
+    onTooltipChanged: tip.wanted ? tip.showFor(root, root.tooltip) : tip.hide()
 
     // Keypad `enter` too (KIT-7).
     Keys.onEnterPressed: root.clicked()

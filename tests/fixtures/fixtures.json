@@ -58,5 +58,15 @@
     "name": "Blender Open Movies",
     "pieceLength": 16777216,
     "totalSize": 16041866871
+  },
+  {
+    "file": "nested_library_v1.torrent",
+    "infoHashV1": "7e1b66b0a98a9192c5b6fb0faedcde5c8afc617d",
+    "infoHashV2": "",
+    "isPrivate": true,
+    "metaVersion": 1,
+    "name": "Nested Library Sampler (2026)",
+    "pieceLength": 262144,
+    "totalSize": 129043566
   }
 ]
