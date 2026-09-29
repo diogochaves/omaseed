@@ -113,6 +113,83 @@ TestCase {
             compare(findChild(t.hint, name).visible, false, name);
     }
 
+    // Two rail rows in a list under a hint, as the rail and every palette lay them out.
+    Component {
+        id: rowsComponent
+
+        Item {
+            id: rowsHost
+
+            readonly property alias first: first
+            readonly property alias second: second
+            readonly property alias hint: rowsHint
+
+            height: 200
+            width: 200
+
+            Flickable {
+                id: rowsFlick
+
+                anchors.fill: parent
+                contentHeight: 1000
+                contentWidth: width
+
+                Column {
+                    width: rowsFlick.width
+
+                    RailRow {
+                        id: first
+
+                        text: "first"
+                        width: parent.width
+                    }
+
+                    RailRow {
+                        id: second
+
+                        text: "second"
+                        width: parent.width
+                    }
+                }
+            }
+
+            ScrollHint {
+                id: rowsHint
+
+                anchors.fill: parent
+                countBelow: 5
+                flickable: rowsFlick
+                style: "scrollbar"
+                z: 3
+            }
+        }
+    }
+
+    // M11: the hint lies over the list, and its HoverHandler made it take every hover
+    // event, so a row under it never heard the pointer come or go. A click still reached
+    // the row and set its MouseArea's `containsMouse`, which then never cleared: each
+    // clicked rail row kept the hover fill.
+    function test_rows_under_the_hint_still_hear_the_pointer() {
+        const t = createTemporaryObject(rowsComponent, testCase);
+        // Offscreen, hover is only delivered once the window has drawn and the pointer has
+        // come into it: without these two lines no row hovers even with the hint hidden.
+        waitForRendering(t);
+        mouseMove(t, t.width - 5, t.height - 5);
+        mouseMove(t.first, 20, t.first.height / 2);
+        tryVerify(() => t.first.hovered, 1000, "the row under the pointer is not hovered");
+        verify(t.hint.hovered, "the hint does not know the pointer is over its list");
+
+        mouseClick(t.first, 20, t.first.height / 2);
+        mouseMove(t.second, 20, t.second.height / 2);
+        tryVerify(() => t.second.hovered, 1000, "the next row is not hovered");
+        verify(!t.first.hovered, "the clicked row kept its hover");
+
+        mouseMove(t, 20, t.height - 10);
+        tryVerify(() => !t.second.hovered, 1000, "the row kept its hover after the pointer left");
+        verify(t.hint.hovered, "the pointer is still over the list");
+        mouseMove(testCase, testCase.width - 1, testCase.height - 1);
+    }
+
     function test_page_scrolls_most_of_a_page_and_stops_at_the_ends() {
         const t = make("chevrons", 0, 5);
         t.hint.page(0.8);
