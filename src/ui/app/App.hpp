@@ -794,6 +794,29 @@ public:
     /// outside demo mode.
     Q_INVOKABLE QString demoTorrentPath() const;
 
+    /// The add sheet's "in Downloads" (manual box M7): the newest `.torrent` files in
+    /// `downloadsFolder` (core::TorrentFolderScan, at most five), filled by `scanDownloads()`.
+    /// Each entry: `path`, `name`, `sizeText`, `ageText` (the file's time, as
+    /// Format::relativeTime words it), `infoHashV1`, `infoHashV2`, and `inLibrary` (the
+    /// library already holds that infohash: `findDuplicate`).
+    Q_PROPERTY(
+        QVariantList downloadsTorrents READ downloadsTorrents NOTIFY downloadsTorrentsChanged)
+    /// Where `scanDownloads` looks: the user's Downloads (QStandardPaths::DownloadLocation)
+    /// until something is written here. A test seam: nothing in the app writes it. A demo run
+    /// lists nothing unless it is set, so no real file name lands in a screenshot.
+    Q_PROPERTY(QString downloadsFolder READ downloadsFolder WRITE setDownloadsFolder NOTIFY
+                   downloadsFolderChanged)
+
+public:
+    QVariantList downloadsTorrents() const { return m_downloadsTorrents; }
+    QString downloadsFolder() const;
+    void setDownloadsFolder(const QString &folder);
+
+    /// Reads `downloadsFolder` on the thread pool (the files are parsed and hashed) and
+    /// answers through `downloadsTorrents`. The sheet calls it each time it opens; a scan
+    /// overtaken by a newer one is dropped.
+    Q_INVOKABLE void scanDownloads();
+
     /// The URI hand-off: this process's own argv and every `SingleInstance::openRequested`
     /// from a second launch. Re-emitted as `addUrisRequested` for the sheet to queue.
     void openUris(const QStringList &uris);
@@ -807,6 +830,8 @@ Q_SIGNALS:
     /// `ok` false: `message` is what the sheet prints in red while staying open. `ok` true:
     /// `hash` is the new torrent's infohash, or empty when the source did not say.
     void addFinished(bool ok, QString message, QString hash);
+    void downloadsTorrentsChanged();
+    void downloadsFolderChanged();
 
 private:
     /// A `.torrent`'s bytes, kept between the parse and the POST because the portal's file
@@ -870,6 +895,9 @@ private:
     QMetaObject::Connection m_addWatch;
     int m_nextAddableToken = 0;
     omaseed::core::AddFilesModel *m_addFiles = new omaseed::core::AddFilesModel(this);
+    QVariantList m_downloadsTorrents;
+    QString m_downloadsFolder; ///< empty: QStandardPaths::DownloadLocation
+    int m_downloadsScan = 0;   ///< the newest scan's number; older answers are dropped
     // --- end T4.2 ------------------------------------------------------------------------
 
     // --- T4.6: first run -------------------------------------------------------------------

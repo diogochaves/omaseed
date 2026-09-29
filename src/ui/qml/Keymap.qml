@@ -10,7 +10,7 @@ import QtQuick
 // Every entry is plain data:
 //   area      where the key applies: "global" (anywhere), "table", "rail", "details",
 //             "columns" (the columns palette), "search", "addFiles" (the add sheet's
-//             file tree). A key event reaches the focused view first (Qt propagates an
+//             file tree), "addDownloads" (its "in Downloads" list). A key event reaches the focused view first (Qt propagates an
 //             unaccepted key up the parent chain), so an area entry always wins over the
 //             "global" entry for the same key — that is how `a` adds a tracker inside the
 //             details pane and a torrent everywhere else.
@@ -1002,6 +1002,38 @@ QtObject {
             "help": ""
         },
 
+        // The add sheet's "in Downloads" list (manual box M7). `tab` stays the sheet's.
+        {
+            "area": "addDownloads",
+            "key": "j",
+            "action": "moveDown",
+            "label": qsTr("move"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "addDownloads",
+            "key": "k",
+            "action": "moveUp",
+            "label": qsTr("move"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "addDownloads",
+            "key": "enter",
+            "action": "use",
+            "label": qsTr("use this file"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+
         // The Files tab (UX-NOTES N1): the same verbs as the table where there is one
         // (space, v, enter, r, y, n, g G, s, /), and qBittorrent's content actions.
         {
@@ -1191,7 +1223,8 @@ QtObject {
         }
     ]
 
-    readonly property var areas: ["global", "table", "rail", "details", "columns", "search", "addFiles"]
+    readonly property var areas: ["global", "table", "rail", "details", "columns", "search", "addFiles",
+        "addDownloads"]
 
     /// Every entry of one area, in declaration order.
     function forArea(area) {

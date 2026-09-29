@@ -460,6 +460,9 @@ TestCase {
         verify(view.addSheet.z > view.settingsModal.z);
         compare(view.activeOverlay, view.addSheet);
 
+        // The add sheet is guarded (manual box M5): `esc` goes to `cancel`, then closes.
+        keyClick(Qt.Key_Escape);
+        compare(view.addSheet.opened, true);
         keyClick(Qt.Key_Escape);
         compare(view.addSheet.opened, false);
         compare(view.settingsModal.opened, true, "esc closed more than the topmost overlay");
@@ -501,7 +504,9 @@ TestCase {
         testCase._checkFocusComesBack(() => keyClick(Qt.Key_C, Qt.ShiftModifier),
                                       view.categoryPalette, "the category palette");
         testCase._checkFocusComesBack(() => keyClick("t"), view.tagPalette, "the tag palette");
-        testCase._checkFocusComesBack(() => App.addRequested(), view.addSheet, "the add sheet");
+        // The add sheet is guarded (manual box M5): the first `esc` goes to `cancel`.
+        testCase._checkFocusComesBack(() => App.addRequested(), view.addSheet, "the add sheet",
+                                      2);
         testCase._checkFocusComesBack(() => App.openSettings(), view.settingsModal,
                                       "the settings modal");
     }

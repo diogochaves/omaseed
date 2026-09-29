@@ -6,6 +6,7 @@
 #include "core/PeerInput.hpp"
 #include "core/StateFile.hpp"
 #include "core/TorrentFile.hpp"
+#include "core/TorrentFolderScan.hpp"
 #include "core/Version.hpp"
 #include "integration/Notifier.hpp"
 #include "integration/ThemeReader.hpp"
@@ -28,6 +29,7 @@
 #include <QProcessEnvironment>
 #include <QQmlEngine>
 #include <QRegularExpression>
+#include <QStandardPaths>
 #include <QThread>
 #include <QThreadPool>
 #include <QTimer>
@@ -1695,6 +1697,60 @@ QString App::demoTorrentPath() const
     file.write(DemoData::demoTorrentBytes());
     m_demoTorrentPath = path;
     return path;
+}
+
+QString App::downloadsFolder() const
+{
+    if (!m_downloadsFolder.isEmpty() || m_demoMode)
+        return m_downloadsFolder;
+    return QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
+}
+
+void App::setDownloadsFolder(const QString &folder)
+{
+    if (folder == m_downloadsFolder)
+        return;
+    m_downloadsFolder = folder;
+    Q_EMIT downloadsFolderChanged();
+}
+
+void App::scanDownloads()
+{
+    const int scan = ++m_downloadsScan;
+    const QString folder = downloadsFolder();
+    // Same arrangement as parseTorrentInBackground: the worker touches nothing of App's and
+    // hops back through the application object.
+    QPointer<App> self(this);
+    QThreadPool::globalInstance()->start([self, scan, folder]() {
+        const QList<FolderTorrent> found = TorrentFolderScan::scan(folder);
+        QCoreApplication *application = QCoreApplication::instance();
+        if (!application)
+            return;
+        QMetaObject::invokeMethod(
+            application,
+            [self, scan, found]() {
+                if (self.isNull() || scan != self->m_downloadsScan)
+                    return;
+                QVariantList list;
+                list.reserve(found.size());
+                for (const FolderTorrent &torrent : found) {
+                    const bool inLibrary =
+                        !self->findDuplicate(torrent.infoHashV1, torrent.infoHashV2).isEmpty();
+                    list.append(QVariantMap{
+                        {QStringLiteral("path"), torrent.path},
+                        {QStringLiteral("name"), torrent.name},
+                        {QStringLiteral("sizeText"), Format::size(torrent.size)},
+                        {QStringLiteral("ageText"), Format::relativeTime(torrent.modified)},
+                        {QStringLiteral("infoHashV1"), torrent.infoHashV1},
+                        {QStringLiteral("infoHashV2"), torrent.infoHashV2},
+                        {QStringLiteral("inLibrary"), inLibrary},
+                    });
+                }
+                self->m_downloadsTorrents = list;
+                Q_EMIT self->downloadsTorrentsChanged();
+            },
+            Qt::QueuedConnection);
+    });
 }
 
 void App::openUris(const QStringList &uris)

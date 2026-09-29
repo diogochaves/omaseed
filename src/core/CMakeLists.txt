@@ -59,6 +59,8 @@ qt_add_library(omaseed-core STATIC
     TorrentFilesModel.hpp
     TorrentFilterModel.cpp
     TorrentFilterModel.hpp
+    TorrentFolderScan.cpp
+    TorrentFolderScan.hpp
     TorrentModel.cpp
     TorrentModel.hpp
     TorrentPeersModel.cpp
