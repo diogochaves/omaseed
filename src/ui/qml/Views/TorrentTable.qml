@@ -380,6 +380,9 @@ Item {
 
     /// The smallest the flexible Name column is allowed to get, in spec pixels.
     property int minimumNameWidth: 160
+    /// Room past the last row, so something floating over the table's bottom (the selection
+    /// bar, docs/17 M9.6) never hides it: the list can always scroll it clear.
+    property real bottomRoom: 0
 
     // ---- cursor, selection, rename ------------------------------------------------------
     property int cursorIndex: 0
@@ -1007,6 +1010,7 @@ Item {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: headerStrip.bottom
+        bottomMargin: root.bottomRoom
         boundsBehavior: Flickable.StopAtBounds
         contentWidth: root.rowWidth
         flickableDirection: Flickable.AutoFlickDirection

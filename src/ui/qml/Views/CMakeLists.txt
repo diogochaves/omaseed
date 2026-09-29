@@ -54,6 +54,7 @@ qt_add_qml_module(omaseed-views
         Rail.qml
         RailGroup.qml
         RenameSheet.qml
+        SelectionBar.qml
         ServerSheet.qml
         SettingsModal.qml
         SettingsRow.qml

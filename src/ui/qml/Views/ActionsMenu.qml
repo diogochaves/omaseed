@@ -16,6 +16,10 @@ Menu {
     /// each row turns its option to the other side of the cursor torrent's, on the whole
     /// selection.
     property var cursorRow: ({})
+    /// The selection bar's ⋯ (docs/17 M9.5): the actions whose buttons folded away at this
+    /// width come first, above a separator, and leave their usual place. Empty for `enter`
+    /// and right-click, which get the menu as Fig. 11 draws it.
+    property var leadActions: []
 
     function _option(text: string, key: string, action: string, on: bool): var {
         return {
@@ -26,8 +30,29 @@ Menu {
         };
     }
 
+    /// `all` with `leadActions`' rows moved to the top, in the menu's own order, and the
+    /// separators they leave behind tidied (none first, last or twice in a row).
+    function _arrange(all: var): var {
+        if (root.leadActions.length === 0)
+            return all;
+        const lead = [];
+        const rest = [];
+        for (const item of all) {
+            if (item.action !== undefined && root.leadActions.indexOf(item.action) >= 0)
+                lead.push(item);
+            else if (item.separator !== true || (rest.length > 0
+                                                 && rest[rest.length - 1].separator !== true))
+                rest.push(item);
+        }
+        while (rest.length > 0 && rest[rest.length - 1].separator === true)
+            rest.pop();
+        return lead.length === 0 ? rest : lead.concat([{
+                                                           "separator": true
+                                                       }], rest);
+    }
+
     menuWidth: Theme.space(280)
-    items: [
+    items: root._arrange([
         {
             "text": root.cursorStopped ? qsTr("start") : qsTr("stop"),
             "key": "p",
@@ -130,5 +155,5 @@ Menu {
             "action": "delete",
             "danger": true
         }
-    ]
+    ])
 }

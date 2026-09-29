@@ -1,0 +1,192 @@
+import QtQuick
+import QtTest
+import Omaseed.Kit
+import Omaseed.Views
+
+// docs/17 M9: the selection bar on its own. What it draws at a width (M9.3, M9.5), what a
+// click on each button says (M9.3), and that it never takes the keyboard (M9.4). Where it
+// sits and when it shows are MainView's (tst_Main).
+TestCase {
+    id: testCase
+
+    height: 300
+    name: "SelectionBar"
+    visible: true
+    when: windowShown
+    width: 1200
+
+    readonly property var fullItems: ["start", "stop", "|", "recheck", "reannounce", "|", "category",
+        "tags", "location", "limits", "|", "openFolder", "more", "|", "delete"]
+
+    Component {
+        id: barComponent
+
+        SelectionBar {
+            availableWidth: 2000
+            count: 2
+        }
+    }
+
+    // Holds the keyboard while a button is clicked (the table, in the app).
+    Component {
+        id: keeperComponent
+
+        Item {
+            focus: true
+            height: 10
+            width: 10
+        }
+    }
+
+    SignalSpy {
+        id: triggeredSpy
+
+        signalName: "triggered"
+    }
+
+    SignalSpy {
+        id: moreSpy
+
+        signalName: "moreRequested"
+    }
+
+    function makeBar(properties) {
+        const bar = createTemporaryObject(barComponent, testCase, properties || {});
+        bar.width = Qt.binding(() => bar.implicitWidth);
+        bar.height = Qt.binding(() => bar.implicitHeight);
+        triggeredSpy.target = bar;
+        triggeredSpy.clear();
+        moreSpy.target = bar;
+        moreSpy.clear();
+        return bar;
+    }
+
+    function button(bar, action) {
+        return findChild(bar, "bar_" + action);
+    }
+
+    // ---- M9.3: which, in which order ------------------------------------------------------
+    function test_a_wide_bar_draws_every_button_in_the_boards_order() {
+        const bar = makeBar();
+        compare(bar.items, testCase.fullItems);
+        compare(bar.folded, []);
+        verify(bar.fit.word, "the count should keep its word when there is room");
+        compare(findChild(bar, "selectionCount").text, "2");
+    }
+
+    function test_each_tooltip_names_its_key() {
+        const bar = makeBar();
+        compare(button(bar, "recheck").tooltip, "recheck · c");
+        compare(button(bar, "start").tooltip, "start · p");
+        compare(button(bar, "location").tooltip, "set location · m");
+        compare(button(bar, "more").tooltip, "all actions · enter");
+        compare(button(bar, "delete").tooltip, "delete · d");
+        verify(button(bar, "recheck").tooltipAbove, "the bar's tips open over it");
+    }
+
+    function test_delete_is_red() {
+        const bar = makeBar();
+        verify(button(bar, "delete").danger);
+        verify(!button(bar, "recheck").danger);
+    }
+
+    // ---- M9.5: narrow windows --------------------------------------------------------------
+    function test_buttons_fold_into_more_in_the_boards_order() {
+        const bar = makeBar();
+        const order = ["openFolder", "limits", "location", "reannounce", "recheck", "tags",
+                       "category"];
+        compare(bar.foldOrder, order);
+        for (let folds = 1; folds <= order.length; ++folds) {
+            // Exactly the width of the bar with `folds` gone: one pixel less would fold one more.
+            bar.availableWidth = bar.widthOf(bar.itemsFor(folds), true);
+            compare(bar.folded, order.slice(0, folds), "at " + folds + " folded");
+            for (const action of order.slice(0, folds))
+                verify(bar.items.indexOf(action) < 0, action + " should have folded");
+            for (const action of ["start", "stop", "more", "delete"])
+                verify(bar.items.indexOf(action) >= 0, action + " must always stay");
+            compare(bar.implicitWidth, bar.availableWidth);
+        }
+    }
+
+    function test_empty_groups_leave_no_hairline() {
+        const bar = makeBar();
+        compare(bar.itemsFor(7), ["start", "stop", "|", "more", "|", "delete"]);
+        compare(bar.itemsFor(2), ["start", "stop", "|", "recheck", "reannounce", "|", "category",
+                                  "tags", "location", "|", "more", "|", "delete"]);
+    }
+
+    function test_the_count_drops_its_word_last() {
+        const bar = makeBar();
+        bar.availableWidth = bar.widthOf(bar.itemsFor(7), true);
+        verify(bar.fit.word, "the word goes only after every button that can fold has");
+        bar.availableWidth = bar.widthOf(bar.itemsFor(7), true) - 1;
+        verify(!bar.fit.word);
+        compare(bar.folded.length, 7);
+        verify(bar.implicitWidth < bar.widthOf(bar.itemsFor(7), true));
+    }
+
+    function test_the_bar_never_wraps() {
+        const bar = makeBar({
+                                "availableWidth": 10
+                            });
+        // Nothing left to fold: it keeps its one row and is simply wider than asked.
+        compare(bar.items, ["start", "stop", "|", "more", "|", "delete"]);
+        compare(bar.height, bar.implicitHeight);
+        compare(bar.implicitHeight, Theme.controlHeight + 2 * Theme.space(4));
+    }
+
+    // ---- what a click says -----------------------------------------------------------------
+    function test_a_button_names_its_action() {
+        const bar = makeBar();
+        waitForRendering(bar);
+        for (const action of ["start", "stop", "recheck", "reannounce", "category", "tags",
+                              "location", "limits", "openFolder", "delete"]) {
+            triggeredSpy.clear();
+            mouseClick(button(bar, action));
+            compare(triggeredSpy.count, 1, action);
+            compare(triggeredSpy.signalArguments[0][0], action);
+        }
+        compare(moreSpy.count, 0);
+    }
+
+    function test_more_asks_for_the_menu_with_what_folded() {
+        const bar = makeBar();
+        bar.availableWidth = bar.widthOf(bar.itemsFor(3), true);
+        waitForRendering(bar);
+        mouseClick(button(bar, "more"));
+        compare(moreSpy.count, 1);
+        compare(moreSpy.signalArguments[0][0], button(bar, "more"));
+        compare(moreSpy.signalArguments[0][1], ["openFolder", "limits", "location"]);
+        compare(triggeredSpy.count, 0);
+    }
+
+    // ---- M9.4: mouse only ------------------------------------------------------------------
+    function test_a_click_leaves_the_keyboard_where_it_was() {
+        const keeper = createTemporaryObject(keeperComponent, testCase);
+        const bar = makeBar();
+        waitForRendering(bar);
+        keeper.forceActiveFocus();
+        verify(keeper.activeFocus);
+        mouseClick(button(bar, "recheck"));
+        compare(triggeredSpy.count, 1);
+        verify(keeper.activeFocus, "the click took the keyboard from where it was");
+        verify(!button(bar, "recheck").activeFocus);
+    }
+
+    function test_tab_never_lands_on_the_bar() {
+        const bar = makeBar();
+        for (const action of testCase.fullItems) {
+            if (action !== "|")
+                verify(!button(bar, action).activeFocusOnTab, action + " is a tab stop");
+        }
+    }
+
+    function test_a_click_on_the_bars_ground_goes_no_further() {
+        const bar = makeBar();
+        waitForRendering(bar);
+        // Its own padding: nothing runs, and (in the app) the row under it is not clicked.
+        mouseClick(bar, 2, bar.height / 2);
+        compare(triggeredSpy.count, 0);
+        compare(moreSpy.count, 0);
+    }
+}
