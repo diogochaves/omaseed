@@ -7,9 +7,12 @@ import Omaseed.Kit
 // `space` (or `enter`, or a click) toggles `table.visibleColumns` live, so the header changes
 // under the palette as you go; Name can never be hidden (there would be nothing left to
 // click). N2: `alt+↑`/`alt+↓` move the cursor's column through `table.columnOrder` and the
-// cursor follows it; `ctrl+r`, or the last row, puts back the default order. Name is pinned
-// first, so it neither moves nor is passed. `MainView`'s own block persists both lists to
-// `state.json` whenever they change, so this component stays unaware of persistence.
+// cursor follows it; `ctrl+r`, or the last row, puts back the default order. M13: a row can
+// also be dragged to its place with the mouse (the Kit's `draggable`); a press that does not
+// travel is still the toggle. Name is pinned first, so it neither moves nor is passed, and
+// the "default order" row stays last. Like `alt+↑↓`, dragging waits for an empty query.
+// `MainView`'s own block persists both lists to `state.json` whenever they change, so this
+// component stays unaware of persistence.
 Palette {
     id: root
 
@@ -31,7 +34,7 @@ Palette {
                                     "key": "esc",
                                     "label": qsTr("clear to move")
                                 } : {
-                                    "key": "alt+↑↓",
+                                    "key": qsTr("drag · alt+↑↓"),
                                     "label": Keymap.labelOf("columns", "alt+↑")
                                 },
         {
@@ -39,6 +42,8 @@ Palette {
             "label": Keymap.labelOf("columns", "ctrl+r")
         }
     ]
+    // A filtered list is not the whole order, so the mouse waits for it as `alt+↑↓` does.
+    draggable: root.query.length === 0
     items: root._rows
     multi: true
     reorderable: true
@@ -58,7 +63,8 @@ Palette {
                 "title": title,
                 "meta": column.key === "name" ? qsTr("always shown · first") : "",
                 "checked": root.table.visibleColumns.indexOf(column.key) >= 0,
-                "key": column.key
+                "key": column.key,
+                "pinned": column.key === "name"
             });
         }
         // Only while the whole list shows and there is an order to undo.
@@ -68,7 +74,8 @@ Palette {
                 "meta": "ctrl+r",
                 "detail": qsTr("put the columns back in the order they came in"),
                 "checked": false,
-                "key": root.resetKey
+                "key": root.resetKey,
+                "pinned": true
             });
         return rows;
     }
@@ -90,6 +97,19 @@ Palette {
     }
 
     onActivated: (index, item) => root._toggle(item)
+    // `slot` is the row it goes before, or past the last column. The list is the whole order
+    // here (dragging waits for an empty query), and the pinned rows keep the slot off Name's
+    // place and past the "default order" row.
+    onDropRequested: (index, item, slot) => {
+        if (root.table === null || item.key === root.resetKey)
+            return;
+        const columns = root.items.filter(row => row.key !== root.resetKey);
+        const moved = slot < columns.length
+                ? root.table.placeColumn(item.key, columns[slot].key, false)
+                : root.table.placeColumn(item.key, columns[columns.length - 1].key, true);
+        if (moved)
+            root.cursorToKey(item.key);
+    }
     onMoveRequested: (index, item, delta) => {
         if (root.table === null || item.key === root.resetKey)
             return;
