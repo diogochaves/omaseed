@@ -74,9 +74,12 @@ Item {
         }
 
         Label {
+            // Its whole width when there is room, less (elided) when there is not. With only
+            // fillWidth the spacer below took half the spare room and the name was cut short.
             Layout.fillWidth: true
             Layout.maximumWidth: implicitWidth
             Layout.minimumWidth: 0
+            Layout.preferredWidth: implicitWidth
             bright: root.hasTorrent
             dim: !root.hasTorrent
             elide: Text.ElideRight
@@ -96,6 +99,7 @@ Item {
 
         Item {
             Layout.fillWidth: true
+            Layout.preferredWidth: 0
         }
 
         Row {
