@@ -15,6 +15,14 @@ import Omaseed.Kit
 //   h l / ← →   fold, unfold (h on a file or a closed folder goes to its folder)
 // `enter` and `tab` are left to the sheet. The rows scroll past `maximumHeight`.
 //
+// The pointer (manual box M17): a click on the check mark checks or unchecks the row (a
+// folder: all of it, as `space`), on a folder's arrow folds or unfolds it, on the priority
+// cycles normal → high → maximum → normal (`AddFilesModel::cyclePriority`: a folder's skipped
+// files stay skipped, a skipped row comes back at normal). Each of those parts shows the
+// pointing hand and the hover fill; a click anywhere else on the row only moves the cursor,
+// and a double click still folds a folder or checks a file. Every click puts the cursor on
+// its row and the keyboard in the tree, as a row click always did.
+//
 //     AddFilesTree { model: App.addFiles; maximumHeight: 300 }
 Rectangle {
     id: root
@@ -69,6 +77,19 @@ Rectangle {
             root.model.setExpanded(row, true);
         else
             root.moveCursor(1);
+    }
+
+    /// A click on a row's check mark, fold arrow or priority: the cursor goes to the row and
+    /// the keyboard to the tree (what any row click does), then the part acts.
+    function _clickPart(row: int, part: string): void {
+        root.cursorIndex = row;
+        root.forceActiveFocus();
+        if (part === "mark")
+            root.model.toggleWanted(row);
+        else if (part === "fold")
+            root.model.setExpanded(row, !root.model.isExpanded(row));
+        else if (part === "priority")
+            root.model.cyclePriority(row);
     }
 
     activeFocusOnTab: true
@@ -168,22 +189,58 @@ Rectangle {
                     root.model.toggleWanted(row.index);
             }
 
+            // Above the row's own MouseArea (`parent: row`, z 1), so the check mark, the fold
+            // arrow and the priority take their clicks; anywhere else a click falls through to
+            // the row.
             RowLayout {
                 anchors.left: parent.left
                 anchors.leftMargin: Theme.space(8)
                 anchors.right: parent.right
                 anchors.rightMargin: Theme.space(8)
                 anchors.verticalCenter: parent.verticalCenter
+                parent: row
                 spacing: Theme.space(8)
+                z: 1
 
                 // ✓ nothing skipped, – some, · all (the palettes' checked/unchecked marks).
-                Text {
+                Item {
+                    Layout.preferredHeight: Theme.railRowHeight
                     Layout.preferredWidth: root.checkWidth
-                    color: row.wanted === 0 ? Theme.dimForeground : Theme.foreground
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.font.small
-                    horizontalAlignment: Text.AlignHCenter
-                    text: row.wanted === 2 ? Glyphs.check : row.wanted === 1 ? "–" : Glyphs.middot
+
+                    Rectangle {
+                        anchors.centerIn: parent
+                        color: markMouse.containsMouse ? Theme.fill(Theme.fillHover)
+                                                       : "transparent"
+                        height: Theme.railRowHeight - Theme.space(6)
+                        radius: Theme.cornerRadius
+                        width: root.checkWidth + Theme.space(6)
+                    }
+
+                    Text {
+                        anchors.centerIn: parent
+                        color: markMouse.containsMouse ? Theme.brightForeground
+                                                       : row.wanted === 0 ? Theme.dimForeground
+                                                                          : Theme.foreground
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.font.small
+                        text: row.wanted === 2 ? Glyphs.check : row.wanted === 1 ? "–"
+                                                                                 : Glyphs.middot
+                    }
+
+                    MouseArea {
+                        id: markMouse
+
+                        anchors.centerIn: parent
+                        cursorShape: Qt.PointingHandCursor
+                        height: Theme.railRowHeight
+                        hoverEnabled: true
+                        objectName: "addFilesMark"
+                        width: root.checkWidth + Theme.space(6)
+
+                        // Two quick clicks are two toggles, not the row's double click.
+                        onClicked: root._clickPart(row.index, "mark")
+                        onDoubleClicked: root._clickPart(row.index, "mark")
+                    }
                 }
 
                 Item {
@@ -191,17 +248,44 @@ Rectangle {
                     Layout.leftMargin: row.depth * Theme.space(14)
                     Layout.preferredHeight: foldGlyph.implicitHeight
 
+                    Rectangle {
+                        anchors.centerIn: foldGlyph
+                        color: foldMouse.containsMouse ? Theme.fill(Theme.fillHover)
+                                                       : "transparent"
+                        height: Theme.railRowHeight - Theme.space(6)
+                        radius: Theme.cornerRadius
+                        visible: row.isFolder
+                        width: foldGlyph.implicitWidth + Theme.space(8)
+                    }
+
                     Text {
                         id: foldGlyph
 
                         anchors.left: parent.left
                         anchors.verticalCenter: parent.verticalCenter
-                        color: Theme.dimForeground
+                        color: foldMouse.containsMouse ? Theme.brightForeground
+                                                       : Theme.dimForeground
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.font.small
                         text: row.expanded ? Glyphs.chevronDown : Glyphs.chevronRight
                         visible: row.isFolder
                         width: row.isFolder ? implicitWidth : 0
+                    }
+
+                    MouseArea {
+                        id: foldMouse
+
+                        anchors.horizontalCenter: foldGlyph.horizontalCenter
+                        anchors.verticalCenter: parent.verticalCenter
+                        cursorShape: Qt.PointingHandCursor
+                        enabled: row.isFolder
+                        height: Theme.railRowHeight
+                        hoverEnabled: true
+                        objectName: "addFilesFold"
+                        width: foldGlyph.implicitWidth + Theme.space(8)
+
+                        onClicked: root._clickPart(row.index, "fold")
+                        onDoubleClicked: root._clickPart(row.index, "fold")
                     }
 
                     Text {
@@ -227,15 +311,46 @@ Rectangle {
                     text: row.sizeText
                 }
 
-                Text {
+                Item {
+                    Layout.preferredHeight: Theme.railRowHeight
                     Layout.preferredWidth: root.priorityWidth
-                    color: row.priorityColor
-                    elide: Text.ElideRight
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.font.small
-                    // `.pri.skip { text-decoration: line-through }`, as in the Files tab.
-                    font.strikeout: row.priority === 0
-                    text: row.priorityText
+
+                    Rectangle {
+                        anchors.fill: parent
+                        anchors.bottomMargin: Theme.space(3)
+                        anchors.leftMargin: -Theme.space(4)
+                        anchors.topMargin: Theme.space(3)
+                        color: priorityMouse.containsMouse ? Theme.fill(Theme.fillHover)
+                                                           : "transparent"
+                        radius: Theme.cornerRadius
+                    }
+
+                    Text {
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        color: priorityMouse.containsMouse ? Theme.brightForeground
+                                                           : row.priorityColor
+                        elide: Text.ElideRight
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.font.small
+                        // `.pri.skip { text-decoration: line-through }`, as in the Files tab.
+                        font.strikeout: row.priority === 0
+                        text: row.priorityText
+                    }
+
+                    MouseArea {
+                        id: priorityMouse
+
+                        anchors.fill: parent
+                        anchors.leftMargin: -Theme.space(4)
+                        cursorShape: Qt.PointingHandCursor
+                        hoverEnabled: true
+                        objectName: "addFilesPriority"
+
+                        onClicked: root._clickPart(row.index, "priority")
+                        onDoubleClicked: root._clickPart(row.index, "priority")
+                    }
                 }
             }
         }

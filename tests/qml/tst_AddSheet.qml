@@ -707,6 +707,83 @@ TestCase {
         compare(App.addFiles.priority(0), 0);
     }
 
+    // ---- manual box M17: the tree with the pointer -----------------------------------
+
+    /// The delegate of the row named `name`, scrolled into view.
+    function rowItem(sheet, name) {
+        const row = testCase.rowNamed(sheet, name);
+        verify(row >= 0, name);
+        const view = sheet.filesTree.view;
+        view.positionViewAtIndex(row, ListView.Contain);
+        view.currentIndex = row;
+        waitForRendering(view);
+        return view.currentItem;
+    }
+
+    function test_a_click_on_the_check_mark_checks_and_unchecks() {
+        const sheet = testCase.openTorrent(addSheetComponent);
+        const row = testCase.rowItem(sheet, "Sintel/");
+        const mark = findChild(row, "addFilesMark");
+        verify(mark, "the check mark is a click target");
+        mouseClick(mark);
+        compare(App.addFiles.wantedCount, 6);
+        compare(sheet.filesTree.cursorIndex, row.index);
+        verify(sheet.filesTree.activeFocus, "a click puts the keyboard in the tree, as before");
+        mouseClick(mark);
+        compare(App.addFiles.wantedCount, 8);
+        // Two quick clicks are two toggles, not the row's double click.
+        mouseDoubleClickSequence(mark);
+        compare(App.addFiles.wantedCount, 8);
+    }
+
+    function test_a_click_on_a_folder_arrow_folds_and_unfolds() {
+        const sheet = testCase.openTorrent(addSheetComponent);
+        const row = testCase.rowItem(sheet, "Big Buck Bunny/");
+        const fold = findChild(row, "addFilesFold");
+        verify(fold && fold.enabled);
+        mouseClick(fold);
+        compare(sheet.filesTree.count, 10);
+        // The fold rebuilt the rows: find the arrow again.
+        mouseClick(findChild(testCase.rowItem(sheet, "Big Buck Bunny/"), "addFilesFold"));
+        compare(sheet.filesTree.count, 14);
+        const file = testCase.rowItem(sheet, "README.txt");
+        compare(findChild(file, "addFilesFold").enabled, false);
+    }
+
+    function test_a_click_on_the_priority_cycles_it() {
+        const sheet = testCase.openTorrent(addSheetComponent);
+        const row = testCase.rowItem(sheet, "README.txt");
+        const priority = findChild(row, "addFilesPriority");
+        verify(priority);
+        mouseClick(priority);
+        compare(App.addFiles.priority(row.index), 6);
+        mouseClick(priority);
+        compare(App.addFiles.priority(row.index), 7);
+        mouseClick(priority);
+        compare(App.addFiles.priority(row.index), 1);
+        compare(App.addFiles.wantedCount, 8);
+    }
+
+    function test_a_click_on_the_name_only_moves_the_cursor() {
+        const sheet = testCase.openTorrent(addSheetComponent);
+        const row = testCase.rowItem(sheet, "Sintel/");
+        mouseClick(row, row.width / 2, row.height / 2);
+        compare(sheet.filesTree.cursorIndex, row.index);
+        compare(App.addFiles.wantedCount, 8);
+        compare(App.addFiles.isExpanded(row.index), true);
+    }
+
+    function test_all_and_none_in_the_files_header() {
+        const sheet = testCase.openTorrent(addSheetComponent);
+        const none = findChild(sheet, "addFilesNone");
+        const all = findChild(sheet, "addFilesAll");
+        verify(none && all);
+        mouseClick(none);
+        compare(App.addFiles.wantedCount, 0);
+        mouseClick(all);
+        compare(App.addFiles.wantedCount, 8);
+    }
+
     function test_the_file_choices_travel_with_the_add() {
         const sheet = testCase.openTorrent(addSheetComponent);
         const added = createTemporaryObject(addSpy, testCase, {

@@ -865,6 +865,44 @@ Sheet {
                                 size: "caption"
                                 text: App.addFiles.summaryText
                             }
+
+                            // M17: every file wanted, or none, with one click. Words, not
+                            // buttons, like the field's "browse"; the keyboard stays put.
+                            Label {
+                                color: allMouse.containsMouse ? Theme.accent : Theme.dimForeground
+                                objectName: "addFilesAll"
+                                size: "caption"
+                                text: qsTr("all")
+
+                                MouseArea {
+                                    id: allMouse
+
+                                    anchors.fill: parent
+                                    anchors.margins: -Theme.space(4)
+                                    cursorShape: Qt.PointingHandCursor
+                                    hoverEnabled: true
+
+                                    onClicked: App.addFiles.setAllWanted(true)
+                                }
+                            }
+
+                            Label {
+                                color: noneMouse.containsMouse ? Theme.accent : Theme.dimForeground
+                                objectName: "addFilesNone"
+                                size: "caption"
+                                text: qsTr("none")
+
+                                MouseArea {
+                                    id: noneMouse
+
+                                    anchors.fill: parent
+                                    anchors.margins: -Theme.space(4)
+                                    cursorShape: Qt.PointingHandCursor
+                                    hoverEnabled: true
+
+                                    onClicked: App.addFiles.setAllWanted(false)
+                                }
+                            }
                         }
 
                         AddFilesTree {
