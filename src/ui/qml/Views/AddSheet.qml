@@ -532,9 +532,13 @@ Sheet {
 
                             Layout.fillWidth: true
                             placeholder: qsTr("magnet:?xt=urn:btih:…")
-                            trailing: qsTr("ctrl+o browse")
+                            // Manual box M6: a button to click, not only a key to know.
+                            trailing: qsTr("browse")
+                            trailingClickable: true
+                            trailingKey: "ctrl+o"
 
                             onAccepted: sheet.triggerPrimary()
+                            onTrailingClicked: sheet.browse()
                             onTextChanged: {
                                 if (sheet._programmatic)
                                     return;

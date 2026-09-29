@@ -23,6 +23,10 @@ Rectangle {
     property string trailing: ""
     /// A key drawn as a cap after `trailing` (docs/12 F1: the Files filter's `esc`); "" none.
     property string trailingKey: ""
+    /// The trailing text and cap act as a button (the add sheet's `browse`, manual box M6):
+    /// a pointing hand and the accent under the mouse, and a click emits `trailingClicked`.
+    /// The key it names still has to be handled by the caller.
+    property bool trailingClickable: false
     property bool hasCursor: false
     /// `TextInput.Password` for a secret (spec §3 Fig. 9's `Key` field). Normal by default.
     property int echoMode: TextInput.Normal
@@ -37,6 +41,8 @@ Rectangle {
 
     signal accepted
     signal cleared
+    /// A click on the trailing text or cap, when `trailingClickable`.
+    signal trailingClicked
 
     /// Puts the caret in the field. `forceActiveFocus()` on the Rectangle itself would stop
     /// at the root and never reach the inner TextInput.
@@ -105,11 +111,31 @@ Rectangle {
         anchors.right: trailingCap.visible ? trailingCap.left : parent.right
         anchors.rightMargin: trailingCap.visible ? Theme.space(8) : Theme.space(10)
         anchors.verticalCenter: parent.verticalCenter
-        color: Theme.dimForeground
+        color: trailingButton.containsMouse ? Theme.accent : Theme.dimForeground
         font.family: Theme.fontFamily
         font.pixelSize: Theme.font.caption
+        objectName: "fieldTrailingText"
         text: root.trailing
         visible: root.trailing.length > 0
+    }
+
+    // Over the trailing text and cap, from the text's left edge to the field's right one.
+    MouseArea {
+        id: trailingButton
+
+        Accessible.name: root.trailing
+        Accessible.role: Accessible.Button
+        anchors.bottom: parent.bottom
+        anchors.left: trailingText.visible ? trailingText.left : trailingCap.left
+        anchors.leftMargin: -Theme.space(4)
+        anchors.right: parent.right
+        anchors.top: parent.top
+        cursorShape: Qt.PointingHandCursor
+        enabled: root.trailingClickable && (trailingText.visible || trailingCap.visible)
+        hoverEnabled: true
+        objectName: "fieldTrailingButton"
+
+        onClicked: root.trailingClicked()
     }
 
     TextInput {

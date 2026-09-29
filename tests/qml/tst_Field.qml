@@ -145,4 +145,54 @@ TestCase {
         compare(cap.text, "esc");
         verify(cap.x + cap.width <= field.width);
     }
+
+    // Manual box M6: the add sheet's `browse` is a button, not only a key to know.
+    function test_a_clickable_trailing_emits_trailing_clicked() {
+        const field = createTemporaryObject(fieldComponent, testCase, {
+                                                "width": 300,
+                                                "trailing": "browse",
+                                                "trailingKey": "ctrl+o",
+                                                "trailingClickable": true
+                                            });
+        let clicks = 0;
+        field.trailingClicked.connect(() => clicks++);
+        const text = findChild(field, "fieldTrailingText");
+        const cap = findChild(field, "fieldTrailingKey");
+        const button = findChild(field, "fieldTrailingButton");
+        compare(button.cursorShape, Qt.PointingHandCursor);
+        mouseClick(text);
+        mouseClick(cap);
+        compare(clicks, 2);
+
+        // The caret's side of the field is still the text input's.
+        mouseClick(field, Theme.space(12), field.height / 2);
+        compare(clicks, 2);
+        verify(field.editing, "a click on the text side did not put the caret in");
+    }
+
+    function test_the_trailing_is_plain_text_unless_clickable() {
+        const field = createTemporaryObject(fieldComponent, testCase, {
+                                                "width": 300,
+                                                "trailing": "2 of 5 files"
+                                            });
+        let clicks = 0;
+        field.trailingClicked.connect(() => clicks++);
+        const text = findChild(field, "fieldTrailingText");
+        mouseClick(text);
+        compare(clicks, 0);
+        compare(findChild(field, "fieldTrailingButton").enabled, false);
+        compare(text.color, Theme.dimForeground);
+    }
+
+    function test_a_clickable_trailing_lights_up_under_the_mouse() {
+        const field = createTemporaryObject(fieldComponent, testCase, {
+                                                "width": 300,
+                                                "trailing": "browse",
+                                                "trailingClickable": true
+                                            });
+        const text = findChild(field, "fieldTrailingText");
+        compare(text.color, Theme.dimForeground);
+        mouseMove(text, text.width / 2, text.height / 2);
+        tryCompare(text, "color", Theme.accent);
+    }
 }

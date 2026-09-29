@@ -419,6 +419,17 @@ TestCase {
         compare(sheet.sourceField.text, testCase.freshMagnet);
     }
 
+    // Manual box M6: `browse` is a button in the field, next to its key. The click itself
+    // opens the portal's chooser, which a test cannot answer, so only the wiring is checked.
+    function test_the_source_field_has_a_browse_button() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        sheet.openWith("", "");
+        compare(sheet.sourceField.trailing, "browse");
+        compare(sheet.sourceField.trailingKey, "ctrl+o");
+        compare(sheet.sourceField.trailingClickable, true);
+        verify(findChild(sheet.sourceField, "fieldTrailingButton").enabled);
+    }
+
     function test_the_cancel_button_still_closes_it() {
         const sheet = createTemporaryObject(addSheetComponent, testCase);
         sheet.openWith(testCase.freshMagnet, "clipboard");
