@@ -99,6 +99,101 @@ TestCase {
         return App.filtered.hashAt(0);
     }
 
+    // ---- In Downloads (manual box M7) ---------------------------------------------------
+
+    /// tests/fixtures holds six .torrent files: the list shows five of them.
+    function fixturesFolder() {
+        return decodeURIComponent(Qt.resolvedUrl("../fixtures").toString().replace(/^file:\/\//,
+                                                                                   ""));
+    }
+
+    /// An add sheet opened on an empty field, with Downloads pointed at the fixtures and the
+    /// scan it started answered.
+    function openOnFixtures() {
+        App.downloadsFolder = testCase.fixturesFolder();
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        sheet.openWith("", "");
+        tryVerify(() => App.downloadsTorrents.length === 5, 10000, "the scan did not answer");
+        return sheet;
+    }
+
+    // The harness's own Downloads is empty (tests/qml/CMakeLists.txt): no list, and nothing
+    // of the next test's is left behind.
+    function cleanup() {
+        App.downloadsFolder = "";
+        App.scanDownloads();
+        tryVerify(() => App.downloadsTorrents.length === 0, 10000);
+    }
+
+    function test_downloads_are_listed_under_an_empty_field() {
+        const sheet = testCase.openOnFixtures();
+        compare(sheet.showDownloads, true);
+        compare(sheet.downloadsList.visible, true);
+        compare(sheet.downloadsList.count, 5);
+        for (let i = 0; i < 5; ++i) {
+            const entry = App.downloadsTorrents[i];
+            verify(entry.path.endsWith(".torrent"), entry.path);
+            verify(entry.name.length > 0);
+            verify(entry.sizeText.length > 0);
+            verify(entry.ageText.length > 0);
+        }
+    }
+
+    function test_an_empty_downloads_folder_shows_no_list() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        sheet.openWith("", "");
+        compare(sheet.showDownloads, false);
+        compare(sheet.downloadsList.visible, false);
+    }
+
+    function test_the_list_hides_once_the_field_holds_something() {
+        const sheet = testCase.openOnFixtures();
+        sheet.sourceField.text = testCase.freshMagnet;
+        compare(sheet.showDownloads, false);
+        sheet.sourceField.text = "";
+        compare(sheet.showDownloads, true);
+    }
+
+    function test_enter_on_a_row_fills_the_field_like_the_file_chooser() {
+        const sheet = testCase.openOnFixtures();
+        const added = createTemporaryObject(addSpy, testCase, {
+                                                "target": sheet
+                                            });
+        sheet.downloadsList.forceActiveFocus();
+        compare(sheet.hints, sheet._downloadsHints);
+        keyClick("j");
+        compare(sheet.downloadsList.cursorIndex, 1);
+        keyClick("k");
+        keyClick("j");
+        const path = App.downloadsTorrents[1].path;
+
+        keyClick(Qt.Key_Return);
+        compare(added.count, 0, "enter on the list ran `add`");
+        compare(sheet.sourceField.text, path);
+        compare(sheet.source, "file");
+        compare(sheet.showDownloads, false);
+        tryVerify(() => sheet.addable !== null && sheet.addable.pending !== true
+                  && sheet.addable.valid === true, 10000);
+        compare(sheet.addable.value, path);
+        verify(sheet.sourceField.editing, "the keyboard did not go back to the field");
+        compare(sheet.opened, true);
+    }
+
+    function test_a_click_on_a_row_fills_the_field() {
+        const sheet = testCase.openOnFixtures();
+        const path = App.downloadsTorrents[0].path;
+        mouseClick(findChild(sheet.downloadsList, "downloadsRow0"));
+        compare(sheet.sourceField.text, path);
+        compare(sheet.source, "file");
+    }
+
+    function test_tab_reaches_the_list_from_the_field() {
+        const sheet = testCase.openOnFixtures();
+        verify(sheet.sourceField.editing);
+        keyClick(Qt.Key_Tab);
+        verify(sheet.downloadsList.activeFocus, "tab skipped the list");
+    }
+
     // ---- Fig. 5, the head -------------------------------------------------------------
 
     function test_a_magnet_fills_the_field_and_the_subtitle() {

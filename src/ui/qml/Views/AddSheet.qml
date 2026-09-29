@@ -9,6 +9,15 @@ import Omaseed.Kit
 // `.torrent` handed over by the browser, and `ctrl+o`'s portal file picker. What the user
 // gave is parsed locally first (`App.parseAddable`), so the head already confirms the name,
 // the size and where it came from instead of asking; the rows below only adjust the add.
+// `ctrl+o` or the field's `browse` button opens the chooser.
+//
+// While the field is empty, "In Downloads" under it lists the newest `.torrent` files in the
+// user's Downloads (manual box M7, `App.downloadsTorrents`, scanned on every opening): a row
+// fills the field as the chooser's answer would. One already in the library says so and
+// still goes through, to Fig. 10's duplicate sheet.
+//
+// The sheet is `guarded` (manual box M5): a click outside it does nothing, and `esc` goes to
+// `cancel` before it closes anything.
 //
 // A `.torrent` of more than one file also gets the file picker (docs/11 D1): its tree, read
 // from the metainfo (`App.addFiles`), with a check mark and a priority per file and folder.
@@ -57,6 +66,7 @@ Sheet {
     readonly property alias renameField: renameField
     readonly property alias firstLastToggle: firstLastToggle
     readonly property alias filesTree: filesTree
+    readonly property alias downloadsList: downloadsList
     readonly property alias categoryChips: categoryChips
     readonly property alias tagChips: tagChips
     readonly property alias layoutChips: layoutChips
@@ -81,6 +91,10 @@ Sheet {
     /// choices travel with the add.
     readonly property bool showFiles: sheet.addable !== null && sheet.addable.valid === true
                                       && sheet.addable.kind === "file" && App.addFiles.fileCount > 1
+    /// The "in Downloads" list is on show: nothing in the field yet, and the folder has a
+    /// `.torrent` to offer (manual box M7).
+    readonly property bool showDownloads: sourceField.text.trim().length === 0
+                                          && App.downloadsTorrents.length > 0
 
     /// What the tree may take: the body's room less every other row, so the sheet fits the
     /// window and only the tree scrolls. Siblings' heights never depend on the tree's, so
@@ -109,6 +123,21 @@ Sheet {
         {
             "key": "shift+enter",
             "label": qsTr("add stopped")
+        }
+    ]
+    /// … and the "in Downloads" list's (Keymap "addDownloads").
+    readonly property var _downloadsHints: [
+        {
+            "key": "j k",
+            "label": Keymap.labelOf("addDownloads", "j")
+        },
+        {
+            "key": "enter",
+            "label": Keymap.labelOf("addDownloads", "enter")
+        },
+        {
+            "key": "tab",
+            "label": qsTr("fields")
         }
     ]
     readonly property var _treeHints: [
@@ -238,6 +267,14 @@ Sheet {
     sheet.open();
     sheet.queue = list.slice(1);
 }
+
+    /// A row of "in Downloads" (manual box M7): that `.torrent`, as if picked with `ctrl+o`.
+    function useDownload(path: string): void {
+        // The same as the file chooser's answer (`onAddableParsed`), and the keyboard goes
+        // back to the field, where `enter` adds, since the list hides once the field is filled.
+        sheet.loadText(path, "file");
+        sheet.focusFirst();
+    }
 
     /// `ctrl+o`: the portal's file chooser. Its answer arrives as `App.addableParsed`.
     function browse(): void {
@@ -466,7 +503,8 @@ Sheet {
                 glyph: Glyphs.add
                 // Manual box M5: a stray click or `esc` must not lose a half-filled add.
                 guarded: true
-                hints: filesTree.activeFocus ? sheet._treeHints : sheet._formHints
+                hints: filesTree.activeFocus ? sheet._treeHints : downloadsList.activeFocus
+                                                              ? sheet._downloadsHints : sheet._formHints
                 sheetWidth: Theme.space(600)
                 subtitle: {
                     if (!sheet.addable)
@@ -483,6 +521,11 @@ Sheet {
                 title: qsTr("Add torrent")
 
                 onAddableChanged: sheet._syncFiles()
+                // Each opening looks at Downloads again: the browser may have saved one since.
+                onOpenedChanged: {
+                    if (sheet.opened)
+                        App.scanDownloads();
+                }
                 onRejected: sheet.dismiss()
                 onActionTriggered: text => {
                     if (text === sheet._addText)
@@ -555,6 +598,33 @@ Sheet {
                                     event.accepted = true;
                                 }
                             }
+                        }
+                    }
+
+                    // In Downloads (manual box M7): the newest `.torrent` files there, while the
+                    // field above is still empty. A row fills the field as the file chooser does.
+                    ColumnLayout {
+                        id: downloadsSection
+
+                        Layout.fillWidth: true
+                        spacing: Theme.space(4)
+                        visible: sheet.showDownloads
+
+                        Label {
+                            Layout.fillWidth: true
+                            elide: Text.ElideRight
+                            text: qsTr("In Downloads")
+                            tracked: true
+                        }
+
+                        AddDownloadsList {
+                            id: downloadsList
+
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: implicitHeight
+                            torrents: App.downloadsTorrents
+
+                            onChosen: path => sheet.useDownload(path)
                         }
                     }
 
