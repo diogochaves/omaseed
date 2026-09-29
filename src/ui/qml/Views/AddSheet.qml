@@ -386,7 +386,7 @@ Sheet {
                 sheet.dismiss();
             }
 
-                /// `esc`, `cancel`, the scrim: drop what is queued and give the keyboard back.
+                /// `cancel` (or `esc` on it): drop what is queued and give the keyboard back.
                 function dismiss(): void {
                                         sheet.queue = [];
                                         sheet.close();
@@ -464,6 +464,8 @@ Sheet {
                 ]
                 footerRight: qsTr("server: %1").arg(App.serverName)
                 glyph: Glyphs.add
+                // Manual box M5: a stray click or `esc` must not lose a half-filled add.
+                guarded: true
                 hints: filesTree.activeFocus ? sheet._treeHints : sheet._formHints
                 sheetWidth: Theme.space(600)
                 subtitle: {

@@ -395,10 +395,35 @@ TestCase {
         compare(sheet.sourceField.text, "");
         compare(sheet.opened, true);
 
-        // … the next one closes the sheet.
+        // … the next one puts the keyboard on `cancel` (the sheet is guarded, manual box
+        // M5) …
+        keyClick(Qt.Key_Escape);
+        compare(sheet.opened, true);
+        compare(sheet.focusables()[sheet.focusedIndex()], sheet.cancelButton());
+
+        // … and `esc` on `cancel` closes it.
         keyClick(Qt.Key_Escape);
         compare(sheet.opened, false);
         verify(probe.activeFocus, "and gives it back on close");
+    }
+
+    // Manual box M5: nothing but `cancel` throws a half-filled add away. A click on the scrim
+    // does nothing, and neither does a click on the panel's own ground.
+    function test_a_click_outside_the_sheet_keeps_it_open() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        sheet.openWith(testCase.freshMagnet, "clipboard");
+        mouseClick(sheet, 4, 4);
+        mouseClick(sheet, sheet.width - 4, sheet.height - 4);
+        mouseClick(sheet.panel, 4, 4);
+        compare(sheet.opened, true);
+        compare(sheet.sourceField.text, testCase.freshMagnet);
+    }
+
+    function test_the_cancel_button_still_closes_it() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        sheet.openWith(testCase.freshMagnet, "clipboard");
+        mouseClick(sheet.cancelButton());
+        compare(sheet.opened, false);
     }
 
     function test_a_queued_source_opens_after_the_first_one() {
@@ -637,6 +662,7 @@ TestCase {
         sheet.openList([testCase.freshMagnet, testCase.freshMagnet], "drop");
         compare(sheet.queue.length, 1);
         keyClick(Qt.Key_Escape); // clears the field
+        keyClick(Qt.Key_Escape); // goes to `cancel`
         keyClick(Qt.Key_Escape); // closes the sheet
         compare(sheet.opened, false);
         compare(sheet.queue.length, 0);

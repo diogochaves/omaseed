@@ -295,6 +295,50 @@ TestCase {
         compare(rejected.count, 1);
     }
 
+    // ---- guarded (manual box M5) ------------------------------------------------------
+    function test_guarded_escape_goes_to_cancel_first_and_closes_from_there() {
+        const sheet = createTemporaryObject(keySheetComponent, testCase, {
+                                                "guarded": true
+                                            });
+        const rejected = createTemporaryObject(rejectedSpy, testCase, {
+                                                   "target": sheet
+                                               });
+        sheet.open();
+        verify(sheet.cancelButton() !== null);
+        verify(sheet.focusables()[sheet.focusedIndex()] !== sheet.cancelButton());
+
+        keyClick(Qt.Key_Escape);
+        compare(sheet.opened, true, "the first esc closed a guarded sheet");
+        compare(sheet.focusables()[sheet.focusedIndex()], sheet.cancelButton());
+        compare(rejected.count, 0);
+
+        keyClick(Qt.Key_Escape);
+        compare(sheet.opened, false);
+        compare(rejected.count, 1);
+    }
+
+    function test_guarded_ignores_a_click_on_the_scrim() {
+        const sheet = createTemporaryObject(keySheetComponent, testCase, {
+                                                "guarded": true
+                                            });
+        const rejected = createTemporaryObject(rejectedSpy, testCase, {
+                                                   "target": sheet
+                                               });
+        sheet.open();
+        mouseClick(sheet, 4, 4);
+        compare(sheet.opened, true);
+        compare(rejected.count, 0);
+    }
+
+    function test_guarded_without_a_cancel_action_closes_on_the_first_escape() {
+        const sheet = createTemporaryObject(plainSheetComponent, testCase, {
+                                                "guarded": true
+                                            });
+        sheet.open();
+        keyClick(Qt.Key_Escape);
+        compare(sheet.opened, false, "a guarded sheet with no cancel could never close");
+    }
+
     function test_enter_runs_the_primary_action() {
         const sheet = createTemporaryObject(keySheetComponent, testCase);
         const triggered = createTemporaryObject(triggeredSpy, testCase, {

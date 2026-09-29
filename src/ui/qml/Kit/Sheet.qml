@@ -24,7 +24,8 @@ import Omaseed.Kit
 // components instead of over a window.
 //
 // Keyboard (the focus trap of plan §4 T4.1):
-//   esc              close() + rejected()
+//   esc              close() + rejected(); when `guarded`, the first `esc` only puts the
+//                    keyboard on the `cancel` action, and `esc` there closes
 //   enter            the action flagged `primary`
 //   shift+enter      the action flagged `secondary` (Fig. 5's `add stopped`)
 //   tab / shift+tab  cycle the focusable rows and the action buttons, never leaving the sheet
@@ -60,6 +61,10 @@ Item {
     /// While open, keys the sheet has no use for stop here instead of reaching the view
     /// behind the scrim (KIT-6); only `ctrl+q` goes on, since quitting is never modal.
     property bool modal: true
+    /// For a sheet whose work is easy to lose (the add sheet, manual box M5): a click on the
+    /// scrim does nothing, and `esc` goes to the `cancel` button before it closes anything.
+    /// Only `cancel` (or `esc` on it) throws the sheet away.
+    property bool guarded: false
 
     /// The caller's rows. They are a `ColumnLayout`'s children: use `Layout.fillWidth`.
     default property alias content: bodyColumn.data
@@ -159,6 +164,16 @@ Item {
         const buttons = root.actionButtons();
         for (let i = 0; i < buttons.length; ++i) {
             if (buttons[i].primary === true)
+                return buttons[i];
+        }
+        return null;
+    }
+
+    /// The button of the action flagged `cancel`, or null when there is none.
+    function cancelButton(): var {
+        const buttons = root.actionButtons();
+        for (let i = 0; i < buttons.length; ++i) {
+            if (buttons[i].modelData && buttons[i].modelData.cancel === true)
                 return buttons[i];
         }
         return null;
@@ -291,6 +306,14 @@ Item {
 
     function _onKey(event: var): void {
         if (event.key === Qt.Key_Escape) {
+            // Guarded: the first `esc` only puts the keyboard on `cancel`, so one stray key
+            // cannot throw the sheet's work away; `esc` (or `enter`) on it then closes.
+            const cancel = root.guarded ? root.cancelButton() : null;
+            if (cancel && root.focusables()[root.focusedIndex()] !== cancel) {
+                root._focus(cancel);
+                event.accepted = true;
+                return;
+            }
             root.close();
             root.rejected();
             event.accepted = true;
@@ -327,6 +350,8 @@ Item {
         visible: !root.inline
 
         onDismissed: {
+            if (root.guarded)
+                return;
             root.close();
             root.rejected();
         }
