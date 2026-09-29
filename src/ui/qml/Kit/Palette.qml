@@ -553,5 +553,17 @@ Item {
             x: list.x + panel.border.width
             y: layout.y + list.y
         }
+
+        // The panel's own ground (its padding, the gaps around the field and the list) takes
+        // the clicks nothing on it wanted. Without it they fell through to the Scrim
+        // underneath, and a click inside the palette closed it.
+        MouseArea {
+            // Last, at z -1: under the rows, and `children[0]` is still the layout.
+            acceptedButtons: Qt.AllButtons
+            anchors.fill: parent
+            z: -1
+
+            onWheel: wheel => wheel.accepted = true
+        }
     }
 }

@@ -247,6 +247,40 @@ TestCase {
         verify(!sheet.actionsRow.visible, "an empty action row still draws");
     }
 
+    // ---- clicks -----------------------------------------------------------------------
+    // The control for the next test: a click does arrive here, and on the scrim it closes.
+    function test_a_click_on_the_scrim_closes_and_rejects() {
+        const sheet = createTemporaryObject(keySheetComponent, testCase);
+        const rejected = createTemporaryObject(rejectedSpy, testCase, {
+                                                   "target": sheet
+                                               });
+        sheet.open();
+        mouseClick(sheet, 4, 4);
+        compare(sheet.opened, false);
+        compare(rejected.count, 1);
+    }
+
+    // Manual box, M4: the panel's padding, its head and the gaps around the buttons let the
+    // click through to the scrim, so a click inside the sheet closed it.
+    function test_a_click_on_the_panel_itself_keeps_it_open() {
+        const sheet = createTemporaryObject(formSheetComponent, testCase);
+        const rejected = createTemporaryObject(rejectedSpy, testCase, {
+                                                   "target": sheet
+                                               });
+        sheet.open();
+        const panel = sheet.panel;
+        const inPadding = [[4, 4], [4, panel.height / 2], [panel.width - 4, panel.height / 2],
+                           [panel.width / 2, panel.height - 4]];
+        for (let i = 0; i < inPadding.length; ++i) {
+            mouseClick(panel, inPadding[i][0], inPadding[i][1]);
+            compare(sheet.opened, true, "a click at " + inPadding[i] + " closed the sheet");
+        }
+        // The head's title, which is text and takes no click of its own.
+        mouseClick(panel, panel.width / 2, testCase.padding + Theme.space(8));
+        compare(sheet.opened, true, "a click on the head closed the sheet");
+        compare(rejected.count, 0);
+    }
+
     // ---- keys -------------------------------------------------------------------------
     function test_escape_closes_and_rejects() {
         const sheet = createTemporaryObject(keySheetComponent, testCase);

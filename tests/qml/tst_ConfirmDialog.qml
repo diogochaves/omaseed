@@ -319,6 +319,24 @@ TestCase {
     }
 
     // ---- inline (the gallery) ---------------------------------------------------------
+    // Manual box, M4: a click on the card's own ground (its padding, the message) fell
+    // through to the scrim and cancelled it. The scrim itself still cancels.
+    function test_a_click_on_the_card_keeps_it_open_and_the_scrim_cancels() {
+        const dialog = createTemporaryObject(deleteComponent, testCase);
+        const rejected = createTemporaryObject(rejectedSpy, testCase, {
+                                                   "target": dialog
+                                               });
+        dialog.open();
+        mouseClick(dialog.panel, 4, 4);
+        mouseClick(dialog.panel, dialog.panel.width / 2, Theme.space(18) + Theme.space(8));
+        compare(dialog.opened, true, "a click on the card closed it");
+        compare(rejected.count, 0);
+
+        mouseClick(dialog, 4, 4);
+        compare(dialog.opened, false);
+        compare(rejected.count, 1);
+    }
+
     function test_inline_drops_the_scrim_and_the_centring() {
         const dialog = createTemporaryObject(deleteComponent, testCase, {
                                                  "inline": true
