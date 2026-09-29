@@ -78,5 +78,9 @@ TestCase {
         compare(asked, 1);
         mouseDoubleClickSequence(strip, strip.width / 2, strip.height / 2);
         compare(asked, 2);
+        // A single click elsewhere on the line is not a request.
+        const name = findChild(strip, "stripName");
+        mouseClick(name, name.width / 2, name.height / 2);
+        compare(asked, 2);
     }
 }

@@ -216,6 +216,13 @@ TestCase {
         compare(view.split.folded, false);
         compare(view.details.collapsed, false);
         verify(!strip.visible);
+
+        // …and a click on the strip's ▴, in the window, unfolds it too.
+        keyClick("i");
+        compare(view.split.folded, true);
+        const chevron = findChild(view, "stripChevron");
+        mouseClick(chevron, chevron.width / 2, chevron.height / 2);
+        compare(view.split.folded, false);
         view.split.placement = Qt.binding(() => App.detailsPlacement);
     }
 

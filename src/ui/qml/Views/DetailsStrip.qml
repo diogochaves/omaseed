@@ -34,9 +34,27 @@ Item {
 
     implicitHeight: Math.round(Theme.font.baseSize * 2.2)
 
+    // One area for the whole line: a double-click anywhere unfolds, a click only on ▴ (and a
+    // little around it). The ▴ is a Label in the row, so the hand shows over it alone.
     MouseArea {
-        anchors.fill: parent
+        id: stripMouse
 
+        /// The pointer is on ▴, give or take `Theme.space(6)`.
+        readonly property bool overChevron: {
+            const at = chevron.mapToItem(stripMouse, 0, 0);
+            return stripMouse.containsMouse && stripMouse.mouseX >= at.x - Theme.space(6)
+                    && stripMouse.mouseX <= at.x + chevron.width + Theme.space(6);
+        }
+
+        anchors.fill: parent
+        cursorShape: stripMouse.overChevron ? Qt.PointingHandCursor : Qt.ArrowCursor
+        hoverEnabled: true
+        objectName: "stripMouse"
+
+        onClicked: {
+            if (stripMouse.overChevron)
+                root.unfoldRequested();
+        }
         onDoubleClicked: root.unfoldRequested()
     }
 
@@ -53,14 +71,6 @@ Item {
             objectName: "stripChevron"
             size: "small"
             text: Glyphs.chevronUp
-
-            MouseArea {
-                anchors.fill: parent
-                anchors.margins: -Theme.space(6)
-                cursorShape: Qt.PointingHandCursor
-
-                onClicked: root.unfoldRequested()
-            }
         }
 
         Label {
