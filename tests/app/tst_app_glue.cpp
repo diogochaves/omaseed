@@ -5,13 +5,18 @@
 #include "core/ServerStore.hpp"
 #include "core/SyncEngine.hpp"
 #include "core/TorrentFile.hpp"
+#include "core/TorrentModel.hpp"
 #include "integration/Tray.hpp"
 #include "ui/app/App.hpp"
 
+#include <QDateTime>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QJsonArray>
+#include <QJsonObject>
 #include <QSignalSpy>
+#include <QStandardPaths>
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QTemporaryDir>
@@ -70,6 +75,10 @@ private slots:
     // Review rulings Q9, Q10
     void anUnreadableServersFileIsNamedWhereItWasKept();
     void secretsInAPlainFileAreNamed();
+
+    // Manual box M7
+    void theDownloadsListMarksWhatTheLibraryHolds();
+    void aDemoRunListsNoRealDownloads();
 
 private:
     QTemporaryDir m_dir;
@@ -573,6 +582,75 @@ void TestAppGlue::secretsInAPlainFileAreNamed()
         QFileInfo::exists(app.plainSecretsPath() + QLatin1Char('/') + id + QStringLiteral(".json")),
         5000);
     app.engine()->stop();
+}
+
+namespace {
+
+/// Copies a fixture into `dir` and dates it `minutesAgo` minutes back.
+bool copyFixture(const QTemporaryDir &dir, const QString &name, int minutesAgo)
+{
+    const QString to = dir.filePath(name);
+    if (!QFile::copy(QStringLiteral(OMASEED_FIXTURES_DIR "/") + name, to))
+        return false;
+    QFile file(to);
+    return file.open(QIODevice::ReadWrite) &&
+           file.setFileTime(QDateTime::currentDateTime().addSecs(-60LL * minutesAgo),
+                            QFileDevice::FileModificationTime);
+}
+
+} // namespace
+
+void TestAppGlue::theDownloadsListMarksWhatTheLibraryHolds()
+{
+    App app;
+    app.startDemo(4);
+    // single_file_v1.torrent's infohash, put into the library as a sync would.
+    const QString held = QStringLiteral("857ddb9df19f876e5a5e3f5b9c4f3991cbce1b04");
+    app.torrents()->applyPartial(
+        QJsonObject{{held, QJsonObject{{QStringLiteral("name"), QStringLiteral("Single.bin")}}}},
+        QJsonArray());
+    QVERIFY(!app.findDuplicate(held, QString()).isEmpty());
+
+    QTemporaryDir downloads;
+    QVERIFY(downloads.isValid());
+    QVERIFY(copyFixture(downloads, QStringLiteral("single_file_v1.torrent"), 5));
+    QVERIFY(copyFixture(downloads, QStringLiteral("open_movies_v1.torrent"), 90));
+    app.setDownloadsFolder(downloads.path());
+    QCOMPARE(app.downloadsFolder(), downloads.path());
+
+    QSignalSpy changed(&app, &App::downloadsTorrentsChanged);
+    app.scanDownloads();
+    QVERIFY(changed.wait(10000));
+    const QVariantList list = app.downloadsTorrents();
+    QCOMPARE(list.size(), 2);
+
+    const QVariantMap newest = list[0].toMap();
+    QCOMPARE(newest.value(QStringLiteral("path")).toString(),
+             downloads.filePath(QStringLiteral("single_file_v1.torrent")));
+    QCOMPARE(newest.value(QStringLiteral("name")).toString(), QStringLiteral("Single.bin"));
+    QCOMPARE(newest.value(QStringLiteral("infoHashV1")).toString(), held);
+    QCOMPARE(newest.value(QStringLiteral("inLibrary")).toBool(), true);
+    QVERIFY(!newest.value(QStringLiteral("sizeText")).toString().isEmpty());
+    QVERIFY(!newest.value(QStringLiteral("ageText")).toString().isEmpty());
+
+    const QVariantMap older = list[1].toMap();
+    QCOMPARE(older.value(QStringLiteral("name")).toString(), QStringLiteral("Blender Open Movies"));
+    QCOMPARE(older.value(QStringLiteral("inLibrary")).toBool(), false);
+}
+
+void TestAppGlue::aDemoRunListsNoRealDownloads()
+{
+    App plain;
+    QCOMPARE(plain.downloadsFolder(),
+             QStandardPaths::writableLocation(QStandardPaths::DownloadLocation));
+
+    App demo;
+    demo.startDemo(4);
+    QCOMPARE(demo.downloadsFolder(), QString());
+    QSignalSpy changed(&demo, &App::downloadsTorrentsChanged);
+    demo.scanDownloads();
+    QVERIFY(changed.wait(10000));
+    QVERIFY(demo.downloadsTorrents().isEmpty());
 }
 
 QTEST_MAIN(TestAppGlue)
