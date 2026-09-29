@@ -102,10 +102,10 @@ Rectangle {
         parent: root.Window.window ? root.Window.window.contentItem : root
         z: 1000
 
-        onWantedChanged: tip.wanted ? tip.showFor(root, root.tooltip) : tip.hide()
+        onWantedChanged: tip.wanted ? tip.showFor(root, root.tooltip, false) : tip.hide()
     }
 
-    onTooltipChanged: tip.wanted ? tip.showFor(root, root.tooltip) : tip.hide()
+    onTooltipChanged: tip.wanted ? tip.showFor(root, root.tooltip, false) : tip.hide()
 
     // Keypad `enter` too (KIT-7).
     Keys.onEnterPressed: root.clicked()

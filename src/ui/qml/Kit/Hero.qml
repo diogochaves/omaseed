@@ -539,7 +539,7 @@ Item {
                 parent: filterButton.Window.window ? filterButton.Window.window.contentItem : filterButton
                 z: 1000
 
-                onWantedChanged: filterTip.wanted ? filterTip.showFor(filterButton, filterButton.Accessible.name)
+                onWantedChanged: filterTip.wanted ? filterTip.showFor(filterButton, filterButton.Accessible.name, false)
                                                   : filterTip.hide()
             }
 

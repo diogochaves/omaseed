@@ -69,7 +69,9 @@ Item {
         const at = item.mapToItem(root, 0, 0);
         root.text = text;
         internal.below = true;
-        internal.above = above;
+        // A typed function leaves a missing default `undefined` here, and a bool will not take
+        // it: the call threw and the tip never opened (two-argument callers).
+        internal.above = above === true;
         internal.itemX = at.x;
         internal.itemY = at.y;
         internal.itemWidth = item.width;

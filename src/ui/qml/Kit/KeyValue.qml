@@ -98,7 +98,7 @@ Item {
                             parent: valueText.Window.window ? valueText.Window.window.contentItem : valueText
                             z: 1000
 
-                            onWantedChanged: valueTip.wanted ? valueTip.showFor(valueText, valueText.text)
+                            onWantedChanged: valueTip.wanted ? valueTip.showFor(valueText, valueText.text, false)
                                                              : valueTip.hide()
                         }
                     }
