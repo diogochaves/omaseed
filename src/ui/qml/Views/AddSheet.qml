@@ -319,6 +319,9 @@ Sheet {
     map["firstLastPiecePrio"] = firstLastToggle.checked;
     map["filePriorities"] = sheet.showFiles && App.addFiles.customised
             ? App.addFiles.priorityList() : [];
+    // M18: the file and folder renames, replayed on the server after the add.
+    map["fileRenames"] = sheet.showFiles ? App.addFiles.renameList() : [];
+    map["renameAnchor"] = sheet.showFiles ? App.addFiles.renameAnchor() : ({});
     map["sequentialDownload"] = sequentialToggle.checked;
     map["skipChecking"] = skipCheckToggle.checked;
     map["stopped"] = stopped;

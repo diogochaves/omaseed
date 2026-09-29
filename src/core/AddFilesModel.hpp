@@ -19,6 +19,7 @@
 #include <QMap>
 #include <QString>
 #include <QVariantList>
+#include <QVariantMap>
 
 namespace omaseed::core {
 
@@ -42,6 +43,8 @@ public:
     /// The extra role, after TorrentFilesModel's own.
     enum Role {
         WantedRole = Qt::UserRole + 100, ///< 0 all skipped, 1 some, 2 none skipped
+        RenamedRole,                     ///< the row's own name differs from the metainfo's
+        OriginalNameRole,                ///< the metainfo's name for the row (no "/")
     };
     Q_ENUM(Role)
 
@@ -88,6 +91,23 @@ public:
     /// priority) and "none" (every file skipped).
     Q_INVOKABLE void setAllWanted(bool wanted);
 
+    // --- renaming (manual box M18) -----------------------------------------------------
+    /// Why `name` cannot be `row`'s new name ("" when it can): empty, ".", "..", a "/" or
+    /// "\", or a sibling already called that.
+    Q_INVOKABLE QString renameError(int row, const QString &name) const;
+    /// Renames a file, or a folder (every path under it follows). False, and nothing
+    /// changes, when `renameError()` says no. Renaming to the current name does nothing.
+    Q_INVOKABLE bool rename(int row, const QString &name);
+    /// The row's name without a folder's "/", for the inline field to start from.
+    Q_INVOKABLE QString plainName(int row) const;
+    /// The renames in the order they were made, each `{kind: "file"|"folder", from, to}` with
+    /// paths inside the torrent (no root folder): replayed on the server after the add,
+    /// through `torrents/renameFile` / `torrents/renameFolder`.
+    Q_INVOKABLE QVariantList renameList() const { return m_renames; }
+    /// A file's id and metainfo path, for App to find the server's root folder in front of
+    /// the paths (`{index, path}`, or empty with no files).
+    Q_INVOKABLE QVariantMap renameAnchor() const;
+
     /// One priority per file, in file-id order.
     QList<int> priorities() const { return m_priorities; }
     /// The same, for QML and for the request map the sheet builds.
@@ -109,9 +129,16 @@ private:
     /// Sets each of `ids` to `priority`; true when any changed (the caller then applies).
     bool setIds(const QList<int> &ids, int priority);
 
+    /// A row's path as shown (after renames), and its metainfo path.
+    QString pathAt(int row) const;
+    QString originalPathAt(int row) const;
+
     TorrentFilesModel *m_tree = nullptr;
     QList<TorrentFileEntry> m_files;
     QList<int> m_priorities;
+    /// Each file's path after the renames so far (m_files keeps the metainfo's).
+    QList<QString> m_paths;
+    QVariantList m_renames;
 };
 
 } // namespace omaseed::core
