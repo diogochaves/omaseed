@@ -32,7 +32,7 @@ SettingsRow {
     signal pickRequested(var pick, Item anchor, string confirmKind)
     /// `spec.button`'s action.
     signal actionRequested(string action)
-    /// A line for the pane's head: a value refused before it was sent.
+    /// A line for the pane's head: a value or a switch refused before it was sent.
     signal noteRequested(string text)
     /// A field gave the keyboard back (enter on its last field, or esc).
     signal fieldDone
@@ -139,6 +139,10 @@ SettingsRow {
     function flip(): void {
         const key = row.spec.toggle;
         const on = !row.values[key];
+        if (on && row.spec.needs && row.spec.needs.keys.some(name => !row.values[name])) {
+            row.noteRequested(row.spec.needs.note);
+            return;
+        }
         // Anonymous mode asks only on the way in; the IP filter only when it starts blocking.
         const kind = (row.confirmKind === "anon" || row.confirmKind === "ipfilter") && !on
                 ? "" : row.confirmKind;

@@ -55,9 +55,11 @@
 #include <QVariantList>
 #include <QVariantMap>
 
+#include <functional>
 #include <memory>
 
 QT_BEGIN_NAMESPACE
+class QNetworkAccessManager;
 class QQmlEngine;
 QT_END_NAMESPACE
 
@@ -1024,7 +1026,12 @@ private:
     void followServerPreferences(const QVariantMap &changes, const QVariantMap &before);
     /// A new Web UI API key: a server signed in with a key keeps working with the new one.
     void followRotatedApiKey(const QString &key);
+    /// Whether a Web UI answers at `base` in its scheme: any HTTP answer, or (https) a
+    /// certificate shown, trusted or not. Tries `attempts` times, half a second apart, while
+    /// qBittorrent restarts its Web UI; `done(false)` when it never did.
+    void probeWebUi(const QUrl &base, std::function<void(bool)> done, int attempts);
     omaseed::core::ServerPreferences *m_prefs = nullptr;
+    QNetworkAccessManager *m_probeNam = nullptr;
 
 public:
     /// The URL the saved server should have after `changes` (docs/16 §3), or the same URL
@@ -1034,6 +1041,9 @@ public:
     urlAfterPreferences(const QUrl &url, const QVariantMap &changes, const QVariantMap &before);
 
 Q_SIGNALS:
+    /// A Web UI change the app did not follow, in words: HTTPS turned on that qBittorrent
+    /// could not start (no certificate), so it stays on HTTP and so does the saved server.
+    void webUiNotFollowed(const QString &why);
     void globalLimitsLoaded(qint64 dl, qint64 up, qint64 altDl, qint64 altUp);
     /// Every `setGlobalLimits()` call as received, before the demo guard (for the QML tests).
     void globalLimitsRequested(qint64 dl, qint64 up, qint64 altDl, qint64 altUp);

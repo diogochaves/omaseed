@@ -620,6 +620,11 @@ Item {
                 Qt.callLater(root._readQbt);
         }
 
+        // HTTPS turned on that qBittorrent could not start: the app stays where it is.
+        function onWebUiNotFollowed(why: string): void {
+            root._flashQbtNote(why, true);
+        }
+
         target: App
     }
 

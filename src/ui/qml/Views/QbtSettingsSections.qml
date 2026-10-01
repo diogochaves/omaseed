@@ -16,6 +16,8 @@ import QtQuick
 //                          `random_port` goes off only with a `listen_port` to go back to.
 //                          `enable` writes a key only while it holds its field's `none`, so
 //                          a value already set is kept; "randomPort" is a random port
+//   needs                  {keys: [...], note}: the switch turns on only once these keys
+//                          hold something; until then it stays off and `note` says why
 //   fields                 [{key, unit, scale, none, noneText, min, max, decimals, width,
 //                          kind: "number" | "text" | "password" | "time", minKey, sep}]:
 //                          `scale` divides the raw value for display (1024: bytes/s shown in
@@ -961,13 +963,18 @@ QtObject {
                 {
                     "glyph": "⚿",
                     "title": qsTr("HTTPS"),
-                    "toggle": "use_https"
+                    "toggle": "use_https",
+                    // Without both, qBittorrent stays on HTTP but marks its login cookie
+                    // secure, which nothing sends over HTTP: every new login is shut out.
+                    "needs": {
+                        "keys": ["web_ui_https_cert_path", "web_ui_https_key_path"],
+                        "note": qsTr("set the certificate and key first: without them qBittorrent stays on HTTP and its new logins stop working")
+                    }
                 },
                 {
                     "title": qsTr("Certificate, key"),
-                    "desc": qsTr("Paths on the server."),
+                    "desc": qsTr("Paths on the server. Set them before turning HTTPS on."),
                     "sub": true,
-                    "dep": "use_https",
                     "fields": [root.text("web_ui_https_cert_path", 150, ""), {
                             "key": "web_ui_https_key_path",
                             "kind": "text",

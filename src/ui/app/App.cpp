@@ -25,6 +25,9 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
 #include <QPointer>
 #include <QProcessEnvironment>
 #include <QQmlEngine>
@@ -2178,31 +2181,115 @@ void App::followServerPreferences(const QVariantMap &changes, const QVariantMap 
     QVariantMap fields = m_serverList->serverMap(m_server.id);
     if (fields.isEmpty())
         return;
-    bool touched = false;
+    bool loginTouched = false;
     QString secret;
-    const QUrl url = urlAfterPreferences(m_server.url, changes, before);
-    if (url != m_server.url) {
-        fields.insert(QStringLiteral("url"), url.toString());
-        touched = true;
-    }
     if (m_server.authMode == AuthMode::Cookie) {
         const QString userKey = QStringLiteral("web_ui_username");
         const QString passKey = QStringLiteral("web_ui_password");
         if (changes.contains(userKey) && changes.value(userKey).toString() != m_server.username) {
             fields.insert(QStringLiteral("username"), changes.value(userKey).toString());
-            touched = true;
+            loginTouched = true;
         }
         if (changes.contains(passKey) && !changes.value(passKey).toString().isEmpty()) {
             secret = changes.value(passKey).toString();
-            touched = true;
+            loginTouched = true;
         }
     }
-    if (!touched)
+    const QUrl url = urlAfterPreferences(m_server.url, changes, before);
+    if (url == m_server.url && !loginTouched)
         return;
-    qInfo().noquote() << QStringLiteral("server: following its own Web UI change");
+
+    const quint64 generation = m_serverGeneration;
+    const auto follow = [this, fields, secret, loginTouched, generation](const QUrl &target) {
+        if (generation != m_serverGeneration || (target == m_server.url && !loginTouched))
+            return;
+        QVariantMap moved = fields;
+        moved.insert(QStringLiteral("url"), target.toString());
+        qInfo().noquote() << QStringLiteral("server: following its own Web UI change");
+        updateServer(moved, secret);
+    };
     // qBittorrent moves its Web UI once it has answered; give it a moment before the next
     // request goes to the new place.
-    QTimer::singleShot(750, this, [this, fields, secret]() { updateServer(fields, secret); });
+    if (url.scheme() == m_server.url.scheme()) {
+        QTimer::singleShot(750, this, [follow, url]() { follow(url); });
+        return;
+    }
+    // HTTPS turned on without a usable certificate and key: qBittorrent answers use_https
+    // true and goes on in HTTP ("HTTPS setup failed, fallback to HTTP"). Only a scheme the
+    // Web UI really speaks is followed, or the app would shut itself out.
+    const QUrl stay = [&]() {
+        QUrl kept = url;
+        kept.setScheme(m_server.url.scheme());
+        return kept;
+    }();
+    probeWebUi(
+        url,
+        [this, follow, url, stay, generation](bool answers) {
+            if (generation != m_serverGeneration)
+                return;
+            if (answers) {
+                follow(url);
+                return;
+            }
+            qWarning().noquote() << QStringLiteral(
+                                        "server: the Web UI did not answer on %1; staying on %2")
+                                        .arg(url.toString(QUrl::RemoveUserInfo),
+                                             stay.toString(QUrl::RemoveUserInfo));
+            Q_EMIT webUiNotFollowed(
+                url.scheme() == QLatin1String("https")
+                    ? tr("qBittorrent could not start HTTPS (it needs a certificate and a key) "
+                         "and stays on HTTP, so omaseed does too")
+                    : tr("the Web UI did not answer on %1, so omaseed stays on %2")
+                          .arg(url.toString(QUrl::RemoveUserInfo),
+                               stay.toString(QUrl::RemoveUserInfo)));
+            // qBittorrent restarted its Web UI all the same, and the session went with it:
+            // sign in again where it still is.
+            if (stay == m_server.url)
+                setDefaultServer(m_server.id);
+            else
+                follow(stay);
+        },
+        8);
+}
+
+void App::probeWebUi(const QUrl &base, std::function<void(bool)> done, int attempts)
+{
+    if (m_probeNam == nullptr)
+        m_probeNam = new QNetworkAccessManager(this);
+    QUrl url = base;
+    QString path = url.path();
+    if (!path.endsWith(QLatin1Char('/')))
+        path += QLatin1Char('/');
+    url.setPath(path + QStringLiteral("api/v2/app/version"));
+    QNetworkRequest request(url);
+    // An HTTP server never answers a TLS hello, so a wrong scheme ends at this timeout.
+    request.setTransferTimeout(1500);
+    QNetworkReply *reply = m_probeNam->get(request);
+    // A certificate shown is HTTPS up, trusted or not. A TLS failure without one is the
+    // handshake meeting a plain HTTP server.
+    auto certificateSeen = std::make_shared<bool>(false);
+    connect(reply, &QNetworkReply::sslErrors, this, [certificateSeen](const QList<QSslError> &) {
+        *certificateSeen = true;
+    });
+    connect(reply,
+            &QNetworkReply::finished,
+            this,
+            [this, reply, base, done = std::move(done), attempts, certificateSeen]() mutable {
+                reply->deleteLater();
+                if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).isValid() ||
+                    *certificateSeen) {
+                    done(true);
+                    return;
+                }
+                if (attempts <= 1) {
+                    done(false);
+                    return;
+                }
+                QTimer::singleShot(
+                    500, this, [this, base, done = std::move(done), attempts]() mutable {
+                        probeWebUi(base, std::move(done), attempts - 1);
+                    });
+            });
 }
 
 void App::followRotatedApiKey(const QString &key)

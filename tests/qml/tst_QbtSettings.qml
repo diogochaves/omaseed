@@ -253,6 +253,29 @@ TestCase {
         compare(App.serverPrefs.values.web_ui_upnp, false);
     }
 
+    // HTTPS with no certificate and key: qBittorrent stays on HTTP with a secure-only login
+    // cookie, and every new login is shut out (tst_qbtsettings_live). The switch waits for both.
+    function test_https_waits_for_a_certificate_and_key() {
+        const modal = openOn(7); // Web UI
+        const confirm = testCase.childNamed(modal, "qbtConfirm");
+        const https = testCase.childNamed(modal, "qbtRow-use_https");
+        // The paths can be set while HTTPS is still off.
+        verify(testCase.childNamed(modal, "qbtRow-web_ui_https_cert_path").enabled);
+        https.activate("space");
+        verify(!confirm.opened);
+        compare(App.serverPrefs.values.use_https, false);
+        verify(modal.qbtNote.indexOf("certificate") >= 0, modal.qbtNote);
+
+        App.serverPrefs.apply({
+                                  "web_ui_https_cert_path": "/etc/qbt/cert.pem",
+                                  "web_ui_https_key_path": "/etc/qbt/key.pem"
+                              });
+        https.activate("space");
+        verify(confirm.opened);
+        confirm.confirm();
+        compare(App.serverPrefs.values.use_https, true);
+    }
+
     function test_a_choice_row_cycles_with_enter() {
         const modal = openOn(1);
         const row = testCase.childNamed(modal, "qbtRow-encryption");
