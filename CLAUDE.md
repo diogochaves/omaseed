@@ -66,10 +66,11 @@ scripts/dev/strict-walk.sh [OUT] | --interactive  # first run + cookie / API key
 scripts/dev/notify-walk.sh [OUT] | --interactive  # downloads finish: one notice each, a click shows the torrent
 scripts/dev/magnet-walk.sh [OUT] | --interactive  # xdg-open a magnet / .torrent: the add sheet, closed, in the tray, duplicate
 scripts/dev/actions-walk.sh [OUT] | --interactive # renames, categories, tags, auto-TMM, set location, bar, delete: checked on server and disk
-scripts/dev/manual-box.sh [--headless] | down          # throwaway desktop for manual tests: omaseed installed, its own qBittorrent
+scripts/dev/servers-walk.sh [OUT] | --interactive # two qBittorrents: first run, add, switch three ways, an action each side, remove
+scripts/dev/manual-box.sh [--headless] | down          # throwaway desktop for manual tests: omaseed installed, two qBittorrents (public :8090, private :8091)
 scripts/dev/app-box.sh up [-b NAME] [--build DIR] [--handlers] [--qbt]  # agents: build/omaseed in a box on :8081 (--qbt: the box's own qBittorrent), swarm .torrents in ~/Downloads
 scripts/dev/app-box.sh restart | shot | down [-b NAME]  # relaunch after a rebuild (the log has Qt's output), a window shot, away
-scripts/dev/app-box.sh api [-b NAME] [-X M] PATH [CURL ARGS]  # the box's qBittorrent (playground, or a manual box's own, signed in)
+scripts/dev/app-box.sh api [-b NAME] [--server public|private] [-X M] PATH [CURL ARGS]  # the box's qBittorrent (playground, or a manual box's own, signed in)
 ```
 
 Anything that can open a window, reach the session D-Bus or the keyring runs in an omabox

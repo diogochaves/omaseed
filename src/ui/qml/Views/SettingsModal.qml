@@ -541,6 +541,13 @@ Item {
             event.accepted = true;
             return;
         }
+        // The Servers pane's "add a server" row prints `a` whichever side has the keyboard,
+        // so `2 a` from the nav adds one too (servers-walk: it used to need a tab first).
+        if (event.key === Qt.Key_A && root.paneIndex === 1) {
+            serverSheet.openNew();
+            event.accepted = true;
+            return;
+        }
         if (root.area === "nav") {
             switch (event.key) {
             case Qt.Key_J:
@@ -1170,7 +1177,9 @@ Item {
                                         if (serverRow.versionText.length > 0)
                                             parts.push(serverRow.versionText);
                                         if (serverRow.torrentCount >= 0)
-                                            parts.push(qsTr("%1 torrents").arg(serverRow.torrentCount));
+                                            parts.push(serverRow.torrentCount === 1 ? qsTr("1 torrent") : qsTr(
+                                                                                          "%1 torrents").arg(
+                                                           serverRow.torrentCount));
                                         else if (serverRow.lastError.length > 0)
                                             parts.push(serverRow.lastError);
                                         return parts.join(" · ");

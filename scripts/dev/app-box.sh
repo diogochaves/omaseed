@@ -14,12 +14,13 @@
 #   scripts/dev/app-box.sh restart [-b NAME] [--build DIR]
 #       stop omaseed, start it again (after a rebuild), return once its window is still; prints
 #       the run log, which has the app's own output (QT_FORCE_STDERR_LOGGING, omabox#26).
-#   scripts/dev/app-box.sh api [-b NAME] [-X METHOD] PATH [CURL ARGS...]
+#   scripts/dev/app-box.sh api [-b NAME] [--server public|private] [-X METHOD] PATH [CURL ARGS...]
 #       ask the qBittorrent this box's omaseed uses and print its answer as it comes:
 #         app-box.sh api torrents/info
 #         app-box.sh api torrents/reannounce -d hashes=all
-#       The playground straight from here; a --qbt or manual box's own qBittorrent from inside the box,
-#       signed in with the login the box keeps (never printed).
+#       The playground straight from here; a --qbt or manual box's own qBittorrent from inside
+#       the box, signed in with the login the box keeps (never printed). A manual box runs two
+#       qBittorrents: "public" (:8090, the default) and "private" (:8091, --server private).
 #   scripts/dev/app-box.sh shot [-b NAME] [SHOT ARGS...]     omaseed's window (omabox shot)
 #   scripts/dev/app-box.sh down [-b NAME]
 #
@@ -41,6 +42,15 @@ PLAY="http://127.0.0.1:$PLAY_PORT"
 BOX_HOME=/home/sbx
 BOX_QBT_PORT="${OMASEED_BOX_QBT_PORT:-8090}"
 BOX_BT_PORT=26990
+# The manual box's second qBittorrent, "private" (the first is "public").
+BOX_QBT2_PORT="${OMASEED_BOX_QBT2_PORT:-8091}"
+BOX_BT2_PORT=26991
+BOX_QBT2_PROFILE=$BOX_HOME/.local/share/qbittorrent-private
+# The swarm torrents "private" starts with (small ones: they download for real in the box).
+PRIVATE_TORRENTS=("tiny-notes.txt" "Ünïcødé ✓ Spaces & Symbols" "Field Recordings Vol. 3 [FLAC]"
+    "Nested Library Sampler")
+# Each manual-box qBittorrent's login, as box_qbt writes it, for `api` (in the box's HOME).
+LOGINS=.omaseed-box-logins
 TRACKER_PORT=26996
 SEEDER_PORT=8083
 SEEDER_BT_PORT=26997
@@ -48,7 +58,7 @@ SEEDER="http://127.0.0.1:$SEEDER_PORT/api/v2"
 TORRENTS="${OMASEED_SWARM_PROFILE:-$HOME/.local/share/omaseed-swarm}/torrents"
 # What `up` left in the box for `restart` and `api`: KEY=VALUE lines, outside omaseed's config.
 MARKER=.omaseed-box
-refuse_home "$PLAY" "$BOX_QBT_PORT" "$SEEDER"
+refuse_home "$PLAY" "$BOX_QBT_PORT" "$BOX_QBT2_PORT" "$SEEDER"
 
 die() { echo "app-box.sh: $*" >&2; exit 1; }
 
@@ -244,7 +254,7 @@ for t in json.load(sys.stdin):
 }
 
 up_manual() {
-    local build="$1" interactive="$2" home stage password sampler name file
+    local build="$1" interactive="$2" home stage password password2 sampler name file
     echo "building omaseed for the box ($build/, installed under $BOX_HOME/.local)"
     if [ ! -f "$build/build.ninja" ]; then
         cmake -S . -B "$build" -G Ninja -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=OFF \
@@ -282,12 +292,28 @@ up_manual() {
     rm -rf -- "$stage"
     omabox run -b "$BOX" -- update-desktop-database "$BOX_HOME/.local/share/applications" >/dev/null 2>&1 || true
 
-    echo "setting up the box's qBittorrent (Web UI 127.0.0.1:$BOX_QBT_PORT)"
-    mkdir -p "$home/Downloads"
-    box_qbt "$BOX_QBT_PORT" "$BOX_BT_PORT" "$home/qbittorrent-login.txt" ""
-    printf 'kind=manual\nbinary=%s/.local/bin/omaseed\napi=http://127.0.0.1:%s/api/v2\n' \
-        "$BOX_HOME" "$BOX_QBT_PORT" >"$home/$MARKER"
-    password="$(sed -n 's/^password  //p' "$home/qbittorrent-login.txt")"
+    # Two qBittorrents, as people who split public and private trackers run them: "public" in
+    # the usual profile (~/.config/qBittorrent, the one first run reads), "private" in its own
+    # --profile with its own ports, login and save path.
+    echo "setting up the box's qBittorrents: public (127.0.0.1:$BOX_QBT_PORT), private (127.0.0.1:$BOX_QBT2_PORT)"
+    mkdir -p "$home/Downloads" "$home/$LOGINS"
+    chmod 700 "$home/$LOGINS"
+    box_qbt "$BOX_QBT_PORT" "$BOX_BT_PORT" "$home/$LOGINS/public.txt" ""
+    box_qbt "$BOX_QBT2_PORT" "$BOX_BT2_PORT" "$home/$LOGINS/private.txt" "$BOX_QBT2_PROFILE" \
+        "$BOX_HOME/Downloads/private"
+    printf 'kind=manual\nbinary=%s/.local/bin/omaseed\napi=http://127.0.0.1:%s/api/v2\napi_private=http://127.0.0.1:%s/api/v2\n' \
+        "$BOX_HOME" "$BOX_QBT_PORT" "$BOX_QBT2_PORT" >"$home/$MARKER"
+    password="$(sed -n 's/^password  //p' "$home/$LOGINS/public.txt")"
+    password2="$(sed -n 's/^password  //p' "$home/$LOGINS/private.txt")"
+    {
+        echo "public   qBittorrent's usual profile (~/.config/qBittorrent): the one first run finds"
+        printf '  Web UI    http://127.0.0.1:%s\n  username  admin\n  password  %s\n  saves to  ~/Downloads\n\n' \
+            "$BOX_QBT_PORT" "$password"
+        echo "private  a second qBittorrent (--profile ~${BOX_QBT2_PROFILE#"$BOX_HOME"}) with the swarm's private torrents"
+        printf '  Web UI    http://127.0.0.1:%s\n  username  admin\n  password  %s\n  saves to  ~/Downloads/private\n' \
+            "$BOX_QBT2_PORT" "$password2"
+    } >"$home/qbittorrent-login.txt"
+    chmod 600 "$home/qbittorrent-login.txt"
 
     echo "filling ~/Downloads"
     for name in "tiny-notes.txt" "Field Recordings Vol. 3 [FLAC]" "distro-2026.09-x86_64.iso" \
@@ -295,6 +321,16 @@ up_manual() {
         # A plain prefix match: [FLAC] would be a character class to find -name.
         for file in "$TORRENTS"/*.torrent; do
             [[ "$(basename "$file")" == "$name"* ]] && cp "$file" "$home/Downloads/"
+        done
+    done
+    echo "adding the swarm's private torrents to \"private\""
+    for name in "${PRIVATE_TORRENTS[@]}"; do
+        for file in "$TORRENTS"/*.torrent; do
+            [[ "$(basename "$file")" == "$name"* ]] || continue
+            cp "$file" "$home/$LOGINS/"
+            SERVER=private api "" torrents/add -F "torrents=@$BOX_HOME/$LOGINS/$(basename "$file")" \
+                >/dev/null || die "the private qBittorrent did not take $(basename "$file")"
+            rm -f "$home/$LOGINS/$(basename "$file")"
         done
     done
     MAGNET="$sampler" python3 - "$home/Downloads/links.html" <<'PY'
@@ -315,8 +351,11 @@ PY
     if [ "$interactive" = 1 ]; then
         echo "  It is a window on workspace 9. SUPER+ALT+ESC sends SUPER keys to it."
     fi
-    echo "  Start omaseed from the launcher (SUPER+SPACE). First run should find the box's qBittorrent."
-    echo "  qBittorrent login: admin / $password  (also in the box's ~/qbittorrent-login.txt)"
+    echo "  Start omaseed from the launcher (SUPER+SPACE). First run should find the box's qBittorrent"
+    echo "  \"public\"; add \"private\" in Settings › Servers (a) to have two."
+    echo "  public:  http://127.0.0.1:$BOX_QBT_PORT  admin / $password  (empty: fill it from ~/Downloads)"
+    echo "  private: http://127.0.0.1:$BOX_QBT2_PORT  admin / $password2  (${#PRIVATE_TORRENTS[@]} private swarm torrents)"
+    echo "  Both logins are in the box's ~/qbittorrent-login.txt."
     echo "  ~/Downloads: .torrent files for Files, and links.html (open it in Chromium) with a magnet."
     echo "  Throw it away: scripts/dev/manual-box.sh down (or close the window)."
 }
@@ -331,26 +370,36 @@ api() {
     path="${path#api/v2/}"
     kind="$(box_kind)"
     if [ "$kind" = manual ]; then
-        url="$(marker api)"
-        if [ -z "$url" ]; then
+        # SERVER: public (the default) or private. A manual box made before there were two
+        # has only ~/qbittorrent-login.txt, in the one-server format, and no api_private.
+        case "$SERVER" in
+        public) url="$(marker api)" ;;
+        private) url="$(marker api_private)" ;;
+        *) die "no server \"$SERVER\" in a manual box: public or private" ;;
+        esac
+        if [ -z "$url" ] && [ "$SERVER" = public ]; then
             url="$(sed -n 's/^qBittorrent Web UI  //p' "$(box_home)/qbittorrent-login.txt")/api/v2"
         fi
+        [ -n "$url" ] && [ "$url" != /api/v2 ] || die "this box has no \"$SERVER\" qBittorrent"
         refuse_home "$url"
         # Inside the box (its 127.0.0.1 is not this machine's). The password goes from the
         # login file to curl through a 0600 file, never through a command line.
         # shellcheck disable=SC2016 # expanded by the box's sh
         omabox run -b "$BOX" -- sh -c '
 set -e
-url="$1"; method="$2"; path="$3"; shift 3
+url="$1"; method="$2"; path="$3"; login="$4"; shift 4
+[ -f "$login" ] || login="$HOME/qbittorrent-login.txt"
 dir="$(mktemp -d)"; trap "rm -rf \"$dir\"" EXIT
 umask 077
-sed -n "s/^password  //p" "$HOME/qbittorrent-login.txt" | tr -d "\n" >"$dir/pass"
+sed -n "s/^password  //p" "$login" | tr -d "\n" >"$dir/pass"
 code="$(curl -s -o /dev/null -w "%{http_code}" -c "$dir/jar" --data-urlencode username=admin \
     --data-urlencode "password@$dir/pass" "$url/auth/login")"
 case "$code" in 200 | 204) ;; *) echo "app-box.sh: the box qBittorrent refused the login ($code)" >&2; exit 1 ;; esac
 if [ -n "$method" ]; then set -- -X "$method" "$@"; fi
 curl -sS --fail-with-body -b "$dir/jar" "$@" "$url/$path"
-' sh "$url" "$method" "$path" "$@"
+' sh "$url" "$method" "$path" "$BOX_HOME/$LOGINS/$SERVER.txt" "$@"
+    elif [ "$SERVER" != public ]; then
+        die "only a manual box has a \"$SERVER\" qBittorrent"
     elif [ "$kind" = qbt ]; then
         url="$(marker api)"
         refuse_home "$url"
@@ -379,6 +428,7 @@ interactive=0
 handlers=0
 qbt=0
 manual=0
+SERVER="${SERVER:-public}"
 method=""
 args=()
 while [ $# -gt 0 ]; do
@@ -391,6 +441,7 @@ while [ $# -gt 0 ]; do
     --qbt) qbt=1 ;;
     --manual) manual=1 ;;
     -X) [ $# -ge 2 ] || die "-X needs a method"; method="$2"; shift ;;
+    --server) [ $# -ge 2 ] || die "--server needs a name"; SERVER="$2"; shift ;;
     *) args+=("$1") ;;
     esac
     shift

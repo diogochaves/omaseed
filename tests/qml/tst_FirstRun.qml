@@ -148,6 +148,20 @@ TestCase {
         verify(!detail.visible);
     }
 
+    // A passed test counts in words: "1 torrent", never "1 torrents" (servers-walk).
+    function test_a_passed_test_counts_one_torrent_in_the_singular() {
+        const page = createTemporaryObject(pageComponent, testCase, {
+                                               "candidates": []
+                                           });
+        page.chooseCursor();
+        page.testing = true;
+        App.serverTested("", true, "v5.2.3", "2.15.1", 1, 4, "", "");
+        compare(page.testResultText, "qBittorrent 5.2.3 · API 2.15.1 · 1 torrent");
+        page.testing = true;
+        App.serverTested("", true, "v5.2.3", "2.15.1", 4, 4, "", "");
+        compare(page.testResultText, "qBittorrent 5.2.3 · API 2.15.1 · 4 torrents");
+    }
+
     // The heading asks the step's own question, not step 1's on every page.
     function test_each_step_has_its_own_heading() {
         const page = createTemporaryObject(pageComponent, testCase, {

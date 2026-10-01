@@ -241,6 +241,10 @@ TestCase {
         verify(Qt.colorEqual(testCase.childNamed(row, "serverDot").color, Theme.red));
         // ...and keeps the version and count it had.
         compare(row.description, "http://127.0.0.1:8081 · API key · v5.2.3 · 3 torrents");
+
+        // One is "1 torrent" (servers-walk: the pane read "1 torrents").
+        App.serverList.setProbeResult(id, true, "v5.2.3", "2.15.1", 1, 4, "");
+        compare(row.description, "http://127.0.0.1:8081 · API key · v5.2.3 · 1 torrent");
     }
 
     // Review RUN-9: a server nobody has tested has a dim dot, not the green of one that
@@ -278,6 +282,7 @@ TestCase {
         compare(sheet.testOk, true);
         compare(sheet.testVersion, "5.2.3");
         compare(sheet.testCount, 142);
+        compare(sheet._testCountText, "142 torrents");
         compare(App.serverList.count, 0); // nothing saved yet, nothing to attribute it to
 
         sheet.actionTriggered("save");
@@ -345,6 +350,25 @@ TestCase {
         compare(modal.serverSheet.isNew, true);
         compare(modal.serverSheet.title, "New server");
         modal.serverSheet.close();
+    }
+
+    // The "add a server" row prints `a` while the keyboard is still on the nav, as it is
+    // straight after `2`: the key works from there too.
+    function test_a_adds_a_server_from_the_nav_too() {
+        testCase.addTestServer("playground", "http://127.0.0.1:8081");
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        keyClick(Qt.Key_2);
+        compare(modal.area, "nav");
+        keyClick(Qt.Key_A);
+        verify(modal.serverSheet.opened);
+        compare(modal.serverSheet.isNew, true);
+        modal.serverSheet.close();
+
+        // Elsewhere `a` is still nothing of the modal's.
+        keyClick(Qt.Key_1);
+        keyClick(Qt.Key_A);
+        verify(!modal.serverSheet.opened);
     }
 
     // Review RUN-15: saving an empty form says what is missing instead of doing nothing.
