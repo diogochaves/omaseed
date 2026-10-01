@@ -32,6 +32,7 @@ APP_BOX="$repo/scripts/dev/app-box.sh"
 BOX="${OMASEED_ACTIONS_BOX:-actions-walk}"
 BOX_HOME=/home/sbx
 TORRENTS_DIR="$BOX_HOME/Torrents"   # app-box.sh --qbt's save path
+BOX_API=http://127.0.0.1:8090/api/v2  # app-box.sh --qbt's qBittorrent, as the box sees it
 INTERACTIVE=0
 OUT=""
 case "${1:-}" in
@@ -84,6 +85,20 @@ click() { omabox click -b "$BOX" --window omaseed --wait "$1" "$2" >/dev/null 2>
 # menu open. table_on QUERY: the same, the menu closed again, the keyboard on the table.
 menu_on() { keys ctrl+k -t "$1" Tab; }
 table_on() { menu_on "$1"; keys Escape; }
+
+# watch_checking HASH OUT: in the background, poll the box's qBittorrent from inside the box
+# every 50 ms for up to 15 s and write "seen" to OUT (a file here) once HASH reads checking.
+# A 2 GiB check in memory lasts about two seconds, too short for polls through omabox run;
+# start it before the key, then wait for it.
+watch_checking() {
+    # shellcheck disable=SC2016 # expanded by the box's sh
+    omabox run -b "$BOX" -- sh -c '
+for _ in $(seq 1 300); do
+    curl -s "$1/torrents/info?hashes=$2" | grep -q "\"state\":\"checking" && { echo seen; exit 0; }
+    sleep 0.05
+done
+echo missed' sh "$BOX_API" "$1" >"$2" 2>/dev/null &
+}
 
 CHECKS=0
 STEP=0
@@ -365,9 +380,14 @@ shot "$BIG seeding from /tmp/elsewhere." after
 
 step "Recheck" "$BIG, the menu's recheck (c): qBittorrent hashes the moved 2 GiB again and finds it whole."
 menu_on "$BIG"
+seen="$(mktemp)"
+watch_checking "$BIGH" "$seen"
+sleep 0.5 # the watcher is polling before the key goes
 keys c
 shot "Straight after c. Hashing 2 GiB in memory takes about two seconds, so the row may already be back to seeding or queued; the checks below saw qBittorrent check it."
-expect "qBittorrent checks it" "$BIGH" "t['state'].startswith('checking') or t['progress'] < 1" 10
+wait
+if [ "$(cat "$seen")" = seen ]; then pass "qBittorrent checks it"; else fail "qBittorrent never read checking after c"; fi
+rm -f "$seen"
 expect "…and finds it whole" "$BIGH" "t['state'] in $SEEDING and t['progress'] == 1" 120
 shot "$BIG seeding again after the check." after
 
