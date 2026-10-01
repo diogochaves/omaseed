@@ -170,6 +170,10 @@ Sheet {
     /// mask is a fixed width rather than the key's real length.
     readonly property string _maskedKey: "•".repeat(20)
 
+    /// The test's torrent count in words: "1 torrent", "4 torrents".
+    readonly property string _testCountText: root.testCount === 1 ? qsTr("1 torrent") : qsTr(
+                                                                       "%1 torrents").arg(root.testCount)
+
     readonly property string _authValueText: {
         if (root.editAuthMode === "apiKey")
             return qsTr("API key · stored in %1").arg(qsTr("libsecret"));
@@ -534,11 +538,11 @@ Sheet {
             dim: true
             size: "small"
             text: root.testing ? qsTr("testing…") : root.tested ? (root.testOk ? qsTr(
-                                                                                    "reached %1 · qBittorrent %2 · API %3 · %4 torrents").arg(
+                                                                                    "reached %1 · qBittorrent %2 · API %3 · %4").arg(
                                                                                     root.editUrl).arg(root.testVersion.replace(
                                                                                                           /^v/, "")).arg(
                                                                                     root.testApiVersion).arg(
-                                                                                    root.testCount) : root._credentialRefused
+                                                                                    root._testCountText) : root._credentialRefused
                                                                                    ? root.testError : qsTr(
                                                                                     "not reachable · %1").arg(
                                                                                     root.testError)) : ""

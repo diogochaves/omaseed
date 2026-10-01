@@ -1177,7 +1177,9 @@ Item {
                                         if (serverRow.versionText.length > 0)
                                             parts.push(serverRow.versionText);
                                         if (serverRow.torrentCount >= 0)
-                                            parts.push(qsTr("%1 torrents").arg(serverRow.torrentCount));
+                                            parts.push(serverRow.torrentCount === 1 ? qsTr("1 torrent") : qsTr(
+                                                                                          "%1 torrents").arg(
+                                                           serverRow.torrentCount));
                                         else if (serverRow.lastError.length > 0)
                                             parts.push(serverRow.lastError);
                                         return parts.join(" · ");

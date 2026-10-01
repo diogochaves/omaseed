@@ -355,9 +355,10 @@ Connections {
         root.testLatency = latencyMs;
         root.testError = error;
         root.testErrorDetail = errorDetail;
-        root.testResultText = ok ? qsTr("qBittorrent %1 · API %2 · %3 torrents").arg(version.replace(
-                                                                                         /^v/, "")).arg(
-                                       apiVersion).arg(torrentCount) : error;
+        root.testResultText = ok ? qsTr("qBittorrent %1 · API %2 · %3").arg(version.replace(
+                                                                                /^v/, "")).arg(apiVersion).arg(
+                                       torrentCount === 1 ? qsTr("1 torrent") : qsTr("%1 torrents").arg(
+                                                                torrentCount)) : error;
     }
 
     target: App
