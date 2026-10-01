@@ -3,11 +3,14 @@
 # build against the :8081 playground (agents), or the installed app with its own qBittorrent
 # (the manual box, through scripts/dev/manual-box.sh).
 #
-#   scripts/dev/app-box.sh up [-b NAME] [--interactive] [--build DIR] [--handlers]
+#   scripts/dev/app-box.sh up [-b NAME] [--interactive] [--build DIR] [--handlers] [--qbt]
 #       a box on its own network that reaches only :8081; servers.json pointing omaseed at the
 #       playground; every swarm .torrent in ~/Downloads (the add sheet's "In Downloads" list);
 #       then DIR/omaseed (default build/) is started and the command returns once its window
 #       is drawn and still. --handlers registers omaseed for magnet: and .torrent in the box.
+#       --qbt: a qBittorrent of the box's own instead of the playground (127.0.0.1:8090 in the
+#       box, no login, saving to ~/Torrents), reaching only the swarm's tracker and seeder, so
+#       deletes, moves and settings changes touch nothing outside the box.
 #   scripts/dev/app-box.sh restart [-b NAME] [--build DIR]
 #       stop omaseed, start it again (after a rebuild), return once its window is still; prints
 #       the run log, which has the app's own output (QT_FORCE_STDERR_LOGGING, omabox#26).
@@ -15,7 +18,7 @@
 #       ask the qBittorrent this box's omaseed uses and print its answer as it comes:
 #         app-box.sh api torrents/info
 #         app-box.sh api torrents/reannounce -d hashes=all
-#       The playground straight from here; a manual box's own qBittorrent from inside the box,
+#       The playground straight from here; a --qbt or manual box's own qBittorrent from inside the box,
 #       signed in with the login the box keeps (never printed).
 #   scripts/dev/app-box.sh shot [-b NAME] [SHOT ARGS...]     omaseed's window (omabox shot)
 #   scripts/dev/app-box.sh down [-b NAME]
@@ -98,16 +101,87 @@ launch() {
     echo "omaseed is up in $BOX${log:+ (log: $log)}"
 }
 
+# box_qbt PORT BT_PORT LOGIN_FILE [PROFILE] [SAVE_PATH]: start a qbittorrent-nox in the box,
+# its Web UI on the box's 127.0.0.1:PORT, listening for peers on BT_PORT, and wait until it
+# answers. LOGIN_FILE (a path on this side) gets a random admin login, kept there for `api`
+# and the person at the box; "" makes it a playground instead: no login from 127.0.0.1.
+# PROFILE is a directory in the box for --profile (its config under PROFILE/qBittorrent/
+# config); "" is the user's own ~/.config/qBittorrent, the one first run reads. SAVE_PATH
+# defaults to ~/Downloads.
+box_qbt() {
+    local port="$1" bt_port="$2" login_file="$3" profile="${4:-}" save="${5:-$BOX_HOME/Downloads}"
+    local conf password hash auth code
+    if [ -n "$profile" ]; then
+        conf="$(box_home)${profile#"$BOX_HOME"}/qBittorrent/config"
+    else
+        conf="$(box_home)/.config/qBittorrent"
+    fi
+    mkdir -p "$conf" "$(box_home)${save#"$BOX_HOME"}"
+    if [ -n "$login_file" ]; then
+        password="$(python3 -c 'import secrets; print(secrets.token_urlsafe(12))')"
+        hash="$(PASS="$password" python3 -c '
+import base64, hashlib, os
+salt = os.urandom(16)
+key = hashlib.pbkdf2_hmac("sha512", os.environ["PASS"].encode(), salt, 100000, dklen=64)
+print(base64.b64encode(salt).decode() + ":" + base64.b64encode(key).decode())')"
+        auth="WebUI\\Username=admin
+WebUI\\Password_PBKDF2=\"@ByteArray($hash)\""
+    else
+        auth="WebUI\\LocalHostAuth=false"
+    fi
+    # MultiConnectionsPerIp: every peer of this swarm is 127.0.0.1 (the seeder, the playground,
+    # this box). With it off, libtorrent keeps one peer per IP, the last port the tracker named,
+    # so the box could be left trying only the playground's port, closed in here (M15).
+    cat >"$conf/qBittorrent.conf" <<EOF
+[LegalNotice]
+Accepted=true
+
+[BitTorrent]
+Session\\Port=$bt_port
+Session\\DefaultSavePath=$save
+Session\\MultiConnectionsPerIp=true
+
+[Preferences]
+WebUI\\Enabled=true
+WebUI\\Address=127.0.0.1
+WebUI\\Port=$port
+$auth
+EOF
+    if [ -n "$login_file" ]; then
+        printf 'qBittorrent Web UI  http://127.0.0.1:%s\nusername  admin\npassword  %s\n' \
+            "$port" "$password" >"$login_file"
+        chmod 600 "$login_file"
+    fi
+    if [ -n "$profile" ]; then
+        omabox run -b "$BOX" -d -- qbittorrent-nox "--profile=$profile" >/dev/null 2>&1
+    else
+        omabox run -b "$BOX" -d -- qbittorrent-nox >/dev/null 2>&1
+    fi
+    code=""
+    for _ in $(seq 1 40); do
+        code="$(omabox run -b "$BOX" -- curl -s -o /dev/null -w '%{http_code}' \
+            "http://127.0.0.1:$port/api/v2/app/version" 2>/dev/null || true)"
+        [ "$code" = 403 ] || [ "$code" = 200 ] && break
+        sleep 0.5
+    done
+    [ "$code" = 403 ] || [ "$code" = 200 ] ||
+        die "the box's qBittorrent did not answer on :$port (last: ${code:-none})"
+}
+
 # ---- up: the app box ---------------------------------------------------------------------
 
 up_app() {
-    local build="$1" interactive="$2" handlers="$3" home up_args=()
+    local build="$1" interactive="$2" handlers="$3" qbt="$4" home url name up_args=()
     [ -x "$build/omaseed" ] || die "no $build/omaseed: build it first (cmake --build $build)"
-    if ! "$repo/scripts/dev/test-server.sh" status >/dev/null 2>&1; then
+    if [ "$qbt" = 0 ] && ! "$repo/scripts/dev/test-server.sh" status >/dev/null 2>&1; then
         echo "starting the playground (:$PLAY_PORT)"
         "$repo/scripts/dev/test-server.sh" start >/dev/null
     fi
-    if ! compgen -G "$TORRENTS/*.torrent" >/dev/null; then
+    if [ "$qbt" = 1 ]; then
+        # The box's qBittorrent downloads from the swarm: its tracker and seeder must be up.
+        "$SWARM" start >/dev/null
+        compgen -G "$TORRENTS/*.torrent" >/dev/null || "$SWARM" seed >/dev/null
+    elif ! compgen -G "$TORRENTS/*.torrent" >/dev/null; then
         echo "making the swarm's .torrent files"
         "$SWARM" start >/dev/null
         "$SWARM" seed >/dev/null
@@ -115,7 +189,12 @@ up_app() {
 
     echo "starting the box $BOX"
     omabox down -b "$BOX" >/dev/null 2>&1 || true
-    up_args=(--net isolated --allow "$PLAY_PORT")
+    if [ "$qbt" = 1 ]; then
+        # Only the swarm's tracker and seeder: nothing of this machine's qBittorrents.
+        up_args=(--net isolated --allow "$TRACKER_PORT,$SEEDER_BT_PORT")
+    else
+        up_args=(--net isolated --allow "$PLAY_PORT")
+    fi
     if [ "$interactive" = 1 ]; then
         quiet omabox up "$BOX" --interactive "${up_args[@]}"
     else
@@ -125,17 +204,27 @@ up_app() {
 
     mkdir -p "$home/.config/omaseed" "$home/Downloads"
     chmod 700 "$home/.config/omaseed"
-    printf '{"version":1,"defaultId":"playground","servers":[{"id":"playground","name":"playground","url":"%s","authMode":"none","username":"","pathMap":[],"isDefault":true,"addedAt":"2026-09-23T00:00:00Z"}]}' "$PLAY" \
-        >"$home/.config/omaseed/servers.json"
+    if [ "$qbt" = 1 ]; then
+        echo "starting the box's qBittorrent (127.0.0.1:$BOX_QBT_PORT, saves to ~/Torrents)"
+        box_qbt "$BOX_QBT_PORT" "$BOX_BT_PORT" "" "" "$BOX_HOME/Torrents"
+        url="http://127.0.0.1:$BOX_QBT_PORT"
+        name=box
+    else
+        url="$PLAY"
+        name=playground
+    fi
+    printf '{"version":1,"defaultId":"%s","servers":[{"id":"%s","name":"%s","url":"%s","authMode":"none","username":"","pathMap":[],"isDefault":true,"addedAt":"2026-09-23T00:00:00Z"}]}' \
+        "$name" "$name" "$name" "$url" >"$home/.config/omaseed/servers.json"
     chmod 600 "$home/.config/omaseed/servers.json"
     cp "$TORRENTS"/*.torrent "$home/Downloads/"
-    printf 'kind=app\nbinary=%s\napi=%s/api/v2\n' "$repo/$build/omaseed" "$PLAY" >"$home/$MARKER"
+    printf 'kind=%s\nbinary=%s\napi=%s/api/v2\n' "$([ "$qbt" = 1 ] && echo qbt || echo app)" \
+        "$repo/$build/omaseed" "$url" >"$home/$MARKER"
     if [ "$handlers" = 1 ]; then
         omabox run -b "$BOX" -- scripts/dev/install-desktop.sh "$repo/$build/omaseed" --set-default \
             >/dev/null 2>&1 || die "install-desktop.sh failed in the box"
     fi
     launch "$repo/$build/omaseed"
-    echo "  $(find "$home/Downloads" -name '*.torrent' | wc -l) .torrent files in ~/Downloads; server: the playground $PLAY"
+    echo "  $(find "$home/Downloads" -name '*.torrent' | wc -l) .torrent files in ~/Downloads; server: the $name $url"
     if [ "$interactive" = 1 ]; then
         echo "  It is a window on workspace 9. SUPER+ALT+ESC sends SUPER keys to it."
     fi
@@ -155,7 +244,7 @@ for t in json.load(sys.stdin):
 }
 
 up_manual() {
-    local build="$1" interactive="$2" home stage password hash code sampler name file
+    local build="$1" interactive="$2" home stage password sampler name file
     echo "building omaseed for the box ($build/, installed under $BOX_HOME/.local)"
     if [ ! -f "$build/build.ninja" ]; then
         cmake -S . -B "$build" -G Ninja -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=OFF \
@@ -194,47 +283,11 @@ up_manual() {
     omabox run -b "$BOX" -- update-desktop-database "$BOX_HOME/.local/share/applications" >/dev/null 2>&1 || true
 
     echo "setting up the box's qBittorrent (Web UI 127.0.0.1:$BOX_QBT_PORT)"
-    password="$(python3 -c 'import secrets; print(secrets.token_urlsafe(12))')"
-    hash="$(PASS="$password" python3 -c '
-import base64, hashlib, os
-salt = os.urandom(16)
-key = hashlib.pbkdf2_hmac("sha512", os.environ["PASS"].encode(), salt, 100000, dklen=64)
-print(base64.b64encode(salt).decode() + ":" + base64.b64encode(key).decode())')"
-    mkdir -p "$home/.config/qBittorrent" "$home/Downloads"
-    # MultiConnectionsPerIp: every peer of this swarm is 127.0.0.1 (the seeder, the playground,
-    # this box). With it off, libtorrent keeps one peer per IP, the last port the tracker named,
-    # so the box could be left trying only the playground's port, closed in here (M15).
-    cat >"$home/.config/qBittorrent/qBittorrent.conf" <<EOF
-[LegalNotice]
-Accepted=true
-
-[BitTorrent]
-Session\\Port=$BOX_BT_PORT
-Session\\DefaultSavePath=$BOX_HOME/Downloads
-Session\\MultiConnectionsPerIp=true
-
-[Preferences]
-WebUI\\Enabled=true
-WebUI\\Address=127.0.0.1
-WebUI\\Port=$BOX_QBT_PORT
-WebUI\\Username=admin
-WebUI\\Password_PBKDF2="@ByteArray($hash)"
-EOF
-    printf 'qBittorrent Web UI  http://127.0.0.1:%s\nusername  admin\npassword  %s\n' \
-        "$BOX_QBT_PORT" "$password" >"$home/qbittorrent-login.txt"
-    chmod 600 "$home/qbittorrent-login.txt"
+    mkdir -p "$home/Downloads"
+    box_qbt "$BOX_QBT_PORT" "$BOX_BT_PORT" "$home/qbittorrent-login.txt" ""
     printf 'kind=manual\nbinary=%s/.local/bin/omaseed\napi=http://127.0.0.1:%s/api/v2\n' \
         "$BOX_HOME" "$BOX_QBT_PORT" >"$home/$MARKER"
-    omabox run -b "$BOX" -d -- qbittorrent-nox >/dev/null 2>&1
-    code=""
-    for _ in $(seq 1 40); do
-        code="$(omabox run -b "$BOX" -- curl -s -o /dev/null -w '%{http_code}' \
-            "http://127.0.0.1:$BOX_QBT_PORT/api/v2/app/version" 2>/dev/null || true)"
-        [ "$code" = 403 ] || [ "$code" = 200 ] && break
-        sleep 0.5
-    done
-    [ "$code" = 403 ] || [ "$code" = 200 ] ||
-        die "the box's qBittorrent did not answer on :$BOX_QBT_PORT (last: ${code:-none})"
+    password="$(sed -n 's/^password  //p' "$home/qbittorrent-login.txt")"
 
     echo "filling ~/Downloads"
     for name in "tiny-notes.txt" "Field Recordings Vol. 3 [FLAC]" "distro-2026.09-x86_64.iso" \
@@ -298,6 +351,11 @@ case "$code" in 200 | 204) ;; *) echo "app-box.sh: the box qBittorrent refused t
 if [ -n "$method" ]; then set -- -X "$method" "$@"; fi
 curl -sS --fail-with-body -b "$dir/jar" "$@" "$url/$path"
 ' sh "$url" "$method" "$path" "$@"
+    elif [ "$kind" = qbt ]; then
+        url="$(marker api)"
+        refuse_home "$url"
+        if [ -n "$method" ]; then set -- -X "$method" "$@"; fi
+        omabox run -b "$BOX" -- curl -sS --fail-with-body "$@" "$url/$path"
     else
         url="$(marker api)"
         url="${url:-$PLAY/api/v2}"
@@ -319,6 +377,7 @@ BOX="app-box-$(basename "$repo")"
 build=""
 interactive=0
 handlers=0
+qbt=0
 manual=0
 method=""
 args=()
@@ -329,6 +388,7 @@ while [ $# -gt 0 ]; do
     --interactive) interactive=1 ;;
     --headless) interactive=0 ;;
     --handlers) handlers=1 ;;
+    --qbt) qbt=1 ;;
     --manual) manual=1 ;;
     -X) [ $# -ge 2 ] || die "-X needs a method"; method="$2"; shift ;;
     *) args+=("$1") ;;
@@ -342,7 +402,7 @@ up)
     if [ "$manual" = 1 ]; then
         up_manual "${build:-build-box}" "$interactive"
     else
-        up_app "${build:-build}" "$interactive" "$handlers"
+        up_app "${build:-build}" "$interactive" "$handlers" "$qbt"
     fi
     ;;
 restart)
