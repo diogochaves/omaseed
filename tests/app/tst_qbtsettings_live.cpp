@@ -15,6 +15,7 @@
 #include "core/QbtClient.hpp"
 #include "core/ServerListModel.hpp"
 #include "core/ServerPreferences.hpp"
+#include "core/SyncEngine.hpp"
 #include "ui/app/App.hpp"
 
 #include "ThrowawayQbt.hpp"
@@ -24,6 +25,11 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QNetworkAccessManager>
+#include <QNetworkCookie>
+#include <QNetworkCookieJar>
+#include <QNetworkReply>
+#include <QNetworkRequest>
 #include <QProcess>
 #include <QQmlComponent>
 #include <QQmlEngine>
@@ -32,6 +38,7 @@
 #include <QTemporaryDir>
 #include <QTest>
 #include <QTimer>
+#include <QUrlQuery>
 
 #include <memory>
 
@@ -41,6 +48,7 @@ using omaseed::core::QbtClient;
 using omaseed::core::QbtReply;
 using omaseed::core::QbtResult;
 using omaseed::core::ServerPreferences;
+using omaseed::core::SyncEngine;
 
 namespace {
 
@@ -342,8 +350,21 @@ private Q_SLOTS:
     void init();
 
     void everySettingRoundTrips();
+    void unknownAndBadValuesAreKeptNotRefused();
+    void aShortPasswordIsRefusedAndTheLoginStays();
+    void webUiPortMovesTheSavedServer();
+    void loginChangeIsFollowed();
+    void httpsWithoutACertificateStaysOnHttp();
+    void httpsWithACertificateMovesTheSavedServer();
+    void localAuthTurnedOnShutsANoLoginServerOut();
+    void rotatedApiKeyReplacesTheSavedOne();
+    void resumeDataStorageSurvivesARestart();
 
 private:
+    /// App on `qbt`, signed in the way `authMode` says, synced once; the server's id.
+    QString connectApp(App &app, ThrowawayQbt &qbt, const QString &authMode, const QString &secret);
+    /// A fresh App from what the first one saved: true when it signs in and syncs.
+    bool savedServerSyncs();
     /// Logs a client into `qbt` and loads `prefs`; false when that fails.
     bool connectPrefs(ThrowawayQbt &qbt, QbtClient &client, ServerPreferences &prefs);
     /// Applies `values` and waits for the read-back; the keys the server kept, or an error.
@@ -484,6 +505,359 @@ void TestQbtSettingsLive::everySettingRoundTrips()
         qWarning().noquote() << problem;
     QVERIFY2(problems.isEmpty(),
              qPrintable(QStringLiteral("%1 problem(s), listed above").arg(problems.size())));
+}
+
+QString TestQbtSettingsLive::connectApp(App &app,
+                                        ThrowawayQbt &qbt,
+                                        const QString &authMode,
+                                        const QString &secret)
+{
+    app.start();
+    QSignalSpy synced(app.engine(), &SyncEngine::firstSyncFinished);
+    const QString id =
+        app.addServer({{QStringLiteral("name"), QStringLiteral("throwaway")},
+                       {QStringLiteral("url"), qbt.url().toString()},
+                       {QStringLiteral("authMode"), authMode},
+                       {QStringLiteral("username"),
+                        authMode == QLatin1String("cookie") ? qbt.username() : QString()}},
+                      secret);
+    if (id.isEmpty() || !synced.wait(20000))
+        return {};
+    if (!QTest::qWaitFor([&]() { return app.serverPrefs()->isLoaded(); }, 15000))
+        return {};
+    return id;
+}
+
+bool TestQbtSettingsLive::savedServerSyncs()
+{
+    App fresh;
+    QSignalSpy synced(fresh.engine(), &SyncEngine::firstSyncFinished);
+    fresh.start();
+    return fresh.hasServer() && synced.wait(20000);
+}
+
+void TestQbtSettingsLive::unknownAndBadValuesAreKeptNotRefused()
+{
+    // qBittorrent 5.2.3 answers 200 to a key it does not know and to a value of the wrong
+    // type; only the read-back tells. ServerPreferences reports those keys as kept.
+    ThrowawayQbt qbt;
+    START_OR_SKIP(qbt);
+    QbtClient client;
+    ServerPreferences prefs(&client);
+    QVERIFY2(connectPrefs(qbt, client, prefs), qPrintable(prefs.loadError()));
+
+    QStringList kept;
+    QCOMPARE(applyAndWait(prefs, {{QStringLiteral("max_ratio"), QStringLiteral("x")}}, &kept),
+             QString());
+    QCOMPARE(kept, QStringList{QStringLiteral("max_ratio")});
+    QCOMPARE(prefs.value(QStringLiteral("max_ratio")).toInt(), 0); // the server's reading of "x"
+    applyAndWait(prefs, {{QStringLiteral("max_ratio"), -1}}, nullptr);
+
+    QCOMPARE(applyAndWait(prefs,
+                          {{QStringLiteral("resume_data_storage_type"), QStringLiteral("Nope")}},
+                          &kept),
+             QString());
+    QCOMPARE(kept, QStringList{QStringLiteral("resume_data_storage_type")});
+    QCOMPARE(prefs.value(QStringLiteral("resume_data_storage_type")).toString(),
+             QStringLiteral("Legacy"));
+
+    // A key the server does not have is neither shown nor refused.
+    QCOMPARE(applyAndWait(prefs, {{QStringLiteral("omaseed_no_such_key"), 1}}, &kept), QString());
+    QVERIFY(!prefs.has(QStringLiteral("omaseed_no_such_key")));
+}
+
+void TestQbtSettingsLive::aShortPasswordIsRefusedAndTheLoginStays()
+{
+    // The one refusal a 5.2.3 server gives through setPreferences: a Web UI password under six
+    // characters is a 400. Nothing is followed and the app stays signed in.
+    ThrowawayQbt qbt;
+    START_OR_SKIP(qbt);
+    App app;
+    const QString id = connectApp(app, qbt, QStringLiteral("cookie"), qbt.password());
+    QVERIFY(!id.isEmpty());
+
+    QSignalSpy failed(app.serverPrefs(), &ServerPreferences::applyFailed);
+    QSignalSpy posted(app.serverPrefs(), &ServerPreferences::posted);
+    app.serverPrefs()->apply({{QStringLiteral("web_ui_password"), QStringLiteral("abc")}});
+    QVERIFY(failed.wait(15000));
+    QCOMPARE(posted.count(), 0);
+    QVERIFY(app.serverPrefs()->pendingKeys().isEmpty());
+    QCOMPARE(app.serverList()->serverMap(id).value(QStringLiteral("username")).toString(),
+             qbt.username());
+
+    QbtClient check;
+    check.setBaseUrl(qbt.url());
+    check.setCredentials(qbt.username(), qbt.password());
+    QVERIFY(!await(this, check.get(QStringLiteral("app/version"))).isError());
+}
+
+void TestQbtSettingsLive::webUiPortMovesTheSavedServer()
+{
+    ThrowawayQbt qbt;
+    START_OR_SKIP(qbt);
+    App app;
+    const QString id = connectApp(app, qbt, QStringLiteral("cookie"), qbt.password());
+    QVERIFY(!id.isEmpty());
+    const int oldPort = qbt.webPort();
+    const int newPort = ThrowawayQbt::freePort();
+    QVERIFY(newPort > 0);
+
+    QSignalSpy syncedAgain(app.engine(), &SyncEngine::firstSyncFinished);
+    app.serverPrefs()->apply({{QStringLiteral("web_ui_port"), newPort}});
+    QVERIFY2(ThrowawayQbt::waitFor(newPort, true), "qBittorrent never listened on the new port");
+    QVERIFY2(ThrowawayQbt::waitFor(oldPort, false), "qBittorrent still listens on the old port");
+
+    // The saved server moves with it, and the app syncs from the new place.
+    QTRY_COMPARE_WITH_TIMEOUT(
+        QUrl(app.serverList()->serverMap(id).value(QStringLiteral("url")).toString()).port(),
+        newPort,
+        10000);
+    QVERIFY2(syncedAgain.wait(20000), "no sync after the move");
+    QTRY_COMPARE_WITH_TIMEOUT(
+        app.serverPrefs()->value(QStringLiteral("web_ui_port")).toInt(), newPort, 15000);
+    QVERIFY(!app.isServerLost());
+    QVERIFY(savedServerSyncs());
+}
+
+void TestQbtSettingsLive::loginChangeIsFollowed()
+{
+    ThrowawayQbt qbt;
+    START_OR_SKIP(qbt);
+    const QString user = QStringLiteral("omaseed-renamed");
+    const QString pass = QStringLiteral("a-new-password-for-the-test");
+    {
+        App app;
+        const QString id = connectApp(app, qbt, QStringLiteral("cookie"), qbt.password());
+        QVERIFY(!id.isEmpty());
+        QSignalSpy syncedAgain(app.engine(), &SyncEngine::firstSyncFinished);
+        app.serverPrefs()->apply(
+            {{QStringLiteral("web_ui_username"), user}, {QStringLiteral("web_ui_password"), pass}});
+        QTRY_COMPARE_WITH_TIMEOUT(
+            app.serverList()->serverMap(id).value(QStringLiteral("username")).toString(),
+            user,
+            10000);
+        QVERIFY2(syncedAgain.wait(20000), "no sync with the new login");
+        QVERIFY(!app.isServerLost());
+        QTRY_COMPARE_WITH_TIMEOUT(
+            app.serverPrefs()->value(QStringLiteral("web_ui_username")).toString(), user, 15000);
+    }
+
+    // The old login is refused; the saved one (the keychain's new password) signs in.
+    QbtClient old;
+    old.setBaseUrl(qbt.url());
+    old.setCredentials(qbt.username(), qbt.password());
+    QVERIFY(await(this, old.get(QStringLiteral("app/version"))).isError());
+    QVERIFY(savedServerSyncs());
+}
+
+void TestQbtSettingsLive::httpsWithoutACertificateStaysOnHttp()
+{
+    // HTTPS on with no certificate and key (a wrong path does the same): qBittorrent answers
+    // use_https, logs "HTTPS setup failed, fallback to HTTP" and stays on HTTP. The app must
+    // not move to https:// and has to say why. The pane refuses the switch without both
+    // paths (tst_QbtSettings), because what follows cannot be undone from the app: see below.
+    ThrowawayQbt qbt;
+    START_OR_SKIP(qbt);
+    App app;
+    const QString id = connectApp(app, qbt, QStringLiteral("cookie"), qbt.password());
+    QVERIFY(!id.isEmpty());
+
+    QSignalSpy notFollowed(&app, &App::webUiNotFollowed);
+    app.serverPrefs()->apply({{QStringLiteral("use_https"), true}});
+    QVERIFY2(notFollowed.wait(20000), "the app never said it stayed on HTTP");
+    QVERIFY(notFollowed.at(0).at(0).toString().contains(QLatin1String("HTTPS")));
+    const QUrl saved(app.serverList()->serverMap(id).value(QStringLiteral("url")).toString());
+    QCOMPARE(saved.scheme(), QStringLiteral("http"));
+    QCOMPARE(saved.port(), qbt.webPort());
+
+    // Why it shuts the app out: qBittorrent marks the login cookie secure (it believes it
+    // serves HTTPS), and no client sends a secure cookie over HTTP, Qt's included.
+    QNetworkAccessManager nam;
+    QUrl login = qbt.url();
+    login.setPath(QStringLiteral("/api/v2/auth/login"));
+    QNetworkRequest request(login);
+    request.setHeader(QNetworkRequest::ContentTypeHeader,
+                      QStringLiteral("application/x-www-form-urlencoded"));
+    QUrlQuery form;
+    form.addQueryItem(QStringLiteral("username"), qbt.username());
+    form.addQueryItem(QStringLiteral("password"), qbt.password());
+    QNetworkReply *reply = nam.post(request, form.query(QUrl::FullyEncoded).toUtf8());
+    QSignalSpy finished(reply, &QNetworkReply::finished);
+    QVERIFY(finished.wait(10000));
+    const auto cookies =
+        reply->header(QNetworkRequest::SetCookieHeader).value<QList<QNetworkCookie>>();
+    QVERIFY(!cookies.isEmpty());
+    QVERIFY2(cookies.first().isSecure(),
+             "qBittorrent no longer marks it secure: the pane's guard may go");
+    QVERIFY(nam.cookieJar()->cookiesForUrl(qbt.url()).isEmpty());
+    reply->deleteLater();
+}
+
+void TestQbtSettingsLive::httpsWithACertificateMovesTheSavedServer()
+{
+    const QString openssl = QStandardPaths::findExecutable(QStringLiteral("openssl"));
+    if (openssl.isEmpty())
+        QSKIP("openssl is not installed: no certificate to give qBittorrent");
+    ThrowawayQbt qbt;
+    START_OR_SKIP(qbt);
+    const QString cert = qbt.profilePath() + QStringLiteral("/cert.pem");
+    const QString key = qbt.profilePath() + QStringLiteral("/key.pem");
+    QProcess make;
+    make.start(openssl,
+               {QStringLiteral("req"),
+                QStringLiteral("-x509"),
+                QStringLiteral("-newkey"),
+                QStringLiteral("rsa:2048"),
+                QStringLiteral("-nodes"),
+                QStringLiteral("-keyout"),
+                key,
+                QStringLiteral("-out"),
+                cert,
+                QStringLiteral("-days"),
+                QStringLiteral("1"),
+                QStringLiteral("-subj"),
+                QStringLiteral("/CN=127.0.0.1")});
+    QVERIFY(make.waitForFinished(30000) && make.exitCode() == 0);
+
+    App app;
+    const QString id = connectApp(app, qbt, QStringLiteral("cookie"), qbt.password());
+    QVERIFY(!id.isEmpty());
+    QSignalSpy applied(app.serverPrefs(), &ServerPreferences::applied);
+    app.serverPrefs()->apply({{QStringLiteral("web_ui_https_cert_path"), cert},
+                              {QStringLiteral("web_ui_https_key_path"), key}});
+    QVERIFY(applied.wait(15000));
+
+    QSignalSpy notFollowed(&app, &App::webUiNotFollowed);
+    app.serverPrefs()->apply({{QStringLiteral("use_https"), true}});
+    QTRY_COMPARE_WITH_TIMEOUT(
+        QUrl(app.serverList()->serverMap(id).value(QStringLiteral("url")).toString()).scheme(),
+        QStringLiteral("https"),
+        20000);
+    QCOMPARE(notFollowed.count(), 0);
+    // The certificate is self-signed: the app does not trust it, so from here it is shut out
+    // until the certificate is trusted (an open question, docs/QUESTIONS.md).
+}
+
+void TestQbtSettingsLive::localAuthTurnedOnShutsANoLoginServerOut()
+{
+    // A server the app reaches with no login (local auth bypassed) asking for one: there is
+    // nothing to follow. qBittorrent hands a bypassed client a session cookie anyway, and
+    // that session outlives the change, so the running app goes on until it times out (an
+    // hour by default) or the app starts again; from then on it is shut out, and says so.
+    ThrowawayQbt qbt;
+    START_OR_SKIP(qbt, false);
+    {
+        App app;
+        const QString id = connectApp(app, qbt, QStringLiteral("none"), QString());
+        QVERIFY(!id.isEmpty());
+        QCOMPARE(app.serverPrefs()->value(QStringLiteral("bypass_local_auth")).toBool(), true);
+
+        QSignalSpy applied(app.serverPrefs(), &ServerPreferences::applied);
+        app.serverPrefs()->apply({{QStringLiteral("bypass_local_auth"), false}});
+        QVERIFY(applied.wait(15000));
+        QCOMPARE(app.serverPrefs()->value(QStringLiteral("bypass_local_auth")).toBool(), false);
+        QCOMPARE(
+            QUrl(app.serverList()->serverMap(id).value(QStringLiteral("url")).toString()).port(),
+            qbt.webPort());
+    }
+
+    QbtClient anonymous;
+    anonymous.setBaseUrl(qbt.url());
+    QVERIFY(await(this, anonymous.get(QStringLiteral("app/version"))).isError());
+    {
+        App restarted;
+        QSignalSpy authRequired(restarted.engine(), &SyncEngine::authRequired);
+        restarted.start();
+        QVERIFY2(authRequired.wait(20000), "a restarted app never noticed it was shut out");
+        QVERIFY(restarted.isServerLost());
+    }
+
+    // A login still gets in, so the setting can be put back.
+    QbtClient admin;
+    admin.setBaseUrl(qbt.url());
+    admin.setCredentials(qbt.username(), qbt.password());
+    QVERIFY(!await(this, admin.get(QStringLiteral("app/version"))).isError());
+}
+
+void TestQbtSettingsLive::rotatedApiKeyReplacesTheSavedOne()
+{
+    ThrowawayQbt qbt;
+    START_OR_SKIP(qbt);
+    QbtClient admin;
+    admin.setBaseUrl(qbt.url());
+    admin.setCredentials(qbt.username(), qbt.password());
+    const auto first = await(this, admin.post(QStringLiteral("app/rotateAPIKey")));
+    QVERIFY2(!first.isError(), qPrintable(first.isError() ? first.error().toString() : QString()));
+    const QString firstKey =
+        QJsonDocument::fromJson(first.value()).object().value(QLatin1String("apiKey")).toString();
+    if (firstKey.isEmpty())
+        QSKIP("this qBittorrent has no API keys (before 5.2)");
+
+    QString newKey;
+    {
+        App app;
+        const QString id = connectApp(app, qbt, QStringLiteral("apiKey"), firstKey);
+        QVERIFY(!id.isEmpty());
+        QSignalSpy rotated(app.serverPrefs(), &ServerPreferences::apiKeyRotated);
+        QSignalSpy synced(app.engine(), &SyncEngine::synced);
+        app.serverPrefs()->rotateApiKey();
+        QVERIFY(rotated.wait(15000));
+        newKey = rotated.at(0).at(0).toString();
+        QVERIFY(!newKey.isEmpty() && newKey != firstKey);
+        // The app keeps syncing on the new key.
+        synced.clear();
+        QVERIFY(synced.wait(20000));
+        QTRY_VERIFY_WITH_TIMEOUT(synced.count() >= 2, 20000);
+        QVERIFY(!app.isServerLost());
+    }
+
+    QbtClient old;
+    old.setBaseUrl(qbt.url());
+    old.setApiKey(firstKey);
+    QVERIFY(await(this, old.get(QStringLiteral("app/version"))).isError());
+    QbtClient current;
+    current.setBaseUrl(qbt.url());
+    current.setApiKey(newKey);
+    QVERIFY(!await(this, current.get(QStringLiteral("app/version"))).isError());
+    QVERIFY(savedServerSyncs());
+}
+
+void TestQbtSettingsLive::resumeDataStorageSurvivesARestart()
+{
+    // Advanced's "Resume data storage" takes effect at the next start. Switching it must not
+    // lose the torrents qBittorrent knew (a real library has thousands).
+    ThrowawayQbt qbt;
+    START_OR_SKIP(qbt);
+    QbtClient client;
+    ServerPreferences prefs(&client);
+    QVERIFY2(connectPrefs(qbt, client, prefs), qPrintable(prefs.loadError()));
+
+    QFile torrent(QStringLiteral(OMASEED_FIXTURES_DIR "/single_file_v1.torrent"));
+    QVERIFY(torrent.open(QIODevice::ReadOnly));
+    QbtClient::AddOptions options;
+    options.stopped = true;
+    QVERIFY(!await(this,
+                   client.torrentsAddFile(
+                       QStringLiteral("single_file_v1.torrent"), torrent.readAll(), options))
+                 .isError());
+    const auto count = [&]() {
+        const auto info = await(this, client.get(QStringLiteral("torrents/info")));
+        return info.isError() ? -1 : int(QJsonDocument::fromJson(info.value()).array().size());
+    };
+    QTRY_COMPARE_WITH_TIMEOUT(count(), 1, 10000);
+
+    for (const QString &type : {QStringLiteral("SQLite"), QStringLiteral("Legacy")}) {
+        QStringList kept;
+        QCOMPARE(applyAndWait(prefs, {{QStringLiteral("resume_data_storage_type"), type}}, &kept),
+                 QString());
+        QVERIFY(kept.isEmpty());
+        QVERIFY2(qbt.restart(), qPrintable(qbt.error()));
+        client.setCredentials(qbt.username(), qbt.password()); // a new process, a new session
+        QTRY_COMPARE_WITH_TIMEOUT(count(), 1, 15000);
+        prefs.reload();
+        QTRY_COMPARE_WITH_TIMEOUT(
+            prefs.value(QStringLiteral("resume_data_storage_type")).toString(), type, 15000);
+    }
 }
 
 QTEST_MAIN(TestQbtSettingsLive)

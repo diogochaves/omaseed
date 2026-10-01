@@ -29,7 +29,7 @@
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QTemporaryDir>
-#include <QThread>
+#include <QTest>
 #include <QUrl>
 
 #include <memory>
@@ -132,7 +132,7 @@ public:
         while (timer.elapsed() < timeoutMs) {
             if (answers(port) == up)
                 return true;
-            QThread::msleep(100);
+            QTest::qWait(100); // the event loop runs: requests on their way still go out
         }
         return false;
     }
