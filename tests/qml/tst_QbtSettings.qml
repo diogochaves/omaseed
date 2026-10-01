@@ -253,6 +253,26 @@ TestCase {
         compare(App.serverPrefs.values.web_ui_upnp, false);
     }
 
+    // Enter in a field whose change asks first leaves the keyboard in the confirm: esc
+    // cancels it, and Settings stays open (it used to close Settings and strand the confirm).
+    function test_the_keyboard_stays_in_a_confirm_a_field_opened() {
+        const modal = openOn(7); // Web UI: the Address, port row first
+        const confirm = testCase.childNamed(modal, "qbtConfirm");
+        const port = App.serverPrefs.values.web_ui_port;
+        keyClick(Qt.Key_Return); // the address
+        keyClick(Qt.Key_Return); // the port
+        const field = testCase.childNamed(modal, "field-web_ui_port");
+        verify(field.editing);
+        field.text = "9999";
+        keyClick(Qt.Key_Return);
+        verify(confirm.opened);
+        keyClick(Qt.Key_Escape);
+        verify(!confirm.opened);
+        verify(modal.opened);
+        compare(App.serverPrefs.values.web_ui_port, port);
+        compare(field.text, String(port));
+    }
+
     // HTTPS with no certificate and key: qBittorrent stays on HTTP with a secure-only login
     // cookie, and every new login is shut out (tst_qbtsettings_live). The switch waits for both.
     function test_https_waits_for_a_certificate_and_key() {

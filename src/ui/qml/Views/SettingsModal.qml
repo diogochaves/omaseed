@@ -1753,7 +1753,12 @@ Item {
                             onChangeRequested: (changes, confirmKind, what) => root.qbtRequest(changes,
                                                                                                confirmKind,
                                                                                                what)
-                            onFieldDone: bodyItem.forceActiveFocus()
+                            // A field whose change asks first keeps the keyboard in the confirm
+                            // it just opened; the confirm hands it back when it closes.
+                            onFieldDone: {
+                                if (!qbtConfirm.opened)
+                                    bodyItem.forceActiveFocus();
+                            }
                             onListRequested: (list, what, confirmKind) => root.qbtOpenList(list, what,
                                                                                            confirmKind)
                             onNoteRequested: text => root._flashQbtNote(text, true)
@@ -1871,8 +1876,10 @@ Item {
         }
         onRejected: {
             qbtConfirm.pending = {};
-            qbtPane.syncFields();
+            // Closing gave the keyboard back to the field the change came from; a field being
+            // edited keeps its text, so the keyboard leaves it before the server's value goes in.
             bodyItem.forceActiveFocus();
+            qbtPane.syncFields();
         }
     }
 
