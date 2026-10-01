@@ -670,14 +670,16 @@ Item {
 
                 Component.onCompleted: {
                     // A file opens with its name selected and its extension left alone, as
-                    // a file manager's rename does; a folder with all of it.
+                    // a file manager's rename does; a folder with all of it. The cursor sits
+                    // at the start, so a name wider than the editor shows its beginning
+                    // rather than scrolling to its end (the table's editor does the same).
                     const dot = editor.text.lastIndexOf(".");
                     if (!root.renameFresh)
                         editor.cursorPosition = Math.min(root.renameCaret, editor.text.length);
                     else if (dot > 0 && !root.model.isFolder(root.renamingRow))
-                        editor.select(0, dot);
+                        editor.select(dot, 0);
                     else
-                        editor.selectAll();
+                        editor.select(editor.length, 0);
                     root.renameFresh = false;
                     editor.ready = true;
                     root.renameCaret = editor.cursorPosition;
