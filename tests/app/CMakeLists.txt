@@ -74,3 +74,13 @@ omaseed_add_test(tst_app_files_live LIVE
     LIBRARIES omaseed::app omaseed::core omaseed::integration
     DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
 )
+
+# docs/16's settings against a real qBittorrent the test starts and throws away (never the
+# :8081/:8082 servers): every row's keys, the Web UI cut-offs, the API key rotation. Skips
+# without qbittorrent-nox. Live for the lock: it starts servers and runs for a while.
+omaseed_add_test(tst_qbtsettings_live LIVE
+    SOURCES tst_qbtsettings_live.cpp
+    LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::Network Qt6::Qml
+    DEFINES OMASEED_QML_DIR="${PROJECT_SOURCE_DIR}/src/ui/qml"
+            OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
+)

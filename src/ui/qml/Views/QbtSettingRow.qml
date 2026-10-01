@@ -32,7 +32,7 @@ SettingsRow {
     signal pickRequested(var pick, Item anchor, string confirmKind)
     /// `spec.button`'s action.
     signal actionRequested(string action)
-    /// A line for the pane's head: a value refused before it was sent.
+    /// A line for the pane's head: a value or a switch refused before it was sent.
     signal noteRequested(string text)
     /// A field gave the keyboard back (enter on its last field, or esc).
     signal fieldDone
@@ -139,12 +139,32 @@ SettingsRow {
     function flip(): void {
         const key = row.spec.toggle;
         const on = !row.values[key];
+        if (on && row.spec.needs && row.spec.needs.keys.some(name => !row.values[name])) {
+            row.noteRequested(row.spec.needs.note);
+            return;
+        }
         // Anonymous mode asks only on the way in; the IP filter only when it starts blocking.
         const kind = (row.confirmKind === "anon" || row.confirmKind === "ipfilter") && !on
                 ? "" : row.confirmKind;
-        row.changeRequested({
-                                [key]: on
-                            }, kind, row.spec.title);
+        row.changeRequested(row.flipChanges(on), kind, row.spec.title);
+    }
+
+    /// What turning the switch `on` (or off) writes: the key, and what the row's `enable` /
+    /// `disable` say must go with it for qBittorrent to take it (QbtSettingsSections).
+    function flipChanges(on: bool): var {
+        const changes = {
+            [row.spec.toggle]: on
+        };
+        const extra = (on ? row.spec.enable : row.spec.disable) ?? {};
+        for (const name in extra) {
+            const field = (row.spec.fields ?? []).find(candidate => candidate.key === name);
+            if (on && field !== undefined && field.none !== undefined
+                    && row.values[name] !== field.none)
+                continue;
+            changes[name] = extra[name] === "randomPort"
+                    ? 1024 + Math.floor(Math.random() * (65535 - 1024)) : extra[name];
+        }
+        return changes;
     }
 
     function choose(value: var): void {

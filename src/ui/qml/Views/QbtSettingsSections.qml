@@ -10,6 +10,14 @@ import QtQuick
 //   dep                    "key" (on while that key is true), or "key!=value", or a list of
 //                          those that must all hold: dims the row while one does not
 //   toggle                 a switch for this boolean key
+//   enable, disable        {key: value}: what turning the switch on (off) also writes.
+//                          qBittorrent 5 ignores some switches sent alone: a share limit's
+//                          `*_enabled` is on only while its value is 0 or more, and
+//                          `random_port` goes off only with a `listen_port` to go back to.
+//                          `enable` writes a key only while it holds its field's `none`, so
+//                          a value already set is kept; "randomPort" is a random port
+//   needs                  {keys: [...], note}: the switch turns on only once these keys
+//                          hold something; until then it stays off and `note` says why
 //   fields                 [{key, unit, scale, none, noneText, min, max, decimals, width,
 //                          kind: "number" | "text" | "password" | "time", minKey, sep}]:
 //                          `scale` divides the raw value for display (1024: bytes/s shown in
@@ -375,7 +383,10 @@ QtObject {
                 {
                     "glyph": "⟳",
                     "title": qsTr("New random port on every start"),
-                    "toggle": "random_port"
+                    "toggle": "random_port",
+                    "disable": {
+                        "listen_port": "randomPort"
+                    }
                 },
                 {
                     "glyph": "⌬",
@@ -573,6 +584,9 @@ QtObject {
                     "title": qsTr("Share ratio"),
                     "desc": qsTr("Stop once a torrent has uploaded this many times its size."),
                     "toggle": "max_ratio_enabled",
+                    "enable": {
+                        "max_ratio": 1
+                    },
                     "fields": [root.num("max_ratio", {
                                             "decimals": 2,
                                             "min": 0,
@@ -585,6 +599,9 @@ QtObject {
                     "title": qsTr("Seeding time"),
                     "desc": qsTr("Stop after seeding this long."),
                     "toggle": "max_seeding_time_enabled",
+                    "enable": {
+                        "max_seeding_time": 1440
+                    },
                     "fields": [root.num("max_seeding_time", {
                                             "unit": qsTr("min"),
                                             "min": 0,
@@ -598,6 +615,9 @@ QtObject {
                     "title": qsTr("Inactive seeding time"),
                     "desc": qsTr("Stop after this long with no upload."),
                     "toggle": "max_inactive_seeding_time_enabled",
+                    "enable": {
+                        "max_inactive_seeding_time": 1440
+                    },
                     "fields": [root.num("max_inactive_seeding_time", {
                                             "unit": qsTr("min"),
                                             "min": 0,
@@ -943,13 +963,18 @@ QtObject {
                 {
                     "glyph": "⚿",
                     "title": qsTr("HTTPS"),
-                    "toggle": "use_https"
+                    "toggle": "use_https",
+                    // Without both, qBittorrent stays on HTTP but marks its login cookie
+                    // secure, which nothing sends over HTTP: every new login is shut out.
+                    "needs": {
+                        "keys": ["web_ui_https_cert_path", "web_ui_https_key_path"],
+                        "note": qsTr("set the certificate and key first")
+                    }
                 },
                 {
                     "title": qsTr("Certificate, key"),
-                    "desc": qsTr("Paths on the server."),
+                    "desc": qsTr("Paths on the server. Set them before turning HTTPS on."),
                     "sub": true,
-                    "dep": "use_https",
                     "fields": [root.text("web_ui_https_cert_path", 150, ""), {
                             "key": "web_ui_https_key_path",
                             "kind": "text",
