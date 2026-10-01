@@ -261,13 +261,17 @@ void TestAppAdd::handsOverAFileUriAsAPath()
 {
     App app;
     QSignalSpy handed(&app, &App::addUrisRequested);
-    const QString magnet = QStringLiteral("magnet:?xt=urn:btih:9a4f6c1e2b3d4f50617283940a1b2c3d4e5f6071");
-    app.openUris({QStringLiteral("file:///home/sbx/Downloads/Field%20Recordings%20Vol.%203%20%5BFLAC%5D.torrent"),
-                  magnet});
+    const QString magnet =
+        QStringLiteral("magnet:?xt=urn:btih:9a4f6c1e2b3d4f50617283940a1b2c3d4e5f6071");
+    app.openUris(
+        {QStringLiteral(
+             "file:///home/sbx/Downloads/Field%20Recordings%20Vol.%203%20%5BFLAC%5D.torrent"),
+         magnet});
     QCOMPARE(handed.count(), 1);
-    QCOMPARE(handed.at(0).at(0).toStringList(),
-             QStringList({QStringLiteral("/home/sbx/Downloads/Field Recordings Vol. 3 [FLAC].torrent"),
-                          magnet}));
+    QCOMPARE(
+        handed.at(0).at(0).toStringList(),
+        QStringList({QStringLiteral("/home/sbx/Downloads/Field Recordings Vol. 3 [FLAC].torrent"),
+                     magnet}));
 }
 
 void TestAppAdd::parsesATorrentFileOffTheMainThread()
@@ -534,7 +538,8 @@ void TestAppAdd::addsWithFileChoicesRenameAndLimits()
         }
         return -1;
     };
-    QVERIFY(files->rename(rowOf(QStringLiteral("Tears of Steel/")), QStringLiteral("Tears (2012)")));
+    QVERIFY(
+        files->rename(rowOf(QStringLiteral("Tears of Steel/")), QStringLiteral("Tears (2012)")));
     QVERIFY(files->rename(rowOf(QStringLiteral("README.txt")), QStringLiteral("read me.txt")));
 
     request.insert(QStringLiteral("filePriorities"), files->priorityList());
