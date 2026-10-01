@@ -347,6 +347,25 @@ TestCase {
         modal.serverSheet.close();
     }
 
+    // The "add a server" row prints `a` while the keyboard is still on the nav, as it is
+    // straight after `2`: the key works from there too.
+    function test_a_adds_a_server_from_the_nav_too() {
+        testCase.addTestServer("playground", "http://127.0.0.1:8081");
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        keyClick(Qt.Key_2);
+        compare(modal.area, "nav");
+        keyClick(Qt.Key_A);
+        verify(modal.serverSheet.opened);
+        compare(modal.serverSheet.isNew, true);
+        modal.serverSheet.close();
+
+        // Elsewhere `a` is still nothing of the modal's.
+        keyClick(Qt.Key_1);
+        keyClick(Qt.Key_A);
+        verify(!modal.serverSheet.opened);
+    }
+
     // Review RUN-15: saving an empty form says what is missing instead of doing nothing.
     function test_saving_an_empty_server_says_name_and_url_are_required() {
         const modal = createTemporaryObject(modalComponent, testCase);
