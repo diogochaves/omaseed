@@ -817,6 +817,31 @@ TestCase {
         compare(files.nameAt(4), "en.srt");
     }
 
+    // Actions walk: a folder's rename opened with the cursor at the end of the selected
+    // name, so a name wider than the editor showed "ublic Domain Sampler". The editor opens
+    // with the cursor at the start, a file's stem or a folder's whole name selected.
+    function test_r_opens_the_editor_at_the_start_of_the_name() {
+        const view = testCase.filesView();
+        const files = App.details.files;
+        view.moveCursor(-files.count); // the torrent's top folder
+        verify(files.isFolder(view.cursorIndex));
+        keyClick("r");
+        verify(view.editing);
+        let editor = findChild(view, "fileRenameEditor");
+        verify(editor);
+        compare(editor.selectedText, files.nameAt(view.cursorIndex));
+        compare(editor.cursorPosition, 0);
+        keyClick(Qt.Key_Escape);
+        verify(!view.editing);
+
+        view.moveCursor(4); // subs/bbb.en.srt
+        keyClick("r");
+        editor = findChild(view, "fileRenameEditor");
+        compare(editor.selectedText, "bbb.en");
+        compare(editor.cursorPosition, 0);
+        keyClick(Qt.Key_Escape);
+    }
+
     // Review VIEW-7: a sync that re-sorts the rows under an open rename (sorted by progress,
     // say) must not move the rename or the cursor onto another file.
     function test_a_resort_under_a_rename_keeps_the_file() {
