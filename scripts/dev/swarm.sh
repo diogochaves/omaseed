@@ -71,7 +71,9 @@ if value is None:
     data.pop(key, None)
 else:
     data[key] = value
-tmp = path + ".tmp"
+# Each writer its own temporary name: walks running side by side all call `swarm.sh start`,
+# and with one shared name a writer's rename found the file already gone.
+tmp = f"{path}.{os.getpid()}.tmp"
 with open(tmp, "w") as f:
     json.dump(data, f)
 os.replace(tmp, path)  # the tracker reads it on every announce: never a half-written file
@@ -323,9 +325,10 @@ fail = data.setdefault("fail", {})
 for h in sys.argv[2:]:
     if h:
         fail[h] = "unregistered torrent (omaseed swarm)"
-with open(path + ".tmp", "w") as f:
+tmp = f"{path}.{os.getpid()}.tmp"
+with open(tmp, "w") as f:
     json.dump(data, f)
-os.replace(path + ".tmp", path)
+os.replace(tmp, path)
 PY
         reannounce
         echo "the tracker now fails $(find_torrent "$name" name)" ;;
