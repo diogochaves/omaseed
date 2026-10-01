@@ -968,7 +968,7 @@ QtObject {
                     // secure, which nothing sends over HTTP: every new login is shut out.
                     "needs": {
                         "keys": ["web_ui_https_cert_path", "web_ui_https_key_path"],
-                        "note": qsTr("set the certificate and key first: without them qBittorrent stays on HTTP and its new logins stop working")
+                        "note": qsTr("set the certificate and key first")
                     }
                 },
                 {
