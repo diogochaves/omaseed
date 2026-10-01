@@ -137,6 +137,39 @@ TestCase {
         compare(testCase.childNamed(modal, "field-alt_dl_limit").text, "10");
     }
 
+    // qBittorrent 5 ignores a share limit's switch sent alone while its value is ∞ (-1), and
+    // turns random_port off only with a port to go back to (tst_qbtsettings_live).
+    function test_a_switch_sends_what_qbittorrent_needs_with_it() {
+        const modal = openOn(4); // Seeding
+        compare(App.serverPrefs.values.max_ratio, -1);
+        testCase.childNamed(modal, "qbtRow-max_ratio_enabled").activate("space");
+        compare(App.serverPrefs.values.max_ratio_enabled, true);
+        compare(App.serverPrefs.values.max_ratio, 1);
+        testCase.childNamed(modal, "qbtRow-max_seeding_time_enabled").activate("space");
+        compare(App.serverPrefs.values.max_seeding_time, 1440);
+        // A value already there is kept.
+        App.serverPrefs.apply({
+                                  "max_inactive_seeding_time": 30,
+                                  "max_inactive_seeding_time_enabled": false
+                              });
+        testCase.childNamed(modal, "qbtRow-max_inactive_seeding_time_enabled").activate("space");
+        compare(App.serverPrefs.values.max_inactive_seeding_time_enabled, true);
+        compare(App.serverPrefs.values.max_inactive_seeding_time, 30);
+
+        const connection = openOn(2);
+        const random = testCase.childNamed(connection, "qbtRow-random_port");
+        random.activate("space");
+        compare(App.serverPrefs.values.random_port, true);
+        compare(App.serverPrefs.values.listen_port, 51413); // the demo keeps it; qBittorrent says 0
+        App.serverPrefs.apply({
+                                  "listen_port": 0
+                              });
+        random.activate("space");
+        compare(App.serverPrefs.values.random_port, false);
+        const port = App.serverPrefs.values.listen_port;
+        verify(port >= 1024 && port <= 65535, port);
+    }
+
     function test_a_value_out_of_range_never_leaves_the_row() {
         const modal = openOn(2); // Connection
         const field = testCase.childNamed(modal, "field-listen_port");
