@@ -9,7 +9,8 @@ import Omaseed.Kit
 // panel clamps itself inside the item rather than hanging off the window edge.
 //
 // `items` is `[{text, glyph, key, action, disabled, danger}]`, or `{separator: true}` for a
-// rule. `activated` carries `action` when the row has one and the text otherwise.
+// rule. `activated` carries `action` when the row has one and the text otherwise. `heading`,
+// when set, is a dim line above the rows, never a row itself (Q24: "2 selected").
 //
 // Keys: `j`/`k` and up/down move over the rows (separators and disabled rows are skipped),
 // `enter` runs the row under the cursor, a row's own key letter runs it straight away
@@ -28,6 +29,8 @@ Item {
     property int anchorY: 0
     /// The spec's `.menu` is 280 wide at most.
     property int menuWidth: Theme.space(280)
+    /// A dim line above the rows saying what they act on; empty draws none.
+    property string heading: ""
     property int cursorIndex: 0
     /// Draw the panel alone, at 0,0, with no scrim (the gallery).
     property bool inline: false
@@ -212,7 +215,7 @@ Item {
         border.color: Theme.accent
         border.width: 1
         color: Theme.background
-        implicitHeight: rows.implicitHeight + 2 * panel.padding
+        implicitHeight: heading.height + rows.implicitHeight + 2 * panel.padding
         radius: Theme.cornerRadius
         width: Math.min(root.menuWidth, root.inline ? root.menuWidth
                 : Math.max(0, root.width - 2 * root._edge))
@@ -227,8 +230,7 @@ Item {
 
             anchors.left: parent.left
             anchors.right: parent.right
-            anchors.top: parent.top
-            anchors.topMargin: panel.padding
+            anchors.top: heading.bottom
             spacing: 0
 
             Repeater {
@@ -306,6 +308,39 @@ Item {
                         onEntered: root.cursorIndex = menuRow.index
                     }
                 }
+            }
+        }
+
+        // After `rows` so `children[0]` stays the layout; drawn above it all the same.
+        Item {
+            id: heading
+
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.topMargin: panel.padding
+            height: root.heading.length > 0 ? Theme.railRowHeight + 2 * Theme.space(4) + 1 : 0
+            objectName: "menuHeading"
+            visible: root.heading.length > 0
+
+            Label {
+                anchors.left: parent.left
+                anchors.leftMargin: Theme.space(14)
+                anchors.right: parent.right
+                anchors.rightMargin: Theme.space(14)
+                dim: true
+                elide: Text.ElideRight
+                height: Theme.railRowHeight
+                text: root.heading
+                verticalAlignment: Text.AlignVCenter
+            }
+
+            Hairline {
+                anchors.left: parent.left
+                anchors.leftMargin: Theme.space(14)
+                anchors.right: parent.right
+                anchors.rightMargin: Theme.space(14)
+                y: Theme.railRowHeight + Theme.space(4)
             }
         }
 

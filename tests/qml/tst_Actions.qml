@@ -135,6 +135,37 @@ TestCase {
         App.setSuperSeeding([arch, fedora], false);
     }
 
+    // Q24: with a selection, the menu opened on another row says what its rows act on.
+    function test_the_menu_heads_with_the_selection_count() {
+        const arch = hashByName("archlinux-2026.09.01-x86_64.iso");
+        const fedora = hashByName("Fedora-Workstation-Live-44-1.6.x86_64.iso");
+        const bunny = hashByName("Big Buck Bunny 4K (CC-BY)");
+
+        // No selection: the menu acts on its row, no head line.
+        view.table.moveCursorTo(App.filtered.rowOfHash(bunny));
+        view.table.requestActions();
+        compare(view.actionsMenuPanel.heading, "");
+        view.actionsMenuPanel.close();
+
+        // The selection is the row itself: still none.
+        view.table.toggleSelection(App.filtered.rowOfHash(bunny));
+        view.table.requestActions();
+        compare(view.actionsMenuPanel.heading, "");
+        view.actionsMenuPanel.close();
+        view.table.clearSelection();
+
+        // Two selected, the cursor jumped to a third.
+        view.table.toggleSelection(App.filtered.rowOfHash(arch));
+        view.table.toggleSelection(App.filtered.rowOfHash(fedora));
+        view.table.moveCursorTo(App.filtered.rowOfHash(bunny));
+        view.table.requestActions();
+        compare(view.actionsMenuPanel.opened, true);
+        compare(view.actionsMenuPanel.heading, "2 selected");
+        compare(view.actionsMenuPanel.cursorIndex, 0);
+        view.actionsMenuPanel.close();
+        compare(view.table.selectedCount, 2);
+    }
+
     function test_start_stop_label_follows_the_cursor_torrent() {
         const stoppedHash = hashByName("OpenStreetMap planet-260908.osm.pbf");
         verify(stoppedHash.length > 0);

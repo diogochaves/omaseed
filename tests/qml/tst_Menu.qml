@@ -108,6 +108,29 @@ TestCase {
         compare(rows[2].height, 2 * Theme.space(4) + 1); // the separator
     }
 
+    // Q24: a heading is a dim line above the rows, never a row the cursor can land on.
+    function test_a_heading_sits_above_the_rows_and_is_not_a_row() {
+        const menu = createTemporaryObject(menuComponent, testCase);
+        const heading = findChild(menu, "menuHeading");
+        verify(heading);
+        menu.open();
+        compare(heading.visible, false);
+        compare(heading.height, 0);
+        const plain = menu.panel.height;
+
+        menu.heading = "2 selected";
+        compare(heading.visible, true);
+        compare(menu.panel.height, plain + Theme.railRowHeight + 2 * Theme.space(4) + 1);
+        const rows = menu.panel.children[0];
+        compare(rows.y, heading.y + heading.height);
+        compare(heading.children[0].text, "2 selected");
+        compare(heading.children[0].dim, true);
+
+        compare(menu.cursorIndex, 0);
+        keyClick(Qt.Key_Return);
+        compare(menu.opened, false);
+    }
+
     function test_it_opens_where_the_caller_anchors_it() {
         const menu = createTemporaryObject(menuComponent, testCase);
         menu.openAt(120, 200);

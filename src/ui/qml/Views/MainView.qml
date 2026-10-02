@@ -384,6 +384,18 @@ Item {
         return root.cursorHash.length > 0 ? [root.cursorHash] : [];
     }
 
+    /// The actions menu's head line (Q24): "2 selected" when its rows act on a selection
+    /// rather than on the row it opened on alone, so a jump + `tab` onto a third torrent
+    /// does not read as acting on that one. Empty when the selection is just `hash` or none.
+    function actionsHeading(hash: string): string {
+        const count = table.selectedCount;
+        if (count === 0)
+            return "";
+        if (count === 1 && table.selectedHashes()[0] === hash)
+            return "";
+        return qsTr("%n selected", "", count);
+    }
+
     /// Every action of Fig. 11/26: the direct ones call straight through to `App`, the ones
     /// that need a question or a form open the matching overlay of the T4.3 block below.
     /// `category`/`tags` are T4.4's palettes to answer; this only raises the request.
@@ -480,6 +492,7 @@ Item {
         actionsMenuPanel.cursorStopped = hash.length > 0 && App.torrentRow(hash).stopped === true;
         actionsMenuPanel.cursorRow = hash.length > 0 ? App.torrentRow(hash) : ({});
         actionsMenuPanel.leadActions = folded;
+        actionsMenuPanel.heading = root.actionsHeading(hash);
         actionsMenuPanel.openAbove(Math.round(corner.x - actionsMenuPanel.menuWidth),
                                    Math.round(corner.y - Theme.space(4)));
     }
@@ -1238,6 +1251,7 @@ Item {
                     actionsMenuPanel.cursorStopped = App.torrentRow(hash).stopped === true;
                     actionsMenuPanel.cursorRow = App.torrentRow(hash);
                     actionsMenuPanel.leadActions = [];
+                    actionsMenuPanel.heading = root.actionsHeading(hash);
                     actionsMenuPanel.openAt(point.x, point.y);
                 }
                 onActivated: hash => console.log("activated:", hash)
