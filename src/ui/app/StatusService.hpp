@@ -66,6 +66,9 @@ public:
 Q_SIGNALS:
     /// The window should come up (OpenAddSheet): main.cpp raises it.
     void raiseRequested();
+    /// AddSources wrote the category it used to state.json ("widgetAdd" › "category"):
+    /// main.cpp has the StatusWriter read it again.
+    void addCategoryRemembered();
 
 private:
     /// Parses `sources` on the thread pool and calls `done` back on this object's thread.

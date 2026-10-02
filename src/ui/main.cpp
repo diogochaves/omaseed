@@ -628,6 +628,11 @@ int main(int argc, char *argv[])
                          if (name == QLatin1String("settings"))
                              Q_EMIT omaseedApp.openSettings();
                      });
+    // A widget add remembered its category: the next status write carries it at once.
+    QObject::connect(&statusService,
+                     &omaseed::app::StatusService::addCategoryRemembered,
+                     &statusWriter,
+                     &omaseed::integration::StatusWriter::reloadAddCategory);
     // --- end #13, #14 ---
 
     const int code = QApplication::exec();

@@ -1,11 +1,13 @@
 // #13 — the bar widget's actions against the :8081 playground: AddSources adds a .torrent and
 // a magnet with the category (its save path, automatic management) and stopped, remembers the
 // category, and a second add of the same torrent is a duplicate; SetAltSpeed and
-// ToggleAltSpeed move the server's alternative limits, which are put back afterwards.
+// ToggleAltSpeed move the server's alternative limits, which are put back afterwards. Each
+// effect is also checked where the widget sees it: the next status file write.
 // Skipped when the playground is not answering; never touches :8080.
 
 #include "core/QbtClient.hpp"
 #include "core/SyncEngine.hpp"
+#include "integration/StatusWriter.hpp"
 #include "ui/app/App.hpp"
 #include "ui/app/StatusService.hpp"
 
@@ -14,6 +16,7 @@
 #include <QDir>
 #include <QElapsedTimer>
 #include <QEventLoop>
+#include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -78,6 +81,15 @@ QJsonDocument answer(const std::function<void(StatusService::Reply)> &start)
     return QJsonDocument::fromJson(json.toUtf8());
 }
 
+/// The status file a StatusWriter keeps at `path`, read now.
+QJsonObject readStatus(const QString &path)
+{
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly))
+        return QJsonObject();
+    return QJsonDocument::fromJson(file.readAll()).object();
+}
+
 } // namespace
 
 class TestStatusServiceLive : public QObject
@@ -99,6 +111,7 @@ private:
     QUrl m_url;
     bool m_live = false;
     QTemporaryDir m_config;
+    QTemporaryDir m_runtime; ///< where the test's StatusWriter writes
     QByteArray m_savedConfigHome;
     QbtClient m_probe;
 };
@@ -114,6 +127,7 @@ void TestStatusServiceLive::initTestCase()
 
     // Never the developer's own server list or state.json.
     QVERIFY(m_config.isValid());
+    QVERIFY(m_runtime.isValid());
     m_savedConfigHome = qgetenv("XDG_CONFIG_HOME");
     qputenv("XDG_CONFIG_HOME", m_config.path().toUtf8());
     for (const char *name : {"OMASEED_API_KEY", "OMASEED_USERNAME", "OMASEED_PASSWORD"})
@@ -176,6 +190,15 @@ void TestStatusServiceLive::addsSourcesWithTheCategoryAndStopped()
     QVERIFY(app.hasServer());
     QVERIFY(waitFor([&app]() { return app.globalState()->connected(); }, 15000));
     StatusService service(&app);
+    omaseed::integration::StatusWriter writer;
+    writer.setPath(m_runtime.filePath(QStringLiteral("add/status.json")));
+    writer.setIntervals(100, 1000);
+    app.attachStatusWriter(&writer);
+    // main.cpp's wiring: the category the add remembered reaches the next write.
+    connect(&service,
+            &StatusService::addCategoryRemembered,
+            &writer,
+            &omaseed::integration::StatusWriter::reloadAddCategory);
     // A widget add stays in the bar: the window is not asked for.
     QSignalSpy raised(&service, &StatusService::raiseRequested);
 
@@ -195,6 +218,16 @@ void TestStatusServiceLive::addsSourcesWithTheCategoryAndStopped()
              QString::fromLatin1(kMagnetHash));
     QCOMPARE(raised.count(), 0);
     QCOMPARE(StatusService::rememberedCategory(), QStringLiteral(kCategory));
+    QVERIFY2(waitFor(
+                 [&]() {
+                     return readStatus(writer.path())
+                                .value(QStringLiteral("add"))
+                                .toObject()
+                                .value(QStringLiteral("category"))
+                                .toString() == QStringLiteral(kCategory);
+                 },
+                 5000),
+             "the status file never named the category the add used");
 
     for (const char *hash : {kFixtureHash, kMagnetHash}) {
         QJsonObject info;
@@ -244,9 +277,22 @@ void TestStatusServiceLive::altSpeedFollowsTheCalls()
     app.start();
     QVERIFY(waitFor([&app]() { return app.globalState()->connected(); }, 15000));
     StatusService service(&app);
+    omaseed::integration::StatusWriter writer;
+    writer.setPath(m_runtime.filePath(QStringLiteral("alt/status.json")));
+    writer.setIntervals(100, 1000);
+    app.attachStatusWriter(&writer);
+    const auto altInFile = [&writer]() {
+        return readStatus(writer.path())
+            .value(QStringLiteral("alt"))
+            .toObject()
+            .value(QStringLiteral("on"))
+            .toBool();
+    };
 
     QCOMPARE(service.setAltSpeed(!before), !before);
     QVERIFY(waitFor([&]() { return altSpeedOnServer() == !before; }, 10000));
+    QVERIFY2(waitFor([&]() { return altInFile() == !before; }, 10000),
+             "the status file never showed the alt-speed change");
     // Asking again for the same state changes nothing (unlike a toggle).
     QCOMPARE(service.setAltSpeed(!before), !before);
     QTest::qWait(500);
@@ -256,6 +302,7 @@ void TestStatusServiceLive::altSpeedFollowsTheCalls()
     QVERIFY(waitFor([&]() { return app.globalState()->useAltSpeedLimits() == !before; }, 10000));
     QCOMPARE(service.toggleAltSpeed(), before);
     QVERIFY(waitFor([&]() { return altSpeedOnServer() == before; }, 10000));
+    QVERIFY(waitFor([&]() { return altInFile() == before; }, 10000));
 
     service.setAltSpeed(before); // whatever happened above, leave the server as it was
     QVERIFY(waitFor([&]() { return altSpeedOnServer() == before; }, 10000));

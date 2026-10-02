@@ -316,9 +316,11 @@ void StatusService::addSources(const QStringList &sources,
             });
         }
 
-        if (sentAny && !m_app->isDemoMode())
+        if (sentAny && !m_app->isDemoMode()) {
             StateFile::writeSection(kStateSection,
                                     QJsonObject{{QStringLiteral("category"), category}});
+            Q_EMIT addCategoryRemembered();
+        }
         qInfo().noquote() << QStringLiteral("widget add: %1 source(s), category \"%2\"%3")
                                  .arg(parsed.size())
                                  .arg(category, stopped ? QStringLiteral(", stopped") : QString());
