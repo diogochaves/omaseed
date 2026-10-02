@@ -32,6 +32,7 @@ add_subdirectory(core)
 add_subdirectory(integration)
 add_subdirectory(manual)
 add_subdirectory(qml)
+add_subdirectory(plugin)
 
 if(NOT WIN32)
     # scripts/release.sh, exercised end to end in a throwaway git clone. See
