@@ -54,6 +54,7 @@ Item {
     readonly property alias renameSheetPanel: renameSheetPanel
     // ruling Q4: the Trackers/Peers tabs' `a` and the Peers tab's `b`
     readonly property alias detailsAddSheet: detailsAddSheet
+    readonly property alias renameFilesSheet: renameFilesSheet
     readonly property alias banPeerConfirm: banPeerConfirm
     // T4.8: the rest of the overlays, for the stacking and focus cases of `tst_Main`.
     readonly property alias addSheet: addSheet
@@ -97,6 +98,8 @@ Item {
             return renameSheetPanel;
         if (detailsAddSheet.opened)
             return detailsAddSheet;
+        if (renameFilesSheet.opened)
+            return renameFilesSheet;
         if (banPeerConfirm.opened)
             return banPeerConfirm;
         if (limitsSheetPanel.opened)
@@ -1016,6 +1019,16 @@ Item {
             root.flashFooterNote(qsTr("%1 failed: %2").arg(action).arg(message));
         }
 
+        /// #11: a rename-many-files run ended; the footer says how it went.
+        function onTorrentFilesRenamed(hash: string, done: int, total: int, failedPath: string,
+                                       error: string): void {
+            if (failedPath.length === 0)
+                root.flashFooterNote(qsTr("renamed %n files", "", done));
+            else
+                root.flashFooterNote(qsTr("renamed %1 of %2 · %3: %4").arg(done).arg(total)
+                                     .arg(failedPath.slice(failedPath.lastIndexOf("/") + 1)).arg(error));
+        }
+
         /// T4.7's "show" notification action, and the duplicate sheet's `show it`.
         function onShowTorrentRequested(hash: string): void {
             root.showTorrent(hash);
@@ -1362,6 +1375,7 @@ Item {
             onPeerAction: (action, address) => root.detailsRowAction("peer", action, address)
             onTrackerAction: (action, url) => root.detailsRowAction("tracker", action, url)
             onWebSeedAction: (action, url) => root.detailsRowAction("webseed", action, url)
+            onRenameFilesRequested: (paths, fromSelection) => renameFilesSheet.openFor(App.details.hash, paths, fromSelection)
         }
 
         // §7's whole-body states
@@ -1638,6 +1652,13 @@ Item {
 
     DetailsAddSheet {
         id: detailsAddSheet
+
+        anchors.fill: parent
+        z: 9
+    }
+
+    RenameFilesSheet {
+        id: renameFilesSheet
 
         anchors.fill: parent
         z: 9

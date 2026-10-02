@@ -1063,6 +1063,39 @@ QStringList TorrentFilesModel::filePaths() const
     return paths;
 }
 
+QStringList TorrentFilesModel::renameTargets() const
+{
+    // In the tab's order (its sort), folded folders included: a fold only hides rows.
+    QStringList selected;
+    QStringList shown;
+    const std::function<void(int)> walk = [&](int at) {
+        const Node &node = m_nodes.at(at);
+        if (!node.matches)
+            return;
+        if (!node.isFolder) {
+            shown.append(node.path);
+            if (m_selected.contains(node.path))
+                selected.append(node.path);
+            return;
+        }
+        for (int child : sortedChildren(node.children))
+            walk(child);
+    };
+    for (int root : sortedChildren(m_roots))
+        walk(root);
+    return selected.isEmpty() ? shown : selected;
+}
+
+int TorrentFilesModel::selectedFileCount() const
+{
+    int count = 0;
+    for (const Node &node : std::as_const(m_nodes)) {
+        if (!node.isFolder && node.matches && m_selected.contains(node.path))
+            ++count;
+    }
+    return count;
+}
+
 void TorrentFilesModel::renameLocal(const QString &oldPath, const QString &newPath)
 {
     if (oldPath.isEmpty() || newPath.isEmpty() || oldPath == newPath)

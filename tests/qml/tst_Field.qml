@@ -195,4 +195,23 @@ TestCase {
         mouseMove(text, text.width / 2, text.height / 2);
         tryCompare(text, "color", Theme.accent);
     }
+
+    // #11: a key in `shortcuts` is handed on as shortcutPressed and typed nothing; others type.
+    function test_a_shortcut_key_is_handed_on_not_typed() {
+        const field = createTemporaryObject(fieldComponent, testCase);
+        field.shortcuts = [{
+                "key": Qt.Key_E,
+                "modifiers": Qt.ControlModifier
+            }];
+        let pressed = 0;
+        field.shortcutPressed.connect(() => pressed++);
+        field.focusInput();
+        keyClick("e");
+        compare(field.text, "e");
+        keyClick(Qt.Key_E, Qt.ControlModifier);
+        compare(pressed, 1);
+        compare(field.text, "e");
+        keyClick(Qt.Key_E, Qt.ControlModifier | Qt.ShiftModifier);
+        compare(pressed, 1, "ctrl+shift+e is not ctrl+e");
+    }
 }

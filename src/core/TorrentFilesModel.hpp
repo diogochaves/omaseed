@@ -201,6 +201,11 @@ public:
     /// Every file's path inside the torrent, shown or not: what a batch rename must not land
     /// on (#11).
     Q_INVOKABLE QStringList filePaths() const;
+    /// What a batch rename covers (#11, docs/18 B1 and E1): the selected files the filter
+    /// shows, in the tab's order, else every file it shows. Never folders.
+    Q_INVOKABLE QStringList renameTargets() const;
+    /// How many selected rows are files the filter shows (`r` opens the rename sheet from 2).
+    Q_INVOKABLE int selectedFileCount() const;
     /// Moves `oldPath` (a file, or a folder and everything under it) to `newPath` locally,
     /// for demo mode's rename. Keeps the fold state and selection of what moved.
     Q_INVOKABLE void renameLocal(const QString &oldPath, const QString &newPath);

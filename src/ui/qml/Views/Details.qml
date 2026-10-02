@@ -99,6 +99,9 @@ Item {
     /// The HTTP sources tab (#10): `a` add, `d` remove.
     signal webSeedAction(string action, string url)
     /// `y`: the text the caller should put on the clipboard.
+    /// #11: `r` on two or more selected files, or the file menu's "rename files…": the files
+    /// to rename (TorrentFilesModel::renameTargets()) and whether they are the selection.
+    signal renameFilesRequested(var paths, bool fromSelection)
     signal copyRequested(string text)
     /// A few words for the window's footer note ("one file, nothing to filter").
     signal noteRequested(string text)
@@ -277,6 +280,11 @@ Item {
     function startRename() {
         if (root.currentTab !== 1 || root.details.files.count === 0)
             return;
+        // docs/18 A1: several files selected, so `r` means all of them.
+        if (root.details.files.selectedFileCount() >= 2) {
+            root.renameFilesRequested(root.details.files.renameTargets(), true);
+            return;
+        }
         root._renamePath = root.details.files.pathAt(root.filesCursor);
         filesTab.renameText = root.details.files.nameAt(root.filesCursor);
         filesTab.renameFresh = true;
@@ -396,6 +404,9 @@ Item {
             break;
         case "rename":
             root.startRename();
+            break;
+        case "renameMany":
+            root.renameFilesRequested(files.renameTargets(), files.selectedFileCount() > 0);
             break;
         case "copyPath":
             root.copyCurrent();
@@ -1077,6 +1088,8 @@ Item {
 
         readonly property bool onFolder: root.details.files.isFolder(root.filesCursor)
         readonly property int selected: root.details.files.selectedCount
+        // Read again whenever the selection count moves (selectedFileCount() is a call).
+        readonly property int selectedFiles: fileMenu.selected >= 0 ? root.details.files.selectedFileCount() : 0
 
         anchors.fill: parent
         items: [
@@ -1101,9 +1114,15 @@ Item {
                 "action": "priority"
             },
             {
-                "text": fileMenu.onFolder ? qsTr("rename folder") : qsTr("rename"),
+                "text": fileMenu.selectedFiles >= 2 ? qsTr("rename %n files…", "", fileMenu.selectedFiles)
+                        : fileMenu.onFolder ? qsTr("rename folder") : qsTr("rename"),
                 "key": "r",
                 "action": "rename"
+            },
+            {
+                "text": qsTr("rename files…"),
+                "action": "renameMany",
+                "disabled": root.details.files.fileCount < 2
             },
             {
                 "separator": true

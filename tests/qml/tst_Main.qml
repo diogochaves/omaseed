@@ -861,6 +861,34 @@ TestCase {
         view.details.activateTab(0);
     }
 
+    // #11 (docs/18 A1): `r` with several files selected opens the rename sheet on them; with
+    // one it stays the inline editor; the menu's "rename files…" takes every shown file.
+    function test_r_on_several_selected_files_opens_the_rename_sheet() {
+        testCase._cursorOn("Big Buck Bunny 4K (CC-BY)");
+        tryCompare(App.details.files, "fileCount", 5);
+        App.details.files.filterText = "";
+        view.details.activateTab(1);
+        view.details.forceActiveFocus();
+
+        keyClick(Qt.Key_A, Qt.ControlModifier);
+        compare(App.details.files.selectedFileCount(), 5);
+        keyClick("r");
+        compare(view.renameFilesSheet.opened, true);
+        compare(view.renameFilesSheet.paths.length, 5);
+        compare(view.renameFilesSheet.fromSelection, true);
+        verify(view.renameFilesSheet.findField.editing, "the keyboard is not in find");
+        keyClick(Qt.Key_Escape);
+        compare(view.renameFilesSheet.opened, false);
+
+        App.details.files.clearSelection();
+        view.details.fileAction("renameMany");
+        compare(view.renameFilesSheet.opened, true);
+        compare(view.renameFilesSheet.fromSelection, false);
+        compare(view.renameFilesSheet.paths.length, 5);
+        view.renameFilesSheet.close();
+        view.details.activateTab(0);
+    }
+
     // ---- focusHome (review VIEW-1) -------------------------------------------------------
     /// True when the window's keyboard is on `item` or inside it.
     function _focusInside(item) {

@@ -68,6 +68,7 @@ private Q_SLOTS:
     void hiding_skipped_files_drops_them_and_their_empty_folders();
     void a_priority_change_hides_or_shows_a_file_at_once();
     void hiding_skipped_files_is_a_preference_not_the_torrents();
+    void rename_targets_are_the_selected_files_else_every_shown_one();
 };
 
 void TestTorrentFilesModel::builds_the_tree_from_slash_separated_names()
@@ -909,6 +910,35 @@ void TestTorrentFilesModel::hiding_skipped_files_is_a_preference_not_the_torrent
     model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
     QCOMPARE(model.count(), 4);
     QCOMPARE(hide.count(), 0);
+}
+
+// #11 (docs/18 B1, E1): a batch rename takes the selected files the filter shows, in the
+// tab's sorted order, else every file it shows, folded or not; never a folder.
+void TestTorrentFilesModel::rename_targets_are_the_selected_files_else_every_shown_one()
+{
+    TorrentFilesModel model;
+    model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
+    const QString root = QStringLiteral("Big Buck Bunny 4K/");
+    model.sortBy(QStringLiteral("name"));
+    model.setExpanded(model.rowOfPath(root + QStringLiteral("subs")), false);
+    // Folders first (docs N1), then files by name; the folded subs still count.
+    QCOMPARE(model.renameTargets(),
+             QStringList({root + QStringLiteral("subs/bbb.en.srt"),
+                          root + QStringLiteral("subs/bbb.pt.srt"),
+                          root + QStringLiteral("bbb_sunflower_1080p_30fps.mp4"),
+                          root + QStringLiteral("bbb_sunflower_2160p_60fps.mp4"),
+                          root + QStringLiteral("LICENSE.txt")}));
+    QCOMPARE(model.selectedFileCount(), 0);
+
+    model.setFilterText(QStringLiteral("mp4"));
+    QCOMPARE(model.renameTargets().size(), 2);
+
+    // A selection wins, and a folder row in it adds nothing.
+    model.setFilterText(QString());
+    model.setSelected(model.rowOfPath(root + QStringLiteral("LICENSE.txt")), true);
+    model.setSelected(model.rowOfPath(root.chopped(1)), true);
+    QCOMPARE(model.selectedFileCount(), 1);
+    QCOMPARE(model.renameTargets(), QStringList({root + QStringLiteral("LICENSE.txt")}));
 }
 
 QTEST_MAIN(TestTorrentFilesModel)

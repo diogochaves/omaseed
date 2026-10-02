@@ -1137,7 +1137,7 @@ QtObject {
             "rank": 11,
             "helpKeys": "O o r",
             "help": qsTr("open · folder · rename"),
-            "about": qsTr("In the Files tab: open a file, show it in its folder, rename a file or folder")
+            "about": qsTr("In the Files tab: open a file, show it in its folder, rename a file or folder (with several files selected, all of them at once)")
         },
         {
             "area": "details",

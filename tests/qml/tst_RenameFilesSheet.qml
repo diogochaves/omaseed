@@ -115,8 +115,10 @@ TestCase {
         sheet.findField.text = "^";
         sheet.replaceField.text = "z-";
         sheet.findField.focusInput();
+        App.details.files.selectAllFiles();
         keyClick(Qt.Key_Return);
         compare(renamedSpy.count, 1);
+        compare(App.details.files.selectedCount, 0, "a run from the selection leaves it selected");
         compare(renamedSpy.signalArguments[0][1], paths.length);
         compare(sheet.opened, false);
         const renamed = App.details.files.filePaths();

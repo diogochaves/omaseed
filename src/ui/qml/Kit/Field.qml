@@ -43,6 +43,14 @@ Rectangle {
     signal cleared
     /// A click on the trailing text or cap, when `trailingClickable`.
     signal trailingClicked
+    /// One of `shortcuts` was pressed while typing here.
+    signal shortcutPressed(int key, int modifiers)
+
+    /// Keys the field hands on instead of typing: `[{key: Qt.Key_E, modifiers:
+    /// Qt.ControlModifier}]`. Qt's Linux text bindings take some ctrl keys for editing (ctrl+e
+    /// moves to the end of the line), so a key the caller means for itself never got past
+    /// the TextInput (#11: the rename sheet's ctrl+e).
+    property var shortcuts: []
 
     /// Puts the caret in the field. `forceActiveFocus()` on the Rectangle itself would stop
     /// at the root and never reach the inner TextInput.
@@ -198,6 +206,17 @@ Rectangle {
             }
             input.text = "";
             root.cleared();
+        }
+        Keys.onPressed: event => {
+            const mask = Qt.ControlModifier | Qt.AltModifier | Qt.ShiftModifier | Qt.MetaModifier;
+            for (const shortcut of root.shortcuts) {
+                if (event.key === shortcut.key && (event.modifiers & mask) === shortcut.modifiers) {
+                    root.shortcutPressed(event.key, shortcut.modifiers);
+                    event.accepted = true;
+                    return;
+                }
+            }
+            event.accepted = false;
         }
         // `enter` accepts; see `_onEnter`.
         Keys.onReturnPressed: event => root._onEnter(event)

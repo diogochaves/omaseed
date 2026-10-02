@@ -130,6 +130,10 @@ Sheet {
         if (!root.plan.canRun)
             return;
         App.renameTorrentFiles(root.hash, root.paths, root.options());
+        // The selection is kept by path: the renamed files would drop out of it and leave the
+        // ones that did not change selected on their own.
+        if (root.fromSelection)
+            App.details.files.clearSelection();
         root.close();
     }
 
@@ -155,9 +159,14 @@ Sheet {
 
                 Layout.fillWidth: true
                 escClears: false
+                shortcuts: [{
+                        "key": Qt.Key_E,
+                        "modifiers": Qt.ControlModifier
+                    }]
                 placeholder: root.regex ? qsTr("a regular expression, (\\d+) - …") : qsTr("text in the names")
 
                 onAccepted: root.triggerPrimary()
+                onShortcutPressed: root.toggleRegex()
                 onTextChanged: root.replan()
             }
         }
@@ -171,9 +180,14 @@ Sheet {
 
                 Layout.fillWidth: true
                 escClears: false
+                shortcuts: [{
+                        "key": Qt.Key_E,
+                        "modifiers": Qt.ControlModifier
+                    }]
                 placeholder: root.regex ? qsTr("$1 for a group, {n} for a number") : qsTr("{n} for a number")
 
                 onAccepted: root.triggerPrimary()
+                onShortcutPressed: root.toggleRegex()
                 onTextChanged: root.replan()
             }
         }
