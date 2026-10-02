@@ -22,6 +22,12 @@ target_link_libraries(omaseed
         Qt6::Widgets
 )
 
+# `--install-bar-widget` from a development build finds the source tree's plugin/ last, after
+# the installed copies; a Release build (the package) never carries the builder's path.
+target_compile_definitions(omaseed PRIVATE
+    "$<$<NOT:$<CONFIG:Release>>:OMASEED_SOURCE_PLUGIN_DIR=\"${PROJECT_SOURCE_DIR}/plugin\">"
+)
+
 set_target_properties(omaseed PROPERTIES
     WIN32_EXECUTABLE FALSE
     MACOSX_BUNDLE FALSE
