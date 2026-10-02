@@ -608,9 +608,9 @@ int main(int argc, char *argv[])
 
     // --- #13, #14: the companion bar widget ---
     // The widget acts through io.github.diogochaves.omaseed.Status on the app's object path
-    // (StatusBus, StatusService) and its gear through ActivateAction("settings"). While its
-    // heartbeat is fresh, the tray icon mode "auto" hides the tray icon (WidgetHeartbeat). A
-    // demo owns no bus name and leaves the runtime directory alone.
+    // (StatusBus, StatusService), its gear and `r` through ActivateAction("settings"/"retry").
+    // While its heartbeat is fresh, the tray icon mode "auto" hides the tray icon
+    // (WidgetHeartbeat). A demo owns no bus name and leaves the runtime directory alone.
     omaseed::app::StatusService statusService(&omaseedApp);
     std::unique_ptr<omaseed::integration::WidgetHeartbeat> heartbeat;
     if (demo.isEmpty()) {
@@ -627,6 +627,8 @@ int main(int argc, char *argv[])
                      [&omaseedApp](const QString &name) {
                          if (name == QLatin1String("settings"))
                              Q_EMIT omaseedApp.openSettings();
+                         else if (name == QLatin1String("retry"))
+                             omaseedApp.retryNow();
                      });
     // A widget add remembered its category: the next status write carries it at once.
     QObject::connect(&statusService,

@@ -169,13 +169,20 @@ When it sends anything, the category is remembered in state.json (section `widge
 ```
 
 Launching and raising go through `org.freedesktop.Application` on the same object:
-`Activate` raises omaseed (and starts it, being `DBusActivatable`), and
-`ActivateAction("settings", [], {})` raises it on its settings (the popup's gear):
+`Activate` raises omaseed (and starts it, being `DBusActivatable`). `ActivateAction` takes
+two actions from the widget; any other name is ignored:
+
+| Action | Does |
+|---|---|
+| `settings` | raises omaseed on its settings (the popup's gear) |
+| `retry` | polls an unreachable server now, as the app's "retry now" does (`r`); no window |
 
 ```
 busctl --user call io.github.diogochaves.omaseed /io/github/diogochaves/omaseed \
-  org.freedesktop.Application ActivateAction 'sava{sv}' settings 0 0
+  org.freedesktop.Application ActivateAction 'sava{sv}' retry 0 0
 ```
+
+`DescribeSources` answers one object per source in the order they were sent.
 
 ## The heartbeat
 
