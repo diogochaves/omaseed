@@ -41,6 +41,8 @@ Item {
     signal renameCancelled
     /// The filter field let go of the keyboard (`enter`, `esc`, `↓`).
     signal filterDone
+    /// A click on the summary line's "N skipped" (#9): the pane turns hideSkipped over, as `X`.
+    signal hideSkippedRequested
 
     readonly property int count: root.model ? root.model.count : 0
     readonly property bool filterShown: root.filterOpen || (root.model !== null
@@ -51,8 +53,9 @@ Item {
     readonly property int fileCount: root.model ? root.model.fileCount : 0
     /// docs/12 F2: a single-file torrent has nothing to filter, so it offers no filter.
     readonly property bool canFilter: root.fileCount > 1
-    /// docs/12 F1's summary line, in two halves: the file count, in the foreground, and the
-    /// rest, dim: " · 2 folders · 3.91 GB · 2 skipped". Folders and skips only when there are.
+    /// docs/12 F1's summary line, in three parts: the file count, in the foreground, the
+    /// rest, dim (" · 2 folders · 3.91 GB"; folders only when there are), then the skipped
+    /// files as their own toggle (#9, `skippedText`).
     readonly property string summaryCountText: root.fileCount === 0 ? qsTr("no files")
                                                                     : root.fileCount === 1
                                                                       ? qsTr("1 file")
@@ -66,10 +69,13 @@ Item {
         if (folders > 0)
             parts.push(folders === 1 ? qsTr("1 folder") : qsTr("%1 folders").arg(folders));
         parts.push(root.model.totalSizeText);
-        if (root.model.skippedCount > 0)
-            parts.push(qsTr("%1 skipped").arg(root.model.skippedCount));
         return parts.join(" · ");
     }
+    /// "2 skipped", or "2 skipped, hidden" while they are hidden; empty with none skipped.
+    readonly property string skippedText: root.model === null || root.model.skippedCount === 0
+                                          ? "" : root.model.hideSkipped
+                                            ? qsTr("%1 skipped, hidden").arg(root.model.skippedCount)
+                                            : qsTr("%1 skipped").arg(root.model.skippedCount)
 
     // The spec's `.files { grid-template-columns: 1fr 70px 56px 72px }`, trimmed to fit the
     // real docked column (spec §2's Fig. 2 is a 400 px mock). Each fixed column holds its
@@ -213,6 +219,8 @@ Item {
             }
 
             Text {
+                id: summaryFacts
+
                 anchors.left: summaryCount.right
                 anchors.verticalCenter: parent.verticalCenter
                 color: Theme.dimForeground
@@ -222,8 +230,44 @@ Item {
                 objectName: "filesSummaryFacts"
                 text: root.summaryFactsText
                 width: Math.max(0, Math.min(implicitWidth, summary.width - summaryCount.width
+                                            - (skippedToggle.visible ? skippedToggle.width : 0)
                                             - (summaryGo.visible ? summaryGo.width
                                                                    + Theme.space(8) : 0)))
+            }
+
+            // #9: the skipped count is the switch that hides them. Dim while they show; in
+            // the foreground, saying "hidden", while they do not. `X` does the same.
+            Row {
+                id: skippedToggle
+
+                anchors.left: summaryFacts.right
+                anchors.verticalCenter: parent.verticalCenter
+                objectName: "filesSkippedToggle"
+                spacing: Theme.space(6)
+                visible: root.skippedText.length > 0
+
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    color: Theme.dimForeground
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.font.small
+                    text: " ·"
+                }
+
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    color: root.model !== null && root.model.hideSkipped ? Theme.foreground
+                                                                         : Theme.dimForeground
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.font.small
+                    objectName: "filesSkippedText"
+                    text: root.skippedText
+                }
+
+                KeyCap {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "X"
+                }
             }
 
             Row {
@@ -262,6 +306,18 @@ Item {
                 enabled: root.canFilter
 
                 onClicked: root.focusFilter()
+            }
+
+            // Above the line's own area: a click on "N skipped" hides them, not the filter.
+            MouseArea {
+                cursorShape: Qt.PointingHandCursor
+                height: summary.height
+                objectName: "filesSkippedArea"
+                visible: skippedToggle.visible
+                width: skippedToggle.width
+                x: skippedToggle.x
+
+                onClicked: root.hideSkippedRequested()
             }
         }
 
@@ -622,6 +678,20 @@ Item {
         font.pixelSize: Theme.font.small
         text: qsTr("no file matches · esc clears")
         visible: root.count === 0 && root.model !== null && root.model.filterText.length > 0
+    }
+
+    // #9: every file skipped, and the skipped hidden: say why the list is empty.
+    Text {
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.top: header.bottom
+        anchors.topMargin: Theme.space(16)
+        color: Theme.dimForeground
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.font.small
+        objectName: "filesAllSkipped"
+        text: qsTr("every file is skipped · X shows them")
+        visible: root.count === 0 && root.model !== null && root.model.filterText.length === 0
+                 && root.model.hideSkipped && root.fileCount > 0
     }
 
     // The full name (the whole path inside the torrent) of a row whose name was cut.

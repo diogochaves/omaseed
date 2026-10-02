@@ -321,6 +321,16 @@ Item {
         root._followPath(path);
     }
 
+    /// `X`, the file menu's row or a click on "N skipped" (#9): hide the skipped files, or
+    /// show them again. The cursor stays on its file; on a file that just went, at the top.
+    function toggleHideSkipped() {
+        const files = root.details.files;
+        const path = files.pathAt(root.filesCursor);
+        files.hideSkipped = !files.hideSkipped;
+        const row = files.rowOfPath(path);
+        root._setCursor(row >= 0 ? row : 0);
+    }
+
     /// `enter` or a right click on a Files row: its menu. `x`, `y` in the pane's coordinates;
     /// the cursor row's own place when they are left out.
     function openFileMenu(x: real, y: real) {
@@ -386,6 +396,9 @@ Item {
         case "collapseAll":
             root.foldAll(true);
             break;
+        case "hideSkipped":
+            root.toggleHideSkipped();
+            break;
         }
     }
 
@@ -442,6 +455,11 @@ Item {
             if (!shift)
                 return false;
             root.foldAll(false);
+            return true;
+        case Qt.Key_X:
+            if (!shift)
+                return false;
+            root.toggleHideSkipped();
             return true;
         case Qt.Key_Escape:
             if (root.details.files.selectedCount > 0) {
@@ -843,6 +861,7 @@ Item {
             visible: root.currentTab === 1
 
             onFilterDone: root.forceActiveFocus()
+            onHideSkippedRequested: root.toggleHideSkipped()
             onRenameCancelled: root.cancelRename()
             onRenameCommitted: text => root.commitRename(text)
             onRowActivated: row => {
@@ -1049,6 +1068,12 @@ Item {
                 "text": qsTr("collapse all"),
                 "key": "H",
                 "action": "collapseAll"
+            },
+            {
+                "text": root.details.files.hideSkipped ? qsTr("show skipped files")
+                                                      : qsTr("hide skipped files"),
+                "key": "X",
+                "action": "hideSkipped"
             }
         ]
         menuWidth: Math.min(Theme.space(260), root.width - Theme.space(16))
