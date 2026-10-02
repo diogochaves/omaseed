@@ -232,6 +232,10 @@ void App::start()
     if (m_demoMode)
         return;
 
+    // #9: a real run keeps the Files tab's per-torrent filter and hide-skipped in state.json
+    // (demos and QML tests never call start(), so they never write it).
+    m_details->setRememberViewState(true);
+
     if (!m_servers->load())
         qWarning().noquote() << QStringLiteral("servers: %1; it is kept as %2")
                                     .arg(m_servers->loadError(), m_servers->keptPath());

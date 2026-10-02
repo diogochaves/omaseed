@@ -1,5 +1,6 @@
 #include "core/TorrentDetails.hpp"
 
+#include "core/FilesViewState.hpp"
 #include "core/Format.hpp"
 #include "core/PieceStates.hpp"
 #include "core/QbtClient.hpp"
@@ -15,6 +16,7 @@ namespace omaseed::core {
 namespace {
 
 constexpr int kDefaultPollInterval = 2000; ///< spec §2: the details pane refreshes every 2 s.
+constexpr int kFilterSaveDelay = 800;      ///< a typed Files filter is written once it rests
 
 } // namespace
 
@@ -25,11 +27,24 @@ TorrentDetails::TorrentDetails(QObject *parent)
     , m_peers(new TorrentPeersModel(this))
     , m_timer(new QTimer(this))
     , m_peersTimer(new QTimer(this))
+    , m_filterSaveTimer(new QTimer(this))
 {
     m_timer->setInterval(kDefaultPollInterval);
     m_peersTimer->setInterval(kDefaultPollInterval);
     connect(m_timer, &QTimer::timeout, this, &TorrentDetails::poll);
     connect(m_peersTimer, &QTimer::timeout, this, &TorrentDetails::pollPeers);
+
+    m_filterSaveTimer->setSingleShot(true);
+    m_filterSaveTimer->setInterval(kFilterSaveDelay);
+    connect(m_filterSaveTimer, &QTimer::timeout, this, &TorrentDetails::saveFilesFilter);
+    connect(m_files, &TorrentFilesModel::filterTextChanged, this, [this]() {
+        if (m_rememberViewState && !m_switching)
+            m_filterSaveTimer->start();
+    });
+    connect(m_files, &TorrentFilesModel::hideSkippedChanged, this, [this]() {
+        if (m_rememberViewState)
+            FilesViewState::setHideSkipped(m_files->hideSkipped());
+    });
 
     connect(m_trackers, &TorrentTrackersModel::countChanged, this, [this]() {
         const bool error = m_trackers->hasError();
@@ -40,7 +55,50 @@ TorrentDetails::TorrentDetails(QObject *parent)
     });
 }
 
-TorrentDetails::~TorrentDetails() = default;
+TorrentDetails::~TorrentDetails()
+{
+    // A filter typed just before quitting is still waiting for its timer.
+    if (m_filterSaveTimer->isActive())
+        saveFilesFilter();
+}
+
+void TorrentDetails::setRememberViewState(bool remember)
+{
+    if (remember == m_rememberViewState)
+        return;
+    if (m_filterSaveTimer->isActive())
+        saveFilesFilter();
+    m_rememberViewState = remember;
+    if (remember) {
+        m_files->setHideSkipped(FilesViewState::hideSkipped());
+        m_switching = true;
+        m_filterHash = m_hash;
+        m_files->setFilterText(FilesViewState::filterFor(m_hash));
+        m_switching = false;
+    }
+    Q_EMIT rememberViewStateChanged();
+}
+
+void TorrentDetails::saveFilesFilter()
+{
+    m_filterSaveTimer->stop();
+    if (m_rememberViewState)
+        FilesViewState::rememberFilter(m_filterHash, m_files->filterText());
+}
+
+void TorrentDetails::switchModels(const QString &hash)
+{
+    if (m_filterSaveTimer->isActive())
+        saveFilesFilter();
+    m_switching = true;
+    m_files->clear();
+    m_filterHash = hash;
+    if (m_rememberViewState)
+        m_files->setFilterText(FilesViewState::filterFor(hash));
+    m_switching = false;
+    m_trackers->clear();
+    m_peers->clear();
+}
 
 bool TorrentDetails::hasTrackerError() const
 {
@@ -81,9 +139,7 @@ void TorrentDetails::setHash(const QString &hash)
     m_properties.clear();
     m_errorLogged = false;
     setLastError(QString());
-    m_files->clear();
-    m_trackers->clear();
-    m_peers->clear();
+    switchModels(hash);
     setPieceStates(QByteArray());
 
     Q_EMIT hashChanged();
@@ -425,9 +481,7 @@ void TorrentDetails::applyDemo(const QJsonObject &details)
     const QString hash = details.value(QStringLiteral("hash")).toString();
     if (hash != m_hash) {
         m_hash = hash;
-        m_files->clear();
-        m_trackers->clear();
-        m_peers->clear();
+        switchModels(hash);
         Q_EMIT hashChanged();
     }
 
