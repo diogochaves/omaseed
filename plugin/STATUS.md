@@ -107,7 +107,8 @@ a schema change is one commit touching both sides. Design: `docs/20-companion-wi
   "categories": [ { "name": "linux", "savePath": "/data/linux" } ],
   "add": {
     "savePath": "/data/torrents",     // the server's default save path, "" until known
-    "autoTmm": false,                 // the server adds with automatic management
+    "autoTmm": false,                 // the server's own default for new torrents (the
+                                      // widget's AddSources always uses automatic management)
     "category": "linux"               // the category the last add used ("" for none)
   },
 

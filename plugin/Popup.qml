@@ -64,7 +64,9 @@ Panel {
     Qt.callLater(function() {
       if (root.opened) setCenterHoverRevealSuppressed(true)
       keys.forceActiveFocus()
-      if (root.targets.length > 0 && root.targetIndex(root.cursorKey) < 0) root.cursorKey = root.targets[0].key
+      // Each opening shows the top (onOpenedChanged), so the cursor starts there too: one
+      // left on a row further down would be out of sight, and j k would seem to do nothing.
+      if (root.targets.length > 0) root.cursorKey = root.targets[0].key
     })
   }
 
@@ -277,7 +279,10 @@ Panel {
     })
   }
 
+  // A "clipboard" row is what is on the clipboard now: the last opening's goes, and the probe
+  // brings it back (described again) if it is still there. Pasted and browsed rows stay.
   function probeClipboard() {
+    extraRows = extraRows.filter(function(r) { return r.origin !== "clipboard" })
     if (service && reachable) service.readClipboard(function(text) { root.addText(text, "clipboard", false) })
   }
 
@@ -900,8 +905,9 @@ Panel {
           textFormat: Text.PlainText
           text: {
             var folder = Status.targetFolder(root.status, root.category)
-            var line = "→ " + (folder === "" ? "the server's default folder" : folder)
-            return root.addInfo.autoTmm === true ? line + " · automatic management" : line
+            // AddSources always adds with automatic management (docs/20 §3's "whether
+            // automatic management applies": for the widget's add it always does).
+            return "→ " + (folder === "" ? "the server's default folder" : folder) + " · automatic management"
           }
           color: root.dim
           font.family: root.fontFamily
@@ -922,7 +928,7 @@ Panel {
           opacity: enabled ? 1 : 0.45
           foreground: root.accent
           fontFamily: root.fontFamily
-          tooltipText: "Add the ticked ones (↵), stopped (⇧↵), or in omaseed's add sheet (m)"
+          tooltipText: "Add the ticked ones (↵) · stopped (⇧↵)"
           onClicked: root.addTicked(false)
         }
 

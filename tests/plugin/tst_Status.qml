@@ -201,8 +201,10 @@ TestCase {
         compare(Status.targetFolder(s, "linux"), "/data/torrents/linux");
         compare(Status.targetFolder(s, "movies"), "/data/torrents/movies");
         compare(Status.targetFolder(s, ""), "/data/torrents");
+        // The server's own default does not matter: the widget's add always uses automatic
+        // management, so the category's folder still applies.
         s.add.autoTmm = false;
-        compare(Status.targetFolder(s, "linux"), "/data/torrents");
+        compare(Status.targetFolder(s, "linux"), "/data/torrents/linux");
     }
 
     function test_bus_string_reply() {

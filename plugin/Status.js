@@ -353,13 +353,13 @@ function sourceName(source) {
   try { return decodeURIComponent(last) || text } catch (e) { return last || text }
 }
 
-// Where a torrent goes when added with `category` (name or ""): with
-// automatic management the category's folder (its savePath, or the default
-// folder plus its name), without it the server's default folder.
+// Where the widget's add puts a torrent with `category` (name or ""). AddSources
+// always adds with automatic management, so the category decides: its savePath,
+// or the default folder plus its name; no category is the default folder.
 function targetFolder(status, category) {
   var add = obj(status && status.add)
   var base = String(add.savePath || "")
-  if (!category || add.autoTmm !== true) return base
+  if (!category) return base
   var cats = list(status.categories)
   for (var i = 0; i < cats.length; i++) {
     if (cats[i].name === category) {
