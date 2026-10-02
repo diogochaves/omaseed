@@ -1,19 +1,24 @@
-// #17 — `omaseed --install-bar-widget`: where the packaged widget is found, where it goes, and
-// that the copy is a real copy (regular files, no symlinks), replaces an older one whole and
-// leaves a git checkout from `omarchy plugin add` alone. Every path is under a temporary
-// directory; HOME, XDG_CONFIG_HOME and the XDG data dirs point into it.
+// #17 — the bar widget is part of the install: where the packaged widget is found, that
+// ~/.config/omarchy/plugins/chaves.omaseed becomes a link to it (replacing a link or an old copy,
+// leaving a git checkout from `omarchy plugin add` alone), and that BarWidget rescans the shell and
+// enables the widget until the shell knows it, then disables and unlinks it, against stand-in
+// `omarchy` scripts. Every path is under a temporary directory; HOME, XDG_CONFIG_HOME and the XDG
+// data dirs point into it.
 
+#include "integration/BarWidget.hpp"
 #include "integration/BarWidgetInstaller.hpp"
 
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QtTest>
 
 #include <memory>
 
 namespace Installer = omaseed::integration::BarWidgetInstaller;
+using omaseed::integration::BarWidget;
 
 namespace {
 
@@ -70,11 +75,14 @@ private Q_SLOTS:
     void sourceFromDataDirs();
     void sourceFromDevTreeLast();
     void noSourceAnywhere();
-    void installsARealCopy();
-    void replacesAnOlderCopyWhole();
-    void symlinksAreCopiedAsFiles();
+    void linksToThePackagedWidget();
+    void replacesALinkOrAnOldCopy();
     void leavesAGitCheckoutAlone();
-    void missingSourceLeavesTargetAlone();
+    void unlinkRemovesOnlyTheLink();
+    void inBarAnywhereButDisabled();
+    void installLinksRescansAndEnables();
+    void installStopsWhenTheShellNeverKnowsIt();
+    void unavailableWithoutOmarchyOrAWidget();
 
 private:
     std::unique_ptr<QTemporaryDir> m_tmp;
@@ -90,6 +98,8 @@ void TestBarWidgetInstaller::init()
     qputenv("XDG_DATA_HOME", path(QStringLiteral("data-home")).toUtf8());
     qputenv("XDG_DATA_DIRS", path(QStringLiteral("usr-share")).toUtf8());
     qunsetenv("OMASEED_PLUGIN_DIR");
+    qunsetenv("OMASEED_OMARCHY");
+    qunsetenv("OMASEED_OMARCHY_SHELL");
 }
 
 void TestBarWidgetInstaller::cleanup()
@@ -142,61 +152,46 @@ void TestBarWidgetInstaller::sourceFromDevTreeLast()
 void TestBarWidgetInstaller::noSourceAnywhere()
 {
     QVERIFY(Installer::findSource(path(QStringLiteral("src/plugin"))).isEmpty());
-    const auto result = Installer::install(QString(), Installer::targetDir());
+    const auto result = Installer::link(QString(), Installer::targetDir());
     QVERIFY(!result.ok);
     QVERIFY2(result.message.contains(QStringLiteral("not installed")), qPrintable(result.message));
-    QVERIFY(!QFileInfo::exists(Installer::targetDir()));
+    QCOMPARE(Installer::presence(Installer::targetDir()), Installer::Presence::Absent);
 }
 
-void TestBarWidgetInstaller::installsARealCopy()
+void TestBarWidgetInstaller::linksToThePackagedWidget()
 {
     const QString source = makePlugin(path(QStringLiteral("usr-share")), "1");
     const QString target = Installer::targetDir();
-    const auto result = Installer::install(source, target);
+    const auto result = Installer::link(source, target);
     QVERIFY2(result.ok, qPrintable(result.message));
-    QVERIFY(result.message.startsWith(QStringLiteral("Installed")));
-    QVERIFY(result.message.endsWith(Installer::enableCommand()));
-
-    for (const char *name : {"manifest.json", "Widget.qml", "icons/mark.svg"}) {
-        const QFileInfo info(QDir(target).filePath(QLatin1String(name)));
-        QVERIFY2(info.isFile() && !info.isSymLink(), name);
-        QCOMPARE(info.permissions() & (QFileDevice::ReadOwner | QFileDevice::WriteOwner |
-                                       QFileDevice::ReadOther | QFileDevice::WriteOther),
-                 QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ReadOther);
-    }
+    QCOMPARE(Installer::presence(target), Installer::Presence::Linked);
+    QCOMPARE(Installer::linkTarget(target), source);
+    // Through the link the shell reads the package's files, so an upgrade is the widget's too.
     QCOMPARE(readFile(target + QStringLiteral("/Widget.qml")), QByteArray("Item {}"));
     QCOMPARE(besideTarget(target), QStringList{QStringLiteral("chaves.omaseed")});
-}
-
-void TestBarWidgetInstaller::replacesAnOlderCopyWhole()
-{
-    const QString target = Installer::targetDir();
-    writeFile(target + QStringLiteral("/manifest.json"), "{\"version\": \"0\"}");
-    writeFile(target + QStringLiteral("/Gone.qml"), "Item {}");
-
-    const QString source = makePlugin(path(QStringLiteral("usr-share")), "1");
-    const auto result = Installer::install(source, target);
-    QVERIFY2(result.ok, qPrintable(result.message));
-    QVERIFY(result.message.startsWith(QStringLiteral("Updated")));
-    QCOMPARE(readFile(target + QStringLiteral("/manifest.json")),
-             QByteArray("{\"version\": \"1\"}"));
-    QVERIFY(!QFileInfo::exists(target + QStringLiteral("/Gone.qml")));
+    // Again: nothing to do.
+    QVERIFY(Installer::link(source, target).ok);
     QCOMPARE(besideTarget(target), QStringList{QStringLiteral("chaves.omaseed")});
 }
 
-void TestBarWidgetInstaller::symlinksAreCopiedAsFiles()
+void TestBarWidgetInstaller::replacesALinkOrAnOldCopy()
 {
-    const QString source = makePlugin(path(QStringLiteral("usr-share")), "1");
-    writeFile(path(QStringLiteral("elsewhere/README.md")), "read me");
-    QVERIFY(QFile::link(path(QStringLiteral("elsewhere/README.md")),
-                        source + QStringLiteral("/README.md")));
-
     const QString target = Installer::targetDir();
-    QVERIFY(Installer::install(source, target).ok);
-    const QFileInfo readme(target + QStringLiteral("/README.md"));
-    QVERIFY(readme.isFile());
-    QVERIFY(!readme.isSymLink());
-    QCOMPARE(readFile(readme.filePath()), QByteArray("read me"));
+    const QString old = makePlugin(path(QStringLiteral("old")), "0");
+    QVERIFY(Installer::link(old, target).ok);
+    const QString source = makePlugin(path(QStringLiteral("usr-share")), "1");
+    QVERIFY(Installer::link(source, target).ok);
+    QCOMPARE(Installer::linkTarget(target), source);
+    QVERIFY2(QFileInfo::exists(old + QStringLiteral("/manifest.json")),
+             "replacing a link must not touch what it pointed at");
+
+    // A plain copy (the earlier installer's) goes whole.
+    QVERIFY(QFile::remove(target));
+    writeFile(target + QStringLiteral("/manifest.json"), "{\"version\": \"copy\"}");
+    QCOMPARE(Installer::presence(target), Installer::Presence::Folder);
+    QVERIFY(Installer::link(source, target).ok);
+    QCOMPARE(Installer::linkTarget(target), source);
+    QCOMPARE(besideTarget(target), QStringList{QStringLiteral("chaves.omaseed")});
 }
 
 void TestBarWidgetInstaller::leavesAGitCheckoutAlone()
@@ -204,24 +199,153 @@ void TestBarWidgetInstaller::leavesAGitCheckoutAlone()
     const QString target = Installer::targetDir();
     writeFile(target + QStringLiteral("/.git/HEAD"), "ref: refs/heads/main\n");
     writeFile(target + QStringLiteral("/manifest.json"), "{\"version\": \"git\"}");
+    QCOMPARE(Installer::presence(target), Installer::Presence::Checkout);
 
     const QString source = makePlugin(path(QStringLiteral("usr-share")), "1");
-    const auto result = Installer::install(source, target);
+    const auto result = Installer::link(source, target);
     QVERIFY(!result.ok);
     QVERIFY2(result.message.contains(QStringLiteral("omarchy plugin update chaves.omaseed")),
              qPrintable(result.message));
     QCOMPARE(readFile(target + QStringLiteral("/manifest.json")),
              QByteArray("{\"version\": \"git\"}"));
+    QVERIFY(!Installer::unlink(target).ok);
+    QVERIFY(QFileInfo::exists(target + QStringLiteral("/manifest.json")));
 }
 
-void TestBarWidgetInstaller::missingSourceLeavesTargetAlone()
+void TestBarWidgetInstaller::unlinkRemovesOnlyTheLink()
 {
+    const QString source = makePlugin(path(QStringLiteral("usr-share")), "1");
     const QString target = Installer::targetDir();
-    writeFile(target + QStringLiteral("/manifest.json"), "{\"version\": \"0\"}");
-    const auto result = Installer::install(path(QStringLiteral("empty")), target);
-    QVERIFY(!result.ok);
-    QCOMPARE(readFile(target + QStringLiteral("/manifest.json")),
-             QByteArray("{\"version\": \"0\"}"));
+    QVERIFY(Installer::unlink(target).ok); // nothing there is fine
+    QVERIFY(Installer::link(source, target).ok);
+    QVERIFY(Installer::unlink(target).ok);
+    QCOMPARE(Installer::presence(target), Installer::Presence::Absent);
+    QVERIFY(QFileInfo::exists(source + QStringLiteral("/manifest.json")));
+}
+
+void TestBarWidgetInstaller::inBarAnywhereButDisabled()
+{
+    const QString json = Installer::shellConfigPath();
+    QCOMPARE(json, path(QStringLiteral("config/omarchy/shell.json")));
+    QVERIFY(!Installer::isInBar(json)); // no file
+    writeFile(json, R"({"bar": {"layout": {"right": [{"id": "omarchy.audio"}]}},
+                        "disabledPlugins": ["chaves.omaseed"]})");
+    QVERIFY(!Installer::isInBar(json));
+    writeFile(json, R"({"bar": {"layout": {"right": [{"id": "chaves.omaseed"}]}}})");
+    QVERIFY(Installer::isInBar(json));
+    // Inside a container widget, as a bare string (Diogo's sidebar holds both forms).
+    writeFile(json, R"({"plugins": [{"id": "chaves.sidebar", "bottom": ["chaves.omaseed"]}]})");
+    QVERIFY(Installer::isInBar(json));
+}
+
+namespace {
+
+/// A stand-in for `omarchy` / `omarchy-shell`: logs its arguments, and as `omarchy plugin
+/// enable` says "is not known" `unknownTimes` times before it writes the id into shell.json.
+QString fakeProgram(const QString &dir, const QString &name, int unknownTimes)
+{
+    const QString file = QDir(dir).filePath(name);
+    const QByteArray script =
+        "#!/bin/sh\n"
+        "echo \"" +
+        name.toUtf8() +
+        " $*\" >> \"$FAKE_LOG\"\n"
+        "case \"$1 $2\" in\n"
+        "'plugin enable')\n"
+        "  n=$(cat \"$FAKE_LOG.count\" 2>/dev/null || echo 0)\n"
+        "  echo $((n + 1)) > \"$FAKE_LOG.count\"\n"
+        "  if [ \"$n\" -lt " +
+        QByteArray::number(unknownTimes) +
+        " ]; then\n"
+        "    echo \"plugin '$3' is not known\" >&2; exit 1; fi\n"
+        "  printf '{\"bar\":{\"layout\":{\"right\":[{\"id\":\"%s\"}]}}}' \"$3\" "
+        "> \"$XDG_CONFIG_HOME/omarchy/shell.json\"\n"
+        "  echo \"Enabled $3\" ;;\n"
+        "'plugin disable')\n"
+        "  echo '{}' > \"$XDG_CONFIG_HOME/omarchy/shell.json\"\n"
+        "  echo \"Disabled $3\" ;;\n"
+        "esac\n";
+    writeFile(file, script);
+    QFile::setPermissions(file,
+                          QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner);
+    return file;
+}
+
+} // namespace
+
+void TestBarWidgetInstaller::installLinksRescansAndEnables()
+{
+    const QString log = path(QStringLiteral("calls.log"));
+    qputenv("FAKE_LOG", log.toUtf8());
+    writeFile(Installer::shellConfigPath(), "{}");
+    makePlugin(path(QStringLiteral("usr-share")), "1");
+
+    BarWidget widget;
+    widget.setPrograms(
+        fakeProgram(path(QStringLiteral("bin")), QStringLiteral("omarchy"), 2),
+        fakeProgram(path(QStringLiteral("bin")), QStringLiteral("omarchy-shell"), 0));
+    widget.setRetry(10, 20);
+    QVERIFY(widget.available());
+    QVERIFY(!widget.installed());
+    QVERIFY(!widget.inBar());
+
+    QSignalSpy finished(&widget, &BarWidget::finished);
+    widget.install();
+    QVERIFY(widget.busy());
+    QVERIFY(finished.wait(5000));
+    QVERIFY2(finished.first().at(0).toBool(), qPrintable(finished.first().at(1).toString()));
+    QVERIFY(widget.installed());
+    QVERIFY(widget.inBar());
+    QVERIFY(!widget.busy());
+    QVERIFY(widget.lastOk());
+
+    // The rescan first, then enable until the shell knows the widget (twice "not known").
+    const QList<QByteArray> calls = readFile(log).trimmed().split('\n');
+    QCOMPARE(calls.size(), 4);
+    QVERIFY(calls.at(0).endsWith("omarchy-shell shell rescanPlugins"));
+    for (int i = 1; i < 4; ++i)
+        QVERIFY(calls.at(i).endsWith("omarchy plugin enable chaves.omaseed"));
+
+    // Out again: disabled, then unlinked.
+    finished.clear();
+    widget.remove();
+    QVERIFY(finished.wait(5000));
+    QVERIFY(finished.first().at(0).toBool());
+    QVERIFY(!widget.inBar());
+    QVERIFY(!widget.installed());
+    QVERIFY(readFile(log).trimmed().endsWith("omarchy plugin disable chaves.omaseed"));
+}
+
+void TestBarWidgetInstaller::installStopsWhenTheShellNeverKnowsIt()
+{
+    qputenv("FAKE_LOG", path(QStringLiteral("calls.log")).toUtf8());
+    makePlugin(path(QStringLiteral("usr-share")), "1");
+    BarWidget widget;
+    widget.setPrograms(
+        fakeProgram(path(QStringLiteral("bin")), QStringLiteral("omarchy"), 100),
+        fakeProgram(path(QStringLiteral("bin")), QStringLiteral("omarchy-shell"), 0));
+    widget.setRetry(5, 3);
+    QSignalSpy finished(&widget, &BarWidget::finished);
+    widget.install();
+    QVERIFY(finished.wait(5000));
+    QVERIFY(!finished.first().at(0).toBool());
+    QVERIFY2(finished.first().at(1).toString().contains(QStringLiteral("is not known")),
+             qPrintable(finished.first().at(1).toString()));
+    // The link stays: the shell can still be told by hand (`omarchy plugin enable`).
+    QVERIFY(widget.installed());
+    QVERIFY(!widget.inBar());
+}
+
+void TestBarWidgetInstaller::unavailableWithoutOmarchyOrAWidget()
+{
+    BarWidget widget;
+    widget.setPrograms(path(QStringLiteral("bin/none")), path(QStringLiteral("bin/none")));
+    QVERIFY(!widget.available());
+    makePlugin(path(QStringLiteral("usr-share")), "1");
+    widget.refresh();
+    QVERIFY(!widget.available()); // a widget, but no omarchy
+    widget.setPrograms(QStringLiteral("true"), QStringLiteral("true"));
+    QVERIFY(widget.available());
 }
 
 QTEST_GUILESS_MAIN(TestBarWidgetInstaller)

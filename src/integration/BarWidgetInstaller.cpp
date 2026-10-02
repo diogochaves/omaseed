@@ -2,20 +2,19 @@
 
 #include <QCoreApplication>
 #include <QDir>
-#include <QDirIterator>
 #include <QFile>
 #include <QFileInfo>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QProcessEnvironment>
 #include <QStandardPaths>
+
+#include <cstdio>
 
 namespace omaseed::integration::BarWidgetInstaller {
 
 namespace {
-
-constexpr QFileDevice::Permissions kFileMode = QFileDevice::ReadOwner | QFileDevice::WriteOwner |
-                                               QFileDevice::ReadGroup | QFileDevice::ReadOther;
-constexpr QFileDevice::Permissions kDirMode =
-    kFileMode | QFileDevice::ExeOwner | QFileDevice::ExeGroup | QFileDevice::ExeOther;
 
 bool holdsManifest(const QString &dir)
 {
@@ -23,34 +22,45 @@ bool holdsManifest(const QString &dir)
            QFileInfo(QDir(dir).filePath(QStringLiteral("manifest.json"))).isFile();
 }
 
-/// Copies the regular files under `source` into the empty folder `into`; false with `error`
-/// set at the first failure.
-bool copyTree(const QString &source, const QString &into, QString *error)
+QString configHome()
 {
-    const QDir from(source);
-    QDirIterator it(source,
-                    QDir::Files | QDir::Hidden | QDir::NoDotAndDotDot,
-                    QDirIterator::Subdirectories | QDirIterator::FollowSymlinks);
-    while (it.hasNext()) {
-        const QString path = it.next();
-        const QString relative = from.relativeFilePath(path);
-        // A checkout's own bookkeeping is not part of the plugin.
-        if (relative.startsWith(QLatin1String(".git/")) || relative == QLatin1String(".git"))
-            continue;
-        const QString target = QDir(into).filePath(relative);
-        const QString parent = QFileInfo(target).absolutePath();
-        if (!QDir().mkpath(parent)) {
-            *error = QStringLiteral("cannot create %1").arg(parent);
-            return false;
+    const QString config =
+        QProcessEnvironment::systemEnvironment().value(QStringLiteral("XDG_CONFIG_HOME"));
+    return config.isEmpty() ? QDir::home().filePath(QStringLiteral(".config")) : config;
+}
+
+bool mentions(const QJsonValue &value, const QString &id)
+{
+    if (value.isString())
+        return value.toString() == id;
+    if (value.isArray()) {
+        const QJsonArray array = value.toArray();
+        for (const QJsonValue &item : array) {
+            if (mentions(item, id))
+                return true;
         }
-        QFile::setPermissions(parent, kDirMode);
-        // QFile::copy reads through a symlink, so the copy is always a regular file.
-        if (!QFile::copy(path, target)) {
-            *error = QStringLiteral("cannot copy %1 to %2").arg(path, target);
-            return false;
-        }
-        QFile::setPermissions(target, kFileMode);
+        return false;
     }
+    if (value.isObject()) {
+        const QJsonObject object = value.toObject();
+        for (auto it = object.begin(); it != object.end(); ++it) {
+            if (it.key() == QLatin1String("disabledPlugins"))
+                continue;
+            if (mentions(it.value(), id))
+                return true;
+        }
+    }
+    return false;
+}
+
+/// Removes whatever is at `path`: a link (never what it points at), a file or a folder.
+bool removeEntry(const QString &path)
+{
+    const QFileInfo info(path);
+    if (info.isSymLink() || info.isFile())
+        return QFile::remove(path);
+    if (info.isDir())
+        return QDir(path).removeRecursively();
     return true;
 }
 
@@ -90,11 +100,12 @@ QString findSource(const QString &devSourceDir)
 
 QString targetDir()
 {
-    QString config =
-        QProcessEnvironment::systemEnvironment().value(QStringLiteral("XDG_CONFIG_HOME"));
-    if (config.isEmpty())
-        config = QDir::home().filePath(QStringLiteral(".config"));
-    return QDir(config).filePath(QStringLiteral("omarchy/plugins/") + pluginId());
+    return QDir(configHome()).filePath(QStringLiteral("omarchy/plugins/") + pluginId());
+}
+
+QString shellConfigPath()
+{
+    return QDir(configHome()).filePath(QStringLiteral("omarchy/shell.json"));
 }
 
 QString enableCommand()
@@ -102,7 +113,36 @@ QString enableCommand()
     return QStringLiteral("omarchy plugin enable ") + pluginId();
 }
 
-Result install(const QString &source, const QString &target)
+Presence presence(const QString &target)
+{
+    const QFileInfo info(target);
+    if (info.isSymLink())
+        return Presence::Linked;
+    if (!info.exists())
+        return Presence::Absent;
+    if (QFileInfo::exists(QDir(target).filePath(QStringLiteral(".git"))))
+        return Presence::Checkout;
+    return Presence::Folder;
+}
+
+QString linkTarget(const QString &target)
+{
+    const QFileInfo info(target);
+    return info.isSymLink() ? info.symLinkTarget() : QString();
+}
+
+bool isInBar(const QString &shellJson)
+{
+    QFile file(shellJson);
+    if (!file.open(QIODevice::ReadOnly))
+        return false;
+    const QJsonDocument document = QJsonDocument::fromJson(file.readAll());
+    return mentions(document.isArray() ? QJsonValue(document.array())
+                                       : QJsonValue(document.object()),
+                    pluginId());
+}
+
+Result link(const QString &source, const QString &target)
 {
     Result result;
     if (!holdsManifest(source)) {
@@ -112,10 +152,17 @@ Result install(const QString &source, const QString &target)
                              : QStringLiteral("%1 holds no manifest.json").arg(source);
         return result;
     }
-    if (QFileInfo(QDir(target).filePath(QStringLiteral(".git"))).exists()) {
-        result.message = QStringLiteral("%1 was added with `omarchy plugin add`; update it with "
-                                        "`omarchy plugin update %2` instead")
+    const Presence before = presence(target);
+    if (before == Presence::Checkout) {
+        result.message = QStringLiteral("%1 was added with `omarchy plugin add`; it updates with "
+                                        "`omarchy plugin update %2`")
                              .arg(target, pluginId());
+        return result;
+    }
+    const QString absoluteSource = QDir(source).absolutePath();
+    if (before == Presence::Linked && linkTarget(target) == absoluteSource) {
+        result.ok = true;
+        result.message = QStringLiteral("%1 already points at %2").arg(target, absoluteSource);
         return result;
     }
 
@@ -125,46 +172,63 @@ Result install(const QString &source, const QString &target)
         result.message = QStringLiteral("cannot create %1").arg(parent);
         return result;
     }
-
-    // Copy beside the target, then swap: a failed copy never leaves half a plugin behind. The
-    // shell watches the plugins folder and loads every folder in it, so both helpers are hidden
-    // names, as `omarchy plugin add` stages its clone (`.add.tmp.N`).
+    // The shell watches the plugins folder and loads every folder in it, so the helpers have
+    // hidden names, as `omarchy plugin add` stages its clone (`.add.tmp.N`).
     const QString staging =
         QDir(parent).filePath(QStringLiteral(".%1.new").arg(targetInfo.fileName()));
     const QString previous =
         QDir(parent).filePath(QStringLiteral(".%1.old").arg(targetInfo.fileName()));
-    QDir(staging).removeRecursively();
-    QDir(previous).removeRecursively();
-    QString error;
-    if (!QDir().mkpath(staging) || !copyTree(source, staging, &error)) {
-        QDir(staging).removeRecursively();
-        result.message = error.isEmpty() ? QStringLiteral("cannot create %1").arg(staging) : error;
+    removeEntry(staging);
+    removeEntry(previous);
+    if (!QFile::link(absoluteSource, staging)) {
+        result.message = QStringLiteral("cannot create the link %1").arg(staging);
         return result;
     }
-    QFile::setPermissions(staging, kDirMode);
-
-    const bool replacing = targetInfo.exists() || targetInfo.isSymLink();
-    if (targetInfo.isSymLink() || targetInfo.isFile()) {
-        QFile::remove(target);
-    } else if (replacing && !QDir().rename(target, previous)) {
-        QDir(staging).removeRecursively();
+    // A link is swapped in one rename. A folder cannot be renamed over, so it moves aside
+    // first and goes once the link is in place.
+    if (before == Presence::Folder && !QDir().rename(target, previous)) {
+        removeEntry(staging);
         result.message = QStringLiteral("cannot move the old copy at %1 aside").arg(target);
         return result;
     }
-    if (!QDir().rename(staging, target)) {
-        if (QFileInfo::exists(previous))
+    if (std::rename(QFile::encodeName(staging).constData(),
+                    QFile::encodeName(target).constData()) != 0) {
+        removeEntry(staging);
+        if (before == Presence::Folder)
             QDir().rename(previous, target);
-        QDir(staging).removeRecursively();
-        result.message = QStringLiteral("cannot put the new copy at %1").arg(target);
+        result.message = QStringLiteral("cannot put the link at %1").arg(target);
         return result;
     }
-    QDir(previous).removeRecursively();
+    removeEntry(previous);
 
     result.ok = true;
-    result.message = QStringLiteral("%1 the omaseed bar widget at %2\nTurn it on with:\n  %3")
-                         .arg(replacing ? QStringLiteral("Updated") : QStringLiteral("Installed"),
-                              target,
-                              enableCommand());
+    result.message = QStringLiteral("%1 now points at %2").arg(target, absoluteSource);
+    return result;
+}
+
+Result unlink(const QString &target)
+{
+    Result result;
+    switch (presence(target)) {
+    case Presence::Absent:
+        result.ok = true;
+        result.message = QStringLiteral("%1 is not there").arg(target);
+        return result;
+    case Presence::Linked:
+        if (!QFile::remove(target)) {
+            result.message = QStringLiteral("cannot remove %1").arg(target);
+            return result;
+        }
+        result.ok = true;
+        result.message = QStringLiteral("removed %1").arg(target);
+        return result;
+    case Presence::Folder:
+    case Presence::Checkout:
+        break;
+    }
+    result.message = QStringLiteral("%1 was put there another way; remove it with `omarchy "
+                                    "plugin remove %2`")
+                         .arg(target, pluginId());
     return result;
 }
 

@@ -558,16 +558,16 @@ TestCase {
 
         // Appearance: the tray-icon row cycles the three chips.
         keyClick(Qt.Key_5);
-        compare(modal.paneRowCount, 9);
+        compare(modal.paneRowCount, 10);
         const tray = App.trayIconMode;
         modal.paneCursor = 3;
         modal.area = "pane";
         modal.activateRow();
         verify(App.trayIconMode !== tray);
 
-        // ...and the fifth row swaps the side the hero's speed pair sits on.
+        // ...and the sixth row swaps the side the hero's speed pair sits on.
         const speeds = App.speedsAlignment;
-        modal.paneCursor = 4;
+        modal.paneCursor = 5;
         modal.activateRow();
         verify(App.speedsAlignment !== speeds);
         compare(App.speedsAlignment, speeds === "left" ? "right" : "left");
@@ -576,20 +576,20 @@ TestCase {
         const hint = App.railScrollHint;
         const tint = App.surfaceTint;
         const hosts = App.trackerHostStyle;
-        modal.paneCursor = 5;
-        modal.activateRow();
-        verify(App.railScrollHint !== hint);
         modal.paneCursor = 6;
         modal.activateRow();
-        verify(App.surfaceTint !== tint);
+        verify(App.railScrollHint !== hint);
         modal.paneCursor = 7;
+        modal.activateRow();
+        verify(App.surfaceTint !== tint);
+        modal.paneCursor = 8;
         modal.activateRow();
         verify(App.trackerHostStyle !== hosts);
 
-        // ...and the ninth places Details (docs/10 §5): auto, right, bottom.
+        // ...and the tenth places Details (docs/10 §5): auto, right, bottom.
         const placement = App.detailsPlacement;
         compare(placement, "auto");
-        modal.paneCursor = 8;
+        modal.paneCursor = 9;
         modal.activateRow();
         compare(App.detailsPlacement, "right");
         modal.activateRow();
@@ -742,6 +742,41 @@ TestCase {
         compare(testCase.childNamed(modal, "baseSizeField").text, "");
     }
 
+    // #17: the bar widget row. The tests have no `omarchy` (tests/qml/CMakeLists.txt), so it
+    // starts unavailable; pointed at `true`, the switch links the widget into the tests' own
+    // config folder and takes it out again.
+    function test_the_bar_widget_row_puts_the_widget_in_and_out() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        keyClick(Qt.Key_5);
+        compare(modal.paneIndex, 4);
+        const toggle = testCase.childNamed(modal, "barWidgetToggle");
+        verify(toggle !== null);
+        verify(!App.barWidget.available);
+        verify(!toggle.enabled);
+        modal.paneCursor = 4;
+        modal.area = "pane";
+        modal.activateRow(); // unavailable: nothing happens
+        verify(!App.barWidget.busy);
+
+        App.barWidget.setPrograms("true", "true");
+        verify(App.barWidget.available);
+        verify(toggle.enabled);
+        modal.activateRow();
+        tryVerify(() => !App.barWidget.busy, 5000);
+        verify(App.barWidget.lastOk, App.barWidget.message);
+        verify(App.barWidget.installed);
+        // `true` writes no shell.json, so the shell never says it is in the bar: the switch
+        // shows the shell's answer, not the click.
+        verify(!toggle.checked);
+
+        App.barWidget.remove();
+        tryVerify(() => !App.barWidget.busy, 5000);
+        verify(!App.barWidget.installed);
+        App.barWidget.setPrograms("omaseed-tests-have-no-omarchy", "omaseed-tests-have-no-omarchy");
+        verify(!App.barWidget.available);
+    }
+
     function test_the_about_pane_prints_the_version_and_the_install_line() {
         const modal = createTemporaryObject(modalComponent, testCase);
         modal.open();
@@ -752,9 +787,8 @@ TestCase {
         // Batch-2 J8: the Qt version has its own row, so VERSION does not repeat it.
         verify(App.versionText.indexOf("Qt") < 0, App.versionText);
         verify(App.repoUrl.indexOf("http") === 0);
-        // #17: the published widget repository, added and enabled in one line.
-        compare(App.pluginAddCommand,
-                "omarchy plugin add https://github.com/diogochaves/omaseed-bar.git --enable");
+        // #17: the widget is part of the install; this line puts it in the bar from a terminal.
+        compare(App.barWidgetCommand, "omaseed --install-bar-widget");
     }
 
     // Batch-2 J3: one height for every pane, the tallest one's, so j/k through the nav never
@@ -793,9 +827,9 @@ TestCase {
 
         // Walking the rows down scrolls the pane so the cursor row stays in view.
         keyClick(Qt.Key_Tab);
-        for (let i = 0; i < 8; ++i)
+        for (let i = 0; i < 9; ++i)
             keyClick(Qt.Key_J);
-        compare(modal.paneCursor, 8);
+        compare(modal.paneCursor, 9);
         tryVerify(() => scroller.contentY > 0, 1000, "the last row was left below the fold");
 
         // Another pane starts at its top.

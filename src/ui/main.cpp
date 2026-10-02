@@ -8,6 +8,7 @@
 #include "core/TrackerModel.hpp"
 #include "core/Version.hpp"
 #include "integration/AppIdentity.hpp"
+#include "integration/BarWidget.hpp"
 #include "integration/BarWidgetInstaller.hpp"
 #include "integration/Notifier.hpp"
 #include "integration/SingleInstance.hpp"
@@ -311,22 +312,36 @@ int runHeadlessTableDemo(int rows)
     return 0;
 }
 
-/// `--install-bar-widget` (#17): copies the packaged bar widget into the shell's plugin folder
-/// and prints the enable line. Runs on a QCoreApplication, so it needs no display, and before
-/// anything else: it never starts the app or touches its single instance.
+/// The source tree's plugin/ in a development build; empty in a release (the package).
+QString devPluginDir()
+{
+#ifdef OMASEED_SOURCE_PLUGIN_DIR
+    return QStringLiteral(OMASEED_SOURCE_PLUGIN_DIR);
+#else
+    return QString();
+#endif
+}
+
+/// `--install-bar-widget` (#17): what Settings › Appearance's switch does, from a terminal:
+/// links the packaged bar widget into the shell's plugins folder and puts it in the bar. Runs
+/// on a QCoreApplication, so it needs no display, and before anything else: it never starts
+/// the app or touches its single instance.
 int runInstallBarWidget(int argc, char *argv[])
 {
-    namespace Installer = omaseed::integration::BarWidgetInstaller;
     QCoreApplication app(argc, argv);
-#ifdef OMASEED_SOURCE_PLUGIN_DIR
-    const QString devSource = QStringLiteral(OMASEED_SOURCE_PLUGIN_DIR);
-#else
-    const QString devSource;
-#endif
-    const Installer::Result result =
-        Installer::install(Installer::findSource(devSource), Installer::targetDir());
-    QTextStream(result.ok ? stdout : stderr) << result.message << Qt::endl;
-    return result.ok ? 0 : 1;
+    omaseed::integration::BarWidget widget(devPluginDir());
+    int code = 1;
+    QObject::connect(&widget,
+                     &omaseed::integration::BarWidget::finished,
+                     &app,
+                     [&code](bool ok, const QString &message) {
+                         QTextStream(ok ? stdout : stderr) << message << Qt::endl;
+                         code = ok ? 0 : 1;
+                         QCoreApplication::quit();
+                     });
+    QTimer::singleShot(0, &widget, &omaseed::integration::BarWidget::install);
+    QCoreApplication::exec();
+    return code;
 }
 
 } // namespace
@@ -385,8 +400,8 @@ int main(int argc, char *argv[])
     // Handled before the application starts (runInstallBarWidget); listed for --help.
     QCommandLineOption installBarWidgetOption(
         QStringList{QStringLiteral("install-bar-widget")},
-        QStringLiteral("Copy omaseed's bar widget into ~/.config/omarchy/plugins/%1 and print "
-                       "the line that enables it.")
+        QStringLiteral("Put omaseed's bar widget in the Omarchy bar: link "
+                       "~/.config/omarchy/plugins/%1 to the installed widget and enable it.")
             .arg(omaseed::integration::BarWidgetInstaller::pluginId()));
     parser.addOption(installBarWidgetOption);
 
@@ -500,6 +515,7 @@ int main(int argc, char *argv[])
     // of module `Omaseed` (src/ui/qml/AppForeign.hpp) from here on.
     omaseed::app::App omaseedApp;
     omaseed::app::App::setDefaultInstance(&omaseedApp);
+    omaseedApp.barWidget()->setDevSourceDir(devPluginDir());
     // The Appearance pane's "follow the Omarchy theme" and base-size override live in
     // state.json; App applies them to the reader here, before the first frame (T4.5).
     omaseedApp.attachTheme(&theme);

@@ -41,6 +41,7 @@
 #include "core/TorrentFilterModel.hpp"
 #include "core/TorrentModel.hpp"
 #include "core/TrackerModel.hpp"
+#include "integration/BarWidget.hpp"
 #include "integration/Tray.hpp"
 
 #include <QHash>
@@ -486,11 +487,12 @@ public:
     /// The Qt this binary runs against, on its own.
     Q_PROPERTY(QString qtVersionText READ qtVersionText CONSTANT)
     QString qtVersionText() const;
-    /// The public repository, and the copyable line that installs the companion bar widget.
+    /// The public repository, and the copyable line that puts the bar widget in the bar from a
+    /// terminal (Settings › Appearance does the same with a switch).
     Q_PROPERTY(QString repoUrl READ repoUrl CONSTANT)
     QString repoUrl() const;
-    Q_PROPERTY(QString pluginAddCommand READ pluginAddCommand CONSTANT)
-    QString pluginAddCommand() const;
+    Q_PROPERTY(QString barWidgetCommand READ barWidgetCommand CONSTANT)
+    QString barWidgetCommand() const;
 
 Q_SIGNALS:
     /// Any of the persisted settings above moved.
@@ -1169,6 +1171,19 @@ private:
     void updateStatusServer();
     QPointer<omaseed::integration::StatusWriter> m_statusWriter;
     // --- end #12 --------------------------------------------------------------------------------
+
+    // --- #17: the bar widget is part of the install (ruled 2026-10-02) -----------------------
+public:
+    /// First run's "bar" step and Settings › Appearance's switch: links the packaged widget
+    /// into the shell's plugins folder and puts it in the bar. main.cpp gives it the source
+    /// tree's plugin/ in a development build.
+    Q_PROPERTY(omaseed::integration::BarWidget *barWidget READ barWidget CONSTANT)
+    omaseed::integration::BarWidget *barWidget() const { return m_barWidget; }
+
+private:
+    omaseed::integration::BarWidget *m_barWidget =
+        new omaseed::integration::BarWidget(QString(), this);
+    // --- end #17 --------------------------------------------------------------------------------
 };
 
 } // namespace omaseed::app

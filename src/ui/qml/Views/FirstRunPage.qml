@@ -33,6 +33,9 @@ import Omaseed.Kit
 //               "install", which itself continues into the API-key page pointed at
 //               127.0.0.1:8080.
 //   3 handler   `Xdg.isDefaultMagnetHandler()`'s answer, "open them with omaseed"/`not now`.
+//   4 bar       #17 (ruled 2026-10-02): "add to the bar"/`not now`, App.barWidget. Only when
+//               the Omarchy shell and the installed widget are here and it is not in the bar
+//               yet (`barStep`, decided once when the page opens, so the steps line holds).
 //   done        the server's name, version and count, three keys, "open the library".
 //
 // `esc` quits from welcome and step 1, goes back to step 1 from the install and server
@@ -106,6 +109,8 @@ Item {
             urlField.focusInput();
         else if (root.page === "handler")
             registerButton.forceActiveFocus();
+        else if (root.page === "bar")
+            addBarButton.forceActiveFocus();
         else if (root.page === "done")
             openLibraryButton.forceActiveFocus();
         else if (root.page === "install")
@@ -128,6 +133,7 @@ Item {
             return [hint("tab", qsTr("next field")), hint("enter", root.tested && root.testOk
                                                                   ? qsTr("continue") : qsTr("test"))];
         case "handler":
+        case "bar":
             return [hint("tab", qsTr("switch")), hint("enter", qsTr("choose"))];
         case "done":
             return [hint("enter", qsTr("open the library"))];
@@ -143,17 +149,19 @@ Item {
                                                                                                                                  "label": qsTr("back")
                                                                                                                              } : null
 
-    /// 1 server (choose, install), 2 sign in, 3 links; 0 on the welcome, 4 once done.
+    /// 1 server (choose, install), 2 sign in, 3 links, 4 bar; 0 on the welcome, 5 once done.
     readonly property int stepNumber: root.page === "welcome" ? 0 : root.page === "choose"
                                                                   || root.page === "install" ? 1 :
                                                                                               root.page === "apikey" ? 2 :
-                                                                                                                       root.page === "handler" ? 3 : 4
+                                                                                                                       root.page === "handler" ? 3 :
+                                                                                                                                                 root.page === "bar" ? 4 : 5
     /// Each step asks its own question; step 1's would read wrong above a server's details or
     /// the magnet handler.
     readonly property string heading: root.page === "install" ? qsTr("Install qBittorrent on this machine?") :
                                       root.page === "apikey" ? qsTr("Where is it, and how does omaseed sign in?") :
                                       root.page === "handler" ? (root.alreadyHandler ? qsTr("Magnet links and .torrent files already open with omaseed.") :
                                                                                   qsTr("Open magnet links and .torrent files with omaseed?")) :
+                                      root.page === "bar" ? qsTr("Show omaseed in the Omarchy bar?") :
                                       root.page === "done" ? qsTr("You're connected to %1.").arg(root.connectedName) :
                                       qsTr("Which qBittorrent should omaseed talk to?")
 
@@ -205,6 +213,9 @@ Item {
     property string connectedName: ""
     /// Whether step 3 made omaseed the handler, for the done screen's second line.
     property bool registered: false
+    /// #17: whether first run offers the bar widget (step 4), and whether it was asked for.
+    property bool barStep: false
+    property bool barAsked: false
 
     function _fieldMap(): var {
     return {
@@ -322,12 +333,28 @@ function registerHandler(): void {
     Xdg.registerAsDefaultHandler();
     Xdg.setFirstRunPromptAsked();
     root.registered = true;
-    root.page = "done";
+    root._afterHandler();
 }
 
 function skipHandler(): void {
     Xdg.setFirstRunPromptAsked();
     root.registered = false;
+    root._afterHandler();
+}
+
+function _afterHandler(): void {
+    root.page = root.barStep ? "bar" : "done";
+}
+
+/// #17: "add to the bar". The done screen follows the install as it runs.
+function addToBar(): void {
+    root.barAsked = true;
+    App.barWidget.install();
+    root.page = "done";
+}
+
+function skipBar(): void {
+    root.barAsked = false;
     root.page = "done";
 }
 
@@ -336,7 +363,7 @@ function openLibrary(): void {
 }
 
 /// `esc`: quit before anything is chosen, back to step 1 while filling one in, and nothing
-/// once the server is saved (steps 3 and done).
+/// once the server is saved (steps 3, 4 and done).
 function goBack(): void {
     if (root.page === "welcome" || root.page === "choose")
         root.quitRequested();
@@ -345,6 +372,7 @@ function goBack(): void {
 }
 
 Component.onCompleted: {
+    root.barStep = App.barWidget.available && !App.barWidget.inBar;
     if (root.autoDetect)
     App.detectServers();
     // The page has no sheet/scrim wrapping it to grab focus for it (unlike Kit/Sheet's
@@ -443,7 +471,8 @@ function _scrollIntoView(item: Item): void {
 }
 
 function _cycleApiKeyFocus(delta: int): void {
-    const order = root.page === "handler" ? [registerButton, notNowButton] : root._apiKeyTabOrder();
+    const order = root.page === "handler" ? [registerButton, notNowButton] : root.page === "bar" ? [addBarButton, skipBarButton] :
+                                                                                                   root._apiKeyTabOrder();
     let current = -1;
     for (let i = 0; i < order.length; ++i) {
         const item = order[i];
@@ -477,7 +506,7 @@ Keys.onPressed: event => {
         event.accepted = true;
         return;
     }
-    if ((root.page === "apikey" || root.page === "handler") && (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab)) {
+    if ((root.page === "apikey" || root.page === "handler" || root.page === "bar") && (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab)) {
         root._cycleApiKeyFocus(event.key === Qt.Key_Tab ? 1 : -1);
         event.accepted = true;
         return;
@@ -650,7 +679,7 @@ Flickable {
             visible: root.page !== "welcome"
 
             Repeater {
-                model: [qsTr("server"), qsTr("sign in"), qsTr("links")]
+                model: root.barStep ? [qsTr("server"), qsTr("sign in"), qsTr("links"), qsTr("bar")] : [qsTr("server"), qsTr("sign in"), qsTr("links")]
 
                 Label {
                     required property int index
@@ -1215,6 +1244,52 @@ Flickable {
             }
         }
 
+        // ---- step 4: the bar widget (#17) -----------------------------------------------------
+        ColumnLayout {
+            Layout.fillWidth: true
+            spacing: Theme.space(12)
+            visible: root.page === "bar"
+
+            Label {
+                Layout.fillWidth: true
+                dim: true
+                objectName: "barText"
+                text: qsTr("The omaseed mark in your bar shows what moves. Its popup switches alternative speeds, adds what you copied and shows what finished, without opening the window.")
+                wrapMode: Text.WordWrap
+            }
+
+            RowLayout {
+                spacing: Theme.space(8)
+
+                Button {
+                    id: addBarButton
+
+                    activeFocusOnTab: false // the page cycles tab itself (see _cycleApiKeyFocus)
+
+                    objectName: "addBarButton"
+                    primary: true
+                    text: qsTr("add to the bar")
+
+                    onClicked: root.addToBar()
+                }
+
+                Button {
+                    id: skipBarButton
+
+                    activeFocusOnTab: false // the page cycles tab itself (see _cycleApiKeyFocus)
+
+                    objectName: "skipBarButton"
+                    text: qsTr("not now")
+
+                    onClicked: root.skipBar()
+                }
+
+                Item {
+                    Layout.fillWidth: true
+                }
+            }
+        }
+
         // ---- done (docs/14 screen 4) -------------------------------------------------------------
         ColumnLayout {
             Layout.fillWidth: true
@@ -1246,6 +1321,17 @@ Flickable {
                 objectName: "doneHandler"
                 text: root.registered || root.alreadyHandler ? qsTr("Magnet links and .torrent files open here.") :
                                         qsTr("Magnet links still open elsewhere; Settings can change that.")
+                wrapMode: Text.WordWrap
+            }
+
+            Label {
+                Layout.fillWidth: true
+                dim: true
+                objectName: "doneBar"
+                text: App.barWidget.busy ? qsTr("Adding omaseed to your bar…") : App.barWidget.inBar ? qsTr("omaseed is in your bar; click its mark for the popup.") :
+                                                                                     App.barWidget.lastOk ? qsTr("The bar widget is installed; Settings › Appearance puts it in the bar.") :
+                                                                                                            qsTr("The bar widget could not be added: %1").arg(App.barWidget.message)
+                visible: root.barAsked
                 wrapMode: Text.WordWrap
             }
 

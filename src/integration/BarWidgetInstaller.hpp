@@ -1,13 +1,19 @@
 #pragma once
 
-// BarWidgetInstaller — `omaseed --install-bar-widget` (#17, docs/07 §6): copies the bar widget
-// the package ships (`/usr/share/omaseed/plugin/`) into the one place the Omarchy shell looks
-// for third-party plugins, `~/.config/omarchy/plugins/chaves.omaseed/`. The shell scans no
-// system directory, so a package cannot install the widget where it would be found.
+// BarWidgetInstaller — where omaseed's bar widget comes from and how it reaches the shell
+// (#17). The package ships the widget at `/usr/share/omaseed/plugin/`, but the Omarchy shell
+// scans no system directory, only `~/.config/omarchy/plugins/`. So the app links
+// `~/.config/omarchy/plugins/chaves.omaseed` to the packaged folder, the way `omabox setup`
+// links its own widget.
 //
-// A real copy, never a symlink: the shell's plugin registry refuses symlinks inside a plugin
-// folder. An older copy is replaced whole. A copy that `omarchy plugin add` made (a git
-// checkout) is left alone: `omarchy plugin update` owns it.
+// A link and not a copy (ruled 2026-10-02): every package upgrade updates the widget with the
+// app, so the two never disagree about the status file (Q12: no compatibility). Omarchy's own
+// update restarts the shell after the packages, which is when the shell reads the new widget.
+// The shell follows a linked plugin folder (its scan globs `plugins/*/`, and `omarchy plugin
+// remove` unlinks one); only links *inside* a plugin folder are refused, and the packaged
+// folder has none.
+//
+// Pure file work, no processes: `BarWidget` runs the shell's commands around it.
 
 #include <QString>
 
@@ -16,7 +22,7 @@ namespace omaseed::integration::BarWidgetInstaller {
 /// The plugin's id in the shell, and its folder name: "chaves.omaseed" (Q8).
 QString pluginId();
 
-/// The plugin folder to copy, the first of these that holds a manifest.json:
+/// The plugin folder to link to, the first of these that holds a manifest.json:
 ///   1. $OMASEED_PLUGIN_DIR;
 ///   2. omaseed/plugin in each XDG data directory ($XDG_DATA_HOME, then $XDG_DATA_DIRS);
 ///   3. ../share/omaseed/plugin next to the executable (a prefix outside the data dirs);
@@ -27,20 +33,41 @@ QString findSource(const QString &devSourceDir = QString());
 /// "$XDG_CONFIG_HOME/omarchy/plugins/chaves.omaseed" (~/.config when it is unset).
 QString targetDir();
 
-/// The line that turns the widget on once it is copied.
+/// "$XDG_CONFIG_HOME/omarchy/shell.json", where the shell keeps what is in the bar.
+QString shellConfigPath();
+
+/// The line that turns the widget on once it is linked.
 QString enableCommand();
+
+/// What is at `target` now.
+enum class Presence {
+    Absent,   ///< nothing
+    Linked,   ///< a link (ours, or one a user made); `linkTarget()` says where
+    Folder,   ///< a plain folder: a copy someone put there
+    Checkout, ///< a folder with .git: `omarchy plugin add` made it, `omarchy plugin update` owns it
+};
+Presence presence(const QString &target);
+/// Where the link at `target` points; empty when it is not a link.
+QString linkTarget(const QString &target);
+
+/// True when the shell config at `shellJson` puts the widget somewhere (the bar, or a container
+/// widget such as a sidebar): the id appears anywhere in it outside `disabledPlugins`.
+bool isInBar(const QString &shellJson);
 
 struct Result
 {
     bool ok = false;
-    /// What to tell the user, one or more lines, ending with the enable line on success.
+    /// What to tell the user, one or more lines.
     QString message;
 };
 
-/// Copies every regular file under `source` into `target` (files 0644, folders 0755), through
-/// a hidden sibling folder (the shell ignores dot-folders) that replaces `target` only once the
-/// copy is complete. Symlinks in
-/// `source` are copied as the files they point at. Refuses a `target` that is a git checkout.
-Result install(const QString &source, const QString &target);
+/// Points `target` at `source`. Replaces a link or a plain folder (an older copy) whole, through
+/// a hidden sibling name that is renamed into place, so the shell never sees half a plugin.
+/// Refuses a git checkout, and a `source` without a manifest.
+Result link(const QString &source, const QString &target);
+
+/// Removes the link at `target`. Refuses anything that is not a link: a folder someone put
+/// there is theirs (`omarchy plugin remove` takes it away).
+Result unlink(const QString &target);
 
 } // namespace omaseed::integration::BarWidgetInstaller

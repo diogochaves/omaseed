@@ -17,7 +17,13 @@ file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/tests/qml-env")
 file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/tests/qml-env/Downloads")
 file(WRITE "${CMAKE_BINARY_DIR}/tests/qml-env/user-dirs.dirs"
     "XDG_DOWNLOAD_DIR=\"${CMAKE_BINARY_DIR}/tests/qml-env/Downloads\"\n")
+# The bar widget (#17): the tests never run the desktop's `omarchy` (it would change the bar of
+# whoever runs them), so App.barWidget is unavailable unless a test points it at `true`; the
+# widget it links is the source tree's.
 set_property(TEST tst_qml APPEND PROPERTY ENVIRONMENT
     "XDG_STATE_HOME=${CMAKE_BINARY_DIR}/tests/qml-env"
     "XDG_CONFIG_HOME=${CMAKE_BINARY_DIR}/tests/qml-env"
+    "OMASEED_OMARCHY=omaseed-tests-have-no-omarchy"
+    "OMASEED_OMARCHY_SHELL=omaseed-tests-have-no-omarchy"
+    "OMASEED_PLUGIN_DIR=${PROJECT_SOURCE_DIR}/plugin"
 )

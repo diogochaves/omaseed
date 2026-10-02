@@ -469,6 +469,56 @@ TestCase {
         compare(finishedSpy.count, 1);
     }
 
+    // #17: with the Omarchy shell and the widget here (`true` stands in for `omarchy`; the tests
+    // never run the real one), a fourth step offers the bar widget after the links. Without
+    // them (every other test here) there is no fourth step.
+    function test_bar_step_offers_the_widget_after_the_links() {
+        verify(!App.barWidget.available);
+        const plain = createTemporaryObject(pageComponent, testCase, {
+                                                "candidates": [localCandidate]
+                                            });
+        verify(!plain.barStep);
+
+        App.barWidget.setPrograms("true", "true");
+        const page = createTemporaryObject(pageComponent, testCase, {
+                                               "candidates": [localCandidate]
+                                           });
+        verify(page.barStep);
+        compare(findChild(page, "setupSteps").children.length, 5); // four labels + the Repeater
+        page.page = "handler";
+        page.skipHandler();
+        compare(page.page, "bar");
+        compare(page.stepNumber, 4);
+        compare(findChild(page, "heading").text, "Show omaseed in the Omarchy bar?");
+
+        page.addToBar();
+        compare(page.page, "done");
+        const line = findChild(page, "doneBar");
+        verify(line.visible);
+        tryVerify(() => !App.barWidget.busy, 5000);
+        verify(App.barWidget.installed);
+        // `true` never writes shell.json, so the widget is installed but not (yet) in the bar.
+        verify(line.text.indexOf("Settings › Appearance") >= 0, line.text);
+
+        App.barWidget.remove();
+        tryVerify(() => !App.barWidget.busy, 5000);
+        verify(!App.barWidget.installed);
+        App.barWidget.setPrograms("omaseed-tests-have-no-omarchy", "omaseed-tests-have-no-omarchy");
+    }
+
+    function test_bar_step_not_now_ends_on_done_with_no_bar_line() {
+        App.barWidget.setPrograms("true", "true");
+        const page = createTemporaryObject(pageComponent, testCase, {
+                                               "candidates": [localCandidate]
+                                           });
+        page.page = "bar";
+        page.skipBar();
+        compare(page.page, "done");
+        verify(!findChild(page, "doneBar").visible);
+        verify(!App.barWidget.installed);
+        App.barWidget.setPrograms("omaseed-tests-have-no-omarchy", "omaseed-tests-have-no-omarchy");
+    }
+
     // When omaseed already answers for magnet: links (often only because nothing else claims
     // them), the step offers to keep it instead of asking to switch, and a skip still ends on
     // "open here". Only the answer is faked; the real handler is never registered here.

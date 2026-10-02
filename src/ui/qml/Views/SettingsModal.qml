@@ -124,11 +124,12 @@ Item {
         case 2:
             return 4; // three toggles, then the low-disk threshold field
         case 4:
-            // theme, base size, transparency, tray icon, speed alignment, then the rail's scroll
-            // hint, surface tint and tracker hosts (docs/08 §5), then where Details sits (docs/10)
-            return 9;
+            // theme, base size, transparency, tray icon, the bar widget (#17), speed alignment,
+            // then the rail's scroll hint, surface tint and tracker hosts (docs/08 §5), then
+            // where Details sits (docs/10)
+            return 10;
         case 5:
-            return 1; // the copyable `omarchy plugin add` line
+            return 1; // the copyable `omaseed --install-bar-widget` line
         default:
             return 0;
         }
@@ -137,6 +138,8 @@ Item {
     function open(): void {
         if (root.folded)
             root.area = "pane";
+        // The bar can change outside omaseed (`omarchy plugin disable`, the shell's own menu).
+        App.barWidget.refresh();
         sheet.open();
         if (root.inQbt)
             root._readQbt();
@@ -356,14 +359,16 @@ Item {
             else if (root.paneCursor === 3)
                 App.trayIconMode = root._nextTrayMode();
             else if (root.paneCursor === 4)
-                App.speedsAlignment = App.speedsAlignment === "left" ? "right" : "left";
+                root.toggleBarWidget();
             else if (root.paneCursor === 5)
-                App.railScrollHint = root._next(root.scrollHints, App.railScrollHint);
+                App.speedsAlignment = App.speedsAlignment === "left" ? "right" : "left";
             else if (root.paneCursor === 6)
-                App.surfaceTint = root._next(root.tints, App.surfaceTint);
+                App.railScrollHint = root._next(root.scrollHints, App.railScrollHint);
             else if (root.paneCursor === 7)
-                App.trackerHostStyle = root._next(root.hostStyles, App.trackerHostStyle);
+                App.surfaceTint = root._next(root.tints, App.surfaceTint);
             else if (root.paneCursor === 8)
+                App.trackerHostStyle = root._next(root.hostStyles, App.trackerHostStyle);
+            else if (root.paneCursor === 9)
                 App.detailsPlacement = root._next(root.placements, App.detailsPlacement);
             return;
         }
@@ -411,9 +416,9 @@ Item {
         confirm.open();
     }
 
-    /// The About pane's copyable `omarchy plugin add …` line.
+    /// The About pane's copyable `omaseed --install-bar-widget` line.
     function copyPluginLine(): void {
-        clipboard.text = App.pluginAddCommand;
+        clipboard.text = App.barWidgetCommand;
         clipboard.selectAll();
         clipboard.copy();
         clipboard.deselect();
@@ -435,6 +440,26 @@ Item {
             baseSizeField.text = App.baseSizeOverride > 0 ? String(App.baseSizeOverride) : "";
         if (!alphaField.editing)
             alphaField.text = App.windowAlphaOverride > 0 ? String(App.windowAlphaOverride) : "";
+    }
+
+    /// #17: in the bar or out of it; nothing while the widget cannot be had or is busy.
+    function toggleBarWidget(): void {
+        if (!App.barWidget.available || App.barWidget.busy)
+            return;
+        if (App.barWidget.inBar)
+            App.barWidget.remove();
+        else
+            App.barWidget.install();
+    }
+
+    function _barWidgetText(): string {
+        if (!App.barWidget.available)
+            return qsTr("needs the Omarchy shell and omaseed's installed widget.");
+        if (App.barWidget.busy)
+            return App.barWidget.inBar ? qsTr("taking it out of the bar…") : qsTr("putting it in the bar…");
+        if (App.barWidget.message.length > 0 && !App.barWidget.lastOk)
+            return App.barWidget.message;
+        return qsTr("the omaseed mark in the Omarchy bar: speeds, alt-speed and adds without the window.");
     }
 
     function _nextTrayMode(): string {
@@ -1594,15 +1619,47 @@ Item {
                                 }
                             }
 
+                            // #17: the bar widget is part of the install; this puts it in the
+                            // Omarchy bar and takes it out (App.barWidget).
+                            SettingsRow {
+                                Layout.fillWidth: true
+                                description: root._barWidgetText()
+                                glyph: Glyphs.mark
+                                hasCursor: root.area === "pane" && root.paneCursor === 4
+                                objectName: "barWidgetRow"
+                                title: qsTr("Bar widget")
+
+                                onClicked: {
+                                    root.paneCursor = 4;
+                                    root.area = "pane";
+                                    root.toggleBarWidget();
+                                }
+
+                                Toggle {
+                                    id: barWidgetToggle
+
+                                    checked: App.barWidget.inBar
+                                    enabled: App.barWidget.available && !App.barWidget.busy
+                                    objectName: "barWidgetToggle"
+                                    opacity: enabled ? 1 : 0.45
+
+                                    onToggled: {
+                                        // The switch shows what the shell says, not the click.
+                                        barWidgetToggle.checked = Qt.binding(() => App.barWidget.inBar);
+                                        root.toggleBarWidget();
+                                    }
+                                }
+                            }
+
                             SettingsRow {
                                 Layout.fillWidth: true
                                 description: qsTr("which side of the hero the download and upload figures sit on.")
                                 glyph: Glyphs.arrowDown
-                                hasCursor: root.area === "pane" && root.paneCursor === 4
+                                hasCursor: root.area === "pane" && root.paneCursor === 5
                                 title: qsTr("Speed figures")
 
                                 onClicked: {
-                                    root.paneCursor = 4;
+                                    root.paneCursor = 5;
                                     root.area = "pane";
                                     App.speedsAlignment = App.speedsAlignment === "left" ? "right" : "left";
                                 }
@@ -1631,11 +1688,11 @@ Item {
                                 Layout.fillWidth: true
                                 description: qsTr("how lists say there is more above or below: the rail and every palette.")
                                 glyph: Glyphs.scrollHint
-                                hasCursor: root.area === "pane" && root.paneCursor === 5
+                                hasCursor: root.area === "pane" && root.paneCursor === 6
                                 title: qsTr("Scroll hint")
 
                                 onClicked: {
-                                    root.paneCursor = 5;
+                                    root.paneCursor = 6;
                                     root.area = "pane";
                                     App.railScrollHint = root._next(root.scrollHints, App.railScrollHint);
                                 }
@@ -1664,11 +1721,11 @@ Item {
                                 Layout.fillWidth: true
                                 description: qsTr("a light fill behind the rail and the details.")
                                 glyph: Glyphs.sidebar
-                                hasCursor: root.area === "pane" && root.paneCursor === 6
+                                hasCursor: root.area === "pane" && root.paneCursor === 7
                                 title: qsTr("Surface tint")
 
                                 onClicked: {
-                                    root.paneCursor = 6;
+                                    root.paneCursor = 7;
                                     root.area = "pane";
                                     App.surfaceTint = root._next(root.tints, App.surfaceTint);
                                 }
@@ -1697,11 +1754,11 @@ Item {
                                 Layout.fillWidth: true
                                 description: qsTr("how a long tracker host fits the rail.")
                                 glyph: Glyphs.host
-                                hasCursor: root.area === "pane" && root.paneCursor === 7
+                                hasCursor: root.area === "pane" && root.paneCursor === 8
                                 title: qsTr("Tracker hosts")
 
                                 onClicked: {
-                                    root.paneCursor = 7;
+                                    root.paneCursor = 8;
                                     root.area = "pane";
                                     App.trackerHostStyle = root._next(root.hostStyles, App.trackerHostStyle);
                                 }
@@ -1730,11 +1787,11 @@ Item {
                                 Layout.fillWidth: true
                                 description: qsTr("auto puts it right when the window is wide enough. I cycles it.")
                                 glyph: Glyphs.sidebar
-                                hasCursor: root.area === "pane" && root.paneCursor === 8
+                                hasCursor: root.area === "pane" && root.paneCursor === 9
                                 title: qsTr("Details panel")
 
                                 onClicked: {
-                                    root.paneCursor = 8;
+                                    root.paneCursor = 9;
                                     root.area = "pane";
                                     App.detailsPlacement = root._next(root.placements, App.detailsPlacement);
                                 }
@@ -1844,7 +1901,7 @@ Item {
 
                                         Layout.fillWidth: true
                                         hasCursor: root.area === "pane" && root.paneCursor === 0
-                                        text: App.pluginAddCommand
+                                        text: App.barWidgetCommand
                                     }
 
                                     Button {

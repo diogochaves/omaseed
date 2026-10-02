@@ -1,5 +1,6 @@
 #pragma once
 
+#include "integration/BarWidget.hpp"
 #include "integration/Xdg.hpp"
 
 #include <QQmlEngine>
@@ -32,4 +33,14 @@ struct AddableForeign
     Q_GADGET
     QML_FOREIGN(omaseed::integration::Addable)
     QML_ANONYMOUS
+};
+
+/// `App.barWidget` (#17): registered so qmllint type-checks `App.barWidget.inBar` and friends.
+/// It is App's; QML never creates one.
+struct BarWidgetForeign
+{
+    Q_GADGET
+    QML_FOREIGN(omaseed::integration::BarWidget)
+    QML_NAMED_ELEMENT(BarWidget)
+    QML_UNCREATABLE("BarWidget is App.barWidget; it is not created from QML.")
 };
