@@ -55,6 +55,29 @@ this file is the order to run them in and what to check by hand around them.
    `main` after step 6, the one with the checksum. Builds there run only for
    collaborators, people in `.github/VOUCHED.td`, or a PR a maintainer labels
    `build-approved`; opening the PR is necessary but not sufficient for it to build.
+8. **The bar widget (#17).** `plugin/` is split out and pushed to its own public repository,
+   `diogochaves/omaseed-bar`, which `omarchy plugin add` clones (the About pane's copyable
+   line). The package ships the same folder at `/usr/share/omaseed/plugin` for
+   `omaseed --install-bar-widget`.
+   - **Once, with Diogo's OK:** create the public repository, empty (no README, licence or
+     .gitignore: the split brings its own).
+     ```
+     gh repo create diogochaves/omaseed-bar --public \
+       --description "omaseed in the Omarchy bar: torrent activity, alt-speed, adding and seeding stats"
+     ```
+   - **Each release:** set `"version"` in `plugin/manifest.json` (the widget's own version; it
+     may differ from the app's) and commit, then
+     ```
+     scripts/dev/publish-plugin.sh X.Y.Z           # dry run: split, local tag bar-vX.Y.Z, prints the pushes
+     scripts/dev/publish-plugin.sh --push X.Y.Z    # pushes the split as main and the tag as vX.Y.Z
+     ```
+     The local tag is `bar-vX.Y.Z` because this repository's `vX.Y.Z` tags are the app's.
+   - **Check:** in a clean omabox, `omarchy plugin add https://github.com/diogochaves/omaseed-bar.git --enable`
+     puts the widget in the bar; `omarchy plugin update chaves.omaseed` later pulls the next
+     release.
+   - **Marketplace (charter §9):** the app cannot be a shell plugin, but the companion widget
+     can be listed in the Omarchy plugin marketplace. Submit `omaseed-bar` there once the first
+     release is public, following the marketplace's own submission steps at the time.
 
 ## How the tarball and the checksum fit together
 
