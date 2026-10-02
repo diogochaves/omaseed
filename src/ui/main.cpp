@@ -13,6 +13,7 @@
 #include "integration/Theme.hpp"
 #include "integration/ThemeReader.hpp"
 #include "integration/Tray.hpp"
+#include "integration/WidgetHeartbeat.hpp"
 #include "integration/Xdg.hpp"
 #include "ui/app/App.hpp"
 
@@ -33,6 +34,8 @@
 #include <QUrl>
 #include <QWindow>
 #include <QtGlobal>
+
+#include <memory>
 
 using omaseed::integration::AppIdentity::applicationId;
 
@@ -583,6 +586,16 @@ int main(int argc, char *argv[])
     // `App::addRequested` (the tray, the hero's `+`, `a`) no longer needs a log line here:
     // MainView opens `Views/AddSheet.qml` on it.
     // --- end T4.2 ---
+
+    // --- #14: the companion bar widget's heartbeat ---
+    // While the bar widget's heartbeat is fresh, the tray icon mode "auto" hides the tray icon
+    // (WidgetHeartbeat). A demo leaves the runtime directory alone.
+    std::unique_ptr<omaseed::integration::WidgetHeartbeat> heartbeat;
+    if (demo.isEmpty()) {
+        heartbeat = std::make_unique<omaseed::integration::WidgetHeartbeat>();
+        omaseedApp.attachWidgetHeartbeat(heartbeat.get());
+    }
+    // --- end #14 ---
 
     const int code = QApplication::exec();
     omaseedApp.engine()->stop();
