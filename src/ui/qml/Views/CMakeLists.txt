@@ -35,6 +35,7 @@ qt_add_qml_module(omaseed-views
         DetailsPiecesBar.qml
         DetailsStrip.qml
         DetailsTrackersTab.qml
+        DetailsWebSeedsTab.qml
         DimmedOverlay.qml
         DisconnectedBanner.qml
         DuplicateSheet.qml

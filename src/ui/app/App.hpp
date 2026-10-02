@@ -227,6 +227,9 @@ public:
     /// The General tab is the one on show, so torrents/pieceStates is worth polling (docs/12
     /// G3).
     Q_INVOKABLE void setGeneralTabActive(bool active);
+    /// The HTTP sources tab is the one on show, so torrents/webseeds is polled every tick
+    /// (#10); away from it, one tick in ten.
+    Q_INVOKABLE void setWebSeedsTabActive(bool active);
 
     /// POST torrents/filePrio. `fileIndexes` is a list of ints (the `fileIndexes` role of a
     /// TorrentFilesModel row); a no-op in demo mode, where there is no server to tell.
@@ -564,6 +567,11 @@ public:
     /// The Trackers tab's `a` (ruling Q4): announce URLs onto one torrent. The details pane
     /// polls again once the server has them.
     Q_INVOKABLE void addTrackers(const QString &hash, const QStringList &urls);
+    /// The HTTP sources tab's `a` (#10): web seed URLs onto one torrent; the list is asked
+    /// for again once the server has them.
+    Q_INVOKABLE void addWebSeeds(const QString &hash, const QStringList &urls);
+    /// The HTTP sources tab's `d` (#10): one web seed off one torrent.
+    Q_INVOKABLE void removeWebSeed(const QString &hash, const QString &url);
     /// The Peers tab's `a` (ruling Q4): `host:port` peers onto one torrent.
     Q_INVOKABLE void addPeers(const QString &hash, const QStringList &peers);
     /// The Peers tab's `b` (ruling Q4): one `host:port` into qBittorrent's IP filter. The
@@ -574,6 +582,8 @@ public:
     /// invalid}`, the accepted entries and the first refused one ("" when none was).
     Q_INVOKABLE QVariantMap checkTrackerUrls(const QString &text) const;
     Q_INVOKABLE QVariantMap checkPeers(const QString &text) const;
+    /// The add-HTTP-source sheet's check: http or https URLs with a host (#10).
+    Q_INVOKABLE QVariantMap checkWebSeedUrls(const QString &text) const;
 
     Q_INVOKABLE void setCategory(const QStringList &hashes, const QString &name);
     Q_INVOKABLE void addTags(const QStringList &hashes, const QStringList &tags);

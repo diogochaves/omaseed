@@ -17,6 +17,8 @@ namespace {
 
 constexpr int kDefaultPollInterval = 2000; ///< spec §2: the details pane refreshes every 2 s.
 constexpr int kFilterSaveDelay = 800;      ///< a typed Files filter is written once it rests
+/// #10: away from the HTTP sources tab, its list is asked for on one tick in this many.
+constexpr int kWebSeedsIdleTicks = 10;
 
 } // namespace
 
@@ -25,6 +27,7 @@ TorrentDetails::TorrentDetails(QObject *parent)
     , m_files(new TorrentFilesModel(this))
     , m_trackers(new TorrentTrackersModel(this))
     , m_peers(new TorrentPeersModel(this))
+    , m_webSeeds(new TorrentWebSeedsModel(this))
     , m_timer(new QTimer(this))
     , m_peersTimer(new QTimer(this))
     , m_filterSaveTimer(new QTimer(this))
@@ -98,6 +101,7 @@ void TorrentDetails::switchModels(const QString &hash)
     m_switching = false;
     m_trackers->clear();
     m_peers->clear();
+    m_webSeeds->clear();
 }
 
 bool TorrentDetails::hasTrackerError() const
@@ -140,6 +144,7 @@ void TorrentDetails::setHash(const QString &hash)
     m_errorLogged = false;
     setLastError(QString());
     switchModels(hash);
+    m_pollTick = 0;
     setPieceStates(QByteArray());
 
     Q_EMIT hashChanged();
@@ -173,6 +178,20 @@ void TorrentDetails::setGeneralActive(bool active)
         setPieceStates(QByteArray());
     if (active && !m_hash.isEmpty() && !m_demo)
         pollPieceStates();
+}
+
+void TorrentDetails::setWebSeedsActive(bool active)
+{
+    if (active == m_webSeedsActive)
+        return;
+    m_webSeedsActive = active;
+    if (active && !m_hash.isEmpty() && !m_demo)
+        pollWebSeeds();
+}
+
+void TorrentDetails::refreshWebSeeds()
+{
+    pollWebSeeds();
 }
 
 int TorrentDetails::piecesHaveCount() const
@@ -279,8 +298,30 @@ void TorrentDetails::poll()
         m_trackers->applyTrackers(result.value());
     });
 
+    if (m_webSeedsActive || m_pollTick % kWebSeedsIdleTicks == 0)
+        pollWebSeeds();
+    ++m_pollTick;
+
     if (m_generalActive)
         pollPieceStates();
+}
+
+void TorrentDetails::pollWebSeeds()
+{
+    if (m_demo || m_client.isNull() || m_hash.isEmpty() || !torrentExists())
+        return;
+
+    const QString hash = m_hash;
+    m_client->torrentsWebSeeds(hash)->then(this, [this, hash](const QbtResult<QJsonArray> &result) {
+        if (hash != m_hash)
+            return;
+        if (result.isError()) {
+            noteError(QStringLiteral("webseeds"), result.error());
+            return;
+        }
+        noteSuccess();
+        m_webSeeds->applyWebSeeds(result.value());
+    });
 }
 
 void TorrentDetails::pollPieceStates()
@@ -492,6 +533,7 @@ void TorrentDetails::applyDemo(const QJsonObject &details)
     m_files->applyFiles(details.value(QStringLiteral("files")).toArray());
     m_trackers->applyTrackers(details.value(QStringLiteral("trackers")).toArray());
     m_peers->applyPeers(details.value(QStringLiteral("peers")).toObject());
+    m_webSeeds->applyWebSeeds(details.value(QStringLiteral("webSeeds")).toArray());
     setPieceStates(PieceStates::fromJson(details.value(QStringLiteral("pieceStates")).toArray()));
     Q_EMIT refreshed();
 }

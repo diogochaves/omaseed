@@ -811,6 +811,18 @@ QJsonArray archTrackers()
     return trackers;
 }
 
+/// #10's HTTP sources tab: Arch's own ISO torrents list their mirrors as web seeds. The
+/// hosts are fictional; one plain http mirror shows how the tab keeps that scheme.
+QJsonArray archWebSeeds()
+{
+    QJsonArray seeds;
+    for (const char *url : {"https://mirror.example.net/archlinux/iso/2026.09.01/",
+                            "https://geo.mirror.example.org/archlinux/iso/2026.09.01/",
+                            "http://ftp.example.ac.uk/pub/archlinux/iso/2026.09.01/"})
+        seeds.append(QJsonObject{{QStringLiteral("url"), QString::fromLatin1(url)}});
+    return seeds;
+}
+
 /// Spec §2 Fig. 4, with the figure's own speeds and progress.
 QJsonObject archPeers()
 {
@@ -1114,6 +1126,7 @@ QJsonObject details(const omaseed::core::Torrent &torrent)
     result.insert(QStringLiteral("files"), isBbb ? bigBuckBunnyFiles() : generatedFiles(torrent));
     result.insert(QStringLiteral("trackers"), isArch ? archTrackers() : generatedTrackers(torrent));
     result.insert(QStringLiteral("peers"), isArch ? archPeers() : generatedPeers(torrent));
+    result.insert(QStringLiteral("webSeeds"), isArch ? archWebSeeds() : QJsonArray());
     result.insert(QStringLiteral("pieceStates"),
                   generatedPieceStates(torrent, pieceCount, piecesHave));
     return result;

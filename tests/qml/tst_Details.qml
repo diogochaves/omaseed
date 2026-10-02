@@ -1152,4 +1152,106 @@ TestCase {
 
         signalName: "openFolderRequested"
     }
+
+    SignalSpy {
+        id: webSeedSpy
+
+        signalName: "webSeedAction"
+    }
+
+    // ---- #10: the HTTP sources tab --------------------------------------------------------
+
+    function tabTexts(view) {
+        return findChild(view, "detailsTabs").model.map(tab => tab.text);
+    }
+
+    // The demo's Arch ISO lists three mirrors as web seeds; Big Buck Bunny has none.
+    function test_the_http_sources_tab_shows_only_with_web_seeds() {
+        const bbb = testCase.select(testCase.bbbName);
+        compare(testCase.tabTexts(bbb), ["General", "Files", "Trackers", "Peers"]);
+        compare(bbb.hasWebSeeds, false);
+        bbb.activateTab(4);
+        compare(bbb.currentTab, 0);
+
+        const arch = testCase.select(testCase.archName);
+        compare(testCase.tabTexts(arch), ["General", "Files", "Trackers", "Peers", "HTTP sources"]);
+        compare(findChild(arch, "detailsTabs").model[4].key, "5");
+        arch.activateTab(4);
+        compare(arch.currentTab, 4);
+        compare(arch.rowCount, 3);
+        verify(findChild(arch, "webSeedsTab").visible);
+    }
+
+    // `https://` is dropped from what the rows print; a plain http mirror keeps its scheme.
+    function test_the_rows_print_the_url_without_https() {
+        const view = testCase.select(testCase.archName);
+        view.activateTab(4);
+        waitForRendering(view, 500);
+        compare(findChild(view, "webSeedUrl_0").text, "mirror.example.net/archlinux/iso/2026.09.01/");
+        compare(findChild(view, "webSeedUrl_2").text,
+                "http://ftp.example.ac.uk/pub/archlinux/iso/2026.09.01/");
+    }
+
+    // `5` is the tab while there are web seeds; without them it goes on to the window (a
+    // status filter there), so the pane leaves it unaccepted.
+    function test_five_opens_http_sources_only_when_there_are_any() {
+        const bbb = testCase.select(testCase.bbbName);
+        bbb.forceActiveFocus();
+        keyClick(Qt.Key_5);
+        compare(bbb.currentTab, 0);
+
+        const arch = testCase.select(testCase.archName);
+        arch.forceActiveFocus();
+        keyClick(Qt.Key_5);
+        compare(arch.currentTab, 4);
+        keyClick(Qt.Key_J);
+        compare(arch.cursorIndex, 1);
+    }
+
+    function test_http_sources_keys_add_remove_and_copy() {
+        const view = testCase.select(testCase.archName);
+        webSeedSpy.target = view;
+        webSeedSpy.clear();
+        copySpy.target = view;
+        copySpy.clear();
+        view.activateTab(4);
+        view.forceActiveFocus();
+        keyClick(Qt.Key_J);
+
+        keyClick(Qt.Key_Y);
+        compare(copySpy.count, 1);
+        compare(copySpy.signalArguments[0][0],
+                "https://geo.mirror.example.org/archlinux/iso/2026.09.01/");
+        keyClick(Qt.Key_D);
+        compare(webSeedSpy.count, 1);
+        compare(webSeedSpy.signalArguments[0][0], "remove");
+        compare(webSeedSpy.signalArguments[0][1],
+                "https://geo.mirror.example.org/archlinux/iso/2026.09.01/");
+        keyClick(Qt.Key_A);
+        compare(webSeedSpy.count, 2);
+        compare(webSeedSpy.signalArguments[1][0], "add");
+
+        const hints = findChild(view, "detailsHints");
+        compare(hints.model.map(hint => hint.key + " " + hint.label), ["a add", "d remove",
+                                                                          "y copy"]);
+        view.activateTab(0);
+    }
+
+    // Another torrent without web seeds while their tab is on show: Trackers takes over, and
+    // a torrent with them keeps the tab while its list is fetched.
+    function test_a_torrent_without_web_seeds_falls_back_to_trackers() {
+        const view = testCase.select(testCase.archName);
+        view.activateTab(4);
+        compare(view.currentTab, 4);
+
+        App.selectTorrent(testCase.hashOf(testCase.bbbName));
+        compare(view.hasWebSeeds, false);
+        compare(view.currentTab, 2);
+        compare(testCase.tabTexts(view).length, 4);
+
+        App.selectTorrent(testCase.hashOf(testCase.archName));
+        compare(view.hasWebSeeds, true);
+        view.activateTab(4);
+        compare(view.currentTab, 4);
+    }
 }
