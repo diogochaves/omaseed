@@ -31,6 +31,19 @@ TestCase {
         compare(toggles, 1);
     }
 
+    // Q25: on fills the track with accent at the pressed step; off stays the idle foreground fill.
+    function test_on_fills_the_track_with_accent() {
+        const toggle = createTemporaryObject(toggleComponent, testCase, {
+                                                 "checked": true
+                                             });
+        const track = findChild(toggle, "toggleTrack");
+        verify(track);
+        const on = Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, Theme.fillPressed);
+        tryVerify(() => Qt.colorEqual(track.color, on));
+        toggle.checked = false;
+        tryVerify(() => Qt.colorEqual(track.color, Theme.fill(Theme.fillIdle)));
+    }
+
     // Review Q6: the ring goes round the track, outside it.
     function test_focus_rings_the_track() {
         const toggle = createTemporaryObject(toggleComponent, testCase);

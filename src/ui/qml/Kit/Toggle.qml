@@ -3,7 +3,8 @@ import Omaseed.Kit
 
 // On/off switch with a trailing label (spec v2 §8 `.toggle`/`.sw`; proportions from
 // /usr/share/omarchy/shell/Ui/ToggleSwitch.qml). Track `Theme.space(28)` × `Theme.space(14)`;
-// `Space` toggles when focused; clicking anywhere in the control toggles too.
+// `Space` toggles when focused; clicking anywhere in the control toggles too. On fills the
+// track at the pressed step of `accent` (Q25), so on and off differ by more than the knob.
 Item {
     id: root
 
@@ -32,10 +33,12 @@ Item {
     Rectangle {
         id: track
 
+        objectName: "toggleTrack"
         anchors.verticalCenter: parent.verticalCenter
         border.color: root.hot ? Theme.fill(Theme.borderHover) : Theme.fill(Theme.borderIdle)
         border.width: root.checked ? 0 : 1
-        color: root.checked ? Theme.fill(Theme.fillSelected) : Theme.fill(Theme.fillIdle)
+        color: root.checked ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, Theme.fillPressed) :
+                              Theme.fill(Theme.fillIdle)
         height: root.trackHeight
         radius: Theme.cornerRadius
         width: root.trackWidth
