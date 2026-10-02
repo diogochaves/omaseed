@@ -1078,6 +1078,35 @@ Q_SIGNALS:
     /// Every rename as asked, before the demo guard (for the QML tests).
     void torrentFileRenameRequested(QString hash, QString oldPath, QString newPath, bool folder);
     // --- end N1 -----------------------------------------------------------------------------
+
+    // --- #2: trusted certificates -------------------------------------------------------------
+    // Trust on first use (docs/QUESTIONS.md Q27): a server whose certificate the system does
+    // not trust is refused with ApiError::Kind::Certificate, the server sheet and first run
+    // show the certificate's fingerprint, and "trust this certificate" saves it with the
+    // server (CertificatePin). Only that exact certificate is accepted afterwards.
+public:
+    /// The id of the server the engine is on; empty without one (or from the environment).
+    Q_PROPERTY(QString serverId READ serverId NOTIFY serverChanged)
+    QString serverId() const;
+
+    /// Saves `sha256` as the certificate trusted for server `id` (empty forgets it) and, when
+    /// that is the server the engine is on, reconnects with it. False for an unknown id or a
+    /// value that is not a SHA-256.
+    Q_INVOKABLE bool trustCertificate(const QString &id, const QString &sha256);
+    /// A fingerprint as people compare it: "AB:CD:…" (CertificatePin::displayText).
+    Q_INVOKABLE static QString certificateText(const QString &sha256);
+    /// True when `lastError` (GlobalState::lastError) is a refused certificate.
+    Q_INVOKABLE static bool isCertificateError(const QString &lastError);
+
+Q_SIGNALS:
+    /// A `testServer()` met a certificate the system does not trust; sent just before its
+    /// `serverTested()`. `sha256` is the certificate shown, `pinned` the one trusted for the
+    /// server so far (empty for none: a different one means the certificate changed).
+    void serverCertificateRefused(const QString &id, const QString &sha256, const QString &pinned);
+    /// The engine's server refused its certificate (once per loss): the views offer it to be
+    /// reviewed and trusted on the server sheet.
+    void certificateRefused(const QString &id);
+    // --- end #2 ---------------------------------------------------------------------------------
 };
 
 } // namespace omaseed::app

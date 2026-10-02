@@ -265,6 +265,9 @@ void SyncEngine::onPollError(const ApiError &error)
         return;
     case ApiError::Kind::Network:
     case ApiError::Kind::Timeout:
+    // A refused certificate is a server we cannot reach until someone trusts it (or the
+    // server goes back to one we do): lost, and retried, like any other unreachable one.
+    case ApiError::Kind::Certificate:
         enterLostState(error);
         return;
     default:

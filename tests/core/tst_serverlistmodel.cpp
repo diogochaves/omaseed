@@ -52,8 +52,9 @@ private Q_SLOTS:
     void probeResultsFillTheRow();
     void persistsToJson();
     void secretsFollowTheServer();
-    void credentialsInTheUrlNeverReachTheFile(); // INT-11
-    void changingTheAuthModeDropsTheOldSecret(); // INT-12
+    void credentialsInTheUrlNeverReachTheFile();  // INT-11
+    void changingTheAuthModeDropsTheOldSecret();  // INT-12
+    void trustedCertificateIsKeptUntilReplaced(); // #2
 
 private:
     QTemporaryDir m_config;
@@ -376,6 +377,50 @@ void TestServerListModel::credentialsInTheUrlNeverReachTheFile()
     manual.url = QUrl(QStringLiteral("http://eve:pw@host:1"));
     QCOMPARE(manual.toJson().value(QStringLiteral("url")).toString(),
              QStringLiteral("http://host:1"));
+}
+
+void TestServerListModel::trustedCertificateIsKeptUntilReplaced()
+{
+    const QString pin =
+        QStringLiteral("9ce0618d3dba07b6abce06a4c4db2222f6929605a344b4f8ec21789f2761a2a2");
+    QString id;
+    {
+        ServerStore store;
+        ServerListModel model(&store);
+        QVariantMap fields = homeFields();
+        fields[QStringLiteral("url")] = QStringLiteral("https://nas.invalid:9090");
+        fields[QStringLiteral("certificateSha256")] = pin.toUpper();
+        id = model.add(fields);
+        QVERIFY(!id.isEmpty());
+        QCOMPARE(roleOf(model, 0, ServerListModel::CertificateRole).toString(), pin);
+        QCOMPARE(model.serverMap(id).value(QStringLiteral("certificateSha256")).toString(), pin);
+
+        // An edit that does not mention the certificate keeps it (a caller that predates the
+        // field must not forget a trusted certificate).
+        QVariantMap edit = homeFields();
+        edit[QStringLiteral("id")] = id;
+        edit[QStringLiteral("name")] = QStringLiteral("nas");
+        QVERIFY(model.update(edit));
+        QCOMPARE(roleOf(model, 0, ServerListModel::CertificateRole).toString(), pin);
+
+        // The whole row handed back (the sheet's save) keeps it too.
+        QVERIFY(model.update(model.serverMap(id)));
+        QCOMPARE(roleOf(model, 0, ServerListModel::CertificateRole).toString(), pin);
+    }
+
+    // It is in servers.json.
+    {
+        ServerStore reopened;
+        QVERIFY(reopened.load());
+        QCOMPARE(reopened.byId(id)->certificateSha256, pin);
+        ServerListModel model(&reopened);
+
+        // Given empty, it is forgotten.
+        QVariantMap forget = model.serverMap(id);
+        forget[QStringLiteral("certificateSha256")] = QString();
+        QVERIFY(model.update(forget));
+        QVERIFY(roleOf(model, 0, ServerListModel::CertificateRole).toString().isEmpty());
+    }
 }
 
 void TestServerListModel::changingTheAuthModeDropsTheOldSecret()

@@ -59,6 +59,7 @@ public:
         VersionRole,     ///< "5.2.3" (the server's leading "v" dropped); empty until a probe ran
         ApiVersionRole,  ///< "2.15.1"; empty until a probe ran
         VersionTextRole, ///< "v5.2.3" for the dim line; empty until a probe ran
+        CertificateRole, ///< the trusted certificate's SHA-256 (CertificatePin), or empty
     };
     Q_ENUM(Role)
 
@@ -87,7 +88,9 @@ public:
     /// fields do not describe a usable server (no URL). A non-empty `secret` is written to
     /// `SecretStore` under the auth mode's kind.
     Q_INVOKABLE QString add(const QVariantMap &fields, const QString &secret = QString());
-    /// Replaces the server `fields["id"]` names. An empty `secret` leaves the stored one
+    /// Replaces the server `fields["id"]` names. `certificateSha256` left out of `fields`
+    /// keeps the trusted certificate; given (empty included), it replaces it. An empty
+    /// `secret` leaves the stored one
     /// alone — that is what "edit without retyping the key" needs — unless the auth mode
     /// changed: the old mode's secret is then removed (both, for "none"), so a stale key is
     /// neither kept nor silently reused on a switch back.
@@ -112,7 +115,8 @@ public:
     // ---- the pure parts, so a test needs no store -------------------------------------
 
     /// Builds a `Server` from the QML field map: `id`, `name`, `url`, `authMode`
-    /// ("apiKey" | "cookie" | "none"), `username`, `pathMapRemote`, `pathMapLocal`. User info
+    /// ("apiKey" | "cookie" | "none"), `username`, `pathMapRemote`, `pathMapLocal`,
+    /// `certificateSha256` (anything but a SHA-256 reads as none). User info
     /// typed into the URL never stays there: the user name fills an empty `username`, and for
     /// a cookie server the password comes back through `urlPassword` (dropped otherwise).
     static Server serverFromMap(const QVariantMap &fields, QString *urlPassword = nullptr);

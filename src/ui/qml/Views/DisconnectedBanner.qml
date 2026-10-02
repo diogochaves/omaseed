@@ -12,20 +12,28 @@ Banner {
 
     property string errorText: qsTr("connection refused")
     property int retryInSeconds: 0
+    /// Issue #2: the server's certificate was refused; `review certificate` comes first.
+    property bool certificate: false
 
     signal retryRequested
     signal settingsRequested
+    signal certificateRequested
 
-    actions: [
-        {
-            "label": qsTr("retry now"),
-            "key": "retry"
-        },
-        {
-            "label": qsTr("settings"),
-            "key": "settings"
-        }
-    ]
+    actions: (root.certificate ? [
+                                     {
+                                         "label": qsTr("review certificate"),
+                                         "key": "certificate"
+                                     }
+                                 ] : []).concat([
+                                                    {
+                                                        "label": qsTr("retry now"),
+                                                        "key": "retry"
+                                                    },
+                                                    {
+                                                        "label": qsTr("settings"),
+                                                        "key": "settings"
+                                                    }
+                                                ])
     kind: "error"
     text: root.retryInSeconds > 0 ? qsTr("%1 · retrying in %2 s").arg(root.errorText).arg(
                                         root.retryInSeconds) : qsTr("%1 · retrying now").arg(
@@ -36,5 +44,7 @@ Banner {
             root.retryRequested();
         else if (key === "settings")
             root.settingsRequested();
+        else if (key === "certificate")
+            root.certificateRequested();
     }
 }

@@ -20,7 +20,11 @@
 #   - Web UI › HTTPS with no certificate: refused in the pane, nothing sent;
 #   - Web UI › port: esc on the confirm changes nothing; enter moves qBittorrent's Web UI and
 #     omaseed's saved server with it, and the app keeps syncing;
-#   - Web UI › API key › new key: esc changes nothing; enter makes a new key.
+#   - Web UI › API key › new key: esc changes nothing; enter makes a new key;
+#   - Web UI › HTTPS with a self-signed certificate (made in the box): the confirm says what
+#     follows; omaseed moves to https://, the certificate is refused and the server sheet
+#     shows its fingerprint; tab enter trusts it (servers.json gets openssl's SHA-256) and the
+#     app syncs again; a second certificate, then `test`, reads as changed (issue #2).
 # Each check reads the box's qBittorrent (and omaseed's servers.json); any failed check makes
 # the script exit 1. The box goes down at the end, also on ^C.
 set -euo pipefail
@@ -45,10 +49,12 @@ esac
 
 [ -x "$BUILD/omaseed" ] || { echo "build first: cmake --build $BUILD" >&2; exit 1; }
 
+SCHEME=http # https once the walk has turned HTTPS on (curl -k: the certificate is self-signed)
+
 # pref KEY [PORT]: a value of the box's qBittorrent's preferences, as JSON; "" when the Web UI
 # does not answer on PORT.
 pref() {
-    omabox run -b "$BOX" -- curl -fs "http://127.0.0.1:${2:-$QBT_PORT}/api/v2/app/preferences" 2>/dev/null |
+    omabox run -b "$BOX" -- curl -fsk "$SCHEME://127.0.0.1:${2:-$QBT_PORT}/api/v2/app/preferences" 2>/dev/null |
         python3 -c 'import json, sys; print(json.dumps(json.load(sys.stdin).get(sys.argv[1])))' "$1" \
             2>/dev/null || true
 }
@@ -57,6 +63,27 @@ pref() {
 saved_url() {
     python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["servers"][0]["url"])' \
         "$(omabox path -b "$BOX")/home/.config/omaseed/servers.json"
+}
+
+# saved_pin: the certificate omaseed trusts for its server ("" for none).
+saved_pin() {
+    python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["servers"][0].get("certificateSha256", ""))' \
+        "$(omabox path -b "$BOX")/home/.config/omaseed/servers.json"
+}
+
+# set_prefs JSON: straight to the box's qBittorrent (what is not under test).
+set_prefs() {
+    omabox run -b "$BOX" -- curl -fsk -o /dev/null --data-urlencode "json=$1" \
+        "$SCHEME://127.0.0.1:$QBT_PORT/api/v2/app/setPreferences"
+}
+
+# make_cert NAME: a self-signed certificate and key for 127.0.0.1 in the box's HOME; prints
+# its SHA-256 the way omaseed stores it (lowercase hex, no colons).
+make_cert() {
+    omabox run -b "$BOX" -- openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj /CN=127.0.0.1 \
+        -keyout "/home/sbx/$1.key" -out "/home/sbx/$1.crt" >/dev/null 2>&1
+    omabox run -b "$BOX" -- openssl x509 -in "/home/sbx/$1.crt" -noout -fingerprint -sha256 |
+        sed 's/.*=//; s/://g' | tr 'A-F' 'a-f'
 }
 
 # keys KEY...: into omaseed's window, once the screen has settled after them.
@@ -202,6 +229,56 @@ done
 step "New API key made" "The head says new API key made; the confirm is gone."
 after="$(pref web_ui_api_key)"
 check "a new key" "$([ "$after" != "$before" ] && [ "$after" != '""' ] && echo yes || echo no)" yes
+
+# ---- Web UI › HTTPS with a self-signed certificate (issue #2) -------------------------------
+first_sha="$(make_cert walk-https)"
+set_prefs '{"web_ui_https_cert_path":"/home/sbx/walk-https.crt","web_ui_https_key_path":"/home/sbx/walk-https.key"}'
+# The pane reads the server's settings when it opens: close it and come back to see the paths.
+keys Escape Escape
+keys ctrl+shift+comma
+section 8
+keys j j space
+step "HTTPS asks first" "A confirm: 'Turn on HTTPS for the Web UI?', saying a self-signed certificate's fingerprint is shown to trust and that omaseed cannot reach the server until then."
+check "HTTPS not on while asking" "$(pref use_https)" false
+keys Return
+SCHEME=https
+for _ in $(seq 1 60); do
+    [ "$(saved_url)" = "https://127.0.0.1:$QBT_PORT" ] && omabox run -b "$BOX" -- pgrep -x omaseed >/dev/null &&
+        omabox shot -b "$BOX" --window omaseed -o /dev/null >/dev/null 2>&1 && break
+    sleep 0.25
+done
+sleep 3 # the refused sync, then the sheet's own test
+step "Untrusted certificate" "Settings › Servers with the server sheet on top: 'untrusted certificate' in red under Reachable, then the warning line, the sentence on trusting, SHA-256 in two lines of 16 pairs, and 'trust this certificate' (accent outline)."
+check "HTTPS on" "$(pref use_https)" true
+check "saved server on https" "$(saved_url)" "https://127.0.0.1:$QBT_PORT"
+check "nothing trusted yet" "$(saved_pin)" ""
+
+# The sheet's keyboard starts on its primary button (edit); tab wraps to the first focusable,
+# the trust button.
+keys Tab
+step "Trust button focused" "The focus ring is on 'trust this certificate'."
+keys Return
+for _ in $(seq 1 40); do
+    [ -n "$(saved_pin)" ] && break
+    sleep 0.25
+done
+sleep 3
+step "Certificate trusted" "The sheet: Reachable 'yes · N ms' in green, a Certificate row 'trusted · AB:CD:EF:01 …' matching the fingerprint, no warning any more."
+check "trusted the certificate qBittorrent serves" "$(saved_pin)" "$first_sha"
+keys Escape Escape
+step "Synced over HTTPS" "The library, no lost-server banner: omaseed syncs over https:// with the trusted certificate."
+
+# A different certificate on the same server: `test` on the sheet opens a new connection.
+second_sha="$(make_cert walk-https-2)"
+set_prefs '{"web_ui_https_cert_path":"/home/sbx/walk-https-2.crt","web_ui_https_key_path":"/home/sbx/walk-https-2.key"}'
+sleep 2 # qBittorrent restarts its Web UI with the new certificate
+keys comma 2 l Return
+keys Tab Return
+sleep 3
+step "Certificate changed" "The server sheet: 'the certificate changed' in red (error line, ✕), the warning to trust it only if you changed it yourself, the new fingerprint, and 'trust the new certificate' without the accent outline."
+check "the old certificate is still the trusted one" "$(saved_pin)" "$first_sha"
+check "a different certificate is served" "$([ "$first_sha" != "$second_sha" ] && echo yes || echo no)" yes
+keys Escape Escape
 
 echo
 if [ "$FAILED" -gt 0 ]; then

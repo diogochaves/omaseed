@@ -27,6 +27,11 @@ AuthMode authModeFromString(const QString &text, bool *ok = nullptr);
 /// all there is to say.
 QString credentialRefusedText(const ApiError &error, AuthMode mode);
 
+/// What a person reads when TLS refused the server's certificate (ApiError::Kind::Certificate):
+/// "untrusted certificate" while none is trusted for the server, "the certificate changed"
+/// when `pinned` (Server::certificateSha256) names another one.
+QString certificateRefusedText(const QString &pinned);
+
 /// One remote-to-local path rewrite, for servers whose download root is mounted at a
 /// different path locally (see the charter's `PathMap`). T2.3 may adapt the shape; kept
 /// here as a plain value so `Server` does not depend on the parser module.
@@ -54,6 +59,9 @@ public:
     QList<PathMapping> pathMap;
     bool isDefault = false;
     QDateTime addedAt;
+    /// The certificate the person chose to trust for this server (trust on first use, see
+    /// CertificatePin), 64 lowercase hex digits; empty when none was. Not a secret.
+    QString certificateSha256;
 
     Server() = default;
 

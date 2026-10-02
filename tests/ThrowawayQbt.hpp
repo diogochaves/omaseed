@@ -12,6 +12,9 @@
 //   QbtClient client; client.setBaseUrl(qbt.url());
 //   client.setCredentials(qbt.username(), qbt.password());
 //
+// HTTPS: `useHttps(cert, key)` before start() (a pair from `makeCertificate()`, self-signed
+// for 127.0.0.1) makes the Web UI speak only HTTPS, and url() an https:// one.
+//
 // The destructor stops the process (SIGTERM, then SIGKILL) and the profile goes with the
 // temporary directory, also when a QVERIFY returns early.
 
@@ -86,7 +89,58 @@ public:
         m_process.reset();
     }
 
-    QUrl url() const { return urlOn(m_webPort); }
+    /// Serve the Web UI over HTTPS with this certificate and key; call before start().
+    void useHttps(const QString &certificatePath, const QString &keyPath)
+    {
+        m_certificatePath = certificatePath;
+        m_keyPath = keyPath;
+    }
+
+    /// A self-signed certificate and key for 127.0.0.1, valid a day, as `stem`.crt and
+    /// `stem`.key in `dir`; false (with `error`) without openssl or when it fails.
+    static bool makeCertificate(const QString &dir,
+                                const QString &stem,
+                                QString *certificatePath,
+                                QString *keyPath,
+                                QString *error)
+    {
+        const QString openssl = QStandardPaths::findExecutable(QStringLiteral("openssl"));
+        if (openssl.isEmpty()) {
+            *error = QStringLiteral("openssl is not installed");
+            return false;
+        }
+        *certificatePath = dir + QLatin1Char('/') + stem + QStringLiteral(".crt");
+        *keyPath = dir + QLatin1Char('/') + stem + QStringLiteral(".key");
+        QProcess make;
+        make.setProcessChannelMode(QProcess::MergedChannels);
+        make.start(openssl,
+                   {QStringLiteral("req"),
+                    QStringLiteral("-x509"),
+                    QStringLiteral("-newkey"),
+                    QStringLiteral("rsa:2048"),
+                    QStringLiteral("-nodes"),
+                    QStringLiteral("-keyout"),
+                    *keyPath,
+                    QStringLiteral("-out"),
+                    *certificatePath,
+                    QStringLiteral("-days"),
+                    QStringLiteral("1"),
+                    QStringLiteral("-subj"),
+                    QStringLiteral("/CN=127.0.0.1")});
+        if (!make.waitForFinished(30000) || make.exitCode() != 0) {
+            *error = QStringLiteral("openssl failed: %1").arg(QString::fromUtf8(make.readAll()));
+            return false;
+        }
+        return true;
+    }
+
+    QUrl url() const
+    {
+        QUrl url = urlOn(m_webPort);
+        if (!m_certificatePath.isEmpty())
+            url.setScheme(QStringLiteral("https"));
+        return url;
+    }
     static QUrl urlOn(int port) { return QUrl(QStringLiteral("http://127.0.0.1:%1").arg(port)); }
     int webPort() const { return m_webPort; }
     QString username() const { return m_username; }
@@ -184,6 +238,7 @@ private:
                            "WebUI\\Password_PBKDF2=\"@ByteArray(%3)\"\n"
                            "WebUI\\LocalHostAuth=%4\n"
                            "WebUI\\UseUPnP=false\n"
+                           "%7"
                            "General\\Locale=en\n\n"
                            "[BitTorrent]\n"
                            "Session\\Port=%5\n"
@@ -199,9 +254,19 @@ private:
                 .arg(m_username, QString::fromLatin1(hash))
                 .arg(localHostAuth ? QStringLiteral("true") : QStringLiteral("false"))
                 .arg(m_btPort)
-                .arg(downloadsPath());
+                .arg(downloadsPath(), httpsLines());
         conf.write(text.toUtf8());
         return true;
+    }
+
+    QString httpsLines() const
+    {
+        if (m_certificatePath.isEmpty())
+            return {};
+        return QStringLiteral("WebUI\\HTTPS\\Enabled=true\n"
+                              "WebUI\\HTTPS\\CertificatePath=%1\n"
+                              "WebUI\\HTTPS\\KeyPath=%2\n")
+            .arg(m_certificatePath, m_keyPath);
     }
 
     bool launch()
@@ -232,6 +297,8 @@ private:
     int m_btPort = 0;
     QString m_username;
     QString m_password;
+    QString m_certificatePath;
+    QString m_keyPath;
     QString m_skip;
     QString m_error;
 };

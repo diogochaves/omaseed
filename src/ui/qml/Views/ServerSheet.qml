@@ -19,6 +19,11 @@ import Omaseed.Kit
 // pane would show no version or count until the next test (docs/QUESTIONS.md Q23). Nothing
 // here ever reads a stored secret back: the `Key` row shows a fixed mask, and an empty key
 // field on save means "keep the stored one".
+//
+// A test that met a certificate the system does not trust (issue #2) shows `CertificateTrust`
+// under the rows: `trust this certificate` saves the fingerprint with a saved server straight
+// away (App.trustCertificate, which reconnects the live one), keeps it in the edit buffers
+// for a new one, and tests again.
 Sheet {
     id: root
 
@@ -41,6 +46,10 @@ Sheet {
     readonly property bool _credentialRefused: !root.testing && root.tested && !root.testOk
                                                && root.testErrorDetail.length > 0
     property bool testing: false
+    /// The certificate the last test was refused (CertificatePin form); empty when it was not.
+    property string certificateSha256: ""
+    /// The certificate trusted for the server when that test ran.
+    property string certificatePinned: ""
 
     // the edit buffers; `save` turns them back into a field map
     property string editName: ""
@@ -52,6 +61,8 @@ Sheet {
     property string editSecret: ""
     property string editRemote: ""
     property string editLocal: ""
+    /// The trusted certificate the sheet will save (the server's own, or one just trusted).
+    property string editCertificate: ""
 
     readonly property string serverId: root.server && root.server.id ? String(root.server.id) : ""
     readonly property bool isNew: root.serverId.length === 0
@@ -69,6 +80,12 @@ Sheet {
         root._resetTest();
         root._loadBuffers();
         root.open();
+    }
+
+    /// Show an existing server and test it at once: the lost banner's "review certificate".
+    function reviewFor(map: var): void {
+        root.openFor(map);
+        root._runTest();
     }
 
     /// Show an empty sheet in edit mode (Fig. 16's "+ add a server").
@@ -90,7 +107,8 @@ Sheet {
             "authMode": root.editAuthMode,
             "username": root.editUsername,
             "pathMapRemote": root.editRemote,
-            "pathMapLocal": root.editLocal
+            "pathMapLocal": root.editLocal,
+            "certificateSha256": root.editCertificate
         };
     }
 
@@ -104,6 +122,8 @@ Sheet {
         root.testError = "";
         root.testErrorDetail = "";
         root.testing = false;
+        root.certificateSha256 = "";
+        root.certificatePinned = "";
     }
 
     // The fields are written, not bound: a Kit `Field`'s `text` is a plain alias over its
@@ -114,6 +134,7 @@ Sheet {
         const map = root.server ? root.server : {};
         root.editAuthMode = map.authMode ? String(map.authMode) : "none";
         root.editSecret = "";
+        root.editCertificate = map.certificateSha256 ? String(map.certificateSha256) : "";
         nameField.text = map.name ? String(map.name) : "";
         urlField.text = map.url ? String(map.url) : "";
         userField.text = map.username ? String(map.username) : "";
@@ -124,8 +145,22 @@ Sheet {
     }
 
     function _runTest(): void {
+        root.certificateSha256 = "";
+        root.certificatePinned = "";
         root.testing = true;
         App.testServer(root.editing ? root.fieldMap() : root.server, root.editSecret);
+    }
+
+    /// `trust this certificate`: a saved server keeps it now, a new one on `save`; then test
+    /// again with it.
+    function _trustCertificate(): void {
+        const sha256 = root.certificateSha256;
+        root.editCertificate = sha256;
+        if (!root.isNew) {
+            App.trustCertificate(root.serverId, sha256);
+            root.server = App.serverList.serverMap(root.serverId);
+        }
+        root._runTest();
     }
 
     /// Q23: the result of a `test` pressed before `save` belongs to the row that now exists.
@@ -303,6 +338,13 @@ Sheet {
     }
 
     Connections {
+        function onServerCertificateRefused(id: string, sha256: string, pinned: string): void {
+            if (id !== root.serverId || !root.testing)
+                return;
+            root.certificateSha256 = sha256;
+            root.certificatePinned = pinned;
+        }
+
         function onServerTested(id: string, ok: bool, version: string, apiVersion: string, torrentCount: int, latencyMs: int, error: string, errorDetail: string): void {
             if (id !== root.serverId)
                 return;
@@ -315,6 +357,10 @@ Sheet {
             root.testLatency = latencyMs;
             root.testError = error;
             root.testErrorDetail = errorDetail;
+            if (ok) {
+                root.certificateSha256 = "";
+                root.certificatePinned = "";
+            }
         }
 
         target: App
@@ -346,9 +392,18 @@ Sheet {
                 "value": root._reachableText,
                 "color": root._reachableColor
             }
-        ]
+        ].concat(root.editCertificate.length > 0 ? [
+                                                       {
+                                                           "key": qsTr("Certificate"),
+                                                           "value": qsTr("trusted · %1 …").arg(
+                                                                        App.certificateText(
+                                                                            root.editCertificate).slice(
+                                                                            0, 11))
+                                                       }
+                                                   ] : [])
         visible: !root.editing
     }
+
 
     // A refused save: the kit's error Banner, as the add and limits sheets show theirs.
     Banner {
@@ -562,5 +617,18 @@ Sheet {
             visible: root._credentialRefused
             wrapMode: Text.WordWrap
         }
+    }
+
+    // A refused certificate (issue #2), under whichever body shows: the rows or the fields.
+    CertificateTrust {
+        id: certificateTrust
+
+        Layout.fillWidth: true
+        objectName: "certificateTrust"
+        pinned: root.certificatePinned
+        sha256: root.certificateSha256
+        visible: root.certificateSha256.length > 0 && !root.testing
+
+        onTrustRequested: root._trustCertificate()
     }
 }

@@ -14,6 +14,7 @@ qt_add_qml_module(omaseed-views
         AddSheet.qml
         BanPeerConfirm.qml
         CategoryPalette.qml
+        CertificateTrust.qml
         ChipSelect.qml
         ColumnsPalette.qml
         DeleteConfirm.qml

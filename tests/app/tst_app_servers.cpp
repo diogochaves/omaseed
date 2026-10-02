@@ -16,6 +16,7 @@
 #include "core/QbtClient.hpp"
 #include "core/SecretStore.hpp"
 #include "core/ServerListModel.hpp"
+#include "core/ServerStore.hpp"
 #include "core/SyncEngine.hpp"
 #include "integration/Theme.hpp"
 #include "integration/ThemeReader.hpp"
@@ -93,6 +94,7 @@ private Q_SLOTS:
     void aLateKeychainAnswerStaysWithItsServer();
     void aGoodSyncAfterAuthRequiredClearsServerLost();
     void webUiChangesMoveTheSavedUrl();
+    void trustCertificateSavesThePin(); // #2
 
 private:
     QTemporaryDir m_config;
@@ -419,6 +421,42 @@ void TestAppServers::webUiChangesMoveTheSavedUrl()
     QCOMPARE(App::urlAfterPreferences(proxied, {{QStringLiteral("use_https"), false}}, before),
              proxied);
     QCOMPARE(App::urlAfterPreferences(direct, {{QStringLiteral("dht"), true}}, before), direct);
+}
+
+void TestAppServers::trustCertificateSavesThePin()
+{
+    // No network: the pin is a field of the saved server, the engine's reconnect aside.
+    App app;
+    app.start();
+    const QString id =
+        app.addServer({{QStringLiteral("name"), QStringLiteral("tls")},
+                       {QStringLiteral("url"), QStringLiteral("https://127.0.0.1:9")},
+                       {QStringLiteral("authMode"), QStringLiteral("none")}});
+    QVERIFY(!id.isEmpty());
+    QCOMPARE(app.serverId(), id);
+
+    const QString display = QStringLiteral("9C:E0:61:8D:3D:BA:07:B6:AB:CE:06:A4:C4:DB:22:22:"
+                                           "F6:92:96:05:A3:44:B4:F8:EC:21:78:9F:27:61:A2:A2");
+    const QString pin =
+        QStringLiteral("9ce0618d3dba07b6abce06a4c4db2222f6929605a344b4f8ec21789f2761a2a2");
+    QVERIFY(!app.trustCertificate(id, QStringLiteral("not a fingerprint")));
+    QVERIFY(!app.trustCertificate(QStringLiteral("nobody"), pin));
+    QVERIFY(app.servers()->byId(id)->certificateSha256.isEmpty());
+
+    QVERIFY(app.trustCertificate(id, display));
+    QCOMPARE(app.servers()->byId(id)->certificateSha256, pin);
+    QCOMPARE(App::certificateText(pin), display);
+
+    // The live engine now refuses anything else in the words of a changed certificate.
+    QCOMPARE(app.lostReasonText(QStringLiteral("certificate: GET app/version: self-signed")),
+             QStringLiteral("the certificate changed"));
+    QVERIFY(App::isCertificateError(QStringLiteral("certificate: GET app/version: x")));
+    QVERIFY(!App::isCertificateError(QStringLiteral("network: GET app/version: refused")));
+
+    QVERIFY(app.trustCertificate(id, QString()));
+    QVERIFY(app.servers()->byId(id)->certificateSha256.isEmpty());
+    QCOMPARE(app.lostReasonText(QStringLiteral("certificate: GET app/version: self-signed")),
+             QStringLiteral("untrusted certificate"));
 }
 
 QTEST_MAIN(TestAppServers)

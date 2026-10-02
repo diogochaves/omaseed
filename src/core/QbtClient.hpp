@@ -12,6 +12,10 @@
 //     localhost auth is bypassed and is 403 elsewhere.
 //   * `auth/login` answers 200 `Ok.` on older builds and 204 on 5.x; both count as success.
 //     200 with a `Fails.` body, 401 and 403 all map to ApiError::Kind::Unauthorized.
+//   * TLS: a certificate the system trusts is always accepted. Any other one is refused with
+//     ApiError::Kind::Certificate, which carries the certificate's SHA-256 so the person can
+//     be shown it, unless it is exactly the one setPinnedCertificate() names (trust on first
+//     use, see CertificatePin). Certificate errors are never retried.
 //   * Every request also carries `Referer` and `Origin` (qBittorrent's CSRF check) and a
 //     `User-Agent: omaseed/<version>`.
 //
@@ -107,6 +111,8 @@
 #include <optional>
 
 class QNetworkAccessManager;
+class QNetworkReply;
+class QSslError;
 class QHttpMultiPart;
 
 namespace omaseed::core {
@@ -168,6 +174,12 @@ public:
     void allowLoginAgain();
 
     AuthState authState() const;
+
+    /// The one certificate (CertificatePin::fingerprint form) to accept for this server even
+    /// though the system does not trust it; empty for none. A change drops every pooled
+    /// connection, so nothing accepted under the old pin is reused.
+    void setPinnedCertificate(const QString &sha256);
+    QString pinnedCertificate() const;
 
     std::chrono::milliseconds timeout() const;
     void setTimeout(std::chrono::milliseconds timeout);
@@ -377,6 +389,8 @@ private:
     void pump();
     void send(const JobPtr &job);
     void onJobReplyFinished(const JobPtr &job);
+    void
+    onSslErrors(const JobPtr &job, QNetworkReply *networkReply, const QList<QSslError> &errors);
     void finishJob(const JobPtr &job, const QByteArray &body, const ApiError &error);
     void cancelJob(const JobPtr &job);
     ApiError mapError(const JobPtr &job, int httpStatus, const QString &reason) const;
@@ -390,6 +404,7 @@ private:
     QString m_apiKey;
     QString m_username;
     QString m_password;
+    QString m_pinnedCertificate;
     AuthState m_authState = AuthState::Unknown;
 
     std::chrono::milliseconds m_timeout{15000};

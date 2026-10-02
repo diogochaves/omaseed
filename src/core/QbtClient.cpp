@@ -1,5 +1,6 @@
 #include "core/QbtClient.hpp"
 
+#include "core/CertificatePin.hpp"
 #include "core/Version.hpp"
 
 #include <QHttpMultiPart>
@@ -11,6 +12,9 @@
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QPointer>
+#include <QSslCertificate>
+#include <QSslConfiguration>
+#include <QSslError>
 #include <QTimer>
 #include <QVersionNumber>
 
@@ -201,6 +205,9 @@ struct QbtClient::Job
     bool cancelled = false;
     QPointer<QNetworkReply> networkReply;
     QNetworkReply::NetworkError networkError = QNetworkReply::NoError;
+    /// The certificate TLS refused on the last attempt (CertificatePin form), or empty.
+    QString refusedCertificate;
+    QString refusedCertificateReason;
     std::function<void(const QByteArray &, const ApiError &)> deliver;
 };
 
@@ -279,6 +286,22 @@ void QbtClient::clearAuth()
 QbtClient::AuthState QbtClient::authState() const
 {
     return m_authState;
+}
+
+void QbtClient::setPinnedCertificate(const QString &sha256)
+{
+    const QString pin = CertificatePin::normalized(sha256);
+    if (pin == m_pinnedCertificate)
+        return;
+    m_pinnedCertificate = pin;
+    // A pooled connection keeps the TLS session it was allowed under: one accepted with the
+    // old pin must not carry on under a new one (or none).
+    m_nam->clearConnectionCache();
+}
+
+QString QbtClient::pinnedCertificate() const
+{
+    return m_pinnedCertificate;
 }
 
 std::chrono::milliseconds QbtClient::timeout() const
@@ -418,9 +441,39 @@ void QbtClient::send(const JobPtr &job)
     }
 
     job->networkReply = networkReply;
+    job->refusedCertificate.clear();
+    job->refusedCertificateReason.clear();
     m_active.append(job);
+    connect(networkReply,
+            &QNetworkReply::sslErrors,
+            this,
+            [this, job, networkReply](const QList<QSslError> &errors) {
+                onSslErrors(job, networkReply, errors);
+            });
     connect(
         networkReply, &QNetworkReply::finished, this, [this, job]() { onJobReplyFinished(job); });
+}
+
+void QbtClient::onSslErrors(const JobPtr &job,
+                            QNetworkReply *networkReply,
+                            const QList<QSslError> &errors)
+{
+    QSslCertificate certificate = networkReply->sslConfiguration().peerCertificate();
+    for (const QSslError &error : errors) {
+        if (!certificate.isNull())
+            break;
+        certificate = error.certificate();
+    }
+    const QString seen = CertificatePin::fingerprint(certificate);
+    if (!seen.isEmpty() && seen == m_pinnedCertificate) {
+        // Exactly the certificate the person chose to trust for this server: whatever the
+        // system holds against it (self-signed, a name that does not match) is accepted.
+        networkReply->ignoreSslErrors(errors);
+        return;
+    }
+    job->refusedCertificate = seen;
+    job->refusedCertificateReason =
+        errors.isEmpty() ? QString() : errors.constFirst().errorString();
 }
 
 void QbtClient::onJobReplyFinished(const JobPtr &job)
@@ -540,6 +593,14 @@ ApiError QbtClient::mapError(const JobPtr &job, int status, const QString &reaso
 
     if (status != 0)
         return ApiError::fromHttpStatus(status, describe());
+
+    if (!job->refusedCertificate.isEmpty()) {
+        const QString why =
+            job->refusedCertificateReason.isEmpty() ? reason : job->refusedCertificateReason;
+        return ApiError::certificate(why.isEmpty() ? where
+                                                   : QStringLiteral("%1: %2").arg(where, why),
+                                     job->refusedCertificate);
+    }
 
     if (isNetworkFailure(job->networkError))
         return ApiError(ApiError::Kind::Network, describe());
