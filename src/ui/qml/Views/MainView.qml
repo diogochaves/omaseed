@@ -672,6 +672,7 @@ Item {
         case "priorityMenu":
         case "openFile":
         case "collapseAll":
+        case "hideSkipped":
             root._runInFiles(action === "priorityMenu" ? "priority" : action);
             return true;
         case "copy":

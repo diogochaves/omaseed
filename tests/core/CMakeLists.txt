@@ -173,6 +173,11 @@ omaseed_add_test(tst_statefile
     LIBRARIES omaseed::core
 )
 
+omaseed_add_test(tst_filesviewstate
+    SOURCES tst_filesviewstate.cpp
+    LIBRARIES omaseed::core
+)
+
 omaseed_add_test(tst_syncengine_fixtures
     SOURCES tst_syncengine_fixtures.cpp
     LIBRARIES omaseed::core

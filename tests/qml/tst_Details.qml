@@ -45,7 +45,9 @@ TestCase {
         // The demo keeps the same hash between cases, so the files model keeps its state:
         // start every case from the torrent's own order, unfiltered and unselected.
         const files = App.details.files;
+        App.details.rememberViewState = false;
         files.filterText = "";
+        files.hideSkipped = false;
         files.sortKey = "";
         files.sortDescending = false;
         files.clearSelection();
@@ -646,7 +648,9 @@ TestCase {
         verify(summary.visible);
         verify(!field.visible);
         compare(findChild(view, "filesSummaryCount").text, "5 files");
-        compare(findChild(view, "filesSummaryFacts").text, " · 2 folders · 3.91 GB · 2 skipped");
+        compare(findChild(view, "filesSummaryFacts").text, " · 2 folders · 3.91 GB");
+        verify(findChild(view, "filesSkippedToggle").visible);
+        compare(findChild(view, "filesSkippedText").text, "2 skipped");
         verify(findChild(view, "filesSummaryGo").visible);
         const headerY = header.mapToItem(view, 0, 0).y;
 
@@ -665,6 +669,97 @@ TestCase {
         verify(summary.visible);
         verify(!field.visible);
         compare(header.mapToItem(view, 0, 0).y, headerY);
+    }
+
+    // #9: `X` hides the skipped files (Fig. 2's two subtitles, and `subs/` with them), the
+    // summary says so, and the cursor stays on its file.
+    function test_X_hides_the_skipped_files_and_keeps_the_cursor() {
+        const view = testCase.filesView();
+        const files = App.details.files;
+        const text = findChild(view, "filesSkippedText");
+        view.filesCursor = files.rowOfPath("Big Buck Bunny 4K/LICENSE.txt");
+        compare(view.filesCursor, 6);
+
+        keyClick(Qt.Key_X, Qt.ShiftModifier);
+        verify(files.hideSkipped);
+        compare(files.count, 4);
+        compare(files.rowOfPath("Big Buck Bunny 4K/subs"), -1);
+        compare(text.text, "2 hidden");
+        compare(text.color, Theme.foreground);
+        compare(files.pathAt(view.filesCursor), "Big Buck Bunny 4K/LICENSE.txt");
+
+        // `x` alone is still skip, and the file it skips goes at once while they are hidden.
+        keyClick("x");
+        verify(files.hideSkipped);
+        compare(files.rowOfPath("Big Buck Bunny 4K/LICENSE.txt"), -1);
+        compare(text.text, "3 hidden");
+
+        keyClick(Qt.Key_X, Qt.ShiftModifier);
+        verify(!files.hideSkipped);
+        compare(files.count, 7);
+        compare(text.text, "3 skipped");
+        compare(text.color, Theme.dimForeground);
+    }
+
+    // #9: the file menu carries the switch too, worded for the way it will go.
+    function test_the_file_menu_hides_and_shows_the_skipped_files() {
+        const view = testCase.filesView();
+        const files = App.details.files;
+        view.openFileMenu(-1, -1);
+        verify(view.editing, "enter did not open the file menu");
+        // A menu runs a row by the key's text, which is "X" with shift held.
+        keyClick("X");
+        verify(files.hideSkipped);
+        verify(!view.editing);
+        view.openFileMenu(-1, -1);
+        keyClick("X");
+        verify(!files.hideSkipped);
+    }
+
+    // #9: everything skipped and hidden leaves an empty list that says why.
+    function test_every_file_skipped_and_hidden_says_so() {
+        const view = testCase.filesView();
+        const files = App.details.files;
+        const note = findChild(view, "filesAllSkipped");
+        files.setLocalPriority([0, 1, 2, 3, 4], 0);
+        keyClick(Qt.Key_X, Qt.ShiftModifier);
+        compare(files.count, 0);
+        verify(note.visible);
+        compare(note.text, "every file is skipped · X shows them");
+        keyClick(Qt.Key_X, Qt.ShiftModifier);
+        verify(!note.visible);
+        App.loadDemo(16); // the priorities back as the demo has them
+    }
+
+    // #9: with rememberViewState on (a real run), each torrent gets its own filter back. The
+    // test run's XDG_CONFIG_HOME is a throwaway folder, so this state.json is not anyone's.
+    function test_each_torrent_gets_its_files_filter_back() {
+        const view = testCase.filesView();
+        const files = App.details.files;
+        const bbb = testCase.hashOf(testCase.bbbName);
+        const arch = testCase.hashOf(testCase.archName);
+        App.details.rememberViewState = true;
+
+        keyClick("/");
+        keyClick("s");
+        keyClick("r");
+        keyClick("t");
+        keyClick(Qt.Key_Return);
+        compare(files.filterText, "srt");
+
+        App.selectTorrent(arch);
+        compare(files.filterText, "");
+        verify(!findChild(view, "filesFilter").visible);
+
+        App.selectTorrent(bbb);
+        compare(files.filterText, "srt");
+        compare(files.matchCount, 2);
+        verify(findChild(view, "filesFilter").visible, "the restored filter is not on screen");
+        compare(findChild(view, "filesFilter").text, "srt");
+
+        // Leave nothing behind for the next cases.
+        files.filterText = "";
+        App.details.rememberViewState = false;
     }
 
     // docs/12 F2: one file has nothing to filter; `/` says so instead of opening a field.

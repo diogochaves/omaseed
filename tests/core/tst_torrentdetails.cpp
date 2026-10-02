@@ -3,15 +3,19 @@
 // models at once, and the share limit it has to fetch from the torrent row because
 // torrents/properties does not carry it.
 
+#include "core/FilesViewState.hpp"
 #include "core/Format.hpp"
+#include "core/StateFile.hpp"
 #include "core/TorrentDetails.hpp"
 #include "core/TorrentModel.hpp"
 
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QSignalSpy>
+#include <QTemporaryDir>
 #include <QTest>
 
 using omaseed::core::TorrentDetails;
@@ -60,6 +64,8 @@ private Q_SLOTS:
     void apply_demo_fills_every_model();
     void selecting_another_torrent_clears_everything();
     void nothing_polls_without_a_client();
+    void each_torrent_gets_its_files_filter_back();
+    void without_remembering_nothing_is_written();
 };
 
 void TestTorrentDetails::general_tab_strings_from_a_recorded_properties()
@@ -341,6 +347,102 @@ void TestTorrentDetails::nothing_polls_without_a_client()
 
     details.setHash(QString());
     QCOMPARE(details.hash(), QString());
+}
+
+namespace {
+
+/// Points XDG_CONFIG_HOME at a throwaway folder for one test, and back afterwards.
+class ConfigHome
+{
+public:
+    ConfigHome()
+        : m_previous(qgetenv("XDG_CONFIG_HOME"))
+    {
+        qputenv("XDG_CONFIG_HOME", m_dir.path().toUtf8());
+    }
+    ~ConfigHome()
+    {
+        if (m_previous.isNull())
+            qunsetenv("XDG_CONFIG_HOME");
+        else
+            qputenv("XDG_CONFIG_HOME", m_previous);
+    }
+    ConfigHome(const ConfigHome &) = delete;
+    ConfigHome &operator=(const ConfigHome &) = delete;
+
+private:
+    QTemporaryDir m_dir;
+    QByteArray m_previous;
+};
+
+} // namespace
+
+// #9: with rememberViewState on, a filter typed for one torrent comes back when that torrent
+// is selected again, another torrent starts with its own (or none), and hideSkipped is kept.
+void TestTorrentDetails::each_torrent_gets_its_files_filter_back()
+{
+    const ConfigHome home;
+    namespace FilesViewState = omaseed::core::FilesViewState;
+    FilesViewState::setHideSkipped(true);
+
+    const auto fig = [](const QString &hash) {
+        return demoFor(hash,
+                       QStringLiteral("properties-fig1.json"),
+                       QStringLiteral("files-fig2.json"),
+                       QStringLiteral("trackers-fig3.json"),
+                       QStringLiteral("peers-full.json"));
+    };
+
+    {
+        TorrentDetails details;
+        details.applyDemo(fig(QStringLiteral("deadbeef")));
+        details.setRememberViewState(true);
+        QVERIFY(details.files()->hideSkipped());
+        details.files()->setFilterText(QStringLiteral("mp4"));
+
+        // Another torrent: its own filter (none yet), and the first one is kept.
+        details.applyDemo(fig(QStringLiteral("cafebabe")));
+        QCOMPARE(details.files()->filterText(), QString());
+        QCOMPARE(FilesViewState::filterFor(QStringLiteral("deadbeef")), QStringLiteral("mp4"));
+        details.files()->setFilterText(QStringLiteral("srt"));
+
+        // Back: "mp4" again, already applied to the rows (hidden skipped files too).
+        details.applyDemo(fig(QStringLiteral("deadbeef")));
+        QCOMPARE(details.files()->filterText(), QStringLiteral("mp4"));
+        QCOMPARE(details.files()->matchCount(), 2);
+        QCOMPARE(FilesViewState::filterFor(QStringLiteral("cafebabe")), QStringLiteral("srt"));
+
+        // Through setHash as well (the real path), and hideSkipped turned off is saved.
+        details.setHash(QStringLiteral("cafebabe"));
+        QCOMPARE(details.files()->filterText(), QStringLiteral("srt"));
+        details.files()->setHideSkipped(false);
+        QVERIFY(!FilesViewState::hideSkipped());
+
+        // A filter still waiting for its timer when the pane goes away is written then.
+        details.files()->setFilterText(QStringLiteral("LICENSE"));
+    }
+    QCOMPARE(FilesViewState::filterFor(QStringLiteral("cafebabe")), QStringLiteral("LICENSE"));
+}
+
+// Off (demos, tests, the default): the models behave as before and state.json is not touched.
+void TestTorrentDetails::without_remembering_nothing_is_written()
+{
+    const ConfigHome home;
+    TorrentDetails details;
+    QVERIFY(!details.rememberViewState());
+    details.applyDemo(demoFor(QStringLiteral("deadbeef"),
+                              QStringLiteral("properties-fig1.json"),
+                              QStringLiteral("files-fig2.json"),
+                              QStringLiteral("trackers-fig3.json"),
+                              QStringLiteral("peers-full.json")));
+    details.files()->setFilterText(QStringLiteral("mp4"));
+    details.files()->setHideSkipped(true);
+    details.setHash(QStringLiteral("cafebabe"));
+    QCOMPARE(details.files()->filterText(), QString());
+    details.setHash(QStringLiteral("deadbeef"));
+    QCOMPARE(details.files()->filterText(), QString());
+    QTest::qWait(1000); // past the save timer's delay
+    QVERIFY(!QFileInfo::exists(omaseed::core::StateFile::path()));
 }
 
 QTEST_MAIN(TestTorrentDetails)

@@ -65,6 +65,9 @@ private Q_SLOTS:
     void the_filter_takes_wildcards_and_alternatives_data();
     void the_filter_takes_wildcards_and_alternatives();
     void a_wildcard_filter_keeps_the_folders_of_a_match();
+    void hiding_skipped_files_drops_them_and_their_empty_folders();
+    void a_priority_change_hides_or_shows_a_file_at_once();
+    void hiding_skipped_files_is_a_preference_not_the_torrents();
 };
 
 void TestTorrentFilesModel::builds_the_tree_from_slash_separated_names()
@@ -808,6 +811,104 @@ void TestTorrentFilesModel::a_wildcard_filter_keeps_the_folders_of_a_match()
     model.setFilterText(QStringLiteral("subs/"));
     QCOMPARE(model.matchCount(), 2);
     QCOMPARE(model.count(), 4);
+}
+
+// #9: hiding the skipped files takes Fig. 2's two subtitles out, and with them `subs/`,
+// which holds nothing else. The summary still counts them; the folds are left alone.
+void TestTorrentFilesModel::hiding_skipped_files_drops_them_and_their_empty_folders()
+{
+    TorrentFilesModel model;
+    QAbstractItemModelTester tester(&model, QAbstractItemModelTester::FailureReportingMode::QtTest);
+    model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
+    QCOMPARE(model.count(), 7);
+    QSignalSpy hide(&model, &TorrentFilesModel::hideSkippedChanged);
+    QSignalSpy count(&model, &TorrentFilesModel::countChanged);
+
+    model.setHideSkipped(true);
+    QCOMPARE(hide.count(), 1);
+    QVERIFY(count.count() >= 1);
+    QCOMPARE(model.count(), 4);
+    QCOMPARE(model.rowOfPath(QStringLiteral("Big Buck Bunny 4K/subs")), -1);
+    QCOMPARE(model.rowOfPath(QStringLiteral("Big Buck Bunny 4K/subs/bbb.en.srt")), -1);
+    QCOMPARE(model.matchCount(), 3);
+    QCOMPARE(model.skippedCount(), 2);
+    QCOMPARE(model.fileCount(), 5);
+    // The root folder acts on the files it shows, as it does under a typed filter.
+    QCOMPARE(model.fileIndexes(0), (QVariantList{0, 1, 4}));
+    model.selectAllFiles();
+    QCOMPARE(model.targetFileIndexes(0), (QVariantList{0, 1, 4}));
+    model.clearSelection();
+
+    // Unlike a typed filter it keeps the folds: a folded root stays folded.
+    model.setExpanded(0, false);
+    QCOMPARE(model.count(), 1);
+    model.setHideSkipped(false);
+    QCOMPARE(model.count(), 1);
+    model.setExpanded(0, true);
+    QCOMPARE(model.count(), 7);
+
+    // With a typed filter on top, both apply: "srt" finds only skipped files.
+    model.setHideSkipped(true);
+    model.setFilterText(QStringLiteral("srt"));
+    QCOMPARE(model.count(), 0);
+    QCOMPARE(model.matchCount(), 0);
+    model.setHideSkipped(false);
+    QCOMPARE(model.count(), 4); // the root, subs/ and the two subtitles
+}
+
+// A file skipped while they are hidden goes at once; one raised from skip comes back, and
+// so does a change the 2 s poll brings from elsewhere.
+void TestTorrentFilesModel::a_priority_change_hides_or_shows_a_file_at_once()
+{
+    TorrentFilesModel model;
+    QAbstractItemModelTester tester(&model, QAbstractItemModelTester::FailureReportingMode::QtTest);
+    const QJsonArray files = fixture(QStringLiteral("files-fig2.json"));
+    model.applyFiles(files);
+    model.setHideSkipped(true);
+    QCOMPARE(model.count(), 4);
+
+    QSignalSpy count(&model, &TorrentFilesModel::countChanged);
+    model.setLocalPriority({1}, int(FilePriority::Skip));
+    QCOMPARE(model.count(), 3);
+    QCOMPARE(model.rowOfPath(QStringLiteral("Big Buck Bunny 4K/bbb_sunflower_1080p_30fps.mp4")),
+             -1);
+    QCOMPARE(model.matchCount(), 2);
+    QVERIFY(count.count() >= 1);
+
+    model.setLocalPriority({2}, int(FilePriority::Normal));
+    QVERIFY(model.rowOfPath(QStringLiteral("Big Buck Bunny 4K/subs")) >= 0);
+    QVERIFY(model.rowOfPath(QStringLiteral("Big Buck Bunny 4K/subs/bbb.en.srt")) >= 0);
+    QCOMPARE(model.rowOfPath(QStringLiteral("Big Buck Bunny 4K/subs/bbb.pt.srt")), -1);
+
+    // The poll: the server says LICENSE.txt is skipped now, and the rest as the fixture has it.
+    QJsonArray polled = files;
+    QJsonObject license = polled.at(4).toObject();
+    license.insert(QStringLiteral("priority"), 0);
+    polled.replace(4, license);
+    count.clear();
+    model.applyFiles(polled);
+    QCOMPARE(model.rowOfPath(QStringLiteral("Big Buck Bunny 4K/LICENSE.txt")), -1);
+    QCOMPARE(model.rowOfPath(QStringLiteral("Big Buck Bunny 4K/subs")), -1);
+    QCOMPARE(model.count(), 3); // the root and the two films
+    QCOMPARE(model.matchCount(), 2);
+    QVERIFY(count.count() >= 1);
+}
+
+// clear() is another torrent: the typed filter goes, hideSkipped stays (like the sort).
+void TestTorrentFilesModel::hiding_skipped_files_is_a_preference_not_the_torrents()
+{
+    TorrentFilesModel model;
+    model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
+    model.setHideSkipped(true);
+    QSignalSpy hide(&model, &TorrentFilesModel::hideSkippedChanged);
+    model.setHideSkipped(true);
+    QCOMPARE(hide.count(), 0);
+
+    model.clear();
+    QVERIFY(model.hideSkipped());
+    model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
+    QCOMPARE(model.count(), 4);
+    QCOMPARE(hide.count(), 0);
 }
 
 QTEST_MAIN(TestTorrentFilesModel)

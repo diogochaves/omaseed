@@ -122,7 +122,7 @@ TestCase {
 
         const view = Keymap.helpRows("view");
         compare(view.map(row => row.helpKeys), ["i", "1–4", "s", "|", "alt+↑ alt+↓", "ctrl+b", "I",
-                                                "< >", "H L"]);
+                                                "< >", "H L", "X"]);
 
         const application = Keymap.helpRows("app");
         compare(application.map(row => row.helpKeys), ["A", ", ctrl+,", "ctrl+shift+,", "ctrl+.",

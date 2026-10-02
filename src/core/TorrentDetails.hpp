@@ -22,6 +22,11 @@
 //
 // applyDemo() is the door for `--demo details` and for the QML tests: it fills the same
 // models and the same `properties` from a JSON object, with no client and no timers.
+//
+// With `rememberViewState` on (App turns it on for a real run; demos and tests leave it off,
+// so they never write state.json), the Files tab keeps what #9 asks for through
+// FilesViewState: each torrent's filter, put back when that torrent is selected again, and
+// the hide-skipped preference.
 
 #include "core/ApiError.hpp"
 #include "core/TorrentFilesModel.hpp"
@@ -72,6 +77,8 @@ class TorrentDetails : public QObject
     Q_PROPERTY(int piecesHaveCount READ piecesHaveCount NOTIFY pieceStatesChanged)
     /// Empty while the polls are going through; the last failure's message otherwise.
     Q_PROPERTY(QString lastError READ lastError NOTIFY lastErrorChanged)
+    Q_PROPERTY(bool rememberViewState READ rememberViewState WRITE setRememberViewState NOTIFY
+                   rememberViewStateChanged)
 
 public:
     explicit TorrentDetails(QObject *parent = nullptr);
@@ -94,6 +101,11 @@ public:
 
     /// Selects a torrent; an empty hash clears the pane. Polls once straight away.
     void setHash(const QString &hash);
+
+    bool rememberViewState() const { return m_rememberViewState; }
+    /// On: reads hideSkipped and this torrent's filter from state.json now, and keeps both
+    /// there from then on.
+    void setRememberViewState(bool remember);
     /// The Peers tab is the one on show, so sync/torrentPeers is worth asking for.
     void setPeersActive(bool active);
     /// The General tab is the one on show, so torrents/pieceStates is worth asking for
@@ -124,10 +136,15 @@ Q_SIGNALS:
     void hasTrackerErrorChanged();
     void pieceStatesChanged();
     void lastErrorChanged();
+    void rememberViewStateChanged();
     /// One poll cycle of properties + files + trackers came back (for the live tests).
     void refreshed();
 
 private:
+    /// Empties the tab models for `hash`, keeping the Files filter of the torrent being left
+    /// and putting back the one remembered for `hash` (with rememberViewState).
+    void switchModels(const QString &hash);
+    void saveFilesFilter();
     void poll();
     void pollPeers();
     void pollPieceStates();
@@ -150,6 +167,10 @@ private:
 
     QTimer *m_timer = nullptr;
     QTimer *m_peersTimer = nullptr;
+    /// Typing a filter writes state.json once it rests, not on every key.
+    QTimer *m_filterSaveTimer = nullptr;
+    /// The hash whose filter the Files model holds, saved under it.
+    QString m_filterHash;
 
     QString m_hash;
     QJsonObject m_rawProperties;
@@ -163,7 +184,9 @@ private:
     bool m_demo = false;
     bool m_errorLogged = false;
     bool m_trackerError = false;
-    bool m_gone = false; ///< the server answered 404 for m_hash: deleted under the pane
+    bool m_rememberViewState = false;
+    bool m_switching = false; ///< switchModels() is clearing and refilling the Files filter
+    bool m_gone = false;      ///< the server answered 404 for m_hash: deleted under the pane
 };
 
 } // namespace omaseed::core

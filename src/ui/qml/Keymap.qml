@@ -1210,6 +1210,17 @@ QtObject {
             "helpKeys": "",
             "help": ""
         },
+        {
+            "area": "details",
+            "key": "X",
+            "action": "hideSkipped",
+            "label": qsTr("hide skipped"),
+            "column": "view",
+            "rank": 11,
+            "helpKeys": "X",
+            "help": qsTr("hide skipped files"),
+            "about": qsTr("In the Files tab: hide the files set to skip, or show them again")
+        },
 
         // search field ---------------------------------------------------------------
         {
