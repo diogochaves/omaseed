@@ -123,9 +123,11 @@ Result install(const QString &source, const QString &target)
         return result;
     }
 
-    // Copy beside the target, then swap: a failed copy never leaves half a plugin behind.
-    const QString staging = target + QStringLiteral(".new");
-    const QString previous = target + QStringLiteral(".old");
+    // Copy beside the target, then swap: a failed copy never leaves half a plugin behind. The
+    // shell watches the plugins folder and loads every folder in it, so both helpers are hidden
+    // names, as `omarchy plugin add` stages its clone (`.add.tmp.N`).
+    const QString staging = QDir(parent).filePath(QStringLiteral(".%1.new").arg(targetInfo.fileName()));
+    const QString previous = QDir(parent).filePath(QStringLiteral(".%1.old").arg(targetInfo.fileName()));
     QDir(staging).removeRecursively();
     QDir(previous).removeRecursively();
     QString error;

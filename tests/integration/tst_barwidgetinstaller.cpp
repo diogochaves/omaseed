@@ -46,6 +46,13 @@ QString makePlugin(const QString &root, const QByteArray &version)
     return dir;
 }
 
+/// Everything in the folder that holds `target`, hidden entries included: after an install it
+/// is the plugin alone, no staging or old copy left for the shell to find.
+QStringList besideTarget(const QString &target)
+{
+    return QFileInfo(target).dir().entryList(QDir::AllEntries | QDir::Hidden | QDir::NoDotAndDotDot);
+}
+
 } // namespace
 
 class TestBarWidgetInstaller : public QObject
@@ -156,8 +163,7 @@ void TestBarWidgetInstaller::installsARealCopy()
                  QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ReadOther);
     }
     QCOMPARE(readFile(target + QStringLiteral("/Widget.qml")), QByteArray("Item {}"));
-    QVERIFY(!QFileInfo::exists(target + QStringLiteral(".new")));
-    QVERIFY(!QFileInfo::exists(target + QStringLiteral(".old")));
+    QCOMPARE(besideTarget(target), QStringList{QStringLiteral("chaves.omaseed")});
 }
 
 void TestBarWidgetInstaller::replacesAnOlderCopyWhole()
@@ -172,7 +178,7 @@ void TestBarWidgetInstaller::replacesAnOlderCopyWhole()
     QVERIFY(result.message.startsWith(QStringLiteral("Updated")));
     QCOMPARE(readFile(target + QStringLiteral("/manifest.json")), QByteArray("{\"version\": \"1\"}"));
     QVERIFY(!QFileInfo::exists(target + QStringLiteral("/Gone.qml")));
-    QVERIFY(!QFileInfo::exists(target + QStringLiteral(".old")));
+    QCOMPARE(besideTarget(target), QStringList{QStringLiteral("chaves.omaseed")});
 }
 
 void TestBarWidgetInstaller::symlinksAreCopiedAsFiles()

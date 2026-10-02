@@ -38,7 +38,8 @@ struct Result
 };
 
 /// Copies every regular file under `source` into `target` (files 0644, folders 0755), through
-/// a sibling folder that replaces `target` only once the copy is complete. Symlinks in
+/// a hidden sibling folder (the shell ignores dot-folders) that replaces `target` only once the
+/// copy is complete. Symlinks in
 /// `source` are copied as the files they point at. Refuses a `target` that is a git checkout.
 Result install(const QString &source, const QString &target);
 
