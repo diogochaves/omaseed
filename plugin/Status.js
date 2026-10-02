@@ -211,18 +211,20 @@ function shareFacts(status) {
 }
 
 // Keeping alive, from the per-seed buckets up to `threshold` seeds:
-//   held, onlyYou (1 seed), plusOne (2 seeds), waiting, quiet, and the rarest
+//   held, onlyYou (1 seed), plusOne (2 seeds), waiting (torrents), peers (people waiting),
+//   quiet, and the rarest
 //   rows under the threshold, at most three.
 function alive(status, threshold) {
   var a = obj(status && status.alive)
   var buckets = list(a.buckets)
-  var out = { threshold: threshold, held: 0, onlyYou: 0, plusOne: 0, waiting: 0, quiet: 0, rows: [] }
+  var out = { threshold: threshold, held: 0, onlyYou: 0, plusOne: 0, waiting: 0, peers: 0, quiet: 0, rows: [] }
   for (var i = 0; i < buckets.length; i++) {
     var b = obj(buckets[i])
     var seeds = num(b.seeds)
     if (seeds < 1 || seeds > threshold) continue
     out.held += num(b.count)
     out.waiting += num(b.waiting)
+    out.peers += num(b.peers)
     out.quiet += num(b.quiet)
     if (seeds === 1) out.onlyYou += num(b.count)
     if (seeds === 2) out.plusOne += num(b.count)

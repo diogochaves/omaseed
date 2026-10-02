@@ -1140,7 +1140,7 @@ Panel {
           model: [
             { n: root.aliveInfo.onlyYou, words: "only you" },
             { n: root.aliveInfo.plusOne, words: "you + one" },
-            { n: root.aliveInfo.waiting, words: "with peers waiting" },
+            { n: root.aliveInfo.peers, words: "peers waiting" },
             { n: root.aliveInfo.quiet, words: "nobody has asked for in a month" }
           ]
           delegate: Rectangle {

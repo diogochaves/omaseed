@@ -230,8 +230,10 @@ void TestStatusDigest::aliveBucketsBySwarmSeeds()
     QCOMPARE(bucket(1, "seeds"), 1);
     QCOMPARE(bucket(1, "count"), 2);
     QCOMPARE(bucket(1, "waiting"), 1);
+    QCOMPARE(bucket(1, "peers"), 2);
     QCOMPARE(bucket(2, "count"), 1);
     QCOMPARE(bucket(2, "waiting"), 1);
+    QCOMPARE(bucket(2, "peers"), 1);
     QCOMPARE(bucket(3, "count"), 0);
     QCOMPARE(bucket(5, "count"), 1);
 }

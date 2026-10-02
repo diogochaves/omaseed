@@ -75,9 +75,11 @@ a schema change is one commit touching both sides. Design: `docs/20-companion-wi
   // its `rareSeeds` option.
   //   count    torrents in the bucket
   //   waiting  of those, the ones with peers waiting (num_incomplete > 0)
+  //   peers    the peers waiting on them, added up (num_incomplete)
   //   quiet    of those, the ones nobody has touched in 30 days (last_activity)
   "alive": {
-    "buckets": [ { "seeds": 1, "count": 4, "waiting": 1, "quiet": 2 } ],
+    "buckets": [ { "seeds": 1, "count": 4, "waiting": 1, "peers": 9,
+                   "quiet": 2 } ],
     // up to 6 rows with 5 seeds or fewer, rarest first: seeds ascending, then waiting
     // descending. The widget keeps the ones under its threshold and shows three.
     "rows": [ { "hash": "…", "name": "…", "seeds": 1, "waiting": 3 } ]

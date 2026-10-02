@@ -66,6 +66,7 @@ QJsonObject alive(const QList<Torrent> &torrents, const QDateTime &now)
     {
         int count = 0;
         int waiting = 0;
+        int peers = 0;
         int quiet = 0;
     };
     Bucket buckets[kBucketCount];
@@ -81,6 +82,7 @@ QJsonObject alive(const QList<Torrent> &torrents, const QDateTime &now)
         ++bucket.count;
         if (torrent.numIncomplete > 0)
             ++bucket.waiting;
+        bucket.peers += torrent.numIncomplete;
         if (isQuiet(torrent, now))
             ++bucket.quiet;
         rare.append(&torrent);
@@ -100,6 +102,7 @@ QJsonObject alive(const QList<Torrent> &torrents, const QDateTime &now)
             {QStringLiteral("seeds"), i + 1},
             {QStringLiteral("count"), buckets[i].count},
             {QStringLiteral("waiting"), buckets[i].waiting},
+            {QStringLiteral("peers"), buckets[i].peers},
             {QStringLiteral("quiet"), buckets[i].quiet},
         });
     }

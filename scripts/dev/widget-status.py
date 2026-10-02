@@ -43,11 +43,11 @@ def base(now):
         "week": [{"day": time.strftime("%Y-%m-%d", time.localtime(now - (6 - i) * 86400)), "up": int(u * G)}
                  for i, u in enumerate([9.1, 14.8, 10.2, 19.7, 13.3, 22.5, 18.1])],
         "alive": {
-            "buckets": [{"seeds": 1, "count": 2, "waiting": 11, "quiet": 1},
-                        {"seeds": 2, "count": 5, "waiting": 30, "quiet": 2},
-                        {"seeds": 3, "count": 9, "waiting": 6, "quiet": 0},
-                        {"seeds": 4, "count": 12, "waiting": 3, "quiet": 4},
-                        {"seeds": 5, "count": 7, "waiting": 1, "quiet": 0}],
+            "buckets": [{"seeds": 1, "count": 2, "waiting": 2, "peers": 11, "quiet": 1},
+                        {"seeds": 2, "count": 5, "waiting": 3, "peers": 30, "quiet": 2},
+                        {"seeds": 3, "count": 9, "waiting": 2, "peers": 6, "quiet": 0},
+                        {"seeds": 4, "count": 12, "waiting": 1, "peers": 3, "quiet": 4},
+                        {"seeds": 5, "count": 7, "waiting": 1, "peers": 1, "quiet": 0}],
             "rows": [{"hash": "a1", "name": "Prelinger Archives: Duck and Cover (1951)", "seeds": 1, "waiting": 9},
                      {"hash": "a2", "name": "debian-3.0r0-i386-binary-1.iso", "seeds": 1, "waiting": 2},
                      {"hash": "a3", "name": "Field Recordings Vol. 3 [FLAC]", "seeds": 2, "waiting": 14},

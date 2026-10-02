@@ -24,8 +24,8 @@ TestCase {
             uploadHour: [0, 0, 1200],
             week: [{ day: "2026-09-26", up: 10 }, { day: "2026-10-02", up: 20 }],
             alive: {
-                buckets: [{ seeds: 1, count: 2, waiting: 11, quiet: 1 }, { seeds: 2, count: 5, waiting: 30, quiet: 2 },
-                          { seeds: 3, count: 9, waiting: 4, quiet: 0 }],
+                buckets: [{ seeds: 1, count: 2, waiting: 2, peers: 11, quiet: 1 }, { seeds: 2, count: 5, waiting: 3, peers: 30, quiet: 2 },
+                          { seeds: 3, count: 9, waiting: 1, peers: 4, quiet: 0 }],
                 rows: [{ hash: "a", name: "Prelinger", seeds: 1, waiting: 9 }, { hash: "b", name: "debian", seeds: 1, waiting: 2 },
                        { hash: "c", name: "Field", seeds: 2, waiting: 14 }, { hash: "d", name: "three", seeds: 3, waiting: 40 }]
             },
@@ -123,7 +123,8 @@ TestCase {
         compare(a.held, 7);
         compare(a.onlyYou, 2);
         compare(a.plusOne, 5);
-        compare(a.waiting, 41);
+        compare(a.waiting, 5);
+        compare(a.peers, 41);
         compare(a.quiet, 3);
         compare(a.rows.length, 3);
         compare(a.rows[0].name, "Prelinger");
