@@ -189,5 +189,6 @@ busctl --user call io.github.diogochaves.omaseed /io/github/diogochaves/omaseed 
 ## The heartbeat
 
 The widget touches `$XDG_RUNTIME_DIR/omaseed/widget.alive` every 30 s (creating it the first
-time) and removes it when it unloads. While that file is under 90 s old, omaseed's tray icon
+time). It does not remove it when it unloads: a bar has one widget per monitor, and one unloading
+must not bring the tray icon back while another runs. A file nobody touches goes stale. While that file is under 90 s old, omaseed's tray icon
 mode "auto" hides the tray icon (contract Q7); it is back within 90 s of the last touch.
