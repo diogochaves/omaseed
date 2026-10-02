@@ -60,6 +60,8 @@ Panel {
   function openPanel() {
     if (service) service.now = Date.now() / 1000
     root.controller.show()
+    // "Added 2" answers the last add; a later opening has nothing to answer.
+    addNote = ""
     probeClipboard()
     Qt.callLater(function() {
       if (root.opened) setCenterHoverRevealSuppressed(true)
