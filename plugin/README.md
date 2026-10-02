@@ -12,12 +12,19 @@ running it says so and offers to start it.
 
 ## Install
 
+The widget comes with omaseed: the package installs it at `/usr/share/omaseed/plugin/`.
+omaseed's first run offers to put it in the bar, and Settings › Appearance › Bar widget
+switches it on and off. From a terminal:
+
 ```
-omarchy plugin add https://github.com/diogochaves/omaseed-bar.git --enable
+omaseed --install-bar-widget
 ```
 
-With the omaseed package installed, `omaseed --install-bar-widget` copies the copy it
-ships into `~/.config/omarchy/plugins/chaves.omaseed/` and prints the line that enables it.
+Each of these links `~/.config/omarchy/plugins/chaves.omaseed` to the installed widget and
+enables it (`omarchy plugin enable chaves.omaseed`). Because it is a link, upgrading omaseed
+upgrades the widget with it, so the two always agree on the status file. `omarchy update`
+restarts the shell after the packages, which is when the bar picks up the new widget; after a
+bare `pacman -Syu`, run `omarchy restart shell` or log in again.
 
 While the widget runs, omaseed hides its own tray icon (Settings › Appearance › Tray icon:
 auto). Remove the widget and the icon is back within 90 s.

@@ -26,6 +26,7 @@ How the documents relate:
 | Q11 | No settings view in the popup. The gear opens omaseed's settings, and the six-plus options go through the shell's manifest form. |
 | Q12 | No status-schema compatibility. An unknown `v` reads as "app not running". |
 | Timing | Built before v0.1.0, and ships with it. Not started until Diogo says go. |
+| Install | Ruled after the build (2026-10-02): **the widget is part of the install**, not a separate repository. The package ships it at `/usr/share/omaseed/plugin`; first run offers it (a fourth step, "bar") and Settings › Appearance switches it; both link `~/.config/omarchy/plugins/chaves.omaseed` to the packaged folder, so app and widget always upgrade together. The `omaseed-bar` repository and the marketplace listing are parked. |
 | C1 | The bar shows **the mark only** out of the box. |
 | C2 | The mark's lit arrows default to **blue in, green out**. |
 | C3 | Sections open the first time: **Add, In flight**. Folded the first time: Your share, Keeping alive, Lately. Afterwards the widget remembers how they were left. |

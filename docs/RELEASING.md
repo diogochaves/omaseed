@@ -55,10 +55,16 @@ this file is the order to run them in and what to check by hand around them.
    `main` after step 6, the one with the checksum. Builds there run only for
    collaborators, people in `.github/VOUCHED.td`, or a PR a maintainer labels
    `build-approved`; opening the PR is necessary but not sufficient for it to build.
-8. **The bar widget (#17).** `plugin/` is split out and pushed to its own public repository,
-   `diogochaves/omaseed-bar`, which `omarchy plugin add` clones (the About pane's copyable
-   line). The package ships the same folder at `/usr/share/omaseed/plugin` for
-   `omaseed --install-bar-widget`.
+8. **The bar widget (#17).** Nothing to do for a release: the widget is part of the install
+   (ruled 2026-10-02). The package ships `plugin/` at `/usr/share/omaseed/plugin`, and the app
+   links `~/.config/omarchy/plugins/chaves.omaseed` to it (first run, Settings › Appearance,
+   `omaseed --install-bar-widget`), so every package upgrade upgrades the widget. Keep
+   `"version"` in `plugin/manifest.json` equal to the app's.
+
+   **Parked: a separate repository for the marketplace.** A public `diogochaves/omaseed-bar`
+   that `omarchy plugin add` clones only matters for a marketplace listing (charter §9), and a
+   widget installed that way without the app only says "omaseed is not running". If it is ever
+   wanted, the steps below are ready.
    - **Once, with Diogo's OK:** create the public repository, empty (no README, licence or
      .gitignore: the split brings its own).
      ```
