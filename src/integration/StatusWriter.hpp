@@ -51,7 +51,8 @@ public:
     explicit StatusWriter(QObject *parent = nullptr);
     ~StatusWriter() override;
 
-    /// "$XDG_RUNTIME_DIR/omaseed/status.json" (Qt's runtime location when it is unset).
+    /// "$XDG_RUNTIME_DIR/omaseed/status.json" (Qt's runtime location, then the temporary
+    /// directory, when it is unset).
     static QString defaultPath();
     /// Where the file goes; the default until set. Tests point it into a temporary directory.
     void setPath(const QString &path);

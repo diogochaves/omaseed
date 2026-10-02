@@ -56,7 +56,13 @@ StatusWriter::~StatusWriter() = default;
 
 QString StatusWriter::defaultPath()
 {
-    const QString runtime = QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation);
+    // $XDG_RUNTIME_DIR itself, which is where the widget looks: Qt's RuntimeLocation refuses a
+    // runtime directory that is not 0700 (an omabox's is 0755) and gives nothing at all.
+    QString runtime = qEnvironmentVariable("XDG_RUNTIME_DIR");
+    if (runtime.isEmpty())
+        runtime = QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation);
+    if (runtime.isEmpty())
+        runtime = QDir::tempPath();
     return runtime + QStringLiteral("/omaseed/status.json");
 }
 
