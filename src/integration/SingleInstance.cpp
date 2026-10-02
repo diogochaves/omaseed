@@ -97,11 +97,11 @@ public slots:
                         const QVariantList &parameter,
                         const QVariantMap &platform_data)
     {
-        // No actions are published: the tray and the notices talk to the running process
-        // directly. Accepting and ignoring keeps us spec-compliant.
-        Q_UNUSED(action_name);
+        // "settings" (the bar widget's gear, docs/20 §3) is the one action; any other name is
+        // accepted and ignored, as the spec allows. The tray and the notices talk to the
+        // running process directly.
         Q_UNUSED(parameter);
-        Q_UNUSED(platform_data);
+        m_owner->handleActivateAction(action_name, platform_data);
     }
 
 private:
@@ -374,6 +374,16 @@ void SingleInstance::handleActivate(const QVariantMap &platformData)
 {
     m_lastActivationToken = activationTokenFrom(platformData);
     emit activateRequested();
+}
+
+void SingleInstance::handleActivateAction(const QString &name, const QVariantMap &platformData)
+{
+    if (name != QLatin1String("settings")) {
+        qCInfo(lcInstance).noquote() << QStringLiteral("unknown action %1 ignored").arg(name);
+        return;
+    }
+    m_lastActivationToken = activationTokenFrom(platformData);
+    emit actionRequested(name);
 }
 
 void SingleInstance::handleOpen(const QStringList &uris, const QVariantMap &platformData)

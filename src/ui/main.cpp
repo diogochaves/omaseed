@@ -10,12 +10,14 @@
 #include "integration/AppIdentity.hpp"
 #include "integration/Notifier.hpp"
 #include "integration/SingleInstance.hpp"
+#include "integration/StatusBus.hpp"
 #include "integration/Theme.hpp"
 #include "integration/ThemeReader.hpp"
 #include "integration/Tray.hpp"
 #include "integration/WidgetHeartbeat.hpp"
 #include "integration/Xdg.hpp"
 #include "ui/app/App.hpp"
+#include "ui/app/StatusService.hpp"
 
 #include <QApplication>
 #include <QCommandLineOption>
@@ -587,15 +589,29 @@ int main(int argc, char *argv[])
     // MainView opens `Views/AddSheet.qml` on it.
     // --- end T4.2 ---
 
-    // --- #14: the companion bar widget's heartbeat ---
-    // While the bar widget's heartbeat is fresh, the tray icon mode "auto" hides the tray icon
-    // (WidgetHeartbeat). A demo leaves the runtime directory alone.
+    // --- #13, #14: the companion bar widget ---
+    // The widget acts through io.github.diogochaves.omaseed.Status on the app's object path
+    // (StatusBus, StatusService) and its gear through ActivateAction("settings"). While its
+    // heartbeat is fresh, the tray icon mode "auto" hides the tray icon (WidgetHeartbeat). A
+    // demo owns no bus name and leaves the runtime directory alone.
+    omaseed::app::StatusService statusService(&omaseedApp);
     std::unique_ptr<omaseed::integration::WidgetHeartbeat> heartbeat;
     if (demo.isEmpty()) {
+        omaseed::integration::StatusBus::exportOn(
+            singleInstance, singleInstance->connection(), &statusService);
         heartbeat = std::make_unique<omaseed::integration::WidgetHeartbeat>();
         omaseedApp.attachWidgetHeartbeat(heartbeat.get());
     }
-    // --- end #14 ---
+    QObject::connect(
+        &statusService, &omaseed::app::StatusService::raiseRequested, &app, showWindow);
+    QObject::connect(singleInstance,
+                     &omaseed::integration::SingleInstance::actionRequested,
+                     &omaseedApp,
+                     [&omaseedApp](const QString &name) {
+                         if (name == QLatin1String("settings"))
+                             Q_EMIT omaseedApp.openSettings();
+                     });
+    // --- end #13, #14 ---
 
     const int code = QApplication::exec();
     omaseedApp.engine()->stop();

@@ -10,6 +10,8 @@ qt_add_library(omaseed-integration STATIC
     Theme.hpp
     ThemeReader.cpp
     ThemeReader.hpp
+    StatusBus.cpp
+    StatusBus.hpp
     Tray.cpp
     Tray.hpp
     WidgetHeartbeat.cpp

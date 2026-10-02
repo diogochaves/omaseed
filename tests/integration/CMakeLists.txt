@@ -45,3 +45,8 @@ omaseed_add_test(tst_widgetheartbeat
     LIBRARIES omaseed::integration
 )
 
+# #13: io.github.diogochaves.omaseed.Status on a private dbus-daemon.
+omaseed_add_test(tst_statusbus
+    SOURCES tst_statusbus.cpp
+    LIBRARIES omaseed::integration Qt6::DBus
+)

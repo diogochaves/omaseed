@@ -84,3 +84,17 @@ omaseed_add_test(tst_qbtsettings_live LIVE
     DEFINES OMASEED_QML_DIR="${PROJECT_SOURCE_DIR}/src/ui/qml"
             OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
 )
+
+# #13: the bar widget's D-Bus actions without a server (describe, demo add, window hand-offs).
+omaseed_add_test(tst_statusservice
+    SOURCES tst_statusservice.cpp
+    LIBRARIES omaseed::app omaseed::core omaseed::integration
+    DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
+)
+
+# #13: AddSources and the alt-speed calls against the :8081 playground (skips without it).
+omaseed_add_test(tst_statusservice_live LIVE
+    SOURCES tst_statusservice_live.cpp
+    LIBRARIES omaseed::app omaseed::core omaseed::integration
+    DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
+)
