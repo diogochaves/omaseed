@@ -3072,7 +3072,7 @@ void App::detectServers()
                     map.insert(QStringLiteral("detail"), candidate.detail);
                     list.append(map);
                 }
-                Q_EMIT serversDetected(list);
+                Q_EMIT serversDetected(list, m_serverDetector->runningProcesses() > 1);
             });
     m_serverDetector->start();
 }

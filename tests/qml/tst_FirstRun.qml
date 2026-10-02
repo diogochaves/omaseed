@@ -458,6 +458,27 @@ TestCase {
                 "Magnet links still open elsewhere; Settings can change that.");
     }
 
+    // Q26: more qBittorrents running than the one candidate: the done screen says where to
+    // add the rest. The answer is faked through App's own signal, as the detector sends it.
+    function test_the_done_screen_mentions_another_running_qbittorrent() {
+        const page = createTemporaryObject(pageComponent, testCase, {
+                                               "candidates": []
+                                           });
+        const another = findChild(page, "doneAnother");
+        verify(another);
+        App.serversDetected([localCandidate], false);
+        compare(page.anotherRunning, false);
+        page.skipHandler();
+        compare(page.page, "done");
+        compare(another.visible, false);
+
+        App.serversDetected([localCandidate], true);
+        compare(page.candidates.length, 1);
+        compare(page.anotherRunning, true);
+        compare(another.visible, true);
+        compare(another.text, "Another qBittorrent is running here; add it later in Settings › Servers.");
+    }
+
     // docs/14 B1: the welcome comes first on a real first run; enter moves on to step 1 and
     // esc quits, as its footer says. The search's answer is listed as it arrives.
     function test_welcome_enter_sets_up_and_esc_quits() {

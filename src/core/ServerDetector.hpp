@@ -14,6 +14,10 @@
 // after setCommandTimeoutMs), with at most one candidate: the docker container, else the
 // open port, else the running process.
 //
+// `runningProcesses()` counts every qbittorrent/qbittorrent-nox process pgrep matched, so
+// first run can say when there is more than the one it offers (Q26: a second instance with
+// its own `--profile` is never a candidate; the user adds it in Settings › Servers).
+//
 // A running process gets its Web UI port from qBittorrent's own config file (read, never
 // written): a desktop qBittorrent often has its Web UI on another port, and ships with it
 // off, which the candidate's detail then says, with where to turn it on.
@@ -57,6 +61,10 @@ public:
 
     /// Starts all three probes. Safe to call again once `finished` has fired.
     void start();
+
+    /// How many qbittorrent/qbittorrent-nox processes the process probe saw; read it once
+    /// `finished` has fired (0 before, and when pgrep found none or could not run).
+    int runningProcesses() const { return m_processCount; }
 
     /// Test-only: the TCP port to probe instead of 8080, so the test can point this at a
     /// fake `QTcpServer` on a random port rather than the real library.
@@ -117,6 +125,7 @@ private:
     QString m_dockerImage;
     QString m_dockerHostPort;
     bool m_processFound = false;
+    int m_processCount = 0;
     QString m_processName;
 };
 

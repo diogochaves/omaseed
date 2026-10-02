@@ -15,6 +15,8 @@
 #include <QTemporaryDir>
 #include <QTest>
 
+#include <utility>
+
 using namespace omaseed::core;
 
 namespace {
@@ -54,6 +56,7 @@ private slots:
     void aHangingCommandTimesOut();
     void pgrepNamesTheMatchedProcess();
     void aDesktopClientsConfigGivesItsPortAndSwitch();
+    void everyRunningProcessIsCounted();
 };
 
 void TestServerDetector::openPortIsFound()
@@ -342,6 +345,46 @@ void TestServerDetector::aDesktopClientsConfigGivesItsPortAndSwitch()
     found = detect();
     QCOMPARE(found.url, QStringLiteral("http://127.0.0.1:8080"));
     QVERIFY2(found.detail.contains(QStringLiteral("Web UI is off")), qPrintable(found.detail));
+}
+
+// Q26: two instances (the second with its own --profile) give one candidate, but the count
+// says there is another for first run to mention.
+void TestServerDetector::everyRunningProcessIsCounted()
+{
+    quint16 closedPort = 0;
+    {
+        QTcpServer probe;
+        QVERIFY(probe.listen(QHostAddress::LocalHost));
+        closedPort = probe.serverPort();
+    }
+
+    QTemporaryDir dir;
+    const QString twoCmd =
+        writeFakeCommand(dir,
+                         QStringLiteral("pgrep2.sh"),
+                         0,
+                         QStringLiteral("4242 qbittorrent-nox\n4343 qbittorrent-nox"));
+    const QString oneCmd = writeFakeCommand(
+        dir, QStringLiteral("pgrep1.sh"), 0, QStringLiteral("4242 qbittorrent-nox"));
+    const QString noCmd = writeFakeCommand(dir, QStringLiteral("nocmd.sh"), 1, QString());
+
+    ServerDetector detector;
+    detector.setConfigPaths({});
+    detector.setProbePort(closedPort);
+    detector.setProbeTimeoutMs(300);
+    detector.setDockerCommand(noCmd);
+    QCOMPARE(detector.runningProcesses(), 0);
+
+    for (const auto &[command, expected] :
+         {std::pair{twoCmd, 2}, std::pair{oneCmd, 1}, std::pair{noCmd, 0}}) {
+        detector.setPgrepCommand(command);
+        QSignalSpy spy(&detector, &ServerDetector::finished);
+        detector.start();
+        QVERIFY(spy.wait(3000));
+        QCOMPARE(detector.runningProcesses(), expected);
+        const auto candidates = spy.first().first().value<QList<DetectedServer>>();
+        QCOMPARE(candidates.size(), expected > 0 ? 1 : 0);
+    }
 }
 
 QTEST_GUILESS_MAIN(TestServerDetector)

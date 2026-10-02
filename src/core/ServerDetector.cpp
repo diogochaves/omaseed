@@ -133,6 +133,7 @@ void ServerDetector::start()
     m_dockerImage.clear();
     m_dockerHostPort.clear();
     m_processFound = false;
+    m_processCount = 0;
     m_processName.clear();
 
     startPortProbe();
@@ -231,6 +232,7 @@ void ServerDetector::startProcessProbe()
             if (output.isEmpty())
                 return;
             m_processFound = true;
+            m_processCount = int(output.count(QLatin1Char('\n'))) + 1;
             const QStringList first =
                 output.section(QLatin1Char('\n'), 0, 0).split(QLatin1Char(' '), Qt::SkipEmptyParts);
             m_processName = first.size() > 1 ? first.at(1) : QStringLiteral("qbittorrent-nox");

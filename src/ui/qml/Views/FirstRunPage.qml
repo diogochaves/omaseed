@@ -58,6 +58,9 @@ Item {
     property var candidates: []
     /// True until `App.serversDetected` answers; the welcome shows the search while it runs.
     property bool detecting: root.autoDetect
+    /// More qBittorrents run here than the one candidate step 1 offers (Q26): the done
+    /// screen points at Settings › Servers for the rest.
+    property bool anotherRunning: false
     readonly property bool hasLocal: root.candidates.length > 0
     readonly property var _localCandidate: root.hasLocal ? root.candidates[0] : ({})
 
@@ -330,8 +333,9 @@ Component.onCompleted: {
 }
 
 Connections {
-    function onServersDetected(list: var): void {
+    function onServersDetected(list: var, anotherRunning: bool): void {
         root.candidates = list;
+        root.anotherRunning = anotherRunning;
         root.cursorIndex = 0;
         root.detecting = false;
     }
@@ -1194,6 +1198,15 @@ Flickable {
                 objectName: "doneHandler"
                 text: root.registered || root.alreadyHandler ? qsTr("Magnet links and .torrent files open here.") :
                                         qsTr("Magnet links still open elsewhere; Settings can change that.")
+                wrapMode: Text.WordWrap
+            }
+
+            Label {
+                Layout.fillWidth: true
+                dim: true
+                objectName: "doneAnother"
+                text: qsTr("Another qBittorrent is running here; add it later in Settings › Servers.")
+                visible: root.anotherRunning
                 wrapMode: Text.WordWrap
             }
 

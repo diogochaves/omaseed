@@ -970,8 +970,10 @@ public:
 
 Q_SIGNALS:
     /// One `detectServers()` answer: each candidate is `{kind: "port"|"docker"|"process",
-    /// url, label, detail}` per `ServerDetector::DetectedServer`.
-    void serversDetected(QVariantList candidates);
+    /// url, label, detail}` per `ServerDetector::DetectedServer`. `anotherRunning` is true
+    /// when more than one qBittorrent process runs here, though at most one is a candidate
+    /// (Q26: the done screen says the other can be added in Settings › Servers).
+    void serversDetected(QVariantList candidates, bool anotherRunning);
     /// One `runInstallWithPkexec()` answer.
     void installFinished(bool ok, QString message);
     void plainSecretsPathChanged();
