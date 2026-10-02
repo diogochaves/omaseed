@@ -56,3 +56,8 @@ omaseed_add_test(tst_statuswriter
     LIBRARIES omaseed::integration
     DEFINES OMASEED_FIXTURES_DIR="${CMAKE_SOURCE_DIR}/tests/fixtures"
 )
+
+omaseed_add_test(tst_barwidgetinstaller
+    SOURCES tst_barwidgetinstaller.cpp
+    LIBRARIES omaseed::integration
+)

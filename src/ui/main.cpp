@@ -8,6 +8,7 @@
 #include "core/TrackerModel.hpp"
 #include "core/Version.hpp"
 #include "integration/AppIdentity.hpp"
+#include "integration/BarWidgetInstaller.hpp"
 #include "integration/Notifier.hpp"
 #include "integration/SingleInstance.hpp"
 #include "integration/StatusBus.hpp"
@@ -310,10 +311,33 @@ int runHeadlessTableDemo(int rows)
     return 0;
 }
 
+/// `--install-bar-widget` (#17): copies the packaged bar widget into the shell's plugin folder
+/// and prints the enable line. Runs on a QCoreApplication, so it needs no display, and before
+/// anything else: it never starts the app or touches its single instance.
+int runInstallBarWidget(int argc, char *argv[])
+{
+    namespace Installer = omaseed::integration::BarWidgetInstaller;
+    QCoreApplication app(argc, argv);
+#ifdef OMASEED_SOURCE_PLUGIN_DIR
+    const QString devSource = QStringLiteral(OMASEED_SOURCE_PLUGIN_DIR);
+#else
+    const QString devSource;
+#endif
+    const Installer::Result result =
+        Installer::install(Installer::findSource(devSource), Installer::targetDir());
+    QTextStream(result.ok ? stdout : stderr) << result.message << Qt::endl;
+    return result.ok ? 0 : 1;
+}
+
 } // namespace
 
 int main(int argc, char *argv[])
 {
+    for (int i = 1; i < argc; ++i) {
+        if (qstrcmp(argv[i], "--install-bar-widget") == 0)
+            return runInstallBarWidget(argc, argv);
+    }
+
     // File pickers go through the FileChooser portal, so the chooser is xdg-desktop-portal's
     // window, which Omarchy floats like every other app's picker. Omarchy sets
     // QT_QPA_PLATFORMTHEME=gtk3, under which Qt opens GTK's chooser inside this process: a
@@ -357,6 +381,14 @@ int main(int argc, char *argv[])
         QStringLiteral("Run without a window. Implemented for --demo table, which prints "
                        "what it loaded and exits."));
     parser.addOption(headlessOption);
+
+    // Handled before the application starts (runInstallBarWidget); listed for --help.
+    QCommandLineOption installBarWidgetOption(
+        QStringList{QStringLiteral("install-bar-widget")},
+        QStringLiteral("Copy omaseed's bar widget into ~/.config/omarchy/plugins/%1 and print "
+                       "the line that enables it.")
+            .arg(omaseed::integration::BarWidgetInstaller::pluginId()));
+    parser.addOption(installBarWidgetOption);
 
     parser.addPositionalArgument(QStringLiteral("uris"),
                                  QStringLiteral("magnet: links or .torrent files to add."),

@@ -2,6 +2,8 @@
 qt_add_library(omaseed-integration STATIC
     AppIdentity.cpp
     AppIdentity.hpp
+    BarWidgetInstaller.cpp
+    BarWidgetInstaller.hpp
     Notifier.cpp
     Notifier.hpp
     SingleInstance.cpp

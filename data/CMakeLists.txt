@@ -93,3 +93,16 @@ install(PROGRAMS hooks/theme-set.d/omaseed
     DESTINATION "${CMAKE_INSTALL_DATADIR}/omaseed/hooks/theme-set.d")
 install(FILES omarchy-menu.jsonc
     DESTINATION "${CMAKE_INSTALL_DATADIR}/omaseed")
+
+# The companion bar widget (#17, docs/07 §6): a read-only copy for `omaseed
+# --install-bar-widget` to put into ~/.config/omarchy/plugins/, since the shell scans no system
+# directory. plugin/ is also what the public omaseed-bar repo is split from.
+install(DIRECTORY "${CMAKE_SOURCE_DIR}/plugin/"
+    DESTINATION "${CMAKE_INSTALL_DATADIR}/omaseed/plugin"
+    FILES_MATCHING
+        PATTERN "*.qml"
+        PATTERN "*.js"
+        PATTERN "*.json"
+        PATTERN "*.md"
+        PATTERN "LICENSE"
+)
