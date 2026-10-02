@@ -68,8 +68,8 @@ this file is the order to run them in and what to check by hand around them.
    - **Each release:** set `"version"` in `plugin/manifest.json` (the widget's own version; it
      may differ from the app's) and commit, then
      ```
-     scripts/dev/publish-plugin.sh X.Y.Z           # dry run: split, local tag bar-vX.Y.Z, prints the pushes
-     scripts/dev/publish-plugin.sh --push X.Y.Z    # pushes the split as main and the tag as vX.Y.Z
+     scripts/dev/publish-plugin.sh X.Y.Z           # dry run: splits, writes no ref, prints the pushes
+     scripts/dev/publish-plugin.sh --push X.Y.Z    # tags bar-vX.Y.Z, pushes the split as main and vX.Y.Z
      ```
      The local tag is `bar-vX.Y.Z` because this repository's `vX.Y.Z` tags are the app's.
    - **Check:** in a clean omabox, `omarchy plugin add https://github.com/diogochaves/omaseed-bar.git --enable`

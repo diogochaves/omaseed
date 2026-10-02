@@ -4,15 +4,15 @@
 # `omarchy plugin add` clones. One source, two distributions: the package ships the same
 # folder at /usr/share/omaseed/plugin for `omaseed --install-bar-widget`.
 #
-#   scripts/dev/publish-plugin.sh VERSION                 # dry run: split, tag, print the pushes
-#   scripts/dev/publish-plugin.sh --push VERSION          # push them to the public repository
+#   scripts/dev/publish-plugin.sh VERSION                 # dry run: split, print the pushes
+#   scripts/dev/publish-plugin.sh --push VERSION          # tag, and push to the public repository
 #   scripts/dev/publish-plugin.sh --remote URL [--push] VERSION   # another remote (a local test)
 #
 # VERSION must equal plugin/manifest.json's "version" at HEAD. The split is of HEAD (commit
-# first; a dirty plugin/ is refused). Locally the split is the branch `omaseed-bar` and the tag
-# `bar-vVERSION` (this repository's own vX.Y.Z tags are the app's); the public repository gets
-# them as `main` and `vVERSION`. Re-running for a version already tagged at the same split is
-# harmless; a tag that points elsewhere is refused.
+# first; a dirty plugin/ is refused). A dry run writes no ref. With --push the split becomes the
+# local branch `omaseed-bar` and the tag `bar-vVERSION` (this repository's own vX.Y.Z tags are
+# the app's), pushed to the public repository as `main` and `vVERSION`. Re-running for a
+# version already tagged at the same split is harmless; a tag that points elsewhere is refused.
 set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -56,30 +56,25 @@ if command -v omarchy >/dev/null 2>&1; then
 fi
 
 echo "splitting plugin/ at $(git rev-parse --short HEAD)…"
-split="$(git subtree split --prefix=plugin HEAD)"
-git branch -f omaseed-bar "$split" >/dev/null
+split="$(git subtree split -q --prefix=plugin HEAD)"
 
 tag="bar-v$VERSION"
-if existing="$(git rev-parse -q --verify "refs/tags/$tag^{commit}")"; then
-    if [ "$existing" != "$split" ]; then
-        echo "$tag already points at ${existing:0:12}, not this split ${split:0:12}" >&2
-        exit 1
-    fi
-else
-    git tag -a "$tag" -m "omaseed bar widget v$VERSION" "$split"
+existing="$(git rev-parse -q --verify "refs/tags/$tag^{commit}" || true)"
+if [ -n "$existing" ] && [ "$existing" != "$split" ]; then
+    echo "$tag already points at ${existing:0:12}, not this split ${split:0:12}" >&2
+    exit 1
 fi
 
-echo "split ${split:0:12}: branch omaseed-bar, tag $tag"
-pushes=(
-    "git push $REMOTE $split:refs/heads/main"
-    "git push $REMOTE refs/tags/$tag:refs/tags/v$VERSION"
-)
+echo "split ${split:0:12}"
 if [ "$PUSH" -eq 0 ]; then
-    echo "dry run; with --push this runs:"
-    printf '  %s\n' "${pushes[@]}"
+    echo "dry run, nothing written; with --push this tags $tag, moves the branch omaseed-bar and runs:"
+    printf '  %s\n' "git push $REMOTE $split:refs/heads/main" \
+        "git push $REMOTE refs/tags/$tag:refs/tags/v$VERSION"
     exit 0
 fi
 
+git branch -f omaseed-bar "$split" >/dev/null
+[ -n "$existing" ] || git tag -a "$tag" -m "omaseed bar widget v$VERSION" "$split"
 git push "$REMOTE" "$split:refs/heads/main"
 git push "$REMOTE" "refs/tags/$tag:refs/tags/v$VERSION"
 echo "published v$VERSION to $REMOTE"
