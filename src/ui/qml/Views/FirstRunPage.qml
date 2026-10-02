@@ -171,7 +171,11 @@ Item {
     }
     // M2: a pass is for the address and login it tested; changing either asks for a new test.
     // The name is only a label, so it keeps the pass.
-    onEditUrlChanged: root._resetTest()
+    // A certificate trusted for one address is not trusted for another.
+    onEditUrlChanged: {
+        root.trustedCertificate = "";
+        root._resetTest();
+    }
     onEditUsernameChanged: root._resetTest()
     onEditSecretChanged: root._resetTest()
 
@@ -187,6 +191,11 @@ Item {
     property string testError: ""
     /// The raw error under a friendly one ("wrong username or password"), drawn dim.
     property string testErrorDetail: ""
+    /// Issue #2: the certificate the last test was refused (empty when it was not), the one
+    /// trusted for it then, and the one `trust this certificate` chose (saved with the server).
+    property string certificateSha256: ""
+    property string certificatePinned: ""
+    property string trustedCertificate: ""
 
     readonly property string _newServerId: ""
     /// The saved server's name for the done screen ("strict"); the URL's host when unnamed.
@@ -200,7 +209,8 @@ Item {
     "name": root.editName,
     "url": root.editUrl,
     "authMode": root.editAuthMode,
-    "username": root.editAuthMode === "cookie" ? root.editUsername : ""
+    "username": root.editAuthMode === "cookie" ? root.editUsername : "",
+"certificateSha256": root.trustedCertificate
 };
 }
 
@@ -215,6 +225,8 @@ function _resetTest(): void {
     root.testLatency = -1;
     root.testError = "";
     root.testErrorDetail = "";
+    root.certificateSha256 = "";
+    root.certificatePinned = "";
 }
 
 function openRow(kind: string, url: string): void {
@@ -229,6 +241,7 @@ function openRow(kind: string, url: string): void {
     root.editAuthMode = "none";
     root.editUsername = "";
     root.editSecret = "";
+    root.trustedCertificate = "";
     // Written imperatively, not bound: a Kit `Field`'s `text` is a plain alias over its
     // TextInput (see the component's own header comment), so a declarative `text:
     // root.editUrl` binding would fight every keystroke. These buffers are filled *from*
@@ -255,8 +268,16 @@ function moveCursor(delta: int): void {
 }
 
 function runTest(): void {
+    root.certificateSha256 = "";
+    root.certificatePinned = "";
     root.testing = true;
     App.testServer(root._fieldMap(), root.editSecret);
+}
+
+/// `trust this certificate` (issue #2): kept for the server `continue` saves, then tested.
+function trustCertificate(): void {
+    root.trustedCertificate = root.certificateSha256;
+    root.runTest();
 }
 
 /// `enter` on the sign-in page (M2): test until a test has passed, then continue.
@@ -340,6 +361,13 @@ Connections {
 }
 
 Connections {
+    function onServerCertificateRefused(id: string, sha256: string, pinned: string): void {
+        if (id.length > 0 || !root.testing)
+        return; // a saved server's own test, or an answer for fields changed since
+        root.certificateSha256 = sha256;
+        root.certificatePinned = pinned;
+    }
+
     function onServerTested(id: string, ok: bool, version: string, apiVersion: string, torrentCount: int,
                             latencyMs: int, error: string, errorDetail: string): void {
         if (id.length > 0)
@@ -355,6 +383,10 @@ Connections {
         root.testLatency = latencyMs;
         root.testError = error;
         root.testErrorDetail = errorDetail;
+        if (ok) {
+            root.certificateSha256 = "";
+            root.certificatePinned = "";
+        }
         root.testResultText = ok ? qsTr("qBittorrent %1 · API %2 · %3").arg(version.replace(
                                                                                 /^v/, "")).arg(apiVersion).arg(
                                        torrentCount === 1 ? qsTr("1 torrent") : qsTr("%1 torrents").arg(
@@ -383,6 +415,8 @@ function _apiKeyTabOrder(): list<Item> {
         order.push(keyField);
     else if (root.editAuthMode === "cookie")
         order.push(userField, passField);
+    if (certificateTrust.visible)
+        order.push(certificateTrust.trustButton);
     order.push(testButton, openWebUiButton);
     if (saveAnywayButton.visible)
         order.push(saveAnywayButton);
@@ -1039,6 +1073,20 @@ Flickable {
                 text: root.testErrorDetail
                 visible: root.tested && !root.testOk && root.testErrorDetail.length > 0
                 wrapMode: Text.WordWrap
+            }
+
+            // Issue #2: a certificate the system does not trust, offered to be trusted.
+            CertificateTrust {
+                id: certificateTrust
+
+                Layout.fillWidth: true
+                buttonInTabChain: false // the page cycles tab itself (see _cycleApiKeyFocus)
+                objectName: "certificateTrust"
+                pinned: root.certificatePinned
+                sha256: root.certificateSha256
+                visible: root.certificateSha256.length > 0 && !root.testing
+
+                onTrustRequested: root.trustCertificate()
             }
 
             RowLayout {

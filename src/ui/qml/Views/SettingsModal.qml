@@ -142,6 +142,20 @@ Item {
             root._readQbt();
     }
 
+    /// Settings › Servers with server `id`'s sheet open and testing (issue #2: its certificate
+    /// was refused, so the sheet shows it to trust).
+    function reviewServer(id: string): void {
+        const map = App.serverList.serverMap(id);
+        if (map.id === undefined)
+            return;
+        root.showPane(1);
+        root.paneCursor = Math.max(0, App.serverList.indexOfId(id));
+        root.area = "pane";
+        if (!root.opened)
+            root.open();
+        serverSheet.reviewFor(map);
+    }
+
     /// ctrl+shift+, (docs/16 §2): Settings, on the qBittorrent group.
     function openQbt(): void {
         if (!root.inQbt)
@@ -202,6 +216,13 @@ Item {
             confirmText = qsTr("new key");
             break;
         default: // "webui"
+            if (changes.use_https === true) {
+                // Issue #2: most certificates given to qBittorrent are self-signed.
+                message = qsTr("Turn on HTTPS for the Web UI?");
+                subtitle = qsTr("omaseed moves its saved server to https://. If the certificate is self-signed, the server sheet shows its fingerprint to trust; until you trust it, omaseed cannot reach the server.");
+                confirmText = qsTr("turn on");
+                break;
+            }
             message = qsTr("Change the Web UI's %1?").arg(what.toLowerCase());
             subtitle = qsTr("omaseed signs in through the Web UI. It follows a new port, HTTPS or login by itself; anything else that shuts it out has to be put back in qBittorrent.");
             break;

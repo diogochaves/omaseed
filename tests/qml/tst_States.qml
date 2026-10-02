@@ -157,6 +157,21 @@ TestCase {
         compare(spy.count, 1);
     }
 
+    // Issue #2: a refused certificate puts `review certificate` first.
+    function test_banner_offers_the_certificate_review_when_refused() {
+        const banner = createTemporaryObject(bannerComponent, testCase);
+        compare(banner.actions.map(action => action.key), ["retry", "settings"]);
+        banner.certificate = true;
+        compare(banner.actions.map(action => action.key), ["certificate", "retry", "settings"]);
+        compare(banner.actions[0].label, "review certificate");
+        const spy = createTemporaryObject(signalSpyComponent, testCase, {
+                                              "target": banner,
+                                              "signalName": "certificateRequested"
+                                          });
+        banner.actionTriggered("certificate");
+        compare(spy.count, 1);
+    }
+
     // ------------------------------------------------------------------------- LoadingState
     Component {
         id: loadingComponent

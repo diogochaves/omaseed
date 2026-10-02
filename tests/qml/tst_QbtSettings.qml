@@ -292,6 +292,9 @@ TestCase {
                               });
         https.activate("space");
         verify(confirm.opened);
+        // Issue #2: it says what follows with a self-signed certificate.
+        compare(confirm.message, "Turn on HTTPS for the Web UI?");
+        verify(confirm.subtitle.indexOf("fingerprint to trust") >= 0, confirm.subtitle);
         confirm.confirm();
         compare(App.serverPrefs.values.use_https, true);
     }

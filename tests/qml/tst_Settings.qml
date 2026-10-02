@@ -418,6 +418,102 @@ TestCase {
         sheet.close();
     }
 
+    // Issue #2: a test refused for its certificate shows the fingerprint to trust; trusting
+    // saves it with the server and tests again (demo mode's test passes).
+    function test_a_refused_certificate_offers_its_fingerprint_to_trust() {
+        const id = testCase.addTestServer("tls", "https://127.0.0.1:9");
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        const sheet = modal.serverSheet;
+        sheet.openFor(App.serverList.serverMap(id));
+        const trust = testCase.childNamed(sheet, "certificateTrust");
+        verify(!trust.visible);
+
+        sheet.testing = true; // as _runTest() leaves it
+        App.serverCertificateRefused(id, "9ce0618d3dba07b6abce06a4c4db2222f6929605a344b4f8ec21789f2761a2a2", "");
+        App.serverTested(id, false, "", "", -1, 4, "untrusted certificate",
+                         "certificate: GET app/version: The certificate is self-signed, and untrusted");
+        verify(trust.visible);
+        compare(trust.changed, false);
+        compare(testCase.childNamed(trust, "fingerprintFirstHalf").text,
+                "9C:E0:61:8D:3D:BA:07:B6:AB:CE:06:A4:C4:DB:22:22");
+        compare(testCase.childNamed(trust, "fingerprintSecondHalf").text,
+                "F6:92:96:05:A3:44:B4:F8:EC:21:78:9F:27:61:A2:A2");
+        compare(trust.trustButton.text, "trust this certificate");
+        verify(trust.trustButton.primary);
+        compare(sheet._reachableText, "no · untrusted certificate");
+        // The keyboard reaches it like the sheet's other buttons.
+        verify(sheet.focusables().indexOf(trust.trustButton) >= 0);
+
+        trust.trustButton.clicked();
+        compare(App.serverList.serverMap(id).certificateSha256, "9ce0618d3dba07b6abce06a4c4db2222f6929605a344b4f8ec21789f2761a2a2");
+        tryVerify(() => sheet.tested && sheet.testOk, 2000);
+        verify(!trust.visible);
+        const kv = sheet.body.children[0];
+        compare(kv.items[kv.items.length - 1].key, "Certificate");
+        compare(kv.items[kv.items.length - 1].value, "trusted · 9C:E0:61:8D …");
+        sheet.close();
+    }
+
+    // Another certificate than the trusted one: said plainly, and the button is not primary.
+    function test_a_changed_certificate_is_said_so() {
+        const id = App.serverList.add({
+            "name": "tls",
+            "url": "https://127.0.0.1:9",
+            "authMode": "none",
+            "certificateSha256": "9ce0618d3dba07b6abce06a4c4db2222f6929605a344b4f8ec21789f2761a2a2"
+        }, "");
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        const sheet = modal.serverSheet;
+        sheet.openFor(App.serverList.serverMap(id));
+        compare(sheet.fieldMap().certificateSha256, "9ce0618d3dba07b6abce06a4c4db2222f6929605a344b4f8ec21789f2761a2a2");
+        sheet.testing = true;
+        App.serverCertificateRefused(id, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "9ce0618d3dba07b6abce06a4c4db2222f6929605a344b4f8ec21789f2761a2a2");
+        App.serverTested(id, false, "", "", -1, 4, "the certificate changed", "certificate: …");
+        const trust = testCase.childNamed(sheet, "certificateTrust");
+        verify(trust.visible);
+        verify(trust.changed);
+        compare(trust.trustButton.text, "trust the new certificate");
+        verify(!trust.trustButton.primary);
+        sheet.close();
+    }
+
+    // A new server keeps the trusted certificate in its fields until `save`.
+    function test_a_new_server_saves_the_certificate_it_trusted() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        modal.showPane(1);
+        const sheet = modal.serverSheet;
+        sheet.openNew();
+        sheet.editName = "tls";
+        sheet.editUrl = "https://127.0.0.1:9";
+        sheet.editAuthMode = "none";
+        sheet.testing = true;
+        App.serverCertificateRefused("", "9ce0618d3dba07b6abce06a4c4db2222f6929605a344b4f8ec21789f2761a2a2", "");
+        App.serverTested("", false, "", "", -1, 4, "untrusted certificate", "certificate: …");
+        testCase.childNamed(sheet, "certificateTrust").trustButton.clicked();
+        compare(sheet.fieldMap().certificateSha256, "9ce0618d3dba07b6abce06a4c4db2222f6929605a344b4f8ec21789f2761a2a2");
+        compare(App.serverList.count, 0);
+        tryVerify(() => sheet.tested && sheet.testOk, 2000);
+        sheet.actionTriggered("save");
+        compare(App.serverList.count, 1);
+        compare(App.serverList.serverMap(App.serverList.idAt(0)).certificateSha256, "9ce0618d3dba07b6abce06a4c4db2222f6929605a344b4f8ec21789f2761a2a2");
+    }
+
+    // The lost banner's `review certificate`: Servers, the sheet, and a test running.
+    function test_review_server_opens_the_sheet_and_tests() {
+        const id = testCase.addTestServer("tls", "https://127.0.0.1:9");
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.reviewServer(id);
+        verify(modal.opened);
+        compare(modal.paneIndex, 1);
+        verify(modal.serverSheet.opened);
+        compare(modal.serverSheet.serverId, id);
+        verify(modal.serverSheet.testing || modal.serverSheet.tested);
+        modal.serverSheet.close();
+    }
+
     // Review RUN-9: the footer's `enter` names the button the keyboard is on.
     function test_the_enter_hint_follows_the_focused_button() {
         const id = testCase.addTestServer("playground", "http://127.0.0.1:8081");

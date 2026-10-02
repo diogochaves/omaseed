@@ -148,6 +148,51 @@ TestCase {
         verify(!detail.visible);
     }
 
+    // Issue #2: a certificate the system does not trust is offered to be trusted; the server
+    // `continue` saves keeps it, and a new address forgets it.
+    function test_an_untrusted_certificate_is_offered_and_saved_with_the_server() {
+        App.loadDemo(16);
+        const page = createTemporaryObject(pageComponent, testCase, {
+                                               "candidates": []
+                                           });
+        page.chooseCursor();
+        page.editUrl = "https://127.0.0.1:9";
+        const trust = findChild(page, "certificateTrust");
+        verify(!trust.visible);
+
+        page.testing = true;
+        App.serverCertificateRefused("", "9ce0618d3dba07b6abce06a4c4db2222f6929605a344b4f8ec21789f2761a2a2", "");
+        App.serverTested("", false, "", "", -1, 4, "untrusted certificate", "certificate: …");
+        verify(trust.visible);
+        compare(page.testResultText, "untrusted certificate");
+        // In the page's own tab cycle, before `test`.
+        const order = page._apiKeyTabOrder();
+        verify(order.indexOf(trust.trustButton) >= 0);
+        verify(order.indexOf(trust.trustButton) < order.indexOf(findChild(page, "testButton")));
+
+        const spy = createTemporaryObject(signalSpyComponent, testCase, {
+                                              "target": App,
+                                              "signalName": "serverTested"
+                                          });
+        trust.trustButton.clicked();
+        compare(page._fieldMap().certificateSha256, "9ce0618d3dba07b6abce06a4c4db2222f6929605a344b4f8ec21789f2761a2a2");
+        spy.wait(2000);
+        verify(page.testOk);
+        verify(!trust.visible);
+
+        page.continueFromApiKey();
+        const id = App.serverList.idAt(0);
+        compare(App.serverList.serverMap(id).certificateSha256, "9ce0618d3dba07b6abce06a4c4db2222f6929605a344b4f8ec21789f2761a2a2");
+        App.serverList.remove(id);
+
+        // Another address is another server: the trust does not carry over.
+        page.goBack();
+        page.chooseCursor();
+        page.trustedCertificate = "9ce0618d3dba07b6abce06a4c4db2222f6929605a344b4f8ec21789f2761a2a2";
+        page.editUrl = "https://nas.invalid:8080";
+        compare(page._fieldMap().certificateSha256, "");
+    }
+
     // A passed test counts in words: "1 torrent", never "1 torrents" (servers-walk).
     function test_a_passed_test_counts_one_torrent_in_the_singular() {
         const page = createTemporaryObject(pageComponent, testCase, {

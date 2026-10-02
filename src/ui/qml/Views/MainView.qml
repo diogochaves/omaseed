@@ -984,6 +984,14 @@ Item {
                 settingsModal.open();
         }
 
+        /// Issue #2: the live server's certificate was refused. Someone in Settings (HTTPS just
+        /// turned on, say) gets the server sheet with it at once; anyone else, the banner's
+        /// `review certificate`.
+        function onCertificateRefused(id: string): void {
+            if (settingsModal.opened)
+                settingsModal.reviewServer(id);
+        }
+
         /// T4.3's seam: an action the server refused, on the footer for a few seconds.
         function onActionFailed(action: string, message: string): void {
             root.flashFooterNote(qsTr("%1 failed: %2").arg(action).arg(message));
@@ -1109,9 +1117,11 @@ Item {
         errorText: App.globalState.lastError.length > 0 ? App.lostReasonText(
                                                               App.globalState.lastError) : qsTr(
                                                               "connection refused")
+        certificate: App.isCertificateError(App.globalState.lastError)
         retryInSeconds: App.globalState.retryInSeconds
         visible: root.serverLost
 
+        onCertificateRequested: settingsModal.reviewServer(App.serverId)
         onRetryRequested: App.retryNow()
         onSettingsRequested: App.openSettings()
     }
