@@ -97,9 +97,9 @@ public slots:
                         const QVariantList &parameter,
                         const QVariantMap &platform_data)
     {
-        // "settings" (the bar widget's gear, docs/20 §3) is the one action; any other name is
-        // accepted and ignored, as the spec allows. The tray and the notices talk to the
-        // running process directly.
+        // The bar widget's two actions (docs/20 §3): "settings" (the popup's gear) and "retry"
+        // (`r` while the server is unreachable). Any other name is accepted and ignored, as
+        // the spec allows. The tray and the notices talk to the running process directly.
         Q_UNUSED(parameter);
         m_owner->handleActivateAction(action_name, platform_data);
     }
@@ -378,7 +378,7 @@ void SingleInstance::handleActivate(const QVariantMap &platformData)
 
 void SingleInstance::handleActivateAction(const QString &name, const QVariantMap &platformData)
 {
-    if (name != QLatin1String("settings")) {
+    if (name != QLatin1String("settings") && name != QLatin1String("retry")) {
         qCInfo(lcInstance).noquote() << QStringLiteral("unknown action %1 ignored").arg(name);
         return;
     }

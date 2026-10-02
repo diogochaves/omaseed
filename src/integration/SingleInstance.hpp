@@ -74,8 +74,9 @@ signals:
     /// One or more URIs (magnet links or .torrent paths) should be opened, from a second
     /// launch's arguments or, once, from this process's own.
     void openRequested(const QStringList &uris);
-    /// `org.freedesktop.Application.ActivateAction` with a known action: "settings" (the bar
-    /// widget's gear) raises the window on omaseed's settings.
+    /// `org.freedesktop.Application.ActivateAction` with a known action, from the bar widget:
+    /// "settings" (the popup's gear) raises the window on omaseed's settings, "retry" polls an
+    /// unreachable server now, with no window.
     void actionRequested(const QString &name);
 
 private:

@@ -85,7 +85,7 @@ private slots:
     void altSpeedAnswersAtOnce();
     void describeAndAddAnswerLater();
     void theWindowMethodsReachTheHandler();
-    void settingsActionIsASignal();
+    void theWidgetsActionsAreSignals();
 
 private:
     QDBusMessage call(const QString &method, const QVariantList &arguments = {});
@@ -243,10 +243,11 @@ void TestStatusBus::theWindowMethodsReachTheHandler()
                           QStringLiteral("folder def")}));
 }
 
-void TestStatusBus::settingsActionIsASignal()
+void TestStatusBus::theWidgetsActionsAreSignals()
 {
     QSignalSpy actions(m_primary, &SingleInstance::actionRequested);
-    for (const QString &name : {QStringLiteral("bogus"), QStringLiteral("settings")}) {
+    for (const QString &name :
+         {QStringLiteral("bogus"), QStringLiteral("settings"), QStringLiteral("retry")}) {
         QDBusMessage message =
             QDBusMessage::createMethodCall(Identity::dbusServiceName(),
                                            Identity::dbusObjectPath(),
@@ -257,9 +258,10 @@ void TestStatusBus::settingsActionIsASignal()
         QTRY_VERIFY_WITH_TIMEOUT(pending.isFinished(), 5000);
         QVERIFY2(!pending.isError(), qPrintable(pending.error().message()));
     }
-    // An unknown action is accepted and ignored; "settings" is the one that reaches the app.
-    QCOMPARE(actions.count(), 1);
-    QCOMPARE(actions.first().first().toString(), QStringLiteral("settings"));
+    // An unknown action is accepted and ignored; "settings" and "retry" reach the app.
+    QCOMPARE(actions.count(), 2);
+    QCOMPARE(actions.at(0).first().toString(), QStringLiteral("settings"));
+    QCOMPARE(actions.at(1).first().toString(), QStringLiteral("retry"));
 }
 
 QTEST_GUILESS_MAIN(TestStatusBus)
