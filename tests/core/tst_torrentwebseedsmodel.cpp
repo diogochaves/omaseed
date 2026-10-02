@@ -24,7 +24,7 @@ class TestTorrentWebSeedsModel : public QObject
 
 private Q_SLOTS:
     void rowsKeepTheServersOrderAndDropTheScheme();
-    void plainHttpIsNotSecure();
+    void plainHttpKeepsItsScheme();
     void entriesWithoutAUrlAreSkipped();
     void loadedFollowsTheAnswerNotTheCount();
     void countChangesOnlyWhenTheCountDoes();
@@ -48,16 +48,21 @@ void TestTorrentWebSeedsModel::rowsKeepTheServersOrderAndDropTheScheme()
     QCOMPARE(first.data(TorrentWebSeedsModel::HostRole).toString(),
              QStringLiteral("mirror.example"));
     QCOMPARE(model.index(1).data(TorrentWebSeedsModel::TextRole).toString(),
-             QStringLiteral("archive.example/download/item/a.iso"));
+             QStringLiteral("http://archive.example/download/item/a.iso"));
     QCOMPARE(model.roleNames().value(TorrentWebSeedsModel::TextRole), QByteArray("text"));
 }
 
-void TestTorrentWebSeedsModel::plainHttpIsNotSecure()
+void TestTorrentWebSeedsModel::plainHttpKeepsItsScheme()
 {
     TorrentWebSeedsModel model;
-    model.applyWebSeeds(seeds(R"([{"url":"https://a.example/"},{"url":"HTTP://b.example/"}])"));
-    QCOMPARE(model.index(0).data(TorrentWebSeedsModel::SecureRole).toBool(), true);
-    QCOMPARE(model.index(1).data(TorrentWebSeedsModel::SecureRole).toBool(), false);
+    model.applyWebSeeds(seeds(R"([{"url":"https://a.example/"},{"url":"HTTPS://b.example/"},
+                                  {"url":"http://c.example/"}])"));
+    QCOMPARE(model.index(0).data(TorrentWebSeedsModel::TextRole).toString(),
+             QStringLiteral("a.example/"));
+    QCOMPARE(model.index(1).data(TorrentWebSeedsModel::TextRole).toString(),
+             QStringLiteral("b.example/"));
+    QCOMPARE(model.index(2).data(TorrentWebSeedsModel::TextRole).toString(),
+             QStringLiteral("http://c.example/"));
 }
 
 void TestTorrentWebSeedsModel::entriesWithoutAUrlAreSkipped()
@@ -122,7 +127,7 @@ void TestTorrentWebSeedsModel::displayText_data()
     QTest::newRow("https") << QStringLiteral("https://m.example/pub/")
                            << QStringLiteral("m.example/pub/");
     QTest::newRow("http") << QStringLiteral("http://m.example:8000/a")
-                          << QStringLiteral("m.example:8000/a");
+                          << QStringLiteral("http://m.example:8000/a");
     QTest::newRow("no scheme") << QStringLiteral("m.example/pub/")
                                << QStringLiteral("m.example/pub/");
     QTest::newRow("empty") << QString() << QString();

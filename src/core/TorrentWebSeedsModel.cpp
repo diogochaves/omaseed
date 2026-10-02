@@ -27,8 +27,6 @@ QVariant TorrentWebSeedsModel::data(const QModelIndex &index, int role) const
         return displayText(url);
     case HostRole:
         return QUrl(url).host();
-    case SecureRole:
-        return !url.startsWith(QLatin1String("http:"), Qt::CaseInsensitive);
     default:
         return {};
     }
@@ -40,7 +38,6 @@ QHash<int, QByteArray> TorrentWebSeedsModel::roleNames() const
         {UrlRole, "url"},
         {TextRole, "text"},
         {HostRole, "host"},
-        {SecureRole, "secure"},
     };
 }
 
@@ -82,8 +79,8 @@ QString TorrentWebSeedsModel::urlAt(int row) const
 
 QString TorrentWebSeedsModel::displayText(const QString &url)
 {
-    const qsizetype separator = url.indexOf(QLatin1String("://"));
-    return separator > 0 ? url.mid(separator + 3) : url;
+    static const QLatin1StringView secure("https://");
+    return url.startsWith(secure, Qt::CaseInsensitive) ? url.mid(secure.size()) : url;
 }
 
 void TorrentWebSeedsModel::setLoaded(bool loaded)

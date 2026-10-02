@@ -87,6 +87,10 @@
 //   dlSpeed qint64  dlSpeedText string "1.02 MB/s" upSpeed qint64  upSpeedText string
 //   progress double  progressText string  flags string  flagsDesc string
 //   downloaded qint64  uploaded qint64  relevance double
+//
+// TorrentWebSeedsModel (#10):
+//   url string (the whole URL)   text string ("mirror.example/pub/": https:// dropped,
+//   http:// kept)   host string
 // ---------------------------------------------------------------------------------------
 
 #include "core/AddFilesModel.hpp"
@@ -104,6 +108,7 @@
 #include "core/TorrentModel.hpp"
 #include "core/TorrentPeersModel.hpp"
 #include "core/TorrentTrackersModel.hpp"
+#include "core/TorrentWebSeedsModel.hpp"
 #include "core/TrackerModel.hpp"
 
 #include <QQmlEngine>
@@ -225,6 +230,14 @@ struct TorrentTrackersModelForeign
     QML_FOREIGN(omaseed::core::TorrentTrackersModel)
     QML_NAMED_ELEMENT(TorrentTrackersModel)
     QML_UNCREATABLE("TorrentTrackersModel is App.details.trackers; it is not created from QML.")
+};
+
+struct TorrentWebSeedsModelForeign
+{
+    Q_GADGET
+    QML_FOREIGN(omaseed::core::TorrentWebSeedsModel)
+    QML_NAMED_ELEMENT(TorrentWebSeedsModel)
+    QML_UNCREATABLE("TorrentWebSeedsModel is App.details.webSeeds; it is not created from QML.")
 };
 
 struct TorrentPeersModelForeign

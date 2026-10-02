@@ -759,7 +759,7 @@ QtObject {
             "rank": 2,
             "helpKeys": "1–4",
             "help": qsTr("details tab"),
-            "about": qsTr("In the details: general, files, trackers, peers tab; 0 and 5–8 still pick a status there")
+            "about": qsTr("In the details: general, files, trackers, peers tab, and 5 for HTTP sources when the torrent has any; 0 and 5–8 pick a status otherwise")
         },
         {
             "area": "details",

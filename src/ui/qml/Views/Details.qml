@@ -24,7 +24,8 @@ Item {
     /// hasTrackerError. Null means "nothing selected".
     property var torrent: null
 
-    /// 0 General, 1 Files, 2 Trackers, 3 Peers — the `1`-`4` keys.
+    /// 0 General, 1 Files, 2 Trackers, 3 Peers — the `1`-`4` keys — and 4 HTTP sources
+    /// (#10), `5`, only while the torrent has web seeds.
     property int currentTab: 0
     /// `i` in Main: the pane folds away entirely.
     property bool collapsed: false
@@ -53,16 +54,26 @@ Item {
     readonly property int cursorIndex: root.currentTab === 1 ? root.filesCursor : root.currentTab
                                                                === 2 ? root.trackersCursor :
                                                                        root.currentTab === 3
-                                                                       ? root.peersCursor : root.generalCursor
+                                                                       ? root.peersCursor : root.currentTab === 4
+                                                                         ? root.webSeedsCursor : root.generalCursor
     readonly property int rowCount: root.currentTab === 1 ? filesTab.count : root.currentTab === 2 ? trackersTab.count :
                                                                                                      root.currentTab
                                                                                                      === 3 ? peersTab.count :
-                                                                                                             generalTab.count
+                                                                                                             root.currentTab === 4
+                                                                                                             ? webSeedsTab.count :
+                                                                                                               generalTab.count
+    /// #10: the HTTP sources tab exists while the torrent has web seeds, and also while the
+    /// next torrent's list is still on its way and that tab is the one on show, so moving the
+    /// cursor between two web-seeded torrents does not drop it (the model clears on every
+    /// selection change; `loaded` says when it has answered).
+    readonly property bool hasWebSeeds: root.details.webSeeds.count > 0
+                                        || (!root.details.webSeeds.loaded && root.currentTab === 4)
 
     // One cursor per list, so switching tabs and coming back keeps the place.
     property int filesCursor: 0
     property int trackersCursor: 0
     property int peersCursor: 0
+    property int webSeedsCursor: 0
     /// Every poll re-sorts the peers by speed, so the cursor also holds its peer's address
     /// and follows it to the new row: `y` copies, and `b` bans, the peer it was left on.
     property string peersCursorAddress: ""
@@ -85,6 +96,8 @@ Item {
     signal trackerAction(string action, string url)
     /// `b` ban, `a` add peer.
     signal peerAction(string action, string address)
+    /// The HTTP sources tab (#10): `a` add, `d` remove.
+    signal webSeedAction(string action, string url)
     /// `y`: the text the caller should put on the clipboard.
     signal copyRequested(string text)
     /// A few words for the window's footer note ("one file, nothing to filter").
@@ -118,10 +131,10 @@ Item {
         root._setCursor(next);
     }
 
-    /// `1`-`4`. Tells App whether the Peers tab is the one on show, so sync/torrentPeers is
-    /// only polled while somebody is looking at it.
+    /// `1`-`4`, and `5` for HTTP sources while there are any. Tells App whether the Peers tab
+    /// is the one on show, so sync/torrentPeers is only polled while somebody is looking at it.
     function activateTab(index: int) {
-        if (index < 0 || index > 3)
+        if (index < 0 || index > 4 || (index === 4 && !root.hasWebSeeds))
             return;
         root.currentTab = index;
         // Tabs writes its own currentIndex on a click, so the binding is set from here
@@ -172,10 +185,13 @@ Item {
                                   root.details.files.shownOrderGroups(root.filesCursor));
     }
 
-    /// `y` on the current row: the announce URL, the peer address, or the file path.
+    /// `y` on the current row: the announce URL, the peer address, the web seed, or the file
+    /// path.
     function copyCurrent() {
         if (root.currentTab === 2)
             root.copyRequested(root.details.trackers.urlAt(root.trackersCursor));
+        else if (root.currentTab === 4)
+            root.copyRequested(root.details.webSeeds.urlAt(root.webSeedsCursor));
         else if (root.currentTab === 3)
             root.copyRequested(root.details.peers.addressAt(root.peersCursor));
         else if (root.currentTab === 1 && root.details.files.count > 0)
@@ -469,6 +485,9 @@ Item {
         } else if (root.currentTab === 3) {
             root.peersCursor = row;
             peersTab.ensureVisible();
+        } else if (root.currentTab === 4) {
+            root.webSeedsCursor = row;
+            webSeedsTab.ensureVisible();
         } else if (root.currentTab === 0) {
             root.generalCursor = row;
             generalTab.ensureVisible();
@@ -527,6 +546,13 @@ Item {
         case Qt.Key_4:
             root.activateTab(3);
             break;
+        // #10: `5` is the HTTP sources tab while the torrent has web seeds; otherwise it goes
+        // on to the window, which picks status 5 as it does from anywhere.
+        case Qt.Key_5:
+            if (!root.hasWebSeeds)
+                return;
+            root.activateTab(4);
+            break;
         case Qt.Key_J:
         case Qt.Key_Down:
             root.moveCursor(1);
@@ -569,13 +595,18 @@ Item {
                 root.trackerAction("add", "");
             else if (root.currentTab === 3)
                 root.peerAction("add", "");
+            else if (root.currentTab === 4)
+                root.webSeedAction("add", "");
             else
                 return;
             break;
         case Qt.Key_D:
-            if (root.currentTab !== 2)
+            if (root.currentTab === 2)
+                root.trackerAction("remove", root.details.trackers.urlAt(root.trackersCursor));
+            else if (root.currentTab === 4)
+                root.webSeedAction("remove", root.details.webSeeds.urlAt(root.webSeedsCursor));
+            else
                 return;
-            root.trackerAction("remove", root.details.trackers.urlAt(root.trackersCursor));
             break;
         case Qt.Key_R:
             if (root.currentTab !== 2 || !(event.modifiers & Qt.ShiftModifier))
@@ -777,29 +808,38 @@ Item {
         anchors.top: root.band ? bandRule.bottom : strip.bottom
         currentIndex: root.currentTab
         objectName: "detailsTabs"
-        // Set once; activateTab() keeps it in step afterwards.
-        model: [
-            {
-                "text": qsTr("General"),
-                "key": "1"
-            },
-            {
-                "text": qsTr("Files"),
-                "key": "2"
-            },
-            {
-                "text": qsTr("Trackers"),
-                "key": "3",
-                "badge": root.hasTrackerError
-            },
-            {
-                "text": qsTr("Peers"),
-                "key": "4"
-            }
-        ]
+        // activateTab() keeps currentIndex in step. HTTP sources comes and goes with the
+        // torrent's web seeds; it is last, so the other tabs keep their indexes.
+        model: root.hasWebSeeds ? root._tabs.concat([
+                                                       {
+                                                           "text": qsTr("HTTP sources"),
+                                                           "key": "5"
+                                                       }
+                                                   ]) : root._tabs
 
         onActivated: index => root.activateTab(index)
     }
+
+    // The four tabs every torrent has (spec §2 Fig. 1).
+    readonly property var _tabs: [
+        {
+            "text": qsTr("General"),
+            "key": "1"
+        },
+        {
+            "text": qsTr("Files"),
+            "key": "2"
+        },
+        {
+            "text": qsTr("Trackers"),
+            "key": "3",
+            "badge": root.hasTrackerError
+        },
+        {
+            "text": qsTr("Peers"),
+            "key": "4"
+        }
+    ]
 
     Item {
         id: body
@@ -882,6 +922,18 @@ Item {
 
             onRowClicked: row => root.peersCursor = row
         }
+
+        DetailsWebSeedsTab {
+            id: webSeedsTab
+
+            anchors.fill: parent
+            cursorIndex: root.webSeedsCursor
+            model: root.details.webSeeds
+            objectName: "webSeedsTab"
+            visible: root.currentTab === 4
+
+            onRowClicked: row => root.webSeedsCursor = row
+        }
     }
 
     // The tab's own hints (spec §2 Fig. 2-4 `.foot .hints`), and since docs/12 G5 General's
@@ -957,6 +1009,21 @@ Item {
                                 {
                                     "key": "R",
                                     "label": qsTr("reannounce")
+                                },
+                                {
+                                    "key": "y",
+                                    "label": qsTr("copy")
+                                }
+                            ];
+                if (root.currentTab === 4)
+                    return [
+                                {
+                                    "key": "a",
+                                    "label": qsTr("add")
+                                },
+                                {
+                                    "key": "d",
+                                    "label": qsTr("remove")
                                 },
                                 {
                                     "key": "y",
@@ -1169,6 +1236,16 @@ Item {
         target: root.details.trackers
     }
 
+    // The same for the web seeds (#10).
+    Connections {
+        function onCountChanged(): void {
+            if (root.webSeedsCursor >= root.details.webSeeds.count)
+                root.webSeedsCursor = Math.max(0, root.details.webSeeds.count - 1);
+        }
+
+        target: root.details.webSeeds
+    }
+
     // A poll has moved the peers: put the cursor back on the one it was on, or keep it on
     // a row when that peer is gone.
     Connections {
@@ -1189,10 +1266,18 @@ Item {
     onCurrentTabChanged: {
         App.setPeersTabActive(!root.collapsed && root.currentTab === 3);
         App.setGeneralTabActive(!root.collapsed && root.currentTab === 0); // G3's pieces bar
+        App.setWebSeedsTabActive(!root.collapsed && root.currentTab === 4); // #10
     }
     onCollapsedChanged: {
         App.setPeersTabActive(!root.collapsed && root.currentTab === 3);
         App.setGeneralTabActive(!root.collapsed && root.currentTab === 0);
+        App.setWebSeedsTabActive(!root.collapsed && root.currentTab === 4);
+    }
+    // #10: the torrent has no web seeds (another torrent, or the last one removed) while
+    // their tab is on show: Trackers, its neighbour, takes over.
+    onHasWebSeedsChanged: {
+        if (!root.hasWebSeeds && root.currentTab === 4)
+            root.activateTab(2);
     }
     onPeersCursorChanged: root.peersCursorAddress = root.details.peers.addressAt(root.peersCursor)
 }

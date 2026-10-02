@@ -31,7 +31,7 @@ QtObject {
     /// App.torrents.count and App.filtered.count.
     property int torrentCount: 0
     property int filteredCount: 0
-    /// Details.currentTab: 0 General, 1 Files, 2 Trackers, 3 Peers.
+    /// Details.currentTab: 0 General, 1 Files, 2 Trackers, 3 Peers, 4 HTTP sources (#10).
     property int detailsTab: 0
     /// A sheet, palette or menu is over the window (MainView's `overlayOpen`). The spec
     /// draws an overlay's hints inside the overlay, and the window underneath is modal, so
@@ -135,6 +135,9 @@ QtObject {
         case 3: // Fig. 4, Peers
             return [root._hint("details", "b"), root._hint("details", "a", qsTr("add peer")),
                     root._hint("details", "y")];
+        case 4: // #10, HTTP sources
+            return [root._hint("details", "a"), root._hint("details", "d"), root._hint("details",
+                                                                                       "y")];
         default:
             // docs/12 G5 and G4: General's rows are a list with a cursor, `y` copies a value
             // and `enter` changes an option row.

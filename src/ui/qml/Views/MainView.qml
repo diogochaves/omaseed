@@ -514,6 +514,11 @@ Item {
                 return;
             App.removeTracker(hash, value);
             root.flashFooterNote(qsTr("removed %1").arg(value));
+        } else if (kind === "webseed" && action === "remove") {
+            if (value.length === 0)
+                return;
+            App.removeWebSeed(hash, value);
+            root.flashFooterNote(qsTr("removed %1").arg(value));
         } else if (action === "add") {
             detailsAddSheet.openFor(kind, hash);
         } else if (kind === "peer" && action === "ban") {
@@ -1355,6 +1360,7 @@ Item {
             onOpenFolderRequested: path => App.revealTorrentFile(App.details.hash, path)
             onPeerAction: (action, address) => root.detailsRowAction("peer", action, address)
             onTrackerAction: (action, url) => root.detailsRowAction("tracker", action, url)
+            onWebSeedAction: (action, url) => root.detailsRowAction("webseed", action, url)
         }
 
         // §7's whole-body states

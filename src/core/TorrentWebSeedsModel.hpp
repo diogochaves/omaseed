@@ -4,9 +4,10 @@
 //
 // `torrents/webseeds` answers `[{"url": "https://mirror.example/pub/"}, …]`: the torrent's
 // web seeds (BEP 19 `url-list`, BEP 17 `httpseeds`, and any added later). The rows keep the
-// server's order. `text` is the URL without its scheme, which is what the tab prints (the
-// whole URL still travels in `url`, for the tooltip, `y` and `d`); `secure` is false for a
-// plain http source, which the tab marks.
+// server's order. `text` is what the tab prints: the URL without `https://`, the usual case;
+// a plain `http://` source keeps its scheme, so it stays visible without being coloured as a
+// fault (the pieces' hashes check what any source sends). The whole URL travels in `url`,
+// for the tooltip, `y` and `d`.
 //
 // `loaded` says whether the list for the current torrent has come back yet: the tab is only
 // shown when there are web seeds, and while a newly selected torrent's list is on its way the
@@ -31,7 +32,6 @@ public:
         UrlRole = Qt::UserRole + 1,
         TextRole,
         HostRole,
-        SecureRole,
     };
     Q_ENUM(Role)
 
@@ -52,8 +52,8 @@ public:
     /// The whole URL of a row, for `y` and `d`; empty out of range.
     Q_INVOKABLE QString urlAt(int row) const;
 
-    /// "https://mirror.example/pub/" -> "mirror.example/pub/"; anything without a scheme
-    /// comes back unchanged.
+    /// "https://mirror.example/pub/" -> "mirror.example/pub/"; any other URL (plain http
+    /// included) comes back unchanged.
     static QString displayText(const QString &url);
 
 Q_SIGNALS:

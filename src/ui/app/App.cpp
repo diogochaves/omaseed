@@ -604,6 +604,11 @@ void App::setGeneralTabActive(bool active)
     m_details->setGeneralActive(active);
 }
 
+void App::setWebSeedsTabActive(bool active)
+{
+    m_details->setWebSeedsActive(active);
+}
+
 void App::setFilePriority(const QString &hash, const QVariantList &fileIndexes, int priority)
 {
     if (hash.isEmpty() || fileIndexes.isEmpty())
@@ -2021,6 +2026,32 @@ void App::addTrackers(const QString &hash, const QStringList &urls)
         });
 }
 
+void App::addWebSeeds(const QString &hash, const QStringList &urls)
+{
+    if (hash.isEmpty() || urls.isEmpty() || demoGuard(QStringLiteral("add HTTP sources"), 1) ||
+        !m_hasServer)
+        return;
+    m_client->torrentsAddWebSeeds(hash, urls)
+        ->then(this, [this, hash](const QbtResult<QByteArray> &result) {
+            reportActionResult(QStringLiteral("add HTTP source"), result);
+            if (!result.isError() && m_details->hash() == hash)
+                m_details->refreshWebSeeds();
+        });
+}
+
+void App::removeWebSeed(const QString &hash, const QString &url)
+{
+    if (hash.isEmpty() || url.isEmpty() || demoGuard(QStringLiteral("remove HTTP source"), 1) ||
+        !m_hasServer)
+        return;
+    m_client->torrentsRemoveWebSeeds(hash, QStringList{url})
+        ->then(this, [this, hash](const QbtResult<QByteArray> &result) {
+            reportActionResult(QStringLiteral("remove HTTP source"), result);
+            if (!result.isError() && m_details->hash() == hash)
+                m_details->refreshWebSeeds();
+        });
+}
+
 void App::addPeers(const QString &hash, const QStringList &peers)
 {
     if (hash.isEmpty() || peers.isEmpty() || demoGuard(QStringLiteral("add peers"), 1) ||
@@ -2064,6 +2095,11 @@ QVariantMap App::checkTrackerUrls(const QString &text) const
 QVariantMap App::checkPeers(const QString &text) const
 {
     return peerInputMap(core::PeerInput::peers(text));
+}
+
+QVariantMap App::checkWebSeedUrls(const QString &text) const
+{
+    return peerInputMap(core::PeerInput::webSeedUrls(text));
 }
 
 void App::setCategory(const QStringList &hashes, const QString &name)

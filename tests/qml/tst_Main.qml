@@ -1130,6 +1130,33 @@ TestCase {
         view.details.activateTab(0);
     }
 
+    // #10: the HTTP sources tab's `a` takes http or https URLs; `d` removes the row's.
+    function test_http_sources_add_and_remove() {
+        testCase._cursorOn("archlinux-2026.09.01-x86_64.iso");
+        view.details.activateTab(4);
+        compare(view.details.currentTab, 4, "the demo's Arch ISO has no web seeds");
+        view.details.forceActiveFocus();
+        keyClick("a");
+        compare(addSpy.count, 0, "`a` in HTTP sources opened the add-torrent sheet");
+        compare(view.detailsAddSheet.opened, true);
+        compare(view.detailsAddSheet.kind, "webseed");
+        compare(view.detailsAddSheet.title, "Add HTTP sources");
+
+        testCase._type("udp://mirror.example/pub/");
+        keyClick(Qt.Key_Return);
+        compare(view.detailsAddSheet.opened, true, "a udp URL was sent");
+        compare(view.detailsAddSheet.errorText, "udp://mirror.example/pub/ is not an http or https URL");
+        view.detailsAddSheet.field.text = "";
+        testCase._type("https://mirror.example/pub/");
+        keyClick(Qt.Key_Return);
+        compare(view.detailsAddSheet.opened, false);
+        tryVerify(() => view.details.activeFocus, 1000, "the pane lost the keyboard");
+
+        keyClick("d");
+        compare(view.footerNote, "removed https://mirror.example.net/archlinux/iso/2026.09.01/");
+        view.details.activateTab(0);
+    }
+
     function test_ctrl_q_quits_from_the_add_sheet() {
         view.details.activateTab(2);
         view.details.forceActiveFocus();
