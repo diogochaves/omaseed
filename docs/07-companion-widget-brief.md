@@ -1,6 +1,7 @@
 # Companion bar widget — brief
 
-Status: **approved by Diogo 2026-10-02** (Q6–Q12 ruled as proposed, plugin id `chaves.omaseed`;
+Status: **superseded in part by `docs/20-companion-widget-contract.md` (2026-10-02), which wins where they
+differ; §1, §2's abbreviation rules, §4's status-file mechanism and §6 still hold.** Approved by Diogo 2026-10-02 (Q6–Q12 ruled as proposed, plugin id `chaves.omaseed`;
 built before v0.1.0, issues #12–#17). Proposed 2026-09-19. Stage 1 of the companion-widget work. The drawing
 is `docs/07-companion-widget-spec.html`; this file decides what is drawn and why. Foreseen by
 charter §9 ("a thin QML plugin that shows speeds in the bar and summons the app over D-Bus");
