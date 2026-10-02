@@ -189,8 +189,12 @@ keys Return -s 600 Tab ctrl+a -t public Tab Tab space Tab Tab -t admin Tab ctrl+
 unclip
 step "Signed in to public" "Step 2: URL http://127.0.0.1:8090, name public, username and password chosen, a green dot: signed in · qBittorrent 5.2.3 · API 2.15.1 · 1 torrent."
 
-# continue, "not now" on the links step, then open the library.
-keys Tab Tab Return -s 1500 Tab Return -s 2000 Return -s 3000
+# continue, "not now" on the links step: the done screen.
+keys Tab Tab Return -s 1500 Tab Return -s 2000
+step "Done, another running" "You're connected to public. Under the magnet line, dim: \"Another qBittorrent is running here; add it later in Settings › Servers.\" (Q26: two qbittorrent-nox processes, one candidate)."
+
+# Open the library.
+keys Return -s 3000
 check "after setup the window tiles" window_is tiled
 step "Library: public" "Tiled, the hero says PUBLIC · QBITTORRENT 5.2.3; one row, Public Domain Sampler; the rail has the public-domain category and no SERVERS group (one server)."
 check "servers.json: public only, default, no password in it" servers_are "public" public
