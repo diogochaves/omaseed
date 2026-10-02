@@ -50,7 +50,8 @@ QString makePlugin(const QString &root, const QByteArray &version)
 /// is the plugin alone, no staging or old copy left for the shell to find.
 QStringList besideTarget(const QString &target)
 {
-    return QFileInfo(target).dir().entryList(QDir::AllEntries | QDir::Hidden | QDir::NoDotAndDotDot);
+    return QFileInfo(target).dir().entryList(QDir::AllEntries | QDir::Hidden |
+                                             QDir::NoDotAndDotDot);
 }
 
 } // namespace
@@ -100,7 +101,8 @@ void TestBarWidgetInstaller::targetFollowsXdgConfigHome()
 {
     QCOMPARE(Installer::targetDir(), path(QStringLiteral("config/omarchy/plugins/chaves.omaseed")));
     qunsetenv("XDG_CONFIG_HOME");
-    QCOMPARE(Installer::targetDir(), QDir::home().filePath(QStringLiteral(".config/omarchy/plugins/chaves.omaseed")));
+    QCOMPARE(Installer::targetDir(),
+             QDir::home().filePath(QStringLiteral(".config/omarchy/plugins/chaves.omaseed")));
 }
 
 void TestBarWidgetInstaller::enableLineNamesThePlugin()
@@ -158,8 +160,8 @@ void TestBarWidgetInstaller::installsARealCopy()
     for (const char *name : {"manifest.json", "Widget.qml", "icons/mark.svg"}) {
         const QFileInfo info(QDir(target).filePath(QLatin1String(name)));
         QVERIFY2(info.isFile() && !info.isSymLink(), name);
-        QCOMPARE(info.permissions() & (QFileDevice::ReadOwner | QFileDevice::WriteOwner
-                                       | QFileDevice::ReadOther | QFileDevice::WriteOther),
+        QCOMPARE(info.permissions() & (QFileDevice::ReadOwner | QFileDevice::WriteOwner |
+                                       QFileDevice::ReadOther | QFileDevice::WriteOther),
                  QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ReadOther);
     }
     QCOMPARE(readFile(target + QStringLiteral("/Widget.qml")), QByteArray("Item {}"));
@@ -176,7 +178,8 @@ void TestBarWidgetInstaller::replacesAnOlderCopyWhole()
     const auto result = Installer::install(source, target);
     QVERIFY2(result.ok, qPrintable(result.message));
     QVERIFY(result.message.startsWith(QStringLiteral("Updated")));
-    QCOMPARE(readFile(target + QStringLiteral("/manifest.json")), QByteArray("{\"version\": \"1\"}"));
+    QCOMPARE(readFile(target + QStringLiteral("/manifest.json")),
+             QByteArray("{\"version\": \"1\"}"));
     QVERIFY(!QFileInfo::exists(target + QStringLiteral("/Gone.qml")));
     QCOMPARE(besideTarget(target), QStringList{QStringLiteral("chaves.omaseed")});
 }
@@ -185,7 +188,8 @@ void TestBarWidgetInstaller::symlinksAreCopiedAsFiles()
 {
     const QString source = makePlugin(path(QStringLiteral("usr-share")), "1");
     writeFile(path(QStringLiteral("elsewhere/README.md")), "read me");
-    QVERIFY(QFile::link(path(QStringLiteral("elsewhere/README.md")), source + QStringLiteral("/README.md")));
+    QVERIFY(QFile::link(path(QStringLiteral("elsewhere/README.md")),
+                        source + QStringLiteral("/README.md")));
 
     const QString target = Installer::targetDir();
     QVERIFY(Installer::install(source, target).ok);
@@ -206,7 +210,8 @@ void TestBarWidgetInstaller::leavesAGitCheckoutAlone()
     QVERIFY(!result.ok);
     QVERIFY2(result.message.contains(QStringLiteral("omarchy plugin update chaves.omaseed")),
              qPrintable(result.message));
-    QCOMPARE(readFile(target + QStringLiteral("/manifest.json")), QByteArray("{\"version\": \"git\"}"));
+    QCOMPARE(readFile(target + QStringLiteral("/manifest.json")),
+             QByteArray("{\"version\": \"git\"}"));
 }
 
 void TestBarWidgetInstaller::missingSourceLeavesTargetAlone()
@@ -215,7 +220,8 @@ void TestBarWidgetInstaller::missingSourceLeavesTargetAlone()
     writeFile(target + QStringLiteral("/manifest.json"), "{\"version\": \"0\"}");
     const auto result = Installer::install(path(QStringLiteral("empty")), target);
     QVERIFY(!result.ok);
-    QCOMPARE(readFile(target + QStringLiteral("/manifest.json")), QByteArray("{\"version\": \"0\"}"));
+    QCOMPARE(readFile(target + QStringLiteral("/manifest.json")),
+             QByteArray("{\"version\": \"0\"}"));
 }
 
 QTEST_GUILESS_MAIN(TestBarWidgetInstaller)

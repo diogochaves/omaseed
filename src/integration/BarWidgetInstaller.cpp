@@ -12,14 +12,15 @@ namespace omaseed::integration::BarWidgetInstaller {
 
 namespace {
 
-constexpr QFileDevice::Permissions kFileMode = QFileDevice::ReadOwner | QFileDevice::WriteOwner
-                                               | QFileDevice::ReadGroup | QFileDevice::ReadOther;
-constexpr QFileDevice::Permissions kDirMode = kFileMode | QFileDevice::ExeOwner
-                                              | QFileDevice::ExeGroup | QFileDevice::ExeOther;
+constexpr QFileDevice::Permissions kFileMode = QFileDevice::ReadOwner | QFileDevice::WriteOwner |
+                                               QFileDevice::ReadGroup | QFileDevice::ReadOther;
+constexpr QFileDevice::Permissions kDirMode =
+    kFileMode | QFileDevice::ExeOwner | QFileDevice::ExeGroup | QFileDevice::ExeOther;
 
 bool holdsManifest(const QString &dir)
 {
-    return !dir.isEmpty() && QFileInfo(QDir(dir).filePath(QStringLiteral("manifest.json"))).isFile();
+    return !dir.isEmpty() &&
+           QFileInfo(QDir(dir).filePath(QStringLiteral("manifest.json"))).isFile();
 }
 
 /// Copies the regular files under `source` into the empty folder `into`; false with `error`
@@ -27,7 +28,8 @@ bool holdsManifest(const QString &dir)
 bool copyTree(const QString &source, const QString &into, QString *error)
 {
     const QDir from(source);
-    QDirIterator it(source, QDir::Files | QDir::Hidden | QDir::NoDotAndDotDot,
+    QDirIterator it(source,
+                    QDir::Files | QDir::Hidden | QDir::NoDotAndDotDot,
                     QDirIterator::Subdirectories | QDirIterator::FollowSymlinks);
     while (it.hasNext()) {
         const QString path = it.next();
@@ -66,7 +68,8 @@ QString findSource(const QString &devSourceDir)
     if (holdsManifest(fromEnv))
         return QDir(fromEnv).absolutePath();
 
-    const QStringList dataDirs = QStandardPaths::standardLocations(QStandardPaths::GenericDataLocation);
+    const QStringList dataDirs =
+        QStandardPaths::standardLocations(QStandardPaths::GenericDataLocation);
     for (const QString &dir : dataDirs) {
         const QString candidate = QDir(dir).filePath(QStringLiteral("omaseed/plugin"));
         if (holdsManifest(candidate))
@@ -126,8 +129,10 @@ Result install(const QString &source, const QString &target)
     // Copy beside the target, then swap: a failed copy never leaves half a plugin behind. The
     // shell watches the plugins folder and loads every folder in it, so both helpers are hidden
     // names, as `omarchy plugin add` stages its clone (`.add.tmp.N`).
-    const QString staging = QDir(parent).filePath(QStringLiteral(".%1.new").arg(targetInfo.fileName()));
-    const QString previous = QDir(parent).filePath(QStringLiteral(".%1.old").arg(targetInfo.fileName()));
+    const QString staging =
+        QDir(parent).filePath(QStringLiteral(".%1.new").arg(targetInfo.fileName()));
+    const QString previous =
+        QDir(parent).filePath(QStringLiteral(".%1.old").arg(targetInfo.fileName()));
     QDir(staging).removeRecursively();
     QDir(previous).removeRecursively();
     QString error;
