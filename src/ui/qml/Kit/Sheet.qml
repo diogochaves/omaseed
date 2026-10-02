@@ -51,7 +51,9 @@ Item {
     /// The panel's maximum width; it shrinks when the window is narrower. Fig. 5 is 600,
     /// Fig. 7/8 420, Fig. 26 760; the spec's own `.sheet` default is 520.
     property int sheetWidth: Theme.space(520)
-    /// `[{text, primary, secondary, danger, key}]`, drawn as equal-width buttons.
+    /// `[{text, primary, secondary, danger, disabled, key}]`, drawn as equal-width buttons. A
+    /// `disabled` one is dimmed, skipped by `tab`, and `enter` does not run it (#11: the
+    /// rename sheet's button while names collide).
     property var actions: []
     /// `[{key, label}]` for the footer hint line, plus one dim string pushed to the right.
     property var hints: []
@@ -159,12 +161,13 @@ Item {
         return out;
     }
 
-    /// The button of the action flagged `primary`, or null when there is none.
+    /// The button of the action flagged `primary`, or null when there is none. A disabled
+    /// one counts too (it is still drawn); actionButtons() leaves it out.
     function primaryButton(): var {
-        const buttons = root.actionButtons();
-        for (let i = 0; i < buttons.length; ++i) {
-            if (buttons[i].primary === true)
-                return buttons[i];
+        for (let i = 0; i < actionsRow.children.length; ++i) {
+            const child = actionsRow.children[i];
+            if (child.primary === true)
+                return child;
         }
         return null;
     }
@@ -216,7 +219,7 @@ Item {
         // `enter` must run the primary one, so that is what the keyboard lands on — not
         // `cancel`, which is drawn first.
         const primary = root.primaryButton();
-        if (primary) {
+        if (primary && primary.enabled) {
             root._focus(primary);
             return;
         }
@@ -258,6 +261,8 @@ Item {
     }
 
     function _trigger(action: var): void {
+        if (action.disabled === true)
+            return;
         root.actionTriggered(action.text);
         if (action.primary === true) {
             root.accepted();
@@ -497,6 +502,7 @@ Item {
                         // the hero's bare glyph buttons.
                         bordered: true
                         danger: actionButton.modelData.danger === true
+                        enabled: actionButton.modelData.disabled !== true
                         primary: actionButton.modelData.primary === true
                         text: actionButton.modelData.text
 

@@ -524,6 +524,46 @@ TestCase {
         compare(rejected.count, 0, "enter cancelled the sheet");
     }
 
+    // #11: a disabled action is dimmed, out of the tab cycle, and enter (triggerPrimary) does
+    // not run it.
+    function test_a_disabled_primary_does_not_run() {
+        const sheet = createTemporaryObject(formSheetComponent, testCase);
+        const triggered = createTemporaryObject(triggeredSpy, testCase, {
+                                                    "target": sheet
+                                                });
+        sheet.actions = [
+            {
+                "text": "cancel",
+                "cancel": true
+            },
+            {
+                "text": "move",
+                "primary": true,
+                "disabled": true
+            }
+        ];
+        sheet.open();
+        const primary = sheet.primaryButton();
+        verify(primary);
+        compare(primary.enabled, false);
+        verify(sheet.focusables().indexOf(primary) < 0);
+        sheet.triggerPrimary(); // what enter in a body field asks for
+        compare(triggered.count, 0);
+        compare(sheet.opened, true);
+        sheet.actions = [
+            {
+                "text": "cancel",
+                "cancel": true
+            },
+            {
+                "text": "move",
+                "primary": true
+            }
+        ];
+        sheet.triggerPrimary(); // what enter in a body field asks for
+        compare(triggered.count, 1);
+    }
+
     function test_a_body_with_a_field_still_wins_over_the_primary_action() {
         const sheet = createTemporaryObject(formSheetComponent, testCase);
         sheet.open();

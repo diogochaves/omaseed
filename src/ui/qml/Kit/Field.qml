@@ -50,6 +50,11 @@ Rectangle {
         input.forceActiveFocus();
     }
 
+    /// Selects all of the text, so typing replaces it (the rename sheet's find on opening).
+    function selectAll(): void {
+        input.selectAll();
+    }
+
     // `enter` (Return or keypad Enter) accepts. `shift+enter` is deliberately left alone:
     // inside a Sheet it is the secondary action (Fig. 5's `add stopped`), and a TextInput that
     // swallowed it would never let the sheet see it (T4.2).
