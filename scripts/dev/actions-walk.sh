@@ -22,8 +22,9 @@
 #
 # The keys are the app's own: the jump palette's tab opens the actions menu on a torrent, and
 # esc from the menu leaves the keyboard on the table there. The selection bar is mouse only,
-# so it is clicked: its buttons' places are fixed for this box's 1920x1080 screen (see BAR_*),
-# and the checks after each click catch a button that moved.
+# so it is clicked: its buttons' places are measured on a 1854x1056 window (see BAR_*), moved
+# to the window's real size before the first click (bar_fit), and the checks after each click
+# catch a button that moved.
 set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -44,13 +45,18 @@ esac
 [ -x build/omaseed ] || { echo "build first: cmake --build build" >&2; exit 1; }
 
 # The selection bar's buttons, in omaseed's window coordinates, with two torrents selected,
-# the rail and the details pane open (docs/17 M9.3's order).
-BAR_Y=938
-BAR_START=685
-BAR_STOP=719
-BAR_CATEGORY=850
-BAR_TAGS=885
-BAR_DELETE=1086
+# the rail and the details pane open (docs/17 M9.3's order), for a BAR_W x BAR_H window (the
+# box's 1920x1080 screen with the bar Omarchy puts on the left). The bar is centred over the
+# table and sits a fixed height above the window's bottom: bar_fit moves the buttons by half
+# the width's change and all of the height's, so another bar layout (a top bar) still lands.
+BAR_W=1854
+BAR_H=1056
+BAR_Y=975
+BAR_START=663
+BAR_STOP=698
+BAR_CATEGORY=829
+BAR_TAGS=864
+BAR_DELETE=1065
 
 SEEDING="('uploading', 'stalledUP', 'queuedUP', 'forcedUP')"
 
@@ -79,6 +85,23 @@ print(next(t["hash"] for t in json.load(sys.stdin) if t["name"].startswith(sys.a
 in_box() { omabox run -b "$BOX" -- "$@" >/dev/null 2>&1; }
 
 keys() { omabox keys -b "$BOX" --window omaseed --wait "$@" >/dev/null 2>&1 || true; }
+# bar_fit: move BAR_* from the BAR_W x BAR_H window they were measured on to omaseed's own.
+bar_fit() {
+    local w h dx dy
+    read -r w h < <(omabox windows -b "$BOX" --json | python3 -c '
+import json, sys
+print(*next(x["size"] for x in json.load(sys.stdin) if "omaseed" in x["class"]))')
+    dx=$(((w - BAR_W) / 2))
+    dy=$((h - BAR_H))
+    BAR_Y=$((BAR_Y + dy))
+    BAR_START=$((BAR_START + dx))
+    BAR_STOP=$((BAR_STOP + dx))
+    BAR_CATEGORY=$((BAR_CATEGORY + dx))
+    BAR_TAGS=$((BAR_TAGS + dx))
+    BAR_DELETE=$((BAR_DELETE + dx))
+    BAR_W=$w
+    BAR_H=$h
+}
 click() { omabox click -b "$BOX" --window omaseed --wait "$1" "$2" >/dev/null 2>&1 || true; }
 
 # menu_on QUERY: the jump palette's tab: the cursor on the torrent QUERY finds, its actions
@@ -87,12 +110,14 @@ menu_on() { keys ctrl+k -t "$1" Tab; }
 table_on() { menu_on "$1"; keys Escape; }
 
 # watch_checking HASH OUT: in the background, poll the box's qBittorrent from inside the box
-# every 50 ms for up to 15 s and write "seen" to OUT (a file here) once HASH reads checking.
+# every 50 ms for up to 15 s: OUT (a file here) gets "polling" once it runs, then "seen" once
+# HASH reads checking (or "missed").
 # A 2 GiB check in memory lasts about two seconds, too short for polls through omabox run;
 # start it before the key, then wait for it.
 watch_checking() {
     # shellcheck disable=SC2016 # expanded by the box's sh
     omabox run -b "$BOX" -- sh -c '
+echo polling
 for _ in $(seq 1 300); do
     curl -s "$1/torrents/info?hashes=$2" | grep -q "\"state\":\"checking" && { echo seen; exit 0; }
     sleep 0.05
@@ -382,21 +407,28 @@ step "Recheck" "$BIG, the menu's recheck (c): qBittorrent hashes the moved 2 GiB
 menu_on "$BIG"
 seen="$(mktemp)"
 watch_checking "$BIGH" "$seen"
-sleep 0.5 # the watcher is polling before the key goes
+# The key goes only once the watcher polls: starting it in the box can take longer than the
+# whole 2 GiB check under load.
+for _ in $(seq 1 100); do grep -q polling "$seen" && break; sleep 0.1; done
 keys c
 shot "Straight after c. Hashing 2 GiB in memory takes about two seconds, so the row may already be back to seeding or queued; the checks below saw qBittorrent check it."
 wait
-if [ "$(cat "$seen")" = seen ]; then pass "qBittorrent checks it"; else fail "qBittorrent never read checking after c"; fi
+if [ "$(tail -n 1 "$seen")" = seen ]; then pass "qBittorrent checks it"; else fail "qBittorrent never read checking after c"; fi
 rm -f "$seen"
 expect "…and finds it whole" "$BIGH" "t['state'] in $SEEDING and t['progress'] == 1" 120
 shot "$BIG seeding again after the check." after
 
-step "Select two, stop them from the bar" "space on Field Recordings and Nested Library Sampler, then the selection bar's stop button."
+step "Select two, stop them from the bar" "space on Field Recordings and Nested Library Sampler; a jump + tab onto a third shows the menu says \"2 selected\" (esc); then the selection bar's stop button."
 table_on "Field Recordings"
 keys space
 table_on "Nested Library"
 keys space
 shot "Two rows selected; the selection bar reads \"2 selected\"." bar
+# Q24: a jump + tab onto a third torrent opens the menu there, but its rows act on the two.
+menu_on "tiny notes"
+shot "The actions menu on tiny notes (renamed).txt, headed by a dim \"2 selected\" line above stop." menu
+keys Escape
+bar_fit
 click "$BAR_STOP" "$BAR_Y"
 expect "Field Recordings is stopped" "$FIELD" 't["state"] == "stoppedUP"'
 expect "Nested Library Sampler is stopped" "$NESTED" 't["state"] == "stoppedUP"'
