@@ -342,6 +342,7 @@ void TorrentFilesModel::updateInPlace(const QJsonArray &files)
     }
 
     m_files = files;
+    const int matchesBefore = m_matchCount;
     for (int at = 0; at < files.size(); ++at)
         readFile(m_nodes[leaves.at(at)], files.at(at).toObject());
     for (int root : std::as_const(m_roots))
@@ -350,8 +351,11 @@ void TorrentFilesModel::updateInPlace(const QJsonArray &files)
 
     // Sorted by a number that moved, the rows may have to change places: they move, so the
     // view keeps its delegates and scroll, and the cursor follows its file (reordered()).
-    if (!m_sortKey.isEmpty() && m_sortKey != QLatin1String("name"))
+    // Hiding the skipped files, a priority changed on the server shows or hides rows.
+    if (m_hideSkipped || (!m_sortKey.isEmpty() && m_sortKey != QLatin1String("name")))
         relayout();
+    if (m_matchCount != matchesBefore)
+        Q_EMIT countChanged();
 
     emitAllChanged({SizeRole,
                     SizeTextRole,
@@ -500,7 +504,8 @@ bool TorrentFilesModel::matchFilter(int at, const Filter &filter)
 {
     Node &node = m_nodes[at];
     if (!node.isFolder) {
-        const bool matches = TorrentFilesModel::matches(filter, node.path);
+        const bool matches = TorrentFilesModel::matches(filter, node.path) &&
+                             !(m_hideSkipped && node.priority == int(FilePriority::Skip));
         node.matches = matches;
         node.shownIds = matches ? node.fileIndexes : QList<int>();
         if (matches)
@@ -533,6 +538,18 @@ void TorrentFilesModel::setFilterText(const QString &text)
     rebuildVisible();
     endResetModel();
     Q_EMIT filterTextChanged();
+    Q_EMIT countChanged();
+}
+
+void TorrentFilesModel::setHideSkipped(bool hide)
+{
+    if (hide == m_hideSkipped)
+        return;
+    m_hideSkipped = hide;
+    applyFilter();
+    // Same rows in another order cannot happen here: the set of rows changes, or nothing.
+    relayout();
+    Q_EMIT hideSkippedChanged();
     Q_EMIT countChanged();
 }
 
@@ -1008,8 +1025,13 @@ void TorrentFilesModel::setLocalPriority(const QVariantList &fileIndexes, int pr
     for (int root : std::as_const(m_roots))
         aggregate(root);
     updateSummary();
+    const int matchesBefore = m_matchCount;
+    if (m_hideSkipped)
+        applyFilter(); // a file just skipped goes, one raised from skip comes back
 
     relayout();
+    if (m_matchCount != matchesBefore)
+        Q_EMIT countChanged();
     emitAllChanged({PriorityRole,
                     PriorityTextRole,
                     RemainingRole,

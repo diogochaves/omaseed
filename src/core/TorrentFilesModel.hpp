@@ -23,6 +23,10 @@
 //     finds a folder's files. A folder shows when one of its files does, and every folder
 //     is open while a filter is typed. A folder then acts on the files it shows, not on the
 //     hidden ones.
+//   * hiding the skipped files (`hideSkipped`, #9): a file at priority skip fails the
+//     filter, so a folder whose every file is skipped goes too. Unlike a typed filter it
+//     leaves the folds alone, and it is a preference, not the torrent's: clear() keeps it.
+//     A change of priority under it (a key, the 2 s poll) hides or shows the file at once.
 //   * a sort (`sortKey`, `sortDescending`): siblings are sorted inside their folder, so the
 //     tree survives. By name, folders come first in both directions (qBittorrent's content
 //     view does the same); by any number, folders and files mix. "" is the torrent's own
@@ -75,6 +79,7 @@ class TorrentFilesModel : public QAbstractListModel
     Q_PROPERTY(qint64 totalSize READ totalSize NOTIFY summaryChanged)
     Q_PROPERTY(QString totalSizeText READ totalSizeText NOTIFY summaryChanged)
     Q_PROPERTY(QString filterText READ filterText WRITE setFilterText NOTIFY filterTextChanged)
+    Q_PROPERTY(bool hideSkipped READ hideSkipped WRITE setHideSkipped NOTIFY hideSkippedChanged)
     /// "" (the torrent's order), "name", "size", "progress", "remaining", "priority",
     /// "availability", "pieces".
     Q_PROPERTY(QString sortKey READ sortKey WRITE setSortKey NOTIFY sortChanged)
@@ -125,12 +130,15 @@ public:
     /// Applies a `torrents/files` array. Same shape as last time -> rows update in place;
     /// anything else -> a reset.
     void applyFiles(const QJsonArray &files);
-    /// Empties the model for another torrent: the filter goes too, the sort stays.
+    /// Empties the model for another torrent: the filter goes too, the sort and hideSkipped
+    /// stay.
     void clear();
 
     // --- filter and sort -------------------------------------------------------------
     QString filterText() const { return m_filterText; }
     void setFilterText(const QString &text);
+    bool hideSkipped() const { return m_hideSkipped; }
+    void setHideSkipped(bool hide);
     QString sortKey() const { return m_sortKey; }
     void setSortKey(const QString &key);
     bool sortDescending() const { return m_sortDescending; }
@@ -215,6 +223,7 @@ public:
 Q_SIGNALS:
     void countChanged();
     void filterTextChanged();
+    void hideSkippedChanged();
     void sortChanged();
     void selectionChanged();
     void summaryChanged();
@@ -238,7 +247,7 @@ private:
         double availability = -1.0;
         int pieceFirst = -1;
         int pieceLast = -1;
-        bool matches = true;    ///< passes the filter (a folder: one of its files does)
+        bool matches = true;    ///< passes the filter and hideSkipped (a folder: one file does)
         QList<int> children;    ///< indexes into m_nodes
         QList<int> fileIndexes; ///< API ids in this subtree
         QList<int> shownIds;    ///< the ids of fileIndexes that pass the filter
@@ -300,6 +309,7 @@ private:
     int m_skippedCount = 0;
     qint64 m_totalSize = 0;
     QString m_filterText;
+    bool m_hideSkipped = false;
     QString m_sortKey;
     bool m_sortDescending = false;
 };
