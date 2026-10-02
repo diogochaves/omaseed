@@ -15,6 +15,7 @@ private slots:
     void transientErrorsAreWorthRetrying();
     void describesItselfInOneLine();
     void comparesByValue();
+    void certificateCarriesTheFingerprint();
 };
 
 void TestApiError::defaultIsNotAnError()
@@ -78,6 +79,21 @@ void TestApiError::comparesByValue()
     QCOMPARE(ApiError::fromHttpStatus(404, QStringLiteral("gone")),
              ApiError(ApiError::Kind::NotFound, QStringLiteral("gone"), 404));
     QVERIFY(ApiError::fromHttpStatus(404) != ApiError::fromHttpStatus(409));
+}
+
+void TestApiError::certificateCarriesTheFingerprint()
+{
+    const QString sha256(64, QLatin1Char('a'));
+    const ApiError error =
+        ApiError::certificate(QStringLiteral("GET app/version: self-signed"), sha256);
+    QCOMPARE(error.kind(), ApiError::Kind::Certificate);
+    QCOMPARE(error.certificateSha256(), sha256);
+    QVERIFY(error.isError());
+    // Asking again will not make the server's certificate trusted.
+    QVERIFY(!error.isTransient());
+    QCOMPARE(error.toString(), QStringLiteral("certificate: GET app/version: self-signed"));
+    QVERIFY(ApiError(ApiError::Kind::Network, QString()).certificateSha256().isEmpty());
+    QVERIFY(error != ApiError::certificate(error.message(), QString(64, QLatin1Char('b'))));
 }
 
 QTEST_APPLESS_MAIN(TestApiError)

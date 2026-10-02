@@ -1,5 +1,6 @@
 #include "core/ServerListModel.hpp"
 
+#include "core/CertificatePin.hpp"
 #include "core/SecretStore.hpp"
 #include "core/ServerStore.hpp"
 
@@ -84,6 +85,8 @@ QVariant ServerListModel::data(const QModelIndex &index, int role) const
         return probe.apiVersion;
     case VersionTextRole:
         return probe.version.isEmpty() ? QString() : QStringLiteral("v%1").arg(probe.version);
+    case CertificateRole:
+        return server.certificateSha256;
     default:
         break;
     }
@@ -109,6 +112,7 @@ QHash<int, QByteArray> ServerListModel::roleNames() const
         {VersionRole, "version"},
         {ApiVersionRole, "apiVersion"},
         {VersionTextRole, "versionText"},
+        {CertificateRole, "certificateSha256"},
     };
 }
 
@@ -190,6 +194,8 @@ bool ServerListModel::update(const QVariantMap &fields, const QString &secretIn)
         server.name = server.url.host();
     server.addedAt = existing->addedAt;
     server.isDefault = existing->isDefault;
+    if (!fields.contains(QStringLiteral("certificateSha256")))
+        server.certificateSha256 = existing->certificateSha256;
     const QString secret = secretIn.isEmpty() ? urlPassword : secretIn;
 
     if (!m_store->update(server))
@@ -296,6 +302,7 @@ Server ServerListModel::serverFromMap(const QVariantMap &fields, QString *urlPas
     if (!remote.isEmpty() && !local.isEmpty())
         server.pathMap.append(PathMapping{remote, local});
 
+    server.certificateSha256 = CertificatePin::normalized(stringField(fields, "certificateSha256"));
     return server;
 }
 

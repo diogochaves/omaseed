@@ -10,6 +10,13 @@ ApiError::ApiError(Kind kind, QString message, int httpStatus)
     , m_httpStatus(httpStatus)
 {}
 
+ApiError ApiError::certificate(QString message, QString sha256)
+{
+    ApiError error(Kind::Certificate, std::move(message));
+    error.m_certificateSha256 = std::move(sha256);
+    return error;
+}
+
 ApiError ApiError::fromHttpStatus(int httpStatus, QString message)
 {
     if (httpStatus == 0 || (httpStatus >= 200 && httpStatus < 300))
@@ -56,6 +63,8 @@ QString ApiError::kindName(Kind kind)
         return QStringLiteral("none");
     case Kind::Network:
         return QStringLiteral("network");
+    case Kind::Certificate:
+        return QStringLiteral("certificate");
     case Kind::Timeout:
         return QStringLiteral("timeout");
     case Kind::Unauthorized:

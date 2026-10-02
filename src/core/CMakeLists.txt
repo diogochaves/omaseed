@@ -10,6 +10,8 @@ qt_add_library(omaseed-core STATIC
     Bencode.hpp
     CategoryModel.cpp
     CategoryModel.hpp
+    CertificatePin.cpp
+    CertificatePin.hpp
     FilterCounts.cpp
     FilterCounts.hpp
     Format.cpp

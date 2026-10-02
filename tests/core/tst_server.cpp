@@ -23,6 +23,8 @@ private slots:
     void comparesByValue();
     void authModeRoundTrips();
     void credentialRefusedSaysWhichCredential();
+    void trustedCertificateRoundTrips();
+    void certificateRefusedSaysWhetherItChanged();
 };
 
 void TestServer::newIdIsStableAndUnique()
@@ -163,6 +165,47 @@ void TestServer::credentialRefusedSaysWhichCredential()
     QVERIFY(credentialRefusedText(refused, AuthMode::Cookie).isEmpty());
     const ApiError timeout(ApiError::Kind::Timeout, QStringLiteral("8 s"));
     QVERIFY(credentialRefusedText(timeout, AuthMode::ApiKey).isEmpty());
+}
+
+void TestServer::trustedCertificateRoundTrips()
+{
+    Server server;
+    server.id = QStringLiteral("tls");
+    server.url = QUrl(QStringLiteral("https://nas.invalid:8080"));
+
+    // None trusted: the key is not written at all.
+    QVERIFY(!server.toJson().contains(QStringLiteral("certificateSha256")));
+    QVERIFY(Server::fromJson(server.toJson()).certificateSha256.isEmpty());
+
+    server.certificateSha256 =
+        QStringLiteral("9ce0618d3dba07b6abce06a4c4db2222f6929605a344b4f8ec21789f2761a2a2");
+    const QJsonObject json = server.toJson();
+    QCOMPARE(json.value(QStringLiteral("certificateSha256")).toString(), server.certificateSha256);
+    QCOMPARE(Server::fromJson(json).certificateSha256, server.certificateSha256);
+    QCOMPARE(Server::fromJson(json), server);
+
+    // Typed by hand in the colon form, it reads as the stored one.
+    QJsonObject typed = json;
+    typed[QStringLiteral("certificateSha256")] =
+        QStringLiteral("9C:E0:61:8D:3D:BA:07:B6:AB:CE:06:A4:C4:DB:22:22:"
+                       "F6:92:96:05:A3:44:B4:F8:EC:21:78:9F:27:61:A2:A2");
+    QCOMPARE(Server::fromJson(typed).certificateSha256, server.certificateSha256);
+
+    // A damaged value is no pin, never "accept anything".
+    QJsonObject damaged = json;
+    damaged[QStringLiteral("certificateSha256")] = QStringLiteral("9ce0618d");
+    QVERIFY(Server::fromJson(damaged).certificateSha256.isEmpty());
+    damaged[QStringLiteral("certificateSha256")] = 42;
+    QVERIFY(Server::fromJson(damaged).certificateSha256.isEmpty());
+}
+
+void TestServer::certificateRefusedSaysWhetherItChanged()
+{
+    using omaseed::core::certificateRefusedText;
+    QCOMPARE(certificateRefusedText(QString()), QStringLiteral("untrusted certificate"));
+    QCOMPARE(certificateRefusedText(QStringLiteral(
+                 "9ce0618d3dba07b6abce06a4c4db2222f6929605a344b4f8ec21789f2761a2a2")),
+             QStringLiteral("the certificate changed"));
 }
 
 QTEST_APPLESS_MAIN(TestServer)
