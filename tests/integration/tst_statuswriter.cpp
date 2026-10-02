@@ -201,7 +201,7 @@ void TestStatusWriter::writesSchemaTwo()
     const QJsonObject server = status.value(QStringLiteral("server")).toObject();
     QCOMPARE(server.value(QStringLiteral("name")).toString(), QStringLiteral("home"));
     QCOMPARE(server.value(QStringLiteral("url")).toString(), QStringLiteral("127.0.0.1:8081"));
-    QCOMPARE(server.value(QStringLiteral("version")).toString(), QStringLiteral("v5.2.3"));
+    QCOMPARE(server.value(QStringLiteral("version")).toString(), QStringLiteral("5.2.3"));
     QCOMPARE(server.value(QStringLiteral("reachable")).toBool(), true);
     QCOMPARE(server.value(QStringLiteral("error")).toString(), QString());
     QVERIFY(server.value(QStringLiteral("retryIn")).isDouble());

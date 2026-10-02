@@ -494,6 +494,10 @@ QJsonObject StatusWriter::content() const
                          m_windowShown ? QStringLiteral("shown") : QStringLiteral("hidden")},
                     });
 
+    // qBittorrent says "v5.2.3"; the schema (and every place the app prints it) says "5.2.3".
+    QString serverVersion = state ? state->serverVersion() : QString();
+    if (serverVersion.startsWith(QLatin1Char('v')))
+        serverVersion.remove(0, 1);
     QString error = m_serverError;
     if (!reachable && error.isEmpty() && m_serverHostPort.isEmpty())
         error = QStringLiteral("no server set up");
@@ -502,7 +506,7 @@ QJsonObject StatusWriter::content() const
         QJsonObject{
             {QStringLiteral("name"), m_serverName},
             {QStringLiteral("url"), m_serverHostPort},
-            {QStringLiteral("version"), state ? state->serverVersion() : QString()},
+            {QStringLiteral("version"), serverVersion},
             {QStringLiteral("reachable"), reachable},
             {QStringLiteral("error"), reachable ? QString() : error},
             {QStringLiteral("retryIn"), !reachable && state ? state->retryInSeconds() : 0},
