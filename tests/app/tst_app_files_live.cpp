@@ -87,6 +87,7 @@ private slots:
     void cleanupTestCase();
 
     void priorityRenameAndFolderRenameReachTheServer();
+    void manyFilesRenameReachesTheServer();
 
 private:
     /// torrents/files as {name: priority}, or empty on an error.
@@ -197,6 +198,54 @@ void TestAppFilesLive::priorityRenameAndFolderRenameReachTheServer()
     QVERIFY2(waitFor([&]() { return files->rowOfPath(moved) >= 0; }, 10000),
              "the Files tab never showed the renamed folder");
     QCOMPARE(failed.count(), 0);
+
+    app.engine()->stop();
+}
+
+// #11: the rename sheet's run, one torrents/renameFile per file, read back from the server.
+// Whatever the first test left, the .txt files are numbered in front of their names.
+void TestAppFilesLive::manyFilesRenameReachesTheServer()
+{
+    App app;
+    app.start();
+    QVERIFY(app.hasServer());
+    QVERIFY2(waitFor([&app]() { return app.torrents()->indexOfHash(kHash) >= 0; }, 10000),
+             "the fixture never reached the table");
+    app.selectTorrent(kHash);
+    TorrentFilesModel *files = app.details()->files();
+    QVERIFY2(waitFor([files]() { return files->filePaths().size() == 3; }, 10000),
+             "the Files tab never filled");
+
+    QStringList texts;
+    for (const QString &path : files->filePaths()) {
+        if (path.endsWith(QStringLiteral(".txt")))
+            texts.append(path);
+    }
+    QCOMPARE(texts.size(), 2);
+    const QVariantMap options{{QStringLiteral("find"), QStringLiteral("^")},
+                              {QStringLiteral("replace"), QStringLiteral("{nn} ")},
+                              {QStringLiteral("regex"), true}};
+    QSignalSpy done(&app, &App::torrentFilesRenamed);
+    QSignalSpy failed(&app, &App::actionFailed);
+    app.renameTorrentFiles(kHash, texts, options);
+    QVERIFY2(done.wait(10000), "the renames never finished");
+    QCOMPARE(done.at(0).at(1).toInt(), 2);
+    QVERIFY(done.at(0).at(4).toString().isEmpty());
+    QCOMPARE(failed.count(), 0);
+
+    const auto numbered = [](const QString &path, int n) {
+        const qsizetype slash = path.lastIndexOf(QLatin1Char('/'));
+        return path.left(slash + 1) + QStringLiteral("%1 ").arg(n, 2, 10, QLatin1Char('0')) +
+               path.mid(slash + 1);
+    };
+    QVERIFY2(waitFor(
+                 [&]() {
+                     const QHash<QString, int> now = serverFiles();
+                     return now.contains(numbered(texts.at(0), 1)) &&
+                            now.contains(numbered(texts.at(1), 2));
+                 },
+                 10000),
+             "the numbered names never reached the server");
 
     app.engine()->stop();
 }

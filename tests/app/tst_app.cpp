@@ -103,6 +103,7 @@ private slots:
     void trayStateFollowsTheWorld();
     void environmentOverrideReachesThePlayground();
     void filesTabActionsRunLocallyInDemo();
+    void manyFilesRenameLocallyInDemo();
 
 private:
     QTemporaryDir m_config;
@@ -434,6 +435,57 @@ void TestApp::filesTabActionsRunLocallyInDemo()
     QCOMPARE(app.torrentFileLocalPath(hash, QStringLiteral("Big Buck Bunny 4K/LICENSE.txt")),
              savePath + QStringLiteral("/Big Buck Bunny 4K/LICENSE.txt"));
     QVERIFY(app.torrentFileLocalPath(QStringLiteral("nope"), QStringLiteral("a")).isEmpty());
+}
+
+// #11: the rename sheet's plan and run through App, on the demo's files: a prefix on every
+// name runs and lands; a name every file would share collides, and nothing is sent.
+void TestApp::manyFilesRenameLocallyInDemo()
+{
+    App app;
+    app.startDemo(16);
+    QString hash;
+    for (int row = 0; row < app.torrents()->count(); ++row) {
+        if (roleOf(app.torrents(), row, "name").toString() ==
+            QStringLiteral("Big Buck Bunny 4K (CC-BY)"))
+            hash = roleOf(app.torrents(), row, "hash").toString();
+    }
+    QVERIFY(!hash.isEmpty());
+    app.selectTorrent(hash);
+    TorrentFilesModel *files = app.details()->files();
+    const QStringList paths = files->filePaths();
+    QVERIFY(paths.size() >= 2);
+
+    const QVariantMap prefix{{QStringLiteral("find"), QStringLiteral("^")},
+                             {QStringLiteral("replace"), QStringLiteral("x-")},
+                             {QStringLiteral("regex"), true}};
+    const QVariantMap plan = app.planFileRenames(paths, prefix);
+    QCOMPARE(plan.value(QStringLiteral("changed")).toInt(), int(paths.size()));
+    QVERIFY(plan.value(QStringLiteral("canRun")).toBool());
+    const QVariantMap first = plan.value(QStringLiteral("rows")).toList().first().toMap();
+    QCOMPARE(first.value(QStringLiteral("status")).toString(), QStringLiteral("changed"));
+    QVERIFY(first.value(QStringLiteral("newName")).toString().startsWith(QStringLiteral("x-")));
+    QCOMPARE(first.value(QStringLiteral("marks")).toList().first().toList(), QVariantList({0, 2}));
+
+    QSignalSpy renamed(&app, &App::torrentFileRenameRequested);
+    QSignalSpy done(&app, &App::torrentFilesRenamed);
+    app.renameTorrentFiles(hash, paths, prefix);
+    QCOMPARE(renamed.count(), int(paths.size()));
+    QCOMPARE(done.count(), 1);
+    QCOMPARE(done.at(0).at(1).toInt(), int(paths.size()));
+    for (const QString &path : files->filePaths())
+        QVERIFY2(path.mid(path.lastIndexOf(QLatin1Char('/')) + 1).startsWith(QStringLiteral("x-")),
+                 qPrintable(path));
+
+    QSignalSpy failed(&app, &App::actionFailed);
+    const QVariantMap same{{QStringLiteral("find"), QStringLiteral(".+")},
+                           {QStringLiteral("replace"), QStringLiteral("same")},
+                           {QStringLiteral("regex"), true},
+                           {QStringLiteral("includeExtension"), true}};
+    const QStringList now = files->filePaths();
+    QCOMPARE(app.planFileRenames(now, same).value(QStringLiteral("canRun")).toBool(), false);
+    app.renameTorrentFiles(hash, now, same);
+    QCOMPARE(renamed.count(), int(paths.size()));
+    QCOMPARE(failed.count(), 1);
 }
 
 QTEST_MAIN(TestApp)

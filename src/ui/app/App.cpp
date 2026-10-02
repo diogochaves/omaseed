@@ -5,6 +5,7 @@
 #include "core/MagnetLink.hpp"
 #include "core/PathMap.hpp"
 #include "core/PeerInput.hpp"
+#include "core/RenamePlan.hpp"
 #include "core/StateFile.hpp"
 #include "core/TorrentFile.hpp"
 #include "core/TorrentFolderScan.hpp"
@@ -3253,6 +3254,129 @@ void App::setFilePriorityGroups(const QString &hash, const QVariantList &groups)
                         map.value(QStringLiteral("fileIndexes")).toList(),
                         map.value(QStringLiteral("priority")).toInt());
     }
+}
+
+// --- #11: renaming many files ------------------------------------------------------------------
+
+namespace {
+
+RenameOptions renameOptionsFrom(const QVariantMap &map)
+{
+    RenameOptions options;
+    options.find = map.value(QStringLiteral("find")).toString();
+    options.replace = map.value(QStringLiteral("replace")).toString();
+    options.regex = map.value(QStringLiteral("regex")).toBool();
+    options.everyMatch = map.value(QStringLiteral("everyMatch")).toBool();
+    options.matchCase = map.value(QStringLiteral("matchCase")).toBool();
+    options.includeExtension = map.value(QStringLiteral("includeExtension")).toBool();
+    return options;
+}
+
+QString renameStatusText(RenameRow::Status status)
+{
+    switch (status) {
+    case RenameRow::Status::Changed:
+        return QStringLiteral("changed");
+    case RenameRow::Status::Collides:
+        return QStringLiteral("collides");
+    case RenameRow::Status::Invalid:
+        return QStringLiteral("invalid");
+    case RenameRow::Status::Unchanged:
+        break;
+    }
+    return QStringLiteral("unchanged");
+}
+
+RenamePlan
+planFor(const TorrentFilesModel *files, const QStringList &paths, const QVariantMap &options)
+{
+    const QSet<QString> renamed(paths.cbegin(), paths.cend());
+    QStringList others;
+    for (const QString &path : files->filePaths()) {
+        if (!renamed.contains(path))
+            others.append(path);
+    }
+    return RenamePlan::make(paths, others, renameOptionsFrom(options));
+}
+
+} // namespace
+
+QVariantMap App::planFileRenames(const QStringList &paths, const QVariantMap &options) const
+{
+    const RenamePlan plan = planFor(m_details->files(), paths, options);
+    QVariantList rows;
+    for (const RenameRow &row : plan.rows()) {
+        QVariantList marks;
+        for (const auto &[start, length] : row.marks)
+            marks.append(QVariant(QVariantList{int(start), int(length)}));
+        rows.append(QVariantMap{
+            {QStringLiteral("path"), row.path},
+            {QStringLiteral("name"), row.path.mid(row.path.lastIndexOf(QLatin1Char('/')) + 1)},
+            {QStringLiteral("newName"), row.newName},
+            {QStringLiteral("status"), renameStatusText(row.status)},
+            {QStringLiteral("marks"), marks},
+        });
+    }
+    return {
+        {QStringLiteral("rows"), rows},
+        {QStringLiteral("error"), plan.error()},
+        {QStringLiteral("changed"), plan.changed()},
+        {QStringLiteral("collisions"), plan.collisions()},
+        {QStringLiteral("invalid"), plan.invalid()},
+        {QStringLiteral("canRun"), plan.canRun()},
+    };
+}
+
+void App::renameTorrentFiles(const QString &hash,
+                             const QStringList &paths,
+                             const QVariantMap &options)
+{
+    if (hash.isEmpty() || hash != m_details->hash())
+        return;
+    // Planned again here, against the list as it is now, rather than trusting the preview.
+    const RenamePlan plan = planFor(m_details->files(), paths, options);
+    if (!plan.canRun()) {
+        Q_EMIT actionFailed(QStringLiteral("rename"), tr("the new names collide or are not valid"));
+        return;
+    }
+    QList<std::pair<QString, QString>> moves;
+    const QList<RenameRow> rows = plan.rows();
+    for (int index : plan.executionOrder())
+        moves.append({rows.at(index).path, rows.at(index).newPath});
+    for (const auto &[from, to] : std::as_const(moves))
+        Q_EMIT torrentFileRenameRequested(hash, from, to, false);
+
+    if (m_demoMode) {
+        for (const auto &[from, to] : std::as_const(moves))
+            m_details->files()->renameLocal(from, to);
+        Q_EMIT torrentFilesRenamed(
+            hash, int(moves.size()), int(moves.size()), QString(), QString());
+        return;
+    }
+    if (!m_hasServer)
+        return;
+    sendFileRename(hash, moves, 0);
+}
+
+void App::sendFileRename(const QString &hash,
+                         const QList<std::pair<QString, QString>> &moves,
+                         int at)
+{
+    if (at >= moves.size()) {
+        m_details->refreshNow();
+        Q_EMIT torrentFilesRenamed(hash, at, int(moves.size()), QString(), QString());
+        return;
+    }
+    auto *reply = m_client->torrentsRenameFile(hash, moves.at(at).first, moves.at(at).second);
+    reply->then(this, [this, hash, moves, at](const QbtResult<QByteArray> &result) {
+        if (result.isError()) {
+            m_details->refreshNow();
+            Q_EMIT torrentFilesRenamed(
+                hash, at, int(moves.size()), moves.at(at).first, result.error().toString());
+            return;
+        }
+        sendFileRename(hash, moves, at + 1);
+    });
 }
 
 // --- end N1 ----------------------------------------------------------------------------------

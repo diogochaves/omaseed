@@ -190,6 +190,9 @@ public:
     Q_INVOKABLE QString pathAt(int row) const;
     /// The leaf name alone, without the folder's trailing `/`: what `r` offers to edit.
     Q_INVOKABLE QString nameAt(int row) const;
+    /// Every file's path inside the torrent, shown or not: what a batch rename must not land
+    /// on (#11).
+    Q_INVOKABLE QStringList filePaths() const;
     /// Moves `oldPath` (a file, or a folder and everything under it) to `newPath` locally,
     /// for demo mode's rename. Keeps the fold state and selection of what moved.
     Q_INVOKABLE void renameLocal(const QString &oldPath, const QString &newPath);

@@ -889,6 +889,9 @@ private:
                          const QVariantList &priorities,
                          bool keepStopped,
                          int attempt = 0);
+    /// Sends `moves[at]` of a renameTorrentFiles() run and the rest after it.
+    void
+    sendFileRename(const QString &hash, const QList<std::pair<QString, QString>> &moves, int at);
     /// Sends `renames[at]` (paths prefixed with `root`) and the rest after it.
     void sendAddRename(const QString &id,
                        const QVariantList &renames,
@@ -1070,6 +1073,19 @@ public:
                                        const QString &oldPath,
                                        const QString &newName,
                                        bool folder);
+    /// The rename sheet's preview (#11, docs/18): `paths` are the files to rename in the
+    /// tab's order, `options` `{find, replace, regex, everyMatch, matchCase,
+    /// includeExtension}`. Answers `{rows: [{path, name, newName, status, marks}], error,
+    /// changed, collisions, invalid, canRun}`; `status` is "unchanged", "changed", "collides"
+    /// or "invalid", `marks` `[[start, length]…]` in newName. The details torrent's other
+    /// files count for collisions.
+    Q_INVOKABLE QVariantMap planFileRenames(const QStringList &paths,
+                                            const QVariantMap &options) const;
+    /// Runs that plan for the details torrent: one torrents/renameFile per changed file, in
+    /// an order where each target is free, stopping at the first refusal. Answers with
+    /// `torrentFilesRenamed`.
+    Q_INVOKABLE void
+    renameTorrentFiles(const QString &hash, const QStringList &paths, const QVariantMap &options);
     /// qBittorrent's "by shown file order": `groups` is TorrentFilesModel::shownOrderGroups(),
     /// one torrents/filePrio call per group.
     Q_INVOKABLE void setFilePriorityGroups(const QString &hash, const QVariantList &groups);
@@ -1077,6 +1093,9 @@ public:
 Q_SIGNALS:
     /// Every rename as asked, before the demo guard (for the QML tests).
     void torrentFileRenameRequested(QString hash, QString oldPath, QString newPath, bool folder);
+    /// A renameTorrentFiles() run ended: `done` of `total` renamed; on a refusal `failedPath`
+    /// is the file qBittorrent refused and `error` says why (both empty when all went).
+    void torrentFilesRenamed(QString hash, int done, int total, QString failedPath, QString error);
     // --- end N1 -----------------------------------------------------------------------------
 
     // --- #2: trusted certificates -------------------------------------------------------------

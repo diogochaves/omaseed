@@ -1032,6 +1032,15 @@ QString TorrentFilesModel::nameAt(int row) const
     return m_nodes.at(m_visible.at(row)).name;
 }
 
+QStringList TorrentFilesModel::filePaths() const
+{
+    QStringList paths;
+    paths.reserve(m_files.size());
+    for (const QJsonValue &value : std::as_const(m_files))
+        paths.append(value.toObject().value(QStringLiteral("name")).toString());
+    return paths;
+}
+
 void TorrentFilesModel::renameLocal(const QString &oldPath, const QString &newPath)
 {
     if (oldPath.isEmpty() || newPath.isEmpty() || oldPath == newPath)
