@@ -12,7 +12,9 @@ import Omaseed.Kit
 // bounded width).
 //
 // Too narrow for every hint (docs/10 §3), the row shows as many as fit, dropping from the
-// right; the pinned hint always keeps its place.
+// right; the pinned hint always keeps its place. A hint with `keep: true` is dropped last: the
+// others go from the right first, so a line that ends in the key that matters (the add sheet's
+// `enter add`, #8) loses the extras before it.
 RowLayout {
     id: root
 
@@ -25,22 +27,40 @@ RowLayout {
 
     readonly property bool hasPinned: root.pinned !== null
     readonly property int _pixelSize: Theme.font[root.size]
-    /// How many of `model`'s hints are shown.
-    readonly property int shownCount: {
+    /// Which of `model`'s hints are shown, by index: every `keep` hint that fits (left to
+    /// right), then the others from the left while there is room.
+    readonly property var _shown: {
         const hints = root.model; // re-evaluate when the hints change
-        const room = root.width - (root.hasPinned ? pinnedRow.implicitWidth + root.spacing : 0);
-        let used = 0;
-        for (let i = 0; i < hintRepeater.count; ++i) {
+        const count = hintRepeater.count;
+        const shown = [];
+        for (let i = 0; i < count; ++i)
+            shown.push(false);
+        let room = root.width - (root.hasPinned ? pinnedRow.implicitWidth + root.spacing : 0);
+        // Each shown hint takes its width and one gap; the first gap is given back.
+        room += hintsRow.spacing;
+        const need = i => {
             const item = hintRepeater.itemAt(i);
-            if (item === null)
-                return i;
-            const need = item.implicitWidth + (i > 0 ? hintsRow.spacing : 0);
-            if (used + need > room)
-                return i;
-            used += need;
+            return item === null ? Infinity : item.implicitWidth + hintsRow.spacing;
+        };
+        const kept = i => hints !== null && hints[i] !== undefined && hints[i].keep === true;
+        for (let i = 0; i < count; ++i) {
+            if (kept(i) && need(i) <= room) {
+                shown[i] = true;
+                room -= need(i);
+            }
         }
-        return hints === null ? 0 : hintRepeater.count;
+        for (let i = 0; i < count; ++i) {
+            if (kept(i))
+                continue;
+            if (need(i) > room)
+                break;
+            shown[i] = true;
+            room -= need(i);
+        }
+        return shown;
     }
+    /// How many of `model`'s hints are shown.
+    readonly property int shownCount: root._shown.filter(shown => shown).length
 
     spacing: Theme.space(14)
 
@@ -61,7 +81,7 @@ RowLayout {
                 required property var modelData
 
                 spacing: Theme.space(6)
-                visible: hintRow.index < root.shownCount
+                visible: root._shown[hintRow.index] === true
 
                 Text {
                     color: Theme.foreground

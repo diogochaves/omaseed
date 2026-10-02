@@ -65,6 +65,27 @@ TestCase {
         compare(findChild(t.hint, "scrollbar").visible, false);
     }
 
+    // #8: a cover lengthens a band's ground over a straddling row; its words stay in the band
+    // itself, and the insets the cursor keeps clear of do not grow.
+    function test_a_cover_lengthens_the_band_but_not_its_inset() {
+        const t = make("chevrons", 3, 4);
+        const above = findChild(t.hint, "moreAbove");
+        const below = findChild(t.hint, "moreBelow");
+        t.hint.topCover = 9;
+        t.hint.bottomCover = 5;
+        compare(above.height, t.hint.bandHeight + 9);
+        compare(below.height, t.hint.bandHeight + 5);
+        compare(below.y, t.hint.height - t.hint.bandHeight - 5);
+        compare(t.hint.topInset, t.hint.bandHeight);
+        compare(t.hint.bottomInset, t.hint.bandHeight);
+        const aboveText = findChild(t.hint, "moreAboveText");
+        verify(aboveText.y + aboveText.height <= t.hint.bandHeight + 0.5);
+        const belowText = findChild(t.hint, "moreBelowText");
+        verify(belowText.y >= below.height - t.hint.bandHeight - 0.5);
+        t.hint.topCover = -4; // never shorter than the band
+        compare(above.height, t.hint.bandHeight);
+    }
+
     function test_fade_draws_only_the_side_that_has_more_and_covers_nothing() {
         const t = make("fade", 2, 0);
         compare(findChild(t.hint, "fadeAbove").visible, true);

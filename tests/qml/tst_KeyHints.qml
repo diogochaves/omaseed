@@ -99,4 +99,46 @@ TestCase {
         compare(hints.shownCount, 3);
         verify(hints.hasPinned);
     }
+
+    // #8: a `keep` hint outlasts the others; they still go from the right.
+    function test_a_kept_hint_is_dropped_last() {
+        const model = [
+                  {
+                      "key": "j k",
+                      "label": "move"
+                  },
+                  {
+                      "key": "space",
+                      "label": "check"
+                  },
+                  {
+                      "key": "x",
+                      "label": "skip"
+                  },
+                  {
+                      "key": "enter",
+                      "label": "add",
+                      "keep": true
+                  }
+              ];
+        const hints = createTemporaryObject(keyHintsComponent, testCase, {
+                                                "model": model,
+                                                "width": 2000
+                                            });
+        compare(hints._shown, [true, true, true, true]);
+        let narrower = 2000;
+        while (hints.shownCount === 4 && narrower > 0) {
+            narrower -= 5;
+            hints.width = narrower;
+        }
+        // The first to go is `x skip`, the last plain one, not `enter add`.
+        compare(hints._shown, [true, true, false, true]);
+        while (hints.shownCount > 1 && narrower > 0) {
+            narrower -= 5;
+            hints.width = narrower;
+        }
+        compare(hints._shown, [false, false, false, true]);
+        hints.width = 10;
+        compare(hints.shownCount, 0);
+    }
 }
