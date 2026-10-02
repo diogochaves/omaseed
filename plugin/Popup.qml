@@ -876,6 +876,7 @@ Panel {
         Flow {
           width: parent.width
           spacing: Style.space(6)
+          opacity: root.reachable ? 1 : 0.45
 
           Repeater {
             model: [""].concat(root.categories.map(function(c) { return String(c.name) }))
@@ -1139,7 +1140,7 @@ Panel {
           model: [
             { n: root.aliveInfo.onlyYou, words: "only you" },
             { n: root.aliveInfo.plusOne, words: "you + one" },
-            { n: root.aliveInfo.waiting, words: "peers waiting" },
+            { n: root.aliveInfo.waiting, words: "with peers waiting" },
             { n: root.aliveInfo.quiet, words: "nobody has asked for in a month" }
           ]
           delegate: Rectangle {

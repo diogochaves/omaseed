@@ -116,11 +116,12 @@ BarWidget {
 
   // ------------------------------------------------------------- the readout
 
-  FontMetrics { id: valueMetrics; font.family: root.fontFamily; font.pixelSize: Style.font.body }
+  FontMetrics { id: valueMetrics; font.family: root.fontFamily; font.pixelSize: Style.font.body; font.features: { "tnum": 1 } }
   FontMetrics { id: arrowMetrics; font.family: root.fontFamily; font.pixelSize: root.vertical ? Style.font.caption : Style.font.body }
 
-  // The widest value a slot can ever hold, measured once in the bar's font: four
-  // characters (Format.barValue), in digits that may be proportional.
+  // The widest value a slot can ever hold, measured once in the bar's font with tabular
+  // digits: four characters (Format.barValue), whose dot and unit letters may still be
+  // proportional.
   readonly property int valueSlot: {
     var texts = ["888M", "8.8M", "999K", "1.0G", "0"]
     var w = 0
