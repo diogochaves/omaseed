@@ -323,6 +323,32 @@ expect_disk "the old folder is gone" ! "$TORRENTS_DIR/Public Domain Sampler"
 expect "it still seeds, complete" "$PDS" "t['state'] in $SEEDING and t['progress'] == 1"
 shot "The Files tab's top folder reads \"Sampler (renamed)/\"."
 
+step "Rename many files" "Field Recordings' Files tab, ctrl+a, r: the rename sheet on all 16 files. ctrl+e (regex), find \"(\\d+) - \", replace \"\$1. \", enter: the 14 tracks become \"NN. Title.flac\", album.cue and cover.jpg stay. Then the same sheet puts the names back."
+ALBUM="Field Recordings Vol. 3 [FLAC]"
+table_on "Field Recordings"
+keys l 2
+keys ctrl+a r
+keys -t '(\d+) - '
+keys ctrl+e Tab
+# shellcheck disable=SC2016 # a regex group for the app, typed as is
+keys -t '$1. '
+shot "The rename sheet: regex on, 14 of 16 change, \"01. Harbour at Dawn.flac\" with \"01. \" in accent, the button reads \"rename 14\"." sheet
+keys Return
+expect_file "qBittorrent lists $ALBUM/01. Harbour at Dawn.flac" "$FIELD" "$ALBUM/01. Harbour at Dawn.flac"
+expect_file "…and 14. Last Ferry.flac" "$FIELD" "$ALBUM/14. Last Ferry.flac"
+expect_file "album.cue keeps its name" "$FIELD" "$ALBUM/album.cue"
+expect_disk "01. Harbour at Dawn.flac is on disk" -f "$TORRENTS_DIR/$ALBUM/01. Harbour at Dawn.flac"
+expect_disk "01 - Harbour at Dawn.flac is gone from disk" ! "$TORRENTS_DIR/$ALBUM/01 - Harbour at Dawn.flac"
+shot "The Files tab lists 01. Harbour at Dawn.flac to 14. Last Ferry.flac; the footer said \"renamed 14 files\"."
+# The sheet keeps its fields and regex: select all again and swap the pattern back.
+keys ctrl+a r
+keys -t '(\d+)\. '
+keys Tab ctrl+a
+# shellcheck disable=SC2016 # a regex group for the app, typed as is
+keys -t '$1 - ' Return
+expect_file "the names are back: 01 - Harbour at Dawn.flac" "$FIELD" "$ALBUM/01 - Harbour at Dawn.flac"
+expect_disk "…on disk too" -f "$TORRENTS_DIR/$ALBUM/14 - Last Ferry.flac"
+
 step "Create and set a category" "Field Recordings, the menu's category (C), \"walk\", enter on create \"walk\". Automatic management is off, so nothing moves."
 menu_on "Field Recordings"
 keys C
