@@ -223,6 +223,23 @@ Item {
         return last < 0 ? root._rawBelow : list.count - 1 - last;
     }
 
+    /// How much of a row counted above or below still shows past a band's inner edge (#8):
+    /// the hint stretches the band over it. 0 when no row straddles that edge.
+    function _straddle(edge: real, revision: int, below: bool): real {
+        const index = root._rowAt(edge, revision);
+        if (index < 0)
+            return 0;
+        const box = root._rowBoxes[index];
+        if (box[0] >= edge - 0.5 || box[0] + box[1] <= edge + 0.5)
+            return 0;
+        return below ? edge - box[0] : box[0] + box[1] - edge;
+    }
+    readonly property real _topCover: root._rowsAbove === 0 ? 0
+            : root._straddle(list.contentY + hint.bandHeight, root._layoutRevision, false)
+    readonly property real _bottomCover: root._rowsBelow === 0 ? 0
+            : root._straddle(list.contentY + list.height - hint.bandHeight, root._layoutRevision,
+                             true)
+
     // ---- dragging a row (`draggable`) ----------------------------------------------------
     /// Whether row `index` may be picked up.
     function canDrag(index: int): bool {
@@ -750,6 +767,7 @@ Item {
         ScrollHint {
             id: hint
 
+            bottomCover: root._bottomCover
             countAbove: root._rowsAbove
             countBelow: root._rowsBelow
             flickable: list
@@ -757,6 +775,7 @@ Item {
             objectName: "scrollHint"
             revealed: root._opened
             style: root.scrollHint
+            topCover: root._topCover
             width: list.width - 2 * panel.border.width
             x: list.x + panel.border.width
             y: layout.y + list.y

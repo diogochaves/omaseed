@@ -13,7 +13,9 @@ import Omaseed.Kit
 // The caller counts the rows (`countAbove`, `countBelow`), since only it knows what a row is
 // (the rail counts headings too). `topInset`/`bottomInset` say how much of the list a band
 // covers (the rail hangs its sticky heading under the top one); `clearTop`/`clearBottom` say
-// how far from each edge a cursor row should stay to be read, band or fade.
+// how far from each edge a cursor row should stay to be read, band or fade. A row the caller
+// counts out of view can still straddle a band's inner edge; `topCover`/`bottomCover` stretch
+// that band over the rest of it (#8: a sliver of it peeked under the band otherwise).
 Item {
     id: root
 
@@ -32,11 +34,16 @@ Item {
     property real bandHeight: Math.round(Theme.railRowHeight * 0.8)
     /// How far a fade reaches into the list.
     property real fadeHeight: Theme.railRowHeight * 1.5
+    /// How much further than `bandHeight` each band reaches, to hide all of a row that
+    /// straddles its inner edge. The insets below leave it out: the cursor keeps clear of
+    /// the band itself, and scrolling to it brings the covered row out whole.
+    property real topCover: 0
+    property real bottomCover: 0
 
     readonly property bool overflows: root.flickable !== null
                                       && root.flickable.contentHeight > root.flickable.height + 0.5
-    readonly property real topInset: moreAbove.visible ? moreAbove.height : 0
-    readonly property real bottomInset: moreBelow.visible ? moreBelow.height : 0
+    readonly property real topInset: moreAbove.visible ? root.bandHeight : 0
+    readonly property real bottomInset: moreBelow.visible ? root.bandHeight : 0
     /// How far from each edge a cursor row should stay to be read: under a band or a fade
     /// it is hidden or dimmed.
     readonly property real clearTop: root.topInset > 0 ? root.topInset : fadeAbove.visible
@@ -75,15 +82,17 @@ Item {
         anchors.right: parent.right
         anchors.top: parent.top
         color: root.ground
-        height: root.bandHeight
+        height: root.bandHeight + Math.max(0, root.topCover)
         objectName: "moreAbove"
         visible: root.style === "chevrons" && root.countAbove > 0
         z: 1
 
+        // In the band's own height, so a cover only lengthens the ground under it.
         Label {
-            anchors.centerIn: parent
+            anchors.horizontalCenter: parent.horizontalCenter
             dim: true
             objectName: "moreAboveText"
+            y: Math.round((root.bandHeight - height) / 2)
             size: "caption"
             text: qsTr("%1 %2 above").arg(Glyphs.chevronUp).arg(root.countAbove)
         }
@@ -109,15 +118,16 @@ Item {
         anchors.left: parent.left
         anchors.right: parent.right
         color: root.ground
-        height: root.bandHeight
+        height: root.bandHeight + Math.max(0, root.bottomCover)
         objectName: "moreBelow"
         visible: root.style === "chevrons" && root.countBelow > 0
         z: 1
 
         Label {
-            anchors.centerIn: parent
+            anchors.horizontalCenter: parent.horizontalCenter
             dim: true
             objectName: "moreBelowText"
+            y: parent.height - root.bandHeight + Math.round((root.bandHeight - height) / 2)
             size: "caption"
             text: qsTr("%1 %2 below").arg(Glyphs.chevronDown).arg(root.countBelow)
         }

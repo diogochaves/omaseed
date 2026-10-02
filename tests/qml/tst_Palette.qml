@@ -176,6 +176,50 @@ TestCase {
         compare(findChild(hint, "moreAbove").visible, true);
     }
 
+    // #8: no row peeks past a band's inner edge: a row there is either wholly in view or
+    // the band reaches over all of it.
+    function test_no_row_peeks_past_a_band() {
+        const palette = createTemporaryObject(paletteComponent, testCase, {
+                                                  "items": testCase.longRows()
+                                              });
+        palette.open();
+        waitForRendering(palette);
+        const list = palette.listView;
+        const hint = findChild(palette, "scrollHint");
+        const above = findChild(hint, "moreAbove");
+        const below = findChild(hint, "moreBelow");
+        const straddles = edge => {
+            for (let i = 0; i < list.count; ++i) {
+                const row = list.itemAtIndex(i);
+                if (row !== null && row.y < edge - 0.5 && row.y + row.height > edge + 0.5)
+                    return i;
+            }
+            return -1;
+        };
+        const check = (what) => {
+            if (above.visible)
+                compare(straddles(list.contentY + above.height), -1, what + ": top band");
+            if (below.visible)
+                compare(straddles(list.contentY + list.height - below.height), -1,
+                        what + ": bottom band");
+        };
+        let sawTop = false;
+        for (let i = 0; i < 25; ++i) {
+            keyClick(Qt.Key_Down);
+            sawTop = sawTop || above.visible;
+            check("down " + i);
+        }
+        verify(sawTop, "the top band never showed");
+        for (let i = 0; i < 20; ++i) {
+            keyClick(Qt.Key_Up);
+            check("up " + i);
+        }
+        // Between rows, as a wheel leaves it.
+        const rowHeight = list.contentHeight / 40;
+        list.contentY = Math.round(rowHeight * 6.4);
+        check("wheel");
+    }
+
     function test_the_cursor_stays_clear_of_the_bands() {
         const palette = createTemporaryObject(paletteComponent, testCase, {
                                                   "items": testCase.longRows()
