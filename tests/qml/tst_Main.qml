@@ -108,6 +108,11 @@ TestCase {
         compare(App.counts.downloading, 8);
         compare(view.factsText, "16 torrents · 7 downloading · " + App.globalState.freeSpaceText
                 + " free");
+        // One is "1 torrent", not "1 torrents".
+        App.loadDemo(1);
+        verify(view.factsText.startsWith("1 torrent · "), view.factsText);
+        App.loadDemo(16);
+        compare(App.counts.total, 16);
     }
 
     function test_a_selection_adds_its_own_fact() {

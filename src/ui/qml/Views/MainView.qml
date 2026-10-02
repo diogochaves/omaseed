@@ -188,7 +188,7 @@ Item {
         const parts = [
             {
                 "value": String(App.counts.total),
-                "label": step >= 3 ? "" : qsTr("torrents")
+                "label": step >= 3 ? "" : App.counts.total === 1 ? qsTr("torrent") : qsTr("torrents")
             }
         ];
         // Not the rail's count: that one takes stopped downloads too (Q16), which a status
