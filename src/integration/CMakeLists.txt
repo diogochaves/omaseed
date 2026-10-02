@@ -6,6 +6,8 @@ qt_add_library(omaseed-integration STATIC
     Notifier.hpp
     SingleInstance.cpp
     SingleInstance.hpp
+    StatusWriter.cpp
+    StatusWriter.hpp
     Theme.cpp
     Theme.hpp
     ThemeReader.cpp

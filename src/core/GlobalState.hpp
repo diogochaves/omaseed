@@ -35,6 +35,11 @@ class GlobalState : public QObject
     Q_PROPERTY(qint64 upRateLimit READ upRateLimit NOTIFY upRateLimitChanged)
     Q_PROPERTY(bool queueing READ queueing NOTIFY queueingChanged)
     Q_PROPERTY(int refreshInterval READ refreshInterval NOTIFY refreshIntervalChanged)
+    /// What this server ever moved, and its global ratio (`global_ratio` is a string in the
+    /// API; -1 here until the server says, or when it says something that is not a number).
+    Q_PROPERTY(qint64 allTimeUpload READ allTimeUpload NOTIFY allTimeChanged)
+    Q_PROPERTY(qint64 allTimeDownload READ allTimeDownload NOTIFY allTimeChanged)
+    Q_PROPERTY(double globalRatio READ globalRatio NOTIFY allTimeChanged)
 
     // --- engine --------------------------------------------------------------------------
     Q_PROPERTY(bool connected READ connected NOTIFY connectedChanged)
@@ -72,6 +77,9 @@ public:
     qint64 upRateLimit() const { return m_upRateLimit; }
     bool queueing() const { return m_queueing; }
     int refreshInterval() const { return m_refreshInterval; }
+    qint64 allTimeUpload() const { return m_allTimeUpload; }
+    qint64 allTimeDownload() const { return m_allTimeDownload; }
+    double globalRatio() const { return m_globalRatio; }
 
     bool connected() const { return m_connected; }
     bool syncing() const { return m_syncing; }
@@ -119,6 +127,7 @@ Q_SIGNALS:
     void upRateLimitChanged();
     void queueingChanged();
     void refreshIntervalChanged();
+    void allTimeChanged();
     void connectedChanged();
     void syncingChanged();
     void lastErrorChanged();
@@ -142,6 +151,9 @@ private:
     qint64 m_upRateLimit = 0;
     bool m_queueing = false;
     int m_refreshInterval = 1500;
+    qint64 m_allTimeUpload = 0;
+    qint64 m_allTimeDownload = 0;
+    double m_globalRatio = -1.0;
 
     bool m_connected = false;
     bool m_syncing = false;

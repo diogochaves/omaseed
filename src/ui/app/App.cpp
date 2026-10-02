@@ -11,6 +11,7 @@
 #include "core/TorrentFolderScan.hpp"
 #include "core/Version.hpp"
 #include "integration/Notifier.hpp"
+#include "integration/StatusWriter.hpp"
 #include "integration/ThemeReader.hpp"
 #include "integration/WidgetHeartbeat.hpp"
 #include "integration/Xdg.hpp"
@@ -3491,5 +3492,58 @@ void App::applyTrayIconVisibility()
 }
 
 // --- end #14 ---------------------------------------------------------------------------------
+
+// --- #12: the bar widget's status file --------------------------------------------------------
+
+void App::attachStatusWriter(omaseed::integration::StatusWriter *writer)
+{
+    m_statusWriter = writer;
+    if (writer == nullptr)
+        return;
+
+    writer->setEngine(m_engine);
+    writer->setPreferences(m_prefs);
+    writer->setPathMapper([this](const QString &path) { return mapContentPathToLocal(path); });
+    writer->setLibraryCheck(
+        [this](const QString &v1, const QString &v2) { return !findDuplicate(v1, v2).isEmpty(); });
+    writer->setDownloadsFolder(downloadsFolder());
+    connect(this, &App::downloadsFolderChanged, writer, [this]() {
+        if (m_statusWriter)
+            m_statusWriter->setDownloadsFolder(downloadsFolder());
+    });
+
+    updateStatusServer();
+    connect(this, &App::serverChanged, writer, [this]() { updateStatusServer(); });
+    connect(m_engine, &SyncEngine::serverLost, writer, [writer](const ApiError &error) {
+        writer->setServerError(serverLostReasonText(error));
+    });
+    connect(m_engine, &SyncEngine::authRequired, writer, [writer](const ApiError &error) {
+        writer->setServerError(serverLostReasonText(error));
+    });
+    connect(m_engine, &SyncEngine::serverBack, writer, [writer]() { writer->setServerError({}); });
+    connect(m_engine, &SyncEngine::firstSyncFinished, writer, [writer]() {
+        writer->setServerError({});
+    });
+    connect(m_engine,
+            &SyncEngine::torrentCompleted,
+            writer,
+            [writer](const QString &hash,
+                     const QString &name,
+                     qint64 sizeBytes,
+                     const QString &category,
+                     const QString &contentPath) {
+                writer->addCompletion(hash, name, sizeBytes, category, contentPath);
+            });
+    writer->start();
+}
+
+void App::updateStatusServer()
+{
+    if (m_statusWriter.isNull())
+        return;
+    m_statusWriter->setServer(m_server.id, serverName(), m_hasServer ? m_server.url : QUrl());
+}
+
+// --- end #12 ---------------------------------------------------------------------------------
 
 } // namespace omaseed::app

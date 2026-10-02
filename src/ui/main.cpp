@@ -11,6 +11,7 @@
 #include "integration/Notifier.hpp"
 #include "integration/SingleInstance.hpp"
 #include "integration/StatusBus.hpp"
+#include "integration/StatusWriter.hpp"
 #include "integration/Theme.hpp"
 #include "integration/ThemeReader.hpp"
 #include "integration/Tray.hpp"
@@ -589,6 +590,22 @@ int main(int argc, char *argv[])
     // MainView opens `Views/AddSheet.qml` on it.
     // --- end T4.2 ---
 
+    // #12: the bar widget's status file (plugin/STATUS.md). A real launch only: a demo must
+    // never stand in for the real app in the bar, unless OMASEED_DEMO_STATUS asks it to (a
+    // box with no real omaseed, to see the widget against the demo library).
+    omaseed::integration::StatusWriter statusWriter;
+    const bool demoStatus = windowDemo && !qEnvironmentVariableIsEmpty("OMASEED_DEMO_STATUS");
+    if (demo.isEmpty() || demoStatus) {
+        if (rootWindow) {
+            statusWriter.setWindowShown(rootWindow->isVisible());
+            QObject::connect(rootWindow,
+                             &QWindow::visibleChanged,
+                             &statusWriter,
+                             &omaseed::integration::StatusWriter::setWindowShown);
+        }
+        omaseedApp.attachStatusWriter(&statusWriter);
+    }
+
     // --- #13, #14: the companion bar widget ---
     // The widget acts through io.github.diogochaves.omaseed.Status on the app's object path
     // (StatusBus, StatusService) and its gear through ActivateAction("settings"). While its
@@ -615,5 +632,6 @@ int main(int argc, char *argv[])
 
     const int code = QApplication::exec();
     omaseedApp.engine()->stop();
+    statusWriter.removeFile();
     return code;
 }

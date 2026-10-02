@@ -50,3 +50,9 @@ omaseed_add_test(tst_statusbus
     SOURCES tst_statusbus.cpp
     LIBRARIES omaseed::integration Qt6::DBus
 )
+
+omaseed_add_test(tst_statuswriter
+    SOURCES tst_statuswriter.cpp
+    LIBRARIES omaseed::integration
+    DEFINES OMASEED_FIXTURES_DIR="${CMAKE_SOURCE_DIR}/tests/fixtures"
+)

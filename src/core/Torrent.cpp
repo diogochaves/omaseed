@@ -213,6 +213,7 @@ QStringList Torrent::applyJson(const QJsonObject &json)
     take(json, QLatin1StringView("completed"), completed, asInteger, changed);
     take(json, QLatin1StringView("downloaded"), downloaded, asInteger, changed);
     take(json, QLatin1StringView("uploaded"), uploaded, asInteger, changed);
+    take(json, QLatin1StringView("uploaded_session"), uploadedSession, asInteger, changed);
     take(json, QLatin1StringView("time_active"), timeActive, asInteger, changed);
     take(json, QLatin1StringView("seeding_time"), seedingTime, asInteger, changed);
 

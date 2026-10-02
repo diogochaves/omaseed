@@ -246,3 +246,8 @@ omaseed_add_test(tst_addfilesmodel
     LIBRARIES omaseed::core
     DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
 )
+
+omaseed_add_test(tst_statusdigest
+    SOURCES tst_statusdigest.cpp
+    LIBRARIES omaseed::core
+)
