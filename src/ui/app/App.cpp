@@ -1,5 +1,6 @@
 #include "ui/app/App.hpp"
 
+#include "core/CertificatePin.hpp"
 #include "core/Format.hpp"
 #include "core/MagnetLink.hpp"
 #include "core/PathMap.hpp"
@@ -122,6 +123,8 @@ App::App(QObject *parent)
         m_serverLost = true;
         qWarning().noquote() << QStringLiteral("server lost: %1").arg(error.toString());
         updateTray();
+        if (error.kind() == ApiError::Kind::Certificate && !serverId().isEmpty())
+            Q_EMIT certificateRefused(serverId());
     });
     connect(m_engine, &SyncEngine::serverBack, this, [this]() {
         m_serverLost = false;
@@ -319,6 +322,7 @@ void App::applyServer(const Server &server)
     // clearAuth() and a new base URL also cancel everything still queued, in flight or
     // backing off for the previous server (QbtClient::cancelAll).
     m_client->clearAuth();
+    m_client->setPinnedCertificate(server.certificateSha256);
     m_client->setBaseUrl(server.url);
     m_prefs->reset();
     m_engine->globalState()->setServerName(server.name);
@@ -903,6 +907,8 @@ QString App::errorReasonText(const QString &text)
 QString App::lostReasonText(const QString &lastError) const
 {
     // GlobalState keeps only ApiError::toString(), which starts with the kind's name.
+    if (isCertificateError(lastError))
+        return certificateRefusedText(m_server.certificateSha256);
     const bool unauthorized = lastError.startsWith(QLatin1String("unauthorized"));
     const bool forbidden = lastError.startsWith(QLatin1String("forbidden"));
     if (unauthorized || forbidden) {
@@ -2584,6 +2590,7 @@ bool App::removeServer(const QString &id)
         m_engine->setClient(nullptr);
         m_engine->setClient(m_client);
         m_client->clearAuth();
+        m_client->setPinnedCertificate(QString());
         m_client->setBaseUrl(QUrl());
         m_prefs->reset();
         m_engine->globalState()->setServerName(QString());
@@ -2668,6 +2675,7 @@ void App::testServer(const QVariantMap &fields, const QString &secret)
 void App::runServerTest(const Server &server, const QString &secret)
 {
     auto *client = new QbtClient(this);
+    client->setPinnedCertificate(server.certificateSha256);
     client->setBaseUrl(server.url);
     client->setMaxRetries(0);
     client->setTimeout(std::chrono::seconds(8));
@@ -2687,12 +2695,17 @@ void App::runServerTest(const Server &server, const QString &secret)
     const QString id = server.id;
 
     const AuthMode mode = server.authMode;
+    const QString pinned = server.certificateSha256;
     client->probe()->then(
-        this, [this, client, elapsed, id, mode](const QbtResult<ServerInfo> &result) {
+        this, [this, client, elapsed, id, mode, pinned](const QbtResult<ServerInfo> &result) {
             const int latency = int(elapsed.elapsed());
             if (result.isError()) {
                 const QString raw = result.error().toString();
-                const QString refused = credentialRefusedText(result.error(), mode);
+                QString refused = credentialRefusedText(result.error(), mode);
+                if (result.error().kind() == ApiError::Kind::Certificate) {
+                    refused = certificateRefusedText(pinned);
+                    Q_EMIT serverCertificateRefused(id, result.error().certificateSha256(), pinned);
+                }
                 const QString error = refused.isEmpty() ? raw : refused;
                 const QString detail = refused.isEmpty() ? QString() : raw;
                 client->deleteLater();
@@ -3243,5 +3256,43 @@ void App::setFilePriorityGroups(const QString &hash, const QVariantList &groups)
 }
 
 // --- end N1 ----------------------------------------------------------------------------------
+
+// --- #2: trusted certificates ------------------------------------------------------------------
+
+QString App::serverId() const
+{
+    return m_hasServer && m_server.id != QLatin1String("environment") ? m_server.id : QString();
+}
+
+bool App::trustCertificate(const QString &id, const QString &sha256)
+{
+    const QString pin = CertificatePin::normalized(sha256);
+    if (!sha256.isEmpty() && pin.isEmpty())
+        return false;
+    QVariantMap fields = m_serverList->serverMap(id);
+    if (fields.isEmpty())
+        return false;
+    if (fields.value(QStringLiteral("certificateSha256")).toString() == pin)
+        return true;
+    fields.insert(QStringLiteral("certificateSha256"), pin);
+    qInfo().noquote() << (pin.isEmpty()
+                              ? QStringLiteral("server %1: trusted certificate forgotten").arg(id)
+                              : QStringLiteral("server %1: trusting certificate %2")
+                                    .arg(id, CertificatePin::displayText(pin)));
+    // updateServer() reconnects the engine when this is its server.
+    return updateServer(fields);
+}
+
+QString App::certificateText(const QString &sha256)
+{
+    return CertificatePin::displayText(sha256);
+}
+
+bool App::isCertificateError(const QString &lastError)
+{
+    return lastError.startsWith(ApiError::kindName(ApiError::Kind::Certificate));
+}
+
+// --- end #2 ----------------------------------------------------------------------------------
 
 } // namespace omaseed::app

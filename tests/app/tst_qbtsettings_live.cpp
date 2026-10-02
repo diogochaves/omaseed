@@ -12,6 +12,8 @@
 // tst_app_servers does: XDG_CONFIG_HOME in a temporary directory and a keychain service of
 // its own, emptied before and after.
 
+#include "core/CertificatePin.hpp"
+#include "core/GlobalState.hpp"
 #include "core/QbtClient.hpp"
 #include "core/ServerListModel.hpp"
 #include "core/ServerPreferences.hpp"
@@ -21,6 +23,7 @@
 #include "ThrowawayQbt.hpp"
 
 #include <QEventLoop>
+#include <QFile>
 #include <QJSValue>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -34,6 +37,7 @@
 #include <QQmlComponent>
 #include <QQmlEngine>
 #include <QSignalSpy>
+#include <QSslCertificate>
 #include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QTest>
@@ -325,6 +329,14 @@ QList<Change> changesFor(const QVariantList &sections,
         }
     }
     return changes;
+}
+
+QString fingerprintOf(const QString &path)
+{
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly))
+        return {};
+    return omaseed::core::CertificatePin::fingerprint(QSslCertificate(file.readAll(), QSsl::Pem));
 }
 
 } // namespace
@@ -695,29 +707,16 @@ void TestQbtSettingsLive::httpsWithoutACertificateStaysOnHttp()
 
 void TestQbtSettingsLive::httpsWithACertificateMovesTheSavedServer()
 {
-    const QString openssl = QStandardPaths::findExecutable(QStringLiteral("openssl"));
-    if (openssl.isEmpty())
-        QSKIP("openssl is not installed: no certificate to give qBittorrent");
     ThrowawayQbt qbt;
     START_OR_SKIP(qbt);
-    const QString cert = qbt.profilePath() + QStringLiteral("/cert.pem");
-    const QString key = qbt.profilePath() + QStringLiteral("/key.pem");
-    QProcess make;
-    make.start(openssl,
-               {QStringLiteral("req"),
-                QStringLiteral("-x509"),
-                QStringLiteral("-newkey"),
-                QStringLiteral("rsa:2048"),
-                QStringLiteral("-nodes"),
-                QStringLiteral("-keyout"),
-                key,
-                QStringLiteral("-out"),
-                cert,
-                QStringLiteral("-days"),
-                QStringLiteral("1"),
-                QStringLiteral("-subj"),
-                QStringLiteral("/CN=127.0.0.1")});
-    QVERIFY(make.waitForFinished(30000) && make.exitCode() == 0);
+    QString cert;
+    QString key;
+    QString error;
+    if (!ThrowawayQbt::makeCertificate(
+            qbt.profilePath(), QStringLiteral("server"), &cert, &key, &error))
+        QSKIP(qPrintable(error));
+    const QString fingerprint = fingerprintOf(cert);
+    QCOMPARE(fingerprint.size(), 64);
 
     App app;
     const QString id = connectApp(app, qbt, QStringLiteral("cookie"), qbt.password());
@@ -728,14 +727,69 @@ void TestQbtSettingsLive::httpsWithACertificateMovesTheSavedServer()
     QVERIFY(applied.wait(15000));
 
     QSignalSpy notFollowed(&app, &App::webUiNotFollowed);
+    QSignalSpy refused(&app, &App::certificateRefused);
     app.serverPrefs()->apply({{QStringLiteral("use_https"), true}});
     QTRY_COMPARE_WITH_TIMEOUT(
         QUrl(app.serverList()->serverMap(id).value(QStringLiteral("url")).toString()).scheme(),
         QStringLiteral("https"),
         20000);
     QCOMPARE(notFollowed.count(), 0);
-    // The certificate is self-signed: the app does not trust it, so from here it is shut out
-    // until the certificate is trusted (an open question, docs/QUESTIONS.md).
+
+    // The certificate is self-signed, so the app is shut out until it is trusted (issue #2),
+    // and it says so: lost, for that reason, with the server's id to review it on.
+    QVERIFY2(refused.wait(20000), "the app never said the certificate was refused");
+    QCOMPARE(refused.at(0).at(0).toString(), id);
+    QVERIFY(app.isServerLost());
+    QVERIFY(App::isCertificateError(app.globalState()->lastError()));
+    QCOMPARE(app.lostReasonText(app.globalState()->lastError()),
+             QStringLiteral("untrusted certificate"));
+
+    // The server sheet's test shows the certificate to trust.
+    QSignalSpy testRefused(&app, &App::serverCertificateRefused);
+    QSignalSpy tested(&app, &App::serverTested);
+    app.testServer(app.serverList()->serverMap(id));
+    QVERIFY(tested.wait(20000));
+    QCOMPARE(testRefused.count(), 1);
+    QCOMPARE(testRefused.at(0).at(1).toString(), fingerprint);
+    QVERIFY(testRefused.at(0).at(2).toString().isEmpty());
+    QCOMPARE(tested.at(0).at(1).toBool(), false);
+    QCOMPARE(tested.at(0).at(6).toString(), QStringLiteral("untrusted certificate"));
+
+    // Trusted: saved with the server, and the app is back in, now and on the next start.
+    QSignalSpy synced(app.engine(), &SyncEngine::firstSyncFinished);
+    QVERIFY(app.trustCertificate(id, fingerprint));
+    QCOMPARE(app.serverList()->serverMap(id).value(QStringLiteral("certificateSha256")).toString(),
+             fingerprint);
+    QVERIFY2(synced.wait(20000), "no sync after trusting the certificate");
+    QVERIFY(!app.isServerLost());
+    QVERIFY(savedServerSyncs());
+
+    // A different certificate on the same server is refused again, and reads as changed.
+    QString otherCert;
+    QString otherKey;
+    QVERIFY2(ThrowawayQbt::makeCertificate(
+                 qbt.profilePath(), QStringLiteral("other"), &otherCert, &otherKey, &error),
+             qPrintable(error));
+    const QString otherFingerprint = fingerprintOf(otherCert);
+    QSignalSpy otherApplied(app.serverPrefs(), &ServerPreferences::applied);
+    app.serverPrefs()->apply({{QStringLiteral("web_ui_https_cert_path"), otherCert},
+                              {QStringLiteral("web_ui_https_key_path"), otherKey}});
+    QVERIFY(otherApplied.wait(15000));
+    // qBittorrent serves the new certificate to new connections only; a restart makes the
+    // app open one, as it would after the server's own restart.
+    refused.clear();
+    QVERIFY2(qbt.restart(), qPrintable(qbt.error()));
+    QVERIFY2(refused.wait(30000), "the changed certificate was accepted");
+    QCOMPARE(app.lostReasonText(app.globalState()->lastError()),
+             QStringLiteral("the certificate changed"));
+    testRefused.clear();
+    tested.clear();
+    app.testServer(app.serverList()->serverMap(id));
+    QVERIFY(tested.wait(20000));
+    QCOMPARE(testRefused.count(), 1);
+    QCOMPARE(testRefused.at(0).at(1).toString(), otherFingerprint);
+    QCOMPARE(testRefused.at(0).at(2).toString(), fingerprint);
+    QCOMPARE(tested.at(0).at(6).toString(), QStringLiteral("the certificate changed"));
 }
 
 void TestQbtSettingsLive::localAuthTurnedOnShutsANoLoginServerOut()
