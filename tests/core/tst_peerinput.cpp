@@ -20,6 +20,9 @@ private Q_SLOTS:
     void trackerUrlsSplitOnWhiteSpaceOnly();
     void trackerUrlsNeedATrackerSchemeAndAHost_data();
     void trackerUrlsNeedATrackerSchemeAndAHost();
+    void webSeedUrlsNeedHttpAndAHost_data();
+    void webSeedUrlsNeedHttpAndAHost();
+    void webSeedUrlsSplitOnWhiteSpace();
 };
 
 void TestPeerInput::peerAddresses_data()
@@ -118,6 +121,42 @@ void TestPeerInput::trackerUrlsNeedATrackerSchemeAndAHost()
     QCOMPARE(result.isValid(), valid);
     if (!valid)
         QCOMPARE(result.invalid, url);
+}
+
+void TestPeerInput::webSeedUrlsNeedHttpAndAHost_data()
+{
+    QTest::addColumn<QString>("url");
+    QTest::addColumn<bool>("valid");
+
+    QTest::newRow("http") << QStringLiteral("http://mirror.example/pub/") << true;
+    QTest::newRow("https") << QStringLiteral("https://archive.example/download/item/") << true;
+    QTest::newRow("a file") << QStringLiteral("https://mirror.example/a.iso") << true;
+    QTest::newRow("upper-case scheme") << QStringLiteral("HTTPS://mirror.example/") << true;
+    QTest::newRow("udp") << QStringLiteral("udp://tracker.example:6969/announce") << false;
+    QTest::newRow("ftp") << QStringLiteral("ftp://mirror.example/pub/") << false;
+    QTest::newRow("no scheme") << QStringLiteral("mirror.example/pub/") << false;
+    QTest::newRow("no host") << QStringLiteral("https:///pub/") << false;
+}
+
+void TestPeerInput::webSeedUrlsNeedHttpAndAHost()
+{
+    QFETCH(QString, url);
+    QFETCH(bool, valid);
+    const PeerInputResult result = PeerInput::webSeedUrls(url);
+    QCOMPARE(result.isValid(), valid);
+    if (!valid)
+        QCOMPARE(result.invalid, url);
+}
+
+void TestPeerInput::webSeedUrlsSplitOnWhiteSpace()
+{
+    const PeerInputResult result = PeerInput::webSeedUrls(
+        QStringLiteral("https://a.example/x/\n https://b.example/y?k=1,2  https://a.example/x/"));
+    QVERIFY(result.isValid());
+    QCOMPARE(result.entries,
+             (QStringList{QStringLiteral("https://a.example/x/"),
+                          QStringLiteral("https://b.example/y?k=1,2")}));
+    QVERIFY(!PeerInput::webSeedUrls(QStringLiteral("  ")).isValid());
 }
 
 QTEST_GUILESS_MAIN(TestPeerInput)

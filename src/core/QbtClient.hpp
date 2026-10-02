@@ -39,6 +39,7 @@
 //   GET  torrents/files              torrentsFiles(hash)
 //   GET  torrents/trackers           torrentsTrackers(hash)
 //   GET  torrents/pieceStates        torrentsPieceStates(hash)
+//   GET  torrents/webseeds           torrentsWebSeeds(hash)  -- [{url}], 404 for an unknown hash
 //   GET  torrents/categories         torrentsCategories()
 //   GET  torrents/tags               torrentsTags()
 //   GET  transfer/info               transferInfo()
@@ -59,6 +60,12 @@
 //   POST torrents/removeTrackers        torrentsRemoveTrackers(hash, urls)
 //   POST torrents/addTrackers           torrentsAddTrackers(hash, urls)  -- urls one per line
 //   POST torrents/addPeers              torrentsAddPeers(hashes, peers)  -- both '|'-joined
+//   POST torrents/addWebSeeds           torrentsAddWebSeeds(hash, urls)  -- '|'-joined; 400
+//                                          names the first URL that is not valid
+//   POST torrents/editWebSeed           torrentsEditWebSeed(hash, origUrl, newUrl) -- 409
+//                                          when origUrl is not one of the torrent's
+//   POST torrents/removeWebSeeds        torrentsRemoveWebSeeds(hash, urls)  -- '|'-joined
+//   (the three web seed writes: checked by hand on the 5.2.3 playground, API 2.15.1)
 //   POST transfer/banPeers              transferBanPeers(peers)          -- '|'-joined host:port
 //   POST torrents/setCategory           torrentsSetCategory(hashes, category)
 //   POST torrents/createCategory        torrentsCreateCategory(name, savePath)
@@ -214,6 +221,8 @@ public:
     QbtReply<QJsonArray> *torrentsTrackers(const QString &hash);    ///< GET torrents/trackers
     /// GET torrents/pieceStates — one number per piece: 0 missing, 1 downloading, 2 had.
     QbtReply<QJsonArray> *torrentsPieceStates(const QString &hash);
+    /// GET torrents/webseeds — the torrent's HTTP sources, `[{"url": …}]`.
+    QbtReply<QJsonArray> *torrentsWebSeeds(const QString &hash);
     /// GET sync/torrentPeers?hash=&rid= — the same rid protocol as sync/maindata.
     QbtReply<QJsonObject> *torrentsPeers(const QString &hash, int rid);
     QbtReply<QJsonObject> *torrentsCategories(); ///< GET torrents/categories
@@ -240,6 +249,13 @@ public:
     QbtReply<QByteArray> *torrentsRemoveTrackers(const QString &hash, const QStringList &urls);
     /// POST torrents/addTrackers: one torrent, `urls` joined with a newline (sent as %0A).
     QbtReply<QByteArray> *torrentsAddTrackers(const QString &hash, const QStringList &urls);
+    /// POST torrents/addWebSeeds: one torrent, `urls` joined with '|'.
+    QbtReply<QByteArray> *torrentsAddWebSeeds(const QString &hash, const QStringList &urls);
+    /// POST torrents/editWebSeed: replaces `origUrl` with `newUrl` on one torrent.
+    QbtReply<QByteArray> *
+    torrentsEditWebSeed(const QString &hash, const QString &origUrl, const QString &newUrl);
+    /// POST torrents/removeWebSeeds: one torrent, `urls` joined with '|'.
+    QbtReply<QByteArray> *torrentsRemoveWebSeeds(const QString &hash, const QStringList &urls);
     /// POST torrents/addPeers: `hashes` and `peers` (`host:port`, `[v6]:port`) each joined
     /// with '|'.
     QbtReply<QByteArray> *torrentsAddPeers(const QStringList &hashes, const QStringList &peers);

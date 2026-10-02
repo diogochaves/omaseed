@@ -1,9 +1,9 @@
 #pragma once
 
-// PeerInput — what the details pane's "add tracker" and "add peer" sheets accept (review
-// VIEW-6, ruling Q4). Pure string handling: the server has the final word, this only keeps
-// obvious typos from becoming a silent no-op (qBittorrent answers 200 to an unusable tracker
-// URL and drops a malformed peer without saying so).
+// PeerInput — what the details pane's "add tracker", "add peer" and "add HTTP source" sheets
+// accept (review VIEW-6, ruling Q4; #10). Pure string handling: the server has the final word, this
+// only keeps obvious typos from becoming a silent no-op (qBittorrent answers 200 to an unusable
+// tracker URL and drops a malformed peer without saying so).
 //
 // Both take free text, one entry per line or several on a line, since that is how lists get
 // pasted: tracker URLs are separated by white space (a URL cannot hold one, but a passkey
@@ -29,6 +29,10 @@ namespace PeerInput {
 
 /// Tracker announce URLs: each must have a scheme (http, https, udp, wss or ws) and a host.
 PeerInputResult trackerUrls(const QString &text);
+
+/// Web seed URLs (BEP 19 / BEP 17 HTTP sources): http or https with a host, separated like
+/// tracker URLs. libtorrent fetches nothing else.
+PeerInputResult webSeedUrls(const QString &text);
 
 /// Peers as `host:port`: an IPv4 address or a host name before the colon, an IPv6 address
 /// in brackets (`[2001:db8::1]:6881`), and a port 1–65535 after it.

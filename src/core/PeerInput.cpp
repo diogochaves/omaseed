@@ -84,6 +84,15 @@ bool isTrackerUrl(const QString &entry)
            scheme == QLatin1String("wss");
 }
 
+bool isWebSeedUrl(const QString &entry)
+{
+    const QUrl url(entry, QUrl::StrictMode);
+    if (!url.isValid() || url.host().isEmpty())
+        return false;
+    const QString scheme = url.scheme().toLower();
+    return scheme == QLatin1String("http") || scheme == QLatin1String("https");
+}
+
 } // namespace
 
 bool isPeerAddress(const QString &entry)
@@ -111,6 +120,12 @@ PeerInputResult trackerUrls(const QString &text)
 {
     static const QRegularExpression separators(QStringLiteral("\\s+"));
     return validate(split(text, separators), isTrackerUrl);
+}
+
+PeerInputResult webSeedUrls(const QString &text)
+{
+    static const QRegularExpression separators(QStringLiteral("\\s+"));
+    return validate(split(text, separators), isWebSeedUrl);
 }
 
 PeerInputResult peers(const QString &text)

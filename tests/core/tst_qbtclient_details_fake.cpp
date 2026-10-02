@@ -118,6 +118,8 @@ private Q_SLOTS:
     void pieceStatesSendsTheHashAndParsesTheArray();
     void aDeletedTorrentStopsThePollQuietly();
     void aHashTheModelNoLongerHoldsIsNotAsked();
+    void webSeedsSendsTheHashAndParsesTheList();
+    void webSeedsAreAskedOnSelectionThenOneTickInTen();
 };
 
 void TestQbtClientDetailsFake::syncTorrentPeersSendsHashAndRid()
@@ -260,7 +262,8 @@ void TestQbtClientDetailsFake::aDeletedTorrentStopsThePollQuietly()
     QTRY_VERIFY(server.targets.size() >= 3);
     QTest::qWait(250); // several poll intervals
     const qsizetype asked = server.targets.size();
-    QVERIFY2(asked <= 4, qPrintable(QStringLiteral("%1 requests for a gone torrent").arg(asked)));
+    // One poll's worth (properties, files, trackers, webseeds, pieceStates), then nothing.
+    QVERIFY2(asked <= 5, qPrintable(QStringLiteral("%1 requests for a gone torrent").arg(asked)));
     QCOMPARE(details.lastError(), QString());
 
     // Another torrent is asked about again.
@@ -290,6 +293,90 @@ void TestQbtClientDetailsFake::aHashTheModelNoLongerHoldsIsNotAsked()
 
     details.setHash(QStringLiteral("kept"));
     QTRY_VERIFY(!server.targets.isEmpty());
+}
+
+void TestQbtClientDetailsFake::webSeedsSendsTheHashAndParsesTheList()
+{
+    // #10's HTTP sources tab.
+    FakeServer server;
+    server.setHandler([](const QByteArray &) {
+        return jsonResponse(
+            R"([{"url":"https://mirror.example/pub/"},{"url":"http://b.example/x"}])");
+    });
+
+    QbtClient client;
+    client.setBaseUrl(server.url());
+    const QbtResult<QJsonArray> seeds =
+        await(this, client.torrentsWebSeeds(QStringLiteral("abc123")));
+    QVERIFY2(!seeds.isError(), qPrintable(seeds.error().toString()));
+    QCOMPARE(seeds.value().size(), 2);
+    QCOMPARE(seeds.value().at(1).toObject().value(QStringLiteral("url")).toString(),
+             QStringLiteral("http://b.example/x"));
+
+    QCOMPARE(server.targets.size(), 1);
+    const QUrl target(QString::fromLatin1(server.targets.constFirst()));
+    QVERIFY(target.path().endsWith(QStringLiteral("/torrents/webseeds")));
+    QCOMPARE(QUrlQuery(target.query()).queryItemValue(QStringLiteral("hash")),
+             QStringLiteral("abc123"));
+}
+
+// #10: no other call says whether a torrent has web seeds, so the list is asked for when the
+// selection changes, then on one poll in ten, and on every poll while its tab is on show.
+// The timer is parked and the polls are run by hand, so the count is exact.
+void TestQbtClientDetailsFake::webSeedsAreAskedOnSelectionThenOneTickInTen()
+{
+    FakeServer server;
+    server.setHandler([](const QByteArray &target) {
+        if (target.contains("/torrents/webseeds"))
+            return jsonResponse(R"([{"url":"https://mirror.example/pub/"}])");
+        if (target.contains("/torrents/properties"))
+            return jsonResponse("{}");
+        return jsonResponse("[]");
+    });
+    QbtClient client;
+    client.setBaseUrl(server.url());
+
+    TorrentDetails details;
+    details.setPollInterval(3600 * 1000);
+    details.setClient(&client);
+    const auto asked = [&server]() {
+        qsizetype count = 0;
+        for (const QByteArray &target : std::as_const(server.targets))
+            count += target.contains("/torrents/webseeds") ? 1 : 0;
+        return count;
+    };
+    // Each poll sends properties, files and trackers at least; wait for those to land.
+    const auto pollOnce = [&]() {
+        const qsizetype before = server.targets.size();
+        details.refreshNow();
+        QTRY_VERIFY(server.targets.size() >= before + 3);
+    };
+
+    details.setHash(QStringLiteral("abc123"));
+    QTRY_COMPARE(asked(), 1);
+    QTRY_COMPARE(details.webSeeds()->count(), 1);
+    QVERIFY(details.webSeeds()->loaded());
+
+    for (int tick = 1; tick < 10; ++tick)
+        pollOnce();
+    QTest::qWait(50);
+    QCOMPARE(asked(), 1);
+    pollOnce(); // the tenth
+    QTRY_COMPARE(asked(), 2);
+
+    details.setWebSeedsActive(true); // asks at once
+    QTRY_COMPARE(asked(), 3);
+    pollOnce();
+    QTRY_COMPARE(asked(), 4);
+    pollOnce();
+    QTRY_COMPARE(asked(), 5);
+
+    // Another torrent: the list is cleared and asked for again.
+    details.setWebSeedsActive(false);
+    details.setHash(QStringLiteral("def456"));
+    QCOMPARE(details.webSeeds()->loaded(), false);
+    QTRY_COMPARE(asked(), 6);
+    QTRY_VERIFY(details.webSeeds()->loaded());
 }
 
 #include "tst_qbtclient_details_fake.moc"

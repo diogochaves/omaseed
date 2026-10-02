@@ -848,6 +848,16 @@ QbtReply<QJsonArray> *QbtClient::torrentsPieceStates(const QString &hash)
                               [path](const QByteArray &body) { return parseArray(body, path); });
 }
 
+QbtReply<QJsonArray> *QbtClient::torrentsWebSeeds(const QString &hash)
+{
+    RequestSpec spec;
+    spec.path = QStringLiteral("torrents/webseeds");
+    addItem(spec.query, QStringLiteral("hash"), hash);
+    const QString path = spec.path;
+    return submit<QJsonArray>(std::move(spec),
+                              [path](const QByteArray &body) { return parseArray(body, path); });
+}
+
 QbtReply<QJsonObject> *QbtClient::torrentsPeers(const QString &hash, int rid)
 {
     RequestSpec spec;
@@ -1021,6 +1031,33 @@ QbtReply<QByteArray> *QbtClient::torrentsAddTrackers(const QString &hash, const 
     addItem(form, QStringLiteral("hash"), hash);
     addItem(form, QStringLiteral("urls"), urls.join(QLatin1Char('\n')));
     return post(QStringLiteral("torrents/addTrackers"), form);
+}
+
+QbtReply<QByteArray> *QbtClient::torrentsAddWebSeeds(const QString &hash, const QStringList &urls)
+{
+    QUrlQuery form;
+    addItem(form, QStringLiteral("hash"), hash);
+    addItem(form, QStringLiteral("urls"), urls.join(QLatin1Char('|')));
+    return post(QStringLiteral("torrents/addWebSeeds"), form);
+}
+
+QbtReply<QByteArray> *
+QbtClient::torrentsEditWebSeed(const QString &hash, const QString &origUrl, const QString &newUrl)
+{
+    QUrlQuery form;
+    addItem(form, QStringLiteral("hash"), hash);
+    addItem(form, QStringLiteral("origUrl"), origUrl);
+    addItem(form, QStringLiteral("newUrl"), newUrl);
+    return post(QStringLiteral("torrents/editWebSeed"), form);
+}
+
+QbtReply<QByteArray> *QbtClient::torrentsRemoveWebSeeds(const QString &hash,
+                                                        const QStringList &urls)
+{
+    QUrlQuery form;
+    addItem(form, QStringLiteral("hash"), hash);
+    addItem(form, QStringLiteral("urls"), urls.join(QLatin1Char('|')));
+    return post(QStringLiteral("torrents/removeWebSeeds"), form);
 }
 
 QbtReply<QByteArray> *QbtClient::torrentsAddPeers(const QStringList &hashes,

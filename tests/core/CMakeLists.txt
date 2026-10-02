@@ -208,6 +208,11 @@ omaseed_add_test(tst_torrentpeersmodel
     DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
 )
 
+omaseed_add_test(tst_torrentwebseedsmodel
+    SOURCES tst_torrentwebseedsmodel.cpp
+    LIBRARIES omaseed::core
+)
+
 omaseed_add_test(tst_torrentdetails
     SOURCES tst_torrentdetails.cpp
     LIBRARIES omaseed::core
@@ -218,6 +223,11 @@ omaseed_add_test(tst_torrentdetails_live LIVE
     SOURCES tst_torrentdetails_live.cpp
     LIBRARIES omaseed::core Qt6::Network
     DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
+)
+
+omaseed_add_test(tst_webseeds_live LIVE
+    SOURCES tst_webseeds_live.cpp
+    LIBRARIES omaseed::core Qt6::Network
 )
 
 # docs/11 D1 — the add sheet's file picker, over the .torrent fixtures.

@@ -159,7 +159,45 @@ private slots:
     void addTrackersSendsOneUrlPerLine();
     void addPeersSendsPipedHashesAndPeers();
     void banPeersSendsPipedPeers();
+    void webSeedWritesSendTheHashAndTheUrls();
 };
+
+// #10: the HTTP sources tab's add and remove, and the edit the client offers besides.
+void TestQbtClientActionsFake::webSeedWritesSendTheHashAndTheUrls()
+{
+    FakeServer server;
+    server.setHandler([](const Recorded &, int) { return httpResponse(200, "OK", ""); });
+
+    QbtClient client;
+    client.setBaseUrl(server.url());
+
+    const QString first = QStringLiteral("https://mirror.example/pub/");
+    const QString second = QStringLiteral("http://b.example/x?k=1&p=2");
+    QVERIFY(
+        !await(this, client.torrentsAddWebSeeds(QStringLiteral("h1"), {first, second})).isError());
+    QVERIFY(
+        !await(this, client.torrentsEditWebSeed(QStringLiteral("h1"), first, second)).isError());
+    QVERIFY(!await(this, client.torrentsRemoveWebSeeds(QStringLiteral("h1"), {first, second}))
+                 .isError());
+    QCOMPARE(server.requests.size(), 3);
+
+    QCOMPARE(server.requests.at(0).target, QByteArrayLiteral("/api/v2/torrents/addWebSeeds"));
+    const QUrlQuery add(QString::fromUtf8(server.requests.at(0).body));
+    QCOMPARE(add.queryItemValue(QStringLiteral("hash"), QUrl::FullyDecoded), QStringLiteral("h1"));
+    // The second URL's own '&' and '=' stay inside `urls`.
+    QCOMPARE(add.queryItemValue(QStringLiteral("urls"), QUrl::FullyDecoded),
+             first + QLatin1Char('|') + second);
+
+    QCOMPARE(server.requests.at(1).target, QByteArrayLiteral("/api/v2/torrents/editWebSeed"));
+    const QUrlQuery edit(QString::fromUtf8(server.requests.at(1).body));
+    QCOMPARE(edit.queryItemValue(QStringLiteral("origUrl"), QUrl::FullyDecoded), first);
+    QCOMPARE(edit.queryItemValue(QStringLiteral("newUrl"), QUrl::FullyDecoded), second);
+
+    QCOMPARE(server.requests.at(2).target, QByteArrayLiteral("/api/v2/torrents/removeWebSeeds"));
+    const QUrlQuery remove(QString::fromUtf8(server.requests.at(2).body));
+    QCOMPARE(remove.queryItemValue(QStringLiteral("urls"), QUrl::FullyDecoded),
+             first + QLatin1Char('|') + second);
+}
 
 void TestQbtClientActionsFake::addTrackersSendsOneUrlPerLine()
 {

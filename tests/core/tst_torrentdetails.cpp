@@ -298,6 +298,21 @@ void TestTorrentDetails::apply_demo_fills_every_model()
     QVERIFY(details.hasTrackerError());
     QCOMPARE(badge.count(), 1);
     QVERIFY(details.lastError().isEmpty());
+
+    // #10: no `webSeeds` key is an answer too: none, and known to be none.
+    QCOMPARE(details.webSeeds()->count(), 0);
+    QVERIFY(details.webSeeds()->loaded());
+    QJsonObject withSeeds = demoFor(QStringLiteral("deadbeef"),
+                                    QStringLiteral("properties-fig1.json"),
+                                    QStringLiteral("files-fig2.json"),
+                                    QStringLiteral("trackers-fig3.json"),
+                                    QStringLiteral("peers-full.json"));
+    withSeeds.insert(QStringLiteral("webSeeds"),
+                     QJsonArray{QJsonObject{
+                         {QStringLiteral("url"), QStringLiteral("https://mirror.example/pub/")}}});
+    details.applyDemo(withSeeds);
+    QCOMPARE(details.webSeeds()->count(), 1);
+    QCOMPARE(details.webSeeds()->urlAt(0), QStringLiteral("https://mirror.example/pub/"));
 }
 
 void TestTorrentDetails::selecting_another_torrent_clears_everything()

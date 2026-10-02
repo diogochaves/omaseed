@@ -2,7 +2,7 @@
 
 // TorrentDetails — everything the details pane of spec §2 needs for one torrent.
 //
-// It owns the three tab models (files, trackers, peers), keeps the General tab's key/value
+// It owns the tab models (files, trackers, peers, web seeds), keeps the General tab's key/value
 // strings in `properties`, and runs the polling that keeps them fresh:
 //
 //   * properties + files + trackers every 2 s while a torrent is selected and the pane is
@@ -11,7 +11,12 @@
 //     because `sync/torrentPeers` is the one call of the four that costs the server real
 //     work, and its rid diff is worthless when nobody is looking;
 //   * pieceStates (docs/12 G3's bar) with properties, but only while the General tab is the
-//     one on show — setGeneralActive() — since it is one number per piece.
+//     one on show — setGeneralActive() — since it is one number per piece;
+//   * webseeds (#10's HTTP sources tab) on every selection change, every tick while that
+//     tab is on show — setWebSeedsActive() — and every tenth tick otherwise. No other call
+//     says whether a torrent has web seeds at all, and the pane shows the tab only when it
+//     does; the list changes only when someone edits it (or a magnet's metadata arrives),
+//     so 20 s is soon enough to notice from another tab.
 //
 // setVisible(false) stops everything (the window went away); setHash({}) means "no torrent",
 // clears the models and stops the timers. Errors are values: a failed poll is logged once
@@ -27,6 +32,7 @@
 #include "core/TorrentFilesModel.hpp"
 #include "core/TorrentPeersModel.hpp"
 #include "core/TorrentTrackersModel.hpp"
+#include "core/TorrentWebSeedsModel.hpp"
 
 #include <QJsonArray>
 #include <QJsonObject>
@@ -52,6 +58,7 @@ class TorrentDetails : public QObject
     Q_PROPERTY(omaseed::core::TorrentFilesModel *files READ files CONSTANT)
     Q_PROPERTY(omaseed::core::TorrentTrackersModel *trackers READ trackers CONSTANT)
     Q_PROPERTY(omaseed::core::TorrentPeersModel *peers READ peers CONSTANT)
+    Q_PROPERTY(omaseed::core::TorrentWebSeedsModel *webSeeds READ webSeeds CONSTANT)
 
     /// The General tab's ready-to-draw strings (spec §2 Fig. 1's `.kv` block). Keys:
     /// name, savePath, hashV1, hashV2, downloaded, uploaded, wasted, pieces ("1 264 × 1 MiB"),
@@ -86,6 +93,7 @@ public:
     TorrentFilesModel *files() const { return m_files; }
     TorrentTrackersModel *trackers() const { return m_trackers; }
     TorrentPeersModel *peers() const { return m_peers; }
+    TorrentWebSeedsModel *webSeeds() const { return m_webSeeds; }
 
     QString hash() const { return m_hash; }
     QVariantMap properties() const { return m_properties; }
@@ -99,6 +107,10 @@ public:
     /// The General tab is the one on show, so torrents/pieceStates is worth asking for
     /// (docs/12 G3). True by default: General is the tab the pane opens on.
     void setGeneralActive(bool active);
+    /// The HTTP sources tab is the one on show: its list is asked for on every tick.
+    void setWebSeedsActive(bool active);
+    /// Asks for the web seeds now (after an add or a remove).
+    void refreshWebSeeds();
 
     int pieceCount() const { return int(m_pieceStates.size()); }
     int piecesHaveCount() const;
@@ -109,7 +121,8 @@ public:
     /// Polls now instead of on the next tick.
     void refreshNow();
 
-    /// Fills the models with `{hash, properties, files, trackers, peers, pieceStates}` and
+    /// Fills the models with `{hash, properties, files, trackers, peers, pieceStates,
+    /// webSeeds}` (webSeeds as `torrents/webseeds` answers) and
     /// stops polling.
     /// `--demo details` and the QML tests use this; nothing here touches a network.
     void applyDemo(const QJsonObject &details);
@@ -131,6 +144,7 @@ private:
     void poll();
     void pollPeers();
     void pollPieceStates();
+    void pollWebSeeds();
     void updateTimers();
     void applyProperties(const QJsonObject &json);
     void setPieceStates(const QByteArray &states);
@@ -147,6 +161,7 @@ private:
     TorrentFilesModel *m_files = nullptr;
     TorrentTrackersModel *m_trackers = nullptr;
     TorrentPeersModel *m_peers = nullptr;
+    TorrentWebSeedsModel *m_webSeeds = nullptr;
 
     QTimer *m_timer = nullptr;
     QTimer *m_peersTimer = nullptr;
@@ -160,6 +175,8 @@ private:
     bool m_visible = true;
     bool m_peersActive = false;
     bool m_generalActive = true;
+    bool m_webSeedsActive = false;
+    int m_pollTick = 0; ///< poll() calls since the selection changed: webseeds every tenth
     bool m_demo = false;
     bool m_errorLogged = false;
     bool m_trackerError = false;
