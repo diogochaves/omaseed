@@ -39,6 +39,18 @@ omaseed_add_test(tst_themecontrast
     LIBRARIES omaseed::integration
 )
 
+# #14: the bar widget's heartbeat and the tray icon rule it drives.
+omaseed_add_test(tst_widgetheartbeat
+    SOURCES tst_widgetheartbeat.cpp
+    LIBRARIES omaseed::integration
+)
+
+# #13: io.github.diogochaves.omaseed.Status on a private dbus-daemon.
+omaseed_add_test(tst_statusbus
+    SOURCES tst_statusbus.cpp
+    LIBRARIES omaseed::integration Qt6::DBus
+)
+
 omaseed_add_test(tst_statuswriter
     SOURCES tst_statuswriter.cpp
     LIBRARIES omaseed::integration

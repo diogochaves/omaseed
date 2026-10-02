@@ -67,6 +67,7 @@ namespace omaseed::integration {
 class Notifier;
 class StatusWriter;
 class ThemeReader;
+class WidgetHeartbeat;
 class Xdg;
 } // namespace omaseed::integration
 
@@ -1137,6 +1138,25 @@ Q_SIGNALS:
     /// reviewed and trusted on the server sheet.
     void certificateRefused(const QString &id);
     // --- end #2 ---------------------------------------------------------------------------------
+
+    // --- #14: the bar widget's heartbeat ------------------------------------------------------
+    // docs/20 Q7: while the companion bar widget runs (WidgetHeartbeat), the tray icon mode
+    // "auto" hides the tray icon, so the bar shows one omaseed mark, not two.
+public:
+    /// main.cpp's heartbeat watcher. Not owned; none (tests, demos) means "no widget".
+    void attachWidgetHeartbeat(omaseed::integration::WidgetHeartbeat *heartbeat);
+    /// True while the bar widget's heartbeat is fresh.
+    Q_PROPERTY(bool barWidgetRunning READ barWidgetRunning NOTIFY barWidgetRunningChanged)
+    bool barWidgetRunning() const;
+
+Q_SIGNALS:
+    void barWidgetRunningChanged();
+
+private:
+    /// The tray icon shown or hidden for `trayIconMode` and the heartbeat.
+    void applyTrayIconVisibility();
+    QPointer<omaseed::integration::WidgetHeartbeat> m_widgetHeartbeat;
+    // --- end #14 --------------------------------------------------------------------------------
 
     // --- #12: the bar widget's status file ------------------------------------------------------
 public:

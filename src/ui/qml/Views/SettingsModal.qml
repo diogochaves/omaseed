@@ -1563,7 +1563,7 @@ Item {
 
                             SettingsRow {
                                 Layout.fillWidth: true
-                                description: qsTr("auto hides the icon once the bar widget is running. It behaves as always until then.")
+                                description: qsTr("auto hides the icon while the omaseed bar widget runs, and shows it again within 90 s of the widget going.")
                                 glyph: Glyphs.trayIdle
                                 hasCursor: root.area === "pane" && root.paneCursor === 3
                                 title: qsTr("Tray icon")

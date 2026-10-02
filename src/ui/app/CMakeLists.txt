@@ -5,6 +5,8 @@ qt_add_library(omaseed-app STATIC
     App.hpp
     DemoData.cpp
     DemoData.hpp
+    StatusService.cpp
+    StatusService.hpp
 )
 add_library(omaseed::app ALIAS omaseed-app)
 

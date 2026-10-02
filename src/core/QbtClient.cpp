@@ -918,6 +918,13 @@ QbtReply<QByteArray> *QbtClient::transferToggleSpeedLimitsMode()
     return post(QStringLiteral("transfer/toggleSpeedLimitsMode"));
 }
 
+QbtReply<QByteArray> *QbtClient::transferSetSpeedLimitsMode(bool on)
+{
+    QUrlQuery form;
+    addItem(form, QStringLiteral("mode"), on ? QStringLiteral("1") : QStringLiteral("0"));
+    return post(QStringLiteral("transfer/setSpeedLimitsMode"), form);
+}
+
 QbtReply<bool> *QbtClient::login()
 {
     RequestSpec spec;

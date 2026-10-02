@@ -7,6 +7,7 @@
 #include "core/TorrentFile.hpp"
 #include "core/TorrentModel.hpp"
 #include "integration/Tray.hpp"
+#include "integration/WidgetHeartbeat.hpp"
 #include "ui/app/App.hpp"
 
 #include <QDateTime>
@@ -55,6 +56,8 @@ private slots:
 
     // APP-10
     void aSavedNeverTrayModeHidesTheIconAtStartup();
+    // #14: the bar widget's heartbeat hides the icon under auto, and only then.
+    void theBarWidgetHidesTheTrayIconUnderAuto();
 
     // APP-15
     void theDemoTorrentLivesInAPrivateDirectory();
@@ -258,6 +261,49 @@ void TestAppGlue::aSavedNeverTrayModeHidesTheIconAtStartup()
     app.setTrayIconMode(QStringLiteral("bogus")); // unknown values fall back to auto
     QCOMPARE(app.trayIconMode(), QStringLiteral("auto"));
     QVERIFY(tray.iconWanted());
+}
+
+void TestAppGlue::theBarWidgetHidesTheTrayIconUnderAuto()
+{
+    QTemporaryDir runtime;
+    QVERIFY(runtime.isValid());
+    omaseed::integration::WidgetHeartbeat heartbeat(nullptr, runtime.path());
+
+    App app;
+    app.setTrayIconMode(QStringLiteral("auto"));
+    omaseed::integration::Tray tray(nullptr);
+    app.attachTray(&tray);
+    app.attachWidgetHeartbeat(&heartbeat);
+    QVERIFY(!app.barWidgetRunning());
+    QVERIFY(tray.iconWanted());
+
+    // The widget's touch: hidden within one watcher tick.
+    QSignalSpy running(&app, &App::barWidgetRunningChanged);
+    {
+        QFile alive(heartbeat.filePath());
+        QVERIFY(alive.open(QIODevice::WriteOnly));
+    }
+    QTRY_VERIFY_WITH_TIMEOUT(!tray.iconWanted(), 3000);
+    QVERIFY(app.barWidgetRunning());
+    QVERIFY(running.count() >= 1);
+
+    // always and never override the heartbeat both ways.
+    app.setTrayIconMode(QStringLiteral("always"));
+    QVERIFY(tray.iconWanted());
+    app.setTrayIconMode(QStringLiteral("never"));
+    QVERIFY(!tray.iconWanted());
+    app.setTrayIconMode(QStringLiteral("auto"));
+    QVERIFY(!tray.iconWanted());
+
+    // A stale file (the widget gone without cleaning up) brings the icon back.
+    {
+        QFile alive(heartbeat.filePath());
+        QVERIFY(alive.open(QIODevice::Append));
+        QVERIFY(alive.setFileTime(QDateTime::currentDateTime().addSecs(-120),
+                                  QFileDevice::FileModificationTime));
+    }
+    QTRY_VERIFY_WITH_TIMEOUT(tray.iconWanted(), 3000);
+    QVERIFY(!app.barWidgetRunning());
 }
 
 void TestAppGlue::theDemoTorrentLivesInAPrivateDirectory()

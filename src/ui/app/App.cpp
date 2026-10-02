@@ -13,6 +13,7 @@
 #include "integration/Notifier.hpp"
 #include "integration/StatusWriter.hpp"
 #include "integration/ThemeReader.hpp"
+#include "integration/WidgetHeartbeat.hpp"
 #include "integration/Xdg.hpp"
 #include "ui/app/DemoData.hpp"
 
@@ -529,7 +530,7 @@ void App::attachTray(Tray *tray)
     // The Tray shows its icon when it is built; a saved "never" has to be applied here, not
     // only when the setting changes.
     loadSettings();
-    tray->setIconVisible(m_trayIconMode != QLatin1String("never"));
+    applyTrayIconVisibility();
 
     updateTray();
 }
@@ -3000,9 +3001,7 @@ void App::setTrayIconMode(const QString &mode)
         return;
     m_trayIconMode = next;
     saveSettings();
-    // `auto` behaves as `always` until the companion widget's heartbeat exists (plan T6.3).
-    if (m_tray)
-        m_tray->setIconVisible(next != QStringLiteral("never"));
+    applyTrayIconVisibility();
     Q_EMIT settingsChanged();
 }
 
@@ -3459,6 +3458,40 @@ bool App::isCertificateError(const QString &lastError)
 }
 
 // --- end #2 ----------------------------------------------------------------------------------
+
+// --- #14: the bar widget's heartbeat ---------------------------------------------------------
+
+void App::attachWidgetHeartbeat(omaseed::integration::WidgetHeartbeat *heartbeat)
+{
+    if (m_widgetHeartbeat)
+        disconnect(m_widgetHeartbeat, nullptr, this, nullptr);
+    m_widgetHeartbeat = heartbeat;
+    if (heartbeat) {
+        connect(
+            heartbeat, &omaseed::integration::WidgetHeartbeat::widgetAliveChanged, this, [this]() {
+                applyTrayIconVisibility();
+                Q_EMIT barWidgetRunningChanged();
+            });
+    }
+    applyTrayIconVisibility();
+    Q_EMIT barWidgetRunningChanged();
+}
+
+bool App::barWidgetRunning() const
+{
+    return m_widgetHeartbeat && m_widgetHeartbeat->widgetAlive();
+}
+
+void App::applyTrayIconVisibility()
+{
+    if (m_tray.isNull())
+        return;
+    loadSettings();
+    m_tray->setIconVisible(
+        omaseed::integration::WidgetHeartbeat::trayIconVisible(m_trayIconMode, barWidgetRunning()));
+}
+
+// --- end #14 ---------------------------------------------------------------------------------
 
 // --- #12: the bar widget's status file --------------------------------------------------------
 
