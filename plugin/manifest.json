@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "chaves.omaseed",
+  "name": "omaseed",
+  "version": "0.1.0",
+  "author": "Diogo Chaves",
+  "license": "MIT",
+  "description": "Torrent activity, alternative speed limits, adding and seeding stats from the omaseed app, in the bar.",
+  "kinds": ["bar-widget"],
+  "entryPoints": {
+    "barWidget": "Widget.qml"
+  },
+  "barWidget": {
+    "displayName": "omaseed",
+    "description": "omaseed's mark as the activity readout, with optional speeds. Left click opens the popup: speeds, add, your share, keeping alive, in flight and lately. Needs the omaseed app.",
+    "category": "Files",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "showMark": true,
+      "showSpeed": false,
+      "speedMetric": "both",
+      "markColor": "directions",
+      "hideWhenIdle": false,
+      "rareSeeds": 2,
+      "recentCount": 3,
+      "middleClick": "altSpeed",
+      "rightClick": "openApp"
+    },
+    "schema": [
+      { "key": "showMark", "type": "bool", "label": "Show the mark", "defaultValue": true, "description": "The omaseed mark as the activity readout: the lower arrow lights while downloading, the upper one while uploading. Mark and speed can both be on, never both off: with both off the mark shows." },
+      { "key": "showSpeed", "type": "bool", "label": "Show the speed", "defaultValue": false, "description": "The speed beside the mark in a horizontal bar, under it in a vertical one." },
+      { "key": "speedMetric", "type": "enum", "label": "Speed shows", "options": ["down", "up", "both"], "defaultValue": "both" },
+      { "key": "markColor", "type": "enum", "label": "Mark colour", "options": ["directions", "single"], "defaultValue": "directions", "description": "directions: the theme's blue for in and green for out, as the app's arrows. single: the accent for both." },
+      { "key": "hideWhenIdle", "type": "bool", "label": "Hide while nothing moves", "defaultValue": false, "description": "The widget leaves the bar while nothing downloads or uploads. An unreachable server still shows." },
+      { "key": "rareSeeds", "type": "integer", "label": "Few seeds means at most", "min": 1, "max": 5, "step": 1, "defaultValue": 2, "description": "What \"keeping alive\" counts: complete torrents whose swarm has this many seeds or fewer, you included." },
+      { "key": "recentCount", "type": "integer", "label": "Rows in lately", "min": 0, "max": 5, "step": 1, "defaultValue": 3, "description": "Completions and ratio milestones in the popup. 0 hides the section." },
+      { "key": "middleClick", "type": "enum", "label": "Middle click", "options": ["altSpeed", "openApp", "none"], "defaultValue": "altSpeed", "description": "Toggle the alternative speed limits, open omaseed, or nothing." },
+      { "key": "rightClick", "type": "enum", "label": "Right click", "options": ["openApp", "altSpeed", "none"], "defaultValue": "openApp" }
+    ]
+  }
+}
