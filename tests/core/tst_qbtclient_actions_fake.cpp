@@ -159,6 +159,7 @@ private slots:
     void addTrackersSendsOneUrlPerLine();
     void addPeersSendsPipedHashesAndPeers();
     void banPeersSendsPipedPeers();
+    void setSpeedLimitsModeSendsTheMode();
     void webSeedWritesSendTheHashAndTheUrls();
 };
 
@@ -243,6 +244,25 @@ void TestQbtClientActionsFake::addPeersSendsPipedHashesAndPeers()
              QStringLiteral("h1|h2"));
     QCOMPARE(body.queryItemValue(QStringLiteral("peers"), QUrl::FullyDecoded),
              QStringLiteral("10.0.0.2:6881|[2001:db8::1]:51413"));
+}
+
+// #13: the widget's SetAltSpeed says which mode it wants rather than toggling.
+void TestQbtClientActionsFake::setSpeedLimitsModeSendsTheMode()
+{
+    FakeServer server;
+    server.setHandler([](const Recorded &, int) { return httpResponse(200, "OK", ""); });
+
+    QbtClient client;
+    client.setBaseUrl(server.url());
+
+    QVERIFY(!await(this, client.transferSetSpeedLimitsMode(true)).isError());
+    QVERIFY(!await(this, client.transferSetSpeedLimitsMode(false)).isError());
+    QCOMPARE(server.requests.size(), 2);
+    QCOMPARE(server.requests.at(0).method, QByteArray("POST"));
+    QCOMPARE(server.requests.at(0).target,
+             QByteArrayLiteral("/api/v2/transfer/setSpeedLimitsMode"));
+    QCOMPARE(server.requests.at(0).body, QByteArrayLiteral("mode=1"));
+    QCOMPARE(server.requests.at(1).body, QByteArrayLiteral("mode=0"));
 }
 
 void TestQbtClientActionsFake::banPeersSendsPipedPeers()

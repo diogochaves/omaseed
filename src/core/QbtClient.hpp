@@ -45,6 +45,7 @@
 //   GET  transfer/info               transferInfo()
 //   GET  transfer/speedLimitsMode    transferSpeedLimitsMode()
 //   POST transfer/toggleSpeedLimitsMode  transferToggleSpeedLimitsMode()
+//   POST transfer/setSpeedLimitsMode  transferSetSpeedLimitsMode(on)  -- mode=0|1
 //   POST transfer/setDownloadLimit   transferSetDownloadLimit(bytesPerSec)
 //   POST transfer/setUploadLimit     transferSetUploadLimit(bytesPerSec)
 //
@@ -231,6 +232,9 @@ public:
     /// GET transfer/speedLimitsMode — true when the alternative limits are on.
     QbtReply<bool> *transferSpeedLimitsMode();
     QbtReply<QByteArray> *transferToggleSpeedLimitsMode(); ///< POST transfer/toggleSpeedLimitsMode
+    /// POST transfer/setSpeedLimitsMode with `mode` 1 (alternative limits on) or 0. Unlike the
+    /// toggle it says what it wants, so two quick calls cannot cancel each other out.
+    QbtReply<QByteArray> *transferSetSpeedLimitsMode(bool on);
 
     /// POST auth/login with the credentials set earlier. Resolves to true on success;
     /// a rejected password is ApiError::Kind::Unauthorized.
