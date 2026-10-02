@@ -1,6 +1,7 @@
 # Companion bar widget — brief
 
-Status: **proposal for Diogo, 2026-09-19.** Stage 1 of the companion-widget work. The drawing
+Status: **approved by Diogo 2026-10-02** (Q6–Q12 ruled as proposed, plugin id `chaves.omaseed`;
+built before v0.1.0, issues #12–#17). Proposed 2026-09-19. Stage 1 of the companion-widget work. The drawing
 is `docs/07-companion-widget-spec.html`; this file decides what is drawn and why. Foreseen by
 charter §9 ("a thin QML plugin that shows speeds in the bar and summons the app over D-Bus");
 this turns that sentence into a contract. Nothing here edits the approved specs
@@ -64,7 +65,7 @@ computes anything omaseed does not already compute, and it never talks to qBitto
 - **No second client.** The widget does not know qBittorrent's API exists (§4).
 
 The one item that could reasonably be cut is **in flight**; if Diogo wants the popup smaller,
-that section goes first and the rest still stands. **[decide]**
+that section goes first and the rest still stands. **Ruled 2026-10-02 (Q6): keep.**
 
 ### What this replaces, and what it fixes
 
@@ -182,7 +183,7 @@ Mechanism, chosen so neither side has to know the other's internals: the widget 
 watches it — it writes the status file there) and hides the SNI while the file's mtime is under
 90 s old. Remove the widget and the tray icon is back within 90 s. The app exposes
 `Settings → Appearance → Tray icon: auto | always | never`, default `auto`; `always` is the
-escape hatch for anyone who wants both. **[decide]** — the alternative is no heartbeat and a
+escape hatch for anyone who wants both. **Ruled 2026-10-02 (Q7): heartbeat.** The alternative is no heartbeat and a
 plain manual toggle, which is less magic and more friction.
 
 ---
@@ -487,8 +488,8 @@ question two reasonable people answer differently.
 earn a second view, the shell already renders `barWidget.schema` as a form, and the settings
 people actually want to change — servers, notifications, path maps — belong to the app. So the
 popup head's trailing control is a `PanelActionButton` `󰒓` that opens **omaseed's** settings,
-not the widget's. `s` therefore stays free for *show in omaseed*. **[decide]** — if Diogo wants
-the in-panel settings view his other plugins have, it is a small addition and `s` moves.
+not the widget's. `s` therefore stays free for *show in omaseed*. **Ruled 2026-10-02 (Q11): no
+settings view.**
 
 ---
 
@@ -565,8 +566,8 @@ look. Therefore two routes, one source:
 
 The id must match `^[A-Za-z0-9][A-Za-z0-9._-]*$` and must not start `omarchy.`. `chaves.*` is
 Diogo's existing publisher prefix in `~/.config/omarchy/plugins/`, so `chaves.omaseed` fits the
-neighbourhood; the app's D-Bus name stays `io.github.diogochaves.omaseed`. **[decide]** —
-`chaves.omaseed` or `diogochaves.omaseed`, whichever matches the marketplace publisher handle.
+neighbourhood; the app's D-Bus name stays `io.github.diogochaves.omaseed`. **Ruled 2026-10-02
+(Q8): `chaves.omaseed`.**
 
 `omarchy plugin validate plugin/` runs in CI and must exit 0: it enforces `schemaVersion: 1`,
 the five required fields, an entry point per declared kind, relative safe paths, no symlinks,
