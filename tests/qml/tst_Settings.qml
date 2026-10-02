@@ -752,7 +752,9 @@ TestCase {
         // Batch-2 J8: the Qt version has its own row, so VERSION does not repeat it.
         verify(App.versionText.indexOf("Qt") < 0, App.versionText);
         verify(App.repoUrl.indexOf("http") === 0);
-        verify(App.pluginAddCommand.indexOf("omarchy plugin add ") === 0);
+        // #17: the published widget repository, added and enabled in one line.
+        compare(App.pluginAddCommand,
+                "omarchy plugin add https://github.com/diogochaves/omaseed-bar.git --enable");
     }
 
     // Batch-2 J3: one height for every pane, the tallest one's, so j/k through the nav never

@@ -3022,7 +3022,8 @@ QString App::repoUrl() const
 
 QString App::pluginAddCommand() const
 {
-    return QStringLiteral("omarchy plugin add https://github.com/diogochaves/omaseed-bar");
+    return QStringLiteral(
+        "omarchy plugin add https://github.com/diogochaves/omaseed-bar.git --enable");
 }
 
 QJsonObject App::stateSection(const QString &key) const
