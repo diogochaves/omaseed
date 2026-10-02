@@ -684,7 +684,7 @@ TestCase {
         verify(files.hideSkipped);
         compare(files.count, 4);
         compare(files.rowOfPath("Big Buck Bunny 4K/subs"), -1);
-        compare(text.text, "2 skipped, hidden");
+        compare(text.text, "2 hidden");
         compare(text.color, Theme.foreground);
         compare(files.pathAt(view.filesCursor), "Big Buck Bunny 4K/LICENSE.txt");
 
@@ -692,7 +692,7 @@ TestCase {
         keyClick("x");
         verify(files.hideSkipped);
         compare(files.rowOfPath("Big Buck Bunny 4K/LICENSE.txt"), -1);
-        compare(text.text, "3 skipped, hidden");
+        compare(text.text, "3 hidden");
 
         keyClick(Qt.Key_X, Qt.ShiftModifier);
         verify(!files.hideSkipped);

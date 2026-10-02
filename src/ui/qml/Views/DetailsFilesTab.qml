@@ -71,10 +71,10 @@ Item {
         parts.push(root.model.totalSizeText);
         return parts.join(" · ");
     }
-    /// "2 skipped", or "2 skipped, hidden" while they are hidden; empty with none skipped.
+    /// "2 skipped", or "2 hidden" while they are hidden; empty with none skipped.
     readonly property string skippedText: root.model === null || root.model.skippedCount === 0
                                           ? "" : root.model.hideSkipped
-                                            ? qsTr("%1 skipped, hidden").arg(root.model.skippedCount)
+                                            ? qsTr("%1 hidden").arg(root.model.skippedCount)
                                             : qsTr("%1 skipped").arg(root.model.skippedCount)
 
     // The spec's `.files { grid-template-columns: 1fr 70px 56px 72px }`, trimmed to fit the
@@ -236,9 +236,18 @@ Item {
             }
 
             // #9: the skipped count is the switch that hides them. Dim while they show; in
-            // the foreground, saying "hidden", while they do not. `X` does the same.
+            // the foreground, as "2 hidden", while they do not. `X` does the same; its key
+            // cap is the first thing to go when the line is short (the docked pane), before
+            // the facts are cut (the file menu and the ? sheet still name the key).
             Row {
                 id: skippedToggle
+
+                readonly property bool keyFits: summary.width - summaryCount.implicitWidth
+                                                - summaryFacts.implicitWidth - skippedDot.implicitWidth
+                                                - skippedText.implicitWidth - skippedKey.implicitWidth
+                                                - 2 * skippedToggle.spacing
+                                                - (summaryGo.visible ? summaryGo.width + Theme.space(8)
+                                                                     : 0) >= 0
 
                 anchors.left: summaryFacts.right
                 anchors.verticalCenter: parent.verticalCenter
@@ -247,6 +256,8 @@ Item {
                 visible: root.skippedText.length > 0
 
                 Text {
+                    id: skippedDot
+
                     anchors.verticalCenter: parent.verticalCenter
                     color: Theme.dimForeground
                     font.family: Theme.fontFamily
@@ -255,6 +266,8 @@ Item {
                 }
 
                 Text {
+                    id: skippedText
+
                     anchors.verticalCenter: parent.verticalCenter
                     color: root.model !== null && root.model.hideSkipped ? Theme.foreground
                                                                          : Theme.dimForeground
@@ -265,8 +278,12 @@ Item {
                 }
 
                 KeyCap {
+                    id: skippedKey
+
                     anchors.verticalCenter: parent.verticalCenter
+                    objectName: "filesSkippedKey"
                     text: "X"
+                    visible: skippedToggle.keyFits
                 }
             }
 
