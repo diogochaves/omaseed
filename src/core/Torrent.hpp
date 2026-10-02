@@ -133,6 +133,7 @@ struct Torrent
     qint64 completed = 0;
     qint64 downloaded = 0;
     qint64 uploaded = 0;
+    qint64 uploadedSession = 0; ///< since qBittorrent started (the widget's top seeders)
     qint64 timeActive = 0;
     qint64 seedingTime = 0;
 
