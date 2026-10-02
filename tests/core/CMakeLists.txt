@@ -23,6 +23,11 @@ omaseed_add_test(tst_pathmap
     LIBRARIES omaseed::core
 )
 
+omaseed_add_test(tst_renameplan
+    SOURCES tst_renameplan.cpp
+    LIBRARIES omaseed::core
+)
+
 omaseed_add_test(tst_peerinput
     SOURCES tst_peerinput.cpp
     LIBRARIES omaseed::core
