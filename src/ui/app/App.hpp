@@ -65,6 +65,7 @@ QT_END_NAMESPACE
 
 namespace omaseed::integration {
 class Notifier;
+class StatusWriter;
 class ThemeReader;
 class Xdg;
 } // namespace omaseed::integration
@@ -1136,6 +1137,18 @@ Q_SIGNALS:
     /// reviewed and trusted on the server sheet.
     void certificateRefused(const QString &id);
     // --- end #2 ---------------------------------------------------------------------------------
+
+    // --- #12: the bar widget's status file ------------------------------------------------------
+public:
+    /// main.cpp's StatusWriter (plugin/STATUS.md): App gives it the engine, the server's
+    /// preferences, the server it is on, why that server is lost, completions, the path map
+    /// and the duplicate test, then starts it. Not owned.
+    void attachStatusWriter(omaseed::integration::StatusWriter *writer);
+
+private:
+    void updateStatusServer();
+    QPointer<omaseed::integration::StatusWriter> m_statusWriter;
+    // --- end #12 --------------------------------------------------------------------------------
 };
 
 } // namespace omaseed::app

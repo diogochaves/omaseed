@@ -38,3 +38,9 @@ omaseed_add_test(tst_themecontrast
     SOURCES tst_themecontrast.cpp
     LIBRARIES omaseed::integration
 )
+
+omaseed_add_test(tst_statuswriter
+    SOURCES tst_statuswriter.cpp
+    LIBRARIES omaseed::integration
+    DEFINES OMASEED_FIXTURES_DIR="${CMAKE_SOURCE_DIR}/tests/fixtures"
+)

@@ -150,6 +150,31 @@ void GlobalState::applyServerState(const QJsonObject &s)
              this,
              &GlobalState::refreshIntervalChanged,
              integer);
+    takeFrom(s,
+             QLatin1StringView("alltime_ul"),
+             m_allTimeUpload,
+             this,
+             &GlobalState::allTimeChanged,
+             integer);
+    takeFrom(s,
+             QLatin1StringView("alltime_dl"),
+             m_allTimeDownload,
+             this,
+             &GlobalState::allTimeChanged,
+             integer);
+    // "2.16" in qBittorrent 5.x; a number is taken too, anything else is "unknown".
+    takeFrom(s,
+             QLatin1StringView("global_ratio"),
+             m_globalRatio,
+             this,
+             &GlobalState::allTimeChanged,
+             [](const QJsonValue &v) {
+                 if (v.isDouble())
+                     return v.toDouble();
+                 bool ok = false;
+                 const double ratio = v.toString().toDouble(&ok);
+                 return ok ? ratio : -1.0;
+             });
 }
 
 void GlobalState::setConnected(bool connected)
@@ -207,6 +232,9 @@ void GlobalState::reset()
         {QStringLiteral("up_rate_limit"), 0},
         {QStringLiteral("queueing"), false},
         {QStringLiteral("refresh_interval"), 1500},
+        {QStringLiteral("alltime_ul"), 0},
+        {QStringLiteral("alltime_dl"), 0},
+        {QStringLiteral("global_ratio"), QString()},
     });
     setConnected(false);
     setSyncing(false);
