@@ -4,6 +4,7 @@
 # (the manual box, through scripts/dev/manual-box.sh).
 #
 #   scripts/dev/app-box.sh up [-b NAME] [--interactive] [--build DIR] [--handlers] [--qbt]
+#                             [--plugin DIR]
 #       a box on its own network that reaches only :8081; servers.json pointing omaseed at the
 #       playground; every swarm .torrent in ~/Downloads (the add sheet's "In Downloads" list);
 #       then DIR/omaseed (default build/) is started and the command returns once its window
@@ -11,6 +12,8 @@
 #       --qbt: a qBittorrent of the box's own instead of the playground (127.0.0.1:8090 in the
 #       box, no login, saving to ~/Torrents), reaching only the swarm's tracker and seeder, so
 #       deletes, moves and settings changes touch nothing outside the box.
+#       --plugin DIR: that shell plugin (the repo's plugin/, the bar widget) mounted and enabled
+#       in the box's bar, beside the app.
 #   scripts/dev/app-box.sh restart [-b NAME] [--build DIR]
 #       stop omaseed, start it again (after a rebuild), return once its window is still; prints
 #       the run log, which has the app's own output (QT_FORCE_STDERR_LOGGING, omabox#26).
@@ -181,7 +184,7 @@ EOF
 # ---- up: the app box ---------------------------------------------------------------------
 
 up_app() {
-    local build="$1" interactive="$2" handlers="$3" qbt="$4" home url name up_args=()
+    local build="$1" interactive="$2" handlers="$3" qbt="$4" plugin="${5:-}" home url name up_args=()
     [ -x "$build/omaseed" ] || die "no $build/omaseed: build it first (cmake --build $build)"
     if [ "$qbt" = 0 ] && ! "$repo/scripts/dev/test-server.sh" status >/dev/null 2>&1; then
         echo "starting the playground (:$PLAY_PORT)"
@@ -205,6 +208,7 @@ up_app() {
     else
         up_args=(--net isolated --allow "$PLAY_PORT")
     fi
+    if [ -n "$plugin" ]; then up_args+=(--plugin "$plugin"); fi
     if [ "$interactive" = 1 ]; then
         quiet omabox up "$BOX" --interactive "${up_args[@]}"
     else
@@ -427,6 +431,7 @@ build=""
 interactive=0
 handlers=0
 qbt=0
+plugin=""
 manual=0
 SERVER="${SERVER:-public}"
 method=""
@@ -439,6 +444,7 @@ while [ $# -gt 0 ]; do
     --headless) interactive=0 ;;
     --handlers) handlers=1 ;;
     --qbt) qbt=1 ;;
+    --plugin) [ $# -ge 2 ] || die "--plugin needs a directory"; plugin="$(cd "$2" && pwd)"; shift ;;
     --manual) manual=1 ;;
     -X) [ $# -ge 2 ] || die "-X needs a method"; method="$2"; shift ;;
     --server) [ $# -ge 2 ] || die "--server needs a name"; SERVER="$2"; shift ;;
@@ -453,7 +459,7 @@ up)
     if [ "$manual" = 1 ]; then
         up_manual "${build:-build-box}" "$interactive"
     else
-        up_app "${build:-build}" "$interactive" "$handlers" "$qbt"
+        up_app "${build:-build}" "$interactive" "$handlers" "$qbt" "$plugin"
     fi
     ;;
 restart)
