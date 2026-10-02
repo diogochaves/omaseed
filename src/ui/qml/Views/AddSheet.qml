@@ -167,7 +167,9 @@ Sheet {
         },
         {
             "key": "enter",
-            "label": qsTr("add")
+            "label": qsTr("add"),
+            // #8: at the sheet's 600 wide the tree's keys run out of room; these go first.
+            "keep": true
         }
     ]
     /// While a file tree row is being renamed (M18): its field takes both keys.
