@@ -3617,7 +3617,11 @@ void App::feedLedger()
     if (!m_ledgerDemoDone && (m_demoMode || !env("OMASEED_LEDGER_DEMO").isEmpty())
         && !hashes.isEmpty()) {
         m_ledgerDemoDone = true;
-        m_ledger->fillDemo(now, hashes);
+        // A typical made-up day gives about a fifth of what the library holds.
+        qint64 held = 0;
+        for (int i = 0; i < torrents->count(); ++i)
+            held += torrents->torrentAt(i).isComplete() ? torrents->torrentAt(i).size : 0;
+        m_ledger->fillDemo(now, hashes, std::max<qint64>(held / 5, 64LL * 1024 * 1024));
         m_console->refresh();
     }
 }

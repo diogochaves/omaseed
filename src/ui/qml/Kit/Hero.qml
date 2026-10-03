@@ -431,28 +431,36 @@ Item {
             visible: !(root.level >= 3 && root.searchOpen)
         }
 
-        Stat {
-            id: upStat
+        // T2: the trend sits under the ↑ number, a hairline at low alpha. A wrapper, so the
+        // line is not one of the Stat column's own rows.
+        Item {
+            id: upBox
 
             Layout.alignment: Qt.AlignVCenter
-            glyph: Glyphs.arrowUp
-            glyphColor: Theme.stateSeeding
-            label: root.level >= 2 ? "" : root.upNote.length > 0 ? qsTr("upload · %1").arg(root.upNote)
-                                                               : qsTr("upload")
-            value: root.level >= 4 ? root.upSpeedShort : root.upSpeed
+            implicitHeight: upStat.implicitHeight
+            implicitWidth: upStat.implicitWidth
             visible: !(root.level >= 3 && root.searchOpen)
 
-            // T2: the trend sits under the number, a hairline at low alpha.
             Sparkline {
-                height: Theme.space(30)
-                lineAlpha: 0.55
                 fillAlpha: 0.08
+                // Behind the number only: the caption under it stays clean.
+                height: Theme.space(20)
+                lineAlpha: 0.55
                 values: root.upSpark
                 visible: root.upSpark.length > 1
-                width: upStat.width + Theme.space(12)
+                width: upBox.width + Theme.space(12)
                 x: -Theme.space(4)
-                y: Theme.space(2)
-                z: -1
+                y: Theme.space(1)
+            }
+
+            Stat {
+                id: upStat
+
+                glyph: Glyphs.arrowUp
+                glyphColor: Theme.stateSeeding
+                label: root.level >= 2 ? "" : root.upNote.length > 0 ? qsTr("upload · %1").arg(root.upNote)
+                                                                   : qsTr("upload")
+                value: root.level >= 4 ? root.upSpeedShort : root.upSpeed
             }
 
             HoverHandler {

@@ -125,12 +125,22 @@ Column {
                     text: row.modelData.offerText
                 }
 
+                // Right-aligned by its own layout direction: a spacer item here would make
+                // the whole column fill, as RowLayout passes fillWidth up from a child.
                 RowLayout {
+                    Layout.fillWidth: false
+                    Layout.maximumWidth: Theme.space(132)
+                    Layout.minimumWidth: Theme.space(132)
                     Layout.preferredWidth: Theme.space(132)
+                    layoutDirection: Qt.RightToLeft
                     spacing: Theme.space(6)
 
-                    Item {
-                        Layout.fillWidth: true
+                    Text {
+                        color: Theme.foreground
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.font.small
+                        rightPadding: Theme.space(10)
+                        text: row.modelData.givenText
                     }
 
                     Rectangle {
@@ -140,12 +150,8 @@ Column {
                         opacity: 0.6
                     }
 
-                    Text {
-                        color: Theme.foreground
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.font.small
-                        rightPadding: Theme.space(10)
-                        text: row.modelData.givenText
+                    Item {
+                        Layout.fillWidth: true
                     }
                 }
 

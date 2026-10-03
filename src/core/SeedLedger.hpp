@@ -120,8 +120,9 @@ public:
 
     /// Dev only (OMASEED_LEDGER_DEMO): when the ledger holds under two days, makes up a year
     /// of plausible history before now for `hashes`, so the console can be judged as it will
-    /// look a year in. Deterministic for a given `seed`.
-    void fillDemo(qint64 now, const QStringList &hashes, quint32 seed = 22);
+    /// look a year in. A typical day gives about `dayBytes` (0: 10 GB), so the made-up year
+    /// fits the library it is shown with. Deterministic for a given `seed`.
+    void fillDemo(qint64 now, const QStringList &hashes, qint64 dayBytes = 0, quint32 seed = 22);
 
 private:
     struct Bucket

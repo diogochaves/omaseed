@@ -614,13 +614,14 @@ int SeedLedger::longestStreak() const
     return best;
 }
 
-void SeedLedger::fillDemo(qint64 now, const QStringList &hashes, quint32 seed)
+void SeedLedger::fillDemo(qint64 now, const QStringList &hashes, qint64 dayBytes, quint32 seed)
 {
     if (m_start != 0 && now - m_start > 2 * kDay)
         return;
     QRandomGenerator rnd(seed);
     auto between = [&](double a, double b) { return a + (b - a) * rnd.generateDouble(); };
     constexpr double kGB = 1024.0 * 1024.0 * 1024.0;
+    const double unit = dayBytes > 0 ? double(dayBytes) / 10.0 : kGB;
 
     const QDate today = localDate(now);
     const int span = 365;
@@ -650,18 +651,19 @@ void SeedLedger::fillDemo(qint64 now, const QStringList &hashes, quint32 seed)
         const int i = span - back;
         const int wd = day.dayOfWeek();
         const double season = 0.75 + 0.35 * std::sin(double(i) / span * 2 * M_PI + 1.2);
-        double v = (wd >= 6 ? 1.35 : 1.0) * season * between(3, 22) * kGB;
+        // The board's numbers were made for a ~10 GB day; `unit` rescales them.
+        double v = (wd >= 6 ? 1.35 : 1.0) * season * between(3, 22) * unit;
         if (rnd.generateDouble() < 0.06)
             v *= between(2.2, 4);
         if (rnd.generateDouble() < 0.11)
-            v = between(0, 0.2) * kGB;
+            v = between(0, 0.2) * unit;
         if (back < 41)
-            v = std::max(v, between(1.5, 4) * kGB);
+            v = std::max(v, between(1.5, 4) * unit);
         if (back == 41)
             v = 0;
         if (i >= 130 && i < 136)
             v = 0; // a week away
-        const double down = rnd.generateDouble() < 0.12 ? between(0.2, 4) * kGB : 0.0;
+        const double down = rnd.generateDouble() < 0.12 ? between(0.2, 4) * unit : 0.0;
 
         const qint64 dayStart = startOfDay(day);
         double booked = 0, bookedDown = 0;
@@ -702,7 +704,7 @@ void SeedLedger::fillDemo(qint64 now, const QStringList &hashes, quint32 seed)
     // The last hour of speeds, for the 1 h tide and the hero.
     m_speeds.clear();
     for (qint64 t = now - kHour + 1; t <= now; ++t) {
-        const double up = (1.6 + std::sin(double(t) / 400.0) * 0.6 + between(0, 0.5)) * 1024 * 1024;
+        const double up = (1.6 + std::sin(double(t) / 400.0) * 0.6 + between(0, 0.5)) * unit / kGB * 1024 * 1024;
         m_speeds.append({t, qint64(up), 0});
     }
     m_metaDirty = true;
