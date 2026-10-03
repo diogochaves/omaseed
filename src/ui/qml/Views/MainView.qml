@@ -1481,12 +1481,40 @@ Item {
                 anchors.horizontalCenter: table.horizontalCenter
                 availableWidth: table.width - Theme.space(16)
                 count: table.selectedCount
+                // #24 T1: re-read when the selection or the library moves.
+                summary: {
+                    App.torrents.count; // the dependency: a sync that adds or drops a row
+                    return table.selectedCount > 0 ? App.console.selectionSummary(table.selectedHashes()) : ({});
+                }
                 height: implicitHeight
                 visible: table.selectedCount > 0 && table.visible && !root.serverLost
                 width: implicitWidth
 
                 onMoreRequested: (button, folded) => root.openSelectionMore(button, folded)
+                onSummaryClicked: root.setView("seed")
                 onTriggered: action => root.selectionBarAction(action)
+            }
+
+            // #24 T7: seeding moments in the bar's spot, while nothing is selected.
+            SeedToast {
+                id: seedToast
+
+                allowed: table.selectedCount === 0 && table.visible && !root.serverLost && root.view === "library"
+                anchors.bottom: table.bottom
+                anchors.bottomMargin: Theme.space(12)
+                anchors.horizontalCenter: table.horizontalCenter
+                height: implicitHeight
+                width: implicitWidth
+
+                onShowRequested: hash => table.revealHash(hash)
+            }
+
+            Connections {
+                function onSeedNotice(kind: string, hash: string, title: string, detail: string): void {
+                    seedToast.push(kind, hash, title, detail);
+                }
+
+                target: App
             }
 
             // Fig. 23's read-only guard: it eats every click and every key but the five the

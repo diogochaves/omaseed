@@ -3541,6 +3541,15 @@ void App::attachStatusWriter(omaseed::integration::StatusWriter *writer)
     writer->setLibraryCheck(
         [this](const QString &v1, const QString &v2) { return !findDuplicate(v1, v2).isEmpty(); });
     writer->setDownloadsFolder(downloadsFolder());
+    connect(writer, &omaseed::integration::StatusWriter::milestone, this,
+            [this](const QString &hash, const QString &name, int ratio) {
+                const Torrent &t = m_engine->torrents()->torrent(hash);
+                const qint64 days = t.seedingTime / 86400;
+                Q_EMIT seedNotice(QStringLiteral("milestone"), hash,
+                                  ratio == 1 ? tr("%1 paid back").arg(name) : tr("%1 · %2×").arg(name).arg(ratio),
+                                  ratio == 1 ? tr("ratio 1.00 · %1 days").arg(days)
+                                             : tr("%1 given").arg(sizeText(t.uploaded)));
+            });
     m_console->setRecentProvider([this]() {
         return m_statusWriter ? m_statusWriter->snapshot().value(QStringLiteral("recent")).toArray().toVariantList()
                               : QVariantList();
@@ -3612,6 +3621,22 @@ void App::feedLedger()
         hashes.append(t.hash);
     }
     m_ledger->observe(now, state->allTimeUpload(), state->allTimeDownload(), totals);
+
+    // T7: a complete torrent whose swarm just went down to you alone.
+    QHash<QString, int> swarm;
+    for (int i = 0; i < torrents->count(); ++i) {
+        const Torrent &t = torrents->torrentAt(i);
+        const int seeds = SeedConsole::knownSeeds(t);
+        if (!t.isComplete() || seeds <= 0)
+            continue;
+        swarm.insert(t.hash, seeds);
+        const int before = m_lastSwarm.value(t.hash, 0);
+        if (seeds == 1 && before > 1 && !m_lastSwarm.isEmpty())
+            Q_EMIT seedNotice(QStringLiteral("lastSeed"), t.hash,
+                              tr("You are now the only seed of %1").arg(t.name),
+                              t.numIncomplete > 0 ? tr("%1 waiting").arg(t.numIncomplete) : QString());
+    }
+    m_lastSwarm = swarm;
     m_ledger->sampleSpeed(now, state->upInfoSpeed(), state->dlInfoSpeed());
     // Dev only: a made-up year before today, to judge the console as it will look a year in.
     if (!m_ledgerDemoDone && (m_demoMode || !env("OMASEED_LEDGER_DEMO").isEmpty())

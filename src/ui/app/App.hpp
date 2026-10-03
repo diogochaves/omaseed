@@ -1200,6 +1200,11 @@ public:
     omaseed::core::SeedConsole *console() const { return m_console; }
     omaseed::core::SeedLedger *ledger() const { return m_ledger.get(); }
 
+Q_SIGNALS:
+    /// #24 T7: something worth a moment in the floating bar's spot: `kind` "milestone"
+    /// (paid back, 2×, 5×) or "lastSeed" (you just became a torrent's only seed).
+    void seedNotice(const QString &kind, const QString &hash, const QString &title, const QString &detail);
+
 private:
     /// Opens the ledger of the server the engine is about to poll (memory only in demo mode).
     void openLedger();
@@ -1209,6 +1214,8 @@ private:
     omaseed::core::SeedConsole *m_console = new omaseed::core::SeedConsole(this);
     QString m_ledgerKey;
     bool m_ledgerDemoDone = false;
+    /// Seeds in the swarm per complete torrent at the last poll, for "now the only seed".
+    QHash<QString, int> m_lastSwarm;
     // --- end #24 --------------------------------------------------------------------------------
 };
 

@@ -104,6 +104,8 @@ public Q_SLOTS:
 
 Q_SIGNALS:
     void written();
+    /// #24 T7: a torrent's ratio crossed 1, 2 or 5 (the same crossings `recent` keeps).
+    void milestone(const QString &hash, const QString &name, int ratio);
 
 private:
     QDateTime now() const;

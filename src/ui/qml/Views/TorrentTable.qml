@@ -96,6 +96,19 @@ Item {
             "order": Qt.DescendingOrder,
             "visible": true
         },
+        // #24 T3: seeds in the swarm (the tracker's count, not the connected peers), yellow
+        // at or under the rare threshold, "only you" when you are the last seed.
+        {
+            "key": "swarm",
+            "name": qsTr("Swarm  seeds in the swarm"),
+            "title": qsTr("Swarm"),
+            "role": "numComplete",
+            "text": "numComplete",
+            "width": 96,
+            "align": Qt.AlignRight,
+            "order": Qt.AscendingOrder,
+            "visible": true
+        },
         {
             "key": "dlspeed",
             "name": qsTr("↓  download speed"),
@@ -163,11 +176,11 @@ Item {
             "title": qsTr("Ratio"),
             "role": "ratio",
             "text": "ratioText",
-            "width": 60,
+            // #24 T4: two short tracks before the number (to 1.0, then on to the limit).
+            "width": 116,
             "align": Qt.AlignRight,
             "order": Qt.DescendingOrder,
-            "visible": true,
-            "default": false
+            "visible": true
         },
         {
             "key": "category",
@@ -1366,8 +1379,23 @@ Item {
 
                         readonly property var box: root.columnLayout[textCell.modelData.key]
                         readonly property var value: row.model[textCell.modelData.text]
+                        // #24 T3 and T4: the swarm and ratio columns draw a little more.
+                        readonly property bool isSwarm: textCell.modelData.key === "swarm"
+                        readonly property bool isRatio: textCell.modelData.key === "ratio"
+                        readonly property bool complete: row.progress >= 1
+                        readonly property int swarmSeeds: textCell.isSwarm && !row.model.hasTrackerError
+                                                          ? Number(row.model.numComplete) : -1
+                        readonly property bool rare: textCell.complete && textCell.swarmSeeds > 0
+                                                     && textCell.swarmSeeds <= App.console.rareSeeds
+                        readonly property real ratio: textCell.isRatio ? Math.max(0, Number(row.model.ratio)) : 0
+                        readonly property real ratioGoal: {
+                            const own = Number(row.model.ratioLimit);
+                            return own > 1 ? own : 5;
+                        }
 
-                        color: band.textColor
+                        color: textCell.rare ? Theme.yellow
+                                             : textCell.isRatio && textCell.ratio >= textCell.ratioGoal
+                                               ? Theme.stateSeeding : band.textColor
                         elide: Text.ElideRight
                         font.family: Theme.fontFamily
                         font.features: ({
@@ -1380,11 +1408,59 @@ Item {
                         leftPadding: Theme.space(8)
                         objectName: textCell.modelData.key + "_" + row.index
                         rightPadding: Theme.space(8)
-                        text: textCell.value === undefined || textCell.value === null
-                              ? "" : String(textCell.value)
+                        text: textCell.isSwarm ? (textCell.complete || textCell.swarmSeeds > 1
+                                                  ? App.console.swarmText(textCell.swarmSeeds) : "")
+                                               : textCell.value === undefined || textCell.value === null
+                                                 ? "" : String(textCell.value)
                         verticalAlignment: Text.AlignVCenter
                         width: textCell.box.w
                         x: textCell.box.x
+
+                        // T3: "only you" boxed in the rare colour.
+                        Rectangle {
+                            anchors.verticalCenter: parent.verticalCenter
+                            border.color: Qt.alpha(Theme.yellow, 0.4)
+                            border.width: 1
+                            color: "transparent"
+                            height: Theme.font.body + Theme.space(4)
+                            visible: textCell.isSwarm && textCell.complete && textCell.swarmSeeds === 1
+                            width: textCell.contentWidth + Theme.space(10)
+                            x: textCell.width - textCell.rightPadding - textCell.contentWidth - Theme.space(5)
+                        }
+
+                        // T4: to 1.0 ("paid back"), then from 1.0 to the share limit (or 5).
+                        Row {
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: Theme.space(2)
+                            visible: textCell.isRatio && textCell.complete && textCell.width > Theme.space(90)
+                            x: textCell.leftPadding
+
+                            Rectangle {
+                                color: Theme.fill(Theme.fillHover)
+                                height: Theme.space(4)
+                                width: Theme.space(28)
+
+                                Rectangle {
+                                    color: Theme.foreground
+                                    height: parent.height
+                                    opacity: 0.45
+                                    width: parent.width * Math.min(1, textCell.ratio)
+                                }
+                            }
+
+                            Rectangle {
+                                color: Theme.fill(Theme.fillHover)
+                                height: Theme.space(4)
+                                width: Theme.space(22)
+
+                                Rectangle {
+                                    color: Theme.stateSeeding
+                                    height: parent.height
+                                    width: parent.width * Math.max(0, Math.min(1, (textCell.ratio - 1)
+                                                                               / (textCell.ratioGoal - 1)))
+                                }
+                            }
+                        }
                     }
                 }
             }

@@ -30,12 +30,17 @@ Rectangle {
     property int count: 0
     /// The widest the bar may be; buttons fold into ⋯ past it.
     property real availableWidth: 0
+    /// #24 T1: the selection's ledger, `{sizeText, givenText, ratioText, ratioGood}`, drawn
+    /// after the count while the bar has room for it (it goes before any button folds).
+    property var summary: ({})
 
     /// A button ran: "start", "stop", "recheck", "reannounce", "category", "tags",
     /// "location", "limits", "openFolder" or "delete".
     signal triggered(string action)
     /// ⋯ ran: open the actions menu over `button`, with `folded` first.
     signal moreRequested(Item button, var folded)
+    /// #24 T1: the summary was clicked: the seed console, on the selection.
+    signal summaryClicked
 
     /// Every button, keyed by the actions menu's action names; `key` is what the tooltip
     /// teaches (the same keys as Fig. 11's menu).
@@ -118,6 +123,12 @@ Rectangle {
             "word": false
         };
     }
+    /// #24 T1: the summary's own width, and whether it fits beside every button.
+    readonly property real _summaryWidth: summaryRow.implicitWidth + Theme.space(8)
+    readonly property bool showSummary: root.summary.sizeText !== undefined && root.fit.folds === 0
+                                        && root.fit.word
+                                        && root.widthOf(root.items, true) + root._summaryWidth
+                                        <= root.availableWidth
     /// The actions ⋯ now holds besides the menu's own, in `foldOrder`.
     readonly property var folded: root.foldOrder.slice(0, root.fit.folds)
     /// What the bar draws after the count: action names, and "|" for a hairline.
@@ -163,7 +174,7 @@ Rectangle {
     border.width: 1
     color: Theme.background
     implicitHeight: Theme.controlHeight + 2 * Theme.space(4)
-    implicitWidth: root.widthOf(root.items, root.fit.word)
+    implicitWidth: root.widthOf(root.items, root.fit.word) + (root.showSummary ? root._summaryWidth : 0)
     radius: Theme.cornerRadius
 
     // The bar floats over the rows: a click on its own ground must not reach the row under
@@ -214,6 +225,67 @@ Rectangle {
                     text: qsTr("selected")
                     visible: root.fit.word
                 }
+            }
+        }
+
+        // T1: size, given and ratio of what is selected; a click opens the console on it.
+        Item {
+            height: Theme.controlHeight
+            visible: root.showSummary
+            width: root._summaryWidth
+
+            Row {
+                id: summaryRow
+
+                anchors.verticalCenter: parent.verticalCenter
+                rightPadding: Theme.space(4)
+                spacing: Theme.space(12)
+
+                Label {
+                    dim: true
+                    size: "small"
+                    text: root.summary.sizeText ?? ""
+                }
+
+                Row {
+                    spacing: Theme.space(5)
+
+                    Label {
+                        dim: true
+                        size: "small"
+                        text: qsTr("given")
+                    }
+
+                    Label {
+                        bright: true
+                        size: "small"
+                        text: root.summary.givenText ?? ""
+                    }
+                }
+
+                Row {
+                    spacing: Theme.space(5)
+
+                    Label {
+                        dim: true
+                        size: "small"
+                        text: qsTr("ratio")
+                    }
+
+                    Label {
+                        color: root.summary.ratioGood === true ? Theme.stateSeeding : Theme.brightForeground
+                        size: "small"
+                        text: root.summary.ratioText ?? ""
+                    }
+                }
+            }
+
+            HoverHandler {
+                cursorShape: Qt.PointingHandCursor
+            }
+
+            TapHandler {
+                onTapped: root.summaryClicked()
             }
         }
 
