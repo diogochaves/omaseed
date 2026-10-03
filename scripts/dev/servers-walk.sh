@@ -189,8 +189,9 @@ keys Return -s 600 Tab ctrl+a -t public Tab Tab space Tab Tab -t admin Tab ctrl+
 unclip
 step "Signed in to public" "Step 2: URL http://127.0.0.1:8090, name public, username and password chosen, a green dot: signed in · qBittorrent 5.2.3 · API 2.15.1 · 1 torrent."
 
-# continue, "not now" on the links step: the done screen.
-keys Tab Tab Return -s 1500 Tab Return -s 2000
+# continue, "not now" on the links step, "not now" on the bar step (#17; the widget is not
+# what this walk is about): the done screen.
+keys Tab Tab Return -s 1500 Tab Return -s 1500 Tab Return -s 2000
 step "Done, another running" "You're connected to public. Under the magnet line, dim: \"Another qBittorrent is running here; add it later in Settings › Servers.\" (Q26: two qbittorrent-nox processes, one candidate)."
 
 # Open the library.

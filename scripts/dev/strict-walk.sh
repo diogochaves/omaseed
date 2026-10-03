@@ -203,8 +203,9 @@ step "Cookie test passes" "A green dot: signed in · qBittorrent 5.2.3 · API 2.
 keys Tab Tab Return -s 1500
 step "Magnet handler" "✓ server ✓ sign in 3 links: Open magnet links and .torrent files with omaseed?, the dim line, open them with omaseed / not now; the script answers not now."
 
-keys Tab Return -s 2000
-step "Done" "✓ ✓ ✓. You're connected to strict. qBittorrent 5.2.3 · 3 torrents (· free space once synced); magnet links still open elsewhere; a / , / ? hints; open the library. Footer: setup done."
+# "not now" on the links step, then "not now" on the bar step (#17).
+keys Tab Return -s 1500 Tab Return -s 2000
+step "Done" "✓ ✓ ✓ ✓. You're connected to strict. qBittorrent 5.2.3 · 3 torrents (· free space once synced); magnet links still open elsewhere; a / , / ? hints; open the library. Footer: setup done."
 
 keys Return -s 2500
 check "after setup the window tiles like any other launch" window_is tiled
@@ -236,7 +237,7 @@ step "Wrong API key" "API key chosen: one Key field (no Username / Password). Re
 keys shift+Tab ctrl+a ctrl+v Tab Return -s 3000
 step "API key test passes" "The pasted key (dots) tests fine: qBittorrent 5.2.3 · API 2.15.1 · 3 torrents; continue is on."
 
-keys Tab Tab Return -s 1500 Tab Return -s 1500 Return -s 3000
+keys Tab Tab Return -s 1500 Tab Return -s 1500 Tab Return -s 1500 Return -s 3000
 omabox run -b "$BOX" -- wl-copy --clear >/dev/null 2>&1 || true
 step "Signed in with an API key" "The same three fixtures; the hero says STRICT-KEY · QBITTORRENT 5.2.3."
 
