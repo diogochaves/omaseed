@@ -45,6 +45,7 @@ qt_add_qml_module(omaseed-kit
         Sheet.qml
         Sparkline.qml
         SplitLayout.qml
+        StackStrip.qml
         Stat.qml
         Strip.qml
         TableHeader.qml
