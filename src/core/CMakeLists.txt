@@ -49,6 +49,8 @@ qt_add_library(omaseed-core STATIC
     ServerPreferences.hpp
     ServerStore.cpp
     ServerStore.hpp
+    SeedConsole.cpp
+    SeedConsole.hpp
     SeedLedger.cpp
     SeedLedger.hpp
     StateFile.cpp
