@@ -146,6 +146,22 @@ TestCase {
         compare(sheet.downloadsList.visible, false);
     }
 
+    // A hand-over to a sheet that is already up (the widget's `m`, the tray's add, a second
+    // xdg-open) looks at Downloads again: "in library" may have changed since it opened (#20).
+    function test_a_hand_over_to_an_open_sheet_scans_downloads_again() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        sheet.openWith("", "");
+        compare(App.downloadsTorrents.length, 0);
+        App.downloadsFolder = testCase.fixturesFolder();
+        sheet.openBlank();
+        tryVerify(() => App.downloadsTorrents.length === 5, 10000, "openBlank did not scan");
+
+        App.downloadsFolder = "";
+        sheet.openList([testCase.freshMagnet], "handoff");
+        tryVerify(() => App.downloadsTorrents.length === 0, 10000, "openList did not scan");
+        compare(sheet.opened, true);
+    }
+
     function test_the_list_hides_once_the_field_holds_something() {
         const sheet = testCase.openOnFixtures();
         sheet.sourceField.text = testCase.freshMagnet;

@@ -246,8 +246,10 @@ Sheet {
     /// holds a magnet or a URL (and from `OMASEED_DEMO_ADD` under `--demo`, so Fig. 5 and
     /// Fig. 10 can be screenshot reproducibly).
     function openBlank(): void {
-    if (sheet.opened) // already up (the tray's add while the form is half filled): keep it
-    return;
+    if (sheet.opened) { // already up (the tray's add while the form is half filled): keep it
+        App.scanDownloads(); // but look at Downloads again, as an opening would
+        return;
+    }
     sheet.reset();
     const demo = App.demoAddText();
     const prefill = demo.length > 0 ? demo : sheet.clipboardText();
@@ -271,6 +273,9 @@ Sheet {
     if (!list || list.length === 0)
     return;
     if (sheet.opened) {
+        // The sheet may have stayed up behind the widget since before an add: "in library"
+        // must not be what it was then.
+        App.scanDownloads();
         let rest = list;
         if (sourceField.text.trim().length === 0) {
             sheet.loadText(list[0], from);
