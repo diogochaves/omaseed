@@ -18,6 +18,7 @@ qt_add_qml_module(omaseed-kit
         Button.qml
         Chip.qml
         ConfirmDialog.qml
+        DayGrid.qml
         Field.qml
         FilterMenu.qml
         FocusRing.qml
