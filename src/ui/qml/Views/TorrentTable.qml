@@ -104,7 +104,7 @@ Item {
             "title": qsTr("Swarm"),
             "role": "numComplete",
             "text": "numComplete",
-            "width": 96,
+            "width": 76,
             "align": Qt.AlignRight,
             "order": Qt.AscendingOrder,
             "visible": true
@@ -177,7 +177,7 @@ Item {
             "role": "ratio",
             "text": "ratioText",
             // #24 T4: two short tracks before the number (to 1.0, then on to the limit).
-            "width": 116,
+            "width": 96,
             "align": Qt.AlignRight,
             "order": Qt.DescendingOrder,
             "visible": true
@@ -1432,13 +1432,13 @@ Item {
                         Row {
                             anchors.verticalCenter: parent.verticalCenter
                             spacing: Theme.space(2)
-                            visible: textCell.isRatio && textCell.complete && textCell.width > Theme.space(90)
+                            visible: textCell.isRatio && textCell.complete && textCell.width > Theme.space(80)
                             x: textCell.leftPadding
 
                             Rectangle {
                                 color: Theme.fill(Theme.fillHover)
                                 height: Theme.space(4)
-                                width: Theme.space(28)
+                                width: Theme.space(20)
 
                                 Rectangle {
                                     color: Theme.foreground
@@ -1451,7 +1451,7 @@ Item {
                             Rectangle {
                                 color: Theme.fill(Theme.fillHover)
                                 height: Theme.space(4)
-                                width: Theme.space(22)
+                                width: Theme.space(16)
 
                                 Rectangle {
                                     color: Theme.stateSeeding

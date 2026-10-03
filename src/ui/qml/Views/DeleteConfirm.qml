@@ -113,6 +113,7 @@ ConfirmDialog {
     }
 
     Button {
+        bordered: true
         text: qsTr("stop instead")
         visible: (root._rarity.rare ?? 0) > 0
 
