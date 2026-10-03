@@ -39,6 +39,7 @@ qt_add_qml_module(omaseed-kit
         Palette.qml
         ProgressLine.qml
         RailRow.qml
+        RatioLadder.qml
         Scrim.qml
         ScrollBar.qml
         ScrollHint.qml
