@@ -752,6 +752,11 @@ TestCase {
         compare(modal.paneIndex, 4);
         const toggle = testCase.childNamed(modal, "barWidgetToggle");
         verify(toggle !== null);
+        // docs/21: customize opens the widget's own settings, so it shows only while the
+        // widget is in the bar.
+        const customize = testCase.childNamed(modal, "barWidgetCustomize");
+        verify(customize !== null);
+        verify(!customize.visible);
         verify(!App.barWidget.available);
         verify(!toggle.enabled);
         modal.paneCursor = 4;
@@ -769,6 +774,9 @@ TestCase {
         // `true` writes no shell.json, so the shell never says it is in the bar: the switch
         // shows the shell's answer, not the click.
         verify(!toggle.checked);
+        verify(!customize.visible);
+        const row = testCase.childNamed(modal, "barWidgetRow");
+        verify(row.description.indexOf("the gear in its popup") >= 0, row.description);
 
         App.barWidget.remove();
         tryVerify(() => !App.barWidget.busy, 5000);

@@ -72,6 +72,9 @@ public:
     Q_INVOKABLE void install();
     /// Disables and unlinks. Answers with `finished`.
     Q_INVOKABLE void remove();
+    /// Opens the widget's popup on its own settings page (docs/21):
+    /// `omarchy-shell chaves.omaseed settings`. Fire and forget; the shell draws it.
+    Q_INVOKABLE void openSettings();
 
 Q_SIGNALS:
     void changed();

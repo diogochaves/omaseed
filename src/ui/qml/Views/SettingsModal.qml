@@ -459,7 +459,8 @@ Item {
             return App.barWidget.inBar ? qsTr("taking it out of the bar…") : qsTr("putting it in the bar…");
         if (App.barWidget.message.length > 0 && !App.barWidget.lastOk)
             return App.barWidget.message;
-        return qsTr("the omaseed mark in the Omarchy bar: speeds, alt-speed and adds without the window.");
+        return qsTr("the omaseed mark in the Omarchy bar: speeds, alt-speed and adds without the window.") + "\n"
+                + qsTr("What it shows and what its clicks do: the gear in its popup.");
     }
 
     function _nextTrayMode(): string {
@@ -1635,18 +1636,32 @@ Item {
                                     root.toggleBarWidget();
                                 }
 
-                                Toggle {
-                                    id: barWidgetToggle
+                                RowLayout {
+                                    spacing: Theme.space(6)
 
-                                    checked: App.barWidget.inBar
-                                    enabled: App.barWidget.available && !App.barWidget.busy
-                                    objectName: "barWidgetToggle"
-                                    opacity: enabled ? 1 : 0.45
+                                    // docs/21: the widget's own settings live in its popup; this
+                                    // opens it there.
+                                    Chip {
+                                        objectName: "barWidgetCustomize"
+                                        text: qsTr("customize")
+                                        visible: App.barWidget.inBar && !App.barWidget.busy
 
-                                    onToggled: {
-                                        // The switch shows what the shell says, not the click.
-                                        barWidgetToggle.checked = Qt.binding(() => App.barWidget.inBar);
-                                        root.toggleBarWidget();
+                                        onClicked: App.barWidget.openSettings()
+                                    }
+
+                                    Toggle {
+                                        id: barWidgetToggle
+
+                                        checked: App.barWidget.inBar
+                                        enabled: App.barWidget.available && !App.barWidget.busy
+                                        objectName: "barWidgetToggle"
+                                        opacity: enabled ? 1 : 0.45
+
+                                        onToggled: {
+                                            // The switch shows what the shell says, not the click.
+                                            barWidgetToggle.checked = Qt.binding(() => App.barWidget.inBar);
+                                            root.toggleBarWidget();
+                                        }
                                     }
                                 }
                             }

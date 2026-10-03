@@ -2,6 +2,7 @@
 
 #include "integration/BarWidgetInstaller.hpp"
 
+#include <QDebug>
 #include <QDir>
 #include <QFileInfo>
 #include <QProcess>
@@ -208,6 +209,18 @@ void BarWidget::remove()
                 return;
             }
             unlinkAndFinish();
+        });
+}
+
+void BarWidget::openSettings()
+{
+    run(m_omarchyShell,
+        {Installer::pluginId(), QStringLiteral("settings")},
+        [](int exitCode, const QString &output) {
+            if (exitCode != 0)
+                qWarning().noquote()
+                    << QStringLiteral("bar widget settings: %1")
+                           .arg(output.isEmpty() ? QStringLiteral("failed") : output);
         });
 }
 

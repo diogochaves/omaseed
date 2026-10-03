@@ -84,6 +84,7 @@ private Q_SLOTS:
     void installStopsWhenTheShellNeverKnowsIt();
     void unavailableWithoutOmarchyOrAWidget();
     void followsChangesMadeElsewhere();
+    void openSettingsAsksTheShell();
 
 private:
     std::unique_ptr<QTemporaryDir> m_tmp;
@@ -350,6 +351,20 @@ void TestBarWidgetInstaller::unavailableWithoutOmarchyOrAWidget()
 }
 
 QTEST_GUILESS_MAIN(TestBarWidgetInstaller)
+/// docs/21: Settings › Appearance › customize opens the widget's popup on its settings page.
+void TestBarWidgetInstaller::openSettingsAsksTheShell()
+{
+    const QString log = path(QStringLiteral("calls.log"));
+    qputenv("FAKE_LOG", log.toUtf8());
+    BarWidget widget;
+    widget.setPrograms(
+        fakeProgram(path(QStringLiteral("bin")), QStringLiteral("omarchy"), 0),
+        fakeProgram(path(QStringLiteral("bin")), QStringLiteral("omarchy-shell"), 0));
+    widget.openSettings();
+    QTRY_VERIFY_WITH_TIMEOUT(
+        readFile(log).trimmed().endsWith("omarchy-shell chaves.omaseed settings"), 5000);
+}
+
 /// #21: `omaseed --install-bar-widget` from a terminal, or `omarchy plugin disable`, while
 /// Settings shows the switch: the state follows without a refresh() from the view. The
 /// folders do not exist yet when the widget starts, as on a desktop that never had a plugin.
