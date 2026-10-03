@@ -244,6 +244,13 @@ void TestStatusService::openAddSheetRaisesTheWindowAndQueuesTheSources()
     QCOMPARE(queued.count(), 1);
     QCOMPARE(queued.first().first().toStringList(),
              QStringList({magnet, QStringLiteral("/tmp/a b.torrent")}));
+
+    // Nothing ticked in the popup: the add sheet all the same, as `a` opens it (#20).
+    QSignalSpy blank(&app, &App::addRequested);
+    service.openAddSheet({});
+    QCOMPARE(raised.count(), 2);
+    QCOMPARE(blank.count(), 1);
+    QCOMPARE(queued.count(), 1);
 }
 
 void TestStatusService::showTorrentGoesWhereANoticeGoes()

@@ -141,7 +141,7 @@ busctl --user call io.github.diogochaves.omaseed /io/github/diogochaves/omaseed 
 | `SetAltSpeed` | `(b on) → b` | sets them; returns `on` (the current state when there is no server) |
 | `DescribeSources` | `(as sources) → s` | JSON, below: pasted or browsed sources, before they are listed |
 | `AddSources` | `(as sources, s category, b stopped) → s` | adds them; JSON, below. Never raises the window |
-| `OpenAddSheet` | `(as sources)` | raises omaseed on its own add sheet with these sources (`m`) |
+| `OpenAddSheet` | `(as sources)` | raises omaseed on its own add sheet with these sources (`m`); none: the sheet as `a` opens it |
 | `ShowTorrent` | `(s hash)` | raises omaseed with the cursor on that torrent |
 | `OpenFolder` | `(s hash)` | shows the torrent's content in the file manager |
 

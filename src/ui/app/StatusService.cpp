@@ -338,7 +338,11 @@ QString StatusService::rememberedCategory()
 void StatusService::openAddSheet(const QStringList &sources)
 {
     Q_EMIT raiseRequested();
-    m_app->openUris(sources);
+    // Nothing ticked: the sheet as `a` opens it (and an open one looks at Downloads again).
+    if (sources.isEmpty())
+        Q_EMIT m_app->addRequested();
+    else
+        m_app->openUris(sources);
 }
 
 void StatusService::showTorrent(const QString &hash)
