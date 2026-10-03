@@ -40,6 +40,7 @@ qt_add_qml_module(omaseed-kit
         ScrollBar.qml
         ScrollHint.qml
         Sheet.qml
+        Sparkline.qml
         SplitLayout.qml
         Stat.qml
         Strip.qml
