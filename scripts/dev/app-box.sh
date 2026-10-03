@@ -4,7 +4,7 @@
 # (the manual box, through scripts/dev/manual-box.sh).
 #
 #   scripts/dev/app-box.sh up [-b NAME] [--interactive] [--build DIR] [--handlers] [--qbt]
-#                             [--plugin DIR]
+#                             [--plugin DIR] [--stock-bar]
 #       a box on its own network that reaches only :8081; servers.json pointing omaseed at the
 #       playground; every swarm .torrent in ~/Downloads (the add sheet's "In Downloads" list);
 #       then DIR/omaseed (default build/) is started and the command returns once its window
@@ -14,6 +14,8 @@
 #       deletes, moves and settings changes touch nothing outside the box.
 #       --plugin DIR: that shell plugin (the repo's plugin/, the bar widget) mounted and enabled
 #       in the box's bar, beside the app.
+#       --stock-bar: Omarchy's default bar (at the top, workspaces and clock) instead of a copy
+#       of yours; also for `up --manual` (manual-box.sh --stock-bar).
 #   scripts/dev/app-box.sh restart [-b NAME] [--build DIR]
 #       stop omaseed, start it again (after a rebuild), return once its window is still; prints
 #       the run log, which has the app's own output (QT_FORCE_STDERR_LOGGING, omabox#26).
@@ -209,6 +211,7 @@ up_app() {
         up_args=(--net isolated --allow "$PLAY_PORT")
     fi
     if [ -n "$plugin" ]; then up_args+=(--plugin "$plugin"); fi
+    up_args+=("${bar_args[@]}")
     if [ "$interactive" = 1 ]; then
         quiet omabox up "$BOX" --interactive "${up_args[@]}"
     else
@@ -277,9 +280,11 @@ up_manual() {
     # Only the swarm's tracker and seeder: the box's own qBittorrent downloads for real, offline,
     # and nothing of this machine's (the playground, the real library) can be reached.
     if [ "$interactive" = 1 ]; then
-        quiet omabox up "$BOX" --interactive --net isolated --allow "$TRACKER_PORT,$SEEDER_BT_PORT"
+        quiet omabox up "$BOX" --interactive --net isolated --allow "$TRACKER_PORT,$SEEDER_BT_PORT" \
+            "${bar_args[@]}"
     else
-        quiet omabox up "$BOX" --idle 0 --net isolated --allow "$TRACKER_PORT,$SEEDER_BT_PORT"
+        quiet omabox up "$BOX" --idle 0 --net isolated --allow "$TRACKER_PORT,$SEEDER_BT_PORT" \
+            "${bar_args[@]}"
     fi
     home="$(box_home)"
     # shellcheck disable=SC2016 # the box's $HOME, expanded inside the box
@@ -432,6 +437,7 @@ interactive=0
 handlers=0
 qbt=0
 plugin=""
+bar_args=()
 manual=0
 SERVER="${SERVER:-public}"
 method=""
@@ -445,6 +451,7 @@ while [ $# -gt 0 ]; do
     --handlers) handlers=1 ;;
     --qbt) qbt=1 ;;
     --plugin) [ $# -ge 2 ] || die "--plugin needs a directory"; plugin="$(cd "$2" && pwd)"; shift ;;
+    --stock-bar) bar_args=(--stock-bar) ;;
     --manual) manual=1 ;;
     -X) [ $# -ge 2 ] || die "-X needs a method"; method="$2"; shift ;;
     --server) [ $# -ge 2 ] || die "--server needs a name"; SERVER="$2"; shift ;;

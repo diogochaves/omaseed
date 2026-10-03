@@ -5,6 +5,7 @@
 #   scripts/dev/manual-box.sh               # Diogo: the box is a window on workspace 9
 #   scripts/dev/manual-box.sh --headless    # agents: the same box without a window (drive it
 #                                           # with omabox keys / click / shot -b manual-box)
+#   scripts/dev/manual-box.sh [--headless] --stock-bar   # Omarchy's default bar, not a copy of yours
 #   scripts/dev/manual-box.sh down          # throw it all away
 #   scripts/dev/app-box.sh api -b manual-box torrents/info   # ask the box's "public" qBittorrent
 #   scripts/dev/app-box.sh api -b manual-box --server private torrents/info   # and "private"
@@ -39,9 +40,13 @@ repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 app_box="$repo/scripts/dev/app-box.sh"
 BOX="${OMASEED_MANUAL_BOX:-manual-box}"
 
+bar=()
+for arg in "$@"; do [ "$arg" = --stock-bar ] && bar=(--stock-bar); done
 case "${1:-}" in
-"") exec "$app_box" up --manual --interactive -b "$BOX" ;;
---headless) exec "$app_box" up --manual --headless -b "$BOX" ;;
+"" | --stock-bar)
+    [ "${2:-}" = --headless ] && exec "$app_box" up --manual --headless -b "$BOX" "${bar[@]}"
+    exec "$app_box" up --manual --interactive -b "$BOX" "${bar[@]}" ;;
+--headless) exec "$app_box" up --manual --headless -b "$BOX" "${bar[@]}" ;;
 down) exec "$app_box" down -b "$BOX" ;;
 -h | --help) sed -n '2,/^set -e/p' "$0" | sed '$d'; exit 0 ;;
 *) echo "manual-box.sh: unknown argument $1 (see --help)" >&2; exit 2 ;;
