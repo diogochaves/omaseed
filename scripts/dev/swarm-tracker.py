@@ -9,7 +9,11 @@ control file on every request (scripts/dev/swarm.sh writes it):
 
     {"fail": {"<info hash hex>": "message", ...},   # answer with a failure reason
      "exemptPorts": [26997],                       # ...except to these peers (the seeder)
-     "extraSeeds": 0, "extraLeechers": 0}          # added to complete/incomplete
+     "extraSeeds": 0, "extraLeechers": 0,          # added to complete/incomplete
+     "isolate": {"26995": [26999]}}                # the peer on 26995 meets only 26999's
+                                                   # (swarm.sh leech: the leecher pulls from
+                                                   # the playground alone, and nobody else
+                                                   # learns of it)
 
 A hybrid torrent announces twice, under its v1 hash and its v2 hash cut to 20 bytes, so a
 failure has to name both.
@@ -51,6 +55,16 @@ def read_control(path):
             return json.load(f)
     except (OSError, ValueError):
         return {}
+
+
+def meets(control, a, b):
+    """Whether peers listening on ports a and b may be told about each other."""
+    isolate = control.get("isolate", {})
+    for port, allowed in isolate.items():
+        port = int(port)
+        if a == port and b not in allowed or b == port and a not in allowed:
+            return False
+    return True
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -105,7 +119,7 @@ class Handler(BaseHTTPRequestHandler):
                 swarm.pop(peer_id, None)
             else:
                 swarm[peer_id] = (self.client_address[0], port, left, now)
-            others = [v for p, v in swarm.items() if p != peer_id]
+            others = [v for p, v in swarm.items() if p != peer_id and meets(control, port, v[1])]
             seeds = sum(1 for v in swarm.values() if v[2] == 0)
             total = len(swarm)
 
