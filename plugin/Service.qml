@@ -172,6 +172,11 @@ Item {
   }
 
   function openSettings() { appAction("settings") }
+
+  // A setting of the widget's own, where the shell's scoped call is missing (Widget.qml).
+  function barSet(id, key, value) {
+    Quickshell.execDetached(["omarchy", "bar", "set", id, key, JSON.stringify(value), "--json"])
+  }
   function retry() { appAction("retry") }
 
   // Raise a running omaseed; start one that is not, through its desktop file, so it

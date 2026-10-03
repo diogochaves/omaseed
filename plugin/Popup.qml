@@ -9,7 +9,7 @@ import "Status.js" as Status
 // The popup behind the mark (docs/20 §3): one view, in the shell's card style.
 //
 //   head      the live mark, "omaseed ↗", the server line, and three buttons:
-//             alt-speed, open omaseed, settings (omaseed's own, Q11)
+//             alt-speed, open omaseed, and the widget's own settings (docs/21)
 //   now       ↓ and ↑, the alternative limits while they are on, an hour of upload
 //   sections  Add, Your share, Keeping alive, In flight, Lately; each folds by its
 //             header or `space`, keeps one line while folded, and is remembered
@@ -18,6 +18,10 @@ import "Status.js" as Status
 // in the popup, a magnet on the clipboard when the popup opened, today's .torrent files
 // in ~/Downloads) and hands the ticked ones to omaseed, which adds them, checks
 // duplicates and remembers the category.
+//
+// The gear (or `,`) swaps the sections for the widget's settings page (SettingsPage.qml,
+// docs/21): the manifest's nine settings, saved through Widget.qml as they change, and a
+// row for omaseed's own Settings. `esc` comes back.
 //
 // Widget.qml owns the bar and the Service; this panel reads `host` and acts through it.
 Panel {
@@ -59,6 +63,9 @@ Panel {
 
   function openPanel() {
     if (service) service.now = Date.now() / 1000
+    // Each opening starts on the sections; `omarchy-shell chaves.omaseed settings` asks
+    // for the page after this.
+    page = "main"
     root.controller.show()
     // "Added 2" answers the last add; a later opening has nothing to answer.
     addNote = ""
@@ -91,6 +98,58 @@ Panel {
   }
 
   onOpenedChanged: if (opened && flick) flick.contentY = 0
+
+  // ------------------------------------------------------------- settings page
+
+  // "main" (the sections) or "settings" (the widget's own settings page).
+  property string page: "main"
+  property int settingsCursor: 0
+  property string settingsNote: ""
+  readonly property var settingRows: Status.settingRows()
+
+  function openSettingsPage() {
+    page = "settings"
+    settingsCursor = 0
+    settingsNote = ""
+    if (flick) flick.contentY = 0
+    keys.forceActiveFocus()
+  }
+
+  function backToMain() {
+    page = "main"
+    if (flick) flick.contentY = 0
+    keys.forceActiveFocus()
+  }
+
+  function moveSettingsCursor(dy) {
+    settingsCursor = Math.max(0, Math.min(settingRows.length, settingsCursor + dy))
+  }
+
+  function saveSetting(index, value) {
+    var r = settingRows[index]
+    if (!r || value === null || value === undefined || value === cfg[r.key]) return
+    if (!host || typeof host.saveSetting !== "function") return
+    host.saveSetting(r.key, value)
+    settingsNote = "saved · " + r.title.toLowerCase() + ": " + Status.settingValueText(r, value)
+  }
+
+  function stepSetting(index, dir) {
+    settingsCursor = index
+    if (index >= settingRows.length) { openAppSettings(); return }
+    saveSetting(index, Status.settingStep(settingRows[index], cfg, dir))
+  }
+
+  function chooseSetting(index, value) {
+    settingsCursor = index
+    var r = settingRows[index]
+    if (!r || Status.settingInactive(r, cfg)) return
+    saveSetting(index, value)
+  }
+
+  function openAppSettings() {
+    if (service) service.openSettings()
+    close()
+  }
 
   // ------------------------------------------------------------- folds
 
@@ -428,13 +487,15 @@ Panel {
   // cursor. Keys bright, words dim, unboxed (v2 delta 05).
   function hints() {
     var list
-    if (!running) {
+    if (page === "settings") {
+      list = [["j k", "move"], ["space ↵", "change"], ["h l", "step"], ["o", "omaseed settings"], ["esc", "back"]]
+    } else if (!running) {
       list = [["↵", "start"], ["esc", "close"]]
     } else {
       var t = targetAt(cursorKey)
       var enter = !t ? "" : (t.section === "add" ? "add" : (t.key.indexOf("h:") === 0 ? "fold"
                   : (t.section === "lately" ? "folder" : "show")))
-      list = [["a", "add"], ["o", "omaseed"], ["A", "alt-speed"], ["j k", "move"], ["space", "fold"], ["z", "fold all"]]
+      list = [["a", "add"], ["o", "omaseed"], ["A", "alt-speed"], ["j k", "move"], ["space", "fold"], ["z", "fold all"], [",", "widget settings"]]
       if (enter !== "") list.push(["↵", enter])
       if (t && t.section === "add") list.push(["⇧↵", "add stopped"], ["m", "add sheet"], ["b", "browse"])
       else if (t && t.hash) list.push(["s", "show"])
@@ -470,6 +531,25 @@ Panel {
         var ctrl = (event.modifiers & Qt.ControlModifier) !== 0
         var shift = (event.modifiers & Qt.ShiftModifier) !== 0
         var handled = true
+        if (root.page === "settings") {
+          if (event.key === Qt.Key_Escape) root.backToMain()
+          else if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab)
+            root.switchPanel(shift || event.key === Qt.Key_Backtab ? -1 : 1)
+          else if (ctrl) handled = false
+          else if (event.key === Qt.Key_Down || event.text === "j") root.moveSettingsCursor(1)
+          else if (event.key === Qt.Key_Up || event.text === "k") root.moveSettingsCursor(-1)
+          else if (event.key === Qt.Key_Space || event.key === Qt.Key_Return || event.key === Qt.Key_Enter
+                   || event.key === Qt.Key_Right || event.text === "l")
+            root.stepSetting(root.settingsCursor, 1)
+          else if (event.key === Qt.Key_Left || event.text === "h") {
+            if (root.settingsCursor < root.settingRows.length && root.settingRows[root.settingsCursor].type !== "bool")
+              root.stepSetting(root.settingsCursor, -1)
+          }
+          else if (event.text === "o") root.openAppSettings()
+          else handled = false
+          event.accepted = handled
+          return
+        }
         if (event.key === Qt.Key_Escape) root.close()
         else if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab)
           root.switchPanel(shift || event.key === Qt.Key_Backtab ? -1 : 1)
@@ -485,6 +565,7 @@ Panel {
         else if (event.text === "o") { if (root.service) root.service.openApp(); root.close() }
         else if (event.text === "A") { if (root.service && root.reachable) root.service.toggleAltSpeed() }
         else if (event.text === "z") root.toggleAllFolds()
+        else if (event.text === ",") root.openSettingsPage()
         else if (event.text === "s") root.showCursorTorrent()
         else if (event.text === "r") { if (root.service && root.running && !root.reachable) root.service.retry() }
         else handled = false
@@ -513,8 +594,28 @@ Panel {
             width: parent.width
             implicitHeight: Math.max(headMark.height, headText.implicitHeight, headButtons.implicitHeight)
 
+            PanelActionButton {
+              id: backButton
+              visible: root.page === "settings"
+              anchors.left: parent.left
+              anchors.verticalCenter: parent.verticalCenter
+              bordered: true
+              tooltipText: "Back (esc)"
+              foreground: root.dim
+              hoverColor: root.foreground
+              fontFamily: root.fontFamily
+              onClicked: root.backToMain()
+              LineIcon {
+                anchors.centerIn: parent
+                size: Style.font.icon
+                name: "back"
+                color: parent.foreground
+              }
+            }
+
             Mark {
               id: headMark
+              visible: root.page === "main"
               anchors.left: parent.left
               anchors.verticalCenter: parent.verticalCenter
               size: Style.font.display
@@ -533,7 +634,7 @@ Panel {
 
             Column {
               id: headText
-              anchors.left: headMark.right
+              anchors.left: root.page === "settings" ? backButton.right : headMark.right
               anchors.leftMargin: Style.space(12)
               anchors.right: headButtons.left
               anchors.rightMargin: Style.space(8)
@@ -546,7 +647,7 @@ Panel {
                 Text {
                   id: titleText
                   textFormat: Text.PlainText
-                  text: "omaseed"
+                  text: root.page === "settings" ? "Widget settings" : "omaseed"
                   color: root.foreground
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.title
@@ -554,6 +655,7 @@ Panel {
                 }
 
                 LineIcon {
+                  visible: root.page === "main"
                   anchors.verticalCenter: titleText.verticalCenter
                   name: "open"
                   size: Style.font.bodySmall
@@ -566,6 +668,7 @@ Panel {
                 spacing: Style.space(6)
 
                 Rectangle {
+                  visible: root.page === "main"
                   anchors.verticalCenter: parent.verticalCenter
                   width: Style.space(6)
                   height: width
@@ -576,7 +679,8 @@ Panel {
                 Text {
                   width: parent.width - Style.space(12)
                   textFormat: Text.PlainText
-                  text: root.running ? Status.serverLine(root.status) : "NOT RUNNING"
+                  text: root.page === "settings" ? "OMASEED IN THE BAR"
+                        : (root.running ? Status.serverLine(root.status) : "NOT RUNNING")
                   color: root.dim
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.caption
@@ -588,6 +692,7 @@ Panel {
 
             MouseArea {
               anchors.fill: headText
+              enabled: root.page === "main"
               cursorShape: Qt.PointingHandCursor
               onClicked: { if (root.service) root.service.openApp(); root.close() }
             }
@@ -599,6 +704,7 @@ Panel {
               spacing: Style.space(6)
 
               PanelActionButton {
+                visible: root.page === "main"
                 bordered: true
                 enabled: root.reachable
                 tooltipText: root.altOn ? "Alternative speed limits on (A)" : "Alternative speed limits (A)"
@@ -616,6 +722,7 @@ Panel {
               }
 
               PanelActionButton {
+                visible: root.page === "main"
                 bordered: true
                 tooltipText: root.running ? "Open omaseed (o)" : "Start omaseed"
                 foreground: root.dim
@@ -632,11 +739,11 @@ Panel {
 
               PanelActionButton {
                 bordered: true
-                tooltipText: "omaseed settings"
-                foreground: root.dim
-                hoverColor: root.foreground
+                tooltipText: root.page === "settings" ? "Back to the popup (esc)" : "Widget settings (,)"
+                foreground: root.page === "settings" ? root.accent : root.dim
+                hoverColor: root.page === "settings" ? root.accent : root.foreground
                 fontFamily: root.fontFamily
-                onClicked: { if (root.service) root.service.openSettings(); root.close() }
+                onClicked: root.page === "settings" ? root.backToMain() : root.openSettingsPage()
                 LineIcon {
                   anchors.centerIn: parent
                   size: Style.font.icon
@@ -649,10 +756,29 @@ Panel {
 
           PanelSeparator { width: parent.width; foreground: root.foreground }
 
+          // ====================================================== settings page
+
+          SettingsPage {
+            visible: root.page === "settings"
+            width: parent.width
+            cfg: root.cfg
+            cursorIndex: root.settingsCursor
+            note: root.settingsNote
+            foreground: root.foreground
+            dim: root.dim
+            warn: root.yellow
+            fontFamily: root.fontFamily
+            onStepped: function(index, dir) { root.stepSetting(index, dir) }
+            onChosen: function(index, value) { root.chooseSetting(index, value) }
+            onHoveredRow: function(index) { root.settingsCursor = index }
+            onAppSettings: root.openAppSettings()
+            onCursorItem: function(item) { root.reveal(item) }
+          }
+
           // ====================================================== not running
 
           Column {
-            visible: !root.running
+            visible: root.page === "main" && !root.running
             width: parent.width
             spacing: Style.space(10)
 
@@ -689,7 +815,7 @@ Panel {
           // ====================================================== now
 
           Column {
-            visible: root.running
+            visible: root.page === "main" && root.running
             width: parent.width
             spacing: Style.space(10)
 
@@ -779,7 +905,7 @@ Panel {
 
           // I7: peers cannot connect in. The fix, in words, and where.
           Notice {
-            visible: root.reachable && root.status && root.status.reachable === "firewalled"
+            visible: root.page === "main" && root.reachable && root.status && root.status.reachable === "firewalled"
             width: parent.width
             title: "Peers cannot reach you"
             detail: "qBittorrent reports its port as firewalled, so only peers you reach first can download from you. Forward the listening port on your router, or turn on UPnP / NAT-PMP in omaseed › Settings › qBittorrent › Connection."
@@ -789,7 +915,7 @@ Panel {
           }
 
           Notice {
-            visible: root.running && !root.reachable
+            visible: root.page === "main" && root.running && !root.reachable
             width: parent.width
             title: Status.unreachableLine(root.server)
             detail: "Showing the last known state. Press r to retry now."
@@ -803,7 +929,7 @@ Panel {
           // ====================================================== sections
 
           Repeater {
-            model: root.visibleSections()
+            model: root.page === "main" ? root.visibleSections() : []
 
             delegate: Column {
               id: sectionBlock
@@ -824,7 +950,7 @@ Panel {
             }
           }
 
-          PanelSeparator { visible: root.running; width: parent.width; foreground: root.foreground }
+          PanelSeparator { visible: root.page === "main" && root.running; width: parent.width; foreground: root.foreground }
 
           // ====================================================== keys
 

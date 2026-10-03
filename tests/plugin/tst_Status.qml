@@ -227,6 +227,63 @@ TestCase {
         compare(Status.handedOver(null, null, "home"), {});
     }
 
+    // `omarchy bar set` without --json stores text: the widget reads it as meant (docs/21).
+    function test_options_read_text_values() {
+        var o = Status.barOptions({ showSpeed: "true", showMark: "false", hideWhenIdle: "true",
+                                    rareSeeds: "4", recentCount: "0" });
+        compare(o.showSpeed, true);
+        compare(o.showMark, false);
+        compare(o.hideWhenIdle, true);
+        compare(o.rareSeeds, 4);
+        compare(o.recentCount, 0);
+        compare(Status.barOptions({ showMark: "nonsense" }).showMark, true);
+    }
+
+    function test_setting_rows_are_the_manifests_nine() {
+        var keys = Status.settingRows().map(function(r) { return r.key });
+        compare(keys, ["showMark", "showSpeed", "speedMetric", "markColor", "hideWhenIdle",
+                       "middleClick", "rightClick", "rareSeeds", "recentCount"]);
+    }
+
+    function test_the_last_of_mark_and_speed_cannot_be_switched_off() {
+        var rows = Status.settingRows();
+        var mark = rows[0], speed = rows[1], metric = rows[2];
+        var cfg = Status.barOptions({});
+        verify(Status.settingLocked(mark, cfg));
+        compare(Status.settingStep(mark, cfg, 1), null);
+        verify(Status.settingDetail(mark, cfg).indexOf("switch the speed on first") >= 0);
+        // The direction means nothing with the speed off.
+        verify(Status.settingInactive(metric, cfg));
+        compare(Status.settingStep(metric, cfg, 1), null);
+        compare(Status.settingDetail(metric, cfg), "with the speed on");
+
+        compare(Status.settingStep(speed, cfg, 1), true);
+        cfg = Status.barOptions({ showSpeed: true });
+        verify(!Status.settingLocked(mark, cfg));
+        compare(Status.settingStep(mark, cfg, 1), false);
+        cfg = Status.barOptions({ showSpeed: true, showMark: false });
+        verify(Status.settingLocked(speed, cfg));
+        compare(Status.settingStep(speed, cfg, 1), null);
+    }
+
+    function test_steps_wrap_picks_and_stop_numbers() {
+        var rows = Status.settingRows();
+        var cfg = Status.barOptions({ showSpeed: true });
+        compare(Status.settingStep(rows[2], cfg, 1), "down");   // both → down (wraps)
+        compare(Status.settingStep(rows[2], cfg, -1), "up");
+        compare(Status.settingStep(rows[5], cfg, 1), "openApp");
+        compare(Status.settingStep(rows[7], cfg, 1), 3);
+        compare(Status.settingStep(rows[7], cfg, -1), 1);
+        compare(Status.settingStep(rows[7], Status.barOptions({ rareSeeds: 5 }), 1), null);
+        compare(Status.settingStep(rows[8], Status.barOptions({ recentCount: 0 }), -1), null);
+    }
+
+    function test_settings_with_keeps_the_rest_of_the_entry() {
+        var next = Status.settingsWith({ id: "chaves.omaseed", showSpeed: true, other: 1 }, "markColor", "single");
+        compare(next, { showSpeed: true, other: 1, markColor: "single" });
+        compare(Status.settingsWith(null, "showSpeed", false), { showSpeed: false });
+    }
+
     function test_bus_string_reply() {
         var reply = JSON.stringify({ type: "s", data: [JSON.stringify([{ name: "x", duplicate: true }])] });
         compare(Status.busString(reply)[0].name, "x");

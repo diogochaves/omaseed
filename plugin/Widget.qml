@@ -73,6 +73,12 @@ BarWidget {
   readonly property bool popoutSwitchClosing: panelLoader.item ? panelLoader.item.popoutSwitchClosing === true : false
 
   function open() { if (panelLoader.item) panelLoader.item.openPanel() }
+  // The popup straight on its settings page (omaseed's Settings › Appearance › customize).
+  function openSettings() {
+    if (!panelLoader.item) return
+    if (!panelLoader.item.opened) panelLoader.item.openPanel()
+    panelLoader.item.openSettingsPage()
+  }
   function close() { if (panelLoader.item) panelLoader.item.close() }
   function toggle() { if (panelLoader.item) panelLoader.item.toggle() }
   function closeForPopoutSwitch() { if (panelLoader.item) panelLoader.item.closeForPopoutSwitch() }
@@ -107,6 +113,22 @@ BarWidget {
     function close(): void { root.close() }
     function toggle(): void { root.toggle() }
     function altSpeed(): void { service.toggleAltSpeed() }
+    function settings(): void { root.openSettings() }
+  }
+
+  // ------------------------------------------------------------- settings
+
+  // The settings page saves here (docs/21). The shell's scoped call rewrites this widget's
+  // own shell.json entry with typed values and the bar redraws; it replaces the entry, so
+  // it gets the whole of it. A bar without that call (a third-party one) gets
+  // `omarchy bar set … --json`, which ends in the same place.
+  function saveSetting(key, value) {
+    var shell = bar ? bar.shell : null
+    if (shell && typeof shell.updateEntryInline === "function") {
+      shell.updateEntryInline(moduleName, Status.settingsWith(settings, key, value))
+      return
+    }
+    service.barSet(moduleName, key, value)
   }
 
   function act(kind) {

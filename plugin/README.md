@@ -72,12 +72,24 @@ duplicates and remembers the category.
 | `j` `k` | move |
 | `space` | fold the section |
 | `z` | fold or unfold every section |
+| `,` | the widget's settings (the gear) |
 | `s` | show the torrent in omaseed |
 | `r` | retry, while the server is unreachable |
 | `tab` | the next bar widget |
 | `esc` | close |
 
 `omarchy-shell chaves.omaseed toggle` opens it from a key binding.
+
+## Settings
+
+The gear in the popup (or `,`) opens the widget's own settings page: show the mark, show
+the speed and which, the colours, hide while nothing moves, what middle and right click do,
+how few seeds counts as "keeping alive", and how many rows Lately has. Each change is saved
+at once in the widget's entry in `~/.config/omarchy/shell.json`, and the bar follows. The
+page's last row opens omaseed's own Settings; omaseed's Settings › Appearance › Bar widget
+has a **customize** button that opens this page (`omarchy-shell chaves.omaseed settings`).
+
+From a terminal, the same settings: `omarchy bar set chaves.omaseed showSpeed true --json`.
 
 ## Options
 

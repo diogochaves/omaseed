@@ -92,10 +92,18 @@ function hiddenWhenIdle(status, now) {
 
 // The bar options with the one rule the shell's form cannot express: mark and
 // speed may both be on, never both off. Both off reads as the mark alone.
+// A switch's value as `omarchy bar set` may have stored it: true, or "true" when it was
+// set without --json. null when it is not set at all.
+function flag(value) {
+  if (value === true || value === "true") return true
+  if (value === false || value === "false") return false
+  return null
+}
+
 function barOptions(settings) {
   var s = settings || {}
-  var showMark = s.showMark === undefined || s.showMark === null ? true : s.showMark === true
-  var showSpeed = s.showSpeed === true
+  var showMark = flag(s.showMark) !== false
+  var showSpeed = flag(s.showSpeed) === true
   if (!showMark && !showSpeed) showMark = true
   var metric = ["down", "up", "both"].indexOf(s.speedMetric) >= 0 ? s.speedMetric : "both"
   return {
@@ -103,7 +111,7 @@ function barOptions(settings) {
     showSpeed: showSpeed,
     speedMetric: metric,
     markColor: s.markColor === "single" ? "single" : "directions",
-    hideWhenIdle: s.hideWhenIdle === true,
+    hideWhenIdle: flag(s.hideWhenIdle) === true,
     rareSeeds: clampInt(s.rareSeeds, 1, 5, 2),
     recentCount: clampInt(s.recentCount, 0, 5, 3),
     middleClick: ["altSpeed", "openApp", "none"].indexOf(s.middleClick) >= 0 ? s.middleClick : "altSpeed",
@@ -115,6 +123,97 @@ function clampInt(value, lo, hi, fallback) {
   var n = Number(value)
   if (value === undefined || value === null || value === "" || !isFinite(n)) return fallback
   return Math.max(lo, Math.min(hi, Math.round(n)))
+}
+
+// ------------------------------------------------------------------ settings page
+
+// The widget's own settings page (docs/21): the manifest's nine, in three groups. A row
+// is a switch ("bool"), a pick of a few values ("enum") or a small number ("int"). `needs`
+// names the switch a row only means something with.
+function settingRows() {
+  return [
+    { key: "showMark", group: "In the bar", title: "Show the mark", type: "bool",
+      detail: "lights its lower arm while downloading, the upper one while uploading" },
+    { key: "showSpeed", group: "In the bar", title: "Show the speed", type: "bool",
+      detail: "beside the mark, under it in a vertical bar" },
+    { key: "speedMetric", group: "In the bar", title: "Speed shows", type: "enum", needs: "showSpeed",
+      detail: "", options: [["down", "↓ down"], ["up", "↑ up"], ["both", "both"]] },
+    { key: "markColor", group: "In the bar", title: "Colours", type: "enum",
+      detail: "the theme's blue and green, or its accent for both",
+      options: [["directions", "blue and green"], ["single", "one"]] },
+    { key: "hideWhenIdle", group: "In the bar", title: "Hide while nothing moves", type: "bool",
+      detail: "back when something moves; an unreachable server still shows" },
+    { key: "middleClick", group: "Clicks on the mark", title: "Middle click", type: "enum",
+      detail: "", options: [["altSpeed", "alt-speed"], ["openApp", "omaseed"], ["none", "nothing"]] },
+    { key: "rightClick", group: "Clicks on the mark", title: "Right click", type: "enum",
+      detail: "", options: [["openApp", "omaseed"], ["altSpeed", "alt-speed"], ["none", "nothing"]] },
+    { key: "rareSeeds", group: "In the popup", title: "Few seeds means", type: "int", min: 1, max: 5,
+      detail: "Keeping alive counts torrents with this many seeds or fewer" },
+    { key: "recentCount", group: "In the popup", title: "Rows in Lately", type: "int", min: 0, max: 5,
+      detail: "finished downloads and milestones; 0 hides the section" }
+  ]
+}
+
+// Mark and speed: one of them stays on (docs/21 S2). True for the one that is the last on.
+function settingLocked(row, cfg) {
+  var o = obj(cfg)
+  if (!row || row.type !== "bool") return false
+  if (row.key === "showMark") return o.showMark === true && o.showSpeed !== true
+  if (row.key === "showSpeed") return o.showSpeed === true && o.showMark !== true
+  return false
+}
+
+// A row that means nothing as things are (the speed's direction with the speed off).
+function settingInactive(row, cfg) {
+  return !!(row && row.needs && obj(cfg)[row.needs] !== true)
+}
+
+// The line under a row's name: why it cannot change, or what it does.
+function settingDetail(row, cfg) {
+  if (settingLocked(row, cfg))
+    return "one of mark and speed stays on: switch the " + (row.key === "showMark" ? "speed" : "mark") + " on first"
+  if (settingInactive(row, cfg)) return "with the speed on"
+  return row ? String(row.detail || "") : ""
+}
+
+// The row's value after a step: a switch flips, a pick or a number moves by `dir` (a
+// pick wraps, a number stops at its ends). null when nothing changes.
+function settingStep(row, cfg, dir) {
+  var o = obj(cfg)
+  if (!row || settingLocked(row, o) || settingInactive(row, o)) return null
+  var current = o[row.key]
+  if (row.type === "bool") return current !== true
+  if (row.type === "enum") {
+    var values = row.options.map(function(opt) { return opt[0] })
+    var i = values.indexOf(current)
+    var next = values[((i < 0 ? 0 : i) + (dir < 0 ? -1 : 1) + values.length) % values.length]
+    return next === current ? null : next
+  }
+  if (row.type === "int") {
+    var n = Math.max(row.min, Math.min(row.max, num(current) + (dir < 0 ? -1 : 1)))
+    return n === current ? null : n
+  }
+  return null
+}
+
+// A value as the page's "saved" line says it: the chip's label, on / off, or the number.
+function settingValueText(row, value) {
+  if (!row) return String(value)
+  if (row.type === "bool") return value === true ? "on" : "off"
+  if (row.type === "enum") {
+    for (var i = 0; i < row.options.length; i++) if (row.options[i][0] === value) return row.options[i][1]
+  }
+  return String(value)
+}
+
+// The widget's whole entry with one setting changed, as the shell's updateEntryInline
+// wants it (it replaces the entry). Everything else the entry holds is kept.
+function settingsWith(current, key, value) {
+  var out = {}
+  var c = obj(current)
+  for (var k in c) if (k !== "id") out[k] = c[k]
+  out[key] = value
+  return out
 }
 
 // ------------------------------------------------------------------ tooltip

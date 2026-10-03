@@ -23,7 +23,7 @@ How the documents relate:
 | Q8 | Plugin id `chaves.omaseed`. |
 | Q9 | Middle click defaults to alt-speed. |
 | Q10 → C4 | Foreground, accent and urgent come from the shell. **Blue, green and yellow come from the theme's `colors.toml`**, as the app reads them (revisited 2026-10-02). |
-| Q11 | No settings view in the popup. The gear opens omaseed's settings, and the six-plus options go through the shell's manifest form. |
+| Q11 | ~~No settings view in the popup.~~ Revised 2026-10-03 (docs/21): the shell draws no manifest form, so the gear opens the widget's own settings page; its last row opens omaseed's settings. |
 | Q12 | No status-schema compatibility. An unknown `v` reads as "app not running". |
 | Timing | Built before v0.1.0, and ships with it. Not started until Diogo says go. |
 | Install | Ruled after the build (2026-10-02): **the widget is part of the install**, not a separate repository. The package ships it at `/usr/share/omaseed/plugin`; first run offers it (a fourth step, "bar") and Settings › Appearance switches it; both link `~/.config/omarchy/plugins/chaves.omaseed` to the packaged folder, so app and widget always upgrade together. The `omaseed-bar` repository and the marketplace listing are parked. |
@@ -90,7 +90,7 @@ the widget, like chaves.omagauge. Shell card style throughout (§1 N2).
 - three icon buttons:
   - **alt-speed**: Kit/Icon's gauge, in the alt-speed colour while on;
   - **open omaseed**: the mark;
-  - **settings**: the gear, which opens omaseed's settings.
+  - **settings**: the gear, which opens the widget's settings page (docs/21); omaseed's own settings are its last row.
 
 **Now** (never folds):
 - ↓ and ↑ as heading numbers over tracked captions, the arrows blue and green.
