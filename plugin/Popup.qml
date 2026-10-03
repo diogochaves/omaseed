@@ -150,6 +150,9 @@ Panel {
   property var extraRows: []
   // Ticks the user changed, by source; everything else is ticked unless it is a duplicate.
   property var tickOverrides: ({})
+  // Sources the last adds handed over, by source → server: a Downloads row reads "already
+  // on" at once, before the status file's next write says inLibrary.
+  property var handed: ({})
   // The category chip picked here; null follows the one the last add used.
   property var pickedCategory: null
   property string addNote: ""
@@ -171,7 +174,8 @@ Panel {
       if (!d || !d.path || seen[d.path]) continue
       var when = Format.ago(d.at, now)
       out.push(addRowFor(String(d.path), String(d.name || Status.sourceName(d.path)),
-                         "Downloads" + (when === "" ? "" : " · " + when), d.inLibrary ? serverName : "", ""))
+                         "Downloads" + (when === "" ? "" : " · " + when),
+                         Status.downloadDuplicateOn(d, serverName, handed), ""))
     }
     return out
   }
@@ -317,6 +321,7 @@ Panel {
       if (failed > 0) parts.push(failed + " failed")
       root.addNote = parts.join(" · ")
       root.addNoteUrgent = failed > 0
+      root.handed = Status.handedOver(root.handed, result, root.serverName)
       // What was handed over leaves the list; the next status write moves Downloads.
       root.extraRows = root.extraRows.filter(function(r) { return sources.indexOf(r.source) < 0 })
       var ticks = {}

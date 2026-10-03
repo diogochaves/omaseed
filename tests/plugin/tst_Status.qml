@@ -207,6 +207,26 @@ TestCase {
         compare(Status.targetFolder(s, "linux"), "/data/torrents/linux");
     }
 
+    function test_handed_over_rows_read_as_duplicates_at_once() {
+        var result = { added: [{ source: "/d/a.torrent", name: "a", hash: "1" }],
+                       duplicates: [{ source: "/d/b.torrent", name: "b", hash: "2" }],
+                       failed: [{ source: "/d/c.torrent", error: "not a torrent" }] };
+        var handed = Status.handedOver({}, result, "home");
+        compare(Status.downloadDuplicateOn({ path: "/d/a.torrent", inLibrary: false }, "home", handed), "home");
+        compare(Status.downloadDuplicateOn({ path: "/d/b.torrent", inLibrary: false }, "home", handed), "home");
+        // A failed add stays offered.
+        compare(Status.downloadDuplicateOn({ path: "/d/c.torrent", inLibrary: false }, "home", handed), "");
+        // The status file has the last word once it says so.
+        compare(Status.downloadDuplicateOn({ path: "/d/z.torrent", inLibrary: true }, "home", handed), "home");
+        // Handed to another server: not a duplicate on this one.
+        compare(Status.downloadDuplicateOn({ path: "/d/a.torrent", inLibrary: false }, "private", handed), "");
+        // Earlier hand-overs are kept.
+        var more = Status.handedOver(handed, { added: [{ source: "/d/d.torrent" }] }, "private");
+        compare(more["/d/a.torrent"], "home");
+        compare(more["/d/d.torrent"], "private");
+        compare(Status.handedOver(null, null, "home"), {});
+    }
+
     function test_bus_string_reply() {
         var reply = JSON.stringify({ type: "s", data: [JSON.stringify([{ name: "x", duplicate: true }])] });
         compare(Status.busString(reply)[0].name, "x");

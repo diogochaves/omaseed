@@ -353,6 +353,32 @@ function sourceName(source) {
   try { return decodeURIComponent(last) || text } catch (e) { return last || text }
 }
 
+// What an AddSources answer handed over, added to `previous`: each source that was
+// added or was already there, mapped to the server it went to. The popup marks those
+// Downloads rows at once instead of waiting for the next status write to say inLibrary.
+function handedOver(previous, result, serverName) {
+  var out = {}
+  var before = obj(previous)
+  for (var key in before) out[key] = before[key]
+  var r = obj(result)
+  var lists = [list(r.added), list(r.duplicates)]
+  for (var i = 0; i < lists.length; i++) {
+    for (var j = 0; j < lists[i].length; j++) {
+      var source = obj(lists[i][j]).source
+      if (typeof source === "string" && source !== "") out[source] = serverName
+    }
+  }
+  return out
+}
+
+// The server a ~/Downloads row is already on ("" when none): the status file's
+// inLibrary, or what the popup just handed over to this same server.
+function downloadDuplicateOn(download, serverName, handed) {
+  var d = obj(download)
+  if (d.inLibrary === true) return serverName
+  return obj(handed)[String(d.path || "")] === serverName ? serverName : ""
+}
+
 // Where the widget's add puts a torrent with `category` (name or ""). AddSources
 // always adds with automatic management, so the category decides: its savePath,
 // or the default folder plus its name; no category is the default folder.
