@@ -164,6 +164,9 @@ Item {
     /// The button of the action flagged `primary`, or null when there is none. A disabled
     /// one counts too (it is still drawn); actionButtons() leaves it out.
     function primaryButton(): var {
+        // Claims the buttons first: focusFirst() puts the keyboard on this one, and a button
+        // still on the window's own tab chain then takes `tab` itself and leaves the sheet.
+        root.actionButtons();
         for (let i = 0; i < actionsRow.children.length; ++i) {
             const child = actionsRow.children[i];
             if (child.primary === true)

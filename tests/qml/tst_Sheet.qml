@@ -509,6 +509,21 @@ TestCase {
         compare(sheet.focusedIndex(), 1, "the keyboard did not land on the primary action");
     }
 
+    // The server sheet's "trust this certificate" (settings-walk, 2026-10-03): with the
+    // keyboard put straight on the primary action, `tab` left the sheet for whatever came
+    // next in the window's own tab chain (the hero's `+`), and `enter` opened the add sheet.
+    function test_tab_from_the_primary_action_stays_inside_the_sheet() {
+        const outside = createTemporaryObject(probeComponent, testCase);
+        const sheet = createTemporaryObject(confirmSheetComponent, testCase);
+        sheet.open();
+        compare(sheet.focusedIndex(), 1);
+        keyClick(Qt.Key_Tab);
+        verify(!outside.activeFocus, "tab left the sheet");
+        compare(sheet.focusedIndex(), 0, "tab did not wrap to the first action");
+        keyClick(Qt.Key_Backtab);
+        compare(sheet.focusedIndex(), 1);
+    }
+
     function test_enter_on_such_a_sheet_runs_the_primary_and_not_the_cancel() {
         const sheet = createTemporaryObject(confirmSheetComponent, testCase);
         const triggered = createTemporaryObject(triggeredSpy, testCase, {
