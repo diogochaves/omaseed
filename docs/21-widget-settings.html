@@ -1,0 +1,560 @@
+<title>omaseed widget settings</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap">
+<style>
+/* ------------------------------------------------------------------
+   docs/21: the bar widget's own settings page (2026-10-03). Q11 ruled
+   "no settings view in the popup" because the shell would draw a form
+   from the manifest; Omarchy 4.0.4 reads that schema but draws nothing,
+   so Diogo revised it: the gear opens a settings page in the widget,
+   and the app's Appearance points there.
+   Board chrome: the boards' frieren dark look, as docs/19. Mocks: the
+   shell's five colour roles, switchable between four themes, at base 14.
+   Layout: one reading column; the page and a live bar side by side,
+   then the app's row, how it saves, keys, and the calls to make.
+   ------------------------------------------------------------------ */
+:root {
+  --accent:#5492f8; --bg:#11111b; --bg-dark:#0d0d14;
+  --fg:#b9c5ef; --fg-dark:#8b94b3; --fg-bright:#cbd4f3;
+  --green:#7dd676; --red:#ee5681;
+  --fill-normal: color-mix(in srgb, var(--fg) 4%, transparent);
+  --fill-hover: color-mix(in srgb, var(--fg) 8%, transparent);
+  --hairline: color-mix(in srgb, var(--fg) 12%, transparent);
+  --mono: "JetBrains Mono", "JetBrainsMono Nerd Font", ui-monospace, monospace;
+  color-scheme: dark;
+}
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg-dark); color:var(--fg); font:400 13px/1.6 var(--mono); -webkit-font-smoothing:antialiased; }
+main { max-width:1120px; margin:0 auto; padding-block:32px 72px; padding-inline:16px; display:grid; gap:32px; }
+h1,h2,h3 { margin:0; font-weight:600; color:var(--fg-bright); text-wrap:balance; }
+h1 { font-size:24px; } h2 { font-size:16px; } h3 { font-size:13px; }
+p, li { max-width:80ch; }
+p { margin:0; }
+ul { margin:0; padding-left:20px; display:grid; gap:4px; }
+code { color:var(--fg-bright); background:var(--fill-normal); padding:0 4px; }
+b { color:var(--fg-bright); font-weight:600; }
+.eyebrow { font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--fg-dark); }
+.dim { color:var(--fg-dark); }
+section { display:grid; gap:14px; border-top:1px solid var(--hairline); padding-top:22px; min-width:0; }
+figure { margin:0; display:grid; gap:6px; align-content:start; min-width:0; }
+figcaption { font-size:11px; color:var(--fg-dark); max-width:80ch; }
+figcaption b { color:var(--fg); font-weight:500; }
+.scroll { overflow-x:auto; }
+table.t { border-collapse:collapse; width:100%; font-size:12px; }
+.t th, .t td { text-align:left; padding:6px 10px; border-bottom:1px solid var(--hairline); vertical-align:top; }
+.t th { font-weight:500; color:var(--fg-dark); font-size:10px; letter-spacing:.1em; text-transform:uppercase; }
+.t td:first-child { color:var(--fg-bright); white-space:nowrap; }
+.themes { display:flex; flex-wrap:wrap; gap:6px; align-items:center; font-size:12px; color:var(--fg-dark); position:sticky; top:env(safe-area-inset-top, 0px); background:var(--bg-dark); padding-block:8px; z-index:5; border-bottom:1px solid var(--hairline); }
+.themes button { font:inherit; font-size:12px; color:var(--fg); background:transparent; border:1px solid var(--hairline); padding:2px 10px; cursor:pointer; }
+.themes button[aria-pressed="true"] { background:color-mix(in srgb, var(--fg) 18%, transparent); color:var(--fg-bright); border-color:transparent; }
+button:focus-visible, .opt input:focus-visible, textarea:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+
+/* ---------- the stage: the shell's five roles, base 14 ---------- */
+.stage {
+  --t-fg:#b9c5ef; --t-bg:#11111b; --t-accent:#5492f8; --t-urgent:#ee5681; --t-muted:#272833;
+  --t-blue:#5492f8; --t-green:#7dd676; --t-yellow:#f6d58c;
+  --t-hair: color-mix(in srgb, var(--t-fg) 12%, transparent);
+  --t-dim: color-mix(in srgb, var(--t-fg) 62%, transparent);
+  --t-faint: color-mix(in srgb, var(--t-fg) 45%, transparent);
+  --cap:11.7px; --body:14px; --sub:15.2px; --head:18.7px;
+  color:var(--t-fg); font-family:var(--mono);
+  background:
+    radial-gradient(ellipse at 20% 10%, color-mix(in srgb, var(--t-accent) 28%, var(--t-bg)) 0%, transparent 60%),
+    radial-gradient(ellipse at 85% 90%, color-mix(in srgb, var(--t-urgent) 18%, var(--t-bg)) 0%, transparent 55%),
+    var(--t-bg);
+  border:1px solid var(--hairline); padding:16px; overflow-x:auto;
+}
+.ic { width:1em; height:1em; display:inline-block; vertical-align:-.15em; flex:none; }
+.mk { display:inline-block; flex:none; }
+.mk svg { width:100%; height:100%; display:block; overflow:visible; }
+
+/* bars: Diogo's vertical one (42 px at base 14) and a horizontal one */
+.vbar { width:42px; background:color-mix(in srgb, var(--t-bg) 70%, transparent); display:grid; justify-items:center; align-content:start; gap:10px; padding-block:10px; min-height:150px; zoom:1.5; }
+.vbar .ws { font-size:var(--cap); color:var(--t-dim); line-height:1.5; text-align:center; }
+.vbar .ws .on { display:block; width:9px; height:9px; margin:4px auto; background:var(--t-fg); }
+.vbar .stub { width:10px; height:1px; background:var(--t-dim); margin:3px 0; }
+.w { display:grid; justify-items:center; gap:1px; width:38px; padding-block:5px; position:relative; }
+.w .mk { width:23px; height:23px; margin-bottom:3px; }
+.w .l { font-size:var(--cap); line-height:1.2; font-variant-numeric:tabular-nums; color:var(--t-fg); }
+.w .a { font-size:var(--cap); line-height:1.1; color:var(--t-dim); }
+.w.open::after { content:""; position:absolute; right:-2px; top:4px; bottom:4px; width:2px; background:var(--t-accent); }
+.hbar { display:flex; align-items:center; gap:14px; height:37px; padding:0 12px; background:color-mix(in srgb, var(--t-bg) 70%, transparent); font-size:var(--cap); width:max-content; }
+.hbar .ws { color:var(--t-dim); display:flex; gap:10px; }
+.hw { display:flex; align-items:center; gap:4px; font-variant-numeric:tabular-nums; }
+.hw .mk { width:18px; height:18px; }
+.hw .n { display:inline-block; min-width:5ch; text-align:right; }
+.gone { font-size:var(--cap); color:var(--t-faint); font-style:italic; }
+
+/* the popup card */
+.card { width:443px; max-width:100%; background:var(--t-bg); border:1px solid var(--t-accent); font-size:var(--body); line-height:1.4; flex:none; }
+.hd { display:flex; gap:12px; align-items:center; padding:16px 16px 14px; }
+.hd .mk { width:30px; height:30px; }
+.hd .t { display:grid; gap:2px; min-width:0; }
+.hd .t b { font-size:var(--sub); color:var(--t-fg); }
+.hd .t span { font-size:var(--cap); letter-spacing:.08em; text-transform:uppercase; color:var(--t-dim); display:flex; gap:6px; align-items:center; white-space:nowrap; }
+.hd .t.link b::after { content:" ↗"; color:var(--t-dim); font-weight:400; font-size:12px; }
+.dot { width:7px; height:7px; border-radius:50%; background:var(--t-accent); flex:none; }
+.hdbtns { margin-left:auto; display:flex; gap:6px; }
+.iconbtn { width:28px; height:28px; border:1px solid color-mix(in srgb, var(--t-fg) 40%, transparent); display:grid; place-items:center; flex:none; color:var(--t-fg); background:transparent; font:inherit; padding:0; }
+.iconbtn .ic { width:15px; height:15px; }
+.iconbtn.on { border-color:var(--t-accent); color:var(--t-accent); }
+button.iconbtn { cursor:pointer; }
+.cap { font-size:var(--cap); letter-spacing:.08em; text-transform:uppercase; color:var(--t-dim); }
+.ft { padding:10px 16px 12px; font-size:var(--cap); color:var(--t-dim); border-top:1px solid var(--t-hair); line-height:1.7; }
+.ft b { color:var(--t-fg); font-weight:500; }
+.sec { border-top:1px solid var(--t-hair); }
+.sh { display:flex; gap:8px; align-items:baseline; padding:10px 16px; }
+.sh .sum { flex:1; min-width:0; font-size:12.4px; color:var(--t-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sh .chev { margin-left:auto; color:var(--t-dim); font-size:12px; }
+
+/* settings rows, in the shell's idiom: name and a line under it, the control right */
+.set { display:grid; gap:2px; padding:0 8px 8px; }
+.srow { display:flex; gap:12px; align-items:center; padding:6px 8px; border:1px solid transparent; min-width:0; cursor:pointer; }
+.srow.cur { background:color-mix(in srgb, var(--t-fg) 8%, transparent); border-color:color-mix(in srgb, var(--t-fg) 25%, transparent); }
+.srow .t { display:grid; min-width:0; flex:1; }
+.srow .t span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.srow .t small { font-size:var(--cap); color:var(--t-dim); line-height:1.35; }
+.srow.locked .t small { color:var(--t-yellow); }
+.sw { width:33px; height:16px; border:1px solid color-mix(in srgb, var(--t-fg) 40%, transparent); background:color-mix(in srgb, var(--t-fg) 4%, transparent); position:relative; flex:none; }
+.sw::after { content:""; position:absolute; top:2px; left:2px; width:10px; height:10px; background:var(--t-dim); }
+.sw.on { border-color:transparent; background:color-mix(in srgb, var(--t-accent) 22%, transparent); }
+.sw.on::after { left:auto; right:2px; background:var(--t-fg); }
+.srow.locked .sw { opacity:.5; }
+.seg { display:flex; gap:3px; flex:none; }
+.seg i { font-style:normal; font-size:12px; padding:1px 8px; border:1px solid var(--t-hair); color:var(--t-fg); white-space:nowrap; }
+.seg i.on { background:color-mix(in srgb, var(--t-fg) 18%, transparent); border-color:transparent; }
+.seg.off i { opacity:.4; }
+.num { display:flex; align-items:center; gap:2px; flex:none; font-variant-numeric:tabular-nums; }
+.num i { font-style:normal; width:22px; height:22px; display:grid; place-items:center; border:1px solid var(--t-hair); color:var(--t-dim); font-size:12px; }
+.num b { min-width:3ch; text-align:center; color:var(--t-fg); font-weight:500; }
+.linkrow { display:flex; gap:10px; align-items:center; padding:10px 16px; border-top:1px solid var(--t-hair); color:var(--t-fg); }
+.linkrow .ic { width:15px; height:15px; color:var(--t-dim); }
+.linkrow small { margin-left:auto; color:var(--t-dim); font-size:var(--cap); }
+.saved { font-size:var(--cap); color:var(--t-green); padding:0 16px 8px; min-height:1.6em; }
+
+/* the app's Settings pane (Kit), for the Appearance row */
+.pane { width:560px; max-width:100%; background:var(--t-bg); border:1px solid var(--t-accent); font-size:13px; }
+.pane .ph { padding:12px 16px; color:var(--t-fg); font-weight:600; display:flex; justify-content:space-between; }
+.pane .ph small { color:var(--t-dim); font-weight:400; }
+.prow { display:grid; grid-template-columns:20px 1fr auto; gap:12px; align-items:center; margin:0 12px 8px; padding:10px 12px; border:1px solid var(--t-hair); }
+.prow .ic { width:14px; height:14px; color:var(--t-dim); }
+.prow .t { display:grid; gap:2px; min-width:0; }
+.prow .t span { color:var(--t-fg); }
+.prow .t small { color:var(--t-dim); font-size:12px; line-height:1.4; }
+.prow .t small.new { color:var(--t-fg); }
+.prow .t small.new u { text-decoration:none; color:var(--t-accent); }
+.pbtn { font-size:12px; padding:2px 10px; border:1px solid var(--t-hair); color:var(--t-fg); white-space:nowrap; }
+.pctl { display:flex; gap:8px; align-items:center; }
+
+/* layout */
+.duo { display:flex; gap:24px; flex-wrap:wrap; align-items:flex-start; }
+.duo > figure:first-child { flex:0 1 443px; }
+.duo > figure:last-child { flex:1 1 260px; }
+.preview { display:grid; gap:14px; justify-items:start; }
+.preview .row { display:flex; gap:18px; align-items:flex-start; flex-wrap:wrap; }
+.legend { font-size:var(--cap); color:var(--t-dim); max-width:36ch; }
+.statepick { display:flex; flex-wrap:wrap; gap:4px; }
+.statepick button { font:inherit; font-size:11px; color:var(--t-fg); background:transparent; border:1px solid var(--t-hair); padding:1px 8px; cursor:pointer; }
+.statepick button[aria-pressed="true"] { background:color-mix(in srgb, var(--t-fg) 18%, transparent); border-color:transparent; }
+
+/* ---------- decision sheet ---------- */
+.q-list { display:grid; gap:18px; }
+.qst { display:grid; gap:8px; padding:14px 16px; border:1px solid var(--hairline); background:var(--bg); }
+.qst legend { padding:0; font-weight:600; color:var(--fg-bright); }
+.qst fieldset { border:0; margin:0; padding:0; display:grid; gap:6px; min-width:0; }
+.qst p { color:var(--fg-dark); font-size:12px; }
+.opt { display:grid; grid-template-columns:18px 1fr; gap:8px; align-items:start; cursor:pointer; padding:4px 6px; }
+.opt:hover { background:var(--fill-hover); }
+.opt input { margin:4px 0 0; accent-color:var(--accent); }
+.opt span { display:grid; }
+.opt small { color:var(--fg-dark); font-size:12px; }
+textarea { width:100%; min-height:70px; background:var(--bg-dark); color:var(--fg); border:1px solid var(--hairline); font:inherit; font-size:12px; padding:8px; resize:vertical; }
+.answers { display:grid; gap:10px; }
+.answers pre { margin:0; padding:12px 16px; background:var(--bg); border:1px solid var(--hairline); white-space:pre-wrap; font:inherit; font-size:12px; line-height:1.5; }
+.copy { font:inherit; color:var(--accent); background:transparent; border:1px solid var(--accent); padding:6px 14px; cursor:pointer; justify-self:start; }
+.copied { color:var(--green); font-size:12px; }
+@media (prefers-reduced-motion: reduce) { * { transition:none !important; } }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-gear" viewBox="0 0 24 24"><path d="M10.14 5.05 L10.64 2.30 L13.36 2.30 L13.86 5.05 L15.60 5.76 L17.90 4.17 L19.83 6.10 L18.24 8.40 L18.95 10.14 L21.70 10.64 L21.70 13.36 L18.95 13.86 L18.24 15.60 L19.83 17.90 L17.90 19.83 L15.60 18.24 L13.86 18.95 L13.36 21.70 L10.64 21.70 L10.14 18.95 L8.40 18.24 L6.10 19.83 L4.17 17.90 L5.76 15.60 L5.05 13.86 L2.30 13.36 L2.30 10.64 L5.05 10.14 L5.76 8.40 L4.17 6.10 L6.10 4.17 L8.40 5.76 Z M15 12 A3 3 0 1 1 9 12 A3 3 0 1 1 15 12 Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="square" stroke-linejoin="miter"/></symbol>
+  <symbol id="i-altSpeed" viewBox="0 0 24 24"><path d="M4.2 17.5 A8.6 8.6 0 1 1 19.8 17.5 M12 14.2 L7.2 10.4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="square" stroke-linejoin="miter"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M14.5 5.5 L8 12 L14.5 18.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="square" stroke-linejoin="miter"/></symbol>
+  <symbol id="i-bar" viewBox="0 0 24 24"><path d="M3.5 4.5 H20.5 V9 H3.5 Z M3.5 12 H14 M3.5 16 H11" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="square" stroke-linejoin="miter"/></symbol>
+</svg>
+
+<main>
+  <header style="display:grid;gap:10px">
+    <span class="eyebrow">docs/21 · bar widget · 2026-10-03 · for Diogo's approval</span>
+    <h1>The widget's settings page</h1>
+    <p>The bar widget's look and clicks have nowhere to be changed: its manifest lists nine settings, but Omarchy 4.0.4's shell reads that list and draws no form for it. Q11 ("no settings view in the popup", 2026-10-02) assumed it would. <b>Ruled 2026-10-03:</b> the gear in the popup opens a settings page inside the widget with all of them, and the app's Settings › Appearance says where they are. This board draws that; the calls at the end settle the details before it is built.</p>
+    <p class="dim">Supersedes Q11 only. Everything else in <code>docs/20-companion-widget-contract.md</code> stands. Today the settings can only be set with <code>omarchy bar set chaves.omaseed KEY VALUE --json</code>, and without <code>--json</code> the value is stored as text, which the widget ignores.</p>
+  </header>
+
+  <div class="themes" role="group" aria-label="Theme for the mocks">
+    <span>Theme</span>
+    <button type="button" data-theme-set="frieren">frieren</button>
+    <button type="button" data-theme-set="tokyo-night">tokyo-night</button>
+    <button type="button" data-theme-set="hackerman">hackerman</button>
+    <button type="button" data-theme-set="lupine">lupine</button>
+  </div>
+
+  <section>
+    <h2>Fig. 1 · The gear opens the page; the bar follows each change</h2>
+    <p>The page replaces the popup's sections, in the same card. Its rows work: click one (or move with <code>j</code> <code>k</code> in the page and press <code>space</code>), and the bar on the right changes the way the real one would, at once. <code>esc</code> or the back arrow returns to the sections.</p>
+    <div class="duo">
+      <figure>
+        <div class="stage">
+          <div class="card" id="page">
+            <div class="hd">
+              <button type="button" class="iconbtn" id="back" title="back to the popup (esc)"><svg class="ic"><use href="#i-back"/></svg></button>
+              <div class="t"><b>Widget settings</b><span>omaseed in the bar</span></div>
+              <div class="hdbtns"><span class="iconbtn on" title="widget settings (the page you are on)"><svg class="ic"><use href="#i-gear"/></svg></span></div>
+            </div>
+            <div class="sec">
+              <div class="sh"><span class="cap">In the bar</span></div>
+              <div class="set" id="g-bar"></div>
+            </div>
+            <div class="sec">
+              <div class="sh"><span class="cap">Clicks on the mark</span></div>
+              <div class="set" id="g-clicks"></div>
+            </div>
+            <div class="sec">
+              <div class="sh"><span class="cap">In the popup</span></div>
+              <div class="set" id="g-popup"></div>
+            </div>
+            <div class="saved" id="saved" aria-live="polite"></div>
+            <div class="linkrow"><svg class="ic"><use href="#i-gear"/></svg><span>omaseed settings</span><small>servers, notifications, tray icon ↗</small></div>
+            <div class="ft"><b>j k</b> move · <b>space</b> ↵ change · <b>h l</b> step a choice · <b>esc</b> back · <b>o</b> omaseed settings</div>
+          </div>
+        </div>
+        <figcaption><b>The page.</b> Nine settings in three groups, the manifest's own, in the order people look for them. Each change is saved at once (no save button), the way the shell's own settings behave. The last row opens the app's Settings, which is what the gear did until now.</figcaption>
+      </figure>
+      <figure>
+        <div class="stage preview">
+          <div class="statepick" role="group" aria-label="What is happening">
+            <button type="button" data-st="idle">idle</button>
+            <button type="button" data-st="down">downloading</button>
+            <button type="button" data-st="both">down and up</button>
+            <button type="button" data-st="alt">alt-speed</button>
+            <button type="button" data-st="lost">unreachable</button>
+          </div>
+          <div class="row">
+            <div class="vbar"><div class="ws">1<span class="on"></span>3</div><div class="w open" id="pv-v"></div><div class="stub"></div></div>
+            <div class="hbar"><div class="ws"><span>1</span><span>2</span><span>3</span></div><div class="hw" id="pv-h"></div></div>
+          </div>
+          <p class="legend" id="pv-note"></p>
+        </div>
+        <figcaption><b>The bar, live.</b> Diogo's vertical bar (42 px at base 14) and a horizontal one. Pick what is happening above; the widget's rows on the left decide what it shows.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section>
+    <h2>Fig. 2 · Where the gear is, and the head of the popup</h2>
+    <div class="duo">
+      <figure>
+        <div class="stage">
+          <div class="card">
+            <div class="hd"><i class="mk" data-mk="on on fg"></i><div class="t link"><b>omaseed</b><span><i class="dot"></i>home · qBittorrent 5.2.3</span></div><div class="hdbtns"><span class="iconbtn" title="alternative speed limits"><svg class="ic"><use href="#i-altSpeed"/></svg></span><span class="iconbtn" title="open omaseed (o)"><i class="mk" data-mk="fg fg fg" style="width:15px;height:15px"></i></span><span class="iconbtn on" title="widget settings (,)"><svg class="ic"><use href="#i-gear"/></svg></span></div></div>
+            <div class="sec"><div class="sh"><span class="cap">Add</span><span class="sum">2 ready: Downloads</span><span class="chev">▸</span></div></div>
+            <div class="sec"><div class="sh"><span class="cap">Your share</span><span class="sum">1.2 GB given this session · ratio 0.84</span><span class="chev">▸</span></div></div>
+          </div>
+        </div>
+        <figcaption><b>Unchanged head, new target.</b> The three head buttons stay. The gear (and a new key, <code>,</code> as in the app) opens the widget's page instead of the app's Settings. The app's Settings is one row further, at the foot of the page.</figcaption>
+      </figure>
+      <figure>
+        <table class="t">
+          <thead><tr><th>Setting</th><th>Values</th><th>Default</th></tr></thead>
+          <tbody>
+            <tr><td>Show the mark</td><td>on · off</td><td>on</td></tr>
+            <tr><td>Show the speed</td><td>on · off</td><td>off</td></tr>
+            <tr><td>Speed shows</td><td>↓ down · ↑ up · both</td><td>both</td></tr>
+            <tr><td>Colours</td><td>blue and green · one colour</td><td>blue and green</td></tr>
+            <tr><td>Hide while nothing moves</td><td>on · off</td><td>off</td></tr>
+            <tr><td>Middle click</td><td>alt-speed · open omaseed · nothing</td><td>alt-speed</td></tr>
+            <tr><td>Right click</td><td>open omaseed · alt-speed · nothing</td><td>open omaseed</td></tr>
+            <tr><td>Few seeds means</td><td>1 to 5 seeds</td><td>2</td></tr>
+            <tr><td>Rows in Lately</td><td>0 to 5</td><td>3</td></tr>
+          </tbody>
+        </table>
+        <figcaption><b>The manifest's nine, unchanged.</b> Same keys (<code>showMark</code> … <code>recentCount</code>), same values, so <code>omarchy bar set</code> and a future shell form keep working on the same entry.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section>
+    <h2>Fig. 3 · The app's Settings › Appearance</h2>
+    <figure>
+      <div class="stage">
+        <div class="pane">
+          <div class="ph"><span>Appearance</span><small>esc</small></div>
+          <div class="prow">
+            <svg class="ic"><use href="#i-bar"/></svg>
+            <div class="t"><span>Tray icon</span><small>auto hides the icon while the omaseed bar widget runs, and shows it again within 90 s of the widget going.</small></div>
+            <div class="pctl"><span class="pbtn" style="background:color-mix(in srgb, var(--t-fg) 18%, transparent);border-color:transparent">auto</span><span class="pbtn">always</span><span class="pbtn">never</span></div>
+          </div>
+          <div class="prow">
+            <svg class="ic"><use href="#i-bar"/></svg>
+            <div class="t"><span>Bar widget</span><small>the omaseed mark in the Omarchy bar: speeds, alt-speed and adds without the window.</small><small class="new">What it shows and what its clicks do: <u>the gear in its popup</u>.</small></div>
+            <div class="pctl"><span class="pbtn" id="openbtn">customize</span><span class="sw on"></span></div>
+          </div>
+        </div>
+      </div>
+      <figcaption><b>One more line, one button.</b> The Bar widget row keeps its switch and gains a line that says where the settings are. <b>customize</b> (shown only while the widget is in the bar) opens the popup straight on its settings page, through a new <code>omarchy-shell chaves.omaseed settings</code> (the widget's IPC answers <code>open</code>, <code>close</code> and <code>toggle</code> today); the window stays where it is.</figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <h2>How it saves</h2>
+    <ul>
+      <li>The widget saves through the shell's scoped call for its own bar entry, <code>shell.updateEntryInline("chaves.omaseed", { showSpeed: true })</code> (<code>services/PluginShellApi.qml</code>). It writes typed values to <code>shell.json</code>, and the bar redraws at once. No process, no file writing of our own.</li>
+      <li>A widget hosted by a third-party bar may not get that call. Then the page falls back to <code>omarchy bar set chaves.omaseed KEY JSON --json</code>, which ends in the same place.</li>
+      <li>The widget also starts reading text values (<code>"true"</code>, <code>"3"</code>) as their typed meaning, so an <code>omarchy bar set</code> without <code>--json</code> works too.</li>
+      <li>The app never writes these settings; it only opens the page. Tray icon stays an app setting: it is about the app's icon, not the widget.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Keys on the page</h2>
+    <div class="scroll">
+      <table class="t">
+        <thead><tr><th>Key</th><th>Does</th></tr></thead>
+        <tbody>
+          <tr><td>, (in the popup)</td><td>open the settings page (the gear)</td></tr>
+          <tr><td>j k</td><td>move between rows</td></tr>
+          <tr><td>space ↵</td><td>flip a switch, or step a choice to its next value</td></tr>
+          <tr><td>h l</td><td>step a choice or a number back and forth</td></tr>
+          <tr><td>o</td><td>omaseed settings (the app), as the foot row</td></tr>
+          <tr><td>esc</td><td>back to the sections; a second esc closes the popup</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Calls to make</h2>
+    <p>Each has a recommended answer first. Pick, add notes, and copy the answers back into the session.</p>
+    <form id="decisions" class="q-list">
+      <div class="qst"><fieldset>
+        <legend>S1 · Where the settings live in the widget</legend>
+        <label class="opt"><input type="radio" name="s1" value="S1: a page in the popup, the gear opens it (Fig. 1)" checked><span>A page that replaces the sections, opened by the gear (recommended)<small>As drawn. The popup stays one card; the page has room for nine rows.</small></span></label>
+        <label class="opt"><input type="radio" name="s1" value="S1: a sixth foldable section at the bottom"><span>A sixth foldable section, "Widget", at the bottom<small>No new page, but the popup grows nine rows when it is unfolded.</small></span></label>
+      </fieldset></div>
+      <div class="qst"><fieldset>
+        <legend>S2 · Mark and speed both off</legend>
+        <p>Both off would leave nothing in the bar. A1 (assumed) made it read as the mark on, because the shell's form could not refuse it. The page can.</p>
+        <label class="opt"><input type="radio" name="s2" value="S2: the last one on cannot be turned off; its line says why" checked><span>The last one on cannot be switched off, and its line says why (recommended)<small>Try it in Fig. 1: switch the speed on, then both off.</small></span></label>
+        <label class="opt"><input type="radio" name="s2" value="S2: switching one off switches the other on"><span>Switching one off switches the other on</span></label>
+      </fieldset></div>
+      <div class="qst"><fieldset>
+        <legend>S3 · The app's Appearance row</legend>
+        <label class="opt"><input type="radio" name="s3" value="S3: the line plus a customize button that opens the page (Fig. 3)" checked><span>The line, plus a <b>customize</b> button that opens the page in the bar (recommended)</span></label>
+        <label class="opt"><input type="radio" name="s3" value="S3: the line only"><span>The line only</span></label>
+      </fieldset></div>
+      <div class="qst"><fieldset>
+        <legend>S4 · Remove from the bar, inside the page</legend>
+        <label class="opt"><input type="radio" name="s4" value="S4: no; the app's switch removes it" checked><span>No, the app's Bar widget switch does that (recommended)<small>A widget removing itself leaves no undo in sight; the app's switch can put it back.</small></span></label>
+        <label class="opt"><input type="radio" name="s4" value="S4: yes, a last row 'remove from the bar'"><span>Yes, a last row "remove from the bar"</span></label>
+      </fieldset></div>
+      <div class="qst"><fieldset>
+        <legend>Notes</legend>
+        <textarea id="notes" aria-label="Notes" placeholder="Anything else: wording, order of the rows, a setting to add or drop"></textarea>
+      </fieldset></div>
+    </form>
+    <div class="answers">
+      <pre id="answers"></pre>
+      <button type="button" class="copy" id="copy">Copy answers</button>
+      <span class="copied" id="copied" aria-live="polite"></span>
+    </div>
+  </section>
+</main>
+
+<script>
+(() => {
+  const DL = "M1 8 H6 V18 H16 V23 H1 Z", UL = "M8 1 H23 V16 H18 V6 H8 Z", CORE = "M9 9 H15 V15 H9 Z", INSET = "M9.8 9.8 H14.2 V14.2 H9.8 Z";
+  let colorMode = "dir";
+  const fill = c => `style="fill:${c}"`;
+  const paint = (part, state) => {
+    if (state === "on") return fill(colorMode === "single" ? "var(--t-accent)" : part === "dl" ? "var(--t-blue)" : "var(--t-green)");
+    return ({ off: fill("color-mix(in srgb, var(--t-fg) 30%, transparent)"), fg: fill("var(--t-fg)"),
+              alt: 'style="fill:none;stroke:var(--t-yellow);stroke-width:1.6"',
+              "urgent-hollow": 'style="fill:none;stroke:var(--t-urgent);stroke-width:1.6"' })[state];
+  };
+  const markSvg = spec => {
+    const [dl, ul, core] = spec.split(" ");
+    const inset = core === "alt" || core === "urgent-hollow" ? INSET : CORE;
+    return `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${DL}" ${paint("dl", dl)}/><path d="${UL}" ${paint("ul", ul)}/><path d="${inset}" ${paint("core", core)}/></svg>`;
+  };
+
+  // [mark spec, down, up, alt, moving]
+  const states = {
+    idle: ["off off fg", "0", "0", false, false], down: ["on off fg", "4.2M", "0", false, true],
+    both: ["on on fg", "1.2M", "2.3M", false, true], alt: ["on on alt", "1.0M", "200K", true, true],
+    lost: ["off off urgent-hollow", "", "", false, false]
+  };
+  const cfg = { showMark: true, showSpeed: false, speedMetric: "both", markColor: "directions", hideWhenIdle: false,
+                middleClick: "altSpeed", rightClick: "openApp", rareSeeds: 2, recentCount: 3 };
+  let st = "both";
+
+  const rows = {
+    "g-bar": [
+      { k: "showMark", t: "Show the mark", d: "lights its lower arm while downloading, the upper one while uploading", type: "bool" },
+      { k: "showSpeed", t: "Show the speed", d: "beside the mark, under it in a vertical bar", type: "bool" },
+      { k: "speedMetric", t: "Speed shows", d: "", type: "enum", opts: [["down", "↓ down"], ["up", "↑ up"], ["both", "both"]], needs: "showSpeed" },
+      { k: "markColor", t: "Colours", d: "the theme's blue and green, or its accent for both", type: "enum", opts: [["directions", "blue and green"], ["single", "one"]] },
+      { k: "hideWhenIdle", t: "Hide while nothing moves", d: "back when something moves; an unreachable server still shows", type: "bool" }
+    ],
+    "g-clicks": [
+      { k: "middleClick", t: "Middle click", d: "", type: "enum", opts: [["altSpeed", "alt-speed"], ["openApp", "omaseed"], ["none", "nothing"]] },
+      { k: "rightClick", t: "Right click", d: "", type: "enum", opts: [["openApp", "omaseed"], ["altSpeed", "alt-speed"], ["none", "nothing"]] }
+    ],
+    "g-popup": [
+      { k: "rareSeeds", t: "Few seeds means", d: "Keeping alive counts torrents with this many seeds or fewer", type: "int", min: 1, max: 5 },
+      { k: "recentCount", t: "Rows in Lately", d: "finished downloads and milestones; 0 hides the section", type: "int", min: 0, max: 5 }
+    ]
+  };
+  const all = [].concat(rows["g-bar"], rows["g-clicks"], rows["g-popup"]);
+  let cursor = 0;
+  const label = { showMark: "mark", showSpeed: "speed" };
+
+  const locked = r => r.type === "bool" && (r.k === "showMark" || r.k === "showSpeed") && cfg[r.k] && !cfg[r.k === "showMark" ? "showSpeed" : "showMark"];
+  const rowHtml = (r, i) => {
+    let ctl = "", d = r.d;
+    if (r.type === "bool") ctl = `<span class="sw${cfg[r.k] ? " on" : ""}"></span>`;
+    if (r.type === "enum") ctl = `<span class="seg${r.needs && !cfg[r.needs] ? " off" : ""}">${r.opts.map(([v, l]) => `<i class="${cfg[r.k] === v ? "on" : ""}">${l}</i>`).join("")}</span>`;
+    if (r.type === "int") ctl = `<span class="num"><i>−</i><b>${cfg[r.k]}</b><i>+</i></span>`;
+    if (locked(r)) d = `one of mark and speed stays on: switch the ${r.k === "showMark" ? "speed" : "mark"} on first`;
+    if (r.needs && !cfg[r.needs]) d = "with the speed on";
+    return `<div class="srow${i === cursor ? " cur" : ""}${locked(r) ? " locked" : ""}" data-i="${i}" role="button" tabindex="-1"><div class="t"><span>${r.t}</span>${d ? `<small>${d}</small>` : ""}</div>${ctl}</div>`;
+  };
+  const renderPage = () => {
+    let i = 0;
+    for (const id of Object.keys(rows)) document.getElementById(id).innerHTML = rows[id].map(r => rowHtml(r, i++)).join("");
+  };
+
+  const vertical = () => {
+    const [mk, d, u, alt, moving] = states[st];
+    if (cfg.hideWhenIdle && !moving && st !== "lost") return "";
+    let html = cfg.showMark ? `<i class="mk" data-mk="${mk}"></i>` : "";
+    if (cfg.showSpeed && d !== "") {
+      const c = alt ? ` style="color:var(--t-yellow)"` : "";
+      if (cfg.speedMetric !== "up") html += `<span class="a">↓</span><span class="l"${c}>${d}</span>`;
+      if (cfg.speedMetric !== "down") html += `<span class="a">↑</span><span class="l"${c}>${u}</span>`;
+    }
+    if (!cfg.showMark && d === "") html += `<i class="mk" data-mk="${mk}"></i>`;
+    return html;
+  };
+  const horizontal = () => {
+    const [mk, d, u, alt, moving] = states[st];
+    if (cfg.hideWhenIdle && !moving && st !== "lost") return "";
+    let html = cfg.showMark ? `<i class="mk" data-mk="${mk}"></i>` : "";
+    if (cfg.showSpeed && d !== "") {
+      const c = alt ? ` style="color:var(--t-yellow)"` : "";
+      if (cfg.speedMetric !== "up") html += `<span class="n"${c}>↓${d}</span>`;
+      if (cfg.speedMetric !== "down") html += `<span class="n"${c}>↑${u}</span>`;
+    }
+    if (!cfg.showMark && d === "") html += `<i class="mk" data-mk="${mk}"></i>`;
+    return html;
+  };
+  const names = { altSpeed: "alt-speed", openApp: "opens omaseed", none: "does nothing" };
+  const renderBar = () => {
+    colorMode = cfg.markColor === "single" ? "single" : "dir";
+    const v = vertical(), h = horizontal();
+    document.getElementById("pv-v").innerHTML = v || `<span class="gone">hidden</span>`;
+    document.getElementById("pv-h").innerHTML = h || `<span class="gone">hidden while idle</span>`;
+    document.getElementById("pv-note").textContent =
+      `Middle click ${names[cfg.middleClick]}, right click ${names[cfg.rightClick]}. Keeping alive: ${cfg.rareSeeds} seed${cfg.rareSeeds === 1 ? "" : "s"} or fewer. Lately: ${cfg.recentCount ? cfg.recentCount + " rows" : "hidden"}.`;
+    for (const el of document.querySelectorAll(".preview i.mk")) el.innerHTML = markSvg(el.dataset.mk);
+    for (const b of document.querySelectorAll(".statepick button")) b.setAttribute("aria-pressed", b.dataset.st === st);
+  };
+  const paintStatic = () => { colorMode = "dir"; for (const el of document.querySelectorAll("i.mk")) if (!el.closest(".preview")) el.innerHTML = markSvg(el.dataset.mk); };
+
+  let savedTimer = 0;
+  const saved = r => {
+    const el = document.getElementById("saved");
+    el.textContent = `saved · ${r.k} = ${JSON.stringify(cfg[r.k])}`;
+    clearTimeout(savedTimer);
+    savedTimer = setTimeout(() => { el.textContent = ""; }, 1800);
+  };
+  const change = (i, dir) => {
+    const r = all[i];
+    if (r.type === "bool") { if (locked(r)) return; cfg[r.k] = !cfg[r.k]; }
+    if (r.type === "enum") {
+      if (r.needs && !cfg[r.needs]) return;
+      const vs = r.opts.map(o => o[0]);
+      cfg[r.k] = vs[(vs.indexOf(cfg[r.k]) + dir + vs.length) % vs.length];
+    }
+    if (r.type === "int") cfg[r.k] = Math.min(r.max, Math.max(r.min, cfg[r.k] + (dir || 1)));
+    saved(r);
+    renderPage(); renderBar();
+  };
+
+  const page = document.getElementById("page");
+  page.addEventListener("click", e => {
+    const row = e.target.closest(".srow");
+    if (!row) return;
+    cursor = Number(row.dataset.i);
+    const r = all[cursor];
+    let dir = 1;
+    if (r.type === "int" && e.target.tagName === "I") dir = e.target.textContent === "−" ? -1 : 1;
+    if (r.type === "enum" && e.target.tagName === "I") {
+      const idx = [...e.target.parentElement.children].indexOf(e.target);
+      if (!(r.needs && !cfg[r.needs])) { cfg[r.k] = r.opts[idx][0]; saved(r); renderPage(); renderBar(); }
+      return;
+    }
+    change(cursor, dir);
+  });
+  page.tabIndex = 0;
+  page.addEventListener("keydown", e => {
+    const k = e.key;
+    if (k === "j" || k === "ArrowDown") { cursor = Math.min(all.length - 1, cursor + 1); renderPage(); e.preventDefault(); }
+    else if (k === "k" || k === "ArrowUp") { cursor = Math.max(0, cursor - 1); renderPage(); e.preventDefault(); }
+    else if (k === " " || k === "Enter") { change(cursor, 1); e.preventDefault(); }
+    else if (k === "l" || k === "ArrowRight") { change(cursor, 1); e.preventDefault(); }
+    else if (k === "h" || k === "ArrowLeft") { const r = all[cursor]; if (r.type !== "bool") change(cursor, -1); e.preventDefault(); }
+  });
+  for (const b of document.querySelectorAll(".statepick button")) b.addEventListener("click", () => { st = b.dataset.st; renderBar(); });
+
+  const themes = {
+    "frieren":     { fg:"#b9c5ef", bg:"#11111b", accent:"#5492f8", urgent:"#ee5681", muted:"#272833", blue:"#5492f8", green:"#7dd676", yellow:"#f6d58c" },
+    "tokyo-night": { fg:"#a9b1d6", bg:"#1a1b26", accent:"#7aa2f7", urgent:"#f7768e", muted:"#414868", blue:"#7aa2f7", green:"#9ece6a", yellow:"#e0af68" },
+    "hackerman":   { fg:"#ddf7ff", bg:"#0B0C16", accent:"#82FB9C", urgent:"#50f872", muted:"#2d3450", blue:"#829dd4", green:"#4fe88f", yellow:"#50f7d4" },
+    "lupine":      { fg:"#212121", bg:"#fafafa", accent:"#3264eb", urgent:"#c900c4", muted:"#9e9e9e", blue:"#3264eb", green:"#4a2fd0", yellow:"#026fde" }
+  };
+  const apply = name => {
+    const t = themes[name];
+    for (const stage of document.querySelectorAll(".stage"))
+      for (const k of Object.keys(t)) stage.style.setProperty("--t-" + k, t[k]);
+    for (const b of document.querySelectorAll("[data-theme-set]")) b.setAttribute("aria-pressed", b.dataset.themeSet === name);
+    try { localStorage.setItem("omaseed-board21-theme", name); } catch (e) {}
+  };
+  for (const b of document.querySelectorAll("[data-theme-set]")) b.addEventListener("click", () => apply(b.dataset.themeSet));
+  let savedTheme = null;
+  try { savedTheme = localStorage.getItem("omaseed-board21-theme"); } catch (e) {}
+  apply(themes[savedTheme] ? savedTheme : "frieren");
+
+  renderPage(); renderBar(); paintStatic();
+
+  const form = document.getElementById("decisions"), out = document.getElementById("answers"), notes = document.getElementById("notes");
+  const pick = name => (form.querySelector(`input[name="${name}"]:checked`) || {}).value || "(none)";
+  const render = () => {
+    const lines = ["docs/21 widget settings, my answers:", pick("s1"), pick("s2"), pick("s3"), pick("s4")];
+    const extra = notes.value.trim();
+    if (extra) lines.push("Notes: " + extra);
+    out.textContent = lines.join("\n");
+  };
+  form.addEventListener("change", render);
+  notes.addEventListener("input", render);
+  render();
+  document.getElementById("copy").addEventListener("click", () => {
+    const done = msg => { document.getElementById("copied").textContent = msg; };
+    try {
+      navigator.clipboard.writeText(out.textContent).then(() => done("Copied."), () => {
+        const r = document.createRange(); r.selectNodeContents(out); const s = getSelection(); s.removeAllRanges(); s.addRange(r); done("Selected: copy with ctrl+c.");
+      });
+    } catch (e) { done("Select the answers and copy them."); }
+  });
+})();
+</script>
