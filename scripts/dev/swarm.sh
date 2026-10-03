@@ -17,7 +17,19 @@
 #                                         # a minute: libtorrent backs off before retrying)
 #   scripts/dev/swarm.sh rate KIB         # the seeder's upload limit (default 4096 KiB/s)
 #   scripts/dev/swarm.sh reset            # remove the swarm's torrents and files from both sides
-#   scripts/dev/swarm.sh stop
+#   scripts/dev/swarm.sh stop             # the seeder, the tracker and the leecher
+#   scripts/dev/swarm.sh leech start [--rate KIB]   # the playground uploads, nonstop
+#   scripts/dev/swarm.sh leech status     # one line: the playground's upload, the leecher's torrents
+#   scripts/dev/swarm.sh leech stop       # the leecher and its files go
+#
+# leech: a fourth qBittorrent (:8084, profile $SWARM/leecher, loopback like the seeder) and a
+# churn loop (scripts/dev/swarm-leech.py, in the background with a pid file, log leech.log)
+# that downloads the fixtures the playground has finished, deletes each one with its files when
+# it completes and adds it again after a random pause. Its busy phases (0-3 downloads, random
+# per-torrent limits) vary which torrents upload and leave quiet stretches. The tracker tells
+# the leecher about the playground only and nobody about the leecher, so every byte it gets is
+# the playground's upload; the seeder's rate is not touched. --rate caps the leecher's download
+# (default 2048 KiB/s). The loop ends itself when the playground or the seeder goes away.
 #
 # CASE (NAME is a case-insensitive part of a fixture's name; each case has a default):
 #   stall             the seeder stops sharing: downloads go stalledDL
@@ -48,15 +60,32 @@ TORRENTS="$SWARM/torrents"
 CONTROL="$SWARM/control.json"
 TRACKER_PID="$SWARM/tracker.pid"
 CATEGORY=swarm
-refuse_home "$SEEDER_PORT" "$SEEDER_BT_PORT" "$TRACKER_PORT" "$PLAY"
+LEECH_PORT=8084
+LEECH_BT_PORT=26995
+LEECH_PROFILE="$SWARM/leecher"
+LEECHER="http://127.0.0.1:$LEECH_PORT/api/v2"
+LEECH_PID="$SWARM/leech.pid"
+refuse_home "$SEEDER_PORT" "$SEEDER_BT_PORT" "$TRACKER_PORT" "$PLAY" "$LEECH_PORT" "$LEECH_BT_PORT"
 
 seeder_server() {
     OMASEED_TEST_PROFILE="$SWARM" OMASEED_TEST_PORT=$SEEDER_PORT OMASEED_TEST_BT_PORT=$SEEDER_BT_PORT \
         "$repo/scripts/dev/test-server.sh" "$@"
 }
 play_server() { "$repo/scripts/dev/test-server.sh" "$@"; }
+leecher_server() {
+    OMASEED_TEST_PROFILE="$LEECH_PROFILE" OMASEED_TEST_PORT=$LEECH_PORT OMASEED_TEST_BT_PORT=$LEECH_BT_PORT \
+        "$repo/scripts/dev/test-server.sh" "$@"
+}
 
 tracker_running() { [ -f "$TRACKER_PID" ] && kill -0 "$(cat "$TRACKER_PID")" 2>/dev/null; }
+leech_running() { [ -f "$LEECH_PID" ] && kill -0 "$(cat "$LEECH_PID")" 2>/dev/null; }
+
+start_tracker() {
+    nohup python3 "$repo/scripts/dev/swarm-tracker.py" $TRACKER_PORT "$CONTROL" \
+        >"$SWARM/tracker.log" 2>&1 &
+    echo $! >"$TRACKER_PID"
+    sleep 0.5
+}
 
 # control KEY JSON_VALUE: set one key of the tracker's control file (read on every announce).
 control() {
@@ -125,17 +154,13 @@ cmd_start() {
     seeder_server start | sed 's/^/seeder:     /'
     curl -fs -X POST "$SEEDER/app/setPreferences" --data-urlencode \
         "json={\"enable_embedded_tracker\":false,\"queueing_enabled\":false,\"enable_multi_connections_from_same_ip\":true,\"up_limit\":$((${OMASEED_SWARM_RATE:-4096} * 1024))}" >/dev/null
-    if ! tracker_running; then
-        nohup python3 "$repo/scripts/dev/swarm-tracker.py" $TRACKER_PORT "$CONTROL" \
-            >"$SWARM/tracker.log" 2>&1 &
-        echo $! >"$TRACKER_PID"
-        sleep 0.5
-    fi
+    tracker_running || start_tracker
     tracker_running || { echo "tracker did not start; see $SWARM/tracker.log" >&2; exit 1; }
     echo "tracker:    $TRACKER (log $SWARM/tracker.log)"
 }
 
 cmd_stop() {
+    cmd_leech_stop
     if tracker_running; then kill "$(cat "$TRACKER_PID")"; fi
     rm -f "$TRACKER_PID"
     seeder_server stop | sed 's/^/seeder: /'
@@ -396,6 +421,7 @@ print("|".join(t["hash"] for t in json.load(sys.stdin)))')"
 
 cmd_reset() {
     local hashes
+    cmd_leech_stop
     # The playground may be down: the seeder's torrents and the files still go.
     hashes="$(curl -fs "$PLAY/torrents/info?category=$CATEGORY" | python3 -c '
 import json, sys
@@ -413,6 +439,118 @@ print("|".join(t["hash"] for t in json.load(sys.stdin)))')" || hashes=""
     echo "swarm torrents and files removed from both sides; run seed again"
 }
 
+# human BYTES: 1.4 GiB, 512 KiB, ...
+human() {
+    python3 -c '
+import sys
+n = float(sys.argv[1])
+for unit in ("B", "KiB", "MiB", "GiB", "TiB"):
+    if n < 1024 or unit == "TiB":
+        print(("%d %s" if unit == "B" else "%.1f %s") % (n, unit)); break
+    n /= 1024' "$1"
+}
+
+# A tracker started before swarm-tracker.py last changed runs old code (the leech needs its
+# "isolate" key): restart it, and have both sides announce again, since it forgets its peers.
+refresh_tracker() {
+    local pid age
+    tracker_running || return 0
+    pid="$(cat "$TRACKER_PID")"
+    age="$(ps -o etimes= -p "$pid" | tr -d ' ')"
+    [ "$(($(date +%s) - age))" -lt "$(stat -c %Y "$repo/scripts/dev/swarm-tracker.py")" ] || return 0
+    kill "$pid"
+    for _ in $(seq 1 20); do kill -0 "$pid" 2>/dev/null || break; sleep 0.1; done
+    start_tracker
+    tracker_running || { echo "tracker did not restart; see $SWARM/tracker.log" >&2; exit 1; }
+    reannounce
+    echo "tracker:    restarted on newer code"
+}
+
+cmd_leech_start() {
+    local rate="${OMASEED_LEECH_RATE:-2048}" play_bt
+    while [ $# -gt 0 ]; do
+        case "$1" in
+        --rate) rate="${2:?--rate KIB}"; shift ;;
+        *) echo "leech start: unexpected $1" >&2; exit 2 ;;
+        esac
+        shift
+    done
+    [[ "$rate" =~ ^[0-9]+$ ]] && [ "$rate" -gt 0 ] || { echo "leech start: --rate takes KiB/s, more than 0" >&2; exit 2; }
+    tracker_running || cmd_start
+    curl -fs "$SEEDER/app/version" >/dev/null || { echo "the seeder on :$SEEDER_PORT does not answer: swarm.sh start" >&2; exit 1; }
+    if ! curl -fs "$PLAY/torrents/info?category=$CATEGORY&filter=completed" |
+        python3 -c 'import json,sys; sys.exit(0 if json.load(sys.stdin) else 1)'; then
+        echo "the playground has no finished swarm torrent to share: swarm.sh seed, and let it download" >&2
+        exit 1
+    fi
+    refresh_tracker
+    # The leecher meets only the playground's port; the seeder never hears of it.
+    play_bt="$(curl -fs "$PLAY/app/preferences" | python3 -c 'import json,sys; print(json.load(sys.stdin)["listen_port"])')"
+    control isolate "{\"$LEECH_BT_PORT\":[$play_bt]}"
+    leecher_server start | sed 's/^/leecher:    /'
+    # No queue (the loop decides what runs), several peers from 127.0.0.1, the download cap.
+    curl -fs -X POST "$LEECHER/app/setPreferences" --data-urlencode \
+        "json={\"queueing_enabled\":false,\"enable_multi_connections_from_same_ip\":true,\"announce_to_all_tiers\":true,\"max_ratio_enabled\":false,\"dl_limit\":$((rate * 1024))}" >/dev/null
+    if leech_running; then
+        echo "churn loop: already running (pid $(cat "$LEECH_PID")); download cap now $rate KiB/s"
+        return 0
+    fi
+    rm -f "$LEECH_PID"
+    setsid nohup python3 "$repo/scripts/dev/swarm-leech.py" "$LEECH_PID" "$TORRENTS" "$CATEGORY" \
+        "$LEECHER" "$PLAY" "$SEEDER" >>"$SWARM/leech.log" 2>&1 </dev/null &
+    for _ in $(seq 1 20); do leech_running && break; sleep 0.25; done
+    leech_running || { echo "the churn loop did not start; see $SWARM/leech.log" >&2; exit 1; }
+    echo "churn loop: pid $(cat "$LEECH_PID"), download cap $rate KiB/s (log $SWARM/leech.log)"
+}
+
+cmd_leech_stop() {
+    local pid
+    # Nothing to say when there was no leech (swarm.sh stop and reset call this every time).
+    [ -e "$LEECH_PID" ] || [ -e "$LEECH_PROFILE" ] || { control_has_isolate || return 0; }
+    if leech_running; then
+        pid="$(cat "$LEECH_PID")"
+        kill "$pid"
+        for _ in $(seq 1 20); do kill -0 "$pid" 2>/dev/null || break; sleep 0.25; done
+    fi
+    rm -f "$LEECH_PID"
+    if [ -f "$LEECH_PROFILE/qbt.pid" ]; then leecher_server stop >/dev/null; fi
+    rm -rf -- "${LEECH_PROFILE:?}"
+    if [ -f "$CONTROL" ]; then control isolate null; fi
+    echo "leech: stopped, its profile and downloads removed"
+}
+
+control_has_isolate() { [ -f "$CONTROL" ] && grep -q '"isolate"' "$CONTROL"; }
+
+cmd_leech_status() {
+    local up mine
+    mine="$(curl -fs "$LEECHER/torrents/info" 2>/dev/null)" || mine=""
+    up="$(curl -fs "$PLAY/transfer/info" | python3 -c 'import json,sys; t=json.load(sys.stdin); print(t["up_info_data"], t["up_info_speed"])')" ||
+        up=""
+    {
+        if leech_running; then echo "leech running (pid $(cat "$LEECH_PID"))"; else echo "leech not running"; fi
+        if [ -n "$up" ]; then
+            echo "playground ↑ $(human "${up% *}") this session, $(human "${up#* }")/s now"
+        else
+            echo "playground not answering"
+        fi
+        [ -z "$mine" ] || printf '%s' "$mine" | python3 -c '
+import json, sys
+rows = [t for t in json.load(sys.stdin) if not t["state"].startswith("stopped")]
+names = ", ".join("%s %d%%" % (t["name"] if len(t["name"]) <= 24 else t["name"][:23] + "…", t["progress"] * 100)
+                  for t in sorted(rows, key=lambda t: t["name"]))
+print("leecher: %d active%s" % (len(rows), " (" + names + ")" if rows else ""))'
+    } | paste -sd '|' | sed 's/|/ · /g'
+}
+
+cmd_leech() {
+    case "${1:-}" in
+    start) shift; cmd_leech_start "$@" ;;
+    stop) cmd_leech_stop ;;
+    status) cmd_leech_status ;;
+    *) echo "usage: swarm.sh leech start [--rate KIB] | stop | status" >&2; exit 2 ;;
+    esac
+}
+
 case "${1:-}" in
 start) cmd_start ;;
 stop) cmd_stop ;;
@@ -422,5 +560,6 @@ break) shift; cmd_break "$@" ;;
 fix) cmd_fix ;;
 rate) cmd_rate "${2:?rate KIB}" ;;
 reset) cmd_reset ;;
+leech) shift; cmd_leech "$@" ;;
 *) sed -n '2,/^set -e/p' "$0" | sed '$d'; exit 2 ;;
 esac
