@@ -83,6 +83,10 @@ App::App(QObject *parent)
     m_filtered->setSourceModel(m_engine->torrents());
     // A tracker row lists what the rail counts for it: every torrent on that host.
     m_filtered->setTrackerModel(m_engine->trackers());
+    // The add sheet's "in library" follows the library, not the moment of the last scan: a
+    // torrent added from the bar widget while the sheet is up is marked at the next sync.
+    // `updated` comes after the model's own bookkeeping (rowsRemoved comes before it).
+    connect(m_engine->torrents(), &TorrentModel::updated, this, &App::refreshDownloadsInLibrary);
 
     // Here rather than in start(): demo and QML-test Apps never call start(), and their
     // `serverCount`/`firstRunNeeded` bindings must follow the store all the same.
@@ -1881,6 +1885,26 @@ void App::scanDownloads()
             },
             Qt::QueuedConnection);
     });
+}
+
+void App::refreshDownloadsInLibrary()
+{
+    if (m_downloadsTorrents.isEmpty())
+        return;
+    bool moved = false;
+    for (QVariant &value : m_downloadsTorrents) {
+        QVariantMap entry = value.toMap();
+        const bool inLibrary = !findDuplicate(entry.value(QStringLiteral("infoHashV1")).toString(),
+                                              entry.value(QStringLiteral("infoHashV2")).toString())
+                                    .isEmpty();
+        if (entry.value(QStringLiteral("inLibrary")).toBool() == inLibrary)
+            continue;
+        entry.insert(QStringLiteral("inLibrary"), inLibrary);
+        value = entry;
+        moved = true;
+    }
+    if (moved)
+        Q_EMIT downloadsTorrentsChanged();
 }
 
 void App::openUris(const QStringList &uris)

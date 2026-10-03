@@ -682,6 +682,20 @@ void TestAppGlue::theDownloadsListMarksWhatTheLibraryHolds()
     const QVariantMap older = list[1].toMap();
     QCOMPARE(older.value(QStringLiteral("name")).toString(), QStringLiteral("Blender Open Movies"));
     QCOMPARE(older.value(QStringLiteral("inLibrary")).toBool(), false);
+
+    // Added elsewhere (the bar widget) after the scan: "in library" follows at the sync that
+    // brings it, and goes when it is deleted, with no new scan (#20).
+    const QString added = older.value(QStringLiteral("infoHashV1")).toString();
+    changed.clear();
+    app.torrents()->applyPartial(
+        QJsonObject{{added, QJsonObject{{QStringLiteral("name"), QStringLiteral("Blender")}}}},
+        QJsonArray());
+    QCOMPARE(changed.count(), 1);
+    QCOMPARE(app.downloadsTorrents()[1].toMap().value(QStringLiteral("inLibrary")).toBool(), true);
+    QCOMPARE(app.downloadsTorrents()[0].toMap().value(QStringLiteral("inLibrary")).toBool(), true);
+    app.torrents()->applyPartial(QJsonObject(), QJsonArray{added});
+    QCOMPARE(changed.count(), 2);
+    QCOMPARE(app.downloadsTorrents()[1].toMap().value(QStringLiteral("inLibrary")).toBool(), false);
 }
 
 void TestAppGlue::aDemoRunListsNoRealDownloads()

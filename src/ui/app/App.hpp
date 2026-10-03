@@ -824,7 +824,8 @@ public:
 
     /// Reads `downloadsFolder` on the thread pool (the files are parsed and hashed) and
     /// answers through `downloadsTorrents`. The sheet calls it each time it opens; a scan
-    /// overtaken by a newer one is dropped.
+    /// overtaken by a newer one is dropped. Each entry's `inLibrary` then follows the library
+    /// as torrents come and go, without another scan.
     Q_INVOKABLE void scanDownloads();
 
     /// The URI hand-off: this process's own argv and every `SingleInstance::openRequested`
@@ -929,6 +930,8 @@ private:
     int m_nextAddableToken = 0;
     omaseed::core::AddFilesModel *m_addFiles = new omaseed::core::AddFilesModel(this);
     QVariantList m_downloadsTorrents;
+    /// Each entry's `inLibrary` read again: the library moved since the scan (#20).
+    void refreshDownloadsInLibrary();
     QString m_downloadsFolder; ///< empty: QStandardPaths::DownloadLocation
     int m_downloadsScan = 0;   ///< the newest scan's number; older answers are dropped
     // --- end T4.2 ------------------------------------------------------------------------
