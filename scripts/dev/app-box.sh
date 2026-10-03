@@ -46,10 +46,9 @@ PLAY_PORT=8081
 PLAY="http://127.0.0.1:$PLAY_PORT"
 BOX_HOME=/home/sbx
 BOX_QBT_PORT="${OMASEED_BOX_QBT_PORT:-8090}"
-BOX_BT_PORT=26990
+# BOX_BT_PORT and BOX_BT2_PORT, each box's own, are set from its name once that is known.
 # The manual box's second qBittorrent, "private" (the first is "public").
 BOX_QBT2_PORT="${OMASEED_BOX_QBT2_PORT:-8091}"
-BOX_BT2_PORT=26991
 BOX_QBT2_PROFILE=$BOX_HOME/.local/share/qbittorrent-private
 # The swarm torrents "private" starts with (small ones: they download for real in the box).
 PRIVATE_TORRENTS=("tiny-notes.txt" "Ünïcødé ✓ Spaces & Symbols" "Field Recordings Vol. 3 [FLAC]"
@@ -459,6 +458,14 @@ while [ $# -gt 0 ]; do
     esac
     shift
 done
+
+# The BitTorrent ports of the box's qBittorrents ("public", and the manual box's "private"),
+# from the box's name. From the host every box is 127.0.0.1, so two boxes on the same port are
+# one peer to the swarm's tracker, and the second one up never gets a peer (#22). 27100-27899:
+# clear of the swarm's 26996-26999.
+bt_slot=$(($(printf %s "$BOX" | cksum | cut -d' ' -f1) % 400))
+BOX_BT_PORT=$((27100 + 2 * bt_slot))
+BOX_BT2_PORT=$((BOX_BT_PORT + 1))
 
 case "$cmd" in
 up)
