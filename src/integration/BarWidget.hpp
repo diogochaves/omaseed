@@ -11,10 +11,16 @@
 // Out: `omarchy plugin disable chaves.omaseed`, then the link goes.
 //
 // Nothing here runs unasked: enabling a widget changes the user's shell.json, their bar.
+//
+// The state follows changes made elsewhere (`omaseed --install-bar-widget` from a terminal,
+// `omarchy plugin disable`, the shell's own menu): the plugins folder, ~/.config/omarchy and
+// shell.json are watched, so a view showing the switch never shows a stale one (#21).
 
+#include <QFileSystemWatcher>
 #include <QObject>
 #include <QString>
 #include <QStringList>
+#include <QTimer>
 
 #include <functional>
 
@@ -80,6 +86,9 @@ private:
     bool readState();
     void finish(bool ok, const QString &message);
     QString source() const;
+    /// Watches what exists of the plugins folder, ~/.config/omarchy (shell.json is replaced,
+    /// not written in place, and the folders may come later) and shell.json itself.
+    void watch();
 
     QString m_devSourceDir;
     QString m_omarchy;
@@ -93,6 +102,10 @@ private:
     bool m_busy = false;
     bool m_lastOk = false;
     QString m_message;
+
+    QFileSystemWatcher m_watcher;
+    /// A change touches several paths at once (link, then shell.json): one refresh for all.
+    QTimer m_settle;
 };
 
 } // namespace omaseed::integration

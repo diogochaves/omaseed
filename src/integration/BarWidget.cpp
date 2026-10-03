@@ -2,6 +2,8 @@
 
 #include "integration/BarWidgetInstaller.hpp"
 
+#include <QDir>
+#include <QFileInfo>
 #include <QProcess>
 #include <QProcessEnvironment>
 #include <QStandardPaths>
@@ -20,6 +22,48 @@ BarWidget::BarWidget(const QString &devSourceDir, QObject *parent)
     m_omarchyShell =
         env.value(QStringLiteral("OMASEED_OMARCHY_SHELL"), QStringLiteral("omarchy-shell"));
     readState();
+
+    m_settle.setSingleShot(true);
+    m_settle.setInterval(100);
+    connect(&m_settle, &QTimer::timeout, this, [this]() {
+        watch();
+        refresh();
+    });
+    connect(
+        &m_watcher, &QFileSystemWatcher::directoryChanged, &m_settle, qOverload<>(&QTimer::start));
+    connect(&m_watcher, &QFileSystemWatcher::fileChanged, &m_settle, qOverload<>(&QTimer::start));
+    watch();
+}
+
+void BarWidget::watch()
+{
+    const QString plugins = QFileInfo(Installer::targetDir()).absolutePath();
+    const QString shellJson = Installer::shellConfigPath();
+    const QString omarchy = QFileInfo(shellJson).absolutePath();
+    QStringList wanted;
+    for (const QString &path : {plugins, omarchy, shellJson}) {
+        if (QFileInfo::exists(path))
+            wanted.append(path);
+    }
+    // No ~/.config/omarchy yet: its parent, to see it come.
+    if (!wanted.contains(omarchy))
+        wanted.append(QFileInfo(omarchy).absolutePath());
+
+    const QStringList current = m_watcher.files() + m_watcher.directories();
+    QStringList gone;
+    for (const QString &path : current) {
+        if (!wanted.contains(path))
+            gone.append(path);
+    }
+    if (!gone.isEmpty())
+        m_watcher.removePaths(gone);
+    QStringList fresh;
+    for (const QString &path : wanted) {
+        if (!current.contains(path) && QFileInfo::exists(path))
+            fresh.append(path);
+    }
+    if (!fresh.isEmpty())
+        m_watcher.addPaths(fresh);
 }
 
 void BarWidget::setDevSourceDir(const QString &dir)

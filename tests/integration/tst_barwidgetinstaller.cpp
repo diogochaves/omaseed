@@ -83,6 +83,7 @@ private Q_SLOTS:
     void installLinksRescansAndEnables();
     void installStopsWhenTheShellNeverKnowsIt();
     void unavailableWithoutOmarchyOrAWidget();
+    void followsChangesMadeElsewhere();
 
 private:
     std::unique_ptr<QTemporaryDir> m_tmp;
@@ -349,4 +350,37 @@ void TestBarWidgetInstaller::unavailableWithoutOmarchyOrAWidget()
 }
 
 QTEST_GUILESS_MAIN(TestBarWidgetInstaller)
+/// #21: `omaseed --install-bar-widget` from a terminal, or `omarchy plugin disable`, while
+/// Settings shows the switch: the state follows without a refresh() from the view. The
+/// folders do not exist yet when the widget starts, as on a desktop that never had a plugin.
+void TestBarWidgetInstaller::followsChangesMadeElsewhere()
+{
+    const QString source = makePlugin(path(QStringLiteral("usr-share")), "1");
+    QDir().mkpath(path(QStringLiteral("config")));
+    BarWidget widget;
+    QVERIFY(!widget.installed());
+    QVERIFY(!widget.inBar());
+
+    // Elsewhere: linked, then enabled (the shell rewrites shell.json).
+    QVERIFY(Installer::link(source, Installer::targetDir()).ok);
+    QTRY_VERIFY_WITH_TIMEOUT(widget.installed(), 5000);
+    writeFile(Installer::shellConfigPath(),
+              R"({"bar": {"layout": {"right": [{"id": "chaves.omaseed"}]}}})");
+    QTRY_VERIFY_WITH_TIMEOUT(widget.inBar(), 5000);
+
+    // Disabled elsewhere, written the way the shell does: a new file renamed over the old one.
+    const QString next = Installer::shellConfigPath() + QStringLiteral(".new");
+    writeFile(next, R"({"bar": {"layout": {"right": [{"id": "omarchy.audio"}]}}})");
+    QVERIFY(QFile::remove(Installer::shellConfigPath()));
+    QVERIFY(QFile::rename(next, Installer::shellConfigPath()));
+    QTRY_VERIFY_WITH_TIMEOUT(!widget.inBar(), 5000);
+    // And it keeps watching the new file.
+    writeFile(Installer::shellConfigPath(),
+              R"({"bar": {"layout": {"right": [{"id": "chaves.omaseed"}]}}})");
+    QTRY_VERIFY_WITH_TIMEOUT(widget.inBar(), 5000);
+
+    QVERIFY(Installer::unlink(Installer::targetDir()).ok);
+    QTRY_VERIFY_WITH_TIMEOUT(!widget.installed(), 5000);
+}
+
 #include "tst_barwidgetinstaller.moc"
