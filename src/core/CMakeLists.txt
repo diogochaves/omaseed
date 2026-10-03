@@ -49,6 +49,8 @@ qt_add_library(omaseed-core STATIC
     ServerPreferences.hpp
     ServerStore.cpp
     ServerStore.hpp
+    SeedLedger.cpp
+    SeedLedger.hpp
     StateFile.cpp
     StateFile.hpp
     StatusDigest.cpp
@@ -91,6 +93,6 @@ target_include_directories(omaseed-core
 )
 
 target_link_libraries(omaseed-core
-    PUBLIC Qt6::Core Qt6::Network
+    PUBLIC Qt6::Core Qt6::Network Qt6::Sql
     PRIVATE omaseed::warnings Qt6Keychain::Qt6Keychain
 )
