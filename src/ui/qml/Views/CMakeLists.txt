@@ -17,6 +17,11 @@ qt_add_qml_module(omaseed-views
         CertificateTrust.qml
         ChipSelect.qml
         ColumnsPalette.qml
+        Console.qml
+        ConsoleHead.qml
+        ConsoleRow.qml
+        ConsoleTotal.qml
+        ConsoleTrackers.qml
         DeleteConfirm.qml
         DemoDetails.qml
         DemoOverlays.qml

@@ -121,7 +121,8 @@ TestCase {
                                            "copy value · change option"]);
 
         const view = Keymap.helpRows("view");
-        compare(view.map(row => row.helpKeys), ["i", "1–4", "s", "|", "alt+↑ alt+↓", "ctrl+b", "I",
+        // #24 puts the seed console's ` first.
+        compare(view.map(row => row.helpKeys), ["`", "i", "1–4", "s", "|", "alt+↑ alt+↓", "ctrl+b", "I",
                                                 "< >", "H L", "X"]);
 
         const application = Keymap.helpRows("app");

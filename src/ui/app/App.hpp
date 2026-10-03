@@ -29,6 +29,8 @@
 #include "core/GlobalState.hpp"
 #include "core/QbtClient.hpp"
 #include "core/SecretStore.hpp"
+#include "core/SeedConsole.hpp"
+#include "core/SeedLedger.hpp"
 #include "core/Server.hpp"
 #include "core/ServerDetector.hpp"
 #include "core/ServerListModel.hpp"
@@ -54,6 +56,8 @@
 #include <QTemporaryDir>
 #include <QTimer>
 #include <QVariantList>
+
+#include <memory>
 #include <QVariantMap>
 
 #include <functional>
@@ -1187,6 +1191,25 @@ private:
     omaseed::integration::BarWidget *m_barWidget =
         new omaseed::integration::BarWidget(QString(), this);
     // --- end #17 --------------------------------------------------------------------------------
+
+    // --- #24: the seed console (docs/22) -------------------------------------------------------
+    // The ledger keeps what the server gave and took over time (one file per server); the
+    // console works out every block of the seed console from it and the library.
+public:
+    Q_PROPERTY(omaseed::core::SeedConsole *console READ console CONSTANT)
+    omaseed::core::SeedConsole *console() const { return m_console; }
+    omaseed::core::SeedLedger *ledger() const { return m_ledger.get(); }
+
+private:
+    /// Opens the ledger of the server the engine is about to poll (memory only in demo mode).
+    void openLedger();
+    /// One poll into the ledger: the server's totals, every torrent's, this second's speeds.
+    void feedLedger();
+    std::unique_ptr<omaseed::core::SeedLedger> m_ledger = std::make_unique<omaseed::core::SeedLedger>();
+    omaseed::core::SeedConsole *m_console = new omaseed::core::SeedConsole(this);
+    QString m_ledgerKey;
+    bool m_ledgerDemoDone = false;
+    // --- end #24 --------------------------------------------------------------------------------
 };
 
 } // namespace omaseed::app

@@ -151,6 +151,14 @@ App::App(QObject *parent)
         m_serverLost = false;
         updateTray();
     });
+
+    // #24: every poll goes into the ledger; the console reads it and the library.
+    m_console->setSources(m_engine->torrents(),
+                          m_filtered,
+                          m_engine->trackers(),
+                          m_engine->globalState(),
+                          m_ledger.get());
+    connect(m_engine, &SyncEngine::synced, this, &App::feedLedger);
 }
 
 App::~App()
@@ -158,6 +166,7 @@ App::~App()
     if (s_defaultInstance == this)
         s_defaultInstance = nullptr;
     m_engine->stop();
+    m_ledger->close();
 }
 
 void App::setDefaultInstance(App *instance)
@@ -386,6 +395,7 @@ void App::startEngine()
 {
     if (m_demoMode || !m_hasServer)
         return;
+    openLedger();
     m_engine->start();
 }
 
@@ -3531,6 +3541,10 @@ void App::attachStatusWriter(omaseed::integration::StatusWriter *writer)
     writer->setLibraryCheck(
         [this](const QString &v1, const QString &v2) { return !findDuplicate(v1, v2).isEmpty(); });
     writer->setDownloadsFolder(downloadsFolder());
+    m_console->setRecentProvider([this]() {
+        return m_statusWriter ? m_statusWriter->snapshot().value(QStringLiteral("recent")).toArray().toVariantList()
+                              : QVariantList();
+    });
     connect(this, &App::downloadsFolderChanged, writer, [this]() {
         if (m_statusWriter)
             m_statusWriter->setDownloadsFolder(downloadsFolder());
@@ -3569,5 +3583,45 @@ void App::updateStatusServer()
 }
 
 // --- end #12 ---------------------------------------------------------------------------------
+
+// --- #24: the seed console ---------------------------------------------------------------------
+
+void App::openLedger()
+{
+    const QString key = serverId().isEmpty() ? hostPort(m_server.url) : serverId();
+    if (key == m_ledgerKey && m_ledger->isOpen())
+        return;
+    m_ledgerKey = key;
+    m_ledgerDemoDone = false;
+    m_ledger->open(SeedLedger::defaultPath(key));
+}
+
+void App::feedLedger()
+{
+    if (!m_hasServer && !m_demoMode)
+        return;
+    const TorrentModel *torrents = m_engine->torrents();
+    const GlobalState *state = m_engine->globalState();
+    const qint64 now = QDateTime::currentSecsSinceEpoch();
+    QList<SeedLedger::TorrentTotals> totals;
+    totals.reserve(torrents->count());
+    QStringList hashes;
+    for (int i = 0; i < torrents->count(); ++i) {
+        const Torrent &t = torrents->torrentAt(i);
+        totals.append({t.hash, t.uploaded, t.downloaded});
+        hashes.append(t.hash);
+    }
+    m_ledger->observe(now, state->allTimeUpload(), state->allTimeDownload(), totals);
+    m_ledger->sampleSpeed(now, state->upInfoSpeed(), state->dlInfoSpeed());
+    // Dev only: a made-up year before today, to judge the console as it will look a year in.
+    if (!m_ledgerDemoDone && (m_demoMode || !env("OMASEED_LEDGER_DEMO").isEmpty())
+        && !hashes.isEmpty()) {
+        m_ledgerDemoDone = true;
+        m_ledger->fillDemo(now, hashes);
+        m_console->refresh();
+    }
+}
+
+// --- end #24 ---------------------------------------------------------------------------------
 
 } // namespace omaseed::app

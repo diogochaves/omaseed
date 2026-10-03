@@ -59,6 +59,8 @@ QtObject {
             return "rail";
         if (root.focusArea === "details")
             return "details";
+        if (root.focusArea === "console")
+            return "console";
         return "table";
     }
 
@@ -87,6 +89,9 @@ QtObject {
                         "rail", "z"), root._hint("rail", "l")];
         case "details":
             return root._detailsHints();
+        case "console": // #24, docs/22's footer
+            return [root._hint("global", "`", qsTr("library")), root._hint("console", "[ ]"),
+                    root._hint("console", "j k"), root._hint("console", "esc"), root._hint("global", "/")];
         default:
             return root._tableHints();
         }
