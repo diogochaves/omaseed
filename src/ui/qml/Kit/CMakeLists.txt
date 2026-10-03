@@ -13,6 +13,7 @@ qt_add_qml_module(omaseed-kit
     SOURCES
         ThemeForeign.hpp
     QML_FILES
+        AreaChart.qml
         Banner.qml
         Button.qml
         Chip.qml
@@ -25,6 +26,7 @@ qt_add_qml_module(omaseed-kit
         Glyph.qml
         Glyphs.qml
         Hairline.qml
+        Hatch.qml
         Hero.qml
         Icon.qml
         IconButton.qml
