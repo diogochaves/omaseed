@@ -252,6 +252,11 @@ omaseed_add_test(tst_seedledger
     LIBRARIES omaseed::core Qt6::Sql
 )
 
+omaseed_add_test(tst_seedconsole
+    SOURCES tst_seedconsole.cpp
+    LIBRARIES omaseed::core
+)
+
 omaseed_add_test(tst_statusdigest
     SOURCES tst_statusdigest.cpp
     LIBRARIES omaseed::core
