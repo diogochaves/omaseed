@@ -65,6 +65,7 @@ class SeedConsole : public QObject
 
     /// The last 60 s of upload, oldest first, and today's total: the hero (T2), always.
     Q_PROPERTY(QVariantList heroSpark READ heroSpark NOTIFY heroChanged)
+    Q_PROPERTY(QVariantList heroDownSpark READ heroDownSpark NOTIFY heroChanged)
     Q_PROPERTY(QString todayText READ todayText NOTIFY heroChanged)
 
 public:
@@ -107,6 +108,7 @@ public:
     QVariantMap onAir() const { return m_onAir; }
     QVariantList lately() const { return m_lately; }
     QVariantList heroSpark() const { return m_heroSpark; }
+    QVariantList heroDownSpark() const { return m_heroDownSpark; }
     QString todayText() const { return m_todayText; }
 
     /// Scope the console to these torrents (a selection); an empty list goes back to the rail.
@@ -166,6 +168,7 @@ private:
         m_holding, m_onAir;
     QVariantList m_lately;
     QVariantList m_heroSpark;
+    QVariantList m_heroDownSpark;
     QString m_todayText;
     int m_heroTick = 0;
 

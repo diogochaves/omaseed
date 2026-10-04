@@ -518,6 +518,17 @@ QList<qint64> SeedLedger::recentUpload(qint64 now, int count) const
     return out;
 }
 
+QList<qint64> SeedLedger::recentDownload(qint64 now, int count) const
+{
+    QList<qint64> out(count, 0);
+    for (const Speed &s : m_speeds) {
+        const qint64 i = count - 1 - (now - s.t);
+        if (i >= 0 && i < count)
+            out[i] = s.down;
+    }
+    return out;
+}
+
 QList<SeedLedger::Day> SeedLedger::days(const QDate &from, const QDate &to) const
 {
     QList<Day> out;

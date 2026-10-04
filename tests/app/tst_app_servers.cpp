@@ -302,8 +302,9 @@ void TestAppServers::appearanceOverridesReachTheTheme()
     QCOMPARE(app.speedsAlignment(), QStringLiteral("left"));
     app.setSpeedsAlignment(QStringLiteral("right"));
 
-    // #24 T2: the faint upload trend behind the ↑ number is off until asked for.
+    // #24 T2: the faint trends behind the ↓ and ↑ numbers are off until asked for.
     QCOMPARE(app.uploadTrend(), false);
+    QCOMPARE(app.downloadTrend(), false);
     app.setUploadTrend(true);
 
     // docs/08 §5: the rail's three looks and its hidden flag; unknown values read as the
@@ -337,6 +338,7 @@ void TestAppServers::appearanceOverridesReachTheTheme()
     QCOMPARE(reopened.trayIconMode(), QStringLiteral("never"));
     QCOMPARE(reopened.speedsAlignment(), QStringLiteral("right"));
     QCOMPARE(reopened.uploadTrend(), true);
+    QCOMPARE(reopened.downloadTrend(), false);
     QCOMPARE(reopened.railScrollHint(), QStringLiteral("fade"));
     QCOMPARE(reopened.surfaceTint(), 8);
     QCOMPARE(reopened.trackerHostStyle(), QStringLiteral("left"));

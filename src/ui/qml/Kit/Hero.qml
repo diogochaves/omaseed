@@ -219,6 +219,8 @@ Item {
     property string speedsAlignment: "left"
     /// #24 T2: the last 60 s of upload, drawn faintly behind the ↑ number; empty draws nothing.
     property var upSpark: []
+    /// The same for download, behind the ↓ number.
+    property var downSpark: []
     /// #24 T2: what the ↑ caption adds after "upload", e.g. "18.4 GB today".
     property string upNote: ""
     /// #24: the window's two faces, `[{key, label, hint}]`, drawn as tabs after the speeds
@@ -419,20 +421,43 @@ Item {
             objectName: "speedsSpacerLeft"
         }
 
-        Stat {
+        // T2: each trend sits under its number, a hairline at low alpha. A wrapper, so the
+        // line is not one of the Stat column's own rows. `downStat` is the wrapper (tests read
+        // its place and its value).
+        Item {
             id: downStat
+
+            readonly property string value: downInner.value
 
             Layout.alignment: Qt.AlignVCenter
             Layout.leftMargin: Theme.space(6)
-            glyph: Glyphs.arrowDown
-            glyphColor: Theme.stateDownloading
-            label: root.level >= 2 ? "" : qsTr("download")
-            value: root.level >= 4 ? root.downSpeedShort : root.downSpeed
+            implicitHeight: downInner.implicitHeight
+            implicitWidth: downInner.implicitWidth
             visible: !(root.level >= 3 && root.searchOpen)
+
+            Sparkline {
+                color: Theme.stateDownloading
+                fillAlpha: 0.08
+                // Behind the number only: the caption under it stays clean.
+                height: Theme.space(20)
+                lineAlpha: 0.55
+                values: root.downSpark
+                visible: root.downSpark.length > 1
+                width: downStat.width + Theme.space(12)
+                x: -Theme.space(4)
+                y: Theme.space(1)
+            }
+
+            Stat {
+                id: downInner
+
+                glyph: Glyphs.arrowDown
+                glyphColor: Theme.stateDownloading
+                label: root.level >= 2 ? "" : qsTr("download")
+                value: root.level >= 4 ? root.downSpeedShort : root.downSpeed
+            }
         }
 
-        // T2: the trend sits under the ↑ number, a hairline at low alpha. A wrapper, so the
-        // line is not one of the Stat column's own rows.
         Item {
             id: upBox
 

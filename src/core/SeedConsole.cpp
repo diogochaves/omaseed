@@ -909,6 +909,11 @@ void SeedConsole::refreshHero()
     for (qint64 v : recent)
         spark.append(double(v));
     m_heroSpark = spark;
+    QVariantList downSpark;
+    downSpark.reserve(spark.size());
+    for (qint64 v : m_ledger->recentDownload(t.toSecsSinceEpoch(), 60))
+        downSpark.append(double(v));
+    m_heroDownSpark = downSpark;
     if (m_todayText.isEmpty() || ++m_heroTick % 15 == 0) {
         const auto days = m_ledger->days(t.date(), t.date());
         const qint64 today = days.isEmpty() ? 0 : std::max<qint64>(0, days.first().up);

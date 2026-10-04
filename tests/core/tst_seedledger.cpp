@@ -171,10 +171,11 @@ private Q_SLOTS:
         SeedLedger ledger;
         const qint64 t = noon();
         for (int i = 0; i < 90; ++i)
-            ledger.sampleSpeed(t + i, 1000, 0);
+            ledger.sampleSpeed(t + i, 1000, 300);
         const auto recent = ledger.recentUpload(t + 89, 60);
         QCOMPARE(recent.size(), 60);
         QCOMPARE(recent.last(), 1000);
+        QCOMPARE(ledger.recentDownload(t + 89, 60).last(), 300);
         const auto half = ledger.series(t + 89, 30, 4);
         QVERIFY(half.last().known);
         QCOMPARE(half.last().up, 1000.0);

@@ -572,13 +572,17 @@ TestCase {
         verify(App.speedsAlignment !== speeds);
         compare(App.speedsAlignment, speeds === "left" ? "right" : "left");
 
-        // ...and the seventh turns the hero's upload trend on and off (#24 T2), off at first.
+        // ...and the seventh steps the hero's speed trends (#24 T2): off at first, then both,
+        // download, upload, off again.
+        compare(App.downloadTrend, false);
         compare(App.uploadTrend, false);
         modal.paneCursor = 6;
-        modal.activateRow();
-        compare(App.uploadTrend, true);
-        modal.activateRow();
-        compare(App.uploadTrend, false);
+        const trends = [[true, true], [true, false], [false, true], [false, false]];
+        for (const [down, up] of trends) {
+            modal.activateRow();
+            compare(App.downloadTrend, down);
+            compare(App.uploadTrend, up);
+        }
 
         // ...and the next three cycle the rail's looks (docs/08 §5).
         const hint = App.railScrollHint;

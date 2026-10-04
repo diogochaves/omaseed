@@ -125,7 +125,7 @@ Item {
             return 4; // three toggles, then the low-disk threshold field
         case 4:
             // theme, base size, transparency, tray icon, the bar widget (#17), speed alignment,
-            // the upload trend (#24 T2), then the rail's scroll hint, surface tint and tracker
+            // the speed trends (#24 T2), then the rail's scroll hint, surface tint and tracker
             // hosts (docs/08 §5), then where Details sits (docs/10)
             return 11;
         case 5:
@@ -363,7 +363,7 @@ Item {
             else if (root.paneCursor === 5)
                 App.speedsAlignment = App.speedsAlignment === "left" ? "right" : "left";
             else if (root.paneCursor === 6)
-                App.uploadTrend = !App.uploadTrend;
+                root.cycleTrends();
             else if (root.paneCursor === 7)
                 App.railScrollHint = root._next(root.scrollHints, App.railScrollHint);
             else if (root.paneCursor === 8)
@@ -388,6 +388,23 @@ Item {
     // docs/10 §5: where Details sits.
     readonly property var placements: [["auto", qsTr("auto")], ["right", qsTr("right")], ["bottom",
                                                                                           qsTr("bottom")]]
+
+    /// #24 T2: enter on Speed trends steps off → both → download → upload → off.
+    function cycleTrends(): void {
+        const down = App.downloadTrend;
+        const up = App.uploadTrend;
+        if (!down && !up) {
+            App.downloadTrend = true;
+            App.uploadTrend = true;
+        } else if (down && up) {
+            App.uploadTrend = false;
+        } else if (down) {
+            App.downloadTrend = false;
+            App.uploadTrend = true;
+        } else {
+            App.uploadTrend = false;
+        }
+    }
 
     /// The value after `current` in `options` (`[[value, text]]`), wrapping round.
     function _next(options: var, current: var): var {
@@ -1703,22 +1720,35 @@ Item {
 
                             SettingsRow {
                                 Layout.fillWidth: true
-                                description: qsTr("the last minute of upload, drawn faintly behind the upload figure.")
+                                description: qsTr("the last minute of each speed, drawn faintly behind its figure. Each chip turns one on or off.")
                                 glyph: Glyphs.arrowUp
                                 hasCursor: root.area === "pane" && root.paneCursor === 6
-                                title: qsTr("Upload trend")
+                                title: qsTr("Speed trends")
 
                                 onClicked: {
                                     root.paneCursor = 6;
                                     root.area = "pane";
-                                    App.uploadTrend = !App.uploadTrend;
+                                    root.cycleTrends();
                                 }
 
-                                Toggle {
-                                    checked: App.uploadTrend
-                                    objectName: "uploadTrendToggle"
+                                RowLayout {
+                                    spacing: Theme.space(6)
 
-                                    onToggled: App.uploadTrend = checked
+                                    Chip {
+                                        objectName: "downloadTrendChip"
+                                        selected: App.downloadTrend
+                                        text: qsTr("download")
+
+                                        onClicked: App.downloadTrend = !App.downloadTrend
+                                    }
+
+                                    Chip {
+                                        objectName: "uploadTrendChip"
+                                        selected: App.uploadTrend
+                                        text: qsTr("upload")
+
+                                        onClicked: App.uploadTrend = !App.uploadTrend
+                                    }
                                 }
                             }
 

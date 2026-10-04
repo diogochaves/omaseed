@@ -107,6 +107,8 @@ public:
     QList<Point> series(qint64 now, qint64 bucketSeconds, int count) const;
     /// The last `count` speed samples, oldest first, 0 where none was taken (the hero's 60 s).
     QList<qint64> recentUpload(qint64 now, int count) const;
+    /// The same for download.
+    QList<qint64> recentDownload(qint64 now, int count) const;
     /// Every day from `from` to `to`, inclusive.
     QList<Day> days(const QDate &from, const QDate &to) const;
     /// Bytes given by each torrent from `from` to `to`, inclusive.
