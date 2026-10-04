@@ -25,6 +25,8 @@ qt_add_library(omaseed-core STATIC
     GlobalState.cpp
     GlobalState.hpp
     HomeGuard.hpp
+    LibraryMatch.cpp
+    LibraryMatch.hpp
     MagnetLink.cpp
     MagnetLink.hpp
     OmaseedBackup.cpp

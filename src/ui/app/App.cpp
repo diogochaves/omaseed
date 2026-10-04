@@ -2,6 +2,7 @@
 
 #include "core/CertificatePin.hpp"
 #include "core/Format.hpp"
+#include "core/LibraryMatch.hpp"
 #include "core/MagnetLink.hpp"
 #include "core/PathMap.hpp"
 #include "core/PeerInput.hpp"
@@ -1526,7 +1527,13 @@ void App::parseTorrentInBackground(const QString &token,
                 if (parsed.isValid())
                     self->rememberTorrentFile(
                         token,
-                        PendingTorrentFile{fileName, bytes, parsed.files, parsed.torrentId()});
+                        PendingTorrentFile{fileName,
+                                           bytes,
+                                           parsed.files,
+                                           parsed.torrentId(),
+                                           parsed.name,
+                                           parsed.multiFile,
+                                           parsed.pieceLength});
                 Q_EMIT self->addableParsed(map);
             },
             Qt::QueuedConnection);
@@ -2218,6 +2225,113 @@ void App::mergeTrackers(const QString &hash, const QStringList &urls)
                 m_details->refreshNow();
             Q_EMIT trackersMerged(hash, int(urls.size()));
         });
+}
+
+namespace {
+
+/// Two library torrents already sharing one folder are one copy, not two: keep one match per
+/// folder, the one that needs no layout change when there is a choice.
+QVariantList oneCopyEach(const QVariantList &matches)
+{
+    QVariantList kept;
+    QHash<QString, qsizetype> byFolder;
+    for (const QVariant &value : matches) {
+        const QVariantMap match = value.toMap();
+        const QString folder = match.value(QStringLiteral("contentPath")).toString();
+        const auto seen = byFolder.constFind(folder);
+        if (seen == byFolder.constEnd()) {
+            byFolder.insert(folder, kept.size());
+            kept.append(match);
+        } else if (match.value(QStringLiteral("layout")) == QStringLiteral("Original") &&
+                   kept.at(*seen).toMap().value(QStringLiteral("layout")) !=
+                       QStringLiteral("Original")) {
+            kept[*seen] = match;
+        }
+    }
+    return kept;
+}
+
+} // namespace
+
+void App::findFilesMatch(const QString &token)
+{
+    const auto pending = m_pendingTorrentFiles.constFind(token);
+    if (pending == m_pendingTorrentFiles.constEnd() || pending->files.isEmpty() || m_demoMode ||
+        !m_hasServer) {
+        Q_EMIT filesMatchFound(token, {});
+        return;
+    }
+    qint64 total = 0;
+    for (const TorrentFileEntry &file : pending->files)
+        total += file.size;
+
+    // Step 1 (docs/25 §3): complete torrents of the same total size, still where they were.
+    // The server's `total_size` counts BEP-47 pad files, which a hybrid or v2 torrent puts
+    // between its files (at most a piece each), and the file list leaves out: allow for them.
+    const qint64 padding =
+        qint64(pending->files.size()) * std::max<qint64>(pending->pieceLength, 0);
+    TorrentModel *model = m_engine->torrents();
+    QStringList candidates;
+    for (int row = 0; row < model->count(); ++row) {
+        const QString hash = model->data(model->index(row), TorrentModel::HashRole).toString();
+        const Torrent &torrent = model->torrent(hash);
+        if (hash == pending->torrentId || torrent.totalSize < total ||
+            torrent.totalSize > total + padding || torrent.progress < 1.0 ||
+            torrent.state == TorrentState::MissingFiles || torrent.state == TorrentState::Error ||
+            torrent.state == TorrentState::Moving)
+            continue;
+        candidates.append(hash);
+    }
+    if (candidates.isEmpty()) {
+        Q_EMIT filesMatchFound(token, {});
+        return;
+    }
+
+    // Step 2: each candidate's files, as the server has them on disk.
+    struct Search
+    {
+        int waiting = 0;
+        QVariantList seeding;
+        QVariantList others;
+    };
+    auto search = std::make_shared<Search>();
+    search->waiting = int(candidates.size());
+    const QString name = pending->name;
+    const bool multiFile = pending->multiFile;
+    const QList<TorrentFileEntry> files = pending->files;
+    for (const QString &hash : candidates) {
+        m_client->torrentsFiles(hash)->then(this, [=, this](const QbtResult<QJsonArray> &result) {
+            if (!result.isError() && m_engine->torrents()->indexOfHash(hash) >= 0) {
+                const Torrent &torrent = m_engine->torrents()->torrent(hash);
+                LibraryMatch::Candidate candidate{torrent.savePath, torrent.contentPath, {}};
+                for (const QJsonValue &value : result.value()) {
+                    const QJsonObject file = value.toObject();
+                    candidate.files.append({file.value(QStringLiteral("name")).toString(),
+                                            file.value(QStringLiteral("size")).toInteger()});
+                }
+                const LibraryMatch::Result found =
+                    LibraryMatch::match(name, multiFile, files, candidate);
+                if (found.exact) {
+                    const bool seeding = !isStoppedState(torrent.state);
+                    const QVariantMap match{
+                        {QStringLiteral("hash"), hash},
+                        {QStringLiteral("name"), torrent.name},
+                        {QStringLiteral("tracker"), QUrl(torrent.tracker).host()},
+                        {QStringLiteral("stateText"), torrent.stateText()},
+                        {QStringLiteral("ratioText"), Format::ratio(torrent.ratio)},
+                        {QStringLiteral("seeding"), seeding},
+                        {QStringLiteral("savePath"), found.savePath},
+                        {QStringLiteral("layout"), found.layout},
+                        {QStringLiteral("fileCount"), int(files.size())},
+                        {QStringLiteral("contentPath"), torrent.contentPath},
+                    };
+                    (seeding ? search->seeding : search->others).append(match);
+                }
+            }
+            if (--search->waiting == 0)
+                Q_EMIT filesMatchFound(token, oneCopyEach(search->seeding + search->others));
+        });
+    }
 }
 
 void App::addWebSeeds(const QString &hash, const QStringList &urls)

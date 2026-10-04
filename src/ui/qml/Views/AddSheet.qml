@@ -73,6 +73,7 @@ Sheet {
     readonly property alias sequentialToggle: sequentialToggle
     readonly property alias skipCheckToggle: skipCheckToggle
     readonly property alias freeLine: freeLine
+    readonly property alias matchLine: matchLine
 
     /// The names in `App.categories` / `App.tags`, as plain string lists for the chip rows.
     /// Both models notify on `count` alone, so it is read first to make this re-evaluate
@@ -121,7 +122,19 @@ Sheet {
     }
 
     /// The hint line: the tree's own keys while it has the keyboard (Keymap "addFiles").
-    readonly property var _formHints: [
+    readonly property var _formHints: sheet.filesMatches.length > 0 && !sheet.savedThere
+                                      ? sheet._baseFormHints.concat([{
+                                                                         "key": "alt+s",
+                                                                         "label": qsTr("save there")
+                                                                     }])
+                                      : sheet._baseFormHints
+    /// The keys every field of the form hands to the sheet instead of typing them.
+    readonly property var _fieldShortcuts: sheet.filesMatches.length > 0 && !sheet.savedThere
+                                           ? [{
+                                                  "key": Qt.Key_S,
+                                                  "modifiers": Qt.AltModifier
+                                              }] : []
+    readonly property var _baseFormHints: [
         {
             "key": "tab",
             "label": qsTr("fields")
@@ -239,6 +252,14 @@ Sheet {
     }
 
     property bool _programmatic: false
+    /// docs/25 §3 (#27): the library torrents holding this `.torrent`'s files
+    /// (`App.filesMatchFound`), the copy picked, and whether `save there` was pressed, with
+    /// what Save to, its automatic management and the layout were before it (for `undo`).
+    property var filesMatches: []
+    property int matchIndex: 0
+    property bool savedThere: false
+    property var _beforeSaveThere: null
+    property string _matchToken: ""
     /// The field's length before its last change, and whether that change was a keystroke
     /// (a paste, a drop or a hand-off arrives whole): see `_checkDuplicate`.
     property int _typedLength: 0
@@ -490,6 +511,11 @@ Sheet {
                 sheet._awaitingPick = false;
                 sheet.extraCategories = [];
                 sheet.extraTags = [];
+                sheet.filesMatches = [];
+                sheet.matchIndex = 0;
+                sheet.savedThere = false;
+                sheet._beforeSaveThere = null;
+                sheet._matchToken = "";
                 categoryChips.current = "";
                 categoryChips.cursorIndex = 0;
                 tagChips.selected = [];
@@ -534,6 +560,71 @@ Sheet {
                         sheet.dismiss();
                     }
                     return true;
+                }
+
+                /// docs/25 §3: ask the library for this `.torrent`'s files, once per parse.
+                function _findMatches() {
+                    const addable = sheet.addable;
+                    const token = addable && addable.valid === true && addable.kind === "file"
+                            && addable.pending !== true ? addable.token : "";
+                    if (token.length > 0 && sheet._matchToken === token)
+                        return;
+                    sheet._matchToken = token;
+                    sheet.filesMatches = [];
+                    sheet.matchIndex = 0;
+                    if (sheet.savedThere)
+                        sheet.undoSaveThere();
+                    if (token.length > 0)
+                        App.findFilesMatch(token);
+                }
+
+                /// `save there` (X2): Save to and the layout put the files where the match's are,
+                /// automatic management off as a typed path turns it; a category picked later
+                /// leaves Save to alone. Hash checking stays as it is (D5 a).
+                function saveThere(index) {
+                    const match = sheet.filesMatches[index];
+                    if (!match)
+                        return;
+                    if (!sheet.savedThere)
+                        sheet._beforeSaveThere = {
+                            "path": savePathField.text,
+                            "autoTMM": sheet.autoTMM,
+                            "edited": sheet._savePathEdited,
+                            "layout": layoutChips.current
+                        };
+                    sheet._programmatic = true;
+                    savePathField.text = match.savePath;
+                    sheet._programmatic = false;
+                    sheet.autoTMM = false;
+                    sheet._savePathEdited = true;
+                    layoutChips.current = sheet._layoutOptions[Math.max(0, sheet._layoutValues.indexOf(match.layout))];
+                    sheet.matchIndex = index;
+                    sheet.savedThere = true;
+                }
+
+                /// `alt+s` from a field or the sheet. True when it was taken.
+                function _onShortcut(key, modifiers) {
+                    if (key === Qt.Key_S && (modifiers & Qt.AltModifier)
+                            && sheet.filesMatches.length > 0 && !sheet.savedThere) {
+                        sheet.saveThere(sheet.matchIndex);
+                        return true;
+                    }
+                    return false;
+                }
+
+                /// `undo` (X2): Save to, its management and the layout as they were.
+                function undoSaveThere() {
+                    const before = sheet._beforeSaveThere;
+                    sheet.savedThere = false;
+                    sheet._beforeSaveThere = null;
+                    if (!before)
+                        return;
+                    sheet._programmatic = true;
+                    savePathField.text = before.path;
+                    sheet._programmatic = false;
+                    sheet.autoTMM = before.autoTMM;
+                    sheet._savePathEdited = before.edited;
+                    layoutChips.current = before.layout;
                 }
 
                 /// Keep the picker on the parse in the field: load a `.torrent`'s files once it
@@ -602,8 +693,16 @@ Sheet {
                 onAddableChanged: {
                     sheet._syncFiles();
                     // Typed text is checked on `add` instead (`submit`).
-                    if (sheet.opened && !sheet._typing)
-                        sheet._checkDuplicate();
+                    if (sheet.opened && !sheet._typing && sheet._checkDuplicate())
+                        return;
+                    sheet._findMatches();
+                }
+                // docs/25 §3: `alt+s` is `save there` while a files match is offered. A field
+                // would type the "s", so the fields hand it on (`_fieldShortcuts`); anything
+                // else lets it reach the sheet.
+                keyHandler: event => {
+                    if (sheet._onShortcut(event.key, event.modifiers))
+                        event.accepted = true;
                 }
                 // Each opening looks at Downloads again: the browser may have saved one since.
                 onOpenedChanged: {
@@ -622,6 +721,14 @@ Sheet {
                     function onAddFinished(ok: bool, message: string, hash: string): void {
                     if (sheet.opened)
                     sheet.finish(ok, message);
+                }
+
+                    // docs/25 §3: the files match for the `.torrent` in the field.
+                    function onFilesMatchFound(token: string, matches: var): void {
+                    if (!sheet.addable || sheet.addable.token !== token)
+                    return;
+                    sheet.filesMatches = matches;
+                    sheet.matchIndex = 0;
                 }
 
                     // The second half of a `.torrent` parse, and the whole answer of the file picker.
@@ -659,12 +766,14 @@ Sheet {
 
                             Layout.fillWidth: true
                             placeholder: qsTr("magnet:?xt=urn:btih:…")
+                            shortcuts: sheet._fieldShortcuts
                             // Manual box M6: a button to click, not only a key to know.
                             trailing: qsTr("browse")
                             trailingClickable: true
                             trailingKey: "ctrl+o"
 
                             onAccepted: sheet.triggerPrimary()
+                            onShortcutPressed: (key, modifiers) => sheet._onShortcut(key, modifiers)
                             onTrailingClicked: sheet.browse()
                             onTextChanged: {
                                 // More than one character at once is a paste; one at a time is
@@ -689,6 +798,20 @@ Sheet {
                                 }
                             }
                         }
+                    }
+
+                    // docs/25 §3 (#27): these files are already on disk under another torrent.
+                    AddMatchLine {
+                        id: matchLine
+
+                        Layout.fillWidth: true
+                        index: sheet.matchIndex
+                        matches: sheet.filesMatches
+                        saved: sheet.savedThere
+
+                        onIndexChanged: sheet.matchIndex = matchLine.index
+                        onSaveRequested: index => sheet.saveThere(index)
+                        onUndoRequested: sheet.undoSaveThere()
                     }
 
                     // In Downloads (manual box M7): the newest `.torrent` files there, while the
@@ -730,8 +853,10 @@ Sheet {
                             Layout.fillWidth: true
                             placeholder: sheet.addable && sheet.addable.name.length > 0
                                          ? sheet.addable.name : qsTr("the torrent's own name")
+                            shortcuts: sheet._fieldShortcuts
 
                             onAccepted: sheet.triggerPrimary()
+                            onShortcutPressed: (key, modifiers) => sheet._onShortcut(key, modifiers)
                         }
                     }
 
@@ -785,17 +910,22 @@ Sheet {
 
                             Layout.fillWidth: true
                             placeholder: qsTr("the server's default")
-                            trailing: sheet.autoTMM && savePathField.text.length > 0 ? qsTr(
+                            shortcuts: sheet._fieldShortcuts
+                            trailing: sheet.savedThere ? qsTr("from the files match")
+                                      : sheet.autoTMM && savePathField.text.length > 0 ? qsTr(
                                                                                            "from category") :
                                                                                        ""
 
                             onAccepted: sheet.triggerPrimary()
+                            onShortcutPressed: (key, modifiers) => sheet._onShortcut(key, modifiers)
                             onTextChanged: {
                                 if (sheet._programmatic)
                                     return;
                                 // Typing a path of your own is what turns automatic torrent management off.
                                 sheet._savePathEdited = true;
                                 sheet.autoTMM = false;
+                                // … and a path of your own is no longer the files match's.
+                                sheet.savedThere = false;
                             }
                         }
 
@@ -808,6 +938,7 @@ Sheet {
                             savePath: savePathField.text
                             totalBytes: sheet.addable && sheet.addable.totalSize !== undefined
                                         ? sheet.addable.totalSize : -1
+                            alreadyThere: sheet.savedThere
                             visible: sheet.addable !== null && sheet.addable.valid === true
                         }
                     }
@@ -855,9 +986,11 @@ Sheet {
                                     Layout.fillWidth: true
                                     implicitWidth: Theme.space(80)
                                     placeholder: qsTr("∞")
+                                    shortcuts: sheet._fieldShortcuts
                                     trailing: qsTr("KB/s")
 
                                     onAccepted: sheet.triggerPrimary()
+                                    onShortcutPressed: (key, modifiers) => sheet._onShortcut(key, modifiers)
                                 }
                             }
 
@@ -873,9 +1006,11 @@ Sheet {
                                     Layout.fillWidth: true
                                     implicitWidth: Theme.space(80)
                                     placeholder: qsTr("∞")
+                                    shortcuts: sheet._fieldShortcuts
                                     trailing: qsTr("KB/s")
 
                                     onAccepted: sheet.triggerPrimary()
+                                    onShortcutPressed: (key, modifiers) => sheet._onShortcut(key, modifiers)
                                 }
                             }
                         }

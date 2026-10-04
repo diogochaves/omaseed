@@ -49,6 +49,9 @@ public:
     qint64 creationDate = 0;
 
     bool isPrivate = false;
+    /// The files sit in a folder named `name` (a multi-file torrent), rather than the torrent
+    /// being one file called `name`.
+    bool multiFile = false;
     qint64 pieceLength = 0;
     qint64 pieceCount = 0;
 

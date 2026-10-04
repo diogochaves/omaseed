@@ -12,6 +12,7 @@ qt_add_qml_module(omaseed-views
         AddDownloadsList.qml
         AddFilesTree.qml
         AddFreeLine.qml
+        AddMatchLine.qml
         AddSheet.qml
         BanPeerConfirm.qml
         CategoryPalette.qml

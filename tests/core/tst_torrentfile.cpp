@@ -106,6 +106,7 @@ void TestTorrentFile::singleFileNameIsUsedAsItsPath()
     QCOMPARE(torrent.files.size(), 1);
     QCOMPARE(torrent.files.first().path, QStringLiteral("Single.bin"));
     QCOMPARE(torrent.files.first().size, torrent.totalSize);
+    QVERIFY(!torrent.multiFile);
 }
 
 void TestTorrentFile::multiFileUnicodePathsJoinWithSlash()
@@ -122,6 +123,7 @@ void TestTorrentFile::multiFileUnicodePathsJoinWithSlash()
     QVERIFY(paths.contains(QStringLiteral("café/notes.txt")));
     QVERIFY(paths.contains(QStringLiteral("日本語/sub フォルダ/ファイル.bin")));
     QVERIFY(paths.contains(QStringLiteral("root.txt")));
+    QVERIFY(torrent.multiFile);
 }
 
 void TestTorrentFile::magnetLinkIncludesHashNameAndTrackers()
@@ -217,6 +219,7 @@ void TestTorrentFile::torrentIdOfAHybridIsItsTruncatedV2Hash()
     QCOMPARE(hybrid.infoHashV2.size(), 64);
     QVERIFY(hybrid.infoHashV1 != hybrid.infoHashV2.left(40));
     QCOMPARE(hybrid.torrentId(), hybrid.infoHashV2.left(40));
+    QVERIFY(!hybrid.multiFile);
     QVERIFY(hybrid.magnetLink().contains(QStringLiteral("urn:btih:") + hybrid.infoHashV1));
 
     // The rule itself, as App uses it for magnets: trimmed, lower-cased, v2 wins.

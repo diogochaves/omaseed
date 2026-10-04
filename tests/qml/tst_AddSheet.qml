@@ -1201,4 +1201,96 @@ TestCase {
         line.totalBytes = 4000;
         compare(line.needsText, "needs " + App.sizeText(1000) + " of " + App.sizeText(4000));
     }
+
+    // ---- Files already on disk (docs/25 §3, #27) ------------------------------------------
+
+    /// What `App.filesMatchFound` would answer (the demo has no server to ask).
+    function fakeMatch(savePath, layout, seeding) {
+        return {
+            "hash": "0123456789abcdef0123456789abcdef01234567",
+            "name": "Blender Open Movies",
+            "tracker": "tracker.a.example",
+            "stateText": seeding ? "seeding" : "stopped",
+            "ratioText": "2.10",
+            "seeding": seeding,
+            "savePath": savePath,
+            "layout": layout,
+            "fileCount": 8
+        };
+    }
+
+    function test_a_files_match_offers_to_save_there() {
+        const sheet = testCase.openTorrent(addSheetComponent);
+        compare(sheet.matchLine.visible, false);
+        sheet.filesMatches = [testCase.fakeMatch("/media/films", "Original", true)];
+
+        compare(sheet.matchLine.visible, true);
+        compare(sheet.matchLine.headText,
+                "<b>These files are already on disk.</b> Same 8 files and sizes as <b>Blender Open Movies</b>, seeding from tracker.a.example.");
+        compare(sheet.matchLine.subText, "/media/films · nothing to download if it's saved there");
+        compare(sheet.hints[sheet.hints.length - 1].key, "alt+s");
+    }
+
+    function test_save_there_and_undo() {
+        const sheet = testCase.openTorrent(addSheetComponent);
+        sheet.filesMatches = [testCase.fakeMatch("/media/films/Blender", "NoSubfolder", true)];
+
+        const typed = sheet.sourceField.text;
+        keyClick(Qt.Key_S, Qt.AltModifier); // the keyboard is in the source field
+        compare(sheet.sourceField.text, typed, "the field does not type the s");
+        compare(sheet.savedThere, true);
+        compare(sheet.savePathField.text, "/media/films/Blender");
+        compare(sheet.savePathField.trailing, "from the files match");
+        compare(sheet.autoTMM, false);
+        compare(sheet.layoutValue(), "NoSubfolder");
+        compare(sheet.skipCheckToggle.checked, false, "D5 a: the hash check stays on");
+        compare(sheet.freeLine.level, "good");
+        compare(sheet.freeLine.needsText, "needs nothing new");
+        verify(sheet.matchLine.headText.indexOf("<b>Saving beside Blender Open Movies.</b>") === 0);
+
+        const request = sheet.request(false);
+        compare(request.savePath, "/media/films/Blender");
+        compare(request.autoTMM, false);
+        compare(request.contentLayout, "NoSubfolder");
+
+        // A category chosen afterwards keeps Save to where the files are.
+        sheet.categoryChips.current = sheet.categoryNames[0];
+        compare(sheet.savePathField.text, "/media/films/Blender");
+
+        sheet.undoSaveThere();
+        compare(sheet.savedThere, false);
+        compare(sheet.savePathField.text, "");
+        compare(sheet.autoTMM, true);
+        compare(sheet.layoutValue(), "Original");
+    }
+
+    function test_typing_a_path_leaves_the_match() {
+        const sheet = testCase.openTorrent(addSheetComponent);
+        sheet.filesMatches = [testCase.fakeMatch("/media/films", "Original", true)];
+        sheet.saveThere(0);
+        sheet.savePathField.text = "/media/films2";
+        compare(sheet.savedThere, false);
+        compare(sheet.freeLine.alreadyThere, false);
+        compare(sheet.matchLine.visible, true, "the offer is back");
+    }
+
+    function test_two_copies_pick_one() {
+        const sheet = testCase.openTorrent(addSheetComponent);
+        sheet.filesMatches = [testCase.fakeMatch("/media/films", "Original", true),
+                              testCase.fakeMatch("/backup/films", "Original", false)];
+        compare(sheet.matchLine.headText,
+                "<b>These files are already on disk, 2 times.</b> Pick the copy to share:");
+        sheet.matchLine.button.forceActiveFocus();
+        keyClick(Qt.Key_J);
+        compare(sheet.matchIndex, 1);
+        keyClick(Qt.Key_Return);
+        compare(sheet.savePathField.text, "/backup/films");
+    }
+
+    function test_a_magnet_asks_for_no_match() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        sheet.openWith(testCase.freshMagnet, "clipboard");
+        compare(sheet._matchToken, "");
+        compare(sheet.matchLine.visible, false);
+    }
 }

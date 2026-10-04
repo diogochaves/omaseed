@@ -98,6 +98,7 @@ TorrentFile TorrentFile::parse(const QByteArray &data, QString *errorMessage)
 
     const Value filesValue = infoValue.value("files");
     if (filesValue.isList()) {
+        result.multiFile = true;
         for (const Value &entry : filesValue.toList()) {
             // BEP-47 pad files ("attr" containing 'p') only align the next file to a piece
             // boundary. qBittorrent hides them and numbers the real files without them.
@@ -123,6 +124,9 @@ TorrentFile TorrentFile::parse(const QByteArray &data, QString *errorMessage)
         if (fileTree.isDict()) {
             QStringList path;
             walkFileTree(fileTree, path, result.files, result.totalSize);
+            // BEP-52 writes a single-file torrent as one leaf named like the torrent.
+            result.multiFile = !(fileTree.toDict().size() == 1 && result.files.size() == 1 &&
+                                 result.files.constFirst().path == result.name);
         }
     }
 

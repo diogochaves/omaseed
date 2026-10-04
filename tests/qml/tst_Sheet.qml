@@ -638,4 +638,29 @@ TestCase {
             signalName: "rejected"
         }
     }
+
+    // `keyHandler`: a sheet's own keys come first; what it leaves goes on to the kit's.
+    function test_the_key_handler_is_asked_first() {
+        const sheet = createTemporaryObject(keySheetComponent, testCase);
+        let taken = 0;
+        let triggered = "";
+        sheet.actionTriggered.connect(text => triggered = text);
+        sheet.keyHandler = event => {
+            if (event.key === Qt.Key_S && (event.modifiers & Qt.AltModifier)) {
+                ++taken;
+                event.accepted = true;
+            } else if (event.key === Qt.Key_Return) {
+                ++taken; // seen, but not taken: enter still runs the primary action
+            }
+        };
+        sheet.open();
+
+        keyClick(Qt.Key_S, Qt.AltModifier);
+        compare(taken, 1);
+        compare(sheet.opened, true);
+
+        keyClick(Qt.Key_Return);
+        compare(taken, 2);
+        compare(triggered, "add");
+    }
 }

@@ -144,6 +144,7 @@ RowLayout {
         color: root.tone
         elide: Text.ElideRight
         size: "caption"
-        text: root.roomText
+        // Without the meter between them, the two halves need a separator.
+        text: (root.showMeter ? "" : "· ") + root.roomText
     }
 }

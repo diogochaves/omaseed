@@ -13,6 +13,11 @@ omaseed_add_test(tst_bencode
     LIBRARIES omaseed::core
 )
 
+omaseed_add_test(tst_librarymatch
+    SOURCES tst_librarymatch.cpp
+    LIBRARIES omaseed::core
+)
+
 omaseed_add_test(tst_magnetlink
     SOURCES tst_magnetlink.cpp
     LIBRARIES omaseed::core

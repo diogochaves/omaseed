@@ -698,6 +698,12 @@ Q_SIGNALS:
                                  const QStringList &existing);
     /// `mergeTrackers` went through: `count` trackers were added to `hash`.
     void trackersMerged(const QString &hash, int count);
+    /// `findFilesMatch`' answer for `token`: one map per library torrent holding the files,
+    /// seeding ones first: `hash`, `name`, `tracker` (its host, or ""), `stateText`,
+    /// `ratioText`, `seeding`, `savePath` and `layout` (what the add should take: "Original" or
+    /// "NoSubfolder"), `fileCount`, `contentPath` (the folder on the server). Torrents that
+    /// already share one folder are answered once.
+    void filesMatchFound(const QString &token, const QVariantList &matches);
     /// `C`/`t`: T4.4's category/tag palettes answer these; this block only raises them.
     void categoryPickerRequested(const QStringList &hashes);
     void tagPickerRequested(const QStringList &hashes);
@@ -848,6 +854,12 @@ public:
     /// Fig. 10's `merge N trackers`: adds `urls` to `hash`, then `trackersMerged`.
     Q_INVOKABLE void mergeTrackers(const QString &hash, const QStringList &urls);
 
+    /// docs/25 §3 (#27): looks in the library for the files of the `.torrent` parsed under
+    /// `token`, already on disk under another (complete) torrent: same total size first, then
+    /// every file's path and size through `torrents/files` (core::LibraryMatch, exact matches
+    /// only). Answered through `filesMatchFound`; an empty list when there is none.
+    Q_INVOKABLE void findFilesMatch(const QString &token);
+
     /// Adds what the sheet holds: `parseAddable`'s map plus `category`, `tags` (list),
     /// `savePath`, `autoTMM`, `contentLayout` ("Original" | "Subfolder" | "NoSubfolder"),
     /// `upLimitKb` (KB/s, 0 or absent = unlimited), `sequentialDownload`, `skipChecking` and
@@ -932,6 +944,10 @@ private:
         /// The parsed file list, for `loadAddFiles`, and the id qBittorrent will key it by.
         QList<omaseed::core::TorrentFileEntry> files;
         QString torrentId;
+        /// For the files match (docs/25 §3): the torrent's name and whether it is a folder.
+        QString name;
+        bool multiFile = false;
+        qint64 pieceLength = 0;
     };
 
     /// Reads `path` (when `bytes` is empty) and parses the .torrent on the global thread pool

@@ -67,6 +67,9 @@ Item {
     /// scrim does nothing, and `esc` goes to the `cancel` button before it closes anything.
     /// Only `cancel` (or `esc` on it) throws the sheet away.
     property bool guarded: false
+    /// A sheet's own keys, asked before the kit's (`esc`, `enter`, `tab`): a function taking
+    /// the key event, which sets `event.accepted` for a key it took. Null asks nothing.
+    property var keyHandler: null
 
     /// The caller's rows. They are a `ColumnLayout`'s children: use `Layout.fillWidth`.
     default property alias content: bodyColumn.data
@@ -313,6 +316,11 @@ Item {
     }
 
     function _onKey(event: var): void {
+        if (root.keyHandler) {
+            root.keyHandler(event);
+            if (event.accepted)
+                return;
+        }
         if (event.key === Qt.Key_Escape) {
             // Guarded: the first `esc` only puts the keyboard on `cancel`, so one stray key
             // cannot throw the sheet's work away; `esc` (or `enter`) on it then closes.
