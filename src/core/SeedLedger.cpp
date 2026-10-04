@@ -92,6 +92,9 @@ bool SeedLedger::open(const QString &path)
     QSqlQuery q(db);
     const char *schema[] = {
         "PRAGMA journal_mode=WAL",
+        // A lost last flush costs nothing but precision (see flushInterval): no need to wait
+        // for the disk on every commit.
+        "PRAGMA synchronous=NORMAL",
         "CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value INTEGER)",
         "CREATE TABLE IF NOT EXISTS minutes(t INTEGER PRIMARY KEY, up INTEGER, down INTEGER, "
         "gap INTEGER)",

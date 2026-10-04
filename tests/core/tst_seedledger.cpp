@@ -183,6 +183,38 @@ private Q_SLOTS:
         QCOMPARE(given.value(QStringLiteral("c")), 5);
     }
 
+    // omaseed dies between two flushes: what it had not written is counted again on the next
+    // run, from the baselines of the last flush, as a gap.
+    void aCrashLosesNoBytes()
+    {
+        QTemporaryDir dir;
+        const QString path = dir.filePath(QStringLiteral("live.sqlite"));
+        const QString crashed = dir.filePath(QStringLiteral("crashed.sqlite"));
+        const qint64 t = noon();
+        SeedLedger live;
+        QVERIFY(live.open(path));
+        live.observe(t, 0, 0, totals({{"a", 0}}));
+        live.observe(t + 2, 100, 0, totals({{"a", 100}}));
+        live.flush(t + 2);
+        for (int i = 1; i <= 100; ++i)
+            live.observe(t + 2 + 2 * i, 100 + 9 * i, 0, totals({{"a", 100 + 9 * i}}));
+        // The process dies here: only what reached the file survives.
+        for (const QString &suffix : {QString(), QStringLiteral("-wal"), QStringLiteral("-shm")}) {
+            if (QFile::exists(path + suffix))
+                QVERIFY(QFile::copy(path + suffix, crashed + suffix));
+        }
+
+        SeedLedger ledger;
+        QVERIFY(ledger.open(crashed));
+        ledger.observe(t + 400, 1500, 0, totals({{"a", 1500}}));
+        QCOMPARE(ledger.days(QDate(2026, 10, 3), QDate(2026, 10, 3)).first().up, 1500);
+        QCOMPARE(ledger.torrentTotals(QDate(2026, 10, 3), QDate(2026, 10, 3)).value(QStringLiteral("a")), 1500);
+        bool gap = false;
+        for (const auto &p : ledger.series(t + 400, 60, 8))
+            gap = gap || p.gap;
+        QVERIFY(gap);
+    }
+
     // An hour of a big library at the window's poll rate: 1,000 torrents, 50 of them
     // uploading, a poll every 1.5 s. What goes to disk is what the flushes write, so the
     // bound is on bytes handed to write() over the hour.
@@ -213,7 +245,7 @@ private Q_SLOTS:
         qInfo("an hour, 1000 torrents: %lld KB written, %lld ms of work", written / 1024, ms);
         if (before < 0)
             QSKIP("no /proc/self/io here");
-        QVERIFY2(written < 6LL * 1024 * 1024, qPrintable(QString::number(written)));
+        QVERIFY2(written < 2LL * 1024 * 1024, qPrintable(QString::number(written)));
     }
 
     void survivesAReopen()

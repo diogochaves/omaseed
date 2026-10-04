@@ -25,6 +25,8 @@
 // Writes are buffered in memory and flushed in one transaction every `flushInterval` seconds
 // of ledger time (and on flush()/close()), so a poll a second costs no disk write; a flush
 // writes only the baselines that moved. Queries read the file and add what is still buffered.
+// A crash loses no bytes: the file's baselines are those of its last flush, so the next run
+// counts everything since then again, as a gap (exact in total, spread in time).
 //
 // Everything takes "now" as an argument (unix seconds) so tests can walk days in a loop.
 
@@ -67,7 +69,7 @@ public:
     };
 
     static constexpr qint64 gapSeconds = 90;
-    static constexpr qint64 flushInterval = 60;
+    static constexpr qint64 flushInterval = 300;
     static constexpr qint64 minutesKept = 48 * 3600;
     static constexpr qint64 hoursKept = 90 * 86400;
 
