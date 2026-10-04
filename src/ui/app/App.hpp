@@ -691,6 +691,13 @@ Q_SIGNALS:
     /// A server action from this block came back with an error. MainView shows it in the
     /// footer facts for a few seconds.
     void actionFailed(const QString &action, const QString &message);
+    /// `loadDuplicateTrackers`' answer: `missing` (what a merge would add) and `existing`
+    /// (the torrent's real trackers, without qBittorrent's DHT / PeX / LSD rows).
+    void duplicateTrackersLoaded(const QString &hash,
+                                 const QStringList &missing,
+                                 const QStringList &existing);
+    /// `mergeTrackers` went through: `count` trackers were added to `hash`.
+    void trackersMerged(const QString &hash, int count);
     /// `C`/`t`: T4.4's category/tag palettes answer these; this block only raises them.
     void categoryPickerRequested(const QStringList &hashes);
     void tagPickerRequested(const QStringList &hashes);
@@ -811,6 +818,8 @@ public:
     ///   name         the parsed name, or a URL's last path segment
     ///   sizeText     "2.34 GB", empty when the source does not say
     ///   totalSize    the same in bytes, absent when the source does not say
+    ///   trackers     a `.torrent`'s announce URLs, or a magnet's `tr=`, deduplicated
+    ///   isPrivate    a `.torrent` carries the private flag (always false for a magnet)
     ///   infoHashV1 / infoHashV2   lowercase hex, empty when unknown
     ///   value        what goes to the server (the magnet, the URL, the file path)
     ///   token        the key `addTorrent` uses to find a picked file's bytes again
@@ -831,6 +840,13 @@ public:
     /// fields), or an empty map. Both hashes are matched against the maindata `infohash_v1`/
     /// `infohash_v2` fields as well as the key (see `TorrentFile::torrentIdFor`).
     Q_INVOKABLE QVariantMap findDuplicate(const QString &hashV1, const QString &hashV2) const;
+
+    /// docs/25 §2 (#26): Fig. 10 asks which of the duplicate source's `urls` the torrent
+    /// `hash` lacks. Answered through `duplicateTrackersLoaded` once `torrents/trackers` has
+    /// come back (core::TrackerMerge decides what counts as the same tracker).
+    Q_INVOKABLE void loadDuplicateTrackers(const QString &hash, const QStringList &urls);
+    /// Fig. 10's `merge N trackers`: adds `urls` to `hash`, then `trackersMerged`.
+    Q_INVOKABLE void mergeTrackers(const QString &hash, const QStringList &urls);
 
     /// Adds what the sheet holds: `parseAddable`'s map plus `category`, `tags` (list),
     /// `savePath`, `autoTMM`, `contentLayout` ("Original" | "Subfolder" | "NoSubfolder"),

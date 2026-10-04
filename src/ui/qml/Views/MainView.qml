@@ -349,6 +349,14 @@ Item {
         split.toggleFold();
     }
 
+    /// Unfold the details pane when folded and show tab `index` (docs/25 D3 a: Trackers
+    /// after a merge).
+    function showDetailsTab(index: int): void {
+        if (split.folded)
+            split.toggleFold();
+        details.activateTab(index);
+    }
+
     /// A fold stops the details' polls, and gives the keyboard to the table when the pane
     /// that held it went away (a folded pane takes no keys).
     function _detailsFoldChanged(): void {
@@ -1145,6 +1153,16 @@ Item {
         /// T4.7's "show" notification action, and the duplicate sheet's `show it`.
         function onShowTorrentRequested(hash: string): void {
             root.showTorrent(hash);
+        }
+
+        /// docs/25 D3 a: Fig. 10's merge went through. The cursor goes to the torrent, its
+        /// details open on Trackers, and the footer says how many were added.
+        function onTrackersMerged(hash: string, count: int): void {
+            root.showTorrent(hash);
+            root.showDetailsTab(2);
+            const name = App.torrentRow(hash).name || "";
+            root.flashFooterNote(count === 1 ? qsTr("1 tracker added to %1").arg(name)
+                                             : qsTr("%1 trackers added to %2").arg(count).arg(name));
         }
 
         /// The jump palette's `tab` (Fig. 12's "tab actions"): jump there, then open Fig. 11
@@ -2066,7 +2084,7 @@ Item {
         z: 12
 
         onAddRequested: request => App.addTorrent(request)
-        onDuplicateFound: duplicate => duplicateSheet.openFor(duplicate)
+        onDuplicateFound: (duplicate, source) => duplicateSheet.openFor(duplicate, source)
         // The `…` chips: T4.4's palettes, asked to answer instead of to act.
         onCategoryPaletteRequested: categoryPalette.openForChoice()
         onTagPaletteRequested: tagPalette.openForChoice(addSheet.tagChips.selected)
@@ -2082,6 +2100,11 @@ Item {
         onShowRequested: hash => {
             addSheet.dismiss();
             root.showTorrent(hash);
+        }
+        // docs/25 D3 a: `trackersMerged` then moves to the torrent's Trackers tab.
+        onMergeRequested: (hash, urls) => {
+            addSheet.dismiss();
+            App.mergeTrackers(hash, urls);
         }
     }
 

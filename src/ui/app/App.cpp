@@ -9,6 +9,7 @@
 #include "core/StateFile.hpp"
 #include "core/TorrentFile.hpp"
 #include "core/TorrentFolderScan.hpp"
+#include "core/TrackerMerge.hpp"
 #include "core/Version.hpp"
 #include "integration/Autostart.hpp"
 #include "integration/Notifier.hpp"
@@ -715,6 +716,12 @@ QVariantMap App::torrentRow(const QString &hash) const
     row.insert(QStringLiteral("savePath"), torrent.savePath);
     row.insert(QStringLiteral("magnetUri"), torrent.magnetUri);
     row.insert(QStringLiteral("infohashV1"), torrent.infohashV1);
+    row.insert(QStringLiteral("isPrivate"), torrent.isPrivate);
+    // docs/25 §2: before its metadata arrives a torrent reads as public whatever it is, so
+    // Fig. 10 offers no merge until it is known.
+    row.insert(QStringLiteral("hasMetadata"), torrent.totalSize >= 0 &&
+                                                  torrent.state != TorrentState::MetaDownload &&
+                                                  torrent.state != TorrentState::ForcedMetaDownload);
     row.insert(QStringLiteral("dlLimit"), torrent.dlLimit);
     row.insert(QStringLiteral("upLimit"), torrent.upLimit);
     row.insert(QStringLiteral("ratioLimit"), torrent.ratioLimit);
@@ -1371,6 +1378,8 @@ QVariantMap App::parseAddable(const QString &textIn)
             map[QStringLiteral("sizeText")] = Format::size(link.exactLength);
             map[QStringLiteral("totalSize")] = link.exactLength;
         }
+        map[QStringLiteral("trackers")] = link.trackers;
+        map[QStringLiteral("isPrivate")] = false;
         return map;
     }
     case integration::Addable::Kind::HttpUrl:
@@ -1429,6 +1438,8 @@ QVariantMap App::torrentFileMap(const QString &token,
     map[QStringLiteral("name")] = parsed.name;
     map[QStringLiteral("sizeText")] = Format::size(parsed.totalSize);
     map[QStringLiteral("totalSize")] = parsed.totalSize;
+    map[QStringLiteral("trackers")] = parsed.trackers();
+    map[QStringLiteral("isPrivate")] = parsed.isPrivate;
     map[QStringLiteral("infoHashV1")] = parsed.infoHashV1;
     map[QStringLiteral("infoHashV2")] = parsed.infoHashV2;
     map[QStringLiteral("fileCount")] = int(parsed.files.size());
@@ -2159,6 +2170,53 @@ void App::addTrackers(const QString &hash, const QStringList &urls)
             reportActionResult(QStringLiteral("add tracker"), result);
             if (!result.isError() && m_details->hash() == hash)
                 m_details->refreshNow();
+        });
+}
+
+void App::loadDuplicateTrackers(const QString &hash, const QStringList &urls)
+{
+    if (hash.isEmpty())
+        return;
+    if (m_demoMode || !m_hasServer) {
+        // The demo library has no trackers to ask for: every URL would be new.
+        Q_EMIT duplicateTrackersLoaded(hash, TrackerMerge::missing(urls, {}), {});
+        return;
+    }
+    m_client->torrentsTrackers(hash)->then(
+        this, [this, hash, urls](const QbtResult<QJsonArray> &result) {
+            if (result.isError()) {
+                Q_EMIT actionFailed(QStringLiteral("trackers"), result.error().toString());
+                return;
+            }
+            QStringList existing;
+            for (const QJsonValue &entry : result.value()) {
+                const QString url = entry.toObject().value(QStringLiteral("url")).toString();
+                if (!TrackerMerge::key(url).isEmpty())
+                    existing.append(url);
+            }
+            Q_EMIT duplicateTrackersLoaded(hash, TrackerMerge::missing(urls, existing), existing);
+        });
+}
+
+void App::mergeTrackers(const QString &hash, const QStringList &urls)
+{
+    if (hash.isEmpty() || urls.isEmpty())
+        return;
+    if (demoGuard(QStringLiteral("merge trackers"), int(urls.size()))) {
+        Q_EMIT trackersMerged(hash, int(urls.size()));
+        return;
+    }
+    if (!m_hasServer)
+        return;
+    m_client->torrentsAddTrackers(hash, urls)
+        ->then(this, [this, hash, urls](const QbtResult<QByteArray> &result) {
+            if (result.isError()) {
+                Q_EMIT actionFailed(QStringLiteral("merge trackers"), result.error().toString());
+                return;
+            }
+            if (m_details->hash() == hash)
+                m_details->refreshNow();
+            Q_EMIT trackersMerged(hash, int(urls.size()));
         });
 }
 

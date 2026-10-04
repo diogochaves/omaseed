@@ -151,6 +151,11 @@ omaseed_add_test(tst_tagmodel
     LIBRARIES omaseed::core
 )
 
+omaseed_add_test(tst_trackermerge
+    SOURCES tst_trackermerge.cpp
+    LIBRARIES omaseed::core
+)
+
 omaseed_add_test(tst_trackermodel
     SOURCES tst_trackermodel.cpp
     LIBRARIES omaseed::core

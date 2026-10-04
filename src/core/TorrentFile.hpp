@@ -67,6 +67,9 @@ public:
     /// a hybrid), and every tracker from announce/announce-list, deduplicated in order.
     QString magnetLink() const;
 
+    /// Every tracker from announce/announce-list, deduplicated, in order.
+    QStringList trackers() const;
+
 private:
     bool m_valid = false;
     /// The info dict carries v1 "pieces" (v1-only or hybrid).

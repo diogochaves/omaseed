@@ -471,12 +471,140 @@ TestCase {
 
         const hash = testCase.knownHash();
         verify(hash.length > 0);
-        sheet.openWith("magnet:?xt=urn:btih:" + hash + "&dn=already-here", "clipboard");
-        sheet.submit(false);
+        // docs/25 D1 a: known as soon as it loads, before any `add`.
+        sheet.openWith("magnet:?xt=urn:btih:" + hash + "&dn=already-here&tr=udp%3A%2F%2Ft.example%3A1%2Fannounce",
+                       "handoff");
 
         compare(added.count, 0);
         compare(duplicate.count, 1);
         compare(duplicate.signalArguments[0][0].hash, hash);
+        compare(duplicate.signalArguments[0][1].trackers, ["udp://t.example:1/announce"]);
+        compare(duplicate.signalArguments[0][1].isPrivate, false);
+        // The form never shows for it: Fig. 10 takes its place.
+        compare(sheet.opened, false);
+    }
+
+    function test_a_queued_duplicate_gives_way_to_the_next_source() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        const duplicate = createTemporaryObject(duplicateSpy, testCase, {
+                                                    "target": sheet
+                                                });
+        const known = "magnet:?xt=urn:btih:" + testCase.knownHash() + "&dn=already-here";
+        sheet.openList([known, testCase.freshMagnet], "drop");
+
+        compare(duplicate.count, 1);
+        compare(sheet.opened, true);
+        compare(sheet.sourceField.text, testCase.freshMagnet);
+        compare(sheet.queue.length, 0);
+    }
+
+    function test_typing_a_duplicate_waits_for_add_but_a_paste_does_not() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        const duplicate = createTemporaryObject(duplicateSpy, testCase, {
+                                                    "target": sheet
+                                                });
+        const known = "magnet:?xt=urn:btih:" + testCase.knownHash() + "&dn=typed";
+        sheet.openBlank();
+        sheet.clipboardAddable = "";
+        sheet.sourceField.text = "";
+        // One key at a time: the hash completes halfway, and nothing happens yet.
+        for (let i = 1; i <= known.length; ++i)
+            sheet.sourceField.text = known.slice(0, i);
+        compare(sheet.opened, true);
+        compare(duplicate.count, 0);
+        sheet.submit(false);
+        compare(duplicate.count, 1);
+        compare(sheet.opened, false);
+
+        // A paste arrives whole.
+        sheet.openBlank();
+        sheet.sourceField.text = known;
+        compare(duplicate.count, 2);
+        compare(sheet.opened, false);
+    }
+
+    function test_a_duplicate_left_on_the_clipboard_is_not_offered() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        const duplicate = createTemporaryObject(duplicateSpy, testCase, {
+                                                    "target": sheet
+                                                });
+        sheet.clipboardAddable = "magnet:?xt=urn:btih:" + testCase.knownHash() + "&dn=old";
+        sheet.openBlank();
+
+        compare(sheet.opened, true);
+        compare(sheet.sourceField.text, "");
+        compare(duplicate.count, 0);
+    }
+
+    function test_the_duplicate_sheet_offers_to_merge_new_trackers() {
+        const sheet = createTemporaryObject(duplicateSheetComponent, testCase);
+        const hash = testCase.knownHash();
+        const row = App.torrentRow(hash);
+        verify(row.isPrivate !== true, "the demo library is public");
+        const urls = ["udp://tracker.opentrackr.example:1337/announce",
+                      "udp://open.demonii.example:1337/announce"];
+
+        sheet.openFor(row, {
+                          "trackers": urls,
+                          "isPrivate": false
+                      });
+        // The demo answers at once: the torrent has none of them.
+        compare(sheet.missingTrackers, urls);
+        compare(sheet.canMerge, true);
+        compare(sheet._mergeText, "merge 2 trackers");
+        compare(sheet.mergeHeadText, "This source lists 2 trackers it doesn't have.");
+        compare(sheet.bodyText.indexOf("qBittorrent rejects duplicates."), -1);
+
+        let merged = null;
+        sheet.mergeRequested.connect((h, list) => merged = {
+                                         "hash": h,
+                                         "urls": list
+                                     });
+        tryVerify(() => sheet.primaryButton() && sheet.primaryButton().activeFocus, 2000,
+                  "the keyboard is on merge");
+        keyClick(Qt.Key_Return); // D2 a: merge is the primary action
+        compare(sheet.opened, false);
+        compare(merged.hash, hash);
+        compare(merged.urls, urls);
+    }
+
+    function test_a_duplicate_without_metadata_is_not_merged_yet() {
+        const sheet = createTemporaryObject(duplicateSheetComponent, testCase);
+        // A magnet still fetching its metadata: qBittorrent reports it public either way.
+        sheet.openFor({
+                          "hash": "0123456789abcdef0123456789abcdef01234567",
+                          "name": "tiny-notes.txt",
+                          "stateText": "metadata",
+                          "addedOnText": "added today 12:00",
+                          "isPrivate": false,
+                          "hasMetadata": false
+                      }, {
+                          "trackers": ["udp://other.example:1/announce"],
+                          "isPrivate": false
+                      });
+        compare(sheet.metadataPending, true);
+        compare(sheet.canMerge, false);
+        compare(sheet.missingTrackers.length, 0, "the server is not even asked");
+        verify(sheet.privateText.indexOf("metadata hasn't arrived") >= 0);
+        sheet.close();
+    }
+
+    function test_a_private_duplicate_is_never_merged() {
+        const sheet = createTemporaryObject(duplicateSheetComponent, testCase);
+        const hash = testCase.knownHash();
+        sheet.openFor(App.torrentRow(hash), {
+                          "trackers": ["udp://other.example:1/announce"],
+                          "isPrivate": true
+                      });
+        compare(sheet.isPrivate, true);
+        compare(sheet.canMerge, false);
+        compare(sheet.missingTrackers.length, 0, "the server is not even asked");
+        compare(sheet.actions.length, 2);
+
+        let shown = "";
+        sheet.showRequested.connect(h => shown = h);
+        keyClick(Qt.Key_Return); // `show it` stays the primary action
+        compare(shown, hash);
     }
 
     function test_the_duplicate_sheet_draws_the_row_and_shows_it() {

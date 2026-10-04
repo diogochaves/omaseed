@@ -196,8 +196,9 @@ Sheet {
 
     /// `add` / `add stopped`: the map `App.addTorrent` takes.
     signal addRequested(var request)
-    /// This infohash is already on the server: `row` is `App.torrentRow`'s map. Fig. 10.
-    signal duplicateFound(var row)
+    /// This infohash is already on the server: `row` is `App.torrentRow`'s map, `source`
+    /// the parse's `trackers` and `isPrivate` (docs/25 §2, the merge). Fig. 10.
+    signal duplicateFound(var row, var source)
     /// The `…` chips: the host opens T4.4's palette in its `openForChoice` mode and hands the
     /// answer back through `applyChosenCategory` / `applyChosenTags`.
     signal categoryPaletteRequested
@@ -238,6 +239,10 @@ Sheet {
     }
 
     property bool _programmatic: false
+    /// The field's length before its last change, and whether that change was a keystroke
+    /// (a paste, a drop or a hand-off arrives whole): see `_checkDuplicate`.
+    property int _typedLength: 0
+    property bool _typing: false
     property string _pendingToken: ""
     property bool _awaitingPick: false
     property bool _savePathEdited: false
@@ -266,9 +271,12 @@ Sheet {
     // Only something that really parses goes in: the clipboard usually holds prose, and the
     // sheet must not paste that over the field.
     const parsed = prefill.length > 0 ? App.parseAddable(prefill) : null;
-    if (parsed && (parsed.valid || parsed.pending))
+    // docs/25 D1 a turns a duplicate into Fig. 10 at once; a magnet left on the clipboard
+    // from an earlier add must not do that to every `a`, so it is simply not offered.
+    if (parsed && (parsed.valid || parsed.pending) && (demo.length > 0 || !sheet._duplicateOf(parsed)))
     sheet.loadText(prefill, demo.length > 0 && parsed.kind === "file" ? "file" : "clipboard");
     sheet.open();
+    sheet._checkDuplicate(); // only a demo prefill can still be one: Fig. 10 on `--demo`
 }
 
     /// One source, from a known place ("drop", "handoff", …).
@@ -298,6 +306,7 @@ Sheet {
     sheet.loadText(list[0], from);
     sheet.open();
     sheet.queue = list.slice(1);
+    sheet._checkDuplicate();
 }
 
     /// A row of "in Downloads" (manual box M7): that `.torrent`, as if picked with `ctrl+o`.
@@ -319,6 +328,7 @@ Sheet {
     sheet._programmatic = true;
     sourceField.text = text;
     sheet._programmatic = false;
+    sheet._typing = false;
     sheet.source = from;
     sheet.parseField();
 }
@@ -427,11 +437,8 @@ Sheet {
             sheet.errorText = qsTr("a speed limit is not a number");
             return;
         }
-        const duplicate = App.findDuplicate(sheet.addable.infoHashV1, sheet.addable.infoHashV2);
-        if (duplicate && duplicate.hash) {
-            sheet.duplicateFound(duplicate);
+        if (sheet._checkDuplicate())
             return;
-        }
             sheet.errorText = "";
             sheet.addRequested(sheet.request(stopped));
         }
@@ -494,6 +501,40 @@ Sheet {
                 firstLastToggle.checked = false;
                 filesTree.cursorIndex = 0;
             }
+
+                /// The library row a parse's infohash already occupies, or null.
+                function _duplicateOf(addable) {
+                    if (!addable || addable.valid !== true || addable.pending === true)
+                        return null;
+                    const duplicate = App.findDuplicate(addable.infoHashV1, addable.infoHashV2);
+                    return duplicate && duplicate.hash ? duplicate : null;
+                }
+
+                /// docs/25 D1 a: a duplicate turns into Fig. 10 as soon as it is known, instead of
+                /// a form to fill for nothing. The sheet moves on to the next queued source, or
+                /// closes. True when it was one.
+                function _checkDuplicate() {
+                    const addable = sheet.addable;
+                    const duplicate = sheet._duplicateOf(addable);
+                    if (!duplicate)
+                        return false;
+                    sheet.duplicateFound(duplicate, {
+                                             "trackers": addable.trackers || [],
+                                             "isPrivate": addable.isPrivate === true
+                                         });
+                    if (sheet.queue.length > 0) {
+                        const next = sheet.queue[0];
+                        sheet.queue = sheet.queue.slice(1);
+                        sheet._programmatic = true;
+                        renameField.text = "";
+                        sheet._programmatic = false;
+                        sheet.errorText = "";
+                        sheet.loadText(next, sheet.source);
+                    } else {
+                        sheet.dismiss();
+                    }
+                    return true;
+                }
 
                 /// Keep the picker on the parse in the field: load a `.torrent`'s files once it
                 /// is read, empty it for anything else.
@@ -558,7 +599,12 @@ Sheet {
                 }
                 title: qsTr("Add torrent")
 
-                onAddableChanged: sheet._syncFiles()
+                onAddableChanged: {
+                    sheet._syncFiles();
+                    // Typed text is checked on `add` instead (`submit`).
+                    if (sheet.opened && !sheet._typing)
+                        sheet._checkDuplicate();
+                }
                 // Each opening looks at Downloads again: the browser may have saved one since.
                 onOpenedChanged: {
                     if (sheet.opened)
@@ -621,10 +667,16 @@ Sheet {
                             onAccepted: sheet.triggerPrimary()
                             onTrailingClicked: sheet.browse()
                             onTextChanged: {
+                                // More than one character at once is a paste; one at a time is
+                                // typing, which must not turn into Fig. 10 halfway through a
+                                // hash (docs/25 D1 a applies to what arrives whole).
+                                const grew = sourceField.text.length - sheet._typedLength;
+                                sheet._typedLength = sourceField.text.length;
                                 if (sheet._programmatic)
                                     return;
                                 sheet.source = "";
                                 sheet.errorText = "";
+                                sheet._typing = grew <= 1;
                                 sheet.parseField();
                             }
                             // `ctrl+o` has to be taken inside the field: a TextInput with the caret swallows

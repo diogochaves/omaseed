@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # omaseed — the hand-off walkthrough: a magnet link or a .torrent file opened with xdg-open,
 # as a browser or a file manager does, lands in omaseed's add sheet, pre-filled, whether the
-# app is closed, hidden in the tray, or already has that torrent.
+# app is closed, hidden in the tray, or already has that torrent (and, for a public one, merges
+# the trackers the link brings).
 #
 #   scripts/dev/magnet-walk.sh [OUT_DIR]        # agents: a headless box, a screenshot per step,
 #                                               # OUT_DIR/index.md says what to look for in each
@@ -42,6 +43,12 @@ esac
 [ -x build/omaseed ] || { echo "build first: cmake --build build" >&2; exit 1; }
 
 TINY="tiny-notes.txt"
+# Public, so a duplicate of it may merge trackers (step 4). Added stopped if the playground
+# lacks it, and taken off again; otherwise only the two trackers the walk adds come off.
+PUBLIC="Public Domain Sampler"
+MERGE_A="udp://tracker.opentrackr.example:1337/announce"
+MERGE_B="udp://open.demonii.example:1337/announce"
+ADDED_PUBLIC=0
 
 # field NAME KEY: KEY of the playground's torrent whose name contains NAME ("" if none).
 field() {
@@ -138,6 +145,16 @@ one_process() { [ "$(omabox run -b "$BOX" -- pgrep -xc omaseed 2>/dev/null || ec
 open_in_box() { omabox run -b "$BOX" -d -- xdg-open "$1" >/dev/null; }
 
 one_copy() { [ "$(copies "$TINY")" = 1 ]; }
+one_public() { [ "$(copies "$PUBLIC")" = 1 ]; }
+
+# has_trackers HASH URL…: every URL is among HASH's trackers on the playground.
+has_trackers() {
+    local hash="$1"; shift
+    curl -fs "$PLAY/torrents/trackers?hash=$hash" | python3 -c '
+import json, sys
+have = {t["url"] for t in json.load(sys.stdin)}
+sys.exit(0 if all(u in have for u in sys.argv[1:]) else 1)' "$@"
+}
 
 keys() { omabox keys -b "$BOX" "$@" >/dev/null; }
 
@@ -182,6 +199,13 @@ cleanup() {
         curl -fs -X POST "$PLAY/torrents/setLocation" -d "hashes=$hash" \
             --data-urlencode "location=$DOWNLOADS/swarm" >/dev/null 2>&1 || true
     fi
+    if [ "$ADDED_PUBLIC" = 1 ]; then
+        take_off "$PUBLIC" 2>/dev/null || true
+    else
+        hash="$(field "$PUBLIC" hash 2>/dev/null || true)"
+        [ -z "$hash" ] || curl -fs -X POST "$PLAY/torrents/removeTrackers" -d "hash=$hash" \
+            --data-urlencode "urls=$MERGE_A|$MERGE_B" >/dev/null 2>&1 || true
+    fi
     "$SWARM" seed >/dev/null 2>&1 || true
     [ "$INTERACTIVE" = 1 ] || omabox down -b "$BOX" >/dev/null 2>&1 || true
 }
@@ -198,6 +222,14 @@ MAGNET="$(field "$TINY" magnet_uri)"
 [ -n "$MAGNET" ] || { echo "the playground has no $TINY: run scripts/dev/swarm.sh seed" >&2; exit 1; }
 take_off "$TINY"
 take_off "Spaces & Symbols"
+if [ "$(copies "$PUBLIC")" = 0 ]; then
+    PUBLIC_FILE="$(find "$TORRENTS" -name "$PUBLIC.torrent" -print -quit 2>/dev/null || true)"
+    [ -f "$PUBLIC_FILE" ] || { echo "no $PUBLIC.torrent under $TORRENTS: run scripts/dev/swarm.sh seed" >&2; exit 1; }
+    curl -fs -X POST "$PLAY/torrents/add" -F "torrents=@$PUBLIC_FILE" -F stopped=true \
+        -F "savepath=$DOWNLOADS/walk" >/dev/null
+    ADDED_PUBLIC=1
+    on_playground "$PUBLIC" || { echo "the playground did not take $PUBLIC" >&2; exit 1; }
+fi
 mkdir -p "$DOWNLOADS"
 
 echo "starting the box"
@@ -267,16 +299,29 @@ hold_others "Spaces & Symbols" || true
 check "and it downloaded" finished "Spaces & Symbols"
 release_others || true
 
-# 3. Already there: the same magnet again finds the torrent instead of adding a second one.
+# 3. Already there: the same magnet again finds the torrent instead of adding a second one,
+# as soon as it arrives (docs/25 D1 a). It is still fetching its metadata, so whether it is
+# private is not known yet, and nothing is merged.
 sleep 2
 open_in_box "$MAGNET"
 sleep 3
-keys Return
-sleep 2
-step "Magnet it already has" "The duplicate sheet instead of an add: tiny-notes.txt is already on this server, with \"show it\"."
+step "Magnet it already has" "The duplicate sheet straight away, no add form behind it: tiny-notes.txt is already on this server; a dim line says its metadata hasn't arrived, so its trackers stay as they are; \"close\" and \"show it\", no merge."
 check "no second copy on the playground" one_copy
 check "still one omaseed process" one_process
 keys Escape
+
+# 4. A public duplicate with trackers the torrent lacks (docs/25 §2, #26): merge them.
+sleep 1
+PUBLIC_HASH="$(field "$PUBLIC" hash)"
+MERGE_MAGNET="magnet:?xt=urn:btih:$PUBLIC_HASH&dn=Public%20Domain%20Sampler&tr=$(printf %s "$MERGE_A" | python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.stdin.read(), safe=""))')&tr=$(printf %s "$MERGE_B" | python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.stdin.read(), safe=""))')"
+open_in_box "$MERGE_MAGNET"
+sleep 3
+step "Public duplicate with new trackers" "The duplicate sheet for Public Domain Sampler: \"This source lists 2 trackers it doesn't have\", two green \"+ new\" hosts, the one it has dimmed, and \"merge 2 trackers\" highlighted."
+keys Return
+sleep 2
+check "merge added both trackers on the playground" has_trackers "$PUBLIC_HASH" "$MERGE_A" "$MERGE_B"
+check "and no second copy" one_public
+step "Trackers merged" "Public Domain Sampler under the cursor, its details on the Trackers tab with the two new trackers \"not contacted\", and the footer saying \"2 trackers added to Public Domain Sampler\"."
 
 if [ "$INTERACTIVE" = 0 ]; then
     printf '\n## Checks\n\n%s' "$CHECKS" >>"$OUT/index.md"

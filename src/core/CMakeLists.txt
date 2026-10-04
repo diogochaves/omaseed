@@ -89,6 +89,8 @@ qt_add_library(omaseed-core STATIC
     TorrentTrackersModel.hpp
     TorrentWebSeedsModel.cpp
     TorrentWebSeedsModel.hpp
+    TrackerMerge.cpp
+    TrackerMerge.hpp
     TrackerModel.cpp
     TrackerModel.hpp
     Version.cpp

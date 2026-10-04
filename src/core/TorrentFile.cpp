@@ -176,24 +176,29 @@ QString TorrentFile::magnetLink() const
     if (!name.isEmpty())
         link += QStringLiteral("&dn=") + QString::fromUtf8(QUrl::toPercentEncoding(name));
 
+    for (const QString &url : trackers())
+        link += QStringLiteral("&tr=") + QString::fromUtf8(QUrl::toPercentEncoding(url));
+
+    return link;
+}
+
+QStringList TorrentFile::trackers() const
+{
     QSet<QString> seen;
-    QStringList trackers;
+    QStringList list;
     if (!announce.isEmpty()) {
-        trackers.append(announce);
+        list.append(announce);
         seen.insert(announce);
     }
     for (const QStringList &tier : announceList) {
         for (const QString &url : tier) {
             if (!seen.contains(url)) {
                 seen.insert(url);
-                trackers.append(url);
+                list.append(url);
             }
         }
     }
-    for (const QString &url : trackers)
-        link += QStringLiteral("&tr=") + QString::fromUtf8(QUrl::toPercentEncoding(url));
-
-    return link;
+    return list;
 }
 
 } // namespace omaseed::core
