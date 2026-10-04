@@ -3653,7 +3653,8 @@ void App::feedLedger()
     QStringList hashes;
     for (int i = 0; i < torrents->count(); ++i) {
         const Torrent &t = torrents->torrentAt(i);
-        totals.append({t.hash, t.uploaded, t.downloaded});
+        totals.append({t.hash, t.uploaded, t.downloaded,
+                       t.addedOn.isValid() ? t.addedOn.toSecsSinceEpoch() : 0});
         hashes.append(t.hash);
     }
     m_ledger->observe(now, state->allTimeUpload(), state->allTimeDownload(), totals);

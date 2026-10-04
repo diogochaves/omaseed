@@ -176,14 +176,18 @@ private Q_SLOTS:
             ledger.observe(t, 0, 0, totals({{"a", 10}, {"b", 20}, {"c", 30}}));
             ledger.flush(t);
             ledger.observe(t + 2, 5, 0, totals({{"a", 15}, {"c", 30}})); // b removed, a moved
+            // b stays away past the day a missing torrent is kept.
+            ledger.observe(t + 2 + SeedLedger::missingKept, 5, 0, totals({{"a", 15}, {"c", 30}}));
             ledger.close();
         }
         SeedLedger ledger;
         QVERIFY(ledger.open(path));
         // a counts from 15, c from 30; b is a stranger again and only takes a baseline.
-        ledger.observe(t + 4, 30, 0, totals({{"a", 25}, {"b", 50}, {"c", 35}}));
-        const auto given = ledger.torrentTotals(QDate(2026, 10, 3), QDate(2026, 10, 3));
-        QCOMPARE(given.value(QStringLiteral("a")), 15);
+        const qint64 later = t + 4 + SeedLedger::missingKept;
+        ledger.observe(later, 30, 0, totals({{"a", 25}, {"b", 50}, {"c", 35}}));
+        const QDate day = QDateTime::fromSecsSinceEpoch(later).date();
+        const auto given = ledger.torrentTotals(day, day);
+        QCOMPARE(given.value(QStringLiteral("a")), 10);
         QCOMPARE(given.value(QStringLiteral("b")), 0);
         QCOMPARE(given.value(QStringLiteral("c")), 5);
     }
@@ -322,6 +326,41 @@ private Q_SLOTS:
         SeedLedger reader;
         QVERIFY(reader.open(path));
         QVERIFY(reader.days(QDate(2026, 10, 3), QDate(2026, 10, 3)).first().up >= 130);
+    }
+
+    // Removed and added again while omaseed was closed: everything the new copy gave is new,
+    // whether it is below or above what the old copy had given.
+    void aTorrentAddedAgainWhileAwayCountsWhatItGave()
+    {
+        QTemporaryDir dir;
+        const QString path = dir.filePath(QStringLiteral("x.sqlite"));
+        const qint64 t = noon();
+        {
+            SeedLedger ledger;
+            QVERIFY(ledger.open(path));
+            ledger.observe(t, 0, 0, {{QStringLiteral("a"), 1000, 0, t - 86400}, {QStringLiteral("b"), 1000, 0, t - 86400}});
+            ledger.observe(t + 2, 0, 0, {{QStringLiteral("a"), 1000, 0, t - 86400}, {QStringLiteral("b"), 1000, 0, t - 86400}});
+            ledger.close();
+        }
+        SeedLedger ledger;
+        QVERIFY(ledger.open(path));
+        // Both were added again at t + 600: a has given 300 since, b 1500.
+        ledger.observe(t + 3600, 1800, 0, {{QStringLiteral("a"), 300, 0, t + 600}, {QStringLiteral("b"), 1500, 0, t + 600}});
+        const auto given = ledger.torrentTotals(QDate(2026, 10, 3), QDate(2026, 10, 3));
+        QCOMPARE(given.value(QStringLiteral("a")), 300);
+        QCOMPARE(given.value(QStringLiteral("b")), 1500);
+    }
+
+    // qBittorrent lists a torrent late (while it starts, say): when it shows again, what it
+    // gave meanwhile is still its own.
+    void aTorrentMissingForAMomentKeepsItsBaseline()
+    {
+        SeedLedger ledger;
+        const qint64 t = noon();
+        ledger.observe(t, 0, 0, totals({{"a", 0}, {"b", 0}}));
+        ledger.observe(t + 2, 0, 0, totals({{"b", 0}}));
+        ledger.observe(t + 4, 100, 0, totals({{"a", 100}, {"b", 0}}));
+        QCOMPARE(ledger.torrentTotals(QDate(2026, 10, 3), QDate(2026, 10, 3)).value(QStringLiteral("a")), 100);
     }
 
     // An hour of a big library at the window's poll rate: 1,000 torrents, 50 of them

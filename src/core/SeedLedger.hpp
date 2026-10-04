@@ -16,8 +16,12 @@
 //
 // Rules:
 // - The first observation ever only sets the baseline; nothing is counted until the next.
-// - A step backwards (qBittorrent reinstalled, its statistics lost, a torrent re-added) starts
-//   a new baseline instead of counting as a loss.
+// - A step backwards (qBittorrent reinstalled, its statistics lost, a crash that lost its
+//   last minutes) starts a new baseline instead of counting as a loss.
+// - A torrent removed and added again (a new `addedOn` under the same hash) counts everything
+//   it reports: those totals began from nothing when it was added.
+// - A torrent missing from a poll keeps its baseline for `missingKept` seconds of this run, so
+//   one that qBittorrent lists late still counts what it gave meanwhile.
 // - A difference that spans more than `gapSeconds` (omaseed was closed, the server was away)
 //   is exact in total but not in time: it is spread evenly over the span and every bucket it
 //   touches is marked `gap`, so the tide can hatch it (docs/22 D7 a).
@@ -49,6 +53,9 @@ public:
         QString hash;
         qint64 uploaded = 0;
         qint64 downloaded = 0;
+        /// When qBittorrent added it (unix seconds; 0 unknown). A new value under the same
+        /// hash means it was removed and added again, its totals starting from nothing.
+        qint64 addedOn = 0;
     };
 
     /// One bucket of the tide: average bytes per second over the bucket.
@@ -72,6 +79,7 @@ public:
     static constexpr qint64 flushInterval = 300;
     static constexpr qint64 minutesKept = 48 * 3600;
     static constexpr qint64 hoursKept = 90 * 86400;
+    static constexpr qint64 missingKept = 86400;
 
     SeedLedger();
     ~SeedLedger();
@@ -164,7 +172,14 @@ private:
     qint64 m_lastTime = 0;
     qint64 m_lastUp = -1;
     qint64 m_lastDown = -1;
-    QHash<QString, QPair<qint64, qint64>> m_baselines; ///< hash -> (uploaded, downloaded)
+    struct Baseline
+    {
+        qint64 uploaded = 0;
+        qint64 downloaded = 0;
+        qint64 addedOn = 0;
+        qint64 seen = -1; ///< last poll that listed it, -1 none yet in this run
+    };
+    QHash<QString, Baseline> m_baselines;
     /// Baselines that changed, and torrents that went away, since the last flush: a flush
     /// writes only those rows, not the whole library.
     QSet<QString> m_baselinesDirty;

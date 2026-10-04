@@ -130,7 +130,7 @@ bool SeedLedger::openFile(const QString &path, bool *broken)
         "CREATE TABLE IF NOT EXISTS torrent_days(day TEXT, hash TEXT, up INTEGER, "
         "PRIMARY KEY(day, hash))",
         "CREATE TABLE IF NOT EXISTS baselines(hash TEXT PRIMARY KEY, uploaded INTEGER, "
-        "downloaded INTEGER)",
+        "downloaded INTEGER, added INTEGER)",
     };
     for (const char *statement : schema) {
         if (!q.exec(QString::fromLatin1(statement))) {
@@ -144,6 +144,14 @@ bool SeedLedger::openFile(const QString &path, bool *broken)
             }
         }
     }
+    // A ledger from before baselines knew when a torrent was added.
+    bool hasAdded = false;
+    if (q.exec(QStringLiteral("PRAGMA table_info(baselines)"))) {
+        while (q.next())
+            hasAdded = hasAdded || q.value(1).toString() == QLatin1String("added");
+    }
+    if (!hasAdded && !q.exec(QStringLiteral("ALTER TABLE baselines ADD COLUMN added INTEGER")))
+        qWarning("SeedLedger: %s", qPrintable(q.lastError().text()));
     return true;
 }
 
@@ -179,10 +187,11 @@ void SeedLedger::loadState()
                 m_lastDown = value;
         }
     }
-    if (q.exec(QStringLiteral("SELECT hash, uploaded, downloaded FROM baselines"))) {
+    if (q.exec(QStringLiteral("SELECT hash, uploaded, downloaded, added FROM baselines"))) {
         while (q.next())
             m_baselines.insert(q.value(0).toString(),
-                               {q.value(1).toLongLong(), q.value(2).toLongLong()});
+                               {q.value(1).toLongLong(), q.value(2).toLongLong(),
+                                q.value(3).toLongLong(), -1});
     }
     m_lastFlush = m_lastTime;
 }
@@ -214,24 +223,34 @@ void SeedLedger::observe(qint64 now,
     // Per torrent: the difference since its own baseline. A torrent seen for the first time,
     // or whose totals went down, only takes a baseline.
     QHash<QString, qint64> perTorrent;
-    QHash<QString, QPair<qint64, qint64>> next;
+    QHash<QString, Baseline> next;
     next.reserve(torrents.size());
     for (const TorrentTotals &t : torrents) {
-        const QPair<qint64, qint64> totals{t.uploaded, t.downloaded};
-        next.insert(t.hash, totals);
+        next.insert(t.hash, {t.uploaded, t.downloaded, t.addedOn, now});
         const auto it = m_baselines.constFind(t.hash);
-        if (it == m_baselines.constEnd() || *it != totals) {
+        if (it == m_baselines.constEnd() || it->uploaded != t.uploaded
+            || it->downloaded != t.downloaded || it->addedOn != t.addedOn) {
             m_baselinesDirty.insert(t.hash);
             m_baselinesGone.remove(t.hash);
         }
         if (it == m_baselines.constEnd() || !haveServer)
             continue;
-        const qint64 delta = t.uploaded - it->first;
+        // Added again since the baseline: its totals began from nothing then.
+        const bool again = t.addedOn > 0 && it->addedOn > 0 && t.addedOn != it->addedOn;
+        const qint64 delta = again ? t.uploaded : t.uploaded - it->uploaded;
         if (delta > 0)
             perTorrent.insert(t.hash, delta);
     }
     for (auto it = m_baselines.cbegin(); it != m_baselines.cend(); ++it) {
-        if (!next.contains(it.key())) {
+        if (next.contains(it.key()))
+            continue;
+        // Missing from this poll: kept a while (listed late, not removed), then let go.
+        Baseline kept = *it;
+        if (kept.seen < 0)
+            kept.seen = now; // the grace starts with this run's first poll
+        if (now - kept.seen < missingKept) {
+            next.insert(it.key(), kept);
+        } else {
             m_baselinesGone.insert(it.key());
             m_baselinesDirty.remove(it.key());
         }
@@ -359,19 +378,21 @@ bool SeedLedger::saveMeta()
         ok = q.execBatch() && ok;
     }
     if (!m_baselinesDirty.isEmpty()) {
-        ok = q.prepare(QStringLiteral("INSERT OR REPLACE INTO baselines(hash, uploaded, downloaded) "
-                                      "VALUES(?, ?, ?)"))
+        ok = q.prepare(QStringLiteral("INSERT OR REPLACE INTO baselines(hash, uploaded, downloaded, "
+                                      "added) VALUES(?, ?, ?, ?)"))
              && ok;
-        QVariantList hashes, uploaded, downloaded;
+        QVariantList hashes, uploaded, downloaded, added;
         for (const QString &hash : std::as_const(m_baselinesDirty)) {
-            const QPair<qint64, qint64> totals = m_baselines.value(hash);
+            const Baseline b = m_baselines.value(hash);
             hashes << hash;
-            uploaded << totals.first;
-            downloaded << totals.second;
+            uploaded << b.uploaded;
+            downloaded << b.downloaded;
+            added << b.addedOn;
         }
         q.addBindValue(hashes);
         q.addBindValue(uploaded);
         q.addBindValue(downloaded);
+        q.addBindValue(added);
         ok = q.execBatch() && ok;
     }
     return ok;
