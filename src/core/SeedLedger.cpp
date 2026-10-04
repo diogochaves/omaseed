@@ -78,6 +78,31 @@ bool SeedLedger::open(const QString &path)
     m_speeds.clear();
 
     QDir().mkpath(QFileInfo(path).absolutePath());
+    bool broken = false;
+    if (!openFile(path, &broken)) {
+        if (!broken)
+            return false;
+        // Not a ledger: keep it for whoever wants to look, and start a new one.
+        QSqlDatabase::database(m_connection, false).close();
+        const QString aside = path + QStringLiteral(".broken-")
+                              + QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd-HHmmss"));
+        qWarning("SeedLedger: %s is not a ledger; moved to %s", qPrintable(path), qPrintable(aside));
+        QFile::rename(path, aside);
+        QFile::remove(path + QStringLiteral("-wal"));
+        QFile::remove(path + QStringLiteral("-shm"));
+        if (!openFile(path, &broken)) {
+            QSqlDatabase::database(m_connection, false).close();
+            return false;
+        }
+    }
+    m_open = true;
+    loadState();
+    return true;
+}
+
+bool SeedLedger::openFile(const QString &path, bool *broken)
+{
+    *broken = false;
     QSqlDatabase db = QSqlDatabase::contains(m_connection)
                           ? QSqlDatabase::database(m_connection, false)
                           : QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), m_connection);
@@ -108,11 +133,17 @@ bool SeedLedger::open(const QString &path)
         "downloaded INTEGER)",
     };
     for (const char *statement : schema) {
-        if (!q.exec(QString::fromLatin1(statement)))
+        if (!q.exec(QString::fromLatin1(statement))) {
             qWarning("SeedLedger: %s", qPrintable(q.lastError().text()));
+            // SQLITE_NOTADB, SQLITE_CORRUPT: the file is no ledger. Anything else (a lock, a
+            // read-only disk) is no reason to set a good file aside.
+            const QString code = q.lastError().nativeErrorCode();
+            if (code == QLatin1String("26") || code == QLatin1String("11")) {
+                *broken = true;
+                return false;
+            }
+        }
     }
-    m_open = true;
-    loadState();
     return true;
 }
 
@@ -304,11 +335,11 @@ void SeedLedger::sampleSpeed(qint64 now, qint64 up, qint64 down)
         m_speeds.removeFirst();
 }
 
-void SeedLedger::saveMeta()
+bool SeedLedger::saveMeta()
 {
     QSqlDatabase db = QSqlDatabase::database(m_connection, false);
     QSqlQuery q(db);
-    q.prepare(QStringLiteral("INSERT OR REPLACE INTO meta(key, value) VALUES(?, ?)"));
+    bool ok = q.prepare(QStringLiteral("INSERT OR REPLACE INTO meta(key, value) VALUES(?, ?)"));
     const QList<QPair<QString, qint64>> values{{QStringLiteral("start"), m_start},
                                                {QStringLiteral("last_t"), m_lastTime},
                                                {QStringLiteral("last_up"), m_lastUp},
@@ -317,17 +348,18 @@ void SeedLedger::saveMeta()
     for (const auto &[key, value] : values) {
         q.addBindValue(key);
         q.addBindValue(value);
-        q.exec();
+        ok = q.exec() && ok;
     }
     // Only the rows that moved: most of a big library sits still between two flushes.
     if (!m_baselinesGone.isEmpty()) {
-        q.prepare(QStringLiteral("DELETE FROM baselines WHERE hash = ?"));
+        ok = q.prepare(QStringLiteral("DELETE FROM baselines WHERE hash = ?")) && ok;
         q.addBindValue(QVariantList(m_baselinesGone.cbegin(), m_baselinesGone.cend()));
-        q.execBatch();
+        ok = q.execBatch() && ok;
     }
     if (!m_baselinesDirty.isEmpty()) {
-        q.prepare(QStringLiteral("INSERT OR REPLACE INTO baselines(hash, uploaded, downloaded) "
-                                 "VALUES(?, ?, ?)"));
+        ok = q.prepare(QStringLiteral("INSERT OR REPLACE INTO baselines(hash, uploaded, downloaded) "
+                                      "VALUES(?, ?, ?)"))
+             && ok;
         QVariantList hashes, uploaded, downloaded;
         for (const QString &hash : std::as_const(m_baselinesDirty)) {
             const QPair<qint64, qint64> totals = m_baselines.value(hash);
@@ -338,55 +370,74 @@ void SeedLedger::saveMeta()
         q.addBindValue(hashes);
         q.addBindValue(uploaded);
         q.addBindValue(downloaded);
-        q.execBatch();
+        ok = q.execBatch() && ok;
     }
+    return ok;
 }
 
 void SeedLedger::flush(qint64 now)
 {
     m_lastFlush = now;
     if (!m_open) {
-        return; // memory only: the pending maps are the whole ledger
+        prunePending(now); // memory only: the pending maps are the whole ledger
+        return;
     }
     QSqlDatabase db = QSqlDatabase::database(m_connection, false);
-    db.transaction();
+    bool ok = db.transaction();
     QSqlQuery q(db);
     auto upsert = [&](const QString &table, const QMap<qint64, Bucket> &map) {
-        q.prepare(QStringLiteral("INSERT INTO %1(t, up, down, gap) VALUES(?, ?, ?, ?) "
-                                 "ON CONFLICT(t) DO UPDATE SET up = up + excluded.up, "
-                                 "down = down + excluded.down, gap = max(gap, excluded.gap)")
-                      .arg(table));
-        for (auto it = map.cbegin(); it != map.cend(); ++it) {
+        ok = q.prepare(QStringLiteral("INSERT INTO %1(t, up, down, gap) VALUES(?, ?, ?, ?) "
+                                      "ON CONFLICT(t) DO UPDATE SET up = up + excluded.up, "
+                                      "down = down + excluded.down, gap = max(gap, excluded.gap)")
+                           .arg(table))
+             && ok;
+        for (auto it = map.cbegin(); ok && it != map.cend(); ++it) {
             q.addBindValue(it.key());
             q.addBindValue(it->up);
             q.addBindValue(it->down);
             q.addBindValue(it->gap ? 1 : 0);
-            q.exec();
+            ok = q.exec();
         }
     };
     upsert(QStringLiteral("minutes"), m_pendingMinutes);
     upsert(QStringLiteral("hours"), m_pendingHours);
-    q.prepare(QStringLiteral("INSERT INTO days(day, up, down, gap) VALUES(?, ?, ?, ?) "
-                             "ON CONFLICT(day) DO UPDATE SET up = up + excluded.up, "
-                             "down = down + excluded.down, gap = max(gap, excluded.gap)"));
-    for (auto it = m_pendingDays.cbegin(); it != m_pendingDays.cend(); ++it) {
+    ok = ok
+         && q.prepare(QStringLiteral("INSERT INTO days(day, up, down, gap) VALUES(?, ?, ?, ?) "
+                                     "ON CONFLICT(day) DO UPDATE SET up = up + excluded.up, "
+                                     "down = down + excluded.down, gap = max(gap, excluded.gap)"));
+    for (auto it = m_pendingDays.cbegin(); ok && it != m_pendingDays.cend(); ++it) {
         q.addBindValue(dayKey(it.key()));
         q.addBindValue(it->up);
         q.addBindValue(it->down);
         q.addBindValue(it->gap ? 1 : 0);
-        q.exec();
+        ok = q.exec();
     }
-    q.prepare(QStringLiteral("INSERT INTO torrent_days(day, hash, up) VALUES(?, ?, ?) "
-                             "ON CONFLICT(day, hash) DO UPDATE SET up = up + excluded.up"));
-    for (auto it = m_pendingTorrentDays.cbegin(); it != m_pendingTorrentDays.cend(); ++it) {
+    ok = ok
+         && q.prepare(QStringLiteral("INSERT INTO torrent_days(day, hash, up) VALUES(?, ?, ?) "
+                                     "ON CONFLICT(day, hash) DO UPDATE SET up = up + excluded.up"));
+    for (auto it = m_pendingTorrentDays.cbegin(); ok && it != m_pendingTorrentDays.cend(); ++it) {
         q.addBindValue(dayKey(it.key().first));
         q.addBindValue(it.key().second);
         q.addBindValue(it.value());
-        q.exec();
+        ok = q.exec();
     }
-    if (m_metaDirty)
-        saveMeta();
-    db.commit();
+    if (ok && m_metaDirty)
+        ok = saveMeta();
+    ok = ok && db.commit();
+    if (!ok) {
+        // A full disk, a read-only file: nothing of this flush reached the file, so keep it
+        // all buffered (queries still see it) and try again at the next flush.
+        const QString error = q.lastError().isValid() ? q.lastError().text() : db.lastError().text();
+        db.rollback();
+        if (!m_flushFailed)
+            qWarning("SeedLedger: cannot write %s: %s", qPrintable(m_path), qPrintable(error));
+        m_flushFailed = true;
+        prunePending(now);
+        return;
+    }
+    if (m_flushFailed)
+        qInfo("SeedLedger: writing %s again", qPrintable(m_path));
+    m_flushFailed = false;
     m_pendingMinutes.clear();
     m_pendingHours.clear();
     m_pendingDays.clear();
@@ -395,6 +446,14 @@ void SeedLedger::flush(qint64 now)
     m_baselinesGone.clear();
     m_metaDirty = false;
     prune(now);
+}
+
+void SeedLedger::prunePending(qint64 now)
+{
+    while (!m_pendingMinutes.isEmpty() && m_pendingMinutes.firstKey() < now - minutesKept)
+        m_pendingMinutes.erase(m_pendingMinutes.begin());
+    while (!m_pendingHours.isEmpty() && m_pendingHours.firstKey() < now - hoursKept)
+        m_pendingHours.erase(m_pendingHours.begin());
 }
 
 void SeedLedger::prune(qint64 now)

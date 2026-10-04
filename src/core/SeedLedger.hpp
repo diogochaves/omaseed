@@ -78,13 +78,18 @@ public:
     SeedLedger(const SeedLedger &) = delete;
     SeedLedger &operator=(const SeedLedger &) = delete;
 
-    /// Opens (creating) the file at `path`, closing any open one first. False when SQLite
-    /// cannot open it; the ledger then keeps working in memory only.
+    /// Opens (creating) the file at `path`, closing any open one first. A file that is not a
+    /// ledger (damaged, or something else) is moved aside to `<path>.broken-<when>` and a new
+    /// one started. False when SQLite cannot open it at all; the ledger then keeps working in
+    /// memory only. A flush that cannot write (a full disk) keeps what it held and tries again
+    /// at the next one.
     bool open(const QString &path);
     /// Flushes and closes. Safe to call twice.
     void close();
     bool isOpen() const;
     QString path() const { return m_path; }
+    /// The SQL connection's name, so a test can make the disk refuse writes.
+    QString connectionName() const { return m_connection; }
 
     /// `~/.local/share/omaseed/ledger/<serverId>.sqlite` ($XDG_DATA_HOME honoured).
     static QString defaultPath(const QString &serverId);
@@ -142,12 +147,18 @@ private:
     QMap<qint64, Bucket> readBuckets(const QString &table, qint64 from, qint64 to) const;
     QMap<QDate, Bucket> readDays(const QDate &from, const QDate &to) const;
     void loadState();
-    void saveMeta();
     void prune(qint64 now);
+    /// Drops what the minutes and hours keep no longer from what is still buffered, so a
+    /// ledger that cannot write (memory only, a full disk) stays small.
+    void prunePending(qint64 now);
+    /// Opens the connection and the schema; `broken` when the file is not a ledger.
+    bool openFile(const QString &path, bool *broken);
+    bool saveMeta();
 
     QString m_connection;
     QString m_path;
     bool m_open = false;
+    bool m_flushFailed = false; ///< the last flush could not write; said once, retried each time
 
     qint64 m_start = 0;
     qint64 m_lastTime = 0;

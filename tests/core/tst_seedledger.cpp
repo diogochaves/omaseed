@@ -2,7 +2,12 @@
 
 #include <QDateTime>
 #include <QElapsedTimer>
+#include <QDir>
+#include <QFileInfo>
+#include <QRegularExpression>
 #include <QFile>
+#include <QSqlDatabase>
+#include <QSqlQuery>
 #include <QTemporaryDir>
 #include <QTest>
 
@@ -213,6 +218,86 @@ private Q_SLOTS:
         for (const auto &p : ledger.series(t + 400, 60, 8))
             gap = gap || p.gap;
         QVERIFY(gap);
+    }
+
+    // A full disk (here: the connection made read-only) must cost nothing: the flush keeps
+    // what it held, queries still see it, and the next flush that can write writes it once.
+    void aFailedFlushKeepsTheBytes()
+    {
+        QTemporaryDir dir;
+        const QString path = dir.filePath(QStringLiteral("x.sqlite"));
+        const qint64 t = noon();
+        SeedLedger ledger;
+        QVERIFY(ledger.open(path));
+        ledger.observe(t, 0, 0, totals({{"a", 0}}));
+        ledger.observe(t + 2, 100, 0, totals({{"a", 100}}));
+        QSqlQuery lock(QSqlDatabase::database(ledger.connectionName()));
+        QVERIFY(lock.exec(QStringLiteral("PRAGMA query_only = 1")));
+        QTest::ignoreMessage(QtWarningMsg, QRegularExpression(QStringLiteral("cannot write")));
+        ledger.flush(t + 2);
+        ledger.observe(t + 4, 150, 0, totals({{"a", 150}}));
+        QCOMPARE(ledger.days(QDate(2026, 10, 3), QDate(2026, 10, 3)).first().up, 150);
+
+        QVERIFY(lock.exec(QStringLiteral("PRAGMA query_only = 0")));
+        ledger.flush(t + 4);
+        ledger.close();
+        SeedLedger reopened;
+        QVERIFY(reopened.open(path));
+        QCOMPARE(reopened.days(QDate(2026, 10, 3), QDate(2026, 10, 3)).first().up, 150);
+        QCOMPARE(reopened.torrentTotals(QDate(2026, 10, 3), QDate(2026, 10, 3)).value(QStringLiteral("a")), 150);
+    }
+
+    // Something that is not a ledger where the ledger should be: set aside, never lost, and a
+    // new ledger begins.
+    void aBrokenFileIsSetAside()
+    {
+        QTemporaryDir dir;
+        const QString path = dir.filePath(QStringLiteral("x.sqlite"));
+        {
+            QFile junk(path);
+            QVERIFY(junk.open(QIODevice::WriteOnly));
+            junk.write(QByteArray(8192, 'x'));
+        }
+        QTest::ignoreMessage(QtWarningMsg, QRegularExpression(QStringLiteral("not a database")));
+        QTest::ignoreMessage(QtWarningMsg, QRegularExpression(QStringLiteral("not a ledger")));
+        SeedLedger ledger;
+        QVERIFY(ledger.open(path));
+        const QStringList aside = QDir(dir.path()).entryList({QStringLiteral("x.sqlite.broken-*")});
+        QCOMPARE(aside.size(), 1);
+        QCOMPARE(QFileInfo(dir.filePath(aside.first())).size(), 8192);
+        const qint64 t = noon();
+        ledger.observe(t, 0, 0, {});
+        ledger.observe(t + 2, 70, 0, {});
+        ledger.close();
+        SeedLedger reopened;
+        QVERIFY(reopened.open(path));
+        QCOMPARE(reopened.days(QDate(2026, 10, 3), QDate(2026, 10, 3)).first().up, 70);
+    }
+
+    // With no file at all, the minutes and hours still keep only what they keep on disk.
+    void memoryOnlyForgetsOldMinutes()
+    {
+        SeedLedger ledger;
+        QTest::ignoreMessage(QtWarningMsg, QRegularExpression(QStringLiteral("cannot open")));
+        QVERIFY(!ledger.open(QStringLiteral("/proc/omaseed-nowhere/x.sqlite")));
+        const qint64 t = noon(3);
+        qint64 up = 0;
+        for (qint64 at = t; at <= noon(); at += 60) {
+            ledger.observe(at, up, 0, {});
+            up += 10;
+        }
+        // Three days of 10-minute buckets: the oldest day is past the minutes' 48 h.
+        const auto points = ledger.series(noon(), 600, 3 * 144);
+        // (The 144th bucket from the left starts exactly 48 h back, so it keeps its minutes.)
+        double oldest = 0, newest = 0;
+        for (int i = 0; i < 143; ++i) {
+            oldest += points.at(i).up;
+            newest += points.at(points.size() - 1 - i).up;
+        }
+        QCOMPARE(oldest, 0.0);
+        QVERIFY(newest > 0);
+        // The days keep everything.
+        QCOMPARE(sumUp(ledger.days(QDate(2026, 9, 30), QDate(2026, 10, 3))), up - 10);
     }
 
     // An hour of a big library at the window's poll rate: 1,000 torrents, 50 of them
