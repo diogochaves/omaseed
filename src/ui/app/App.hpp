@@ -57,7 +57,9 @@
 #include <QTimer>
 #include <QVariantList>
 
+#include <chrono>
 #include <memory>
+#include <optional>
 #include <QVariantMap>
 
 #include <functional>
@@ -367,6 +369,11 @@ private:
 
     bool m_notifyCompletedEnabled = true;
     bool m_notifyServerLostEnabled = true;
+    /// The quiet start (setLaunchHidden): running while a loss may still go unannounced.
+    QTimer m_quietStart;
+    std::chrono::milliseconds m_quietStartGrace{std::chrono::minutes(2)};
+    /// A loss held back by the quiet start, with the retry period it would have announced.
+    std::optional<std::pair<omaseed::core::ApiError, int>> m_heldLoss;
     bool m_notifyDiskFullEnabled = true;
     int m_lowDiskThresholdGiB = 2;
     bool m_notificationTogglesLoaded = false;
@@ -492,6 +499,26 @@ public:
     QString trayIconMode() const;
     void setTrayIconMode(const QString &mode);
 
+    /// "Start at login" (Settings › General): "off", "tray" (in the tray, no window) or
+    /// "window". Read from the XDG autostart entry on disk every time, so it is what the next
+    /// login will do; writing it writes or removes that entry (integration/Autostart).
+    Q_PROPERTY(QString startAtLogin READ startAtLogin WRITE setStartAtLogin NOTIFY settingsChanged)
+    QString startAtLogin() const;
+    void setStartAtLogin(const QString &mode);
+
+    /// This process was started with `--hidden` (the autostart entry's "tray" mode): the
+    /// window does not show until asked for. First run ignores it: there is nothing to do in
+    /// the tray without a server.
+    Q_PROPERTY(bool launchHidden READ launchHidden CONSTANT)
+    bool launchHidden() const { return m_launchHidden; }
+    /// Also starts the quiet start: for `quietStartGrace` a lost server sends no notice, and
+    /// if it answers within that time it sends no "back" either. At login omaseed often runs
+    /// before qBittorrent (a container, a service) is up; two toasts for that are noise.
+    void setLaunchHidden(bool hidden);
+    /// How long a hidden start waits quietly for its server (2 min; tests shorten it). Set it
+    /// before setLaunchHidden().
+    void setQuietStartGrace(std::chrono::milliseconds grace) { m_quietStartGrace = grace; }
+
     // About pane -------------------------------------------------------------------------
     /// "omaseed 0.1.0". Not `core::versionLine()`: the About pane prints the Qt version on
     /// its own row (`qtVersionText`), so VERSION repeating it read twice (batch-2 J8).
@@ -547,6 +574,7 @@ private:
     int m_baseSizeOverride = 0;
     int m_windowAlphaOverride = 0;
     QString m_trayIconMode = QStringLiteral("auto");
+    bool m_launchHidden = false;
     QString m_speedsAlignment = QStringLiteral("left");
     bool m_uploadTrend = false;
     bool m_downloadTrend = false;

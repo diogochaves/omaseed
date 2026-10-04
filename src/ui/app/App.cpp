@@ -10,6 +10,7 @@
 #include "core/TorrentFile.hpp"
 #include "core/TorrentFolderScan.hpp"
 #include "core/Version.hpp"
+#include "integration/Autostart.hpp"
 #include "integration/Notifier.hpp"
 #include "integration/StatusWriter.hpp"
 #include "integration/ThemeReader.hpp"
@@ -785,18 +786,48 @@ void App::attachNotifier(omaseed::integration::Notifier *notifier)
     });
 
     connect(m_engine, &SyncEngine::serverLost, this, [this](const ApiError &error) {
+        const int retrySeconds = m_engine->globalState()->retryInSeconds();
+        // A hidden start (at login) gives its server a while to come up before saying so.
+        if (m_quietStart.isActive()) {
+            m_heldLoss = std::make_pair(error, retrySeconds);
+            return;
+        }
         if (m_notifier.isNull() || !m_notifyServerLostEnabled)
             return;
-        const QString reason = serverLostReasonText(error);
-        const int retrySeconds = m_engine->globalState()->retryInSeconds();
-        m_notifier->notifyServerLost(
-            m_server.id, m_server.name, serverHostPortText(), reason, retrySeconds);
+        m_notifier->notifyServerLost(m_server.id,
+                                     m_server.name,
+                                     serverHostPortText(),
+                                     serverLostReasonText(error),
+                                     retrySeconds);
     });
 
     connect(m_engine, &SyncEngine::serverBack, this, [this]() {
+        // Back before the quiet start ran out: nobody was told it was gone.
+        if (m_heldLoss) {
+            m_heldLoss.reset();
+            return;
+        }
         if (m_notifier.isNull() || !m_notifyServerLostEnabled)
             return;
         m_notifier->notifyServerBack(m_server.id, m_server.name);
+    });
+
+    // The first good sync ends the quiet start: from then on a loss is news.
+    connect(m_engine, &SyncEngine::synced, this, [this]() { m_quietStart.stop(); });
+    // Still away when the quiet start runs out: say so now, and "back" when it is.
+    m_quietStart.setSingleShot(true);
+    connect(&m_quietStart, &QTimer::timeout, this, [this]() {
+        if (!m_heldLoss)
+            return;
+        const auto [error, retrySeconds] = *m_heldLoss;
+        m_heldLoss.reset();
+        if (m_notifier.isNull() || !m_notifyServerLostEnabled)
+            return;
+        m_notifier->notifyServerLost(m_server.id,
+                                     m_server.name,
+                                     serverHostPortText(),
+                                     serverLostReasonText(error),
+                                     retrySeconds);
     });
 
     connect(notifier,
@@ -3050,6 +3081,31 @@ void App::setRailHidden(bool hidden)
         return;
     m_railHidden = hidden;
     saveSettings();
+    Q_EMIT settingsChanged();
+}
+
+void App::setLaunchHidden(bool hidden)
+{
+    m_launchHidden = hidden;
+    if (hidden)
+        m_quietStart.start(m_quietStartGrace);
+    else
+        m_quietStart.stop();
+}
+
+QString App::startAtLogin() const
+{
+    return omaseed::integration::Autostart::mode();
+}
+
+void App::setStartAtLogin(const QString &mode)
+{
+    namespace Autostart = omaseed::integration::Autostart;
+    if (Autostart::mode() == mode)
+        return;
+    if (!Autostart::setMode(mode, Autostart::execProgram(QCoreApplication::applicationFilePath())))
+        qWarning().noquote() << QStringLiteral("autostart: could not write %1")
+                                    .arg(Autostart::entryPath());
     Q_EMIT settingsChanged();
 }
 

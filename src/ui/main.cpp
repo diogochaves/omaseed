@@ -397,6 +397,13 @@ int main(int argc, char *argv[])
                        "what it loaded and exits."));
     parser.addOption(headlessOption);
 
+    // Settings › General › Start at login writes an autostart entry with this flag.
+    QCommandLineOption hiddenOption(
+        QStringList{QStringLiteral("hidden")},
+        QStringLiteral("Start without showing the window: in the tray, or the bar widget. "
+                       "Launch omaseed again to open it."));
+    parser.addOption(hiddenOption);
+
     // Handled before the application starts (runInstallBarWidget); listed for --help.
     QCommandLineOption installBarWidgetOption(
         QStringList{QStringLiteral("install-bar-widget")},
@@ -516,6 +523,8 @@ int main(int argc, char *argv[])
     omaseed::app::App omaseedApp;
     omaseed::app::App::setDefaultInstance(&omaseedApp);
     omaseedApp.barWidget()->setDevSourceDir(devPluginDir());
+    // Main.qml reads it for its first `visible`; a demo always shows its window.
+    omaseedApp.setLaunchHidden(demo.isEmpty() && parser.isSet(hiddenOption));
     // The Appearance pane's "follow the Omarchy theme" and base-size override live in
     // state.json; App applies them to the reader here, before the first frame (T4.5).
     omaseedApp.attachTheme(&theme);
