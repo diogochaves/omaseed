@@ -1,0 +1,745 @@
+<title>omaseed backup and restore</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap">
+<style>
+/* ------------------------------------------------------------------
+   docs/24: backup and restore, a proposal (2026-10-03). Diogo asked
+   for a backup of omaseed's settings and seed history, and a way to
+   export/import a qBittorrent (settings, and separately its torrents).
+   Board chrome and mock kit: board 23's, unchanged, plus settings
+   rows, checklists and a diff list at the end of this block.
+   Mocks: Theme roles only, fills at 4/8/18/22 %, hairlines at 12 %,
+   base 14, switchable between themes. All data is example data.
+   ------------------------------------------------------------------ */
+:root {
+  --accent:#5492f8; --bg:#11111b; --bg-dark:#0d0d14;
+  --fg:#b9c5ef; --fg-dark:#8b94b3; --fg-bright:#cbd4f3;
+  --green:#7dd676; --red:#ee5681; --yellow:#f6d58c;
+  --fill-normal: color-mix(in srgb, var(--fg) 4%, transparent);
+  --hairline: color-mix(in srgb, var(--fg) 12%, transparent);
+  --mono: "JetBrains Mono", "JetBrainsMono Nerd Font", ui-monospace, monospace;
+  color-scheme: dark;
+}
+* { box-sizing:border-box; }
+[hidden] { display:none !important; }
+body { margin:0; background:var(--bg-dark); color:var(--fg); font:400 13px/1.6 var(--mono); -webkit-font-smoothing:antialiased; }
+main { max-width:1320px; margin:0 auto; padding-block:32px 72px; padding-inline:16px; display:grid; gap:32px; }
+h1,h2,h3 { margin:0; font-weight:600; color:var(--fg-bright); text-wrap:balance; }
+h1 { font-size:26px; } h2 { font-size:17px; } h3 { font-size:13px; }
+p, li { max-width:84ch; }
+p { margin:0; }
+ul, ol { margin:0; padding-left:20px; display:grid; gap:4px; }
+code { color:var(--fg-bright); background:var(--fill-normal); padding:0 4px; }
+b { color:var(--fg-bright); font-weight:600; }
+a { color:var(--accent); }
+.eyebrow { font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--fg-dark); }
+.dim { color:var(--fg-dark); }
+.lead { font-size:14px; color:var(--fg); max-width:86ch; }
+section { display:grid; gap:14px; border-top:1px solid var(--hairline); padding-top:22px; min-width:0; }
+.sec-head { display:grid; gap:4px; }
+figure { margin:0; display:grid; gap:6px; align-content:start; min-width:0; }
+figcaption { font-size:11px; color:var(--fg-dark); max-width:90ch; }
+figcaption b { color:var(--fg); font-weight:500; }
+.scroll { overflow-x:auto; }
+.cols { display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:20px; }
+.cols > * { min-width:0; }
+table.t { border-collapse:collapse; width:100%; font-size:12px; }
+.t th, .t td { text-align:left; padding:6px 10px; border-bottom:1px solid var(--hairline); vertical-align:top; }
+.t th { font-weight:500; color:var(--fg-dark); font-size:10px; letter-spacing:.1em; text-transform:uppercase; white-space:nowrap; }
+.t td:first-child { color:var(--fg-bright); white-space:nowrap; }
+.t td.n { text-align:right; font-variant-numeric:tabular-nums; }
+.tag { display:inline-block; font-size:10px; letter-spacing:.08em; text-transform:uppercase; padding:0 6px; border:1px solid var(--hairline); color:var(--fg-dark); white-space:nowrap; }
+.tag.new { color:var(--green); border-color:color-mix(in srgb, var(--green) 40%, transparent); }
+.tag.have { color:var(--accent); border-color:color-mix(in srgb, var(--accent) 40%, transparent); }
+.themes { display:flex; flex-wrap:wrap; gap:6px; align-items:center; font-size:12px; color:var(--fg-dark); position:sticky; top:env(safe-area-inset-top, 0px); background:var(--bg-dark); padding-block:8px; z-index:20; border-bottom:1px solid var(--hairline); }
+.themes button { font:inherit; font-size:12px; color:var(--fg); background:transparent; border:1px solid var(--hairline); padding:2px 10px; cursor:pointer; }
+.themes button[aria-pressed="true"] { background:color-mix(in srgb, var(--fg) 18%, transparent); color:var(--fg-bright); border-color:transparent; }
+.themes .sep { width:1px; height:18px; background:var(--hairline); margin-inline:6px; }
+button:focus-visible, input:focus-visible, textarea:focus-visible, [tabindex]:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.shot { border:1px solid var(--hairline); display:block; width:100%; height:auto; }
+.note { border-left:2px solid var(--accent); padding:6px 12px; background:var(--fill-normal); font-size:12px; max-width:96ch; }
+.note.warn { border-color:var(--yellow); }
+
+/* ---------- the stage: Theme roles only, base 14 ---------- */
+.stage {
+  --t-fg:#b9c5ef; --t-bg:#11111b; --t-accent:#5492f8; --t-red:#ee5681; --t-yellow:#f6d58c;
+  --t-green:#7dd676; --t-blue:#5492f8; --t-magenta:#b47ff3; --t-cyan:#63d5c2;
+  --t-bright: color-mix(in srgb, var(--t-fg) 100%, white 12%);
+  --t-hair: color-mix(in srgb, var(--t-fg) 12%, transparent);
+  --t-dim: color-mix(in srgb, var(--t-fg) 62%, transparent);
+  --t-faint: color-mix(in srgb, var(--t-fg) 40%, transparent);
+  --f4: color-mix(in srgb, var(--t-fg) 4%, transparent);
+  --f8: color-mix(in srgb, var(--t-fg) 8%, transparent);
+  --f18: color-mix(in srgb, var(--t-fg) 18%, transparent);
+  --f22: color-mix(in srgb, var(--t-fg) 22%, transparent);
+  --cap:11.7px; --body:14px; --sub:15.2px; --head:18.7px; --big:26px;
+  color:var(--t-fg); font-family:var(--mono); font-size:var(--body); line-height:1.4;
+  background:
+    radial-gradient(ellipse at 18% 8%, color-mix(in srgb, var(--t-accent) 22%, var(--t-bg)) 0%, transparent 60%),
+    radial-gradient(ellipse at 88% 92%, color-mix(in srgb, var(--t-red) 14%, var(--t-bg)) 0%, transparent 55%),
+    var(--t-bg);
+  border:1px solid var(--hairline);
+}
+.stage.light { --t-bright: color-mix(in srgb, var(--t-fg) 100%, black 18%); }
+.stage .cap { font-size:var(--cap); letter-spacing:.08em; text-transform:uppercase; color:var(--t-dim); }
+.stage .num { font-variant-numeric:tabular-nums; }
+.stage .up { color:var(--t-green); } .stage .down { color:var(--t-blue); }
+.stage .rare { color:var(--t-yellow); } .stage .err { color:var(--t-red); }
+.stage .faint { color:var(--t-faint); } .stage .dimc { color:var(--t-dim); }
+.stage svg { display:block; overflow:visible; }
+.stage .kc { display:inline-block; min-width:1.4em; text-align:center; font-size:var(--cap); color:var(--t-fg); border:1px solid var(--t-hair); padding:0 4px; line-height:1.5; }
+
+/* the window */
+.win { width:1240px; min-height:840px; display:grid; grid-template-rows:auto 1fr auto; background:color-mix(in srgb, var(--t-bg) 86%, transparent); border:1px solid var(--t-accent); position:relative; }
+.hero { display:flex; align-items:center; gap:18px; padding:12px 16px; border-bottom:1px solid var(--t-hair); }
+.hero .mark { width:28px; height:28px; color:var(--t-accent); flex:none; }
+.hero .name { display:grid; gap:1px; }
+.hero .name b { color:var(--t-bright); font-size:var(--sub); font-weight:600; }
+.hero .name span { font-size:var(--cap); letter-spacing:.08em; text-transform:uppercase; color:var(--t-dim); display:flex; gap:6px; align-items:center; white-space:nowrap; }
+.hero .name span .warn { color:var(--t-yellow); }
+.dot { width:7px; height:7px; border-radius:50%; background:var(--t-yellow); flex:none; display:inline-block; }
+.hstat { display:grid; gap:0; position:relative; font-variant-numeric:tabular-nums; min-width:76px; }
+.hstat .v { color:var(--t-bright); font-size:var(--head); font-weight:500; line-height:1.15; position:relative; z-index:1; white-space:nowrap; }
+.hstat .v i { font-style:normal; font-size:var(--body); margin-right:4px; }
+.hstat.d .v i { color:var(--t-blue); } .hstat.u .v i { color:var(--t-green); }
+.hstat .cap { position:relative; z-index:1; }
+.hstat .spark { position:absolute; left:-4px; right:-8px; top:2px; height:30px; z-index:0; }
+.hstat .spark path.l { fill:none; stroke:var(--t-green); stroke-width:1; opacity:.55; }
+.hstat .spark path.a { fill:var(--t-green); opacity:.08; stroke:none; }
+.hstat.click { cursor:pointer; }
+.views { display:flex; gap:2px; margin-left:8px; align-self:stretch; align-items:stretch; }
+.views button { font:inherit; font-size:var(--body); background:transparent; border:0; color:var(--t-dim); padding:0 10px; cursor:pointer; border-bottom:2px solid transparent; display:flex; gap:6px; align-items:center; }
+.views button[aria-selected="true"] { color:var(--t-bright); border-bottom-color:var(--t-accent); }
+.views button small { font-size:var(--cap); color:var(--t-faint); }
+.grow { flex:1; }
+.search { width:250px; border:1px solid var(--t-hair); padding:5px 10px; color:var(--t-dim); display:flex; justify-content:space-between; font-size:var(--body); }
+.acts { display:flex; gap:6px; }
+.ib { width:30px; height:30px; border:1px solid var(--t-hair); display:grid; place-items:center; color:var(--t-fg); }
+.ib.primary { border-color:var(--t-accent); color:var(--t-accent); }
+.ib svg { width:15px; height:15px; }
+.body { display:grid; grid-template-columns:220px 1fr; min-height:0; }
+.rail { border-right:1px solid var(--t-hair); padding:14px 0; display:grid; grid-template-columns:minmax(0,1fr); align-content:start; gap:2px; min-width:0; overflow:hidden; }
+.rr > span:nth-child(2) { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.rail .cap { padding:8px 18px 4px; }
+.rr { display:grid; grid-template-columns:16px 1fr auto; gap:8px; align-items:center; padding:4px 18px; cursor:pointer; color:var(--t-fg); font-size:var(--body); }
+.rr:hover { background:var(--f8); }
+.rr.on { background:var(--f18); }
+.rr .g { color:var(--t-dim); font-size:12px; text-align:center; }
+.rr .c { color:var(--t-dim); font-size:var(--cap); font-variant-numeric:tabular-nums; }
+.rr .c.rare { color:var(--t-yellow); }
+.foot { display:flex; gap:16px; align-items:center; padding:7px 16px; border-top:1px solid var(--t-hair); font-size:var(--cap); color:var(--t-dim); white-space:nowrap; overflow:hidden; }
+.foot b { color:var(--t-fg); font-weight:500; }
+.foot .sp { flex:1; }
+
+/* the console */
+.con { padding:16px 22px 22px; display:grid; gap:22px; align-content:start; min-width:0; }
+.scope { display:flex; gap:10px; align-items:baseline; font-size:var(--cap); color:var(--t-dim); letter-spacing:.08em; text-transform:uppercase; }
+.scope b { color:var(--t-bright); font-weight:500; letter-spacing:0; text-transform:none; font-size:var(--body); }
+.scope .x { cursor:pointer; color:var(--t-dim); text-transform:none; letter-spacing:0; border:1px solid var(--t-hair); padding:0 6px; }
+.scope .sp { flex:1; }
+.totals { display:grid; grid-template-columns:repeat(6, minmax(0,1fr)); border-top:1px solid var(--t-hair); border-bottom:1px solid var(--t-hair); }
+.tot { padding:10px 14px 11px; display:grid; gap:2px; border-left:1px solid var(--t-hair); min-width:0; }
+.tot:first-child { border-left:0; padding-left:0; }
+.tot .v { font-size:var(--big); color:var(--t-bright); font-weight:500; line-height:1.1; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.tot .v small { font-size:var(--body); color:var(--t-dim); font-weight:400; margin-left:3px; }
+.tot .s { font-size:var(--cap); color:var(--t-dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.tot .s .up { color:var(--t-green); }
+.blk { display:grid; gap:10px; min-width:0; align-content:start; }
+.bh { display:flex; gap:12px; align-items:baseline; }
+.bh .cap { color:var(--t-accent); }
+.bh .sum { color:var(--t-dim); font-size:12.4px; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.chips { display:flex; gap:3px; }
+.chips button { font:inherit; font-size:12px; padding:1px 8px; border:1px solid var(--t-hair); color:var(--t-fg); background:transparent; cursor:pointer; }
+.chips button[aria-pressed="true"] { background:var(--f18); border-color:transparent; color:var(--t-bright); }
+.row2 { display:grid; grid-template-columns:minmax(0,1.45fr) minmax(0,1fr); gap:28px; }
+
+/* tide */
+.tide { position:relative; height:190px; }
+.tide svg { width:100%; height:100%; }
+.tide .grid line { stroke:var(--t-hair); stroke-width:1; }
+.tide .grid text, .tide .ax text { fill:var(--t-faint); font-size:10.5px; font-family:var(--mono); }
+.tide .base { stroke:var(--t-dim); stroke-width:1; opacity:.6; }
+.tide .ua { fill:var(--t-green); opacity:.18; } .tide .ul { fill:none; stroke:var(--t-green); stroke-width:1.5; }
+.tide .da { fill:var(--t-blue); opacity:.18; } .tide .dl { fill:none; stroke:var(--t-blue); stroke-width:1.5; }
+.tide .gap rect { fill:url(#hatch); }
+.tide .gap text { fill:var(--t-dim); font-size:10.5px; font-family:var(--mono); }
+.tide .now { fill:var(--t-green); }
+.tide .halo { fill:var(--t-green); opacity:.25; transform-box:fill-box; transform-origin:center; animation:halo 2.4s ease-out infinite; }
+@keyframes halo { from { transform:scale(1); opacity:.35; } to { transform:scale(3.2); opacity:0; } }
+.tide .peak text { fill:var(--t-green); font-size:10.5px; font-family:var(--mono); }
+.tide .peak line { stroke:var(--t-green); stroke-dasharray:2 3; opacity:.6; }
+.tide .cross { stroke:var(--t-fg); stroke-width:1; opacity:.5; }
+.readout { position:absolute; top:0; pointer-events:none; background:var(--t-bg); border:1px solid var(--t-hair); padding:5px 9px; font-size:12px; white-space:nowrap; display:grid; gap:1px; z-index:3; }
+.readout .t { color:var(--t-dim); font-size:var(--cap); }
+.hatchline { stroke:var(--t-fg); stroke-width:1; opacity:.16; }
+
+/* year */
+.year { display:grid; gap:6px; }
+.year svg { width:100%; height:auto; }
+.year .lv0 { fill:var(--f4); } .year .lv1 { fill:color-mix(in srgb, var(--t-green) 22%, transparent); }
+.year .lv2 { fill:color-mix(in srgb, var(--t-green) 45%, transparent); } .year .lv3 { fill:color-mix(in srgb, var(--t-green) 70%, transparent); }
+.year .lv4 { fill:var(--t-green); } .year .pre { fill:none; stroke:var(--t-hair); }
+.year .today { stroke:var(--t-accent); stroke-width:1.5; }
+.year text { fill:var(--t-faint); font-size:10px; font-family:var(--mono); }
+.year .facts { display:flex; gap:22px; flex-wrap:wrap; font-size:12.4px; color:var(--t-dim); }
+.year .facts b { color:var(--t-bright); font-weight:500; }
+.legend { display:flex; gap:3px; align-items:center; font-size:var(--cap); color:var(--t-faint); }
+.legend i { width:10px; height:10px; display:inline-block; }
+
+/* keeping alive */
+.strip { display:flex; height:12px; gap:2px; }
+.strip i { display:block; min-width:3px; }
+.strip .b1 { background:var(--t-yellow); } .strip .b2 { background:color-mix(in srgb, var(--t-yellow) 50%, transparent); }
+.strip .b3 { background:color-mix(in srgb, var(--t-green) 45%, transparent); } .strip .b4 { background:color-mix(in srgb, var(--t-green) 22%, transparent); }
+.strip .b5 { background:var(--f8); } .strip .b6 { background:repeating-linear-gradient(135deg, var(--f18) 0 2px, transparent 2px 5px); }
+.stripkey { display:grid; grid-template-columns:repeat(6, auto); justify-content:space-between; gap:8px; font-size:var(--cap); color:var(--t-dim); }
+.stripkey b { display:block; color:var(--t-bright); font-weight:500; font-size:var(--body); }
+.stripkey .rare b { color:var(--t-yellow); }
+.lrows { display:grid; }
+.lr { display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:14px; align-items:baseline; padding:5px 8px; border:1px solid transparent; font-size:13px; cursor:default; }
+.lr:hover { background:var(--f8); }
+.lr.cur { background:var(--f8); border-color:color-mix(in srgb, var(--t-fg) 25%, transparent); }
+.lr .nm { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--t-fg); }
+.lr .a { font-size:var(--cap); color:var(--t-dim); white-space:nowrap; font-variant-numeric:tabular-nums; }
+.lr .a.rare { color:var(--t-yellow); }
+
+/* ladder */
+.ladder svg { width:100%; height:150px; }
+.ladder .axis line { stroke:var(--t-hair); } .ladder .axis text { fill:var(--t-faint); font-size:10.5px; font-family:var(--mono); }
+.ladder .pay { stroke:var(--t-green); stroke-width:1; stroke-dasharray:3 3; opacity:.8; }
+.ladder .pay-t { fill:var(--t-green); font-size:10.5px; font-family:var(--mono); }
+.ladder .owe { fill:var(--t-fg); opacity:.35; } .ladder .paid { fill:var(--t-green); opacity:.75; }
+.ladder circle:hover { opacity:1; stroke:var(--t-bright); stroke-width:1; }
+.ladder .zone { fill:var(--f4); }
+
+/* trackers */
+table.tk { border-collapse:collapse; width:100%; font-size:13px; color:var(--t-fg); font-family:var(--mono); }
+.tk th { font-size:var(--cap); letter-spacing:.08em; text-transform:uppercase; color:var(--t-dim); font-weight:400; text-align:right; padding:4px 10px; border-bottom:1px solid var(--t-hair); white-space:nowrap; }
+.tk th:first-child, .tk td:first-child { text-align:left; padding-left:8px; }
+.tk td { text-align:right; padding:5px 10px; font-variant-numeric:tabular-nums; white-space:nowrap; border-bottom:1px solid color-mix(in srgb, var(--t-fg) 5%, transparent); }
+.tk tr.row { cursor:pointer; } .tk tr.row:hover td { background:var(--f8); }
+.tk tr.on td { background:var(--f18); }
+.tk .host { display:flex; gap:8px; align-items:center; color:var(--t-fg); }
+.tk .hd { width:6px; height:6px; border-radius:50%; background:var(--t-green); flex:none; }
+.tk .hd.bad { background:var(--t-red); } .tk .hd.mid { background:var(--t-yellow); }
+.tk svg.sp { width:96px; height:18px; display:inline-block; vertical-align:middle; }
+.tk svg.sp path { fill:none; stroke:var(--t-green); stroke-width:1.2; } .tk svg.sp path.a { fill:var(--t-green); opacity:.12; stroke:none; }
+.tk .bar { display:inline-block; height:3px; background:var(--t-green); opacity:.6; vertical-align:middle; margin-right:6px; }
+
+/* on air + lately */
+.air { display:grid; }
+.ar { display:grid; grid-template-columns:minmax(0,1fr) 110px 74px 52px; gap:12px; align-items:center; padding:5px 8px; font-size:13px; }
+.ar .nm { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ar .bar { height:4px; background:var(--f8); position:relative; }
+.ar .bar i { position:absolute; inset:0 auto 0 0; background:var(--t-green); transition:width .9s ease; }
+.ar .sp { text-align:right; color:var(--t-green); font-variant-numeric:tabular-nums; font-size:12.4px; }
+.ar .pe { text-align:right; color:var(--t-dim); font-size:var(--cap); }
+.late { display:grid; }
+.lt { display:grid; grid-template-columns:18px minmax(0,1fr) auto; gap:8px; padding:5px 8px; font-size:13px; align-items:baseline; }
+.lt .g { text-align:center; }
+.lt .nm { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.lt .nm small { color:var(--t-dim); font-size:var(--cap); }
+.lt .w { color:var(--t-faint); font-size:var(--cap); white-space:nowrap; }
+
+/* first-day note in the console */
+.dayone { display:grid; gap:4px; padding:10px 12px; border:1px dashed var(--t-hair); color:var(--t-dim); font-size:12.4px; }
+.dayone b { color:var(--t-fg); font-weight:500; }
+
+/* ---------- small mocks for the library touches ---------- */
+.mini { padding:18px; display:grid; gap:12px; overflow-x:auto; }
+.mtable { display:grid; font-size:var(--body); min-width:560px; }
+.mrow { display:grid; grid-template-columns:minmax(140px,1fr) 64px 168px 96px 72px; gap:10px; gap:14px; align-items:center; padding:6px 10px; position:relative; border:1px solid transparent; }
+.mrow.head { font-size:var(--cap); color:var(--t-dim); }
+.mrow.cur { border-color:color-mix(in srgb, var(--t-fg) 25%, transparent); }
+.mrow.sel { background:var(--f18); }
+.mrow .n { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.mrow .r { text-align:right; font-variant-numeric:tabular-nums; }
+.pulse { position:absolute; left:0; top:5px; bottom:5px; width:2px; background:var(--t-green); }
+@media (prefers-reduced-motion: no-preference) {
+  .pulse { animation:pulse var(--pp, 2s) ease-in-out infinite; }
+}
+@keyframes pulse { 0%,100% { opacity:.25; } 50% { opacity:1; } }
+.rbar { display:flex; gap:6px; align-items:center; justify-content:flex-end; }
+.rbar .track { width:36px; height:4px; background:var(--f8); position:relative; display:flex; gap:1px; }
+.rbar .track i { display:block; height:100%; }
+.rbar .track .o { background:var(--t-fg); opacity:.45; }
+.rbar .track .p { background:var(--t-green); }
+.swarm { display:flex; gap:6px; justify-content:flex-end; align-items:baseline; white-space:nowrap; }
+.swarm .who { font-size:var(--cap); color:var(--t-yellow); border:1px solid color-mix(in srgb, var(--t-yellow) 40%, transparent); padding:0 5px; letter-spacing:.06em; text-transform:uppercase; }
+.fbar { display:flex; align-items:center; border:1px solid color-mix(in srgb, var(--t-fg) 40%, transparent); background:var(--t-bg); width:max-content; font-size:var(--body); }
+.fbar .seg { padding:8px 14px; display:flex; gap:12px; align-items:center; border-right:1px solid var(--t-hair); white-space:nowrap; }
+.fbar .seg:last-child { border-right:0; }
+.fbar .ic { width:15px; height:15px; color:var(--t-fg); }
+.fbar .del { color:var(--t-red); }
+.fbar .led { display:flex; gap:12px; font-size:12.4px; color:var(--t-dim); }
+.fbar .led b { color:var(--t-bright); font-weight:500; }
+.toast { display:flex; align-items:center; gap:12px; border:1px solid color-mix(in srgb, var(--t-green) 55%, transparent); background:var(--t-bg); width:max-content; padding:8px 14px; font-size:var(--body); }
+.toast .g { color:var(--t-green); }
+.toast small { color:var(--t-dim); font-size:var(--cap); }
+.sheet { width:520px; max-width:100%; border:1px solid var(--t-accent); background:var(--t-bg); padding:18px; display:grid; gap:12px; }
+.sheet h4 { margin:0; color:var(--t-bright); font-size:var(--sub); font-weight:600; }
+.sheet .warnb { border-left:2px solid var(--t-yellow); padding:6px 10px; background:color-mix(in srgb, var(--t-yellow) 8%, transparent); font-size:13px; }
+.sheet .warnb b { color:var(--t-yellow); font-weight:500; }
+.sheet .btns { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+.sheet .btns span { border:1px solid var(--t-hair); padding:6px; text-align:center; font-size:13px; }
+.sheet .btns .pri { border-color:var(--t-accent); color:var(--t-bright); background:color-mix(in srgb, var(--t-accent) 12%, transparent); }
+.sheet .btns .dng { color:var(--t-red); }
+.notice { width:400px; max-width:100%; border:1px solid var(--t-hair); background:var(--t-bg); padding:12px 14px; display:grid; gap:4px; font-size:13px; }
+.notice b { color:var(--t-bright); font-weight:600; }
+.notice .ln { color:var(--t-dim); }
+
+/* ---------- the decision sheet ---------- */
+.dec { display:grid; gap:18px; }
+.q { display:grid; gap:8px; border:1px solid var(--hairline); padding:14px; }
+.q > div:first-child { display:flex; gap:10px; align-items:baseline; }
+.q .id { color:var(--accent); font-weight:600; }
+.q fieldset { border:0; margin:0; padding:0; display:grid; gap:6px; }
+.q legend { padding:0; color:var(--fg-bright); font-weight:500; margin-bottom:4px; }
+.opt { display:grid; grid-template-columns:18px 1fr; gap:8px; align-items:start; font-size:12.4px; cursor:pointer; }
+.opt input { margin:3px 0 0; accent-color:var(--accent); }
+.opt .rec { color:var(--green); font-size:10px; letter-spacing:.1em; text-transform:uppercase; margin-left:6px; }
+.out { display:grid; gap:8px; }
+.out textarea { width:100%; min-height:150px; font:inherit; font-size:12.4px; color:var(--fg); background:var(--bg); border:1px solid var(--hairline); padding:10px; resize:vertical; }
+.out button { font:inherit; justify-self:start; color:var(--bg); background:var(--accent); border:0; padding:6px 14px; cursor:pointer; }
+.out .ok { color:var(--green); font-size:12px; }
+
+/* diagram */
+.flow { display:grid; grid-template-columns:repeat(4, minmax(160px,1fr)); gap:0; min-width:760px; }
+.flow > div { border:1px solid var(--hairline); padding:12px; display:grid; gap:6px; align-content:start; margin-right:-1px; }
+.flow h3 { font-size:12px; }
+.flow .k { font-size:11px; color:var(--fg-dark); }
+.flow .arrow { color:var(--accent); }
+
+
+/* attention line, earning / holding */
+.attn { display:flex; gap:14px; align-items:baseline; padding:7px 12px; border-left:2px solid var(--t-red); background:color-mix(in srgb, var(--t-red) 7%, transparent); font-size:13px; cursor:pointer; }
+.attn[hidden] { display:none; }
+.attn b { color:var(--t-red); font-weight:500; }
+.attn .more { margin-left:auto; color:var(--t-dim); font-size:var(--cap); white-space:nowrap; }
+.yr { display:grid; grid-template-columns:minmax(0,1fr) 64px 92px; gap:12px; align-items:center; padding:5px 8px; font-size:13px; }
+.yr .nm { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.yr .a { font-size:var(--cap); color:var(--t-dim); text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
+.yr .ybar { height:4px; background:var(--f8); position:relative; }
+.yr .ybar i { position:absolute; inset:0 auto 0 0; background:var(--t-green); }
+
+
+/* ---------- docs/23: the coach's mocks ---------- */
+.modal { width:980px; max-width:100%; display:grid; grid-template-columns:200px 1fr; border:1px solid var(--t-accent); background:var(--t-bg); font-size:13px; }
+.modal nav { border-right:1px solid var(--t-hair); padding:14px 0; display:grid; align-content:start; gap:1px; }
+.modal nav .cap { padding:6px 16px 4px; }
+.modal nav span.it { padding:4px 16px; display:flex; gap:8px; align-items:center; color:var(--t-fg); }
+.modal nav span.it.on { background:var(--f18); }
+.modal nav span.it b { margin-left:auto; font-weight:500; font-size:var(--cap); color:var(--t-yellow); }
+.pane2 { padding:14px 18px 16px; display:grid; gap:10px; align-content:start; min-width:0; }
+.pane2 .ph { display:flex; align-items:baseline; gap:12px; }
+.pane2 .ph b { color:var(--t-bright); font-weight:600; font-size:var(--sub); }
+.pane2 .ph small { color:var(--t-dim); font-size:var(--cap); margin-left:auto; }
+.find { border:1px solid var(--t-hair); padding:10px 12px; display:grid; grid-template-columns:auto 1fr auto; gap:6px 12px; align-items:start; }
+.find.cur { border-color:color-mix(in srgb, var(--t-fg) 30%, transparent); background:var(--f4); }
+.find .imp { font-size:var(--cap); letter-spacing:.08em; text-transform:uppercase; padding:0 6px; border:1px solid; white-space:nowrap; }
+.imp.stop { color:var(--t-red); border-color:color-mix(in srgb, var(--t-red) 45%, transparent); }
+.imp.slow { color:var(--t-yellow); border-color:color-mix(in srgb, var(--t-yellow) 45%, transparent); }
+.imp.tidy { color:var(--t-dim); border-color:var(--t-hair); }
+.imp.good { color:var(--t-green); border-color:color-mix(in srgb, var(--t-green) 45%, transparent); }
+.find .t { color:var(--t-bright); font-weight:500; }
+.find .d { grid-column:2 / 4; color:var(--t-dim); font-size:12.4px; line-height:1.5; }
+.find .d b { color:var(--t-fg); font-weight:500; }
+.find .fx { display:flex; gap:6px; }
+.btn { border:1px solid var(--t-hair); padding:2px 10px; font-size:12px; color:var(--t-fg); white-space:nowrap; }
+.btn.pri { border-color:var(--t-accent); color:var(--t-bright); background:color-mix(in srgb, var(--t-accent) 12%, transparent); }
+.why { grid-column:2 / 4; border-left:2px solid var(--t-hair); padding:4px 10px; font-size:12px; color:var(--t-dim); }
+.keys { display:flex; gap:14px; font-size:var(--cap); color:var(--t-dim); border-top:1px solid var(--t-hair); padding-top:8px; flex-wrap:wrap; }
+.keys b { color:var(--t-fg); font-weight:500; }
+.sheet2 { width:560px; max-width:100%; border:1px solid var(--t-accent); background:var(--t-bg); padding:16px 18px; display:grid; gap:10px; font-size:13px; }
+.sheet2 h4 { margin:0; color:var(--t-bright); font-size:var(--sub); font-weight:600; }
+.sheet2 .sub { color:var(--t-dim); font-size:12.4px; }
+.chiprow { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+.chip { border:1px solid var(--t-hair); padding:1px 9px; font-size:12.4px; color:var(--t-fg); }
+.chip.on { background:var(--f18); border-color:transparent; color:var(--t-bright); }
+.hintline { font-size:12px; color:var(--t-dim); display:flex; gap:8px; align-items:baseline; }
+.hintline .k { color:var(--t-accent); }
+.hintline b { color:var(--t-fg); font-weight:500; }
+.plan { display:grid; grid-template-columns:minmax(0,1fr) auto auto auto; gap:6px 14px; font-size:12.4px; align-items:baseline; }
+.plan .h { font-size:var(--cap); letter-spacing:.08em; text-transform:uppercase; color:var(--t-dim); }
+.plan .r { text-align:right; font-variant-numeric:tabular-nums; }
+.plan code { background:none; padding:0; color:var(--t-fg); }
+.field { border:1px solid var(--t-hair); padding:4px 10px; color:var(--t-fg); display:flex; justify-content:space-between; }
+.field small { color:var(--t-dim); }
+.moment { display:grid; grid-template-columns:auto 1fr auto; gap:10px; align-items:start; border:1px solid var(--t-hair); border-left:2px solid var(--t-accent); padding:10px 12px; background:var(--t-bg); font-size:13px; max-width:640px; }
+.moment .g { color:var(--t-accent); }
+.moment .d { color:var(--t-dim); font-size:12.4px; display:block; margin-top:2px; }
+.moment .x { color:var(--t-dim); font-size:var(--cap); white-space:nowrap; }
+.tree { font-size:12.4px; line-height:1.7; color:var(--t-fg); white-space:pre; overflow-x:auto; }
+.tree .c { color:var(--t-dim); } .tree .g { color:var(--t-green); } .tree .y { color:var(--t-yellow); } .tree .b { color:var(--t-blue); }
+.goalbar { display:flex; gap:10px; align-items:center; font-size:12.4px; }
+.goalbar .track { width:160px; height:4px; background:var(--f8); position:relative; }
+.goalbar .track i { position:absolute; inset:0 auto 0 0; background:var(--t-green); }
+.coach-toasts .toast { width:auto; max-width:100%; flex-wrap:wrap; }
+.never { display:grid; grid-template-columns:repeat(auto-fit, minmax(240px,1fr)); gap:10px; }
+.never > div { border:1px dashed var(--hairline); padding:10px 12px; font-size:12px; color:var(--fg-dark); display:grid; gap:4px; }
+.never b { color:var(--fg-bright); font-weight:500; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tide .halo { animation:none; opacity:0; }
+  .ar .bar i { transition:none; }
+}
+/* docs/24 additions: a settings row, a checklist line, a diff list. */
+.grp { font-size:var(--cap); letter-spacing:.1em; text-transform:uppercase; color:var(--t-dim); margin-top:4px; }
+.srow { border:1px solid var(--t-hair); padding:10px 12px; display:grid; grid-template-columns:18px minmax(0,1fr) auto; gap:2px 12px; align-items:center; width:680px; max-width:100%; }
+.srow.cur { border-color:color-mix(in srgb, var(--t-fg) 30%, transparent); background:var(--f4); }
+.srow .g { color:var(--t-dim); grid-row:1 / 3; align-self:start; padding-top:1px; }
+.srow .t { color:var(--t-bright); font-weight:500; }
+.srow .d { grid-column:2; color:var(--t-dim); font-size:12.4px; line-height:1.5; }
+.srow .d b { color:var(--t-fg); font-weight:500; }
+.srow .c { grid-row:1 / 3; grid-column:3; display:flex; gap:6px; align-items:center; }
+.ck { display:grid; grid-template-columns:18px minmax(0,1fr) auto; gap:2px 8px; font-size:12.4px; align-items:baseline; }
+.ck .b, .diff .b { color:var(--t-accent); }
+.ck .b.off, .diff .b.off { color:var(--t-dim); }
+.ck .s { color:var(--t-dim); text-align:right; font-variant-numeric:tabular-nums; }
+.ck .d { grid-column:2 / 4; color:var(--t-dim); font-size:12px; line-height:1.5; }
+.ck .d b { color:var(--t-fg); font-weight:500; }
+.diff { display:grid; grid-template-columns:18px minmax(0,1fr) auto auto; gap:4px 14px; font-size:12.4px; align-items:baseline; }
+.diff .h { font-size:var(--cap); letter-spacing:.08em; text-transform:uppercase; color:var(--t-dim); }
+.diff .r { text-align:right; font-variant-numeric:tabular-nums; }
+.diff .old { color:var(--t-dim); }
+.diff .new { color:var(--t-bright); }
+</style>
+<main>
+  <header style="display:grid;gap:10px">
+    <div class="eyebrow">docs/24 · proposal for Diogo · 2026-10-03 · companion to docs/22 · v1 and v2 stay frozen</div>
+    <h1>Backup and restore</h1>
+    <p class="lead">Board 22 gave omaseed something worth keeping: a seed history that only this app records. The charter (§10) already planned "backup/restore of qBittorrent config, export/import per server". This board covers both. <b>omaseed backs itself up</b> (settings, servers, history). <b>It also exports and imports a qBittorrent</b>: its settings, and separately its torrents, so you can set up a new server like the old one or move a library to a new machine. Everything goes through the WebUI API, so it works the same for a local qBittorrent, one in a container and a remote seedbox.</p>
+    <p class="dim" style="font-size:12px">Every name, path, count and size in the mocks is example data. Switch the theme in the bar below: the mocks use Theme roles only.</p>
+    <div class="note">Already settled by your answers (2026-10-03): omaseed's backup holds <b>settings + servers + history, no passwords</b>. qBittorrent export covers <b>settings and torrents as two separate choices</b>. Importing settings <b>shows a preview and leaves machine-specific values out unless ticked</b>. Board first, then code. The open calls are D1–D9 at the bottom.</div>
+  </header>
+
+  <nav class="themes" aria-label="Theme of the mocks">
+    <span>theme</span>
+    <button type="button" data-theme-name="frieren" aria-pressed="true">frieren</button>
+    <button type="button" data-theme-name="tokyo-night" aria-pressed="false">tokyo-night</button>
+    <button type="button" data-theme-name="gruvbox" aria-pressed="false">gruvbox</button>
+    <button type="button" data-theme-name="everforest" aria-pressed="false">everforest</button>
+    <button type="button" data-theme-name="catppuccin-latte" aria-pressed="false">catppuccin-latte</button>
+  </nav>
+
+  <!-- 1 -->
+  <section id="today">
+    <div class="sec-head"><div class="eyebrow">1 · where we are</div><h2>Three things worth keeping, kept in three places</h2></div>
+    <div class="scroll"><table class="t">
+      <thead><tr><th>what</th><th>where it lives now</th><th>lost when</th><th>backed up today</th></tr></thead>
+      <tbody>
+        <tr><td>omaseed's settings</td><td><code>~/.config/omaseed/state.json</code>, <code>servers.json</code></td><td>a new machine, a wiped home</td><td>only by whatever backs up your home</td></tr>
+        <tr><td>seed history</td><td><code>~/.local/share/omaseed/ledger/&lt;server&gt;.sqlite</code>, one per server</td><td>same, and it can't be rebuilt: qBittorrent keeps totals, never days</td><td>no</td></tr>
+        <tr><td>logins</td><td>the keyring (qtkeychain)</td><td>a new keyring</td><td>by design, never in a file</td></tr>
+        <tr><td>qBittorrent's settings, categories, tags, RSS</td><td>the server's own profile (<code>qBittorrent.conf</code>, <code>categories.json</code>, <code>rss/</code>)</td><td>a reinstall, a new container without its volume</td><td>no; omaseed can only reach them through the API</td></tr>
+        <tr><td>qBittorrent's torrents</td><td>the server's <code>BT_backup/</code> (.torrent + .fastresume)</td><td>same; the downloaded files usually survive, the list of what to seed doesn't</td><td>no</td></tr>
+      </tbody>
+    </table></div>
+    <p>qBittorrent can't export any of this itself through its WebUI. Its desktop GUI can't either, apart from saving single .torrent files. qui (autobrr) does instance backups server-side. omaseed can do it from the desktop because the API exposes every piece: <code>app/preferences</code> (223 keys on 5.2.3), <code>torrents/categories</code>, <code>torrents/tags</code>, <code>rss/items</code> and <code>rss/rules</code>, and <code>torrents/export</code>, which returns a torrent's .torrent file. It answers <code>409 Missing metadata</code> for a magnet that never got its metadata; those are kept as magnet links.</p>
+  </section>
+
+  <!-- 2 -->
+  <section id="files">
+    <div class="sec-head"><div class="eyebrow">2 · the three files</div><h2>What each export holds, and what it leaves out on purpose</h2></div>
+    <div class="scroll"><table class="t">
+      <thead><tr><th>file</th><th>holds</th><th>leaves out</th><th>size</th></tr></thead>
+      <tbody>
+        <tr><td>omaseed backup<br><code>omaseed-2026-10-03.omaseed</code></td><td>every setting in state.json; the server list with addresses, names, kinds of login and path maps; the seed history of each server (minutes, hours, days, per-torrent days); a small manifest (version, date, machine name)</td><td>passwords and API keys: they stay in the keyring and are asked for again after a restore. The bar widget's settings: they live in Omarchy's <code>shell.json</code>, and Omarchy's own backup covers them</td><td>a few MB per year of history</td></tr>
+        <tr><td>qBittorrent settings<br><code>qbittorrent-home-2026-10-03.json</code></td><td>every preference the server returns; categories with their folders and share limits; tags; RSS feeds and auto-download rules; the qBittorrent version it came from</td><td>secrets the API hands back in clear: proxy, e-mail and DynDNS passwords, the Web UI API key (D5). The Web UI password itself: the API never returns it</td><td>~30 KB</td></tr>
+        <tr><td>qBittorrent torrents<br><code>torrents-home-2026-10-03.omaseed-torrents</code></td><td>every .torrent; per torrent its save path, category, tags, share and speed limits, started or stopped, queue position, renamed files, file priorities, trackers added by hand. Magnets without metadata go in as links</td><td>the downloaded data itself (it stays on disk, and the new server checks it); peers, progress and statistics, which get rebuilt</td><td>~50 KB a torrent: 300 ≈ 15 MB</td></tr>
+      </tbody>
+    </table></div>
+    <div class="note">The two archives are plain <code>tar</code> files written by omaseed itself, with no new dependency (D2). Inside are JSON, the history as a SQLite file, and the .torrent files, so any tool can open one and see what is in it. The settings export is a single readable JSON file.</div>
+  </section>
+
+  <!-- 3 -->
+  <section id="pane">
+    <div class="sec-head"><div class="eyebrow">3 · surface one</div><h2>Settings › Backup: omaseed's own</h2></div>
+    <p>A pane in the app's group, after Appearance. Three rows: make a backup, restore one, and automatic copies, so the history is safe even if you never think about it.</p>
+    <div class="scroll"><div class="stage" style="padding:18px;width:max-content">
+      <div class="modal">
+        <nav>
+          <span class="cap">settings</span>
+          <span class="it">◎ General</span><span class="it">▤ Servers</span><span class="it">◔ Notifications</span><span class="it">⌨ Keybindings</span><span class="it">◑ Appearance</span><span class="it on">⇵ Backup</span><span class="it">i About</span>
+          <span class="cap" style="margin-top:8px">qbittorrent · home 5.2.3</span>
+          <span class="it">⇅ Speed</span><span class="it">◎ Discovery</span><span class="it">⇄ Connection</span><span class="it">↑ Seeding</span><span class="it">≡ Queue</span><span class="it">▤ Downloads</span><span class="it">◆ Advanced</span><span class="it">⇵ Backup</span>
+        </nav>
+        <div class="pane2">
+          <div class="ph"><b>Backup</b><span class="dimc" style="font-size:12.4px">this app</span><small>esc</small></div>
+          <div class="srow cur"><span class="g">↓</span><span class="t">Back up omaseed</span><span class="c"><span class="btn pri">back up…</span></span><span class="d">Settings, 2 servers and the seed history since <b>12 Mar 2026</b>: about <b>4.2 MB</b>. Passwords and API keys stay in the keyring.</span></div>
+          <div class="srow"><span class="g">↑</span><span class="t">Restore</span><span class="c"><span class="btn">restore…</span></span><span class="d">From an omaseed backup. You pick the parts; what is here now is copied aside first.</span></div>
+          <div class="srow"><span class="g">◷</span><span class="t">Automatic copies</span><span class="c"><span class="chip">off</span><span class="chip on">weekly</span><span class="chip">daily</span></span><span class="d">Into <code>~/.local/share/omaseed/backups</code>, the last 4 kept, each server's qBittorrent settings with them (D3). Last one: <b>Sunday 21:04</b> · <span style="color:var(--t-accent)">open folder</span></span></div>
+          <div class="keys"><span><b>j k</b> move</span><span><b>enter</b> act</span><span><b>tab</b> pane</span></div>
+        </div>
+      </div>
+    </div></div>
+    <figcaption>Mock, base 14. Rows are the existing SettingsRow; the buttons open the desktop's file picker (the XDG portal, as the add sheet's "browse" does). "Back up…" proposes <code>~/omaseed-2026-10-03.omaseed</code>.</figcaption>
+  </section>
+
+  <!-- 4 -->
+  <section id="qbt">
+    <div class="sec-head"><div class="eyebrow">4 · surface two</div><h2>Settings › qBittorrent › Backup: the server's</h2></div>
+    <p>The last pane of the qBittorrent group, acting on the server that group is about. Settings and torrents are separate rows, each with its own export and import.</p>
+    <div class="scroll"><div class="stage" style="padding:18px;width:max-content">
+      <div class="modal">
+        <nav>
+          <span class="cap">settings</span>
+          <span class="it">◎ General</span><span class="it">▤ Servers</span><span class="it">◔ Notifications</span><span class="it">⌨ Keybindings</span><span class="it">◑ Appearance</span><span class="it">⇵ Backup</span><span class="it">i About</span>
+          <span class="cap" style="margin-top:8px">qbittorrent · home 5.2.3</span>
+          <span class="it">⇅ Speed</span><span class="it">◎ Discovery</span><span class="it">⇄ Connection</span><span class="it">↑ Seeding</span><span class="it">≡ Queue</span><span class="it">▤ Downloads</span><span class="it">◆ Advanced</span><span class="it on">⇵ Backup</span>
+        </nav>
+        <div class="pane2">
+          <div class="ph"><b>Backup</b><span class="dimc" style="font-size:12.4px">home · qBittorrent 5.2.3</span><small>esc</small></div>
+          <span class="grp">settings</span>
+          <div class="srow cur"><span class="g">↓</span><span class="t">Export settings</span><span class="c"><span class="btn pri">export…</span></span><span class="d">Preferences, <b>4</b> categories, <b>7</b> tags, <b>2</b> RSS feeds and <b>5</b> rules. Passwords are left out.</span></div>
+          <div class="srow"><span class="g">↑</span><span class="t">Import settings</span><span class="c"><span class="btn">import…</span></span><span class="d">From a qBittorrent export. Every change is shown first; paths, ports and the Web UI login stay as they are unless you tick them.</span></div>
+          <span class="grp">torrents</span>
+          <div class="srow"><span class="g">↓</span><span class="t">Export torrents</span><span class="c"><span class="btn">export…</span></span><span class="d"><b>312</b> torrents with their save paths, categories, tags and limits. The 2.4 TB of files stay where they are. <b>3</b> magnets without metadata go in as links.</span></div>
+          <div class="srow"><span class="g">↑</span><span class="t">Import torrents</span><span class="c"><span class="btn">import…</span></span><span class="d">Adds them, lets qBittorrent check the files on disk, then starts the complete ones. Torrents already here are skipped.</span></div>
+          <div class="keys"><span><b>j k</b> move</span><span><b>enter</b> act</span><span><b>tab</b> pane</span></div>
+        </div>
+      </div>
+    </div></div>
+    <figcaption>Mock, base 14. On a server that isn't connected, the export rows dim and say "connect to export". Import is always on: it asks which server to send to only when there is more than one.</figcaption>
+  </section>
+
+  <!-- 5 -->
+  <section id="sheets">
+    <div class="sec-head"><div class="eyebrow">5 · the three sheets</div><h2>Nothing changes before you have seen what will</h2></div>
+    <div class="cols" style="grid-template-columns:repeat(auto-fit, minmax(560px, 1fr))">
+      <figure>
+        <div class="stage mini" style="padding:18px">
+          <div class="sheet2" style="width:100%">
+            <h4>Restore from omaseed-2026-10-03.omaseed</h4>
+            <span class="sub">Made 3 Oct 2026 21:04 by omaseed 0.1.0 on <b style="color:var(--t-fg);font-weight:500">desk</b>.</span>
+            <div class="ck"><span class="b">▣</span><span>settings</span><span class="s">replaces this machine's</span><span class="d">appearance, keys, columns, notifications, tray</span></div>
+            <div class="ck"><span class="b">▣</span><span>servers · home, seedbox</span><span class="s">1 kept · 1 added</span><span class="d"><b>home</b> is already here (same address): kept, its path maps updated. <b>seedbox</b> is added; you sign in once after.</span></div>
+            <div class="ck"><span class="b">▣</span><span>seed history · home</span><span class="s">since 12 Mar 2026</span><span class="d">This machine has 4 days for home. The backup's 205 days replace them (D4).</span></div>
+            <div class="ck"><span class="b off">□</span><span>seed history · seedbox</span><span class="s">since 2 Jun 2026</span><span class="d">Not ticked: the server is new here, so it starts with the backup's history once ticked.</span></div>
+            <div class="hintline"><span class="k">✓</span><span>what is here now is saved first, to <b>backups/before-restore-2026-10-03.omaseed</b></span></div>
+            <div class="sheet" style="width:auto;border:0;padding:0;background:none"><div class="btns" style="grid-template-columns:1fr 1fr"><span>cancel</span><span class="pri">restore 3 parts</span></div></div>
+          </div>
+        </div>
+        <figcaption><b>Restoring omaseed.</b> Each part is a box to tick. Servers are matched by address, not by omaseed's internal id, so a backup from another machine finds the same server. Logins aren't in the file: a restored server shows the sign-in line in its row until you type them.</figcaption>
+      </figure>
+
+      <figure>
+        <div class="stage mini" style="padding:18px">
+          <div class="sheet2" style="width:100%">
+            <h4>Import settings into home</h4>
+            <span class="sub">From qbittorrent-home-2026-10-03.json (qBittorrent 5.1.2). <b style="color:var(--t-fg);font-weight:500">14</b> settings differ from what home has now; 209 are the same and are not listed.</span>
+            <div class="diff">
+              <span class="h"></span><span class="h">setting</span><span class="h r">now</span><span class="h r">from the file</span>
+              <span class="b">▣</span><span>upload slots at once</span><span class="r old">20</span><span class="r new">40</span>
+              <span class="b">▣</span><span>don't count slow torrents</span><span class="r old">off</span><span class="r new">on</span>
+              <span class="b">▣</span><span>ratio limit</span><span class="r old">1.00</span><span class="r new">none</span>
+              <span class="b">▣</span><span>categories</span><span class="r old">2</span><span class="r new">+ films, audio</span>
+              <span class="b">▣</span><span>tags · RSS</span><span class="r old">3 · none</span><span class="r new">+ 4 · 2 feeds, 5 rules</span>
+            </div>
+            <span class="grp">this machine only · left out unless ticked</span>
+            <div class="diff">
+              <span class="b off">□</span><span>default save path</span><span class="r old">/home/d/Torrents</span><span class="r new">/data/torrents</span>
+              <span class="b off">□</span><span>listening port</span><span class="r old">6881</span><span class="r new">51413</span>
+              <span class="b off">□</span><span>network interface</span><span class="r old">any</span><span class="r new">wg0</span>
+              <span class="b off">□</span><span>Web UI address, port, user</span><span class="r old">*:8080 admin</span><span class="r new">*:8080 diogo</span>
+            </div>
+            <div class="hintline"><span class="k">i</span><span>passwords were never exported: proxy, e-mail and DynDNS logins stay as they are</span></div>
+            <div class="sheet" style="width:auto;border:0;padding:0;background:none"><div class="btns"><span>cancel</span><span>export current first</span><span class="pri">apply 10 changes</span></div></div>
+          </div>
+        </div>
+        <figcaption><b>Importing settings.</b> Only differences are listed, in plain words (the API key is under each, in the row's tooltip). Keys this version of qBittorrent doesn't have are left out and counted in a line. Machine-specific keys (§6) start unticked. Categories, tags and RSS are added; nothing already on the server is deleted.</figcaption>
+      </figure>
+
+      <figure>
+        <div class="stage mini" style="padding:18px">
+          <div class="sheet2" style="width:100%">
+            <h4>Import 312 torrents into home</h4>
+            <span class="sub">From torrents-home-2026-10-03.omaseed-torrents (qBittorrent 5.1.2).</span>
+            <div class="plan">
+              <span class="h">torrents</span><span class="h r"></span><span class="h r">count</span><span class="h r">size</span>
+              <span>new to home</span><span class="r dimc">added</span><span class="r">296</span><span class="r">2.3 TB</span>
+              <span class="dimc">already in home (same hash)</span><span class="r dimc">skipped</span><span class="r dimc">13</span><span class="r dimc">96 GB</span>
+              <span>magnets without metadata</span><span class="r dimc">added as links</span><span class="r">3</span><span class="r dimc">—</span>
+            </div>
+            <span class="cap">save paths</span>
+            <div class="field"><span>/data/torrents &nbsp;→&nbsp; /mnt/media/torrents</span><small>from home's path map · + another</small></div>
+            <div class="hintline"><span class="k">!</span><span><b>21</b> save paths don't start with /data/torrents and are kept as they are</span></div>
+            <span class="cap">then</span>
+            <div class="chiprow"><span class="chip on">check files, start the complete ones</span><span class="chip">leave them stopped</span></div>
+            <div class="hintline"><span class="k">+</span><span>4 categories and 7 tags they use are created first</span></div>
+            <div class="sheet" style="width:auto;border:0;padding:0;background:none"><div class="btns" style="grid-template-columns:1fr 1fr"><span>cancel</span><span class="pri">import 299</span></div></div>
+          </div>
+        </div>
+        <figcaption><b>Importing torrents.</b> The path rows fix the usual move: a container's <code>/data</code> on one machine is <code>/mnt/media</code> on the next. Torrents are sent in batches of 20 with a progress line, and a torrent whose files aren't found stays stopped with "files missing", not "downloading from zero".</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <!-- 6 -->
+  <section id="machine">
+    <div class="sec-head"><div class="eyebrow">6 · machine-specific</div><h2>What starts unticked on import, and why</h2></div>
+    <div class="scroll"><table class="t">
+      <thead><tr><th>group</th><th>keys</th><th>why it's risky to copy</th></tr></thead>
+      <tbody>
+        <tr><td>folders</td><td><code>save_path</code>, <code>temp_path</code>, <code>export_dir</code>, <code>export_dir_fin</code>, <code>scan_dirs</code>, <code>file_log_path</code>, <code>ip_filter_path</code>, category <code>savePath</code> / <code>download_path</code></td><td>the folder may not exist on the new machine, and new downloads would fail or land somewhere odd. Category folders go through the same "from → to" rows as torrents.</td></tr>
+        <tr><td>network</td><td><code>listen_port</code>, <code>current_network_interface</code>, <code>current_interface_address</code>, <code>upnp</code>, <code>i2p_*</code></td><td>the router forwards one port to one machine; a VPN interface on one machine is missing on another, and qBittorrent then stops talking at all</td></tr>
+        <tr><td>Web UI</td><td><code>web_ui_address</code>, <code>web_ui_port</code>, <code>web_ui_username</code>, <code>web_ui_https_*</code>, <code>bypass_*</code>, <code>web_ui_domain_list</code>, reverse proxy</td><td>change these and omaseed may lose the very connection it is importing through</td></tr>
+        <tr><td>programs</td><td><code>autorun_program</code>, <code>autorun_on_torrent_added_program</code>, <code>python_executable_path</code>, <code>alternative_webui_path</code></td><td>a script path from another machine runs nothing, or the wrong thing</td></tr>
+        <tr><td>secrets</td><td><code>proxy_password</code>, <code>mail_notification_password</code>, <code>dyndns_password</code>, <code>web_ui_api_key</code></td><td>not in the file at all (D5), so there is nothing to tick</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <!-- 7 -->
+  <section id="edges">
+    <div class="sec-head"><div class="eyebrow">7 · edge cases</div><h2>What could go wrong, and what omaseed does</h2></div>
+    <div class="cols">
+      <ul>
+        <li><b>Backup from another machine.</b> Servers are matched by address. If the address changed (a new IP for the box), the restore sheet asks "is <code>192.168.1.20:8080</code> the same as <code>home</code>?"</li>
+        <li><b>History on both sides.</b> D4. The default keeps the longer history and saves the other aside, so nothing is thrown away.</li>
+        <li><b>Older or newer qBittorrent.</b> Keys the target doesn't have are skipped and counted. Keys the file doesn't have stay as they are. Categories' share limits need 5.x; on 4.x they are skipped with a note.</li>
+      </ul>
+      <ul>
+        <li><b>A torrent already on the target</b> (same hash): skipped (D8).</li>
+        <li><b>Cross-seeded torrents</b> (two hashes, same files): both come back, pointed at the same folder, so they keep sharing one copy on disk.</li>
+        <li><b>A torrent in a moving state</b> or checking at export: its target save path is the one exported.</li>
+        <li><b>Huge libraries.</b> Export reads .torrent files 20 at a time with a progress line. A 3,000-torrent export is about 150 MB.</li>
+      </ul>
+      <ul>
+        <li><b>An import fails halfway</b> (server gone, disk full): what was added stays, the sheet says how far it got, and running it again skips what is already there.</li>
+        <li><b>The file is from a different app</b>, or damaged: refused before anything changes, with the reason.</li>
+        <li><b>Automatic copies on a full disk</b>: skipped with a notice. The oldest copies are removed only after a new one is written.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 8 -->
+  <section id="build">
+    <div class="sec-head"><div class="eyebrow">8 · building it</div><h2>How it would be built</h2></div>
+    <div class="cols">
+      <div style="display:grid;gap:8px;align-content:start">
+        <h3>core</h3>
+        <ul>
+          <li><code>TarArchive</code>: write and read plain ustar, no dependency.</li>
+          <li><code>OmaseedBackup</code>: collects state.json, servers.json and each ledger (the SQLite backup API, safe while the app runs). Restores the chosen parts after the safety copy.</li>
+          <li><code>QbtExport</code> / <code>QbtImport</code>: preferences minus secrets; categories, tags, RSS; torrents with <code>torrents/export</code> + info + files. The import diffs, sorts machine-specific keys, then applies in order: categories, tags, preferences, RSS, torrents.</li>
+          <li>A QtTest for each, with fixtures.</li>
+        </ul>
+      </div>
+      <div style="display:grid;gap:8px;align-content:start">
+        <h3>views</h3>
+        <ul>
+          <li>Two Backup panes in SettingsModal, built from the existing rows and chips.</li>
+          <li>Three Kit Sheets: restore, import settings, import torrents.</li>
+          <li>The file picker is the portal one the add sheet already uses.</li>
+        </ul>
+      </div>
+      <div style="display:grid;gap:8px;align-content:start">
+        <h3>checks</h3>
+        <ul>
+          <li>Live tests export from the :8081 playground.</li>
+          <li>A new <code>backup-walk.sh</code> exports from one box qBittorrent (<code>app-box.sh up --qbt</code>), imports into a second, empty one, and compares everything on both servers and on disk: settings, categories, tags, RSS, every torrent's path, category, tags, limits and state.</li>
+          <li>The same walk restores omaseed into a fresh box and checks the console shows the same year.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="note warn">This adds two Settings panes and three sheets that the frozen spec doesn't have. Once ruled: a <code>REVIEW-v0.1.0.md</code> line and an issue per part.</div>
+  </section>
+
+  <!-- 9 -->
+  <section id="decide">
+    <div class="sec-head"><div class="eyebrow">9 · your calls</div><h2>Decisions, and your answers in one paste</h2></div>
+    <p>Recommended options are marked and preselected. Change what you disagree with and paste the block back into a session.</p>
+    <div class="dec" id="dec"></div>
+    <div class="out">
+      <textarea id="answers" readonly aria-label="Your answers"></textarea>
+      <div style="display:flex;gap:12px;align-items:center"><button type="button" id="copy">Copy answers</button><span class="ok" id="copied" hidden>Copied</span></div>
+    </div>
+  </section>
+</main>
+
+<script>
+(() => {
+"use strict";
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const THEMES = {
+  "frieren":          { fg:"#b9c5ef", bg:"#11111b", accent:"#5492f8", red:"#ee5681", yellow:"#f6d58c", green:"#7dd676", blue:"#5492f8", magenta:"#b47ff3", cyan:"#63d5c2" },
+  "tokyo-night":      { fg:"#a9b1d6", bg:"#1a1b26", accent:"#7aa2f7", red:"#f7768e", yellow:"#e0af68", green:"#9ece6a", blue:"#7aa2f7", magenta:"#ad8ee6", cyan:"#449dab" },
+  "gruvbox":          { fg:"#d4be98", bg:"#282828", accent:"#7daea3", red:"#ea6962", yellow:"#d8a657", green:"#a9b665", blue:"#7daea3", magenta:"#d3869b", cyan:"#89b482" },
+  "everforest":       { fg:"#d3c6aa", bg:"#2d353b", accent:"#7fbbb3", red:"#e67e80", yellow:"#dbbc7f", green:"#a7c080", blue:"#7fbbb3", magenta:"#d699b6", cyan:"#83c092" },
+  "catppuccin-latte": { fg:"#4c4f69", bg:"#eff1f5", accent:"#1e66f5", red:"#d20f39", yellow:"#df8e1d", green:"#40a02b", blue:"#1e66f5", magenta:"#ea76cb", cyan:"#179299", light:true },
+};
+function applyTheme(name) {
+  const t = THEMES[name];
+  for (const st of $$(".stage")) {
+    for (const k of ["fg","bg","accent","red","yellow","green","blue","magenta","cyan"]) st.style.setProperty("--t-" + k, t[k]);
+    st.classList.toggle("light", !!t.light);
+const DEC = [
+  { id:"D1", q:"Where do the two halves live?", type:"radio", opts:[
+    ["a","omaseed's in a Backup pane in the app's group; the server's in a Backup pane closing the qBittorrent group", true],
+    ["b","One Backup pane holding both, with the server's part acting on the current server"],
+    ["c","No new panes: rows at the bottom of General and of qBittorrent › Advanced"]]},
+  { id:"D2", q:"File format", type:"radio", opts:[
+    ["a","Plain tar written by omaseed (JSON, the history's SQLite, .torrent files inside); qBittorrent settings as one JSON file", true],
+    ["b","Everything as single JSON files (.torrent files base64 inside)"],
+    ["c","A folder per export, no archive"]]},
+  { id:"D3", q:"Automatic copies", type:"radio", opts:[
+    ["a","Weekly, last 4 kept: omaseed's backup plus each server's settings (not its torrents)", true],
+    ["b","Weekly, omaseed's backup only"],
+    ["c","Daily, last 7 kept, same contents as a"],
+    ["d","None: by hand only"]]},
+  { id:"D4", q:"Restoring history for a server that already has some", type:"radio", opts:[
+    ["a","The longer history wins; the other is saved aside in the safety copy", true],
+    ["b","The backup's always wins"],
+    ["c","Merge day by day, keeping the larger figure of each day"]]},
+  { id:"D5", q:"Secrets qBittorrent's API returns in clear (proxy, e-mail, DynDNS, API key)", type:"radio", opts:[
+    ["a","Never written to the settings file", true],
+    ["b","Written, with the file saved private (0600) and a warning at export"]]},
+  { id:"D6", q:"After importing torrents", type:"radio", opts:[
+    ["a","qBittorrent checks the files; complete ones start, the rest stay stopped as \"files missing\"", true],
+    ["b","All added stopped; you start them"],
+    ["c","Added started, check skipped (fast, trusts the files)"]]},
+  { id:"D7", q:"Save paths on another machine", type:"radio", opts:[
+    ["a","\"from → to\" rows on the import sheet, prefilled from that server's path map", true],
+    ["b","Kept exactly as exported"]]},
+  { id:"D8", q:"A torrent that is already on the target", type:"radio", opts:[
+    ["a","Skipped", true],
+    ["b","Skipped, but the file's category, tags and extra trackers are added to it"]]},
+  { id:"D9", q:"When?", type:"radio", opts:[
+    ["a","omaseed's backup and automatic copies in v0.1.0 (they protect the history the console adds); qBittorrent export/import right after", true],
+    ["b","All of it in v0.1.0"],
+    ["c","All of it after v0.1.0"]]},
+];
+const dec = $("#dec");
+for (const d of DEC) {
+  const box = document.createElement("div"); box.className = "q";
+  const inputs = d.opts.map(([v, label, rec]) => {
+    const id = `${d.id}-${v}`;
+    return `<label class="opt" for="${id}"><input id="${id}" type="${d.type === "radio" ? "radio" : "checkbox"}" name="${d.id}" value="${v}" ${rec ? "checked" : ""}><span>${d.type === "radio" ? `<b>${v}</b> · ` : ""}${label}${rec && d.type === "radio" ? '<span class="rec">recommended</span>' : ""}</span></label>`;
+  }).join("");
+  box.innerHTML = `<fieldset><legend><span class="id">${d.id}</span> · ${d.q}${d.type === "check" ? ' <span class="dim" style="font-weight:400">(tick any; the ticked are recommended)</span>' : ""}</legend>${inputs}</fieldset>`;
+  dec.append(box);
+}
+const notes = document.createElement("div"); notes.className = "q";
+notes.innerHTML = `<label for="free" style="color:var(--fg-bright);font-weight:500">Anything else (something you would want in a backup, a case I missed)</label><textarea id="free" style="min-height:70px;font:inherit;font-size:12.4px;color:var(--fg);background:var(--bg);border:1px solid var(--hairline);padding:8px"></textarea>`;
+dec.append(notes);
+function answers() {
+  const lines = ["docs/24 backup and restore:"];
+  for (const d of DEC) {
+    if (d.type === "radio") { const c = $(`input[name="${d.id}"]:checked`); lines.push(`${d.id} ${c ? c.value : "-"}`); }
+    else lines.push(`${d.id} ${$$(`input[name="${d.id}"]:checked`).map(i => i.value).join(", ") || "none"}`);
+  }
+  const f = $("#free").value.trim(); if (f) lines.push("notes: " + f);
+  $("#answers").value = lines.join("\n");
+}
+dec.addEventListener("input", answers); answers();
+$("#copy").addEventListener("click", () => {
+  const ta = $("#answers");
+  const done = () => { $("#copied").hidden = false; setTimeout(() => $("#copied").hidden = true, 1600); };
+  if (navigator.clipboard?.writeText) navigator.clipboard.writeText(ta.value).then(done, () => { ta.select(); });
+  else ta.select();
+});
+})();
+</script>
