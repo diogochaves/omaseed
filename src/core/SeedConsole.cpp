@@ -55,6 +55,12 @@ QString countText(int n, const QString &one, const QString &many)
     return QStringLiteral("%1 %2").arg(Format::count(n), n == 1 ? one : many);
 }
 
+/// Cross-seeds share their files: one key per set of files on disk (qui counts them so too).
+QString filesKey(const Torrent &t)
+{
+    return t.contentPath.isEmpty() ? t.hash : t.contentPath;
+}
+
 int quietDays(const Torrent &t, const QDateTime &now)
 {
     const QDateTime last = t.lastActivity.isValid() && t.lastActivity.toSecsSinceEpoch() > 0
@@ -336,8 +342,7 @@ void SeedConsole::refreshFast()
             given += x->uploaded;
             taken += x->downloaded;
             if (x->isComplete()) {
-                // Cross-seeds share their files: count a content path once (qui does too).
-                const QString key = x->contentPath.isEmpty() ? x->hash : x->contentPath;
+                const QString key = filesKey(*x);
                 if (!offered.contains(key)) {
                     offered.insert(key);
                     offer += x->size;
@@ -441,7 +446,14 @@ void SeedConsole::refreshFast()
         QVariantList points;
         QList<double> ratios;
         int below = 0;
-        qint64 owed = 0;
+        // What is still to give back is per set of files: cross-seeds took the files once and
+        // pay them back together, so each does not owe the whole size again.
+        struct Files
+        {
+            qint64 size = 0, taken = 0, given = 0;
+            bool below = false;
+        };
+        QHash<QString, Files> files;
         for (const Torrent *x : scope) {
             if (!x->isComplete())
                 continue;
@@ -452,10 +464,21 @@ void SeedConsole::refreshFast()
                                       {QStringLiteral("name"), x->name},
                                       {QStringLiteral("ratioText"), Format::ratio(r)},
                                       {QStringLiteral("sizeText"), Format::size(x->size)}});
+            Files &f = files[filesKey(*x)];
+            f.size = std::max(f.size, x->size);
+            f.taken += x->downloaded;
+            f.given += x->uploaded;
             if (r < 1.0) {
                 ++below;
-                owed += std::max<qint64>(0, std::max(x->downloaded, x->size) - x->uploaded);
+                f.below = true;
             }
+        }
+        qint64 owed = 0;
+        for (const Files &f : std::as_const(files)) {
+            // A torrent that took (almost) nothing still owes its size, as qBittorrent's own
+            // ratio has it: the files came from somewhere.
+            if (f.below)
+                owed += std::max<qint64>(0, std::max(f.taken, f.size) - f.given);
         }
         std::sort(ratios.begin(), ratios.end());
         QString summary;
@@ -556,6 +579,7 @@ void SeedConsole::refreshFast()
     {
         QList<const Torrent *> idle;
         qint64 idleSize = 0;
+        QSet<QString> idleFiles;
         for (const Torrent *x : scope) {
             if (!x->isComplete())
                 continue;
@@ -565,7 +589,10 @@ void SeedConsole::refreshFast()
             if (quietDays(*x, t) < kQuietDays)
                 continue;
             idle.append(x);
-            idleSize += x->size;
+            if (!idleFiles.contains(filesKey(*x))) {
+                idleFiles.insert(filesKey(*x));
+                idleSize += x->size; // cross-seeds hold their files once
+            }
         }
         std::sort(idle.begin(), idle.end(), [](const Torrent *l, const Torrent *r) { return l->size > r->size; });
         QVariantList rows;
@@ -926,13 +953,17 @@ QVariantMap SeedConsole::selectionSummary(const QStringList &hashes) const
 {
     qint64 size = 0, given = 0, taken = 0;
     int n = 0;
+    QSet<QString> files;
     if (m_torrents) {
         for (const QString &hash : hashes) {
             if (m_torrents->indexOfHash(hash) < 0)
                 continue;
             const Torrent &x = m_torrents->torrent(hash);
             ++n;
-            size += x.size;
+            if (!files.contains(filesKey(x))) {
+                files.insert(filesKey(x));
+                size += x.size; // cross-seeds: the files are on disk once
+            }
             given += x.uploaded;
             taken += x.downloaded;
         }

@@ -1,9 +1,11 @@
+#include "core/Format.hpp"
 #include "core/GlobalState.hpp"
 #include "core/SeedConsole.hpp"
 #include "core/SeedLedger.hpp"
 #include "core/TorrentFilterModel.hpp"
 #include "core/TorrentModel.hpp"
 
+#include <QJsonArray>
 #include <QJsonObject>
 #include <QTest>
 
@@ -178,6 +180,82 @@ private Q_SLOTS:
         QCOMPARE(r.value(QStringLiteral("name")).toString(), QStringLiteral("Nosferatu"));
         QCOMPARE(SeedConsole::swarmText(1), QStringLiteral("only you"));
         QCOMPARE(SeedConsole::swarmText(0), QString());
+    }
+
+    // A cross-seed: a second torrent, on another tracker, on the files Nosferatu already has.
+    // It took nothing (downloaded 0) and gave 1 200 in its own swarm.
+    static QJsonObject crossSeedOf(const QString &name, qint64 size, qint64 uploaded, int quietDays = 0)
+    {
+        QJsonObject o = row(name, size, double(uploaded) / double(size), 3, 0, QStringLiteral("films"), 0,
+                            false, quietDays);
+        o[QStringLiteral("downloaded")] = 0;
+        o[QStringLiteral("uploaded")] = uploaded;
+        o[QStringLiteral("tracker")] = QStringLiteral("https://other.example.net/announce");
+        return o;
+    }
+
+    void crossSeedsCountTheirFilesOnce()
+    {
+        Fixture f;
+        f.console.refresh();
+        const QString offerBefore = f.console.totals().value(QStringLiteral("offerText")).toString();
+        f.model.applyPartial(QJsonObject{{QStringLiteral("fff"), crossSeedOf(QStringLiteral("Nosferatu"), 4000, 1200)}},
+                             QJsonArray());
+        f.console.refresh();
+        // The disk holds the files once: what you offer does not grow.
+        QCOMPARE(f.console.totals().value(QStringLiteral("offerText")).toString(), offerBefore);
+
+        // Both selected: the files once, what both gave, what was taken once.
+        const QVariantMap s = f.console.selectionSummary({QStringLiteral("aaa"), QStringLiteral("fff")});
+        QCOMPARE(s.value(QStringLiteral("count")).toInt(), 2);
+        QCOMPARE(s.value(QStringLiteral("sizeText")).toString(), Format::size(4000));
+        QCOMPARE(s.value(QStringLiteral("givenText")).toString(), Format::size(2800));
+        QCOMPARE(s.value(QStringLiteral("ratioText")).toString(), QStringLiteral("0.70"));
+
+        // The ladder: two dots below 1.0, but the files owe what is left of 4 KB after both
+        // gave (1.2 KB), not each torrent its own 4 KB again.
+        const QString ladder = f.console.ladder().value(QStringLiteral("summary")).toString();
+        QVERIFY2(ladder.startsWith(QStringLiteral("2 below 1.0 · %1 still to give back").arg(Format::size(1200))),
+                 qPrintable(ladder));
+    }
+
+    void quietCrossSeedsHoldTheirFilesOnce()
+    {
+        Fixture f;
+        f.model.applyPartial(QJsonObject{{QStringLiteral("ggg"), crossSeedOf(QStringLiteral("dataset"), 90000, 0, 94)}},
+                             QJsonArray());
+        f.console.refresh();
+        const QVariantMap holding = f.console.holding();
+        QCOMPARE(holding.value(QStringLiteral("rows")).toList().size(), 2);
+        QCOMPARE(holding.value(QStringLiteral("summary")).toString(),
+                 QStringLiteral("%1 in 2, quiet for 30 days or more").arg(Format::size(90000)));
+    }
+
+    // A torrent removed from qBittorrent: the year keeps what it gave (the server's days), no
+    // block lists it by a bare hash, and "lately" keeps its name.
+    void aRemovedTorrentKeepsItsHistoryNotItsRow()
+    {
+        Fixture f;
+        const qint64 t = kNow.toSecsSinceEpoch();
+        f.ledger.observe(t - 7200, 0, 0, {{QStringLiteral("zzz"), 0, 0}, {QStringLiteral("ccc"), 0, 0}});
+        f.ledger.observe(t - 7198, 5000, 0, {{QStringLiteral("zzz"), 4000, 0}, {QStringLiteral("ccc"), 1000, 0}});
+        f.ledger.observe(t - 7196, 5000, 0, {{QStringLiteral("ccc"), 1000, 0}}); // zzz removed
+        f.console.setRecentProvider([t] {
+            return QVariantList{QVariantMap{{QStringLiteral("kind"), QStringLiteral("milestone")},
+                                            {QStringLiteral("hash"), QStringLiteral("zzz")},
+                                            {QStringLiteral("name"), QStringLiteral("Gone film")},
+                                            {QStringLiteral("ratio"), 1},
+                                            {QStringLiteral("at"), t - 7197}}};
+        });
+        f.console.refresh();
+        QCOMPARE(f.console.totals().value(QStringLiteral("todayText")).toString(),
+                 QStringLiteral("+") + Format::size(5000));
+        const QVariantList earning = f.console.earning().value(QStringLiteral("rows")).toList();
+        for (const QVariant &r : earning)
+            QVERIFY(r.toMap().value(QStringLiteral("hash")).toString() != QLatin1String("zzz"));
+        const QVariantList lately = f.console.lately();
+        QCOMPARE(lately.size(), 1);
+        QCOMPARE(lately.first().toMap().value(QStringLiteral("name")).toString(), QStringLiteral("Gone film"));
     }
 
     void rangesStep()
