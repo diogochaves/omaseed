@@ -1,0 +1,417 @@
+<title>omaseed shared-file deletes</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap">
+<style>
+/* ------------------------------------------------------------------
+   docs/26: deleting files another torrent uses, a proposal
+   (2026-10-03). Issue #28. Board chrome: board 24's. The mock kit
+   copies the real delete confirm (Fig. 6 on Kit/ConfirmDialog, with
+   #24 T6's last-seed line), measured on an omabox shot at base 14.
+   Mocks: Theme roles only, fills at 4/8/18/22 %, hairlines at 12 %,
+   base 14, switchable between themes. All data is example data.
+   ------------------------------------------------------------------ */
+:root {
+  --accent:#5492f8; --bg:#11111b; --bg-dark:#0d0d14;
+  --fg:#b9c5ef; --fg-dark:#8b94b3; --fg-bright:#cbd4f3;
+  --green:#7dd676; --red:#ee5681; --yellow:#f6d58c;
+  --fill-normal: color-mix(in srgb, var(--fg) 4%, transparent);
+  --hairline: color-mix(in srgb, var(--fg) 12%, transparent);
+  --mono: "JetBrains Mono", "JetBrainsMono Nerd Font", ui-monospace, monospace;
+  color-scheme: dark;
+}
+* { box-sizing:border-box; }
+[hidden] { display:none !important; }
+body { margin:0; background:var(--bg-dark); color:var(--fg); font:400 13px/1.6 var(--mono); -webkit-font-smoothing:antialiased; }
+main { max-width:1320px; margin:0 auto; padding-block:32px 72px; padding-inline:16px; display:grid; gap:32px; }
+h1,h2,h3 { margin:0; font-weight:600; color:var(--fg-bright); text-wrap:balance; }
+h1 { font-size:26px; } h2 { font-size:17px; } h3 { font-size:13px; }
+p, li { max-width:84ch; }
+p { margin:0; }
+ul, ol { margin:0; padding-left:20px; display:grid; gap:4px; }
+code { color:var(--fg-bright); background:var(--fill-normal); padding:0 4px; }
+b { color:var(--fg-bright); font-weight:600; }
+a { color:var(--accent); }
+.eyebrow { font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--fg-dark); }
+.dim { color:var(--fg-dark); }
+.lead { font-size:14px; color:var(--fg); max-width:86ch; }
+section { display:grid; gap:14px; border-top:1px solid var(--hairline); padding-top:22px; min-width:0; }
+.sec-head { display:grid; gap:4px; }
+figure { margin:0; display:grid; gap:6px; align-content:start; min-width:0; }
+figcaption { font-size:11px; color:var(--fg-dark); max-width:90ch; }
+figcaption b { color:var(--fg); font-weight:500; }
+.scroll { overflow-x:auto; }
+.cols { display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:20px; }
+.cols > * { min-width:0; }
+table.t { border-collapse:collapse; width:100%; font-size:12px; }
+.t th, .t td { text-align:left; padding:6px 10px; border-bottom:1px solid var(--hairline); vertical-align:top; }
+.t th { font-weight:500; color:var(--fg-dark); font-size:10px; letter-spacing:.1em; text-transform:uppercase; white-space:nowrap; }
+.t td:first-child { color:var(--fg-bright); white-space:nowrap; }
+.themes { display:flex; flex-wrap:wrap; gap:6px; align-items:center; font-size:12px; color:var(--fg-dark); position:sticky; top:env(safe-area-inset-top, 0px); background:var(--bg-dark); padding-block:8px; z-index:20; border-bottom:1px solid var(--hairline); }
+.themes button { font:inherit; font-size:12px; color:var(--fg); background:transparent; border:1px solid var(--hairline); padding:2px 10px; cursor:pointer; }
+.themes button[aria-pressed="true"] { background:color-mix(in srgb, var(--fg) 18%, transparent); color:var(--fg-bright); border-color:transparent; }
+button:focus-visible, input:focus-visible, textarea:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.shot { border:1px solid var(--hairline); display:block; max-width:100%; height:auto; }
+.note { border-left:2px solid var(--accent); padding:6px 12px; background:var(--fill-normal); font-size:12px; max-width:96ch; }
+.note.warn { border-color:var(--yellow); }
+
+/* ---------- the stage: Theme roles only, base 14 ---------- */
+.stage {
+  --t-fg:#b9c5ef; --t-bg:#11111b; --t-accent:#5492f8; --t-red:#ee5681; --t-yellow:#f6d58c;
+  --t-green:#7dd676; --t-blue:#5492f8; --t-magenta:#b47ff3; --t-cyan:#63d5c2;
+  --t-bright: color-mix(in srgb, var(--t-fg) 100%, white 12%);
+  --t-hair: color-mix(in srgb, var(--t-fg) 12%, transparent);
+  --t-dim: color-mix(in srgb, var(--t-fg) 62%, transparent);
+  --t-faint: color-mix(in srgb, var(--t-fg) 40%, transparent);
+  --f4: color-mix(in srgb, var(--t-fg) 4%, transparent);
+  --f8: color-mix(in srgb, var(--t-fg) 8%, transparent);
+  --f18: color-mix(in srgb, var(--t-fg) 18%, transparent);
+  --cap:11.7px; --body:14px; --small:13px;
+  color:var(--t-fg); font-family:var(--mono); font-size:var(--body); line-height:1.4;
+  background:color-mix(in srgb, var(--t-bg) 70%, black); border:1px solid var(--hairline);
+  padding:22px; display:flex; flex-wrap:wrap; gap:22px; align-items:start; overflow-x:auto;
+}
+.stage.light { --t-bright: color-mix(in srgb, var(--t-fg) 100%, black 18%); background:color-mix(in srgb, var(--t-bg) 88%, black); }
+
+/* the delete confirm as built: 430 wide at base 14 */
+.cf { width:430px; flex:none; border:1px solid var(--t-accent); background:var(--t-bg); padding:18px 20px; display:grid; gap:12px; font-size:var(--small); }
+.cf.wide { width:520px; }
+.cf h4 { margin:0; color:var(--t-bright); font-size:15.2px; font-weight:600; }
+.cf .who { color:var(--t-fg); line-height:1.5; white-space:pre-line; }
+.tog { display:flex; gap:10px; align-items:center; }
+.tog i { width:24px; height:14px; border:1px solid var(--t-hair); background:var(--f8); position:relative; flex:none; }
+.tog i::after { content:""; position:absolute; left:2px; top:2px; width:8px; height:8px; background:var(--t-dim); }
+.tog.on i { background:color-mix(in srgb, var(--t-accent) 30%, transparent); border-color:var(--t-accent); }
+.tog.on i::after { left:auto; right:2px; background:var(--t-bright); }
+.tog.off span { color:var(--t-dim); }
+.warnb { border-left:2px solid var(--t-yellow); padding:6px 10px; background:color-mix(in srgb, var(--t-yellow) 8%, transparent); color:var(--t-yellow); line-height:1.5; }
+.warnb .l { display:block; color:var(--t-fg); font-size:12.4px; margin-top:4px; }
+.warnb .l b { color:var(--t-bright); font-weight:500; }
+.warnb .l span { color:var(--t-dim); }
+.dimb { border-left:2px solid var(--t-hair); padding:4px 10px; color:var(--t-dim); font-size:12.4px; line-height:1.5; }
+.pick { display:grid; gap:2px; }
+.pick div { display:grid; grid-template-columns:16px 1fr; gap:8px; padding:5px 8px; border:1px solid transparent; line-height:1.4; }
+.pick div.cur { border-color:color-mix(in srgb, var(--t-fg) 25%, transparent); background:var(--f8); }
+.pick .r { color:var(--t-dim); }
+.pick .cur .r { color:var(--t-accent); }
+.pick small { display:block; color:var(--t-dim); font-size:12px; }
+.pick .red { color:var(--t-red); }
+.lbtn { justify-self:start; border:1px solid var(--t-hair); padding:4px 10px; color:var(--t-fg); }
+.btns { display:flex; justify-content:flex-end; gap:8px; }
+.btns span { border:1px solid var(--t-hair); min-height:31px; padding:0 18px; display:grid; place-items:center; background:var(--f8); color:var(--t-fg); }
+.btns .dng { border-color:color-mix(in srgb, var(--t-red) 55%, transparent); color:var(--t-red); background:transparent; }
+.btns .dng.cur, .btns .cur { outline:1px solid currentColor; outline-offset:1px; }
+.btns .pri { border-color:var(--t-accent); color:var(--t-accent); background:transparent; }
+
+/* the diagram */
+.pic { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:0; font-size:12px; min-width:760px; }
+.pic > div { border:1px solid var(--hairline); padding:12px; display:grid; gap:6px; align-content:start; margin-right:-1px; }
+.pic .k { color:var(--fg-dark); font-size:11px; }
+.pic .ok { color:var(--green); } .pic .no { color:var(--red); }
+.tree { font-size:12px; line-height:1.7; white-space:pre; color:var(--fg); }
+.tree .a { color:var(--accent); } .tree .y { color:var(--yellow); } .tree .d { color:var(--fg-dark); }
+
+/* ---------- the decision sheet ---------- */
+.dec { display:grid; gap:18px; }
+.q { display:grid; gap:8px; border:1px solid var(--hairline); padding:14px; }
+.q fieldset { border:0; margin:0; padding:0; display:grid; gap:6px; }
+.q legend { padding:0; color:var(--fg-bright); font-weight:500; margin-bottom:4px; }
+.q .id { color:var(--accent); font-weight:600; }
+.opt { display:grid; grid-template-columns:18px 1fr; gap:8px; align-items:start; font-size:12.4px; cursor:pointer; }
+.opt input { margin:3px 0 0; accent-color:var(--accent); }
+.opt .rec { color:var(--green); font-size:10px; letter-spacing:.1em; text-transform:uppercase; margin-left:6px; }
+.out { display:grid; gap:8px; }
+.out textarea { width:100%; min-height:130px; font:inherit; font-size:12.4px; color:var(--fg); background:var(--bg); border:1px solid var(--hairline); padding:10px; resize:vertical; }
+.out button { font:inherit; justify-self:start; color:var(--bg); background:var(--accent); border:0; padding:6px 14px; cursor:pointer; }
+.out .ok { color:var(--green); font-size:12px; }
+</style>
+<main>
+  <header style="display:grid;gap:10px">
+    <div class="eyebrow">docs/26 · proposal for Diogo · 2026-10-03 · issue #28 · companion to docs/25 · v1 and v2 stay frozen</div>
+    <h1>Deleting files another torrent is seeding</h1>
+    <p class="lead">Two torrents can use one copy of the same files: a cross-seed from another tracker, added through omaseed (board 25), qui or the cross-seed tool. qBittorrent doesn't know they share anything. Delete one <b>with its files</b>, and the other one loses its data, drops to "missing files" and stops seeding. qui checks for this before a delete. omaseed's delete confirm will too: it names the torrents that share the data, keeps the files by default, and offers to delete the others along with them.</p>
+    <p class="dim" style="font-size:12px">Names, trackers and paths in the mocks are example data. The screenshot in §1 is real. Switch the theme in the bar below: the mocks use Theme roles only.</p>
+  </header>
+
+  <nav class="themes" aria-label="Theme of the mocks">
+    <span>theme</span>
+    <button type="button" data-theme-name="frieren" aria-pressed="true">frieren</button>
+    <button type="button" data-theme-name="tokyo-night" aria-pressed="false">tokyo-night</button>
+    <button type="button" data-theme-name="gruvbox" aria-pressed="false">gruvbox</button>
+    <button type="button" data-theme-name="everforest" aria-pressed="false">everforest</button>
+    <button type="button" data-theme-name="catppuccin-latte" aria-pressed="false">catppuccin-latte</button>
+  </nav>
+
+  <!-- 1 -->
+  <section id="today">
+    <div class="sec-head"><div class="eyebrow">1 · where we are</div><h2>Today: the confirm guards the swarm, not the disk</h2></div>
+    <div class="cols" style="grid-template-columns:repeat(auto-fit, minmax(min(100%, 440px), 1fr));align-items:start">
+      <figure>
+        <img class="shot" width="445" height="348" alt="The delete confirm today: Delete this torrent? The torrent's name and 5.00 MB on disk; the also delete files from disk switch on; a yellow line: It has 2 seeds in the swarm, you included; a stop instead button; cancel and delete" src="data:image/webp;base64,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">
+        <figcaption><b>Real screenshot</b>, commit <code>684a6e1</code>, in an omabox (Omarchy 4.0.4, Hyprland 0.56, theme frieren, base 14) against the :8081 playground, opened with <code>D</code> and cancelled. The yellow line is #24 T6's last-seed guard.</figcaption>
+      </figure>
+      <div style="display:grid;gap:12px;align-content:start">
+        <p>The confirm counts the torrents and their size on disk. It remembers the files switch and warns when you're one of the last seeds. Nothing in it looks at what else uses those files. qBittorrent's <code>torrents/delete</code> with <code>deleteFiles=true</code> removes the torrent's files and any folders left empty, whoever else is seeding them.</p>
+        <div class="scroll"><div class="pic" style="min-width:560px">
+          <div><b>before</b><span class="k">two torrents, one folder</span><span class="tree"><span class="d">/media/music/</span>
+  Field Recordings Vol. 3 [FLAC]/
+    <span class="a">tracker A's torrent</span> · seeding
+    <span class="a">tracker B's torrent</span> · seeding</span></div>
+          <div><b>delete A with files</b><span class="k">what qBittorrent does</span><span class="no">16 files removed</span><span class="k">the folder too, once empty</span></div>
+          <div><b>after</b><span class="k">B is still listed</span><span class="no">B: missing files · stopped</span><span class="k">on a private tracker, B's seed time stops counting until it's fixed by hand</span></div>
+        </div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2 -->
+  <section id="proposal">
+    <div class="sec-head"><div class="eyebrow">2 · the proposal</div><h2>Say who else uses the files, keep them by default</h2></div>
+    <p>When the files switch is on (opened with <code>D</code>, or switched on in the dialog), the confirm looks for torrents <b>outside the selection</b> that use the same data. When it finds some, it lists them and offers a choice in place of the plain switch. When none are found, the confirm is exactly as today.</p>
+    <div class="stage">
+      <figure>
+        <div class="cf wide">
+          <h4>Delete this torrent?</h4>
+          <span class="who">Field Recordings Vol. 3 [FLAC]
+103 MB on disk</span>
+          <div class="tog on"><i></i><span>also delete files from disk</span></div>
+          <div class="warnb">Its files are also seeded by 1 torrent you're not deleting.
+            <span class="l"><b>Field Recordings Vol. 3 [FLAC]</b> <span>· tracker.b.example · seeding · ratio 0.42</span></span></div>
+          <div class="pick">
+            <div class="cur"><span class="r">●</span><span>keep the files<small>delete only this torrent; the other one keeps seeding</small></span></div>
+            <div><span class="r">○</span><span>delete the files and that torrent too<small>2 torrents, 103 MB</small></span></div>
+          </div>
+          <div class="btns"><span>cancel</span><span class="dng cur">delete, keep files</span></div>
+        </div>
+        <figcaption><b>S1 · One torrent, one sharer.</b> The yellow line names it, with its tracker, state and ratio, because "the same name" is exactly what you'd expect from a cross-seed. <code>j k</code> moves between the two choices, and the button says what will happen. "Keep the files" is preselected every time, whatever the switch remembers.</figcaption>
+      </figure>
+      <figure>
+        <div class="cf wide">
+          <h4>Delete this torrent?</h4>
+          <span class="who">Field Recordings Vol. 3 [FLAC]
+103 MB on disk</span>
+          <div class="tog on"><i></i><span>also delete files from disk</span></div>
+          <div class="warnb">Its files are also seeded by 1 torrent you're not deleting.
+            <span class="l"><b>Field Recordings Vol. 3 [FLAC]</b> <span>· tracker.b.example · seeding · ratio 0.42</span></span></div>
+          <div class="pick">
+            <div><span class="r">○</span><span>keep the files<small>delete only this torrent; the other one keeps seeding</small></span></div>
+            <div class="cur"><span class="r">●</span><span>delete the files and that torrent too<small>2 torrents, 103 MB</small></span></div>
+          </div>
+          <div class="btns"><span>cancel</span><span class="dng cur">delete 2 with files</span></div>
+        </div>
+        <figcaption><b>S2 · The second choice.</b> The sharer joins the delete, the count follows, and the last-seed guard (#24 T6) is worked out again for the larger set. There's no third choice "delete the files and leave the other one broken" (D2).</figcaption>
+      </figure>
+      <figure>
+        <div class="cf wide">
+          <h4>Delete 5 torrents?</h4>
+          <span class="who">Field Recordings Vol. 3 [FLAC]
+Public Domain Sampler
+Open Movie Night (2026)
+and 2 more · 8.42 GB on disk</span>
+          <div class="tog on"><i></i><span>also delete files from disk</span></div>
+          <div class="warnb">2 of them share files with 3 torrents you're not deleting.
+            <span class="l"><b>Field Recordings Vol. 3 [FLAC]</b> <span>· with 1, tracker.b.example</span></span>
+            <span class="l"><b>Open Movie Night (2026)</b> <span>· with 2, tracker.b.example and tracker.c.example</span></span></div>
+          <div class="pick">
+            <div class="cur"><span class="r">●</span><span>keep their files<small>delete 5 torrents; files kept for those 2, deleted for the other 3</small></span></div>
+            <div><span class="r">○</span><span>delete the files and those 3 too<small>8 torrents, 8.42 GB</small></span></div>
+          </div>
+          <div class="btns"><span>cancel</span><span class="dng cur">delete 5</span></div>
+        </div>
+        <figcaption><b>S3 · A selection.</b> Only the torrents that share are listed, each with how many sharers it has and where they seed. "Keep their files" splits the call: one <code>torrents/delete</code> with files for the torrents that don't share, one without for those that do.</figcaption>
+      </figure>
+      <figure>
+        <div class="cf wide">
+          <h4>Delete 2 torrents?</h4>
+          <span class="who">Field Recordings Vol. 3 [FLAC]
+Field Recordings Vol. 3 [FLAC]
+103 MB on disk</span>
+          <div class="tog on"><i></i><span>also delete files from disk</span></div>
+          <div class="dimb">These 2 share one copy of their files: 103 MB is deleted once.</div>
+          <div class="btns"><span>cancel</span><span class="dng cur">delete</span></div>
+        </div>
+        <figcaption><b>S4 · Every sharer selected.</b> Nothing to warn about. One dim line (D3 a) explains why two torrents count as 103 MB, not 206 MB. The "on disk" figure counts shared data once.</figcaption>
+      </figure>
+      <figure>
+        <div class="cf wide">
+          <h4>Delete this torrent?</h4>
+          <span class="who">Open Movie Night (2026)
+716 MB on disk</span>
+          <div class="tog on"><i></i><span>also delete files from disk</span></div>
+          <div class="warnb">Its files are also seeded by 1 torrent you're not deleting.
+            <span class="l"><b>Open Movie Night (2026)</b> <span>· tracker.b.example · seeding</span></span></div>
+          <div class="pick">
+            <div class="cur"><span class="r">●</span><span>keep the files<small>delete only this torrent; the other one keeps seeding</small></span></div>
+            <div><span class="r">○</span><span>delete the files and that torrent too<small>2 torrents, 716 MB</small></span></div>
+          </div>
+          <div class="warnb">You are its only seed.<span class="l" style="display:inline;margin:0"> 3 waiting for it. Deleting it takes it out of the swarm.</span></div>
+          <span class="lbtn">stop instead</span>
+          <div class="btns"><span>cancel</span><span class="dng cur">delete, keep files</span></div>
+        </div>
+        <figcaption><b>S5 · With the last-seed guard.</b> The files question comes first because it decides what's lost on disk. The swarm line and <code>stop instead</code> follow, as today.</figcaption>
+      </figure>
+      <figure>
+        <div class="cf wide">
+          <h4>Delete this torrent?</h4>
+          <span class="who">Field Recordings Vol. 3 [FLAC]
+103 MB on disk</span>
+          <div class="tog off"><i></i><span>also delete files from disk</span></div>
+          <div class="btns"><span>cancel</span><span class="dng cur">delete</span></div>
+        </div>
+        <figcaption><b>S6 · Files switch off.</b> As today: removing a torrent without its files can't hurt the other one, so nothing extra is shown. Switching it on brings S1 in.</figcaption>
+      </figure>
+    </div>
+    <figcaption>Mocks, base 14, on Kit/ConfirmDialog at 520 px (today's 430 plus room for the sharer line). The choice rows are new. Everything else is the existing confirm.</figcaption>
+    <div class="note">Option B for D1 is smaller: no choice rows. When sharers exist, the switch turns itself off with the yellow line under it, the button reads <code>delete, keep files</code>, and a second button <code>delete 2 with files</code> takes the sharers along. There are no rows to move between, but the switch no longer simply shows what you set.</div>
+  </section>
+
+  <!-- 3 -->
+  <section id="detect">
+    <div class="sec-head"><div class="eyebrow">3 · detection</div><h2>What counts as "the same data"</h2></div>
+    <div class="scroll"><table class="t">
+      <thead><tr><th>case</th><th>how it's found</th><th>costs</th></tr></thead>
+      <tbody>
+        <tr><td>same folder or file</td><td>equal <code>content_path</code>: two torrents with the same root folder, or the same single file, under the same save path. This is how every cross-seed tool adds one</td><td>nothing: maindata is in memory</td></tr>
+        <tr><td>one inside the other</td><td>one <code>content_path</code> under the other's: a season pack and one episode added on its own, a discography and one album</td><td>nothing</td></tr>
+        <tr><td>no root folder</td><td>a torrent added with "No subfolder" has <code>content_path</code> equal to its save path, so it would look as if it shares with everything in that folder. For these, and only when the save paths are equal, the two file lists (<code>torrents/files</code>) are compared path by path</td><td>one GET per such torrent, when the confirm opens</td></tr>
+        <tr><td>hardlinks, reflinks</td><td>different paths, so not shared. Deleting one copy leaves the other intact, which is the point of linking (qui and cross-seed's link mode)</td><td>never flagged</td></tr>
+        <tr><td>another server</td><td>out of reach: omaseed only sees the server it's on. A NAS seen by two qBittorrents is outside this check, and the line doesn't claim otherwise</td><td></td></tr>
+      </tbody>
+    </table></div>
+    <div class="cols">
+      <div class="note"><b>Paths compared as the server writes them</b>: after trimming a trailing slash, case-sensitive, never mapped to local paths. Two torrents only share data when the same qBittorrent sees the same path.</div>
+      <div class="note"><b>Sharers in any state count</b>: seeding, stopped, queued, checking. A sharer already in "missing files" is listed too, marked so: deleting the files can't hurt it further, but you may want it gone as well.</div>
+    </div>
+  </section>
+
+  <!-- 4 -->
+  <section id="moves">
+    <div class="sec-head"><div class="eyebrow">4 · the same problem, moving</div><h2>Set location and category moves break it too</h2></div>
+    <p>Moving one torrent of a pair (<code>torrents/setLocation</code>, or a category change with automatic management on) moves the files out from under the other one. That leads to the same "missing files" as a delete. The detection above is the same, so D4 asks whether the location sheet and a category change get the same line now or later.</p>
+    <div class="stage">
+      <figure>
+        <div class="cf wide">
+          <h4>Move 1 torrent</h4>
+          <span class="who">Field Recordings Vol. 3 [FLAC] → /mnt/archive/music</span>
+          <div class="warnb">Its files are also seeded by 1 torrent that isn't moving.
+            <span class="l"><b>Field Recordings Vol. 3 [FLAC]</b> <span>· tracker.b.example · seeding</span></span></div>
+          <div class="pick">
+            <div class="cur"><span class="r">●</span><span>move both<small>they keep sharing one copy in the new folder</small></span></div>
+            <div><span class="r">○</span><span>move only this one<small>the other one loses its files</small></span></div>
+          </div>
+          <div class="btns"><span>cancel</span><span class="pri cur">move 2</span></div>
+        </div>
+        <figcaption><b>L1 · The location sheet, with D4 a.</b> For a move the safe default is the other way round: both go.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <!-- 5 -->
+  <section id="build">
+    <div class="sec-head"><div class="eyebrow">5 · building it</div><h2>How it would be built</h2></div>
+    <div class="cols">
+      <div style="display:grid;gap:8px;align-content:start">
+        <h3>core</h3>
+        <ul>
+          <li><code>SharedData</code>: given the selection and the library rows (hash, save path, content path), it returns each selected torrent's sharers outside the selection. Plus the no-root case: which torrents need their file lists fetched. Pure, with a QtTest covering every row of §3.</li>
+          <li>The "on disk" figure counts shared data once (S4).</li>
+        </ul>
+      </div>
+      <div style="display:grid;gap:8px;align-content:start">
+        <h3>views</h3>
+        <ul>
+          <li><code>DeleteConfirm</code>: the yellow line, the two choice rows and the button text, all only when the switch is on and sharers exist. The order is files question first, then the last-seed line.</li>
+          <li><code>App.deleteTorrents</code> takes two lists (with files, without), so "keep their files" is one confirm and two calls.</li>
+          <li>With D4 a: the same line in the location sheet, and a notice when a category change would move one of a pair.</li>
+        </ul>
+      </div>
+      <div style="display:grid;gap:8px;align-content:start">
+        <h3>checks</h3>
+        <ul>
+          <li><code>actions-walk.sh</code> grows a step on a box qBittorrent (<code>--qbt</code>). It adds board 25's second <code>.torrent</code> beside the first, deletes one with <code>D</code> and "keep the files", then checks on the server and on disk that the other is still 100 % and its files are there. It runs again with "delete both" and checks the folder is gone.</li>
+          <li>The "no root folder" case gets its own fixture, so the file-list comparison is exercised live.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="note warn">This changes Fig. 6 of the frozen spec. Once ruled: a <code>REVIEW-v0.1.0.md</code> line, and the work done under #28. Board 23's delete nudge N3 (unruled, #25) uses the same confirm. If both are taken, the files question comes first, as in S5.</div>
+  </section>
+
+  <!-- 6 -->
+  <section id="decide">
+    <div class="sec-head"><div class="eyebrow">6 · your calls</div><h2>Decisions, and your answers in one paste</h2></div>
+    <p>Recommended options are marked and preselected. Change what you disagree with and paste the block back into a session.</p>
+    <div class="dec" id="dec"></div>
+    <div class="out">
+      <textarea id="answers" readonly aria-label="Your answers"></textarea>
+      <div style="display:flex;gap:12px;align-items:center"><button type="button" id="copy">Copy answers</button><span class="ok" id="copied" hidden>Copied</span></div>
+    </div>
+  </section>
+</main>
+
+<script>
+(() => {
+"use strict";
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const THEMES = {
+  "frieren":          { fg:"#b9c5ef", bg:"#11111b", accent:"#5492f8", red:"#ee5681", yellow:"#f6d58c", green:"#7dd676", blue:"#5492f8", magenta:"#b47ff3", cyan:"#63d5c2" },
+  "tokyo-night":      { fg:"#a9b1d6", bg:"#1a1b26", accent:"#7aa2f7", red:"#f7768e", yellow:"#e0af68", green:"#9ece6a", blue:"#7aa2f7", magenta:"#ad8ee6", cyan:"#449dab" },
+  "gruvbox":          { fg:"#d4be98", bg:"#282828", accent:"#7daea3", red:"#ea6962", yellow:"#d8a657", green:"#a9b665", blue:"#7daea3", magenta:"#d3869b", cyan:"#89b482" },
+  "everforest":       { fg:"#d3c6aa", bg:"#2d353b", accent:"#7fbbb3", red:"#e67e80", yellow:"#dbbc7f", green:"#a7c080", blue:"#7fbbb3", magenta:"#d699b6", cyan:"#83c092" },
+  "catppuccin-latte": { fg:"#4c4f69", bg:"#eff1f5", accent:"#1e66f5", red:"#d20f39", yellow:"#df8e1d", green:"#40a02b", blue:"#1e66f5", magenta:"#ea76cb", cyan:"#179299", light:true },
+};
+function applyTheme(name) {
+  const t = THEMES[name];
+  for (const st of $$(".stage")) {
+    for (const k of ["fg","bg","accent","red","yellow","green","blue","magenta","cyan"]) st.style.setProperty("--t-" + k, t[k]);
+    st.classList.toggle("light", !!t.light);
+  }
+  for (const b of $$("[data-theme-name]")) b.setAttribute("aria-pressed", String(b.dataset.themeName === name));
+}
+for (const b of $$("[data-theme-name]")) b.addEventListener("click", () => applyTheme(b.dataset.themeName));
+
+const DEC = [
+  { id:"D1", q:"Shape of the question", opts:[
+    ["a","Two choice rows under the switch, keep the files preselected; the button says what will happen (S1–S3)", true],
+    ["b","No rows: the switch turns itself off with the line under it, and a second button deletes the sharers too"]]},
+  { id:"D2", q:"Offer \"delete the files anyway, leave the other torrent broken\"", opts:[
+    ["a","No: keep the files, or delete them with every torrent that uses them", true],
+    ["b","Yes, as a third row in red"]]},
+  { id:"D3", q:"When every sharer is in the selection (S4)", opts:[
+    ["a","One dim line saying they share one copy; the size counts it once", true],
+    ["b","Nothing; the size counts it once"]]},
+  { id:"D4", q:"Moves (set location, a category change with automatic management)", opts:[
+    ["a","Same check, same line, in this issue: move both by default (L1)", true],
+    ["b","Delete only now; moves in a separate issue later"]]},
+  { id:"D5", q:"A selection with sharers (S3): how many are named", opts:[
+    ["a","Each selected torrent that shares, up to 3, then \"and N more\", with its sharers' count and trackers", true],
+    ["b","Only the count (\"2 of them share files with 3 torrents\")"]]},
+];
+const dec = $("#dec");
+for (const d of DEC) {
+  const box = document.createElement("div"); box.className = "q";
+  const inputs = d.opts.map(([v, label, rec]) => {
+    const id = `${d.id}-${v}`;
+    return `<label class="opt" for="${id}"><input id="${id}" type="radio" name="${d.id}" value="${v}" ${rec ? "checked" : ""}><span><b>${v}</b> · ${label}${rec ? '<span class="rec">recommended</span>' : ""}</span></label>`;
+  }).join("");
+  box.innerHTML = `<fieldset><legend><span class="id">${d.id}</span> · ${d.q}</legend>${inputs}</fieldset>`;
+  dec.append(box);
+}
+const notes = document.createElement("div"); notes.className = "q";
+notes.innerHTML = `<label for="free" style="color:var(--fg-bright);font-weight:500">Anything else (a case I missed, wording)</label><textarea id="free" style="min-height:70px;font:inherit;font-size:12.4px;color:var(--fg);background:var(--bg);border:1px solid var(--hairline);padding:8px"></textarea>`;
+dec.append(notes);
+function answers() {
+  const lines = ["docs/26 deleting shared files:"];
+  for (const d of DEC) { const c = $(`input[name="${d.id}"]:checked`); lines.push(`${d.id} ${c ? c.value : "-"}`); }
+  const f = $("#free").value.trim(); if (f) lines.push("notes: " + f);
+  $("#answers").value = lines.join("\n");
+}
+dec.addEventListener("input", answers); answers();
+$("#copy").addEventListener("click", () => {
+  const ta = $("#answers");
+  const done = () => { $("#copied").hidden = false; setTimeout(() => $("#copied").hidden = true, 1600); };
+  if (navigator.clipboard?.writeText) navigator.clipboard.writeText(ta.value).then(done, () => { ta.select(); });
+  else ta.select();
+});
+})();
+</script>
