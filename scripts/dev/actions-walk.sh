@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # omaseed — the risky actions, walked through the app's own UI: renames, categories, tags,
 # automatic torrent management, set location (also onto another filesystem, a 2 GiB torrent),
-# recheck, the selection bar on two torrents, and delete with and without files. After each
+# recheck, the selection bar on two torrents, delete with and without files, and two torrents
+# that share one file (#28: the delete confirm and the location sheet ask). After each
 # step it checks what qBittorrent says and what is on disk, and stops at the first mismatch.
 # Run it again after any change to an action, a sheet, a palette or the selection bar.
 #
@@ -49,14 +50,15 @@ esac
 # box's 1920x1080 screen with the bar Omarchy puts on the left). The bar is centred over the
 # table and sits a fixed height above the window's bottom: bar_fit moves the buttons by half
 # the width's change and all of the height's, so another bar layout (a top bar) still lands.
+# Measured again after #24 T7 put the selection's ledger (size, given, ratio) at the bar's start.
 BAR_W=1854
 BAR_H=1056
 BAR_Y=975
-BAR_START=663
-BAR_STOP=698
-BAR_CATEGORY=829
-BAR_TAGS=864
-BAR_DELETE=1065
+BAR_START=775
+BAR_STOP=808
+BAR_CATEGORY=940
+BAR_TAGS=974
+BAR_DELETE=1175
 
 SEEDING="('uploading', 'stalledUP', 'queuedUP', 'forcedUP')"
 
@@ -254,9 +256,11 @@ BIG=walk-2GiB.bin
 BIG_SIZE=$((2 * 1024 * 1024 * 1024))
 mkdir -p "$home/Torrents"
 truncate -s "$BIG_SIZE" "$home/Torrents/$BIG"
-python3 - "$home/Downloads/$BIG.torrent" "$BIG" "$BIG_SIZE" <<'PY'
+# Its twin (#28): the same file with another `source` in the info dict, as a second tracker
+# would issue it: another infohash, one copy on disk. TWIN is that infohash.
+TWIN="$(python3 - "$home/Downloads/$BIG.torrent" "$BIG" "$BIG_SIZE" "$home/Downloads/$BIG.twin.torrent" <<'PY'
 import hashlib, sys
-path, name, size = sys.argv[1], sys.argv[2], int(sys.argv[3])
+path, name, size, twin = sys.argv[1], sys.argv[2], int(sys.argv[3]), sys.argv[4]
 piece = 4 * 1024 * 1024
 def b(v):
     if isinstance(v, int): return b"i%de" % v
@@ -267,7 +271,12 @@ def b(v):
 info = {"name": name, "length": size, "piece length": piece,
         "pieces": hashlib.sha1(bytes(piece)).digest() * (size // piece)}
 open(path, "wb").write(b({"created by": "omaseed actions-walk", "info": info}))
+info["source"] = "walk-twin"
+open(twin, "wb").write(b({"created by": "omaseed actions-walk", "info": info,
+                          "announce": "http://127.0.0.1:26996/announce"}))
+print(hashlib.sha1(b(info)).hexdigest())
 PY
+)"
 api torrents/add -F "torrents=@$BOX_HOME/Downloads/$BIG.torrent" -F "savepath=$TORRENTS_DIR" >/dev/null
 
 echo "waiting for the downloads and the check (up to 5 min)"
@@ -536,6 +545,70 @@ expect "two torrents are left: Public Domain Sampler and $BIG" "$PDS" 'sorted(x[
 expect_disk "Public Domain Sampler's files are still there" -f "$TORRENTS_DIR/Sampler (renamed)/sampler.mkv"
 expect_disk "…and the 2 GiB file" -f "/tmp/elsewhere/$BIG"
 shot "Two torrents left: Public Domain Sampler and $BIG."
+
+# ---- #28: two torrents, one file -----------------------------------------------------------
+
+step "Add a twin" "The 2 GiB file's twin: the same file under another infohash (another source, as a second tracker issues it), added into /tmp/elsewhere where the file is. qBittorrent checks it and seeds it at once, nothing downloaded. It is renamed \"walk-2GiB twin\" so the jump palette tells the two apart."
+api torrents/add -F "torrents=@$BOX_HOME/Downloads/$BIG.twin.torrent" -F "savepath=/tmp/elsewhere" >/dev/null
+expect "the twin is complete without downloading" "$TWIN" "t is not None and t['progress'] == 1 and t['downloaded'] == 0" 120
+api torrents/rename -d "hash=$TWIN" --data-urlencode "name=walk-2GiB twin" >/dev/null
+expect "it is called walk-2GiB twin" "$TWIN" 't["name"] == "walk-2GiB twin"'
+expect "both point at the same file" "$TWIN" "t['content_path'] == '/tmp/elsewhere/$BIG' and next(x for x in every if x['hash'] == '$BIGH')['content_path'] == t['content_path']"
+
+step "Delete one of the pair, keep the file" "$BIG, D (files on): the confirm names the twin and picks \"keep the files\"; the button reads \"delete, keep files\". l, enter."
+table_on "$BIG"
+keys shift+d
+shot "Delete this torrent? The yellow line: its files are also seeded by walk-2GiB twin (127.0.0.1, seeding); keep the files picked; delete, keep files." dialog
+keys l Return
+expect "$BIG is gone" "$BIGH" 't is None'
+expect_size "the file is still there, whole" "/tmp/elsewhere/$BIG" "$BIG_SIZE"
+expect "the twin still seeds it, complete" "$TWIN" "t['state'] in $SEEDING and t['progress'] == 1" 30
+
+step "Move both" "$BIG is added again beside the twin. The twin, m, /tmp/pair: the sheet names $BIG and picks \"move both\"; enter moves the two together."
+api torrents/add -F "torrents=@$BOX_HOME/Downloads/$BIG.torrent" -F "savepath=/tmp/elsewhere" >/dev/null
+expect "$BIG is back, complete" "$BIGH" "t is not None and t['progress'] == 1" 120
+table_on "twin"
+keys m
+keys ctrl+a -t /tmp/pair
+shot "Set location: /tmp/pair; the yellow line names $BIG; move both picked; the button reads move 2." sheet
+keys Return
+expect "the twin is in /tmp/pair" "$TWIN" "t['save_path'] == '/tmp/pair' and t['state'] != 'moving'" 120
+expect "$BIG is in /tmp/pair too" "$BIGH" "t['save_path'] == '/tmp/pair' and t['state'] != 'moving'" 120
+expect_size "the file is in /tmp/pair, whole" "/tmp/pair/$BIG" "$BIG_SIZE"
+expect_disk "…and gone from /tmp/elsewhere" ! "/tmp/elsewhere/$BIG"
+expect "both still seed it, complete" "$TWIN" "all(x['state'] in $SEEDING and x['progress'] == 1 for x in every if x['hash'] in ('$TWIN', '$BIGH'))" 30
+
+step "A selection: one shares, one does not" "space on the twin and Public Domain Sampler, D: \"1 of them shares files with 1 torrent you're not deleting\"; esc."
+table_on "twin"
+keys space
+table_on "Public Domain"
+keys space
+keys shift+d
+shot "Delete 2 torrents? The yellow line lists the twin, with 1; keep their files picked; the button reads delete 2." dialog
+keys Escape
+expect "nothing was deleted" "$TWIN" "all(any(x['hash'] == h for x in every) for h in ('$TWIN', '$BIGH', '$PDS'))"
+keys Escape # clears the selection
+
+step "Both selected" "space on the twin and $BIG, D: no question, a dim line says they share one copy and the size counts 2 GiB once; esc."
+table_on "twin"
+keys space
+table_on "$BIG"
+keys space
+keys shift+d
+shot "Delete 2 torrents? 2.15 GB on disk (once); the dim line: these 2 share one copy of their files." dialog
+keys Escape
+keys Escape # clears the selection
+
+step "Delete both with the file" "The twin, D, j (delete the files and that torrent too), l, enter: both go, and the file with them."
+table_on "twin"
+keys shift+d
+keys j
+shot "The second row picked; the button reads delete 2 with files." dialog
+keys l Return
+expect "the twin is gone" "$TWIN" 't is None'
+expect "$BIG is gone" "$BIGH" 't is None'
+expect_disk "the file is gone from /tmp/pair" ! "/tmp/pair/$BIG" 30
+expect_disk "Public Domain Sampler's files are still there" -f "$TORRENTS_DIR/Sampler (renamed)/sampler.mkv"
 
 echo
 echo "all $CHECKS checks passed"
