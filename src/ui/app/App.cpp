@@ -10,6 +10,7 @@
 #include "core/TorrentFile.hpp"
 #include "core/TorrentFolderScan.hpp"
 #include "core/Version.hpp"
+#include "integration/Autostart.hpp"
 #include "integration/Notifier.hpp"
 #include "integration/StatusWriter.hpp"
 #include "integration/ThemeReader.hpp"
@@ -3050,6 +3051,22 @@ void App::setRailHidden(bool hidden)
         return;
     m_railHidden = hidden;
     saveSettings();
+    Q_EMIT settingsChanged();
+}
+
+QString App::startAtLogin() const
+{
+    return omaseed::integration::Autostart::mode();
+}
+
+void App::setStartAtLogin(const QString &mode)
+{
+    namespace Autostart = omaseed::integration::Autostart;
+    if (Autostart::mode() == mode)
+        return;
+    if (!Autostart::setMode(mode, Autostart::execProgram(QCoreApplication::applicationFilePath())))
+        qWarning().noquote() << QStringLiteral("autostart: could not write %1")
+                                    .arg(Autostart::entryPath());
     Q_EMIT settingsChanged();
 }
 

@@ -682,7 +682,7 @@ TestCase {
         const modal = createTemporaryObject(modalComponent, testCase);
         modal.open();
         compare(modal.paneIndex, 0);
-        compare(modal.paneRowCount, 4);
+        compare(modal.paneRowCount, 5);
 
         const row = testCase.childNamed(modal, "deleteFilesRow");
         verify(row, "the General pane has no delete-files row");
@@ -696,6 +696,23 @@ TestCase {
         compare(App.deleteFilesDefault, !was);
         modal.activateRow();
         compare(App.deleteFilesDefault, was);
+    }
+
+    // Start at login: enter steps off, in the tray, window, off. The test's XDG_CONFIG_HOME is
+    // the build's qml-env, so the entry it writes and removes is never the real one.
+    function test_the_general_pane_starts_at_login() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        const row = testCase.childNamed(modal, "startAtLoginRow");
+        verify(row, "the General pane has no start-at-login row");
+        compare(App.startAtLogin, "off");
+        modal.area = "pane";
+        modal.paneCursor = 4;
+        compare(row.hasCursor, true);
+        for (const want of ["tray", "window", "off"]) {
+            modal.activateRow();
+            compare(App.startAtLogin, want);
+        }
     }
 
     function test_the_keybindings_pane_is_the_help_sheets_own_rows() {

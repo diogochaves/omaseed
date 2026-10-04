@@ -118,7 +118,7 @@ Item {
             return qbtPane.cursorCount;
         switch (root.paneIndex) {
         case 0:
-            return 4;
+            return 5; // three switches, the handler button, then start at login
         case 1:
             return App.serverList.count + 1; // the servers, then "+ add a server"
         case 2:
@@ -327,6 +327,8 @@ Item {
                 App.deleteFilesDefault = !App.deleteFilesDefault;
             else if (root.paneCursor === 3)
                 Xdg.registerAsDefaultHandler();
+            else if (root.paneCursor === 4)
+                App.startAtLogin = root._next(root.loginStarts, App.startAtLogin);
             return;
         }
         if (root.paneIndex === 1) {
@@ -382,6 +384,9 @@ Item {
     // N3 every palette's too; the stored key keeps its `railScrollHint` name.
     readonly property var scrollHints: [["chevrons", qsTr("counted")], ["fade", qsTr("fade")],
         ["scrollbar", qsTr("scrollbar")]]
+    // Start at login (charter §2, opt-in): no entry, in the tray (`--hidden`), or the window.
+    readonly property var loginStarts: [["off", qsTr("off")], ["tray", qsTr("in the tray")], ["window",
+                                                                                          qsTr("window")]]
     readonly property var tints: [[0, qsTr("none")], [4, qsTr("4 %")], [8, qsTr("8 %")]]
     readonly property var hostStyles: [["prefix", qsTr("drop prefix")], ["left", qsTr("cut start")],
         ["right", qsTr("cut end")]]
@@ -1209,6 +1214,44 @@ Item {
                                 }
 
                                 Component.onCompleted: Xdg.isDefaultMagnetHandler()
+                            }
+
+                            // Start at login: the XDG autostart entry is the setting
+                            // (integration/Autostart), so the chips show what the next login
+                            // will do. Off by default (charter §2, opt-in).
+                            SettingsRow {
+                                Layout.fillWidth: true
+                                description: App.startAtLogin === "tray" ? qsTr("omaseed starts in the tray, without its window, and keeps the seed history going. Launch it to open the window.") : App.startAtLogin
+                                                                           === "window" ? qsTr("omaseed opens its window when you log in.") : qsTr("The seed history only grows while omaseed runs. Start it at login, in the tray or with its window.")
+                                glyph: Glyphs.start
+                                hasCursor: root.area === "pane" && root.paneCursor === 4
+                                objectName: "startAtLoginRow"
+                                title: qsTr("Start at login")
+
+                                onClicked: {
+                                    root.paneCursor = 4;
+                                    root.area = "pane";
+                                    App.startAtLogin = root._next(root.loginStarts, App.startAtLogin);
+                                }
+
+                                RowLayout {
+                                    spacing: Theme.space(6)
+
+                                    Repeater {
+                                        model: root.loginStarts
+
+                                        Chip {
+                                            id: loginChip
+
+                                            required property var modelData
+
+                                            selected: App.startAtLogin === loginChip.modelData[0]
+                                            text: loginChip.modelData[1]
+
+                                            onClicked: App.startAtLogin = loginChip.modelData[0]
+                                        }
+                                    }
+                                }
                             }
 
                             Item {
