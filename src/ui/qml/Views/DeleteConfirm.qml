@@ -21,6 +21,8 @@ ConfirmDialog {
     property var _totalSize: 0
     /// The toggle was flipped by hand since `openFor()`: confirming then remembers it.
     property bool _flipped: false
+    /// #24 T6: `App.console.rarity(hashes)` at `openFor()`: who has you as their last seed.
+    property var _rarity: ({})
 
     cancelText: qsTr("cancel")
     confirmText: qsTr("delete")
@@ -56,6 +58,7 @@ ConfirmDialog {
         }
         root._names = names;
         root._totalSize = totalSize;
+        root._rarity = App.console.rarity(hashes);
         alsoDelete.checked = filesOn;
         root._flipped = false;
         root.open();
@@ -68,6 +71,56 @@ ConfirmDialog {
         text: qsTr("also delete files from disk")
 
         onToggled: root._flipped = true
+    }
+
+    // #24 T6: the last-seed guard. Deleting a torrent you are the only seed of takes it out
+    // of the swarm; the sheet says so, with the peers waiting, and offers to stop instead.
+    Rectangle {
+        Layout.fillWidth: true
+        color: Qt.alpha(Theme.yellow, 0.08)
+        implicitHeight: guardText.implicitHeight + Theme.space(12)
+        visible: (root._rarity.rare ?? 0) > 0
+
+        Rectangle {
+            color: Theme.yellow
+            height: parent.height
+            width: Theme.space(2)
+        }
+
+        Text {
+            id: guardText
+
+            anchors.left: parent.left
+            anchors.leftMargin: Theme.space(10)
+            anchors.right: parent.right
+            anchors.rightMargin: Theme.space(10)
+            anchors.verticalCenter: parent.verticalCenter
+            color: Theme.foreground
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.font.small
+            text: {
+                const r = root._rarity;
+                const waiting = (r.waiting ?? 0) > 0 ? qsTr(" %1 waiting for it.").arg(r.waiting) : "";
+                if (root.hashes.length === 1 && r.onlyYou === 1)
+                    return qsTr("<font color='%1'>You are its only seed.</font>%2 Deleting it takes it out of the swarm.").arg(Theme.yellow).arg(waiting);
+                if (root.hashes.length === 1)
+                    return qsTr("<font color='%1'>It has %2 seeds in the swarm, you included.</font>%3").arg(Theme.yellow).arg(r.seeds).arg(waiting);
+                return qsTr("<font color='%1'>%2 of these are rare</font>, %3 with you as the only seed.%4").arg(Theme.yellow).arg(r.rare).arg(r.onlyYou ?? 0).arg(waiting);
+            }
+            textFormat: Text.StyledText
+            wrapMode: Text.Wrap
+        }
+    }
+
+    Button {
+        bordered: true
+        text: qsTr("stop instead")
+        visible: (root._rarity.rare ?? 0) > 0
+
+        onClicked: {
+            App.stopTorrents(root.hashes);
+            root.close();
+        }
     }
 
     onAccepted: {

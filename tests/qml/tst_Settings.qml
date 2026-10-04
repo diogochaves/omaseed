@@ -558,7 +558,7 @@ TestCase {
 
         // Appearance: the tray-icon row cycles the three chips.
         keyClick(Qt.Key_5);
-        compare(modal.paneRowCount, 10);
+        compare(modal.paneRowCount, 11);
         const tray = App.trayIconMode;
         modal.paneCursor = 3;
         modal.area = "pane";
@@ -572,24 +572,36 @@ TestCase {
         verify(App.speedsAlignment !== speeds);
         compare(App.speedsAlignment, speeds === "left" ? "right" : "left");
 
-        // ...and the last three cycle the rail's looks (docs/08 §5).
+        // ...and the seventh steps the hero's speed trends (#24 T2): off at first, then both,
+        // download, upload, off again.
+        compare(App.downloadTrend, false);
+        compare(App.uploadTrend, false);
+        modal.paneCursor = 6;
+        const trends = [[true, true], [true, false], [false, true], [false, false]];
+        for (const [down, up] of trends) {
+            modal.activateRow();
+            compare(App.downloadTrend, down);
+            compare(App.uploadTrend, up);
+        }
+
+        // ...and the next three cycle the rail's looks (docs/08 §5).
         const hint = App.railScrollHint;
         const tint = App.surfaceTint;
         const hosts = App.trackerHostStyle;
-        modal.paneCursor = 6;
-        modal.activateRow();
-        verify(App.railScrollHint !== hint);
         modal.paneCursor = 7;
         modal.activateRow();
-        verify(App.surfaceTint !== tint);
+        verify(App.railScrollHint !== hint);
         modal.paneCursor = 8;
+        modal.activateRow();
+        verify(App.surfaceTint !== tint);
+        modal.paneCursor = 9;
         modal.activateRow();
         verify(App.trackerHostStyle !== hosts);
 
-        // ...and the tenth places Details (docs/10 §5): auto, right, bottom.
+        // ...and the last places Details (docs/10 §5): auto, right, bottom.
         const placement = App.detailsPlacement;
         compare(placement, "auto");
-        modal.paneCursor = 9;
+        modal.paneCursor = 10;
         modal.activateRow();
         compare(App.detailsPlacement, "right");
         modal.activateRow();
@@ -670,7 +682,7 @@ TestCase {
         const modal = createTemporaryObject(modalComponent, testCase);
         modal.open();
         compare(modal.paneIndex, 0);
-        compare(modal.paneRowCount, 4);
+        compare(modal.paneRowCount, 5);
 
         const row = testCase.childNamed(modal, "deleteFilesRow");
         verify(row, "the General pane has no delete-files row");
@@ -684,6 +696,23 @@ TestCase {
         compare(App.deleteFilesDefault, !was);
         modal.activateRow();
         compare(App.deleteFilesDefault, was);
+    }
+
+    // Start at login: enter steps off, in the tray, window, off. The test's XDG_CONFIG_HOME is
+    // the build's qml-env, so the entry it writes and removes is never the real one.
+    function test_the_general_pane_starts_at_login() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        const row = testCase.childNamed(modal, "startAtLoginRow");
+        verify(row, "the General pane has no start-at-login row");
+        compare(App.startAtLogin, "off");
+        modal.area = "pane";
+        modal.paneCursor = 4;
+        compare(row.hasCursor, true);
+        for (const want of ["tray", "window", "off"]) {
+            modal.activateRow();
+            compare(App.startAtLogin, want);
+        }
     }
 
     function test_the_keybindings_pane_is_the_help_sheets_own_rows() {
@@ -835,9 +864,9 @@ TestCase {
 
         // Walking the rows down scrolls the pane so the cursor row stays in view.
         keyClick(Qt.Key_Tab);
-        for (let i = 0; i < 9; ++i)
+        for (let i = 0; i < 10; ++i)
             keyClick(Qt.Key_J);
-        compare(modal.paneCursor, 9);
+        compare(modal.paneCursor, 10);
         tryVerify(() => scroller.contentY > 0, 1000, "the last row was left below the fold");
 
         // Another pane starts at its top.

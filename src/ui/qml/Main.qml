@@ -51,7 +51,9 @@ Window {
     minimumHeight: window.setup ? window.setupSize.height : 0
     maximumWidth: window.setup ? window.setupSize.width : 16777215
     maximumHeight: window.setup ? window.setupSize.height : 16777215
-    visible: true
+    // `--hidden` (Start at login, "in the tray") keeps the window down until it is asked
+    // for; first run shows it anyway, since without a server there is nothing to wait for.
+    visible: !(App.launchHidden && !window.setup)
     title: qsTr("omaseed")
     color: Qt.rgba(Theme.background.r, Theme.background.g, Theme.background.b, Theme.windowAlpha)
 

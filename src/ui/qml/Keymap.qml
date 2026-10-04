@@ -49,6 +49,63 @@ QtObject {
 
     readonly property var entries: [
         // global: routed by MainView wherever the focus is -------------------------
+        // #24 (docs/22): the window's second face.
+        {
+            "area": "global",
+            "key": "`",
+            "action": "toggleConsole",
+            "label": qsTr("seed console"),
+            "column": "view",
+            "rank": 0,
+            "helpKeys": "`",
+            "help": qsTr("seed console"),
+            "about": qsTr("Flip between the library and the seed console; with a selection, the console counts only it")
+        },
+        // console: MainView routes these while the seed console is on show (#24)
+        {
+            "area": "console",
+            "key": "[",
+            "action": "consoleRange",
+            "label": qsTr("range"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": "",
+            "about": ""
+        },
+        {
+            "area": "console",
+            "key": "]",
+            "action": "consoleRange",
+            "label": qsTr("range"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": "",
+            "about": ""
+        },
+        {
+            "area": "console",
+            "key": "j",
+            "action": "consoleScroll",
+            "label": qsTr("scroll"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": "",
+            "about": ""
+        },
+        {
+            "area": "console",
+            "key": "esc",
+            "action": "consoleEscape",
+            "label": qsTr("clear scope"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": "",
+            "about": ""
+        },
         {
             "area": "global",
             "key": "/",
@@ -1246,7 +1303,7 @@ QtObject {
     ]
 
     readonly property var areas: ["global", "table", "rail", "details", "columns", "search", "addFiles",
-        "addDownloads"]
+        "addDownloads", "console"]
 
     /// Every entry of one area, in declaration order.
     function forArea(area) {

@@ -10,6 +10,7 @@
 #include "core/TorrentFile.hpp"
 #include "core/TorrentFolderScan.hpp"
 #include "core/Version.hpp"
+#include "integration/Autostart.hpp"
 #include "integration/Notifier.hpp"
 #include "integration/StatusWriter.hpp"
 #include "integration/ThemeReader.hpp"
@@ -151,6 +152,14 @@ App::App(QObject *parent)
         m_serverLost = false;
         updateTray();
     });
+
+    // #24: every poll goes into the ledger; the console reads it and the library.
+    m_console->setSources(m_engine->torrents(),
+                          m_filtered,
+                          m_engine->trackers(),
+                          m_engine->globalState(),
+                          m_ledger.get());
+    connect(m_engine, &SyncEngine::synced, this, &App::feedLedger);
 }
 
 App::~App()
@@ -158,6 +167,7 @@ App::~App()
     if (s_defaultInstance == this)
         s_defaultInstance = nullptr;
     m_engine->stop();
+    m_ledger->close();
 }
 
 void App::setDefaultInstance(App *instance)
@@ -386,6 +396,7 @@ void App::startEngine()
 {
     if (m_demoMode || !m_hasServer)
         return;
+    openLedger();
     m_engine->start();
 }
 
@@ -775,18 +786,48 @@ void App::attachNotifier(omaseed::integration::Notifier *notifier)
     });
 
     connect(m_engine, &SyncEngine::serverLost, this, [this](const ApiError &error) {
+        const int retrySeconds = m_engine->globalState()->retryInSeconds();
+        // A hidden start (at login) gives its server a while to come up before saying so.
+        if (m_quietStart.isActive()) {
+            m_heldLoss = std::make_pair(error, retrySeconds);
+            return;
+        }
         if (m_notifier.isNull() || !m_notifyServerLostEnabled)
             return;
-        const QString reason = serverLostReasonText(error);
-        const int retrySeconds = m_engine->globalState()->retryInSeconds();
-        m_notifier->notifyServerLost(
-            m_server.id, m_server.name, serverHostPortText(), reason, retrySeconds);
+        m_notifier->notifyServerLost(m_server.id,
+                                     m_server.name,
+                                     serverHostPortText(),
+                                     serverLostReasonText(error),
+                                     retrySeconds);
     });
 
     connect(m_engine, &SyncEngine::serverBack, this, [this]() {
+        // Back before the quiet start ran out: nobody was told it was gone.
+        if (m_heldLoss) {
+            m_heldLoss.reset();
+            return;
+        }
         if (m_notifier.isNull() || !m_notifyServerLostEnabled)
             return;
         m_notifier->notifyServerBack(m_server.id, m_server.name);
+    });
+
+    // The first good sync ends the quiet start: from then on a loss is news.
+    connect(m_engine, &SyncEngine::synced, this, [this]() { m_quietStart.stop(); });
+    // Still away when the quiet start runs out: say so now, and "back" when it is.
+    m_quietStart.setSingleShot(true);
+    connect(&m_quietStart, &QTimer::timeout, this, [this]() {
+        if (!m_heldLoss)
+            return;
+        const auto [error, retrySeconds] = *m_heldLoss;
+        m_heldLoss.reset();
+        if (m_notifier.isNull() || !m_notifyServerLostEnabled)
+            return;
+        m_notifier->notifyServerLost(m_server.id,
+                                     m_server.name,
+                                     serverHostPortText(),
+                                     serverLostReasonText(error),
+                                     retrySeconds);
     });
 
     connect(notifier,
@@ -2903,6 +2944,38 @@ void App::setSpeedsAlignment(const QString &side)
     Q_EMIT settingsChanged();
 }
 
+bool App::uploadTrend() const
+{
+    const_cast<App *>(this)->loadSettings();
+    return m_uploadTrend;
+}
+
+void App::setUploadTrend(bool on)
+{
+    loadSettings();
+    if (m_uploadTrend == on)
+        return;
+    m_uploadTrend = on;
+    saveSettings();
+    Q_EMIT settingsChanged();
+}
+
+bool App::downloadTrend() const
+{
+    const_cast<App *>(this)->loadSettings();
+    return m_downloadTrend;
+}
+
+void App::setDownloadTrend(bool on)
+{
+    loadSettings();
+    if (m_downloadTrend == on)
+        return;
+    m_downloadTrend = on;
+    saveSettings();
+    Q_EMIT settingsChanged();
+}
+
 namespace {
 
 /// `value` when it is one of `allowed`, otherwise the first of them (the default).
@@ -3011,6 +3084,31 @@ void App::setRailHidden(bool hidden)
     Q_EMIT settingsChanged();
 }
 
+void App::setLaunchHidden(bool hidden)
+{
+    m_launchHidden = hidden;
+    if (hidden)
+        m_quietStart.start(m_quietStartGrace);
+    else
+        m_quietStart.stop();
+}
+
+QString App::startAtLogin() const
+{
+    return omaseed::integration::Autostart::mode();
+}
+
+void App::setStartAtLogin(const QString &mode)
+{
+    namespace Autostart = omaseed::integration::Autostart;
+    if (Autostart::mode() == mode)
+        return;
+    if (!Autostart::setMode(mode, Autostart::execProgram(QCoreApplication::applicationFilePath())))
+        qWarning().noquote() << QStringLiteral("autostart: could not write %1")
+                                    .arg(Autostart::entryPath());
+    Q_EMIT settingsChanged();
+}
+
 QString App::trayIconMode() const
 {
     const_cast<App *>(this)->loadSettings();
@@ -3086,6 +3184,8 @@ void App::loadSettings()
                 QLatin1String("right")
             ? QStringLiteral("right")
             : QStringLiteral("left");
+    m_uploadTrend = appearance.value(QStringLiteral("uploadTrend")).toBool(false);
+    m_downloadTrend = appearance.value(QStringLiteral("downloadTrend")).toBool(false);
     m_railScrollHint =
         oneOf(appearance.value(QStringLiteral("railScrollHint")).toString(), kRailScrollHints);
     m_surfaceTint = tintStep(appearance.value(QStringLiteral("surfaceTint")).toInt(0));
@@ -3109,6 +3209,8 @@ void App::saveSettings()
     appearance[QStringLiteral("windowAlphaOverride")] = m_windowAlphaOverride;
     appearance[QStringLiteral("trayIconMode")] = m_trayIconMode;
     appearance[QStringLiteral("speedsAlignment")] = m_speedsAlignment;
+    appearance[QStringLiteral("uploadTrend")] = m_uploadTrend;
+    appearance[QStringLiteral("downloadTrend")] = m_downloadTrend;
     appearance[QStringLiteral("railScrollHint")] = m_railScrollHint;
     appearance[QStringLiteral("surfaceTint")] = m_surfaceTint;
     appearance[QStringLiteral("trackerHostStyle")] = m_trackerHostStyle;
@@ -3531,6 +3633,19 @@ void App::attachStatusWriter(omaseed::integration::StatusWriter *writer)
     writer->setLibraryCheck(
         [this](const QString &v1, const QString &v2) { return !findDuplicate(v1, v2).isEmpty(); });
     writer->setDownloadsFolder(downloadsFolder());
+    connect(writer, &omaseed::integration::StatusWriter::milestone, this,
+            [this](const QString &hash, const QString &name, int ratio) {
+                const Torrent &t = m_engine->torrents()->torrent(hash);
+                const qint64 days = t.seedingTime / 86400;
+                Q_EMIT seedNotice(QStringLiteral("milestone"), hash,
+                                  ratio == 1 ? tr("%1 paid back").arg(name) : tr("%1 · %2×").arg(name).arg(ratio),
+                                  ratio == 1 ? tr("ratio 1.00 · %1 days").arg(days)
+                                             : tr("%1 given").arg(sizeText(t.uploaded)));
+            });
+    m_console->setRecentProvider([this]() {
+        return m_statusWriter ? m_statusWriter->snapshot().value(QStringLiteral("recent")).toArray().toVariantList()
+                              : QVariantList();
+    });
     connect(this, &App::downloadsFolderChanged, writer, [this]() {
         if (m_statusWriter)
             m_statusWriter->setDownloadsFolder(downloadsFolder());
@@ -3569,5 +3684,66 @@ void App::updateStatusServer()
 }
 
 // --- end #12 ---------------------------------------------------------------------------------
+
+// --- #24: the seed console ---------------------------------------------------------------------
+
+void App::openLedger()
+{
+    const QString key = serverId().isEmpty() ? hostPort(m_server.url) : serverId();
+    if (key == m_ledgerKey && m_ledger->isOpen())
+        return;
+    m_ledgerKey = key;
+    m_ledgerDemoDone = false;
+    m_ledger->open(SeedLedger::defaultPath(key));
+}
+
+void App::feedLedger()
+{
+    if (!m_hasServer && !m_demoMode)
+        return;
+    const TorrentModel *torrents = m_engine->torrents();
+    const GlobalState *state = m_engine->globalState();
+    const qint64 now = QDateTime::currentSecsSinceEpoch();
+    QList<SeedLedger::TorrentTotals> totals;
+    totals.reserve(torrents->count());
+    QStringList hashes;
+    for (int i = 0; i < torrents->count(); ++i) {
+        const Torrent &t = torrents->torrentAt(i);
+        totals.append({t.hash, t.uploaded, t.downloaded,
+                       t.addedOn.isValid() ? t.addedOn.toSecsSinceEpoch() : 0});
+        hashes.append(t.hash);
+    }
+    m_ledger->observe(now, state->allTimeUpload(), state->allTimeDownload(), totals);
+
+    // T7: a complete torrent whose swarm just went down to you alone.
+    QHash<QString, int> swarm;
+    for (int i = 0; i < torrents->count(); ++i) {
+        const Torrent &t = torrents->torrentAt(i);
+        const int seeds = SeedConsole::knownSeeds(t);
+        if (!t.isComplete() || seeds <= 0)
+            continue;
+        swarm.insert(t.hash, seeds);
+        const int before = m_lastSwarm.value(t.hash, 0);
+        if (seeds == 1 && before > 1 && !m_lastSwarm.isEmpty())
+            Q_EMIT seedNotice(QStringLiteral("lastSeed"), t.hash,
+                              tr("You are now the only seed of %1").arg(t.name),
+                              t.numIncomplete > 0 ? tr("%1 waiting").arg(t.numIncomplete) : QString());
+    }
+    m_lastSwarm = swarm;
+    m_ledger->sampleSpeed(now, state->upInfoSpeed(), state->dlInfoSpeed());
+    // Dev only: a made-up year before today, to judge the console as it will look a year in.
+    if (!m_ledgerDemoDone && (m_demoMode || !env("OMASEED_LEDGER_DEMO").isEmpty())
+        && !hashes.isEmpty()) {
+        m_ledgerDemoDone = true;
+        // A typical made-up day gives about a fifth of what the library holds.
+        qint64 held = 0;
+        for (int i = 0; i < torrents->count(); ++i)
+            held += torrents->torrentAt(i).isComplete() ? torrents->torrentAt(i).size : 0;
+        m_ledger->fillDemo(now, hashes, std::max<qint64>(held / 5, 64LL * 1024 * 1024));
+        m_console->refresh();
+    }
+}
+
+// --- end #24 ---------------------------------------------------------------------------------
 
 } // namespace omaseed::app

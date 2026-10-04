@@ -3,6 +3,11 @@ omaseed_add_test(tst_appidentity
     LIBRARIES omaseed::integration
 )
 
+omaseed_add_test(tst_autostart
+    SOURCES tst_autostart.cpp
+    LIBRARIES omaseed::integration
+)
+
 omaseed_add_test(tst_notifier
     SOURCES tst_notifier.cpp FakeNotificationServer.hpp
     LIBRARIES omaseed::integration

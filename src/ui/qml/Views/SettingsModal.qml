@@ -118,16 +118,16 @@ Item {
             return qbtPane.cursorCount;
         switch (root.paneIndex) {
         case 0:
-            return 4;
+            return 5; // three switches, the handler button, then start at login
         case 1:
             return App.serverList.count + 1; // the servers, then "+ add a server"
         case 2:
             return 4; // three toggles, then the low-disk threshold field
         case 4:
             // theme, base size, transparency, tray icon, the bar widget (#17), speed alignment,
-            // then the rail's scroll hint, surface tint and tracker hosts (docs/08 §5), then
-            // where Details sits (docs/10)
-            return 10;
+            // the speed trends (#24 T2), then the rail's scroll hint, surface tint and tracker
+            // hosts (docs/08 §5), then where Details sits (docs/10)
+            return 11;
         case 5:
             return 1; // the copyable `omaseed --install-bar-widget` line
         default:
@@ -327,6 +327,8 @@ Item {
                 App.deleteFilesDefault = !App.deleteFilesDefault;
             else if (root.paneCursor === 3)
                 Xdg.registerAsDefaultHandler();
+            else if (root.paneCursor === 4)
+                App.startAtLogin = root._next(root.loginStarts, App.startAtLogin);
             return;
         }
         if (root.paneIndex === 1) {
@@ -363,12 +365,14 @@ Item {
             else if (root.paneCursor === 5)
                 App.speedsAlignment = App.speedsAlignment === "left" ? "right" : "left";
             else if (root.paneCursor === 6)
-                App.railScrollHint = root._next(root.scrollHints, App.railScrollHint);
+                root.cycleTrends();
             else if (root.paneCursor === 7)
-                App.surfaceTint = root._next(root.tints, App.surfaceTint);
+                App.railScrollHint = root._next(root.scrollHints, App.railScrollHint);
             else if (root.paneCursor === 8)
-                App.trackerHostStyle = root._next(root.hostStyles, App.trackerHostStyle);
+                App.surfaceTint = root._next(root.tints, App.surfaceTint);
             else if (root.paneCursor === 9)
+                App.trackerHostStyle = root._next(root.hostStyles, App.trackerHostStyle);
+            else if (root.paneCursor === 10)
                 App.detailsPlacement = root._next(root.placements, App.detailsPlacement);
             return;
         }
@@ -380,12 +384,32 @@ Item {
     // N3 every palette's too; the stored key keeps its `railScrollHint` name.
     readonly property var scrollHints: [["chevrons", qsTr("counted")], ["fade", qsTr("fade")],
         ["scrollbar", qsTr("scrollbar")]]
+    // Start at login (charter §2, opt-in): no entry, in the tray (`--hidden`), or the window.
+    readonly property var loginStarts: [["off", qsTr("off")], ["tray", qsTr("in the tray")], ["window",
+                                                                                          qsTr("window")]]
     readonly property var tints: [[0, qsTr("none")], [4, qsTr("4 %")], [8, qsTr("8 %")]]
     readonly property var hostStyles: [["prefix", qsTr("drop prefix")], ["left", qsTr("cut start")],
         ["right", qsTr("cut end")]]
     // docs/10 §5: where Details sits.
     readonly property var placements: [["auto", qsTr("auto")], ["right", qsTr("right")], ["bottom",
                                                                                           qsTr("bottom")]]
+
+    /// #24 T2: enter on Speed trends steps off → both → download → upload → off.
+    function cycleTrends(): void {
+        const down = App.downloadTrend;
+        const up = App.uploadTrend;
+        if (!down && !up) {
+            App.downloadTrend = true;
+            App.uploadTrend = true;
+        } else if (down && up) {
+            App.uploadTrend = false;
+        } else if (down) {
+            App.downloadTrend = false;
+            App.uploadTrend = true;
+        } else {
+            App.uploadTrend = false;
+        }
+    }
 
     /// The value after `current` in `options` (`[[value, text]]`), wrapping round.
     function _next(options: var, current: var): var {
@@ -1192,6 +1216,44 @@ Item {
                                 Component.onCompleted: Xdg.isDefaultMagnetHandler()
                             }
 
+                            // Start at login: the XDG autostart entry is the setting
+                            // (integration/Autostart), so the chips show what the next login
+                            // will do. Off by default (charter §2, opt-in).
+                            SettingsRow {
+                                Layout.fillWidth: true
+                                description: App.startAtLogin === "tray" ? qsTr("omaseed starts in the tray, without its window, and keeps the seed history going. Launch it to open the window.") : App.startAtLogin
+                                                                           === "window" ? qsTr("omaseed opens its window when you log in.") : qsTr("The seed history only grows while omaseed runs. Start it at login, in the tray or with its window.")
+                                glyph: Glyphs.start
+                                hasCursor: root.area === "pane" && root.paneCursor === 4
+                                objectName: "startAtLoginRow"
+                                title: qsTr("Start at login")
+
+                                onClicked: {
+                                    root.paneCursor = 4;
+                                    root.area = "pane";
+                                    App.startAtLogin = root._next(root.loginStarts, App.startAtLogin);
+                                }
+
+                                RowLayout {
+                                    spacing: Theme.space(6)
+
+                                    Repeater {
+                                        model: root.loginStarts
+
+                                        Chip {
+                                            id: loginChip
+
+                                            required property var modelData
+
+                                            selected: App.startAtLogin === loginChip.modelData[0]
+                                            text: loginChip.modelData[1]
+
+                                            onClicked: App.startAtLogin = loginChip.modelData[0]
+                                        }
+                                    }
+                                }
+                            }
+
                             Item {
                                 Layout.fillHeight: true
                             }
@@ -1701,13 +1763,47 @@ Item {
 
                             SettingsRow {
                                 Layout.fillWidth: true
-                                description: qsTr("how lists say there is more above or below: the rail and every palette.")
-                                glyph: Glyphs.scrollHint
+                                description: qsTr("the last minute of each speed, drawn faintly behind its figure. Each chip turns one on or off.")
+                                glyph: Glyphs.arrowUp
                                 hasCursor: root.area === "pane" && root.paneCursor === 6
-                                title: qsTr("Scroll hint")
+                                title: qsTr("Speed trends")
 
                                 onClicked: {
                                     root.paneCursor = 6;
+                                    root.area = "pane";
+                                    root.cycleTrends();
+                                }
+
+                                RowLayout {
+                                    spacing: Theme.space(6)
+
+                                    Chip {
+                                        objectName: "downloadTrendChip"
+                                        selected: App.downloadTrend
+                                        text: qsTr("download")
+
+                                        onClicked: App.downloadTrend = !App.downloadTrend
+                                    }
+
+                                    Chip {
+                                        objectName: "uploadTrendChip"
+                                        selected: App.uploadTrend
+                                        text: qsTr("upload")
+
+                                        onClicked: App.uploadTrend = !App.uploadTrend
+                                    }
+                                }
+                            }
+
+                            SettingsRow {
+                                Layout.fillWidth: true
+                                description: qsTr("how lists say there is more above or below: the rail and every palette.")
+                                glyph: Glyphs.scrollHint
+                                hasCursor: root.area === "pane" && root.paneCursor === 7
+                                title: qsTr("Scroll hint")
+
+                                onClicked: {
+                                    root.paneCursor = 7;
                                     root.area = "pane";
                                     App.railScrollHint = root._next(root.scrollHints, App.railScrollHint);
                                 }
@@ -1736,11 +1832,11 @@ Item {
                                 Layout.fillWidth: true
                                 description: qsTr("a light fill behind the rail and the details.")
                                 glyph: Glyphs.sidebar
-                                hasCursor: root.area === "pane" && root.paneCursor === 7
+                                hasCursor: root.area === "pane" && root.paneCursor === 8
                                 title: qsTr("Surface tint")
 
                                 onClicked: {
-                                    root.paneCursor = 7;
+                                    root.paneCursor = 8;
                                     root.area = "pane";
                                     App.surfaceTint = root._next(root.tints, App.surfaceTint);
                                 }
@@ -1769,11 +1865,11 @@ Item {
                                 Layout.fillWidth: true
                                 description: qsTr("how a long tracker host fits the rail.")
                                 glyph: Glyphs.host
-                                hasCursor: root.area === "pane" && root.paneCursor === 8
+                                hasCursor: root.area === "pane" && root.paneCursor === 9
                                 title: qsTr("Tracker hosts")
 
                                 onClicked: {
-                                    root.paneCursor = 8;
+                                    root.paneCursor = 9;
                                     root.area = "pane";
                                     App.trackerHostStyle = root._next(root.hostStyles, App.trackerHostStyle);
                                 }
@@ -1802,11 +1898,11 @@ Item {
                                 Layout.fillWidth: true
                                 description: qsTr("auto puts it right when the window is wide enough. I cycles it.")
                                 glyph: Glyphs.sidebar
-                                hasCursor: root.area === "pane" && root.paneCursor === 9
+                                hasCursor: root.area === "pane" && root.paneCursor === 10
                                 title: qsTr("Details panel")
 
                                 onClicked: {
-                                    root.paneCursor = 9;
+                                    root.paneCursor = 10;
                                     root.area = "pane";
                                     App.detailsPlacement = root._next(root.placements, App.detailsPlacement);
                                 }

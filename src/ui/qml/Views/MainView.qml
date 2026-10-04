@@ -144,10 +144,79 @@ Item {
     /// There are numbers worth printing in the hero.
     readonly property bool live: App.demoMode || App.globalState.connected
 
+    /// #24 (docs/22 D1 a): the window's face, "library" or "seed" (the seed console).
+    property string view: "library"
+    readonly property bool consoleShown: root.view === "seed" && !root.libraryEmpty && !root.firstSync
+                                         && !root.firstRun
+
+    /// `` ` `` and the hero's tabs. With a selection, the console opens on it (D2 a).
+    function setView(next: string): void {
+        if (next === root.view)
+            return;
+        if (next === "seed")
+            App.console.setScopeHashes(table.selectedCount > 0 ? table.selectedHashes() : []);
+        else
+            App.console.setScopeHashes([]);
+        root.view = next;
+        if (next === "seed")
+            seedConsole.forceActiveFocus();
+        else
+            root.focusHome();
+    }
+
+    /// The console's scope in words, from what the rail selects.
+    readonly property string consoleScopeName: {
+        const parts = [];
+        const status = App.filtered.statusFilter;
+        if (status !== TorrentFilterModel.All)
+            parts.push(rail.statusRows[status].text);
+        if (App.filtered.category !== undefined)
+            parts.push(App.filtered.category === "" ? qsTr("no category") : qsTr("category %1").arg(App.filtered.category));
+        if (App.filtered.tag !== undefined)
+            parts.push(App.filtered.tag === "" ? qsTr("untagged") : qsTr("tag %1").arg(App.filtered.tag));
+        if (App.filtered.tracker !== undefined)
+            parts.push(qsTr("tracker %1").arg(rail.trackerText(App.filtered.tracker)));
+        if (App.filtered.text.length > 0)
+            parts.push(qsTr("“%1”").arg(App.filtered.text));
+        return parts.length > 0 ? parts.join(" · ") : qsTr("every torrent");
+    }
+
+    /// The console's `esc`: the selection scope, then the rail's filters, then the library.
+    function consoleEscape(): void {
+        if (App.console.selectionScope) {
+            App.console.setScopeHashes([]);
+            return;
+        }
+        if (App.console.scoped) {
+            App.filtered.statusFilter = TorrentFilterModel.All;
+            App.filtered.clearCategory();
+            App.filtered.clearTag();
+            App.filtered.clearTracker();
+            root.clearFilter();
+            seedConsole.forceActiveFocus();
+            return;
+        }
+        root.setView("library");
+    }
+
+    /// A click on a torrent in the console: the library, its cursor on it.
+    function showInLibrary(hash: string): void {
+        root.setView("library");
+        table.revealHash(hash);
+    }
+
+    Binding {
+        target: App.console
+        property: "active"
+        value: root.consoleShown && root.visible
+    }
+
     /// Which view holds the focus, for `HintModel`.
     readonly property string focusArea: {
         if (hero.searchField.editing || details.filterEditing)
             return "search";
+        if (root.consoleShown && !rail.activeFocus)
+            return "console";
         if (rail.activeFocus)
             return "rail";
         if (details.activeFocus || details.editing)
@@ -596,7 +665,48 @@ Item {
             return;
         }
 
+        // #24: the console's own keys, while it is the face on show and the rail is not
+        // where the keyboard is.
+        if (root.consoleShown && !rail.activeFocus && !hero.searchField.editing) {
+            switch (event.key) {
+            case Qt.Key_BracketLeft:
+                App.console.stepRange(-1);
+                event.accepted = true;
+                return;
+            case Qt.Key_BracketRight:
+                App.console.stepRange(1);
+                event.accepted = true;
+                return;
+            case Qt.Key_J:
+            case Qt.Key_Down:
+                seedConsole.scrollBy(Theme.space(60));
+                event.accepted = true;
+                return;
+            case Qt.Key_K:
+            case Qt.Key_Up:
+                seedConsole.scrollBy(-Theme.space(60));
+                event.accepted = true;
+                return;
+            case Qt.Key_G:
+                seedConsole.scrollBy(shift ? seedConsole.contentHeight : -seedConsole.contentHeight);
+                event.accepted = true;
+                return;
+            case Qt.Key_H:
+                App.railHidden = false;
+                rail.forceActiveFocus();
+                event.accepted = true;
+                return;
+            case Qt.Key_Escape:
+                root.consoleEscape();
+                event.accepted = true;
+                return;
+            }
+        }
+
         switch (event.key) {
+        case Qt.Key_QuoteLeft: // #24: the seed console, a nod to a Quake console
+            root.setView(root.view === "seed" ? "library" : "seed");
+            break;
         case Qt.Key_Question:
         case Qt.Key_F1: // the desktop's help key, same sheet (Keymap's "f1" entry)
             root.helpOpen = true;
@@ -711,6 +821,9 @@ Item {
             return true;
         case "toggleDetails":
             root.toggleDetails();
+            return true;
+        case "toggleConsole":
+            root.setView(root.view === "seed" ? "library" : "seed");
             return true;
         case "sort":
             sortPalette.openOnCurrent();
@@ -1115,6 +1228,25 @@ Item {
         upSpeed: root.live ? App.globalState.upSpeedText : "—"
         upSpeedShort: root.live ? App.speedShortText(App.globalState.upInfoSpeed) : "—"
 
+        // #24: library | seed, and the hero's ↓ ↑ breathing (T2, when Appearance turns them on).
+        views: [
+            {
+                "key": "library",
+                "label": qsTr("library")
+            },
+            {
+                "key": "seed",
+                "label": qsTr("seed"),
+                "hint": "`"
+            }
+        ]
+        currentView: root.view
+        upSpark: root.live && App.uploadTrend ? App.console.heroSpark : []
+        downSpark: root.live && App.downloadTrend ? App.console.heroDownSpark : []
+        upNote: root.live ? App.console.todayText : ""
+
+        onViewSelected: key => root.setView(key)
+        onUpClicked: root.setView("seed")
         onAddClicked: App.addRequested()
         onAltSpeedClicked: App.toggleAltSpeed()
         onHelpClicked: root.helpOpen = true
@@ -1235,11 +1367,42 @@ Item {
             placement: App.detailsPlacement
             // docs/17 M10.1: folded at the bottom, the pane leaves this one line.
             foldedBar: detailsStrip
-            visible: !root.libraryEmpty && !root.firstSync
+            visible: !root.libraryEmpty && !root.firstSync && !root.consoleShown
 
             onFoldToggled: root.saveTableState()
             onFoldedChanged: root._detailsFoldChanged()
             onResized: root.saveTableState()
+        }
+
+        // #24: the seed console, in the table's and details' place.
+        Console {
+            id: seedConsole
+
+            anchors.bottom: parent.bottom
+            anchors.left: rail.visible ? rail.right : parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            focus: root.consoleShown
+            scopeName: root.consoleScopeName
+            seed: App.console
+            visible: root.consoleShown
+
+            Hairline {
+                anchors.bottom: parent.bottom
+                anchors.left: parent.left
+                anchors.top: parent.top
+                vertical: true
+                visible: rail.visible
+            }
+
+            onAttentionRequested: host => {
+                root.setView("library");
+                if (host.length > 0)
+                    App.filtered.tracker = host;
+            }
+            onClearScope: root.consoleEscape()
+            onScopeTracker: host => App.filtered.tracker = host
+            onShowTorrent: hash => root.showInLibrary(hash)
         }
 
         DetailsStrip {
@@ -1319,12 +1482,40 @@ Item {
                 anchors.horizontalCenter: table.horizontalCenter
                 availableWidth: table.width - Theme.space(16)
                 count: table.selectedCount
+                // #24 T1: re-read when the selection or the library moves.
+                summary: {
+                    App.torrents.count; // the dependency: a sync that adds or drops a row
+                    return table.selectedCount > 0 ? App.console.selectionSummary(table.selectedHashes()) : ({});
+                }
                 height: implicitHeight
                 visible: table.selectedCount > 0 && table.visible && !root.serverLost
                 width: implicitWidth
 
                 onMoreRequested: (button, folded) => root.openSelectionMore(button, folded)
+                onSummaryClicked: root.setView("seed")
                 onTriggered: action => root.selectionBarAction(action)
+            }
+
+            // #24 T7: seeding moments in the bar's spot, while nothing is selected.
+            SeedToast {
+                id: seedToast
+
+                allowed: table.selectedCount === 0 && table.visible && !root.serverLost && root.view === "library"
+                anchors.bottom: table.bottom
+                anchors.bottomMargin: Theme.space(12)
+                anchors.horizontalCenter: table.horizontalCenter
+                height: implicitHeight
+                width: implicitWidth
+
+                onShowRequested: hash => table.revealHash(hash)
+            }
+
+            Connections {
+                function onSeedNotice(kind: string, hash: string, title: string, detail: string): void {
+                    seedToast.push(kind, hash, title, detail);
+                }
+
+                target: App
             }
 
             // Fig. 23's read-only guard: it eats every click and every key but the five the

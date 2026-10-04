@@ -171,6 +171,8 @@ private slots:
     void diskAlmostFullMatchesQ2Wording();
     void disabledToggleSuppressesTheNotice();
     void flappingServerFiresOneLostAndOneBack();
+    void aHiddenStartWaitsQuietlyForItsServer();
+    void aHiddenStartSaysSoWhenTheServerStaysAway();
     void lowDiskThresholdDefaultsToTwoGiBInTheEngine();
     void lowDiskThresholdPersistsReachesTheEngineAndClamps();
     void anOldStateFileWithTheTrackerKeyStillLoads();
@@ -416,6 +418,85 @@ void TestAppNotifications::flappingServerFiresOneLostAndOneBack()
     QCOMPARE(m_bus.server()->calls.size(), 2);
     QCOMPARE(m_bus.server()->calls.at(1).summary, QStringLiteral("fake is back"));
     QCOMPARE(m_bus.server()->calls.at(1).body, QStringLiteral("connected again"));
+
+    app.engine()->stop();
+}
+
+// Start at login, in the tray: omaseed often runs before qBittorrent is up. A server that
+// answers within the quiet start gets neither "unreachable" nor "back".
+void TestAppNotifications::aHiddenStartWaitsQuietlyForItsServer()
+{
+    quint16 port = 0;
+    {
+        QTcpServer probe;
+        QVERIFY(probe.listen(QHostAddress::LocalHost));
+        port = probe.serverPort();
+    }
+    qputenv("OMASEED_SERVER_URL", QStringLiteral("http://127.0.0.1:%1").arg(port).toUtf8());
+    qputenv("OMASEED_SERVER_NAME", "fake");
+
+    App app;
+    app.setQuietStartGrace(std::chrono::seconds(30));
+    app.setLaunchHidden(true);
+    Notifier notifier(m_bus.connection());
+    app.attachNotifier(&notifier);
+    app.engine()->setIntervals(std::chrono::milliseconds(10),
+                               std::chrono::milliseconds(10),
+                               std::chrono::milliseconds(10),
+                               std::chrono::milliseconds(30));
+    QSignalSpy lost(app.engine(), &omaseed::core::SyncEngine::serverLost);
+    QSignalSpy back(app.engine(), &omaseed::core::SyncEngine::serverBack);
+
+    app.start();
+    QVERIFY(waitFor([&] { return lost.size() >= 1; }));
+    QTest::qWait(100);
+
+    FakeQbtServer server;
+    QVERIFY(server.start(port));
+    server.setMainData({QByteArrayLiteral("{\"full_update\":true,\"rid\":1,\"torrents\":{}}")});
+    QVERIFY(waitFor([&] { return back.size() >= 1; }));
+    QTest::qWait(50);
+    QCOMPARE(m_bus.server()->calls.size(), 0);
+
+    app.engine()->stop();
+}
+
+// ...and one that is still away when the quiet start runs out is announced then, once, and
+// its return as usual.
+void TestAppNotifications::aHiddenStartSaysSoWhenTheServerStaysAway()
+{
+    quint16 port = 0;
+    {
+        QTcpServer probe;
+        QVERIFY(probe.listen(QHostAddress::LocalHost));
+        port = probe.serverPort();
+    }
+    qputenv("OMASEED_SERVER_URL", QStringLiteral("http://127.0.0.1:%1").arg(port).toUtf8());
+    qputenv("OMASEED_SERVER_NAME", "fake");
+
+    App app;
+    app.setQuietStartGrace(std::chrono::milliseconds(300));
+    app.setLaunchHidden(true);
+    Notifier notifier(m_bus.connection());
+    app.attachNotifier(&notifier);
+    app.engine()->setIntervals(std::chrono::milliseconds(10),
+                               std::chrono::milliseconds(10),
+                               std::chrono::milliseconds(10),
+                               std::chrono::milliseconds(30));
+    QSignalSpy lost(app.engine(), &omaseed::core::SyncEngine::serverLost);
+
+    app.start();
+    QVERIFY(waitFor([&] { return lost.size() >= 1; }));
+    QCOMPARE(m_bus.server()->calls.size(), 0);
+    QVERIFY(waitFor([&] { return m_bus.server()->calls.size() >= 1; }));
+    QCOMPARE(m_bus.server()->calls.first().summary, QStringLiteral("fake is unreachable"));
+    QVERIFY(m_bus.server()->calls.first().body.contains(QStringLiteral("retrying every")));
+
+    FakeQbtServer server;
+    QVERIFY(server.start(port));
+    server.setMainData({QByteArrayLiteral("{\"full_update\":true,\"rid\":1,\"torrents\":{}}")});
+    QVERIFY(waitFor([&] { return m_bus.server()->calls.size() >= 2; }));
+    QCOMPARE(m_bus.server()->calls.at(1).summary, QStringLiteral("fake is back"));
 
     app.engine()->stop();
 }

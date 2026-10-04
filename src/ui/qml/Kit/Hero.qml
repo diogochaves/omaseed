@@ -217,8 +217,21 @@ Item {
     /// "left" (beside the server name, the spec's placement) or "right" (against the search
     /// field). Anything else reads as "left".
     property string speedsAlignment: "left"
+    /// #24 T2: the last 60 s of upload, drawn faintly behind the ↑ number; empty draws nothing.
+    property var upSpark: []
+    /// The same for download, behind the ↓ number.
+    property var downSpark: []
+    /// #24 T2: what the ↑ caption adds after "upload", e.g. "18.4 GB today".
+    property string upNote: ""
+    /// #24: the window's two faces, `[{key, label, hint}]`, drawn as tabs after the speeds
+    /// (docs/22 D1 a); empty draws none.
+    property var views: []
+    property string currentView: ""
 
     signal addClicked
+    /// #24: a view tab, or the ↑ number (which opens the seed console).
+    signal viewSelected(string key)
+    signal upClicked
     signal altSpeedClicked
     signal helpClicked
     signal moreClicked
@@ -408,25 +421,149 @@ Item {
             objectName: "speedsSpacerLeft"
         }
 
-        Stat {
+        // T2: each trend sits under its number, a hairline at low alpha. A wrapper, so the
+        // line is not one of the Stat column's own rows. `downStat` is the wrapper (tests read
+        // its place and its value).
+        Item {
             id: downStat
+
+            readonly property string value: downInner.value
 
             Layout.alignment: Qt.AlignVCenter
             Layout.leftMargin: Theme.space(6)
-            glyph: Glyphs.arrowDown
-            glyphColor: Theme.stateDownloading
-            label: root.level >= 2 ? "" : qsTr("download")
-            value: root.level >= 4 ? root.downSpeedShort : root.downSpeed
+            implicitHeight: downInner.implicitHeight
+            implicitWidth: downInner.implicitWidth
             visible: !(root.level >= 3 && root.searchOpen)
+
+            Sparkline {
+                color: Theme.stateDownloading
+                fillAlpha: 0.08
+                // Behind the number only: the caption under it stays clean.
+                height: Theme.space(20)
+                lineAlpha: 0.55
+                values: root.downSpark
+                visible: root.downSpark.length > 1
+                width: downStat.width + Theme.space(12)
+                x: -Theme.space(4)
+                y: Theme.space(1)
+            }
+
+            Stat {
+                id: downInner
+
+                glyph: Glyphs.arrowDown
+                glyphColor: Theme.stateDownloading
+                label: root.level >= 2 ? "" : qsTr("download")
+                value: root.level >= 4 ? root.downSpeedShort : root.downSpeed
+            }
         }
 
-        Stat {
+        Item {
+            id: upBox
+
             Layout.alignment: Qt.AlignVCenter
-            glyph: Glyphs.arrowUp
-            glyphColor: Theme.stateSeeding
-            label: root.level >= 2 ? "" : qsTr("upload")
-            value: root.level >= 4 ? root.upSpeedShort : root.upSpeed
+            implicitHeight: upStat.implicitHeight
+            implicitWidth: upStat.implicitWidth
             visible: !(root.level >= 3 && root.searchOpen)
+
+            Sparkline {
+                fillAlpha: 0.08
+                // Behind the number only: the caption under it stays clean.
+                height: Theme.space(20)
+                lineAlpha: 0.55
+                values: root.upSpark
+                visible: root.upSpark.length > 1
+                width: upBox.width + Theme.space(12)
+                x: -Theme.space(4)
+                y: Theme.space(1)
+            }
+
+            Stat {
+                id: upStat
+
+                glyph: Glyphs.arrowUp
+                glyphColor: Theme.stateSeeding
+                label: root.level >= 2 ? "" : root.upNote.length > 0 ? qsTr("upload · %1").arg(root.upNote)
+                                                                   : qsTr("upload")
+                value: root.level >= 4 ? root.upSpeedShort : root.upSpeed
+            }
+
+            HoverHandler {
+                cursorShape: root.views.length > 0 ? Qt.PointingHandCursor : Qt.ArrowCursor
+            }
+
+            TapHandler {
+                enabled: root.views.length > 0
+                onTapped: root.upClicked()
+            }
+        }
+
+        // #24: library | seed, tabs in the Details tabs' idiom: the current one bright with
+        // an accent rule under it.
+        Row {
+            id: viewTabs
+
+            Layout.alignment: Qt.AlignVCenter
+            Layout.leftMargin: Theme.space(8)
+            objectName: "viewTabs"
+            spacing: Theme.space(2)
+            visible: root.views.length > 0 && !(root.level >= 3 && root.searchOpen)
+
+            Repeater {
+                model: root.views
+
+                delegate: Item {
+                    id: viewTab
+
+                    required property var modelData
+                    readonly property bool current: viewTab.modelData.key === root.currentView
+
+                    implicitHeight: Theme.space(34)
+                    implicitWidth: tabRow.implicitWidth + Theme.space(20)
+
+                    Row {
+                        id: tabRow
+
+                        anchors.centerIn: parent
+                        spacing: Theme.space(6)
+
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            color: viewTab.current ? Theme.brightForeground : Theme.dimForeground
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.font.body
+                            text: viewTab.modelData.label
+                        }
+
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            color: Theme.dimForeground
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.font.caption
+                            opacity: 0.7
+                            text: viewTab.modelData.hint ?? ""
+                            visible: text.length > 0 && root.level < 2
+                        }
+                    }
+
+                    Rectangle {
+                        anchors.bottom: parent.bottom
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        color: Theme.accent
+                        height: Theme.space(2)
+                        visible: viewTab.current
+                    }
+
+                    HoverHandler {
+                        cursorShape: Qt.PointingHandCursor
+                    }
+
+                    TapHandler {
+                        onTapped: root.viewSelected(viewTab.modelData.key)
+                    }
+                }
+            }
         }
 
         Item {

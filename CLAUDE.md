@@ -61,6 +61,7 @@ scripts/dev/shellcheck.sh                          # every tracked shell script 
 scripts/dev/test-server.sh start|stop|status|reset|seed [--strict]
 scripts/dev/test-server.sh rotate --strict        # new random strict login in dev.env; key kept
 scripts/dev/swarm.sh start|seed|status|break CASE|fix|reset|stop   # offline swarm: real downloads on :8081
+scripts/dev/swarm.sh leech start [--rate KIB]|status|stop  # a leecher on :8084 pulls from :8081, nonstop: live uploads
 scripts/dev/swarm-walk.sh [OUT] | --interactive   # every torrent state, shown in the app in an omabox
 scripts/dev/strict-walk.sh [OUT] | --interactive  # first run + cookie / API key login against :8082, in an omabox
 scripts/dev/notify-walk.sh [OUT] | --interactive  # downloads finish: one notice each, a click shows the torrent
@@ -69,6 +70,7 @@ scripts/dev/actions-walk.sh [OUT] | --interactive # renames, categories, tags, a
 scripts/dev/settings-walk.sh [OUT] | --interactive  # qBittorrent settings pane on a box-owned qBittorrent: sections, switches, Web UI port and API key confirms
 scripts/dev/servers-walk.sh [OUT] | --interactive # two qBittorrents: first run, add, switch three ways, an action each side, remove
 scripts/dev/manual-box.sh [--headless] | down          # throwaway desktop for manual tests: omaseed installed, two qBittorrents (public :8090, private :8091)
+scripts/dev/side-by-side.sh | down               # main and the seed-console branch, each in an interactive box on :8081 (#24)
 scripts/dev/app-box.sh up [-b NAME] [--build DIR] [--handlers] [--qbt]  # agents: build/omaseed in a box on :8081 (--qbt: the box's own qBittorrent), swarm .torrents in ~/Downloads
 scripts/dev/app-box.sh restart | shot | down [-b NAME]  # relaunch after a rebuild (the log has Qt's output), a window shot, away
 scripts/dev/app-box.sh api [-b NAME] [--server public|private] [-X M] PATH [CURL ARGS]  # the box's qBittorrent (playground, or a manual box's own, signed in)

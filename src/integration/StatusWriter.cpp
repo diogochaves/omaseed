@@ -335,6 +335,7 @@ void StatusWriter::onSynced()
     const QList<StatusDigest::RatioMilestones::Crossing> crossings = m_milestones.observe(torrents);
     for (const auto &crossing : crossings) {
         const Torrent &torrent = m_engine->torrents()->torrent(crossing.hash);
+        Q_EMIT milestone(crossing.hash, torrent.name, crossing.ratio);
         pushRecent(QJsonObject{
             {QStringLiteral("kind"), QStringLiteral("milestone")},
             {QStringLiteral("hash"), crossing.hash},

@@ -29,6 +29,8 @@
 #include "core/GlobalState.hpp"
 #include "core/QbtClient.hpp"
 #include "core/SecretStore.hpp"
+#include "core/SeedConsole.hpp"
+#include "core/SeedLedger.hpp"
 #include "core/Server.hpp"
 #include "core/ServerDetector.hpp"
 #include "core/ServerListModel.hpp"
@@ -56,8 +58,10 @@
 #include <QVariantList>
 #include <QVariantMap>
 
+#include <chrono>
 #include <functional>
 #include <memory>
+#include <optional>
 
 QT_BEGIN_NAMESPACE
 class QNetworkAccessManager;
@@ -363,6 +367,11 @@ private:
 
     bool m_notifyCompletedEnabled = true;
     bool m_notifyServerLostEnabled = true;
+    /// The quiet start (setLaunchHidden): running while a loss may still go unannounced.
+    QTimer m_quietStart;
+    std::chrono::milliseconds m_quietStartGrace{std::chrono::minutes(2)};
+    /// A loss held back by the quiet start, with the retry period it would have announced.
+    std::optional<std::pair<omaseed::core::ApiError, int>> m_heldLoss;
     bool m_notifyDiskFullEnabled = true;
     int m_lowDiskThresholdGiB = 2;
     bool m_notificationTogglesLoaded = false;
@@ -442,6 +451,15 @@ public:
     QString speedsAlignment() const;
     void setSpeedsAlignment(const QString &side);
 
+    /// #24 T2: the last 60 s of upload (and of download) drawn faintly behind the hero's ↑
+    /// (↓) number. Both off by default: Diogo found them crowding the figures (2026-10-03).
+    Q_PROPERTY(bool uploadTrend READ uploadTrend WRITE setUploadTrend NOTIFY settingsChanged)
+    bool uploadTrend() const;
+    void setUploadTrend(bool on);
+    Q_PROPERTY(bool downloadTrend READ downloadTrend WRITE setDownloadTrend NOTIFY settingsChanged)
+    bool downloadTrend() const;
+    void setDownloadTrend(bool on);
+
     // docs/08 §5 — the rail's look, under Settings -> Appearance.
     /// How the rail, and since N3 every palette, says there is more above or below:
     /// "chevrons" (a counted line at each end, the default), "fade" or "scrollbar". Anything
@@ -478,6 +496,26 @@ public:
     Q_PROPERTY(QString trayIconMode READ trayIconMode WRITE setTrayIconMode NOTIFY settingsChanged)
     QString trayIconMode() const;
     void setTrayIconMode(const QString &mode);
+
+    /// "Start at login" (Settings › General): "off", "tray" (in the tray, no window) or
+    /// "window". Read from the XDG autostart entry on disk every time, so it is what the next
+    /// login will do; writing it writes or removes that entry (integration/Autostart).
+    Q_PROPERTY(QString startAtLogin READ startAtLogin WRITE setStartAtLogin NOTIFY settingsChanged)
+    QString startAtLogin() const;
+    void setStartAtLogin(const QString &mode);
+
+    /// This process was started with `--hidden` (the autostart entry's "tray" mode): the
+    /// window does not show until asked for. First run ignores it: there is nothing to do in
+    /// the tray without a server.
+    Q_PROPERTY(bool launchHidden READ launchHidden CONSTANT)
+    bool launchHidden() const { return m_launchHidden; }
+    /// Also starts the quiet start: for `quietStartGrace` a lost server sends no notice, and
+    /// if it answers within that time it sends no "back" either. At login omaseed often runs
+    /// before qBittorrent (a container, a service) is up; two toasts for that are noise.
+    void setLaunchHidden(bool hidden);
+    /// How long a hidden start waits quietly for its server (2 min; tests shorten it). Set it
+    /// before setLaunchHidden().
+    void setQuietStartGrace(std::chrono::milliseconds grace) { m_quietStartGrace = grace; }
 
     // About pane -------------------------------------------------------------------------
     /// "omaseed 0.1.0". Not `core::versionLine()`: the About pane prints the Qt version on
@@ -534,7 +572,10 @@ private:
     int m_baseSizeOverride = 0;
     int m_windowAlphaOverride = 0;
     QString m_trayIconMode = QStringLiteral("auto");
+    bool m_launchHidden = false;
     QString m_speedsAlignment = QStringLiteral("left");
+    bool m_uploadTrend = false;
+    bool m_downloadTrend = false;
     QString m_railScrollHint = QStringLiteral("chevrons");
     QString m_detailsPlacement = QStringLiteral("auto");
     int m_surfaceTint = 0;
@@ -1187,6 +1228,32 @@ private:
     omaseed::integration::BarWidget *m_barWidget =
         new omaseed::integration::BarWidget(QString(), this);
     // --- end #17 --------------------------------------------------------------------------------
+
+    // --- #24: the seed console (docs/22) -------------------------------------------------------
+    // The ledger keeps what the server gave and took over time (one file per server); the
+    // console works out every block of the seed console from it and the library.
+public:
+    Q_PROPERTY(omaseed::core::SeedConsole *console READ console CONSTANT)
+    omaseed::core::SeedConsole *console() const { return m_console; }
+    omaseed::core::SeedLedger *ledger() const { return m_ledger.get(); }
+
+Q_SIGNALS:
+    /// #24 T7: something worth a moment in the floating bar's spot: `kind` "milestone"
+    /// (paid back, 2×, 5×) or "lastSeed" (you just became a torrent's only seed).
+    void seedNotice(const QString &kind, const QString &hash, const QString &title, const QString &detail);
+
+private:
+    /// Opens the ledger of the server the engine is about to poll (memory only in demo mode).
+    void openLedger();
+    /// One poll into the ledger: the server's totals, every torrent's, this second's speeds.
+    void feedLedger();
+    std::unique_ptr<omaseed::core::SeedLedger> m_ledger = std::make_unique<omaseed::core::SeedLedger>();
+    omaseed::core::SeedConsole *m_console = new omaseed::core::SeedConsole(this);
+    QString m_ledgerKey;
+    bool m_ledgerDemoDone = false;
+    /// Seeds in the swarm per complete torrent at the last poll, for "now the only seed".
+    QHash<QString, int> m_lastSwarm;
+    // --- end #24 --------------------------------------------------------------------------------
 };
 
 } // namespace omaseed::app

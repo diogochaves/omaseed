@@ -24,6 +24,8 @@
 
 #include <QApplication>
 #include <QCommandLineOption>
+#include <QDBusConnection>
+#include <QDBusConnectionInterface>
 #include <QCommandLineParser>
 #include <QCoreApplication>
 #include <QElapsedTimer>
@@ -397,6 +399,13 @@ int main(int argc, char *argv[])
                        "what it loaded and exits."));
     parser.addOption(headlessOption);
 
+    // Settings › General › Start at login writes an autostart entry with this flag.
+    QCommandLineOption hiddenOption(
+        QStringList{QStringLiteral("hidden")},
+        QStringLiteral("Start without showing the window: in the tray, or the bar widget. "
+                       "Launch omaseed again to open it."));
+    parser.addOption(hiddenOption);
+
     // Handled before the application starts (runInstallBarWidget); listed for --help.
     QCommandLineOption installBarWidgetOption(
         QStringList{QStringLiteral("install-bar-widget")},
@@ -489,6 +498,14 @@ int main(int argc, char *argv[])
     // A `--demo` run never receives URIs and must never take the name: two agents' demos
     // (and a demo beside a real omaseed) have to coexist on one session bus.
     if (demo.isEmpty()) {
+        // A login entry (`--hidden`, no URIs) that finds omaseed already running has nothing
+        // to hand over: leave it as it is instead of popping its window up.
+        if (parser.isSet(hiddenOption) && uris.isEmpty()) {
+            const QDBusConnection bus = QDBusConnection::sessionBus();
+            if (bus.isConnected() && bus.interface()
+                && bus.interface()->isServiceRegistered(omaseed::integration::AppIdentity::dbusServiceName()))
+                return 0;
+        }
         if (!singleInstance->start(uris))
             return 0;
     } else {
@@ -516,6 +533,8 @@ int main(int argc, char *argv[])
     omaseed::app::App omaseedApp;
     omaseed::app::App::setDefaultInstance(&omaseedApp);
     omaseedApp.barWidget()->setDevSourceDir(devPluginDir());
+    // Main.qml reads it for its first `visible`; a demo always shows its window.
+    omaseedApp.setLaunchHidden(demo.isEmpty() && parser.isSet(hiddenOption));
     // The Appearance pane's "follow the Omarchy theme" and base-size override live in
     // state.json; App applies them to the reader here, before the first frame (T4.5).
     omaseedApp.attachTheme(&theme);

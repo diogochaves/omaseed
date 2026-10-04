@@ -97,6 +97,7 @@
 #include "core/CategoryModel.hpp"
 #include "core/FilterCounts.hpp"
 #include "core/GlobalState.hpp"
+#include "core/SeedConsole.hpp"
 #include "core/ServerPreferences.hpp"
 #include "core/ServerStore.hpp"
 #include "core/SyncEngine.hpp"
@@ -170,6 +171,14 @@ struct GlobalStateForeign
     QML_FOREIGN(omaseed::core::GlobalState)
     QML_NAMED_ELEMENT(GlobalState)
     QML_UNCREATABLE("GlobalState is App.globalState; it is not created from QML.")
+};
+
+struct SeedConsoleForeign
+{
+    Q_GADGET
+    QML_FOREIGN(omaseed::core::SeedConsole)
+    QML_NAMED_ELEMENT(SeedConsole)
+    QML_UNCREATABLE("SeedConsole is App.console; it is not created from QML.")
 };
 
 struct ServerPreferencesForeign

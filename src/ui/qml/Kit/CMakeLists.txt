@@ -13,10 +13,12 @@ qt_add_qml_module(omaseed-kit
     SOURCES
         ThemeForeign.hpp
     QML_FILES
+        AreaChart.qml
         Banner.qml
         Button.qml
         Chip.qml
         ConfirmDialog.qml
+        DayGrid.qml
         Field.qml
         FilterMenu.qml
         FocusRing.qml
@@ -25,6 +27,7 @@ qt_add_qml_module(omaseed-kit
         Glyph.qml
         Glyphs.qml
         Hairline.qml
+        Hatch.qml
         Hero.qml
         Icon.qml
         IconButton.qml
@@ -36,11 +39,14 @@ qt_add_qml_module(omaseed-kit
         Palette.qml
         ProgressLine.qml
         RailRow.qml
+        RatioLadder.qml
         Scrim.qml
         ScrollBar.qml
         ScrollHint.qml
         Sheet.qml
+        Sparkline.qml
         SplitLayout.qml
+        StackStrip.qml
         Stat.qml
         Strip.qml
         TableHeader.qml
