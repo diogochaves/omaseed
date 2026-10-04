@@ -393,7 +393,7 @@ TestCase {
                                      "files": false
                                  }]);
         const line = confirm.body.children[1];
-        verify(line.text.indexOf("1 of them share files with 1 torrent you're not deleting.") >= 0, line.text);
+        verify(line.text.indexOf("1 of them shares files with 1 torrent you're not deleting.") >= 0, line.text);
     }
 
     function test_location_sheet_moves_the_sharers_too() {

@@ -42,12 +42,13 @@ Rectangle {
                                      count);
         }
         const torrents = count === 1 ? qsTr("1 torrent") : qsTr("%1 torrents").arg(count);
+        const who = root._sharing.length === 1 ? qsTr("1 of them shares") : qsTr("%1 of them share").arg(
+                                                     root._sharing.length);
         if (root.mode === "move")
-            return qsTr("%1 of them share files with %2 that %3 moving.").arg(
-                        root._sharing.length).arg(torrents).arg(count === 1 ? qsTr("isn't") : qsTr(
-                                                                                  "aren't"));
-        return qsTr("%1 of them share files with %2 you're not deleting.").arg(
-                    root._sharing.length).arg(torrents);
+            return qsTr("%1 files with %2 that %3 moving.").arg(who).arg(torrents).arg(count === 1
+                                                                                       ? qsTr("isn't") :
+                                                                                         qsTr("aren't"));
+        return qsTr("%1 files with %2 you're not deleting.").arg(who).arg(torrents);
     }
 
     /// The lines under the headline: one per sharer (one torrent selected) or one per

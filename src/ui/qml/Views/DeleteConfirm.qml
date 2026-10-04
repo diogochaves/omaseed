@@ -164,10 +164,12 @@ ConfirmDialog {
             const sharingCount = (root._shared.sharing ?? []).length;
             const others = root._outside.length;
             const total = App.sizeText(root._shared.diskSizeWithOutside ?? 0);
+            // A selection: the files of the torrents that share stay, the others' go.
+            const kept = sharingCount === 1 ? qsTr("the files of the one that shares stay") : qsTr(
+                                                  "the files of the %1 that share stay").arg(sharingCount);
             return [{
                         "title": many ? qsTr("keep their files") : qsTr("keep the files"),
-                        "detail": many ? qsTr("delete %1 torrents; files kept for those %2, deleted for the other %3").arg(
-                                             root.hashes.length).arg(sharingCount).arg(root.hashes.length - sharingCount) :
+                        "detail": many ? qsTr("delete %1 torrents; %2").arg(root.hashes.length).arg(kept) :
                                          others === 1 ? qsTr("delete only this torrent; the other one keeps seeding") :
                                                         qsTr("delete only this torrent; the other %1 keep seeding").arg(others)
                     }, {
