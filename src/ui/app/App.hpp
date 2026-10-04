@@ -57,7 +57,9 @@
 #include <QTimer>
 #include <QVariantList>
 
+#include <chrono>
 #include <memory>
+#include <optional>
 #include <QVariantMap>
 
 #include <functional>
@@ -367,6 +369,11 @@ private:
 
     bool m_notifyCompletedEnabled = true;
     bool m_notifyServerLostEnabled = true;
+    /// The quiet start (setLaunchHidden): running while a loss may still go unannounced.
+    QTimer m_quietStart;
+    std::chrono::milliseconds m_quietStartGrace{std::chrono::minutes(2)};
+    /// A loss held back by the quiet start, with the retry period it would have announced.
+    std::optional<std::pair<omaseed::core::ApiError, int>> m_heldLoss;
     bool m_notifyDiskFullEnabled = true;
     int m_lowDiskThresholdGiB = 2;
     bool m_notificationTogglesLoaded = false;
@@ -504,7 +511,13 @@ public:
     /// the tray without a server.
     Q_PROPERTY(bool launchHidden READ launchHidden CONSTANT)
     bool launchHidden() const { return m_launchHidden; }
-    void setLaunchHidden(bool hidden) { m_launchHidden = hidden; }
+    /// Also starts the quiet start: for `quietStartGrace` a lost server sends no notice, and
+    /// if it answers within that time it sends no "back" either. At login omaseed often runs
+    /// before qBittorrent (a container, a service) is up; two toasts for that are noise.
+    void setLaunchHidden(bool hidden);
+    /// How long a hidden start waits quietly for its server (2 min; tests shorten it). Set it
+    /// before setLaunchHidden().
+    void setQuietStartGrace(std::chrono::milliseconds grace) { m_quietStartGrace = grace; }
 
     // About pane -------------------------------------------------------------------------
     /// "omaseed 0.1.0". Not `core::versionLine()`: the About pane prints the Qt version on
