@@ -47,6 +47,7 @@ Item {
     readonly property alias selectionBar: selectionBar
     readonly property alias deleteConfirmPanel: deleteConfirmPanel
     readonly property alias locationSheetPanel: locationSheetPanel
+    readonly property alias sharedMoveConfirm: sharedMoveConfirm
     readonly property alias limitsSheetPanel: limitsSheetPanel
     readonly property alias moreMenu: moreMenu
     readonly property alias filterMenu: filterMenu
@@ -86,6 +87,8 @@ Item {
             return sortPalette;
         if (columnsPalette.opened)
             return columnsPalette;
+        if (sharedMoveConfirm.opened)
+            return sharedMoveConfirm;
         if (duplicateSheet.opened)
             return duplicateSheet;
         if (addSheet.opened)
@@ -1890,6 +1893,15 @@ Item {
         z: 14
 
         onChosen: name => addSheet.applyChosenCategory(name)
+        onSharedMoveFound: (hashes, name, create, moved) => sharedMoveConfirm.openFor(hashes, name, create, moved)
+    }
+
+    // #28: a category change that would move files another torrent uses asks first.
+    SharedMoveConfirm {
+        id: sharedMoveConfirm
+
+        anchors.fill: parent
+        z: 14
     }
 
     TagPalette {

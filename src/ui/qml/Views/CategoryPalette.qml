@@ -23,6 +23,10 @@ Palette {
     /// The name picked (or created) in choice mode. A `create` row still creates it on the
     /// server first, so the next sheet and the rail see it.
     signal chosen(string name)
+    /// #28 (docs/26 §4): applying `name` would move the files of `moved` from under torrents
+    /// outside `hashes` that use the same data. The palette has closed without applying; the
+    /// caller asks (SharedMoveConfirm) and applies.
+    signal sharedMoveFound(var hashes, string name, bool create, var moved)
 
     footerRight: qsTr("new name creates it")
     glyph: Glyphs.category
@@ -103,7 +107,23 @@ Palette {
         root.open();
     }
 
+    /// True when `name` moves files another torrent uses: then `sharedMoveFound` is raised
+    /// instead of applying.
+    function _asksAboutSharedData(name: string, create: bool): bool {
+        const moved = App.movedByCategory(root.hashes, name);
+        if (moved.length === 0)
+            return false;
+        if ((App.sharedData(moved, true).outside ?? []).length === 0)
+            return false;
+        const hashes = root.hashes;
+        root.close();
+        root.sharedMoveFound(hashes, name, create, moved);
+        return true;
+    }
+
     onActivated: (index, item) => {
+        if (!root.choiceMode && root._asksAboutSharedData(item.key, item.isCreate === true))
+            return;
         // On torrents, a new category is set only once the server has created it.
         if (item.isCreate === true && !root.choiceMode) {
             App.createAndApplyCategory(root.hashes, item.key);
