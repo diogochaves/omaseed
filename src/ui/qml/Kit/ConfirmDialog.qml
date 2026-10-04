@@ -37,6 +37,11 @@ Item {
     property bool modal: true
     /// 0 = cancel, 1 = confirm.
     property int cursor: 0
+    /// The card's width; Fig. 6's 370 unless a caller's rows need more (docs/26's 520).
+    property int panelWidth: Theme.space(370)
+    /// Called first with every key the dialog sees; answering true takes the key (docs/26's
+    /// `j`/`k` between a caller's choice rows). Null: only the dialog's own keys.
+    property var keyHandler: null
 
     /// The optional row between the message and the buttons (Fig. 6's toggle).
     default property alias content: bodyColumn.data
@@ -169,6 +174,10 @@ Item {
     }
 
     function _onKey(event: var): void {
+        if (root.keyHandler && root.keyHandler(event) === true) {
+            event.accepted = true;
+            return;
+        }
         switch (event.key) {
         case Qt.Key_Escape:
             root.cancel();
@@ -202,7 +211,7 @@ Item {
     }
 
     implicitHeight: panel.implicitHeight
-    implicitWidth: Theme.space(370)
+    implicitWidth: root.panelWidth
     visible: root.inline || root._opened
 
     Keys.onPressed: event => {
@@ -230,7 +239,7 @@ Item {
         color: Theme.background
         implicitHeight: layout.implicitHeight + 2 * panel.padding
         radius: Theme.cornerRadius
-        width: Math.min(Theme.space(370), root.inline ? Theme.space(370)
+        width: Math.min(root.panelWidth, root.inline ? root.panelWidth
                 : Math.max(0, root.width - 2 * root._margin))
         x: root.inline ? 0 : Math.round((root.width - width) / 2)
         y: root.inline ? 0 : Math.round((root.height - height) / 2)
@@ -298,7 +307,8 @@ Item {
                 Button {
                     id: confirmButton
 
-                    Layout.preferredWidth: Theme.space(88)
+                    // 88 wide as drawn, wider when the caption says more ("delete, keep files").
+                    Layout.preferredWidth: Math.max(Theme.space(88), confirmButton.implicitWidth)
                     bordered: true
                     danger: root.destructive
                     fontSize: Theme.font.caption

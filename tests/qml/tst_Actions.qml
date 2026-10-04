@@ -37,6 +37,7 @@ TestCase {
     }
 
     function init() {
+        unshareData();
         view.helpOpen = false;
         view.table.cancelRename();
         view.table.clearSelection();
@@ -51,6 +52,35 @@ TestCase {
         view.limitsSheetPanel.close();
         view.renameSheetPanel.close();
         view.actionsMenuPanel.close();
+        view.sharedMoveConfirm.close();
+        view.categoryPalette.close();
+    }
+
+    /// #28: what shareData() changed, to put back (hash → its own paths).
+    property var _unshare: ({})
+
+    /// Saves `b` into `a`'s folder, as a cross-seed would be: the same content path.
+    function shareData(a, b) {
+        const rowA = App.torrentRow(a);
+        const rowB = App.torrentRow(b);
+        const back = testCase._unshare;
+        back[b] = {
+            "save_path": rowB.savePath,
+            "content_path": rowB.savePath + "/" + rowB.name
+        };
+        testCase._unshare = back;
+        const patch = {};
+        patch[b] = {
+            "save_path": rowA.savePath,
+            "content_path": rowA.savePath + "/" + rowA.name
+        };
+        App.patchDemoTorrents(patch);
+    }
+
+    function unshareData() {
+        if (Object.keys(testCase._unshare).length > 0)
+            App.patchDemoTorrents(testCase._unshare);
+        testCase._unshare = {};
     }
 
     /// The demo library has no name-to-hash lookup of its own; this walks the filtered model.
@@ -264,6 +294,147 @@ TestCase {
         compare(view.deleteConfirmPanel.subtitle.split("\n").length, 4);
         verify(view.deleteConfirmPanel.subtitle.indexOf("more") < 0);
         view.deleteConfirmPanel.close();
+    }
+
+    // ---- #28: data another torrent uses (docs/26) ------------------------------------------
+    function test_files_on_names_the_torrent_sharing_its_files() {
+        const sintel = hashByName("Sintel 1080p (CC-BY)");
+        const tears = hashByName("Tears of Steel 4K (CC-BY)");
+        shareData(sintel, tears);
+        const confirm = view.deleteConfirmPanel;
+        confirm.openFor([sintel], true);
+        verify(confirm.asking);
+        compare(confirm.choice, 0, "keep the files is not picked");
+        compare(confirm.confirmText, "delete, keep files");
+        compare(confirm.plan(), [{
+                                     "hashes": [sintel],
+                                     "files": false
+                                 }]);
+        compare(confirm.panelWidth, Theme.space(520));
+        const line = confirm.body.children[1];
+        verify(line.visible);
+        verify(line.text.indexOf("Its files are also seeded by 1 torrent you're not deleting.") >= 0, line.text);
+        verify(line.text.indexOf("Tears of Steel 4K (CC-BY)") >= 0, line.text);
+    }
+
+    function test_j_picks_deleting_the_sharers_too_and_reopening_keeps_the_files() {
+        const sintel = hashByName("Sintel 1080p (CC-BY)");
+        const tears = hashByName("Tears of Steel 4K (CC-BY)");
+        shareData(sintel, tears);
+        const confirm = view.deleteConfirmPanel;
+        confirm.openFor([sintel], true);
+        keyClick("j");
+        compare(confirm.choice, 1);
+        compare(confirm.confirmText, "delete 2 with files");
+        compare(confirm.plan(), [{
+                                     "hashes": [sintel, tears],
+                                     "files": true
+                                 }]);
+        keyClick("k");
+        compare(confirm.choice, 0);
+        keyClick("j");
+        confirm.close();
+        confirm.openFor([sintel], true);
+        compare(confirm.choice, 0, "a reopened confirm did not pick keep the files");
+    }
+
+    function test_files_off_asks_nothing_about_sharers() {
+        const sintel = hashByName("Sintel 1080p (CC-BY)");
+        const tears = hashByName("Tears of Steel 4K (CC-BY)");
+        shareData(sintel, tears);
+        const confirm = view.deleteConfirmPanel;
+        confirm.openFor([sintel], false);
+        verify(!confirm.asking);
+        compare(confirm.confirmText, "delete");
+        compare(confirm.panelWidth, Theme.space(370));
+        verify(!confirm.body.children[1].visible);
+        compare(confirm.plan(), [{
+                                     "hashes": [sintel],
+                                     "files": false
+                                 }]);
+        // Switching the files on brings the question in.
+        confirm.body.children[0].checked = true;
+        verify(confirm.asking);
+    }
+
+    function test_every_sharer_selected_says_they_share_one_copy() {
+        const sintel = hashByName("Sintel 1080p (CC-BY)");
+        const tears = hashByName("Tears of Steel 4K (CC-BY)");
+        shareData(sintel, tears);
+        const confirm = view.deleteConfirmPanel;
+        confirm.openFor([sintel, tears], true);
+        verify(!confirm.asking);
+        const once = Math.max(App.torrentRow(sintel).size, App.torrentRow(tears).size);
+        const lines = confirm.subtitle.split("\n");
+        compare(lines[lines.length - 1], App.sizeText(once) + " on disk");
+        const note = confirm.body.children[3];
+        verify(note.visible);
+        compare(note.text, "These 2 share one copy of their files: " + App.sizeText(once) + " is deleted once.");
+        compare(confirm.plan(), [{
+                                     "hashes": [sintel, tears],
+                                     "files": true
+                                 }]);
+    }
+
+    function test_keeping_shared_files_splits_the_delete() {
+        const sintel = hashByName("Sintel 1080p (CC-BY)");
+        const tears = hashByName("Tears of Steel 4K (CC-BY)");
+        const arch = hashByName("archlinux-2026.09.01-x86_64.iso");
+        shareData(sintel, tears);
+        const confirm = view.deleteConfirmPanel;
+        confirm.openFor([sintel, arch], true);
+        verify(confirm.asking);
+        compare(confirm.confirmText, "delete 2");
+        compare(confirm.plan(), [{
+                                     "hashes": [arch],
+                                     "files": true
+                                 }, {
+                                     "hashes": [sintel],
+                                     "files": false
+                                 }]);
+        const line = confirm.body.children[1];
+        verify(line.text.indexOf("1 of them shares files with 1 torrent you're not deleting.") >= 0, line.text);
+    }
+
+    function test_location_sheet_moves_the_sharers_too() {
+        const sintel = hashByName("Sintel 1080p (CC-BY)");
+        const tears = hashByName("Tears of Steel 4K (CC-BY)");
+        shareData(sintel, tears);
+        const sheet = view.locationSheetPanel;
+        sheet.openFor([sintel]);
+        verify(sheet.asking);
+        compare(sheet.choice, 0);
+        compare(sheet.moveHashes(), [sintel, tears]);
+        compare(sheet.actions[1].text, "move 2");
+        compare(sheet.sheetWidth, Theme.space(520));
+        // The path field is still the first stop for the keyboard.
+        compare(sheet.focusables()[0].text, App.torrentRow(sintel).savePath);
+    }
+
+    function test_a_category_change_that_moves_shared_files_asks_first() {
+        const sintel = hashByName("Sintel 1080p (CC-BY)");
+        const tears = hashByName("Tears of Steel 4K (CC-BY)");
+        shareData(sintel, tears);
+        verify(App.torrentRow(sintel).autoTmm, "the demo row is not under automatic management");
+        const other = App.torrentRow(sintel).category === "music" ? "tv" : "music";
+        view.categoryPalette.openFor([sintel]);
+        view.categoryPalette.activated(0, {
+                                           "key": other,
+                                           "title": other
+                                       });
+        compare(view.categoryPalette.opened, false);
+        compare(view.sharedMoveConfirm.opened, true);
+        compare(view.sharedMoveConfirm.applyHashes(), [sintel, tears]);
+        compare(view.sharedMoveConfirm.confirmText, "move 2");
+        keyClick("j");
+        compare(view.sharedMoveConfirm.applyHashes(), [sintel]);
+        view.sharedMoveConfirm.close();
+    }
+
+    function test_a_category_change_on_unshared_data_asks_nothing() {
+        const sintel = hashByName("Sintel 1080p (CC-BY)");
+        compare(App.movedByCategory([sintel], "music").length + App.movedByCategory([sintel], "tv").length > 0, true);
+        compare((App.sharedData([sintel], true).outside ?? []).length, 0);
     }
 
     // ---- the location sheet (Fig. 7) -------------------------------------------------------

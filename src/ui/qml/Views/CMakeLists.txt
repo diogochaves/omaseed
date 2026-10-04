@@ -72,6 +72,9 @@ qt_add_qml_module(omaseed-views
         SettingsModal.qml
         SettingsRow.qml
         SettingsServerRow.qml
+        SharedChoice.qml
+        SharedDataLine.qml
+        SharedMoveConfirm.qml
         SortPalette.qml
         TagPalette.qml
         ThemeGallery.qml

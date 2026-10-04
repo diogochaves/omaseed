@@ -61,6 +61,8 @@ qt_add_library(omaseed-core STATIC
     SeedConsole.hpp
     SeedLedger.cpp
     SeedLedger.hpp
+    SharedData.cpp
+    SharedData.hpp
     StateFile.cpp
     StateFile.hpp
     StatusDigest.cpp

@@ -54,6 +54,7 @@
 #include <QObject>
 #include <QPointer>
 #include <QProcess>
+#include <QSet>
 #include <QString>
 #include <QStringList>
 #include <QTemporaryDir>
@@ -1358,6 +1359,35 @@ private:
     std::optional<omaseed::core::OmaseedBackup::Contents> m_pendingRestore;
     QString m_pendingRestorePath;
     // --- end #31 --------------------------------------------------------------------------------
+
+    // --- #28: data shared between torrents --------------------------------------------------
+    // docs/26: the delete confirm, the location sheet and a category change ask before they
+    // take files from under another torrent that uses the same data (core::SharedData). The
+    // methods live in AppSharedData.cpp.
+public:
+    /// `hashes` against the library: `{sharing: [{hash, name, sharers: [{hash, name, tracker,
+    /// stateText, ratioText, missingFiles}]}], outside: [hash], insideCount, insideSize,
+    /// diskSize, diskSizeWithOutside, pending}`. `sharing` lists the selected torrents with
+    /// sharers outside `hashes`; `inside*` the ones that share among themselves. The file
+    /// lists a no-root torrent needs are fetched in the background (`pending` until then) and
+    /// `sharedFilesLoaded` says when a new call would answer differently. `fresh` forgets the
+    /// file lists fetched before.
+    Q_INVOKABLE QVariantMap sharedData(const QStringList &hashes, bool fresh = false);
+    /// Of `hashes`, the ones setting `category` would move on disk: automatic management on,
+    /// and another category now.
+    Q_INVOKABLE QStringList movedByCategory(const QStringList &hashes,
+                                            const QString &category) const;
+    /// Demo mode only (the QML tests, screenshots): merges `torrents` (hash → maindata keys)
+    /// into the fictional library.
+    Q_INVOKABLE void patchDemoTorrents(const QVariantMap &torrents);
+
+Q_SIGNALS:
+    void sharedFilesLoaded();
+
+private:
+    QHash<QString, QStringList> m_sharedFiles;
+    QSet<QString> m_sharedFilesInFlight;
+    // --- end #28 ----------------------------------------------------------------------------
 };
 
 } // namespace omaseed::app

@@ -348,6 +348,37 @@ TestCase {
         verify(dialog.panel.height > 0, "the inline card has no height");
     }
 
+    // #28 (docs/26): a caller's rows can make the card wider, and a longer caption widens the
+    // confirm button instead of being cut.
+    function test_panel_width_and_a_long_caption_fit() {
+        const dialog = createTemporaryObject(deleteComponent, testCase, {
+                                                 "inline": true,
+                                                 "panelWidth": Theme.space(520),
+                                                 "confirmText": "delete, keep files"
+                                             });
+        compare(dialog.panel.width, Theme.space(520));
+        verify(dialog.confirmButton.width >= dialog.confirmButton.implicitWidth,
+               "the confirm caption does not fit its button");
+        compare(dialog.cancelButton.width, Theme.space(88));
+    }
+
+    // #28: `keyHandler` sees keys first; true takes the key, false leaves it to the dialog.
+    function test_key_handler_takes_keys_before_the_dialog() {
+        const dialog = createTemporaryObject(deleteComponent, testCase);
+        const seen = [];
+        dialog.keyHandler = event => {
+            seen.push(event.key);
+            return event.key === Qt.Key_J;
+        };
+        dialog.open();
+        keyClick("j");
+        compare(seen, [Qt.Key_J]);
+        compare(dialog.opened, true);
+        keyClick(Qt.Key_Escape);
+        compare(seen, [Qt.Key_J, Qt.Key_Escape]);
+        compare(dialog.opened, false, "a key the handler left alone did not reach the dialog");
+    }
+
     Component {
         id: acceptedSpy
 
