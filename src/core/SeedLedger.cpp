@@ -238,11 +238,12 @@ void SeedLedger::observe(qint64 now,
     }
     m_baselines = next;
 
-    if (haveServer && !backwards && now > from) {
+    if (haveServer && !backwards) {
         const qint64 up = allTimeUp - m_lastUp;
         const qint64 down = allTimeDown - m_lastDown;
+        // A clock that went back still books the poll, at its own (earlier) time.
         if (up > 0 || down > 0 || !perTorrent.isEmpty())
-            book(from, now, up, down, perTorrent, now);
+            book(std::min(from, now), now, up, down, perTorrent, now);
     }
 
     m_lastTime = now;
@@ -250,7 +251,8 @@ void SeedLedger::observe(qint64 now,
     m_lastDown = allTimeDown;
     m_metaDirty = true;
 
-    if (now - m_lastFlush >= flushInterval)
+    // A clock that went back must not hold the next flush until it catches up.
+    if (now - m_lastFlush >= flushInterval || now < m_lastFlush)
         flush(now);
 }
 

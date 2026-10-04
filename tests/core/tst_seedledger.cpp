@@ -300,6 +300,30 @@ private Q_SLOTS:
         QCOMPARE(sumUp(ledger.days(QDate(2026, 9, 30), QDate(2026, 10, 3))), up - 10);
     }
 
+    // The clock steps back an hour (a wrong clock put right, a timezone mix-up): every byte
+    // is still counted, and flushes do not wait an hour for the clock to catch up.
+    void aClockGoingBackLosesNothing()
+    {
+        QTemporaryDir dir;
+        const QString path = dir.filePath(QStringLiteral("x.sqlite"));
+        SeedLedger ledger;
+        QVERIFY(ledger.open(path));
+        const qint64 t = noon();
+        ledger.observe(t, 0, 0, totals({{"a", 0}}));
+        ledger.observe(t + 2, 100, 0, totals({{"a", 100}}));
+        const qint64 back = t + 4 - 3600;
+        ledger.observe(back, 130, 0, totals({{"a", 130}}));
+        for (int i = 1; i <= 200; ++i)
+            ledger.observe(back + 2 * i, 130 + i, 0, totals({{"a", 130 + i}}));
+        QCOMPARE(ledger.days(QDate(2026, 10, 3), QDate(2026, 10, 3)).first().up, 330);
+        QCOMPARE(ledger.torrentTotals(QDate(2026, 10, 3), QDate(2026, 10, 3)).value(QStringLiteral("a")), 330);
+
+        // 400 s after the step, a flush has happened: a second reader sees the bytes.
+        SeedLedger reader;
+        QVERIFY(reader.open(path));
+        QVERIFY(reader.days(QDate(2026, 10, 3), QDate(2026, 10, 3)).first().up >= 130);
+    }
+
     // An hour of a big library at the window's poll rate: 1,000 torrents, 50 of them
     // uploading, a poll every 1.5 s. What goes to disk is what the flushes write, so the
     // bound is on bytes handed to write() over the hour.
