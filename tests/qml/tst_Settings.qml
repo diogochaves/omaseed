@@ -1,3 +1,4 @@
+import QtCore
 import QtQuick
 import QtTest
 import Omaseed
@@ -104,12 +105,13 @@ TestCase {
             App.serverList.remove(App.serverList.idAt(0));
     }
 
-    function test_the_nav_has_the_six_rows_of_the_figure() {
+    function test_the_nav_has_the_seven_rows() {
+        // The figure's six, and Backup after Appearance (#31, docs/24 §3).
         const modal = createTemporaryObject(modalComponent, testCase);
-        compare(modal.navRows.length, 6);
+        compare(modal.navRows.length, 7);
         const texts = modal.navRows.map(row => row.text);
-        compare(texts, ["General", "Servers", "Notifications", "Keybindings", "Appearance", "About"]);
-        for (let i = 0; i < 6; ++i)
+        compare(texts, ["General", "Servers", "Notifications", "Keybindings", "Appearance", "Backup", "About"]);
+        for (let i = 0; i < 7; ++i)
             verify(testCase.childNamed(modal, "navRow" + i) !== null);
         // The first pane is General, and the nav has the keyboard.
         compare(modal.paneIndex, 0);
@@ -141,10 +143,74 @@ TestCase {
         keyClick(Qt.Key_J);
         compare(modal.paneIndex, 0);
 
-        keyClick(Qt.Key_6);
-        compare(modal.paneIndex, 5);
+        keyClick(Qt.Key_7);
+        compare(modal.paneIndex, 6);
         keyClick(Qt.Key_1);
         compare(modal.paneIndex, 0);
+    }
+
+    // #31, docs/24 §3: back up, restore, automatic copies.
+    function test_the_backup_pane() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        keyClick(Qt.Key_6);
+        compare(modal.paneIndex, 5);
+        compare(modal.paneRowCount, 3);
+        verify(testCase.childNamed(modal, "backupRow").visible);
+        verify(App.backupSummary.indexOf("Passwords and API keys stay in the keyring") >= 0, App.backupSummary);
+
+        // The third row steps the automatic copies: weekly (the default), daily, off, weekly.
+        compare(App.autoBackupMode, "weekly");
+        modal.area = "pane";
+        modal.paneCursor = 2;
+        modal.activateRow();
+        compare(App.autoBackupMode, "daily");
+        modal.activateRow();
+        compare(App.autoBackupMode, "off");
+        modal.activateRow();
+        compare(App.autoBackupMode, "weekly");
+    }
+
+    function test_a_backup_reads_back_into_the_restore_sheet() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        keyClick(Qt.Key_6);
+        // The tests' own data home (tests/CMakeLists.txt), never the real one.
+        const path = String(StandardPaths.writableLocation(StandardPaths.GenericDataLocation)).replace(/^file:\/\//, "")
+                     + "/omaseed-tst-settings.omaseed";
+        compare(App.backUpTo(path), "");
+
+        const info = App.readBackup(path);
+        verify(info.ok, info.error);
+        verify(info.title.indexOf("omaseed-tst-settings.omaseed") >= 0, info.title);
+        verify(info.safety.indexOf("before-restore-") >= 0, info.safety);
+        const sheet = modal.restoreSheet;
+        sheet.openFor(info);
+        verify(sheet.opened);
+        const settings = info.parts.find(part => part.key === "settings");
+        verify(settings !== undefined && settings.checked);
+        const before = sheet.count;
+        verify(before >= 1);
+        sheet.toggle("settings");
+        compare(sheet.count, before - 1);
+        sheet.toggle("settings");
+
+        // The tests' App is a demo, and a demo never writes the real settings: restore says no.
+        // (OmaseedBackup's own tests restore for real.)
+        verify(App.demoMode);
+        const result = App.restoreBackup({
+            "settings": true,
+            "servers": false,
+            "history": []
+        });
+        verify(!result.ok);
+        verify(result.text.indexOf("demo") >= 0, result.text);
+        sheet.close();
+
+        // Anything that is not an omaseed backup is refused before the sheet.
+        const notBackup = App.readBackup(String(Qt.resolvedUrl("tst_Settings.qml")).replace(/^file:\/\//, ""));
+        verify(!notBackup.ok);
+        verify(notBackup.error.indexOf("not an omaseed backup") >= 0, notBackup.error);
     }
 
     function test_esc_closes_the_modal_and_gives_the_focus_back() {
@@ -817,8 +883,8 @@ TestCase {
     function test_the_about_pane_prints_the_version_and_the_install_line() {
         const modal = createTemporaryObject(modalComponent, testCase);
         modal.open();
-        keyClick(Qt.Key_6);
-        compare(modal.paneIndex, 5);
+        keyClick(Qt.Key_7);
+        compare(modal.paneIndex, 6);
         verify(App.versionText.length > 0);
         verify(App.qtVersionText.length > 0);
         // Batch-2 J8: the Qt version has its own row, so VERSION does not repeat it.
@@ -888,10 +954,15 @@ TestCase {
         verify(tabs.visible);
         compare(modal.area, "pane");
 
-        // Every tab fits across the sheet.
-        const tabRow = tabs.children[0];
-        verify(Theme.space(10) + tabRow.implicitWidth <= tabs.width, "tabs need "
-               + (Theme.space(10) + tabRow.implicitWidth) + " of " + tabs.width);
+        // Seven sections (Backup, #31) are wider than the sheet at the floor: the strip slides
+        // so the current tab stays in view, as the qBittorrent group's nine do (docs/16 §2).
+        compare(tabs._shift, 0);
+        keyClick(Qt.Key_7);
+        compare(modal.paneIndex, 6);
+        verify(tabs._shift > 0, "the About tab is out of view");
+        keyClick(Qt.Key_1);
+        compare(modal.paneIndex, 0);
+        compare(tabs._shift, 0);
         // The pane starts where the tabs do: no nav beside it.
         const scroller = testCase.childNamed(modal, "paneScroller");
         compare(scroller.mapToItem(modal, 0, 0).x, tabs.mapToItem(modal, 0, 0).x);

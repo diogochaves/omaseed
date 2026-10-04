@@ -30,6 +30,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QLocale>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
@@ -160,6 +161,23 @@ App::App(QObject *parent)
                           m_engine->globalState(),
                           m_ledger.get());
     connect(m_engine, &SyncEngine::synced, this, &App::feedLedger);
+
+    // #31: the automatic copies. The hourly check starts with start(), so demos and tests
+    // never write one.
+    m_autoBackup->setSources(backupSources());
+    m_autoBackup->setMode(stateSection(QStringLiteral("backup")).value(QStringLiteral("mode")).toString());
+    m_autoBackup->setBeforeCopy([this] {
+        if (m_ledger->isOpen())
+            m_ledger->flush(QDateTime::currentSecsSinceEpoch());
+    });
+    connect(m_autoBackup, &AutoBackup::copied, this, &App::backupChanged);
+    connect(m_autoBackup, &AutoBackup::failed, this, [this](const QString &message) {
+        qWarning().noquote() << QStringLiteral("automatic backup: %1").arg(message);
+        Q_EMIT actionFailed(tr("Automatic backup"), message);
+    });
+    m_autoBackupTimer->setInterval(std::chrono::hours(1));
+    connect(m_autoBackupTimer, &QTimer::timeout, this,
+            [this] { m_autoBackup->runIfDue(QDateTime::currentSecsSinceEpoch()); });
 }
 
 App::~App()
@@ -252,6 +270,12 @@ void App::start()
     // #9: a real run keeps the Files tab's per-torrent filter and hide-skipped in state.json
     // (demos and QML tests never call start(), so they never write it).
     m_details->setRememberViewState(true);
+
+    // #31: a copy when one is due, a minute in (the ledger has its first polls by then), then
+    // a check every hour.
+    m_autoBackupTimer->start();
+    QTimer::singleShot(std::chrono::minutes(1), this,
+                       [this] { m_autoBackup->runIfDue(QDateTime::currentSecsSinceEpoch()); });
 
     if (!m_servers->load())
         qWarning().noquote() << QStringLiteral("servers: %1; it is kept as %2")
@@ -3745,5 +3769,301 @@ void App::feedLedger()
 }
 
 // --- end #24 ---------------------------------------------------------------------------------
+
+// --- #31: omaseed's own backup (docs/24 §3, §5) --------------------------------------------
+
+namespace {
+
+/// `path` with the home folder written as `~`.
+QString tildePath(const QString &path)
+{
+    const QString home = QDir::homePath();
+    return path.startsWith(home + QLatin1Char('/')) ? QStringLiteral("~") + path.mid(home.size()) : path;
+}
+
+QString daysText(int days)
+{
+    return days == 1 ? QCoreApplication::translate("App", "1 day")
+                     : QCoreApplication::translate("App", "%1 days").arg(days);
+}
+
+QString dayText(qint64 secs)
+{
+    return QLocale::c().toString(QDateTime::fromSecsSinceEpoch(secs).date(), QStringLiteral("d MMM yyyy"));
+}
+
+} // namespace
+
+OmaseedBackup::Sources App::backupSources() const
+{
+    OmaseedBackup::Sources sources = OmaseedBackup::defaultSources();
+    sources.appVersion = omaseed::core::version();
+    // #32 adds each server's qBittorrent settings here, as `qbittorrent/<server id>.json`.
+    return sources;
+}
+
+QString App::autoBackupMode() const
+{
+    return m_autoBackup->mode();
+}
+
+void App::setAutoBackupMode(const QString &mode)
+{
+    if (mode == m_autoBackup->mode())
+        return;
+    m_autoBackup->setMode(mode);
+    writeStateSection(QStringLiteral("backup"), QJsonObject{{QStringLiteral("mode"), m_autoBackup->mode()}});
+    Q_EMIT backupChanged();
+    // Turned on, or made more frequent: a copy now if one is due.
+    if (!m_demoMode && m_autoBackupTimer->isActive())
+        m_autoBackup->runIfDue(QDateTime::currentSecsSinceEpoch());
+}
+
+QString App::lastBackupText() const
+{
+    const QDateTime last = m_autoBackup->lastCopyTime();
+    if (!last.isValid())
+        return QString();
+    const QLocale locale = QLocale::c();
+    const qint64 age = last.secsTo(QDateTime::currentDateTime());
+    const QString time = locale.toString(last.time(), QStringLiteral("HH:mm"));
+    if (age < 7 * 86400 && age >= 0)
+        return locale.toString(last.date(), QStringLiteral("dddd")) + QLatin1Char(' ') + time;
+    return locale.toString(last.date(), QStringLiteral("d MMM")) + QLatin1Char(' ') + time;
+}
+
+QString App::backupSummary() const
+{
+    const OmaseedBackup::Sources sources = backupSources();
+    qint64 bytes = QFileInfo(sources.statePath).size() + QFileInfo(sources.serversPath).size();
+    qint64 earliest = 0;
+    const QList<Server> servers = m_servers->servers();
+    for (const Server &server : servers) {
+        const QString path = sources.ledgerPath(server.id);
+        if (!QFileInfo::exists(path))
+            continue;
+        // The write-ahead log holds what the ledger wrote since its last checkpoint.
+        bytes += QFileInfo(path).size() + QFileInfo(path + QStringLiteral("-wal")).size();
+        // The open ledger writes every few minutes; its own start is the one to trust.
+        const qint64 start = (m_ledger->isOpen() && m_ledger->path() == path)
+                                 ? m_ledger->start()
+                                 : OmaseedBackup::historyOf(path).start;
+        if (start > 0 && (earliest == 0 || start < earliest))
+            earliest = start;
+    }
+    const QString serverText = servers.size() == 1 ? tr("1 server") : tr("%1 servers").arg(servers.size());
+    const QString size = Format::size(std::max<qint64>(bytes, 1));
+    if (earliest > 0)
+        return tr("Settings, %1 and the seed history since %2: about %3. Passwords and API keys stay in the keyring.")
+            .arg(serverText, dayText(earliest), size);
+    return tr("Settings and %1: about %2. Passwords and API keys stay in the keyring.").arg(serverText, size);
+}
+
+QString App::backupsDirText() const
+{
+    return tildePath(OmaseedBackup::defaultBackupsDir());
+}
+
+QString App::pickBackupSavePath() const
+{
+    const QString suggested = QDir::homePath() + QStringLiteral("/omaseed-")
+                              + QDate::currentDate().toString(Qt::ISODate) + OmaseedBackup::kSuffix;
+    QString path = QFileDialog::getSaveFileName(nullptr, tr("Back up omaseed"), suggested,
+                                                tr("omaseed backups (*.omaseed)"));
+    if (!path.isEmpty() && !path.endsWith(OmaseedBackup::kSuffix))
+        path += OmaseedBackup::kSuffix;
+    return path;
+}
+
+QString App::backUpTo(const QString &path)
+{
+    if (path.isEmpty())
+        return tr("No file was chosen.");
+    if (m_ledger->isOpen())
+        m_ledger->flush(QDateTime::currentSecsSinceEpoch());
+    QString error;
+    if (!OmaseedBackup::createFile(backupSources(), path, QDateTime::currentSecsSinceEpoch(), &error))
+        return error;
+    qInfo().noquote() << QStringLiteral("backup: written to %1").arg(path);
+    return QString();
+}
+
+QString App::pickBackupFile() const
+{
+    return QFileDialog::getOpenFileName(nullptr, tr("Restore omaseed"), OmaseedBackup::defaultBackupsDir(),
+                                        tr("omaseed backups (*.omaseed);;All files (*)"));
+}
+
+QVariantMap App::readBackup(const QString &path)
+{
+    m_pendingRestore.reset();
+    m_pendingRestorePath.clear();
+    // The comparison with this machine's history reads the files: write what is buffered.
+    if (m_ledger->isOpen())
+        m_ledger->flush(QDateTime::currentSecsSinceEpoch());
+    QString error;
+    const std::optional<OmaseedBackup::Contents> contents = OmaseedBackup::parseFile(path, &error);
+    if (!contents)
+        return {{QStringLiteral("ok"), false}, {QStringLiteral("error"), error}};
+    m_pendingRestore = contents;
+    m_pendingRestorePath = path;
+
+    const qint64 now = QDateTime::currentSecsSinceEpoch();
+    const QLocale locale = QLocale::c();
+    QVariantMap out{{QStringLiteral("ok"), true},
+                    {QStringLiteral("title"), tr("Restore from %1").arg(QFileInfo(path).fileName())}};
+    const QDateTime made = contents->created.toLocalTime();
+    out.insert(QStringLiteral("sub"),
+               tr("Made %1 by omaseed %2 on %3.")
+                   .arg(locale.toString(made, QStringLiteral("d MMM yyyy HH:mm")),
+                        contents->appVersion.isEmpty() ? QStringLiteral("?") : contents->appVersion,
+                        contents->machine.isEmpty() ? tr("an unnamed machine") : contents->machine));
+    out.insert(QStringLiteral("safety"),
+               tr("what is here now is saved first, to %1")
+                   .arg(tildePath(OmaseedBackup::datedName(OmaseedBackup::defaultBackupsDir(),
+                                                           QStringLiteral("before-restore"), now))));
+
+    QVariantList parts;
+    if (contents->hasSettings)
+        parts.append(QVariantMap{{QStringLiteral("key"), QStringLiteral("settings")},
+                                 {QStringLiteral("label"), tr("settings")},
+                                 {QStringLiteral("side"), tr("replaces this machine's")},
+                                 {QStringLiteral("detail"), tr("appearance, keys, columns, notifications, tray")},
+                                 {QStringLiteral("checked"), true},
+                                 {QStringLiteral("enabled"), true}});
+
+    const QList<OmaseedBackup::Match> matches =
+        OmaseedBackup::match(*contents, m_servers->servers(), backupSources());
+    if (contents->hasServers && !matches.isEmpty()) {
+        QStringList names;
+        QStringList kept;
+        QStringList added;
+        for (const OmaseedBackup::Match &m : matches) {
+            names.append(m.part.server.name);
+            (m.localId.isEmpty() ? added : kept).append(m.part.server.name);
+        }
+        QStringList side;
+        if (!kept.isEmpty())
+            side.append(tr("%1 kept").arg(kept.size()));
+        if (!added.isEmpty())
+            side.append(tr("%1 added").arg(added.size()));
+        QStringList detail;
+        if (!kept.isEmpty())
+            detail.append(tr("%1 already here (same address): kept, path maps updated.").arg(kept.join(QStringLiteral(", "))));
+        if (!added.isEmpty())
+            detail.append(tr("%1 added; you sign in once after.").arg(added.join(QStringLiteral(", "))));
+        parts.append(QVariantMap{{QStringLiteral("key"), QStringLiteral("servers")},
+                                 {QStringLiteral("label"), tr("servers · %1").arg(names.join(QStringLiteral(", ")))},
+                                 {QStringLiteral("side"), side.join(QStringLiteral(" · "))},
+                                 {QStringLiteral("detail"), detail.join(QLatin1Char(' '))},
+                                 {QStringLiteral("checked"), true},
+                                 {QStringLiteral("enabled"), true}});
+    }
+
+    for (const OmaseedBackup::Match &m : matches) {
+        if (!m.part.hasLedger || !m.part.history.exists())
+            continue;
+        const QString name = m.part.server.name;
+        const int theirs = m.part.history.days(now);
+        QString detail;
+        bool needsServers = false;
+        if (m.localId.isEmpty()) {
+            detail = tr("%1 is new here: its %2 come with it when servers are restored.").arg(name, daysText(theirs));
+            needsServers = true;
+        } else if (!m.local.exists()) {
+            detail = tr("No history for %1 here yet: it starts with the backup's %2.").arg(name, daysText(theirs));
+        } else if (m.backupLonger) {
+            detail = tr("This machine has %1 for %2. The backup's %3 replace them.")
+                         .arg(daysText(m.local.days(now)), name, daysText(theirs));
+        } else if (m.local.start == m.part.history.start) {
+            detail = tr("This machine already has this history for %1.").arg(name);
+        } else {
+            detail = tr("This machine's %1 for %2 are longer and stay.").arg(daysText(m.local.days(now)), name);
+        }
+        parts.append(QVariantMap{{QStringLiteral("key"), QStringLiteral("history:") + m.part.server.id},
+                                 {QStringLiteral("label"), tr("seed history · %1").arg(name)},
+                                 {QStringLiteral("side"), tr("since %1").arg(dayText(m.part.history.start))},
+                                 {QStringLiteral("detail"), detail},
+                                 {QStringLiteral("checked"), m.backupLonger},
+                                 {QStringLiteral("enabled"), m.backupLonger},
+                                 {QStringLiteral("needsServers"), needsServers}});
+    }
+    out.insert(QStringLiteral("parts"), parts);
+    return out;
+}
+
+QVariantMap App::restoreBackup(const QVariantMap &choice)
+{
+    // A demo keeps its settings in memory and its servers fictional: it never writes the
+    // real files a restore would replace.
+    if (m_demoMode)
+        return {{QStringLiteral("ok"), false}, {QStringLiteral("text"), tr("Restore is off in the demo.")}};
+    if (!m_pendingRestore)
+        return {{QStringLiteral("ok"), false}, {QStringLiteral("text"), tr("Choose a backup first.")}};
+    OmaseedBackup::Plan plan;
+    plan.settings = choice.value(QStringLiteral("settings")).toBool();
+    plan.servers = choice.value(QStringLiteral("servers")).toBool();
+    plan.history = choice.value(QStringLiteral("history")).toStringList();
+
+    // The ledger's file may be replaced: write what it holds, let go of it, take it back after.
+    const qint64 now = QDateTime::currentSecsSinceEpoch();
+    if (m_ledger->isOpen())
+        m_ledger->flush(now);
+    m_ledger->close();
+    QString error;
+    const std::optional<OmaseedBackup::Outcome> outcome =
+        OmaseedBackup::restore(*m_pendingRestore, plan, *m_servers, backupSources(), now, &error);
+    m_pendingRestore.reset();
+    reloadAfterRestore();
+    if (!outcome)
+        return {{QStringLiteral("ok"), false}, {QStringLiteral("text"), error}};
+
+    QStringList done;
+    if (plan.settings)
+        done.append(tr("settings"));
+    if (!outcome->addedServers.isEmpty())
+        done.append(outcome->addedServers.size() == 1 ? tr("1 server added")
+                                                       : tr("%1 servers added").arg(outcome->addedServers.size()));
+    if (!outcome->historyRestored.isEmpty())
+        done.append(tr("history for %1").arg(outcome->historyRestored.size() == 1
+                                                 ? tr("1 server")
+                                                 : tr("%1 servers").arg(outcome->historyRestored.size())));
+    QString text = done.isEmpty() ? tr("Nothing to restore.") : tr("Restored: %1.").arg(done.join(QStringLiteral(", ")));
+    text += QLatin1Char(' ') + tr("What was here is in %1.").arg(tildePath(outcome->safetyCopy));
+    if (!outcome->addedServers.isEmpty())
+        text += QLatin1Char(' ') + tr("Sign in to new servers once, in Servers.");
+    qInfo().noquote() << QStringLiteral("restore: %1").arg(text);
+    Q_EMIT backupChanged();
+    return {{QStringLiteral("ok"), true}, {QStringLiteral("text"), text}};
+}
+
+void App::reloadAfterRestore()
+{
+    m_settingsLoaded = false;
+    loadSettings();
+    m_notificationTogglesLoaded = false;
+    loadNotificationToggles();
+    m_autoBackup->setMode(stateSection(QStringLiteral("backup")).value(QStringLiteral("mode")).toString());
+    applyAppearance();
+    Q_EMIT settingsChanged();
+    Q_EMIT notificationsEnabledChanged();
+    // A fresh machine that had no server now has one.
+    if (!m_hasServer && m_servers->count() > 0)
+        configureFromStore();
+    m_ledgerKey.clear();
+    if (m_hasServer)
+        openLedger();
+    m_console->refresh();
+    Q_EMIT serverChanged();
+}
+
+void App::openBackupsFolder() const
+{
+    const QString dir = OmaseedBackup::defaultBackupsDir();
+    QDir().mkpath(dir);
+    QDesktopServices::openUrl(QUrl::fromLocalFile(dir));
+}
+
+// --- end #31 ---------------------------------------------------------------------------------
 
 } // namespace omaseed::app

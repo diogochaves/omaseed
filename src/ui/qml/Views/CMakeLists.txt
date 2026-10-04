@@ -63,6 +63,7 @@ qt_add_qml_module(omaseed-views
         RailGroup.qml
         RenameFilesSheet.qml
         RenameSheet.qml
+        RestoreSheet.qml
         SeedToast.qml
         SelectionBar.qml
         ServerSheet.qml

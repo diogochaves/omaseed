@@ -336,7 +336,7 @@ TestCase {
         keyClick(Qt.Key_L); // wraps to omaseed's General
         compare(modal.paneIndex, 0);
         compare(groups.currentIndex, 0);
-        compare(sections.model.length, 6);
+        compare(sections.model.length, 7);
         keyClick(Qt.Key_H);
         compare(groups.currentIndex, 1);
         groups.activated(0);
