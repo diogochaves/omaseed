@@ -3663,7 +3663,7 @@ void App::attachStatusWriter(omaseed::integration::StatusWriter *writer)
                 const qint64 days = t.seedingTime / 86400;
                 Q_EMIT seedNotice(QStringLiteral("milestone"), hash,
                                   ratio == 1 ? tr("%1 paid back").arg(name) : tr("%1 · %2×").arg(name).arg(ratio),
-                                  ratio == 1 ? tr("ratio 1.00 · %1 days").arg(days)
+                                  ratio == 1 ? (days == 1 ? tr("ratio 1.00 · 1 day") : tr("ratio 1.00 · %1 days").arg(days))
                                              : tr("%1 given").arg(sizeText(t.uploaded)));
             });
     m_console->setRecentProvider([this]() {
