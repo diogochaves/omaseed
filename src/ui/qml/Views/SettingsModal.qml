@@ -407,6 +407,7 @@ Item {
         const path = App.pickBackupSavePath();
         if (path.length === 0)
             return;
+        bodyItem.forceActiveFocus(); // back from the file dialog
         const error = App.backUpTo(path);
         root.backupNote = error.length > 0 ? error : qsTr("Backed up to %1.").arg(path);
         root.backupNoteError = error.length > 0;
@@ -417,6 +418,7 @@ Item {
         const path = App.pickBackupFile();
         if (path.length === 0)
             return;
+        bodyItem.forceActiveFocus(); // back from the file dialog
         const info = App.readBackup(path);
         if (info.ok !== true) {
             root.backupNote = info.error;
@@ -805,6 +807,8 @@ Item {
         groupTabs.currentIndex = qbt ? 1 : 0;
         root.qbtNote = "";
         root.backupNote = "";
+        if (root.paneIndex === 5)
+            App.refreshBackupInfo();
         Qt.callLater(root._revealNav);
         if (root.opened && qbt)
             Qt.callLater(root._readQbt);
@@ -2169,10 +2173,14 @@ Item {
         anchors.fill: parent
         z: 1
 
+        // The file dialog took the window's focus before the sheet opened, so the sheet has
+        // nothing to give it back to: the modal takes it.
         onRestored: (text, ok) => {
             root.backupNote = text;
             root.backupNoteError = !ok;
+            bodyItem.forceActiveFocus();
         }
+        onRejected: bodyItem.forceActiveFocus()
     }
 
     // The server sheet of Fig. 9, over the modal: it takes the keyboard, so `esc` closes it

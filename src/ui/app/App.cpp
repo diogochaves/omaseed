@@ -3725,9 +3725,15 @@ QString tildePath(const QString &path)
     return path.startsWith(home + QLatin1Char('/')) ? QStringLiteral("~") + path.mid(home.size()) : path;
 }
 
+QString daysText(int days)
+{
+    return days == 1 ? QCoreApplication::translate("App", "1 day")
+                     : QCoreApplication::translate("App", "%1 days").arg(days);
+}
+
 QString dayText(qint64 secs)
 {
-    return QLocale::system().toString(QDateTime::fromSecsSinceEpoch(secs).date(), QStringLiteral("d MMM yyyy"));
+    return QLocale::c().toString(QDateTime::fromSecsSinceEpoch(secs).date(), QStringLiteral("d MMM yyyy"));
 }
 
 } // namespace
@@ -3762,7 +3768,7 @@ QString App::lastBackupText() const
     const QDateTime last = m_autoBackup->lastCopyTime();
     if (!last.isValid())
         return QString();
-    const QLocale locale = QLocale::system();
+    const QLocale locale = QLocale::c();
     const qint64 age = last.secsTo(QDateTime::currentDateTime());
     const QString time = locale.toString(last.time(), QStringLiteral("HH:mm"));
     if (age < 7 * 86400 && age >= 0)
@@ -3780,8 +3786,12 @@ QString App::backupSummary() const
         const QString path = sources.ledgerPath(server.id);
         if (!QFileInfo::exists(path))
             continue;
-        bytes += QFileInfo(path).size();
-        const qint64 start = OmaseedBackup::historyOf(path).start;
+        // The write-ahead log holds what the ledger wrote since its last checkpoint.
+        bytes += QFileInfo(path).size() + QFileInfo(path + QStringLiteral("-wal")).size();
+        // The open ledger writes every few minutes; its own start is the one to trust.
+        const qint64 start = (m_ledger->isOpen() && m_ledger->path() == path)
+                                 ? m_ledger->start()
+                                 : OmaseedBackup::historyOf(path).start;
         if (start > 0 && (earliest == 0 || start < earliest))
             earliest = start;
     }
@@ -3832,6 +3842,9 @@ QVariantMap App::readBackup(const QString &path)
 {
     m_pendingRestore.reset();
     m_pendingRestorePath.clear();
+    // The comparison with this machine's history reads the files: write what is buffered.
+    if (m_ledger->isOpen())
+        m_ledger->flush(QDateTime::currentSecsSinceEpoch());
     QString error;
     const std::optional<OmaseedBackup::Contents> contents = OmaseedBackup::parseFile(path, &error);
     if (!contents)
@@ -3840,7 +3853,7 @@ QVariantMap App::readBackup(const QString &path)
     m_pendingRestorePath = path;
 
     const qint64 now = QDateTime::currentSecsSinceEpoch();
-    const QLocale locale = QLocale::system();
+    const QLocale locale = QLocale::c();
     QVariantMap out{{QStringLiteral("ok"), true},
                     {QStringLiteral("title"), tr("Restore from %1").arg(QFileInfo(path).fileName())}};
     const QDateTime made = contents->created.toLocalTime();
@@ -3899,17 +3912,17 @@ QVariantMap App::readBackup(const QString &path)
         QString detail;
         bool needsServers = false;
         if (m.localId.isEmpty()) {
-            detail = tr("%1 is new here: its %2 days come with it when servers are restored.").arg(name).arg(theirs);
+            detail = tr("%1 is new here: its %2 come with it when servers are restored.").arg(name, daysText(theirs));
             needsServers = true;
         } else if (!m.local.exists()) {
-            detail = tr("No history for %1 here yet: it starts with the backup's %2 days.").arg(name).arg(theirs);
+            detail = tr("No history for %1 here yet: it starts with the backup's %2.").arg(name, daysText(theirs));
         } else if (m.backupLonger) {
-            detail = tr("This machine has %1 days for %2. The backup's %3 days replace them.")
-                         .arg(m.local.days(now))
-                         .arg(name)
-                         .arg(theirs);
+            detail = tr("This machine has %1 for %2. The backup's %3 replace them.")
+                         .arg(daysText(m.local.days(now)), name, daysText(theirs));
+        } else if (m.local.start == m.part.history.start) {
+            detail = tr("This machine already has this history for %1.").arg(name);
         } else {
-            detail = tr("This machine's %1 days for %2 are longer and stay.").arg(m.local.days(now)).arg(name);
+            detail = tr("This machine's %1 for %2 are longer and stay.").arg(daysText(m.local.days(now)), name);
         }
         parts.append(QVariantMap{{QStringLiteral("key"), QStringLiteral("history:") + m.part.server.id},
                                  {QStringLiteral("label"), tr("seed history · %1").arg(name)},

@@ -1265,6 +1265,8 @@ public:
     /// [ids]}`. Answers `{ok, text}`.
     Q_INVOKABLE QVariantMap restoreBackup(const QVariantMap &choice);
     Q_INVOKABLE void openBackupsFolder() const;
+    /// Re-reads what the Backup pane prints (the summary, the last copy) when it is shown.
+    Q_INVOKABLE void refreshBackupInfo() { Q_EMIT backupChanged(); }
 
 Q_SIGNALS:
     void backupChanged();
