@@ -1,6 +1,8 @@
 #include "core/SeedLedger.hpp"
 
 #include <QDateTime>
+#include <QElapsedTimer>
+#include <QFile>
 #include <QTemporaryDir>
 #include <QTest>
 
@@ -28,6 +30,20 @@ qint64 sumUp(const QList<SeedLedger::Day> &days)
     for (const auto &d : days)
         s += std::max<qint64>(0, d.up);
     return s;
+}
+
+/// Bytes this process has handed to write() so far (/proc/self/io `wchar`), -1 if unknown.
+qint64 bytesWritten()
+{
+    QFile io(QStringLiteral("/proc/self/io"));
+    if (!io.open(QIODevice::ReadOnly))
+        return -1;
+    const QList<QByteArray> lines = io.readAll().split('\n');
+    for (const QByteArray &line : lines) {
+        if (line.startsWith("wchar:"))
+            return line.mid(6).trimmed().toLongLong();
+    }
+    return -1;
 }
 
 } // namespace
@@ -142,6 +158,62 @@ private Q_SLOTS:
         }
         QCOMPARE(ledger.streak(QDate(2026, 10, 3)), 3);
         QCOMPARE(ledger.longestStreak(), 3);
+    }
+
+    void aFlushKeepsOnlyTheBaselinesThatAreLeft()
+    {
+        QTemporaryDir dir;
+        const QString path = dir.filePath(QStringLiteral("x.sqlite"));
+        const qint64 t = noon();
+        {
+            SeedLedger ledger;
+            QVERIFY(ledger.open(path));
+            ledger.observe(t, 0, 0, totals({{"a", 10}, {"b", 20}, {"c", 30}}));
+            ledger.flush(t);
+            ledger.observe(t + 2, 5, 0, totals({{"a", 15}, {"c", 30}})); // b removed, a moved
+            ledger.close();
+        }
+        SeedLedger ledger;
+        QVERIFY(ledger.open(path));
+        // a counts from 15, c from 30; b is a stranger again and only takes a baseline.
+        ledger.observe(t + 4, 30, 0, totals({{"a", 25}, {"b", 50}, {"c", 35}}));
+        const auto given = ledger.torrentTotals(QDate(2026, 10, 3), QDate(2026, 10, 3));
+        QCOMPARE(given.value(QStringLiteral("a")), 15);
+        QCOMPARE(given.value(QStringLiteral("b")), 0);
+        QCOMPARE(given.value(QStringLiteral("c")), 5);
+    }
+
+    // An hour of a big library at the window's poll rate: 1,000 torrents, 50 of them
+    // uploading, a poll every 1.5 s. What goes to disk is what the flushes write, so the
+    // bound is on bytes handed to write() over the hour.
+    void anHourOfABigLibraryWritesLittle()
+    {
+        QTemporaryDir dir;
+        SeedLedger ledger;
+        QVERIFY(ledger.open(dir.filePath(QStringLiteral("big.sqlite"))));
+        QList<SeedLedger::TorrentTotals> library;
+        for (int i = 0; i < 1000; ++i)
+            library.append({QStringLiteral("%1").arg(i, 40, 16, QLatin1Char('0')), 1'000'000'000, 0});
+        const qint64 t = noon();
+        qint64 server = 1'000'000'000'000;
+        ledger.observe(t, server, 0, library);
+        ledger.flush(t);
+
+        const qint64 before = bytesWritten();
+        QElapsedTimer cpu;
+        cpu.start();
+        for (int poll = 1; poll <= 2400; ++poll) {
+            for (int i = 0; i < 50; ++i)
+                library[i * 20].uploaded += 30'000;
+            server += 50 * 30'000;
+            ledger.observe(t + poll * 3 / 2, server, 0, library);
+        }
+        const qint64 written = bytesWritten() - before;
+        const qint64 ms = cpu.elapsed();
+        qInfo("an hour, 1000 torrents: %lld KB written, %lld ms of work", written / 1024, ms);
+        if (before < 0)
+            QSKIP("no /proc/self/io here");
+        QVERIFY2(written < 6LL * 1024 * 1024, qPrintable(QString::number(written)));
     }
 
     void survivesAReopen()

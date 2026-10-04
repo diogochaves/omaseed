@@ -73,6 +73,8 @@ bool SeedLedger::open(const QString &path)
     m_lastUp = -1;
     m_lastDown = -1;
     m_baselines.clear();
+    m_baselinesDirty.clear();
+    m_baselinesGone.clear();
     m_speeds.clear();
 
     QDir().mkpath(QFileInfo(path).absolutePath());
@@ -181,13 +183,24 @@ void SeedLedger::observe(qint64 now,
     QHash<QString, QPair<qint64, qint64>> next;
     next.reserve(torrents.size());
     for (const TorrentTotals &t : torrents) {
-        next.insert(t.hash, {t.uploaded, t.downloaded});
+        const QPair<qint64, qint64> totals{t.uploaded, t.downloaded};
+        next.insert(t.hash, totals);
         const auto it = m_baselines.constFind(t.hash);
+        if (it == m_baselines.constEnd() || *it != totals) {
+            m_baselinesDirty.insert(t.hash);
+            m_baselinesGone.remove(t.hash);
+        }
         if (it == m_baselines.constEnd() || !haveServer)
             continue;
         const qint64 delta = t.uploaded - it->first;
         if (delta > 0)
             perTorrent.insert(t.hash, delta);
+    }
+    for (auto it = m_baselines.cbegin(); it != m_baselines.cend(); ++it) {
+        if (!next.contains(it.key())) {
+            m_baselinesGone.insert(it.key());
+            m_baselinesDirty.remove(it.key());
+        }
     }
     m_baselines = next;
 
@@ -303,15 +316,22 @@ void SeedLedger::saveMeta()
         q.addBindValue(value);
         q.exec();
     }
-    q.exec(QStringLiteral("DELETE FROM baselines"));
-    q.prepare(QStringLiteral("INSERT INTO baselines(hash, uploaded, downloaded) VALUES(?, ?, ?)"));
-    QVariantList hashes, uploaded, downloaded;
-    for (auto it = m_baselines.cbegin(); it != m_baselines.cend(); ++it) {
-        hashes << it.key();
-        uploaded << it->first;
-        downloaded << it->second;
+    // Only the rows that moved: most of a big library sits still between two flushes.
+    if (!m_baselinesGone.isEmpty()) {
+        q.prepare(QStringLiteral("DELETE FROM baselines WHERE hash = ?"));
+        q.addBindValue(QVariantList(m_baselinesGone.cbegin(), m_baselinesGone.cend()));
+        q.execBatch();
     }
-    if (!hashes.isEmpty()) {
+    if (!m_baselinesDirty.isEmpty()) {
+        q.prepare(QStringLiteral("INSERT OR REPLACE INTO baselines(hash, uploaded, downloaded) "
+                                 "VALUES(?, ?, ?)"));
+        QVariantList hashes, uploaded, downloaded;
+        for (const QString &hash : std::as_const(m_baselinesDirty)) {
+            const QPair<qint64, qint64> totals = m_baselines.value(hash);
+            hashes << hash;
+            uploaded << totals.first;
+            downloaded << totals.second;
+        }
         q.addBindValue(hashes);
         q.addBindValue(uploaded);
         q.addBindValue(downloaded);
@@ -368,6 +388,8 @@ void SeedLedger::flush(qint64 now)
     m_pendingHours.clear();
     m_pendingDays.clear();
     m_pendingTorrentDays.clear();
+    m_baselinesDirty.clear();
+    m_baselinesGone.clear();
     m_metaDirty = false;
     prune(now);
 }

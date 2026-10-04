@@ -23,8 +23,8 @@
 //   touches is marked `gap`, so the tide can hatch it (docs/22 D7 a).
 //
 // Writes are buffered in memory and flushed in one transaction every `flushInterval` seconds
-// of ledger time (and on flush()/close()), so a poll a second costs no disk write. Queries
-// read the file and add what is still buffered.
+// of ledger time (and on flush()/close()), so a poll a second costs no disk write; a flush
+// writes only the baselines that moved. Queries read the file and add what is still buffered.
 //
 // Everything takes "now" as an argument (unix seconds) so tests can walk days in a loop.
 
@@ -32,6 +32,7 @@
 #include <QHash>
 #include <QList>
 #include <QMap>
+#include <QSet>
 #include <QString>
 #include <QStringList>
 
@@ -151,6 +152,10 @@ private:
     qint64 m_lastUp = -1;
     qint64 m_lastDown = -1;
     QHash<QString, QPair<qint64, qint64>> m_baselines; ///< hash -> (uploaded, downloaded)
+    /// Baselines that changed, and torrents that went away, since the last flush: a flush
+    /// writes only those rows, not the whole library.
+    QSet<QString> m_baselinesDirty;
+    QSet<QString> m_baselinesGone;
     qint64 m_lastFlush = 0;
 
     QMap<qint64, Bucket> m_pendingMinutes;
