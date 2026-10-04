@@ -9,6 +9,7 @@
 #include <QSqlDatabase>
 #include <QSqlQuery>
 #include <QTemporaryDir>
+#include <QTimeZone>
 #include <QTest>
 
 using omaseed::core::SeedLedger;
@@ -361,6 +362,88 @@ private Q_SLOTS:
         ledger.observe(t + 2, 0, 0, totals({{"b", 0}}));
         ledger.observe(t + 4, 100, 0, totals({{"a", 100}, {"b", 0}}));
         QCOMPARE(ledger.torrentTotals(QDate(2026, 10, 3), QDate(2026, 10, 3)).value(QStringLiteral("a")), 100);
+    }
+
+    // qBittorrent crashes and comes back with the totals it last saved, below what omaseed
+    // already counted. Those bytes stay counted once; what it gives after is counted too.
+    void aQBittorrentCrashNeitherLosesNorDoubles()
+    {
+        SeedLedger ledger;
+        const qint64 t = noon();
+        ledger.observe(t, 1000, 0, totals({{"a", 1000}}));
+        ledger.observe(t + 2, 1200, 0, totals({{"a", 1200}}));  // 200 given
+        ledger.observe(t + 30, 1100, 0, totals({{"a", 1100}})); // back from a crash, 100 lost
+        ledger.observe(t + 32, 1150, 0, totals({{"a", 1150}})); // 50 more, really given
+        QCOMPARE(ledger.days(QDate(2026, 10, 3), QDate(2026, 10, 3)).first().up, 250);
+        QCOMPARE(ledger.torrentTotals(QDate(2026, 10, 3), QDate(2026, 10, 3)).value(QStringLiteral("a")), 250);
+    }
+
+    // Each server has its own file: a switch neither mixes them nor counts one's totals as
+    // the other's progress.
+    void aServerSwitchKeepsLedgersApart()
+    {
+        QTemporaryDir dir;
+        const QString home = dir.filePath(QStringLiteral("home.sqlite"));
+        const QString box = dir.filePath(QStringLiteral("box.sqlite"));
+        const qint64 t = noon();
+        SeedLedger ledger;
+        QVERIFY(ledger.open(home));
+        ledger.observe(t, 1000, 0, totals({{"a", 1000}}));
+        ledger.observe(t + 2, 1100, 0, totals({{"a", 1100}}));
+        QVERIFY(ledger.open(box)); // the switch
+        ledger.observe(t + 4, 9'000'000, 0, totals({{"z", 9'000'000}}));
+        ledger.observe(t + 6, 9'000'040, 0, totals({{"z", 9'000'040}}));
+        QCOMPARE(ledger.days(QDate(2026, 10, 3), QDate(2026, 10, 3)).first().up, 40);
+        QVERIFY(ledger.open(home)); // and back, some time later
+        ledger.observe(t + 600, 1300, 0, totals({{"a", 1300}}));
+        QCOMPARE(ledger.days(QDate(2026, 10, 3), QDate(2026, 10, 3)).first().up, 300);
+        QCOMPARE(ledger.torrentTotals(QDate(2026, 10, 3), QDate(2026, 10, 3)).value(QStringLiteral("z")), 0);
+    }
+
+    // A ledger written before baselines kept added_on opens, gains the column, and counts on.
+    void anOlderLedgerFileOpens()
+    {
+        QTemporaryDir dir;
+        const QString path = dir.filePath(QStringLiteral("old.sqlite"));
+        const qint64 t = noon();
+        {
+            QSqlDatabase db = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), QStringLiteral("old"));
+            db.setDatabaseName(path);
+            QVERIFY(db.open());
+            QSqlQuery q(db);
+            QVERIFY(q.exec(QStringLiteral("CREATE TABLE meta(key TEXT PRIMARY KEY, value INTEGER)")));
+            QVERIFY(q.exec(QStringLiteral("CREATE TABLE baselines(hash TEXT PRIMARY KEY, uploaded INTEGER, downloaded INTEGER)")));
+            QVERIFY(q.exec(QStringLiteral("INSERT INTO baselines VALUES('a', 100, 0)")));
+            QVERIFY(q.exec(QStringLiteral("INSERT INTO meta VALUES('start', %1), ('last_t', %1), ('last_up', 100), "
+                                          "('last_down', 0)").arg(t)));
+            db.close();
+        }
+        QSqlDatabase::removeDatabase(QStringLiteral("old"));
+        SeedLedger ledger;
+        QVERIFY(ledger.open(path));
+        ledger.observe(t + 2, 160, 0, {{QStringLiteral("a"), 160, 0, t - 86400}});
+        QCOMPARE(ledger.torrentTotals(QDate(2026, 10, 3), QDate(2026, 10, 3)).value(QStringLiteral("a")), 60);
+    }
+
+    // A night the clocks change (ctest runs this binary in Europe/Lisbon): a gap across it
+    // keeps every byte and splits it by the real seconds on each side of midnight.
+    void aDaylightSavingNightKeepsEveryByte()
+    {
+        const QTimeZone zone = QTimeZone::systemTimeZone();
+        const auto change = zone.nextTransition(QDateTime(QDate(2026, 7, 1), QTime(0, 0)));
+        if (!change.atUtc.isValid() || change.atUtc.date().year() != 2026)
+            QSKIP("this time zone has no clock change in the second half of 2026");
+        const QDate day = change.atUtc.toLocalTime().date();
+        const qint64 closed = day.addDays(-1).startOfDay().addSecs(22 * 3600).toSecsSinceEpoch();
+        const qint64 midnight = day.startOfDay().toSecsSinceEpoch();
+        const qint64 opened = QDateTime(day, QTime(7, 0)).toSecsSinceEpoch();
+        SeedLedger ledger;
+        ledger.observe(closed - 2, 0, 0, {});
+        ledger.observe(closed, 0, 0, {});
+        ledger.observe(opened, 1000, 0, {});
+        const auto days = ledger.days(day.addDays(-1), day);
+        QCOMPARE(days[0].up + days[1].up, 1000);
+        QCOMPARE(days[0].up, qRound64(1000.0 * double(midnight - closed) / double(opened - closed)));
     }
 
     // An hour of a big library at the window's poll rate: 1,000 torrents, 50 of them

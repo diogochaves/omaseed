@@ -251,6 +251,10 @@ omaseed_add_test(tst_seedledger
     SOURCES tst_seedledger.cpp
     LIBRARIES omaseed::core Qt6::Sql
 )
+# A zone whose clocks change, for the daylight-saving test; the rest is zone-agnostic.
+set_tests_properties(tst_seedledger PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_LOGGING_RULES=qt.qml.*=false;TZ=Europe/Lisbon"
+)
 
 omaseed_add_test(tst_seedconsole
     SOURCES tst_seedconsole.cpp
