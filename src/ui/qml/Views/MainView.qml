@@ -1228,7 +1228,7 @@ Item {
         upSpeed: root.live ? App.globalState.upSpeedText : "—"
         upSpeedShort: root.live ? App.speedShortText(App.globalState.upInfoSpeed) : "—"
 
-        // #24: library | seed, and the hero's ↑ breathing (T2).
+        // #24: library | seed, and the hero's ↑ breathing (T2, when Appearance turns it on).
         views: [
             {
                 "key": "library",
@@ -1241,7 +1241,7 @@ Item {
             }
         ]
         currentView: root.view
-        upSpark: root.live ? App.console.heroSpark : []
+        upSpark: root.live && App.uploadTrend ? App.console.heroSpark : []
         upNote: root.live ? App.console.todayText : ""
 
         onViewSelected: key => root.setView(key)

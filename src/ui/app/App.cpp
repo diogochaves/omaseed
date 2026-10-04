@@ -2913,6 +2913,22 @@ void App::setSpeedsAlignment(const QString &side)
     Q_EMIT settingsChanged();
 }
 
+bool App::uploadTrend() const
+{
+    const_cast<App *>(this)->loadSettings();
+    return m_uploadTrend;
+}
+
+void App::setUploadTrend(bool on)
+{
+    loadSettings();
+    if (m_uploadTrend == on)
+        return;
+    m_uploadTrend = on;
+    saveSettings();
+    Q_EMIT settingsChanged();
+}
+
 namespace {
 
 /// `value` when it is one of `allowed`, otherwise the first of them (the default).
@@ -3096,6 +3112,7 @@ void App::loadSettings()
                 QLatin1String("right")
             ? QStringLiteral("right")
             : QStringLiteral("left");
+    m_uploadTrend = appearance.value(QStringLiteral("uploadTrend")).toBool(false);
     m_railScrollHint =
         oneOf(appearance.value(QStringLiteral("railScrollHint")).toString(), kRailScrollHints);
     m_surfaceTint = tintStep(appearance.value(QStringLiteral("surfaceTint")).toInt(0));
@@ -3119,6 +3136,7 @@ void App::saveSettings()
     appearance[QStringLiteral("windowAlphaOverride")] = m_windowAlphaOverride;
     appearance[QStringLiteral("trayIconMode")] = m_trayIconMode;
     appearance[QStringLiteral("speedsAlignment")] = m_speedsAlignment;
+    appearance[QStringLiteral("uploadTrend")] = m_uploadTrend;
     appearance[QStringLiteral("railScrollHint")] = m_railScrollHint;
     appearance[QStringLiteral("surfaceTint")] = m_surfaceTint;
     appearance[QStringLiteral("trackerHostStyle")] = m_trackerHostStyle;

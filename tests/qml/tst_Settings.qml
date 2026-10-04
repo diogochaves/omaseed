@@ -558,7 +558,7 @@ TestCase {
 
         // Appearance: the tray-icon row cycles the three chips.
         keyClick(Qt.Key_5);
-        compare(modal.paneRowCount, 10);
+        compare(modal.paneRowCount, 11);
         const tray = App.trayIconMode;
         modal.paneCursor = 3;
         modal.area = "pane";
@@ -572,24 +572,32 @@ TestCase {
         verify(App.speedsAlignment !== speeds);
         compare(App.speedsAlignment, speeds === "left" ? "right" : "left");
 
-        // ...and the last three cycle the rail's looks (docs/08 §5).
+        // ...and the seventh turns the hero's upload trend on and off (#24 T2), off at first.
+        compare(App.uploadTrend, false);
+        modal.paneCursor = 6;
+        modal.activateRow();
+        compare(App.uploadTrend, true);
+        modal.activateRow();
+        compare(App.uploadTrend, false);
+
+        // ...and the next three cycle the rail's looks (docs/08 §5).
         const hint = App.railScrollHint;
         const tint = App.surfaceTint;
         const hosts = App.trackerHostStyle;
-        modal.paneCursor = 6;
-        modal.activateRow();
-        verify(App.railScrollHint !== hint);
         modal.paneCursor = 7;
         modal.activateRow();
-        verify(App.surfaceTint !== tint);
+        verify(App.railScrollHint !== hint);
         modal.paneCursor = 8;
+        modal.activateRow();
+        verify(App.surfaceTint !== tint);
+        modal.paneCursor = 9;
         modal.activateRow();
         verify(App.trackerHostStyle !== hosts);
 
-        // ...and the tenth places Details (docs/10 §5): auto, right, bottom.
+        // ...and the last places Details (docs/10 §5): auto, right, bottom.
         const placement = App.detailsPlacement;
         compare(placement, "auto");
-        modal.paneCursor = 9;
+        modal.paneCursor = 10;
         modal.activateRow();
         compare(App.detailsPlacement, "right");
         modal.activateRow();
@@ -835,9 +843,9 @@ TestCase {
 
         // Walking the rows down scrolls the pane so the cursor row stays in view.
         keyClick(Qt.Key_Tab);
-        for (let i = 0; i < 9; ++i)
+        for (let i = 0; i < 10; ++i)
             keyClick(Qt.Key_J);
-        compare(modal.paneCursor, 9);
+        compare(modal.paneCursor, 10);
         tryVerify(() => scroller.contentY > 0, 1000, "the last row was left below the fold");
 
         // Another pane starts at its top.

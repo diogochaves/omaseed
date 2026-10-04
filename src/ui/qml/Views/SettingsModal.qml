@@ -125,9 +125,9 @@ Item {
             return 4; // three toggles, then the low-disk threshold field
         case 4:
             // theme, base size, transparency, tray icon, the bar widget (#17), speed alignment,
-            // then the rail's scroll hint, surface tint and tracker hosts (docs/08 §5), then
-            // where Details sits (docs/10)
-            return 10;
+            // the upload trend (#24 T2), then the rail's scroll hint, surface tint and tracker
+            // hosts (docs/08 §5), then where Details sits (docs/10)
+            return 11;
         case 5:
             return 1; // the copyable `omaseed --install-bar-widget` line
         default:
@@ -363,12 +363,14 @@ Item {
             else if (root.paneCursor === 5)
                 App.speedsAlignment = App.speedsAlignment === "left" ? "right" : "left";
             else if (root.paneCursor === 6)
-                App.railScrollHint = root._next(root.scrollHints, App.railScrollHint);
+                App.uploadTrend = !App.uploadTrend;
             else if (root.paneCursor === 7)
-                App.surfaceTint = root._next(root.tints, App.surfaceTint);
+                App.railScrollHint = root._next(root.scrollHints, App.railScrollHint);
             else if (root.paneCursor === 8)
-                App.trackerHostStyle = root._next(root.hostStyles, App.trackerHostStyle);
+                App.surfaceTint = root._next(root.tints, App.surfaceTint);
             else if (root.paneCursor === 9)
+                App.trackerHostStyle = root._next(root.hostStyles, App.trackerHostStyle);
+            else if (root.paneCursor === 10)
                 App.detailsPlacement = root._next(root.placements, App.detailsPlacement);
             return;
         }
@@ -1701,13 +1703,34 @@ Item {
 
                             SettingsRow {
                                 Layout.fillWidth: true
-                                description: qsTr("how lists say there is more above or below: the rail and every palette.")
-                                glyph: Glyphs.scrollHint
+                                description: qsTr("the last minute of upload, drawn faintly behind the upload figure.")
+                                glyph: Glyphs.arrowUp
                                 hasCursor: root.area === "pane" && root.paneCursor === 6
-                                title: qsTr("Scroll hint")
+                                title: qsTr("Upload trend")
 
                                 onClicked: {
                                     root.paneCursor = 6;
+                                    root.area = "pane";
+                                    App.uploadTrend = !App.uploadTrend;
+                                }
+
+                                Toggle {
+                                    checked: App.uploadTrend
+                                    objectName: "uploadTrendToggle"
+
+                                    onToggled: App.uploadTrend = checked
+                                }
+                            }
+
+                            SettingsRow {
+                                Layout.fillWidth: true
+                                description: qsTr("how lists say there is more above or below: the rail and every palette.")
+                                glyph: Glyphs.scrollHint
+                                hasCursor: root.area === "pane" && root.paneCursor === 7
+                                title: qsTr("Scroll hint")
+
+                                onClicked: {
+                                    root.paneCursor = 7;
                                     root.area = "pane";
                                     App.railScrollHint = root._next(root.scrollHints, App.railScrollHint);
                                 }
@@ -1736,11 +1759,11 @@ Item {
                                 Layout.fillWidth: true
                                 description: qsTr("a light fill behind the rail and the details.")
                                 glyph: Glyphs.sidebar
-                                hasCursor: root.area === "pane" && root.paneCursor === 7
+                                hasCursor: root.area === "pane" && root.paneCursor === 8
                                 title: qsTr("Surface tint")
 
                                 onClicked: {
-                                    root.paneCursor = 7;
+                                    root.paneCursor = 8;
                                     root.area = "pane";
                                     App.surfaceTint = root._next(root.tints, App.surfaceTint);
                                 }
@@ -1769,11 +1792,11 @@ Item {
                                 Layout.fillWidth: true
                                 description: qsTr("how a long tracker host fits the rail.")
                                 glyph: Glyphs.host
-                                hasCursor: root.area === "pane" && root.paneCursor === 8
+                                hasCursor: root.area === "pane" && root.paneCursor === 9
                                 title: qsTr("Tracker hosts")
 
                                 onClicked: {
-                                    root.paneCursor = 8;
+                                    root.paneCursor = 9;
                                     root.area = "pane";
                                     App.trackerHostStyle = root._next(root.hostStyles, App.trackerHostStyle);
                                 }
@@ -1802,11 +1825,11 @@ Item {
                                 Layout.fillWidth: true
                                 description: qsTr("auto puts it right when the window is wide enough. I cycles it.")
                                 glyph: Glyphs.sidebar
-                                hasCursor: root.area === "pane" && root.paneCursor === 9
+                                hasCursor: root.area === "pane" && root.paneCursor === 10
                                 title: qsTr("Details panel")
 
                                 onClicked: {
-                                    root.paneCursor = 9;
+                                    root.paneCursor = 10;
                                     root.area = "pane";
                                     App.detailsPlacement = root._next(root.placements, App.detailsPlacement);
                                 }

@@ -446,6 +446,12 @@ public:
     QString speedsAlignment() const;
     void setSpeedsAlignment(const QString &side);
 
+    /// #24 T2: the last 60 s of upload drawn faintly behind the hero's ↑ number. Off by
+    /// default: Diogo found it crowds the figures (2026-10-03).
+    Q_PROPERTY(bool uploadTrend READ uploadTrend WRITE setUploadTrend NOTIFY settingsChanged)
+    bool uploadTrend() const;
+    void setUploadTrend(bool on);
+
     // docs/08 §5 — the rail's look, under Settings -> Appearance.
     /// How the rail, and since N3 every palette, says there is more above or below:
     /// "chevrons" (a counted line at each end, the default), "fade" or "scrollbar". Anything
@@ -539,6 +545,7 @@ private:
     int m_windowAlphaOverride = 0;
     QString m_trayIconMode = QStringLiteral("auto");
     QString m_speedsAlignment = QStringLiteral("left");
+    bool m_uploadTrend = false;
     QString m_railScrollHint = QStringLiteral("chevrons");
     QString m_detailsPlacement = QStringLiteral("auto");
     int m_surfaceTint = 0;
