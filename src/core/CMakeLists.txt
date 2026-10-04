@@ -20,6 +20,8 @@ qt_add_library(omaseed-core STATIC
     FilterCounts.hpp
     Format.cpp
     Format.hpp
+    FreeSpace.cpp
+    FreeSpace.hpp
     GlobalState.cpp
     GlobalState.hpp
     HomeGuard.hpp

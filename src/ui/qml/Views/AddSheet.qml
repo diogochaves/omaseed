@@ -72,6 +72,7 @@ Sheet {
     readonly property alias layoutChips: layoutChips
     readonly property alias sequentialToggle: sequentialToggle
     readonly property alias skipCheckToggle: skipCheckToggle
+    readonly property alias freeLine: freeLine
 
     /// The names in `App.categories` / `App.tags`, as plain string lists for the chip rows.
     /// Both models notify on `count` alone, so it is read first to make this re-evaluate
@@ -91,6 +92,15 @@ Sheet {
     /// choices travel with the add.
     readonly property bool showFiles: sheet.addable !== null && sheet.addable.valid === true
                                       && sheet.addable.kind === "file" && App.addFiles.fileCount > 1
+    /// Bytes the add writes (docs/25 §4): the ticked files of a picked `.torrent`, the whole
+    /// size of one file or of a magnet that says (`xl=`), and -1 while nobody knows.
+    readonly property real neededBytes: {
+        if (!sheet.addable || sheet.addable.valid !== true)
+            return -1;
+        if (sheet.showFiles)
+            return App.addFiles.wantedSize;
+        return sheet.addable.totalSize !== undefined ? sheet.addable.totalSize : -1;
+    }
     /// The "in Downloads" list is on show: nothing in the field yet, and the folder has a
     /// `.torrent` to offer (manual box M7).
     readonly property bool showDownloads: sourceField.text.trim().length === 0
@@ -735,6 +745,18 @@ Sheet {
                                 sheet._savePathEdited = true;
                                 sheet.autoTMM = false;
                             }
+                        }
+
+                        // docs/25 §4 (#29): what the add needs and the room where it goes.
+                        AddFreeLine {
+                            id: freeLine
+
+                            Layout.fillWidth: true
+                            neededBytes: sheet.neededBytes
+                            savePath: savePathField.text
+                            totalBytes: sheet.addable && sheet.addable.totalSize !== undefined
+                                        ? sheet.addable.totalSize : -1
+                            visible: sheet.addable !== null && sheet.addable.valid === true
                         }
                     }
 

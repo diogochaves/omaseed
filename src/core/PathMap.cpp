@@ -76,6 +76,16 @@ QString PathMap::toRemote(const QString &localPath) const
     return remap(localPath, false);
 }
 
+bool PathMap::covers(const QString &remotePath) const
+{
+    const QString normalizedPath = normalize(remotePath);
+    for (const Mapping &mapping : m_mappings) {
+        if (matchesPrefix(normalizedPath, mapping.remote))
+            return true;
+    }
+    return false;
+}
+
 QJsonArray PathMap::toJson() const
 {
     QJsonArray array;

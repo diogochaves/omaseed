@@ -18,6 +18,11 @@ omaseed_add_test(tst_magnetlink
     LIBRARIES omaseed::core
 )
 
+omaseed_add_test(tst_freespace
+    SOURCES tst_freespace.cpp
+    LIBRARIES omaseed::core
+)
+
 omaseed_add_test(tst_pathmap
     SOURCES tst_pathmap.cpp
     LIBRARIES omaseed::core

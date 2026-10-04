@@ -51,6 +51,14 @@ TestCase {
     }
 
     Component {
+        id: freeLineComponent
+
+        AddFreeLine {
+            width: 600
+        }
+    }
+
+    Component {
         id: probeComponent
 
         Item {
@@ -988,5 +996,81 @@ TestCase {
         keyClick(Qt.Key_Escape); // closes the sheet
         compare(sheet.opened, false);
         compare(sheet.queue.length, 0);
+    }
+
+    // ---- Free space under Save to (docs/25 §4, #29) --------------------------------------
+
+    function test_a_magnet_with_a_size_says_what_it_needs_and_the_room() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        sheet.openWith(testCase.freshMagnet, "clipboard");
+
+        const line = sheet.freeLine;
+        compare(line.visible, true);
+        compare(line.needsText, "needs 2.34 GB");
+        // Save to is empty: the server's own figure for its default folder (D9 a).
+        compare(line.room.source, "default");
+        verify(line.room.bytesFree > 0, "the demo server reports free space");
+        compare(line.roomText, App.sizeText(line.room.bytesFree) + " free on this drive");
+        compare(line.level, "normal");
+    }
+
+    function test_a_magnet_without_a_size_waits_for_its_metadata() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        sheet.openWith("magnet:?xt=urn:btih:9a4f6c1e2b3d4f50617283940a1b2c3d4e5f6071&dn=x", "clipboard");
+
+        compare(sheet.freeLine.needsText, "size known once the metadata arrives");
+        compare(sheet.freeLine.showMeter, false);
+    }
+
+    function test_a_folder_this_machine_cannot_see_is_unknown() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        sheet.openWith(testCase.freshMagnet, "clipboard");
+        sheet.savePathField.text = "/elsewhere/films";
+
+        const line = sheet.freeLine;
+        compare(line.room.source, "unknown");
+        compare(line.roomText, "free space here unknown · " + App.serverName
+                + " reports only its default folder: " + App.sizeText(line.room.defaultFree));
+        compare(line.showMeter, false);
+        compare(line.level, "normal");
+    }
+
+    function test_a_torrent_file_needs_its_ticked_files() {
+        const sheet = testCase.openTorrent(addSheetComponent);
+        compare(sheet.neededBytes, App.addFiles.wantedSize);
+        compare(sheet.freeLine.totalBytes > 0, true);
+        compare(sheet.freeLine.needsText, "needs " + App.sizeText(sheet.neededBytes));
+    }
+
+    function test_the_line_turns_yellow_then_red_then_green() {
+        const line = createTemporaryObject(freeLineComponent, testCase);
+        const free = line.free;
+        verify(free > 0);
+
+        line.neededBytes = free / 4;
+        line.thresholdBytes = 0;
+        compare(line.level, "normal");
+
+        line.thresholdBytes = free; // what is left is under the threshold
+        compare(line.level, "warn");
+        verify(line.roomText.indexOf(" · leaves ") > 0, line.roomText);
+
+        line.neededBytes = free * 2;
+        compare(line.level, "bad");
+        compare(line.roomText.indexOf("only "), 0);
+        verify(line.roomText.endsWith("untick files or pick another folder"));
+
+        // #27: saved where the files already are, nothing new is written.
+        line.alreadyThere = true;
+        compare(line.level, "good");
+        compare(line.needsText, "needs nothing new");
+        compare(line.showMeter, false);
+    }
+
+    function test_unticked_files_read_as_part_of_the_whole() {
+        const line = createTemporaryObject(freeLineComponent, testCase);
+        line.neededBytes = 1000;
+        line.totalBytes = 4000;
+        compare(line.needsText, "needs " + App.sizeText(1000) + " of " + App.sizeText(4000));
     }
 }

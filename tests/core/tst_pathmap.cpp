@@ -18,6 +18,7 @@ private slots:
     void normalisesSeparatorsAndTrailingSlashes();
     void jsonRoundTrips();
     void rootPrefixKeepsTheSeparator();
+    void coversOnlyMappedPaths();
 };
 
 void TestPathMap::unmappedPathIsUnchanged()
@@ -103,6 +104,17 @@ void TestPathMap::rootPrefixKeepsTheSeparator()
     toRoot.addMapping(QStringLiteral("/downloads"), QStringLiteral("/"));
     QCOMPARE(toRoot.toLocal(QStringLiteral("/downloads/a")), QStringLiteral("/a"));
     QCOMPARE(toRoot.toRemote(QStringLiteral("/home/x")), QStringLiteral("/downloads/home/x"));
+}
+
+void TestPathMap::coversOnlyMappedPaths()
+{
+    PathMap map;
+    QVERIFY(!map.covers(QStringLiteral("/data/films")));
+    map.addMapping(QStringLiteral("/data"), QStringLiteral("/mnt/data"));
+    QVERIFY(map.covers(QStringLiteral("/data")));
+    QVERIFY(map.covers(QStringLiteral("/data/films/")));
+    QVERIFY(!map.covers(QStringLiteral("/database")));
+    QVERIFY(!map.covers(QStringLiteral("/other")));
 }
 
 QTEST_APPLESS_MAIN(TestPathMap)

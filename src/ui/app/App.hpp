@@ -26,6 +26,7 @@
 #include "core/AddFilesModel.hpp"
 #include "core/CategoryModel.hpp"
 #include "core/FilterCounts.hpp"
+#include "core/FreeSpace.hpp"
 #include "core/GlobalState.hpp"
 #include "core/QbtClient.hpp"
 #include "core/SecretStore.hpp"
@@ -355,6 +356,10 @@ public:
     QString mapContentPathToLocal(const QString &remotePath) const;
 
 private:
+    /// The chosen server's path map, as configured (whether or not it is switched on).
+    core::PathMap serverPathMap() const;
+    /// Feeds core::FreeSpaceProbe the server's default save path and free space again.
+    void updateFreeSpace();
     /// "host:port" of the chosen server, for the server-lost body (spec §6 Fig. 21).
     QString serverHostPortText() const;
     /// Strips a `serverLost` ApiError down to the reason text the notice wants.
@@ -805,6 +810,7 @@ public:
     ///   pending      bool, true while a .torrent is still being read and hashed
     ///   name         the parsed name, or a URL's last path segment
     ///   sizeText     "2.34 GB", empty when the source does not say
+    ///   totalSize    the same in bytes, absent when the source does not say
     ///   infoHashV1 / infoHashV2   lowercase hex, empty when unknown
     ///   value        what goes to the server (the magnet, the URL, the file path)
     ///   token        the key `addTorrent` uses to find a picked file's bytes again
@@ -859,6 +865,7 @@ public:
     /// lists nothing unless it is set, so no real file name lands in a screenshot.
     Q_PROPERTY(QString downloadsFolder READ downloadsFolder WRITE setDownloadsFolder NOTIFY
                    downloadsFolderChanged)
+    Q_PROPERTY(int freeSpaceRevision READ freeSpaceRevision NOTIFY freeSpaceChanged)
 
 public:
     QVariantList downloadsTorrents() const { return m_downloadsTorrents; }
@@ -871,11 +878,23 @@ public:
     /// as torrents come and go, without another scan.
     Q_INVOKABLE void scanDownloads();
 
+    /// docs/25 §4 (#29): how much room Save to has, for the add sheet's line under it.
+    ///   source        "default" (the server's own `free_space_on_disk`), "local" (read on
+    ///                 this machine, core::FreeSpaceProbe) or "unknown"
+    ///   bytesFree     the room, 0 when unknown
+    ///   bytesTotal    the drive's size for "local", 0 otherwise
+    ///   where         the mount point for "local", "" otherwise
+    ///   defaultFree   the server's own figure, for scale when the answer is unknown
+    /// `freeSpaceRevision` moves whenever any of it may have changed.
+    Q_INVOKABLE QVariantMap freeSpaceFor(const QString &savePath) const;
+    int freeSpaceRevision() const { return m_freeSpaceRevision; }
+
     /// The URI hand-off: this process's own argv and every `SingleInstance::openRequested`
     /// from a second launch. Re-emitted as `addUrisRequested` for the sheet to queue.
     void openUris(const QStringList &uris);
 
 Q_SIGNALS:
+    void freeSpaceChanged();
     /// The second half of `parseAddable` for a `.torrent`, and the whole answer of
     /// `pickTorrentFile()`. Same map, with `pending: false`.
     void addableParsed(QVariantMap result);
@@ -964,6 +983,8 @@ private:
     void watchForAddedHash(const QString &hash);
 
     QHash<QString, PendingTorrentFile> m_pendingTorrentFiles;
+    core::FreeSpaceProbe m_freeSpace;
+    int m_freeSpaceRevision = 0;
     QStringList m_pendingTorrentOrder; ///< tokens of m_pendingTorrentFiles, oldest first
     mutable std::unique_ptr<QTemporaryDir> m_demoTempDir;
     mutable QString m_demoTorrentPath;

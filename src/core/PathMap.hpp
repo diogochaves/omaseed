@@ -33,6 +33,9 @@ public:
     QString toLocal(const QString &remotePath) const;
     /// The inverse of toLocal(): rewrites a local path to its remote equivalent.
     QString toRemote(const QString &localPath) const;
+    /// Whether some mapping's remote prefix applies to `remotePath` (what toLocal() would
+    /// rewrite), so a caller can tell "mapped" from "returned unchanged".
+    bool covers(const QString &remotePath) const;
 
     QJsonArray toJson() const;
     static PathMap fromJson(const QJsonArray &array);

@@ -112,6 +112,13 @@ App::App(QObject *parent)
     connect(m_engine->globalState(), &GlobalState::dlInfoSpeedChanged, this, &App::updateTray);
     connect(m_engine->globalState(), &GlobalState::upInfoSpeedChanged, this, &App::updateTray);
     connect(m_engine->globalState(), &GlobalState::freeSpaceOnDiskChanged, this, &App::updateTray);
+    // docs/25 §4: the add sheet's free line follows the server's figure, its default save
+    // path (a preference) and the path map.
+    connect(
+        m_engine->globalState(), &GlobalState::freeSpaceOnDiskChanged, this, &App::updateFreeSpace);
+    connect(m_prefs, &ServerPreferences::valuesChanged, this, &App::updateFreeSpace);
+    connect(this, &App::serverChanged, this, &App::updateFreeSpace);
+    connect(this, &App::settingsChanged, this, &App::updateFreeSpace);
     connect(m_engine->globalState(), &GlobalState::serverNameChanged, this, &App::updateTray);
     connect(m_engine->counts(), &FilterCounts::changed, this, &App::updateTray);
     // T5.5 Q14: `supportsShareLimitAction` is derived from the API version, nothing else.
@@ -959,11 +966,41 @@ QString App::mapContentPathToLocal(const QString &remotePath) const
         return QString();
     if (!pathMapEnabled())
         return remotePath;
+    return serverPathMap().toLocal(remotePath);
+}
 
+PathMap App::serverPathMap() const
+{
     PathMap map;
     for (const PathMapping &mapping : m_server.pathMap)
         map.addMapping(mapping.remote, mapping.local);
-    return map.toLocal(remotePath);
+    return map;
+}
+
+void App::updateFreeSpace()
+{
+    const QString savePath = m_prefs->value(QStringLiteral("save_path")).toString();
+    m_freeSpace.setServer(
+        savePath, m_engine->globalState()->freeSpaceOnDisk(), serverPathMap(), pathMapEnabled());
+    ++m_freeSpaceRevision;
+    Q_EMIT freeSpaceChanged();
+}
+
+QVariantMap App::freeSpaceFor(const QString &savePath) const
+{
+    const FreeSpaceProbe::Answer answer = m_freeSpace.answer(savePath);
+    QString source = QStringLiteral("unknown");
+    if (answer.source == FreeSpaceProbe::Source::Default)
+        source = QStringLiteral("default");
+    else if (answer.source == FreeSpaceProbe::Source::Local)
+        source = QStringLiteral("local");
+    return {
+        {QStringLiteral("source"), source},
+        {QStringLiteral("bytesFree"), answer.bytesFree},
+        {QStringLiteral("bytesTotal"), answer.bytesTotal},
+        {QStringLiteral("where"), answer.where},
+        {QStringLiteral("defaultFree"), m_engine->globalState()->freeSpaceOnDisk()},
+    };
 }
 
 QString App::serverHostPortText() const
@@ -1330,8 +1367,10 @@ QVariantMap App::parseAddable(const QString &textIn)
         map[QStringLiteral("infoHashV2")] = link.infoHashV2;
         map[QStringLiteral("name")] =
             link.displayName.isEmpty() ? link.infoHashV1 : link.displayName;
-        if (link.exactLength > 0)
+        if (link.exactLength > 0) {
             map[QStringLiteral("sizeText")] = Format::size(link.exactLength);
+            map[QStringLiteral("totalSize")] = link.exactLength;
+        }
         return map;
     }
     case integration::Addable::Kind::HttpUrl:
@@ -1389,6 +1428,7 @@ QVariantMap App::torrentFileMap(const QString &token,
     map[QStringLiteral("valid")] = true;
     map[QStringLiteral("name")] = parsed.name;
     map[QStringLiteral("sizeText")] = Format::size(parsed.totalSize);
+    map[QStringLiteral("totalSize")] = parsed.totalSize;
     map[QStringLiteral("infoHashV1")] = parsed.infoHashV1;
     map[QStringLiteral("infoHashV2")] = parsed.infoHashV2;
     map[QStringLiteral("fileCount")] = int(parsed.files.size());
