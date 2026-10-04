@@ -24,6 +24,8 @@
 
 #include <QApplication>
 #include <QCommandLineOption>
+#include <QDBusConnection>
+#include <QDBusConnectionInterface>
 #include <QCommandLineParser>
 #include <QCoreApplication>
 #include <QElapsedTimer>
@@ -496,6 +498,14 @@ int main(int argc, char *argv[])
     // A `--demo` run never receives URIs and must never take the name: two agents' demos
     // (and a demo beside a real omaseed) have to coexist on one session bus.
     if (demo.isEmpty()) {
+        // A login entry (`--hidden`, no URIs) that finds omaseed already running has nothing
+        // to hand over: leave it as it is instead of popping its window up.
+        if (parser.isSet(hiddenOption) && uris.isEmpty()) {
+            const QDBusConnection bus = QDBusConnection::sessionBus();
+            if (bus.isConnected() && bus.interface()
+                && bus.interface()->isServiceRegistered(omaseed::integration::AppIdentity::dbusServiceName()))
+                return 0;
+        }
         if (!singleInstance->start(uris))
             return 0;
     } else {

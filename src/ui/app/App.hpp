@@ -56,14 +56,12 @@
 #include <QTemporaryDir>
 #include <QTimer>
 #include <QVariantList>
-
-#include <chrono>
-#include <memory>
-#include <optional>
 #include <QVariantMap>
 
+#include <chrono>
 #include <functional>
 #include <memory>
+#include <optional>
 
 QT_BEGIN_NAMESPACE
 class QNetworkAccessManager;
