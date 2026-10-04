@@ -2,8 +2,9 @@
 # omaseed — the risky actions, walked through the app's own UI: renames, categories, tags,
 # automatic torrent management, set location (also onto another filesystem, a 2 GiB torrent),
 # recheck, the selection bar on two torrents, delete with and without files, and two torrents
-# that share one file (#28: the delete confirm and the location sheet ask). After each
-# step it checks what qBittorrent says and what is on disk, and stops at the first mismatch.
+# that share one file (#27: the twin goes in through the add sheet's "save there"; #28: the
+# delete confirm and the location sheet ask). After each step it checks what qBittorrent says
+# and what is on disk, and stops at the first mismatch.
 # Run it again after any change to an action, a sheet, a palette or the selection bar.
 #
 #   scripts/dev/actions-walk.sh [OUT_DIR]        # agents: a headless box, a shot per step,
@@ -548,8 +549,14 @@ shot "Two torrents left: Public Domain Sampler and $BIG."
 
 # ---- #28: two torrents, one file -----------------------------------------------------------
 
-step "Add a twin" "The 2 GiB file's twin: the same file under another infohash (another source, as a second tracker issues it), added into /tmp/elsewhere where the file is. qBittorrent checks it and seeds it at once, nothing downloaded. It is renamed \"walk-2GiB twin\" so the jump palette tells the two apart."
-api torrents/add -F "torrents=@$BOX_HOME/Downloads/$BIG.twin.torrent" -F "savepath=/tmp/elsewhere" >/dev/null
+step "Add a twin, saved where the file is" "The 2 GiB file's twin: the same file under another infohash (another source, as a second tracker issues it). The add sheet finds the file already on disk (#27) and alt+s saves it there, in /tmp/elsewhere: qBittorrent checks it and seeds it at once, nothing downloaded. It is renamed \"walk-2GiB twin\" so the jump palette tells the two apart."
+keys a
+keys -t "$BOX_HOME/Downloads/$BIG.twin.torrent"
+sleep 3 # the parse, then the library's file lists
+shot "Add torrent, the twin in the field: a blue line, \"This file is already on disk. The same file, same size, as $BIG, seeding from 127.0.0.1\", with save there; alt+s save there in the hints." match
+keys alt+s
+shot "After alt+s: \"Saving beside $BIG\" with undo; Save to /tmp/elsewhere, \"from the files match\"; the line under it green, \"needs nothing new\"." saved
+keys Return
 expect "the twin is complete without downloading" "$TWIN" "t is not None and t['progress'] == 1 and t['downloaded'] == 0" 120
 api torrents/rename -d "hash=$TWIN" --data-urlencode "name=walk-2GiB twin" >/dev/null
 expect "it is called walk-2GiB twin" "$TWIN" 't["name"] == "walk-2GiB twin"'

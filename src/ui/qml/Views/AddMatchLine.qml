@@ -46,11 +46,17 @@ RowLayout {
         if (!match)
             return "";
         if (root.saved)
-            return qsTr("<b>Saving beside %1.</b> qBittorrent will check the %2 files and start seeding.").arg(
-                        match.name).arg(match.fileCount);
+            return match.fileCount === 1
+                    ? qsTr("<b>Saving beside %1.</b> qBittorrent will check the file and start seeding.").arg(
+                          match.name)
+                    : qsTr("<b>Saving beside %1.</b> qBittorrent will check the %2 files and start seeding.").arg(
+                          match.name).arg(match.fileCount);
         if (root.matches.length > 1)
             return qsTr("<b>These files are already on disk, %1 times.</b> Pick the copy to share:").arg(
                         root.matches.length);
+        if (match.fileCount === 1)
+            return qsTr("<b>This file is already on disk.</b> The same file, same size, as <b>%1</b>, %2.").arg(
+                        match.name).arg(root.whoText(match));
         return qsTr("<b>These files are already on disk.</b> Same %1 files and sizes as <b>%2</b>, %3.").arg(
                     match.fileCount).arg(match.name).arg(root.whoText(match));
     }
