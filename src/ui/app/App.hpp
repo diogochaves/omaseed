@@ -29,6 +29,8 @@
 #include "core/GlobalState.hpp"
 #include "core/QbtClient.hpp"
 #include "core/SecretStore.hpp"
+#include "core/AutoBackup.hpp"
+#include "core/OmaseedBackup.hpp"
 #include "core/SeedConsole.hpp"
 #include "core/SeedLedger.hpp"
 #include "core/Server.hpp"
@@ -1228,6 +1230,53 @@ private:
     /// Seeds in the swarm per complete torrent at the last poll, for "now the only seed".
     QHash<QString, int> m_lastSwarm;
     // --- end #24 --------------------------------------------------------------------------------
+
+    // --- #31: omaseed's own backup (docs/24 §3, §5) ---------------------------------------------
+    // Settings › Backup: back up to a file, restore from one, and the automatic copies. The
+    // file work is OmaseedBackup's; App flushes and closes the ledger around it, reloads what
+    // it keeps in memory after a restore, and runs AutoBackup's check once an hour.
+public:
+    /// "off", "weekly" (the default, D3 a) or "daily". Kept in state.json's "backup" section.
+    Q_PROPERTY(QString autoBackupMode READ autoBackupMode WRITE setAutoBackupMode NOTIFY backupChanged)
+    QString autoBackupMode() const;
+    void setAutoBackupMode(const QString &mode);
+    /// "Sunday 21:04", "3 Oct 21:04" when older than a week, empty before the first copy.
+    Q_PROPERTY(QString lastBackupText READ lastBackupText NOTIFY backupChanged)
+    QString lastBackupText() const;
+    /// What a backup would hold, for the row: "Settings, 2 servers and the seed history since
+    /// 12 Mar 2026: about 4.2 MB."
+    Q_PROPERTY(QString backupSummary READ backupSummary NOTIFY backupChanged)
+    QString backupSummary() const;
+    /// `~/.local/share/omaseed/backups`, as the row prints it (home as ~).
+    Q_PROPERTY(QString backupsDirText READ backupsDirText CONSTANT)
+    QString backupsDirText() const;
+
+    /// The portal's save dialog, proposing `~/omaseed-<date>.omaseed`. Empty when cancelled.
+    Q_INVOKABLE QString pickBackupSavePath() const;
+    /// Writes a backup to `path`. Empty on success, otherwise why it failed.
+    Q_INVOKABLE QString backUpTo(const QString &path);
+    /// The portal's open dialog, starting in the backups folder. Empty when cancelled.
+    Q_INVOKABLE QString pickBackupFile() const;
+    /// Reads a backup for the restore sheet: `{ok, error, title, sub, safety, parts: [{key,
+    /// label, side, detail, checked, enabled, needsServers}]}`. A part's key is "settings",
+    /// "servers" or "history:<server id in the backup>". Nothing changes yet.
+    Q_INVOKABLE QVariantMap readBackup(const QString &path);
+    /// Restores the backup readBackup() last read: `choice` = `{settings, servers, history:
+    /// [ids]}`. Answers `{ok, text}`.
+    Q_INVOKABLE QVariantMap restoreBackup(const QVariantMap &choice);
+    Q_INVOKABLE void openBackupsFolder() const;
+
+Q_SIGNALS:
+    void backupChanged();
+
+private:
+    omaseed::core::OmaseedBackup::Sources backupSources() const;
+    void reloadAfterRestore();
+    omaseed::core::AutoBackup *m_autoBackup = new omaseed::core::AutoBackup(this);
+    QTimer *m_autoBackupTimer = new QTimer(this);
+    std::optional<omaseed::core::OmaseedBackup::Contents> m_pendingRestore;
+    QString m_pendingRestorePath;
+    // --- end #31 --------------------------------------------------------------------------------
 };
 
 } // namespace omaseed::app

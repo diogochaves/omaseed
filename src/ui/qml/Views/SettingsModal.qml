@@ -13,7 +13,7 @@ import Omaseed.Kit
 // the confirm dialog that guards a removal. `open()`/`close()` forward to the sheet.
 //
 // Keyboard (Fig. 16's own footer):
-//   j k / 1–6   move the nav
+//   j k / 1–7   move the nav
 //   tab         hand the keyboard to the pane, and back
 //   j k         inside a pane, move the row cursor
 //   enter space act on the cursor row (toggle, open the server sheet, copy)
@@ -23,7 +23,7 @@ import Omaseed.Kit
 //
 // docs/16: a second group in the nav, "qBittorrent · <server> <version>", holds the server's
 // own settings in nine sections (`QbtSettingsSections`, drawn by `QbtSettingsPane`). Its
-// panes follow omaseed's six in `paneIndex` (6–14). There the digits pick a section of that
+// panes follow omaseed's seven in `paneIndex` (7–15). There the digits pick a section of that
 // group, space flips a switch, enter edits, `d` puts an Advanced row back to its default and
 // `s` moves the app to the next server. `openQbt()` (ctrl+shift+,) opens straight on it.
 Item {
@@ -34,10 +34,11 @@ Item {
     readonly property alias sheet: sheet
     readonly property alias serverSheet: serverSheet
     readonly property alias confirm: confirm
+    readonly property alias restoreSheet: restoreSheet
 
-    /// Which pane is on show: 0–5 are omaseed's own (General, Servers, Notifications,
-    /// Keybindings, Appearance, About, the order of `navRows`), 6 on the qBittorrent group's
-    /// sections (`qbtSections`).
+    /// Which pane is on show: 0–6 are omaseed's own (General, Servers, Notifications,
+    /// Keybindings, Appearance, Backup, About, the order of `navRows`), 7 on the qBittorrent
+    /// group's sections (`qbtSections`).
     property int paneIndex: 0
     /// The row cursor inside the pane, -1 when the pane has no rows.
     property int paneCursor: 0
@@ -81,6 +82,11 @@ Item {
         {
             "glyph": Glyphs.appearance,
             "text": qsTr("Appearance")
+        },
+        {
+            // #31, docs/24 §3: omaseed's own backup, after Appearance.
+            "glyph": Glyphs.backup,
+            "text": qsTr("Backup")
         },
         {
             "glyph": Glyphs.about,
@@ -129,6 +135,8 @@ Item {
             // hosts (docs/08 §5), then where Details sits (docs/10)
             return 11;
         case 5:
+            return 3; // back up, restore, automatic copies (#31)
+        case 6:
             return 1; // the copyable `omaseed --install-bar-widget` line
         default:
             return 0;
@@ -374,8 +382,49 @@ Item {
                 App.detailsPlacement = root._next(root.placements, App.detailsPlacement);
             return;
         }
-        if (root.paneIndex === 5)
+        if (root.paneIndex === 5) {
+            if (root.paneCursor === 0)
+                root.backUp();
+            else if (root.paneCursor === 1)
+                root.chooseRestore();
+            else if (root.paneCursor === 2)
+                App.autoBackupMode = root._next(root.backupModes, App.autoBackupMode);
+            return;
+        }
+        if (root.paneIndex === 6)
             root.copyPluginLine();
+    }
+
+    // #31: the automatic copies' three choices, as [value, chip text].
+    readonly property var backupModes: [["off", qsTr("off")], ["weekly", qsTr("weekly")], ["daily",
+                                                                                         qsTr("daily")]]
+    /// What the last backup or restore said, under the Backup pane's rows.
+    property string backupNote: ""
+    property bool backupNoteError: false
+
+    /// "back up…": the portal's save dialog, then the file.
+    function backUp(): void {
+        const path = App.pickBackupSavePath();
+        if (path.length === 0)
+            return;
+        const error = App.backUpTo(path);
+        root.backupNote = error.length > 0 ? error : qsTr("Backed up to %1.").arg(path);
+        root.backupNoteError = error.length > 0;
+    }
+
+    /// "restore…": the portal's open dialog, then the sheet of what the file holds.
+    function chooseRestore(): void {
+        const path = App.pickBackupFile();
+        if (path.length === 0)
+            return;
+        const info = App.readBackup(path);
+        if (info.ok !== true) {
+            root.backupNote = info.error;
+            root.backupNoteError = true;
+            return;
+        }
+        root.backupNote = "";
+        restoreSheet.openFor(info);
     }
 
     // docs/08 §5: the three scroll-hint looks, as [value, chip text]. Rail's first, and since
@@ -491,7 +540,8 @@ Item {
     /// its own, and takes whatever height the others set.
     readonly property real _tallestPane: Math.max(generalPane.implicitHeight, serversPane.implicitHeight,
                                                   notificationsPane.implicitHeight,
-                                                  appearancePane.implicitHeight, aboutPane.implicitHeight)
+                                                  appearancePane.implicitHeight, backupPane.implicitHeight,
+                                                  aboutPane.implicitHeight)
     /// The most the body may take so that the whole modal stays within 85 % of the window:
     /// the sheet adds its padding, the gap and its hint row around the body.
     readonly property real _bodyCap: Math.max(Theme.space(200), Math.floor(root.height * 0.85) - 2
@@ -501,7 +551,7 @@ Item {
     /// The pane on show, in `navRows` order; every qBittorrent section is the one pane.
     readonly property Item _paneOnShow: root.inQbt ? qbtPane : [generalPane, serversPane,
                                                                 notificationsPane, keysPane,
-                                                                appearancePane, aboutPane][root.paneIndex]
+                                                                appearancePane, backupPane, aboutPane][root.paneIndex]
 
     /// Scrolls the pane just enough to show the row with the cursor, so `j`/`k` never move
     /// it out of sight on a pane taller than the modal.
@@ -754,6 +804,7 @@ Item {
         sectionTabs.currentIndex = root.paneIndex - (qbt ? root.qbtStart : 0);
         groupTabs.currentIndex = qbt ? 1 : 0;
         root.qbtNote = "";
+        root.backupNote = "";
         Qt.callLater(root._revealNav);
         if (root.opened && qbt)
             Qt.callLater(root._readQbt);
@@ -1927,13 +1978,133 @@ Item {
                             }
                         }
 
+                        // ---- Backup (#31, docs/24 §3) --------------------------------------
+                        ColumnLayout {
+                            id: backupPane
+
+                            anchors.fill: parent
+                            spacing: Theme.space(8)
+                            visible: root.paneIndex === 5
+
+                            SettingsRow {
+                                Layout.fillWidth: true
+                                description: App.backupSummary
+                                glyph: Glyphs.arrowDown
+                                hasCursor: root.area === "pane" && root.paneCursor === 0
+                                objectName: "backupRow"
+                                title: qsTr("Back up omaseed")
+
+                                onClicked: {
+                                    root.paneCursor = 0;
+                                    root.area = "pane";
+                                    root.backUp();
+                                }
+
+                                Button {
+                                    bordered: true
+                                    primary: true
+                                    text: qsTr("back up…")
+
+                                    onClicked: {
+                                        root.paneCursor = 0;
+                                        root.backUp();
+                                    }
+                                }
+                            }
+
+                            SettingsRow {
+                                Layout.fillWidth: true
+                                description: qsTr("From an omaseed backup. You pick the parts; what is here now is copied aside first.")
+                                glyph: Glyphs.arrowUp
+                                hasCursor: root.area === "pane" && root.paneCursor === 1
+                                objectName: "restoreRow"
+                                title: qsTr("Restore")
+
+                                onClicked: {
+                                    root.paneCursor = 1;
+                                    root.area = "pane";
+                                    root.chooseRestore();
+                                }
+
+                                Button {
+                                    bordered: true
+                                    text: qsTr("restore…")
+
+                                    onClicked: {
+                                        root.paneCursor = 1;
+                                        root.chooseRestore();
+                                    }
+                                }
+                            }
+
+                            SettingsRow {
+                                Layout.fillWidth: true
+                                description: {
+                                    const where = qsTr("Into %1, the last 4 kept.").arg(App.backupsDirText);
+                                    if (App.autoBackupMode === "off")
+                                        return qsTr("Off: backups are made by hand only. On, they go into %1, the last 4 kept.").arg(App.backupsDirText);
+                                    return App.lastBackupText.length > 0 ? where + " " + qsTr("Last one: %1.").arg(App.lastBackupText)
+                                                                         : where + " " + qsTr("The first one is made within the hour.");
+                                }
+                                glyph: Glyphs.recheck
+                                hasCursor: root.area === "pane" && root.paneCursor === 2
+                                objectName: "autoBackupRow"
+                                title: qsTr("Automatic copies")
+
+                                onClicked: {
+                                    root.paneCursor = 2;
+                                    root.area = "pane";
+                                    App.autoBackupMode = root._next(root.backupModes, App.autoBackupMode);
+                                }
+
+                                RowLayout {
+                                    spacing: Theme.space(6)
+
+                                    Button {
+                                        text: qsTr("open folder")
+
+                                        onClicked: App.openBackupsFolder()
+                                    }
+
+                                    Repeater {
+                                        model: root.backupModes
+
+                                        Chip {
+                                            id: backupModeChip
+
+                                            required property var modelData
+
+                                            selected: App.autoBackupMode === backupModeChip.modelData[0]
+                                            text: backupModeChip.modelData[1]
+
+                                            onClicked: App.autoBackupMode = backupModeChip.modelData[0]
+                                        }
+                                    }
+                                }
+                            }
+
+                            Label {
+                                Layout.fillWidth: true
+                                color: root.backupNoteError ? Theme.yellow : Theme.green
+                                objectName: "backupNote"
+                                size: "small"
+                                text: root.backupNote
+                                visible: root.backupNote.length > 0
+                                wrapMode: Text.WordWrap
+                            }
+
+                            Item {
+                                Layout.fillHeight: true
+                            }
+                        }
+
                         // ---- About -------------------------------------------------------
                         ColumnLayout {
                             id: aboutPane
 
                             anchors.fill: parent
                             spacing: Theme.space(10)
-                            visible: root.paneIndex === 5
+                            visible: root.paneIndex === 6
 
                             KeyValue {
                                 Layout.fillWidth: true
@@ -1988,6 +2159,19 @@ Item {
                     }
                 }
             }
+        }
+    }
+
+    // #31: the restore sheet, over the modal like the server sheet.
+    RestoreSheet {
+        id: restoreSheet
+
+        anchors.fill: parent
+        z: 1
+
+        onRestored: (text, ok) => {
+            root.backupNote = text;
+            root.backupNoteError = !ok;
         }
     }
 

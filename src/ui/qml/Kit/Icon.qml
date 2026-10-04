@@ -104,6 +104,11 @@ Item {
                                            "stroke": "M3.5 18.5 V6 H10 L12 8.2 H18.5 V10.5 M3.5 18.5 L6.5 10.5 H21 L18 18.5 Z",
                                            "fill": ""
                                        },
+                                       // #31: an archive box with an arrow into it, for Settings › Backup.
+                                       "backup": {
+                                           "stroke": "M3.5 4.5 H20.5 V8.5 H3.5 Z M5 8.5 V19.5 H19 V8.5 M12 11 V16.5 M9.5 14 L12 16.5 L14.5 14",
+                                           "fill": ""
+                                       },
                                        "delete": {
                                            "stroke": "M4 7 H20 M9 7 V4.5 H15 V7 M6.5 7 L7.5 20 H16.5 L17.5 7 M10 11 V16 M14 11 V16",
                                            "fill": ""

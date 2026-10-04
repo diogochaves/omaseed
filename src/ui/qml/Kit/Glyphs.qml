@@ -73,6 +73,7 @@ QtObject {
     readonly property string notifications: "◔"
     readonly property string keyboard: "icon:keyboard"
     readonly property string appearance: "icon:appearance"
+    readonly property string backup: "icon:backup" // #31 Settings › Backup
     readonly property string about: "i"
     readonly property string home: "⌂" // Fig. 16's path-mapping row, Fig. 7's head
     readonly property string plus: "+"
