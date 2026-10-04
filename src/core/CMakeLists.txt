@@ -4,6 +4,8 @@ configure_file(BuildConfig.hpp.in "${CMAKE_CURRENT_BINARY_DIR}/omaseed/core/Buil
 qt_add_library(omaseed-core STATIC
     AddFilesModel.cpp
     AddFilesModel.hpp
+    AutoBackup.cpp
+    AutoBackup.hpp
     ApiError.cpp
     ApiError.hpp
     Bencode.cpp
@@ -23,6 +25,8 @@ qt_add_library(omaseed-core STATIC
     HomeGuard.hpp
     MagnetLink.cpp
     MagnetLink.hpp
+    OmaseedBackup.cpp
+    OmaseedBackup.hpp
     PathMap.cpp
     PathMap.hpp
     PeerInput.cpp
@@ -61,6 +65,8 @@ qt_add_library(omaseed-core STATIC
     SyncEngine.hpp
     TagModel.cpp
     TagModel.hpp
+    TarArchive.cpp
+    TarArchive.hpp
     Torrent.cpp
     Torrent.hpp
     TorrentDetails.cpp

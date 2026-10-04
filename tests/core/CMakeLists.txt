@@ -265,3 +265,13 @@ omaseed_add_test(tst_statusdigest
     SOURCES tst_statusdigest.cpp
     LIBRARIES omaseed::core
 )
+
+omaseed_add_test(tst_tararchive
+    SOURCES tst_tararchive.cpp
+    LIBRARIES omaseed::core
+)
+
+omaseed_add_test(tst_omaseedbackup
+    SOURCES tst_omaseedbackup.cpp
+    LIBRARIES omaseed::core Qt6::Sql
+)
