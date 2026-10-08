@@ -1,5 +1,5 @@
 # Fallback palette: Omarchy's Tokyo Night, bundled so omaseed has a theme on a machine that
-# has never seen Omarchy. Omarchy is MIT-licensed (https://github.com/basecamp/omarchy);
+# has never seen Omarchy. Omarchy is MIT-licensed (https://github.com/omacom/omarchy);
 # these are its Tokyo Night colour values, kept byte-identical so the fallback matches the
 # desktop when Omarchy is installed later.
 mode = "dark"
