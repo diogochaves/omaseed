@@ -54,6 +54,7 @@ qt_add_qml_module(omaseed-kit
         Tabs.qml
         Toggle.qml
         Tooltip.qml
+        WheelScroll.qml
 )
 
 target_link_libraries(omaseed-kit

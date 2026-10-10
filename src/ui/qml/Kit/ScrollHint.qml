@@ -8,7 +8,10 @@ import Omaseed.Kit
 //   "chevrons" (shown as "counted"): a band at each end that says how many rows are out of
 //              view that way; a click on it scrolls most of a page towards them.
 //   "fade":    the edge where there is more fades into `ground`.
-//   "scrollbar": a 2 px track and thumb while `revealed` or the pointer is over the list.
+//   "scrollbar": a 2 px track and thumb while `revealed`, while the pointer is over the list
+//              (`revealOnHover`), and for a moment after the list moves. The pointer on its
+//              strip at the right edge widens it; drag the thumb, or press the track to jump
+//              the thumb there, as with `Kit/ScrollBar`.
 //
 // The caller counts the rows (`countAbove`, `countBelow`), since only it knows what a row is
 // (the rail counts headings too). `topInset`/`bottomInset` say how much of the list a band
@@ -28,6 +31,11 @@ Item {
     property int countBelow: 0
     /// Show the scrollbar even without the pointer over the list (the list has focus).
     property bool revealed: false
+    /// Show the scrollbar while the pointer is anywhere over the list. The table turns this
+    /// off: there the scrollbar shows only while the list moves or the pointer is on it.
+    property bool revealOnHover: true
+    /// How long the scrollbar stays after the list stops moving, in ms.
+    property int lingerMs: 900
     /// What the bands are filled with and the fades fade into: the surface under the list.
     property color ground: Theme.background
     /// The height of a band.
@@ -52,6 +60,24 @@ Item {
                                                                                 ? root.fadeHeight : 0
     /// The pointer is over the list (for the scrollbar look).
     readonly property alias hovered: hover.hovered
+    /// The scrollbar is wanted: revealed, hovered, just scrolled, or held.
+    readonly property bool scrollbarShown: root.style === "scrollbar" && root.overflows
+                                           && (root.revealed || (root.revealOnHover && hover.hovered)
+                                               || linger.running || grip.containsMouse
+                                               || grip.pressed)
+    /// The scrollbar's track length, along which `scrollThumbTo()` measures.
+    readonly property real trackLength: track.height
+
+    /// Scroll so the scrollbar's thumb starts at `start` (along the track, from its top):
+    /// what a drag on the thumb and a press on the track call.
+    function scrollThumbTo(start: real): void {
+        const f = root.flickable;
+        if (f === null)
+            return;
+        const travel = track.height - thumb.height;
+        const fraction = travel <= 0 ? 0 : Math.max(0, Math.min(1, start / travel));
+        f.contentY = f.originY + fraction * Math.max(0, f.contentHeight - f.height);
+    }
 
     /// Scroll `fraction` of a page: negative up, positive down, clamped to the content.
     function page(fraction: real): void {
@@ -192,7 +218,25 @@ Item {
     }
 
     // "scrollbar" -----------------------------------------------------------------------
+    // The list moved (the wheel, a flick, the keys, a drag here): show the bar a moment.
+    Connections {
+        function onContentYChanged(): void {
+            if (root.style === "scrollbar" && root.overflows)
+                linger.restart();
+        }
+
+        target: root.flickable
+    }
+
+    Timer {
+        id: linger
+
+        interval: root.lingerMs
+    }
+
     Item {
+        id: track
+
         anchors.bottom: parent.bottom
         anchors.bottomMargin: Theme.space(2)
         anchors.right: parent.right
@@ -200,8 +244,18 @@ Item {
         anchors.top: parent.top
         anchors.topMargin: Theme.space(2)
         objectName: "scrollbar"
-        visible: root.style === "scrollbar" && root.overflows && (root.revealed || hover.hovered)
-        width: 2
+        opacity: root.scrollbarShown ? 1 : 0
+        // Shown at once, gone once it has faded.
+        visible: root.style === "scrollbar" && root.overflows
+                 && (root.scrollbarShown || track.opacity > 0)
+        // Wider while the pointer is on it, so it reads as something to take hold of.
+        width: grip.containsMouse || grip.pressed ? Theme.space(4) : 2
+
+        Behavior on opacity {
+            NumberAnimation {
+                duration: 160
+            }
+        }
 
         Rectangle {
             anchors.fill: parent
@@ -227,6 +281,39 @@ Item {
             y: thumb.range <= 0 ? 0 : Math.max(0, Math.min(parent.height - height,
                     (root.flickable.contentY - root.flickable.originY) / thumb.range
                     * (parent.height - height)))
+        }
+    }
+
+    // The strip along the right edge that takes hold of the bar. It hears the pointer there
+    // (to show and widen the bar), but takes a press only while the bar is shown, so a click
+    // at a row's right edge still reaches the row when there is no bar to grab.
+    MouseArea {
+        id: grip
+
+        property real grab: 0
+
+        acceptedButtons: root.scrollbarShown ? Qt.LeftButton : Qt.NoButton
+        anchors.bottom: track.bottom
+        anchors.right: parent.right
+        anchors.top: track.top
+        enabled: root.style === "scrollbar" && root.overflows
+        hoverEnabled: true
+        objectName: "scrollGrip"
+        preventStealing: true
+        width: Theme.space(10)
+        z: 2
+
+        onPositionChanged: mouse => {
+            if (grip.pressed)
+                root.scrollThumbTo(mouse.y - grip.grab);
+        }
+        onPressed: mouse => {
+            const onThumb = mouse.y >= thumb.y && mouse.y < thumb.y + thumb.height;
+            // On the thumb: keep the point that was grabbed under the pointer. On the track:
+            // centre the thumb on the pointer, then drag from there.
+            grip.grab = onThumb ? mouse.y - thumb.y : thumb.height / 2;
+            if (!onThumb)
+                root.scrollThumbTo(mouse.y - grip.grab);
         }
     }
 }
