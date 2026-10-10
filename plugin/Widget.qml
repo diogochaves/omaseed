@@ -165,9 +165,10 @@ BarWidget {
     return Math.ceil(w)
   }
   readonly property int arrowSlot: Math.ceil(Math.max(arrowMetrics.advanceWidth("↓"), arrowMetrics.advanceWidth("↑")))
-  // The shell's own bar icon canvas (16 at the default size), so the mark sits at the size of
-  // the stock icons beside it.
-  readonly property int markSize: Style.bar.iconCanvas
+  // The shell's own bar icon canvas (16 at the default size), with an icon font's margin: a
+  // glyph inks about 20 of its 24 units, the mark all of them, so the mark takes 20/24 of the
+  // canvas and inks as wide as the glyphs beside it (13-14 px where the canvas is 17).
+  readonly property int markSize: Math.round(Style.bar.iconCanvas * 20 / 24)
 
   WidgetButton {
     id: button
