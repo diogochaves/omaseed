@@ -10,6 +10,9 @@
 #include <QSignalSpy>
 #include <QTest>
 
+#include <memory>
+#include <vector>
+
 using namespace omaseed::core;
 
 namespace {
@@ -73,6 +76,44 @@ struct Fixture
                                            {QStringLiteral("connection_status"), QStringLiteral("connected")}});
         console.setClock([] { return kNow; });
         console.setSources(&model, &filter, nullptr, &state, &ledger);
+    }
+};
+
+// #50: one spy per block's signal, by name, so a test can say which ones fired.
+struct BlockSpies
+{
+    std::vector<std::pair<const char *, std::unique_ptr<QSignalSpy>>> spies;
+
+    explicit BlockSpies(SeedConsole *c)
+    {
+        const auto add = [&](const char *name, auto signal) {
+            spies.emplace_back(name, std::make_unique<QSignalSpy>(c, signal));
+        };
+        add("scopeLine", &SeedConsole::scopeLineChanged);
+        add("attention", &SeedConsole::attentionChanged);
+        add("totals", &SeedConsole::totalsChanged);
+        add("tide", &SeedConsole::tideChanged);
+        add("year", &SeedConsole::yearChanged);
+        add("alive", &SeedConsole::aliveChanged);
+        add("ladder", &SeedConsole::ladderChanged);
+        add("ladderPoints", &SeedConsole::ladderPointsChanged);
+        add("trackers", &SeedConsole::trackersChanged);
+        add("earning", &SeedConsole::earningChanged);
+        add("holding", &SeedConsole::holdingChanged);
+        add("onAir", &SeedConsole::onAirChanged);
+        add("lately", &SeedConsole::latelyChanged);
+    }
+    /// The blocks that signalled since the last call, by name, sorted, one space apart.
+    QString fired()
+    {
+        QStringList out;
+        for (auto &[name, spy] : spies) {
+            if (!spy->isEmpty())
+                out.append(QString::fromLatin1(name));
+            spy->clear();
+        }
+        out.sort();
+        return out.join(u' ');
     }
 };
 
@@ -188,8 +229,8 @@ private Q_SLOTS:
         console.setActive(true);
         QCOMPARE(console.scopeCount(), 400);
 
-        QSignalSpy fast(&console, &SeedConsole::changed);
-        QSignalSpy slow(&console, &SeedConsole::slowChanged);
+        QSignalSpy fast(&console, &SeedConsole::refreshed);
+        QSignalSpy slow(&console, &SeedConsole::slowRefreshed);
         QSignalSpy count(&filter, &TorrentFilterModel::countChanged);
         // One poll takes every third torrent away: in the name order, a run of its own each.
         QJsonArray gone;
@@ -232,7 +273,7 @@ private Q_SLOTS:
     {
         Fixture f;
         QSignalSpy points(&f.console, &SeedConsole::ladderPointsChanged);
-        QSignalSpy changed(&f.console, &SeedConsole::changed);
+        QSignalSpy changed(&f.console, &SeedConsole::refreshed);
         f.console.refresh();
         QCOMPARE(points.size(), 1);
         const QVariantList first = f.console.ladderPoints();
@@ -291,6 +332,79 @@ private Q_SLOTS:
         f.console.refresh();
         QCOMPARE(points.size(), 5);
         QCOMPARE(f.console.ladderPoints().size(), 4);
+    }
+
+    // #50: every block had one signal, so each 2 s refresh made the view read and rebuild all
+    // of them. A refresh that changed nothing now signals no block, only that it ran.
+    void aRefreshWithNothingChangedSignalsNoBlock()
+    {
+        Fixture f;
+        const qint64 t = kNow.toSecsSinceEpoch();
+        f.ledger.observe(t - 1200, 0, 0, {{QStringLiteral("ccc"), 0, 0}});
+        f.ledger.observe(t - 1198, 6000, 0, {{QStringLiteral("ccc"), 6000, 0}});
+        f.console.setRecentProvider([t] {
+            return QVariantList{QVariantMap{{QStringLiteral("kind"), QStringLiteral("milestone")},
+                                            {QStringLiteral("hash"), QStringLiteral("bbb")},
+                                            {QStringLiteral("name"), QStringLiteral("Chopin")},
+                                            {QStringLiteral("ratio"), 5},
+                                            {QStringLiteral("at"), t - 600}}};
+        });
+        BlockSpies spies(&f.console);
+        QSignalSpy fast(&f.console, &SeedConsole::refreshed);
+        QSignalSpy slow(&f.console, &SeedConsole::slowRefreshed);
+        f.console.refresh();
+        // The first refresh fills every block.
+        QCOMPARE(spies.fired(),
+                 QStringLiteral(
+                     "alive attention earning holding ladder ladderPoints lately onAir scopeLine "
+                     "tide totals trackers year"));
+
+        f.console.refresh();
+        f.console.refresh();
+        QCOMPARE(spies.fired(), QString());
+        QCOMPARE(fast.size(), 3);
+        QCOMPARE(slow.size(), 3);
+    }
+
+    // #50: what a poll of a seeding library changes (one torrent uploads, the server's
+    // all-time count goes up) signals the blocks that show it, and only those.
+    void aBlockSignalsWhenItChanges()
+    {
+        Fixture f;
+        BlockSpies spies(&f.console);
+        f.console.refresh();
+        spies.fired();
+
+        // Chopin uploads: 1000 bytes more, at 500 B/s; the server counts them too.
+        f.model.applyPartial(QJsonObject{{QStringLiteral("bbb"),
+                                          QJsonObject{{QStringLiteral("uploaded"), 7800},
+                                                      {QStringLiteral("ratio"), 7.8},
+                                                      {QStringLiteral("upspeed"), 500},
+                                                      {QStringLiteral("num_leechs"), 1}}}},
+                             QJsonArray());
+        f.state.applyServerState(QJsonObject{{QStringLiteral("alltime_ul"), 1001000}});
+        f.console.refresh();
+        // The year too: a new ledger's line quotes the server's all-time count.
+        QCOMPARE(spies.fired(), QStringLiteral("ladderPoints onAir totals trackers year"));
+        QCOMPARE(f.console.onAir().value(QStringLiteral("rows")).toList().size(), 2);
+
+        // Its tracker fails: the warning, the trackers' status, and keeping alive (its swarm
+        // count is no longer trusted), nothing else.
+        f.model.applyPartial(
+            QJsonObject{
+                {QStringLiteral("bbb"), QJsonObject{{QStringLiteral("has_tracker_error"), true}}}},
+            QJsonArray());
+        f.console.refresh();
+        QCOMPARE(spies.fired(), QStringLiteral("alive attention trackers"));
+        QCOMPARE(f.console.attention().value(QStringLiteral("errors")).toInt(), 2);
+
+        // The rail scopes the console to one category: the scope line and what it sums.
+        f.filter.setCategory(QStringLiteral("audio"));
+        f.console.refresh();
+        const QString fired = spies.fired();
+        QVERIFY2(fired.contains(QStringLiteral("scopeLine")), qPrintable(fired));
+        QVERIFY2(fired.contains(QStringLiteral("totals")), qPrintable(fired));
+        QCOMPARE(f.console.scopeCount(), 1);
     }
 
     void theTideReadsTheLedger()
