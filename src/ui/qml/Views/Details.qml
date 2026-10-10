@@ -320,6 +320,13 @@ Item {
         }
     }
 
+    /// A click in the pane gives it the keyboard, as `l` from the table does: without it a
+    /// click on a file left the keys with the table, and `ctrl+a` selected every torrent.
+    function takeKeys() {
+        if (!root.activeFocus)
+            root.forceActiveFocus();
+    }
+
     function cancelRename() {
         if (filesTab.renamingRow < 0)
             return;
@@ -846,7 +853,10 @@ Item {
                                                        }
                                                    ]) : root._tabs
 
-        onActivated: index => root.activateTab(index)
+        onActivated: index => {
+            root.takeKeys();
+            root.activateTab(index);
+        }
     }
 
     // The four tabs every torrent has (spec §2 Fig. 1).
@@ -896,6 +906,7 @@ Item {
             onCountChanged: root.generalCursor = Math.max(0, Math.min(root.generalCursor,
                                                                       generalTab.count - 1))
             onRowClicked: row => {
+                root.takeKeys();
                 root.generalCursor = row;
                 if (!root.toggleGeneralOption(row))
                     root.copyGeneralRow(row);
@@ -920,11 +931,13 @@ Item {
                     root.openFileRequested(root.details.files.pathAt(row));
             }
             onRowClicked: row => {
+                root.takeKeys();
                 root.filesCursor = row;
                 if (root.details.files.isFolder(row))
                     root.details.files.toggle(row);
             }
             onRowMenuRequested: (row, x, y) => {
+                root.takeKeys();
                 root.filesCursor = row;
                 const at = filesTab.mapToItem(root, x, y);
                 root.openFileMenu(at.x, at.y);
@@ -939,7 +952,10 @@ Item {
             model: root.details.trackers
             visible: root.currentTab === 2
 
-            onRowClicked: row => root.trackersCursor = row
+            onRowClicked: row => {
+                root.takeKeys();
+                root.trackersCursor = row;
+            }
         }
 
         DetailsPeersTab {
@@ -950,7 +966,10 @@ Item {
             model: root.details.peers
             visible: root.currentTab === 3
 
-            onRowClicked: row => root.peersCursor = row
+            onRowClicked: row => {
+                root.takeKeys();
+                root.peersCursor = row;
+            }
         }
 
         DetailsWebSeedsTab {
@@ -962,7 +981,10 @@ Item {
             objectName: "webSeedsTab"
             visible: root.currentTab === 4
 
-            onRowClicked: row => root.webSeedsCursor = row
+            onRowClicked: row => {
+                root.takeKeys();
+                root.webSeedsCursor = row;
+            }
         }
     }
 
