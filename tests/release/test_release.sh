@@ -71,14 +71,14 @@ git rev-parse -q --verify "refs/tags/$TAG" >/dev/null && fail "the dry run creat
 
 TAR_LISTING="$(tar tf "$TARBALL")"
 echo "==> The tarball's prefix"
-FIRST_ENTRY="$(printf '%s\n' "$TAR_LISTING" | head -n1)"
+FIRST_ENTRY="${TAR_LISTING%%$'\n'*}" # no pipe: head exiting early SIGPIPEs printf under pipefail
 [[ "$FIRST_ENTRY" == "omaseed-$VERSION/"* ]] || fail "tarball's first entry is not prefixed omaseed-$VERSION/: $FIRST_ENTRY"
 
 echo "==> docs/evidence is export-ignored"
-if printf '%s\n' "$TAR_LISTING" | grep -qE "^omaseed-$VERSION/(docs/evidence/|build|dist/)"; then
+if grep -qE "^omaseed-$VERSION/(docs/evidence/|build|dist/)" <<<"$TAR_LISTING"; then
     fail "docs/evidence, build*/ or dist/ leaked into the tarball"
 fi
-printf '%s\n' "$TAR_LISTING" | grep -qx "omaseed-$VERSION/CMakeLists.txt" || fail "CMakeLists.txt is missing from the tarball"
+grep -qx "omaseed-$VERSION/CMakeLists.txt" <<<"$TAR_LISTING" || fail "CMakeLists.txt is missing from the tarball"
 
 echo "==> SHA256SUMS"
 grep -qE "^[0-9a-f]{64}  omaseed-${VERSION//./\\.}\.tar\.gz$" "$SUMS" || fail "SHA256SUMS has the wrong line format"
