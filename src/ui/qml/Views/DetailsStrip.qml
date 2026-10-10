@@ -76,10 +76,12 @@ Item {
         Label {
             // Its whole width when there is room, less (elided) when there is not. With only
             // fillWidth the spacer below took half the spare room and the name was cut short.
+            // Rounded up: the layout snaps to whole pixels, and 109 px for 109.16 px of text
+            // elides a name that fits ("tiny-notes.t…").
             Layout.fillWidth: true
-            Layout.maximumWidth: implicitWidth
+            Layout.maximumWidth: Math.ceil(implicitWidth)
             Layout.minimumWidth: 0
-            Layout.preferredWidth: implicitWidth
+            Layout.preferredWidth: Math.ceil(implicitWidth)
             bright: root.hasTorrent
             dim: !root.hasTorrent
             elide: Text.ElideRight

@@ -83,4 +83,22 @@ TestCase {
         mouseClick(name, name.width / 2, name.height / 2);
         compare(asked, 2);
     }
+
+    // Seen on Diogo's desk: after a name too long for the line (elided), a short one stayed cut
+    // ("tiny-notes.t…") until the cursor moved again.
+    function test_a_short_name_after_an_elided_one_shows_whole() {
+        const strip = createTemporaryObject(stripComponent, testCase, {
+                                                "torrent": Object.assign({}, testCase.row, {
+                                                                             "name": "A deliberately long torrent name, ".repeat(6)
+                                                                         })
+                                            });
+        waitForRendering(strip, 500);
+        const name = findChild(strip, "stripName");
+        verify(name.truncated);
+        strip.torrent = Object.assign({}, testCase.row, {
+                                          "name": "tiny-notes.txt"
+                                      });
+        waitForRendering(strip, 500);
+        verify(!name.truncated, "width " + name.width + " of " + name.implicitWidth);
+    }
 }
