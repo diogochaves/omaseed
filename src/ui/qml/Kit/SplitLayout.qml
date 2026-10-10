@@ -45,7 +45,8 @@ Item {
     property bool sideVisible: true
     /// The side is folded (docs/17 M10): `foldedBar` or the folded column instead of `side`.
     property bool folded: false
-    /// "auto" follows the breakpoint; "right" and "bottom" pin the side there.
+    /// "auto" docks on the right only when the window is wide in both senses (at least the
+    /// breakpoint, and 16:10 or wider); "right" and "bottom" pin the side there.
     property string placement: "auto"
     property int defaultSideWidth: Theme.space(330)
     property int defaultSideHeight: Theme.space(260)
@@ -121,11 +122,19 @@ Item {
     /// ("dropping below the table under 1100 px"), and the split itself sits beside the rail,
     /// so MainView hands in the window's width; on its own the split measures itself.
     property int referenceWidth: root.width
+    /// The height the shape is measured against, the window's beside `referenceWidth`.
+    property int referenceHeight: root.height
 
     readonly property int breakpoint: Theme.space(1100)
+    /// "auto" docks on the right only from 16:10: a narrower window gives the table the width
+    /// and the details the bottom (Diogo, 2026-10-09: half of an ultrawide is 1720 x 1440).
+    readonly property real dockRatio: 1.6
     readonly property bool docked: root.placement === "right" ? true : root.placement === "bottom"
                                                                      ? false : root.referenceWidth
                                                                                >= root.breakpoint
+                                                                               && root.referenceWidth
+                                                                               >= root.dockRatio
+                                                                               * root.referenceHeight
     readonly property bool showSide: root.sideVisible && root.side !== null
     readonly property bool _open: root.showSide && !root.folded
     readonly property bool _shut: root.showSide && root.folded

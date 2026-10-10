@@ -52,6 +52,37 @@ TestCase {
         compare(split.docked, false);
     }
 
+    function test_auto_docks_only_from_16_by_10() {
+        const wide = split_breakpoint();
+        const split = createTemporaryObject(splitComponent, testCase, {
+                                                "width": wide,
+                                                "height": Math.floor(wide / 1.6)
+                                            });
+        compare(split.docked, true);
+        // As wide as the breakpoint but taller than 16:10: the details go to the bottom.
+        split.height = Math.floor(wide / 1.6) + 2;
+        compare(split.docked, false);
+        // Half of a 3440 x 1440 ultrawide, at any scale: bottom.
+        split.width = Math.max(wide, 1720);
+        split.height = Math.round(split.width * 1440 / 1720);
+        compare(split.docked, false);
+        // A pinned side ignores the shape.
+        split.placement = "right";
+        compare(split.docked, true);
+    }
+
+    function test_shape_reads_the_reference_height() {
+        const wide = split_breakpoint();
+        const split = createTemporaryObject(splitComponent, testCase, {
+                                                "width": wide,
+                                                "height": 100,
+                                                "referenceHeight": wide
+                                            });
+        compare(split.docked, false);
+        split.referenceHeight = Math.floor(wide / 1.6);
+        compare(split.docked, true);
+    }
+
     function test_breakpoint_is_scaled_space() {
         const split = createTemporaryObject(splitComponent, testCase);
         compare(split.breakpoint, Theme.space(1100));

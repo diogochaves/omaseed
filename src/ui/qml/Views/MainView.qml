@@ -1377,6 +1377,7 @@ Item {
             // docs/10 §5: the breakpoint is the window's width, not what is left beside the
             // rail, so hiding the rail no longer moves Details.
             referenceWidth: root.width
+            referenceHeight: root.height
             side: details
             // Two columns under the table (Details.wide) fit the General tab in less height;
             // docs/13's band over the tabs costs about 40, so 220 became 260.
