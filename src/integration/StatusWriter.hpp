@@ -11,7 +11,12 @@
 //
 // Cadence: a change is written at most once per `minInterval` (1 s); with no change the file is
 // rewritten every `heartbeat` (10 s) so the widget can tell a live app from a dead one. Speeds
-// are rounded to three significant figures before the change test. Each write goes to
+// are rounded to three significant figures before the change test.
+//
+// Cost (#36): the parts worked out from every torrent (on offer, keeping alive, top seeders,
+// active) are kept until the torrents change or one of them turns quiet, and the ratio
+// milestones follow each poll's diff, so an idle poll or an upload sample costs the same at
+// ten torrents as at thousands. Each write goes to
 // `status.json.tmp` (0600, in a 0700 directory) and is renamed into place, so a reader never
 // sees half a file. `removeFile()` on a clean quit.
 //
@@ -95,6 +100,8 @@ public:
     /// The document the next write would carry, `t` included.
     QJsonObject snapshot() const;
     int writeCount() const { return m_writeCount; }
+    /// How many times the per-torrent parts were worked out from the whole library (tests).
+    int torrentPartsBuilds() const { return m_partsBuilds; }
 
 public Q_SLOTS:
     /// Something the file shows may have moved: write it within `minInterval`.
@@ -124,6 +131,17 @@ private:
     QJsonObject content() const;
     QString serverKey() const;
 
+    struct TorrentParts
+    {
+        qint64 onOffer = 0;
+        QJsonObject alive;
+        QJsonArray topSeeders;
+        QJsonArray active;
+    };
+    /// The parts of the document that walk every torrent, for `now`: the kept ones while
+    /// they still hold.
+    const TorrentParts &torrentParts(const QDateTime &now) const;
+
     QString m_path;
     int m_minInterval = 1000;
     int m_heartbeatInterval = 10000;
@@ -152,6 +170,17 @@ private:
     omaseed::core::StatusDigest::UploadSampler m_sampler;
     omaseed::core::StatusDigest::WeekLedger m_week;
     omaseed::core::StatusDigest::RatioMilestones m_milestones;
+    /// TorrentModel::revision() at the last milestone check; false until a whole-list one.
+    quint64 m_milestonesRevision = 0;
+    bool m_milestonesFed = false;
+
+    mutable TorrentParts m_parts;
+    mutable bool m_partsValid = false;
+    mutable const void *m_partsModel = nullptr;
+    mutable quint64 m_partsRevision = 0;
+    mutable qint64 m_partsAt = 0;      ///< unix seconds they were worked out for
+    mutable qint64 m_partsQuietAt = 0; ///< when one of them turns quiet; 0 never
+    mutable int m_partsBuilds = 0;
     QJsonArray m_recent;
     bool m_weekDirty = false;
     QDateTime m_weekSavedAt;

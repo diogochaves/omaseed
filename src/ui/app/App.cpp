@@ -49,6 +49,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <utility>
 
 using namespace omaseed::core;
 using omaseed::integration::Tray;
@@ -4101,44 +4102,75 @@ void App::feedLedger()
     const TorrentModel *torrents = m_engine->torrents();
     const GlobalState *state = m_engine->globalState();
     const qint64 now = QDateTime::currentSecsSinceEpoch();
-    QList<SeedLedger::TorrentTotals> totals;
-    totals.reserve(torrents->count());
-    QStringList hashes;
-    for (int i = 0; i < torrents->count(); ++i) {
-        const Torrent &t = torrents->torrentAt(i);
-        totals.append({t.hash, t.uploaded, t.downloaded,
-                       t.addedOn.isValid() ? t.addedOn.toSecsSinceEpoch() : 0});
-        hashes.append(t.hash);
+    const auto totalsOf = [](const Torrent &t) {
+        return SeedLedger::TorrentTotals{t.hash, t.uploaded, t.downloaded,
+                                         t.addedOn.isValid() ? t.addedOn.toSecsSinceEpoch() : 0};
+    };
+    // #36: an idle poll changes nothing and costs nothing; a busy one, the rows it touched.
+    const bool follows = m_fed && torrents->lastChangeFollows(m_fedRevision);
+    if (follows && !m_ledger->wantsWholeList()) {
+        const TorrentModel::Change &change = torrents->lastChange();
+        QList<SeedLedger::TorrentTotals> changed;
+        changed.reserve(change.changed.size());
+        for (const QString &hash : change.changed)
+            changed.append(totalsOf(torrents->torrent(hash)));
+        m_ledger->observeChanges(now, state->allTimeUpload(), state->allTimeDownload(), changed,
+                                 change.removed);
+    } else {
+        QList<SeedLedger::TorrentTotals> totals;
+        totals.reserve(torrents->count());
+        for (int i = 0; i < torrents->count(); ++i)
+            totals.append(totalsOf(torrents->torrentAt(i)));
+        m_ledger->observe(now, state->allTimeUpload(), state->allTimeDownload(), totals);
     }
-    m_ledger->observe(now, state->allTimeUpload(), state->allTimeDownload(), totals);
 
-    // T7: a complete torrent whose swarm just went down to you alone.
-    QHash<QString, int> swarm;
-    for (int i = 0; i < torrents->count(); ++i) {
-        const Torrent &t = torrents->torrentAt(i);
-        const int seeds = SeedConsole::knownSeeds(t);
-        if (!t.isComplete() || seeds <= 0)
-            continue;
-        swarm.insert(t.hash, seeds);
-        const int before = m_lastSwarm.value(t.hash, 0);
-        if (seeds == 1 && before > 1 && !m_lastSwarm.isEmpty())
-            Q_EMIT seedNotice(QStringLiteral("lastSeed"), t.hash,
-                              tr("You are now the only seed of %1").arg(t.name),
-                              t.numIncomplete > 0 ? tr("%1 waiting").arg(t.numIncomplete) : QString());
+    // T7: a complete torrent whose swarm just went down to you alone. Nothing is announced
+    // from the poll that fills an empty map (the first one).
+    const bool announce = !m_lastSwarm.isEmpty();
+    if (follows) {
+        const TorrentModel::Change &change = torrents->lastChange();
+        for (const QString &hash : change.removed) {
+            if (!change.changed.contains(hash))
+                m_lastSwarm.remove(hash);
+        }
+        for (const QString &hash : change.changed)
+            checkLastSeed(torrents->torrent(hash), m_lastSwarm.value(hash, 0), announce);
+    } else {
+        const QHash<QString, int> before = std::exchange(m_lastSwarm, {});
+        for (int i = 0; i < torrents->count(); ++i) {
+            const Torrent &t = torrents->torrentAt(i);
+            checkLastSeed(t, before.value(t.hash, 0), announce);
+        }
     }
-    m_lastSwarm = swarm;
+    m_fed = true;
+    m_fedRevision = torrents->revision();
+
     m_ledger->sampleSpeed(now, state->upInfoSpeed(), state->dlInfoSpeed());
     // Dev only: a made-up year before today, to judge the console as it will look a year in.
     if (!m_ledgerDemoDone && (m_demoMode || !env("OMASEED_LEDGER_DEMO").isEmpty())
-        && !hashes.isEmpty()) {
+        && torrents->count() > 0) {
         m_ledgerDemoDone = true;
         // A typical made-up day gives about a fifth of what the library holds.
         qint64 held = 0;
         for (int i = 0; i < torrents->count(); ++i)
             held += torrents->torrentAt(i).isComplete() ? torrents->torrentAt(i).size : 0;
-        m_ledger->fillDemo(now, hashes, std::max<qint64>(held / 5, 64LL * 1024 * 1024));
+        m_ledger->fillDemo(now, torrents->hashes(), std::max<qint64>(held / 5, 64LL * 1024 * 1024));
         m_console->refresh();
     }
+}
+
+void App::checkLastSeed(const Torrent &t, int before, bool announce)
+{
+    const int seeds = SeedConsole::knownSeeds(t);
+    if (!t.isComplete() || seeds <= 0) {
+        m_lastSwarm.remove(t.hash);
+        return;
+    }
+    m_lastSwarm.insert(t.hash, seeds);
+    if (announce && seeds == 1 && before > 1)
+        Q_EMIT seedNotice(QStringLiteral("lastSeed"), t.hash,
+                          tr("You are now the only seed of %1").arg(t.name),
+                          t.numIncomplete > 0 ? tr("%1 waiting").arg(t.numIncomplete) : QString());
 }
 
 // --- end #24 ---------------------------------------------------------------------------------

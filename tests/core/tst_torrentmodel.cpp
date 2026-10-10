@@ -88,6 +88,7 @@ private slots:
     void partialAppendsUnknownHashes();
     void partialRemovesInContiguousRuns();
     void aHashRemovedTwiceRemovesOneRow();
+    void lastChangeNamesWhatAPollTouched();
     void aNewDayRefreshesTheRelativeTexts();
     void dataChangedIsBatchedPerRun();
     void dataChangedNamesOnlyTheChangedRoles();
@@ -327,6 +328,52 @@ void TestTorrentModel::aHashRemovedTwiceRemovesOneRow()
     model.applyFullUpdate(threeTorrents());
     model.applyPartial(QJsonObject(), QJsonArray({QStringLiteral("bbbb"), QStringLiteral("bbbb")}));
     QCOMPARE(model.hashes(), QStringList({QStringLiteral("aaaa"), QStringLiteral("cccc")}));
+}
+
+// #36: code that keeps state per torrent follows the rows a poll touched, not the library.
+void TestTorrentModel::lastChangeNamesWhatAPollTouched()
+{
+    TorrentModel model;
+    const quint64 start = model.revision();
+    model.applyFullUpdate(threeTorrents());
+    QVERIFY(model.lastChange().full);
+    QCOMPARE(model.revision(), start + 1);
+    QVERIFY(!model.lastChangeFollows(start)); // a full update is walked whole
+
+    // An idle poll: nothing changed, the revision stays, and it follows on.
+    quint64 seen = model.revision();
+    model.applyPartial(QJsonObject(), QJsonArray());
+    QVERIFY(!model.lastChange().full);
+    QVERIFY(model.lastChange().changed.isEmpty());
+    QVERIFY(model.lastChange().removed.isEmpty());
+    QCOMPARE(model.revision(), seen);
+    QVERIFY(model.lastChangeFollows(seen));
+
+    // A key that holds its value is not a change; one that moves is. New rows count too.
+    model.applyPartial(QJsonObject{{QStringLiteral("aaaa"),
+                                    QJsonObject{{QStringLiteral("ratio"), 0.15}}},
+                                   {QStringLiteral("bbbb"),
+                                    QJsonObject{{QStringLiteral("ratio"), 2.5}}},
+                                   {QStringLiteral("dddd"),
+                                    torrentJson(QStringLiteral("delta"), QStringLiteral("uploading"), 1.0)}},
+                       QJsonArray({QStringLiteral("cccc"), QStringLiteral("cccc"), QStringLiteral("zzzz")}));
+    QCOMPARE(model.lastChange().changed, QStringList({QStringLiteral("bbbb"), QStringLiteral("dddd")}));
+    QCOMPARE(model.lastChange().removed, QStringList({QStringLiteral("cccc")}));
+    QCOMPARE(model.revision(), seen + 1);
+    QVERIFY(model.lastChangeFollows(seen));
+
+    // A caller that missed a poll walks again.
+    seen = model.revision();
+    model.applyPartial(QJsonObject{{QStringLiteral("aaaa"), QJsonObject{{QStringLiteral("ratio"), 0.5}}}},
+                       QJsonArray());
+    model.applyPartial(QJsonObject(), QJsonArray());
+    QVERIFY(!model.lastChangeFollows(seen));
+
+    // clear() then an idle poll: the clear is not lost.
+    seen = model.revision();
+    model.clear();
+    model.applyPartial(QJsonObject(), QJsonArray());
+    QVERIFY(!model.lastChangeFollows(seen));
 }
 
 void TestTorrentModel::aNewDayRefreshesTheRelativeTexts()

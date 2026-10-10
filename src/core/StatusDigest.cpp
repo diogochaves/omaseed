@@ -3,6 +3,7 @@
 #include "core/TorrentModel.hpp"
 
 #include <QJsonValue>
+#include <QSet>
 
 #include <algorithm>
 #include <cmath>
@@ -26,9 +27,14 @@ bool isHeld(const Torrent &torrent)
     return torrent.isComplete() && torrent.inGroup(StatusGroup::Seeding);
 }
 
+QDateTime lastActive(const Torrent &torrent)
+{
+    return torrent.lastActivity.isValid() ? torrent.lastActivity : torrent.addedOn;
+}
+
 bool isQuiet(const Torrent &torrent, const QDateTime &now)
 {
-    const QDateTime last = torrent.lastActivity.isValid() ? torrent.lastActivity : torrent.addedOn;
+    const QDateTime last = lastActive(torrent);
     if (!last.isValid())
         return false;
     return last.secsTo(now) >= kQuietDays * 24 * 3600;
@@ -60,8 +66,9 @@ double roundRatio(double ratio)
     return std::round(ratio * 1000.0) / 1000.0;
 }
 
-QJsonObject alive(const QList<Torrent> &torrents, const QDateTime &now)
+QJsonObject alive(const QList<Torrent> &torrents, const QDateTime &now, qint64 *quietAt)
 {
+    qint64 nextQuiet = 0;
     struct Bucket
     {
         int count = 0;
@@ -83,8 +90,13 @@ QJsonObject alive(const QList<Torrent> &torrents, const QDateTime &now)
         if (torrent.numIncomplete > 0)
             ++bucket.waiting;
         bucket.peers += torrent.numIncomplete;
-        if (isQuiet(torrent, now))
+        if (isQuiet(torrent, now)) {
             ++bucket.quiet;
+        } else if (const QDateTime last = lastActive(torrent); last.isValid()) {
+            const qint64 at = last.toSecsSinceEpoch() + kQuietDays * 24 * 3600;
+            if (nextQuiet == 0 || at < nextQuiet)
+                nextQuiet = at;
+        }
         rare.append(&torrent);
     }
 
@@ -117,6 +129,8 @@ QJsonObject alive(const QList<Torrent> &torrents, const QDateTime &now)
             {QStringLiteral("waiting"), torrent->numIncomplete},
         });
     }
+    if (quietAt)
+        *quietAt = nextQuiet;
     return QJsonObject{{QStringLiteral("buckets"), bucketJson}, {QStringLiteral("rows"), rows}};
 }
 
@@ -318,6 +332,34 @@ QList<RatioMilestones::Crossing> RatioMilestones::observe(const QList<Torrent> &
             crossings.append(Crossing{torrent.hash, mark});
     }
     m_ratios = std::move(next);
+    return crossings;
+}
+
+QList<RatioMilestones::Crossing> RatioMilestones::observeChanges(const QList<Torrent> &changed,
+                                                                 const QStringList &removed)
+{
+    // Removed and added again in one poll: still listed, so observe() would compare it with
+    // the ratio it had.
+    if (!removed.isEmpty()) {
+        QSet<QString> listed;
+        for (const Torrent &torrent : changed)
+            listed.insert(torrent.hash);
+        for (const QString &hash : removed) {
+            if (!listed.contains(hash))
+                m_ratios.remove(hash);
+        }
+    }
+    QList<Crossing> crossings;
+    for (const Torrent &torrent : changed) {
+        const auto it = m_ratios.find(torrent.hash);
+        if (it == m_ratios.end()) {
+            m_ratios.insert(torrent.hash, torrent.ratio);
+            continue;
+        }
+        for (const int mark : milestonesBetween(it.value(), torrent.ratio))
+            crossings.append(Crossing{torrent.hash, mark});
+        it.value() = torrent.ratio;
+    }
     return crossings;
 }
 

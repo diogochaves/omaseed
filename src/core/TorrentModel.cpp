@@ -414,6 +414,7 @@ QStringList TorrentModel::hashes() const
 
 void TorrentModel::applyFullUpdate(const QJsonObject &torrents)
 {
+    m_lastChange = Change{true, {}, {}, m_revision};
     beginResetModel();
     m_rows.clear();
     m_indexByHash.clear();
@@ -426,6 +427,7 @@ void TorrentModel::applyFullUpdate(const QJsonObject &torrents)
         m_rows.append(std::move(t));
     }
     endResetModel();
+    ++m_revision;
     Q_EMIT countChanged();
     Q_EMIT updated();
 }
@@ -433,15 +435,21 @@ void TorrentModel::applyFullUpdate(const QJsonObject &torrents)
 void TorrentModel::applyPartial(const QJsonObject &torrents, const QJsonArray &removed)
 {
     bool touchedAnything = false;
+    m_lastChange = Change{false, {}, {}, m_revision};
 
     // 1. Removals first, so an add that reuses a freed hash cannot collide.
     if (!removed.isEmpty()) {
         QList<int> rows;
         rows.reserve(removed.size());
+        QSet<QString> named;
         for (const QJsonValue &value : removed) {
-            const int row = indexOfHash(value.toString());
-            if (row >= 0)
+            const QString hash = value.toString();
+            const int row = indexOfHash(hash);
+            if (row >= 0 && !named.contains(hash)) {
+                named.insert(hash);
                 rows.append(row);
+                m_lastChange.removed.append(hash);
+            }
         }
         if (!rows.isEmpty()) {
             std::sort(rows.begin(), rows.end(), std::greater<int>());
@@ -480,6 +488,7 @@ void TorrentModel::applyPartial(const QJsonObject &torrents, const QJsonArray &r
         const QStringList changedKeys = m_rows[row].applyJson(it.value().toObject());
         if (changedKeys.isEmpty())
             continue;
+        m_lastChange.changed.append(it.key());
         QList<int> roles{TorrentRole};
         for (const QString &key : changedKeys) {
             for (const int role : rolesForJsonKey(key)) {
@@ -503,6 +512,7 @@ void TorrentModel::applyPartial(const QJsonObject &torrents, const QJsonArray &r
             t.hash = it.key();
             t.applyJson(it.value().toObject());
             m_indexByHash.insert(t.hash, int(m_rows.size()));
+            m_lastChange.changed.append(t.hash);
             m_rows.append(std::move(t));
         }
         endInsertRows();
@@ -510,8 +520,10 @@ void TorrentModel::applyPartial(const QJsonObject &torrents, const QJsonArray &r
         Q_EMIT countChanged();
     }
 
-    if (touchedAnything)
+    if (touchedAnything) {
+        ++m_revision;
         Q_EMIT updated();
+    }
 }
 
 void TorrentModel::emitRunsFor(const QList<QPair<int, QList<int>>> &touched)
@@ -544,12 +556,14 @@ void TorrentModel::emitRunsFor(const QList<QPair<int, QList<int>>> &touched)
 
 void TorrentModel::clear()
 {
+    m_lastChange = Change{true, {}, {}, m_revision};
     if (m_rows.isEmpty())
         return;
     beginResetModel();
     m_rows.clear();
     m_indexByHash.clear();
     endResetModel();
+    ++m_revision;
     Q_EMIT countChanged();
     Q_EMIT updated();
 }

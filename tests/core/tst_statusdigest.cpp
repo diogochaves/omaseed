@@ -55,9 +55,11 @@ private slots:
     void weekRoundTripsAndPrunes();
     void milestonesBetweenRatios();
     void milestonesNeedABefore();
+    void milestonesFromADiffMatchTheWholeList();
     void aliveBucketsBySwarmSeeds();
     void aliveRowsRarestFirst();
     void aliveCountsQuietTorrents();
+    void aliveSaysWhenItWillChange();
     void topSeedersByUploadThisSession();
     void activeFastestFirst();
     void onOfferCountsCompleteOnly();
@@ -208,6 +210,63 @@ void TestStatusDigest::milestonesNeedABefore()
     QCOMPARE(crossings.first().ratio, 1);
 }
 
+// #36: a poll's diff gives the same crossings as the whole list.
+void TestStatusDigest::milestonesFromADiffMatchTheWholeList()
+{
+    digest::RatioMilestones whole;
+    digest::RatioMilestones diff;
+    Torrent a = seeding(QStringLiteral("a"), 3);
+    a.ratio = 0.9;
+    Torrent b = seeding(QStringLiteral("b"), 3);
+    b.ratio = 1.8;
+    Torrent c = seeding(QStringLiteral("c"), 3);
+    c.ratio = 4.0;
+    QVERIFY(whole.observe({a, b, c}).isEmpty());
+    QVERIFY(diff.observe({a, b, c}).isEmpty());
+
+    const auto same = [](const QList<digest::RatioMilestones::Crossing> &x,
+                         const QList<digest::RatioMilestones::Crossing> &y) {
+        if (x.size() != y.size())
+            return false;
+        for (qsizetype i = 0; i < x.size(); ++i) {
+            if (x.at(i).hash != y.at(i).hash || x.at(i).ratio != y.at(i).ratio)
+                return false;
+        }
+        return true;
+    };
+
+    // a crosses 1, b crosses 2, c holds; a new torrent d only sets its start.
+    a.ratio = 1.2;
+    b.ratio = 2.1;
+    Torrent d = seeding(QStringLiteral("d"), 3);
+    d.ratio = 9.0;
+    auto w = whole.observe({a, b, c, d});
+    auto f = diff.observeChanges({a, b, d}, {});
+    QCOMPARE(w.size(), 2);
+    QVERIFY(same(w, f));
+
+    // c removed, then added again later: a fresh start in both, nothing announced.
+    w = whole.observe({a, b, d});
+    f = diff.observeChanges({}, {QStringLiteral("c")});
+    QVERIFY(w.isEmpty() && f.isEmpty());
+    c.ratio = 5.5;
+    w = whole.observe({a, b, c, d});
+    f = diff.observeChanges({c}, {});
+    QVERIFY(w.isEmpty() && f.isEmpty());
+
+    // Removed and added again in one poll: still compared with what it had.
+    d.ratio = 1.0; // went down: nothing
+    c.ratio = 6.0;
+    w = whole.observe({a, b, c, d});
+    f = diff.observeChanges({c, d}, {QStringLiteral("c")});
+    QVERIFY(same(w, f));
+    a.ratio = 5.0;
+    w = whole.observe({a, b, c, d});
+    f = diff.observeChanges({a}, {});
+    QCOMPARE(w.size(), 2); // 2 and 5
+    QVERIFY(same(w, f));
+}
+
 void TestStatusDigest::aliveBucketsBySwarmSeeds()
 {
     Torrent stopped = seeding(QStringLiteral("stopped"), 1);
@@ -276,6 +335,40 @@ void TestStatusDigest::aliveCountsQuietTorrents()
     const QJsonObject one = alive.value(QStringLiteral("buckets")).toArray().first().toObject();
     QCOMPARE(one.value(QStringLiteral("count")).toInt(), 4);
     QCOMPARE(one.value(QStringLiteral("quiet")).toInt(), 2);
+}
+
+// #36: the status file keeps `alive` until the moment its quiet count would move.
+void TestStatusDigest::aliveSaysWhenItWillChange()
+{
+    Torrent old = seeding(QStringLiteral("old"), 1);
+    old.lastActivity = kNow.addDays(-31);
+    Torrent recent = seeding(QStringLiteral("recent"), 1);
+    recent.lastActivity = kNow.addDays(-2);
+    Torrent fresh = seeding(QStringLiteral("fresh"), 2);
+    fresh.addedOn = kNow.addDays(-1);
+    Torrent crowd = seeding(QStringLiteral("crowd"), 40); // not counted: never asked about
+    crowd.lastActivity = kNow.addDays(-29);
+    qint64 quietAt = -1;
+    digest::alive({old, recent, fresh, crowd}, kNow, &quietAt);
+    const qint64 expected = recent.lastActivity.toSecsSinceEpoch() + 30 * 24 * 3600;
+    QCOMPARE(quietAt, expected);
+
+    // Just before it, the same; at it, one more quiet.
+    const auto quietCount = [&](const QDateTime &now) {
+        const QJsonObject alive = digest::alive({old, recent, fresh, crowd}, now);
+        int quiet = 0;
+        for (const QJsonValue &bucket : alive.value(QStringLiteral("buckets")).toArray())
+            quiet += bucket.toObject().value(QStringLiteral("quiet")).toInt();
+        return quiet;
+    };
+    QCOMPARE(quietCount(QDateTime::fromSecsSinceEpoch(expected - 1)), 1);
+    QCOMPARE(quietCount(QDateTime::fromSecsSinceEpoch(expected)), 2);
+
+    // Everything already quiet, or nothing with a date: never.
+    digest::alive({old}, kNow, &quietAt);
+    QCOMPARE(quietAt, qint64(0));
+    digest::alive({seeding(QStringLiteral("undated"), 1)}, kNow, &quietAt);
+    QCOMPARE(quietAt, qint64(0));
 }
 
 void TestStatusDigest::topSeedersByUploadThisSession()
