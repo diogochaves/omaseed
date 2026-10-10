@@ -173,12 +173,12 @@ Sheet {
             "label": Keymap.labelOf("addFiles", "space")
         },
         {
-            "key": "+ -",
-            "label": Keymap.labelOf("addFiles", "+")
+            "key": "ctrl+a",
+            "label": Keymap.labelOf("addFiles", "ctrl+a")
         },
         {
-            "key": "x",
-            "label": Keymap.labelOf("addFiles", "x")
+            "key": "+ -",
+            "label": Keymap.labelOf("addFiles", "+")
         },
         {
             "key": "h l",
@@ -1102,44 +1102,6 @@ Sheet {
                                 size: "caption"
                                 text: App.addFiles.summaryText
                             }
-
-                            // M17: every file wanted, or none, with one click. Words, not
-                            // buttons, like the field's "browse"; the keyboard stays put.
-                            Label {
-                                color: allMouse.containsMouse ? Theme.accent : Theme.dimForeground
-                                objectName: "addFilesAll"
-                                size: "caption"
-                                text: qsTr("all")
-
-                                MouseArea {
-                                    id: allMouse
-
-                                    anchors.fill: parent
-                                    anchors.margins: -Theme.space(4)
-                                    cursorShape: Qt.PointingHandCursor
-                                    hoverEnabled: true
-
-                                    onClicked: App.addFiles.setAllWanted(true)
-                                }
-                            }
-
-                            Label {
-                                color: noneMouse.containsMouse ? Theme.accent : Theme.dimForeground
-                                objectName: "addFilesNone"
-                                size: "caption"
-                                text: qsTr("none")
-
-                                MouseArea {
-                                    id: noneMouse
-
-                                    anchors.fill: parent
-                                    anchors.margins: -Theme.space(4)
-                                    cursorShape: Qt.PointingHandCursor
-                                    hoverEnabled: true
-
-                                    onClicked: App.addFiles.setAllWanted(false)
-                                }
-                            }
                         }
 
                         AddFilesTree {
@@ -1147,8 +1109,8 @@ Sheet {
 
                             Layout.fillWidth: true
                             Layout.preferredHeight: implicitHeight
-                            // Never fewer than four rows: below that the whole body scrolls.
-                            maximumHeight: Math.max(4 * Theme.railRowHeight + 2, sheet._treeRoom)
+                            // The header and four rows at least: below that the whole body scrolls.
+                            maximumHeight: Math.max(5 * Theme.railRowHeight + 2, sheet._treeRoom)
                             model: App.addFiles
                         }
                     }

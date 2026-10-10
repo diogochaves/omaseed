@@ -26,6 +26,9 @@ AddFilesModel::AddFilesModel(QObject *parent)
 QHash<int, QByteArray> AddFilesModel::roleNames() const
 {
     QHash<int, QByteArray> names = m_tree->roleNames();
+    // The tree has a "wanted" of its own (the Files tab's tick); ours, from the choices
+    // made here, is the one the sheet reads.
+    names.remove(TorrentFilesModel::WantedRole);
     names.insert(WantedRole, "wanted");
     names.insert(RenamedRole, "renamed");
     names.insert(OriginalNameRole, "originalName");
@@ -101,6 +104,7 @@ void AddFilesModel::load(const QList<TorrentFileEntry> &files)
 {
     m_files = files;
     m_priorities = QList<int>(files.size(), kNormal);
+    m_beforeSkip = QList<int>(files.size(), kNormal);
     m_paths.clear();
     for (const TorrentFileEntry &file : files)
         m_paths.append(file.path);
@@ -117,6 +121,7 @@ void AddFilesModel::clear()
         return;
     m_files.clear();
     m_priorities.clear();
+    m_beforeSkip.clear();
     m_paths.clear();
     m_renames.clear();
     m_tree->clear();
@@ -182,6 +187,8 @@ bool AddFilesModel::setIds(const QList<int> &ids, int priority)
     bool changed = false;
     for (int id : ids) {
         if (id >= 0 && id < int(m_priorities.size()) && m_priorities.at(id) != priority) {
+            if (priority == kSkip && id < int(m_beforeSkip.size()))
+                m_beforeSkip[id] = m_priorities.at(id);
             m_priorities[id] = priority;
             changed = true;
         }
@@ -197,10 +204,28 @@ void AddFilesModel::setPriority(int row, int priority)
     Q_EMIT choicesChanged();
 }
 
+bool AddFilesModel::restoreIds(const QList<int> &ids)
+{
+    bool changed = false;
+    for (int id : ids) {
+        if (id < 0 || id >= int(m_priorities.size()) || m_priorities.at(id) != kSkip)
+            continue;
+        const int before = m_beforeSkip.value(id, kNormal);
+        m_priorities[id] = before == kSkip ? kNormal : before;
+        changed = true;
+    }
+    return changed;
+}
+
 void AddFilesModel::toggleWanted(int row)
 {
-    const int wanted = data(index(row, 0), WantedRole).toInt();
-    setPriority(row, wanted == 0 ? kNormal : kSkip);
+    const QList<int> ids = idsAt(row);
+    const bool changed =
+        data(index(row, 0), WantedRole).toInt() == 2 ? setIds(ids, kSkip) : restoreIds(ids);
+    if (!changed)
+        return;
+    applyToTree();
+    Q_EMIT choicesChanged();
 }
 
 void AddFilesModel::raise(int row)
@@ -245,18 +270,18 @@ void AddFilesModel::cyclePriority(int row)
 
 void AddFilesModel::setAllWanted(bool wanted)
 {
-    bool changed = false;
-    for (int &priority : m_priorities) {
-        const int next = wanted ? (priority == kSkip ? kNormal : priority) : kSkip;
-        if (next != priority) {
-            priority = next;
-            changed = true;
-        }
-    }
-    if (!changed)
+    QList<int> ids;
+    for (int id = 0; id < int(m_priorities.size()); ++id)
+        ids.append(id);
+    if (!(wanted ? restoreIds(ids) : setIds(ids, kSkip)))
         return;
     applyToTree();
     Q_EMIT choicesChanged();
+}
+
+void AddFilesModel::toggleAllWanted()
+{
+    setAllWanted(wantedCount() < fileCount());
 }
 
 QString AddFilesModel::pathAt(int row) const

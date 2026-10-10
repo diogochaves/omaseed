@@ -107,6 +107,7 @@ QHash<int, QByteArray> TorrentFilesModel::roleNames() const
         {PieceLastRole, "pieceLast"},
         {PiecesTextRole, "piecesText"},
         {SelectedRole, "rowSelected"},
+        {WantedRole, "wanted"},
     };
 }
 
@@ -161,6 +162,10 @@ QVariant TorrentFilesModel::data(const QModelIndex &index, int role) const
         return QStringLiteral("%1–%2").arg(node.pieceFirst).arg(node.pieceLast);
     case SelectedRole:
         return m_selected.contains(node.path);
+    case WantedRole:
+        if (!node.isFolder)
+            return node.priority == int(FilePriority::Skip) ? 0 : 2;
+        return node.skippedFiles == 0 ? 2 : node.skippedFiles == node.files ? 0 : 1;
     default:
         return {};
     }
@@ -370,7 +375,8 @@ void TorrentFilesModel::updateInPlace(const QJsonArray &files)
                     RemainingTextRole,
                     PieceFirstRole,
                     PieceLastRole,
-                    PiecesTextRole});
+                    PiecesTextRole,
+                    WantedRole});
 }
 
 void TorrentFilesModel::aggregate(int at)
@@ -391,6 +397,8 @@ void TorrentFilesModel::aggregate(int at)
     int order = -1;
     bool first = true;
     QList<int> ids;
+    int files = 0;
+    int skippedFiles = 0;
 
     const QList<int> children = m_nodes.at(at).children;
     for (int child : children) {
@@ -406,6 +414,14 @@ void TorrentFilesModel::aggregate(int at)
             wantedDone += double(kid.size) * kid.progress;
         }
         ids.append(kid.fileIndexes);
+        if (kid.isFolder) {
+            files += kid.files;
+            skippedFiles += kid.skippedFiles;
+        } else {
+            ++files;
+            if (kid.priority == int(FilePriority::Skip))
+                ++skippedFiles;
+        }
         // Availability is weighted by size over the files that are wanted, as qBittorrent's
         // content view does: a skipped file's pieces say nothing about this download.
         if (kid.priority != int(FilePriority::Skip) && kid.availability >= 0.0) {
@@ -438,6 +454,8 @@ void TorrentFilesModel::aggregate(int at)
     node.pieceFirst = pieceFirst;
     node.pieceLast = pieceLast;
     node.order = std::max(order, 0);
+    node.files = files;
+    node.skippedFiles = skippedFiles;
 }
 
 // --- filter and sort ---------------------------------------------------------------------
@@ -537,6 +555,7 @@ void TorrentFilesModel::setFilterText(const QString &text)
     beginResetModel();
     rebuildVisible();
     endResetModel();
+    updateHeadWanted();
     Q_EMIT filterTextChanged();
     Q_EMIT countChanged();
 }
@@ -719,8 +738,48 @@ void TorrentFilesModel::reorderVisible(const QList<int> &next)
     Q_EMIT reordered();
 }
 
+void TorrentFilesModel::updateHeadWanted()
+{
+    int files = 0;
+    int skipped = 0;
+    for (const Node &node : std::as_const(m_nodes)) {
+        if (node.isFolder || (!m_filterText.isEmpty() && !filterMatches(m_filterText, node.path)))
+            continue;
+        ++files;
+        if (node.priority == int(FilePriority::Skip))
+            ++skipped;
+    }
+    const int wanted = skipped == 0 ? 2 : skipped == files ? 0 : 1;
+    if (wanted == m_headWanted && files == m_headFileCount)
+        return;
+    m_headWanted = wanted;
+    m_headFileCount = files;
+    Q_EMIT headWantedChanged();
+}
+
+QVariantList TorrentFilesModel::headFileIndexes() const
+{
+    QList<int> ids;
+    for (const Node &node : m_nodes) {
+        if (!node.isFolder && (m_filterText.isEmpty() || filterMatches(m_filterText, node.path)))
+            ids.append(node.fileIndex);
+    }
+    std::sort(ids.begin(), ids.end());
+    return toVariantList(ids);
+}
+
+int TorrentFilesModel::filePriority(int fileIndex) const
+{
+    for (const Node &node : m_nodes) {
+        if (!node.isFolder && node.fileIndex == fileIndex)
+            return node.priority;
+    }
+    return -1;
+}
+
 void TorrentFilesModel::updateSummary()
 {
+    updateHeadWanted();
     int folders = 0;
     int skipped = 0;
     qint64 size = 0;
@@ -1037,7 +1096,8 @@ void TorrentFilesModel::setLocalPriority(const QVariantList &fileIndexes, int pr
                     RemainingRole,
                     RemainingTextRole,
                     AvailabilityRole,
-                    AvailabilityTextRole});
+                    AvailabilityTextRole,
+                    WantedRole});
 }
 
 QString TorrentFilesModel::pathAt(int row) const

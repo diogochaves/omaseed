@@ -1002,7 +1002,18 @@ QtObject {
             "area": "addFiles",
             "key": "space",
             "action": "toggleFile",
-            "label": qsTr("check"),
+            "label": qsTr("tick"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        // docs/27 D2: every file ticked, then none (the header row's tick does the same).
+        {
+            "area": "addFiles",
+            "key": "ctrl+a",
+            "action": "toggleAllFiles",
+            "label": qsTr("all / none"),
             "column": "",
             "rank": 0,
             "helpKeys": "",

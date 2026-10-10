@@ -69,6 +69,8 @@ private Q_SLOTS:
     void a_priority_change_hides_or_shows_a_file_at_once();
     void hiding_skipped_files_is_a_preference_not_the_torrents();
     void rename_targets_are_the_selected_files_else_every_shown_one();
+    void the_tick_reads_wanted_over_each_subtree();
+    void the_head_tick_covers_what_the_filter_shows();
 };
 
 void TestTorrentFilesModel::builds_the_tree_from_slash_separated_names()
@@ -939,6 +941,65 @@ void TestTorrentFilesModel::rename_targets_are_the_selected_files_else_every_sho
     model.setSelected(model.rowOfPath(root.chopped(1)), true);
     QCOMPARE(model.selectedFileCount(), 1);
     QCOMPARE(model.renameTargets(), QStringList({root + QStringLiteral("LICENSE.txt")}));
+}
+
+// #42 (docs/27): the tick column. A file reads 2 unless skipped (0); a folder 2 with nothing
+// skipped under it, 0 with everything skipped, 1 in between. Kept up by a local priority.
+void TestTorrentFilesModel::the_tick_reads_wanted_over_each_subtree()
+{
+    TorrentFilesModel model;
+    model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
+    QAbstractItemModelTester tester(&model);
+
+    const int root = model.rowOfPath(QStringLiteral("Big Buck Bunny 4K"));
+    const int subs = model.rowOfPath(QStringLiteral("Big Buck Bunny 4K/subs"));
+    const int srt = model.rowOfPath(QStringLiteral("Big Buck Bunny 4K/subs/bbb.en.srt"));
+    const int license = model.rowOfPath(QStringLiteral("Big Buck Bunny 4K/LICENSE.txt"));
+    QVERIFY(root >= 0 && subs >= 0 && srt >= 0 && license >= 0);
+    QCOMPARE(at(model, root, TorrentFilesModel::WantedRole).toInt(), 1);
+    QCOMPARE(at(model, subs, TorrentFilesModel::WantedRole).toInt(), 0);
+    QCOMPARE(at(model, srt, TorrentFilesModel::WantedRole).toInt(), 0);
+    QCOMPARE(at(model, license, TorrentFilesModel::WantedRole).toInt(), 2);
+    QCOMPARE(model.headWanted(), 1);
+    QCOMPARE(model.headFileCount(), 5);
+
+    QSignalSpy changed(&model, &QAbstractItemModel::dataChanged);
+    QSignalSpy head(&model, &TorrentFilesModel::headWantedChanged);
+    model.setLocalPriority({2, 3}, int(FilePriority::Normal));
+    QVERIFY(changed.count() > 0);
+    QVERIFY(changed.last().at(2).value<QList<int>>().contains(TorrentFilesModel::WantedRole));
+    QCOMPARE(at(model, subs, TorrentFilesModel::WantedRole).toInt(), 2);
+    QCOMPARE(at(model, root, TorrentFilesModel::WantedRole).toInt(), 2);
+    QCOMPARE(model.headWanted(), 2);
+    QCOMPARE(head.count(), 1);
+
+    model.setLocalPriority(model.headFileIndexes(), int(FilePriority::Skip));
+    QCOMPARE(at(model, root, TorrentFilesModel::WantedRole).toInt(), 0);
+    QCOMPARE(model.headWanted(), 0);
+    QCOMPARE(model.filePriority(4), int(FilePriority::Skip));
+    QCOMPARE(model.filePriority(99), -1);
+}
+
+// docs/27 D4: with a filter typed, the head covers what it matches, skipped files hidden by
+// hideSkipped included.
+void TestTorrentFilesModel::the_head_tick_covers_what_the_filter_shows()
+{
+    TorrentFilesModel model;
+    model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
+    QSignalSpy head(&model, &TorrentFilesModel::headWantedChanged);
+
+    model.setFilterText(QStringLiteral("*.srt"));
+    QCOMPARE(model.headFileIndexes(), (QVariantList{2, 3}));
+    QCOMPARE(model.headFileCount(), 2);
+    QCOMPARE(model.headWanted(), 0);
+    QCOMPARE(head.count(), 1);
+
+    model.setHideSkipped(true);
+    QCOMPARE(model.headFileIndexes(), (QVariantList{2, 3}));
+
+    model.setFilterText(QString());
+    QCOMPARE(model.headFileCount(), 5);
+    QCOMPARE(model.headWanted(), 1);
 }
 
 QTEST_MAIN(TestTorrentFilesModel)

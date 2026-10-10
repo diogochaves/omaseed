@@ -60,6 +60,8 @@ private slots:
     void clickCyclesPriorityAndKeepsSkipsSkipped();
     void clickOnASkippedRowBringsItBackAtNormal();
     void allAndNone();
+    void toggleAllTicksAllThenNone();
+    void tickingBackRestoresThePriority();
     void renamesAFile();
     void renamesAFolderAndEverythingUnderIt();
     void refusesNamesThatCannotBe();
@@ -137,7 +139,11 @@ void TestAddFilesModel::partlySkippedFolderIsHalfChecked()
     QCOMPARE(roleAt(model, bunny, "wanted").toInt(), 1);
     QCOMPARE(roleAt(model, bunny, "priority").toInt(), -1); // mixed
 
-    // Space on a half-checked folder skips all of it (anything wanted -> skip).
+    // docs/27: space on a half-checked folder ticks all of it (a mixed tick reads "–", and
+    // a click on it fills it); once full, it skips all of it.
+    model.toggleWanted(bunny);
+    QCOMPARE(roleAt(model, bunny, "wanted").toInt(), 2);
+    QCOMPARE(model.wantedCount(), 8);
     model.toggleWanted(bunny);
     QCOMPARE(roleAt(model, bunny, "wanted").toInt(), 0);
     QCOMPARE(model.wantedCount(), 5);
@@ -237,9 +243,57 @@ void TestAddFilesModel::allAndNone()
     model.setAllWanted(false); // nothing to change: no signal
     QCOMPARE(changed.count(), 1);
 
+    // docs/27 D3: "none" remembered the high, "all" brings it back.
     model.setAllWanted(true);
     QCOMPARE(model.wantedCount(), 8);
-    QVERIFY(!model.isCustomised()); // "none" dropped the high, "all" brings back normal
+    QCOMPARE(model.priority(tears), 6);
+    QCOMPARE(model.priority(sintel), 1);
+}
+
+// docs/27 D1/D2: the head tick and ctrl+a: all, then none, then all again.
+void TestAddFilesModel::toggleAllTicksAllThenNone()
+{
+    AddFilesModel model;
+    model.load(fixture("open_movies_v1.torrent").files);
+    const int sintel = rowNamed(model, QStringLiteral("Sintel/"));
+    model.toggleWanted(sintel); // mixed overall
+
+    model.toggleAllWanted(); // some skipped -> all
+    QCOMPARE(model.wantedCount(), 8);
+    model.toggleAllWanted(); // all -> none
+    QCOMPARE(model.wantedCount(), 0);
+    model.toggleAllWanted(); // none -> all
+    QCOMPARE(model.wantedCount(), 8);
+}
+
+// docs/27 D3: a file skipped and ticked again comes back at the priority it had.
+void TestAddFilesModel::tickingBackRestoresThePriority()
+{
+    AddFilesModel model;
+    model.load(fixture("open_movies_v1.torrent").files);
+    const int tears = rowNamed(model, QStringLiteral("Tears of Steel/"));
+    model.raise(tears);
+    model.raise(tears); // maximal
+    QCOMPARE(model.priority(tears), 7);
+
+    model.toggleWanted(tears);
+    QCOMPARE(model.priority(tears), 0);
+    model.toggleWanted(tears);
+    QCOMPARE(model.priority(tears), 7);
+
+    // `x` skips too, and remembers as well.
+    model.setPriority(tears, 0);
+    model.toggleWanted(tears);
+    QCOMPARE(model.priority(tears), 7);
+
+    // A file that was never anything but normal comes back at normal; a new torrent forgets.
+    const int sintel = rowNamed(model, QStringLiteral("Sintel/"));
+    model.toggleWanted(sintel);
+    model.toggleWanted(sintel);
+    QCOMPARE(model.priority(sintel), 1);
+    model.toggleWanted(tears);
+    model.load(fixture("open_movies_v1.torrent").files);
+    QCOMPARE(model.priority(rowNamed(model, QStringLiteral("Tears of Steel/"))), 1);
 }
 
 // M18: renaming before the add.

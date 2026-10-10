@@ -10,7 +10,8 @@ import Omaseed.Kit
 //
 // It is one bordered box, like a Kit `Field`, and one stop in the sheet's `tab` cycle. With
 // the keyboard on it, the keys are the Files tab's (Keymap area "addFiles"):
-//   j k / ↑ ↓   move            space   check or uncheck the row (a folder: all of it)
+//   j k / ↑ ↓   move            space   tick or skip the row (a folder: all of it)
+//   ctrl+a      every file ticked, then none (docs/27 D2)
 //   + -         priority        x       skip
 //   h l / ← →   fold, unfold (h on a file or a closed folder goes to its folder)
 //   r  F2       rename the row (M18)
@@ -31,6 +32,9 @@ import Omaseed.Kit
 // and a double click still folds a folder or checks a file. Every click puts the cursor on
 // its row and the keyboard in the tree, as a row click always did.
 //
+// The header row (docs/27 D1) names the columns, and its tick stands for every file: a
+// click ticks them all, or skips them all once they all are, as `ctrl+a` does.
+//
 //     AddFilesTree { model: App.addFiles; maximumHeight: 300 }
 Rectangle {
     id: root
@@ -47,6 +51,9 @@ Rectangle {
     property string renameError: ""
 
     readonly property int count: root.model ? root.model.count : 0
+    /// The head tick: 2 every file wanted, 1 some, 0 none.
+    readonly property int headWanted: !root.model || root.model.wantedCount === root.model.fileCount
+                                      ? 2 : root.model.wantedCount === 0 ? 0 : 1
     readonly property bool editing: root.editingRow >= 0
     readonly property alias view: list
     readonly property alias scrollBar: scrollBar
@@ -159,7 +166,7 @@ Rectangle {
     border.width: 1
     clip: true
     color: Theme.fill(Theme.fillIdle)
-    implicitHeight: Math.min(root.count * Theme.railRowHeight + 2, root.maximumHeight)
+    implicitHeight: Math.min((root.count + 1) * Theme.railRowHeight + 2, root.maximumHeight)
     implicitWidth: Theme.space(400)
     radius: Theme.cornerRadius
 
@@ -171,6 +178,11 @@ Rectangle {
         // to here: they move nothing while it is open. `tab` goes on to the sheet.
         if (root.editing) {
             event.accepted = event.key !== Qt.Key_Tab && event.key !== Qt.Key_Backtab;
+            return;
+        }
+        if (event.key === Qt.Key_A && (event.modifiers & Qt.ControlModifier) !== 0) {
+            root.model.toggleAllWanted();
+            event.accepted = true;
             return;
         }
         switch (event.key) {
@@ -217,12 +229,83 @@ Rectangle {
         id: hover
     }
 
+    // docs/27 D1: the columns' names, and the tick for every file.
+    Rectangle {
+        id: header
+
+        anchors.left: parent.left
+        anchors.margins: 1
+        anchors.right: parent.right
+        anchors.top: parent.top
+        color: Theme.fill(Theme.fillIdle)
+        height: Theme.railRowHeight
+
+        RowLayout {
+            anchors.left: parent.left
+            anchors.leftMargin: Theme.space(8)
+            anchors.right: parent.right
+            anchors.rightMargin: Theme.space(8) + (scrollBar.visible ? scrollBar.width : 0)
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: Theme.space(8)
+
+            FileTick {
+                Layout.preferredHeight: Theme.railRowHeight
+                Layout.preferredWidth: root.checkWidth
+                objectName: "addFilesHeadTick"
+                tip: root.headWanted === 2 ? qsTr("skip every file · ctrl+a")
+                                           : qsTr("tick every file · ctrl+a")
+                tooltip: headTip
+                wanted: root.headWanted
+
+                onClicked: {
+                    root.forceActiveFocus();
+                    root.model.toggleAllWanted();
+                }
+            }
+
+            Text {
+                Layout.fillWidth: true
+                color: Theme.dimForeground
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.font.caption
+                text: qsTr("Name")
+            }
+
+            Text {
+                Layout.preferredWidth: root.sizeWidth
+                color: Theme.dimForeground
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.font.caption
+                horizontalAlignment: Text.AlignRight
+                text: qsTr("Size")
+            }
+
+            Text {
+                Layout.preferredWidth: root.priorityWidth
+                color: Theme.dimForeground
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.font.caption
+                text: qsTr("Priority")
+            }
+        }
+
+        Hairline {
+            anchors.bottom: parent.bottom
+            anchors.left: parent.left
+            anchors.right: parent.right
+        }
+    }
+
     ListView {
         id: list
 
-        anchors.fill: parent
-        anchors.margins: 1
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 1
+        anchors.left: parent.left
+        anchors.leftMargin: 1
+        anchors.right: parent.right
         anchors.rightMargin: scrollBar.visible ? scrollBar.width + 1 : 1
+        anchors.top: header.bottom
         boundsBehavior: Flickable.StopAtBounds
         clip: true
         model: root.model
@@ -245,7 +328,7 @@ Rectangle {
             readonly property color priorityColor: row.priority === 6 || row.priority === 7
                                                    ? Theme.yellow : Theme.dimForeground
             /// The pointer is anywhere on the row: the pencil shows.
-            readonly property bool hovered: rowHover.containsMouse || markMouse.containsMouse
+            readonly property bool hovered: rowHover.containsMouse || markTick.hovered
                                             || foldMouse.containsMouse
                                             || priorityMouse.containsMouse
                                             || pencilMouse.containsMouse
@@ -295,45 +378,16 @@ Rectangle {
                 spacing: Theme.space(8)
                 z: 1
 
-                // ✓ nothing skipped, – some, · all (the palettes' checked/unchecked marks).
-                Item {
+                // ✓ nothing skipped, – some, · all (docs/27: the Files tab draws the same).
+                FileTick {
+                    id: markTick
+
                     Layout.preferredHeight: Theme.railRowHeight
                     Layout.preferredWidth: root.checkWidth
+                    objectName: "addFilesMark"
+                    wanted: row.wanted
 
-                    Rectangle {
-                        anchors.centerIn: parent
-                        color: markMouse.containsMouse ? Theme.fill(Theme.fillHover)
-                                                       : "transparent"
-                        height: Theme.railRowHeight - Theme.space(6)
-                        radius: Theme.cornerRadius
-                        width: root.checkWidth + Theme.space(6)
-                    }
-
-                    Text {
-                        anchors.centerIn: parent
-                        color: markMouse.containsMouse ? Theme.brightForeground
-                                                       : row.wanted === 0 ? Theme.dimForeground
-                                                                          : Theme.foreground
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.font.small
-                        text: row.wanted === 2 ? Glyphs.check : row.wanted === 1 ? "–"
-                                                                                 : Glyphs.middot
-                    }
-
-                    MouseArea {
-                        id: markMouse
-
-                        anchors.centerIn: parent
-                        cursorShape: Qt.PointingHandCursor
-                        height: Theme.railRowHeight
-                        hoverEnabled: true
-                        objectName: "addFilesMark"
-                        width: root.checkWidth + Theme.space(6)
-
-                        // Two quick clicks are two toggles, not the row's double click.
-                        onClicked: root._clickPart(row.index, "mark")
-                        onDoubleClicked: root._clickPart(row.index, "mark")
-                    }
+                    onClicked: root._clickPart(row.index, "mark")
                 }
 
                 Item {
@@ -598,10 +652,15 @@ Rectangle {
         anchors.bottomMargin: 1
         anchors.right: parent.right
         anchors.rightMargin: 1
-        anchors.top: parent.top
-        anchors.topMargin: 1
+        anchors.top: header.bottom
         flickable: list
         objectName: "addFilesScrollBar"
         vertical: true
+    }
+
+    Tooltip {
+        id: headTip
+
+        anchors.fill: parent
     }
 }

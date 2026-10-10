@@ -853,10 +853,10 @@ TestCase {
         compare(App.addFiles.priority(0), 6);
         keyClick("x");
         compare(App.addFiles.priority(0), 0);
-        keyClick(Qt.Key_Space); // all skipped -> back to normal
-        compare(App.addFiles.priority(0), 1);
+        keyClick(Qt.Key_Space); // all skipped -> back to what it was (docs/27 D3): high
+        compare(App.addFiles.priority(0), 6);
         keyClick("-");
-        compare(App.addFiles.priority(0), 0);
+        compare(App.addFiles.priority(0), 1);
     }
 
     // ---- manual box M17: the tree with the pointer -----------------------------------
@@ -925,15 +925,50 @@ TestCase {
         compare(App.addFiles.isExpanded(row.index), true);
     }
 
-    function test_all_and_none_in_the_files_header() {
+    // docs/27 D1: the header row's tick is every file: all ticked, then none, then all.
+    function test_the_head_tick_ticks_every_file_then_none() {
         const sheet = testCase.openTorrent(addSheetComponent);
-        const none = findChild(sheet, "addFilesNone");
-        const all = findChild(sheet, "addFilesAll");
-        verify(none && all);
-        mouseClick(none);
+        verify(!findChild(sheet, "addFilesAll") && !findChild(sheet, "addFilesNone"),
+               "the dim words are gone");
+        const head = findChild(sheet, "addFilesHeadTick");
+        verify(head, "the head tick");
+        compare(head.wanted, 2);
+        mouseClick(head);
         compare(App.addFiles.wantedCount, 0);
-        mouseClick(all);
+        compare(head.wanted, 0);
+        verify(sheet.filesTree.activeFocus, "a click puts the keyboard in the tree");
+        mouseClick(head);
         compare(App.addFiles.wantedCount, 8);
+        // Mixed reads "–", and a click fills it.
+        App.addFiles.toggleWanted(testCase.rowNamed(sheet, "Sintel/"));
+        compare(head.wanted, 1);
+        mouseClick(head);
+        compare(App.addFiles.wantedCount, 8);
+    }
+
+    // docs/27 D2: ctrl+a in the tree does the same, and the hint line names it.
+    function test_ctrl_a_ticks_every_file_then_none() {
+        const sheet = testCase.openTorrent(addSheetComponent);
+        testCase.focusRow(sheet, "README.txt");
+        keyClick(Qt.Key_A, Qt.ControlModifier);
+        compare(App.addFiles.wantedCount, 0);
+        keyClick(Qt.Key_A, Qt.ControlModifier);
+        compare(App.addFiles.wantedCount, 8);
+        const keys = sheet._treeHints.map(hint => hint.key);
+        verify(keys.indexOf("ctrl+a") >= 0, "ctrl+a in the hint line");
+        verify(keys.indexOf("x") < 0, "x leaves the line (space does the same)");
+    }
+
+    // docs/27 D3: a folder skipped and ticked again keeps the priority it had.
+    function test_ticking_back_keeps_the_priority() {
+        const sheet = testCase.openTorrent(addSheetComponent);
+        const row = testCase.focusRow(sheet, "README.txt");
+        keyClick("+");
+        compare(App.addFiles.priority(row), 6);
+        keyClick(Qt.Key_Space);
+        compare(App.addFiles.priority(row), 0);
+        keyClick(Qt.Key_Space);
+        compare(App.addFiles.priority(row), 6);
     }
 
     // ---- manual box M18: renaming before the add ------------------------------------

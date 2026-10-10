@@ -86,6 +86,11 @@ class TorrentFilesModel : public QAbstractListModel
     Q_PROPERTY(bool sortDescending READ sortDescending WRITE setSortDescending NOTIFY sortChanged)
     /// Rows the user selected, folders counted once each.
     Q_PROPERTY(int selectedCount READ selectedCount NOTIFY selectionChanged)
+    /// The head of the tick column (#42, docs/27 D1/D4), over every file the filter shows
+    /// (hidden skipped files included): 2 none skipped, 1 some, 0 all; 2 with no files.
+    Q_PROPERTY(int headWanted READ headWanted NOTIFY headWantedChanged)
+    /// How many files the head covers, for its tooltip.
+    Q_PROPERTY(int headFileCount READ headFileCount NOTIFY headWantedChanged)
 
 public:
     enum Role {
@@ -109,6 +114,7 @@ public:
         PieceLastRole,
         PiecesTextRole, ///< "0–3859", or "3860" for a one-piece file
         SelectedRole,
+        WantedRole, ///< the tick (#42): 2 nothing under the row skipped, 1 some, 0 all
     };
     Q_ENUM(Role)
 
@@ -124,6 +130,13 @@ public:
     int matchCount() const { return m_matchCount; }
     int folderCount() const { return m_folderCount; }
     int skippedCount() const { return m_skippedCount; }
+    int headWanted() const { return m_headWanted; }
+    int headFileCount() const { return m_headFileCount; }
+    /// The API file ids the head tick covers: every file the typed filter matches (all of
+    /// them with no filter), whether hideSkipped shows it or not.
+    Q_INVOKABLE QVariantList headFileIndexes() const;
+    /// The priority of the file with API id `fileIndex`, or -1 when there is none.
+    Q_INVOKABLE int filePriority(int fileIndex) const;
     qint64 totalSize() const { return m_totalSize; }
     QString totalSizeText() const;
 
@@ -235,6 +248,7 @@ Q_SIGNALS:
     void sortChanged();
     void selectionChanged();
     void summaryChanged();
+    void headWantedChanged();
     /// The same rows changed places (a sort, or a poll moving the number sorted by). The
     /// cursor is a row number, so the view re-finds its file by path (rowOfPath).
     void reordered();
@@ -259,6 +273,8 @@ private:
         QList<int> children;    ///< indexes into m_nodes
         QList<int> fileIndexes; ///< API ids in this subtree
         QList<int> shownIds;    ///< the ids of fileIndexes that pass the filter
+        int files = 1;          ///< files in this subtree (a file: itself)
+        int skippedFiles = 0;   ///< of those, at priority skip
         int parent = -1;
     };
 
@@ -303,6 +319,8 @@ private:
     void emitAllChanged(const QList<int> &roles);
     /// Recounts folders, skipped files and the total size; emits summaryChanged() on a change.
     void updateSummary();
+    /// Recounts the head tick (headWanted, headFileCount); emits headWantedChanged().
+    void updateHeadWanted();
 
     QList<Node> m_nodes; ///< the tree, parents before children
     QList<int> m_roots;
@@ -315,6 +333,8 @@ private:
     int m_matchCount = 0;
     int m_folderCount = 0;
     int m_skippedCount = 0;
+    int m_headWanted = 2;
+    int m_headFileCount = 0;
     qint64 m_totalSize = 0;
     QString m_filterText;
     bool m_hideSkipped = false;

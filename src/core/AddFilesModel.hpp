@@ -76,8 +76,9 @@ public:
     Q_INVOKABLE int priority(int row) const;
     /// Every file under `row` to `priority` (0 skip, 1 normal, 6 high, 7 maximal).
     Q_INVOKABLE void setPriority(int row, int priority);
-    /// `space`: a row with anything wanted under it is skipped whole, otherwise it goes back
-    /// to "normal" — a check box over the subtree.
+    /// `space` and a click on the tick (docs/27): a row with nothing skipped under it is
+    /// skipped whole; a mixed or skipped one is ticked whole, each skipped file going back to
+    /// the priority it had before it was skipped (normal when it never had another).
     Q_INVOKABLE void toggleWanted(int row);
     /// `+` / `-`: one step up or down skip → normal → high → maximal, on the whole row.
     Q_INVOKABLE void raise(int row);
@@ -90,6 +91,9 @@ public:
     /// The header's "all" (every skipped file back to normal, the others keep their
     /// priority) and "none" (every file skipped).
     Q_INVOKABLE void setAllWanted(bool wanted);
+    /// The tick column's head and `ctrl+a` (docs/27 D1/D2): every file ticked, or, when
+    /// every file already is, none.
+    Q_INVOKABLE void toggleAllWanted();
 
     // --- renaming (manual box M18) -----------------------------------------------------
     /// Why `name` cannot be `row`'s new name ("" when it can): empty, ".", "..", a "/" or
@@ -132,7 +136,10 @@ private:
     void applyToTree();
     QList<int> idsAt(int row) const;
     /// Sets each of `ids` to `priority`; true when any changed (the caller then applies).
+    /// A file going to skip remembers the priority it leaves (m_beforeSkip).
     bool setIds(const QList<int> &ids, int priority);
+    /// Ticks each skipped id of `ids` back to the priority it had; true when any changed.
+    bool restoreIds(const QList<int> &ids);
 
     /// A row's path as shown (after renames), and its metainfo path.
     QString pathAt(int row) const;
@@ -141,6 +148,8 @@ private:
     TorrentFilesModel *m_tree = nullptr;
     QList<TorrentFileEntry> m_files;
     QList<int> m_priorities;
+    /// The priority each file had before it was last skipped (normal when none).
+    QList<int> m_beforeSkip;
     /// Each file's path after the renames so far (m_files keeps the metainfo's).
     QList<QString> m_paths;
     QVariantList m_renames;
