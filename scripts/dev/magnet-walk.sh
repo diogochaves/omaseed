@@ -2,7 +2,8 @@
 # omaseed — the hand-off walkthrough: a magnet link or a .torrent file opened with xdg-open,
 # as a browser or a file manager does, lands in omaseed's add sheet, pre-filled, whether the
 # app is closed, hidden in the tray, or already has that torrent (and, for a public one, merges
-# the trackers the link brings).
+# the trackers the link brings). Three links handed over one after another make one batch,
+# added in one request (#40).
 #
 #   scripts/dev/magnet-walk.sh [OUT_DIR]        # agents: a headless box, a screenshot per step,
 #                                               # OUT_DIR/index.md says what to look for in each
@@ -31,7 +32,7 @@ refuse_home "$PLAY"
 DOWNLOADS="${OMASEED_TEST_PROFILE:-$HOME/.local/share/omaseed-test}/downloads"
 TORRENTS="${OMASEED_SWARM_PROFILE:-$HOME/.local/share/omaseed-swarm}/torrents"
 APP_ID=io.github.diogochaves.omaseed
-BOX=magnet-walk
+BOX="magnet-walk"
 INTERACTIVE=0
 OUT=""
 case "${1:-}" in
@@ -49,6 +50,13 @@ PUBLIC="Public Domain Sampler"
 MERGE_A="udp://tracker.opentrackr.example:1337/announce"
 MERGE_B="udp://open.demonii.example:1337/announce"
 ADDED_PUBLIC=0
+# #40: three magnets nobody seeds, handed over together; they stay at "metadata" and go in
+# cleanup.
+BATCH="omaseed-walk-batch"
+BATCH_MAGNETS=()
+for n in 1 2 3; do
+    BATCH_MAGNETS+=("magnet:?xt=urn:btih:$(printf 'b47c%036d' "$n")&dn=$BATCH-$n")
+done
 
 # field NAME KEY: KEY of the playground's torrent whose name contains NAME ("" if none).
 field() {
@@ -145,6 +153,14 @@ one_process() { [ "$(omabox run -b "$BOX" -- pgrep -xc omaseed 2>/dev/null || ec
 open_in_box() { omabox run -b "$BOX" -d -- xdg-open "$1" >/dev/null; }
 
 one_copy() { [ "$(copies "$TINY")" = 1 ]; }
+# three_in_batch: until the playground has the walk's three batch magnets.
+three_in_batch() {
+    for _ in $(seq 1 40); do
+        [ "$(copies "$BATCH")" = 3 ] && return 0
+        sleep 0.5
+    done
+    return 1
+}
 one_public() { [ "$(copies "$PUBLIC")" = 1 ]; }
 
 # has_trackers HASH URL…: every URL is among HASH's trackers on the playground.
@@ -206,6 +222,7 @@ cleanup() {
         [ -z "$hash" ] || curl -fs -X POST "$PLAY/torrents/removeTrackers" -d "hash=$hash" \
             --data-urlencode "urls=$MERGE_A|$MERGE_B" >/dev/null 2>&1 || true
     fi
+    for _ in 1 2 3; do take_off "$BATCH" 2>/dev/null || true; done
     "$SWARM" seed >/dev/null 2>&1 || true
     [ "$INTERACTIVE" = 1 ] || omabox down -b "$BOX" >/dev/null 2>&1 || true
 }
@@ -222,6 +239,7 @@ MAGNET="$(field "$TINY" magnet_uri)"
 [ -n "$MAGNET" ] || { echo "the playground has no $TINY: run scripts/dev/swarm.sh seed" >&2; exit 1; }
 take_off "$TINY"
 take_off "Spaces & Symbols"
+for _ in 1 2 3; do take_off "$BATCH"; done
 if [ "$(copies "$PUBLIC")" = 0 ]; then
     PUBLIC_FILE="$(find "$TORRENTS" -name "$PUBLIC.torrent" -print -quit 2>/dev/null || true)"
     [ -f "$PUBLIC_FILE" ] || { echo "no $PUBLIC.torrent under $TORRENTS: run scripts/dev/swarm.sh seed" >&2; exit 1; }
@@ -322,6 +340,20 @@ sleep 2
 check "merge added both trackers on the playground" has_trackers "$PUBLIC_HASH" "$MERGE_A" "$MERGE_B"
 check "and no second copy" one_public
 step "Trackers merged" "Public Domain Sampler under the cursor, its details on the Trackers tab with the two new trackers \"not contacted\", and the footer saying \"2 trackers added to Public Domain Sampler\"."
+
+# 5. Three links in a row (#40, docs/27 D7 a): the first fills the sheet, the next two join
+# it, untouched as it is, and the sheet adds the three in one request.
+keys Escape
+sleep 1
+for magnet in "${BATCH_MAGNETS[@]}"; do
+    open_in_box "$magnet"
+    sleep 1.5
+done
+sleep 2
+step "Three links, one batch" "\"Add 3 torrents\", \"3 without a size yet\"; Torrents · 3 lists $BATCH-1 to -3, each \"magnet · size after metadata\"; no Name row; \"add 3\" highlighted."
+keys Return
+check "enter added all three to the playground" three_in_batch
+step "Three added" "The sheet is gone; the three $BATCH rows are in the table, fetching metadata."
 
 if [ "$INTERACTIVE" = 0 ]; then
     printf '\n## Checks\n\n%s' "$CHECKS" >>"$OUT/index.md"

@@ -181,6 +181,7 @@ private slots:
     void allowLoginAgainTriesOneMoreLogin();
     void cancelledLoginLeavesTheAuthStateAlone();
     void multipartAddLogsInAgainAfterAnExpiredSession();
+    void addManySendsEveryFileAndLinkInOneRequest();
     void probeAbortFinishesCancelled();
     void originLeavesOutUserInfo();
     void maxRetriesIsCapped();
@@ -638,6 +639,44 @@ void TestQbtClientFake::multipartAddLogsInAgainAfterAnExpiredSession()
     QVERIFY(resent.body.contains("filename=\"we_ird__name _.torrent\""));
     // The first attempt carried the same body; the retry rebuilt it rather than reusing it.
     QVERIFY(server.requests.at(0).body.contains(bytes));
+}
+
+// #40: a batch is one torrents/add, with a `torrents` part per file and the links in one
+// `urls` part, one per line, under one set of options.
+void TestQbtClientFake::addManySendsEveryFileAndLinkInOneRequest()
+{
+    FakeServer server;
+    server.setHandler([](const Recorded &, int) -> QByteArray {
+        return httpResponse(200, "OK", "{\"success_count\":4}");
+    });
+
+    QbtClient client;
+    client.setBaseUrl(server.url());
+
+    const QByteArray first = QByteArrayLiteral("d4:infod4:name5:firstee");
+    const QByteArray second = QByteArrayLiteral("d4:infod4:name6:secondee");
+    QbtClient::AddOptions options;
+    options.category = QStringLiteral("movies");
+    options.stopped = true;
+    const QbtResult<QByteArray> result = await(
+        this,
+        client.torrentsAddMany(
+            {{QStringLiteral("first.torrent"), first}, {QStringLiteral("second.torrent"), second}},
+            {QStringLiteral("magnet:?xt=urn:btih:1111111111111111111111111111111111111111"),
+             QStringLiteral("https://example.org/a.torrent")},
+            options));
+    QVERIFY2(!result.isError(), qPrintable(result.error().toString()));
+    QCOMPARE(server.requests.size(), 1);
+    const QByteArray body = server.requests.at(0).body;
+    QVERIFY(server.requests.at(0).target.contains("torrents/add"));
+    QCOMPARE(body.count("name=\"torrents\""), 2);
+    QVERIFY(body.contains(first));
+    QVERIFY(body.contains(second));
+    QVERIFY(body.contains("filename=\"second.torrent\""));
+    QCOMPARE(body.count("name=\"urls\""), 1);
+    QVERIFY(
+        body.contains("1111111111111111111111111111111111111111\nhttps://example.org/a.torrent"));
+    QVERIFY(body.contains("movies"));
 }
 
 void TestQbtClientFake::probeAbortFinishesCancelled()

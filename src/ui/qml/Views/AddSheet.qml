@@ -30,6 +30,14 @@ import Omaseed.Kit
 // already holds never leaves as an add at all — `duplicateFound(row)` is emitted instead and
 // the host opens Fig. 10's duplicate sheet.
 //
+// Several sources at once (#40, docs/27 B1–B3) make it a batch: browse with several files, a
+// paste of several links, a drop of several, ticks in In Downloads, or a hand-off while a
+// source the user has not touched is in the field. The field turns into a list of torrents
+// over a field for more; Name and Files drop out, since they belong to one torrent; the
+// options apply to all of them, and `add N` sends one request (`items`). A torrent already in
+// the library, or listed twice, stays in the list dim and is left out. `one by one` turns the
+// batch back into the queue, for per-torrent names and files.
+//
 //     AddSheet { anchors.fill: parent; onAddRequested: request => App.addTorrent(request) }
 Sheet {
     id: sheet
@@ -41,8 +49,16 @@ Sheet {
     /// browser or a file manager opened it with omaseed), or "" when it was typed. Only the
     /// head's subtitle reads it.
     property string source: ""
-    /// The sources waiting behind this one (a drop or a hand-off of several links).
+    /// The sources waiting behind this one (`one by one`, or hand-offs while a form the user
+    /// has filled is open).
     property var queue: []
+    /// #40: the batch, one `{text, map}` per source (`map` is `App.parseAddable`'s, replaced
+    /// once a `.torrent` has been read). Two or more make the sheet a batch.
+    property var batch: []
+    /// docs/27 D10: each batch `.torrent`'s files-on-disk matches, by parse token.
+    property var _batchMatches: ({})
+    /// Test seam: the chooser for several `.torrent` files (App.pickTorrentFiles).
+    property var pickTorrents: () => App.pickTorrentFiles()
     /// Test seam: what `Xdg.detectClipboardMagnet()` would answer. Non-empty wins over the
     /// real clipboard, which an offscreen test run has no control over.
     property string clipboardAddable: ""
@@ -67,6 +83,7 @@ Sheet {
     readonly property alias firstLastToggle: firstLastToggle
     readonly property alias filesTree: filesTree
     readonly property alias downloadsList: downloadsList
+    readonly property alias batchList: batchList
     readonly property alias categoryChips: categoryChips
     readonly property alias tagChips: tagChips
     readonly property alias layoutChips: layoutChips
@@ -91,11 +108,88 @@ Sheet {
 
     /// A parsed `.torrent` of more than one file is on show: the picker is drawn and its
     /// choices travel with the add.
+    readonly property bool batchMode: sheet.batch.length > 1
+    /// The batch as its list draws it: `text`, `map`, `name`, `sizeText`, `flag`, `warn`,
+    /// `out`, and `state` ("ok", "reading", "bad", "library", "twice"). Only "ok" is added.
+    readonly property var batchRows: {
+        const library = App.torrents.count; // a new library row can turn one into "library"
+        const seen = [];
+        return sheet.batch.map(entry => {
+            const map = entry.map;
+            const row = {
+                "text": entry.text,
+                "map": map,
+                "name": map.name && map.name.length > 0 ? map.name : entry.text,
+                "sizeText": map.sizeText || "",
+                "flag": "",
+                "warn": false,
+                "out": false,
+                "state": "ok",
+                "library": library
+            };
+            if (map.pending === true) {
+                row.flag = qsTr("reading…");
+                row.state = "reading";
+                return row;
+            }
+            if (map.valid !== true) {
+                row.flag = qsTr("not a torrent · left out");
+                row.out = true;
+                row.state = "bad";
+                return row;
+            }
+            const key = map.infoHashV1 || map.infoHashV2 || map.value;
+            if (sheet._duplicateOf(map)) {
+                row.flag = qsTr("in the library · left out");
+                row.out = true;
+                row.state = "library";
+            } else if (seen.indexOf(key) >= 0) {
+                row.flag = qsTr("twice in this list · left out");
+                row.out = true;
+                row.state = "twice";
+            } else if ((sheet._batchMatches[map.token] || []).length > 0) {
+                row.flag = qsTr("files on disk");
+                row.warn = true;
+            } else if (map.kind === "magnet" && !(map.totalSize > 0)) {
+                row.flag = qsTr("magnet · size after metadata");
+                row.sizeText = "—";
+            } else if (map.kind === "url") {
+                row.flag = qsTr("link");
+                row.sizeText = "—";
+            } else if (map.fileCount > 1) {
+                row.flag = qsTr("%1 files").arg(map.fileCount);
+            }
+            seen.push(key);
+            return row;
+        });
+    }
+    readonly property var _batchOk: sheet.batchRows.filter(row => row.state === "ok")
+    /// How many the batch adds.
+    readonly property int batchCount: sheet._batchOk.length
+    /// What the batch's known sizes add up to, and how many have none yet.
+    readonly property real _batchBytes: sheet._batchOk.reduce(
+                                            (sum, row) => sum + (row.map.totalSize > 0 ? row.map.totalSize : 0), 0)
+    readonly property int _batchUnsized: sheet._batchOk.filter(row => !(row.map.totalSize > 0)).length
+    /// docs/27 D10: the first `.torrent` of the batch whose files are already on disk.
+    readonly property var batchMatch: {
+        for (const row of sheet._batchOk) {
+            const matches = sheet._batchMatches[row.map.token] || [];
+            if (matches.length > 0)
+                return {
+                    "name": row.name,
+                    "savePath": matches[0].savePath
+                };
+        }
+        return null;
+    }
+
     readonly property bool showFiles: sheet.addable !== null && sheet.addable.valid === true
                                       && sheet.addable.kind === "file" && App.addFiles.fileCount > 1
     /// Bytes the add writes (docs/25 §4): the ticked files of a picked `.torrent`, the whole
     /// size of one file or of a magnet that says (`xl=`), and -1 while nobody knows.
     readonly property real neededBytes: {
+        if (sheet.batchMode)
+            return sheet._batchBytes > 0 ? sheet._batchBytes : -1;
         if (!sheet.addable || sheet.addable.valid !== true)
             return -1;
         if (sheet.showFiles)
@@ -104,7 +198,7 @@ Sheet {
     }
     /// The "in Downloads" list is on show: nothing in the field yet, and the folder has a
     /// `.torrent` to offer (manual box M7).
-    readonly property bool showDownloads: sourceField.text.trim().length === 0
+    readonly property bool showDownloads: sourceField.text.trim().length === 0 && !sheet.batchMode
                                           && App.downloadsTorrents.length > 0
 
     /// What the tree may take: the body's room less every other row, so the sheet fits the
@@ -156,12 +250,39 @@ Sheet {
             "label": Keymap.labelOf("addDownloads", "j")
         },
         {
+            "key": "space",
+            "label": Keymap.labelOf("addDownloads", "space")
+        },
+        {
             "key": "enter",
             "label": Keymap.labelOf("addDownloads", "enter")
         },
         {
             "key": "tab",
             "label": qsTr("fields")
+        }
+    ]
+    /// … and the batch list's (Keymap "addBatch").
+    readonly property var _batchHints: [
+        {
+            "key": "j k",
+            "label": Keymap.labelOf("addBatch", "j")
+        },
+        {
+            "key": "d",
+            "label": Keymap.labelOf("addBatch", "d")
+        },
+        {
+            "key": "tab",
+            "label": qsTr("fields")
+        },
+        {
+            "key": "enter",
+            "label": sheet._addText
+        },
+        {
+            "key": "shift+enter",
+            "label": qsTr("add stopped")
         }
     ]
     readonly property var _treeHints: [
@@ -218,8 +339,9 @@ Sheet {
     signal categoryPaletteRequested
     signal tagPaletteRequested
 
-    readonly property string _addText: qsTr("add")
-    readonly property string _addStoppedText: qsTr("add stopped")
+    readonly property string _addText: sheet.batchMode ? qsTr("add %1").arg(sheet.batchCount) : qsTr("add")
+    readonly property string _addStoppedText: sheet.batchMode ? qsTr("add %1 stopped").arg(sheet.batchCount)
+                                                              : qsTr("add stopped")
     /// #43: every file of the `.torrent` unticked. It is still added, stopped, so its files
     /// can be chosen later in the Files tab; the primary button says so.
     readonly property bool _nothingTicked: sheet.showFiles && App.addFiles.wantedCount === 0
@@ -309,9 +431,8 @@ Sheet {
     sheet.openList([text], from);
 }
 
-    /// Several: the first opens the sheet, the rest queue behind it. A hand-off that arrives
-    /// while the sheet is already up never wipes the form the user is in: it joins the queue
-    /// (or fills the field, when that is still empty).
+    /// Several (#40): they open the sheet as a batch. A hand-off that arrives while the sheet
+    /// is up never wipes the form the user is in (`_takeMany`).
     function openList(list: var, from: string): void {
     if (!list || list.length === 0)
     return;
@@ -319,19 +440,133 @@ Sheet {
         // The sheet may have stayed up behind the widget since before an add: "in library"
         // must not be what it was then.
         App.scanDownloads();
-        let rest = list;
-        if (sourceField.text.trim().length === 0) {
-            sheet.loadText(list[0], from);
-            rest = list.slice(1);
-        }
-        sheet.queue = sheet.queue.concat(rest);
+        sheet._takeMany(list, from);
         return;
     }
     sheet.reset();
+    if (list.length > 1) {
+        sheet.addToBatch(list, from);
+        sheet.open();
+        return;
+    }
     sheet.loadText(list[0], from);
     sheet.open();
-    sheet.queue = list.slice(1);
     sheet._checkDuplicate();
+}
+
+    /// Sources arriving at an open sheet (docs/27 D7 a): an empty field takes one, or starts a
+    /// batch with several; a batch takes them all; a source still as it arrived turns into a
+    /// batch with them; one the user has chosen files for, renamed or named waits in the queue.
+    function _takeMany(list: var, from: string): void {
+    if (sheet.batchMode) {
+        sheet.addToBatch(list, from);
+        return;
+    }
+    if (sourceField.text.trim().length === 0) {
+        if (list.length === 1)
+        sheet.loadText(list[0], from);
+        else
+        sheet.addToBatch(list, from);
+        return;
+    }
+    const touched = renameField.text.trim().length > 0
+            || (sheet.showFiles && (App.addFiles.customised || App.addFiles.renameList().length > 0));
+    if (touched || sheet.addable === null) {
+        sheet.queue = sheet.queue.concat(list);
+        return;
+    }
+    sheet.addToBatch(list, from);
+}
+
+    /// #40: `texts` join the batch; what the field held, when it held something, is its first.
+    function addToBatch(texts: var, from: string): void {
+    if (!texts || texts.length === 0)
+    return;
+    let entries = sheet.batch;
+    if (entries.length === 0 && sheet.addable !== null)
+    entries = [{
+                   "text": sourceField.text.trim(),
+                   "map": sheet.addable
+               }];
+    for (const text of texts)
+    entries = entries.concat([{
+                                  "text": text,
+                                  "map": App.parseAddable(text)
+                              }]);
+    if (sheet.source.length === 0)
+    sheet.source = from;
+    sheet._programmatic = true;
+    sourceField.text = "";
+    renameField.text = "";
+    sheet._programmatic = false;
+    sheet._typedLength = 0;
+    sheet._pendingToken = "";
+    sheet.addable = null;
+    sheet.errorText = "";
+    if (entries.length === 1) { // one source after all: the ordinary sheet
+        sheet.batch = [];
+        sheet.loadText(entries[0].text, from);
+        return;
+    }
+    sheet.batch = entries;
+    sheet._askBatchMatches();
+}
+
+    /// `✕` or `d`: drop a row; with one left, the sheet is the ordinary one again.
+    function removeFromBatch(index: int): void {
+    const next = sheet.batch.slice();
+    next.splice(index, 1);
+    if (next.length === 1) {
+        sheet.batch = [];
+        sheet.loadText(next[0].text, sheet.source);
+        sheet._checkDuplicate();
+        return;
+    }
+    sheet.batch = next;
+}
+
+    /// docs/27 D9: back to today's queue, one sheet each, for per-torrent names and files.
+    function oneByOne(): void {
+    const texts = sheet.batchRows.filter(row => row.state !== "twice").map(row => row.text);
+    sheet.batch = [];
+    if (texts.length === 0)
+    return;
+    sheet.queue = texts.slice(1).concat(sheet.queue);
+    sheet.loadText(texts[0], sheet.source);
+    sheet.focusFirst();
+    sheet._checkDuplicate();
+}
+
+    /// docs/27 D10: ask the library about each read `.torrent` of the batch, once.
+    function _askBatchMatches(): void {
+    for (const entry of sheet.batch) {
+        const map = entry.map;
+        if (map.kind !== "file" || map.valid !== true || map.pending === true
+                || sheet._batchMatches[map.token] !== undefined)
+        continue;
+        const asked = Object.assign({}, sheet._batchMatches);
+        asked[map.token] = [];
+        sheet._batchMatches = asked;
+        App.findFilesMatch(map.token);
+    }
+}
+
+    /// The batch's request: its torrents (`items`) and the options, without a name or files.
+    function batchRequest(stopped: bool): var {
+    return {
+        "items": sheet._batchOk.map(row => row.map),
+        "category": sheet.chosenCategory(),
+        "tags": sheet.chosenTags(),
+        "savePath": savePathField.text,
+        "autoTMM": sheet.autoTMM,
+        "contentLayout": sheet.layoutValue(),
+        "upLimitKb": sheet._limitKb(upLimitField.text),
+        "dlLimitKb": sheet._limitKb(dlLimitField.text),
+        "firstLastPiecePrio": firstLastToggle.checked,
+        "sequentialDownload": sequentialToggle.checked,
+        "skipChecking": skipCheckToggle.checked,
+        "stopped": stopped
+    };
 }
 
     /// A row of "in Downloads" (manual box M7): that `.torrent`, as if picked with `ctrl+o`.
@@ -342,11 +577,15 @@ Sheet {
         sheet.focusFirst();
     }
 
-    /// `ctrl+o`: the portal's file chooser. Its answer arrives as `App.addableParsed`.
+    /// `ctrl+o`: the portal's file chooser, several files at once (#40). One fills the field;
+    /// several go where a hand-off would (`_takeMany`).
     function browse(): void {
-                           sheet._awaitingPick = true;
-                           App.pickTorrentFile();
-                       }
+        const paths = sheet.pickTorrents();
+        if (!paths || paths.length === 0)
+            return;
+        sheet._takeMany(paths, "file");
+        sheet.focusFirst();
+    }
 
     /// #41 (docs/27 L4, D13 a): Save to's `browse`, through the server's path map like the
     /// set location sheet's. `pickDirectory` is the picker, which a test replaces;
@@ -462,6 +701,24 @@ Sheet {
 
         /// `enter` / `shift+enter` and the two buttons. A duplicate never leaves as an add.
         function submit(stopped: bool): void {
+        if (sheet.batchMode) {
+            if (sheet.batchRows.some(row => row.state === "reading")) {
+                sheet.errorText = qsTr("still reading a .torrent");
+                return;
+            }
+            if (sheet.batchCount === 0) {
+                sheet.errorText = qsTr("nothing left to add: every torrent is left out");
+                return;
+            }
+            if (Number.isNaN(sheet._limitKb(dlLimitField.text))
+                    || Number.isNaN(sheet._limitKb(upLimitField.text))) {
+                sheet.errorText = qsTr("a speed limit is not a number");
+                return;
+            }
+            sheet.errorText = "";
+            sheet.addRequested(sheet.batchRequest(stopped));
+            return;
+        }
         if (!sheet.addable && sourceField.text.trim().length > 0) {
             sheet.errorText = sheet._parseError.length > 0
                     ? sheet._parseError : qsTr("not a magnet link, URL or .torrent file");
@@ -523,6 +780,9 @@ Sheet {
                 sheet.addable = null;
                 sheet.source = "";
                 sheet.queue = [];
+                sheet.batch = [];
+                sheet._batchMatches = {};
+                downloadsList.ticked = [];
                 sheet.errorText = "";
                 sheet.autoTMM = true;
                 sheet._savePathEdited = false;
@@ -700,11 +960,26 @@ Sheet {
                 guarded: true
                 hints: filesTree.editing ? sheet._renameHints : filesTree.activeFocus
                                                                 ? sheet._treeHints
-                                                                : downloadsList.activeFocus
+                                                                : batchList.activeFocus
+                                                                  ? sheet._batchHints
+                                                                  : downloadsList.activeFocus
                                                                   ? sheet._downloadsHints
                                                                   : sheet._formHints
                 sheetWidth: Theme.space(600)
                 subtitle: {
+                    if (sheet.batchMode) {
+                        const parts = [];
+                        if (sheet._batchBytes > 0)
+                            parts.push(App.sizeText(sheet._batchBytes));
+                        if (sheet._batchUnsized > 0)
+                            parts.push(sheet._batchUnsized === 1 ? qsTr("1 without a size yet")
+                                                                 : qsTr("%1 without a size yet").arg(
+                                                                       sheet._batchUnsized));
+                        const out = sheet.batchRows.length - sheet.batchCount;
+                        if (out > 0)
+                            parts.push(qsTr("%1 left out").arg(out));
+                        return parts.join(" · ");
+                    }
                     if (!sheet.addable)
                         return qsTr("paste a magnet link, a URL or pick a file");
                     if (sheet.addable.pending === true)
@@ -716,7 +991,7 @@ Sheet {
                         parts.push(sheet.sourceText);
                     return parts.join(" · ");
                 }
-                title: qsTr("Add torrent")
+                title: sheet.batchMode ? qsTr("Add %1 torrents").arg(sheet.batchCount) : qsTr("Add torrent")
 
                 onAddableChanged: {
                     sheet._syncFiles();
@@ -753,6 +1028,12 @@ Sheet {
 
                     // docs/25 §3: the files match for the `.torrent` in the field.
                     function onFilesMatchFound(token: string, matches: var): void {
+                    if (sheet._batchMatches[token] !== undefined) {
+                        const found = Object.assign({}, sheet._batchMatches);
+                        found[token] = matches;
+                        sheet._batchMatches = found;
+                        return;
+                    }
                     if (!sheet.addable || sheet.addable.token !== token)
                     return;
                     sheet.filesMatches = matches;
@@ -763,6 +1044,19 @@ Sheet {
                     function onAddableParsed(result: var): void {
                     if (!sheet.opened)
                     return;
+                    // #40: a batch `.torrent` read: its row gets its name, size and hashes.
+                    const at = result.token.length > 0
+                             ? sheet.batch.findIndex(entry => entry.map.token === result.token) : -1;
+                    if (at >= 0) {
+                        const next = sheet.batch.slice();
+                        next[at] = {
+                            "text": next[at].text,
+                            "map": result
+                        };
+                        sheet.batch = next;
+                        sheet._askBatchMatches();
+                        return;
+                    }
                     if (sheet._awaitingPick) {
                         sheet._awaitingPick = false;
                         sheet.loadText(result.value, "file");
@@ -784,23 +1078,92 @@ Sheet {
                         visible: sheet.errorText.length > 0
                     }
 
-                    // `.row` — Magnet, URL or file
+                    // `.row` — Magnet, URL or file; in a batch (#40), the list over a field for more
                     FormRow {
                         Layout.fillWidth: true
-                        label: qsTr("Magnet, URL or file")
+                        label: sheet.batchMode ? "" : qsTr("Magnet, URL or file")
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: Theme.space(10)
+                            visible: sheet.batchMode
+
+                            Label {
+                                Layout.fillWidth: true
+                                elide: Text.ElideRight
+                                objectName: "batchHead"
+                                text: qsTr("Torrents · %1").arg(sheet.batchRows.length)
+                                tracked: true
+                            }
+
+                            // docs/27 D9: back to the queue.
+                            Label {
+                                color: oneByOneMouse.containsMouse ? Theme.accent : Theme.foreground
+                                objectName: "batchOneByOne"
+                                size: "caption"
+                                text: qsTr("one by one")
+
+                                MouseArea {
+                                    id: oneByOneMouse
+
+                                    anchors.fill: parent
+                                    anchors.margins: -Theme.space(4)
+                                    cursorShape: Qt.PointingHandCursor
+                                    hoverEnabled: true
+
+                                    onClicked: sheet.oneByOne()
+                                }
+                            }
+                        }
+
+                        AddBatchList {
+                            id: batchList
+
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: implicitHeight
+                            rows: sheet.batchRows
+                            visible: sheet.batchMode
+
+                            onRemoveRequested: index => sheet.removeFromBatch(index)
+                        }
+
+                        // docs/27 D10: a batch saves everything to one place.
+                        Banner {
+                            Layout.fillWidth: true
+                            kind: "warning"
+                            objectName: "batchMatchLine"
+                            text: sheet.batchMatch
+                                  ? qsTr("Files for %1 are already on disk in %2. A batch saves everything to one place: to add it on top of those files, use one by one.").arg(
+                                        sheet.batchMatch.name).arg(sheet.batchMatch.savePath)
+                                  : ""
+                            visible: sheet.batchMode && sheet.batchMatch !== null
+                        }
 
                         Field {
                             id: sourceField
 
                             Layout.fillWidth: true
-                            placeholder: qsTr("magnet:?xt=urn:btih:…")
+                            placeholder: sheet.batchMode ? qsTr("paste more magnets or URLs, one per line")
+                                                         : qsTr("magnet:?xt=urn:btih:…")
                             shortcuts: sheet._fieldShortcuts
                             // Manual box M6: a button to click, not only a key to know.
                             trailing: qsTr("browse")
                             trailingClickable: true
                             trailingKey: "ctrl+o"
 
-                            onAccepted: sheet.triggerPrimary()
+                            onAccepted: {
+                                // In a batch the field is for more: `enter` with text adds it
+                                // to the list, `enter` on an empty one adds the batch.
+                                if (sheet.batchMode && sourceField.text.trim().length > 0) {
+                                    const more = App.splitAddables(sourceField.text);
+                                    if (more.length > 0)
+                                        sheet.addToBatch(more, "");
+                                    else
+                                        sheet.errorText = qsTr("not a magnet link, URL or .torrent file");
+                                    return;
+                                }
+                                sheet.triggerPrimary();
+                            }
                             onShortcutPressed: (key, modifiers) => sheet._onShortcut(key, modifiers)
                             onTrailingClicked: sheet.browse()
                             onTextChanged: {
@@ -810,6 +1173,17 @@ Sheet {
                                 const grew = sourceField.text.length - sheet._typedLength;
                                 sheet._typedLength = sourceField.text.length;
                                 if (sheet._programmatic)
+                                    return;
+                                // #40: a paste of several, or anything pasted into a batch,
+                                // joins the batch.
+                                if (grew > 1) {
+                                    const many = App.splitAddables(sourceField.text);
+                                    if (many.length > 1 || (sheet.batchMode && many.length > 0)) {
+                                        sheet.addToBatch(many, "");
+                                        return;
+                                    }
+                                }
+                                if (sheet.batchMode)
                                     return;
                                 sheet.source = "";
                                 sheet.errorText = "";
@@ -851,11 +1225,25 @@ Sheet {
                         spacing: Theme.space(4)
                         visible: sheet.showDownloads
 
-                        Label {
+                        RowLayout {
                             Layout.fillWidth: true
-                            elide: Text.ElideRight
-                            text: qsTr("In Downloads")
-                            tracked: true
+                            spacing: Theme.space(10)
+
+                            Label {
+                                Layout.fillWidth: true
+                                elide: Text.ElideRight
+                                text: qsTr("In Downloads")
+                                tracked: true
+                            }
+
+                            // #40 (docs/27 B3): what `enter` does with ticks.
+                            Label {
+                                dim: true
+                                objectName: "downloadsTicked"
+                                size: "caption"
+                                text: qsTr("%1 ticked · enter adds them together").arg(downloadsList.ticked.length)
+                                visible: downloadsList.ticked.length > 0
+                            }
                         }
 
                         AddDownloadsList {
@@ -866,6 +1254,10 @@ Sheet {
                             torrents: App.downloadsTorrents
 
                             onChosen: path => sheet.useDownload(path)
+                            onChosenMany: paths => {
+                                sheet.addToBatch(paths, "file");
+                                sheet.focusFirst();
+                            }
                         }
                     }
 
@@ -874,6 +1266,7 @@ Sheet {
                     FormRow {
                         Layout.fillWidth: true
                         label: qsTr("Name")
+                        visible: !sheet.batchMode
 
                         Field {
                             id: renameField
@@ -976,10 +1369,12 @@ Sheet {
                             Layout.fillWidth: true
                             neededBytes: sheet.neededBytes
                             savePath: savePathField.text
-                            totalBytes: sheet.addable && sheet.addable.totalSize !== undefined
-                                        ? sheet.addable.totalSize : -1
+                            totalBytes: sheet.batchMode ? sheet.neededBytes
+                                                        : sheet.addable && sheet.addable.totalSize !== undefined
+                                                          ? sheet.addable.totalSize : -1
                             alreadyThere: sheet.savedThere
-                            visible: sheet.addable !== null && sheet.addable.valid === true
+                            visible: sheet.batchMode ? sheet.batchCount > 0
+                                                     : sheet.addable !== null && sheet.addable.valid === true
                         }
                     }
 

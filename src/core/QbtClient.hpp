@@ -100,6 +100,7 @@
 //   POST torrents/delete                torrentsDelete(hashes, deleteFiles)
 //   POST torrents/add (urls=)           torrentsAddUrls(urls, options)
 //   POST torrents/add (multipart file)  torrentsAddFile(fileName, bytes, options)
+//   POST torrents/add (multipart, many) torrentsAddMany(files, urls, options)
 // Anything else goes through the generic get() / post().
 
 #include "core/ApiError.hpp"
@@ -362,6 +363,19 @@ public:
     /// POST torrents/add, multipart, with the raw bytes of a .torrent file.
     QbtReply<QByteArray> *torrentsAddFile(const QString &fileName,
                                           const QByteArray &bytes,
+                                          const AddOptions &options = AddOptions());
+
+    /// One `.torrent` of a batch: the name it is uploaded under and its bytes.
+    struct AddFile
+    {
+        QString fileName;
+        QByteArray bytes;
+    };
+    /// POST torrents/add, multipart, with several `.torrent` files and several links at once,
+    /// all under one set of options (#40, the add sheet's batch). qBittorrent takes a
+    /// `torrents` part per file and the links newline-separated in one `urls` part.
+    QbtReply<QByteArray> *torrentsAddMany(const QList<AddFile> &files,
+                                          const QStringList &urls,
                                           const AddOptions &options = AddOptions());
 
     QbtReply<QByteArray> *transferSetDownloadLimit(qint64 bytesPerSec);

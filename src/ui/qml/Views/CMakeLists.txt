@@ -9,6 +9,7 @@ qt_add_qml_module(omaseed-views
         DemoEnvForeign.hpp
     QML_FILES
         ActionsMenu.qml
+        AddBatchList.qml
         AddDownloadsList.qml
         AddFilesTree.qml
         FileTick.qml

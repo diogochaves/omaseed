@@ -1565,6 +1565,25 @@ void App::pickTorrentFile()
         });
 }
 
+QStringList App::pickTorrentFiles()
+{
+    return QFileDialog::getOpenFileNames(
+        nullptr, tr("Choose torrents"), QString(), tr("Torrent files (*.torrent);;All files (*)"));
+}
+
+QStringList App::splitAddables(const QString &text) const
+{
+    // A magnet glued to the one before it ("…&dn=a" + "magnet:?xt=…") starts a new one.
+    static const QRegularExpression glued(QStringLiteral("(?<=\\S)(?=magnet:\\?)"),
+                                          QRegularExpression::CaseInsensitiveOption);
+    QString spaced = text;
+    spaced.replace(glued, QStringLiteral(" "));
+    QStringList sources;
+    for (const integration::Addable &addable : integration::Xdg::parseAddableList(spaced))
+        sources.append(addable.value);
+    return sources;
+}
+
 QVariantMap App::findDuplicate(const QString &hashV1, const QString &hashV2) const
 {
     const auto lower = [](const QString &hash) { return hash.trimmed().toLower(); };
@@ -1644,6 +1663,10 @@ QbtClient::AddOptions App::addOptionsFrom(const QVariantMap &request) const
 
 void App::addTorrent(const QVariantMap &request)
 {
+    if (request.contains(QStringLiteral("items"))) {
+        addBatch(request);
+        return;
+    }
     const QString kind = request.value(QStringLiteral("kind")).toString();
     const QString value = request.value(QStringLiteral("value")).toString();
     const QString token = request.value(QStringLiteral("token")).toString();
@@ -1734,6 +1757,79 @@ void App::addTorrent(const QVariantMap &request)
         else
             applyAddFilePriorities(id, filePriorities, keepStopped);
     });
+}
+
+void App::addBatch(const QVariantMap &request)
+{
+    const QVariantList items = request.value(QStringLiteral("items")).toList();
+    QList<QbtClient::AddFile> files;
+    QStringList urls;
+    QStringList tokens;
+    QStringList ids;
+    for (const QVariant &value : items) {
+        const QVariantMap item = value.toMap();
+        const QString kind = item.value(QStringLiteral("kind")).toString();
+        QString id = TorrentFile::torrentIdFor(item.value(QStringLiteral("infoHashV1")).toString(),
+                                               item.value(QStringLiteral("infoHashV2")).toString());
+        if (kind == QLatin1String("file")) {
+            const QString token = item.value(QStringLiteral("token")).toString();
+            const PendingTorrentFile file = m_pendingTorrentFiles.value(token);
+            if (file.bytes.isEmpty()) {
+                Q_EMIT addFinished(false,
+                                   tr("%1 was not read; pick it again")
+                                       .arg(item.value(QStringLiteral("name")).toString()),
+                                   QString());
+                return;
+            }
+            files.append(QbtClient::AddFile{file.fileName, file.bytes});
+            tokens.append(token);
+            if (id.isEmpty())
+                id = file.torrentId;
+        } else if (kind == QLatin1String("magnet") || kind == QLatin1String("url")) {
+            urls.append(item.value(QStringLiteral("value")).toString());
+        } else {
+            continue;
+        }
+        if (!id.isEmpty())
+            ids.append(id);
+    }
+    if (files.isEmpty() && urls.isEmpty()) {
+        Q_EMIT addFinished(false, tr("nothing to add"), QString());
+        return;
+    }
+    const QString first = ids.value(0);
+    if (m_demoMode) {
+        qInfo().noquote() << QStringLiteral("demo: would add %1 torrents at once")
+                                 .arg(files.size() + urls.size());
+        Q_EMIT addFinished(true, QString(), first);
+        return;
+    }
+    if (!m_hasServer) {
+        Q_EMIT addFinished(false, tr("no server is configured"), QString());
+        return;
+    }
+
+    QbtClient::AddOptions options = addOptionsFrom(request);
+    options.rename.reset(); // one name cannot fit several torrents
+    m_client->torrentsAddMany(files, urls, options)
+        ->then(this, [=, this](const QbtResult<QByteArray> &result) {
+            if (result.isError()) {
+                qWarning().noquote()
+                    << QStringLiteral("batch add failed: %1").arg(result.error().toString());
+                Q_EMIT addFinished(false, result.error().message(), QString());
+                return;
+            }
+            const QString body = QString::fromUtf8(result.value()).trimmed();
+            if (body.compare(QStringLiteral("Fails."), Qt::CaseInsensitive) == 0) {
+                Q_EMIT addFinished(false, tr("the server refused these torrents"), QString());
+                return;
+            }
+            for (const QString &token : tokens)
+                forgetTorrentFile(token);
+            if (!first.isEmpty())
+                watchForAddedHash(first);
+            Q_EMIT addFinished(true, QString(), first);
+        });
 }
 
 void App::applyAddRenames(const QString &id,

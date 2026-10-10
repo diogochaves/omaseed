@@ -491,6 +491,13 @@ TestCase {
                                                 });
         const known = "magnet:?xt=urn:btih:" + testCase.knownHash() + "&dn=already-here";
         sheet.openList([known, testCase.freshMagnet], "drop");
+        // #40: together they are a batch, the known one left out of it…
+        compare(sheet.batchMode, true);
+        compare(sheet.batchRows[0].state, "library");
+        compare(sheet.batchCount, 1);
+        compare(duplicate.count, 0);
+        // …and one by one, it gives way to Fig. 10 as before.
+        sheet.oneByOne();
 
         compare(duplicate.count, 1);
         compare(sheet.opened, true);
@@ -717,6 +724,7 @@ TestCase {
         sheet.openList([testCase.freshMagnet,
                         "magnet:?xt=urn:btih:0102030405060708090a0b0c0d0e0f1011121314&dn=second"],
                        "handoff");
+        sheet.oneByOne(); // #40: a batch, turned into the queue
 
         compare(sheet.sourceField.text, testCase.freshMagnet);
         compare(sheet.source, "handoff");
@@ -761,6 +769,7 @@ TestCase {
         sheet.openList([testCase.freshMagnet,
                         "magnet:?xt=urn:btih:0102030405060708090a0b0c0d0e0f1011121314&dn=second"],
                        "handoff");
+        sheet.oneByOne();
         sheet.renameField.text = "my custom name";
         sheet.finish(true, "");
         compare(sheet.addable.name, "second");
@@ -1190,9 +1199,156 @@ TestCase {
         verify(tree.view.contentY > 0, "the cursor row is scrolled into view");
     }
 
+    // ---- #40: a batch (docs/27 B1–B3) ---------------------------------------------------
+
+    readonly property string secondMagnet: "magnet:?xt=urn:btih:0102030405060708090a0b0c0d0e0f1011121314&dn=second"
+    readonly property string thirdMagnet:
+        "magnet:?xt=urn:btih:2222222222222222222222222222222222222222&dn=third&xl=1048576"
+
+    function test_several_at_once_open_a_batch() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        sheet.openList([testCase.freshMagnet, testCase.secondMagnet, testCase.thirdMagnet], "drop");
+        compare(sheet.opened, true);
+        compare(sheet.batchMode, true);
+        compare(sheet.batchCount, 3);
+        compare(sheet.queue.length, 0);
+        compare(sheet.title, "Add 3 torrents");
+        compare(sheet.sourceField.text, "");
+        compare(findChild(sheet, "batchHead").text, "Torrents · 3");
+        verify(!sheet.renameField.visible, "the Name row belongs to one torrent");
+        compare(sheet.showDownloads, false);
+        compare(sheet.actions[2].text, "add 3");
+        compare(sheet.actions[1].text, "add 3 stopped");
+        // Sizes: two magnets say (xl=), one does not.
+        compare(sheet.batchRows[1].flag, "magnet · size after metadata");
+        verify(sheet.subtitle.indexOf("1 without a size yet") >= 0, sheet.subtitle);
+    }
+
+    function test_a_batch_adds_in_one_request_without_what_is_left_out() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        const added = createTemporaryObject(addSpy, testCase, {
+                                                "target": sheet
+                                            });
+        const known = "magnet:?xt=urn:btih:" + testCase.knownHash() + "&dn=already-here";
+        sheet.openList([testCase.freshMagnet, known, testCase.freshMagnet, testCase.thirdMagnet],
+                       "drop");
+        compare(sheet.batchRows.map(row => row.state), ["ok", "library", "twice", "ok"]);
+        compare(sheet.batchRows[2].flag, "twice in this list · left out");
+        compare(sheet.batchCount, 2);
+        compare(sheet.title, "Add 2 torrents");
+
+        sheet.submit(true);
+        compare(added.count, 1);
+        const request = added.signalArguments[0][0];
+        compare(request.items.length, 2);
+        compare(request.items[0].value, testCase.freshMagnet);
+        compare(request.items[1].value, testCase.thirdMagnet);
+        compare(request.stopped, true);
+        verify(request.rename === undefined, "a batch carries no name");
+    }
+
+    function test_a_paste_of_several_starts_a_batch() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        sheet.openWith("", "");
+        sheet.sourceField.text = testCase.freshMagnet + "\n" + testCase.secondMagnet;
+        compare(sheet.batchMode, true);
+        compare(sheet.batchCount, 2);
+        compare(sheet.sourceField.text, "");
+        // A paste into the batch's field joins it.
+        sheet.sourceField.text = testCase.thirdMagnet;
+        compare(sheet.batchCount, 3);
+        compare(sheet.sourceField.text, "");
+    }
+
+    function test_removing_down_to_one_is_the_ordinary_sheet() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        sheet.openList([testCase.freshMagnet, testCase.secondMagnet], "handoff");
+        sheet.batchList.forceActiveFocus();
+        compare(sheet.hints, sheet._batchHints);
+        keyClick("j");
+        keyClick("d");
+        compare(sheet.batchMode, false);
+        compare(sheet.sourceField.text, testCase.freshMagnet);
+        compare(sheet.title, "Add torrent");
+        verify(sheet.renameField.visible);
+    }
+
+    // docs/27 D7 a: a hand-off joins a source as it arrived; a form already worked on queues.
+    function test_a_hand_off_joins_an_untouched_source_as_a_batch() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        sheet.openWith(testCase.freshMagnet, "clipboard");
+        sheet.openList([testCase.secondMagnet], "handoff");
+        compare(sheet.batchMode, true);
+        compare(sheet.batchRows.map(row => row.text), [testCase.freshMagnet, testCase.secondMagnet]);
+        compare(sheet.queue.length, 0);
+    }
+
+    function test_browse_with_several_files_makes_a_batch() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        sheet.openWith("", "");
+        const folder = testCase.fixturesFolder();
+        sheet.pickTorrents = () => [folder + "/single_file_v1.torrent", folder + "/open_movies_v1.torrent"];
+        sheet.sourceField.trailingClicked();
+        compare(sheet.batchMode, true);
+        tryVerify(() => sheet.batchRows.every(row => row.state !== "reading"), 10000);
+        compare(sheet.batchCount, 2);
+        compare(sheet.batchRows[1].flag, "8 files");
+        verify(sheet.neededBytes > 0);
+        // One file is the ordinary sheet, as before.
+        sheet.reset();
+        sheet.pickTorrents = () => [folder + "/single_file_v1.torrent"];
+        sheet.sourceField.trailingClicked();
+        compare(sheet.batchMode, false);
+        compare(sheet.sourceField.text, folder + "/single_file_v1.torrent");
+    }
+
+    // docs/27 B3: ticks in In Downloads, then enter: the ticked files are the batch.
+    function test_ticks_in_downloads_make_a_batch() {
+        const sheet = testCase.openOnFixtures();
+        sheet.downloadsList.forceActiveFocus();
+        keyClick(Qt.Key_Space);
+        keyClick("j");
+        keyClick(Qt.Key_Space);
+        compare(sheet.downloadsList.ticked.length, 2);
+        verify(findChild(sheet, "downloadsTicked").visible);
+        keyClick(Qt.Key_Return);
+        compare(sheet.batchMode, true);
+        compare(sheet.batchRows.length, 2);
+        compare(sheet.batchRows[0].text, App.downloadsTorrents[0].path);
+        compare(sheet.downloadsList.ticked.length, 0);
+    }
+
+    // docs/27 D10: a batch `.torrent` whose files are on disk gets the yellow line.
+    function test_a_files_match_in_a_batch_says_so() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        sheet.openList([testCase.freshMagnet, testCase.secondMagnet], "drop");
+        sheet.batch = sheet.batch.concat([{
+                                              "text": "x.torrent",
+                                              "map": {
+                                                  "kind": "file",
+                                                  "valid": true,
+                                                  "token": "file-test",
+                                                  "name": "On Disk",
+                                                  "value": "x.torrent",
+                                                  "infoHashV1": "3333333333333333333333333333333333333333"
+                                              }
+                                          }]);
+        const matches = {};
+        matches["file-test"] = [{
+                                    "savePath": "/media/library",
+                                    "name": "On Disk"
+                                }];
+        sheet._batchMatches = matches;
+        compare(sheet.batchRows[2].flag, "files on disk");
+        const line = findChild(sheet, "batchMatchLine");
+        verify(line.visible);
+        verify(line.text.indexOf("/media/library") >= 0, line.text);
+    }
+
     function test_escape_drops_the_queue() {
         const sheet = createTemporaryObject(addSheetComponent, testCase);
-        sheet.openList([testCase.freshMagnet, testCase.freshMagnet], "drop");
+        sheet.openList([testCase.freshMagnet, "magnet:?xt=urn:btih:0102030405060708090a0b0c0d0e0f1011121314&dn=second"], "drop");
+        sheet.oneByOne();
         compare(sheet.queue.length, 1);
         keyClick(Qt.Key_Escape); // clears the field
         keyClick(Qt.Key_Escape); // goes to `cancel`

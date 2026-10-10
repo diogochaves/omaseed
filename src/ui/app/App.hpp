@@ -862,6 +862,13 @@ public:
     /// the XDG portal serves the dialog under Wayland. The chosen file is parsed like any
     /// other and reported through `addableParsed` (with `source: "file"`).
     Q_INVOKABLE void pickTorrentFile();
+    /// #40: the same chooser for several `.torrent` files at once (QFileDialog's portal
+    /// picker, multi-select); their paths, or an empty list when it was cancelled.
+    Q_INVOKABLE QStringList pickTorrentFiles();
+    /// #40: every source in a pasted or dropped text, in order: one per line, links side by
+    /// side on one line, and magnets glued together (a single-line field drops the line
+    /// breaks between them). Each is what `parseAddable` takes.
+    Q_INVOKABLE QStringList splitAddables(const QString &text) const;
 
     /// Fig. 10's test: the library row either infohash already occupies (`torrentRow`'s
     /// fields), or an empty map. Both hashes are matched against the maindata `infohash_v1`/
@@ -892,6 +899,10 @@ public:
     /// Answers with `addFinished`; on success the new hash, once the next sync
     /// brings it, also travels as `showTorrentRequested` so the table's cursor lands on it.
     /// In demo mode nothing is sent: the add is logged and reported as a success.
+    ///
+    /// #40, the sheet's batch: a request with `items` (a list of `parseAddable` maps) adds
+    /// all of them in one `torrents/add` under the request's options (no rename, no file
+    /// choices), and answers one `addFinished` with the first one's hash.
     Q_INVOKABLE void addTorrent(const QVariantMap &request);
 
     /// `OMASEED_DEMO_ADD`: the text a `--demo` run drops into the sheet when it opens, so
@@ -990,6 +1001,8 @@ private:
     /// parsed and then abandoned do not pile up for the life of the process.
     void rememberTorrentFile(const QString &token, const PendingTorrentFile &file);
     void forgetTorrentFile(const QString &token);
+    /// #40: addTorrent's batch half.
+    void addBatch(const QVariantMap &request);
 
 public:
     /// The thread that ran the most recent .torrent parse, so a test can check it was not the

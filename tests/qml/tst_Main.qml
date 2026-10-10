@@ -1245,8 +1245,10 @@ TestCase {
         (view.firstRunLoader.item as FirstRunPage).finished();
         compare(view.firstRun, false);
         compare(view.addSheet.opened, true, "the waiting link did not open once setup was done");
-        compare(view.addSheet.sourceField.text, magnet);
-        compare(view.addSheet.queue.length, 1);
+        // #40: the two that waited arrive together, as a batch.
+        compare(view.addSheet.batchMode, true);
+        compare(view.addSheet.batch[0].text, magnet);
+        compare(view.addSheet.batch.length, 2);
         view.addSheet.dismiss();
     }
 

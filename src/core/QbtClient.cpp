@@ -1329,23 +1329,44 @@ QbtReply<QByteArray> *QbtClient::torrentsAddFile(const QString &fileName,
                                                  const QByteArray &bytes,
                                                  const AddOptions &options)
 {
+    return torrentsAddMany({AddFile{fileName, bytes}}, {}, options);
+}
+
+QbtReply<QByteArray> *QbtClient::torrentsAddMany(const QList<AddFile> &files,
+                                                 const QStringList &urls,
+                                                 const AddOptions &options)
+{
     QUrlQuery optionsForm;
     applyAddOptions(optionsForm, options);
     const QList<QPair<QString, QString>> items = optionsForm.queryItems(QUrl::FullyDecoded);
-    const QString uploadName = safeUploadName(fileName);
+    QList<AddFile> uploads;
+    uploads.reserve(files.size());
+    for (const AddFile &file : files)
+        uploads.append(AddFile{safeUploadName(file.fileName), file.bytes});
+    const QString links = urls.join(QLatin1Char('\n'));
 
     // Built again for every attempt (see postMultipart), from values captured by copy.
-    auto build = [uploadName, bytes, items]() {
+    auto build = [uploads, links, items]() {
         auto *multiPart = new QHttpMultiPart(QHttpMultiPart::FormDataType);
 
-        QHttpPart filePart;
-        filePart.setHeader(QNetworkRequest::ContentTypeHeader,
-                           QStringLiteral("application/x-bittorrent"));
-        filePart.setHeader(
-            QNetworkRequest::ContentDispositionHeader,
-            QStringLiteral("form-data; name=\"torrents\"; filename=\"%1\"").arg(uploadName));
-        filePart.setBody(bytes);
-        multiPart->append(filePart);
+        for (const AddFile &upload : uploads) {
+            QHttpPart filePart;
+            filePart.setHeader(QNetworkRequest::ContentTypeHeader,
+                               QStringLiteral("application/x-bittorrent"));
+            filePart.setHeader(QNetworkRequest::ContentDispositionHeader,
+                               QStringLiteral("form-data; name=\"torrents\"; filename=\"%1\"")
+                                   .arg(upload.fileName));
+            filePart.setBody(upload.bytes);
+            multiPart->append(filePart);
+        }
+
+        if (!links.isEmpty()) {
+            QHttpPart part;
+            part.setHeader(QNetworkRequest::ContentDispositionHeader,
+                           QStringLiteral("form-data; name=\"urls\""));
+            part.setBody(links.toUtf8());
+            multiPart->append(part);
+        }
 
         for (const auto &[key, value] : items) {
             QHttpPart part;

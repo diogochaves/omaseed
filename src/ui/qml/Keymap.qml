@@ -1081,6 +1081,28 @@ QtObject {
             "help": ""
         },
 
+        // The add sheet's batch (#40, docs/27 B1): its list of torrents. `tab` stays the sheet's.
+        {
+            "area": "addBatch",
+            "key": "j",
+            "action": "moveDown",
+            "label": qsTr("move"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "addBatch",
+            "key": "d",
+            "action": "remove",
+            "label": qsTr("remove"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+
         // The add sheet's "in Downloads" list (manual box M7). `tab` stays the sheet's.
         {
             "area": "addDownloads",
@@ -1107,6 +1129,16 @@ QtObject {
             "key": "enter",
             "action": "use",
             "label": qsTr("use this file"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "addDownloads",
+            "key": "space",
+            "action": "tick",
+            "label": qsTr("tick"),
             "column": "",
             "rank": 0,
             "helpKeys": "",
@@ -1313,7 +1345,7 @@ QtObject {
         }
     ]
 
-    readonly property var areas: ["global", "table", "rail", "details", "columns", "search", "addFiles",
+    readonly property var areas: ["global", "table", "rail", "details", "columns", "search", "addFiles", "addBatch",
         "addDownloads", "console"]
 
     /// Every entry of one area, in declaration order.

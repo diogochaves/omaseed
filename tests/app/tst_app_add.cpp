@@ -142,6 +142,8 @@ private slots:
     void addsATorrentFileWithItsOptions();
     void addsAMagnetStopped();
     void addsWithFileChoicesRenameAndLimits();
+    void splitsSeveralSources();
+    void addsABatchInOneRequest();
 
 private:
     /// The one `torrents/info` entry for `hash`, or an empty object.
@@ -182,6 +184,78 @@ void TestAppAdd::cleanup()
         qunsetenv("XDG_CONFIG_HOME");
     else
         qputenv("XDG_CONFIG_HOME", m_savedConfigHome);
+}
+
+// #40: the add sheet's paste of several. One per line, side by side, and glued together the
+// way a single-line field leaves them.
+void TestAppAdd::splitsSeveralSources()
+{
+    App app;
+    const QString a =
+        QStringLiteral("magnet:?xt=urn:btih:%1&dn=a").arg(QString(40, QLatin1Char('a')));
+    const QString b =
+        QStringLiteral("magnet:?xt=urn:btih:%1&dn=b").arg(QString(40, QLatin1Char('b')));
+    const QString url = QStringLiteral("https://example.org/c.torrent");
+    QCOMPARE(app.splitAddables(a + QLatin1Char('\n') + b + QLatin1Char('\n') + url),
+             (QStringList{a, b, url}));
+    QCOMPARE(app.splitAddables(a + QLatin1Char(' ') + url), (QStringList{a, url}));
+    QCOMPARE(app.splitAddables(a + b), (QStringList{a, b}));
+    QCOMPARE(app.splitAddables(a), (QStringList{a}));
+    QVERIFY(app.splitAddables(QStringLiteral("not a link")).isEmpty());
+}
+
+// #40: two sources, a `.torrent` and a magnet, in one torrents/add with one set of options.
+void TestAppAdd::addsABatchInOneRequest()
+{
+    if (!m_live)
+        QSKIP("the :8081 playground is not answering: scripts/dev/test-server.sh start");
+
+    deleteFixtures();
+    qputenv("OMASEED_SERVER_URL", m_url.toString().toUtf8());
+    qputenv("OMASEED_SERVER_NAME", QByteArrayLiteral("playground"));
+
+    App app;
+    app.start();
+    QVERIFY(app.hasServer());
+
+    QSignalSpy parsed(&app, &App::addableParsed);
+    app.parseAddable(QStringLiteral(OMASEED_FIXTURES_DIR "/") + QString::fromLatin1(kFixtureFile));
+    QVERIFY(parsed.wait(10000));
+    const QVariantMap file = parsed.first().first().toMap();
+    const QVariantMap magnet =
+        app.parseAddable(QStringLiteral("magnet:?xt=urn:btih:%1&dn=omaseed-t42-magnet")
+                             .arg(QString::fromLatin1(kMagnetHash)));
+    QVERIFY(file.value(QStringLiteral("valid")).toBool());
+    QVERIFY(magnet.value(QStringLiteral("valid")).toBool());
+
+    const QVariantMap request{
+        {QStringLiteral("items"), QVariantList{file, magnet}},
+        {QStringLiteral("tags"), QStringList{QStringLiteral(kTag)}},
+        {QStringLiteral("stopped"), true},
+    };
+    QSignalSpy finished(&app, &App::addFinished);
+    app.addTorrent(request);
+    QVERIFY(finished.wait(20000));
+    QVERIFY2(finished.first().at(0).toBool(), qPrintable(finished.first().at(1).toString()));
+    QCOMPARE(finished.first().at(2).toString(), QString::fromLatin1(kFixtureHash));
+
+    QbtClient probe;
+    probe.setBaseUrl(m_url);
+    for (const char *hash : {kFixtureHash, kMagnetHash}) {
+        QJsonObject info;
+        QVERIFY2(waitFor(
+                     [&]() {
+                         info = infoFor(probe, QString::fromLatin1(hash));
+                         return isStopped(info);
+                     },
+                     15000),
+                 hash);
+        QCOMPARE(info.value(QStringLiteral("tags")).toString(), QStringLiteral(kTag));
+    }
+
+    app.engine()->stop();
+    deleteFixtures();
+    await(this, probe.torrentsDeleteTags(QStringList{QStringLiteral(kTag)}));
 }
 
 void TestAppAdd::deleteFixtures()
