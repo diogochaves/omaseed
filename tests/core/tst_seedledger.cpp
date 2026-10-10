@@ -526,14 +526,14 @@ private Q_SLOTS:
             QMap<QString, Row> now = library;
             if (next(3) == 0) {
                 for (int k = 0; k < 3; ++k) {
-                    auto it = now.begin() + next(quint32(now.size()));
+                    auto it = std::next(now.begin(), next(quint32(now.size())));
                     const qint64 given = 100 + next(5000);
                     it->up += given;
                     server += given;
                 }
             }
             if (next(40) == 0 && now.size() > 4) {
-                auto it = now.begin() + next(quint32(now.size()));
+                auto it = std::next(now.begin(), next(quint32(now.size())));
                 away.insert(it.key(), *it);
                 now.erase(it);
             }
