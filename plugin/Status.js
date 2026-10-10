@@ -85,17 +85,25 @@ function markState(status, now) {
 
 // The console convention (omarchy-console DESIGN.md §6: consoleAwake, consoleState,
 // consoleReason, consoleValue), read by its rail to move a widget into its running zone.
-// Awake while something downloads (there is something to wait for) or the app cannot reach
-// its server ("failed"). Seeding alone is a library's steady background, and torrents in
-// error (missing files) can last for months: neither wakes it, or it would never leave the
-// running zone. The value is both speeds, awake or not; nothing while the app is not running.
-function consoleReading(status, now) {
+// What wakes it is the user's (docs/27 D14-D16, the "omarchy-console's rail" settings):
+// downloads (on by default: there is something to wait for), uploads and torrents in error
+// (off by default: a library that seeds all day, or keeps a few torrents with missing files
+// for months, would never leave the running zone). An unreachable server always wakes it,
+// and a failure wins over a download. "Downloads" and "uploads" mean data moving now (speed
+// above 0), not a torrent's state. The value is both speeds, awake or not; nothing while the
+// app is not running.
+function consoleReading(status, now, options) {
+  var o = options || barOptions({})
   var s = state(status, now)
   if (s === "notRunning") return { awake: false, state: "", reason: "", value: "" }
   var speed = obj(status.speed)
   var value = "↓ " + Format.barValue(num(speed.dl)) + " ↑ " + Format.barValue(num(speed.up))
   if (s === "unreachable") return { awake: true, state: "failed", reason: "qBittorrent unreachable", value: "" }
-  if (num(speed.dl) > 0) return { awake: true, state: "running", reason: "", value: value }
+  var errored = num(obj(status.counts).errored)
+  if (o.wakeOnError && errored > 0)
+    return { awake: true, state: "failed", reason: errored + " errored", value: value }
+  if ((o.wakeOnDownload && num(speed.dl) > 0) || (o.wakeOnUpload && num(speed.up) > 0))
+    return { awake: true, state: "running", reason: "", value: value }
   return { awake: false, state: "", reason: "", value: value }
 }
 
@@ -131,7 +139,10 @@ function barOptions(settings) {
     rareSeeds: clampInt(s.rareSeeds, 1, 5, 2),
     recentCount: clampInt(s.recentCount, 0, 5, 3),
     middleClick: ["altSpeed", "openApp", "none"].indexOf(s.middleClick) >= 0 ? s.middleClick : "altSpeed",
-    rightClick: ["openApp", "altSpeed", "none"].indexOf(s.rightClick) >= 0 ? s.rightClick : "openApp"
+    rightClick: ["openApp", "altSpeed", "none"].indexOf(s.rightClick) >= 0 ? s.rightClick : "openApp",
+    wakeOnDownload: flag(s.wakeOnDownload) !== false,
+    wakeOnUpload: flag(s.wakeOnUpload) === true,
+    wakeOnError: flag(s.wakeOnError) === true
   }
 }
 
@@ -143,7 +154,7 @@ function clampInt(value, lo, hi, fallback) {
 
 // ------------------------------------------------------------------ settings page
 
-// The widget's own settings page (docs/21): the manifest's nine, in three groups. A row
+// The widget's own settings page (docs/21, docs/27): the manifest's twelve, in four groups. A row
 // is a switch ("bool"), a pick of a few values ("enum") or a small number ("int"). `needs`
 // names the switch a row only means something with.
 function settingRows() {
@@ -166,8 +177,22 @@ function settingRows() {
     { key: "rareSeeds", group: "In the popup", title: "Few seeds means", type: "int", min: 1, max: 5,
       detail: "Keeping alive counts torrents with this many seeds or fewer" },
     { key: "recentCount", group: "In the popup", title: "Rows in Lately", type: "int", min: 0, max: 5,
-      detail: "finished downloads and milestones; 0 hides the section" }
+      detail: "finished downloads and milestones; 0 hides the section" },
+    { key: "wakeOnDownload", group: "omarchy-console's rail", title: "Downloads wake it", type: "bool",
+      detail: "while anything receives data" },
+    { key: "wakeOnUpload", group: "omarchy-console's rail", title: "Uploads wake it", type: "bool",
+      detail: "while anything sends data; a library that always seeds stays up" },
+    { key: "wakeOnError", group: "omarchy-console's rail", title: "Errors wake it", type: "bool",
+      detail: "as a failure, \"2 errored\"" }
   ]
+}
+
+// A dim line under a group's rows, "" for none. The rail's group says who reads it (stock
+// Omarchy doesn't, and the widget can't tell which host it is in) and what always wakes it.
+function settingGroupNote(group) {
+  if (group === "omarchy-console's rail")
+    return "Only omarchy-console's rail reads these. qBittorrent unreachable always wakes it, as a failure."
+  return ""
 }
 
 // Mark and speed: one of them stays on (docs/21 S2). True for the one that is the last on.

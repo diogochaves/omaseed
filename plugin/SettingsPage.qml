@@ -3,8 +3,8 @@ import qs.Commons
 import qs.Ui
 import "Status.js" as Status
 
-// The widget's own settings (docs/21, Q11 revised 2026-10-03): the manifest's nine in
-// three groups, then a row for omaseed's own Settings. The popup owns the cursor, the
+// The widget's own settings (docs/21, Q11 revised 2026-10-03; docs/27): the manifest's twelve
+// in four groups, then a row for omaseed's own Settings. The popup owns the cursor, the
 // keys and saving; this draws the rows and reports clicks.
 Column {
   id: root
@@ -77,6 +77,21 @@ Column {
           onHovered: root.hoveredRow(index)
           onHasCursorChanged: if (hasCursor) root.cursorItem(settingRow)
         }
+      }
+
+      // The group's own line under its rows (the console rail's: who reads it), if any.
+      Text {
+        readonly property string groupNote: Status.settingGroupNote(groupBlock.modelData)
+        visible: groupNote !== ""
+        width: parent.width
+        leftPadding: Style.space(8)
+        rightPadding: Style.space(8)
+        textFormat: Text.PlainText
+        text: groupNote
+        color: root.dim
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+        wrapMode: Text.WordWrap
       }
     }
   }

@@ -84,7 +84,8 @@ duplicates and remembers the category.
 
 The gear in the popup (or `,`) opens the widget's own settings page: show the mark, show
 the speed and which, the colours, hide while nothing moves, what middle and right click do,
-how few seeds counts as "keeping alive", and how many rows Lately has. Each change is saved
+how few seeds counts as "keeping alive", how many rows Lately has, and what wakes
+omarchy-console's rail. Each change is saved
 at once in the widget's entry in `~/.config/omarchy/shell.json`, and the bar follows. The
 page's last row opens omaseed's own Settings; omaseed's Settings › Appearance › Bar widget
 has a **customize** button that opens this page (`omarchy-shell chaves.omaseed settings`).
@@ -106,8 +107,19 @@ Set in the shell's widget settings.
 | `recentCount` | 3 | rows in Lately (0–5, 0 hides it) |
 | `middleClick` | altSpeed | altSpeed · openApp · none |
 | `rightClick` | openApp | openApp · altSpeed · none |
+| `wakeOnDownload` | on | omarchy-console's rail: awake while anything receives data |
+| `wakeOnUpload` | off | omarchy-console's rail: awake while anything sends data |
+| `wakeOnError` | off | omarchy-console's rail: awake as a failure ("N errored") while torrents are in error |
 
 Mark and speed can both be on, never both off: with both off the mark shows.
+
+## omarchy-console's rail
+
+The widget speaks omarchy-console's widget convention (`consoleAwake`, `consoleState`,
+`consoleReason`, `consoleValue`): a rail with omaseed in `right.wake` moves it to its running
+zone while it is awake. The three `wakeOn…` options choose what counts; qBittorrent
+unreachable always wakes it as a failure, and a failure (errors) wins over a download. Stock
+Omarchy's bar reads none of this.
 
 ## How it works
 
