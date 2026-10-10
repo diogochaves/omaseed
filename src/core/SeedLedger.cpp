@@ -75,6 +75,8 @@ bool SeedLedger::open(const QString &path)
     m_baselines.clear();
     m_baselinesDirty.clear();
     m_baselinesGone.clear();
+    m_missing.clear();
+    m_wholeSeen = false;
     m_speeds.clear();
 
     QDir().mkpath(QFileInfo(path).absolutePath());
@@ -217,8 +219,6 @@ void SeedLedger::observe(qint64 now,
     }
 
     const bool haveServer = m_lastUp >= 0 && m_lastDown >= 0 && m_lastTime > 0;
-    const bool backwards = haveServer && (allTimeUp < m_lastUp || allTimeDown < m_lastDown);
-    const qint64 from = m_lastTime;
 
     // Per torrent: the difference since its own baseline. A torrent seen for the first time,
     // or whose totals went down, only takes a baseline.
@@ -241,6 +241,7 @@ void SeedLedger::observe(qint64 now,
         if (delta > 0)
             perTorrent.insert(t.hash, delta);
     }
+    m_missing.clear();
     for (auto it = m_baselines.cbegin(); it != m_baselines.cend(); ++it) {
         if (next.contains(it.key()))
             continue;
@@ -250,13 +251,96 @@ void SeedLedger::observe(qint64 now,
             kept.seen = now; // the grace starts with this run's first poll
         if (now - kept.seen < missingKept) {
             next.insert(it.key(), kept);
+            m_missing.insert(it.key());
         } else {
             m_baselinesGone.insert(it.key());
             m_baselinesDirty.remove(it.key());
         }
     }
     m_baselines = next;
+    m_wholeSeen = true;
+    finishPoll(now, allTimeUp, allTimeDown, perTorrent);
+}
 
+void SeedLedger::observeChanges(qint64 now,
+                                qint64 allTimeUp,
+                                qint64 allTimeDown,
+                                const QList<TorrentTotals> &changed,
+                                const QStringList &removed)
+{
+    if (now <= 0)
+        return;
+    if (m_start == 0) {
+        m_start = now;
+        m_metaDirty = true;
+    }
+
+    const bool haveServer = m_lastUp >= 0 && m_lastDown >= 0 && m_lastTime > 0;
+
+    // Gone since the last poll, which was the last to list them: their grace starts there,
+    // as observe() would have it. One removed and added again in the same poll is listed.
+    if (!removed.isEmpty()) {
+        QSet<QString> listed;
+        for (const TorrentTotals &t : changed)
+            listed.insert(t.hash);
+        for (const QString &hash : removed) {
+            const auto it = m_baselines.find(hash);
+            if (it == m_baselines.end() || listed.contains(hash) || m_missing.contains(hash))
+                continue;
+            it->seen = m_lastTime > 0 ? m_lastTime : now;
+            m_missing.insert(hash);
+        }
+    }
+
+    // The same per-torrent rule as observe(), only for the torrents that moved.
+    QHash<QString, qint64> perTorrent;
+    for (const TorrentTotals &t : changed) {
+        const auto it = m_baselines.constFind(t.hash);
+        const bool known = it != m_baselines.constEnd();
+        if (!known || it->uploaded != t.uploaded || it->downloaded != t.downloaded
+            || it->addedOn != t.addedOn) {
+            m_baselinesDirty.insert(t.hash);
+            m_baselinesGone.remove(t.hash);
+        }
+        if (known && haveServer) {
+            const bool again = t.addedOn > 0 && it->addedOn > 0 && t.addedOn != it->addedOn;
+            const qint64 delta = again ? t.uploaded : t.uploaded - it->uploaded;
+            if (delta > 0)
+                perTorrent.insert(t.hash, delta);
+        }
+        m_baselines.insert(t.hash, {t.uploaded, t.downloaded, t.addedOn, now});
+        m_missing.remove(t.hash);
+    }
+
+    // The missing ones' grace, as observe() keeps it.
+    for (auto it = m_missing.begin(); it != m_missing.end();) {
+        const auto baseline = m_baselines.find(*it);
+        if (baseline == m_baselines.end()) {
+            it = m_missing.erase(it);
+            continue;
+        }
+        if (baseline->seen < 0)
+            baseline->seen = now;
+        if (now - baseline->seen < missingKept) {
+            ++it;
+            continue;
+        }
+        m_baselinesGone.insert(*it);
+        m_baselinesDirty.remove(*it);
+        m_baselines.erase(baseline);
+        it = m_missing.erase(it);
+    }
+    finishPoll(now, allTimeUp, allTimeDown, perTorrent);
+}
+
+void SeedLedger::finishPoll(qint64 now,
+                            qint64 allTimeUp,
+                            qint64 allTimeDown,
+                            const QHash<QString, qint64> &perTorrent)
+{
+    const bool haveServer = m_lastUp >= 0 && m_lastDown >= 0 && m_lastTime > 0;
+    const bool backwards = haveServer && (allTimeUp < m_lastUp || allTimeDown < m_lastDown);
+    const qint64 from = m_lastTime;
     if (haveServer && !backwards) {
         const qint64 up = allTimeUp - m_lastUp;
         const qint64 down = allTimeDown - m_lastDown;

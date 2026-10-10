@@ -1301,14 +1301,22 @@ Q_SIGNALS:
 private:
     /// Opens the ledger of the server the engine is about to poll (memory only in demo mode).
     void openLedger();
-    /// One poll into the ledger: the server's totals, every torrent's, this second's speeds.
+    /// One poll into the ledger: the server's totals, the torrents that moved, this second's
+    /// speeds. Only the poll's diff is walked (#36); the whole library after a full update.
     void feedLedger();
+    /// T7 for one torrent as it is now, with the seeds it had at the last poll (`before`, 0
+    /// unknown): keeps `m_lastSwarm`, and says "now the only seed" when it went down to one.
+    void checkLastSeed(const omaseed::core::Torrent &t, int before, bool announce);
     std::unique_ptr<omaseed::core::SeedLedger> m_ledger = std::make_unique<omaseed::core::SeedLedger>();
     omaseed::core::SeedConsole *m_console = new omaseed::core::SeedConsole(this);
     QString m_ledgerKey;
     bool m_ledgerDemoDone = false;
     /// Seeds in the swarm per complete torrent at the last poll, for "now the only seed".
     QHash<QString, int> m_lastSwarm;
+    /// TorrentModel::revision() when the last poll was fed: the next one follows on from it,
+    /// or the whole library is walked again.
+    quint64 m_fedRevision = 0;
+    bool m_fed = false;
     // --- end #24 --------------------------------------------------------------------------------
 
     // --- #31: omaseed's own backup (docs/24 §3, §5) ---------------------------------------------

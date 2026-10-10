@@ -131,6 +131,7 @@ private slots:
     void sessionShareAndWeek();
     void recentSurvivesARestart();
     void milestonesFromTheSync();
+    void idlePollsLeaveTheLibraryAlone();
     void todaysDownloads();
     void addCategoryFromState();
     void removedOnQuit();
@@ -557,6 +558,70 @@ void TestStatusWriter::milestonesFromTheSync()
     QCOMPARE(newest.value(QStringLiteral("path")).toString(),
              QStringLiteral("/srv/data/debian.iso"));
     QCOMPARE(recent.at(1).toObject().value(QStringLiteral("ratio")).toInt(), 1);
+}
+
+// #36: the parts worked out from every torrent are kept while the torrents hold still, so
+// an idle poll or an upload sample never walks the library; a change, or a torrent turning
+// quiet, works them out again.
+void TestStatusWriter::idlePollsLeaveTheLibraryAlone()
+{
+    QDateTime current = QDateTime::fromSecsSinceEpoch(1'790'000'000);
+    SyncEngine engine;
+    engine.globalState()->setConnected(true);
+    StatusWriter writer;
+    writer.setIntervals(0, 10000);
+    writer.setClock([&current]() { return current; });
+    startWriter(writer, engine);
+
+    engine.applyDemoData(fullUpdate());
+    const QJsonObject first = writer.snapshot();
+    const int builds = writer.torrentPartsBuilds();
+
+    // Idle polls (the server's counters move, no torrent does) and a minute of writes.
+    for (int i = 0; i < 20; ++i) {
+        engine.applyDemoData(partial(QJsonObject{{QStringLiteral("up_info_data"), 2000 + i}}));
+        current = current.addSecs(3);
+        writer.snapshot();
+    }
+    QCOMPARE(writer.torrentPartsBuilds(), builds);
+    const QJsonObject idle = writer.snapshot();
+    for (const char *key : {"alive", "topSeeders", "active"})
+        QCOMPARE(idle.value(QLatin1String(key)), first.value(QLatin1String(key)));
+    QCOMPARE(idle.value(QStringLiteral("share")).toObject().value(QStringLiteral("onOffer")),
+             first.value(QStringLiteral("share")).toObject().value(QStringLiteral("onOffer")));
+
+    // A torrent moves: worked out once more, and the file shows it.
+    engine.applyDemoData(partial(
+        {}, QJsonObject{{QStringLiteral("bbbb"),
+                         QJsonObject{{QStringLiteral("uploaded_session"), 1'000'000}}}}));
+    const QJsonArray top = writer.snapshot().value(QStringLiteral("topSeeders")).toArray();
+    QCOMPARE(writer.torrentPartsBuilds(), builds + 1);
+    QCOMPARE(top.first().toObject().value(QStringLiteral("name")).toString(),
+             QStringLiteral("debian.iso"));
+    writer.snapshot();
+    QCOMPARE(writer.torrentPartsBuilds(), builds + 1);
+
+    // debian (complete, one seed) was last active 30 days ago less 2 s: still counted as
+    // awake; kept until the second it turns quiet, then worked out again.
+    const qint64 last = current.toSecsSinceEpoch() - 30 * 24 * 3600 + 2;
+    engine.applyDemoData(partial(
+        {}, QJsonObject{{QStringLiteral("bbbb"), QJsonObject{{QStringLiteral("last_activity"), last}}}}));
+    const auto quiet = [&writer]() {
+        int count = 0;
+        const QJsonArray buckets =
+            writer.snapshot().value(QStringLiteral("alive")).toObject().value(QStringLiteral("buckets")).toArray();
+        for (const QJsonValue &bucket : buckets)
+            count += bucket.toObject().value(QStringLiteral("quiet")).toInt();
+        return count;
+    };
+    QCOMPARE(quiet(), 0);
+    const int beforeQuiet = writer.torrentPartsBuilds();
+    current = current.addSecs(1);
+    QCOMPARE(quiet(), 0);
+    QCOMPARE(writer.torrentPartsBuilds(), beforeQuiet);
+    current = current.addSecs(1);
+    QCOMPARE(quiet(), 1);
+    QCOMPARE(writer.torrentPartsBuilds(), beforeQuiet + 1);
 }
 
 void TestStatusWriter::todaysDownloads()

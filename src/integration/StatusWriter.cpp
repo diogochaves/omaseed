@@ -96,6 +96,8 @@ void StatusWriter::setEngine(SyncEngine *engine)
     if (m_engine)
         disconnect(m_engine, nullptr, this, nullptr);
     m_engine = engine;
+    m_milestonesFed = false;
+    m_partsValid = false;
     if (!engine)
         return;
 
@@ -148,6 +150,7 @@ void StatusWriter::setServer(const QString &id, const QString &name, const QUrl 
         m_sessionDown.reset();
         m_sampler.clear();
         m_milestones.clear();
+        m_milestonesFed = false;
         m_week.resetBaseline();
         loadServerState();
     }
@@ -331,8 +334,21 @@ void StatusWriter::onSynced()
     m_week.observe(state->upInfoData(), now().date());
     m_weekDirty = true;
 
-    const QList<Torrent> torrents = StatusDigest::torrentsOf(*m_engine->torrents());
-    const QList<StatusDigest::RatioMilestones::Crossing> crossings = m_milestones.observe(torrents);
+    // #36: only the torrents this poll touched, once the whole list has been seen.
+    const TorrentModel *model = m_engine->torrents();
+    QList<StatusDigest::RatioMilestones::Crossing> crossings;
+    if (m_milestonesFed && model->lastChangeFollows(m_milestonesRevision)) {
+        const TorrentModel::Change &change = model->lastChange();
+        QList<Torrent> changed;
+        changed.reserve(change.changed.size());
+        for (const QString &hash : change.changed)
+            changed.append(model->torrent(hash));
+        crossings = m_milestones.observeChanges(changed, change.removed);
+    } else {
+        crossings = m_milestones.observe(StatusDigest::torrentsOf(*model));
+    }
+    m_milestonesFed = true;
+    m_milestonesRevision = model->revision();
     for (const auto &crossing : crossings) {
         const Torrent &torrent = m_engine->torrents()->torrent(crossing.hash);
         Q_EMIT milestone(crossing.hash, torrent.name, crossing.ratio);
@@ -473,6 +489,29 @@ QJsonObject StatusWriter::snapshot() const
     return document;
 }
 
+const StatusWriter::TorrentParts &StatusWriter::torrentParts(const QDateTime &now) const
+{
+    const TorrentModel *model = m_engine ? m_engine->torrents() : nullptr;
+    const qint64 at = now.toSecsSinceEpoch();
+    const quint64 revision = model ? model->revision() : 0;
+    const bool holds = m_partsValid && m_partsModel == model && m_partsRevision == revision &&
+                       at >= m_partsAt && (m_partsQuietAt == 0 || at < m_partsQuietAt);
+    if (holds)
+        return m_parts;
+
+    const QList<Torrent> torrents = model ? StatusDigest::torrentsOf(*model) : QList<Torrent>();
+    m_parts.onOffer = StatusDigest::onOffer(torrents);
+    m_parts.alive = StatusDigest::alive(torrents, now, &m_partsQuietAt);
+    m_parts.topSeeders = StatusDigest::topSeeders(torrents);
+    m_parts.active = StatusDigest::active(torrents);
+    m_partsValid = true;
+    m_partsModel = model;
+    m_partsRevision = revision;
+    m_partsAt = at;
+    ++m_partsBuilds;
+    return m_parts;
+}
+
 QJsonObject StatusWriter::content() const
 {
     using StatusDigest::roundSignificant;
@@ -481,8 +520,7 @@ QJsonObject StatusWriter::content() const
     const SyncEngine *engine = m_engine.data();
     const GlobalState *state = engine ? engine->globalState() : nullptr;
     const FilterCounts *counts = engine ? engine->counts() : nullptr;
-    const QList<Torrent> torrents =
-        engine ? StatusDigest::torrentsOf(*engine->torrents()) : QList<Torrent>();
+    const TorrentParts &parts = torrentParts(current);
     const bool reachable = state && state->connected();
 
     QJsonObject document;
@@ -556,13 +594,13 @@ QJsonObject StatusWriter::content() const
             {QStringLiteral("allTimeDown"), state ? state->allTimeDownload() : 0},
             {QStringLiteral("allTimeRatio"),
              state ? StatusDigest::roundRatio(state->globalRatio()) : -1.0},
-            {QStringLiteral("onOffer"), StatusDigest::onOffer(torrents)},
+            {QStringLiteral("onOffer"), parts.onOffer},
         });
     document.insert(QStringLiteral("uploadHour"), m_sampler.values(current.toSecsSinceEpoch()));
     document.insert(QStringLiteral("week"), m_week.week(current.date()));
-    document.insert(QStringLiteral("alive"), StatusDigest::alive(torrents, current));
-    document.insert(QStringLiteral("topSeeders"), StatusDigest::topSeeders(torrents));
-    document.insert(QStringLiteral("active"), StatusDigest::active(torrents));
+    document.insert(QStringLiteral("alive"), parts.alive);
+    document.insert(QStringLiteral("topSeeders"), parts.topSeeders);
+    document.insert(QStringLiteral("active"), parts.active);
     document.insert(QStringLiteral("recent"), m_recent);
 
     // Add: the categories with the folder a torrent lands in, and the server's defaults.

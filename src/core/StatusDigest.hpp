@@ -15,6 +15,7 @@
 #include <QList>
 #include <QMap>
 #include <QString>
+#include <QStringList>
 
 namespace omaseed::core {
 
@@ -34,7 +35,11 @@ double roundRatio(double ratio);
 /// fewer, rarest first (seeds ascending, then peers waiting descending, then name). A torrent
 /// is `quiet` when its last activity (its add time when it never had any) is 30 days or more
 /// before `now`.
-QJsonObject alive(const QList<Torrent> &torrents, const QDateTime &now);
+///
+/// `quietAt`, when given, gets the first moment after `now` (unix seconds) at which a torrent
+/// counted here turns quiet, or 0 when none will: until then, with the same torrents, the
+/// result stays the same (#36: the status file keeps it instead of working it out each write).
+QJsonObject alive(const QList<Torrent> &torrents, const QDateTime &now, qint64 *quietAt = nullptr);
 
 /// I4: at most two torrents by `uploaded_session`, largest first; only ones that uploaded.
 QJsonArray topSeeders(const QList<Torrent> &torrents);
@@ -114,6 +119,10 @@ public:
     };
 
     QList<Crossing> observe(const QList<Torrent> &torrents);
+    /// observe() for a library that moved only in `changed` (each its current row, new ones
+    /// included) and lost `removed`, everything else keeping the ratio it had (#36: a poll's
+    /// diff instead of the whole library). Valid after an observe() of the whole list.
+    QList<Crossing> observeChanges(const QList<Torrent> &changed, const QStringList &removed);
     void clear() { m_ratios.clear(); }
 
 private:

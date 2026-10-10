@@ -108,6 +108,18 @@ public:
                  qint64 allTimeUp,
                  qint64 allTimeDown,
                  const QList<TorrentTotals> &torrents);
+    /// One poll given as what changed since the last one (#36): `changed` holds every torrent
+    /// whose totals may have moved (new ones included), `removed` the ones gone; every other
+    /// torrent is still there with the totals it had. Books exactly what observe() would with
+    /// the whole list, at the cost of the change, not the library. Needs an observe() of the
+    /// whole list first in this run (see wantsWholeList()).
+    void observeChanges(qint64 now,
+                        qint64 allTimeUp,
+                        qint64 allTimeDown,
+                        const QList<TorrentTotals> &changed,
+                        const QStringList &removed);
+    /// True until observe() has seen the whole list since open(): observeChanges() needs it.
+    bool wantsWholeList() const { return !m_wholeSeen; }
     /// The speeds of this second (`up_info_speed`, `dl_info_speed`), kept for an hour.
     void sampleSpeed(qint64 now, qint64 up, qint64 down);
 
@@ -150,6 +162,11 @@ private:
         bool gap = false;
     };
 
+    /// The server's totals of a poll, after its torrents: books what moved and moves on.
+    void finishPoll(qint64 now,
+                    qint64 allTimeUp,
+                    qint64 allTimeDown,
+                    const QHash<QString, qint64> &perTorrent);
     void book(qint64 from, qint64 to, qint64 up, qint64 down, const QHash<QString, qint64> &perTorrent, qint64 now);
     void addTo(QMap<qint64, Bucket> &map, qint64 key, qint64 up, qint64 down, bool gap);
     QMap<qint64, Bucket> readBuckets(const QString &table, qint64 from, qint64 to) const;
@@ -184,6 +201,9 @@ private:
     /// writes only those rows, not the whole library.
     QSet<QString> m_baselinesDirty;
     QSet<QString> m_baselinesGone;
+    /// Baselines of torrents the last poll did not list, still in their `missingKept` grace.
+    QSet<QString> m_missing;
+    bool m_wholeSeen = false; ///< observe() has had the whole list since open()
     qint64 m_lastFlush = 0;
 
     QMap<qint64, Bucket> m_pendingMinutes;

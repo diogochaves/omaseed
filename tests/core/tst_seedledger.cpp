@@ -6,6 +6,7 @@
 #include <QFileInfo>
 #include <QRegularExpression>
 #include <QFile>
+#include <QMap>
 #include <QSqlDatabase>
 #include <QSqlQuery>
 #include <QTemporaryDir>
@@ -477,6 +478,114 @@ private Q_SLOTS:
         if (before < 0)
             QSKIP("no /proc/self/io here");
         QVERIFY2(written < 2LL * 1024 * 1024, qPrintable(QString::number(written)));
+    }
+
+    // #36: fed only each poll's diff, the ledger books exactly what the whole list books:
+    // the same polls, through both, give the same days, the same per-torrent totals, and the
+    // same baselines on disk (a reopen counts the next poll the same way). The library moves,
+    // loses torrents (back within the grace and after it), and gets one added again.
+    void aPollsDiffBooksWhatTheWholeListBooks()
+    {
+        QTemporaryDir dir;
+        SeedLedger whole;
+        SeedLedger diff;
+        QVERIFY(whole.open(dir.filePath(QStringLiteral("whole.sqlite"))));
+        QVERIFY(diff.open(dir.filePath(QStringLiteral("diff.sqlite"))));
+        QVERIFY(diff.wantsWholeList());
+
+        struct Row
+        {
+            qint64 up = 0;
+            qint64 added = 0;
+        };
+        QMap<QString, Row> library;
+        for (int i = 0; i < 24; ++i)
+            library.insert(QStringLiteral("t%1").arg(i, 2, 10, QLatin1Char('0')), {i * 1000LL, 1000 + i});
+        const auto listOf = [](const QMap<QString, Row> &rows) {
+            QList<SeedLedger::TorrentTotals> out;
+            for (auto it = rows.cbegin(); it != rows.cend(); ++it)
+                out.append({it.key(), it->up, 0, it->added});
+            return out;
+        };
+
+        qint64 t = noon(2);
+        qint64 server = 1'000'000;
+        whole.observe(t, server, 0, listOf(library));
+        diff.observe(t, server, 0, listOf(library));
+        QVERIFY(!diff.wantsWholeList());
+
+        quint32 seed = 36;
+        const auto next = [&seed](quint32 below) {
+            seed = seed * 1664525u + 1013904223u;
+            return (seed >> 8) % below;
+        };
+        QMap<QString, Row> away; // removed, to come back
+        for (int poll = 1; poll <= 600; ++poll) {
+            // Most polls are idle; the gaps cross the grace a few times.
+            t += poll % 150 == 0 ? SeedLedger::missingKept / 2 + 7 : 2;
+            QMap<QString, Row> now = library;
+            if (next(3) == 0) {
+                for (int k = 0; k < 3; ++k) {
+                    auto it = now.begin() + next(quint32(now.size()));
+                    const qint64 given = 100 + next(5000);
+                    it->up += given;
+                    server += given;
+                }
+            }
+            if (next(40) == 0 && now.size() > 4) {
+                auto it = now.begin() + next(quint32(now.size()));
+                away.insert(it.key(), *it);
+                now.erase(it);
+            }
+            if (next(30) == 0 && !away.isEmpty()) {
+                auto it = away.begin();
+                Row back = *it;
+                if (next(2) == 0) { // added again: a new date, totals from nothing
+                    back.added += 500;
+                    back.up = next(300);
+                }
+                now.insert(it.key(), back);
+                away.erase(it);
+            }
+            if (next(60) == 0)
+                server += 77; // the server moves without a torrent (a deleted one's last bytes)
+
+            QList<SeedLedger::TorrentTotals> changed;
+            QStringList removed;
+            for (auto it = now.cbegin(); it != now.cend(); ++it) {
+                const auto before = library.constFind(it.key());
+                if (before == library.cend() || before->up != it->up || before->added != it->added)
+                    changed.append({it.key(), it->up, 0, it->added});
+            }
+            for (auto it = library.cbegin(); it != library.cend(); ++it) {
+                if (!now.contains(it.key()))
+                    removed.append(it.key());
+            }
+            library = now;
+            whole.observe(t, server, 0, listOf(library));
+            diff.observeChanges(t, server, 0, changed, removed);
+        }
+
+        const QDate from = QDateTime::fromSecsSinceEpoch(noon(2)).date();
+        const QDate to = QDateTime::fromSecsSinceEpoch(t).date();
+        QCOMPARE(sumUp(diff.days(from, to)), sumUp(whole.days(from, to)));
+        QCOMPARE(diff.torrentTotals(from, to), whole.torrentTotals(from, to));
+        QVERIFY(sumUp(whole.days(from, to)) > 0);
+
+        // The baselines each wrote: a reopen counts the next poll the same way.
+        whole.close();
+        diff.close();
+        QVERIFY(whole.open(dir.filePath(QStringLiteral("whole.sqlite"))));
+        QVERIFY(diff.open(dir.filePath(QStringLiteral("diff.sqlite"))));
+        for (auto it = library.begin(); it != library.end(); ++it)
+            it->up += 10;
+        for (auto it = away.cbegin(); it != away.cend(); ++it)
+            library.insert(it.key(), {it->up + 10, it->added});
+        t += 4;
+        whole.observe(t, server + 1000, 0, listOf(library));
+        diff.observe(t, server + 1000, 0, listOf(library));
+        const QDate last = QDateTime::fromSecsSinceEpoch(t).date();
+        QCOMPARE(diff.torrentTotals(last, last), whole.torrentTotals(last, last));
     }
 
     void survivesAReopen()

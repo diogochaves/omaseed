@@ -133,6 +133,27 @@ public:
     void applyPartial(const QJsonObject &torrents, const QJsonArray &removed);
     void clear();
 
+    /// What the last applyFullUpdate(), applyPartial() or clear() did (#36), so code that keeps
+    /// its own state per torrent can follow the rows a poll touched instead of walking the
+    /// library. An idle poll leaves both lists empty.
+    struct Change
+    {
+        bool full = false;   ///< every row was replaced (a full update, or clear())
+        QStringList changed; ///< merged with a changed key, or added; empty when `full`
+        QStringList removed; ///< dropped by `torrents_removed`
+        quint64 since = 0;   ///< revision() before it
+    };
+    const Change &lastChange() const { return m_lastChange; }
+    /// Goes up by one with every `updated()`: a cheap "did anything change" for a cache.
+    quint64 revision() const { return m_revision; }
+    /// Whether lastChange() is all that changed since `revision`, a revision() taken earlier:
+    /// a partial apply that started there. Otherwise (a full update, a clear(), or a change
+    /// the caller missed) the caller walks the whole library again.
+    bool lastChangeFollows(quint64 revision) const
+    {
+        return !m_lastChange.full && m_lastChange.since == revision;
+    }
+
     /// The roles that change when the named JSON key changes, derived roles included.
     static QList<int> rolesForJsonKey(const QString &key);
 
@@ -155,6 +176,8 @@ private:
 
     QList<Torrent> m_rows;
     QHash<QString, int> m_indexByHash;
+    Change m_lastChange;
+    quint64 m_revision = 0;
     QTimer *m_midnight = nullptr; ///< fires once a day, just after local midnight
 };
 
