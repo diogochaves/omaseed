@@ -38,15 +38,26 @@ Flickable {
         root.contentY = Math.max(0, Math.min(root.contentHeight - root.height, root.contentY + dy));
     }
 
-    ScrollBar {
-        anchors.bottom: parent.bottom
-        anchors.right: parent.right
-        anchors.top: parent.top
+    // Scrolled as the library is (TorrentTable): a wheel notch moves three rows and quick
+    // notches add up (Kit/WheelScroll), and the rail's "scrollbar" look shows where the column
+    // is while it moves and drags (Kit/ScrollHint). Both sit on the Flickable itself
+    // (`parent: root`), not on the content that scrolls.
+    WheelScroll {
+        anchors.fill: parent
         flickable: root
+        objectName: "consoleWheel"
         parent: root
-        vertical: true
-        width: Theme.space(6)
         z: 2
+    }
+
+    ScrollHint {
+        anchors.fill: parent
+        flickable: root
+        objectName: "consoleScrollHint"
+        parent: root
+        revealOnHover: false
+        style: "scrollbar"
+        z: 3
     }
 
     Column {
