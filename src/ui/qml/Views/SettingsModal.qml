@@ -1951,7 +1951,7 @@ Item {
 
                             SettingsRow {
                                 Layout.fillWidth: true
-                                description: qsTr("auto puts it right when the window is wide enough. I cycles it.")
+                                description: qsTr("auto puts it right when the window is 16:10 or wider, else at the bottom. I cycles it.")
                                 glyph: Glyphs.sidebar
                                 hasCursor: root.area === "pane" && root.paneCursor === 10
                                 title: qsTr("Details panel")
