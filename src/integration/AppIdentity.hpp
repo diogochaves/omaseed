@@ -22,6 +22,9 @@ QString dbusThemeObjectPath();
 QString dbusThemeInterface();
 /// Short name used for the binary, the config directory and QCoreApplication.
 QString applicationName();
+/// The name people see: launcher entries, notifications. Capitalised as Omarchy's apps are;
+/// the in-app wordmark stays lowercase (v2).
+QString displayName();
 /// Organisation domain for QSettings and QCoreApplication.
 QString organizationDomain();
 

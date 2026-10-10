@@ -39,6 +39,11 @@ QString applicationName()
     return QStringLiteral("omaseed");
 }
 
+QString displayName()
+{
+    return QStringLiteral("Omaseed");
+}
+
 QString organizationDomain()
 {
     return QStringLiteral("io.github.diogochaves");

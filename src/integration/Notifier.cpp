@@ -108,7 +108,7 @@ quint32 Notifier::sendNotice(const QString &key,
 
     const QDBusReply<uint> reply =
         m_interface->call(QStringLiteral("Notify"),
-                          omaseed::integration::AppIdentity::applicationName(),
+                          omaseed::integration::AppIdentity::displayName(),
                           replacesId,
                           AppIdentity::applicationId(),
                           summary,

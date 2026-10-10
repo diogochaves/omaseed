@@ -263,7 +263,7 @@ step "Click shows the torrent" "The app is back, tiled, with the cursor on the u
 check "exactly one notice each for $TINY and the unicode torrent" one_each
 check "the body reads name · size · category" tiny_notice 'c["body"] == "tiny-notes.txt · 4 KB · swarm"'
 check "app omaseed, icon and desktop-entry $APP_ID, urgency low" tiny_notice \
-    'c["app"] == "omaseed" and c["icon"] == sys.argv[1] and c["hints"].get("desktop-entry") == sys.argv[1] and c["hints"].get("urgency") == "0"'
+    'c["app"] == "Omaseed" and c["icon"] == sys.argv[1] and c["hints"].get("desktop-entry") == sys.argv[1] and c["hints"].get("urgency") == "0"'
 check "actions: open folder (the content is local), show, and show again as default" tiny_notice \
     'c["actions"] == ["open-folder", "open folder", "show", "show", "default", "show"]'
 check "the shell drew both (its state files name them)" shell_drew

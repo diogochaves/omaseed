@@ -95,7 +95,7 @@ QByteArray entryContents(const QString &mode, const QString &program)
     QByteArray out;
     out += "[Desktop Entry]\n";
     out += "Type=Application\n";
-    out += "Name=omaseed\n";
+    out += "Name=" + AppIdentity::displayName().toUtf8() + "\n";
     out += "Comment=Starts omaseed at login (Settings > General > Start at login)\n";
     out += "Exec=" + exec.toUtf8() + "\n";
     out += "Icon=" + AppIdentity::applicationId().toUtf8() + "\n";

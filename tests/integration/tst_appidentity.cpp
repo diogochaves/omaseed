@@ -18,6 +18,7 @@ void TestAppIdentity::applicationIdIsTheReverseDnsName()
 {
     QCOMPARE(Identity::applicationId(), QStringLiteral("io.github.diogochaves.omaseed"));
     QCOMPARE(Identity::applicationName(), QStringLiteral("omaseed"));
+    QCOMPARE(Identity::displayName(), QStringLiteral("Omaseed"));
     QCOMPARE(Identity::organizationDomain(), QStringLiteral("io.github.diogochaves"));
 }
 

@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
 Version=1.0
-Name=omaseed
+Name=Omaseed
 GenericName=Torrent client
 Comment=Torrents for Omarchy, powered by qBittorrent
 Exec=omaseed %U
