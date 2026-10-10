@@ -41,3 +41,8 @@ o.window(class, { tag = "-default-opacity", opacity = "1 1" })
 -- Hyprland floats and centres by itself, and it maps again unlocked, so tiled, when setup is
 -- done (src/ui/qml/Main.qml). The title-matched rule that used to sit here never matched:
 -- the window never took the "omaseed · first run" title it expected.
+
+-- Touchpad scrolling at the terminals' pace. Omarchy slows every touchpad to
+-- `scroll_factor = 0.4` and gives terminals 1.5 back per window
+-- (/usr/share/omarchy/default/hypr/input.lua); omaseed's long lists want the same.
+o.window(class, { scroll_touchpad = 1.5 })
