@@ -55,13 +55,17 @@ Column {
         width: parent.width
     }
 
+    // Counted, not handed the rows: the givens change on nearly every refresh while you seed,
+    // and a Repeater makes its delegates again for every new array (#50). Each row reads its
+    // entry, so new numbers only update its texts.
     Repeater {
-        model: root.rows
+        model: root.rows.length
 
         delegate: Item {
             id: row
 
-            required property var modelData
+            required property int index
+            readonly property var modelData: root.rows[row.index] ?? ({})
 
             height: Theme.space(30)
             width: root.width

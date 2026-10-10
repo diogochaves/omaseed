@@ -208,10 +208,11 @@ Item {
         table.revealHash(hash);
     }
 
+    // Hidden to the tray, nobody sees the console: it stops refreshing until it is shown (#50).
     Binding {
         target: App.console
         property: "active"
-        value: root.consoleShown && root.visible
+        value: root.consoleShown && root.visible && (root.Window.window?.visible ?? false)
     }
 
     /// Which view holds the focus, for `HintModel`.

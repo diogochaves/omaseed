@@ -13,6 +13,11 @@
 // screen): the cheap blocks every `refreshMs`, the ones that read the ledger (tide, year,
 // earning, the trackers' 30 days) when the scope or range changes and every `slowMs`.
 //
+// Each block has its own change signal, emitted only when a refresh changed what it holds:
+// on a library that uploads, a 2 s refresh changes a few numbers, and a signal shared by
+// every block made the view re-read and rebuild all of them each time (#50). `refreshed` and
+// `slowRefreshed` say that a refresh ran, whatever it changed.
+//
 // A few invokables serve the library while the console is hidden: the selection bar's summary
 // (T1), the last-seed check before a delete (T6), and the hero's last 60 s (T2).
 
@@ -46,28 +51,29 @@ class SeedConsole : public QObject
     Q_PROPERTY(int rareSeeds READ rareSeeds WRITE setRareSeeds NOTIFY rareSeedsChanged)
     /// True while a selection, not the rail, sets the scope.
     Q_PROPERTY(bool selectionScope READ selectionScope NOTIFY scopeChanged)
-    Q_PROPERTY(int scopeCount READ scopeCount NOTIFY changed)
-    Q_PROPERTY(bool scoped READ scoped NOTIFY changed)
-    Q_PROPERTY(QString ledgerSince READ ledgerSince NOTIFY changed)
-    Q_PROPERTY(bool ledgerNew READ ledgerNew NOTIFY changed)
+    /// The scope line: how many torrents, whether it is a part, and the ledger's age.
+    Q_PROPERTY(int scopeCount READ scopeCount NOTIFY scopeLineChanged)
+    Q_PROPERTY(bool scoped READ scoped NOTIFY scopeLineChanged)
+    Q_PROPERTY(QString ledgerSince READ ledgerSince NOTIFY scopeLineChanged)
+    Q_PROPERTY(bool ledgerNew READ ledgerNew NOTIFY scopeLineChanged)
 
-    Q_PROPERTY(QVariantMap attention READ attention NOTIFY changed)
-    Q_PROPERTY(QVariantMap totals READ totals NOTIFY changed)
-    Q_PROPERTY(QVariantMap tide READ tide NOTIFY slowChanged)
-    Q_PROPERTY(QVariantMap year READ year NOTIFY slowChanged)
-    Q_PROPERTY(QVariantMap alive READ alive NOTIFY changed)
+    Q_PROPERTY(QVariantMap attention READ attention NOTIFY attentionChanged)
+    Q_PROPERTY(QVariantMap totals READ totals NOTIFY totalsChanged)
+    Q_PROPERTY(QVariantMap tide READ tide NOTIFY tideChanged)
+    Q_PROPERTY(QVariantMap year READ year NOTIFY yearChanged)
+    Q_PROPERTY(QVariantMap alive READ alive NOTIFY aliveChanged)
     /// The ratio ladder's line: `{summary}`.
-    Q_PROPERTY(QVariantMap ladder READ ladder NOTIFY changed)
+    Q_PROPERTY(QVariantMap ladder READ ladder NOTIFY ladderChanged)
     /// The ratio ladder's dots, `{ratio, size, name, ratioText, sizeText}` for each complete
     /// torrent in scope, biggest first. Replaced only when a dot would move or read otherwise
     /// (a ratio that moved less than 0.1 % and prints the same keeps its dot): the ladder lays
     /// out every dot again on each change, thousands on a big library (#45).
     Q_PROPERTY(QVariantList ladderPoints READ ladderPoints NOTIFY ladderPointsChanged)
-    Q_PROPERTY(QVariantMap trackers READ trackers NOTIFY changed)
-    Q_PROPERTY(QVariantMap earning READ earning NOTIFY slowChanged)
-    Q_PROPERTY(QVariantMap holding READ holding NOTIFY changed)
-    Q_PROPERTY(QVariantMap onAir READ onAir NOTIFY changed)
-    Q_PROPERTY(QVariantList lately READ lately NOTIFY changed)
+    Q_PROPERTY(QVariantMap trackers READ trackers NOTIFY trackersChanged)
+    Q_PROPERTY(QVariantMap earning READ earning NOTIFY earningChanged)
+    Q_PROPERTY(QVariantMap holding READ holding NOTIFY holdingChanged)
+    Q_PROPERTY(QVariantMap onAir READ onAir NOTIFY onAirChanged)
+    Q_PROPERTY(QVariantList lately READ lately NOTIFY latelyChanged)
 
     /// The last 60 s of upload, oldest first, and today's total: the hero (T2), always.
     Q_PROPERTY(QVariantList heroSpark READ heroSpark NOTIFY heroChanged)
@@ -144,9 +150,23 @@ Q_SIGNALS:
     void rangeChanged();
     void rareSeedsChanged();
     void scopeChanged();
-    void changed();
+    void scopeLineChanged();
+    void attentionChanged();
+    void totalsChanged();
+    void tideChanged();
+    void yearChanged();
+    void aliveChanged();
+    void ladderChanged();
     void ladderPointsChanged();
-    void slowChanged();
+    void trackersChanged();
+    void earningChanged();
+    void holdingChanged();
+    void onAirChanged();
+    void latelyChanged();
+    /// A fast refresh (the cheap blocks) ran; the blocks it changed have signalled first.
+    void refreshed();
+    /// A slow refresh (the ledger's blocks) ran; the blocks it changed have signalled first.
+    void slowRefreshed();
     void heroChanged();
 
 private:
@@ -175,6 +195,7 @@ private:
     QStringList m_scopeHashes;
     int m_scopeCount = 0;
     bool m_scoped = false;
+    QString m_scopeLine; ///< what the scope line last showed, to signal it only when it moves
 
     QVariantMap m_attention, m_totals, m_tide, m_year, m_alive, m_ladder, m_trackers, m_earning,
         m_holding, m_onAir;

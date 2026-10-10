@@ -85,6 +85,16 @@ QString ago(const QDateTime &when, const QDateTime &now)
     return english().toString(when, QStringLiteral("d MMM"));
 }
 
+/// `field = value`, true when that changed it: a block signals only when it changed (#50).
+template<typename T>
+bool assign(T &field, T value)
+{
+    if (field == value)
+        return false;
+    field = std::move(value);
+    return true;
+}
+
 } // namespace
 
 SeedConsole::SeedConsole(QObject *parent)
@@ -320,6 +330,8 @@ void SeedConsole::refreshFast()
     const int total = m_torrents ? m_torrents->count() : 0;
     m_scopeCount = int(scope.size());
     m_scoped = !m_scopeHashes.isEmpty() || m_scopeCount < total;
+    bool attentionMoved = false, totalsMoved = false, aliveMoved = false, ladderLineMoved = false,
+         trackersMoved = false, holdingMoved = false, onAirMoved = false, latelyMoved = false;
 
     // --- attention -------------------------------------------------------------------------
     {
@@ -356,7 +368,7 @@ void SeedConsole::refreshFast()
             a[QStringLiteral("detail")] = QStringLiteral("the port is closed: forward it or turn on UPnP");
         }
         a[QStringLiteral("visible")] = errors > 0 || firewalled;
-        m_attention = a;
+        attentionMoved = assign(m_attention, a);
     }
 
     // --- totals ----------------------------------------------------------------------------
@@ -393,7 +405,7 @@ void SeedConsole::refreshFast()
         m[QStringLiteral("bufferNegative")] = given < taken;
         m[QStringLiteral("offerText")] = Format::size(offer);
         m[QStringLiteral("offerNote")] = QStringLiteral("in %1 seeding").arg(Format::count(seeding));
-        m_totals = m;
+        totalsMoved = assign(m_totals, m);
     }
 
     // --- keeping alive ---------------------------------------------------------------------
@@ -461,10 +473,13 @@ void SeedConsole::refreshFast()
                                m_rareSeeds == 1 ? QStringLiteral("1 seed")
                                                 : QStringLiteral("%1 seeds").arg(m_rareSeeds),
                                Format::count(only));
-        m_alive = {{QStringLiteral("buckets"), buckets},
-                   {QStringLiteral("rows"), rows},
-                   {QStringLiteral("rare"), rare},
-                   {QStringLiteral("summary"), summary.isEmpty() ? QStringLiteral("nothing rare here") : summary}};
+        aliveMoved = assign(
+            m_alive,
+            QVariantMap{{QStringLiteral("buckets"), buckets},
+                        {QStringLiteral("rows"), rows},
+                        {QStringLiteral("rare"), rare},
+                        {QStringLiteral("summary"),
+                         summary.isEmpty() ? QStringLiteral("nothing rare here") : summary}});
     }
 
     // --- ratio ladder ----------------------------------------------------------------------
@@ -509,8 +524,10 @@ void SeedConsole::refreshFast()
             summary = QStringLiteral("%1 below 1.0 · %2 still to give back · median ratio %3")
                           .arg(Format::count(below), Format::size(owed),
                                Format::ratio(ratios.at(ratios.size() / 2)));
-        m_ladder = {{QStringLiteral("summary"),
-                     summary.isEmpty() ? QStringLiteral("nothing complete here") : summary}};
+        ladderLineMoved = assign(
+            m_ladder,
+            QVariantMap{{QStringLiteral("summary"),
+                         summary.isEmpty() ? QStringLiteral("nothing complete here") : summary}});
 
         // Biggest first, as the ladder draws them; the hash settles ties, so the table's sort
         // (its rows move as speeds change) does not reorder the dots.
@@ -621,9 +638,10 @@ void SeedConsole::refreshFast()
         QString summary = countText(int(rows.size()), QStringLiteral("tracker"), QStringLiteral("trackers"));
         if (notWorking > 0)
             summary += QStringLiteral(" · %1 not working").arg(notWorking);
-        m_trackers = {{QStringLiteral("rows"), list},
-                      {QStringLiteral("summary"), summary},
-                      {QStringLiteral("sparks"), sparks}};
+        trackersMoved = assign(m_trackers,
+                               QVariantMap{{QStringLiteral("rows"), list},
+                                           {QStringLiteral("summary"), summary},
+                                           {QStringLiteral("sparks"), sparks}});
     }
 
     // --- holding ---------------------------------------------------------------------------
@@ -653,11 +671,14 @@ void SeedConsole::refreshFast()
                                     {QStringLiteral("sizeText"), Format::size(idle.at(i)->size)},
                                     {QStringLiteral("quietText"),
                                      QStringLiteral("quiet %1 d").arg(quietDays(*idle.at(i), t))}});
-        m_holding = {{QStringLiteral("rows"), rows},
-                     {QStringLiteral("summary"),
-                      idle.isEmpty() ? QStringLiteral("everything here gave something this month")
-                                     : QStringLiteral("%1 in %2, quiet for 30 days or more")
-                                           .arg(Format::size(idleSize), Format::count(int(idle.size())))}};
+        holdingMoved = assign(
+            m_holding,
+            QVariantMap{{QStringLiteral("rows"), rows},
+                        {QStringLiteral("summary"),
+                         idle.isEmpty()
+                             ? QStringLiteral("everything here gave something this month")
+                             : QStringLiteral("%1 in %2, quiet for 30 days or more")
+                                   .arg(Format::size(idleSize), Format::count(int(idle.size())))}});
     }
 
     // --- on air ----------------------------------------------------------------------------
@@ -684,13 +705,19 @@ void SeedConsole::refreshFast()
                                     {QStringLiteral("peersText"),
                                      countText(std::max(0, x->numLeechs), QStringLiteral("peer"), QStringLiteral("peers"))}});
         }
-        m_onAir = {{QStringLiteral("rows"), rows},
-                   {QStringLiteral("speedText"), Format::speed(speed)},
-                   {QStringLiteral("summary"),
-                    air.isEmpty() ? QStringLiteral("quiet")
-                                  : QStringLiteral("%1 to %2")
-                                        .arg(countText(int(air.size()), QStringLiteral("torrent"), QStringLiteral("torrents")),
-                                             countText(peers, QStringLiteral("peer"), QStringLiteral("peers")))}};
+        onAirMoved =
+            assign(m_onAir,
+                   QVariantMap{{QStringLiteral("rows"), rows},
+                               {QStringLiteral("speedText"), Format::speed(speed)},
+                               {QStringLiteral("summary"),
+                                air.isEmpty() ? QStringLiteral("quiet")
+                                              : QStringLiteral("%1 to %2")
+                                                    .arg(countText(int(air.size()),
+                                                                   QStringLiteral("torrent"),
+                                                                   QStringLiteral("torrents")),
+                                                         countText(peers,
+                                                                   QStringLiteral("peer"),
+                                                                   QStringLiteral("peers")))}});
     }
 
     // --- lately ----------------------------------------------------------------------------
@@ -728,13 +755,38 @@ void SeedConsole::refreshFast()
                                    {QStringLiteral("what"), what},
                                    {QStringLiteral("when"), ago(at, t)}});
         }
-        m_lately = out;
+        latelyMoved = assign(m_lately, out);
     }
 
     // Totals that come from the ledger (today, streak) were set by refreshSlow.
+    const QString scopeLine = QStringLiteral("%1 %2 %3 %4")
+                                  .arg(m_scopeCount)
+                                  .arg(int(m_scoped))
+                                  .arg(int(ledgerNew()))
+                                  .arg(ledgerSince());
+    // Every block is worked out before any signals, so a view reading one block from another's
+    // handler sees this refresh's.
+    if (assign(m_scopeLine, scopeLine))
+        Q_EMIT scopeLineChanged();
+    if (attentionMoved)
+        Q_EMIT attentionChanged();
+    if (totalsMoved)
+        Q_EMIT totalsChanged();
+    if (aliveMoved)
+        Q_EMIT aliveChanged();
+    if (ladderLineMoved)
+        Q_EMIT ladderChanged();
     if (ladderMoved)
         Q_EMIT ladderPointsChanged();
-    Q_EMIT changed();
+    if (trackersMoved)
+        Q_EMIT trackersChanged();
+    if (holdingMoved)
+        Q_EMIT holdingChanged();
+    if (onAirMoved)
+        Q_EMIT onAirChanged();
+    if (latelyMoved)
+        Q_EMIT latelyChanged();
+    Q_EMIT refreshed();
 }
 
 void SeedConsole::refreshSlow()
@@ -743,6 +795,9 @@ void SeedConsole::refreshSlow()
     m_slowScopeKey = scopeKey(scope);
     if (!m_ledger)
         return;
+    // What the blocks held, to signal only those this refresh changed (shared, not copied).
+    const QVariantMap yearBefore = m_year, totalsBefore = m_totals, earningBefore = m_earning,
+                      trackersBefore = m_trackers, tideBefore = m_tide;
     const QDateTime t = now();
     const qint64 nowSecs = t.toSecsSinceEpoch();
     const QDate today = t.date();
@@ -976,7 +1031,17 @@ void SeedConsole::refreshSlow()
                   {QStringLiteral("any"), any},
                   {QStringLiteral("range"), m_range}};
     }
-    Q_EMIT slowChanged();
+    if (m_year != yearBefore)
+        Q_EMIT yearChanged();
+    if (m_totals != totalsBefore)
+        Q_EMIT totalsChanged();
+    if (m_earning != earningBefore)
+        Q_EMIT earningChanged();
+    if (m_trackers != trackersBefore)
+        Q_EMIT trackersChanged();
+    if (m_tide != tideBefore)
+        Q_EMIT tideChanged();
+    Q_EMIT slowRefreshed();
 }
 
 void SeedConsole::refreshHero()

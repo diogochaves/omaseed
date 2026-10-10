@@ -198,23 +198,28 @@ Flickable {
                 id: totalsRow
 
                 readonly property real cell: width / 6
+                readonly property var cells: [
+                    { caption: qsTr("given"), value: root.seed.totals.givenText, note: root.seed.totals.todayText ? qsTr("%1 today").arg(root.seed.totals.todayText) : "", good: true },
+                    { caption: qsTr("taken"), value: root.seed.totals.takenText, note: root.seed.totals.takenNote },
+                    { caption: qsTr("ratio"), value: root.seed.totals.ratioText, note: root.seed.totals.ratioNote },
+                    { caption: qsTr("buffer"), value: root.seed.totals.bufferText, note: qsTr("given − taken"), bad: root.seed.totals.bufferNegative === true },
+                    { caption: qsTr("on offer"), value: root.seed.totals.offerText, note: root.seed.totals.offerNote },
+                    { caption: qsTr("streak"), value: (root.seed.totals.streakText ?? "0") + " " + (root.seed.totals.streakUnit ?? qsTr("days")), note: root.seed.totals.streakNote ?? "" }
+                ]
                 width: parent.width
 
+                // Counted, not handed the cells: a Repeater makes its delegates again for every
+                // new array, and the totals change on nearly every refresh while you seed (#50).
+                // Each cell reads its entry, so a new value only updates its texts. The other
+                // lists below do the same.
                 Repeater {
-                    model: [
-                        { caption: qsTr("given"), value: root.seed.totals.givenText, note: root.seed.totals.todayText ? qsTr("%1 today").arg(root.seed.totals.todayText) : "", good: true },
-                        { caption: qsTr("taken"), value: root.seed.totals.takenText, note: root.seed.totals.takenNote },
-                        { caption: qsTr("ratio"), value: root.seed.totals.ratioText, note: root.seed.totals.ratioNote },
-                        { caption: qsTr("buffer"), value: root.seed.totals.bufferText, note: qsTr("given − taken"), bad: root.seed.totals.bufferNegative === true },
-                        { caption: qsTr("on offer"), value: root.seed.totals.offerText, note: root.seed.totals.offerNote },
-                        { caption: qsTr("streak"), value: (root.seed.totals.streakText ?? "0") + " " + (root.seed.totals.streakUnit ?? qsTr("days")), note: root.seed.totals.streakNote ?? "" }
-                    ]
+                    model: totalsRow.cells.length
 
                     delegate: Item {
                         id: totalCell
 
-                        required property var modelData
                         required property int index
+                        readonly property var modelData: totalsRow.cells[totalCell.index]
 
                         height: total.implicitHeight
                         width: totalsRow.cell
@@ -418,6 +423,11 @@ Flickable {
             }
 
             Column {
+                id: aliveBlock
+
+                readonly property var buckets: root.seed.alive.buckets ?? []
+                readonly property var rows: root.seed.alive.rows ?? []
+
                 Layout.alignment: Qt.AlignTop
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
@@ -431,7 +441,7 @@ Flickable {
                 }
 
                 StackStrip {
-                    segments: (root.seed.alive.buckets ?? []).map(b => ({
+                    segments: aliveBlock.buckets.map(b => ({
                                                                      value: b.count,
                                                                      hatched: b.kind === "unknown",
                                                                      color: b.kind === "only" ? Theme.yellow
@@ -447,10 +457,11 @@ Flickable {
                     width: parent.width
 
                     Repeater {
-                        model: root.seed.alive.buckets ?? []
+                        model: aliveBlock.buckets.length
 
                         delegate: Column {
-                            required property var modelData
+                            required property int index
+                            readonly property var modelData: aliveBlock.buckets[index] ?? ({})
 
                             Layout.fillWidth: true
 
@@ -476,11 +487,11 @@ Flickable {
                     width: parent.width
 
                     Repeater {
-                        model: root.seed.alive.rows ?? []
+                        model: aliveBlock.rows.length
 
                         delegate: ConsoleRow {
-                            required property var modelData
                             required property int index
+                            readonly property var modelData: aliveBlock.rows[index] ?? ({})
 
                             current: index === 0
                             name: modelData.name
@@ -496,7 +507,7 @@ Flickable {
                     ConsoleRow {
                         clickable: false
                         name: qsTr("Every torrent here has more than five seeds.")
-                        visible: (root.seed.alive.rows ?? []).length === 0
+                        visible: aliveBlock.rows.length === 0
                         width: parent.width
                     }
                 }
@@ -578,6 +589,10 @@ Flickable {
             width: parent.width
 
             Column {
+                id: earningBlock
+
+                readonly property var rows: root.seed.earning.rows ?? []
+
                 Layout.alignment: Qt.AlignTop
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
@@ -590,10 +605,11 @@ Flickable {
                 }
 
                 Repeater {
-                    model: root.seed.earning.rows ?? []
+                    model: earningBlock.rows.length
 
                     delegate: ConsoleRow {
-                        required property var modelData
+                        required property int index
+                        readonly property var modelData: earningBlock.rows[index] ?? ({})
 
                         fraction: modelData.fraction
                         name: modelData.name
@@ -609,12 +625,16 @@ Flickable {
                 ConsoleRow {
                     clickable: false
                     name: root.seed.earning.empty ?? ""
-                    visible: (root.seed.earning.rows ?? []).length === 0
+                    visible: earningBlock.rows.length === 0
                     width: parent.width
                 }
             }
 
             Column {
+                id: holdingBlock
+
+                readonly property var rows: root.seed.holding.rows ?? []
+
                 Layout.alignment: Qt.AlignTop
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
@@ -627,10 +647,11 @@ Flickable {
                 }
 
                 Repeater {
-                    model: root.seed.holding.rows ?? []
+                    model: holdingBlock.rows.length
 
                     delegate: ConsoleRow {
-                        required property var modelData
+                        required property int index
+                        readonly property var modelData: holdingBlock.rows[index] ?? ({})
 
                         name: modelData.name
                         note: modelData.sizeText
@@ -651,24 +672,29 @@ Flickable {
             width: parent.width
 
             Column {
+                id: onAirBlock
+
+                readonly property var rows: root.seed.onAir.rows ?? []
+
                 Layout.alignment: Qt.AlignTop
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1.2
                 spacing: Theme.space(6)
 
                 ConsoleHead {
-                    summary: (root.seed.onAir.rows ?? []).length > 0 ? qsTr("↑ %1 · %2").arg(root.seed.onAir.speedText).arg(root.seed.onAir.summary)
-                                                                     : qsTr("quiet")
-                    summaryColor: (root.seed.onAir.rows ?? []).length > 0 ? Theme.stateSeeding : Theme.dimForeground
+                    summary: onAirBlock.rows.length > 0 ? qsTr("↑ %1 · %2").arg(root.seed.onAir.speedText).arg(root.seed.onAir.summary)
+                                                        : qsTr("quiet")
+                    summaryColor: onAirBlock.rows.length > 0 ? Theme.stateSeeding : Theme.dimForeground
                     title: qsTr("on air")
                     width: parent.width
                 }
 
                 Repeater {
-                    model: root.seed.onAir.rows ?? []
+                    model: onAirBlock.rows.length
 
                     delegate: ConsoleRow {
-                        required property var modelData
+                        required property int index
+                        readonly property var modelData: onAirBlock.rows[index] ?? ({})
 
                         barWidth: Theme.space(110)
                         fraction: modelData.fraction
@@ -686,12 +712,16 @@ Flickable {
                 ConsoleRow {
                     clickable: false
                     name: qsTr("Nothing is uploading in this scope right now.")
-                    visible: (root.seed.onAir.rows ?? []).length === 0
+                    visible: onAirBlock.rows.length === 0
                     width: parent.width
                 }
             }
 
             Column {
+                id: latelyBlock
+
+                readonly property var rows: root.seed.lately
+
                 Layout.alignment: Qt.AlignTop
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
@@ -704,10 +734,11 @@ Flickable {
                 }
 
                 Repeater {
-                    model: root.seed.lately
+                    model: latelyBlock.rows.length
 
                     delegate: ConsoleRow {
-                        required property var modelData
+                        required property int index
+                        readonly property var modelData: latelyBlock.rows[index] ?? ({})
 
                         glyph: modelData.glyph
                         glyphColor: modelData.role === "down" ? Theme.stateDownloading : Theme.stateSeeding
@@ -723,7 +754,7 @@ Flickable {
                 ConsoleRow {
                     clickable: false
                     name: qsTr("Milestones show up here as they happen.")
-                    visible: root.seed.lately.length === 0
+                    visible: latelyBlock.rows.length === 0
                     width: parent.width
                 }
             }
