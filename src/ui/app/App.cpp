@@ -668,6 +668,16 @@ void App::setFilePriority(const QString &hash, const QVariantList &fileIndexes, 
 {
     if (hash.isEmpty() || fileIndexes.isEmpty())
         return;
+    // docs/27 D3: what a skipped file was, so ticking it again brings that back.
+    if (priority == int(FilePriority::Skip) && m_details->hash() == hash) {
+        const QHash<int, int> current = m_details->files()->priorityByFileIndex();
+        QHash<int, int> &before = m_beforeSkip[hash];
+        for (const QVariant &value : fileIndexes) {
+            const int was = current.value(value.toInt(), int(FilePriority::Skip));
+            if (was != int(FilePriority::Skip))
+                before.insert(value.toInt(), was);
+        }
+    }
     // N1: the rows change at once, before the server answers (and instead of it in demo
     // mode, where there is none); the next poll confirms or corrects them.
     if (m_details->hash() == hash)
@@ -3646,6 +3656,30 @@ void App::renameTorrentFile(const QString &hash,
         }
         m_details->refreshNow();
     });
+}
+
+void App::setFilesWanted(const QString &hash, const QVariantList &fileIndexes, bool wanted)
+{
+    if (hash.isEmpty() || fileIndexes.isEmpty())
+        return;
+    if (!wanted) {
+        setFilePriority(hash, fileIndexes, int(FilePriority::Skip));
+        return;
+    }
+    const QHash<int, int> current = m_details->hash() == hash
+                                        ? m_details->files()->priorityByFileIndex()
+                                        : QHash<int, int>();
+    QHash<int, int> &before = m_beforeSkip[hash];
+    QMap<int, QVariantList> groups;
+    for (const QVariant &value : fileIndexes) {
+        const int id = value.toInt();
+        if (current.value(id, int(FilePriority::Skip)) != int(FilePriority::Skip))
+            continue;
+        const int was = before.contains(id) ? before.take(id) : int(FilePriority::Normal);
+        groups[was].append(id);
+    }
+    for (auto group = groups.cbegin(); group != groups.cend(); ++group)
+        setFilePriority(hash, group.value(), group.key());
 }
 
 void App::setFilePriorityGroups(const QString &hash, const QVariantList &groups)

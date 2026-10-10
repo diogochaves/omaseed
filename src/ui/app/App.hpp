@@ -244,8 +244,15 @@ public:
 
     /// POST torrents/filePrio. `fileIndexes` is a list of ints (the `fileIndexes` role of a
     /// TorrentFilesModel row); a no-op in demo mode, where there is no server to tell.
+    /// Skipping (priority 0) a file of the torrent on show remembers the priority it had,
+    /// for setFilesWanted() to bring back (docs/27 D3).
     Q_INVOKABLE void
     setFilePriority(const QString &hash, const QVariantList &fileIndexes, int priority);
+    /// The Files tab's tick column, its head and `x` (#42): `wanted` false skips the files;
+    /// true brings each skipped one back at the priority it had before it was skipped while
+    /// omaseed has been running (normal when there is none), and leaves the others alone.
+    Q_INVOKABLE void
+    setFilesWanted(const QString &hash, const QVariantList &fileIndexes, bool wanted);
 
     /// The fields `Details.qml`'s `torrent` property expects, for one hash: name, category,
     /// tagsText, addedOnText, sizeText, progressText, ratioText, etaLongText, stateText,
@@ -269,6 +276,8 @@ private:
     /// block; `this` in a default member initializer is the Qt parent, as everywhere else.
     /// The client and the torrent model are handed over on the first selectTorrent().
     omaseed::core::TorrentDetails *m_details = new omaseed::core::TorrentDetails(this);
+    /// #42: per torrent hash, each skipped file's priority before the skip, for the session.
+    QHash<QString, QHash<int, int>> m_beforeSkip;
     // --- end T3.4 ------------------------------------------------------------------------
 
     // --- T3.5: the keymap's actions ------------------------------------------------------

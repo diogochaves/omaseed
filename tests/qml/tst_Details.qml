@@ -862,6 +862,54 @@ TestCase {
         compare(files.selectedCount, 0);
     }
 
+    // #42 (docs/27 D2/D3): `x` skips the cursor row, and on a skipped one ticks it back at
+    // the priority it had.
+    function test_x_skips_then_keeps_at_the_old_priority() {
+        const view = testCase.filesView();
+        const files = App.details.files;
+        view.moveCursor(1); // bbb_sunflower_2160p, high
+        compare(files.priority(1), 6);
+        keyClick(Qt.Key_X);
+        compare(files.priority(1), 0);
+        keyClick(Qt.Key_X);
+        compare(files.priority(1), 6);
+        // A file skipped from the start comes back at normal.
+        view.moveCursor(3); // bbb.en.srt
+        keyClick(Qt.Key_X);
+        compare(files.priority(4), 1);
+    }
+
+    // #42 (docs/27 D1): one click per row in the tick column, and the head for every file.
+    function test_the_tick_column_and_its_head() {
+        const view = testCase.filesView();
+        const files = App.details.files;
+        waitForRendering(view);
+
+        const tick = findChild(view, "fileTick_1");
+        verify(tick, "a tick on the 2160p row");
+        compare(tick.wanted, 2);
+        mouseClick(tick);
+        compare(files.priority(1), 0);
+        compare(view.cursorIndex, 1);
+        mouseClick(findChild(view, "fileTick_1"));
+        compare(files.priority(1), 6);
+
+        // A skipped folder ticks all of it.
+        const subs = findChild(view, "fileTick_3");
+        compare(subs.wanted, 0);
+        mouseClick(subs);
+        compare(files.priority(3), 1);
+
+        const head = findChild(view, "filesHeadTick");
+        verify(head, "the header's tick");
+        compare(head.wanted, 2);
+        mouseClick(head);
+        compare(files.headWanted, 0);
+        mouseClick(head);
+        compare(files.headWanted, 2);
+        compare(files.priority(1), 6); // high came back, not normal
+    }
+
     function test_p_opens_the_priority_menu_and_its_letters_apply() {
         const view = testCase.filesView();
         const files = App.details.files;

@@ -15,6 +15,9 @@ import Omaseed.Kit
 // Details.qml, because the keys that move it belong to the pane, not to the tab; so do the
 // menus, which cover the whole pane.
 //
+// #42 (docs/27): a tick column comes first, the add sheet's (FileTick), and the header's tick
+// stands for every file the filter shows. A click asks the pane, which sends the priority.
+//
 // The columns fit the room (docs/11 J1). Docked on the right the pane shows the figure's
 // four — Name, Size, Done (a progress line and its percent), Priority — and at the bottom,
 // or dragged wider, it adds Remaining, Availability and the piece range, in that order.
@@ -43,6 +46,11 @@ Item {
     signal filterDone
     /// A click on the summary line's "N skipped" (#9): the pane turns hideSkipped over, as `X`.
     signal hideSkippedRequested
+    /// A click on a row's tick (#42, docs/27): `wanted` is what the tick showed (2 ticked,
+    /// 1 mixed, 0 skipped); the pane skips a full one and ticks the others.
+    signal tickClicked(int row, int wanted)
+    /// A click on the header's tick, for every file the filter shows (docs/27 D1/D4).
+    signal headTickClicked
 
     readonly property int count: root.model ? root.model.count : 0
     readonly property bool filterShown: root.filterOpen || (root.model !== null
@@ -90,6 +98,7 @@ Item {
     readonly property int remainingWidth: root.sizeWidth
     readonly property int availabilityWidth: Theme.space(50)
     readonly property int piecesWidth: Math.max(Theme.space(78), root._measured(piecesMetrics))
+    readonly property int tickWidth: Theme.space(14)
 
     function _measured(metrics: TextMetrics): int {
         return Math.ceil(metrics.advanceWidth) + 1;
@@ -414,6 +423,24 @@ Item {
         anchors.topMargin: Theme.space(2)
         spacing: Theme.space(8)
 
+        FileTick {
+            Layout.preferredHeight: Theme.railRowHeight
+            Layout.preferredWidth: root.tickWidth
+            objectName: "filesHeadTick"
+            tip: {
+                const verb = root.model !== null && root.model.headWanted === 2 ? qsTr("skip")
+                                                                               : qsTr("tick");
+                if (root.model !== null && root.model.filterText.length > 0)
+                    return qsTr("%1 the %2 files shown").arg(verb).arg(root.model.headFileCount);
+                return qsTr("%1 every file · ctrl+a x").arg(verb);
+            }
+            tooltip: nameTip
+            visible: root.fileCount > 0
+            wanted: root.model !== null ? root.model.headWanted : 2
+
+            onClicked: root.headTickClicked()
+        }
+
         DetailsHeader {
             Layout.fillWidth: true
             descending: root.model !== null && root.model.sortDescending
@@ -522,6 +549,7 @@ Item {
             required property int depth
             required property bool expanded
             required property bool rowSelected
+            required property int wanted
 
             readonly property color priorityColor: row.priority === 6 || row.priority === 7
                                                    ? Theme.yellow : row.selected
@@ -542,13 +570,26 @@ Item {
                 root.rowMenuRequested(row.index, at.x, at.y);
             }
 
+            // Above the row's own MouseArea (`parent: row`, z 1), as the add tree's, so the
+            // tick takes its clicks; a click anywhere else falls through to the row.
             RowLayout {
                 anchors.left: parent.left
                 anchors.leftMargin: Theme.space(8)
                 anchors.right: parent.right
                 anchors.rightMargin: Theme.space(8)
                 anchors.verticalCenter: parent.verticalCenter
+                parent: row
                 spacing: Theme.space(8)
+                z: 1
+
+                FileTick {
+                    Layout.preferredHeight: Theme.railRowHeight
+                    Layout.preferredWidth: root.tickWidth
+                    objectName: "fileTick_" + row.index
+                    wanted: row.wanted
+
+                    onClicked: root.tickClicked(row.index, row.wanted)
+                }
 
                 Item {
                     Layout.fillWidth: true

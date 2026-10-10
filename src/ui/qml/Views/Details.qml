@@ -173,6 +173,18 @@ Item {
         root.applyPriority(wanted);
     }
 
+    /// `x` (#42, docs/27 D2): skips the selection, or the cursor row when nothing is
+    /// selected; when none of those files is wanted, ticks them back at the priority they
+    /// had (App.setFilesWanted).
+    function toggleSkip() {
+        if (root.currentTab !== 1 || root.details.files.count === 0)
+            return;
+        const files = root.details.files;
+        const ids = files.targetFileIndexes(root.filesCursor);
+        if (ids.length > 0)
+            App.setFilesWanted(root.details.hash, ids, files.targetPriority(root.filesCursor) === 0);
+    }
+
     /// The priority menu's rows: one API priority (0 skip, 1 normal, 6 high, 7 maximal) on the
     /// selection or the cursor row.
     function applyPriority(priority: int) {
@@ -613,7 +625,7 @@ Item {
             root.setPriority("lower");
             break;
         case Qt.Key_X:
-            root.setPriority("skip");
+            root.toggleSkip();
             break;
         case Qt.Key_Y:
             root.copyCurrent();
@@ -923,6 +935,11 @@ Item {
             visible: root.currentTab === 1
 
             onFilterDone: root.forceActiveFocus()
+            onHeadTickClicked: {
+                root.takeKeys();
+                App.setFilesWanted(root.details.hash, root.details.files.headFileIndexes(),
+                                   root.details.files.headWanted !== 2);
+            }
             onHideSkippedRequested: root.toggleHideSkipped()
             onRenameCancelled: root.cancelRename()
             onRenameCommitted: text => root.commitRename(text)
@@ -941,6 +958,12 @@ Item {
                 root.filesCursor = row;
                 const at = filesTab.mapToItem(root, x, y);
                 root.openFileMenu(at.x, at.y);
+            }
+            onTickClicked: (row, wanted) => {
+                root.takeKeys();
+                root.filesCursor = row;
+                App.setFilesWanted(root.details.hash, root.details.files.fileIndexes(row),
+                                   wanted !== 2);
             }
         }
 

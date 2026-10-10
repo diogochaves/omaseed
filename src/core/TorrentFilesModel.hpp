@@ -137,6 +137,8 @@ public:
     Q_INVOKABLE QVariantList headFileIndexes() const;
     /// The priority of the file with API id `fileIndex`, or -1 when there is none.
     Q_INVOKABLE int filePriority(int fileIndex) const;
+    /// Every file's priority by API id, in one pass.
+    QHash<int, int> priorityByFileIndex() const;
     qint64 totalSize() const { return m_totalSize; }
     QString totalSizeText() const;
 

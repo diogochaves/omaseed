@@ -103,6 +103,7 @@ private slots:
     void trayStateFollowsTheWorld();
     void environmentOverrideReachesThePlayground();
     void filesTabActionsRunLocallyInDemo();
+    void filesWantedRemembersThePriority();
     void manyFilesRenameLocallyInDemo();
 
 private:
@@ -435,6 +436,41 @@ void TestApp::filesTabActionsRunLocallyInDemo()
     QCOMPARE(app.torrentFileLocalPath(hash, QStringLiteral("Big Buck Bunny 4K/LICENSE.txt")),
              savePath + QStringLiteral("/Big Buck Bunny 4K/LICENSE.txt"));
     QVERIFY(app.torrentFileLocalPath(QStringLiteral("nope"), QStringLiteral("a")).isEmpty());
+}
+
+// #42 (docs/27 D3): the Files tab's ticks. Skipping remembers each file's priority for the
+// session, ticking brings it back; a file skipped from the start comes back at normal, and a
+// file already wanted is left alone.
+void TestApp::filesWantedRemembersThePriority()
+{
+    App app;
+    app.startDemo(16);
+    QString hash;
+    for (int row = 0; row < app.torrents()->count(); ++row) {
+        if (roleOf(app.torrents(), row, "name").toString() ==
+            QStringLiteral("Big Buck Bunny 4K (CC-BY)"))
+            hash = roleOf(app.torrents(), row, "hash").toString();
+    }
+    QVERIFY(!hash.isEmpty());
+    app.selectTorrent(hash);
+    TorrentFilesModel *files = app.details()->files();
+
+    app.setFilePriority(hash, {0}, int(FilePriority::Maximal));
+    app.setFilePriority(hash, {2, 3}, int(FilePriority::Skip));
+    app.setFilesWanted(hash, {0, 1}, false);
+    QCOMPARE(files->filePriority(0), int(FilePriority::Skip));
+    QCOMPARE(files->filePriority(1), int(FilePriority::Skip));
+
+    app.setFilesWanted(hash, files->headFileIndexes(), true);
+    QCOMPARE(files->filePriority(0), int(FilePriority::Maximal));
+    QCOMPARE(files->filePriority(2), int(FilePriority::Normal));
+    QCOMPARE(files->headWanted(), 2);
+
+    // Once restored, the memory is spent: a menu "normal" then a skip and a tick is normal.
+    app.setFilePriority(hash, {0}, int(FilePriority::Normal));
+    app.setFilesWanted(hash, {0}, false);
+    app.setFilesWanted(hash, {0}, true);
+    QCOMPARE(files->filePriority(0), int(FilePriority::Normal));
 }
 
 // #11: the rename sheet's plan and run through App, on the demo's files: a prefix on every

@@ -777,6 +777,16 @@ int TorrentFilesModel::filePriority(int fileIndex) const
     return -1;
 }
 
+QHash<int, int> TorrentFilesModel::priorityByFileIndex() const
+{
+    QHash<int, int> priorities;
+    for (const Node &node : m_nodes) {
+        if (!node.isFolder)
+            priorities.insert(node.fileIndex, node.priority);
+    }
+    return priorities;
+}
+
 void TorrentFilesModel::updateSummary()
 {
     updateHeadWanted();

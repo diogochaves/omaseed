@@ -128,11 +128,11 @@ QtObject {
 
     function _detailsHints() {
         switch (root.detailsTab) {
-        case 1: // Fig. 2, Files, with N1's menu, selection, filter and sort
-            return [root._hint("details", "p"), root._hint("details", "space"), root._hint("details",
-                                                                                           "enter"),
-                    root._hint("details", "r"), root._hint("details", "s"), root._hint("details",
-                                                                                       "/")];
+        case 1: // Fig. 2, Files, with N1's menu, selection and filter, and docs/27's ticks
+            return [root._hint("details", "x"), root._hint("details", "space"), root._hint("details",
+                                                                                           "ctrl+a"),
+                    root._hint("details", "p"), root._hint("details", "enter"), root._hint("details",
+                                                                                           "/")];
         case 2: // Fig. 3, Trackers
             return [root._hint("details", "a"), root._hint("details", "d"), root._hint("details",
                                                                                        "R"),
