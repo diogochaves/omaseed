@@ -509,6 +509,7 @@ TestCase {
 
     function test_bar_step_not_now_ends_on_done_with_no_bar_line() {
         App.barWidget.setPrograms("true", "true");
+        const installedBefore = App.barWidget.installed;
         const page = createTemporaryObject(pageComponent, testCase, {
                                                "candidates": [localCandidate]
                                            });
@@ -516,7 +517,8 @@ TestCase {
         page.skipBar();
         compare(page.page, "done");
         verify(!findChild(page, "doneBar").visible);
-        verify(!App.barWidget.installed);
+        // `not now` touches nothing (a test before it may have left the link: off keeps it).
+        compare(App.barWidget.installed, installedBefore);
         App.barWidget.setPrograms("omaseed-tests-have-no-omarchy", "omaseed-tests-have-no-omarchy");
     }
 

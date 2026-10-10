@@ -27,3 +27,9 @@ set_property(TEST tst_qml APPEND PROPERTY ENVIRONMENT
     "OMASEED_OMARCHY_SHELL=omaseed-tests-have-no-omarchy"
     "OMASEED_PLUGIN_DIR=${PROJECT_SOURCE_DIR}/plugin"
 )
+# Switching the widget off keeps its link (BarWidget::remove), so a run would leave one in
+# qml-env for the next: every run starts without the tests' plugins folder.
+add_test(NAME tst_qml_env_clean
+    COMMAND ${CMAKE_COMMAND} -E rm -rf "${CMAKE_BINARY_DIR}/tests/qml-env/omarchy/plugins")
+set_tests_properties(tst_qml_env_clean PROPERTIES FIXTURES_SETUP qml_env)
+set_property(TEST tst_qml APPEND PROPERTY FIXTURES_REQUIRED qml_env)
