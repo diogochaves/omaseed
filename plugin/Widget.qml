@@ -151,7 +151,9 @@ BarWidget {
     return Math.ceil(w)
   }
   readonly property int arrowSlot: Math.ceil(Math.max(arrowMetrics.advanceWidth("↓"), arrowMetrics.advanceWidth("↑")))
-  readonly property int markSize: Style.space(20)
+  // The shell's own bar icon canvas (16 at the default size), so the mark sits at the size of
+  // the stock icons beside it.
+  readonly property int markSize: Style.bar.iconCanvas
 
   WidgetButton {
     id: button
