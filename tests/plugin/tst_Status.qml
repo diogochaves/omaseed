@@ -90,32 +90,89 @@ TestCase {
         verify(m.dim && !m.down && !m.up);
     }
 
-    // omarchy-console's rail moves a widget to its running zone while consoleAwake.
+    // omarchy-console's rail moves a widget to its running zone while consoleAwake. With the
+    // defaults (and with no options at all), today's rule: downloads and an unreachable server.
     function test_console_reading_wakes_on_downloads_and_an_unreachable_server() {
-        var s = sample();
-        var r = Status.consoleReading(s, now);
+        var defaults = Status.barOptions({});
+        verify(defaults.wakeOnDownload);
+        verify(!defaults.wakeOnUpload);
+        verify(!defaults.wakeOnError);
+        [undefined, defaults].forEach(function(o) {
+            var s = sample();
+            var r = Status.consoleReading(s, now, o);
+            verify(r.awake);
+            compare(r.state, "running");
+            compare(r.value, "\u2193 1.2M \u2191 2.3M");
+            // Seeding alone is the library's background: idle, still with its value.
+            s.speed.dl = 0;
+            r = Status.consoleReading(s, now, o);
+            verify(!r.awake);
+            compare(r.state, "");
+            compare(r.value, "\u2193 0 \u2191 2.3M");
+            // Torrents in error (missing files can last for months) do not wake it either.
+            s.counts.errored = 5;
+            verify(!Status.consoleReading(s, now, o).awake);
+            // The server out of reach is a failure, with its reason.
+            s.server.reachable = false;
+            r = Status.consoleReading(s, now, o);
+            verify(r.awake);
+            compare(r.state, "failed");
+            compare(r.reason, "qBittorrent unreachable");
+            // No app: idle and quiet.
+            r = Status.consoleReading(null, now, o);
+            verify(!r.awake);
+            compare(r.value, "");
+        });
+    }
+
+    // docs/27 D14: each switch on its own.
+    function test_console_reading_follows_each_wake_switch() {
+        var none = Status.barOptions({ wakeOnDownload: false });
+        var s = sample();                       // downloading and uploading
+        verify(!Status.consoleReading(s, now, none).awake);
+
+        var up = Status.barOptions({ wakeOnDownload: false, wakeOnUpload: true });
+        var r = Status.consoleReading(s, now, up);
         verify(r.awake);
         compare(r.state, "running");
+        s.speed.up = 0;                         // downloading only: uploads don't see it
+        verify(!Status.consoleReading(s, now, up).awake);
+        s.speed = { dl: 0, up: 2048 };          // seeding only
+        verify(Status.consoleReading(s, now, up).awake);
+        verify(!Status.consoleReading(s, now, Status.barOptions({})).awake);
+
+        var err = Status.barOptions({ wakeOnDownload: false, wakeOnError: true });
+        s = sample();
+        verify(!Status.consoleReading(s, now, err).awake);
+        s.counts.errored = 2;
+        r = Status.consoleReading(s, now, err);
+        verify(r.awake);
+        compare(r.state, "failed");
+        compare(r.reason, "2 errored");
         compare(r.value, "\u2193 1.2M \u2191 2.3M");
-        // Seeding alone is the library's background: idle, still with its value.
-        s.speed.dl = 0;
-        r = Status.consoleReading(s, now);
-        verify(!r.awake);
-        compare(r.state, "");
-        compare(r.value, "\u2193 0 \u2191 2.3M");
-        // Torrents in error (missing files can last for months) do not wake it either.
-        s.counts.errored = 5;
-        verify(!Status.consoleReading(s, now).awake);
-        // The server out of reach is a failure, with its reason.
+    }
+
+    // D15 a: errors and a download at once read as the failure.
+    function test_console_reading_errors_win_over_a_download() {
+        var s = sample();
+        s.counts.errored = 1;
+        var r = Status.consoleReading(s, now, Status.barOptions({ wakeOnError: true }));
+        compare(r.state, "failed");
+        compare(r.reason, "1 errored");
+        // Switched off (as `omarchy bar set` may store it): the download wakes it as before.
+        r = Status.consoleReading(s, now, Status.barOptions({ wakeOnError: "false" }));
+        compare(r.state, "running");
+    }
+
+    // An unreachable server wakes it whatever the switches say.
+    function test_console_reading_unreachable_always_wakes() {
+        var off = Status.barOptions({ wakeOnDownload: false, wakeOnUpload: false, wakeOnError: false });
+        var s = sample();
         s.server.reachable = false;
-        r = Status.consoleReading(s, now);
+        var r = Status.consoleReading(s, now, off);
         verify(r.awake);
         compare(r.state, "failed");
         compare(r.reason, "qBittorrent unreachable");
-        // No app: idle and quiet.
-        r = Status.consoleReading(null, now);
-        verify(!r.awake);
-        compare(r.value, "");
     }
 
     function test_hide_when_idle_keeps_news() {
@@ -267,10 +324,36 @@ TestCase {
         compare(Status.barOptions({ showMark: "nonsense" }).showMark, true);
     }
 
-    function test_setting_rows_are_the_manifests_nine() {
-        var keys = Status.settingRows().map(function(r) { return r.key });
+    function test_setting_rows_are_the_manifests_twelve() {
+        var rows = Status.settingRows();
+        var keys = rows.map(function(r) { return r.key });
         compare(keys, ["showMark", "showSpeed", "speedMetric", "markColor", "hideWhenIdle",
-                       "middleClick", "rightClick", "rareSeeds", "recentCount"]);
+                       "middleClick", "rightClick", "rareSeeds", "recentCount",
+                       "wakeOnDownload", "wakeOnUpload", "wakeOnError"]);
+        // The rail's three are the last group, switches, with a line saying who reads them.
+        compare(rows[9].group, "omarchy-console's rail");
+        compare(rows[11].group, "omarchy-console's rail");
+        compare(rows[10].type, "bool");
+        verify(Status.settingGroupNote("omarchy-console's rail").indexOf("unreachable always wakes it") >= 0);
+        compare(Status.settingGroupNote("In the bar"), "");
+        // A switch flips, and a value stored as text by `omarchy bar set` reads the same.
+        compare(Status.settingStep(rows[10], Status.barOptions({}), 1), true);
+        compare(Status.settingStep(rows[9], Status.barOptions({}), 1), false);
+        verify(Status.barOptions({ wakeOnUpload: "true" }).wakeOnUpload);
+    }
+
+    // Every key of the manifest's schema is a row and every row a key there, with the same defaults.
+    function test_manifest_and_rows_agree() {
+        var xhr = new XMLHttpRequest();
+        xhr.open("GET", Qt.resolvedUrl("../../plugin/manifest.json"), false);
+        xhr.send();
+        var manifest = JSON.parse(xhr.responseText);
+        var schemaKeys = manifest.barWidget.schema.map(function(e) { return e.key });
+        var rowKeys = Status.settingRows().map(function(r) { return r.key });
+        compare(rowKeys.slice().sort(), schemaKeys.slice().sort());
+        var defaults = Status.barOptions({});
+        for (var k in manifest.barWidget.defaults)
+            compare(defaults[k], manifest.barWidget.defaults[k], k);
     }
 
     function test_the_last_of_mark_and_speed_cannot_be_switched_off() {

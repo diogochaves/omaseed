@@ -25,7 +25,10 @@
       "rareSeeds": 2,
       "recentCount": 3,
       "middleClick": "altSpeed",
-      "rightClick": "openApp"
+      "rightClick": "openApp",
+      "wakeOnDownload": true,
+      "wakeOnUpload": false,
+      "wakeOnError": false
     },
     "schema": [
       { "key": "showMark", "type": "bool", "label": "Show the mark", "defaultValue": true, "description": "The omaseed mark as the activity readout: the lower arrow lights while downloading, the upper one while uploading. Mark and speed can both be on, never both off: with both off the mark shows." },
@@ -36,7 +39,10 @@
       { "key": "rareSeeds", "type": "integer", "label": "Few seeds means at most", "min": 1, "max": 5, "step": 1, "defaultValue": 2, "description": "What \"keeping alive\" counts: complete torrents whose swarm has this many seeds or fewer, you included." },
       { "key": "recentCount", "type": "integer", "label": "Rows in lately", "min": 0, "max": 5, "step": 1, "defaultValue": 3, "description": "Completions and ratio milestones in the popup. 0 hides the section." },
       { "key": "middleClick", "type": "enum", "label": "Middle click", "options": ["altSpeed", "openApp", "none"], "defaultValue": "altSpeed", "description": "Toggle the alternative speed limits, open omaseed, or nothing." },
-      { "key": "rightClick", "type": "enum", "label": "Right click", "options": ["openApp", "altSpeed", "none"], "defaultValue": "openApp" }
+      { "key": "rightClick", "type": "enum", "label": "Right click", "options": ["openApp", "altSpeed", "none"], "defaultValue": "openApp" },
+      { "key": "wakeOnDownload", "type": "bool", "label": "Downloads wake the console rail", "defaultValue": true, "description": "For omarchy-console's rail: the widget moves to its running zone while anything receives data. qBittorrent unreachable always wakes it, as a failure. Nothing else reads this." },
+      { "key": "wakeOnUpload", "type": "bool", "label": "Uploads wake the console rail", "defaultValue": false, "description": "For omarchy-console's rail: awake while anything sends data. A library that always seeds stays up." },
+      { "key": "wakeOnError", "type": "bool", "label": "Errors wake the console rail", "defaultValue": false, "description": "For omarchy-console's rail: awake as a failure (\"2 errored\") while torrents are in error. A failure wins over a download." }
     ]
   }
 }
