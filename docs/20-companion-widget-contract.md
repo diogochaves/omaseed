@@ -120,7 +120,8 @@ remembers its state. Order:
    - Given, taken and ratio this session.
    - The week strip: seven days of upload, today highlighted.
    - "N GB seeded this week · N seeding · N TB on offer · all time ratio N".
-   - Today's top seeders: two rows, uploaded this session and ratio.
+   - Today's top seeders: two rows, what each gave today and ratio (#47: from the seed
+     ledger, not `uploaded_session`).
 3. **Keeping alive** (folded). The folded line is "N with 2 or fewer seeds · N only you".
    - The held count.
    - The tallies: only you · you + one · peers waiting · nobody has asked in a month.
@@ -142,6 +143,7 @@ where).
 | `b` | Browse… |
 | `↵` | Add the ticked sources (on Add), open the folder (on a Lately row), show the torrent (on an In flight row) |
 | `shift ↵` | Add stopped |
+| `x` | tick or untick the Add row the cursor is on, as in the Files tab (#47) |
 | `m` | omaseed's own add sheet with the ticked sources |
 | `o` | open omaseed |
 | `A` | alt-speed |
@@ -170,8 +172,8 @@ the app's own sampling. The widget computes none of it: the app writes it into t
 |---|---|---|
 | I1 | Your share this session | `server_state.up_info_data`, `dl_info_data` (already read) |
 | I2 | Upload sparkline, last hour | the app samples upload each second and keeps 60 one-minute averages |
-| I3 | Keeping alive | per torrent `num_complete` (seeds in the swarm) and `num_incomplete` (peers waiting), on complete torrents; "nobody has asked in a month" uses `last_activity` older than 30 days; threshold option `rareSeeds` (default 2) |
-| I4 | Today's top seeders | per torrent `uploaded_session` (not read yet) |
+| I3 | Keeping alive | per torrent `num_complete` (seeds in the swarm) and `num_incomplete` (peers waiting), on complete torrents; "nobody has asked in a month" uses `last_activity` older than 30 days; threshold option `rareSeeds` (default 2); a torrent whose tracker reports 0 seeds or an error is unknown and not counted, the seed console's rule (#47) |
+| I4 | Today's top seeders | each torrent's upload today in the seed ledger, `SeedLedger::dayTotals` (#47; was `uploaded_session`) |
 | I5 | Week strip, all time | the app keeps daily upload totals in state.json; `server_state.alltime_ul`, `alltime_dl`, `global_ratio` (a string; not read yet) |
 | I6 | Ratio milestones | the app notices a torrent's `ratio` crossing 1.0, 2.0 and 5.0 and keeps the last few, like completions |
 | I7 | Reachability warning | `server_state.connection_status == "firewalled"` (already read) |

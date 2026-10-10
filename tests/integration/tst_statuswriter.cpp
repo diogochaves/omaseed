@@ -1,5 +1,6 @@
 #include "core/GlobalState.hpp"
 #include "core/QbtClient.hpp"
+#include "core/SeedLedger.hpp"
 #include "core/StateFile.hpp"
 #include "core/SyncEngine.hpp"
 #include "integration/StatusWriter.hpp"
@@ -23,6 +24,7 @@
 
 using omaseed::core::GlobalState;
 using omaseed::core::QbtClient;
+using omaseed::core::SeedLedger;
 using omaseed::core::StateFile;
 using omaseed::core::SyncEngine;
 using omaseed::integration::StatusWriter;
@@ -132,6 +134,7 @@ private slots:
     void recentSurvivesARestart();
     void milestonesFromTheSync();
     void idlePollsLeaveTheLibraryAlone();
+    void topSeedersFromTheLedger();
     void todaysDownloads();
     void addCategoryFromState();
     void removedOnQuit();
@@ -184,8 +187,15 @@ void TestStatusWriter::writesSchemaTwo()
     engine.globalState()->setConnected(true);
     engine.globalState()->setServerVersions(QStringLiteral("v5.2.3"), QStringLiteral("2.15.1"));
     engine.applyDemoData(fullUpdate());
+    // Today's top seeders come from the seed ledger (#47): both gave something today.
+    SeedLedger ledger;
+    const qint64 at = QDateTime::currentSecsSinceEpoch();
+    ledger.observe(at - 2, 0, 0, {{QStringLiteral("aaaa"), 0, 0}, {QStringLiteral("bbbb"), 0, 0}});
+    ledger.observe(
+        at, 400, 0, {{QStringLiteral("aaaa"), 100, 0}, {QStringLiteral("bbbb"), 300, 0}});
     StatusWriter writer;
     writer.setIntervals(0, 10000);
+    writer.setLedger(&ledger);
     startWriter(writer, engine);
 
     bool ok = false;
@@ -252,7 +262,11 @@ void TestStatusWriter::writesSchemaTwo()
     const QJsonObject alive = status.value(QStringLiteral("alive")).toObject();
     QCOMPARE(alive.value(QStringLiteral("buckets")).toArray().size(), 5);
     QCOMPARE(alive.value(QStringLiteral("rows")).toArray().size(), 1);
-    QCOMPARE(status.value(QStringLiteral("topSeeders")).toArray().size(), 2);
+    const QJsonArray top = status.value(QStringLiteral("topSeeders")).toArray();
+    QCOMPARE(top.size(), 2);
+    QCOMPARE(top.first().toObject().value(QStringLiteral("name")).toString(),
+             QStringLiteral("debian.iso"));
+    QCOMPARE(top.first().toObject().value(QStringLiteral("uploaded")).toInteger(), qint64(300));
     const QJsonArray active = status.value(QStringLiteral("active")).toArray();
     QCOMPARE(active.size(), 1);
     QCOMPARE(active.first().toObject().value(QStringLiteral("name")).toString(),
@@ -591,13 +605,12 @@ void TestStatusWriter::idlePollsLeaveTheLibraryAlone()
              first.value(QStringLiteral("share")).toObject().value(QStringLiteral("onOffer")));
 
     // A torrent moves: worked out once more, and the file shows it.
-    engine.applyDemoData(partial(
-        {}, QJsonObject{{QStringLiteral("bbbb"),
-                         QJsonObject{{QStringLiteral("uploaded_session"), 1'000'000}}}}));
-    const QJsonArray top = writer.snapshot().value(QStringLiteral("topSeeders")).toArray();
+    engine.applyDemoData(
+        partial({},
+                QJsonObject{{QStringLiteral("bbbb"),
+                             QJsonObject{{QStringLiteral("dlspeed"), 1'000'000}}}}));
+    writer.snapshot();
     QCOMPARE(writer.torrentPartsBuilds(), builds + 1);
-    QCOMPARE(top.first().toObject().value(QStringLiteral("name")).toString(),
-             QStringLiteral("debian.iso"));
     writer.snapshot();
     QCOMPARE(writer.torrentPartsBuilds(), builds + 1);
 
@@ -622,6 +635,71 @@ void TestStatusWriter::idlePollsLeaveTheLibraryAlone()
     current = current.addSecs(1);
     QCOMPARE(quiet(), 1);
     QCOMPARE(writer.torrentPartsBuilds(), beforeQuiet + 1);
+}
+
+// #47: today's top seeders rank what the seed ledger saw each torrent give today, follow the
+// ledger without walking the library, and start over when the day does.
+void TestStatusWriter::topSeedersFromTheLedger()
+{
+    QDateTime current(QDate(2026, 10, 10), QTime(23, 59));
+    SyncEngine engine;
+    engine.globalState()->setConnected(true);
+    SeedLedger ledger;
+    StatusWriter writer;
+    writer.setIntervals(0, 10000);
+    writer.setClock([&current]() { return current; });
+    writer.setLedger(&ledger);
+    startWriter(writer, engine);
+    engine.applyDemoData(fullUpdate());
+
+    const auto top = [&writer]() {
+        QStringList rows;
+        for (const QJsonValue &row :
+             writer.snapshot().value(QStringLiteral("topSeeders")).toArray()) {
+            const QJsonObject o = row.toObject();
+            rows << QStringLiteral("%1 %2")
+                        .arg(o.value(QStringLiteral("name")).toString())
+                        .arg(o.value(QStringLiteral("uploaded")).toInteger());
+        }
+        return rows;
+    };
+    const auto poll = [&](qint64 arch, qint64 debian) {
+        ledger.observe(current.toSecsSinceEpoch(),
+                       arch + debian,
+                       0,
+                       {{QStringLiteral("aaaa"), arch, 0}, {QStringLiteral("bbbb"), debian, 0}});
+    };
+
+    // The session's counter (4096 each in the fixture) is not today's upload: nothing yet.
+    poll(1'000, 1'000);
+    QCOMPARE(top(), QStringList());
+    const int builds = writer.torrentPartsBuilds();
+
+    current = current.addSecs(2);
+    poll(1'500, 1'200);
+    QCOMPARE(top(), QStringList({"arch.iso 500", "debian.iso 200"}));
+    current = current.addSecs(2);
+    poll(1'500, 2'200);
+    QCOMPARE(top(), QStringList({"debian.iso 1200", "arch.iso 500"}));
+    // The ledger moved, the torrents did not: the library was not walked for it.
+    QCOMPARE(writer.torrentPartsBuilds(), builds);
+
+    // Past midnight: a new day, nobody has given anything in it yet.
+    current =
+        QDateTime(QDate(2026, 10, 11), QTime(0, 0, 10)); // under gapSeconds since the last poll
+    QCOMPARE(top(), QStringList());
+    poll(1'600, 2'200);
+    QCOMPARE(top(), QStringList({"arch.iso 100"}));
+
+    // A torrent that left the library is not listed, whatever it gave.
+    engine.applyDemoData(
+        QJsonObject{{QStringLiteral("rid"), 3},
+                    {QStringLiteral("torrents_removed"), QJsonArray{QStringLiteral("aaaa")}}});
+    QCOMPARE(top(), QStringList());
+
+    // Without a ledger, no list.
+    writer.setLedger(nullptr);
+    QCOMPARE(top(), QStringList());
 }
 
 void TestStatusWriter::todaysDownloads()

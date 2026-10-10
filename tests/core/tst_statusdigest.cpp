@@ -1,5 +1,8 @@
 #include "core/StatusDigest.hpp"
 
+#include "core/SeedConsole.hpp"
+
+#include <QHash>
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QTest>
@@ -57,10 +60,11 @@ private slots:
     void milestonesNeedABefore();
     void milestonesFromADiffMatchTheWholeList();
     void aliveBucketsBySwarmSeeds();
+    void aliveTakesTheConsolesRule();
     void aliveRowsRarestFirst();
     void aliveCountsQuietTorrents();
     void aliveSaysWhenItWillChange();
-    void topSeedersByUploadThisSession();
+    void topSeedersByTodaysUpload();
     void activeFastestFirst();
     void onOfferCountsCompleteOnly();
     void recentReplacesAndCaps();
@@ -271,8 +275,11 @@ void TestStatusDigest::aliveBucketsBySwarmSeeds()
 {
     Torrent stopped = seeding(QStringLiteral("stopped"), 1);
     stopped.state = TorrentState::StoppedUpload;
+    Torrent failing = seeding(QStringLiteral("failing"), 1, 4);
+    failing.hasTrackerError = true;
     const QList<Torrent> torrents{
-        seeding(QStringLiteral("unknown"), 0, 2), // no scrape: you are the one seed
+        seeding(QStringLiteral("unknown"), 0, 2), // no scrape: unknown, not "only you" (#47)
+        failing,                                  // a tracker error: unknown too
         seeding(QStringLiteral("alone"), 1),
         seeding(QStringLiteral("pair"), 2, 1),
         seeding(QStringLiteral("five"), 5),
@@ -287,14 +294,39 @@ void TestStatusDigest::aliveBucketsBySwarmSeeds()
         return buckets.at(seeds - 1).toObject().value(QLatin1String(key)).toInt();
     };
     QCOMPARE(bucket(1, "seeds"), 1);
-    QCOMPARE(bucket(1, "count"), 2);
-    QCOMPARE(bucket(1, "waiting"), 1);
-    QCOMPARE(bucket(1, "peers"), 2);
+    QCOMPARE(bucket(1, "count"), 1);
+    QCOMPARE(bucket(1, "waiting"), 0);
+    QCOMPARE(bucket(1, "peers"), 0);
     QCOMPARE(bucket(2, "count"), 1);
     QCOMPARE(bucket(2, "waiting"), 1);
     QCOMPARE(bucket(2, "peers"), 1);
     QCOMPARE(bucket(3, "count"), 0);
     QCOMPARE(bucket(5, "count"), 1);
+    QStringList rows;
+    for (const QJsonValue &row : alive.value(QStringLiteral("rows")).toArray())
+        rows << row.toObject().value(QStringLiteral("hash")).toString();
+    QCOMPARE(rows, QStringList({"alone", "pair", "five"}));
+}
+
+// #47: the bar and the seed console count a swarm with one rule, so they cannot disagree.
+void TestStatusDigest::aliveTakesTheConsolesRule()
+{
+    QList<Torrent> torrents;
+    for (const int seeds : {-1, 0, 1, 2, 5, 6}) {
+        for (const bool error : {false, true}) {
+            Torrent t = seeding(QStringLiteral("s%1%2").arg(seeds).arg(error ? "e" : ""), seeds);
+            t.hasTrackerError = error;
+            torrents.append(t);
+        }
+    }
+    const QJsonArray buckets =
+        digest::alive(torrents, kNow).value(QStringLiteral("buckets")).toArray();
+    for (int seeds = 1; seeds <= 5; ++seeds) {
+        int expected = 0;
+        for (const Torrent &t : torrents)
+            expected += SeedConsole::knownSeeds(t) == seeds ? 1 : 0;
+        QCOMPARE(buckets.at(seeds - 1).toObject().value(QStringLiteral("count")).toInt(), expected);
+    }
 }
 
 void TestStatusDigest::aliveRowsRarestFirst()
@@ -371,22 +403,41 @@ void TestStatusDigest::aliveSaysWhenItWillChange()
     QCOMPARE(quietAt, qint64(0));
 }
 
-void TestStatusDigest::topSeedersByUploadThisSession()
+void TestStatusDigest::topSeedersByTodaysUpload()
 {
     Torrent a = seeding(QStringLiteral("a"), 3);
-    a.uploadedSession = 500;
+    a.uploadedSession = 900'000; // the session's total ranks nothing any more (#47)
     a.ratio = 1.23456;
     Torrent b = seeding(QStringLiteral("b"), 3);
-    b.uploadedSession = 900;
     Torrent c = seeding(QStringLiteral("c"), 3);
-    c.uploadedSession = 100;
-    Torrent idle = seeding(QStringLiteral("idle"), 3);
-    const QJsonArray top = digest::topSeeders({a, b, c, idle});
+    Torrent d = seeding(QStringLiteral("d"), 3);
+    const QHash<QString, Torrent> library{{a.hash, a}, {b.hash, b}, {c.hash, c}, {d.hash, d}};
+    const auto find = [&library](const QString &hash) -> const Torrent * {
+        const auto it = library.constFind(hash);
+        return it == library.constEnd() ? nullptr : &it.value();
+    };
+    const QHash<QString, qint64> today{
+        {QStringLiteral("a"), 500},
+        {QStringLiteral("b"), 900},
+        {QStringLiteral("c"), 100},
+        {QStringLiteral("d"), 0},
+        {QStringLiteral("gone"), 5000}, // removed since: skipped
+    };
+    const QJsonArray top = digest::topSeeders(today, find);
     QCOMPARE(top.size(), 2);
     QCOMPARE(top.at(0).toObject().value(QStringLiteral("hash")).toString(), QStringLiteral("b"));
+    QCOMPARE(top.at(0).toObject().value(QStringLiteral("uploaded")).toInteger(), qint64(900));
+    QCOMPARE(top.at(1).toObject().value(QStringLiteral("hash")).toString(), QStringLiteral("a"));
     QCOMPARE(top.at(1).toObject().value(QStringLiteral("uploaded")).toInteger(), qint64(500));
     QCOMPARE(top.at(1).toObject().value(QStringLiteral("ratio")).toDouble(), 1.235);
-    QVERIFY(digest::topSeeders({idle}).isEmpty());
+
+    // A tie goes by name; nothing given today, no rows.
+    const QJsonArray tied = digest::topSeeders(
+        {{QStringLiteral("d"), 7}, {QStringLiteral("c"), 7}, {QStringLiteral("b"), 7}}, find);
+    QCOMPARE(tied.at(0).toObject().value(QStringLiteral("hash")).toString(), QStringLiteral("b"));
+    QCOMPARE(tied.at(1).toObject().value(QStringLiteral("hash")).toString(), QStringLiteral("c"));
+    QVERIFY(digest::topSeeders({{QStringLiteral("d"), 0}}, find).isEmpty());
+    QVERIFY(digest::topSeeders({}, find).isEmpty());
 }
 
 void TestStatusDigest::activeFastestFirst()

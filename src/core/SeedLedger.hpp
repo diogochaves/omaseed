@@ -141,6 +141,12 @@ public:
     QList<Day> days(const QDate &from, const QDate &to) const;
     /// Bytes given by each torrent from `from` to `to`, inclusive.
     QHash<QString, qint64> torrentTotals(const QDate &from, const QDate &to) const;
+    /// torrentTotals(day, day), kept in memory after the first read and booked into as polls
+    /// come, so asking it every poll costs no query (#47: the widget's top seeders of today).
+    const QHash<QString, qint64> &dayTotals(const QDate &day) const;
+    /// Goes up whenever what a torrent gave may have changed (a poll booked some, a file was
+    /// opened or closed, the demo year), so a reader can keep what it worked out until then.
+    quint64 revision() const { return m_revision; }
     /// Each torrent's bytes per day from `from` to `to` (one entry per day, 0 where none).
     QHash<QString, QList<qint64>> torrentDays(const QDate &from, const QDate &to) const;
     /// Days in a row with any upload, ending today (or yesterday, while today is still 0).
@@ -219,6 +225,14 @@ private:
         qint64 down = 0;
     };
     QList<Speed> m_speeds; ///< the last hour, oldest first
+
+    /// Booked into the kept day of dayTotals(), when it is `day`.
+    void bookDayTotal(const QDate &day, const QString &hash, qint64 up);
+    void dropDayTotals();
+    quint64 m_revision = 0;
+    mutable bool m_dayTotalsValid = false;
+    mutable QDate m_dayTotalsDate;
+    mutable QHash<QString, qint64> m_dayTotals;
 };
 
 } // namespace omaseed::core

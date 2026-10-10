@@ -13,10 +13,11 @@
 // rewritten every `heartbeat` (10 s) so the widget can tell a live app from a dead one. Speeds
 // are rounded to three significant figures before the change test.
 //
-// Cost (#36): the parts worked out from every torrent (on offer, keeping alive, top seeders,
-// active) are kept until the torrents change or one of them turns quiet, and the ratio
-// milestones follow each poll's diff, so an idle poll or an upload sample costs the same at
-// ten torrents as at thousands. Each write goes to
+// Cost (#36): the parts worked out from every torrent (on offer, keeping alive, active) are
+// kept until the torrents change or one of them turns quiet, today's top seeders walk only
+// the torrents the seed ledger saw give today, and the ratio milestones follow each poll's
+// diff, so an idle poll or an upload sample costs the same at ten torrents as at thousands.
+// Each write goes to
 // `status.json.tmp` (0600, in a 0700 directory) and is renamed into place, so a reader never
 // sees half a file. `removeFile()` on a clean quit.
 //
@@ -24,6 +25,7 @@
 
 #include "core/StatusDigest.hpp"
 
+#include <QDate>
 #include <QDateTime>
 #include <QElapsedTimer>
 #include <QJsonArray>
@@ -40,6 +42,7 @@
 class QFileSystemWatcher;
 
 namespace omaseed::core {
+class SeedLedger;
 class ServerPreferences;
 class SyncEngine;
 } // namespace omaseed::core
@@ -71,6 +74,9 @@ public:
     // --- sources ----------------------------------------------------------------------------
     void setEngine(omaseed::core::SyncEngine *engine);
     void setPreferences(omaseed::core::ServerPreferences *preferences);
+    /// The seed ledger "today's top seeders" read their upload from (#47). The caller keeps it
+    /// alive and fed for as long as the writer has it; without one the list is empty.
+    void setLedger(const omaseed::core::SeedLedger *ledger);
     /// The server the engine is on. A different `id` starts the session over (share, hour,
     /// milestones) and loads that server's week and recent list. `url` keeps only host:port.
     void setServer(const QString &id, const QString &name, const QUrl &url);
@@ -135,12 +141,13 @@ private:
     {
         qint64 onOffer = 0;
         QJsonObject alive;
-        QJsonArray topSeeders;
         QJsonArray active;
     };
     /// The parts of the document that walk every torrent, for `now`: the kept ones while
     /// they still hold.
     const TorrentParts &torrentParts(const QDateTime &now) const;
+    /// Today's top seeders, kept until the torrents, the ledger or the day change.
+    const QJsonArray &topSeeders(const QDateTime &now) const;
 
     QString m_path;
     int m_minInterval = 1000;
@@ -181,6 +188,14 @@ private:
     mutable qint64 m_partsAt = 0;      ///< unix seconds they were worked out for
     mutable qint64 m_partsQuietAt = 0; ///< when one of them turns quiet; 0 never
     mutable int m_partsBuilds = 0;
+    const omaseed::core::SeedLedger *m_ledger = nullptr;
+    mutable QJsonArray m_topSeeders;
+    mutable bool m_topValid = false;
+    mutable const void *m_topModel = nullptr;
+    mutable const void *m_topLedger = nullptr;
+    mutable quint64 m_topRevision = 0;
+    mutable quint64 m_topLedgerRevision = 0;
+    mutable QDate m_topDay;
     QJsonArray m_recent;
     bool m_weekDirty = false;
     QDateTime m_weekSavedAt;

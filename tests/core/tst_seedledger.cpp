@@ -1,17 +1,18 @@
 #include "core/SeedLedger.hpp"
 
 #include <QDateTime>
-#include <QElapsedTimer>
 #include <QDir>
-#include <QFileInfo>
-#include <QRegularExpression>
+#include <QElapsedTimer>
 #include <QFile>
+#include <QFileInfo>
+#include <QHash>
 #include <QMap>
+#include <QRegularExpression>
 #include <QSqlDatabase>
 #include <QSqlQuery>
 #include <QTemporaryDir>
-#include <QTimeZone>
 #include <QTest>
+#include <QTimeZone>
 
 using omaseed::core::SeedLedger;
 
@@ -623,6 +624,79 @@ private Q_SLOTS:
         const auto half = ledger.series(t + 89, 30, 4);
         QVERIFY(half.last().known);
         QCOMPARE(half.last().up, 1000.0);
+    }
+
+    // #47: the widget asks for today's per-torrent upload every busy poll. dayTotals() gives
+    // what torrentTotals(day, day) would, through polls, flushes, a gap over midnight and a
+    // reopen, without reading the file again once it has the day.
+    void dayTotalsFollowThePolls()
+    {
+        QTemporaryDir dir;
+        const QString path = dir.filePath(QStringLiteral("day.sqlite"));
+        const QDate today(2026, 10, 3);
+        const QDate tomorrow = today.addDays(1);
+        const qint64 t = noon();
+        const auto given = [](const QHash<QString, qint64> &totals) {
+            QHash<QString, qint64> out;
+            for (auto it = totals.cbegin(); it != totals.cend(); ++it) {
+                if (it.value() != 0)
+                    out.insert(it.key(), it.value());
+            }
+            return out;
+        };
+        const auto agrees = [&given](const SeedLedger &ledger, const QDate &day) {
+            return given(ledger.dayTotals(day)) == given(ledger.torrentTotals(day, day));
+        };
+
+        SeedLedger ledger;
+        QVERIFY(ledger.open(path));
+        ledger.observe(t, 0, 0, totals({{"a", 0}, {"b", 0}}));
+        QVERIFY(ledger.dayTotals(today).isEmpty());
+        quint64 revision = ledger.revision();
+        ledger.observe(t + 2, 300, 0, totals({{"a", 200}, {"b", 100}}));
+        QVERIFY(ledger.revision() > revision);
+        QCOMPARE(ledger.dayTotals(today).value(QStringLiteral("a")), 200);
+        QVERIFY(agrees(ledger, today));
+
+        // An idle poll books nothing and leaves the revision alone.
+        revision = ledger.revision();
+        ledger.observe(t + 4, 300, 0, totals({{"a", 200}, {"b", 100}}));
+        QCOMPARE(ledger.revision(), revision);
+
+        ledger.flush(t + 4);
+        ledger.observeChanges(t + 6, 350, 0, totals({{"b", 150}}), {});
+        QCOMPARE(ledger.dayTotals(today).value(QStringLiteral("b")), 150);
+        QVERIFY(agrees(ledger, today));
+
+        // Kept in memory: a row written behind its back is not seen until the day is read again.
+        QSqlQuery behind(QSqlDatabase::database(ledger.connectionName()));
+        QVERIFY(behind.exec(QStringLiteral(
+            "INSERT INTO torrent_days(day, hash, up) VALUES('2026-10-03', 'z', 7)")));
+        QVERIFY(!ledger.dayTotals(today).contains(QStringLiteral("z")));
+        QCOMPARE(ledger.dayTotals(tomorrow).size(), 0);
+        QCOMPARE(ledger.dayTotals(today).value(QStringLiteral("z")), 7);
+
+        // A gap over midnight: spread over both days, each kept day booked its share.
+        const qint64 lateNight = today.startOfDay().addSecs(23 * 3600 + 59 * 60).toSecsSinceEpoch();
+        ledger.observe(lateNight, 350, 0, totals({{"a", 200}, {"b", 150}}));
+        const QHash<QString, qint64> before = ledger.dayTotals(today);
+        ledger.observe(lateNight + 240, 590, 0, totals({{"a", 440}, {"b", 150}}));
+        QVERIFY(ledger.dayTotals(today).value(QStringLiteral("a")) >
+                before.value(QStringLiteral("a")));
+        QVERIFY(agrees(ledger, today));
+        QVERIFY(agrees(ledger, tomorrow));
+        QCOMPARE(ledger.dayTotals(today).value(QStringLiteral("a")) +
+                     ledger.dayTotals(tomorrow).value(QStringLiteral("a")),
+                 440);
+        ledger.close();
+        QVERIFY(ledger.dayTotals(tomorrow).isEmpty()); // closed: nothing but what is buffered
+
+        SeedLedger reopened;
+        QVERIFY(reopened.open(path));
+        QVERIFY(agrees(reopened, today));
+        QCOMPARE(reopened.dayTotals(tomorrow).value(QStringLiteral("a")),
+                 reopened.torrentTotals(tomorrow, tomorrow).value(QStringLiteral("a")));
+        QVERIFY(reopened.dayTotals(tomorrow).value(QStringLiteral("a")) > 0);
     }
 
     void demoFillsAYearOnce()

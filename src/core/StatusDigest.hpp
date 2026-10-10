@@ -17,6 +17,8 @@
 #include <QString>
 #include <QStringList>
 
+#include <functional>
+
 namespace omaseed::core {
 
 class TorrentModel;
@@ -30,19 +32,24 @@ qint64 roundSignificant(qint64 value, int figures = 3);
 /// A ratio as the file writes it: three decimals at most, -1 kept as it is.
 double roundRatio(double ratio);
 
-/// I3: the complete, seeding torrents by seeds in the swarm (`num_complete`, at least 1: you).
+/// I3: the complete, seeding torrents by seeds in the swarm (`num_complete`, you included).
 /// `buckets` has one entry per seed count 1..5, `rows` up to 6 torrents with five seeds or
 /// fewer, rarest first (seeds ascending, then peers waiting descending, then name). A torrent
 /// is `quiet` when its last activity (its add time when it never had any) is 30 days or more
-/// before `now`.
+/// before `now`. A torrent whose swarm count is unknown (the tracker reports 0 seeds, or an
+/// error) is in none of them: the seed console's rule, SeedConsole::knownSeeds (#47).
 ///
 /// `quietAt`, when given, gets the first moment after `now` (unix seconds) at which a torrent
 /// counted here turns quiet, or 0 when none will: until then, with the same torrents, the
 /// result stays the same (#36: the status file keeps it instead of working it out each write).
 QJsonObject alive(const QList<Torrent> &torrents, const QDateTime &now, qint64 *quietAt = nullptr);
 
-/// I4: at most two torrents by `uploaded_session`, largest first; only ones that uploaded.
-QJsonArray topSeeders(const QList<Torrent> &torrents);
+/// I4: at most two torrents by what they gave today (`givenToday`, the seed ledger's
+/// SeedLedger::dayTotals), largest first; only ones that gave something and that `find` still
+/// has (it returns null for a hash no longer in the library). Costs the torrents that gave
+/// today, not the library (#47).
+QJsonArray topSeeders(const QHash<QString, qint64> &givenToday,
+                      const std::function<const Torrent *(const QString &)> &find);
 
 /// Up to three torrents in the downloading group, fastest first (then most done, then name).
 QJsonArray active(const QList<Torrent> &torrents);

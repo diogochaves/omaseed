@@ -66,6 +66,7 @@ duplicates and remembers the category.
 | `b` | Browse… |
 | `↵` | Add (on Add), open the folder (Lately), show the torrent (other rows), fold (headers) |
 | `shift ↵` | Add stopped |
+| `x` | tick or untick the Add row (as in omaseed's Files tab) |
 | `m` | omaseed's own add sheet with the ticked sources |
 | `o` | open omaseed |
 | `A` | alternative speed limits |

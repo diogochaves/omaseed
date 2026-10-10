@@ -1,5 +1,6 @@
 #include "core/StatusDigest.hpp"
 
+#include "core/SeedConsole.hpp"
 #include "core/TorrentModel.hpp"
 
 #include <QJsonValue>
@@ -15,12 +16,6 @@ namespace {
 constexpr int kBucketCount = 5;
 constexpr int kRowLimit = 6;
 constexpr qint64 kQuietDays = 30;
-
-/// Seeds in the swarm, you included: a seeding torrent always has at least one.
-int seedsOf(const Torrent &torrent)
-{
-    return std::max(torrent.numComplete, 1);
-}
 
 bool isHeld(const Torrent &torrent)
 {
@@ -82,8 +77,8 @@ QJsonObject alive(const QList<Torrent> &torrents, const QDateTime &now, qint64 *
     for (const Torrent &torrent : torrents) {
         if (!isHeld(torrent))
             continue;
-        const int seeds = seedsOf(torrent);
-        if (seeds > kBucketCount)
+        const int seeds = SeedConsole::knownSeeds(torrent);
+        if (seeds < 0 || seeds > kBucketCount)
             continue;
         Bucket &bucket = buckets[seeds - 1];
         ++bucket.count;
@@ -101,8 +96,8 @@ QJsonObject alive(const QList<Torrent> &torrents, const QDateTime &now, qint64 *
     }
 
     std::sort(rare.begin(), rare.end(), [](const Torrent *a, const Torrent *b) {
-        if (seedsOf(*a) != seedsOf(*b))
-            return seedsOf(*a) < seedsOf(*b);
+        if (a->numComplete != b->numComplete)
+            return a->numComplete < b->numComplete;
         if (a->numIncomplete != b->numIncomplete)
             return a->numIncomplete > b->numIncomplete;
         return a->name.compare(b->name, Qt::CaseInsensitive) < 0;
@@ -125,7 +120,7 @@ QJsonObject alive(const QList<Torrent> &torrents, const QDateTime &now, qint64 *
         rows.append(QJsonObject{
             {QStringLiteral("hash"), torrent->hash},
             {QStringLiteral("name"), torrent->name},
-            {QStringLiteral("seeds"), seedsOf(*torrent)},
+            {QStringLiteral("seeds"), torrent->numComplete},
             {QStringLiteral("waiting"), torrent->numIncomplete},
         });
     }
@@ -134,27 +129,41 @@ QJsonObject alive(const QList<Torrent> &torrents, const QDateTime &now, qint64 *
     return QJsonObject{{QStringLiteral("buckets"), bucketJson}, {QStringLiteral("rows"), rows}};
 }
 
-QJsonArray topSeeders(const QList<Torrent> &torrents)
+QJsonArray topSeeders(const QHash<QString, qint64> &givenToday,
+                      const std::function<const Torrent *(const QString &)> &find)
 {
-    QList<const Torrent *> seeders;
-    for (const Torrent &torrent : torrents) {
-        if (torrent.uploadedSession > 0)
-            seeders.append(&torrent);
+    struct Seeder
+    {
+        const Torrent *torrent = nullptr;
+        qint64 given = 0;
+    };
+    const auto ahead = [](const Seeder &a, const Seeder &b) {
+        if (a.given != b.given)
+            return a.given > b.given;
+        return a.torrent->name.compare(b.torrent->name, Qt::CaseInsensitive) < 0;
+    };
+    // The best two in one pass over today's givers.
+    QList<Seeder> best;
+    for (auto it = givenToday.cbegin(); it != givenToday.cend(); ++it) {
+        if (it.value() <= 0)
+            continue;
+        const Torrent *torrent = find(it.key());
+        if (!torrent)
+            continue;
+        const Seeder seeder{torrent, it.value()};
+        if (best.size() == 2 && !ahead(seeder, best.last()))
+            continue;
+        if (best.size() == 2)
+            best.removeLast();
+        best.insert(std::upper_bound(best.begin(), best.end(), seeder, ahead), seeder);
     }
-    std::sort(seeders.begin(), seeders.end(), [](const Torrent *a, const Torrent *b) {
-        if (a->uploadedSession != b->uploadedSession)
-            return a->uploadedSession > b->uploadedSession;
-        return a->name.compare(b->name, Qt::CaseInsensitive) < 0;
-    });
     QJsonArray rows;
-    for (const Torrent *torrent : std::as_const(seeders)) {
-        if (rows.size() >= 2)
-            break;
+    for (const Seeder &seeder : std::as_const(best)) {
         rows.append(QJsonObject{
-            {QStringLiteral("hash"), torrent->hash},
-            {QStringLiteral("name"), torrent->name},
-            {QStringLiteral("uploaded"), torrent->uploadedSession},
-            {QStringLiteral("ratio"), roundRatio(torrent->ratio)},
+            {QStringLiteral("hash"), seeder.torrent->hash},
+            {QStringLiteral("name"), seeder.torrent->name},
+            {QStringLiteral("uploaded"), seeder.given},
+            {QStringLiteral("ratio"), roundRatio(seeder.torrent->ratio)},
         });
     }
     return rows;

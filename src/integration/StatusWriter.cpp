@@ -3,6 +3,7 @@
 #include "core/CategoryModel.hpp"
 #include "core/FilterCounts.hpp"
 #include "core/GlobalState.hpp"
+#include "core/SeedLedger.hpp"
 #include "core/ServerPreferences.hpp"
 #include "core/StateFile.hpp"
 #include "core/SyncEngine.hpp"
@@ -130,6 +131,13 @@ void StatusWriter::setPreferences(ServerPreferences *preferences)
     m_preferences = preferences;
     if (preferences)
         connect(preferences, &ServerPreferences::valuesChanged, this, &StatusWriter::markDirty);
+}
+
+void StatusWriter::setLedger(const SeedLedger *ledger)
+{
+    m_ledger = ledger;
+    m_topValid = false;
+    markDirty();
 }
 
 void StatusWriter::setServer(const QString &id, const QString &name, const QUrl &url)
@@ -502,7 +510,6 @@ const StatusWriter::TorrentParts &StatusWriter::torrentParts(const QDateTime &no
     const QList<Torrent> torrents = model ? StatusDigest::torrentsOf(*model) : QList<Torrent>();
     m_parts.onOffer = StatusDigest::onOffer(torrents);
     m_parts.alive = StatusDigest::alive(torrents, now, &m_partsQuietAt);
-    m_parts.topSeeders = StatusDigest::topSeeders(torrents);
     m_parts.active = StatusDigest::active(torrents);
     m_partsValid = true;
     m_partsModel = model;
@@ -510,6 +517,33 @@ const StatusWriter::TorrentParts &StatusWriter::torrentParts(const QDateTime &no
     m_partsAt = at;
     ++m_partsBuilds;
     return m_parts;
+}
+
+const QJsonArray &StatusWriter::topSeeders(const QDateTime &now) const
+{
+    const TorrentModel *model = m_engine ? m_engine->torrents() : nullptr;
+    const quint64 revision = model ? model->revision() : 0;
+    const quint64 ledgerRevision = m_ledger ? m_ledger->revision() : 0;
+    const QDate today = now.date();
+    if (m_topValid && m_topModel == model && m_topRevision == revision && m_topLedger == m_ledger &&
+        m_topLedgerRevision == ledgerRevision && m_topDay == today)
+        return m_topSeeders;
+
+    m_topSeeders = QJsonArray();
+    if (model && m_ledger) {
+        m_topSeeders = StatusDigest::topSeeders(
+            m_ledger->dayTotals(today), [model](const QString &hash) -> const Torrent * {
+                const int row = model->indexOfHash(hash);
+                return row >= 0 ? &model->torrentAt(row) : nullptr;
+            });
+    }
+    m_topValid = true;
+    m_topModel = model;
+    m_topRevision = revision;
+    m_topLedger = m_ledger;
+    m_topLedgerRevision = ledgerRevision;
+    m_topDay = today;
+    return m_topSeeders;
 }
 
 QJsonObject StatusWriter::content() const
@@ -599,7 +633,7 @@ QJsonObject StatusWriter::content() const
     document.insert(QStringLiteral("uploadHour"), m_sampler.values(current.toSecsSinceEpoch()));
     document.insert(QStringLiteral("week"), m_week.week(current.date()));
     document.insert(QStringLiteral("alive"), parts.alive);
-    document.insert(QStringLiteral("topSeeders"), parts.topSeeders);
+    document.insert(QStringLiteral("topSeeders"), topSeeders(current));
     document.insert(QStringLiteral("active"), parts.active);
     document.insert(QStringLiteral("recent"), m_recent);
 

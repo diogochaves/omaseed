@@ -472,6 +472,12 @@ Panel {
     close()
   }
 
+  // x: tick or untick the Add row under the cursor, as in omaseed's Files tab.
+  function tickCursorRow() {
+    var t = targetAt(cursorKey)
+    if (t && t.section === "add" && t.source) toggleTick(t.source)
+  }
+
   function foldCursorSection() {
     var t = targetAt(cursorKey)
     if (t) toggleFold(t.section)
@@ -497,7 +503,10 @@ Panel {
                   : (t.section === "lately" ? "folder" : "show")))
       list = [["a", "add"], ["o", "omaseed"], ["A", "alt-speed"], ["j k", "move"], ["space", "fold"], ["z", "fold all"], [",", "widget settings"]]
       if (enter !== "") list.push(["↵", enter])
-      if (t && t.section === "add") list.push(["⇧↵", "add stopped"], ["m", "add sheet"], ["b", "browse"])
+      if (t && t.section === "add") {
+        if (t.source) list.push(["x", "tick"])
+        list.push(["⇧↵", "add stopped"], ["m", "add sheet"], ["b", "browse"])
+      }
       else if (t && t.hash) list.push(["s", "show"])
       if (!reachable) list.push(["r", "retry"])
       list.push(["esc", "close"])
@@ -559,6 +568,7 @@ Panel {
         else if (event.key === Qt.Key_Down || event.text === "j") root.moveCursor(1)
         else if (event.key === Qt.Key_Up || event.text === "k") root.moveCursor(-1)
         else if (event.key === Qt.Key_Space) root.foldCursorSection()
+        else if (event.text === "x") root.tickCursorRow()
         else if (event.text === "a") root.goToAdd()
         else if (event.text === "b") root.browse()
         else if (event.text === "m") root.openAddSheet()
@@ -1204,7 +1214,7 @@ Panel {
       Text {
         visible: root.topRows.length > 0
         textFormat: Text.PlainText
-        text: "TOP SEEDERS THIS SESSION"
+        text: "TOP SEEDERS TODAY"
         color: root.dim
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption

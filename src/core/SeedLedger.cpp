@@ -78,6 +78,7 @@ bool SeedLedger::open(const QString &path)
     m_missing.clear();
     m_wholeSeen = false;
     m_speeds.clear();
+    dropDayTotals();
 
     QDir().mkpath(QFileInfo(path).absolutePath());
     bool broken = false;
@@ -164,6 +165,7 @@ void SeedLedger::close()
     flush(m_lastTime > 0 ? m_lastTime : QDateTime::currentSecsSinceEpoch());
     QSqlDatabase::database(m_connection, false).close();
     m_open = false;
+    dropDayTotals();
 }
 
 bool SeedLedger::isOpen() const
@@ -375,8 +377,12 @@ void SeedLedger::book(qint64 from,
         d.up += up;
         d.down += down;
         const QDate day = localDate(to);
-        for (auto it = perTorrent.cbegin(); it != perTorrent.cend(); ++it)
+        for (auto it = perTorrent.cbegin(); it != perTorrent.cend(); ++it) {
             m_pendingTorrentDays[{day, it.key()}] += it.value();
+            bookDayTotal(day, it.key(), it.value());
+        }
+        if (!perTorrent.isEmpty())
+            ++m_revision;
         return;
     }
 
@@ -419,13 +425,30 @@ void SeedLedger::book(qint64 from,
             qint64 &left = torrentLeft[it.key()];
             const qint64 part = last ? left : qint64(std::llround(double(it.value()) * share));
             left -= part;
-            if (part > 0)
+            if (part > 0) {
                 m_pendingTorrentDays[{day, it.key()}] += part;
+                bookDayTotal(day, it.key(), part);
+            }
         }
         if (end <= cursor)
             break;
         cursor = end;
     }
+    if (!perTorrent.isEmpty())
+        ++m_revision;
+}
+
+void SeedLedger::bookDayTotal(const QDate &day, const QString &hash, qint64 up)
+{
+    if (m_dayTotalsValid && day == m_dayTotalsDate)
+        m_dayTotals[hash] += up;
+}
+
+void SeedLedger::dropDayTotals()
+{
+    m_dayTotalsValid = false;
+    m_dayTotals.clear();
+    ++m_revision;
 }
 
 void SeedLedger::sampleSpeed(qint64 now, qint64 up, qint64 down)
@@ -753,6 +776,16 @@ QHash<QString, qint64> SeedLedger::torrentTotals(const QDate &from, const QDate 
     return out;
 }
 
+const QHash<QString, qint64> &SeedLedger::dayTotals(const QDate &day) const
+{
+    if (!m_dayTotalsValid || day != m_dayTotalsDate) {
+        m_dayTotals = torrentTotals(day, day);
+        m_dayTotalsDate = day;
+        m_dayTotalsValid = true;
+    }
+    return m_dayTotals;
+}
+
 QHash<QString, QList<qint64>> SeedLedger::torrentDays(const QDate &from, const QDate &to) const
 {
     QHash<QString, QList<qint64>> out;
@@ -910,6 +943,7 @@ void SeedLedger::fillDemo(qint64 now, const QStringList &hashes, qint64 dayBytes
         m_speeds.append({t, qint64(up), 0});
     }
     m_metaDirty = true;
+    dropDayTotals();
     flush(now);
 }
 

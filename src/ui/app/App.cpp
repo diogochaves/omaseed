@@ -4027,6 +4027,7 @@ void App::attachStatusWriter(omaseed::integration::StatusWriter *writer)
 
     writer->setEngine(m_engine);
     writer->setPreferences(m_prefs);
+    writer->setLedger(m_ledger.get());
     writer->setPathMapper([this](const QString &path) { return mapContentPathToLocal(path); });
     writer->setLibraryCheck(
         [this](const QString &v1, const QString &v2) { return !findDuplicate(v1, v2).isEmpty(); });

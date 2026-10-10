@@ -70,9 +70,10 @@ a schema change is one commit touching both sides. Design: `docs/20-companion-wi
   // I5: upload per calendar day (local time) for the last 7 days, oldest first, today last.
   "week": [ { "day": "2026-09-26", "up": 3221225472 } ],
 
-  // I3: complete, seeding torrents grouped by seeds in the swarm (num_complete, you included,
-  // at least 1). One bucket per seed count from 1 to 5; the widget adds up the buckets up to
-  // its `rareSeeds` option.
+  // I3: complete, seeding torrents grouped by seeds in the swarm (num_complete, you
+  // included). One bucket per seed count from 1 to 5; the widget adds up the buckets up to
+  // its `rareSeeds` option. A torrent whose tracker reports 0 seeds, or an error, has an
+  // unknown swarm and is in no bucket and no row (the seed console's rule).
   //   count    torrents in the bucket
   //   waiting  of those, the ones with peers waiting (num_incomplete > 0)
   //   peers    the peers waiting on them, added up (num_incomplete)
@@ -85,8 +86,9 @@ a schema change is one commit touching both sides. Design: `docs/20-companion-wi
     "rows": [ { "hash": "…", "name": "…", "seeds": 1, "waiting": 3 } ]
   },
 
-  // I4: today's top seeders, by upload this session (uploaded_session), at most 2, and
-  // only torrents that uploaded something.
+  // I4: today's top seeders, by what each gave today (local calendar day) as omaseed's seed
+  // ledger counts it, at most 2, and only torrents that gave something. `uploaded` is
+  // today's upload, not the torrent's total.
   "topSeeders": [ { "hash": "…", "name": "…", "uploaded": 1288490188, "ratio": 3.4 } ],
 
   // Up to 3 downloads, fastest first.
