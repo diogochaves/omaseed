@@ -749,6 +749,15 @@ Item {
         }
     }
 
+    // A wheel notch moves three rail rows, and quick notches add up (Kit/WheelScroll).
+    WheelScroll {
+        anchors.fill: flick
+        flickable: flick
+        objectName: "railWheel"
+        rowHeight: Theme.railRowHeight
+        z: 2
+    }
+
     // ---- the scroll hint (docs/08 §5, the Kit look every list shares) ----------------
     ScrollHint {
         id: scrollHintOverlay

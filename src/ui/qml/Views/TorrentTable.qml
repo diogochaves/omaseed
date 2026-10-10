@@ -1540,6 +1540,14 @@ Item {
         objectName: "sideways"
     }
 
+    // A wheel notch moves three rows, and quick notches add up (Kit/WheelScroll).
+    WheelScroll {
+        anchors.fill: list
+        flickable: list
+        objectName: "tableWheel"
+        z: 2
+    }
+
     // A vertical wheel with shift held scrolls sideways, as it does in a browser; a touchpad's
     // own sideways swipe already reaches the list, which flicks both ways.
     WheelHandler {
