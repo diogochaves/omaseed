@@ -111,7 +111,8 @@ Sheet {
     /// window and only the tree scrolls. Siblings' heights never depend on the tree's, so
     /// this binding cannot loop.
     readonly property real _treeRoom: {
-        let used = filesHead.height + filesSection.spacing;
+        let used = filesHead.height + filesSection.spacing
+                + (nothingTickedLine.visible ? nothingTickedLine.height + filesSection.spacing : 0);
         const rows = sheet.body.children;
         for (let i = 0; i < rows.length; ++i) {
             const row = rows[i];
@@ -141,7 +142,7 @@ Sheet {
         },
         {
             "key": "enter",
-            "label": qsTr("add")
+            "label": sheet._nothingTicked ? sheet._addStoppedText : sheet._addText
         },
         {
             "key": "shift+enter",
@@ -190,7 +191,7 @@ Sheet {
         },
         {
             "key": "enter",
-            "label": qsTr("add"),
+            "label": sheet._nothingTicked ? sheet._addStoppedText : sheet._addText,
             // #8: at the sheet's 600 wide the tree's keys run out of room; these go first.
             "keep": true
         }
@@ -219,6 +220,9 @@ Sheet {
 
     readonly property string _addText: qsTr("add")
     readonly property string _addStoppedText: qsTr("add stopped")
+    /// #43: every file of the `.torrent` unticked. It is still added, stopped, so its files
+    /// can be chosen later in the Files tab; the primary button says so.
+    readonly property bool _nothingTicked: sheet.showFiles && App.addFiles.wantedCount === 0
 
     /// Fig. 5's three layout values, in the order the figure lists them.
     readonly property var _layoutOptions: [qsTr("Original"), qsTr("Subfolder"), qsTr(
@@ -449,10 +453,9 @@ Sheet {
         }
         if (!sheet.addable || sheet.addable.valid !== true)
         return;
-        if (sheet.showFiles && App.addFiles.wantedCount === 0) {
-            sheet.errorText = qsTr("every file is skipped: check at least one");
-            return;
-        }
+        // #43: nothing ticked is still an add, stopped (the button already says so).
+        if (sheet._nothingTicked)
+            stopped = true;
         if (Number.isNaN(sheet._limitKb(dlLimitField.text))
                 || Number.isNaN(sheet._limitKb(upLimitField.text))) {
             sheet.errorText = qsTr("a speed limit is not a number");
@@ -652,20 +655,29 @@ Sheet {
                                                        sheet._programmatic = false;
                                                    }
 
-                actions: [
-                    {
-                        "text": qsTr("cancel"),
-                        "cancel": true
-                    },
-                    {
-                        "text": sheet._addStoppedText,
-                        "secondary": true
-                    },
-                    {
-                        "text": sheet._addText,
-                        "primary": true
-                    }
-                ]
+                actions: sheet._nothingTicked ? [
+                                                    {
+                                                        "text": qsTr("cancel"),
+                                                        "cancel": true
+                                                    },
+                                                    {
+                                                        "text": sheet._addStoppedText,
+                                                        "primary": true
+                                                    }
+                                                ] : [
+                                                    {
+                                                        "text": qsTr("cancel"),
+                                                        "cancel": true
+                                                    },
+                                                    {
+                                                        "text": sheet._addStoppedText,
+                                                        "secondary": true
+                                                    },
+                                                    {
+                                                        "text": sheet._addText,
+                                                        "primary": true
+                                                    }
+                                                ]
                 footerRight: qsTr("server: %1").arg(App.serverName)
                 glyph: Glyphs.add
                 // Manual box M5: a stray click or `esc` must not lose a half-filled add.
@@ -1112,6 +1124,19 @@ Sheet {
                             // The header and four rows at least: below that the whole body scrolls.
                             maximumHeight: Math.max(5 * Theme.railRowHeight + 2, sheet._treeRoom)
                             model: App.addFiles
+                        }
+
+                        // #43: why the button reads "add stopped".
+                        Label {
+                            id: nothingTickedLine
+
+                            Layout.fillWidth: true
+                            dim: true
+                            elide: Text.ElideRight
+                            objectName: "addNothingTicked"
+                            size: "caption"
+                            text: qsTr("nothing ticked: added stopped · choose its files later in the Files tab")
+                            visible: sheet._nothingTicked
                         }
                     }
                 }

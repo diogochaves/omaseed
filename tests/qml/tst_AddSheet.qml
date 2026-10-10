@@ -1115,19 +1115,31 @@ TestCase {
         compare(request.filePriorities, [1, 1, 1, 0, 0, 1, 1, 7]);
     }
 
-    function test_every_file_skipped_is_not_an_add() {
+    // #43: every file unticked still adds, stopped, with every file skipped; the sheet
+    // says so before the click.
+    function test_every_file_skipped_adds_it_stopped() {
         const sheet = testCase.openTorrent(addSheetComponent);
         const added = createTemporaryObject(addSpy, testCase, {
                                                 "target": sheet
                                             });
-        for (let row = sheet.filesTree.count - 1; row >= 0; --row) {
-            if (App.addFiles.depthAt(row) === 0)
-                App.addFiles.setPriority(row, 0);
-        }
+        const line = findChild(sheet, "addNothingTicked");
+        verify(line && !line.visible);
+        compare(sheet.actions.length, 3);
+
+        App.addFiles.setAllWanted(false);
         compare(App.addFiles.wantedCount, 0);
-        sheet.submit(false);
-        compare(added.count, 0);
-        verify(sheet.errorText.length > 0);
+        verify(line.visible, "the line says why the button changed");
+        compare(sheet.actions.length, 2);
+        compare(sheet.actions[1].text, "add stopped");
+        verify(sheet.actions[1].primary === true);
+        compare(sheet._formHints[1].label, "add stopped");
+
+        sheet.submit(false); // `enter`, or the primary button
+        compare(added.count, 1);
+        compare(sheet.errorText, "");
+        const request = added.signalArguments[0][0];
+        compare(request.stopped, true);
+        compare(request.filePriorities, [0, 0, 0, 0, 0, 0, 0, 0]);
     }
 
     function test_the_tree_scrolls_in_a_short_window() {
