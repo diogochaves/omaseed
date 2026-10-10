@@ -229,30 +229,72 @@ void Theme::adopt()
     Q_EMIT changed();
 }
 
+Theme::WindowCorners Theme::windowCorners(const QByteArray &rounding,
+                                          const QByteArray &roundingPower)
+{
+    // `getoption` answers {"option": …, "int": 24, "set": true}; an unknown option is the
+    // plain text "no such option", which is not an object.
+    const QJsonValue radius =
+        QJsonDocument::fromJson(rounding).object().value(QStringLiteral("int"));
+    if (!radius.isDouble())
+        return {};
+    const QJsonValue power =
+        QJsonDocument::fromJson(roundingPower).object().value(QStringLiteral("float"));
+    const bool cut = power.isDouble() && power.toDouble() < 2.0;
+    return {cut ? 0 : std::max(0, radius.toInt()), false};
+}
+
 void Theme::readCornerRadius()
 {
-    // Hyprland's rounding, asked for without blocking the start-up. No Hyprland, no radius.
+    // Hyprland's rounding and its power, asked for one after the other without blocking the
+    // start-up. Read once: a theme or profile switch that reloads Hyprland's config is seen
+    // at the next start (#37: follow Hyprland's `configreloaded` event instead).
+    askHyprland(QStringLiteral("decoration:rounding"), [this](const QByteArray &rounding) {
+        if (rounding.isEmpty()) {
+            applyCorners({});
+            return;
+        }
+        askHyprland(QStringLiteral("decoration:rounding_power"),
+                    [this, rounding](const QByteArray &power) {
+                        applyCorners(windowCorners(rounding, power));
+                    });
+    });
+}
+
+void Theme::askHyprland(const QString &option, std::function<void(const QByteArray &)> done)
+{
     auto *hyprctl = new QProcess(this);
     m_hyprctl = hyprctl;
     connect(hyprctl,
             &QProcess::finished,
             this,
-            [this, hyprctl](int exitCode, QProcess::ExitStatus status) {
+            [hyprctl, done](int exitCode, QProcess::ExitStatus status) {
                 hyprctl->deleteLater();
-                if (exitCode != 0 || status != QProcess::NormalExit)
-                    return;
-                const QJsonObject option =
-                    QJsonDocument::fromJson(hyprctl->readAllStandardOutput()).object();
-                const int radius = option.value(QStringLiteral("int")).toInt(0);
-                if (radius == m_cornerRadius)
-                    return;
-                m_cornerRadius = radius;
-                Q_EMIT cornerRadiusChanged();
+                done(exitCode == 0 && status == QProcess::NormalExit
+                         ? hyprctl->readAllStandardOutput()
+                         : QByteArray());
             });
-    connect(hyprctl, &QProcess::errorOccurred, this, [hyprctl]() { hyprctl->deleteLater(); });
-    hyprctl->start(
-        QStringLiteral("hyprctl"),
-        {QStringLiteral("-j"), QStringLiteral("getoption"), QStringLiteral("decoration:rounding")});
+    // No hyprctl at all: no Hyprland. (A crash also reports here, then finishes.)
+    connect(hyprctl, &QProcess::errorOccurred, this, [hyprctl, done](QProcess::ProcessError error) {
+        if (error != QProcess::FailedToStart)
+            return;
+        hyprctl->deleteLater();
+        done(QByteArray());
+    });
+    hyprctl->start(QStringLiteral("hyprctl"),
+                   {QStringLiteral("-j"), QStringLiteral("getoption"), option});
+}
+
+void Theme::applyCorners(const WindowCorners &corners)
+{
+    if (corners.radius != m_cornerRadius) {
+        m_cornerRadius = corners.radius;
+        Q_EMIT cornerRadiusChanged();
+    }
+    if (corners.edge != m_windowEdge) {
+        m_windowEdge = corners.edge;
+        Q_EMIT windowEdgeChanged();
+    }
 }
 
 int Theme::rowHeight() const

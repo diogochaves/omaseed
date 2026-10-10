@@ -79,13 +79,15 @@ Window {
         onSetupFinished: window.leaveSetup()
     }
 
-    // The 1 px window edge: accent while active, muted otherwise.
+    // The 1 px window edge: accent while active, muted otherwise. Only without Hyprland,
+    // whose own border is the edge (and its corners) when it is there.
     Rectangle {
         anchors.fill: parent
         border.color: window.active ? Theme.accent : Theme.muted
         border.width: 1
         color: "transparent"
         radius: Theme.cornerRadius
+        visible: Theme.windowEdge
         z: 1
     }
 

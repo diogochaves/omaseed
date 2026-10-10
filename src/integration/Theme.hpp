@@ -7,6 +7,8 @@
 #include <QProcess>
 #include <QString>
 
+#include <functional>
+
 QT_BEGIN_NAMESPACE
 class QQmlEngine;
 QT_END_NAMESPACE
@@ -133,7 +135,12 @@ class Theme : public QObject
     Q_PROPERTY(QString mode READ mode NOTIFY changed FINAL)
     Q_PROPERTY(QString themeName READ themeName NOTIFY changed FINAL)
     Q_PROPERTY(QString fontFamily READ fontFamily NOTIFY changed FINAL)
+    /// Hyprland's `decoration:rounding` while it rounds corners; 0 while it cuts them
+    /// (`rounding_power` below 2) or is not there. See windowCorners().
     Q_PROPERTY(int cornerRadius READ cornerRadius NOTIFY cornerRadiusChanged FINAL)
+    /// Whether omaseed draws its own 1 px window edge: only without Hyprland. Under Hyprland
+    /// the compositor's border is the edge, and its corners are Hyprland's.
+    Q_PROPERTY(bool windowEdge READ windowEdge NOTIFY windowEdgeChanged FINAL)
     /// The ground's alpha as the shell wants it: `[launcher] background-alpha`, 0.95 when the
     /// key is missing (docs/QUESTIONS.md Q1). `windowAlpha` starts here; the Appearance
     /// pane's override writes it, and a theme change only moves the default.
@@ -191,6 +198,7 @@ public:
     QString themeName() const { return m_themeName; }
     QString fontFamily() const { return m_fontFamily; }
     int cornerRadius() const { return m_cornerRadius; }
+    bool windowEdge() const { return m_windowEdge; }
     qreal defaultWindowAlpha() const { return m_defaultWindowAlpha; }
     qreal windowAlpha() const { return m_windowAlpha; }
     void setWindowAlpha(qreal alpha);
@@ -209,14 +217,34 @@ public:
     static QColor
     liftToContrast(const QColor &dim, const QColor &toward, const QColor &against, qreal minimum);
 
+    struct WindowCorners
+    {
+        int radius = 0;
+        bool edge = true;
+        bool operator==(const WindowCorners &) const = default;
+    };
+    /// What `hyprctl -j getoption` said for `decoration:rounding` and
+    /// `decoration:rounding_power` (empty when hyprctl failed) → the radius omaseed's
+    /// surfaces use and whether it draws its own window edge.
+    ///  - No rounding answer: no Hyprland. Radius 0, and omaseed's edge is the only one.
+    ///  - Power below 2: Hyprland cuts its corners instead of rounding them (it documents
+    ///    2–10; 1 is a straight chamfer). A Qt radius can only round, so the surfaces stay
+    ///    square and the compositor's border shows the cut (omarchy-console holds the
+    ///    shell's corner radius at 0 by the same rule).
+    ///  - Otherwise the rounding, as before. A Hyprland without the power option rounds.
+    static WindowCorners windowCorners(const QByteArray &rounding, const QByteArray &roundingPower);
+
 Q_SIGNALS:
     void changed();
     void windowAlphaChanged();
     void cornerRadiusChanged();
+    void windowEdgeChanged();
 
 private:
     void adopt();
     void readCornerRadius();
+    void askHyprland(const QString &option, std::function<void(const QByteArray &)> done);
+    void applyCorners(const WindowCorners &corners);
 
     ThemeReader *m_reader = nullptr;
     ThemeFont *m_font = nullptr;
@@ -255,6 +283,9 @@ private:
     QString m_themeName = QStringLiteral("tokyo-night");
     QString m_fontFamily = QStringLiteral("monospace");
     int m_cornerRadius = 0;
+    /// Until hyprctl answers, guessed from the environment, so a Hyprland session never
+    /// flashes a second border while the first answer is on its way.
+    bool m_windowEdge = !qEnvironmentVariableIsSet("HYPRLAND_INSTANCE_SIGNATURE");
     qreal m_defaultWindowAlpha = 0.95;
     qreal m_windowAlpha = 0.95;
 };

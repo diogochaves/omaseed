@@ -44,6 +44,12 @@ omaseed_add_test(tst_themecontrast
     LIBRARIES omaseed::integration
 )
 
+# Under Hyprland, Hyprland owns the window edge and its corners.
+omaseed_add_test(tst_themecorners
+    SOURCES tst_themecorners.cpp
+    LIBRARIES omaseed::integration
+)
+
 # #14: the bar widget's heartbeat and the tray icon rule it drives.
 omaseed_add_test(tst_widgetheartbeat
     SOURCES tst_widgetheartbeat.cpp
