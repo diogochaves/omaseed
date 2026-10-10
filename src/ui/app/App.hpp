@@ -682,10 +682,21 @@ public:
     /// `o`: the cursor torrent's `contentPath`, mapped through the server's `PathMap` and
     /// handed to `Xdg::showInFileManager`.
     Q_INVOKABLE void openFolder(const QString &hash);
-    /// `ctrl+o` in the location sheet: `QFileDialog::getExistingDirectory`, starting at
+    /// `browse` / `ctrl+o` in the location sheet and Save to's `browse` in the add sheet (#41):
+    /// `QFileDialog::getExistingDirectory`, starting at
     /// `startDir`. An empty result means the picker was cancelled or no portal answered; the
     /// caller keeps whatever was typed.
     Q_INVOKABLE QString pickDirectory(const QString &startDir) const;
+    /// Browse (#41, docs/27 D12 a): where the folder picker opens for `serverPath`, a path
+    /// the server sees. Its local side when the server's path map (switched on) covers it,
+    /// else the path itself.
+    Q_INVOKABLE QString browseStartFor(const QString &serverPath) const;
+    /// Browse: a folder picked on this machine, as the server is to be told it.
+    /// `{path, local, mapped, outside, mappings}`: `path` is what the field takes; `mapped`
+    /// when the map rewrote it; `outside` when the server has a map (switched on) and the pick
+    /// lies outside every mapping, so the server may not see it; `mappings` lists them as
+    /// "local → remote, …". Without a map the pick is taken as it is.
+    Q_INVOKABLE QVariantMap serverPathForPick(const QString &localPath) const;
 
 Q_SIGNALS:
     void deleteFilesDefaultChanged();

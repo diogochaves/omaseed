@@ -297,7 +297,7 @@ TestCase {
         sheet.categoryChips.pick("linux");
         compare(sheet.categoryChips.current, "linux");
         compare(sheet.savePathField.text, "/data/torrents/linux");
-        compare(sheet.savePathField.trailing, "from category");
+        compare(sheet.savePathField.trailing, "from category · browse");
         compare(sheet.autoTMM, true);
 
         // Unpicking empties it again, because nothing else chose it.
@@ -314,7 +314,7 @@ TestCase {
 
         sheet.savePathField.text = "/data/other";
         compare(sheet.autoTMM, false);
-        compare(sheet.savePathField.trailing, "");
+        compare(sheet.savePathField.trailing, "browse");
         // The category no longer moves the path.
         sheet.categoryChips.pick("tv");
         compare(sheet.savePathField.text, "/data/other");
@@ -675,6 +675,34 @@ TestCase {
         compare(sheet.sourceField.trailingKey, "ctrl+o");
         compare(sheet.sourceField.trailingClickable, true);
         verify(findChild(sheet.sourceField, "fieldTrailingButton").enabled);
+    }
+
+    // #41 (docs/27 L4): Save to has a browse button too; the pick fills the field and, being
+    // a path of your own, turns automatic management off as typing does.
+    function test_save_to_browse_fills_the_field() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        sheet.open();
+        compare(sheet.savePathField.trailing, "browse");
+        compare(sheet.savePathField.trailingClickable, true);
+        verify(findChild(sheet.savePathField, "fieldTrailingButton").enabled);
+        sheet.categoryChips.pick("movies");
+        compare(sheet.autoTMM, true);
+        compare(sheet.savePathField.trailing, "from category · browse");
+
+        const starts = [];
+        sheet.pickDirectory = start => {
+            starts.push(start);
+            return "/data/elsewhere";
+        };
+        sheet.savePathField.trailingClicked();
+        compare(starts, ["/data/torrents/movies"]);
+        compare(sheet.savePathField.text, "/data/elsewhere");
+        compare(sheet.autoTMM, false);
+        compare(sheet.saveBrowsedLine.visible, false);
+
+        sheet.pickDirectory = start => "";
+        sheet.savePathField.trailingClicked();
+        compare(sheet.savePathField.text, "/data/elsewhere");
     }
 
     function test_the_cancel_button_still_closes_it() {
@@ -1240,7 +1268,7 @@ TestCase {
         compare(sheet.sourceField.text, typed, "the field does not type the s");
         compare(sheet.savedThere, true);
         compare(sheet.savePathField.text, "/media/films/Blender");
-        compare(sheet.savePathField.trailing, "from the files match");
+        compare(sheet.savePathField.trailing, "from the files match · browse");
         compare(sheet.autoTMM, false);
         compare(sheet.layoutValue(), "NoSubfolder");
         compare(sheet.skipCheckToggle.checked, false, "D5 a: the hash check stays on");

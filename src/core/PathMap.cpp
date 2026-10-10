@@ -86,6 +86,16 @@ bool PathMap::covers(const QString &remotePath) const
     return false;
 }
 
+bool PathMap::coversLocal(const QString &localPath) const
+{
+    const QString normalizedPath = normalize(localPath);
+    for (const Mapping &mapping : m_mappings) {
+        if (matchesPrefix(normalizedPath, mapping.local))
+            return true;
+    }
+    return false;
+}
+
 QJsonArray PathMap::toJson() const
 {
     QJsonArray array;

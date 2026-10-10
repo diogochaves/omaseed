@@ -344,6 +344,22 @@ Sheet {
                            App.pickTorrentFile();
                        }
 
+    /// #41 (docs/27 L4, D13 a): Save to's `browse`, through the server's path map like the
+    /// set location sheet's. `pickDirectory` is the picker, which a test replaces;
+    /// `_savePick` is `App.serverPathForPick()` for the last pick, `{}` once typed over.
+    property var pickDirectory: start => App.pickDirectory(start)
+    property var _savePick: ({})
+    readonly property alias saveBrowsedLine: saveBrowsedLine
+
+    function browseSavePath(): void {
+        const picked = sheet.pickDirectory(App.browseStartFor(savePathField.text.trim()));
+        if (!picked || picked.length === 0)
+            return;
+        const answer = App.serverPathForPick(picked);
+        savePathField.text = answer.path;
+        sheet._savePick = answer;
+    }
+
     /// Put `text` in the field and parse it, without treating it as typing.
     function loadText(text: string, from: string): void {
     sheet._programmatic = true;
@@ -911,14 +927,19 @@ Sheet {
                             Layout.fillWidth: true
                             placeholder: qsTr("the server's default")
                             shortcuts: sheet._fieldShortcuts
-                            trailing: sheet.savedThere ? qsTr("from the files match")
+                            // #41: where the path came from, then the button.
+                            trailing: sheet.savedThere ? qsTr("from the files match · browse")
                                       : sheet.autoTMM && savePathField.text.length > 0 ? qsTr(
-                                                                                           "from category") :
-                                                                                       ""
+                                                                                           "from category · browse") :
+                                                                                       qsTr("browse")
+                            trailingClickable: true
 
                             onAccepted: sheet.triggerPrimary()
                             onShortcutPressed: (key, modifiers) => sheet._onShortcut(key, modifiers)
+                            onTrailingClicked: sheet.browseSavePath()
                             onTextChanged: {
+                                if (sheet._savePick.path !== undefined && sheet._savePick.path !== savePathField.text)
+                                    sheet._savePick = ({});
                                 if (sheet._programmatic)
                                     return;
                                 // Typing a path of your own is what turns automatic torrent management off.
@@ -927,6 +948,13 @@ Sheet {
                                 // … and a path of your own is no longer the files match's.
                                 sheet.savedThere = false;
                             }
+                        }
+
+                        BrowsedPathLine {
+                            id: saveBrowsedLine
+
+                            pick: sheet._savePick
+                            serverName: App.serverName
                         }
 
                         // docs/25 §4 (#29): what the add needs and the room where it goes.
