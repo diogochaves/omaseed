@@ -136,6 +136,7 @@ private slots:
     void sortsNamesNaturally();
     void sortByRoleNameAndOrder();
     void sortIsStableAcrossSpeedTicks();
+    void tiesReadAToZEitherWay();
     void countFollowsTheFilter();
 
 private:
@@ -393,6 +394,28 @@ void TestFilterModel::sortIsStableAcrossSpeedTicks()
         QJsonObject{{QStringLiteral("6666"), QJsonObject{{QStringLiteral("upspeed"), 99}}}},
         QJsonArray());
     QCOMPARE(visibleHashes(m_proxy), descending);
+}
+
+void TestFilterModel::tiesReadAToZEitherWay()
+{
+    // Five of the six are at 0 B/s: under "↓" (the default, descending) the downloading one
+    // leads and the idle ones follow by name, a to z, not z to a.
+    const QStringList idleByName{QStringLiteral("Big Buck Bunny 4K"),
+                                 QStringLiteral("debian part 2"),
+                                 QStringLiteral("debian part 10"),
+                                 QStringLiteral("Elephants Dream"),
+                                 QStringLiteral("NixOS minimal")};
+    m_proxy.setSortRole(TorrentModel::DlspeedRole);
+    m_proxy.setSortOrder(Qt::DescendingOrder);
+    QStringList names = visibleNames(m_proxy);
+    QCOMPARE(names.takeFirst(), QStringLiteral("archlinux-2026.09.01-x86_64.iso"));
+    QCOMPARE(names, idleByName);
+
+    // Ascending, the ties still read a to z, and the downloading one goes last.
+    m_proxy.setSortOrder(Qt::AscendingOrder);
+    names = visibleNames(m_proxy);
+    QCOMPARE(names.takeLast(), QStringLiteral("archlinux-2026.09.01-x86_64.iso"));
+    QCOMPARE(names, idleByName);
 }
 
 void TestFilterModel::countFollowsTheFilter()

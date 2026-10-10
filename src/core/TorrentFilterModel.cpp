@@ -356,12 +356,16 @@ bool TorrentFilterModel::lessThan(const QModelIndex &left, const QModelIndex &ri
         compared = l == r ? 0 : (l < r ? -1 : 1);
     }
 
-    // A total order, so a speed tick never shuffles rows sorted by something else.
-    if (compared == 0)
-        compared = m_collator.compare(a.name, b.name);
+    if (compared != 0)
+        return compared < 0;
+
+    // A total order, so a speed tick never shuffles rows sorted by something else. Ties read
+    // a to z whichever way the column sorts: the proxy reverses lessThan() for a descending
+    // sort, so the tie-break is reversed first (a library idle under "↓" lists by name).
+    compared = m_collator.compare(a.name, b.name);
     if (compared == 0)
         compared = a.hash.compare(b.hash);
-    return compared < 0;
+    return sortOrder() == Qt::DescendingOrder ? compared > 0 : compared < 0;
 }
 
 } // namespace omaseed::core
