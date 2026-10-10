@@ -31,6 +31,13 @@ BarWidget {
 
   readonly property var status: service.status
   readonly property var mark: service.markState
+  // The console convention (omarchy-console DESIGN.md §6), read in place by its rail: awake
+  // while something downloads or the server is unreachable (Status.consoleReading).
+  readonly property var consoleReading: Status.consoleReading(root.status, service.now)
+  readonly property bool consoleAwake: consoleReading.awake
+  readonly property string consoleState: consoleReading.state
+  readonly property string consoleReason: consoleReading.reason
+  readonly property string consoleValue: consoleReading.value
   readonly property bool running: service.running
 
   readonly property color foreground: bar ? bar.barForeground : Color.foreground

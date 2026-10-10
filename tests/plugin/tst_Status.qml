@@ -90,6 +90,34 @@ TestCase {
         verify(m.dim && !m.down && !m.up);
     }
 
+    // omarchy-console's rail moves a widget to its running zone while consoleAwake.
+    function test_console_reading_wakes_on_downloads_and_an_unreachable_server() {
+        var s = sample();
+        var r = Status.consoleReading(s, now);
+        verify(r.awake);
+        compare(r.state, "running");
+        compare(r.value, "\u2193 1.2M \u2191 2.3M");
+        // Seeding alone is the library's background: idle, still with its value.
+        s.speed.dl = 0;
+        r = Status.consoleReading(s, now);
+        verify(!r.awake);
+        compare(r.state, "");
+        compare(r.value, "\u2193 0 \u2191 2.3M");
+        // Torrents in error (missing files can last for months) do not wake it either.
+        s.counts.errored = 5;
+        verify(!Status.consoleReading(s, now).awake);
+        // The server out of reach is a failure, with its reason.
+        s.server.reachable = false;
+        r = Status.consoleReading(s, now);
+        verify(r.awake);
+        compare(r.state, "failed");
+        compare(r.reason, "qBittorrent unreachable");
+        // No app: idle and quiet.
+        r = Status.consoleReading(null, now);
+        verify(!r.awake);
+        compare(r.value, "");
+    }
+
     function test_hide_when_idle_keeps_news() {
         var s = sample();
         verify(!Status.hiddenWhenIdle(s, now));

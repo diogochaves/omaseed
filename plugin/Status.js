@@ -83,6 +83,22 @@ function markState(status, now) {
   }
 }
 
+// The console convention (omarchy-console DESIGN.md §6: consoleAwake, consoleState,
+// consoleReason, consoleValue), read by its rail to move a widget into its running zone.
+// Awake while something downloads (there is something to wait for) or the app cannot reach
+// its server ("failed"). Seeding alone is a library's steady background, and torrents in
+// error (missing files) can last for months: neither wakes it, or it would never leave the
+// running zone. The value is both speeds, awake or not; nothing while the app is not running.
+function consoleReading(status, now) {
+  var s = state(status, now)
+  if (s === "notRunning") return { awake: false, state: "", reason: "", value: "" }
+  var speed = obj(status.speed)
+  var value = "↓ " + Format.barValue(num(speed.dl)) + " ↑ " + Format.barValue(num(speed.up))
+  if (s === "unreachable") return { awake: true, state: "failed", reason: "qBittorrent unreachable", value: "" }
+  if (num(speed.dl) > 0) return { awake: true, state: "running", reason: "", value: value }
+  return { awake: false, state: "", reason: "", value: value }
+}
+
 // `hideWhenIdle`: the widget leaves the bar while nothing moves. An unreachable
 // server is news and stays; so are torrents in error.
 function hiddenWhenIdle(status, now) {
