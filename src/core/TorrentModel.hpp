@@ -172,6 +172,9 @@ Q_SIGNALS:
 
 private:
     void emitRunsFor(const QList<QPair<int, QList<int>>> &touched);
+    /// Drops rows first..last and moves the index of every row above them, between a
+    /// beginRemoveRows() and its endRemoveRows().
+    void removeRun(int first, int last);
     void scheduleMidnight();
 
     QList<Torrent> m_rows;

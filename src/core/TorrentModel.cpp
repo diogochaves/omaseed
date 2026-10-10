@@ -394,8 +394,8 @@ int TorrentModel::indexOfHash(const QString &hash) const
 
 const Torrent &TorrentModel::torrent(const QString &hash) const
 {
-    const int row = indexOfHash(hash);
-    return row < 0 ? emptyTorrent() : m_rows.at(row);
+    // Bounds-checked like torrentAt(): QList::at() checks nothing in a Release build.
+    return torrentAt(indexOfHash(hash));
 }
 
 const Torrent &TorrentModel::torrentAt(int row) const
@@ -464,13 +464,10 @@ void TorrentModel::applyPartial(const QJsonObject &torrents, const QJsonArray &r
                     ++j;
                 const int first = rows.at(j);
                 beginRemoveRows(QModelIndex(), first, last);
-                m_rows.remove(first, last - first + 1);
+                removeRun(first, last);
                 endRemoveRows();
                 i = j + 1;
             }
-            m_indexByHash.clear();
-            for (int row = 0; row < m_rows.size(); ++row)
-                m_indexByHash.insert(m_rows.at(row).hash, row);
             touchedAnything = true;
             Q_EMIT countChanged();
         }
@@ -524,6 +521,20 @@ void TorrentModel::applyPartial(const QJsonObject &torrents, const QJsonArray &r
         ++m_revision;
         Q_EMIT updated();
     }
+}
+
+void TorrentModel::removeRun(int first, int last)
+{
+    // The index is brought up to date before endRemoveRows(), not once after every run: the
+    // listeners of each run (the proxy's rowsRemoved arrives inside the next run's
+    // beginRemoveRows, then the table's cursor, the details pane, the seed console) look
+    // torrents up by hash, and a row the index still held from before the run pointed past
+    // the end of m_rows (#46). Runs go highest first, so only the rows above this one move.
+    for (int row = first; row <= last; ++row)
+        m_indexByHash.remove(m_rows.at(row).hash);
+    m_rows.remove(first, last - first + 1);
+    for (int row = first; row < m_rows.size(); ++row)
+        m_indexByHash[m_rows.at(row).hash] = row;
 }
 
 void TorrentModel::emitRunsFor(const QList<QPair<int, QList<int>>> &touched)

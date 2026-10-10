@@ -4,11 +4,15 @@
 
 #include "core/Format.hpp"
 #include "core/Torrent.hpp"
+#include "core/TorrentFilterModel.hpp"
 #include "core/TorrentModel.hpp"
 
+#include <QAbstractItemModelTester>
+#include <QItemSelectionModel>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QSet>
 #include <QSignalSpy>
 #include <QTest>
 #include <QTimeZone>
@@ -88,6 +92,7 @@ private slots:
     void partialAppendsUnknownHashes();
     void partialRemovesInContiguousRuns();
     void aHashRemovedTwiceRemovesOneRow();
+    void aScatteredRemovalKeepsLookupsTrueAtEverySignal();
     void lastChangeNamesWhatAPollTouched();
     void aNewDayRefreshesTheRelativeTexts();
     void dataChangedIsBatchedPerRun();
@@ -328,6 +333,107 @@ void TestTorrentModel::aHashRemovedTwiceRemovesOneRow()
     model.applyFullUpdate(threeTorrents());
     model.applyPartial(QJsonObject(), QJsonArray({QStringLiteral("bbbb"), QStringLiteral("bbbb")}));
     QCOMPARE(model.hashes(), QStringList({QStringLiteral("aaaa"), QStringLiteral("cccc")}));
+}
+
+// #46: one poll that drops thousands of scattered torrents is removed as a thousand runs, and
+// between them the table, the details pane and the seed console look torrents up by hash (the
+// proxy's rowsRemoved arrives inside each run's beginRemoveRows). The hash index has to be true
+// at every one of those signals: a stale row from indexOfHash() made torrent() read past the
+// rows in a Release build.
+void TestTorrentModel::aScatteredRemovalKeepsLookupsTrueAtEverySignal()
+{
+    constexpr int kRows = 3000;
+    const auto hashOf = [](int i) { return QStringLiteral("%1").arg(i, 40, 16, QLatin1Char('0')); };
+    QJsonObject all;
+    for (int i = 0; i < kRows; ++i) {
+        // Names run the other way from the hashes, so the proxy's order is not the model's.
+        all.insert(hashOf(i),
+                   torrentJson(QStringLiteral("t%1").arg(kRows - i, 5, 10, QLatin1Char('0')),
+                               QStringLiteral("uploading"),
+                               1.0));
+    }
+    TorrentModel model;
+    model.applyFullUpdate(all);
+    QCOMPARE(model.count(), kRows);
+
+    TorrentFilterModel proxy;
+    proxy.setSourceModel(&model);
+    proxy.setSortByRoleName(QStringLiteral("name"));
+    const QAbstractItemModelTester sourceTester(
+        &model, QAbstractItemModelTester::FailureReportingMode::QtTest);
+    const QAbstractItemModelTester proxyTester(
+        &proxy, QAbstractItemModelTester::FailureReportingMode::QtTest);
+
+    // Two of every three rows go, the first and the last among them: a thousand runs, named
+    // out of order and one of them twice, the way torrents_removed lists them.
+    QJsonArray removed;
+    QSet<QString> gone;
+    for (int i = kRows - 1; i >= 0; --i) {
+        if (i % 3 != 1) {
+            removed.append(hashOf(i));
+            gone.insert(hashOf(i));
+        }
+    }
+    removed.append(hashOf(0));
+
+    // What a view holds across the removal: a multi-selection and the rows it points at.
+    QItemSelectionModel selection(&proxy);
+    QList<QPair<QPersistentModelIndex, QString>> held;
+    for (int row = 0; row < proxy.rowCount(); row += 7) {
+        const QModelIndex index = proxy.index(row, 0);
+        selection.select(index, QItemSelectionModel::Select);
+        held.append({QPersistentModelIndex(index), proxy.hashAt(row)});
+    }
+
+    // Every listener's question: does each torrent still shown look itself up?
+    QString firstFault;
+    int checks = 0;
+    const auto check = [&](const char *when) {
+        ++checks;
+        if (!firstFault.isEmpty())
+            return;
+        for (int row = 0; row < proxy.rowCount(); ++row) {
+            const QModelIndex source = proxy.mapToSource(proxy.index(row, 0));
+            const QString hash = proxy.hashAt(row);
+            const int found = model.indexOfHash(hash);
+            if (found != source.row() || found >= model.count() ||
+                model.torrentAt(found).hash != hash || model.torrent(hash).hash != hash) {
+                firstFault = QStringLiteral("%1: %2 is source row %3, indexOfHash says %4 of %5")
+                                 .arg(QLatin1StringView(when), hash)
+                                 .arg(source.row())
+                                 .arg(found)
+                                 .arg(model.count());
+                return;
+            }
+        }
+    };
+    // The proxy filters nothing, so its rows are every source row. Its countChanged (the
+    // seed console's cue) comes from its rowsRemoved, at the same moment.
+    connect(&model, &QAbstractItemModel::rowsAboutToBeRemoved, this, [&] {
+        check("source about to remove");
+    });
+    connect(&model, &QAbstractItemModel::rowsRemoved, this, [&] { check("source removed"); });
+    connect(&proxy, &QAbstractItemModel::rowsRemoved, this, [&] { check("proxy removed"); });
+
+    model.applyPartial(QJsonObject(), removed);
+
+    QVERIFY2(firstFault.isEmpty(), qPrintable(firstFault));
+    QVERIFY(checks > 1000); // the runs really were signalled one by one
+    QCOMPARE(model.count(), kRows - int(gone.size()));
+    QCOMPARE(proxy.rowCount(), model.count());
+    for (const auto &[index, hash] : held) {
+        if (gone.contains(hash)) {
+            QVERIFY(!index.isValid());
+            QCOMPARE(model.indexOfHash(hash), -1);
+            QVERIFY(model.torrent(hash).hash.isEmpty());
+        } else {
+            QVERIFY(index.isValid());
+            QCOMPARE(index.data(TorrentModel::HashRole).toString(), hash);
+            QVERIFY(selection.isSelected(index));
+        }
+    }
+    for (int row = 0; row < model.count(); ++row)
+        QCOMPARE(model.indexOfHash(model.torrentAt(row).hash), row);
 }
 
 // #36: code that keeps state per torrent follows the rows a poll touched, not the library.
