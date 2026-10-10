@@ -10,6 +10,7 @@
 #include <QProcessEnvironment>
 #include <QStandardPaths>
 
+#include <algorithm>
 #include <cstdio>
 
 namespace omaseed::integration::BarWidgetInstaller {
@@ -29,28 +30,19 @@ QString configHome()
     return config.isEmpty() ? QDir::home().filePath(QStringLiteral(".config")) : config;
 }
 
-bool mentions(const QJsonValue &value, const QString &id)
+/// A bar or plugins[] entry's id: the entry itself when it is a bare string, else its "id".
+QString entryId(const QJsonValue &entry)
 {
-    if (value.isString())
-        return value.toString() == id;
-    if (value.isArray()) {
-        const QJsonArray array = value.toArray();
-        for (const QJsonValue &item : array) {
-            if (mentions(item, id))
-                return true;
-        }
-        return false;
-    }
-    if (value.isObject()) {
-        const QJsonObject object = value.toObject();
-        for (auto it = object.begin(); it != object.end(); ++it) {
-            if (it.key() == QLatin1String("disabledPlugins"))
-                continue;
-            if (mentions(it.value(), id))
-                return true;
-        }
-    }
-    return false;
+    return entry.isObject() ? entry.toObject().value(QStringLiteral("id")).toString()
+                            : entry.toString();
+}
+
+bool listsId(const QJsonValue &list, const QString &id)
+{
+    const QJsonArray entries = list.toArray();
+    return std::any_of(entries.begin(), entries.end(), [&id](const QJsonValue &entry) {
+        return entryId(entry) == id;
+    });
 }
 
 /// Removes whatever is at `path`: a link (never what it points at), a file or a folder.
@@ -136,10 +128,18 @@ bool isInBar(const QString &shellJson)
     QFile file(shellJson);
     if (!file.open(QIODevice::ReadOnly))
         return false;
-    const QJsonDocument document = QJsonDocument::fromJson(file.readAll());
-    return mentions(document.isArray() ? QJsonValue(document.array())
-                                       : QJsonValue(document.object()),
-                    pluginId());
+    const QJsonObject config = QJsonDocument::fromJson(file.readAll()).object();
+    const QString id = pluginId();
+    const QJsonObject bar = config.value(QStringLiteral("bar")).toObject();
+    if (bar.value(QStringLiteral("id")).toString() == id)
+        return true;
+    const QJsonObject layout = bar.value(QStringLiteral("layout")).toObject();
+    for (const QString &section :
+         {QStringLiteral("left"), QStringLiteral("center"), QStringLiteral("right")}) {
+        if (listsId(layout.value(section), id))
+            return true;
+    }
+    return listsId(config.value(QStringLiteral("plugins")), id);
 }
 
 Result link(const QString &source, const QString &target)

@@ -4,6 +4,7 @@ import Quickshell.Io
 import qs.Commons
 import qs.Ui
 import "Format.js" as Format
+import "IpcOwner.js" as IpcOwner
 import "Status.js" as Status
 
 // omaseed in the bar (docs/20 §2).
@@ -97,18 +98,31 @@ BarWidget {
     }
   }
 
-  // `omarchy-shell chaves.omaseed open|close|toggle`, for a key binding. A bar exists per
-  // monitor, and Quickshell keeps one handler per target: the first live instance claims it.
-  readonly property bool ipcOwner: {
-    if (!bar || typeof bar.moduleWidgets !== "function") return true
-    var peers = bar.moduleWidgets(moduleName)
-    return peers.length > 0 && peers[0] === root
+  // `omarchy-shell chaves.omaseed open|close|toggle|settings`, for a key binding and the
+  // app's "customize". Quickshell keeps one handler per target, and the widget may have an
+  // instance per monitor and one a container widget hosts: IpcOwner.js hands the target to
+  // the first live instance, and to the next when that one goes.
+  property bool ipcOwner: false
+
+  function ipcElected(first) {
+    if (!first) {
+      ipcOwner = false
+      return
+    }
+    // After the leaving instance's handler is gone, or Quickshell ignores this one for good.
+    Qt.callLater(function() { if (IpcOwner.first() === root) root.ipcOwner = true })
+  }
+
+  Component.onCompleted: IpcOwner.join(root)
+  Component.onDestruction: {
+    ipc.enabled = false
+    IpcOwner.leave(root)
   }
 
   IpcHandler {
+    id: ipc
     target: root.moduleName
     enabled: root.ipcOwner
-    Component.onDestruction: enabled = false
     function open(): void { root.open() }
     function close(): void { root.close() }
     function toggle(): void { root.toggle() }

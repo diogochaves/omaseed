@@ -216,11 +216,17 @@ void BarWidget::openSettings()
 {
     run(m_omarchyShell,
         {Installer::pluginId(), QStringLiteral("settings")},
-        [](int exitCode, const QString &output) {
-            if (exitCode != 0)
-                qWarning().noquote()
-                    << QStringLiteral("bar widget settings: %1")
-                           .arg(output.isEmpty() ? QStringLiteral("failed") : output);
+        [this](int exitCode, const QString &output) {
+            if (exitCode == 0)
+                return;
+            // Said on the row too: alone in the log, "customize" looked like it did nothing.
+            const QString why = output.isEmpty() ? QStringLiteral("no answer") : output;
+            qWarning().noquote() << QStringLiteral("bar widget settings: %1").arg(why);
+            m_lastOk = false;
+            m_message = QStringLiteral("the widget did not open its settings (%1); open its "
+                                       "popup from the bar instead")
+                            .arg(why);
+            Q_EMIT changed();
         });
 }
 
