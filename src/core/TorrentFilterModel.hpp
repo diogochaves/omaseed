@@ -16,6 +16,14 @@
 //
 // Sorting is a total order: the chosen role first, then name, then hash. Without the
 // tie-break, two rows with the same speed would swap places on every 1.5 s poll.
+//
+// The sort is dynamic, and Qt re-sorts per dataChanged(): a poll that moves the sorted value
+// of scattered rows (sorted by speed, many torrents busy) would re-sort, and send the table a
+// layoutChanged(), once per run of changed rows. TorrentModel brackets a poll's runs, so when
+// they reorder rows across more than one run, the proxy holds the dynamic sort through them
+// and sorts once after (#48). A poll that leaves the order alone goes through Qt as before.
+// Most rows tie on a live value (idle at 0 B/s), so the name tie-break reads a cached rank
+// instead of collating two names per comparison.
 
 #include "core/Torrent.hpp"
 
@@ -112,6 +120,8 @@ public:
     /// The flag a StatusFilter stands for; StatusGroup::NoGroup for All.
     static StatusGroup groupFor(StatusFilter filter);
 
+    void setSourceModel(QAbstractItemModel *model) override;
+
 protected:
     bool filterAcceptsRow(int sourceRow, const QModelIndex &sourceParent) const override;
     bool lessThan(const QModelIndex &left, const QModelIndex &right) const override;
@@ -134,6 +144,19 @@ private:
     /// Whether the tracker filter goes by TrackerModel membership rather than the host of
     /// the current tracker.
     bool usesTrackerMembership() const;
+    /// TorrentModel::runsAboutToBeAnnounced(): holds the dynamic sort when the runs would
+    /// re-sort more than once.
+    void holdSortFor(const QList<int> &rows, const QList<int> &roles);
+    /// TorrentModel::runsAnnounced(): one sort, and a re-filter if a held row's filter moved.
+    void releaseSort();
+    /// Whether source row `sourceRow`, mapped, no longer sits between its proxy neighbours.
+    bool outOfOrder(int sourceRow) const;
+    /// Source row `sourceRow`'s place in the name-then-hash order, built on first use after
+    /// rows came, went or were renamed.
+    int nameRank(int sourceRow) const;
+    /// -1, 0 or 1: `left` against `right`, two values of the sort role.
+    int compareValues(const QVariant &left, const QVariant &right) const;
+    void dropNameRanks() { m_nameRanks.clear(); }
 
     StatusFilter m_statusFilter = All;
     std::optional<QString> m_category;
@@ -145,6 +168,11 @@ private:
     int m_sortRole = 0; ///< resolved to TorrentModel::NameRole on the first setSourceModel
     Qt::SortOrder m_sortOrder = Qt::AscendingOrder;
     QCollator m_collator;
+    QList<double> m_heldKeys;       ///< the sort role by source row, in releaseSort()
+    mutable QList<int> m_nameRanks; ///< by source row; empty until a tie-break needs it
+    QList<QMetaObject::Connection> m_sourceConnections;
+    bool m_sortHeld = false;
+    bool m_refilterAfterHold = false;
 };
 
 } // namespace omaseed::core

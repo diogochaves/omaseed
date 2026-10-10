@@ -169,6 +169,13 @@ Q_SIGNALS:
     /// Emitted once per applyPartial/applyFullUpdate that touched anything, after all the
     /// model signals, so FilterCounts and views recompute once instead of per row.
     void updated();
+    /// Brackets the dataChanged() runs of one applyPartial() (#48). `rows` are every touched
+    /// row, ascending, already holding their new values; `roles` are every role they changed,
+    /// never widened to "all" as a wide run's dataChanged() is. A sorting proxy can hold its
+    /// per-run re-sort through the runs and sort once at runsAnnounced(), instead of once per
+    /// run.
+    void runsAboutToBeAnnounced(const QList<int> &rows, const QList<int> &roles);
+    void runsAnnounced();
 
 private:
     void emitRunsFor(const QList<QPair<int, QList<int>>> &touched);

@@ -544,6 +544,18 @@ void TorrentModel::emitRunsFor(const QList<QPair<int, QList<int>>> &touched)
         return a.first < b.first;
     });
 
+    QList<int> rows;
+    rows.reserve(sorted.size());
+    QList<int> allRoles;
+    for (const auto &[row, roles] : std::as_const(sorted)) {
+        rows.append(row);
+        for (const int role : roles) {
+            if (!allRoles.contains(role))
+                allRoles.append(role);
+        }
+    }
+    Q_EMIT runsAboutToBeAnnounced(rows, allRoles);
+
     int i = 0;
     while (i < sorted.size()) {
         const int first = sorted.at(i).first;
@@ -563,6 +575,7 @@ void TorrentModel::emitRunsFor(const QList<QPair<int, QList<int>>> &touched)
         Q_EMIT dataChanged(index(first), index(last), roles);
         i = j;
     }
+    Q_EMIT runsAnnounced();
 }
 
 void TorrentModel::clear()

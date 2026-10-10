@@ -4,6 +4,7 @@
 #include "core/TrackerModel.hpp"
 
 #include <algorithm>
+#include <numeric>
 
 namespace omaseed::core {
 
@@ -150,6 +151,104 @@ void TorrentFilterModel::clearTracker()
     refilter();
     Q_EMIT trackerChanged();
     Q_EMIT countChanged();
+}
+
+void TorrentFilterModel::setSourceModel(QAbstractItemModel *model)
+{
+    for (const QMetaObject::Connection &connection : std::as_const(m_sourceConnections))
+        disconnect(connection);
+    m_sourceConnections.clear();
+    dropNameRanks();
+    QSortFilterProxyModel::setSourceModel(model);
+    auto *torrents = qobject_cast<TorrentModel *>(model);
+    if (torrents == nullptr)
+        return;
+    // The ranks go stale on the "about to" signals, before Qt's own handlers compare rows:
+    // inserted rows are placed with lessThan().
+    const auto drop = [this]() { dropNameRanks(); };
+    m_sourceConnections = {
+        connect(torrents, &QAbstractItemModel::rowsAboutToBeInserted, this, drop),
+        connect(torrents, &QAbstractItemModel::rowsAboutToBeRemoved, this, drop),
+        connect(torrents, &QAbstractItemModel::rowsAboutToBeMoved, this, drop),
+        connect(torrents, &QAbstractItemModel::modelAboutToBeReset, this, drop),
+        connect(torrents, &QAbstractItemModel::layoutAboutToBeChanged, this, drop),
+        connect(torrents,
+                &TorrentModel::runsAboutToBeAnnounced,
+                this,
+                &TorrentFilterModel::holdSortFor),
+        connect(torrents, &TorrentModel::runsAnnounced, this, &TorrentFilterModel::releaseSort),
+    };
+}
+
+void TorrentFilterModel::holdSortFor(const QList<int> &rows, const QList<int> &roles)
+{
+    if (roles.contains(TorrentModel::NameRole))
+        dropNameRanks();
+    if (!dynamicSortFilter() || !roles.contains(m_sortRole))
+        return;
+    // One run is one re-sort at most: Qt's own partial re-sort is the cheapest then.
+    bool severalRuns = false;
+    for (int i = 1; i < rows.size() && !severalRuns; ++i)
+        severalRuns = rows.at(i) != rows.at(i - 1) + 1;
+    if (!severalRuns)
+        return;
+    // The rows hold their new values and the mapping is still the old order: if every touched
+    // row still sits between its neighbours, the runs reorder nothing and Qt's per-run check
+    // finds that cheaply. Otherwise one full sort (about 1 ms at 3,500 rows) beats a
+    // layoutChanged per run, which the table pays for again.
+    if (std::none_of(rows.cbegin(), rows.cend(), [this](int row) { return outOfOrder(row); }))
+        return;
+
+    // Held, Qt passes the runs on as plain changes, filter included: note whether a row
+    // entered or left the filter, to re-filter after.
+    const QAbstractItemModel *source = sourceModel();
+    m_refilterAfterHold = std::any_of(rows.cbegin(), rows.cend(), [&](int row) {
+        return mapFromSource(source->index(row, 0)).isValid() != filterAcceptsRow(row, {});
+    });
+    m_sortHeld = true;
+    setDynamicSortFilter(false);
+}
+
+void TorrentFilterModel::releaseSort()
+{
+    if (!m_sortHeld)
+        return;
+    m_sortHeld = false;
+    // The sort compares each row about 2 log n times: read a numeric role once per row instead.
+    const QAbstractItemModel *source = sourceModel();
+    const int count = source->rowCount();
+    m_heldKeys.resize(count);
+    for (int row = 0; row < count; ++row) {
+        const QVariant value = source->data(source->index(row, 0), m_sortRole);
+        if (value.typeId() == QMetaType::QString || value.typeId() == QMetaType::QDateTime ||
+            !value.canConvert<double>()) {
+            m_heldKeys.clear(); // not a number: lessThan() reads the role as usual
+            break;
+        }
+        m_heldKeys[row] = value.toDouble();
+    }
+    setDynamicSortFilter(true); // sorts every row once: one layoutChanged
+    m_heldKeys.clear();
+    if (m_refilterAfterHold) {
+        m_refilterAfterHold = false;
+        refilter();
+    }
+}
+
+bool TorrentFilterModel::outOfOrder(int sourceRow) const
+{
+    const QModelIndex sourceIndex = sourceModel()->index(sourceRow, 0);
+    const QModelIndex proxyIndex = mapFromSource(sourceIndex);
+    if (!proxyIndex.isValid())
+        return false;
+    // lessThan() is the ascending order; a descending sort reads it the other way round.
+    const auto before = [this](const QModelIndex &a, const QModelIndex &b) {
+        return sortOrder() == Qt::AscendingOrder ? lessThan(a, b) : lessThan(b, a);
+    };
+    const int row = proxyIndex.row();
+    if (row > 0 && before(sourceIndex, mapToSource(index(row - 1, 0))))
+        return true;
+    return row + 1 < rowCount() && before(mapToSource(index(row + 1, 0)), sourceIndex);
 }
 
 void TorrentFilterModel::setTrackerModel(TrackerModel *model)
@@ -347,35 +446,60 @@ bool TorrentFilterModel::lessThan(const QModelIndex &left, const QModelIndex &ri
     if (source == nullptr)
         return false;
 
-    const Torrent &a = source->torrentAt(left.row());
-    const Torrent &b = source->torrentAt(right.row());
-
-    const QVariant leftValue = source->data(left, m_sortRole);
-    const QVariant rightValue = source->data(right, m_sortRole);
-
     int compared = 0;
-    if (leftValue.typeId() == QMetaType::QString && rightValue.typeId() == QMetaType::QString)
-        compared = m_collator.compare(leftValue.toString(), rightValue.toString());
-    else if (leftValue.typeId() == QMetaType::QDateTime)
-        compared = leftValue.toDateTime() == rightValue.toDateTime()
-                       ? 0
-                       : (leftValue.toDateTime() < rightValue.toDateTime() ? -1 : 1);
-    else if (leftValue.canConvert<double>() && rightValue.canConvert<double>()) {
-        const double l = leftValue.toDouble();
-        const double r = rightValue.toDouble();
+    if (!m_heldKeys.isEmpty()) {
+        const double l = m_heldKeys.at(left.row());
+        const double r = m_heldKeys.at(right.row());
         compared = l == r ? 0 : (l < r ? -1 : 1);
+    } else {
+        compared = compareValues(source->data(left, m_sortRole), source->data(right, m_sortRole));
     }
-
     if (compared != 0)
         return compared < 0;
 
     // A total order, so a speed tick never shuffles rows sorted by something else. Ties read
     // a to z whichever way the column sorts: the proxy reverses lessThan() for a descending
     // sort, so the tie-break is reversed first (a library idle under "↓" lists by name).
-    compared = m_collator.compare(a.name, b.name);
-    if (compared == 0)
-        compared = a.hash.compare(b.hash);
+    compared = nameRank(left.row()) - nameRank(right.row());
     return sortOrder() == Qt::DescendingOrder ? compared > 0 : compared < 0;
+}
+
+int TorrentFilterModel::compareValues(const QVariant &left, const QVariant &right) const
+{
+    if (left.typeId() == QMetaType::QString && right.typeId() == QMetaType::QString)
+        return m_collator.compare(left.toString(), right.toString());
+    if (left.typeId() == QMetaType::QDateTime)
+        return left.toDateTime() == right.toDateTime()
+                   ? 0
+                   : (left.toDateTime() < right.toDateTime() ? -1 : 1);
+    if (left.canConvert<double>() && right.canConvert<double>()) {
+        const double l = left.toDouble();
+        const double r = right.toDouble();
+        return l == r ? 0 : (l < r ? -1 : 1);
+    }
+    return 0;
+}
+
+int TorrentFilterModel::nameRank(int sourceRow) const
+{
+    const auto *source = qobject_cast<const TorrentModel *>(sourceModel());
+    if (source == nullptr)
+        return 0;
+    const int count = source->rowCount();
+    if (m_nameRanks.size() != count) {
+        QList<int> order(count);
+        std::iota(order.begin(), order.end(), 0);
+        std::sort(order.begin(), order.end(), [this, source](int l, int r) {
+            const Torrent &a = source->torrentAt(l);
+            const Torrent &b = source->torrentAt(r);
+            const int byName = m_collator.compare(a.name, b.name);
+            return byName != 0 ? byName < 0 : a.hash < b.hash;
+        });
+        m_nameRanks.resize(count);
+        for (int rank = 0; rank < count; ++rank)
+            m_nameRanks[order.at(rank)] = rank;
+    }
+    return sourceRow >= 0 && sourceRow < count ? m_nameRanks.at(sourceRow) : 0;
 }
 
 } // namespace omaseed::core
