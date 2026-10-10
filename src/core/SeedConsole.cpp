@@ -93,12 +93,14 @@ SeedConsole::SeedConsole(QObject *parent)
     m_refreshTimer.setInterval(2000);
     m_slowTimer.setInterval(30000);
     m_heroTimer.setInterval(1000);
+    // Zero: everything one poll (or one move of the rail) does to the scope arrives in one go,
+    // before the event loop turns again.
     m_coalesce.setSingleShot(true);
-    m_coalesce.setInterval(250);
+    m_coalesce.setInterval(0);
     connect(&m_refreshTimer, &QTimer::timeout, this, &SeedConsole::refreshFast);
     connect(&m_slowTimer, &QTimer::timeout, this, &SeedConsole::refreshSlow);
     connect(&m_heroTimer, &QTimer::timeout, this, &SeedConsole::refreshHero);
-    connect(&m_coalesce, &QTimer::timeout, this, &SeedConsole::refreshFast);
+    connect(&m_coalesce, &QTimer::timeout, this, &SeedConsole::scopeMoved);
 }
 
 SeedConsole::~SeedConsole() = default;
@@ -115,15 +117,16 @@ void SeedConsole::setSources(TorrentModel *torrents,
     m_state = state;
     m_ledger = ledger;
     if (m_scope) {
-        // The rail moved: the scope is a new one, so the ledger's blocks too.
-        connect(m_scope, &TorrentFilterModel::countChanged, this, [this] {
+        // The rail moved, or torrents came or went: the scope may be a new one, so the
+        // ledger's blocks too. The proxy says so once per run of rows (and on every re-sort),
+        // thousands of times when a big library loses scattered torrents in one poll (#45,
+        // #46): the coalescing timer makes that one look, after the poll.
+        const auto moved = [this] {
             if (m_active && m_scopeHashes.isEmpty())
-                refresh();
-        });
-        connect(m_scope, &QAbstractItemModel::modelReset, this, [this] {
-            if (m_active && m_scopeHashes.isEmpty())
-                refresh();
-        });
+                m_coalesce.start();
+        };
+        connect(m_scope, &TorrentFilterModel::countChanged, this, moved);
+        connect(m_scope, &QAbstractItemModel::modelReset, this, moved);
     }
     if (m_ledger)
         m_heroTimer.start();
@@ -214,6 +217,29 @@ void SeedConsole::refresh()
 {
     refreshSlow();
     refreshFast();
+}
+
+void SeedConsole::scopeMoved()
+{
+    if (!m_active || !m_scopeHashes.isEmpty())
+        return;
+    // A re-sort keeps the same torrents: the refresh timer's next tick is soon enough.
+    if (scopeKey(scopeTorrents()) != m_slowScopeKey)
+        refresh();
+}
+
+quint64 SeedConsole::scopeKey(const QList<const Torrent *> &scope)
+{
+    // The order does not count (the table re-sorts as speeds change). A sum and an xor of the
+    // hashes' hashes, with the count, tell two sets apart but for a 1 in 2^64 chance, which
+    // would only leave the ledger's blocks for the next slow tick.
+    quint64 sum = 0, mix = 0;
+    for (const Torrent *x : scope) {
+        const quint64 h = qHash(x->hash, 45);
+        sum += h;
+        mix ^= h * 0x9E3779B97F4A7C15ULL;
+    }
+    return sum ^ (mix << 1) ^ quint64(scope.size());
 }
 
 QPair<qint64, int> SeedConsole::rangeShape(const QString &range)
@@ -442,8 +468,9 @@ void SeedConsole::refreshFast()
     }
 
     // --- ratio ladder ----------------------------------------------------------------------
+    bool ladderMoved = false;
     {
-        QVariantList points;
+        QList<LadderDot> dots;
         QList<double> ratios;
         int below = 0;
         // What is still to give back is per set of files: cross-seeds took the files once and
@@ -459,11 +486,7 @@ void SeedConsole::refreshFast()
                 continue;
             const double r = std::max(0.0, x->ratio);
             ratios.append(r);
-            points.append(QVariantMap{{QStringLiteral("ratio"), r},
-                                      {QStringLiteral("size"), double(x->size)},
-                                      {QStringLiteral("name"), x->name},
-                                      {QStringLiteral("ratioText"), Format::ratio(r)},
-                                      {QStringLiteral("sizeText"), Format::size(x->size)}});
+            dots.append({x->hash, x->name, r, x->size});
             Files &f = files[filesKey(*x)];
             f.size = std::max(f.size, x->size);
             f.taken += x->downloaded;
@@ -486,8 +509,36 @@ void SeedConsole::refreshFast()
             summary = QStringLiteral("%1 below 1.0 · %2 still to give back · median ratio %3")
                           .arg(Format::count(below), Format::size(owed),
                                Format::ratio(ratios.at(ratios.size() / 2)));
-        m_ladder = {{QStringLiteral("points"), points},
-                    {QStringLiteral("summary"), summary.isEmpty() ? QStringLiteral("nothing complete here") : summary}};
+        m_ladder = {{QStringLiteral("summary"),
+                     summary.isEmpty() ? QStringLiteral("nothing complete here") : summary}};
+
+        // Biggest first, as the ladder draws them; the hash settles ties, so the table's sort
+        // (its rows move as speeds change) does not reorder the dots.
+        std::sort(dots.begin(), dots.end(), [](const LadderDot &l, const LadderDot &r) {
+            return l.size != r.size ? l.size > r.size : l.hash < r.hash;
+        });
+        const auto same = [](const LadderDot &now, const LadderDot &shown) {
+            if (now.hash != shown.hash || now.size != shown.size || now.name != shown.name)
+                return false;
+            if (now.ratio == shown.ratio)
+                return true;
+            return std::abs(now.ratio - shown.ratio) <= 0.001 * shown.ratio &&
+                   Format::ratio(now.ratio) == Format::ratio(shown.ratio);
+        };
+        ladderMoved = dots.size() != m_ladderDots.size() ||
+                      !std::equal(dots.cbegin(), dots.cend(), m_ladderDots.cbegin(), same);
+        if (ladderMoved) {
+            QVariantList points;
+            points.reserve(dots.size());
+            for (const LadderDot &d : std::as_const(dots))
+                points.append(QVariantMap{{QStringLiteral("ratio"), d.ratio},
+                                          {QStringLiteral("size"), double(d.size)},
+                                          {QStringLiteral("name"), d.name},
+                                          {QStringLiteral("ratioText"), Format::ratio(d.ratio)},
+                                          {QStringLiteral("sizeText"), Format::size(d.size)}});
+            m_ladderDots = dots;
+            m_ladderPoints = points;
+        }
     }
 
     // --- trackers --------------------------------------------------------------------------
@@ -681,17 +732,20 @@ void SeedConsole::refreshFast()
     }
 
     // Totals that come from the ledger (today, streak) were set by refreshSlow.
+    if (ladderMoved)
+        Q_EMIT ladderPointsChanged();
     Q_EMIT changed();
 }
 
 void SeedConsole::refreshSlow()
 {
+    const QList<const Torrent *> scope = scopeTorrents();
+    m_slowScopeKey = scopeKey(scope);
     if (!m_ledger)
         return;
     const QDateTime t = now();
     const qint64 nowSecs = t.toSecsSinceEpoch();
     const QDate today = t.date();
-    const QList<const Torrent *> scope = scopeTorrents();
     const int total = m_torrents ? m_torrents->count() : 0;
     const bool scoped = !m_scopeHashes.isEmpty() || int(scope.size()) < total;
     QSet<QString> inScope;

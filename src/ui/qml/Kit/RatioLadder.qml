@@ -39,28 +39,20 @@ Item {
     readonly property real _midY: (root._axisY + root._top) / 2 + Theme.space(4)
 
     // Every dot in drawing order (largest first): `{ index, x, y, r }`, `index` into `points`.
+    // The heights come from Beeswarm (core::Beeswarm, in C++): in JavaScript, testing each
+    // dot against all the others took seconds on a library of thousands (#45).
     readonly property var _dots: {
         const pts = root.points || [];
         const order = pts.map((p, i) => i).sort((a, b) => pts[b].size - pts[a].size);
-        const step = 4 * root._scale;
-        const placed = [];
-        for (const i of order) {
-            const cx = root._x(pts[i].ratio);
-            const r = root._radius(pts[i].size);
-            let cy = root._midY;
-            for (let k = 0; k < 40; k++) {
-                cy = root._midY + Math.ceil(k / 2) * step * (k % 2 ? -1 : 1);
-                if (placed.every(p => Math.hypot(p.x - cx, p.y - cy) > p.r + r + 1))
-                    break;
-            }
-            placed.push({
-                            "index": i,
-                            "x": cx,
-                            "y": cy,
-                            "r": r
-                        });
-        }
-        return placed;
+        const xs = order.map(i => root._x(pts[i].ratio));
+        const rs = order.map(i => root._radius(pts[i].size));
+        const ys = Beeswarm.place(xs, rs, root._midY, 4 * root._scale, 40);
+        return order.map((i, k) => ({
+                                        "index": i,
+                                        "x": xs[k],
+                                        "y": ys[k],
+                                        "r": rs[k]
+                                    }));
     }
 
     function _x(ratio: real): real {
@@ -160,26 +152,43 @@ Item {
         y: root._top + Theme.space(2)
     }
 
-    Repeater {
-        model: root._dots
+    // The dots go into one texture, drawn again only when a dot changes: a library's thousands
+    // drawn one by one on every frame (the tide's halo pulses all the time) kept the render
+    // thread busy (#45). The texture reaches as far past the ladder as a dot can (the 40th
+    // try, 20 steps up or down, of the biggest dot), so none is cut off at its edges.
+    Item {
+        id: dotLayer
 
-        delegate: Rectangle {
-            id: dot
+        readonly property real reach: Math.ceil(20 * 4 * root._scale + root._radius(Number.MAX_VALUE) + 1)
 
-            required property var modelData
+        height: root.height + 2 * dotLayer.reach
+        layer.enabled: true
+        visible: root._dots.length > 0
+        width: root.width + 2 * dotLayer.reach
+        x: -dotLayer.reach
+        y: -dotLayer.reach
 
-            readonly property bool paid: root.points[dot.modelData.index].ratio >= 1
-            readonly property bool hot: root.hoveredIndex === dot.modelData.index
+        Repeater {
+            model: root._dots
 
-            border.color: Theme.brightForeground
-            border.width: dot.hot ? 1 : 0
-            color: dot.paid ? root.color : Theme.foreground
-            height: dot.modelData.r * 2
-            opacity: dot.hot ? 1 : (dot.paid ? 0.75 : 0.35)
-            radius: dot.modelData.r
-            width: dot.modelData.r * 2
-            x: dot.modelData.x - dot.modelData.r
-            y: dot.modelData.y - dot.modelData.r
+            delegate: Rectangle {
+                id: dot
+
+                required property var modelData
+
+                readonly property bool paid: root.points[dot.modelData.index].ratio >= 1
+                readonly property bool hot: root.hoveredIndex === dot.modelData.index
+
+                border.color: Theme.brightForeground
+                border.width: dot.hot ? 1 : 0
+                color: dot.paid ? root.color : Theme.foreground
+                height: dot.modelData.r * 2
+                opacity: dot.hot ? 1 : (dot.paid ? 0.75 : 0.35)
+                radius: dot.modelData.r
+                width: dot.modelData.r * 2
+                x: dotLayer.reach + dot.modelData.x - dot.modelData.r
+                y: dotLayer.reach + dot.modelData.y - dot.modelData.r
+            }
         }
     }
 }

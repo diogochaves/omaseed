@@ -281,6 +281,11 @@ omaseed_add_test(tst_seedconsole
     LIBRARIES omaseed::core
 )
 
+omaseed_add_test(tst_beeswarm
+    SOURCES tst_beeswarm.cpp
+    LIBRARIES omaseed::core
+)
+
 omaseed_add_test(tst_statusdigest
     SOURCES tst_statusdigest.cpp
     LIBRARIES omaseed::core

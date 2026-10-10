@@ -11,6 +11,7 @@ qt_add_qml_module(omaseed-kit
     URI Omaseed.Kit
     VERSION 1.0
     SOURCES
+        BeeswarmForeign.hpp
         ThemeForeign.hpp
     QML_FILES
         AreaChart.qml
