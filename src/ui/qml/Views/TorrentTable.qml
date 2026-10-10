@@ -1548,6 +1548,21 @@ Item {
         z: 2
     }
 
+    // Where the rows are in the list: the rail's "scrollbar" look (Kit/ScrollHint), whatever
+    // the Scroll hint setting says, since a band or a fade would cover rows the cursor moves
+    // through. It shows while the list moves and while the pointer is on it, and drags.
+    ScrollHint {
+        anchors.bottom: list.bottom
+        anchors.left: list.left
+        anchors.right: list.right
+        anchors.top: list.top
+        flickable: list
+        objectName: "tableScrollHint"
+        revealOnHover: false
+        style: "scrollbar"
+        z: 3
+    }
+
     // A vertical wheel with shift held scrolls sideways, as it does in a browser; a touchpad's
     // own sideways swipe already reaches the list, which flicks both ways.
     WheelHandler {

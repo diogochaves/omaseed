@@ -127,6 +127,66 @@ TestCase {
         fuzzyCompare(thumb.y + thumb.height, track.height, 0.5);
     }
 
+    // The list moving shows the bar a moment, then it goes; it never shows for a list that
+    // fits or in another look.
+    function test_the_scrollbar_shows_while_the_list_moves_then_goes() {
+        const t = make("scrollbar", 0, 5);
+        t.hint.lingerMs = 200;
+        const track = findChild(t.hint, "scrollbar");
+        compare(t.hint.scrollbarShown, false);
+        t.flick.contentY = 100;
+        compare(t.hint.scrollbarShown, true, "not shown while the list moves");
+        tryCompare(track, "visible", true, 1000);
+        tryCompare(t.hint, "scrollbarShown", false, 2000);
+        tryCompare(track, "visible", false, 2000);
+
+        const other = make("chevrons", 0, 5);
+        other.flick.contentY = 100;
+        compare(other.hint.scrollbarShown, false, "shown in the chevrons look");
+    }
+
+    // The table's bar (revealOnHover off) shows only while the list moves or the pointer is on
+    // the bar itself, not whenever the pointer is over the rows.
+    function test_without_reveal_on_hover_the_pointer_over_the_list_shows_nothing() {
+        const t = createTemporaryObject(rowsComponent, testCase);
+        t.hint.revealOnHover = false;
+        waitForRendering(t);
+        mouseMove(t, t.width - 5, t.height - 5);
+        mouseMove(t.first, 20, t.first.height / 2);
+        tryVerify(() => t.hint.hovered, 1000, "the hint does not know the pointer is over its list");
+        tryCompare(t.hint, "scrollbarShown", false, 2000);
+        mouseMove(testCase, testCase.width - 1, testCase.height - 1);
+    }
+
+    // A drag on the thumb and a press on the track both go through `scrollThumbTo`
+    // (`mousePress` does not deliver in the offscreen runner, see tst_ScrollBar.qml).
+    function test_scroll_thumb_to_moves_the_list_over_the_thumbs_travel() {
+        const t = make("scrollbar", 0, 5);
+        t.hint.revealed = true;
+        const thumb = findChild(t.hint, "scrollThumb");
+        const travel = t.hint.trackLength - thumb.height;
+        const range = t.flick.contentHeight - t.flick.height;
+        t.hint.scrollThumbTo(travel / 2);
+        fuzzyCompare(t.flick.contentY, range / 2, 0.5);
+        fuzzyCompare(thumb.y, travel / 2, 0.5);
+        t.hint.scrollThumbTo(travel * 10);
+        compare(t.flick.contentY, range);
+        t.hint.scrollThumbTo(-50);
+        compare(t.flick.contentY, 0);
+    }
+
+    // The grip takes a press only while the bar is shown, so a click at a row's right edge
+    // reaches the row when there is no bar to grab.
+    function test_the_grip_takes_presses_only_while_the_bar_is_shown() {
+        const t = make("scrollbar", 0, 5);
+        const grip = findChild(t.hint, "scrollGrip");
+        compare(grip.acceptedButtons, Qt.NoButton);
+        t.hint.revealed = true;
+        compare(grip.acceptedButtons, Qt.LeftButton);
+        const fits = make("chevrons", 0, 5);
+        compare(findChild(fits.hint, "scrollGrip").enabled, false, "a grip in the chevrons look");
+    }
+
     function test_an_unknown_style_draws_nothing() {
         const t = make("none", 4, 4);
         t.hint.revealed = true;
