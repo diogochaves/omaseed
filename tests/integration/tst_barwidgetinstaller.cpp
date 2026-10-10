@@ -1,7 +1,7 @@
 // #17 — the bar widget is part of the install: where the packaged widget is found, that
 // ~/.config/omarchy/plugins/chaves.omaseed becomes a link to it (replacing a link or an old copy,
 // leaving a git checkout from `omarchy plugin add` alone), and that BarWidget rescans the shell and
-// enables the widget until the shell knows it, then disables and unlinks it, against stand-in
+// enables the widget until the shell knows it, then disables it (the link stays), against stand-in
 // `omarchy` scripts. Every path is under a temporary directory; HOME, XDG_CONFIG_HOME and the XDG
 // data dirs point into it.
 
@@ -335,14 +335,25 @@ void TestBarWidgetInstaller::installLinksRescansAndEnables()
     for (int i = 1; i < 4; ++i)
         QVERIFY(calls.at(i).endsWith("omarchy plugin enable chaves.omaseed"));
 
-    // Out again: disabled, then unlinked.
+    // Out again: disabled only. The link stays, since any change in the plugins folder makes
+    // the shell reload every plugin.
     finished.clear();
     widget.remove();
     QVERIFY(finished.wait(5000));
     QVERIFY(finished.first().at(0).toBool());
     QVERIFY(!widget.inBar());
-    QVERIFY(!widget.installed());
+    QVERIFY(widget.installed());
     QVERIFY(readFile(log).trimmed().endsWith("omarchy plugin disable chaves.omaseed"));
+
+    // And back in: the link is there, so no rescan (that reload again), only an enable.
+    finished.clear();
+    widget.install();
+    QVERIFY(finished.wait(5000));
+    QVERIFY2(finished.first().at(0).toBool(), qPrintable(finished.first().at(1).toString()));
+    QVERIFY(widget.inBar());
+    const QList<QByteArray> again = readFile(log).trimmed().split('\n').mid(5);
+    QCOMPARE(again.size(), 1);
+    QVERIFY(again.first().endsWith("omarchy plugin enable chaves.omaseed"));
 }
 
 void TestBarWidgetInstaller::installStopsWhenTheShellNeverKnowsIt()
@@ -438,7 +449,7 @@ void TestBarWidgetInstaller::railHostedComesOutAndBackIn()
     QVERIFY(finished.wait(5000));
     QVERIFY2(finished.first().at(0).toBool(), qPrintable(finished.first().at(1).toString()));
     QVERIFY(!widget.inBar());
-    QVERIFY(!widget.installed());
+    QVERIFY(widget.installed()); // switched off, still linked
 
     finished.clear();
     widget.install();

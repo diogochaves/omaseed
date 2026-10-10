@@ -873,9 +873,11 @@ TestCase {
         const row = testCase.childNamed(modal, "barWidgetRow");
         verify(row.description.indexOf("the gear in its popup") >= 0, row.description);
 
+        // Off only disables: the link stays, since the shell reloads every plugin whenever the
+        // plugins folder changes.
         App.barWidget.remove();
         tryVerify(() => !App.barWidget.busy, 5000);
-        verify(!App.barWidget.installed);
+        verify(App.barWidget.installed);
         App.barWidget.setPrograms("omaseed-tests-have-no-omarchy", "omaseed-tests-have-no-omarchy");
         verify(!App.barWidget.available);
     }

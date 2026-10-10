@@ -60,6 +60,9 @@ bool isInBar(const QString &shellJson);
 struct Result
 {
     bool ok = false;
+    /// The plugins folder changed. The shell reloads every plugin when it does, so a caller
+    /// only asks it to rescan then.
+    bool changed = false;
     /// What to tell the user, one or more lines.
     QString message;
 };

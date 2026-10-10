@@ -157,6 +157,12 @@ void BarWidget::install()
         finish(true, QStringLiteral("omaseed is in your bar"));
         return;
     }
+    // The link already there (the widget was only switched off): enabling is enough. A rescan
+    // reloads every plugin in the shell, which on a desk full of them looks like a restart.
+    if (!linked.changed) {
+        enable(1);
+        return;
+    }
     // A shell that is not running answers with an error; enabling then says what is wrong.
     run(m_omarchyShell,
         {QStringLiteral("shell"), QStringLiteral("rescanPlugins")},
@@ -190,25 +196,23 @@ void BarWidget::remove()
     m_busy = true;
     Q_EMIT changed();
 
-    const auto unlinkAndFinish = [this]() {
-        const Installer::Result removed = Installer::unlink(Installer::targetDir());
-        finish(removed.ok,
-               removed.ok ? QStringLiteral("omaseed is no longer in your bar") : removed.message);
-    };
+    // Only disabled: the link stays. Taking it away (or adding it back) changes the plugins
+    // folder, and the shell answers any change there by reloading every plugin, which on the
+    // console redraws the whole desk. Disabling only moves this widget out of the bar.
     readState();
     if (!m_inBar) {
-        unlinkAndFinish();
+        finish(true, QStringLiteral("omaseed is not in your bar"));
         return;
     }
     run(m_omarchy,
         {QStringLiteral("plugin"), QStringLiteral("disable"), Installer::pluginId()},
-        [this, unlinkAndFinish](int exitCode, const QString &output) {
+        [this](int exitCode, const QString &output) {
             if (exitCode != 0) {
                 finish(false,
                        output.isEmpty() ? QStringLiteral("omarchy plugin disable failed") : output);
                 return;
             }
-            unlinkAndFinish();
+            finish(true, QStringLiteral("omaseed is no longer in your bar"));
         });
 }
 

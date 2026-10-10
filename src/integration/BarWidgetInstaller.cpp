@@ -202,6 +202,7 @@ Result link(const QString &source, const QString &target)
     removeEntry(previous);
 
     result.ok = true;
+    result.changed = true;
     result.message = QStringLiteral("%1 now points at %2").arg(target, absoluteSource);
     return result;
 }

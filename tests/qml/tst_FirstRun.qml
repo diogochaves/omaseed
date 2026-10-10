@@ -500,9 +500,10 @@ TestCase {
         // `true` never writes shell.json, so the widget is installed but not (yet) in the bar.
         verify(line.text.indexOf("Settings › Appearance") >= 0, line.text);
 
+        // Off only disables; the link stays (the shell reloads every plugin when it changes).
         App.barWidget.remove();
         tryVerify(() => !App.barWidget.busy, 5000);
-        verify(!App.barWidget.installed);
+        verify(App.barWidget.installed);
         App.barWidget.setPrograms("omaseed-tests-have-no-omarchy", "omaseed-tests-have-no-omarchy");
     }
 
