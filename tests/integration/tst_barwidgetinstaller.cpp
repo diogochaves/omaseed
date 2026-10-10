@@ -79,12 +79,14 @@ private Q_SLOTS:
     void replacesALinkOrAnOldCopy();
     void leavesAGitCheckoutAlone();
     void unlinkRemovesOnlyTheLink();
-    void inBarAnywhereButDisabled();
+    void inBarWhereTheShellLoadsIt();
     void installLinksRescansAndEnables();
     void installStopsWhenTheShellNeverKnowsIt();
     void unavailableWithoutOmarchyOrAWidget();
     void followsChangesMadeElsewhere();
     void openSettingsAsksTheShell();
+    void openSettingsSaysWhenTheWidgetDoesNotAnswer();
+    void railHostedComesOutAndBackIn();
 
 private:
     std::unique_ptr<QTemporaryDir> m_tmp;
@@ -225,7 +227,7 @@ void TestBarWidgetInstaller::unlinkRemovesOnlyTheLink()
     QVERIFY(QFileInfo::exists(source + QStringLiteral("/manifest.json")));
 }
 
-void TestBarWidgetInstaller::inBarAnywhereButDisabled()
+void TestBarWidgetInstaller::inBarWhereTheShellLoadsIt()
 {
     const QString json = Installer::shellConfigPath();
     QCOMPARE(json, path(QStringLiteral("config/omarchy/shell.json")));
@@ -235,16 +237,36 @@ void TestBarWidgetInstaller::inBarAnywhereButDisabled()
     QVERIFY(!Installer::isInBar(json));
     writeFile(json, R"({"bar": {"layout": {"right": [{"id": "chaves.omaseed"}]}}})");
     QVERIFY(Installer::isInBar(json));
-    // Inside a container widget, as a bare string (Diogo's sidebar holds both forms).
-    writeFile(json, R"({"plugins": [{"id": "chaves.sidebar", "bottom": ["chaves.omaseed"]}]})");
+    writeFile(json, R"({"bar": {"layout": {"left": ["chaves.omaseed"]}}})");
     QVERIFY(Installer::isInBar(json));
+    // Hosted by a container widget (the console's rail): its own list names it, and the
+    // plugins[] line is what loads it.
+    writeFile(json, R"({"bar": {"layout": {"right": []}},
+                        "plugins": [{"id": "chaves.rail", "bottom": ["chaves.omaseed"]},
+                                    {"id": "chaves.omaseed"}]})");
+    QVERIFY(Installer::isInBar(json));
+    // `omarchy plugin disable` drops the plugins[] line and leaves the container's list: the
+    // widget is gone from the bar, so the switch must say so (it stayed on, 2026-10-09).
+    writeFile(json, R"({"bar": {"layout": {"right": []}},
+                        "plugins": [{"id": "chaves.rail", "bottom": ["chaves.omaseed"]}]})");
+    QVERIFY(!Installer::isInBar(json));
+    // Another widget's settings that merely name it load nothing either.
+    writeFile(json, R"({"bar": {"layout": {"right": [{"id": "omarchy.clock",
+                                                     "note": "chaves.omaseed"}]}}})");
+    QVERIFY(!Installer::isInBar(json));
 }
 
 namespace {
 
 /// A stand-in for `omarchy` / `omarchy-shell`: logs its arguments, and as `omarchy plugin
 /// enable` says "is not known" `unknownTimes` times before it writes the id into shell.json.
-QString fakeProgram(const QString &dir, const QString &name, int unknownTimes)
+/// `plugin disable` leaves `disableLeaves` there; `chaves.omaseed settings` prints
+/// `settingsFails` and fails when that is set (the shell's "Target not found.").
+QString fakeProgram(const QString &dir,
+                    const QString &name,
+                    int unknownTimes,
+                    const QByteArray &disableLeaves = "{}",
+                    const QByteArray &settingsFails = QByteArray())
 {
     const QString file = QDir(dir).filePath(name);
     const QByteArray script =
@@ -264,8 +286,13 @@ QString fakeProgram(const QString &dir, const QString &name, int unknownTimes)
         "> \"$XDG_CONFIG_HOME/omarchy/shell.json\"\n"
         "  echo \"Enabled $3\" ;;\n"
         "'plugin disable')\n"
-        "  echo '{}' > \"$XDG_CONFIG_HOME/omarchy/shell.json\"\n"
-        "  echo \"Disabled $3\" ;;\n"
+        "  echo '" +
+        disableLeaves +
+        "' > \"$XDG_CONFIG_HOME/omarchy/shell.json\"\n"
+        "  echo \"Disabled $3\" ;;\n" +
+        (settingsFails.isEmpty()
+             ? QByteArray()
+             : "'chaves.omaseed settings')\n  echo '" + settingsFails + "'; exit 1 ;;\n") +
         "esac\n";
     writeFile(file, script);
     QFile::setPermissions(file,
@@ -363,6 +390,65 @@ void TestBarWidgetInstaller::openSettingsAsksTheShell()
     widget.openSettings();
     QTRY_VERIFY_WITH_TIMEOUT(
         readFile(log).trimmed().endsWith("omarchy-shell chaves.omaseed settings"), 5000);
+}
+
+/// "customize" did nothing on 2026-10-09: the shell answered "Target not found." and only the
+/// log heard it. The row says so instead.
+void TestBarWidgetInstaller::openSettingsSaysWhenTheWidgetDoesNotAnswer()
+{
+    qputenv("FAKE_LOG", path(QStringLiteral("calls.log")).toUtf8());
+    BarWidget widget;
+    widget.setPrograms(fakeProgram(path(QStringLiteral("bin")), QStringLiteral("omarchy"), 0),
+                       fakeProgram(path(QStringLiteral("bin")),
+                                   QStringLiteral("omarchy-shell"),
+                                   0,
+                                   "{}",
+                                   "Target not found."));
+    QSignalSpy changed(&widget, &BarWidget::changed);
+    widget.openSettings();
+    QTRY_VERIFY_WITH_TIMEOUT(widget.message().contains(QStringLiteral("Target not found.")), 5000);
+    QVERIFY(!widget.lastOk());
+    QVERIFY(changed.count() > 0);
+}
+
+/// On the console the rail hosts the widget: its own list names it and a plugins[] line loads
+/// it. `omarchy plugin disable` drops only the line, so the switch has to read off then, and
+/// a second click has to put it back (it stayed on, and every click disabled it again).
+void TestBarWidgetInstaller::railHostedComesOutAndBackIn()
+{
+    const QByteArray hosted = R"({"bar": {"layout": {"right": []}}, "plugins": [)"
+                              R"({"id": "chaves.rail", "bottom": ["chaves.omaseed"]},)"
+                              R"({"id": "chaves.omaseed"}]})";
+    const QByteArray lineDropped = R"({"bar": {"layout": {"right": []}}, "plugins": [)"
+                                   R"({"id": "chaves.rail", "bottom": ["chaves.omaseed"]}]})";
+    qputenv("FAKE_LOG", path(QStringLiteral("calls.log")).toUtf8());
+    const QString source = makePlugin(path(QStringLiteral("usr-share")), "1");
+    QVERIFY(Installer::link(source, Installer::targetDir()).ok);
+    writeFile(Installer::shellConfigPath(), hosted);
+
+    BarWidget widget;
+    widget.setPrograms(
+        fakeProgram(path(QStringLiteral("bin")), QStringLiteral("omarchy"), 0, lineDropped),
+        fakeProgram(path(QStringLiteral("bin")), QStringLiteral("omarchy-shell"), 0));
+    widget.setRetry(10, 5);
+    QVERIFY(widget.inBar());
+
+    QSignalSpy finished(&widget, &BarWidget::finished);
+    widget.remove();
+    QVERIFY(finished.wait(5000));
+    QVERIFY2(finished.first().at(0).toBool(), qPrintable(finished.first().at(1).toString()));
+    QVERIFY(!widget.inBar());
+    QVERIFY(!widget.installed());
+
+    finished.clear();
+    widget.install();
+    QVERIFY(finished.wait(5000));
+    QVERIFY2(finished.first().at(0).toBool(), qPrintable(finished.first().at(1).toString()));
+    QVERIFY(widget.inBar());
+    QVERIFY(widget.installed());
+    QVERIFY(readFile(path(QStringLiteral("calls.log")))
+                .trimmed()
+                .endsWith("omarchy plugin enable chaves.omaseed"));
 }
 
 /// #21: `omaseed --install-bar-widget` from a terminal, or `omarchy plugin disable`, while
