@@ -62,18 +62,26 @@ never installed by omaseed except through the first-run offer below.
 **What the package installs:** the `omaseed` binary, its `.desktop` file and D-Bus service
 file, hicolor icons, the MIT licence, and three Omarchy integration files staged (not
 activated) under `/usr/share/omaseed/`: a Hyprland window-rule module, a theme-change hook,
-and an `omarchy-menu.jsonc` row. Two commands turn them on, since a package must never edit
-your own config files silently:
+and an `omarchy-menu.jsonc` row. You turn them on yourself, since a package must never edit
+your own config files silently. The window rule, linked where Hyprland's Lua config looks for
+`hypr.*` modules:
 
 ```
-ln -sf /usr/share/omaseed/hooks/theme-set.d/omaseed ~/.config/omarchy/hooks/theme-set.d/omaseed
+ln -sf /usr/share/omaseed/hyprland/omaseed.lua ~/.config/hypr/omaseed.lua
 ```
 
-and add this line next to your other personal `require("hypr...")` lines in
-`~/.config/hypr/hyprland.lua` (nothing edits that file for you):
+then this line next to your other personal `require("hypr...")` lines in
+`~/.config/hypr/hyprland.lua` (nothing edits that file for you), and `hyprctl reload`:
 
 ```
 require("hypr.omaseed")
+```
+
+Add the line only after the link exists: a `require` that finds no file stops Hyprland's
+config from loading. The theme hook:
+
+```
+ln -sf /usr/share/omaseed/hooks/theme-set.d/omaseed ~/.config/omarchy/hooks/theme-set.d/omaseed
 ```
 
 That module opts the window out of Omarchy's default compositor-level opacity — omaseed
