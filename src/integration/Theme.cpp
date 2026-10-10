@@ -1,5 +1,6 @@
 #include "integration/Theme.hpp"
 
+#include "integration/HyprlandEvents.hpp"
 #include "integration/ThemeReader.hpp"
 
 #include <QFont>
@@ -135,10 +136,21 @@ void ThemeFont::apply(const QHash<QString, QString> &shell)
 // Theme
 // -------------------------------------------------------------------------------------
 
+QString Theme::defaultEventSocket()
+{
+    return HyprlandEvents::defaultSocketPath();
+}
+
 Theme::Theme(ThemeReader *reader, QObject *parent)
+    : Theme(reader, Hyprland{}, parent)
+{
+}
+
+Theme::Theme(ThemeReader *reader, const Hyprland &hyprland, QObject *parent)
     : QObject(parent)
     , m_reader(reader)
     , m_font(new ThemeFont(this))
+    , m_hyprland(hyprland)
 {
     if (m_reader) {
         connect(m_reader, &ThemeReader::changed, this, &Theme::adopt);
@@ -149,14 +161,24 @@ Theme::Theme(ThemeReader *reader, QObject *parent)
     // never stomps an override the user has set.
     m_windowAlpha = m_defaultWindowAlpha;
     readCornerRadius();
+    // #37: a theme or omarchy-console profile switch reloads Hyprland's config, maybe with
+    // another rounding. Asking again on omaseed's own theme change would race that reload
+    // (the theme files move first), so follow Hyprland's own event instead.
+    if (!m_hyprland.eventSocket.isEmpty()) {
+        m_hyprlandEvents = new HyprlandEvents(m_hyprland.eventSocket, this);
+        connect(m_hyprlandEvents, &HyprlandEvents::configReloaded, this, &Theme::readCornerRadius);
+    }
 }
 
 Theme::~Theme()
 {
-    // Leaving hyprctl running past our own destructor makes QProcess complain on exit.
-    if (m_hyprctl && m_hyprctl->state() != QProcess::NotRunning) {
-        m_hyprctl->kill();
-        m_hyprctl->waitForFinished(100);
+    // Leaving hyprctl running past our own destructor makes QProcess complain on exit. Two
+    // reloads in a row can leave more than one asking.
+    for (QProcess *hyprctl : findChildren<QProcess *>(Qt::FindDirectChildrenOnly)) {
+        if (hyprctl->state() != QProcess::NotRunning) {
+            hyprctl->kill();
+            hyprctl->waitForFinished(100);
+        }
     }
 }
 
@@ -247,16 +269,19 @@ Theme::WindowCorners Theme::windowCorners(const QByteArray &rounding,
 void Theme::readCornerRadius()
 {
     // Hyprland's rounding and its power, asked for one after the other without blocking the
-    // start-up. Read once: a theme or profile switch that reloads Hyprland's config is seen
-    // at the next start (#37: follow Hyprland's `configreloaded` event instead).
-    askHyprland(QStringLiteral("decoration:rounding"), [this](const QByteArray &rounding) {
+    // start-up; again on every `configreloaded` (#37).
+    const int read = ++m_cornerRead;
+    askHyprland(QStringLiteral("decoration:rounding"), [this, read](const QByteArray &rounding) {
+        if (read != m_cornerRead)
+            return;
         if (rounding.isEmpty()) {
             applyCorners({});
             return;
         }
         askHyprland(QStringLiteral("decoration:rounding_power"),
-                    [this, rounding](const QByteArray &power) {
-                        applyCorners(windowCorners(rounding, power));
+                    [this, rounding, read](const QByteArray &power) {
+                        if (read == m_cornerRead)
+                            applyCorners(windowCorners(rounding, power));
                     });
     });
 }
@@ -264,7 +289,6 @@ void Theme::readCornerRadius()
 void Theme::askHyprland(const QString &option, std::function<void(const QByteArray &)> done)
 {
     auto *hyprctl = new QProcess(this);
-    m_hyprctl = hyprctl;
     connect(hyprctl,
             &QProcess::finished,
             this,
@@ -281,7 +305,7 @@ void Theme::askHyprland(const QString &option, std::function<void(const QByteArr
         hyprctl->deleteLater();
         done(QByteArray());
     });
-    hyprctl->start(QStringLiteral("hyprctl"),
+    hyprctl->start(m_hyprland.hyprctl,
                    {QStringLiteral("-j"), QStringLiteral("getoption"), option});
 }
 

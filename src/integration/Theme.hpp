@@ -3,7 +3,6 @@
 #include <QColor>
 #include <QHash>
 #include <QObject>
-#include <QPointer>
 #include <QProcess>
 #include <QString>
 
@@ -15,6 +14,7 @@ QT_END_NAMESPACE
 
 namespace omaseed::integration {
 
+class HyprlandEvents;
 class ThemeReader;
 
 /// The type scale, grouped under `Theme.font`. Every token is `base-size` times the shell's
@@ -149,7 +149,18 @@ class Theme : public QObject
         qreal windowAlpha READ windowAlpha WRITE setWindowAlpha NOTIFY windowAlphaChanged FINAL)
 
 public:
+    /// How Theme reaches Hyprland: the `hyprctl` it asks for the rounding, and the event
+    /// socket whose `configreloaded` makes it ask again (#37). Tests point both elsewhere.
+    struct Hyprland
+    {
+        QString hyprctl = QStringLiteral("hyprctl");
+        QString eventSocket = defaultEventSocket();
+    };
+    /// The session's event socket, "" when not under Hyprland.
+    static QString defaultEventSocket();
+
     explicit Theme(ThemeReader *reader, QObject *parent = nullptr);
+    Theme(ThemeReader *reader, const Hyprland &hyprland, QObject *parent = nullptr);
     ~Theme() override;
 
     /// The reader a QML-engine-created Theme binds to. main() sets this before the engine
@@ -248,7 +259,11 @@ private:
 
     ThemeReader *m_reader = nullptr;
     ThemeFont *m_font = nullptr;
-    QPointer<QProcess> m_hyprctl;
+    Hyprland m_hyprland;
+    HyprlandEvents *m_hyprlandEvents = nullptr;
+    /// Bumped by each readCornerRadius(): an answer to an older read is dropped, so two
+    /// reloads in a row can't end on the first one's values.
+    int m_cornerRead = 0;
 
     QColor m_background{QStringLiteral("#1a1b26")};
     QColor m_foreground{QStringLiteral("#a9b1d6")};
