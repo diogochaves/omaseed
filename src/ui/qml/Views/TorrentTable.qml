@@ -176,8 +176,9 @@ Item {
             "title": qsTr("Ratio"),
             "role": "ratio",
             "text": "ratioText",
-            // #24 T4: two short tracks before the number (to 1.0, then on to the limit).
-            "width": 96,
+            // #24 T4: two short tracks before the number (to 1.0, then on to the limit). Wide
+            // enough to keep a gap between them and "9998.99", the widest ratio (∞ above it).
+            "width": 112,
             "align": Qt.AlignRight,
             "order": Qt.DescendingOrder,
             "visible": true
@@ -1426,10 +1427,16 @@ Item {
                         }
 
                         // T4: to 1.0 ("paid back"), then from 1.0 to the share limit (or 5).
+                        // Left out of a row whose number would reach them.
                         Row {
+                            id: ratioTracks
+
                             anchors.verticalCenter: parent.verticalCenter
+                            objectName: textCell.isRatio ? "ratioTracks_" + row.index : ""
                             spacing: Theme.space(2)
-                            visible: textCell.isRatio && textCell.complete && textCell.width > Theme.space(80)
+                            visible: textCell.isRatio && textCell.complete
+                                     && textCell.leftPadding + ratioTracks.implicitWidth + Theme.space(6)
+                                        + textCell.contentWidth + textCell.rightPadding <= textCell.width
                             x: textCell.leftPadding
 
                             Rectangle {

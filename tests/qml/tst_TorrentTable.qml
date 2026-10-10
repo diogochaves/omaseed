@@ -37,6 +37,12 @@ TestCase {
         filtered: App.filtered
     }
 
+    TextMetrics {
+        id: widest
+
+        text: "9998.99"
+    }
+
     SignalSpy {
         id: renameSpy
 
@@ -198,6 +204,30 @@ TestCase {
         verify(added.length > 0);
         compare(cellText("addedOn_0"), added);
         compare(cellText("ratio_0"), App.filtered.data(first, TorrentModel.RatioTextRole));
+        table.visibleColumns = saved;
+    }
+
+    // Diogo's desk: "105.78" ran into the tracks before it. They keep a gap from the number,
+    // and the widest ratio shown ("9998.99"; ∞ above it) fits beside them.
+    function test_the_ratio_keeps_clear_of_its_tracks() {
+        const saved = table.visibleColumns.slice();
+        table.visibleColumns = saved.concat(["ratio"]);
+        let checked = 0;
+        for (let i = 0; i < App.filtered.rowCount(); i++) {
+            const tracks = findChild(table, "ratioTracks_" + i);
+            if (!tracks || !tracks.visible)
+                continue;
+            cellText("ratio_" + i);
+            const cell = testCase.cellProbe;
+            verify(tracks.x + tracks.width + Theme.space(6)
+                   <= cell.width - cell.rightPadding - cell.contentWidth, "row " + i);
+            checked += 1;
+        }
+        verify(checked > 0, "no complete row shows its tracks");
+        widest.font = testCase.cellProbe.font;
+        verify(Theme.space(8) + findChild(table, "ratioTracks_0").implicitWidth + Theme.space(6)
+               + widest.advanceWidth + Theme.space(8) <= testCase.cellProbe.width,
+               "9998.99 is " + widest.advanceWidth + " wide");
         table.visibleColumns = saved;
     }
 
