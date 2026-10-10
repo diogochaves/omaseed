@@ -17,11 +17,14 @@ import Omaseed.Kit
 Item {
     id: root
 
-    property var points: []
+    // Kept as the C++ list it comes in (RatioDots reads it there): a `var` would turn a
+    // library's worth of points into JavaScript objects and back on every change (#50).
+    property alias points: dots.points
     property string paidText: qsTr("paid back")
     property color color: Theme.stateSeeding
 
-    readonly property int hoveredIndex: root._hoverX < 0 ? -1 : root.indexAt(root._hoverX, root._hoverY)
+    // `dots.revision` goes up whenever the dots may have moved under a still pointer.
+    readonly property int hoveredIndex: root._hoverX < 0 || dots.revision < 0 ? -1 : root.indexAt(root._hoverX, root._hoverY)
 
     // Hover position in item coordinates, -1 when the pointer is away. Writable so a test can
     // stand in for the pointer (offscreen delivers no hover).
@@ -38,23 +41,7 @@ Item {
     readonly property real _axisY: Math.max(root._top + 1, root.height - Theme.space(22))
     readonly property real _midY: (root._axisY + root._top) / 2 + Theme.space(4)
 
-    // Every dot in drawing order (largest first): `{ index, x, y, r }`, `index` into `points`.
-    // The heights come from Beeswarm (core::Beeswarm, in C++): in JavaScript, testing each
-    // dot against all the others took seconds on a library of thousands (#45).
-    readonly property var _dots: {
-        const pts = root.points || [];
-        const order = pts.map((p, i) => i).sort((a, b) => pts[b].size - pts[a].size);
-        const xs = order.map(i => root._x(pts[i].ratio));
-        const rs = order.map(i => root._radius(pts[i].size));
-        const ys = Beeswarm.place(xs, rs, root._midY, 4 * root._scale, 40);
-        return order.map((i, k) => ({
-                                        "index": i,
-                                        "x": xs[k],
-                                        "y": ys[k],
-                                        "r": rs[k]
-                                    }));
-    }
-
+    // RatioDots places the dots (core::Beeswarm) with these same `_x` and `_radius`.
     function _x(ratio: real): real {
         const r = Math.min(Math.max(Number.isFinite(ratio) ? ratio : 0.1, 0.1), 30);
         return root._padLeft + (root.width - root._padLeft - root._padRight) * (Math.log10(r) - root._lo)
@@ -68,12 +55,15 @@ Item {
 
     // The topmost dot under a point (the last drawn wins), or -1.
     function indexAt(x: real, y: real): int {
-        for (let k = root._dots.length - 1; k >= 0; k--) {
-            const d = root._dots[k];
-            if (Math.hypot(d.x - x, d.y - y) <= d.r)
-                return d.index;
-        }
-        return -1;
+        return dots.indexAt(x, y);
+    }
+
+    // The `k`th dot in drawing order (largest first), `{ index, x, y, r }`, and how many there
+    // are: for tests.
+    readonly property int _dotCount: dots.count
+
+    function _dot(k: int): var {
+        return dots.dot(k);
     }
 
     implicitHeight: Theme.space(150)
@@ -152,43 +142,28 @@ Item {
         y: root._top + Theme.space(2)
     }
 
-    // The dots go into one texture, drawn again only when a dot changes: a library's thousands
-    // drawn one by one on every frame (the tide's halo pulses all the time) kept the render
-    // thread busy (#45). The texture reaches as far past the ladder as a dot can (the 40th
-    // try, 20 steps up or down, of the biggest dot), so none is cut off at its edges.
-    Item {
-        id: dotLayer
+    // The dots, painted into one texture, again only when one moves or the hovered one
+    // changes: a library's thousands drawn one by one on every frame (the tide's halo pulses
+    // all the time) kept the render thread busy (#45), and made again as Items each time a dot
+    // moved, the main thread (#50). The texture reaches as far past the ladder as a dot can
+    // (the 40th try, 20 steps up or down, of the biggest dot), so none is cut off at its edges.
+    RatioDots {
+        id: dots
 
-        readonly property real reach: Math.ceil(20 * 4 * root._scale + root._radius(Number.MAX_VALUE) + 1)
-
-        height: root.height + 2 * dotLayer.reach
-        layer.enabled: true
-        visible: root._dots.length > 0
-        width: root.width + 2 * dotLayer.reach
-        x: -dotLayer.reach
-        y: -dotLayer.reach
-
-        Repeater {
-            model: root._dots
-
-            delegate: Rectangle {
-                id: dot
-
-                required property var modelData
-
-                readonly property bool paid: root.points[dot.modelData.index].ratio >= 1
-                readonly property bool hot: root.hoveredIndex === dot.modelData.index
-
-                border.color: Theme.brightForeground
-                border.width: dot.hot ? 1 : 0
-                color: dot.paid ? root.color : Theme.foreground
-                height: dot.modelData.r * 2
-                opacity: dot.hot ? 1 : (dot.paid ? 0.75 : 0.35)
-                radius: dot.modelData.r
-                width: dot.modelData.r * 2
-                x: dotLayer.reach + dot.modelData.x - dot.modelData.r
-                y: dotLayer.reach + dot.modelData.y - dot.modelData.r
-            }
-        }
+        dueColor: Theme.foreground
+        height: root.height + 2 * dots.reach
+        hotColor: Theme.brightForeground
+        hoveredIndex: root.hoveredIndex
+        ladderWidth: root.width
+        midY: root._midY
+        padLeft: root._padLeft
+        padRight: root._padRight
+        paidColor: root.color
+        reach: Math.ceil(20 * 4 * root._scale + root._radius(Number.MAX_VALUE) + 1)
+        unit: root._scale
+        visible: dots.count > 0
+        width: root.width + 2 * dots.reach
+        x: -dots.reach
+        y: -dots.reach
     }
 }
