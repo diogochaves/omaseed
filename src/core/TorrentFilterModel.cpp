@@ -223,6 +223,16 @@ QString TorrentFilterModel::sortRoleName() const
     return QString::fromUtf8(sourceModel()->roleNames().value(m_sortRole));
 }
 
+void TorrentFilterModel::selectRows(QItemSelectionModel *selection, int from, int to) const
+{
+    const int count = rowCount();
+    if (selection == nullptr || selection->model() != this || count == 0)
+        return;
+    const int first = std::clamp(std::min(from, to), 0, count - 1);
+    const int last = std::clamp(std::max(from, to), 0, count - 1);
+    selection->select(QItemSelection(index(first, 0), index(last, 0)), QItemSelectionModel::Select);
+}
+
 void TorrentFilterModel::setSortByRoleName(const QString &roleName)
 {
     if (sourceModel() == nullptr)

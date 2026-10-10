@@ -20,6 +20,7 @@
 #include "core/Torrent.hpp"
 
 #include <QCollator>
+#include <QItemSelectionModel>
 #include <QPointer>
 #include <QSet>
 #include <QSortFilterProxyModel>
@@ -102,6 +103,11 @@ public:
     Q_INVOKABLE int rowOfHash(const QString &hash) const;
     /// The hash on proxy row `row`, or an empty string.
     Q_INVOKABLE QString hashAt(int row) const;
+    /// Selects rows `from` to `to` (either order, clamped) in `selection`, a selection model
+    /// over this proxy, as one range: one selectionChanged instead of one per row. The table's
+    /// per-row loop froze the window for seconds on a 3,450-torrent library (ctrl+a), long
+    /// enough for Hyprland's "not responding".
+    Q_INVOKABLE void selectRows(QItemSelectionModel *selection, int from, int to) const;
 
     /// The flag a StatusFilter stands for; StatusGroup::NoGroup for All.
     static StatusGroup groupFor(StatusFilter filter);

@@ -633,9 +633,7 @@ Item {
     }
 
     function selectAll(): void {
-        const count = root.filtered.count;
-        for (let row = 0; row < count; ++row)
-            internal.selectRow(row, ItemSelectionModel.Select);
+        root.filtered.selectRows(root.selection, 0, root.filtered.count - 1);
         internal.refreshSelection();
     }
 
@@ -664,8 +662,7 @@ Item {
         const anchor = internal.anchorIndex < 0 ? root.cursorIndex : internal.anchorIndex;
         const from = Math.min(anchor, root.cursorIndex);
         const to = Math.max(anchor, root.cursorIndex);
-        for (let row = from; row <= to; ++row)
-            internal.selectRow(row, ItemSelectionModel.Select);
+        root.filtered.selectRows(root.selection, from, to);
         internal.refreshSelection();
     }
 

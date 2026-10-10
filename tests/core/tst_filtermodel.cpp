@@ -6,6 +6,7 @@
 #include "core/TorrentModel.hpp"
 #include "core/TrackerModel.hpp"
 
+#include <QItemSelectionModel>
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QSignalSpy>
@@ -137,6 +138,7 @@ private slots:
     void sortByRoleNameAndOrder();
     void sortIsStableAcrossSpeedTicks();
     void tiesReadAToZEitherWay();
+    void selectRowsIsOneRange();
     void countFollowsTheFilter();
 
 private:
@@ -416,6 +418,30 @@ void TestFilterModel::tiesReadAToZEitherWay()
     names = visibleNames(m_proxy);
     QCOMPARE(names.takeLast(), QStringLiteral("archlinux-2026.09.01-x86_64.iso"));
     QCOMPARE(names, idleByName);
+}
+
+void TestFilterModel::selectRowsIsOneRange()
+{
+    QItemSelectionModel selection(&m_proxy);
+    QSignalSpy changed(&selection, &QItemSelectionModel::selectionChanged);
+    m_proxy.selectRows(&selection, 0, m_proxy.rowCount() - 1);
+    QCOMPARE(changed.count(), 1);
+    QCOMPARE(selection.selectedRows().size(), m_proxy.rowCount());
+    QCOMPARE(selection.selection().size(), 1); // one range, not one per row
+
+    // Either order, clamped to the rows there are; added to what is selected.
+    selection.clearSelection();
+    m_proxy.selectRows(&selection, 4, 2);
+    QCOMPARE(selection.selectedRows().size(), 3);
+    m_proxy.selectRows(&selection, -5, 0);
+    QCOMPARE(selection.selectedRows().size(), 4);
+    m_proxy.selectRows(&selection, 5, 99);
+    QCOMPARE(selection.selectedRows().size(), 5);
+
+    // A selection model over another model is left alone.
+    QItemSelectionModel other(&m_source);
+    m_proxy.selectRows(&other, 0, 3);
+    QVERIFY(!other.hasSelection());
 }
 
 void TestFilterModel::countFollowsTheFilter()
