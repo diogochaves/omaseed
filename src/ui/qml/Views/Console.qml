@@ -509,11 +509,11 @@ Flickable {
 
                     anchors.fill: parent
                     paidText: qsTr("paid back")
-                    points: root.seed.ladder.points ?? []
+                    points: root.seed.ladderPoints
                 }
 
                 Rectangle {
-                    readonly property var point: ladder.hoveredIndex >= 0 ? (root.seed.ladder.points[ladder.hoveredIndex] ?? null) : null
+                    readonly property var point: ladder.hoveredIndex >= 0 ? (root.seed.ladderPoints[ladder.hoveredIndex] ?? null) : null
 
                     border.color: Theme.fill(Theme.hairlineAlpha)
                     border.width: 1

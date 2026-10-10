@@ -56,7 +56,13 @@ class SeedConsole : public QObject
     Q_PROPERTY(QVariantMap tide READ tide NOTIFY slowChanged)
     Q_PROPERTY(QVariantMap year READ year NOTIFY slowChanged)
     Q_PROPERTY(QVariantMap alive READ alive NOTIFY changed)
+    /// The ratio ladder's line: `{summary}`.
     Q_PROPERTY(QVariantMap ladder READ ladder NOTIFY changed)
+    /// The ratio ladder's dots, `{ratio, size, name, ratioText, sizeText}` for each complete
+    /// torrent in scope, biggest first. Replaced only when a dot would move or read otherwise
+    /// (a ratio that moved less than 0.1 % and prints the same keeps its dot): the ladder lays
+    /// out every dot again on each change, thousands on a big library (#45).
+    Q_PROPERTY(QVariantList ladderPoints READ ladderPoints NOTIFY ladderPointsChanged)
     Q_PROPERTY(QVariantMap trackers READ trackers NOTIFY changed)
     Q_PROPERTY(QVariantMap earning READ earning NOTIFY slowChanged)
     Q_PROPERTY(QVariantMap holding READ holding NOTIFY changed)
@@ -102,6 +108,7 @@ public:
     QVariantMap year() const { return m_year; }
     QVariantMap alive() const { return m_alive; }
     QVariantMap ladder() const { return m_ladder; }
+    QVariantList ladderPoints() const { return m_ladderPoints; }
     QVariantMap trackers() const { return m_trackers; }
     QVariantMap earning() const { return m_earning; }
     QVariantMap holding() const { return m_holding; }
@@ -138,6 +145,7 @@ Q_SIGNALS:
     void rareSeedsChanged();
     void scopeChanged();
     void changed();
+    void ladderPointsChanged();
     void slowChanged();
     void heroChanged();
 
@@ -148,6 +156,10 @@ private:
     void refreshFast();
     void refreshSlow();
     void refreshHero();
+    /// The scope's signals, coalesced: everything again when its torrents are no longer the
+    /// ones the ledger's blocks were worked out for.
+    void scopeMoved();
+    static quint64 scopeKey(const QList<const Torrent *> &scope);
 
     QPointer<TorrentModel> m_torrents;
     QPointer<TorrentFilterModel> m_scope;
@@ -167,6 +179,15 @@ private:
     QVariantMap m_attention, m_totals, m_tide, m_year, m_alive, m_ladder, m_trackers, m_earning,
         m_holding, m_onAir;
     QVariantList m_lately;
+    /// What m_ladderPoints shows, to tell whether a refresh moved any dot.
+    struct LadderDot
+    {
+        QString hash, name;
+        double ratio = 0;
+        qint64 size = 0;
+    };
+    QList<LadderDot> m_ladderDots;
+    QVariantList m_ladderPoints;
     QVariantList m_heroSpark;
     QVariantList m_heroDownSpark;
     QString m_todayText;
@@ -175,7 +196,8 @@ private:
     QTimer m_refreshTimer; ///< the cheap blocks, while active
     QTimer m_slowTimer;    ///< the ledger's blocks, while active
     QTimer m_heroTimer;    ///< the hero's spark, always (one ledger read a second)
-    QTimer m_coalesce;     ///< a burst of model updates becomes one refresh
+    QTimer m_coalesce;     ///< a burst of the scope's signals becomes one scopeMoved()
+    quint64 m_slowScopeKey = 0; ///< scopeKey() of the scope refreshSlow last worked on
 };
 
 } // namespace omaseed::core

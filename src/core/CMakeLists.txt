@@ -8,6 +8,8 @@ qt_add_library(omaseed-core STATIC
     AutoBackup.hpp
     ApiError.cpp
     ApiError.hpp
+    Beeswarm.cpp
+    Beeswarm.hpp
     Bencode.cpp
     Bencode.hpp
     CategoryModel.cpp

@@ -7,6 +7,7 @@
 
 #include <QJsonArray>
 #include <QJsonObject>
+#include <QSignalSpy>
 #include <QTest>
 
 using namespace omaseed::core;
@@ -148,8 +149,148 @@ private Q_SLOTS:
         const QVariantList air = f.console.onAir().value(QStringLiteral("rows")).toList();
         QCOMPARE(air.size(), 1);
         QCOMPARE(air.first().toMap().value(QStringLiteral("peersText")).toString(), QStringLiteral("2 peers"));
-        QCOMPARE(f.console.ladder().value(QStringLiteral("points")).toList().size(), 5);
+        QCOMPARE(f.console.ladderPoints().size(), 5);
         QVERIFY(f.console.ladder().value(QStringLiteral("summary")).toString().startsWith(QStringLiteral("1 below 1.0")));
+        // Biggest first, as the ladder draws them.
+        QCOMPARE(f.console.ladderPoints().first().toMap().value(QStringLiteral("name")).toString(),
+                 QStringLiteral("dataset"));
+        QCOMPARE(f.console.ladderPoints().last().toMap().value(QStringLiteral("name")).toString(),
+                 QStringLiteral("krita"));
+    }
+
+    // #45, #46: the scope's proxy signals once per run of rows; a poll that removes scattered
+    // torrents is hundreds of runs, and each used to refresh the whole console (ledger reads
+    // included) on the spot. Now it is one refresh, after the poll, and none for a re-sort.
+    void onePollIsOneRefresh()
+    {
+        TorrentModel model;
+        TorrentFilterModel filter;
+        GlobalState state;
+        SeedLedger ledger;
+        SeedConsole console;
+        QJsonObject rows;
+        const auto hashOf = [](int i) {
+            return QStringLiteral("h%1").arg(i, 4, 10, QLatin1Char('0'));
+        };
+        for (int i = 0; i < 400; ++i)
+            rows.insert(hashOf(i),
+                        row(QStringLiteral("t%1").arg(i, 4, 10, QLatin1Char('0')),
+                            1000 + i,
+                            0.5 + i % 7,
+                            3,
+                            0,
+                            QStringLiteral("c%1").arg(i % 3)));
+        model.applyFullUpdate(rows);
+        filter.setSourceModel(&model);
+        console.setClock([] { return kNow; });
+        console.setIntervals(3600000, 3600000); // no ticks: only the scope's signals refresh
+        console.setSources(&model, &filter, nullptr, &state, &ledger);
+        console.setActive(true);
+        QCOMPARE(console.scopeCount(), 400);
+
+        QSignalSpy fast(&console, &SeedConsole::changed);
+        QSignalSpy slow(&console, &SeedConsole::slowChanged);
+        QSignalSpy count(&filter, &TorrentFilterModel::countChanged);
+        // One poll takes every third torrent away: in the name order, a run of its own each.
+        QJsonArray gone;
+        int left = 0, leftInC1 = 0;
+        for (int i = 0; i < 400; ++i) {
+            if (i % 3 == 0) {
+                gone.append(hashOf(i));
+            } else {
+                ++left;
+                leftInC1 += i % 3 == 1 ? 1 : 0;
+            }
+        }
+        model.applyPartial(QJsonObject(), gone);
+        QVERIFY2(count.size() > 1, qPrintable(QString::number(count.size())));
+        QCOMPARE(fast.size(), 0); // not on the spot
+        QTRY_COMPARE(fast.size(), 1);
+        QCOMPARE(slow.size(), 1);
+        QCOMPARE(console.scopeCount(), left);
+
+        // A re-sort keeps the same torrents: nothing until the next tick.
+        filter.setSortByRoleName(QStringLiteral("size"));
+        filter.setSortOrder(Qt::DescendingOrder);
+        QTest::qWait(50);
+        QCOMPARE(fast.size(), 1);
+        QCOMPARE(slow.size(), 1);
+
+        // The rail moves: once, with the new scope.
+        filter.setCategory(QStringLiteral("c1"));
+        QTRY_COMPARE(fast.size(), 2);
+        QCOMPARE(slow.size(), 2);
+        QCOMPARE(console.scopeCount(), leftInC1);
+        QVERIFY(console.scoped());
+        QTest::qWait(50);
+        QCOMPARE(fast.size(), 2);
+    }
+
+    // #45: the ladder lays out every dot again whenever its points change, thousands of them on
+    // a big library, so a refresh that moves no dot must leave them (and the signal) alone.
+    void theLadderChangesOnlyWhenADotMoves()
+    {
+        Fixture f;
+        QSignalSpy points(&f.console, &SeedConsole::ladderPointsChanged);
+        QSignalSpy changed(&f.console, &SeedConsole::changed);
+        f.console.refresh();
+        QCOMPARE(points.size(), 1);
+        const QVariantList first = f.console.ladderPoints();
+
+        // Nothing changed: the other blocks refresh, the dots stay.
+        f.console.refresh();
+        QCOMPARE(changed.size(), 2);
+        QCOMPARE(points.size(), 1);
+
+        // The table re-sorting (its rows move as speeds change) does not reorder the dots.
+        f.filter.setSortByRoleName(QStringLiteral("name"));
+        f.filter.setSortOrder(Qt::DescendingOrder);
+        f.console.refresh();
+        QCOMPARE(points.size(), 1);
+
+        // A ratio that moves less than 0.1 % and prints the same keeps its dot.
+        f.model.applyPartial(
+            QJsonObject{{QStringLiteral("bbb"), QJsonObject{{QStringLiteral("ratio"), 6.8004}}}},
+            QJsonArray());
+        f.console.refresh();
+        QCOMPARE(points.size(), 1);
+        QCOMPARE(f.console.ladderPoints(), first);
+
+        // Further, it moves: the dot is drawn at its new place.
+        f.model.applyPartial(
+            QJsonObject{{QStringLiteral("bbb"), QJsonObject{{QStringLiteral("ratio"), 6.9}}}},
+            QJsonArray());
+        f.console.refresh();
+        QCOMPARE(points.size(), 2);
+        bool found = false;
+        for (const QVariant &v : f.console.ladderPoints()) {
+            const QVariantMap p = v.toMap();
+            if (p.value(QStringLiteral("name")).toString() == QLatin1String("Chopin")) {
+                QCOMPARE(p.value(QStringLiteral("ratio")).toDouble(), 6.9);
+                QCOMPARE(p.value(QStringLiteral("ratioText")).toString(), Format::ratio(6.9));
+                found = true;
+            }
+        }
+        QVERIFY(found);
+
+        // A move within 0.1 % that prints differently counts too: the readout must not lag.
+        f.model.applyPartial(
+            QJsonObject{{QStringLiteral("aaa"), QJsonObject{{QStringLiteral("ratio"), 0.4049}}}},
+            QJsonArray());
+        f.console.refresh();
+        QCOMPARE(points.size(), 3);
+        QVERIFY(Format::ratio(0.4049) != Format::ratio(0.4051));
+        f.model.applyPartial(
+            QJsonObject{{QStringLiteral("aaa"), QJsonObject{{QStringLiteral("ratio"), 0.4051}}}},
+            QJsonArray());
+        f.console.refresh();
+        QCOMPARE(points.size(), 4);
+
+        // A torrent leaving takes its dot.
+        f.model.applyPartial(QJsonObject(), QJsonArray{QStringLiteral("eee")});
+        f.console.refresh();
+        QCOMPARE(points.size(), 5);
+        QCOMPARE(f.console.ladderPoints().size(), 4);
     }
 
     void theTideReadsTheLedger()
