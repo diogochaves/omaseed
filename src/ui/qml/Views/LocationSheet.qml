@@ -5,8 +5,13 @@ import Omaseed
 import Omaseed.Kit
 
 // "Set location" (spec v2 §3 Fig. 7, `.sheet`): one path field, prefilled with the cursor
-// torrent's save path, `ctrl+o` in the field opens a native directory picker
-// (`App.pickDirectory`) when a portal answers and just leaves the typed text otherwise.
+// torrent's save path. Its `browse` button, or `ctrl+o` in the field, opens a native directory
+// picker (`App.pickDirectory`) when a portal answers and just leaves the typed text otherwise.
+//
+// #41 (docs/27 L1-L3, D11 a, D12 a): browse goes through the server's path map. The picker
+// opens at the local side of the path in the field, the pick goes back as the server's path,
+// and a line under the field says what it became, in yellow when it lies outside every
+// mapping (the field keeps it: you may know better).
 //
 // #28 (docs/26 L1, D4 a): when torrents outside the selection use the same data, moving only
 // the selection would leave them without their files. The sheet names them and asks; "move
@@ -18,11 +23,18 @@ Sheet {
     property var _totalSize: 0
     /// #28: `App.sharedData(hashes)` at `openFor()`.
     property var _shared: ({})
+    /// The folder picker: `App.pickDirectory`, which a test replaces (a portal can't be
+    /// answered from one). Takes the folder to start in, returns the pick or "".
+    property var pickDirectory: start => App.pickDirectory(start)
+    /// #41: `App.serverPathForPick()` for the last pick, `{}` once the field is typed over.
+    property var _pick: ({})
 
     /// Torrents outside the selection share the data: the sheet asks.
     readonly property bool asking: (root._shared.outside ?? []).length > 0
     /// The pick: 0 moves the sharers too, 1 only the selection.
     readonly property alias choice: sharedChoice.choice
+    readonly property alias pathField: pathField
+    readonly property alias browsedLine: browsedLine
 
     /// What `move` sends to the new folder.
     function moveHashes(): var {
@@ -47,6 +59,17 @@ Sheet {
                  App.sizeText(root._totalSize))
     title: qsTr("Set location")
 
+    /// `browse` and `ctrl+o`: the picker at the local side of the field's path; the pick goes
+    /// into the field as the server sees it.
+    function browse(): void {
+        const picked = root.pickDirectory(App.browseStartFor(pathField.text.trim()));
+        if (!picked || picked.length === 0)
+            return;
+        const answer = App.serverPathForPick(picked);
+        pathField.text = answer.path;
+        root._pick = answer;
+    }
+
     /// Opens on `hashes`, prefilling the field with the cursor torrent's (the first hash's)
     /// save path.
     function openFor(hashes: var): void {
@@ -62,6 +85,7 @@ Sheet {
                 prefill = row.savePath;
         }
         pathField.text = prefill;
+        root._pick = ({});
         root._shared = App.sharedData(hashes, true);
         // "Move both" is picked every time.
         sharedChoice.choice = 0;
@@ -87,21 +111,37 @@ Sheet {
 
             Layout.fillWidth: true
             escClears: false
-            trailing: qsTr("ctrl+o browse")
+            objectName: "locationPathField"
+            // #41: a button to click, like the add sheet's, not only a key to know.
+            trailing: qsTr("browse")
+            trailingClickable: true
+            trailingKey: "ctrl+o"
 
             // Field's own `Keys.onReturnPressed` already marks the key accepted (it emits
             // `accepted()` either way), so `enter` never reaches the Sheet's own handling
             // unless the field's `accepted` signal is wired to trigger it here.
             onAccepted: root.triggerPrimary()
+            // Typing over a pick makes the line under the field stale.
+            onTextChanged: {
+                if (root._pick.path !== undefined && root._pick.path !== pathField.text)
+                    root._pick = ({});
+            }
+            onTrailingClicked: root.browse()
 
             Keys.onPressed: event => {
                 if ((event.modifiers & Qt.ControlModifier) !== 0 && event.key === Qt.Key_O) {
-                    const picked = App.pickDirectory(pathField.text);
-                    if (picked.length > 0)
-                        pathField.text = picked;
+                    root.browse();
                     event.accepted = true;
                 }
             }
+        }
+
+        BrowsedPathLine {
+            id: browsedLine
+
+            objectName: "locationBrowsedLine"
+            pick: root._pick
+            serverName: App.serverName
         }
     }
 

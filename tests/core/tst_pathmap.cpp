@@ -19,6 +19,7 @@ private slots:
     void jsonRoundTrips();
     void rootPrefixKeepsTheSeparator();
     void coversOnlyMappedPaths();
+    void coversLocalOnlyMappedLocalPaths();
 };
 
 void TestPathMap::unmappedPathIsUnchanged()
@@ -115,6 +116,18 @@ void TestPathMap::coversOnlyMappedPaths()
     QVERIFY(map.covers(QStringLiteral("/data/films/")));
     QVERIFY(!map.covers(QStringLiteral("/database")));
     QVERIFY(!map.covers(QStringLiteral("/other")));
+}
+
+void TestPathMap::coversLocalOnlyMappedLocalPaths()
+{
+    PathMap map;
+    QVERIFY(!map.coversLocal(QStringLiteral("/mnt/data/films")));
+    map.addMapping(QStringLiteral("/data"), QStringLiteral("/mnt/data"));
+    QVERIFY(map.coversLocal(QStringLiteral("/mnt/data")));
+    QVERIFY(map.coversLocal(QStringLiteral("/mnt/data/films/")));
+    QVERIFY(!map.coversLocal(QStringLiteral("/mnt/database")));
+    // The remote side is not the local one.
+    QVERIFY(!map.coversLocal(QStringLiteral("/data/films")));
 }
 
 QTEST_APPLESS_MAIN(TestPathMap)

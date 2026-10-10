@@ -2886,6 +2886,37 @@ QString App::pickDirectory(const QString &startDir) const
         nullptr, tr("Choose a location"), startDir, QFileDialog::ShowDirsOnly);
 }
 
+QString App::browseStartFor(const QString &serverPath) const
+{
+    if (!pathMapEnabled())
+        return serverPath;
+    const PathMap map = serverPathMap();
+    return map.covers(serverPath) ? map.toLocal(serverPath) : serverPath;
+}
+
+QVariantMap App::serverPathForPick(const QString &localPath) const
+{
+    QVariantMap answer{{QStringLiteral("path"), localPath},
+                       {QStringLiteral("local"), localPath},
+                       {QStringLiteral("mapped"), false},
+                       {QStringLiteral("outside"), false},
+                       {QStringLiteral("mappings"), QString()}};
+    const PathMap map = serverPathMap();
+    if (localPath.isEmpty() || !pathMapEnabled() || map.count() == 0)
+        return answer;
+    QStringList pairs;
+    for (const PathMap::Mapping &mapping : map.mappings())
+        pairs.append(QStringLiteral("%1 → %2").arg(mapping.local, mapping.remote));
+    answer.insert(QStringLiteral("mappings"), pairs.join(QStringLiteral(", ")));
+    if (map.coversLocal(localPath)) {
+        answer.insert(QStringLiteral("path"), map.toRemote(localPath));
+        answer.insert(QStringLiteral("mapped"), true);
+    } else {
+        answer.insert(QStringLiteral("outside"), true);
+    }
+    return answer;
+}
+
 // --- end T4.3 ------------------------------------------------------------------------------
 
 // --- T4.5: settings ------------------------------------------------------------------------

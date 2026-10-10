@@ -36,6 +36,10 @@ public:
     /// Whether some mapping's remote prefix applies to `remotePath` (what toLocal() would
     /// rewrite), so a caller can tell "mapped" from "returned unchanged".
     bool covers(const QString &remotePath) const;
+    /// The same on the other side: whether some mapping's local prefix applies to `localPath`
+    /// (what toRemote() would rewrite). A folder picked on this machine (#41) is only a path
+    /// the server knows when this holds.
+    bool coversLocal(const QString &localPath) const;
 
     QJsonArray toJson() const;
     static PathMap fromJson(const QJsonArray &array);

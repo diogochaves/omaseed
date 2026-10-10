@@ -16,6 +16,7 @@ qt_add_qml_module(omaseed-views
         AddMatchLine.qml
         AddSheet.qml
         BanPeerConfirm.qml
+        BrowsedPathLine.qml
         CategoryPalette.qml
         CertificateTrust.qml
         ChipSelect.qml

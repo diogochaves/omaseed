@@ -450,6 +450,48 @@ TestCase {
         compare(field.text, savePath);
     }
 
+    // #41 (docs/27 L1): browse is a button in the field, like the add sheet's, and it and
+    // ctrl+o open the same picker at the field's path and put the pick in the field.
+    function test_location_sheet_browse_is_a_button_that_fills_the_field() {
+        keyClick("m");
+        const sheet = view.locationSheetPanel;
+        compare(sheet.opened, true);
+        const field = sheet.pathField;
+        compare(field.trailing, "browse");
+        compare(field.trailingKey, "ctrl+o");
+        compare(field.trailingClickable, true);
+        verify(findChild(field, "fieldTrailingButton").enabled);
+
+        const starts = [];
+        const original = sheet.pickDirectory;
+        sheet.pickDirectory = start => {
+            starts.push(start);
+            return "/data/picked";
+        };
+        const before = field.text;
+        field.trailingClicked();
+        compare(starts, [before], "the picker did not start at the field's path");
+        compare(field.text, "/data/picked");
+        // No path map in the demo: the pick is the path, with nothing under it.
+        compare(sheet.browsedLine.visible, false);
+
+        sheet.pickDirectory = start => {
+            starts.push(start);
+            return "/data/by-key";
+        };
+        tryVerify(() => field.editing, 1000);
+        keyClick(Qt.Key_O, Qt.ControlModifier);
+        compare(starts.length, 2, "ctrl+o did not open the picker");
+        compare(field.text, "/data/by-key");
+
+        // A cancelled pick keeps what is there.
+        sheet.pickDirectory = start => "";
+        field.trailingClicked();
+        compare(field.text, "/data/by-key");
+        sheet.pickDirectory = original;
+        sheet.close();
+    }
+
     // Review VIEW-18: an emptied path is not sent; the sheet waits for one.
     function test_location_sheet_does_not_move_to_an_empty_path() {
         keyClick("m");
