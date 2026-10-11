@@ -1,0 +1,102 @@
+# Install omaseed the way the README says, on a bare Arch container, as a stranger would:
+# clone the public repo, `makepkg -si`, turn on the Omarchy extras, run it. Also plays the
+# README's note on agents: one without a password stops at sudo, and the same agent can still
+# build with plain `makepkg` once the dependencies are there.
+#
+# Runs after each release is published, and by hand (Actions › Install from the README).
+name: Install from the README
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  install:
+    name: Arch · clone, makepkg -si, extras, run
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    timeout-minutes: 45
+    env:
+      QT_QPA_PLATFORM: offscreen
+      REPO_URL: https://github.com/${{ github.repository }}.git
+    steps:
+      # What any Arch or Omarchy machine has before it meets omaseed: base-devel, git, sudo.
+      - name: A bare Arch with base-devel
+        run: pacman -Syu --noconfirm --needed base-devel git sudo
+
+      # person: sudo without a password, as when someone types it.
+      # agent: sudo with a password nobody can type, as an AI agent's shell meets it.
+      - name: Two users, a person and an agent
+        run: |
+          useradd --create-home person
+          useradd --create-home agent
+          echo 'person ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/person
+          echo 'agent ALL=(ALL) ALL' > /etc/sudoers.d/agent
+          echo 'agent:not-typeable' | chpasswd
+
+      - name: The README still says to clone and makepkg -si
+        run: |
+          curl -fsSL "https://raw.githubusercontent.com/${{ github.repository }}/${{ github.event.repository.default_branch }}/README.md" -o /tmp/README.md
+          grep -qF 'git clone https://github.com/diogochaves/omaseed.git' /tmp/README.md
+          grep -qF 'cd omaseed/packaging/arch' /tmp/README.md
+          grep -qxF 'makepkg -si' /tmp/README.md
+
+      - name: An agent without a password stops at sudo
+        run: |
+          set +e
+          runuser -u agent -- bash -c 'cd ~ && git clone -q "$REPO_URL" && cd omaseed/packaging/arch && makepkg -si --noconfirm < /dev/null' 2>&1 | tail -5
+          status=${PIPESTATUS[0]}
+          set -e
+          pacman -Q omaseed 2>/dev/null && { echo "installed without a password"; exit 1; }
+          [ "$status" -ne 0 ] || { echo "makepkg -si did not stop"; exit 1; }
+          echo "stopped at sudo, as the README says"
+
+      - name: The person runs makepkg -si
+        run: runuser -u person -- bash -c 'cd ~ && git clone -q "$REPO_URL" && cd omaseed/packaging/arch && makepkg -si --noconfirm'
+
+      - name: The package is what the README says it installs
+        run: |
+          pacman -Qi omaseed | grep -E '^(Name|Version)'
+          for f in /usr/bin/omaseed \
+                   /usr/share/applications/io.github.diogochaves.omaseed.desktop \
+                   /usr/share/dbus-1/services/io.github.diogochaves.omaseed.service \
+                   /usr/share/icons/hicolor/scalable/apps/io.github.diogochaves.omaseed.svg \
+                   /usr/share/licenses/omaseed/LICENSE \
+                   /usr/share/omaseed/plugin/manifest.json \
+                   /usr/share/omaseed/hyprland/omaseed.lua \
+                   /usr/share/omaseed/hooks/theme-set.d/omaseed \
+                   /usr/share/omaseed/omarchy-menu.jsonc; do
+            test -e "$f" || { echo "missing: $f"; exit 1; }
+          done
+          app=$(omaseed --version | awk '{print $2}')
+          widget=$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' /usr/share/omaseed/plugin/manifest.json)
+          echo "omaseed $app, bar widget $widget"
+          [ "$app" = "$widget" ]
+          pacman -Qi omaseed | grep -q "^Version *: $app-"
+
+      # Omarchy ships ~/.config/hypr and ~/.config/omarchy/hooks/theme-set.d; a bare container
+      # does not. The ln lines are taken from the README itself.
+      - name: The README's Omarchy extras link to real files
+        run: |
+          runuser -u person -- mkdir -p /home/person/.config/hypr /home/person/.config/omarchy/hooks/theme-set.d
+          grep -E '^ *ln -sf /usr/share/omaseed/' /tmp/README.md | sed 's/^ *//' > /tmp/extras.sh
+          test "$(wc -l < /tmp/extras.sh)" -ge 2
+          cat /tmp/extras.sh
+          runuser -u person -- bash -c 'cd ~ && bash -e /tmp/extras.sh'
+          for l in /home/person/.config/hypr/omaseed.lua /home/person/.config/omarchy/hooks/theme-set.d/omaseed; do
+            test -e "$l" || { echo "dangling: $l"; exit 1; }
+          done
+
+      - name: omaseed starts
+        run: |
+          runuser -u person -- omaseed --help | head -3
+          runuser -u person -- omaseed --demo table --headless
+
+      - name: The agent can build without a password once the dependencies are there
+        run: |
+          runuser -u agent -- bash -c 'cd ~/omaseed/packaging/arch && makepkg -f --noconfirm < /dev/null'
+          ls /home/agent/omaseed/packaging/arch/omaseed-[0-9]*.pkg.tar.zst

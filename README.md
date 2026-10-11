@@ -36,6 +36,11 @@ cd omaseed/packaging/arch
 makepkg -si
 ```
 
+`makepkg -si` asks for your password: pacman installs the build dependencies, then omaseed.
+An AI agent installing omaseed for you cannot type it, so it should clone the repo and hand
+you that command. With the dependencies already installed, it can build with plain
+`makepkg` and hand you `sudo pacman -U omaseed-[0-9]*.pkg.tar.zst` instead.
+
 **You need** qBittorrent 5.2 or newer with its Web UI turned on (`Tools → Options → Web UI`
 in the desktop app, or `qbittorrent-nox`), on this machine or another. omaseed signs in with
 an API key, a username and password, or nothing for a server that lets localhost in. It
