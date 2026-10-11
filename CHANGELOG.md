@@ -9,36 +9,68 @@ before it will tag a release.
 
 Nothing yet.
 
-## v0.1.0 — 2026-09-19
+## v0.1.0 — 2026-10-10
 
-First release. A native Qt 6 Quick desktop client for one or many qBittorrent servers,
-built for Omarchy.
+First release. A native desktop client for one or many qBittorrent servers (5.2 or newer,
+with the Web UI on), built for Omarchy and usable on any Linux. omaseed has no torrent
+engine of its own: qBittorrent, local or remote, does the transferring.
 
-### Added
+### The library
 
-- Live Omarchy theme following across all bundled themes and base sizes, with a D-Bus
-  `Reload` call fired by the `theme-set` hook for instant repaint on `omarchy-theme-set`.
-- System tray presence, single-instance activation, and `magnet:` / `.torrent` file
-  hand-off to an already-running instance.
-- Desktop notifications for completed downloads, lost/restored server connections, and
-  low disk space, each individually toggleable; the low-disk line is a setting (default
-  2 GiB) that watches the server's free space for its default save path.
-- A virtualised torrent table, a rail of status/category/tag/server filters, search, and
-  a details pane (overview, files, trackers, peers).
-- Command palettes: jump-to-torrent, category, tags, sort, and column visibility, plus a
-  keyboard help sheet covering every shortcut.
-- Adding torrents from a magnet link, a `.torrent` file, the clipboard, drag-and-drop, or
-  the portal file picker, with duplicate detection before the add lands.
-- Per-torrent actions: start/stop, force start, recheck, reannounce, category, tags,
-  location, share limits, rename, queue position, delete (with or without files), and
-  copy-to-clipboard.
-- Multi-server support: a settings modal and server sheet, credentials in `libsecret`
-  (0600 file fallback), default-server selection, and live connection testing.
-- Empty, filtered-empty, disconnected, and loading states, and a footer of live facts.
+- A dense, keyboard-first torrent table: 29 columns to show, hide, reorder and drag, sorting
+  that follows live values, inline rename, multi-select with a selection bar, and `?` for
+  every key.
+- A rail of filters by status, category, tag, tracker and server; a filter field with
+  wildcards; jump, category, tag, sort and column palettes.
+- A details pane docked right or below, or folded to a one-line strip: General (with a
+  pieces bar), Files, Trackers, Peers and HTTP sources.
+- Files: pick and skip files by ticking them, set priorities, hide skipped files, rename one
+  file or many at once with find and replace, open or reveal them.
+- Every torrent action qBittorrent offers: start, stop, force start, recheck, reannounce,
+  category, tags, automatic management, set location, share and speed limits, queue order,
+  copy a magnet, hash or name, and delete with or without its files.
+- Deleting or moving data that another torrent also uses asks first and says which ones.
 
-### Known gaps (tracked for the v1 exit in `docs/06-implementation-plan.md`)
+### Adding torrents
 
-- The first-run detection/setup wizard and the Phase 4 integration pass were still in
-  progress when this entry was written; see `docs/PROGRESS.md`.
-- Packaging (`packaging/arch/PKGBUILD`, `packaging/omarchy/package.json`) and the
-  user-facing README are being built alongside this release script (Phase 5).
+- omaseed opens `magnet:` links and `.torrent` files when you let it, takes them from the
+  clipboard, drag and drop, the file picker or the newest `.torrent` files in Downloads,
+  and can add several at once with one set of options.
+- The add sheet shows the file tree to tick, rename and prioritise, the free space where it
+  will save, and files already on disk that it can seed from (cross-seeding).
+- A torrent already in the library is spotted before it is added; its new trackers can be
+  merged into the one you have (public torrents only).
+
+### The seed console
+
+- A second face of the main window for what you give back: upload today and over time,
+  ratios on a ladder, a year of seeding days, the torrents you keep alive and the trackers
+  you seed to. omaseed keeps that history itself, since qBittorrent does not.
+
+### Omarchy
+
+- Follows the Omarchy theme live, every bundled theme and the light ones, with its fonts,
+  base size, transparency and Hyprland's window rounding.
+- A bar widget, `Omaseed`, ships with the app: speeds and activity in the bar, and a popup
+  to add torrents, switch alternative speeds and see your share and what finished. First run
+  offers it; Settings › Appearance turns it on and off; `omaseed --install-bar-widget` adds
+  it from a terminal.
+- Lives in the tray (hidden while the bar widget runs), starts at login if you ask, and
+  sends notifications with actions for finished downloads, a lost or restored server and a
+  disk running low.
+
+### Servers and settings
+
+- First run finds a local qBittorrent (or offers to install one) and signs in with a cookie
+  login, an API key or none.
+- Several servers, switched from the rail, the hero or the tray; passwords and keys go to
+  the system keyring.
+- HTTPS with a self-signed certificate: omaseed shows its fingerprint and trusts it once
+  you say so.
+- qBittorrent's own settings, edited inside omaseed's settings.
+- omaseed backs itself up (servers, settings, its seed history), restores from a backup,
+  and keeps weekly copies on its own.
+
+### Known limits
+
+- Keys cannot be rebound yet.
