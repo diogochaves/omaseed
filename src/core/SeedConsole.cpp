@@ -33,16 +33,17 @@ QString ratioText(double given, double taken)
     if (taken <= 0)
         return given > 0 ? QStringLiteral("∞") : QStringLiteral("—");
     const double r = given / taken;
-    return r >= 100 ? QString::number(r, 'f', 0) : r >= 10 ? QString::number(r, 'f', 1)
-                                                            : QString::number(r, 'f', 2);
+    return r >= 100  ? QString::number(r, 'f', 0)
+           : r >= 10 ? QString::number(r, 'f', 1)
+                     : QString::number(r, 'f', 2);
 }
 
 QString timesText(double x)
 {
-    return (x >= 100 ? QString::number(x, 'f', 0)
+    return (x >= 100  ? QString::number(x, 'f', 0)
             : x >= 10 ? QString::number(x, 'f', 1)
-                      : QString::number(x, 'f', 2))
-           + QStringLiteral("×");
+                      : QString::number(x, 'f', 2)) +
+           QStringLiteral("×");
 }
 
 QString signedSize(qint64 bytes)
@@ -181,8 +182,11 @@ void SeedConsole::setActive(bool active)
 
 QStringList SeedConsole::ranges()
 {
-    return {QStringLiteral("1h"), QStringLiteral("24h"), QStringLiteral("7d"),
-            QStringLiteral("30d"), QStringLiteral("1y")};
+    return {QStringLiteral("1h"),
+            QStringLiteral("24h"),
+            QStringLiteral("7d"),
+            QStringLiteral("30d"),
+            QStringLiteral("1y")};
 }
 
 void SeedConsole::setRange(const QString &range)
@@ -288,12 +292,14 @@ QString SeedConsole::ledgerSince() const
     const QDateTime start = QDateTime::fromSecsSinceEpoch(m_ledger->start());
     if (start.secsTo(now()) < kDay)
         return QStringLiteral("ledger began %1").arg(Format::relativeTime(start));
-    return QStringLiteral("ledger since %1").arg(english().toString(start.date(), QStringLiteral("d MMM yyyy")));
+    return QStringLiteral("ledger since %1")
+        .arg(english().toString(start.date(), QStringLiteral("d MMM yyyy")));
 }
 
 bool SeedConsole::ledgerNew() const
 {
-    return !m_ledger || m_ledger->start() <= 0 || m_ledger->start() > now().addDays(-1).toSecsSinceEpoch();
+    return !m_ledger || m_ledger->start() <= 0 ||
+           m_ledger->start() > now().addDays(-1).toSecsSinceEpoch();
 }
 
 QList<const Torrent *> SeedConsole::scopeTorrents() const
@@ -351,21 +357,25 @@ void SeedConsole::refreshFast()
                 host = it.key();
             }
         }
-        const bool firewalled = m_state && m_state->connectionStatus() == QLatin1String("firewalled");
+        const bool firewalled =
+            m_state && m_state->connectionStatus() == QLatin1String("firewalled");
         QVariantMap a;
         a[QStringLiteral("errors")] = errors;
         a[QStringLiteral("host")] = host;
         a[QStringLiteral("firewalled")] = firewalled;
         if (errors > 0) {
             a[QStringLiteral("title")] = QStringLiteral("%1 earn nothing")
-                                             .arg(countText(errors, QStringLiteral("seeding torrent"),
+                                             .arg(countText(errors,
+                                                            QStringLiteral("seeding torrent"),
                                                             QStringLiteral("seeding torrents")));
-            a[QStringLiteral("detail")] = byHost.size() == 1
-                                              ? QStringLiteral("%1 reports an error").arg(host)
-                                              : QStringLiteral("trackers report errors, %1 the most").arg(host);
+            a[QStringLiteral("detail")] =
+                byHost.size() == 1
+                    ? QStringLiteral("%1 reports an error").arg(host)
+                    : QStringLiteral("trackers report errors, %1 the most").arg(host);
         } else if (firewalled) {
             a[QStringLiteral("title")] = QStringLiteral("Peers cannot reach you");
-            a[QStringLiteral("detail")] = QStringLiteral("the port is closed: forward it or turn on UPnP");
+            a[QStringLiteral("detail")] =
+                QStringLiteral("the port is closed: forward it or turn on UPnP");
         }
         a[QStringLiteral("visible")] = errors > 0 || firewalled;
         attentionMoved = assign(m_attention, a);
@@ -398,13 +408,16 @@ void SeedConsole::refreshFast()
         m[QStringLiteral("given")] = given;
         m[QStringLiteral("givenText")] = Format::size(given);
         m[QStringLiteral("takenText")] = Format::size(taken);
-        m[QStringLiteral("takenNote")] = server ? QStringLiteral("all time") : QStringLiteral("by these torrents");
+        m[QStringLiteral("takenNote")] =
+            server ? QStringLiteral("all time") : QStringLiteral("by these torrents");
         m[QStringLiteral("ratioText")] = ratioText(double(given), double(taken));
-        m[QStringLiteral("ratioNote")] = server ? QStringLiteral("all time") : QStringLiteral("given ÷ taken");
+        m[QStringLiteral("ratioNote")] =
+            server ? QStringLiteral("all time") : QStringLiteral("given ÷ taken");
         m[QStringLiteral("bufferText")] = signedSize(given - taken);
         m[QStringLiteral("bufferNegative")] = given < taken;
         m[QStringLiteral("offerText")] = Format::size(offer);
-        m[QStringLiteral("offerNote")] = QStringLiteral("in %1 seeding").arg(Format::count(seeding));
+        m[QStringLiteral("offerNote")] =
+            QStringLiteral("in %1 seeding").arg(Format::count(seeding));
         totalsMoved = assign(m_totals, m);
     }
 
@@ -458,12 +471,14 @@ void SeedConsole::refreshFast()
             rows.append(QVariantMap{
                 {QStringLiteral("hash"), x->hash},
                 {QStringLiteral("name"), x->name},
-                {QStringLiteral("seedsText"), x->numComplete == 1 ? QStringLiteral("only you")
-                                                                  : QStringLiteral("%1 seeds").arg(x->numComplete)},
+                {QStringLiteral("seedsText"),
+                 x->numComplete == 1 ? QStringLiteral("only you")
+                                     : QStringLiteral("%1 seeds").arg(x->numComplete)},
                 {QStringLiteral("rare"), x->numComplete <= m_rareSeeds},
-                {QStringLiteral("waitingText"), waiting > 0 ? QStringLiteral("%1 waiting").arg(waiting)
-                                                 : quiet >= kQuietDays ? QStringLiteral("quiet %1 d").arg(quiet)
-                                                                       : QStringLiteral("0 waiting")},
+                {QStringLiteral("waitingText"),
+                 waiting > 0           ? QStringLiteral("%1 waiting").arg(waiting)
+                 : quiet >= kQuietDays ? QStringLiteral("quiet %1 d").arg(quiet)
+                                       : QStringLiteral("0 waiting")},
             });
         }
         QString summary;
@@ -522,7 +537,8 @@ void SeedConsole::refreshFast()
         QString summary;
         if (!ratios.isEmpty())
             summary = QStringLiteral("%1 below 1.0 · %2 still to give back · median ratio %3")
-                          .arg(Format::count(below), Format::size(owed),
+                          .arg(Format::count(below),
+                               Format::size(owed),
                                Format::ratio(ratios.at(ratios.size() / 2)));
         ladderLineMoved = assign(
             m_ladder,
@@ -613,29 +629,32 @@ void SeedConsole::refreshFast()
             const double seeded = offer > 0 ? double(given) / double(offer) : 0.0;
             Row r;
             r.given = given;
-            r.map = {{QStringLiteral("host"), it.key()},
-                     {QStringLiteral("torrents"), n},
-                     {QStringLiteral("offerText"), Format::size(offer)},
-                     {QStringLiteral("given"), given},
-                     {QStringLiteral("givenText"), Format::size(given)},
-                     {QStringLiteral("bufferText"), signedSize(given - taken)},
-                     {QStringLiteral("bufferNegative"), given < taken},
-                     {QStringLiteral("seededText"), offer > 0 ? timesText(seeded) : QStringLiteral("—")},
-                     {QStringLiteral("seededGood"), seeded >= 1.0},
-                     {QStringLiteral("rare"), rare},
-                     {QStringLiteral("spark"), sparks.value(it.key())},
-                     {QStringLiteral("status"), status},
-                     {QStringLiteral("statusRole"), role}};
+            r.map = {
+                {QStringLiteral("host"), it.key()},
+                {QStringLiteral("torrents"), n},
+                {QStringLiteral("offerText"), Format::size(offer)},
+                {QStringLiteral("given"), given},
+                {QStringLiteral("givenText"), Format::size(given)},
+                {QStringLiteral("bufferText"), signedSize(given - taken)},
+                {QStringLiteral("bufferNegative"), given < taken},
+                {QStringLiteral("seededText"), offer > 0 ? timesText(seeded) : QStringLiteral("—")},
+                {QStringLiteral("seededGood"), seeded >= 1.0},
+                {QStringLiteral("rare"), rare},
+                {QStringLiteral("spark"), sparks.value(it.key())},
+                {QStringLiteral("status"), status},
+                {QStringLiteral("statusRole"), role}};
             maxGiven = std::max(maxGiven, given);
             rows.append(r);
         }
-        std::sort(rows.begin(), rows.end(), [](const Row &l, const Row &r) { return l.given > r.given; });
+        std::sort(
+            rows.begin(), rows.end(), [](const Row &l, const Row &r) { return l.given > r.given; });
         QVariantList list;
         for (Row &r : rows) {
             r.map[QStringLiteral("fraction")] = double(r.given) / double(maxGiven);
             list.append(r.map);
         }
-        QString summary = countText(int(rows.size()), QStringLiteral("tracker"), QStringLiteral("trackers"));
+        QString summary =
+            countText(int(rows.size()), QStringLiteral("tracker"), QStringLiteral("trackers"));
         if (notWorking > 0)
             summary += QStringLiteral(" · %1 not working").arg(notWorking);
         trackersMoved = assign(m_trackers,
@@ -663,7 +682,9 @@ void SeedConsole::refreshFast()
                 idleSize += x->size; // cross-seeds hold their files once
             }
         }
-        std::sort(idle.begin(), idle.end(), [](const Torrent *l, const Torrent *r) { return l->size > r->size; });
+        std::sort(idle.begin(), idle.end(), [](const Torrent *l, const Torrent *r) {
+            return l->size > r->size;
+        });
         QVariantList rows;
         for (int i = 0; i < std::min<qsizetype>(kRows, idle.size()); ++i)
             rows.append(QVariantMap{{QStringLiteral("hash"), idle.at(i)->hash},
@@ -693,7 +714,9 @@ void SeedConsole::refreshFast()
                 peers += std::max(0, x->numLeechs);
             }
         }
-        std::sort(air.begin(), air.end(), [](const Torrent *l, const Torrent *r) { return l->upspeed > r->upspeed; });
+        std::sort(air.begin(), air.end(), [](const Torrent *l, const Torrent *r) {
+            return l->upspeed > r->upspeed;
+        });
         const qint64 top = air.isEmpty() ? 1 : std::max<qint64>(1, air.first()->upspeed);
         QVariantList rows;
         for (int i = 0; i < std::min<qsizetype>(kAirRows, air.size()); ++i) {
@@ -703,7 +726,9 @@ void SeedConsole::refreshFast()
                                     {QStringLiteral("speedText"), Format::speed(x->upspeed)},
                                     {QStringLiteral("fraction"), double(x->upspeed) / double(top)},
                                     {QStringLiteral("peersText"),
-                                     countText(std::max(0, x->numLeechs), QStringLiteral("peer"), QStringLiteral("peers"))}});
+                                     countText(std::max(0, x->numLeechs),
+                                               QStringLiteral("peer"),
+                                               QStringLiteral("peers"))}});
         }
         onAirMoved =
             assign(m_onAir,
@@ -733,15 +758,18 @@ void SeedConsole::refreshFast()
             if (m_scoped && !inScope.contains(hash))
                 continue;
             const QString kind = e.value(QStringLiteral("kind")).toString();
-            const QDateTime at = QDateTime::fromSecsSinceEpoch(e.value(QStringLiteral("at")).toLongLong());
+            const QDateTime at =
+                QDateTime::fromSecsSinceEpoch(e.value(QStringLiteral("at")).toLongLong());
             QString what, glyph = QStringLiteral("◆"), role = QStringLiteral("seed");
             if (kind == QLatin1String("milestone")) {
                 const int r = e.value(QStringLiteral("ratio")).toInt();
-                what = r == 1 ? QStringLiteral("paid back · ratio 1.00") : QStringLiteral("%1× given").arg(r);
+                what = r == 1 ? QStringLiteral("paid back · ratio 1.00")
+                              : QStringLiteral("%1× given").arg(r);
             } else if (kind == QLatin1String("completed")) {
                 glyph = QStringLiteral("↓");
                 role = QStringLiteral("down");
-                what = QStringLiteral("finished · %1").arg(Format::size(e.value(QStringLiteral("size")).toLongLong()));
+                what = QStringLiteral("finished · %1")
+                           .arg(Format::size(e.value(QStringLiteral("size")).toLongLong()));
                 const QString cat = e.value(QStringLiteral("category")).toString();
                 if (!cat.isEmpty())
                     what += QStringLiteral(" · ") + cat;
@@ -836,13 +864,14 @@ void SeedConsole::refreshSlow()
         const int first = int(dayValues.size()) - 365;
         for (int i = std::max(0, first); i < dayValues.size(); ++i) {
             const qint64 v = dayValues.at(i);
-            days.append(QVariantMap{{QStringLiteral("date"), serverDays.at(i).date.toString(Qt::ISODate)},
-                                    {QStringLiteral("value"), double(v)},
-                                    {QStringLiteral("text"),
-                                     en.toString(serverDays.at(i).date, QStringLiteral("ddd d MMM yyyy"))
-                                         + QStringLiteral(" · ")
-                                         + (v < 0 ? QStringLiteral("before the ledger")
-                                                  : Format::size(v) + QStringLiteral(" given"))}});
+            days.append(
+                QVariantMap{{QStringLiteral("date"), serverDays.at(i).date.toString(Qt::ISODate)},
+                            {QStringLiteral("value"), double(v)},
+                            {QStringLiteral("text"),
+                             en.toString(serverDays.at(i).date, QStringLiteral("ddd d MMM yyyy")) +
+                                 QStringLiteral(" · ") +
+                                 (v < 0 ? QStringLiteral("before the ledger")
+                                        : Format::size(v) + QStringLiteral(" given"))}});
             if (v < 0)
                 continue;
             yearTotal += v;
@@ -868,15 +897,18 @@ void SeedConsole::refreshSlow()
         QVariantList facts;
         if (fresh) {
             if (m_state && m_state->allTimeUpload() > 0)
-                facts.append(QStringLiteral("before the ledger · <b>%1</b> given (qBittorrent's all-time count)")
-                                 .arg(Format::size(m_state->allTimeUpload())));
+                facts.append(
+                    QStringLiteral(
+                        "before the ledger · <b>%1</b> given (qBittorrent's all-time count)")
+                        .arg(Format::size(m_state->allTimeUpload())));
             facts.append(QStringLiteral("today's cell fills in as you seed"));
         } else {
             facts.append(QStringLiteral("this year · <b>%1</b>").arg(Format::size(yearTotal)));
             if (bestIndex >= 0)
-                facts.append(QStringLiteral("best day · <b>%1</b> %2")
-                                 .arg(Format::size(best),
-                                      en.toString(serverDays.at(bestIndex).date, QStringLiteral("d MMM"))));
+                facts.append(
+                    QStringLiteral("best day · <b>%1</b> %2")
+                        .arg(Format::size(best),
+                             en.toString(serverDays.at(bestIndex).date, QStringLiteral("d MMM"))));
             facts.append(QStringLiteral("streak · <b>%1</b> · longest %2")
                              .arg(countText(streak, QStringLiteral("day"), QStringLiteral("days")))
                              .arg(longest));
@@ -884,14 +916,18 @@ void SeedConsole::refreshSlow()
         }
         m_year = {{QStringLiteral("days"), days},
                   {QStringLiteral("facts"), facts},
-                  {QStringLiteral("summary"), fresh ? QStringLiteral("fills in from today")
-                                                    : QStringLiteral("a cell per day, the last 53 weeks")}};
-        const qint64 todayGiven = std::max<qint64>(0, dayValues.isEmpty() ? 0 : dayValues.constLast());
+                  {QStringLiteral("summary"),
+                   fresh ? QStringLiteral("fills in from today")
+                         : QStringLiteral("a cell per day, the last 53 weeks")}};
+        const qint64 todayGiven =
+            std::max<qint64>(0, dayValues.isEmpty() ? 0 : dayValues.constLast());
         m_totals[QStringLiteral("todayText")] = QStringLiteral("+") + Format::size(todayGiven);
         m_totals[QStringLiteral("streak")] = streak;
         m_totals[QStringLiteral("streakText")] = QString::number(streak);
-        m_totals[QStringLiteral("streakUnit")] = streak == 1 ? QStringLiteral("day") : QStringLiteral("days");
-        m_totals[QStringLiteral("streakNote")] = fresh ? QStringLiteral("new ledger") : QStringLiteral("with upload");
+        m_totals[QStringLiteral("streakUnit")] =
+            streak == 1 ? QStringLiteral("day") : QStringLiteral("days");
+        m_totals[QStringLiteral("streakNote")] =
+            fresh ? QStringLiteral("new ledger") : QStringLiteral("with upload");
     }
 
     // --- 30 days: earning and the trackers' sparks ---------------------------------------
@@ -917,7 +953,8 @@ void SeedConsole::refreshSlow()
             if (g > 0 && x->size > 0)
                 earn.append({x, double(g) / double(x->size), g});
         }
-        std::sort(earn.begin(), earn.end(), [](const E &l, const E &r) { return l.yield > r.yield; });
+        std::sort(
+            earn.begin(), earn.end(), [](const E &l, const E &r) { return l.yield > r.yield; });
         const double top = earn.isEmpty() ? 1.0 : std::max(1e-9, earn.first().yield);
         QVariantList rows;
         for (int i = 0; i < std::min<qsizetype>(kRows, earn.size()); ++i)
@@ -925,8 +962,8 @@ void SeedConsole::refreshSlow()
                                     {QStringLiteral("name"), earn.at(i).t->name},
                                     {QStringLiteral("fraction"), earn.at(i).yield / top},
                                     {QStringLiteral("yieldText"),
-                                     timesText(earn.at(i).yield) + QStringLiteral(" · ")
-                                         + Format::size(earn.at(i).given)}});
+                                     timesText(earn.at(i).yield) + QStringLiteral(" · ") +
+                                         Format::size(earn.at(i).given)}});
         m_earning = {{QStringLiteral("rows"), rows},
                      {QStringLiteral("empty"),
                       ledgerNew() ? QStringLiteral("From tomorrow: it needs a day of the ledger.")
@@ -986,10 +1023,14 @@ void SeedConsole::refreshSlow()
         QVariantList list, labels;
         double upSum = 0, downSum = 0, peak = 0;
         int peakIndex = -1;
-        const QString format = step >= kDay ? (m_range == QLatin1String("1y") ? QStringLiteral("MMM") : QStringLiteral("d MMM"))
-                               : step >= 3600 ? (m_range == QLatin1String("7d") ? QStringLiteral("ddd") : QStringLiteral("d MMM"))
-                                              : QStringLiteral("HH:mm");
-        const QString readFormat = step >= kDay ? QStringLiteral("ddd d MMM") : QStringLiteral("ddd HH:mm");
+        const QString format =
+            step >= kDay
+                ? (m_range == QLatin1String("1y") ? QStringLiteral("MMM") : QStringLiteral("d MMM"))
+            : step >= 3600
+                ? (m_range == QLatin1String("7d") ? QStringLiteral("ddd") : QStringLiteral("d MMM"))
+                : QStringLiteral("HH:mm");
+        const QString readFormat =
+            step >= kDay ? QStringLiteral("ddd d MMM") : QStringLiteral("ddd HH:mm");
         for (int i = 0; i < points.size(); ++i) {
             const SeedLedger::Point &p = points.at(i);
             const QDateTime when = QDateTime::fromSecsSinceEpoch(p.start);
@@ -1013,14 +1054,18 @@ void SeedConsole::refreshSlow()
             }
             list.append(m);
         }
-        const int ticks = m_range == QLatin1String("7d") ? 7 : m_range == QLatin1String("1y") ? 12 : 6;
+        const int ticks = m_range == QLatin1String("7d")   ? 7
+                          : m_range == QLatin1String("1y") ? 12
+                                                           : 6;
         for (int k = 0; k < ticks && !points.isEmpty(); ++k) {
             const int idx = int(std::lround(double(k) * double(points.size() - 1) / double(ticks)));
-            labels.append(QVariantMap{{QStringLiteral("index"), idx},
-                                      {QStringLiteral("text"),
-                                       en.toString(QDateTime::fromSecsSinceEpoch(points.at(idx).start), format)}});
+            labels.append(QVariantMap{
+                {QStringLiteral("index"), idx},
+                {QStringLiteral("text"),
+                 en.toString(QDateTime::fromSecsSinceEpoch(points.at(idx).start), format)}});
         }
-        const bool any = std::any_of(points.cbegin(), points.cend(), [](const auto &p) { return p.known; });
+        const bool any =
+            std::any_of(points.cbegin(), points.cend(), [](const auto &p) { return p.known; });
         m_tide = {{QStringLiteral("points"), list},
                   {QStringLiteral("labels"), labels},
                   {QStringLiteral("step"), step},

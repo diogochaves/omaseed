@@ -31,13 +31,11 @@ private Q_SLOTS:
     void entryLivesUnderXdgConfigHome()
     {
         QCOMPARE(Autostart::entryPath(),
-                 m_dir->path() + QStringLiteral("/autostart/io.github.diogochaves.omaseed.desktop"));
+                 m_dir->path() +
+                     QStringLiteral("/autostart/io.github.diogochaves.omaseed.desktop"));
     }
 
-    void offWithoutAnEntry()
-    {
-        QCOMPARE(Autostart::mode(), QStringLiteral("off"));
-    }
+    void offWithoutAnEntry() { QCOMPARE(Autostart::mode(), QStringLiteral("off")); }
 
     void trayWritesHidden()
     {
@@ -73,7 +71,8 @@ private Q_SLOTS:
 
     void installedBinaryRunsByName()
     {
-        QCOMPARE(Autostart::execProgram(QStringLiteral("/usr/bin/omaseed")), QStringLiteral("omaseed"));
+        QCOMPARE(Autostart::execProgram(QStringLiteral("/usr/bin/omaseed")),
+                 QStringLiteral("omaseed"));
     }
 
     void devBuildRunsByPathQuotedWhenNeeded()

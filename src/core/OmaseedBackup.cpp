@@ -184,8 +184,8 @@ QString OmaseedBackup::addressKey(const QUrl &url)
     while (path.endsWith(QLatin1Char('/')))
         path.chop(1);
     const int defaultPort = url.scheme() == QLatin1String("https") ? 443 : 80;
-    return url.scheme().toLower() + QStringLiteral("://") + url.host().toLower() + QLatin1Char(':')
-           + QString::number(url.port(defaultPort)) + path;
+    return url.scheme().toLower() + QStringLiteral("://") + url.host().toLower() +
+           QLatin1Char(':') + QString::number(url.port(defaultPort)) + path;
 }
 
 QByteArray OmaseedBackup::create(const Sources &sources, qint64 now, QString *error)
@@ -224,7 +224,8 @@ QByteArray OmaseedBackup::create(const Sources &sources, qint64 now, QString *er
                     QString why;
                     const QString path = sources.ledgerPath(server.id);
                     if (const std::optional<QByteArray> ledger = snapshotLedger(path, &why)) {
-                        entries.append({kLedgerDir + server.id + QStringLiteral(".sqlite"), *ledger, now});
+                        entries.append(
+                            {kLedgerDir + server.id + QStringLiteral(".sqlite"), *ledger, now});
                         row[QStringLiteral("ledger")] = true;
                         row[QStringLiteral("historyStart")] = historyOf(path).start;
                     } else if (!why.isEmpty()) {
@@ -241,8 +242,8 @@ QByteArray OmaseedBackup::create(const Sources &sources, qint64 now, QString *er
 
     if (sources.extras) {
         for (const TarArchive::Entry &extra : sources.extras()) {
-            if (extra.name == kManifest || extra.name == kState || extra.name == kServers
-                || extra.name.startsWith(kLedgerDir))
+            if (extra.name == kManifest || extra.name == kState || extra.name == kServers ||
+                extra.name.startsWith(kLedgerDir))
                 continue; // the parts above are omaseed's own
             entries.append(extra);
         }
@@ -252,7 +253,9 @@ QByteArray OmaseedBackup::create(const Sources &sources, qint64 now, QString *er
     return TarArchive::write(entries, error);
 }
 
-bool OmaseedBackup::createFile(const Sources &sources, const QString &path, qint64 now,
+bool OmaseedBackup::createFile(const Sources &sources,
+                               const QString &path,
+                               qint64 now,
                                QString *error)
 {
     const QByteArray archive = create(sources, now, error);
@@ -285,11 +288,12 @@ std::optional<OmaseedBackup::Contents> OmaseedBackup::parse(const QByteArray &ar
         return fail(QStringLiteral("This file is not an omaseed backup."));
     const int version = manifest.value(QStringLiteral("version")).toInt();
     if (version < 1 || version > kVersion)
-        return fail(QStringLiteral("This backup was made by a newer omaseed (format %1).").arg(version));
+        return fail(
+            QStringLiteral("This backup was made by a newer omaseed (format %1).").arg(version));
 
     Contents contents;
-    contents.created = QDateTime::fromString(manifest.value(QStringLiteral("created")).toString(),
-                                             Qt::ISODate);
+    contents.created =
+        QDateTime::fromString(manifest.value(QStringLiteral("created")).toString(), Qt::ISODate);
     contents.machine = manifest.value(QStringLiteral("machine")).toString();
     contents.appVersion = manifest.value(QStringLiteral("app")).toString();
 
@@ -325,8 +329,9 @@ std::optional<OmaseedBackup::Contents> OmaseedBackup::parse(const QByteArray &ar
             if (withLedger.contains(part.server.id)) {
                 const QByteArray ledger = byName.value(ledgerName);
                 if (!ledger.startsWith(kSqliteMagic))
-                    return fail(QStringLiteral("The backup is damaged: the history of %1 does not read.")
-                                    .arg(part.server.name));
+                    return fail(
+                        QStringLiteral("The backup is damaged: the history of %1 does not read.")
+                            .arg(part.server.name));
                 contents.ledgers.insert(part.server.id, ledger);
                 part.hasLedger = true;
                 part.history.start = starts.value(part.server.id);
@@ -338,8 +343,8 @@ std::optional<OmaseedBackup::Contents> OmaseedBackup::parse(const QByteArray &ar
     }
 
     for (const TarArchive::Entry &entry : *entries) {
-        if (entry.name == kManifest || entry.name == kState || entry.name == kServers
-            || entry.name.startsWith(kLedgerDir))
+        if (entry.name == kManifest || entry.name == kState || entry.name == kServers ||
+            entry.name.startsWith(kLedgerDir))
             continue;
         contents.extras.append(entry);
     }
@@ -357,9 +362,8 @@ std::optional<OmaseedBackup::Contents> OmaseedBackup::parseFile(const QString &p
     return parse(*bytes, error);
 }
 
-QList<OmaseedBackup::Match> OmaseedBackup::match(const Contents &contents,
-                                                 const QList<Server> &local,
-                                                 const Sources &sources)
+QList<OmaseedBackup::Match>
+OmaseedBackup::match(const Contents &contents, const QList<Server> &local, const Sources &sources)
 {
     QList<Match> out;
     for (const ServerPart &part : contents.servers) {
@@ -374,16 +378,18 @@ QList<OmaseedBackup::Match> OmaseedBackup::match(const Contents &contents,
         }
         if (!m.localId.isEmpty() && sources.ledgerPath)
             m.local = historyOf(sources.ledgerPath(m.localId));
-        m.backupLonger = part.hasLedger && part.history.exists()
-                         && (!m.local.exists() || part.history.start < m.local.start);
+        m.backupLonger = part.hasLedger && part.history.exists() &&
+                         (!m.local.exists() || part.history.start < m.local.start);
         out.append(m);
     }
     return out;
 }
 
 std::optional<OmaseedBackup::Outcome> OmaseedBackup::restore(const Contents &contents,
-                                                             const Plan &plan, ServerStore &store,
-                                                             const Sources &sources, qint64 now,
+                                                             const Plan &plan,
+                                                             ServerStore &store,
+                                                             const Sources &sources,
+                                                             qint64 now,
                                                              QString *error)
 {
     Outcome outcome;
@@ -392,7 +398,8 @@ std::optional<OmaseedBackup::Outcome> OmaseedBackup::restore(const Contents &con
     QString why;
     if (!createFile(sources, outcome.safetyCopy, now, &why)) {
         if (error)
-            *error = QStringLiteral("Nothing was restored: the copy of what is here failed (%1).").arg(why);
+            *error = QStringLiteral("Nothing was restored: the copy of what is here failed (%1).")
+                         .arg(why);
         return std::nullopt;
     }
 

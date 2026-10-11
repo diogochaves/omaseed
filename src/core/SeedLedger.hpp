@@ -104,10 +104,8 @@ public:
 
     /// One poll: the server's all-time totals and every torrent's totals (the whole list:
     /// a torrent missing from it loses its baseline, so a later re-add starts afresh).
-    void observe(qint64 now,
-                 qint64 allTimeUp,
-                 qint64 allTimeDown,
-                 const QList<TorrentTotals> &torrents);
+    void
+    observe(qint64 now, qint64 allTimeUp, qint64 allTimeDown, const QList<TorrentTotals> &torrents);
     /// One poll given as what changed since the last one (#36): `changed` holds every torrent
     /// whose totals may have moved (new ones included), `removed` the ones gone; every other
     /// torrent is still there with the totals it had. Books exactly what observe() would with
@@ -173,7 +171,12 @@ private:
                     qint64 allTimeUp,
                     qint64 allTimeDown,
                     const QHash<QString, qint64> &perTorrent);
-    void book(qint64 from, qint64 to, qint64 up, qint64 down, const QHash<QString, qint64> &perTorrent, qint64 now);
+    void book(qint64 from,
+              qint64 to,
+              qint64 up,
+              qint64 down,
+              const QHash<QString, qint64> &perTorrent,
+              qint64 now);
     void addTo(QMap<qint64, Bucket> &map, qint64 key, qint64 up, qint64 down, bool gap);
     QMap<qint64, Bucket> readBuckets(const QString &table, qint64 from, qint64 to) const;
     QMap<QDate, Bucket> readDays(const QDate &from, const QDate &to) const;

@@ -24,7 +24,8 @@ qint64 noon(int daysAgo = 0)
     return QDate(2026, 10, 3).addDays(-daysAgo).startOfDay().addSecs(12 * 3600).toSecsSinceEpoch();
 }
 
-QList<SeedLedger::TorrentTotals> totals(std::initializer_list<std::tuple<const char *, qint64>> rows)
+QList<SeedLedger::TorrentTotals>
+totals(std::initializer_list<std::tuple<const char *, qint64>> rows)
 {
     QList<SeedLedger::TorrentTotals> out;
     for (const auto &[hash, up] : rows)
@@ -104,10 +105,12 @@ private Q_SLOTS:
         SeedLedger ledger;
         const qint64 t = noon();
         ledger.observe(t, 0, 0, totals({{"a", 900}}));
-        ledger.observe(t + 2, 0, 0, {});                // removed
+        ledger.observe(t + 2, 0, 0, {});                  // removed
         ledger.observe(t + 4, 50, 0, totals({{"a", 0}})); // added again: a baseline only
         ledger.observe(t + 6, 80, 0, totals({{"a", 30}}));
-        QCOMPARE(ledger.torrentTotals(QDate(2026, 10, 3), QDate(2026, 10, 3)).value(QStringLiteral("a")), 30);
+        QCOMPARE(
+            ledger.torrentTotals(QDate(2026, 10, 3), QDate(2026, 10, 3)).value(QStringLiteral("a")),
+            30);
     }
 
     void aGapIsSpreadEvenlyAndMarked()
@@ -220,7 +223,9 @@ private Q_SLOTS:
         QVERIFY(ledger.open(crashed));
         ledger.observe(t + 400, 1500, 0, totals({{"a", 1500}}));
         QCOMPARE(ledger.days(QDate(2026, 10, 3), QDate(2026, 10, 3)).first().up, 1500);
-        QCOMPARE(ledger.torrentTotals(QDate(2026, 10, 3), QDate(2026, 10, 3)).value(QStringLiteral("a")), 1500);
+        QCOMPARE(
+            ledger.torrentTotals(QDate(2026, 10, 3), QDate(2026, 10, 3)).value(QStringLiteral("a")),
+            1500);
         bool gap = false;
         for (const auto &p : ledger.series(t + 400, 60, 8))
             gap = gap || p.gap;
@@ -251,7 +256,9 @@ private Q_SLOTS:
         SeedLedger reopened;
         QVERIFY(reopened.open(path));
         QCOMPARE(reopened.days(QDate(2026, 10, 3), QDate(2026, 10, 3)).first().up, 150);
-        QCOMPARE(reopened.torrentTotals(QDate(2026, 10, 3), QDate(2026, 10, 3)).value(QStringLiteral("a")), 150);
+        QCOMPARE(reopened.torrentTotals(QDate(2026, 10, 3), QDate(2026, 10, 3))
+                     .value(QStringLiteral("a")),
+                 150);
     }
 
     // Something that is not a ledger where the ledger should be: set aside, never lost, and a
@@ -323,7 +330,9 @@ private Q_SLOTS:
         for (int i = 1; i <= 200; ++i)
             ledger.observe(back + 2 * i, 130 + i, 0, totals({{"a", 130 + i}}));
         QCOMPARE(ledger.days(QDate(2026, 10, 3), QDate(2026, 10, 3)).first().up, 330);
-        QCOMPARE(ledger.torrentTotals(QDate(2026, 10, 3), QDate(2026, 10, 3)).value(QStringLiteral("a")), 330);
+        QCOMPARE(
+            ledger.torrentTotals(QDate(2026, 10, 3), QDate(2026, 10, 3)).value(QStringLiteral("a")),
+            330);
 
         // 400 s after the step, a flush has happened: a second reader sees the bytes.
         SeedLedger reader;
@@ -341,14 +350,26 @@ private Q_SLOTS:
         {
             SeedLedger ledger;
             QVERIFY(ledger.open(path));
-            ledger.observe(t, 0, 0, {{QStringLiteral("a"), 1000, 0, t - 86400}, {QStringLiteral("b"), 1000, 0, t - 86400}});
-            ledger.observe(t + 2, 0, 0, {{QStringLiteral("a"), 1000, 0, t - 86400}, {QStringLiteral("b"), 1000, 0, t - 86400}});
+            ledger.observe(t,
+                           0,
+                           0,
+                           {{QStringLiteral("a"), 1000, 0, t - 86400},
+                            {QStringLiteral("b"), 1000, 0, t - 86400}});
+            ledger.observe(t + 2,
+                           0,
+                           0,
+                           {{QStringLiteral("a"), 1000, 0, t - 86400},
+                            {QStringLiteral("b"), 1000, 0, t - 86400}});
             ledger.close();
         }
         SeedLedger ledger;
         QVERIFY(ledger.open(path));
         // Both were added again at t + 600: a has given 300 since, b 1500.
-        ledger.observe(t + 3600, 1800, 0, {{QStringLiteral("a"), 300, 0, t + 600}, {QStringLiteral("b"), 1500, 0, t + 600}});
+        ledger.observe(
+            t + 3600,
+            1800,
+            0,
+            {{QStringLiteral("a"), 300, 0, t + 600}, {QStringLiteral("b"), 1500, 0, t + 600}});
         const auto given = ledger.torrentTotals(QDate(2026, 10, 3), QDate(2026, 10, 3));
         QCOMPARE(given.value(QStringLiteral("a")), 300);
         QCOMPARE(given.value(QStringLiteral("b")), 1500);
@@ -363,7 +384,9 @@ private Q_SLOTS:
         ledger.observe(t, 0, 0, totals({{"a", 0}, {"b", 0}}));
         ledger.observe(t + 2, 0, 0, totals({{"b", 0}}));
         ledger.observe(t + 4, 100, 0, totals({{"a", 100}, {"b", 0}}));
-        QCOMPARE(ledger.torrentTotals(QDate(2026, 10, 3), QDate(2026, 10, 3)).value(QStringLiteral("a")), 100);
+        QCOMPARE(
+            ledger.torrentTotals(QDate(2026, 10, 3), QDate(2026, 10, 3)).value(QStringLiteral("a")),
+            100);
     }
 
     // qBittorrent crashes and comes back with the totals it last saved, below what omaseed
@@ -377,7 +400,9 @@ private Q_SLOTS:
         ledger.observe(t + 30, 1100, 0, totals({{"a", 1100}})); // back from a crash, 100 lost
         ledger.observe(t + 32, 1150, 0, totals({{"a", 1150}})); // 50 more, really given
         QCOMPARE(ledger.days(QDate(2026, 10, 3), QDate(2026, 10, 3)).first().up, 250);
-        QCOMPARE(ledger.torrentTotals(QDate(2026, 10, 3), QDate(2026, 10, 3)).value(QStringLiteral("a")), 250);
+        QCOMPARE(
+            ledger.torrentTotals(QDate(2026, 10, 3), QDate(2026, 10, 3)).value(QStringLiteral("a")),
+            250);
     }
 
     // Each server has its own file: a switch neither mixes them nor counts one's totals as
@@ -399,7 +424,9 @@ private Q_SLOTS:
         QVERIFY(ledger.open(home)); // and back, some time later
         ledger.observe(t + 600, 1300, 0, totals({{"a", 1300}}));
         QCOMPARE(ledger.days(QDate(2026, 10, 3), QDate(2026, 10, 3)).first().up, 300);
-        QCOMPARE(ledger.torrentTotals(QDate(2026, 10, 3), QDate(2026, 10, 3)).value(QStringLiteral("z")), 0);
+        QCOMPARE(
+            ledger.torrentTotals(QDate(2026, 10, 3), QDate(2026, 10, 3)).value(QStringLiteral("z")),
+            0);
     }
 
     // A ledger written before baselines kept added_on opens, gains the column, and counts on.
@@ -409,22 +436,30 @@ private Q_SLOTS:
         const QString path = dir.filePath(QStringLiteral("old.sqlite"));
         const qint64 t = noon();
         {
-            QSqlDatabase db = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), QStringLiteral("old"));
+            QSqlDatabase db =
+                QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), QStringLiteral("old"));
             db.setDatabaseName(path);
             QVERIFY(db.open());
             QSqlQuery q(db);
-            QVERIFY(q.exec(QStringLiteral("CREATE TABLE meta(key TEXT PRIMARY KEY, value INTEGER)")));
-            QVERIFY(q.exec(QStringLiteral("CREATE TABLE baselines(hash TEXT PRIMARY KEY, uploaded INTEGER, downloaded INTEGER)")));
+            QVERIFY(
+                q.exec(QStringLiteral("CREATE TABLE meta(key TEXT PRIMARY KEY, value INTEGER)")));
+            QVERIFY(q.exec(QStringLiteral("CREATE TABLE baselines(hash TEXT PRIMARY KEY, uploaded "
+                                          "INTEGER, downloaded INTEGER)")));
             QVERIFY(q.exec(QStringLiteral("INSERT INTO baselines VALUES('a', 100, 0)")));
-            QVERIFY(q.exec(QStringLiteral("INSERT INTO meta VALUES('start', %1), ('last_t', %1), ('last_up', 100), "
-                                          "('last_down', 0)").arg(t)));
+            QVERIFY(q.exec(
+                QStringLiteral(
+                    "INSERT INTO meta VALUES('start', %1), ('last_t', %1), ('last_up', 100), "
+                    "('last_down', 0)")
+                    .arg(t)));
             db.close();
         }
         QSqlDatabase::removeDatabase(QStringLiteral("old"));
         SeedLedger ledger;
         QVERIFY(ledger.open(path));
         ledger.observe(t + 2, 160, 0, {{QStringLiteral("a"), 160, 0, t - 86400}});
-        QCOMPARE(ledger.torrentTotals(QDate(2026, 10, 3), QDate(2026, 10, 3)).value(QStringLiteral("a")), 60);
+        QCOMPARE(
+            ledger.torrentTotals(QDate(2026, 10, 3), QDate(2026, 10, 3)).value(QStringLiteral("a")),
+            60);
     }
 
     // A night the clocks change (ctest runs this binary in Europe/Lisbon): a gap across it
@@ -445,7 +480,8 @@ private Q_SLOTS:
         ledger.observe(opened, 1000, 0, {});
         const auto days = ledger.days(day.addDays(-1), day);
         QCOMPARE(days[0].up + days[1].up, 1000);
-        QCOMPARE(days[0].up, qRound64(1000.0 * double(midnight - closed) / double(opened - closed)));
+        QCOMPARE(days[0].up,
+                 qRound64(1000.0 * double(midnight - closed) / double(opened - closed)));
     }
 
     // An hour of a big library at the window's poll rate: 1,000 torrents, 50 of them
@@ -458,7 +494,8 @@ private Q_SLOTS:
         QVERIFY(ledger.open(dir.filePath(QStringLiteral("big.sqlite"))));
         QList<SeedLedger::TorrentTotals> library;
         for (int i = 0; i < 1000; ++i)
-            library.append({QStringLiteral("%1").arg(i, 40, 16, QLatin1Char('0')), 1'000'000'000, 0});
+            library.append(
+                {QStringLiteral("%1").arg(i, 40, 16, QLatin1Char('0')), 1'000'000'000, 0});
         const qint64 t = noon();
         qint64 server = 1'000'000'000'000;
         ledger.observe(t, server, 0, library);
@@ -501,7 +538,8 @@ private Q_SLOTS:
         };
         QMap<QString, Row> library;
         for (int i = 0; i < 24; ++i)
-            library.insert(QStringLiteral("t%1").arg(i, 2, 10, QLatin1Char('0')), {i * 1000LL, 1000 + i});
+            library.insert(QStringLiteral("t%1").arg(i, 2, 10, QLatin1Char('0')),
+                           {i * 1000LL, 1000 + i});
         const auto listOf = [](const QMap<QString, Row> &rows) {
             QList<SeedLedger::TorrentTotals> out;
             for (auto it = rows.cbegin(); it != rows.cend(); ++it)
@@ -607,8 +645,11 @@ private Q_SLOTS:
         // The baseline came back too: the next poll counts only what is new.
         ledger.observe(t + 4, 100, 0, totals({{"a", 100}}));
         QCOMPARE(ledger.days(QDate(2026, 10, 3), QDate(2026, 10, 3)).first().up, 100);
-        QCOMPARE(ledger.torrentTotals(QDate(2026, 10, 3), QDate(2026, 10, 3)).value(QStringLiteral("a")), 100);
-        QCOMPARE(QFile::permissions(path) & (QFileDevice::ReadOther | QFileDevice::ReadGroup), QFileDevice::Permissions());
+        QCOMPARE(
+            ledger.torrentTotals(QDate(2026, 10, 3), QDate(2026, 10, 3)).value(QStringLiteral("a")),
+            100);
+        QCOMPARE(QFile::permissions(path) & (QFileDevice::ReadOther | QFileDevice::ReadGroup),
+                 QFileDevice::Permissions());
     }
 
     void speedsFeedTheLastHour()

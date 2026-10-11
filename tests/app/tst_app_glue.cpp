@@ -244,7 +244,8 @@ void TestAppGlue::pathMapFollowsItsSetting()
     QCOMPARE(app.mapContentPathToLocal(remote), QStringLiteral("/mnt/nas/iso/arch.iso"));
 
     // #41: browse opens at the local side and hands back the server's path.
-    QCOMPARE(app.browseStartFor(QStringLiteral("/srv/downloads/iso")), QStringLiteral("/mnt/nas/iso"));
+    QCOMPARE(app.browseStartFor(QStringLiteral("/srv/downloads/iso")),
+             QStringLiteral("/mnt/nas/iso"));
     QCOMPARE(app.browseStartFor(QStringLiteral("/elsewhere")), QStringLiteral("/elsewhere"));
     QVariantMap pick = app.serverPathForPick(QStringLiteral("/mnt/nas/films"));
     QCOMPARE(pick.value(QStringLiteral("path")).toString(), QStringLiteral("/srv/downloads/films"));
@@ -256,7 +257,8 @@ void TestAppGlue::pathMapFollowsItsSetting()
     QCOMPARE(pick.value(QStringLiteral("mappings")).toString(),
              QStringLiteral("/mnt/nas → /srv/downloads"));
     app.setPathMapEnabled(false);
-    QCOMPARE(app.browseStartFor(QStringLiteral("/srv/downloads/iso")), QStringLiteral("/srv/downloads/iso"));
+    QCOMPARE(app.browseStartFor(QStringLiteral("/srv/downloads/iso")),
+             QStringLiteral("/srv/downloads/iso"));
     pick = app.serverPathForPick(QStringLiteral("/home/me/Videos"));
     QVERIFY(!pick.value(QStringLiteral("outside")).toBool());
     QVERIFY(!pick.value(QStringLiteral("mapped")).toBool());

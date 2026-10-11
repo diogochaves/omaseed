@@ -24,14 +24,14 @@
 // App owns no view state (cursor, selection, open sheets): that belongs to the QML side.
 
 #include "core/AddFilesModel.hpp"
+#include "core/AutoBackup.hpp"
 #include "core/CategoryModel.hpp"
 #include "core/FilterCounts.hpp"
 #include "core/FreeSpace.hpp"
 #include "core/GlobalState.hpp"
+#include "core/OmaseedBackup.hpp"
 #include "core/QbtClient.hpp"
 #include "core/SecretStore.hpp"
-#include "core/AutoBackup.hpp"
-#include "core/OmaseedBackup.hpp"
 #include "core/SeedConsole.hpp"
 #include "core/SeedLedger.hpp"
 #include "core/Server.hpp"
@@ -1329,7 +1329,10 @@ public:
 Q_SIGNALS:
     /// #24 T7: something worth a moment in the floating bar's spot: `kind` "milestone"
     /// (paid back, 2×, 5×) or "lastSeed" (you just became a torrent's only seed).
-    void seedNotice(const QString &kind, const QString &hash, const QString &title, const QString &detail);
+    void seedNotice(const QString &kind,
+                    const QString &hash,
+                    const QString &title,
+                    const QString &detail);
 
 private:
     /// Opens the ledger of the server the engine is about to poll (memory only in demo mode).
@@ -1340,7 +1343,8 @@ private:
     /// T7 for one torrent as it is now, with the seeds it had at the last poll (`before`, 0
     /// unknown): keeps `m_lastSwarm`, and says "now the only seed" when it went down to one.
     void checkLastSeed(const omaseed::core::Torrent &t, int before, bool announce);
-    std::unique_ptr<omaseed::core::SeedLedger> m_ledger = std::make_unique<omaseed::core::SeedLedger>();
+    std::unique_ptr<omaseed::core::SeedLedger> m_ledger =
+        std::make_unique<omaseed::core::SeedLedger>();
     omaseed::core::SeedConsole *m_console = new omaseed::core::SeedConsole(this);
     QString m_ledgerKey;
     bool m_ledgerDemoDone = false;
@@ -1358,7 +1362,8 @@ private:
     // it keeps in memory after a restore, and runs AutoBackup's check once an hour.
 public:
     /// "off", "weekly" (the default, D3 a) or "daily". Kept in state.json's "backup" section.
-    Q_PROPERTY(QString autoBackupMode READ autoBackupMode WRITE setAutoBackupMode NOTIFY backupChanged)
+    Q_PROPERTY(
+        QString autoBackupMode READ autoBackupMode WRITE setAutoBackupMode NOTIFY backupChanged)
     QString autoBackupMode() const;
     void setAutoBackupMode(const QString &mode);
     /// "Sunday 21:04", "3 Oct 21:04" when older than a week, empty before the first copy.

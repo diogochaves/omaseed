@@ -87,9 +87,11 @@ bool SeedLedger::open(const QString &path)
             return false;
         // Not a ledger: keep it for whoever wants to look, and start a new one.
         QSqlDatabase::database(m_connection, false).close();
-        const QString aside = path + QStringLiteral(".broken-")
-                              + QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd-HHmmss"));
-        qWarning("SeedLedger: %s is not a ledger; moved to %s", qPrintable(path), qPrintable(aside));
+        const QString aside =
+            path + QStringLiteral(".broken-") +
+            QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd-HHmmss"));
+        qWarning(
+            "SeedLedger: %s is not a ledger; moved to %s", qPrintable(path), qPrintable(aside));
         QFile::rename(path, aside);
         QFile::remove(path + QStringLiteral("-wal"));
         QFile::remove(path + QStringLiteral("-shm"));
@@ -111,9 +113,8 @@ bool SeedLedger::openFile(const QString &path, bool *broken)
                           : QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), m_connection);
     db.setDatabaseName(path);
     if (!db.open()) {
-        qWarning("SeedLedger: cannot open %s: %s",
-                 qPrintable(path),
-                 qPrintable(db.lastError().text()));
+        qWarning(
+            "SeedLedger: cannot open %s: %s", qPrintable(path), qPrintable(db.lastError().text()));
         return false;
     }
     QFile::setPermissions(path, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
@@ -193,9 +194,9 @@ void SeedLedger::loadState()
     }
     if (q.exec(QStringLiteral("SELECT hash, uploaded, downloaded, added FROM baselines"))) {
         while (q.next())
-            m_baselines.insert(q.value(0).toString(),
-                               {q.value(1).toLongLong(), q.value(2).toLongLong(),
-                                q.value(3).toLongLong(), -1});
+            m_baselines.insert(
+                q.value(0).toString(),
+                {q.value(1).toLongLong(), q.value(2).toLongLong(), q.value(3).toLongLong(), -1});
     }
     m_lastFlush = m_lastTime;
 }
@@ -230,8 +231,8 @@ void SeedLedger::observe(qint64 now,
     for (const TorrentTotals &t : torrents) {
         next.insert(t.hash, {t.uploaded, t.downloaded, t.addedOn, now});
         const auto it = m_baselines.constFind(t.hash);
-        if (it == m_baselines.constEnd() || it->uploaded != t.uploaded
-            || it->downloaded != t.downloaded || it->addedOn != t.addedOn) {
+        if (it == m_baselines.constEnd() || it->uploaded != t.uploaded ||
+            it->downloaded != t.downloaded || it->addedOn != t.addedOn) {
             m_baselinesDirty.insert(t.hash);
             m_baselinesGone.remove(t.hash);
         }
@@ -299,8 +300,8 @@ void SeedLedger::observeChanges(qint64 now,
     for (const TorrentTotals &t : changed) {
         const auto it = m_baselines.constFind(t.hash);
         const bool known = it != m_baselines.constEnd();
-        if (!known || it->uploaded != t.uploaded || it->downloaded != t.downloaded
-            || it->addedOn != t.addedOn) {
+        if (!known || it->uploaded != t.uploaded || it->downloaded != t.downloaded ||
+            it->addedOn != t.addedOn) {
             m_baselinesDirty.insert(t.hash);
             m_baselinesGone.remove(t.hash);
         }
@@ -396,8 +397,11 @@ void SeedLedger::book(qint64 from,
             const qint64 key = (cursor / step) * step;
             const qint64 end = std::min(key + step, to);
             const double share = double(end - cursor) / total;
-            addTo(map, key, qint64(std::llround(double(up) * share)),
-                  qint64(std::llround(double(down) * share)), true);
+            addTo(map,
+                  key,
+                  qint64(std::llround(double(up) * share)),
+                  qint64(std::llround(double(down) * share)),
+                  true);
             cursor = end;
         }
     };
@@ -485,9 +489,10 @@ bool SeedLedger::saveMeta()
         ok = q.execBatch() && ok;
     }
     if (!m_baselinesDirty.isEmpty()) {
-        ok = q.prepare(QStringLiteral("INSERT OR REPLACE INTO baselines(hash, uploaded, downloaded, "
-                                      "added) VALUES(?, ?, ?, ?)"))
-             && ok;
+        ok =
+            q.prepare(QStringLiteral("INSERT OR REPLACE INTO baselines(hash, uploaded, downloaded, "
+                                     "added) VALUES(?, ?, ?, ?)")) &&
+            ok;
         QVariantList hashes, uploaded, downloaded, added;
         for (const QString &hash : std::as_const(m_baselinesDirty)) {
             const Baseline b = m_baselines.value(hash);
@@ -519,8 +524,8 @@ void SeedLedger::flush(qint64 now)
         ok = q.prepare(QStringLiteral("INSERT INTO %1(t, up, down, gap) VALUES(?, ?, ?, ?) "
                                       "ON CONFLICT(t) DO UPDATE SET up = up + excluded.up, "
                                       "down = down + excluded.down, gap = max(gap, excluded.gap)")
-                           .arg(table))
-             && ok;
+                           .arg(table)) &&
+             ok;
         for (auto it = map.cbegin(); ok && it != map.cend(); ++it) {
             q.addBindValue(it.key());
             q.addBindValue(it->up);
@@ -531,10 +536,10 @@ void SeedLedger::flush(qint64 now)
     };
     upsert(QStringLiteral("minutes"), m_pendingMinutes);
     upsert(QStringLiteral("hours"), m_pendingHours);
-    ok = ok
-         && q.prepare(QStringLiteral("INSERT INTO days(day, up, down, gap) VALUES(?, ?, ?, ?) "
-                                     "ON CONFLICT(day) DO UPDATE SET up = up + excluded.up, "
-                                     "down = down + excluded.down, gap = max(gap, excluded.gap)"));
+    ok = ok &&
+         q.prepare(QStringLiteral("INSERT INTO days(day, up, down, gap) VALUES(?, ?, ?, ?) "
+                                  "ON CONFLICT(day) DO UPDATE SET up = up + excluded.up, "
+                                  "down = down + excluded.down, gap = max(gap, excluded.gap)"));
     for (auto it = m_pendingDays.cbegin(); ok && it != m_pendingDays.cend(); ++it) {
         q.addBindValue(dayKey(it.key()));
         q.addBindValue(it->up);
@@ -542,9 +547,9 @@ void SeedLedger::flush(qint64 now)
         q.addBindValue(it->gap ? 1 : 0);
         ok = q.exec();
     }
-    ok = ok
-         && q.prepare(QStringLiteral("INSERT INTO torrent_days(day, hash, up) VALUES(?, ?, ?) "
-                                     "ON CONFLICT(day, hash) DO UPDATE SET up = up + excluded.up"));
+    ok = ok &&
+         q.prepare(QStringLiteral("INSERT INTO torrent_days(day, hash, up) VALUES(?, ?, ?) "
+                                  "ON CONFLICT(day, hash) DO UPDATE SET up = up + excluded.up"));
     for (auto it = m_pendingTorrentDays.cbegin(); ok && it != m_pendingTorrentDays.cend(); ++it) {
         q.addBindValue(dayKey(it.key().first));
         q.addBindValue(it.key().second);
@@ -557,7 +562,8 @@ void SeedLedger::flush(qint64 now)
     if (!ok) {
         // A full disk, a read-only file: nothing of this flush reached the file, so keep it
         // all buffered (queries still see it) and try again at the next flush.
-        const QString error = q.lastError().isValid() ? q.lastError().text() : db.lastError().text();
+        const QString error =
+            q.lastError().isValid() ? q.lastError().text() : db.lastError().text();
         db.rollback();
         if (!m_flushFailed)
             qWarning("SeedLedger: cannot write %s: %s", qPrintable(m_path), qPrintable(error));
@@ -599,26 +605,25 @@ void SeedLedger::prune(qint64 now)
     q.exec();
 }
 
-QMap<qint64, SeedLedger::Bucket> SeedLedger::readBuckets(const QString &table,
-                                                         qint64 from,
-                                                         qint64 to) const
+QMap<qint64, SeedLedger::Bucket>
+SeedLedger::readBuckets(const QString &table, qint64 from, qint64 to) const
 {
     QMap<qint64, Bucket> out;
     if (m_open) {
         QSqlQuery q(QSqlDatabase::database(m_connection, false));
-        q.prepare(QStringLiteral("SELECT t, up, down, gap FROM %1 WHERE t >= ? AND t < ?")
-                      .arg(table));
+        q.prepare(
+            QStringLiteral("SELECT t, up, down, gap FROM %1 WHERE t >= ? AND t < ?").arg(table));
         q.addBindValue(from);
         q.addBindValue(to);
         if (q.exec()) {
             while (q.next())
-                out.insert(q.value(0).toLongLong(),
-                           {q.value(1).toLongLong(), q.value(2).toLongLong(),
-                            q.value(3).toInt() != 0});
+                out.insert(
+                    q.value(0).toLongLong(),
+                    {q.value(1).toLongLong(), q.value(2).toLongLong(), q.value(3).toInt() != 0});
         }
     }
-    const QMap<qint64, Bucket> &pending = table == QLatin1String("minutes") ? m_pendingMinutes
-                                                                             : m_pendingHours;
+    const QMap<qint64, Bucket> &pending =
+        table == QLatin1String("minutes") ? m_pendingMinutes : m_pendingHours;
     for (auto it = pending.lowerBound(from); it != pending.cend() && it.key() < to; ++it) {
         Bucket &b = out[it.key()];
         b.up += it->up;
@@ -633,14 +638,15 @@ QMap<QDate, SeedLedger::Bucket> SeedLedger::readDays(const QDate &from, const QD
     QMap<QDate, Bucket> out;
     if (m_open) {
         QSqlQuery q(QSqlDatabase::database(m_connection, false));
-        q.prepare(QStringLiteral("SELECT day, up, down, gap FROM days WHERE day >= ? AND day <= ?"));
+        q.prepare(
+            QStringLiteral("SELECT day, up, down, gap FROM days WHERE day >= ? AND day <= ?"));
         q.addBindValue(dayKey(from));
         q.addBindValue(dayKey(to));
         if (q.exec()) {
             while (q.next())
-                out.insert(QDate::fromString(q.value(0).toString(), Qt::ISODate),
-                           {q.value(1).toLongLong(), q.value(2).toLongLong(),
-                            q.value(3).toInt() != 0});
+                out.insert(
+                    QDate::fromString(q.value(0).toString(), Qt::ISODate),
+                    {q.value(1).toLongLong(), q.value(2).toLongLong(), q.value(3).toInt() != 0});
         }
     }
     for (auto it = m_pendingDays.lowerBound(from); it != m_pendingDays.cend() && it.key() <= to;
@@ -668,8 +674,11 @@ QList<SeedLedger::Point> SeedLedger::series(qint64 now, qint64 bucketSeconds, in
         for (int i = 0; i < count; ++i) {
             const QDate day = first.addDays(i);
             const Bucket b = days.value(day);
-            points.append({startOfDay(day), double(b.up) / double(kDay),
-                           double(b.down) / double(kDay), b.gap, day >= startDate});
+            points.append({startOfDay(day),
+                           double(b.up) / double(kDay),
+                           double(b.down) / double(kDay),
+                           b.gap,
+                           day >= startDate});
         }
         return points;
     }
@@ -691,7 +700,10 @@ QList<SeedLedger::Point> SeedLedger::series(qint64 now, qint64 bucketSeconds, in
         }
         for (int i = 0; i < count; ++i) {
             const qint64 start = first + i * bucketSeconds;
-            points.append({start, n[i] ? up[i] / n[i] : 0.0, n[i] ? down[i] / n[i] : 0.0, false,
+            points.append({start,
+                           n[i] ? up[i] / n[i] : 0.0,
+                           n[i] ? down[i] / n[i] : 0.0,
+                           false,
                            start + bucketSeconds > firstSample});
         }
         return points;
@@ -699,10 +711,10 @@ QList<SeedLedger::Point> SeedLedger::series(qint64 now, qint64 bucketSeconds, in
 
     const bool fromMinutes = bucketSeconds < kHour;
     const qint64 step = fromMinutes ? kMinute : kHour;
-    const QMap<qint64, Bucket> source = readBuckets(fromMinutes ? QStringLiteral("minutes")
-                                                                : QStringLiteral("hours"),
-                                                    (first / step) * step,
-                                                    end);
+    const QMap<qint64, Bucket> source =
+        readBuckets(fromMinutes ? QStringLiteral("minutes") : QStringLiteral("hours"),
+                    (first / step) * step,
+                    end);
     QList<Bucket> sums(count);
     for (auto it = source.cbegin(); it != source.cend(); ++it) {
         const qint64 i = (it.key() - first) / bucketSeconds;
@@ -714,8 +726,10 @@ QList<SeedLedger::Point> SeedLedger::series(qint64 now, qint64 bucketSeconds, in
     }
     for (int i = 0; i < count; ++i) {
         const qint64 start = first + i * bucketSeconds;
-        points.append({start, double(sums[i].up) / double(bucketSeconds),
-                       double(sums[i].down) / double(bucketSeconds), sums[i].gap,
+        points.append({start,
+                       double(sums[i].up) / double(bucketSeconds),
+                       double(sums[i].down) / double(bucketSeconds),
+                       sums[i].gap,
                        m_start > 0 && start + bucketSeconds > m_start});
     }
     return points;
@@ -800,12 +814,14 @@ QHash<QString, QList<qint64>> SeedLedger::torrentDays(const QDate &from, const Q
     };
     if (m_open) {
         QSqlQuery q(QSqlDatabase::database(m_connection, false));
-        q.prepare(QStringLiteral("SELECT day, hash, up FROM torrent_days WHERE day >= ? AND day <= ?"));
+        q.prepare(
+            QStringLiteral("SELECT day, hash, up FROM torrent_days WHERE day >= ? AND day <= ?"));
         q.addBindValue(dayKey(from));
         q.addBindValue(dayKey(to));
         if (q.exec()) {
             while (q.next())
-                add(QDate::fromString(q.value(0).toString(), Qt::ISODate), q.value(1).toString(),
+                add(QDate::fromString(q.value(0).toString(), Qt::ISODate),
+                    q.value(1).toString(),
                     q.value(2).toLongLong());
         }
     }
@@ -867,7 +883,9 @@ void SeedLedger::fillDemo(qint64 now, const QStringList &hashes, qint64 dayBytes
     QList<double> weight;
     double weightSum = 0;
     for (int i = 0; i < hashes.size(); ++i) {
-        const double w = rnd.generateDouble() < 0.33 ? between(2, 10) : rnd.generateDouble() < 0.5 ? between(0.1, 1) : 0.0;
+        const double w = rnd.generateDouble() < 0.33  ? between(2, 10)
+                         : rnd.generateDouble() < 0.5 ? between(0.1, 1)
+                                                      : 0.0;
         weight.append(w);
         weightSum += w;
     }
@@ -939,7 +957,8 @@ void SeedLedger::fillDemo(qint64 now, const QStringList &hashes, qint64 dayBytes
     // The last hour of speeds, for the 1 h tide and the hero.
     m_speeds.clear();
     for (qint64 t = now - kHour + 1; t <= now; ++t) {
-        const double up = (1.6 + std::sin(double(t) / 400.0) * 0.6 + between(0, 0.5)) * unit / kGB * 1024 * 1024;
+        const double up =
+            (1.6 + std::sin(double(t) / 400.0) * 0.6 + between(0, 0.5)) * unit / kGB * 1024 * 1024;
         m_speeds.append({t, qint64(up), 0});
     }
     m_metaDirty = true;

@@ -27,7 +27,10 @@ constexpr qint64 kNow = 1759500000; // 2025-10-03, a fixed "now"
 constexpr qint64 kDay = 86400;
 
 /// A ledger at `path` that began at `start` and has a minute of upload.
-void makeLedger(const QString &path, qint64 start, bool keepOpen = false, SeedLedger *ledger = nullptr)
+void makeLedger(const QString &path,
+                qint64 start,
+                bool keepOpen = false,
+                SeedLedger *ledger = nullptr)
 {
     SeedLedger own;
     SeedLedger &l = ledger ? *ledger : own;
@@ -73,13 +76,18 @@ class TstOmaseedBackup : public QObject
     /// Settings, two servers, history for the first: the backup tests' library.
     QByteArray backupOfALibrary(qint64 historyStart)
     {
-        StateFile::writeSection(QStringLiteral("appearance"),
-                                QJsonObject{{QStringLiteral("speedsAlignment"), QStringLiteral("right")}});
+        StateFile::writeSection(
+            QStringLiteral("appearance"),
+            QJsonObject{{QStringLiteral("speedsAlignment"), QStringLiteral("right")}});
         ServerStore store;
-        Server home = server(QStringLiteral("home-id"), QStringLiteral("home"), QStringLiteral("http://192.168.1.10:8080/"));
+        Server home = server(QStringLiteral("home-id"),
+                             QStringLiteral("home"),
+                             QStringLiteral("http://192.168.1.10:8080/"));
         home.pathMap = {{QStringLiteral("/data"), QStringLiteral("/mnt/media")}};
         store.add(home);
-        store.add(server(QStringLiteral("box-id"), QStringLiteral("seedbox"), QStringLiteral("https://box.example:443")));
+        store.add(server(QStringLiteral("box-id"),
+                         QStringLiteral("seedbox"),
+                         QStringLiteral("https://box.example:443")));
         store.setDefault(QStringLiteral("home-id"));
         makeLedger(m_sources.ledgerPath(QStringLiteral("home-id")), historyStart);
         QString error;
@@ -101,7 +109,8 @@ private slots:
         secret.write("hunter2");
         secret.close();
         m_sources.extras = [] {
-            return QList<TarArchive::Entry>{{QStringLiteral("qbittorrent/home-id.json"), "{}", kNow}};
+            return QList<TarArchive::Entry>{
+                {QStringLiteral("qbittorrent/home-id.json"), "{}", kNow}};
         };
 
         const QByteArray archive = backupOfALibrary(kNow - 200 * kDay);
@@ -113,8 +122,10 @@ private slots:
         QCOMPARE(contents->appVersion, QStringLiteral("0.1.0"));
         QCOMPARE(contents->created.toSecsSinceEpoch(), kNow);
         QVERIFY(contents->hasSettings);
-        QCOMPARE(contents->state.value(QStringLiteral("appearance")).toObject()
-                     .value(QStringLiteral("speedsAlignment")).toString(),
+        QCOMPARE(contents->state.value(QStringLiteral("appearance"))
+                     .toObject()
+                     .value(QStringLiteral("speedsAlignment"))
+                     .toString(),
                  QStringLiteral("right"));
         QCOMPARE(contents->servers.size(), 2);
         QCOMPARE(contents->defaultId, QStringLiteral("home-id"));
@@ -132,7 +143,9 @@ private slots:
         // The app keeps its ledger open and writing; VACUUM INTO copies it whole anyway.
         freshHome(QStringLiteral("open"));
         ServerStore store;
-        store.add(server(QStringLiteral("home-id"), QStringLiteral("home"), QStringLiteral("http://10.0.0.2:8080")));
+        store.add(server(QStringLiteral("home-id"),
+                         QStringLiteral("home"),
+                         QStringLiteral("http://10.0.0.2:8080")));
         SeedLedger ledger;
         makeLedger(m_sources.ledgerPath(QStringLiteral("home-id")), kNow - 3 * kDay, true, &ledger);
         const auto contents = OmaseedBackup::parse(OmaseedBackup::create(m_sources, kNow));
@@ -156,16 +169,21 @@ private slots:
         QVERIFY(error.contains(QStringLiteral("not an omaseed backup")));
 
         // Another app's tar.
-        QVERIFY(!OmaseedBackup::parse(TarArchive::write({{QStringLiteral("readme.txt"), "hi", 0}}), &error));
+        QVERIFY(!OmaseedBackup::parse(TarArchive::write({{QStringLiteral("readme.txt"), "hi", 0}}),
+                                      &error));
         QVERIFY(error.contains(QStringLiteral("no manifest")));
-        QVERIFY(!OmaseedBackup::parse(
-            TarArchive::write({{QStringLiteral("manifest.json"), R"({"format":"something-else","version":1})", 0}}),
-            &error));
+        QVERIFY(
+            !OmaseedBackup::parse(TarArchive::write({{QStringLiteral("manifest.json"),
+                                                      R"({"format":"something-else","version":1})",
+                                                      0}}),
+                                  &error));
 
         // A newer omaseed's.
-        QVERIFY(!OmaseedBackup::parse(
-            TarArchive::write({{QStringLiteral("manifest.json"), R"({"format":"omaseed-backup","version":9})", 0}}),
-            &error));
+        QVERIFY(
+            !OmaseedBackup::parse(TarArchive::write({{QStringLiteral("manifest.json"),
+                                                      R"({"format":"omaseed-backup","version":9})",
+                                                      0}}),
+                                  &error));
         QVERIFY(error.contains(QStringLiteral("newer")));
 
         // Damaged: cut short, and a history that is not SQLite.
@@ -185,10 +203,10 @@ private slots:
                  OmaseedBackup::addressKey(QUrl(QStringLiteral("http://192.168.1.10:8080"))));
         QCOMPARE(OmaseedBackup::addressKey(QUrl(QStringLiteral("https://Box.Example/"))),
                  OmaseedBackup::addressKey(QUrl(QStringLiteral("https://box.example:443"))));
-        QVERIFY(OmaseedBackup::addressKey(QUrl(QStringLiteral("http://a:8080")))
-                != OmaseedBackup::addressKey(QUrl(QStringLiteral("http://a:8081"))));
-        QVERIFY(OmaseedBackup::addressKey(QUrl(QStringLiteral("http://a/qbt")))
-                != OmaseedBackup::addressKey(QUrl(QStringLiteral("http://a/"))));
+        QVERIFY(OmaseedBackup::addressKey(QUrl(QStringLiteral("http://a:8080"))) !=
+                OmaseedBackup::addressKey(QUrl(QStringLiteral("http://a:8081"))));
+        QVERIFY(OmaseedBackup::addressKey(QUrl(QStringLiteral("http://a/qbt"))) !=
+                OmaseedBackup::addressKey(QUrl(QStringLiteral("http://a/"))));
     }
 
     void restoresIntoAnotherMachine()
@@ -202,10 +220,13 @@ private slots:
         QVERIFY(contents.has_value());
 
         freshHome(QStringLiteral("laptop"));
-        StateFile::writeSection(QStringLiteral("appearance"),
-                                QJsonObject{{QStringLiteral("speedsAlignment"), QStringLiteral("left")}});
+        StateFile::writeSection(
+            QStringLiteral("appearance"),
+            QJsonObject{{QStringLiteral("speedsAlignment"), QStringLiteral("left")}});
         ServerStore store;
-        store.add(server(QStringLiteral("laptop-home"), QStringLiteral("my home"), QStringLiteral("http://192.168.1.10:8080")));
+        store.add(server(QStringLiteral("laptop-home"),
+                         QStringLiteral("my home"),
+                         QStringLiteral("http://192.168.1.10:8080")));
         makeLedger(m_sources.ledgerPath(QStringLiteral("laptop-home")), kNow - 4 * kDay);
 
         const auto matches = OmaseedBackup::match(*contents, store.servers(), m_sources);
@@ -218,19 +239,24 @@ private slots:
         OmaseedBackup::Plan plan;
         plan.history = {QStringLiteral("home-id")};
         QString error;
-        const auto outcome = OmaseedBackup::restore(*contents, plan, store, m_sources, kNow + 60, &error);
+        const auto outcome =
+            OmaseedBackup::restore(*contents, plan, store, m_sources, kNow + 60, &error);
         QVERIFY2(outcome.has_value(), qPrintable(error));
 
         // The safety copy came first and holds what was here.
         QVERIFY(QFileInfo::exists(outcome->safetyCopy));
-        QVERIFY(QFileInfo(outcome->safetyCopy).fileName().startsWith(QStringLiteral("before-restore-")));
+        QVERIFY(QFileInfo(outcome->safetyCopy)
+                    .fileName()
+                    .startsWith(QStringLiteral("before-restore-")));
         const auto before = OmaseedBackup::parseFile(outcome->safetyCopy);
         QVERIFY(before.has_value());
         QCOMPARE(before->servers.size(), 1);
         QCOMPARE(before->servers.constFirst().history.start, kNow - 4 * kDay);
 
         // Settings replaced.
-        QCOMPARE(StateFile::readSection(QStringLiteral("appearance")).value(QStringLiteral("speedsAlignment")).toString(),
+        QCOMPARE(StateFile::readSection(QStringLiteral("appearance"))
+                     .value(QStringLiteral("speedsAlignment"))
+                     .toString(),
                  QStringLiteral("right"));
         // Servers: one kept (name kept, path map taken), one added under its own id.
         QCOMPARE(outcome->keptServers, QStringList{QStringLiteral("laptop-home")});
@@ -254,7 +280,9 @@ private slots:
 
         freshHome(QStringLiteral("long-here"));
         ServerStore store;
-        store.add(server(QStringLiteral("home-id"), QStringLiteral("home"), QStringLiteral("http://192.168.1.10:8080")));
+        store.add(server(QStringLiteral("home-id"),
+                         QStringLiteral("home"),
+                         QStringLiteral("http://192.168.1.10:8080")));
         makeLedger(m_sources.ledgerPath(QStringLiteral("home-id")), kNow - 300 * kDay);
         const auto matches = OmaseedBackup::match(*contents, store.servers(), m_sources);
         QVERIFY(!matches.at(0).backupLonger);
@@ -264,7 +292,8 @@ private slots:
         const auto outcome = OmaseedBackup::restore(*contents, plan, store, m_sources, kNow);
         QVERIFY(outcome.has_value());
         QCOMPARE(outcome->historyKept, QStringList{QStringLiteral("home-id")});
-        QCOMPARE(OmaseedBackup::historyOf(m_sources.ledgerPath(QStringLiteral("home-id"))).start, kNow - 300 * kDay);
+        QCOMPARE(OmaseedBackup::historyOf(m_sources.ledgerPath(QStringLiteral("home-id"))).start,
+                 kNow - 300 * kDay);
     }
 
     void onlyTheTickedParts()
@@ -274,8 +303,9 @@ private slots:
         QVERIFY(contents.has_value());
 
         freshHome(QStringLiteral("parts-to"));
-        StateFile::writeSection(QStringLiteral("appearance"),
-                                QJsonObject{{QStringLiteral("speedsAlignment"), QStringLiteral("left")}});
+        StateFile::writeSection(
+            QStringLiteral("appearance"),
+            QJsonObject{{QStringLiteral("speedsAlignment"), QStringLiteral("left")}});
         ServerStore store;
         OmaseedBackup::Plan plan;
         plan.settings = false;
@@ -285,7 +315,9 @@ private slots:
         QVERIFY(outcome.has_value());
         QCOMPARE(store.count(), 0);
         QVERIFY(outcome->historyRestored.isEmpty());
-        QCOMPARE(StateFile::readSection(QStringLiteral("appearance")).value(QStringLiteral("speedsAlignment")).toString(),
+        QCOMPARE(StateFile::readSection(QStringLiteral("appearance"))
+                     .value(QStringLiteral("speedsAlignment"))
+                     .toString(),
                  QStringLiteral("left"));
         QVERIFY(!QFileInfo::exists(m_sources.ledgerPath(QStringLiteral("home-id"))));
     }
@@ -298,7 +330,9 @@ private slots:
 
         freshHome(QStringLiteral("ids-to"));
         ServerStore store;
-        store.add(server(QStringLiteral("home-id"), QStringLiteral("other"), QStringLiteral("http://elsewhere:9090")));
+        store.add(server(QStringLiteral("home-id"),
+                         QStringLiteral("other"),
+                         QStringLiteral("http://elsewhere:9090")));
         OmaseedBackup::Plan plan;
         plan.history = {QStringLiteral("home-id")};
         const auto outcome = OmaseedBackup::restore(*contents, plan, store, m_sources, kNow);
@@ -320,8 +354,9 @@ private slots:
         QVERIFY(contents.has_value());
 
         freshHome(QStringLiteral("nosafety-to"));
-        StateFile::writeSection(QStringLiteral("appearance"),
-                                QJsonObject{{QStringLiteral("speedsAlignment"), QStringLiteral("left")}});
+        StateFile::writeSection(
+            QStringLiteral("appearance"),
+            QJsonObject{{QStringLiteral("speedsAlignment"), QStringLiteral("left")}});
         // The backups "folder" is a file: no copy can be written there.
         QDir().mkpath(QFileInfo(m_sources.backupsDir).absolutePath());
         QFile blocker(m_sources.backupsDir);
@@ -329,10 +364,13 @@ private slots:
         blocker.close();
         ServerStore store;
         QString error;
-        QVERIFY(!OmaseedBackup::restore(*contents, OmaseedBackup::Plan{}, store, m_sources, kNow, &error));
+        QVERIFY(!OmaseedBackup::restore(
+            *contents, OmaseedBackup::Plan{}, store, m_sources, kNow, &error));
         QVERIFY(error.contains(QStringLiteral("Nothing was restored")));
         QCOMPARE(store.count(), 0);
-        QCOMPARE(StateFile::readSection(QStringLiteral("appearance")).value(QStringLiteral("speedsAlignment")).toString(),
+        QCOMPARE(StateFile::readSection(QStringLiteral("appearance"))
+                     .value(QStringLiteral("speedsAlignment"))
+                     .toString(),
                  QStringLiteral("left"));
     }
 
@@ -349,7 +387,8 @@ private slots:
 
         // A safety copy is not one of the automatic ones and is never removed.
         QDir().mkpath(m_sources.backupsDir);
-        const QString safety = OmaseedBackup::datedName(m_sources.backupsDir, QStringLiteral("before-restore"), kNow);
+        const QString safety =
+            OmaseedBackup::datedName(m_sources.backupsDir, QStringLiteral("before-restore"), kNow);
         QFile safetyFile(safety);
         QVERIFY(safetyFile.open(QIODevice::WriteOnly));
         safetyFile.close();
@@ -394,7 +433,8 @@ private slots:
         QVERIFY(!copies.runIfDue(kNow + 9 * kDay));
         QCOMPARE(failed.count(), 1);
         QFile::setPermissions(m_sources.backupsDir,
-                              QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner);
+                              QFileDevice::ReadOwner | QFileDevice::WriteOwner |
+                                  QFileDevice::ExeOwner);
         QCOMPARE(copies.copies(), before);
 
         // A copy that works clears the report, so the next failure is told again.
@@ -403,7 +443,8 @@ private slots:
         QVERIFY(!copies.runIfDue(kNow + 18 * kDay));
         QCOMPARE(failed.count(), 2);
         QFile::setPermissions(m_sources.backupsDir,
-                              QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner);
+                              QFileDevice::ReadOwner | QFileDevice::WriteOwner |
+                                  QFileDevice::ExeOwner);
     }
 };
 

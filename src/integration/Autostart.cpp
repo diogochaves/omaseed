@@ -40,7 +40,8 @@ QString hiddenFlag()
 QString directory()
 {
     const QString config = qEnvironmentVariable("XDG_CONFIG_HOME");
-    const QString base = config.isEmpty() ? QDir::home().filePath(QStringLiteral(".config")) : config;
+    const QString base =
+        config.isEmpty() ? QDir::home().filePath(QStringLiteral(".config")) : config;
     return base + QStringLiteral("/autostart");
 }
 
@@ -58,7 +59,8 @@ QString mode(const QString &path)
     const QByteArray contents = file.readAll();
     if (entryValue(contents, "Hidden").compare(QLatin1String("true"), Qt::CaseInsensitive) == 0)
         return QStringLiteral("off");
-    const QStringList exec = entryValue(contents, "Exec").split(QLatin1Char(' '), Qt::SkipEmptyParts);
+    const QStringList exec =
+        entryValue(contents, "Exec").split(QLatin1Char(' '), Qt::SkipEmptyParts);
     return exec.contains(hiddenFlag()) ? QStringLiteral("tray") : QStringLiteral("window");
 }
 

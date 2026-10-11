@@ -175,7 +175,8 @@ App::App(QObject *parent)
     // #31: the automatic copies. The hourly check starts with start(), so demos and tests
     // never write one.
     m_autoBackup->setSources(backupSources());
-    m_autoBackup->setMode(stateSection(QStringLiteral("backup")).value(QStringLiteral("mode")).toString());
+    m_autoBackup->setMode(
+        stateSection(QStringLiteral("backup")).value(QStringLiteral("mode")).toString());
     m_autoBackup->setBeforeCopy([this] {
         if (m_ledger->isOpen())
             m_ledger->flush(QDateTime::currentSecsSinceEpoch());
@@ -186,8 +187,9 @@ App::App(QObject *parent)
         Q_EMIT actionFailed(tr("Automatic backup"), message);
     });
     m_autoBackupTimer->setInterval(std::chrono::hours(1));
-    connect(m_autoBackupTimer, &QTimer::timeout, this,
-            [this] { m_autoBackup->runIfDue(QDateTime::currentSecsSinceEpoch()); });
+    connect(m_autoBackupTimer, &QTimer::timeout, this, [this] {
+        m_autoBackup->runIfDue(QDateTime::currentSecsSinceEpoch());
+    });
 }
 
 App::~App()
@@ -284,8 +286,9 @@ void App::start()
     // #31: a copy when one is due, a minute in (the ledger has its first polls by then), then
     // a check every hour.
     m_autoBackupTimer->start();
-    QTimer::singleShot(std::chrono::minutes(1), this,
-                       [this] { m_autoBackup->runIfDue(QDateTime::currentSecsSinceEpoch()); });
+    QTimer::singleShot(std::chrono::minutes(1), this, [this] {
+        m_autoBackup->runIfDue(QDateTime::currentSecsSinceEpoch());
+    });
 
     if (!m_servers->load())
         qWarning().noquote() << QStringLiteral("servers: %1; it is kept as %2")
@@ -731,9 +734,9 @@ QVariantMap App::torrentRow(const QString &hash) const
     row.insert(QStringLiteral("isPrivate"), torrent.isPrivate);
     // docs/25 §2: before its metadata arrives a torrent reads as public whatever it is, so
     // Fig. 10 offers no merge until it is known.
-    row.insert(QStringLiteral("hasMetadata"), torrent.totalSize >= 0 &&
-                                                  torrent.state != TorrentState::MetaDownload &&
-                                                  torrent.state != TorrentState::ForcedMetaDownload);
+    row.insert(QStringLiteral("hasMetadata"),
+               torrent.totalSize >= 0 && torrent.state != TorrentState::MetaDownload &&
+                   torrent.state != TorrentState::ForcedMetaDownload);
     row.insert(QStringLiteral("dlLimit"), torrent.dlLimit);
     row.insert(QStringLiteral("upLimit"), torrent.upLimit);
     row.insert(QStringLiteral("ratioLimit"), torrent.ratioLimit);
@@ -1536,15 +1539,14 @@ void App::parseTorrentInBackground(const QString &token,
                     return;
                 const QVariantMap map = torrentFileMap(token, fileName, value, parsed, error);
                 if (parsed.isValid())
-                    self->rememberTorrentFile(
-                        token,
-                        PendingTorrentFile{fileName,
-                                           bytes,
-                                           parsed.files,
-                                           parsed.torrentId(),
-                                           parsed.name,
-                                           parsed.multiFile,
-                                           parsed.pieceLength});
+                    self->rememberTorrentFile(token,
+                                              PendingTorrentFile{fileName,
+                                                                 bytes,
+                                                                 parsed.files,
+                                                                 parsed.torrentId(),
+                                                                 parsed.name,
+                                                                 parsed.multiFile,
+                                                                 parsed.pieceLength});
                 Q_EMIT self->addableParsed(map);
             },
             Qt::QueuedConnection);
@@ -3478,8 +3480,8 @@ void App::setStartAtLogin(const QString &mode)
     if (Autostart::mode() == mode)
         return;
     if (!Autostart::setMode(mode, Autostart::execProgram(QCoreApplication::applicationFilePath())))
-        qWarning().noquote() << QStringLiteral("autostart: could not write %1")
-                                    .arg(Autostart::entryPath());
+        qWarning().noquote()
+            << QStringLiteral("autostart: could not write %1").arg(Autostart::entryPath());
     Q_EMIT settingsChanged();
 }
 
@@ -3794,9 +3796,8 @@ void App::setFilesWanted(const QString &hash, const QVariantList &fileIndexes, b
         setFilePriority(hash, fileIndexes, int(FilePriority::Skip));
         return;
     }
-    const QHash<int, int> current = m_details->hash() == hash
-                                        ? m_details->files()->priorityByFileIndex()
-                                        : QHash<int, int>();
+    const QHash<int, int> current =
+        m_details->hash() == hash ? m_details->files()->priorityByFileIndex() : QHash<int, int>();
     QHash<int, int> &before = m_beforeSkip[hash];
     QMap<int, QVariantList> groups;
     for (const QVariant &value : fileIndexes) {
@@ -4032,17 +4033,25 @@ void App::attachStatusWriter(omaseed::integration::StatusWriter *writer)
     writer->setLibraryCheck(
         [this](const QString &v1, const QString &v2) { return !findDuplicate(v1, v2).isEmpty(); });
     writer->setDownloadsFolder(downloadsFolder());
-    connect(writer, &omaseed::integration::StatusWriter::milestone, this,
+    connect(writer,
+            &omaseed::integration::StatusWriter::milestone,
+            this,
             [this](const QString &hash, const QString &name, int ratio) {
                 const Torrent &t = m_engine->torrents()->torrent(hash);
                 const qint64 days = t.seedingTime / 86400;
-                Q_EMIT seedNotice(QStringLiteral("milestone"), hash,
-                                  ratio == 1 ? tr("%1 paid back").arg(name) : tr("%1 · %2×").arg(name).arg(ratio),
-                                  ratio == 1 ? (days == 1 ? tr("ratio 1.00 · 1 day") : tr("ratio 1.00 · %1 days").arg(days))
+                Q_EMIT seedNotice(QStringLiteral("milestone"),
+                                  hash,
+                                  ratio == 1 ? tr("%1 paid back").arg(name)
+                                             : tr("%1 · %2×").arg(name).arg(ratio),
+                                  ratio == 1 ? (days == 1 ? tr("ratio 1.00 · 1 day")
+                                                          : tr("ratio 1.00 · %1 days").arg(days))
                                              : tr("%1 given").arg(sizeText(t.uploaded)));
             });
     m_console->setRecentProvider([this]() {
-        return m_statusWriter ? m_statusWriter->snapshot().value(QStringLiteral("recent")).toArray().toVariantList()
+        return m_statusWriter ? m_statusWriter->snapshot()
+                                    .value(QStringLiteral("recent"))
+                                    .toArray()
+                                    .toVariantList()
                               : QVariantList();
     });
     connect(this, &App::downloadsFolderChanged, writer, [this]() {
@@ -4104,7 +4113,9 @@ void App::feedLedger()
     const GlobalState *state = m_engine->globalState();
     const qint64 now = QDateTime::currentSecsSinceEpoch();
     const auto totalsOf = [](const Torrent &t) {
-        return SeedLedger::TorrentTotals{t.hash, t.uploaded, t.downloaded,
+        return SeedLedger::TorrentTotals{t.hash,
+                                         t.uploaded,
+                                         t.downloaded,
                                          t.addedOn.isValid() ? t.addedOn.toSecsSinceEpoch() : 0};
     };
     // #36: an idle poll changes nothing and costs nothing; a busy one, the rows it touched.
@@ -4115,8 +4126,8 @@ void App::feedLedger()
         changed.reserve(change.changed.size());
         for (const QString &hash : change.changed)
             changed.append(totalsOf(torrents->torrent(hash)));
-        m_ledger->observeChanges(now, state->allTimeUpload(), state->allTimeDownload(), changed,
-                                 change.removed);
+        m_ledger->observeChanges(
+            now, state->allTimeUpload(), state->allTimeDownload(), changed, change.removed);
     } else {
         QList<SeedLedger::TorrentTotals> totals;
         totals.reserve(torrents->count());
@@ -4148,8 +4159,8 @@ void App::feedLedger()
 
     m_ledger->sampleSpeed(now, state->upInfoSpeed(), state->dlInfoSpeed());
     // Dev only: a made-up year before today, to judge the console as it will look a year in.
-    if (!m_ledgerDemoDone && (m_demoMode || !env("OMASEED_LEDGER_DEMO").isEmpty())
-        && torrents->count() > 0) {
+    if (!m_ledgerDemoDone && (m_demoMode || !env("OMASEED_LEDGER_DEMO").isEmpty()) &&
+        torrents->count() > 0) {
         m_ledgerDemoDone = true;
         // A typical made-up day gives about a fifth of what the library holds.
         qint64 held = 0;
@@ -4169,7 +4180,8 @@ void App::checkLastSeed(const Torrent &t, int before, bool announce)
     }
     m_lastSwarm.insert(t.hash, seeds);
     if (announce && seeds == 1 && before > 1)
-        Q_EMIT seedNotice(QStringLiteral("lastSeed"), t.hash,
+        Q_EMIT seedNotice(QStringLiteral("lastSeed"),
+                          t.hash,
                           tr("You are now the only seed of %1").arg(t.name),
                           t.numIncomplete > 0 ? tr("%1 waiting").arg(t.numIncomplete) : QString());
 }
@@ -4184,7 +4196,8 @@ namespace {
 QString tildePath(const QString &path)
 {
     const QString home = QDir::homePath();
-    return path.startsWith(home + QLatin1Char('/')) ? QStringLiteral("~") + path.mid(home.size()) : path;
+    return path.startsWith(home + QLatin1Char('/')) ? QStringLiteral("~") + path.mid(home.size())
+                                                    : path;
 }
 
 QString daysText(int days)
@@ -4195,7 +4208,8 @@ QString daysText(int days)
 
 QString dayText(qint64 secs)
 {
-    return QLocale::c().toString(QDateTime::fromSecsSinceEpoch(secs).date(), QStringLiteral("d MMM yyyy"));
+    return QLocale::c().toString(QDateTime::fromSecsSinceEpoch(secs).date(),
+                                 QStringLiteral("d MMM yyyy"));
 }
 
 } // namespace
@@ -4218,7 +4232,8 @@ void App::setAutoBackupMode(const QString &mode)
     if (mode == m_autoBackup->mode())
         return;
     m_autoBackup->setMode(mode);
-    writeStateSection(QStringLiteral("backup"), QJsonObject{{QStringLiteral("mode"), m_autoBackup->mode()}});
+    writeStateSection(QStringLiteral("backup"),
+                      QJsonObject{{QStringLiteral("mode"), m_autoBackup->mode()}});
     Q_EMIT backupChanged();
     // Turned on, or made more frequent: a copy now if one is due.
     if (!m_demoMode && m_autoBackupTimer->isActive())
@@ -4257,12 +4272,15 @@ QString App::backupSummary() const
         if (start > 0 && (earliest == 0 || start < earliest))
             earliest = start;
     }
-    const QString serverText = servers.size() == 1 ? tr("1 server") : tr("%1 servers").arg(servers.size());
+    const QString serverText =
+        servers.size() == 1 ? tr("1 server") : tr("%1 servers").arg(servers.size());
     const QString size = Format::size(std::max<qint64>(bytes, 1));
     if (earliest > 0)
-        return tr("Settings, %1 and the seed history since %2: about %3. Passwords and API keys stay in the keyring.")
+        return tr("Settings, %1 and the seed history since %2: about %3. Passwords and API keys "
+                  "stay in the keyring.")
             .arg(serverText, dayText(earliest), size);
-    return tr("Settings and %1: about %2. Passwords and API keys stay in the keyring.").arg(serverText, size);
+    return tr("Settings and %1: about %2. Passwords and API keys stay in the keyring.")
+        .arg(serverText, size);
 }
 
 QString App::backupsDirText() const
@@ -4272,10 +4290,10 @@ QString App::backupsDirText() const
 
 QString App::pickBackupSavePath() const
 {
-    const QString suggested = QDir::homePath() + QStringLiteral("/omaseed-")
-                              + QDate::currentDate().toString(Qt::ISODate) + OmaseedBackup::kSuffix;
-    QString path = QFileDialog::getSaveFileName(nullptr, tr("Back up omaseed"), suggested,
-                                                tr("omaseed backups (*.omaseed)"));
+    const QString suggested = QDir::homePath() + QStringLiteral("/omaseed-") +
+                              QDate::currentDate().toString(Qt::ISODate) + OmaseedBackup::kSuffix;
+    QString path = QFileDialog::getSaveFileName(
+        nullptr, tr("Back up omaseed"), suggested, tr("omaseed backups (*.omaseed)"));
     if (!path.isEmpty() && !path.endsWith(OmaseedBackup::kSuffix))
         path += OmaseedBackup::kSuffix;
     return path;
@@ -4288,7 +4306,8 @@ QString App::backUpTo(const QString &path)
     if (m_ledger->isOpen())
         m_ledger->flush(QDateTime::currentSecsSinceEpoch());
     QString error;
-    if (!OmaseedBackup::createFile(backupSources(), path, QDateTime::currentSecsSinceEpoch(), &error))
+    if (!OmaseedBackup::createFile(
+            backupSources(), path, QDateTime::currentSecsSinceEpoch(), &error))
         return error;
     qInfo().noquote() << QStringLiteral("backup: written to %1").arg(path);
     return QString();
@@ -4296,7 +4315,9 @@ QString App::backUpTo(const QString &path)
 
 QString App::pickBackupFile() const
 {
-    return QFileDialog::getOpenFileName(nullptr, tr("Restore omaseed"), OmaseedBackup::defaultBackupsDir(),
+    return QFileDialog::getOpenFileName(nullptr,
+                                        tr("Restore omaseed"),
+                                        OmaseedBackup::defaultBackupsDir(),
                                         tr("omaseed backups (*.omaseed);;All files (*)"));
 }
 
@@ -4316,27 +4337,31 @@ QVariantMap App::readBackup(const QString &path)
 
     const qint64 now = QDateTime::currentSecsSinceEpoch();
     const QLocale locale = QLocale::c();
-    QVariantMap out{{QStringLiteral("ok"), true},
-                    {QStringLiteral("title"), tr("Restore from %1").arg(QFileInfo(path).fileName())}};
+    QVariantMap out{
+        {QStringLiteral("ok"), true},
+        {QStringLiteral("title"), tr("Restore from %1").arg(QFileInfo(path).fileName())}};
     const QDateTime made = contents->created.toLocalTime();
-    out.insert(QStringLiteral("sub"),
-               tr("Made %1 by omaseed %2 on %3.")
-                   .arg(locale.toString(made, QStringLiteral("d MMM yyyy HH:mm")),
-                        contents->appVersion.isEmpty() ? QStringLiteral("?") : contents->appVersion,
-                        contents->machine.isEmpty() ? tr("an unnamed machine") : contents->machine));
-    out.insert(QStringLiteral("safety"),
-               tr("what is here now is saved first, to %1")
-                   .arg(tildePath(OmaseedBackup::datedName(OmaseedBackup::defaultBackupsDir(),
-                                                           QStringLiteral("before-restore"), now))));
+    out.insert(
+        QStringLiteral("sub"),
+        tr("Made %1 by omaseed %2 on %3.")
+            .arg(locale.toString(made, QStringLiteral("d MMM yyyy HH:mm")),
+                 contents->appVersion.isEmpty() ? QStringLiteral("?") : contents->appVersion,
+                 contents->machine.isEmpty() ? tr("an unnamed machine") : contents->machine));
+    out.insert(
+        QStringLiteral("safety"),
+        tr("what is here now is saved first, to %1")
+            .arg(tildePath(OmaseedBackup::datedName(
+                OmaseedBackup::defaultBackupsDir(), QStringLiteral("before-restore"), now))));
 
     QVariantList parts;
     if (contents->hasSettings)
-        parts.append(QVariantMap{{QStringLiteral("key"), QStringLiteral("settings")},
-                                 {QStringLiteral("label"), tr("settings")},
-                                 {QStringLiteral("side"), tr("replaces this machine's")},
-                                 {QStringLiteral("detail"), tr("appearance, keys, columns, notifications, tray")},
-                                 {QStringLiteral("checked"), true},
-                                 {QStringLiteral("enabled"), true}});
+        parts.append(QVariantMap{
+            {QStringLiteral("key"), QStringLiteral("settings")},
+            {QStringLiteral("label"), tr("settings")},
+            {QStringLiteral("side"), tr("replaces this machine's")},
+            {QStringLiteral("detail"), tr("appearance, keys, columns, notifications, tray")},
+            {QStringLiteral("checked"), true},
+            {QStringLiteral("enabled"), true}});
 
     const QList<OmaseedBackup::Match> matches =
         OmaseedBackup::match(*contents, m_servers->servers(), backupSources());
@@ -4355,15 +4380,18 @@ QVariantMap App::readBackup(const QString &path)
             side.append(tr("%1 added").arg(added.size()));
         QStringList detail;
         if (!kept.isEmpty())
-            detail.append(tr("%1 already here (same address): kept, path maps updated.").arg(kept.join(QStringLiteral(", "))));
+            detail.append(tr("%1 already here (same address): kept, path maps updated.")
+                              .arg(kept.join(QStringLiteral(", "))));
         if (!added.isEmpty())
-            detail.append(tr("%1 added; you sign in once after.").arg(added.join(QStringLiteral(", "))));
-        parts.append(QVariantMap{{QStringLiteral("key"), QStringLiteral("servers")},
-                                 {QStringLiteral("label"), tr("servers · %1").arg(names.join(QStringLiteral(", ")))},
-                                 {QStringLiteral("side"), side.join(QStringLiteral(" · "))},
-                                 {QStringLiteral("detail"), detail.join(QLatin1Char(' '))},
-                                 {QStringLiteral("checked"), true},
-                                 {QStringLiteral("enabled"), true}});
+            detail.append(
+                tr("%1 added; you sign in once after.").arg(added.join(QStringLiteral(", "))));
+        parts.append(QVariantMap{
+            {QStringLiteral("key"), QStringLiteral("servers")},
+            {QStringLiteral("label"), tr("servers · %1").arg(names.join(QStringLiteral(", ")))},
+            {QStringLiteral("side"), side.join(QStringLiteral(" · "))},
+            {QStringLiteral("detail"), detail.join(QLatin1Char(' '))},
+            {QStringLiteral("checked"), true},
+            {QStringLiteral("enabled"), true}});
     }
 
     for (const OmaseedBackup::Match &m : matches) {
@@ -4374,25 +4402,29 @@ QVariantMap App::readBackup(const QString &path)
         QString detail;
         bool needsServers = false;
         if (m.localId.isEmpty()) {
-            detail = tr("%1 is new here: its %2 come with it when servers are restored.").arg(name, daysText(theirs));
+            detail = tr("%1 is new here: its %2 come with it when servers are restored.")
+                         .arg(name, daysText(theirs));
             needsServers = true;
         } else if (!m.local.exists()) {
-            detail = tr("No history for %1 here yet: it starts with the backup's %2.").arg(name, daysText(theirs));
+            detail = tr("No history for %1 here yet: it starts with the backup's %2.")
+                         .arg(name, daysText(theirs));
         } else if (m.backupLonger) {
             detail = tr("This machine has %1 for %2. The backup's %3 replace them.")
                          .arg(daysText(m.local.days(now)), name, daysText(theirs));
         } else if (m.local.start == m.part.history.start) {
             detail = tr("This machine already has this history for %1.").arg(name);
         } else {
-            detail = tr("This machine's %1 for %2 are longer and stay.").arg(daysText(m.local.days(now)), name);
+            detail = tr("This machine's %1 for %2 are longer and stay.")
+                         .arg(daysText(m.local.days(now)), name);
         }
-        parts.append(QVariantMap{{QStringLiteral("key"), QStringLiteral("history:") + m.part.server.id},
-                                 {QStringLiteral("label"), tr("seed history · %1").arg(name)},
-                                 {QStringLiteral("side"), tr("since %1").arg(dayText(m.part.history.start))},
-                                 {QStringLiteral("detail"), detail},
-                                 {QStringLiteral("checked"), m.backupLonger},
-                                 {QStringLiteral("enabled"), m.backupLonger},
-                                 {QStringLiteral("needsServers"), needsServers}});
+        parts.append(
+            QVariantMap{{QStringLiteral("key"), QStringLiteral("history:") + m.part.server.id},
+                        {QStringLiteral("label"), tr("seed history · %1").arg(name)},
+                        {QStringLiteral("side"), tr("since %1").arg(dayText(m.part.history.start))},
+                        {QStringLiteral("detail"), detail},
+                        {QStringLiteral("checked"), m.backupLonger},
+                        {QStringLiteral("enabled"), m.backupLonger},
+                        {QStringLiteral("needsServers"), needsServers}});
     }
     out.insert(QStringLiteral("parts"), parts);
     return out;
@@ -4403,9 +4435,11 @@ QVariantMap App::restoreBackup(const QVariantMap &choice)
     // A demo keeps its settings in memory and its servers fictional: it never writes the
     // real files a restore would replace.
     if (m_demoMode)
-        return {{QStringLiteral("ok"), false}, {QStringLiteral("text"), tr("Restore is off in the demo.")}};
+        return {{QStringLiteral("ok"), false},
+                {QStringLiteral("text"), tr("Restore is off in the demo.")}};
     if (!m_pendingRestore)
-        return {{QStringLiteral("ok"), false}, {QStringLiteral("text"), tr("Choose a backup first.")}};
+        return {{QStringLiteral("ok"), false},
+                {QStringLiteral("text"), tr("Choose a backup first.")}};
     OmaseedBackup::Plan plan;
     plan.settings = choice.value(QStringLiteral("settings")).toBool();
     plan.servers = choice.value(QStringLiteral("servers")).toBool();
@@ -4428,13 +4462,16 @@ QVariantMap App::restoreBackup(const QVariantMap &choice)
     if (plan.settings)
         done.append(tr("settings"));
     if (!outcome->addedServers.isEmpty())
-        done.append(outcome->addedServers.size() == 1 ? tr("1 server added")
-                                                       : tr("%1 servers added").arg(outcome->addedServers.size()));
+        done.append(outcome->addedServers.size() == 1
+                        ? tr("1 server added")
+                        : tr("%1 servers added").arg(outcome->addedServers.size()));
     if (!outcome->historyRestored.isEmpty())
-        done.append(tr("history for %1").arg(outcome->historyRestored.size() == 1
-                                                 ? tr("1 server")
-                                                 : tr("%1 servers").arg(outcome->historyRestored.size())));
-    QString text = done.isEmpty() ? tr("Nothing to restore.") : tr("Restored: %1.").arg(done.join(QStringLiteral(", ")));
+        done.append(tr("history for %1")
+                        .arg(outcome->historyRestored.size() == 1
+                                 ? tr("1 server")
+                                 : tr("%1 servers").arg(outcome->historyRestored.size())));
+    QString text = done.isEmpty() ? tr("Nothing to restore.")
+                                  : tr("Restored: %1.").arg(done.join(QStringLiteral(", ")));
     text += QLatin1Char(' ') + tr("What was here is in %1.").arg(tildePath(outcome->safetyCopy));
     if (!outcome->addedServers.isEmpty())
         text += QLatin1Char(' ') + tr("Sign in to new servers once, in Servers.");
@@ -4449,7 +4486,8 @@ void App::reloadAfterRestore()
     loadSettings();
     m_notificationTogglesLoaded = false;
     loadNotificationToggles();
-    m_autoBackup->setMode(stateSection(QStringLiteral("backup")).value(QStringLiteral("mode")).toString());
+    m_autoBackup->setMode(
+        stateSection(QStringLiteral("backup")).value(QStringLiteral("mode")).toString());
     applyAppearance();
     Q_EMIT settingsChanged();
     Q_EMIT notificationsEnabledChanged();

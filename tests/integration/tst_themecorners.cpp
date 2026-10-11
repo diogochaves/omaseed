@@ -37,7 +37,8 @@ public:
     {
         QFile file(hyprctl());
         if (file.open(QIODevice::WriteOnly)) {
-            file.write("#!/bin/sh\ncat \"$(dirname \"$0\")/$3\" 2>/dev/null || echo 'no such option'\n");
+            file.write(
+                "#!/bin/sh\ncat \"$(dirname \"$0\")/$3\" 2>/dev/null || echo 'no such option'\n");
             file.close();
             file.setPermissions(QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner);
         }

@@ -617,12 +617,17 @@ void TestStatusWriter::idlePollsLeaveTheLibraryAlone()
     // debian (complete, one seed) was last active 30 days ago less 2 s: still counted as
     // awake; kept until the second it turns quiet, then worked out again.
     const qint64 last = current.toSecsSinceEpoch() - 30 * 24 * 3600 + 2;
-    engine.applyDemoData(partial(
-        {}, QJsonObject{{QStringLiteral("bbbb"), QJsonObject{{QStringLiteral("last_activity"), last}}}}));
+    engine.applyDemoData(
+        partial({},
+                QJsonObject{{QStringLiteral("bbbb"),
+                             QJsonObject{{QStringLiteral("last_activity"), last}}}}));
     const auto quiet = [&writer]() {
         int count = 0;
-        const QJsonArray buckets =
-            writer.snapshot().value(QStringLiteral("alive")).toObject().value(QStringLiteral("buckets")).toArray();
+        const QJsonArray buckets = writer.snapshot()
+                                       .value(QStringLiteral("alive"))
+                                       .toObject()
+                                       .value(QStringLiteral("buckets"))
+                                       .toArray();
         for (const QJsonValue &bucket : buckets)
             count += bucket.toObject().value(QStringLiteral("quiet")).toInt();
         return count;

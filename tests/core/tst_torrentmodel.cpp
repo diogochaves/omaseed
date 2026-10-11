@@ -456,22 +456,23 @@ void TestTorrentModel::lastChangeNamesWhatAPollTouched()
     QVERIFY(model.lastChangeFollows(seen));
 
     // A key that holds its value is not a change; one that moves is. New rows count too.
-    model.applyPartial(QJsonObject{{QStringLiteral("aaaa"),
-                                    QJsonObject{{QStringLiteral("ratio"), 0.15}}},
-                                   {QStringLiteral("bbbb"),
-                                    QJsonObject{{QStringLiteral("ratio"), 2.5}}},
-                                   {QStringLiteral("dddd"),
-                                    torrentJson(QStringLiteral("delta"), QStringLiteral("uploading"), 1.0)}},
-                       QJsonArray({QStringLiteral("cccc"), QStringLiteral("cccc"), QStringLiteral("zzzz")}));
-    QCOMPARE(model.lastChange().changed, QStringList({QStringLiteral("bbbb"), QStringLiteral("dddd")}));
+    model.applyPartial(
+        QJsonObject{{QStringLiteral("aaaa"), QJsonObject{{QStringLiteral("ratio"), 0.15}}},
+                    {QStringLiteral("bbbb"), QJsonObject{{QStringLiteral("ratio"), 2.5}}},
+                    {QStringLiteral("dddd"),
+                     torrentJson(QStringLiteral("delta"), QStringLiteral("uploading"), 1.0)}},
+        QJsonArray({QStringLiteral("cccc"), QStringLiteral("cccc"), QStringLiteral("zzzz")}));
+    QCOMPARE(model.lastChange().changed,
+             QStringList({QStringLiteral("bbbb"), QStringLiteral("dddd")}));
     QCOMPARE(model.lastChange().removed, QStringList({QStringLiteral("cccc")}));
     QCOMPARE(model.revision(), seen + 1);
     QVERIFY(model.lastChangeFollows(seen));
 
     // A caller that missed a poll walks again.
     seen = model.revision();
-    model.applyPartial(QJsonObject{{QStringLiteral("aaaa"), QJsonObject{{QStringLiteral("ratio"), 0.5}}}},
-                       QJsonArray());
+    model.applyPartial(
+        QJsonObject{{QStringLiteral("aaaa"), QJsonObject{{QStringLiteral("ratio"), 0.5}}}},
+        QJsonArray());
     model.applyPartial(QJsonObject(), QJsonArray());
     QVERIFY(!model.lastChangeFollows(seen));
 

@@ -12,7 +12,8 @@ namespace {
 /// `auto-yyyy-MM-dd-HHmmss.omaseed`: sorting the names sorts the copies by time.
 const QRegularExpression &copyName()
 {
-    static const QRegularExpression re(QStringLiteral("^auto-(\\d{4}-\\d{2}-\\d{2}-\\d{6})\\.omaseed$"));
+    static const QRegularExpression re(
+        QStringLiteral("^auto-(\\d{4}-\\d{2}-\\d{2}-\\d{6})\\.omaseed$"));
     return re;
 }
 
@@ -24,8 +25,9 @@ AutoBackup::AutoBackup(QObject *parent)
 
 void AutoBackup::setMode(const QString &mode)
 {
-    m_mode = (mode == QLatin1String("off") || mode == QLatin1String("daily")) ? mode
-                                                                              : QStringLiteral("weekly");
+    m_mode = (mode == QLatin1String("off") || mode == QLatin1String("daily"))
+                 ? mode
+                 : QStringLiteral("weekly");
 }
 
 qint64 AutoBackup::interval() const
@@ -39,8 +41,10 @@ QStringList AutoBackup::copies() const
 {
     QStringList out;
     const QDir dir(m_sources.backupsDir);
-    const QStringList names = dir.entryList({kPrefix + QStringLiteral("-*") + OmaseedBackup::kSuffix},
-                                            QDir::Files, QDir::Name | QDir::Reversed);
+    const QStringList names =
+        dir.entryList({kPrefix + QStringLiteral("-*") + OmaseedBackup::kSuffix},
+                      QDir::Files,
+                      QDir::Name | QDir::Reversed);
     for (const QString &name : names) {
         if (copyName().match(name).hasMatch())
             out.append(dir.filePath(name));

@@ -143,8 +143,7 @@ QString Theme::defaultEventSocket()
 
 Theme::Theme(ThemeReader *reader, QObject *parent)
     : Theme(reader, Hyprland{}, parent)
-{
-}
+{}
 
 Theme::Theme(ThemeReader *reader, const Hyprland &hyprland, QObject *parent)
     : QObject(parent)
@@ -305,8 +304,7 @@ void Theme::askHyprland(const QString &option, std::function<void(const QByteArr
         hyprctl->deleteLater();
         done(QByteArray());
     });
-    hyprctl->start(m_hyprland.hyprctl,
-                   {QStringLiteral("-j"), QStringLiteral("getoption"), option});
+    hyprctl->start(m_hyprland.hyprctl, {QStringLiteral("-j"), QStringLiteral("getoption"), option});
 }
 
 void Theme::applyCorners(const WindowCorners &corners)

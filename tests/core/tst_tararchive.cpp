@@ -69,7 +69,8 @@ private slots:
         QVERIFY(error.contains(QStringLiteral("damaged")));
 
         QVERIFY(!TarArchive::read(good.left(600), &error)); // cut in the middle
-        QVERIFY(!TarArchive::read(QByteArray("PK\x03\x04 not a tar at all") + QByteArray(1024, '\0'), &error));
+        QVERIFY(!TarArchive::read(
+            QByteArray("PK\x03\x04 not a tar at all") + QByteArray(1024, '\0'), &error));
         QVERIFY(!TarArchive::read(QByteArray(), &error));
     }
 
@@ -97,8 +98,11 @@ private slots:
         in.close();
         QProcess make;
         make.setWorkingDirectory(dir.path());
-        make.start(tar, {QStringLiteral("--format=ustar"), QStringLiteral("-cf"),
-                         QStringLiteral("theirs.tar"), QStringLiteral("x.txt")});
+        make.start(tar,
+                   {QStringLiteral("--format=ustar"),
+                    QStringLiteral("-cf"),
+                    QStringLiteral("theirs.tar"),
+                    QStringLiteral("x.txt")});
         QVERIFY(make.waitForFinished(10000));
         QFile theirs(dir.filePath(QStringLiteral("theirs.tar")));
         QVERIFY(theirs.open(QIODevice::ReadOnly));

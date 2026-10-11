@@ -214,10 +214,10 @@ private:
     QString m_todayText;
     int m_heroTick = 0;
 
-    QTimer m_refreshTimer; ///< the cheap blocks, while active
-    QTimer m_slowTimer;    ///< the ledger's blocks, while active
-    QTimer m_heroTimer;    ///< the hero's spark, always (one ledger read a second)
-    QTimer m_coalesce;     ///< a burst of the scope's signals becomes one scopeMoved()
+    QTimer m_refreshTimer;      ///< the cheap blocks, while active
+    QTimer m_slowTimer;         ///< the ledger's blocks, while active
+    QTimer m_heroTimer;         ///< the hero's spark, always (one ledger read a second)
+    QTimer m_coalesce;          ///< a burst of the scope's signals becomes one scopeMoved()
     quint64 m_slowScopeKey = 0; ///< scopeKey() of the scope refreshSlow last worked on
 };
 

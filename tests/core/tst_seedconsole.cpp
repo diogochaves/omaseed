@@ -34,7 +34,8 @@ QJsonObject row(const QString &name,
         {QStringLiteral("size"), size},
         {QStringLiteral("total_size"), size},
         {QStringLiteral("progress"), 1.0},
-        {QStringLiteral("state"), upspeed > 0 ? QStringLiteral("uploading") : QStringLiteral("stalledUP")},
+        {QStringLiteral("state"),
+         upspeed > 0 ? QStringLiteral("uploading") : QStringLiteral("stalledUP")},
         {QStringLiteral("ratio"), ratio},
         {QStringLiteral("uploaded"), qint64(double(size) * ratio)},
         {QStringLiteral("downloaded"), size},
@@ -63,17 +64,31 @@ struct Fixture
     Fixture()
     {
         model.applyFullUpdate(QJsonObject{
-            {QStringLiteral("aaa"), row(QStringLiteral("Nosferatu"), 4000, 0.4, 1, 3, QStringLiteral("films"))},
-            {QStringLiteral("bbb"), row(QStringLiteral("Chopin"), 1000, 6.8, 2, 0, QStringLiteral("audio"))},
-            {QStringLiteral("ccc"), row(QStringLiteral("debian.iso"), 700, 12.0, 2400, 31, QStringLiteral("linux"), 1000)},
-            {QStringLiteral("ddd"), row(QStringLiteral("dataset"), 90000, 1.5, 40, 0, QStringLiteral("data"), 0, false, 94)},
-            {QStringLiteral("eee"), row(QStringLiteral("krita"), 400, 2.0, 1, 0, QStringLiteral("linux"), 0, true)},
+            {QStringLiteral("aaa"),
+             row(QStringLiteral("Nosferatu"), 4000, 0.4, 1, 3, QStringLiteral("films"))},
+            {QStringLiteral("bbb"),
+             row(QStringLiteral("Chopin"), 1000, 6.8, 2, 0, QStringLiteral("audio"))},
+            {QStringLiteral("ccc"),
+             row(QStringLiteral("debian.iso"), 700, 12.0, 2400, 31, QStringLiteral("linux"), 1000)},
+            {QStringLiteral("ddd"),
+             row(QStringLiteral("dataset"),
+                 90000,
+                 1.5,
+                 40,
+                 0,
+                 QStringLiteral("data"),
+                 0,
+                 false,
+                 94)},
+            {QStringLiteral("eee"),
+             row(QStringLiteral("krita"), 400, 2.0, 1, 0, QStringLiteral("linux"), 0, true)},
         });
         filter.setSourceModel(&model);
-        state.applyServerState(QJsonObject{{QStringLiteral("alltime_ul"), 1000000},
-                                           {QStringLiteral("alltime_dl"), 250000},
-                                           {QStringLiteral("global_ratio"), QStringLiteral("4.00")},
-                                           {QStringLiteral("connection_status"), QStringLiteral("connected")}});
+        state.applyServerState(
+            QJsonObject{{QStringLiteral("alltime_ul"), 1000000},
+                        {QStringLiteral("alltime_dl"), 250000},
+                        {QStringLiteral("global_ratio"), QStringLiteral("4.00")},
+                        {QStringLiteral("connection_status"), QStringLiteral("connected")}});
         console.setClock([] { return kNow; });
         console.setSources(&model, &filter, nullptr, &state, &ledger);
     }
@@ -145,7 +160,8 @@ private Q_SLOTS:
         const QVariantMap t = f.console.totals();
         QCOMPARE(t.value(QStringLiteral("ratioText")).toString(), QStringLiteral("0.40"));
         QCOMPARE(t.value(QStringLiteral("bufferNegative")).toBool(), true);
-        QCOMPARE(t.value(QStringLiteral("takenNote")).toString(), QStringLiteral("by these torrents"));
+        QCOMPARE(t.value(QStringLiteral("takenNote")).toString(),
+                 QStringLiteral("by these torrents"));
     }
 
     void keepingAliveBucketsAndRarestFirst()
@@ -158,9 +174,12 @@ private Q_SLOTS:
         QCOMPARE(buckets.at(1).toMap().value(QStringLiteral("count")).toInt(), 1); // 2 seeds
         QCOMPARE(buckets.at(5).toMap().value(QStringLiteral("count")).toInt(), 1); // krita: error
         const QVariantList rows = alive.value(QStringLiteral("rows")).toList();
-        QCOMPARE(rows.first().toMap().value(QStringLiteral("name")).toString(), QStringLiteral("Nosferatu"));
-        QCOMPARE(rows.first().toMap().value(QStringLiteral("seedsText")).toString(), QStringLiteral("only you"));
-        QCOMPARE(rows.first().toMap().value(QStringLiteral("waitingText")).toString(), QStringLiteral("3 waiting"));
+        QCOMPARE(rows.first().toMap().value(QStringLiteral("name")).toString(),
+                 QStringLiteral("Nosferatu"));
+        QCOMPARE(rows.first().toMap().value(QStringLiteral("seedsText")).toString(),
+                 QStringLiteral("only you"));
+        QCOMPARE(rows.first().toMap().value(QStringLiteral("waitingText")).toString(),
+                 QStringLiteral("3 waiting"));
     }
 
     void attentionNamesTheTrackerThatFails()
@@ -170,7 +189,8 @@ private Q_SLOTS:
         const QVariantMap a = f.console.attention();
         QVERIFY(a.value(QStringLiteral("visible")).toBool());
         QCOMPARE(a.value(QStringLiteral("errors")).toInt(), 1);
-        QCOMPARE(a.value(QStringLiteral("title")).toString(), QStringLiteral("1 seeding torrent earn nothing"));
+        QCOMPARE(a.value(QStringLiteral("title")).toString(),
+                 QStringLiteral("1 seeding torrent earn nothing"));
     }
 
     void holdingSkipsRareTorrents()
@@ -179,8 +199,10 @@ private Q_SLOTS:
         f.console.refresh();
         const QVariantList rows = f.console.holding().value(QStringLiteral("rows")).toList();
         QCOMPARE(rows.size(), 1);
-        QCOMPARE(rows.first().toMap().value(QStringLiteral("name")).toString(), QStringLiteral("dataset"));
-        QCOMPARE(rows.first().toMap().value(QStringLiteral("quietText")).toString(), QStringLiteral("quiet 94 d"));
+        QCOMPARE(rows.first().toMap().value(QStringLiteral("name")).toString(),
+                 QStringLiteral("dataset"));
+        QCOMPARE(rows.first().toMap().value(QStringLiteral("quietText")).toString(),
+                 QStringLiteral("quiet 94 d"));
     }
 
     void onAirAndLadder()
@@ -189,9 +211,13 @@ private Q_SLOTS:
         f.console.refresh();
         const QVariantList air = f.console.onAir().value(QStringLiteral("rows")).toList();
         QCOMPARE(air.size(), 1);
-        QCOMPARE(air.first().toMap().value(QStringLiteral("peersText")).toString(), QStringLiteral("2 peers"));
+        QCOMPARE(air.first().toMap().value(QStringLiteral("peersText")).toString(),
+                 QStringLiteral("2 peers"));
         QCOMPARE(f.console.ladderPoints().size(), 5);
-        QVERIFY(f.console.ladder().value(QStringLiteral("summary")).toString().startsWith(QStringLiteral("1 below 1.0")));
+        QVERIFY(f.console.ladder()
+                    .value(QStringLiteral("summary"))
+                    .toString()
+                    .startsWith(QStringLiteral("1 below 1.0")));
         // Biggest first, as the ladder draws them.
         QCOMPARE(f.console.ladderPoints().first().toMap().value(QStringLiteral("name")).toString(),
                  QStringLiteral("dataset"));
@@ -420,13 +446,15 @@ private Q_SLOTS:
         QCOMPARE(points.size(), 144);
         QVERIFY(!points.first().toMap().value(QStringLiteral("up")).isValid()); // before the ledger
         QCOMPARE(tide.value(QStringLiteral("upText")).toString(), QStringLiteral("6 KB"));
-        QCOMPARE(f.console.totals().value(QStringLiteral("todayText")).toString(), QStringLiteral("+6 KB"));
+        QCOMPARE(f.console.totals().value(QStringLiteral("todayText")).toString(),
+                 QStringLiteral("+6 KB"));
     }
 
     void selectionSummaryAndRarity()
     {
         Fixture f;
-        const QVariantMap s = f.console.selectionSummary({QStringLiteral("aaa"), QStringLiteral("bbb")});
+        const QVariantMap s =
+            f.console.selectionSummary({QStringLiteral("aaa"), QStringLiteral("bbb")});
         QCOMPARE(s.value(QStringLiteral("count")).toInt(), 2);
         QCOMPARE(s.value(QStringLiteral("sizeText")).toString(), QStringLiteral("5 KB"));
         const QVariantMap r = f.console.rarity({QStringLiteral("aaa")});
@@ -439,10 +467,18 @@ private Q_SLOTS:
 
     // A cross-seed: a second torrent, on another tracker, on the files Nosferatu already has.
     // It took nothing (downloaded 0) and gave 1 200 in its own swarm.
-    static QJsonObject crossSeedOf(const QString &name, qint64 size, qint64 uploaded, int quietDays = 0)
+    static QJsonObject
+    crossSeedOf(const QString &name, qint64 size, qint64 uploaded, int quietDays = 0)
     {
-        QJsonObject o = row(name, size, double(uploaded) / double(size), 3, 0, QStringLiteral("films"), 0,
-                            false, quietDays);
+        QJsonObject o = row(name,
+                            size,
+                            double(uploaded) / double(size),
+                            3,
+                            0,
+                            QStringLiteral("films"),
+                            0,
+                            false,
+                            quietDays);
         o[QStringLiteral("downloaded")] = 0;
         o[QStringLiteral("uploaded")] = uploaded;
         o[QStringLiteral("tracker")] = QStringLiteral("https://other.example.net/announce");
@@ -453,15 +489,18 @@ private Q_SLOTS:
     {
         Fixture f;
         f.console.refresh();
-        const QString offerBefore = f.console.totals().value(QStringLiteral("offerText")).toString();
-        f.model.applyPartial(QJsonObject{{QStringLiteral("fff"), crossSeedOf(QStringLiteral("Nosferatu"), 4000, 1200)}},
+        const QString offerBefore =
+            f.console.totals().value(QStringLiteral("offerText")).toString();
+        f.model.applyPartial(QJsonObject{{QStringLiteral("fff"),
+                                          crossSeedOf(QStringLiteral("Nosferatu"), 4000, 1200)}},
                              QJsonArray());
         f.console.refresh();
         // The disk holds the files once: what you offer does not grow.
         QCOMPARE(f.console.totals().value(QStringLiteral("offerText")).toString(), offerBefore);
 
         // Both selected: the files once, what both gave, what was taken once.
-        const QVariantMap s = f.console.selectionSummary({QStringLiteral("aaa"), QStringLiteral("fff")});
+        const QVariantMap s =
+            f.console.selectionSummary({QStringLiteral("aaa"), QStringLiteral("fff")});
         QCOMPARE(s.value(QStringLiteral("count")).toInt(), 2);
         QCOMPARE(s.value(QStringLiteral("sizeText")).toString(), Format::size(4000));
         QCOMPARE(s.value(QStringLiteral("givenText")).toString(), Format::size(2800));
@@ -470,14 +509,16 @@ private Q_SLOTS:
         // The ladder: two dots below 1.0, but the files owe what is left of 4 KB after both
         // gave (1.2 KB), not each torrent its own 4 KB again.
         const QString ladder = f.console.ladder().value(QStringLiteral("summary")).toString();
-        QVERIFY2(ladder.startsWith(QStringLiteral("2 below 1.0 · %1 still to give back").arg(Format::size(1200))),
+        QVERIFY2(ladder.startsWith(
+                     QStringLiteral("2 below 1.0 · %1 still to give back").arg(Format::size(1200))),
                  qPrintable(ladder));
     }
 
     void quietCrossSeedsHoldTheirFilesOnce()
     {
         Fixture f;
-        f.model.applyPartial(QJsonObject{{QStringLiteral("ggg"), crossSeedOf(QStringLiteral("dataset"), 90000, 0, 94)}},
+        f.model.applyPartial(QJsonObject{{QStringLiteral("ggg"),
+                                          crossSeedOf(QStringLiteral("dataset"), 90000, 0, 94)}},
                              QJsonArray());
         f.console.refresh();
         const QVariantMap holding = f.console.holding();
@@ -492,8 +533,12 @@ private Q_SLOTS:
     {
         Fixture f;
         const qint64 t = kNow.toSecsSinceEpoch();
-        f.ledger.observe(t - 7200, 0, 0, {{QStringLiteral("zzz"), 0, 0}, {QStringLiteral("ccc"), 0, 0}});
-        f.ledger.observe(t - 7198, 5000, 0, {{QStringLiteral("zzz"), 4000, 0}, {QStringLiteral("ccc"), 1000, 0}});
+        f.ledger.observe(
+            t - 7200, 0, 0, {{QStringLiteral("zzz"), 0, 0}, {QStringLiteral("ccc"), 0, 0}});
+        f.ledger.observe(t - 7198,
+                         5000,
+                         0,
+                         {{QStringLiteral("zzz"), 4000, 0}, {QStringLiteral("ccc"), 1000, 0}});
         f.ledger.observe(t - 7196, 5000, 0, {{QStringLiteral("ccc"), 1000, 0}}); // zzz removed
         f.console.setRecentProvider([t] {
             return QVariantList{QVariantMap{{QStringLiteral("kind"), QStringLiteral("milestone")},
@@ -510,7 +555,8 @@ private Q_SLOTS:
             QVERIFY(r.toMap().value(QStringLiteral("hash")).toString() != QLatin1String("zzz"));
         const QVariantList lately = f.console.lately();
         QCOMPARE(lately.size(), 1);
-        QCOMPARE(lately.first().toMap().value(QStringLiteral("name")).toString(), QStringLiteral("Gone film"));
+        QCOMPARE(lately.first().toMap().value(QStringLiteral("name")).toString(),
+                 QStringLiteral("Gone film"));
     }
 
     void rangesStep()

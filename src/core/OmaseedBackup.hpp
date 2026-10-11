@@ -98,8 +98,8 @@ public:
     /// The backup archive of everything `sources` points at, made at `now`.
     static QByteArray create(const Sources &sources, qint64 now, QString *error = nullptr);
     /// Writes `create()` to `path` atomically (0600). False with `error` on any failure.
-    static bool createFile(const Sources &sources, const QString &path, qint64 now,
-                           QString *error = nullptr);
+    static bool
+    createFile(const Sources &sources, const QString &path, qint64 now, QString *error = nullptr);
 
     /// A backup's contents, or nothing when `archive` is not an omaseed backup this build
     /// reads, or is damaged. Nothing is written.
@@ -116,14 +116,14 @@ public:
     struct Match
     {
         ServerPart part;
-        QString localId;   ///< the matching local server's id; empty when it would be added
-        History local;     ///< that server's history here
+        QString localId; ///< the matching local server's id; empty when it would be added
+        History local;   ///< that server's history here
         /// D4 a: the backup's history would replace this machine's (it began earlier, or
         /// there is none here). False when the backup has none.
         bool backupLonger = false;
     };
-    static QList<Match> match(const Contents &contents, const QList<Server> &local,
-                              const Sources &sources);
+    static QList<Match>
+    match(const Contents &contents, const QList<Server> &local, const Sources &sources);
 
     struct Plan
     {
@@ -133,16 +133,19 @@ public:
     };
     struct Outcome
     {
-        QString safetyCopy;       ///< where what was here went first
-        QStringList addedServers; ///< ids
-        QStringList keptServers;  ///< local ids that matched
+        QString safetyCopy;          ///< where what was here went first
+        QStringList addedServers;    ///< ids
+        QStringList keptServers;     ///< local ids that matched
         QStringList historyRestored; ///< local ids whose ledger was replaced
         QStringList historyKept;     ///< local ids whose (longer) ledger stayed
     };
     /// Restores `plan`'s parts of `contents` into `sources` and `store`, after the safety
     /// copy. History for a server that neither matches nor is restored is skipped.
-    static std::optional<Outcome> restore(const Contents &contents, const Plan &plan,
-                                          ServerStore &store, const Sources &sources, qint64 now,
+    static std::optional<Outcome> restore(const Contents &contents,
+                                          const Plan &plan,
+                                          ServerStore &store,
+                                          const Sources &sources,
+                                          qint64 now,
                                           QString *error = nullptr);
 
     /// `<dir>/<prefix>-yyyy-MM-dd-HHmmss.omaseed` for `now`, local time.

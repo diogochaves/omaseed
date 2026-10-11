@@ -24,10 +24,10 @@
 
 #include <QApplication>
 #include <QCommandLineOption>
-#include <QDBusConnection>
-#include <QDBusConnectionInterface>
 #include <QCommandLineParser>
 #include <QCoreApplication>
+#include <QDBusConnection>
+#include <QDBusConnectionInterface>
 #include <QElapsedTimer>
 #include <QGuiApplication>
 #include <QProcessEnvironment>
@@ -502,8 +502,9 @@ int main(int argc, char *argv[])
         // to hand over: leave it as it is instead of popping its window up.
         if (parser.isSet(hiddenOption) && uris.isEmpty()) {
             const QDBusConnection bus = QDBusConnection::sessionBus();
-            if (bus.isConnected() && bus.interface()
-                && bus.interface()->isServiceRegistered(omaseed::integration::AppIdentity::dbusServiceName()))
+            if (bus.isConnected() && bus.interface() &&
+                bus.interface()->isServiceRegistered(
+                    omaseed::integration::AppIdentity::dbusServiceName()))
                 return 0;
         }
         if (!singleInstance->start(uris))
