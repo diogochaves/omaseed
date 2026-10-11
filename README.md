@@ -3,344 +3,277 @@
 Torrents for Omarchy, powered by qBittorrent.
 
 A native Linux desktop client (C++20, Qt 6 Quick) for one or many qBittorrent servers. It
-owns `magnet:` links and `.torrent` files, lives in the tray, notifies on completion, a lost
-server and a full disk, opens finished content in the file manager, and presents a dense
-keyboard-driven table in the exact visual language of the Omarchy shell — repainting live
-the instant the Omarchy theme changes. It does not contain a torrent engine; qBittorrent
-(local or remote) is the engine. It runs on any Linux, with a bundled default theme when
-Omarchy is absent.
-
-Private during development; public with v1.
+opens `magnet:` links and `.torrent` files, lives in the tray or the Omarchy bar, notifies
+when a download finishes, a server goes away or a disk fills up, and shows a dense,
+keyboard-driven library in the visual language of the Omarchy shell, repainting the moment
+the Omarchy theme changes. omaseed has no torrent engine of its own: qBittorrent, local or
+remote, does the transferring. It runs on any Linux, with a bundled theme when Omarchy is
+not there.
 
 <p>
-  <img src="docs/evidence/phase3/exit/fig01-main-tokyo-night-12.png" alt="omaseed's main window in Tokyo Night" width="49%">
-  <img src="docs/evidence/phase3/exit/fig01-main-lupine-12.png" alt="omaseed's main window in Lupine (light)" width="49%">
+  <img src="docs/screenshots/library-tokyo-night.png" alt="omaseed's library in Tokyo Night" width="49%">
+  <img src="docs/screenshots/library-lupine.png" alt="omaseed's library in Lupine, a light theme" width="49%">
 </p>
 
-- Follows the selected Omarchy theme live, all bundled themes including the light ones
-- Lives in the tray; closing the window hides it, it keeps polling and notifying
-- Default handler for `magnet:` links and `.torrent` files, registered on request
-- Desktop notifications with actions (open folder, show, settings), not just a toast
-- One server or many, with per-server credentials and a default
-- Keyboard-first: every action in the table, rail and details pane has a key; `?` shows
-  the full map
+- Follows the Omarchy theme live, every bundled theme including the light ones
+- Keyboard-first: every action has a key, and `?` shows them all
+- Adds from magnet links, `.torrent` files, the clipboard, drag and drop or your Downloads
+  folder, spots duplicates and files already on disk
+- A seed console for what you give back: upload over time, ratios, a year of seeding days
+- A bar widget for the Omarchy bar, shipped with the app
+- One server or many; passwords and API keys in the system keyring
+- Backs itself up, including the seeding history qBittorrent does not keep
 
 ## Install
 
-### Arch
+### Arch / Omarchy
 
-From a tagged release (once one exists):
+From the latest release:
 
 ```
 git clone https://github.com/diogochaves/omaseed.git
 cd omaseed/packaging/arch
-makepkg -si    # builds the tagged source tarball (packaging/arch/PKGBUILD), needs a pushed tag
+makepkg -si
 ```
 
-From the working tree, before any tag exists or while iterating on packaging:
-
-```
-mkdir -p build/makepkg-scratch && cp packaging/arch/PKGBUILD.local build/makepkg-scratch/PKGBUILD
-cd build/makepkg-scratch && makepkg -si
-```
-
-`-si` installs with pacman and needs root — that part is yours to run, not an agent's (see
-`CLAUDE.md`).
-
-Later, once the package is accepted into the `[omarchy]` repo:
-
-```
-pacman -S omaseed
-```
-
-**Runtime requirements:** qBittorrent 5.2 or newer with its WebUI turned on (`Options →
-WebUI` in the qBittorrent app, or `--webui-port` for `qbittorrent-nox`), and either an API
-key or a WebUI username/password. Older servers without API keys work over the cookie
-login fallback (username/password). The qBittorrent engine itself — local or remote — is
-never installed by omaseed except through the first-run offer below.
+**You need** qBittorrent 5.2 or newer with its Web UI turned on (`Tools → Options → Web UI`
+in the desktop app, or `qbittorrent-nox`), on this machine or another. omaseed signs in with
+an API key, a username and password, or nothing for a server that lets localhost in. It
+never installs qBittorrent itself, except when you accept first run's offer below.
 
 **What the package installs:** the `omaseed` binary, its `.desktop` file and D-Bus service
-file, hicolor icons, the MIT licence, and three Omarchy integration files staged (not
-activated) under `/usr/share/omaseed/`: a Hyprland window-rule module, a theme-change hook,
-and an `omarchy-menu.jsonc` row. You turn them on yourself, since a package must never edit
-your own config files silently. The window rule, linked where Hyprland's Lua config looks for
-`hypr.*` modules:
+file, icons, the MIT licence, the bar widget (`/usr/share/omaseed/plugin`) and three
+Omarchy extras under `/usr/share/omaseed/` that you turn on yourself, since a package must
+not edit your config:
 
-```
-ln -sf /usr/share/omaseed/hyprland/omaseed.lua ~/.config/hypr/omaseed.lua
-```
+- **A Hyprland window rule.** omaseed paints its own translucent background; the rule stops
+  Omarchy's default window opacity from stacking on top of it. Link it, then add
+  `require("hypr.omaseed")` next to your other `require("hypr...")` lines in
+  `~/.config/hypr/hyprland.lua` and run `hyprctl reload`. Add the line only after the link
+  exists: a `require` that finds no file stops Hyprland's config from loading.
 
-then this line next to your other personal `require("hypr...")` lines in
-`~/.config/hypr/hyprland.lua` (nothing edits that file for you), and `hyprctl reload`:
+  ```
+  ln -sf /usr/share/omaseed/hyprland/omaseed.lua ~/.config/hypr/omaseed.lua
+  ```
 
-```
-require("hypr.omaseed")
-```
+- **A theme hook**, so a theme change repaints omaseed at once:
 
-Add the line only after the link exists: a `require` that finds no file stops Hyprland's
-config from loading. The theme hook:
+  ```
+  ln -sf /usr/share/omaseed/hooks/theme-set.d/omaseed ~/.config/omarchy/hooks/theme-set.d/omaseed
+  ```
 
-```
-ln -sf /usr/share/omaseed/hooks/theme-set.d/omaseed ~/.config/omarchy/hooks/theme-set.d/omaseed
-```
-
-That module opts the window out of Omarchy's default compositor-level opacity — omaseed
-paints its own translucent background, and the two would otherwise multiply. The
-`omarchy-menu.jsonc` row (a "Torrents" shortcut on the root menu) is copy-paste from
-`/usr/share/omaseed/omarchy-menu.jsonc` into
-`~/.config/omarchy/extensions/omarchy-menu.jsonc`; the app is already reachable from the
-built-in Apps submenu without it.
+- **A "Torrents" row for the Omarchy menu**: copy it from
+  `/usr/share/omaseed/omarchy-menu.jsonc` into `~/.config/omarchy/extensions/omarchy-menu.jsonc`.
+  omaseed is in the menu's Apps list without it.
 
 ## First run
 
-On a fresh launch, with no server configured, omaseed shows a full-window setup page
-instead of the table. Three steps, `esc` to quit at any point:
+With no server set up, omaseed opens on a short setup instead of the library. `esc` leaves
+at any point.
 
-1. **Choose a server.** omaseed probes for one already running on this machine (a
-   listening port 8080, a `qbittorrent` Docker container, a running `qbittorrent-nox`) and
-   offers it if found. You can always choose "connect to a remote server" instead. If
-   nothing local was found, a third option offers to install `qbittorrent-nox` here —
-   two copyable commands, or a **run with pkexec** button; omaseed itself never runs
-   `sudo`.
-2. **Enter the URL and credentials**, then **test** before continuing. Pick API key,
-   cookie (username/password) or none as the auth mode. To get an API key, open the
-   server's WebUI (the **open web UI** button does this) and look for the WebUI's API key
-   setting — in qBittorrent 5.2 that lives under the WebUI options — generate a key there
-   and paste it in. The **test** button reports the version, API version and torrent count
-   before you commit.
-3. **Register as the magnet/`.torrent` handler**, or **not now**. `application/x-bittorrent`
-   and `x-scheme-handler/magnet` are only registered if you say yes here (or later, from
-   Settings → General).
+1. **Choose a server.** omaseed looks for one on this machine (the desktop qBittorrent's own
+   settings, a listening port 8080, a `qbittorrent` Docker container, a running
+   `qbittorrent-nox`) and offers what it finds. You can always connect to a remote server
+   instead. If nothing is found, a third choice installs `qbittorrent-nox` here: two
+   commands to copy, or a button that runs them through `pkexec`.
+2. **Sign in.** The address, a name, and how the server checks who you are: an API key, a
+   username and password, or none. **test** shows the qBittorrent version and how many
+   torrents it has before you go on; **open web UI** takes you to where an API key is made.
+   A server on HTTPS with its own certificate shows the certificate's fingerprint and asks
+   before trusting it.
+3. **Links.** Make omaseed the app that opens magnet links and `.torrent` files, or **not
+   now** (Settings › General can do it later).
+4. **The bar.** On Omarchy, put omaseed's widget in the bar, or **not now**.
+
+## The bar widget
+
+The widget, *Omaseed*, mirrors omaseed in the Omarchy bar: its arrows light while something
+downloads or uploads, and a click opens a popup with the speeds, an hour of upload, a list of
+`.torrent` files to add, today's share, the torrents you keep alive, and what is downloading
+and what finished. It never talks to qBittorrent itself; it reads what omaseed writes and
+asks omaseed to act. While it runs, the tray icon steps aside.
+
+First run offers it, Settings › Appearance › Bar widget turns it on and off, and from a
+terminal:
+
+```
+omaseed --install-bar-widget
+```
+
+That links `~/.config/omarchy/plugins/chaves.omaseed` to the installed widget, so upgrading
+omaseed upgrades the widget too. More in [plugin/README.md](plugin/README.md).
+
+## The seed console
+
+<img src="docs/screenshots/seed-tokyo-night.png" alt="omaseed's seed console" width="100%">
+
+`` ` `` flips the window between the library and the seed console: what you have given and
+taken, the upload tide over an hour to a year, a cell for every day of the last year, the
+torrents only a few people still seed, a ratio ladder and the trackers you seed to. The rail
+and the filter scope it, and so does a selection. omaseed keeps this history itself, in
+`~/.local/share/omaseed/ledger/`, from the day you start using it.
 
 ## Keys
 
-Every key omaseed binds comes from one table in the source
-(`src/ui/qml/Keymap.qml`), and the in-app `?` sheet is drawn from that same table, so the
-two can never drift. It groups keys into four columns; a **capital** letter is the
-stronger variant of its lower-case neighbour (`p` stop/start vs. `P` force-start; `d`
-delete vs. `D` delete with files; `y` copy magnet vs. `Y` copy hash), and `ctrl` marks an
-app-level shortcut rather than a per-row one.
+Every key comes from one table (`src/ui/qml/Keymap.qml`), and the `?` sheet is drawn from
+it. A capital letter is the stronger variant of its lower-case neighbour (`p` stop/start,
+`P` force start; `d` delete, `D` delete with files).
 
-**Navigate**
+**Move**
 
 | Key | Does |
 |---|---|
-| `j` `k` | move the cursor down / up |
+| `j` `k` | move down / up |
 | `g` `G` | first / last row |
-| `h` `l` | rail · table · details — move focus one pane left/right |
-| `/` | filter (focus the search field) |
-| `0`–`9` | in the rail: jump to a status filter |
-| `i` | toggle the details pane |
-| `1`–`4` | in the details pane: switch tab (general, files, trackers, peers) |
+| `h` `l` | rail · table · details |
+| `/` | filter |
+| `0`–`8` | status filter |
 | `ctrl+k` | jump to a torrent by name, hash or tracker |
+| `ctrl+h` `ctrl+l` | scroll sideways |
 
 **Select**
 
 | Key | Does |
 |---|---|
-| `space` | toggle the cursor row's selection |
-| `v` | extend the selection to the cursor (range) |
-| `ctrl+a` | select all visible rows |
-| `esc` | clear the selection, then the filter, then close whatever is open |
+| `space` | toggle the row |
+| `v` | select a range |
+| `ctrl+a` | select every visible row |
+| `esc` | clear the selection, then the filter, then close what is open |
 
-**Act**
+**View**
 
 | Key | Does |
 |---|---|
-| `a` | add a torrent |
-| `enter` | open the actions menu for the cursor/selection |
-| `p` `P` | stop/start · force-start |
+| `` ` `` | seed console |
+| `i` | details |
+| `1`–`4` | details tab (in the details pane) |
+| `s` | sort |
+| `\|` | columns (`alt+↑` `alt+↓` reorder them) |
+| `ctrl+b` | rail |
+| `I` | details right · bottom · auto |
+| `<` `>` | details smaller · larger |
+| `H` `L` | fold / unfold every folder (Files tab) |
+| `X` | hide skipped files (Files tab) |
+
+**Act on torrents**
+
+| Key | Does |
+|---|---|
+| `a` | add |
+| `enter` | actions menu |
+| `p` `P` | stop/start · force start |
 | `d` `D` | delete · delete with files |
 | `c` `R` | recheck · reannounce |
 | `C` `t` `m` `L` `r` | category · tags · location · limits · rename |
-| `[` `]` | move up / down the queue |
+| `[` `]` | queue up / down |
 | `o` | open folder |
-| `y` `Y` | copy magnet link · copy info hash |
+| `y` `Y` `n` | copy magnet · hash · name |
+| `p` `+` `-` `x` | file priority (Files tab) |
+| `O` `o` `r` | open · folder · rename a file (Files tab) |
+| `y` `enter` | copy a value · change an option (General tab) |
 
 **App**
 
 | Key | Does |
 |---|---|
-| `s` | sort (repeat to reverse) |
-| `A` | toggle alternative speed limits |
-| `,` | open settings |
-| `ctrl+,` | choose visible columns |
-| `q` | hide to tray |
+| `A` | alternative speed limits |
+| `,` `ctrl+,` | settings |
+| `ctrl+shift+,` | qBittorrent's settings |
+| `ctrl+.` | more actions |
+| `q` | hide to the tray |
 | `ctrl+q` | quit |
-| `super+t` | suggested Hyprland bind — not bound by omaseed itself, see below |
-| `?` | this key map |
+| `?` `F1` | every key |
 
-**Inside the details pane** (not shown in the `?` sheet, but live): `h`/`l` fold/unfold a
-files-tree row, `+`/`-` raise/lower a file's priority, `x` skip a file, `o` open a file,
-`y` copy a row's value, `a`/`d` add/remove a tracker row, `R` reannounce, `b` ban a peer.
-The rail reuses `j`/`k`/`g`/`G`/`l`/`enter`/`space` with the same navigate/select meanings
-as the table.
-
-`super+t` is a suggestion, not something omaseed registers itself — add it in your own
-Hyprland keybinds to raise or summon the window over D-Bus activation
-(`org.freedesktop.Application.Activate` on `io.github.diogochaves.omaseed`), which a second
-`omaseed` launch (or `uwsm-app -- omaseed`) already triggers for you.
+Keys cannot be rebound yet. omaseed binds no global shortcut; to summon it with, say,
+`super+t`, bind that in Hyprland to launch `omaseed`: a second launch raises the running one.
 
 ## Theme
 
-omaseed reads the same `colors.toml`/`shell.toml` files the rest of the Omarchy shell
-does and repaints live the instant `omarchy-theme-set` runs — no restart, and it works on
-every bundled theme, light ones (Lupine) included. Base text size follows `shell.toml`'s
-`[font] base-size`. Without Omarchy present, it falls back to a bundled Tokyo Night theme
-at base size 12.
+omaseed reads the same `colors.toml` and `shell.toml` as the rest of the Omarchy shell and
+repaints as soon as `omarchy-theme-set` runs, on every bundled theme. Text size follows
+`shell.toml`'s `[font] base-size`, and window corners follow Hyprland's rounding. Without
+Omarchy it uses a bundled Tokyo Night at base size 12.
 
-Settings → Appearance exposes:
-
-- **Follow the Omarchy theme** — off keeps the bundled Tokyo Night regardless of what the
-  desktop does.
-- **Base size** — overrides `shell.toml`'s value; empty follows it.
-- **Window transparency** — how much wallpaper shows through the window's ground panel,
-  50–100 %; empty is 90.
-- **Tray icon** — `auto` / `always` / `never`.
+Settings › Appearance has: follow the Omarchy theme, base size, window transparency, tray
+icon (`auto` hides it while the bar widget runs), bar widget, speed figures and trends,
+surface tint, tracker hosts, and where the details panel sits.
 
 ## Servers
 
-Settings → Servers lists every configured server, with **add**, **test**, **edit**,
-**remove** and **set as default** (`a`/`enter`/`x`/`d` respectively, or click). Adding a
-server asks for its URL, a name, and the auth mode (API key, cookie login with
-username/password, or none for an unauthenticated localhost server) — test before saving.
-The credential is stored via libsecret (through `qtkeychain-qt6`) when a Secret Service
-provider is available, or in a 0600 file under `~/.config/omaseed/secrets/` otherwise.
+Settings › Servers lists every server, with **add**, **test**, **edit**, **remove** and
+**set as default**. Switch between them from the rail's Servers group or here. Passwords
+and API keys go to the system keyring through libsecret, or to a 0600 file under
+`~/.config/omaseed/secrets/` when there is no keyring.
 
-For a remote server whose files live under a different path locally (a NAS mount, a
-seedbox with a different layout), Settings → General's **path mapping** rewrites the
-server's own save path to a local prefix before asking the file manager to reveal it with
-`o`/open folder — off by default.
+For a server whose files appear under another path here (a NAS mount, a seedbox), Settings ›
+General's **path mapping** rewrites the server's save path before open folder.
 
-Servers with no API key configured fall back to cookie (username/password) login
-automatically; this is the only way to talk to qBittorrent versions before the 5.2 API-key
-feature existed.
+Settings › qBittorrent edits the server's own settings (downloads, connection, speed,
+BitTorrent, RSS, Web UI, advanced) without opening its web UI.
+
+## Backups
+
+Settings › Backup saves omaseed's servers, settings and seeding history to one `.omaseed`
+file, and restores from one (keeping a copy of what it replaces first). Automatic copies run
+weekly by default (or daily, or off) into `~/.local/share/omaseed/backups/`, keeping the last
+four. Passwords and API keys are not in a backup; the keyring keeps those.
 
 ## Troubleshooting
 
-- **Where's the tray icon?** The Omarchy shell keeps a fixed set of tray items visible and
-  puts everything else — omaseed included — behind the tray drawer's chevron. Pin
-  `io.github.diogochaves.omaseed` in the shell's tray settings if you want it always
-  visible.
-- **The window looks translucent — is that a bug?** No: it is by design (spec
-  `docs/05-ui-spec-v2.html`), ~90 % of the theme background colour showing wallpaper
-  through it. The Hyprland module (`data/hyprland/omaseed.lua`) opts the window out of
-  Omarchy's own default compositor opacity so the two effects do not multiply; if you skip
-  activating that module the window will look slightly more transparent than intended.
-- **"Failed to register with host portal" in the logs.** Harmless — omaseed logs this at
-  every launch and does not currently use the desktop portal for anything but the
-  `.torrent` file picker (`ctrl+o`), which still works. Nothing to act on.
-- **No desktop notifications.** They go through `org.freedesktop.Notifications`, so the
-  Omarchy shell's notification service needs to be running; there is no other requirement.
-- **See what's happening.** Qt logs go to `journalctl` by default; run with
-  `QT_FORCE_STDERR_LOGGING=1 ./build/omaseed` (or the installed binary) to see them in the
-  terminal instead.
-- **Try the UI without a server.** `omaseed --demo table` (add `--headless` to just print a
-  summary and exit, useful over SSH or in a script) loads a fictional library so you can
-  look at the table, rail and details without qBittorrent running. `omaseed --help` lists
-  every `--demo` view (`details`, `firstrun`, `gallery`, `notify`, `overlays`, `rail`,
-  `states`, `sync`, `table`, `torrents`, `tray`).
-- **Where things live on disk:** `~/.config/omaseed/servers.json` (the server list),
-  `~/.config/omaseed/state.json` (window/column/filter state, notification toggles and the
-  low-disk threshold, appearance overrides), `~/.config/omaseed/secrets/` (the 0600-file credential fallback
-  when no keyring is available).
-- **Start first run over.** Remove `~/.config/omaseed/servers.json` (and, if you want the
-  handler prompt to ask again, clear the magnet/`.torrent` entries it set in
-  `~/.config/mimeapps.list`) and relaunch.
+- **Where is the tray icon?** With the bar widget running, `auto` hides it. Otherwise the
+  Omarchy shell may keep it behind the tray's chevron; pin `io.github.diogochaves.omaseed`
+  in the shell's tray settings.
+- **The window is see-through.** By design: the theme's background at about 90 %, set in
+  Settings › Appearance › Window transparency. If it looks more transparent than that, the
+  Hyprland window rule above is not on.
+- **No notifications.** They go through `org.freedesktop.Notifications`, so the shell's
+  notification service has to be running.
+- **See the logs.** Qt logs go to the journal; `QT_FORCE_STDERR_LOGGING=1 omaseed` prints
+  them in the terminal instead.
+- **Try it without a server.** `omaseed --demo table` opens a made-up library.
+  `omaseed --help` lists the other demos.
+- **Where things live.** `~/.config/omaseed/servers.json` (servers), `state.json` (settings
+  and window state) and `secrets/` (credentials when there is no keyring);
+  `~/.local/share/omaseed/ledger/` (seeding history) and `backups/`;
+  `~/.config/autostart/` when Start at login is on.
+- **Run first run again.** Remove `~/.config/omaseed/servers.json` and start omaseed.
 
 ## Developing
 
-Requires Qt 6.8 or newer, CMake and Ninja. The Qt tools (`qmllint`, `qmlformat`, `qmlls`,
-`qmltestrunner`) live outside the default `PATH` on Arch:
+Needs Qt 6.8 or newer, CMake and Ninja. On Arch the Qt tools (`qmllint`, `qmlformat`,
+`qmltestrunner`) live outside `PATH`:
 
 ```
 export PATH="/usr/lib/qt6/bin:$PATH"
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
 cmake --build build
-ctest --test-dir build --output-on-failure        # unit + qml tests
-QT_QPA_PLATFORM=offscreen ./build/omaseed --help  # headless smoke
-./build/omaseed                                   # real run under Hyprland
+ctest --test-dir build --output-on-failure -LE live   # unit and QML tests
+./build/omaseed
+scripts/dev/lint.sh build                             # qmllint and clang-format
 ```
 
-`-DOMASEED_WERROR=ON` turns compiler warnings into errors (CI uses it).
-`-DBUILD_TESTING=OFF` skips the tests.
+`-DOMASEED_WERROR=ON` turns warnings into errors (CI uses it); `-DBUILD_TESTING=OFF` skips
+the tests.
 
-```
-scripts/dev/lint.sh build            # qmllint + clang-format --dry-run --Werror
-scripts/dev/test-server.sh start|stop|status|reset|seed [--strict]  # dev servers, never :8080
-scripts/dev/test-server.sh rotate --strict                          # a new strict login, same API key
-scripts/dev/install-omarchy-extras.sh [--menu] [--uninstall]        # hook + hypr module for a source checkout
-```
+The live tests (`ctest -L live`) talk to two throwaway qBittorrent servers that
+`scripts/dev/test-server.sh` runs: `start` (port 8081, no login from localhost) and `start
+--strict` (port 8082, real logins). The first `start --strict` makes a random login and API
+key and saves them to `~/.config/omaseed/dev.env`, outside the repo; load it with
+`set -a; . ~/.config/omaseed/dev.env; set +a`. Without it the strict tests skip and say why.
 
-The live tests (`ctest -L live`) need both test servers. `:8081` lets localhost in without a
-login. `:8082` checks logins like a real server. Run `scripts/dev/test-server.sh start --strict`
-once: it makes a random user, password and API key for your strict server and saves them to
-your own `~/.config/omaseed/dev.env` (0600, outside the repo) as `QBT_STRICT_USER`,
-`QBT_STRICT_PASS` and `QBT_STRICT_API_KEY`. Load that file before running the live tests
-(`set -a; . ~/.config/omaseed/dev.env; set +a`). If those variables are unset, the strict
-tests skip and say why. The repo holds no credential.
-
-Read `CLAUDE.md` first — the servers rule, theme rules and conventions all live there — then
-`docs/06-implementation-plan.md` for the architecture and work breakdown, and
-`docs/03-charter.md` for scope and decisions.
-
-## Packaging
-
-`cmake --install` lays out a full FHS tree under its prefix: the `omaseed` binary,
-`.desktop`, D-Bus service file, hicolor icons (the scalable SVG plus PNGs at 16–256 px,
-rendered from it at build time by `rsvg-convert` or ImageMagick — see `data/CMakeLists.txt`;
-if neither is installed the PNGs are skipped and only the SVG lands, with a configure-time
-warning), the MIT `LICENSE` under `share/licenses/omaseed/`, and the three Omarchy extras
-above under `share/omaseed/`. `packaging/arch/PKGBUILD` wraps exactly that install with
-`DESTDIR`; nothing in `package()` reaches outside what CMake already installs.
-
-Two PKGBUILDs live in `packaging/arch/`:
-
-- **`PKGBUILD`** — the real recipe, the one that eventually goes to the `omarchy-pkgs` PR.
-  Builds from the tagged GitHub release source tarball
-  (`https://github.com/diogochaves/omaseed/archive/refs/tags/v$pkgver.tar.gz`); needs a
-  pushed tag to resolve. The tagged tree says `sha256sums=('SKIP')`; `scripts/release.sh
-  --publish` commits the archive's checksum on `main` right after the tag (see
-  `docs/RELEASING.md`).
-- **`PKGBUILD.local`** — builds from the working tree instead (`prepare()` copies the repo
-  two directories up, the files git tracks or would add, nothing gitignored), so the package can
-  be built and tried before any tag exists, or while iterating on packaging itself. Otherwise
-  identical to `PKGBUILD` (kept in sync by hand — makepkg has no templating).
-
-Build the local package (no `-i`, no `sudo`; run from a scratch copy so `makepkg`'s own
-`src/`/`pkg/` litter stays out of the repo):
+To build a package from the working tree instead of a release:
 
 ```
 mkdir -p build/makepkg-scratch && cp packaging/arch/PKGBUILD.local build/makepkg-scratch/PKGBUILD
 cd build/makepkg-scratch && makepkg -f
-tar tf omaseed-*.pkg.tar.zst        # inspect what would be installed
-namcap PKGBUILD *.pkg.tar.zst       # lint the recipe and the built package
 ```
 
-To try the built package without installing it system-wide:
-
-```
-bsdtar -xf build/makepkg-scratch/omaseed-*.pkg.tar.zst -C /tmp/pkgroot
-QT_QPA_PLATFORM=offscreen /tmp/pkgroot/usr/bin/omaseed --help
-```
-
-**`packaging/omarchy/`** holds `package.json` (and a `package.json.md` explaining every
-field), the `.omarchy/package.json` shape the `omarchy-pkgs` PR needs alongside
-`packaging/arch/PKGBUILD` (charter §6). It has no checksum field (omarchy-pkgs takes it
-from the PKGBUILD); opening the PR itself is Diogo's step, guided by `docs/RELEASING.md`.
-
-## Documents
-
-- [CLAUDE.md](CLAUDE.md) — standing instructions for agents working in this repo (read first)
-- [docs/06-implementation-plan.md](docs/06-implementation-plan.md) — the work breakdown: phases, tasks, acceptance criteria
-- [docs/05-ui-spec-v2.html](docs/05-ui-spec-v2.html) — **approved UI spec** (open in a browser; theme and base-size toggles)
-- [docs/04-ui-spec.html](docs/04-ui-spec.html) — first UI draft, kept for comparison
-- [docs/03-charter.md](docs/03-charter.md) — what we are building, decisions, milestones (start here)
-- [docs/RELEASING.md](docs/RELEASING.md) — how to cut a release
-- [CHANGELOG.md](CHANGELOG.md) — what shipped, release by release
-- [docs/02-exploration.md](docs/02-exploration.md) — research: landscape, bases evaluated, Omarchy-native mechanisms, sources
-- [docs/01-plan-draft.md](docs/01-plan-draft.md) — the earlier omarqui-based draft, kept for the API notes and history
+[docs/RELEASING.md](docs/RELEASING.md) is how a release is cut;
+[docs/03-charter.md](docs/03-charter.md) is what omaseed is for and what it leaves out;
+[docs/06-implementation-plan.md](docs/06-implementation-plan.md) is the architecture;
+[docs/05-ui-spec-v2.html](docs/05-ui-spec-v2.html) is the design (open it in a browser).
 
 ## License
 
-MIT
+MIT. omaseed talks to qBittorrent only through its public Web UI API and contains no
+qBittorrent code.
