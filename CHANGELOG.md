@@ -7,7 +7,10 @@ before it will tag a release.
 
 ## Unreleased
 
-Nothing yet.
+### Fixed
+
+- File and folder pickers open as dialogs of the omaseed window, so a portal chooser other
+  than GTK's (Strata's, for one) floats over omaseed instead of tiling beside it.
 
 ## v0.1.0 — 2026-10-10
 

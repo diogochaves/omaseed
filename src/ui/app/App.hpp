@@ -61,6 +61,7 @@
 #include <QTimer>
 #include <QVariantList>
 #include <QVariantMap>
+#include <QWindow>
 
 #include <chrono>
 #include <functional>
@@ -142,6 +143,8 @@ public:
     /// The tray, created by main.cpp once the window exists. App wires the tray's menu to
     /// its own actions and keeps the icon state, tooltip and stats up to date. Not owned.
     void attachTray(omaseed::integration::Tray *tray);
+    /// The window the file pickers belong to, set by main.cpp once it exists. Not owned.
+    void setDialogParent(QWindow *window);
 
     // --- models --------------------------------------------------------------------------
     omaseed::core::TorrentModel *torrents() const;
@@ -211,6 +214,7 @@ private:
     omaseed::core::SecretStore *m_secrets = nullptr;
 
     QPointer<omaseed::integration::Tray> m_tray;
+    QPointer<QWindow> m_dialogParent;
 
     omaseed::core::Server m_server;
     bool m_hasServer = false;
@@ -692,7 +696,7 @@ public:
     /// handed to `Xdg::showInFileManager`.
     Q_INVOKABLE void openFolder(const QString &hash);
     /// `browse` / `ctrl+o` in the location sheet and Save to's `browse` in the add sheet (#41):
-    /// `QFileDialog::getExistingDirectory`, starting at
+    /// the portal's folder picker, starting at
     /// `startDir`. An empty result means the picker was cancelled or no portal answered; the
     /// caller keeps whatever was typed.
     Q_INVOKABLE QString pickDirectory(const QString &startDir) const;

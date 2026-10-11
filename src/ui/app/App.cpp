@@ -60,6 +60,24 @@ namespace {
 
 App *s_defaultInstance = nullptr;
 
+/// The portal places a chooser as a dialog of the window that asked only when it is told
+/// which window that is; without it Hyprland tiles the chooser beside us (Strata's does).
+/// Qt's static pickers take a QWidget parent, which a Quick window is not, so the dialog's
+/// own window is made transient for ours instead, and Qt hands that to the portal.
+void makeTransientFor(QFileDialog &dialog, QWindow *window)
+{
+    if (!window)
+        return;
+    dialog.winId();
+    dialog.windowHandle()->setTransientParent(window);
+}
+
+QStringList runPicker(QFileDialog &dialog, QWindow *window)
+{
+    makeTransientFor(dialog, window);
+    return dialog.exec() == QDialog::Accepted ? dialog.selectedFiles() : QStringList();
+}
+
 QString env(const char *name)
 {
     return QProcessEnvironment::systemEnvironment().value(QString::fromLatin1(name));
@@ -565,6 +583,11 @@ App::trayStateFor(bool connected, bool serverLost, int errored, int downloading,
     if (downloading > 0)
         return Tray::Downloading;
     return Tray::Idle;
+}
+
+void App::setDialogParent(QWindow *window)
+{
+    m_dialogParent = window;
 }
 
 void App::attachTray(Tray *tray)
@@ -1570,8 +1593,10 @@ void App::pickTorrentFile()
 
 QStringList App::pickTorrentFiles()
 {
-    return QFileDialog::getOpenFileNames(
+    QFileDialog dialog(
         nullptr, tr("Choose torrents"), QString(), tr("Torrent files (*.torrent);;All files (*)"));
+    dialog.setFileMode(QFileDialog::ExistingFiles);
+    return runPicker(dialog, m_dialogParent);
 }
 
 QStringList App::splitAddables(const QString &text) const
@@ -2981,8 +3006,10 @@ void App::openFolder(const QString &hash)
 
 QString App::pickDirectory(const QString &startDir) const
 {
-    return QFileDialog::getExistingDirectory(
-        nullptr, tr("Choose a location"), startDir, QFileDialog::ShowDirsOnly);
+    QFileDialog dialog(nullptr, tr("Choose a location"), startDir);
+    dialog.setFileMode(QFileDialog::Directory);
+    dialog.setOption(QFileDialog::ShowDirsOnly);
+    return runPicker(dialog, m_dialogParent).value(0);
 }
 
 QString App::browseStartFor(const QString &serverPath) const
@@ -4292,8 +4319,10 @@ QString App::pickBackupSavePath() const
 {
     const QString suggested = QDir::homePath() + QStringLiteral("/omaseed-") +
                               QDate::currentDate().toString(Qt::ISODate) + OmaseedBackup::kSuffix;
-    QString path = QFileDialog::getSaveFileName(
+    QFileDialog dialog(
         nullptr, tr("Back up omaseed"), suggested, tr("omaseed backups (*.omaseed)"));
+    dialog.setAcceptMode(QFileDialog::AcceptSave);
+    QString path = runPicker(dialog, m_dialogParent).value(0);
     if (!path.isEmpty() && !path.endsWith(OmaseedBackup::kSuffix))
         path += OmaseedBackup::kSuffix;
     return path;
@@ -4315,10 +4344,12 @@ QString App::backUpTo(const QString &path)
 
 QString App::pickBackupFile() const
 {
-    return QFileDialog::getOpenFileName(nullptr,
-                                        tr("Restore omaseed"),
-                                        OmaseedBackup::defaultBackupsDir(),
-                                        tr("omaseed backups (*.omaseed);;All files (*)"));
+    QFileDialog dialog(nullptr,
+                       tr("Restore omaseed"),
+                       OmaseedBackup::defaultBackupsDir(),
+                       tr("omaseed backups (*.omaseed);;All files (*)"));
+    dialog.setFileMode(QFileDialog::ExistingFile);
+    return runPicker(dialog, m_dialogParent).value(0);
 }
 
 QVariantMap App::readBackup(const QString &path)

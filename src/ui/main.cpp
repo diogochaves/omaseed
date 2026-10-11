@@ -355,9 +355,10 @@ int main(int argc, char *argv[])
             return runInstallBarWidget(argc, argv);
     }
 
-    // File pickers go through the FileChooser portal, so the chooser is xdg-desktop-portal's
-    // window, which Omarchy floats like every other app's picker. Omarchy sets
-    // QT_QPA_PLATFORMTHEME=gtk3, under which Qt opens GTK's chooser inside this process: a
+    // File pickers go through the FileChooser portal, so the chooser is the portal backend's
+    // window. Omarchy floats the default backend's (xdg-desktop-portal-gtk) by its class;
+    // another, such as Strata's, floats only as a dialog of ours (App::setDialogParent). Omarchy
+    // sets QT_QPA_PLATFORMTHEME=gtk3, under which Qt opens GTK's chooser inside this process: a
     // tiled window with our class and no title. Nothing else here reads the platform theme
     // (colours come from Theme, the font from fontconfig, the tray is StatusNotifierItem), so
     // the switch changes only the pickers. OMASEED_PLATFORMTHEME picks another theme.
@@ -569,6 +570,7 @@ int main(int argc, char *argv[])
     if (engine.rootObjects().isEmpty())
         return 1;
     window = qobject_cast<QWindow *>(engine.rootObjects().constFirst());
+    omaseedApp.setDialogParent(window);
 
     // The tray, created once the window exists so toggleWindowRequested has something to
     // show. Its window signals become window control (toggle, raise) and a real quit here;
