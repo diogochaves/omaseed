@@ -20,6 +20,9 @@ jobs:
     runs-on: ubuntu-latest
     container: archlinux:latest
     timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
     env:
       QT_QPA_PLATFORM: offscreen
       REPO_URL: https://github.com/${{ github.repository }}.git
@@ -47,12 +50,15 @@ jobs:
 
       - name: An agent without a password stops at sudo
         run: |
+          runuser -u agent -- git clone -q "$REPO_URL" /home/agent/omaseed
           set +e
-          runuser -u agent -- bash -c 'cd ~ && git clone -q "$REPO_URL" && cd omaseed/packaging/arch && makepkg -si --noconfirm < /dev/null' 2>&1 | tail -5
-          status=${PIPESTATUS[0]}
+          runuser -u agent -- bash -c 'cd ~/omaseed/packaging/arch && makepkg -si --noconfirm < /dev/null' > /tmp/agent.log 2>&1
+          status=$?
           set -e
+          tail -8 /tmp/agent.log
           pacman -Q omaseed 2>/dev/null && { echo "installed without a password"; exit 1; }
           [ "$status" -ne 0 ] || { echo "makepkg -si did not stop"; exit 1; }
+          grep -E '^sudo: .*(terminal|password) is required' /tmp/agent.log || { echo "it stopped, but not at sudo"; exit 1; }
           echo "stopped at sudo, as the README says"
 
       - name: The person runs makepkg -si
