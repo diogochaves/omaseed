@@ -52,6 +52,13 @@ Rectangle {
         return root.torrents.map(t => t.path).filter(p => p === extra || root.ticked.indexOf(p) >= 0);
     }
 
+    /// The sheet's `add` with ticks: the ticked files, in the list's order, and no ticks left.
+    function takeTicked(): var {
+        const paths = root._tickedWith("");
+        root.ticked = [];
+        return paths;
+    }
+
     /// `j`/`k`: one row, clamped to the list.
     function moveCursor(delta: int): void {
         if (root.count === 0)

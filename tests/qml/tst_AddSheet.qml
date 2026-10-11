@@ -1318,6 +1318,48 @@ TestCase {
         compare(sheet.downloadsList.ticked.length, 0);
     }
 
+    // Ticks in In Downloads, then the `add` button: it reads `add 2`, and adds both once read.
+    function test_add_button_takes_the_ticks_in_downloads() {
+        const sheet = testCase.openOnFixtures();
+        const added = createTemporaryObject(addSpy, testCase, {
+                                                "target": sheet
+                                            });
+        verify(!App.downloadsTorrents[0].inLibrary && !App.downloadsTorrents[1].inLibrary);
+        sheet.downloadsList.toggleTick(0);
+        sheet.downloadsList.toggleTick(1);
+        compare(sheet.primaryButton().text, "add 2");
+
+        mouseClick(sheet.primaryButton());
+        compare(sheet.downloadsList.ticked.length, 0);
+        compare(sheet.batchMode, true);
+        tryCompare(added, "count", 1, 10000);
+        const request = added.signalArguments[0][0];
+        compare(request.items.length, 2);
+        compare(request.items[0].value, App.downloadsTorrents[0].path);
+        compare(request.items[1].value, App.downloadsTorrents[1].path);
+        compare(request.stopped, false);
+    }
+
+    // One tick and `add stopped`: that file, added stopped, once it is read.
+    function test_add_stopped_takes_a_single_tick_in_downloads() {
+        const sheet = testCase.openOnFixtures();
+        const added = createTemporaryObject(addSpy, testCase, {
+                                                "target": sheet
+                                            });
+        const at = App.downloadsTorrents.findIndex(t => !t.inLibrary);
+        const entry = App.downloadsTorrents[at];
+        sheet.downloadsList.toggleTick(at);
+        compare(sheet.downloadsList.ticked.length, 1);
+        compare(sheet.primaryButton().text, "add");
+
+        sheet.triggerSecondary();
+        compare(sheet.sourceField.text, entry.path);
+        tryCompare(added, "count", 1, 10000);
+        const request = added.signalArguments[0][0];
+        compare(request.value, entry.path);
+        compare(request.stopped, true);
+    }
+
     // docs/27 D10: a batch `.torrent` whose files are on disk gets the yellow line.
     function test_a_files_match_in_a_batch_says_so() {
         const sheet = createTemporaryObject(addSheetComponent, testCase);

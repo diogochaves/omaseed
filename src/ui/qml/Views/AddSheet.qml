@@ -38,6 +38,9 @@ import Omaseed.Kit
 // the library, or listed twice, stays in the list dim and is left out. `one by one` turns the
 // batch back into the queue, for per-torrent names and files.
 //
+// Ticks in In Downloads are what `add` adds while the field is empty: the button reads
+// `add N`, and a click takes them, waits for their `.torrent`s to be read, and adds them.
+//
 //     AddSheet { anchors.fill: parent; onAddRequested: request => App.addTorrent(request) }
 Sheet {
     id: sheet
@@ -339,9 +342,16 @@ Sheet {
     signal categoryPaletteRequested
     signal tagPaletteRequested
 
-    readonly property string _addText: sheet.batchMode ? qsTr("add %1").arg(sheet.batchCount) : qsTr("add")
-    readonly property string _addStoppedText: sheet.batchMode ? qsTr("add %1 stopped").arg(sheet.batchCount)
-                                                              : qsTr("add stopped")
+    /// How many the add hands over: the batch's, or the ticks in In Downloads while it shows,
+    /// less those in the library, which the batch they make leaves out.
+    readonly property int _addCount: sheet.batchMode ? sheet.batchCount
+                                                     : sheet.showDownloads ? App.downloadsTorrents.filter(
+                                                                                 t => !t.inLibrary
+                                                                                 && downloadsList.ticked.indexOf(t.path) >= 0).length
+                                                                           : 0
+    readonly property string _addText: sheet._addCount > 1 ? qsTr("add %1").arg(sheet._addCount) : qsTr("add")
+    readonly property string _addStoppedText: sheet._addCount > 1 ? qsTr("add %1 stopped").arg(sheet._addCount)
+                                                                  : qsTr("add stopped")
     /// #43: every file of the `.torrent` unticked. It is still added, stopped, so its files
     /// can be chosen later in the Files tab; the primary button says so.
     readonly property bool _nothingTicked: sheet.showFiles && App.addFiles.wantedCount === 0
@@ -392,6 +402,9 @@ Sheet {
     property bool _typing: false
     property string _pendingToken: ""
     property bool _awaitingPick: false
+    /// `add` asked for while a `.torrent` was still being read: `stopped`, kept until the
+    /// read comes back and `submit` runs again; null when nothing waits.
+    property var _submitWhenRead: null
     property bool _savePathEdited: false
     /// The parse whose files the picker holds, so a re-emit of the same map keeps the choices.
     property string _filesToken: ""
@@ -701,9 +714,19 @@ Sheet {
 
         /// `enter` / `shift+enter` and the two buttons. A duplicate never leaves as an add.
         function submit(stopped: bool): void {
+        sheet._submitWhenRead = null;
+        // Ticks in In Downloads: they become the field's source, or a batch, as a click on a
+        // row would make them, and this add goes on with them.
+        if (sheet.showDownloads && downloadsList.ticked.length > 0) {
+            const paths = downloadsList.takeTicked();
+            if (paths.length > 1)
+                sheet.addToBatch(paths, "file");
+            else
+                sheet.loadText(paths[0], "file");
+        }
         if (sheet.batchMode) {
             if (sheet.batchRows.some(row => row.state === "reading")) {
-                sheet.errorText = qsTr("still reading a .torrent");
+                sheet._submitWhenRead = stopped;
                 return;
             }
             if (sheet.batchCount === 0) {
@@ -724,7 +747,16 @@ Sheet {
                     ? sheet._parseError : qsTr("not a magnet link, URL or .torrent file");
             return;
         }
-        if (!sheet.addable || sheet.addable.valid !== true)
+        if (sheet.addable && sheet.addable.pending === true) {
+            sheet._submitWhenRead = stopped;
+            return;
+        }
+        if (sheet.addable && sheet.addable.valid !== true) {
+            // A `.torrent` that could not be read or parsed: say why instead of doing nothing.
+            sheet.errorText = sheet.addable.error || qsTr("not a magnet link, URL or .torrent file");
+            return;
+        }
+        if (!sheet.addable)
         return;
         // #43: nothing ticked is still an add, stopped (the button already says so).
         if (sheet._nothingTicked)
@@ -738,6 +770,20 @@ Sheet {
             return;
             sheet.errorText = "";
             sheet.addRequested(sheet.request(stopped));
+        }
+
+            /// A waiting `add` (`_submitWhenRead`) runs once nothing is being read any more.
+            function _submitIfRead(): void {
+            if (sheet._submitWhenRead === null)
+            return;
+            if (!sheet.opened) { // the read was a duplicate: Fig. 10 has it now
+                sheet._submitWhenRead = null;
+                return;
+            }
+            if (sheet.batchMode ? sheet.batchRows.some(row => row.state === "reading")
+                                : sheet.addable !== null && sheet.addable.pending === true)
+            return;
+            sheet.submit(sheet._submitWhenRead);
         }
 
             /// `App.addFinished`: move to the next queued source, close, or stay open in red.
@@ -788,6 +834,7 @@ Sheet {
                 sheet._savePathEdited = false;
                 sheet._pendingToken = "";
                 sheet._awaitingPick = false;
+                sheet._submitWhenRead = null;
                 sheet.extraCategories = [];
                 sheet.extraTags = [];
                 sheet.filesMatches = [];
@@ -1055,6 +1102,7 @@ Sheet {
                         };
                         sheet.batch = next;
                         sheet._askBatchMatches();
+                        sheet._submitIfRead();
                         return;
                     }
                     if (sheet._awaitingPick) {
@@ -1062,8 +1110,12 @@ Sheet {
                         sheet.loadText(result.value, "file");
                         return;
                     }
-                        if (result.token.length > 0 && result.token === sheet._pendingToken)
-                        sheet.addable = result;
+                        if (result.token.length > 0 && result.token === sheet._pendingToken) {
+                            sheet.addable = result;
+                            // Unless the duplicate check moved the sheet on to a queued source.
+                            if (sheet.addable && sheet.addable.token === result.token)
+                            sheet._submitIfRead();
+                        }
                     }
 
                         target: App
