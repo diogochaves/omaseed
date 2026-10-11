@@ -475,7 +475,9 @@ void TestAppNotifications::aHiddenStartSaysSoWhenTheServerStaysAway()
     qputenv("OMASEED_SERVER_NAME", "fake");
 
     App app;
-    app.setQuietStartGrace(std::chrono::milliseconds(300));
+    // A grace no runner outlasts, so the loss is surely held; it is cut short below. A 300 ms
+    // grace failed on a slow CI runner: the first loss came after it had run out.
+    app.setQuietStartGrace(std::chrono::seconds(30));
     app.setLaunchHidden(true);
     Notifier notifier(m_bus.connection());
     app.attachNotifier(&notifier);
@@ -488,6 +490,9 @@ void TestAppNotifications::aHiddenStartSaysSoWhenTheServerStaysAway()
     app.start();
     QVERIFY(waitFor([&] { return lost.size() >= 1; }));
     QCOMPARE(m_bus.server()->calls.size(), 0);
+    // Let the quiet start run out now: the held loss is announced then.
+    app.setQuietStartGrace(std::chrono::milliseconds(10));
+    app.setLaunchHidden(true);
     QVERIFY(waitFor([&] { return m_bus.server()->calls.size() >= 1; }));
     QCOMPARE(m_bus.server()->calls.first().summary, QStringLiteral("fake is unreachable"));
     QVERIFY(m_bus.server()->calls.first().body.contains(QStringLiteral("retrying every")));
