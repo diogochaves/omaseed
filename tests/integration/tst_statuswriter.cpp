@@ -6,6 +6,7 @@
 #include "integration/StatusWriter.hpp"
 
 #include <QDir>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
@@ -418,9 +419,16 @@ void TestStatusWriter::idleWritesAHeartbeat()
     startWriter(writer, engine);
     const qint64 firstT = readStatus(statusPath()).value(QStringLiteral("t")).toInteger();
     const int before = writer.writeCount();
-    QTest::qWait(1100);
+    // Counted against the time that passed, not a fixed window: a starved CI runner skips
+    // timer fires (Qt does not catch them up), and once wrote 3 where 1.1 s promised 4.
+    QElapsedTimer clock;
+    clock.start();
+    QTRY_VERIFY_WITH_TIMEOUT(writer.writeCount() - before >= 4, 5000);
+    const qint64 elapsed = clock.elapsed();
     const int writes = writer.writeCount() - before;
-    QVERIFY2(writes >= 4 && writes <= 7, qPrintable(QString::number(writes)));
+    // Never faster than one write per 200 ms heartbeat, give or take the one in flight.
+    QVERIFY2(writes <= elapsed / 200 + 2,
+             qPrintable(QStringLiteral("%1 writes in %2 ms").arg(writes).arg(elapsed)));
     QVERIFY(readStatus(statusPath()).value(QStringLiteral("t")).toInteger() >= firstT);
 
     // Without a change and with a long heartbeat, nothing is written.
