@@ -12,7 +12,9 @@ import Omaseed.Kit
 // Typing filters every section at once (keys, gloss and sentence all match). While a filter is
 // on, the first match carries the cursor, `up`/`down` move it and `enter` asks for its action
 // (`runRequested`), so the sheet doubles as a command list. `esc` clears the filter, then
-// closes; `?` closes when there is nothing typed.
+// closes; `?` closes when there is nothing typed. With the mouse, a click on a row of that list
+// moves the cursor there, and a click on the row already under it (so a double-click) runs it.
+// The keyboard stays in the filter.
 //
 // Every row comes out of `Keymap`, so the sheet cannot drift from what the keys actually do.
 // This is the body only: `Kit/Sheet` draws the panel, the head and the scrim.
@@ -84,6 +86,21 @@ FocusScope {
             left += root.sections[i].rows.length + 2;
         }
         return column === 0 ? root.sections.slice(0, split) : root.sections.slice(split);
+    }
+
+    /// A click on `row` of the command list: the cursor goes there; on the row already under
+    /// it, it runs. Without a filter there is no command list, and a click does nothing.
+    function clickRow(row: var): void {
+        if (root.query.length === 0)
+            return;
+        const at = root.matchedRows.findIndex(r => r.action === row.action);
+        if (at < 0)
+            return;
+        if (at === root.cursorIndex) {
+            root.runRequested(row.action);
+            return;
+        }
+        root.cursor = at;
     }
 
     function moveCursor(delta: int): void {
@@ -320,6 +337,15 @@ FocusScope {
                                             font.pixelSize: Theme.font.small
                                             text: keyRow.modelData.about
                                             wrapMode: Text.WordWrap
+                                        }
+
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            cursorShape: Qt.PointingHandCursor
+                                            enabled: root.query.length > 0
+                                            objectName: "helpRowMouse"
+
+                                            onClicked: root.clickRow(keyRow.modelData)
                                         }
                                     }
                                 }
