@@ -3,11 +3,21 @@
 # resource lock so `ctest -j` never runs two of them at once (they add, count and delete
 # torrents on the same playground and used to fail each other under parallel runs).
 function(omaseed_add_test name)
-    cmake_parse_arguments(PARSE_ARGV 1 arg "LIVE" "" "SOURCES;LIBRARIES;DEFINES")
+    cmake_parse_arguments(PARSE_ARGV 1 arg "LIVE" "XDG_DIR" "SOURCES;LIBRARIES;DEFINES")
 
     # OffscreenDefault.cpp: a test run outside ctest still never opens a window
-    # (OMASEED_TEST_PLATFORM names another platform on purpose).
+    # (OMASEED_TEST_PLATFORM names another platform on purpose), and never reads or writes
+    # the real XDG homes: XDG_DIR is where its config and state go then (default
+    # build/tests/direct-env).
     qt_add_executable(${name} ${arg_SOURCES} "${PROJECT_SOURCE_DIR}/tests/OffscreenDefault.cpp")
+    if(NOT arg_XDG_DIR)
+        set(arg_XDG_DIR "${CMAKE_BINARY_DIR}/tests/direct-env")
+    endif()
+    file(MAKE_DIRECTORY "${arg_XDG_DIR}")
+    target_compile_definitions(${name} PRIVATE
+        OMASEED_TEST_BUILD_DIR="${CMAKE_BINARY_DIR}"
+        OMASEED_TEST_XDG_DIR="${arg_XDG_DIR}"
+    )
     target_link_libraries(${name} PRIVATE omaseed::warnings Qt6::Test ${arg_LIBRARIES})
     # tests/LiveServer.hpp: every live test's server URL, behind the :8080 guard.
     target_include_directories(${name} PRIVATE "${PROJECT_SOURCE_DIR}/tests")
