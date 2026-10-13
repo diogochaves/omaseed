@@ -62,6 +62,20 @@ Item {
     property bool _up: false
 
     readonly property int _edge: Theme.space(8)
+    /// Where the pointer last put the cursor, in this item's coordinates.
+    property point _pointer: Qt.point(-1, -1)
+
+    /// The pointer is on row `index` (through its MouseArea `area`): the cursor follows it,
+    /// unless only the rows moved under a still pointer. Qt re-delivers hover when content
+    /// scrolls, and the keyboard cursor scrolling into view would hand the cursor straight
+    /// back to whatever row came to rest under the pointer.
+    function _pointerOn(index: int, area: MouseArea): void {
+        const at = area.mapToItem(root, area.mouseX, area.mouseY);
+        if (at.x === root._pointer.x && at.y === root._pointer.y)
+            return;
+        root._pointer = at;
+        root.cursorIndex = index;
+    }
 
     function open(): void {
         if (root._opened)
@@ -344,13 +358,16 @@ Item {
                         }
 
                         MouseArea {
+                            id: rowArea
+
                             anchors.fill: parent
                             cursorShape: Qt.PointingHandCursor
                             enabled: !menuRow.separator && !menuRow.disabled
                             hoverEnabled: true
 
                             onClicked: root.activate(menuRow.index)
-                            onEntered: root.cursorIndex = menuRow.index
+                            onEntered: root._pointerOn(menuRow.index, rowArea)
+                            onPositionChanged: root._pointerOn(menuRow.index, rowArea)
                         }
                     }
                 }
