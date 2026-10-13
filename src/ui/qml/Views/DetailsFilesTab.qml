@@ -45,6 +45,8 @@ Item {
     signal foldClicked(int row)
     /// A middle click on a row (#51 D8): the pane toggles it in the selection, as ctrl+click.
     signal rowMiddleClicked(int row)
+    /// A click on the list's empty space, under its last row: the selection goes.
+    signal emptyClicked
     /// A right click on a row: the pane opens its menu there (in this item's coordinates).
     signal rowMenuRequested(int row, real x, real y)
     signal renameCommitted(string text)
@@ -790,6 +792,24 @@ Item {
                 }
             }
         }
+    }
+
+    // The list's empty space, under its last row: a click there lets the selection go, as
+    // in the table and the other tabs.
+    MouseArea {
+        id: emptySpace
+
+        /// Where the rows end, in the list's coordinates.
+        readonly property real rowsEnd: list.originY + list.contentHeight - list.contentY
+
+        height: Math.max(0, list.y + list.height - emptySpace.y)
+        objectName: "filesEmptySpace"
+        width: list.width
+        x: list.x
+        y: list.y + Math.max(0, Math.min(list.height, emptySpace.rowsEnd))
+        z: 1
+
+        onClicked: root.emptyClicked()
     }
 
     ScrollBar {

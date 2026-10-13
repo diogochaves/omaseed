@@ -969,6 +969,23 @@ TestCase {
         compare(fileSpy.signalArguments[0][0], files.pathAt(6));
     }
 
+    // The click rules: a click on the empty space under the last file lets the selection go.
+    function test_a_click_on_the_empty_space_clears_the_files_selection() {
+        const view = testCase.filesView();
+        const files = App.details.files;
+        waitForRendering(view);
+        mouseClick(findChild(view, "fileRow_1"), 120, 4, Qt.LeftButton, Qt.ControlModifier);
+        mouseClick(findChild(view, "fileRow_2"), 120, 4, Qt.LeftButton, Qt.ControlModifier);
+        compare(files.selectedCount, 2);
+        elsewhere.forceActiveFocus();
+        const empty = findChild(view, "filesEmptySpace");
+        verify(empty.height > 0);
+        mouseClick(empty);
+        compare(files.selectedCount, 0);
+        compare(view.filesAnchorPath, "");
+        verify(view.activeFocus, "the click left the keys elsewhere");
+    }
+
     // #51 D8: a middle click toggles a row in the selection, as ctrl+click does.
     function test_a_middle_click_toggles_a_file() {
         const view = testCase.filesView();

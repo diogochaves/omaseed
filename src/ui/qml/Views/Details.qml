@@ -1212,6 +1212,11 @@ Item {
             }
             onRowClicked: (row, modifiers) => root.clickFile(root._takeKeysAt(row), modifiers)
             onRowMiddleClicked: row => root.clickFile(root._takeKeysAt(row), Qt.ControlModifier)
+            onEmptyClicked: {
+                root.takeKeys();
+                root.details.files.clearSelection();
+                root.filesAnchorPath = "";
+            }
             onRowMenuRequested: (row, x, y) => {
                 const at = filesTab.mapToItem(root, x, y);
                 root.fileMenuAt(root._takeKeysAt(row), at.x, at.y);
