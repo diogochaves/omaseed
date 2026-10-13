@@ -6,7 +6,8 @@ import Omaseed.Kit
 // The list rows of Settings' qBittorrent group (docs/16 §4: trackers to add, banned
 // addresses, patterns to skip, watch folders, the Web UI's networks and domains): one entry
 // per line in a plain text box. `ctrl+enter` or "save" hands the lines back through `saved`;
-// enter is a new line. Blank lines and stray spaces are dropped.
+// enter is a new line. Blank lines and stray spaces are dropped. A click anywhere in the box
+// off the text puts the caret at the end; a scroll bar shows once the lines outgrow the box.
 //
 // Do NOT run `qmlformat` on this file: with the project's 100-column wrap it re-indents the
 // typed functions further on every pass (the defect Menu.qml notes). It is hand-formatted.
@@ -25,6 +26,12 @@ Sheet {
         root.what = what;
         editor.text = lines.join("\n");
         root.open();
+        editor.cursorPosition = editor.length;
+    }
+
+    /// Put the caret at the end of the text, the editor's keyboard on.
+    function focusEnd(): void {
+        editor.forceActiveFocus();
         editor.cursorPosition = editor.length;
     }
 
@@ -74,6 +81,15 @@ Sheet {
         color: Theme.fill(Theme.fillIdle)
         radius: Theme.cornerRadius
 
+        // The box's padding: a click there puts the caret at the end, as below the text does.
+        MouseArea {
+            anchors.fill: parent
+            cursorShape: Qt.IBeamCursor
+            objectName: "listBoxMouse"
+
+            onPressed: root.focusEnd()
+        }
+
         Flickable {
             id: scroller
 
@@ -81,8 +97,34 @@ Sheet {
             anchors.margins: Theme.space(8)
             boundsBehavior: Flickable.StopAtBounds
             clip: true
-            contentHeight: editor.implicitHeight
+            // At least the box: the room under the last line is the content's, so a click
+            // there reaches the MouseArea below rather than the Flickable.
+            contentHeight: Math.max(editor.implicitHeight, scroller.height)
             contentWidth: width
+
+            // The editor is only as tall as its lines: the rest of the box focuses it too.
+            MouseArea {
+                cursorShape: Qt.IBeamCursor
+                height: scroller.contentHeight
+                objectName: "listEmptyMouse"
+                width: scroller.width
+                z: -1
+
+                onPressed: root.focusEnd()
+            }
+
+            ScrollBar {
+                id: listBar
+
+                anchors.bottom: parent.bottom
+                anchors.right: parent.right
+                anchors.top: parent.top
+                flickable: scroller
+                objectName: "listScrollBar"
+                parent: scroller
+                vertical: true
+                width: Theme.space(6)
+            }
 
             TextEdit {
                 id: editor
@@ -94,7 +136,7 @@ Sheet {
                 selectByMouse: true
                 selectedTextColor: Theme.brightForeground
                 selectionColor: Theme.fill(Theme.fillSelected)
-                width: scroller.width
+                width: scroller.width - (listBar.needed ? listBar.width + Theme.space(4) : 0)
                 wrapMode: TextEdit.WrapAnywhere
 
                 Keys.onPressed: event => {
