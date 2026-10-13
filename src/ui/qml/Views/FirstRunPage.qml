@@ -118,7 +118,8 @@ Item {
         else
             root.forceActiveFocus();
     })
-    /// The footer's keys for this page; `esc` is pinned right, as in the library's footer.
+    /// The footer's keys for this page; `esc` is pinned right, as in the library's footer, and
+    /// takes a click too (#51 D3): the mouse's way back to step 1 and out, with no button added.
     readonly property var _footerHints: {
         const hint = (key, label) => ({
                                           "key": key,
@@ -142,11 +143,13 @@ Item {
     }
     readonly property var _footerPinned: root.page === "welcome" || root.page === "choose" ? {
                                                                                                  "key": "esc",
-                                                                                                 "label": qsTr("quit")
+                                                                                                 "label": qsTr("quit"),
+                                                                                                 "clickable": true
                                                                                              } : root.page === "install"
                                                                                                  || root.page === "apikey" ? {
                                                                                                                                  "key": "esc",
-                                                                                                                                 "label": qsTr("back")
+                                                                                                                                 "label": qsTr("back"),
+                                                                                                                                 "clickable": true
                                                                                                                              } : null
 
     /// 1 server (choose, install), 2 sign in, 3 links, 4 bar; 0 on the welcome, 5 once done.
@@ -1449,8 +1452,11 @@ Item {
         KeyHints {
             Layout.fillWidth: true
             model: root._footerHints
+            objectName: "setupFooterHints"
             pinned: root._footerPinned
             size: "small"
+
+            onPinnedClicked: root.goBack()
         }
     }
 }

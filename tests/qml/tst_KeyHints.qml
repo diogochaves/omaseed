@@ -207,4 +207,34 @@ TestCase {
         tryCompare(applyLabel, "color", Theme.dimForeground);
         compare(texts(plain)[1].color, Theme.dimForeground);
     }
+
+    // #51 D3: a clickable pinned hint (first run's "esc back" / "esc quit") reports its click
+    // and lights up like the others; an unflagged one is plain text.
+    function test_a_clickable_pinned_hint_reports_a_click() {
+        const hints = createTemporaryObject(keyHintsComponent, testCase, {
+                                                "model": [],
+                                                "pinned": {
+                                                    "key": "esc",
+                                                    "label": "back",
+                                                    "clickable": true
+                                                }
+                                            });
+        const clicked = [];
+        hints.pinnedClicked.connect(hint => clicked.push(hint.key + " " + hint.label));
+        const pinned = findChild(hints, "keyHintPinned");
+        verify(pinned.width > 0);
+        const area = findChild(hints, "keyHintPinnedArea");
+        compare(area.cursorShape, Qt.PointingHandCursor);
+        mouseMove(pinned, pinned.width / 2, pinned.height / 2);
+        tryCompare(pinned.children[0].children[1], "color", Theme.accent);
+        mouseClick(pinned);
+        compare(clicked, ["esc back"]);
+        hints.pinned = {
+            "key": "?",
+            "label": "help"
+        };
+        compare(area.enabled, false, "an unflagged pinned hint is clickable");
+        mouseClick(pinned);
+        compare(clicked, ["esc back"]);
+    }
 }

@@ -18,8 +18,9 @@ import Omaseed.Kit
 //
 // A hint with `clickable: true` names a safe action the mouse may run too: it shows a pointing
 // hand and turns its key and label to the accent under the pointer (as the console's
-// "esc clear" and Field's clickable trailing do), and a click sends `hintClicked`. The row
-// only reports it; the caller runs what that key runs.
+// "esc clear" and Field's clickable trailing do), and a click sends `hintClicked`. A clickable
+// `pinned` hint does the same and sends `pinnedClicked`. The row only reports it; the caller
+// runs what that key runs.
 RowLayout {
     id: root
 
@@ -32,6 +33,8 @@ RowLayout {
 
     /// A click on a `clickable` hint: its index in `model` and the hint itself.
     signal hintClicked(int index, var hint)
+    /// A click on the `pinned` hint when it is `clickable`.
+    signal pinnedClicked(var hint)
 
     readonly property bool hasPinned: root.pinned !== null
     readonly property int _pixelSize: Theme.font[root.size]
@@ -134,24 +137,46 @@ RowLayout {
         Layout.fillWidth: true
     }
 
-    Row {
+    Item {
         id: pinnedRow
 
-        spacing: Theme.space(6)
+        implicitHeight: pinnedPair.implicitHeight
+        implicitWidth: pinnedPair.implicitWidth
+        objectName: "keyHintPinned"
         visible: root.hasPinned
 
-        Text {
-            color: Theme.foreground
-            font.family: Theme.fontFamily
-            font.pixelSize: root._pixelSize
-            text: root.pinned ? root.pinned.key : ""
+        Row {
+            id: pinnedPair
+
+            spacing: Theme.space(6)
+
+            Text {
+                color: pinnedArea.containsMouse ? Theme.accent : Theme.foreground
+                font.family: Theme.fontFamily
+                font.pixelSize: root._pixelSize
+                text: root.pinned ? root.pinned.key : ""
+            }
+
+            Text {
+                color: pinnedArea.containsMouse ? Theme.accent : Theme.dimForeground
+                font.family: Theme.fontFamily
+                font.pixelSize: root._pixelSize
+                text: root.pinned ? root.pinned.label : ""
+            }
         }
 
-        Text {
-            color: Theme.dimForeground
-            font.family: Theme.fontFamily
-            font.pixelSize: root._pixelSize
-            text: root.pinned ? root.pinned.label : ""
+        MouseArea {
+            id: pinnedArea
+
+            Accessible.name: root.pinned ? root.pinned.key + " " + root.pinned.label : ""
+            Accessible.role: Accessible.Button
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+            enabled: root.hasPinned && root.pinned.clickable === true
+            hoverEnabled: true
+            objectName: "keyHintPinnedArea"
+
+            onClicked: root.pinnedClicked(root.pinned)
         }
     }
 }

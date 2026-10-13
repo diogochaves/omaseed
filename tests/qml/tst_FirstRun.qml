@@ -766,6 +766,52 @@ TestCase {
         compare(quitSpy.count, 0);
     }
 
+    // #51 D3: the footer's "esc back" / "esc quit" take a click and run what esc runs on that
+    // page: back to step 1 from the install and sign-in pages, out from the welcome and step 1.
+    // Once the server is saved the footer names no esc, so there is nothing to click.
+    function test_the_footer_esc_hint_clicks_back_and_quits() {
+        const page = createTemporaryObject(pageComponent, testCase, {
+                                               "candidates": [],
+                                               "height": testCase.height,
+                                               "width": testCase.width
+                                           });
+        const quitSpy = createTemporaryObject(signalSpyComponent, testCase, {
+                                                   "target": page,
+                                                   "signalName": "quitRequested"
+                                               });
+        const footer = findChild(page, "setupFooterHints");
+        const esc = findChild(footer, "keyHintPinned");
+        const area = findChild(footer, "keyHintPinnedArea");
+
+        page.chooseCursor(); // remote
+        compare(page.page, "apikey");
+        compare(footer.pinned.label, "back");
+        verify(area.enabled);
+        waitForItemPolished(findChild(page, "setupColumn"));
+        mouseClick(esc);
+        compare(page.page, "choose");
+        compare(quitSpy.count, 0);
+
+        page.cursorIndex = 1; // install
+        page.chooseCursor();
+        compare(page.page, "install");
+        mouseClick(esc);
+        compare(page.page, "choose");
+        compare(quitSpy.count, 0);
+
+        compare(footer.pinned.label, "quit");
+        mouseClick(esc);
+        compare(quitSpy.count, 1);
+
+        page.page = "welcome";
+        compare(footer.pinned.label, "quit");
+        mouseClick(esc);
+        compare(quitSpy.count, 2);
+
+        page.page = "handler";
+        compare(footer.hasPinned, false);
+    }
+
     Component {
         id: signalSpyComponent
 
