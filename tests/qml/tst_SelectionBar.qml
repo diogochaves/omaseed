@@ -189,4 +189,51 @@ TestCase {
         compare(triggeredSpy.count, 0);
         compare(moreSpy.count, 0);
     }
+
+    // ---- #51 D2: the ✕ after the count -------------------------------------------------------
+    function test_the_cross_after_the_count_clears_and_keeps_the_keyboard() {
+        const keeper = createTemporaryObject(keeperComponent, testCase);
+        const bar = makeBar();
+        const spy = createTemporaryObject(clearSpyComponent, testCase, {
+                                              "target": bar
+                                          });
+        waitForRendering(bar);
+        const clear = button(bar, "clear");
+        verify(clear.visible);
+        compare(clear.tooltip, "clear selection · esc");
+        verify(clear.tooltipAbove);
+        verify(!clear.activeFocusOnTab);
+        compare(clear.glyph, Glyphs.close);
+        // Quiet: dim until the pointer is on it, then the accent.
+        verify(!clear.accent);
+        // Right after the count, before the first hairline.
+        const count = findChild(bar, "selectionCount");
+        verify(clear.mapToItem(bar, 0, 0).x > count.mapToItem(bar, 0, 0).x + count.width);
+        verify(clear.mapToItem(bar, 0, 0).x + clear.width <= button(bar, "start").mapToItem(bar, 0, 0).x);
+        mouseMove(clear, clear.width / 2, clear.height / 2);
+        tryVerify(() => clear.accent, 1000, "no accent on hover");
+        keeper.forceActiveFocus();
+        mouseClick(clear);
+        compare(spy.count, 1);
+        compare(triggeredSpy.count, 0);
+        verify(keeper.activeFocus, "the ✕ took the keyboard (M9.4)");
+    }
+
+    // The ✕ stays when the count drops its word, and the bar's sums count it.
+    function test_the_cross_stays_on_a_narrow_bar() {
+        const bar = makeBar();
+        bar.availableWidth = bar.widthOf(bar.itemsFor(7), true) - 1;
+        verify(!bar.fit.word);
+        waitForRendering(bar);
+        verify(button(bar, "clear").visible);
+        compare(bar.implicitWidth, bar.widthOf(bar.items, false));
+    }
+
+    Component {
+        id: clearSpyComponent
+
+        SignalSpy {
+            signalName: "clearRequested"
+        }
+    }
 }

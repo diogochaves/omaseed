@@ -9,7 +9,8 @@ import Omaseed.Kit
 //   M9.1  the host floats it over the table, centred, 12 u above the table's bottom edge
 //   M9.2  the host shows it while one or more torrents are selected (never for the cursor)
 //   M9.3  count · start · stop | recheck · reannounce | category · tags · set location ·
-//         limits | open folder · ⋯ | delete (red). ⋯ is the full actions menu.
+//         limits | open folder · ⋯ | delete (red). ⋯ is the full actions menu. A small ✕
+//         right after the count clears the selection, as `esc` does (#51 D2).
 //   M9.4  mouse only: no button takes the focus (tab never lands here, a click leaves the
 //         keyboard on the table) and each tooltip names the key that does the same
 //   M9.5  never wraps: when it is wider than `availableWidth`, buttons fold into ⋯ in
@@ -41,6 +42,8 @@ Rectangle {
     signal moreRequested(Item button, var folded)
     /// #24 T1: the summary was clicked: the seed console, on the selection.
     signal summaryClicked
+    /// The ✕ after the count: clear the selection (#51 D2).
+    signal clearRequested
 
     /// Every button, keyed by the actions menu's action names; `key` is what the tooltip
     /// teaches (the same keys as Fig. 11's menu).
@@ -159,7 +162,8 @@ Rectangle {
     /// the row: the row hides the word by `fit`, which is itself worked out from this.
     function countWidth(word: bool): real {
         return countRow.leftPadding + countNumber.implicitWidth + countRow.rightPadding
-                + (word ? countRow.spacing + countWord.implicitWidth : 0);
+                + (word ? countRow.spacing + countWord.implicitWidth : 0) + countRow.spacing
+                + clearButton.width;
     }
 
     /// The bar's width drawing `items`, with or without the count's word.
@@ -224,6 +228,24 @@ Rectangle {
                     size: "small"
                     text: qsTr("selected")
                     visible: root.fit.word
+                }
+
+                // #51 D2: quiet beside the count, dim until the pointer is on it. Like every
+                // button here it never takes the focus (M9.4).
+                IconButton {
+                    id: clearButton
+
+                    accent: clearButton.hot
+                    activeFocusOnTab: false
+                    anchors.verticalCenter: parent.verticalCenter
+                    glyph: Glyphs.close
+                    height: Theme.font.body + Theme.space(4)
+                    objectName: "bar_clear"
+                    tooltip: qsTr("clear selection · esc")
+                    tooltipAbove: true
+                    width: clearButton.height
+
+                    onClicked: root.clearRequested()
                 }
             }
         }

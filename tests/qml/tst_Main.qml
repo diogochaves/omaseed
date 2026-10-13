@@ -1360,6 +1360,18 @@ TestCase {
         tryVerify(() => view.details.activeFocus, 1000);
     }
 
+    // D2: the ✕ after the bar's count clears the selection and leaves the keyboard alone.
+    function test_the_bars_cross_clears_the_selection() {
+        testCase.selectTwo();
+        waitForRendering(view, 250);
+        const clear = findChild(view.selectionBar, "bar_clear");
+        verify(clear && clear.visible);
+        mouseClick(clear);
+        compare(view.table.selectedCount, 0);
+        verify(!view.selectionBar.visible);
+        verify(view.table.activeFocus, "the ✕ took the keyboard from the table (M9.4)");
+    }
+
     // D9: the rows hold their order under the open actions menu too.
     function test_the_open_actions_menu_holds_the_row_order() {
         verify(!view.table.holdOrder);

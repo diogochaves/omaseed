@@ -1535,6 +1535,7 @@ Item {
                 visible: table.selectedCount > 0 && table.visible && !root.serverLost
                 width: implicitWidth
 
+                onClearRequested: table.clearSelection()
                 onMoreRequested: (button, folded) => root.openSelectionMore(button, folded)
                 onSummaryClicked: root.setView("seed")
                 onTriggered: action => root.selectionBarAction(action)
