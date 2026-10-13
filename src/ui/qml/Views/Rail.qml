@@ -279,6 +279,17 @@ Item {
         root.selectCursor();
     }
 
+    /// The rail's hover label: `full` under `row` while the pointer is on it and the row
+    /// shows less (elided, or a tracker host shortened), hidden otherwise.
+    function _nameTip(row: RailRow, hovering: bool, full: string): void {
+        if (hovering && (row.truncated || row.text !== full)) {
+            const point = row.mapToItem(root, Theme.space(16), row.height);
+            hostTip.showAt(point.x, point.y, full);
+        } else {
+            hostTip.hide();
+        }
+    }
+
     function selectStatus(index) {
         if (index < 0 || index >= root.statusRowCount)
             return;
@@ -488,6 +499,8 @@ Item {
                         width: content.width
 
                         onClicked: root.clickRow(categoryDelegate.globalIndex)
+                        // The whole name, when the row elides it.
+                        onHoverChanged: hovering => root._nameTip(categoryDelegate, hovering, categoryDelegate.name)
 
                         Component.onCompleted: root._registerRow(categoryDelegate, () => {
                                                                      root.filtered.category
@@ -579,6 +592,8 @@ Item {
                         width: content.width
 
                         onClicked: root.clickRow(tagDelegate.globalIndex)
+                        // The whole name, when the row elides it.
+                        onHoverChanged: hovering => root._nameTip(tagDelegate, hovering, tagDelegate.name)
 
                         Component.onCompleted: root._registerRow(tagDelegate, () => {
                                                                      root.filtered.tag
@@ -673,18 +688,11 @@ Item {
                                                               root.trackerText(trackerDelegate.host)
                         visible: !root.trackersFolded
 
-                        // The full host, whenever the row shows less of it.
-                        onHoverChanged: hovering => {
-                            if (hovering && (trackerDelegate.truncated || trackerDelegate.text
-                                             !== trackerDelegate.host)) {
-                                const point = trackerDelegate.mapToItem(root, Theme.space(16),
-                                                                        trackerDelegate.height);
-                                hostTip.showAt(point.x, point.y, trackerDelegate.host);
-                            } else {
-                                hostTip.hide();
-                            }
-                        }
                         width: content.width
+
+                        // The full host, whenever the row shows less of it.
+                        onHoverChanged: hovering => root._nameTip(trackerDelegate, hovering,
+                                                                  trackerDelegate.host)
 
                         onClicked: root.clickRow(trackerDelegate.globalIndex)
 
@@ -785,6 +793,7 @@ Item {
     Tooltip {
         id: hostTip
 
+        objectName: "railTip"
         z: 4
     }
 

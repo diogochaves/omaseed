@@ -312,6 +312,31 @@ TestCase {
         compare(rail.cursorIndex, rail.statusBase + 2);
     }
 
+    // Category and tag rows name themselves in full on hover when the rail elides them, as
+    // tracker rows already did.
+    function test_an_elided_category_or_tag_shows_its_name_on_hover() {
+        const rail = createTemporaryObject(railComponent, testCase, {
+                                               "height": 800,
+                                               "width": Theme.space(90)
+                                           });
+        const tip = findChild(rail, "railTip");
+        verify(tip);
+        const movies = rail._rowMap[rail.categoriesBase + 2].item;
+        verify(movies.truncated, "the narrow rail did not elide the category");
+        movies.hoverChanged(true);
+        tryCompare(tip, "shown", true);
+        compare(tip.text, "movies");
+        movies.hoverChanged(false);
+        compare(tip.shown, false);
+
+        const tag = rail._rowMap[rail.tagsBase + 1].item;
+        verify(tag.truncated, "the narrow rail did not elide the tag");
+        tag.hoverChanged(true);
+        tryCompare(tip, "shown", true);
+        compare(tip.text, tag.text);
+        tag.hoverChanged(false);
+    }
+
     function test_width_is_the_spec_column() {
         const rail = createTemporaryObject(railComponent, testCase);
         compare(rail.width, Theme.space(200));
