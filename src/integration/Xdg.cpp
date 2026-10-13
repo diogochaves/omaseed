@@ -19,6 +19,8 @@
 #include <QRegularExpression>
 #include <QStandardPaths>
 
+#include <algorithm>
+
 namespace omaseed::integration {
 
 namespace {
@@ -172,7 +174,15 @@ QList<Addable> Xdg::addablesFromDrop(const QList<QUrl> &urls, const QString &tex
             result.append(Addable{Addable::Kind::TorrentFile, localPath});
         }
     }
-    result.append(parseAddableList(text));
+    // File managers put the same file:// URLs in the drop's text too (Nautilus does): one
+    // file dropped was listed twice. The text adds only what the URLs did not.
+    for (const Addable &addable : parseAddableList(text)) {
+        const bool known = std::any_of(result.cbegin(), result.cend(), [&](const Addable &seen) {
+            return seen.kind == addable.kind && seen.value == addable.value;
+        });
+        if (!known)
+            result.append(addable);
+    }
     return result;
 }
 

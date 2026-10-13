@@ -78,6 +78,7 @@ private slots:
     void parseAddableListKeepsOrderAndDropsJunk();
     void parseAddableListSplitsLinksOnOneLine(); // INT-14
     void magnetXtMustBeItsOwnParameter();        // INT-14
+    void dropListsAFileOnceWhenItsTextNamesItToo();
 
     void stateFileRoundTrips();
 
@@ -205,6 +206,29 @@ void TestXdg::parseAddableListKeepsOrderAndDropsJunk()
     QCOMPARE(addables.at(0).value, magnet);
     QCOMPARE(addables.at(1).kind, Addable::Kind::HttpUrl);
     QCOMPARE(addables.at(1).value, url);
+}
+
+void TestXdg::dropListsAFileOnceWhenItsTextNamesItToo()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.path() + QStringLiteral("/dropped.torrent");
+    QFile file(path);
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    file.write("d4:info1:xe");
+    file.close();
+    const QString magnet =
+        QStringLiteral("magnet:?xt=urn:btih:c12fe1c06bba254a9dc9f519b335aa7c1367a88a");
+
+    // As Nautilus fills a drop: the file in the URLs and again, as a URL, in the text.
+    const QUrl url = QUrl::fromLocalFile(path);
+    Xdg xdg;
+    const QList<Addable> addables =
+        xdg.addablesFromDrop({url}, url.toString() + QStringLiteral("\r\n") + magnet);
+    QCOMPARE(addables.size(), 2);
+    QCOMPARE(addables.at(0).kind, Addable::Kind::TorrentFile);
+    QCOMPARE(addables.at(0).value, path);
+    QCOMPARE(addables.at(1).kind, Addable::Kind::Magnet);
 }
 
 void TestXdg::parseAddableListSplitsLinksOnOneLine()
