@@ -21,6 +21,7 @@
 #include <QList>
 #include <QStringList>
 #include <QTimer>
+#include <QVariantMap>
 
 namespace omaseed::core {
 
@@ -108,6 +109,10 @@ public:
         LastActivityRole,
         LastActivityTextRole,
         TorrentRole, ///< the whole value, for code that wants more than one field
+        // docs/28 (#54): why an errored torrent is in error, from qBittorrent's log. Not in
+        // maindata: ProblemLog sets them with setProblem().
+        ProblemRole,     ///< TorrentProblem::toMap(), or an empty map
+        StatusCauseRole, ///< the Status column's short cause ("no access"), or empty
     };
     Q_ENUM(Role)
 
@@ -132,6 +137,13 @@ public:
     /// in `removed` dropped.
     void applyPartial(const QJsonObject &torrents, const QJsonArray &removed);
     void clear();
+
+    /// docs/28: what ProblemLog worked out for `hash` from the server's log (TorrentProblem::
+    /// toMap()); an empty map takes it away. Emits dataChanged() for ProblemRole and
+    /// StatusCauseRole on that row only, then problemsChanged(). A removed torrent, a full
+    /// update and clear() drop every problem with the rows.
+    void setProblem(const QString &hash, const QVariantMap &problem);
+    QVariantMap problem(const QString &hash) const { return m_problems.value(hash); }
 
     /// What the last applyFullUpdate(), applyPartial() or clear() did (#36), so code that keeps
     /// its own state per torrent can follow the rows a poll touched instead of walking the
@@ -176,6 +188,8 @@ Q_SIGNALS:
     /// run.
     void runsAboutToBeAnnounced(const QList<int> &rows, const QList<int> &roles);
     void runsAnnounced();
+    /// setProblem() changed what a row says about its error.
+    void problemsChanged();
 
 private:
     void emitRunsFor(const QList<QPair<int, QList<int>>> &touched);
@@ -186,6 +200,7 @@ private:
 
     QList<Torrent> m_rows;
     QHash<QString, int> m_indexByHash;
+    QHash<QString, QVariantMap> m_problems; ///< docs/28: by hash, only errored torrents
     Change m_lastChange;
     quint64 m_revision = 0;
     QTimer *m_midnight = nullptr; ///< fires once a day, just after local midnight

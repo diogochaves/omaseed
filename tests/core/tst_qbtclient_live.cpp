@@ -69,6 +69,7 @@ private slots:
     void noCredentialWorksOnPlayground();
     void torrentsInfoReturnsAnArray();
     void probeReportsServerInfo();
+    void logMainProblemsOnBothServers();
 
 private:
     QUrl m_playground;
@@ -252,6 +253,36 @@ void TestQbtClientLive::torrentsInfoReturnsAnArray()
         client.torrentsProperties(QStringLiteral("0000000000000000000000000000000000000000")));
     QVERIFY(missing.isError());
     QCOMPARE(missing.error().kind(), ApiError::Kind::NotFound);
+}
+
+// docs/28 (#54): warnings and critical lines only, and only those after the id given.
+void TestQbtClientLive::logMainProblemsOnBothServers()
+{
+    QbtClient playground;
+    playground.setBaseUrl(m_playground);
+    const QbtResult<QJsonArray> all = await(this, playground.logMainProblems(-1));
+    QVERIFY2(!all.isError(), qPrintable(all.error().toString()));
+    int lastId = -1;
+    for (const QJsonValue &value : all.value()) {
+        const QJsonObject entry = value.toObject();
+        QVERIFY(entry.contains(QStringLiteral("message")));
+        QVERIFY(entry.contains(QStringLiteral("timestamp")));
+        const int type = entry.value(QStringLiteral("type")).toInt();
+        QVERIFY2(type == 4 || type == 8, "log/main sent a normal or info line");
+        lastId = entry.value(QStringLiteral("id")).toInt();
+    }
+    const QbtResult<QJsonArray> after = await(this, playground.logMainProblems(lastId));
+    QVERIFY2(!after.isError(), qPrintable(after.error().toString()));
+    for (const QJsonValue &value : after.value())
+        QVERIFY(value.toObject().value(QStringLiteral("id")).toInt() > lastId);
+
+    if (m_apiKey.isEmpty())
+        QSKIP("QBT_STRICT_API_KEY is unset: the strict half needs dev.env loaded");
+    QbtClient strict;
+    strict.setBaseUrl(m_strict);
+    strict.setApiKey(m_apiKey);
+    const QbtResult<QJsonArray> signedIn = await(this, strict.logMainProblems(-1));
+    QVERIFY2(!signedIn.isError(), qPrintable(signedIn.error().toString()));
 }
 
 void TestQbtClientLive::probeReportsServerInfo()

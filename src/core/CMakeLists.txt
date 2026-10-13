@@ -41,6 +41,8 @@ qt_add_library(omaseed-core STATIC
     Paths.hpp
     PieceStates.cpp
     PieceStates.hpp
+    ProblemLog.cpp
+    ProblemLog.hpp
     QbtClient.cpp
     QbtClient.hpp
     QbtReply.cpp

@@ -230,6 +230,10 @@ public:
     QbtReply<QJsonObject> *torrentsCategories(); ///< GET torrents/categories
     QbtReply<QJsonArray> *torrentsTags();        ///< GET torrents/tags
     QbtReply<QJsonObject> *transferInfo();       ///< GET transfer/info
+    /// GET log/main: warnings and critical lines only, those after `lastKnownId` (-1 for
+    /// all the server keeps). qBittorrent keeps them in memory: they start again from id 0
+    /// when it restarts (docs/28 §2).
+    QbtReply<QJsonArray> *logMainProblems(int lastKnownId);
     /// GET transfer/speedLimitsMode — true when the alternative limits are on.
     QbtReply<bool> *transferSpeedLimitsMode();
     QbtReply<QByteArray> *transferToggleSpeedLimitsMode(); ///< POST transfer/toggleSpeedLimitsMode

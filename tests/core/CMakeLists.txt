@@ -305,3 +305,8 @@ omaseed_add_test(tst_torrentproblem
     SOURCES tst_torrentproblem.cpp
     LIBRARIES omaseed::core
 )
+
+omaseed_add_test(tst_problemlog
+    SOURCES tst_problemlog.cpp
+    LIBRARIES omaseed::core
+)

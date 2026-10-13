@@ -858,6 +858,20 @@ QbtReply<QJsonArray> *QbtClient::torrentsWebSeeds(const QString &hash)
                               [path](const QByteArray &body) { return parseArray(body, path); });
 }
 
+QbtReply<QJsonArray> *QbtClient::logMainProblems(int lastKnownId)
+{
+    RequestSpec spec;
+    spec.path = QStringLiteral("log/main");
+    addItem(spec.query, QStringLiteral("normal"), QStringLiteral("false"));
+    addItem(spec.query, QStringLiteral("info"), QStringLiteral("false"));
+    addItem(spec.query, QStringLiteral("warning"), QStringLiteral("true"));
+    addItem(spec.query, QStringLiteral("critical"), QStringLiteral("true"));
+    addItem(spec.query, QStringLiteral("last_known_id"), QString::number(lastKnownId));
+    const QString path = spec.path;
+    return submit<QJsonArray>(std::move(spec),
+                              [path](const QByteArray &body) { return parseArray(body, path); });
+}
+
 QbtReply<QJsonObject> *QbtClient::torrentsPeers(const QString &hash, int rid)
 {
     RequestSpec spec;

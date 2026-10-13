@@ -44,6 +44,7 @@ namespace omaseed::core {
 class CategoryModel;
 class FilterCounts;
 class GlobalState;
+class ProblemLog;
 class QbtClient;
 class TagModel;
 class TorrentModel;
@@ -71,6 +72,8 @@ public:
     TrackerModel *trackers() const { return m_trackers; }
     GlobalState *globalState() const { return m_globalState; }
     FilterCounts *counts() const { return m_counts; }
+    /// docs/28: why errored torrents are in error, read from the server's log after each poll.
+    ProblemLog *problems() const { return m_problemLog; }
 
     bool isRunning() const { return m_running; }
     bool isVisible() const { return m_visible; }
@@ -189,6 +192,7 @@ private:
     TrackerModel *m_trackers = nullptr;
     GlobalState *m_globalState = nullptr;
     FilterCounts *m_counts = nullptr;
+    ProblemLog *m_problemLog = nullptr;
 
     QTimer *m_pollTimer = nullptr;
     QTimer *m_countdownTimer = nullptr;

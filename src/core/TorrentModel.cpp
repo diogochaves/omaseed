@@ -295,6 +295,10 @@ QVariant TorrentModel::data(const QModelIndex &index, int role) const
         return Format::relativeTime(t.lastActivity);
     case TorrentRole:
         return QVariant::fromValue(t);
+    case ProblemRole:
+        return m_problems.value(t.hash);
+    case StatusCauseRole:
+        return m_problems.value(t.hash).value(QStringLiteral("cause")).toString();
     default:
         return {};
     }
@@ -378,6 +382,8 @@ QHash<int, QByteArray> TorrentModel::roleNames() const
         {LastActivityRole, "lastActivity"},
         {LastActivityTextRole, "lastActivityText"},
         {TorrentRole, "torrent"},
+        {ProblemRole, "problem"},
+        {StatusCauseRole, "statusCause"},
     };
     return names;
 }
@@ -418,6 +424,7 @@ void TorrentModel::applyFullUpdate(const QJsonObject &torrents)
     beginResetModel();
     m_rows.clear();
     m_indexByHash.clear();
+    m_problems.clear();
     m_rows.reserve(torrents.size());
     for (auto it = torrents.constBegin(); it != torrents.constEnd(); ++it) {
         Torrent t;
@@ -530,8 +537,10 @@ void TorrentModel::removeRun(int first, int last)
     // beginRemoveRows, then the table's cursor, the details pane, the seed console) look
     // torrents up by hash, and a row the index still held from before the run pointed past
     // the end of m_rows (#46). Runs go highest first, so only the rows above this one move.
-    for (int row = first; row <= last; ++row)
+    for (int row = first; row <= last; ++row) {
         m_indexByHash.remove(m_rows.at(row).hash);
+        m_problems.remove(m_rows.at(row).hash);
+    }
     m_rows.remove(first, last - first + 1);
     for (int row = first; row < m_rows.size(); ++row)
         m_indexByHash[m_rows.at(row).hash] = row;
@@ -578,6 +587,24 @@ void TorrentModel::emitRunsFor(const QList<QPair<int, QList<int>>> &touched)
     Q_EMIT runsAnnounced();
 }
 
+void TorrentModel::setProblem(const QString &hash, const QVariantMap &problem)
+{
+    const int row = indexOfHash(hash);
+    if (row < 0)
+        return;
+    if (problem.isEmpty()) {
+        if (m_problems.remove(hash) == 0)
+            return;
+    } else {
+        auto it = m_problems.find(hash);
+        if (it != m_problems.end() && it.value() == problem)
+            return;
+        m_problems.insert(hash, problem);
+    }
+    Q_EMIT dataChanged(index(row), index(row), {ProblemRole, StatusCauseRole});
+    Q_EMIT problemsChanged();
+}
+
 void TorrentModel::clear()
 {
     m_lastChange = Change{true, {}, {}, m_revision};
@@ -586,6 +613,7 @@ void TorrentModel::clear()
     beginResetModel();
     m_rows.clear();
     m_indexByHash.clear();
+    m_problems.clear();
     endResetModel();
     ++m_revision;
     Q_EMIT countChanged();

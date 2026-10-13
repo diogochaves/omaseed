@@ -83,3 +83,5 @@ bool isUnder(const QString &path, const QString &root);
 } // namespace ProblemMatch
 
 } // namespace omaseed::core
+
+Q_DECLARE_METATYPE(omaseed::core::TorrentProblem)
