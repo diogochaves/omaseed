@@ -7,7 +7,39 @@ before it will tag a release.
 
 ## Unreleased
 
+### Changed
+
+- Everything works with the mouse as well as the keys. Every list follows one set of click
+  rules: a click picks a row, ctrl+click adds or removes one, shift+click selects a range
+  (ctrl+shift+click adds the range), a click on empty space clears the selection, a
+  right-click outside the selection acts on that row alone, and clicking away from a rename
+  keeps it.
+- The Files tab takes ctrl+click and shift+click, and a right-click on a file outside the
+  selection acts on that file (priority and rename used to act on the old selection).
+- The Trackers, Peers and HTTP sources tabs have right-click menus (add, remove or ban,
+  reannounce, copy).
+- Text fields have a right-click menu (cut, copy, paste, select all) and take a click anywhere
+  in their box.
+- Menus taller than the window are cut to it and scroll, so the actions menu's last rows
+  ("open folder", "delete") can be clicked on a short window.
+- Key hints that name a safe action are clickable: "esc" in a sheet's head or a filter,
+  "enter apply" in the tag palette, "esc clears the filter" and "0 shows all statuses" when
+  nothing matches, the "?" in Settings.
+- The help sheet's command rows, the jump palette's `tab` actions (right-click), a ratio
+  ladder dot in the seed console, About's repository link and first run's "✓ server" step all
+  answer a click; the wheel scrolls Settings, first run and every details list, and steps
+  through folded Settings tabs.
+- Tooltips name the keys of the add, settings and help buttons, and show the full text of
+  cut-off names in the table, rail, details, seed console and settings.
+
 ### Fixed
+
+- The tag palette could not save tags with the mouse: ticks were applied only on `enter`.
+  Clicking `create "x"` now creates the tag and ticks it.
+- A click elsewhere while renaming a file left the details pane ignoring every key.
+- Settings' own number fields (low-disk threshold, base size, transparency) lost a typed value
+  when the caret left them by a click.
+- A switch in Settings kept its focus ring after a click.
 
 - File and folder pickers open as dialogs of the omaseed window, so a portal chooser other
   than GTK's (Strata's, for one) floats over omaseed instead of tiling beside it.
