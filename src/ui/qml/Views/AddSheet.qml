@@ -1293,7 +1293,7 @@ Sheet {
                                 dim: true
                                 objectName: "downloadsTicked"
                                 size: "caption"
-                                text: qsTr("%1 ticked · enter adds them together").arg(downloadsList.ticked.length)
+                                text: qsTr("%1 ticked · add takes them together").arg(downloadsList.ticked.length)
                                 visible: downloadsList.ticked.length > 0
                             }
                         }

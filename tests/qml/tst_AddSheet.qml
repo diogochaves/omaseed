@@ -1318,6 +1318,33 @@ TestCase {
         compare(sheet.downloadsList.ticked.length, 0);
     }
 
+    // The shared mouse rules: ctrl+click ticks a row and sets the anchor, shift+click ticks
+    // anchor..row instead of what was ticked, ctrl+shift+click adds that range.
+    function test_shift_click_ticks_a_range_in_downloads() {
+        const sheet = testCase.openOnFixtures();
+        const list = sheet.downloadsList;
+        verify(list.count >= 5);
+        const paths = App.downloadsTorrents.map(t => t.path);
+        const row = i => findChild(list, "downloadsRow" + i);
+
+        mouseClick(row(1), 20, 5, Qt.LeftButton, Qt.ControlModifier);
+        compare(list.ticked, [paths[1]]);
+        mouseClick(row(3), 20, 5, Qt.LeftButton, Qt.ShiftModifier);
+        compare(list.ticked.slice().sort(), paths.slice(1, 4).sort());
+        compare(sheet.opened, true, "a shift+click chose a file");
+        compare(sheet.sourceField.text, "", "a shift+click filled the field");
+
+        // From the same anchor the other way: the range replaces the ticks.
+        mouseClick(row(0), 20, 5, Qt.LeftButton, Qt.ShiftModifier);
+        compare(list.ticked.slice().sort(), paths.slice(0, 2).sort());
+
+        // ctrl+shift adds: a new anchor on 4 (ctrl+click), then 4..3 joins 0..1.
+        mouseClick(row(4), 20, 5, Qt.LeftButton, Qt.ControlModifier);
+        mouseClick(row(3), 20, 5, Qt.LeftButton, Qt.ControlModifier | Qt.ShiftModifier);
+        compare(list.ticked.slice().sort(), [paths[0], paths[1], paths[3], paths[4]].sort());
+        compare(findChild(sheet, "downloadsTicked").text, "4 ticked · add takes them together");
+    }
+
     // Ticks in In Downloads, then the `add` button: it reads `add 2`, and adds both once read.
     function test_add_button_takes_the_ticks_in_downloads() {
         const sheet = testCase.openOnFixtures();

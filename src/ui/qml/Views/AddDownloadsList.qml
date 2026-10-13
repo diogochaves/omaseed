@@ -15,7 +15,9 @@ import Omaseed.Kit
 //   space       tick the row (#40, docs/27 B3); with ticks, `enter` hands over the ticked
 //               files together (`chosenMany(paths)`), for the sheet's batch
 // A click on a row chooses it too, or, with ticks, adds it to them and hands them all over;
-// ctrl+click ticks. `tab` is left to the sheet.
+// ctrl+click ticks or unticks a row, shift+click ticks the rows from the last one clicked (or
+// ticked) to this one instead of what was ticked, ctrl+shift+click adds them to it. `tab` is
+// left to the sheet.
 //
 //     AddDownloadsList { torrents: App.downloadsTorrents; onChosen: path => … }
 Rectangle {
@@ -27,6 +29,8 @@ Rectangle {
     property int cursorIndex: 0
     /// The ticked rows' paths (#40).
     property var ticked: []
+    /// Where a shift+click range starts: the row last clicked or ticked; -1 for the cursor.
+    property int anchorIndex: -1
 
     readonly property int count: root.torrents ? root.torrents.length : 0
     readonly property int sizeWidth: Theme.space(64)
@@ -42,9 +46,25 @@ Rectangle {
         if (index < 0 || index >= root.count)
             return;
         root.cursorIndex = index;
+        root.anchorIndex = index;
         const path = root.torrents[index].path;
         root.ticked = root.ticked.indexOf(path) >= 0 ? root.ticked.filter(p => p !== path)
                                                      : root.ticked.concat([path]);
+    }
+
+    /// shift+click: tick the rows from the anchor to `index`, instead of the ticks there were
+    /// or, with `add` (ctrl+shift+click), as well as them. The anchor stays where it was.
+    function tickRange(index: int, add: bool): void {
+        if (index < 0 || index >= root.count)
+            return;
+        const anchor = root.anchorIndex >= 0 && root.anchorIndex < root.count ? root.anchorIndex
+                                                                               : root.cursorIndex;
+        const from = Math.min(anchor, index);
+        const to = Math.max(anchor, index);
+        const range = root.torrents.slice(from, to + 1).map(t => t.path);
+        const kept = add ? root.ticked.filter(p => range.indexOf(p) < 0) : [];
+        root.ticked = kept.concat(range);
+        root.cursorIndex = index;
     }
 
     /// The ticked files plus `extra` (a clicked row), in the list's order.
@@ -99,7 +119,11 @@ Rectangle {
     radius: Theme.cornerRadius
 
     // A rescan with fewer files leaves the cursor past the end.
-    onCountChanged: root.cursorIndex = Math.max(0, Math.min(root.cursorIndex, root.count - 1))
+    onCountChanged: {
+        root.cursorIndex = Math.max(0, Math.min(root.cursorIndex, root.count - 1));
+        if (root.anchorIndex >= root.count)
+            root.anchorIndex = -1;
+    }
 
     Keys.onPressed: event => {
         switch (event.key) {
@@ -159,10 +183,15 @@ Rectangle {
                     z: 2
 
                     onClicked: mouse => {
-                        if ((mouse.modifiers & Qt.ControlModifier) !== 0)
+                        const ctrl = (mouse.modifiers & Qt.ControlModifier) !== 0;
+                        if ((mouse.modifiers & Qt.ShiftModifier) !== 0) {
+                            root.tickRange(row.index, ctrl);
+                        } else if (ctrl) {
                             root.toggleTick(row.index);
-                        else
+                        } else {
+                            root.anchorIndex = row.index;
                             root.choose(row.index, true);
+                        }
                     }
                 }
 
