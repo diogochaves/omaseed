@@ -12,8 +12,9 @@ import Omaseed.Kit
 // Lay it over the list (`anchors.fill`, a `z` above it). It takes no buttons and no hover, so
 // the rows under it still hear clicks and the pointer (docs/UX-NOTES M11). What it leaves
 // alone goes on to the list: a touchpad's pixel deltas (Flickable follows those 1:1 and
-// stops them with its own kinetic glide), sideways wheels, and a wheel with shift or ctrl
-// held.
+// stops them with its own kinetic glide), sideways wheels, a wheel with shift or ctrl
+// held, and a wheel over the focused number field that steps with it (Kit/Field
+// `takesWheel`, #51 D16).
 MouseArea {
     id: root
 
@@ -51,11 +52,22 @@ MouseArea {
         glide.start();
     }
 
+    /// The Field holding the keyboard steps with the wheel and is under it at `x`, `y` (this
+    /// item's coordinates).
+    function _focusTakes(x: real, y: real): bool {
+        let item = root.Window.activeFocusItem;
+        while (item !== null && (item as Field) === null)
+            item = item.parent;
+        const field = item as Field;
+        return field !== null && field.takesWheel && field.contains(root.mapToItem(field, x, y));
+    }
+
     acceptedButtons: Qt.NoButton
 
     onWheel: wheel => {
         if (root.flickable === null || wheel.angleDelta.y === 0 || wheel.pixelDelta.y !== 0
-                || (wheel.modifiers & (Qt.ShiftModifier | Qt.ControlModifier)) !== 0) {
+                || (wheel.modifiers & (Qt.ShiftModifier | Qt.ControlModifier)) !== 0
+                || root._focusTakes(wheel.x, wheel.y)) {
             wheel.accepted = false;
             return;
         }

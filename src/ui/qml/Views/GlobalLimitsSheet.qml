@@ -103,6 +103,7 @@ Sheet {
 
                 Layout.fillWidth: true
                 escClears: false
+                numeric: true
                 placeholder: "∞"
                 trailing: qsTr("KB/s")
 
@@ -120,6 +121,7 @@ Sheet {
 
                 Layout.fillWidth: true
                 escClears: false
+                numeric: true
                 placeholder: "∞"
                 trailing: qsTr("KB/s")
 
@@ -137,6 +139,7 @@ Sheet {
 
                 Layout.fillWidth: true
                 escClears: false
+                numeric: true
                 placeholder: "∞"
                 trailing: qsTr("KB/s")
 
@@ -154,6 +157,7 @@ Sheet {
 
                 Layout.fillWidth: true
                 escClears: false
+                numeric: true
                 placeholder: "∞"
                 trailing: qsTr("KB/s")
 

@@ -1664,6 +1664,8 @@ Item {
                                     id: thresholdField
 
                                     implicitWidth: Theme.space(110)
+                                    minimum: 1
+                                    numeric: true
                                     objectName: "lowDiskThresholdField"
                                     placeholder: qsTr("2")
                                     trailing: qsTr("GiB")
@@ -1820,6 +1822,10 @@ Item {
                                 Field {
                                     id: baseSizeField
 
+                                    emptyValue: Theme.font.baseSize
+                                    maximum: 32
+                                    minimum: 8
+                                    numeric: true
                                     objectName: "baseSizeField"
                                     implicitWidth: Theme.space(110)
                                     placeholder: qsTr("follow")
@@ -1856,6 +1862,9 @@ Item {
                                 Field {
                                     id: alphaField
 
+                                    maximum: 100
+                                    minimum: 50
+                                    numeric: true
                                     objectName: "windowAlphaField"
                                     implicitWidth: Theme.space(110)
                                     placeholder: String(Math.round(Theme.defaultWindowAlpha * 100))

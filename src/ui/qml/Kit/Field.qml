@@ -15,6 +15,14 @@ import Omaseed.Kit
 // The mouse: a press anywhere in the box puts the caret in the text, nearest the press (the
 // input itself is one line tall), and a right-click opens cut / copy / paste / select all
 // (`Kit/InputMouseArea`).
+//
+// A `numeric` field steps with the wheel, but only while the caret is in it (#51 D16): one
+// notch is `step`, clamped to `minimum`..`maximum`, written into the text as typing would be,
+// so the caller applies it however it applies a typed value (on `enter`, when the caret
+// leaves, or live). Without the caret the wheel is not taken, and scrolls the sheet or pane
+// around the field: scrolling past a value never changes it. An empty field steps from
+// `emptyValue`, else from its placeholder when that is a number; with neither (`∞`), the
+// first notch up gives `minimum` + `step` and a notch down leaves it empty.
 Rectangle {
     id: root
 
@@ -38,6 +46,16 @@ Rectangle {
     /// field opened with a value to edit does not: there `esc` goes straight to the sheet,
     /// which cancels, rather than wiping the value and leaving the next keys to land in it.
     property bool escClears: true
+    /// The wheel steps the number while the caret is in the field (see above).
+    property bool numeric: false
+    property real step: 1
+    property real minimum: 0
+    property real maximum: Number.MAX_SAFE_INTEGER
+    /// The number an empty field stands for when the wheel steps from it; NaN: none.
+    property real emptyValue: NaN
+    /// The wheel steps the number now: numeric, with the caret in. `Kit/WheelScroll` over a
+    /// pane leaves the wheel to a field that takes it.
+    readonly property bool takesWheel: root.numeric && input.activeFocus
 
     /// True while the caret is in the field: the caller (Main) reads it to know that the
     /// search box, not the table, owns the keyboard.
@@ -60,6 +78,43 @@ Rectangle {
     /// at the root and never reach the inner TextInput.
     function focusInput(): void {
         input.forceActiveFocus();
+    }
+
+    /// Step the number by `notches` steps (negative steps down), as the wheel does; nothing on
+    /// a field that is not `numeric` or whose text is not a number.
+    function stepBy(notches: int): void {
+        if (!root.numeric || notches === 0)
+            return;
+        const typed = input.text.trim();
+        const places = text => {
+            const at = String(text).indexOf(".");
+            return at < 0 ? 0 : String(text).length - at - 1;
+        };
+        let base = typed.length > 0 ? Number(typed) : NaN;
+        let decimals = Math.max(places(root.step), typed.length > 0 ? places(typed) : 0);
+        if (typed.length > 0 && !Number.isFinite(base))
+            return; // not a number: what was typed stays for the caller to refuse
+        if (typed.length === 0) {
+            base = Number.isFinite(root.emptyValue) ? root.emptyValue : root.placeholder.trim().length > 0
+                                                                        ? Number(root.placeholder) : NaN;
+            if (!Number.isFinite(base)) {
+                if (notches < 0)
+                    return;
+                base = root.minimum;
+            }
+        }
+        const value = Math.min(root.maximum, Math.max(root.minimum, base + notches * root.step));
+        input.text = String(Number(value.toFixed(decimals)));
+    }
+
+    /// The wheel's eighths of a degree not yet a whole notch (a touchpad sends small ones).
+    property real _wheelRest: 0
+
+    function _wheel(angle: real): void {
+        root._wheelRest += angle;
+        const notches = root._wheelRest > 0 ? Math.floor(root._wheelRest / 120) : Math.ceil(root._wheelRest / 120);
+        root._wheelRest -= notches * 120;
+        root.stepBy(notches);
     }
 
     /// Selects all of the text, so typing replaces it (the rename sheet's find on opening).
@@ -96,6 +151,14 @@ Rectangle {
 
     HoverHandler {
         id: hoverHandler
+    }
+
+    // Only while the caret is in a numeric field; otherwise the wheel goes on to the scroller.
+    WheelHandler {
+        enabled: root.takesWheel
+        objectName: "fieldWheel"
+
+        onWheel: event => root._wheel(event.angleDelta.y)
     }
 
     // Under everything that takes a click: the input, and the trailing button over it.

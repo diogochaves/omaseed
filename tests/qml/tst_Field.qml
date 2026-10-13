@@ -17,6 +17,31 @@ TestCase {
         Field {}
     }
 
+    // A numeric field in a pane taller than its view: what the wheel scrolls when the field
+    // does not take it.
+    Component {
+        id: scrollerComponent
+
+        Flickable {
+            readonly property alias field: numberField
+
+            contentHeight: 1000
+            height: 150
+            width: 300
+
+            Field {
+                id: numberField
+
+                maximum: 5
+                minimum: 1
+                numeric: true
+                placeholder: "∞"
+                width: 200
+                y: 20
+            }
+        }
+    }
+
     function test_height_is_control_height() {
         const field = createTemporaryObject(fieldComponent, testCase);
         compare(field.height, Theme.controlHeight);
@@ -244,5 +269,81 @@ TestCase {
         keyClick(Qt.Key_Escape);
         verify(mouse.menu === null);
         verify(field.editing, "the keyboard did not come back");
+    }
+
+    // #51 D16: with the caret in it, a numeric field steps a notch at a time, clamped to its
+    // range, and the wheel goes no further.
+    function test_a_numeric_field_steps_with_the_wheel_while_it_has_the_caret() {
+        const scroller = createTemporaryObject(scrollerComponent, testCase);
+        const field = scroller.field;
+        field.text = "3";
+        field.focusInput();
+        verify(field.editing);
+        mouseWheel(field, field.width / 2, field.height / 2, 0, 120);
+        compare(field.text, "4");
+        mouseWheel(field, field.width / 2, field.height / 2, 0, 240);
+        compare(field.text, "5", "past the maximum");
+        mouseWheel(field, field.width / 2, field.height / 2, 0, -120);
+        compare(field.text, "4");
+        mouseWheel(field, field.width / 2, field.height / 2, 0, -960);
+        compare(field.text, "1", "past the minimum");
+        wait(50);
+        compare(scroller.contentY, 0, "the pane scrolled under a field that took the wheel");
+
+        // A touchpad's small deltas add up to a notch.
+        mouseWheel(field, field.width / 2, field.height / 2, 0, 60);
+        compare(field.text, "1");
+        mouseWheel(field, field.width / 2, field.height / 2, 0, 60);
+        compare(field.text, "2");
+
+        // Empty is ∞ here: up starts at the smallest limit, down leaves it empty.
+        field.text = "";
+        mouseWheel(field, field.width / 2, field.height / 2, 0, -120);
+        compare(field.text, "");
+        mouseWheel(field, field.width / 2, field.height / 2, 0, 120);
+        compare(field.text, "2");
+        // What is not a number stays for the caller to refuse.
+        field.text = "lots";
+        mouseWheel(field, field.width / 2, field.height / 2, 0, 120);
+        compare(field.text, "lots");
+    }
+
+    // Without the caret the wheel is the pane's: scrolling past a value never changes it.
+    function test_a_numeric_field_without_the_caret_lets_the_wheel_scroll_on() {
+        const scroller = createTemporaryObject(scrollerComponent, testCase);
+        const field = scroller.field;
+        field.text = "3";
+        verify(!field.editing);
+        mouseWheel(field, field.width / 2, field.height / 2, 0, -120);
+        compare(field.text, "3");
+        tryVerify(() => scroller.contentY > 0, 1000, "the pane did not scroll");
+    }
+
+    // The step's own places and the typed ones are kept (a share ratio steps by 0.1), and an
+    // empty field steps from its numeric placeholder or `emptyValue`.
+    function test_a_numeric_step_keeps_its_decimals_and_starts_from_the_empty_meaning() {
+        const field = createTemporaryObject(fieldComponent, testCase, {
+                                                "numeric": true,
+                                                "step": 0.1,
+                                                "text": "1.25"
+                                            });
+        field.stepBy(1);
+        compare(field.text, "1.35");
+        field.text = "2";
+        field.stepBy(-3);
+        compare(field.text, "1.7");
+        field.step = 1;
+        field.text = "";
+        field.placeholder = "75";
+        field.stepBy(-1);
+        compare(field.text, "74");
+        field.text = "";
+        field.placeholder = "follow";
+        field.emptyValue = 14;
+        field.stepBy(1);
+        compare(field.text, "15");
+        field.numeric = false;
+        field.stepBy(1);
+        compare(field.text, "15", "a plain field stepped");
     }
 }

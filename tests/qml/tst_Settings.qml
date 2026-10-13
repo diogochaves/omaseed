@@ -1048,6 +1048,41 @@ TestCase {
         App.windowAlphaOverride = 0;
     }
 
+    // #51 D16: the number fields step with the wheel only while they have the caret, and the
+    // value applies as a typed one does, when the caret leaves; base size steps from the size
+    // it follows, and transparency stays in 50–100.
+    function test_the_number_fields_step_with_the_wheel_only_with_the_caret() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        const probe = createTemporaryObject(probeComponent, testCase);
+        keyClick(Qt.Key_5);
+        const base = testCase.childNamed(modal, "baseSizeField");
+        const alpha = testCase.childNamed(modal, "windowAlphaField");
+        waitForItemPolished(base.parent);
+        compare(base.text, "");
+
+        mouseWheel(base, base.width / 2, base.height / 2, 0, 120);
+        compare(base.text, "", "the wheel changed a field without the caret");
+
+        base.focusInput();
+        mouseWheel(base, base.width / 2, base.height / 2, 0, 120);
+        compare(base.text, String(Theme.font.baseSize + 1));
+        compare(App.baseSizeOverride, 0, "applied before the caret left");
+        const stepped = Theme.font.baseSize + 1;
+        probe.forceActiveFocus();
+        compare(App.baseSizeOverride, stepped);
+
+        alpha.focusInput();
+        alpha.text = "98";
+        mouseWheel(alpha, alpha.width / 2, alpha.height / 2, 0, 600);
+        compare(alpha.text, "100");
+        probe.forceActiveFocus();
+        compare(App.windowAlphaOverride, 100);
+
+        App.baseSizeOverride = 0;
+        App.windowAlphaOverride = 0;
+    }
+
     // A click on the pane's empty space takes the caret out of the field, which applies it;
     // a click in the field leaves it there.
     function test_a_click_beside_a_number_field_applies_it() {

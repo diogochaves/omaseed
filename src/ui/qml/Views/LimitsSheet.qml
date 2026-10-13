@@ -312,6 +312,7 @@ Sheet {
 
                 Layout.fillWidth: true
                 escClears: false
+                numeric: true
                 placeholder: "∞" // ∞
                 trailing: qsTr("KB/s")
 
@@ -329,6 +330,7 @@ Sheet {
 
                 Layout.fillWidth: true
                 escClears: false
+                numeric: true
                 placeholder: "∞"
                 trailing: qsTr("KB/s")
 
@@ -357,9 +359,11 @@ Sheet {
 
                         escClears: false
                         enabled: !root._ratioGlobal
+                        numeric: true
                         // Empty is no limit, as in the speed fields; under `global` the chip
                         // says it all and the field has nothing to add (batch-2 J6).
                         placeholder: root._ratioGlobal ? "" : "∞"
+                        step: 0.1
                         width: parent.width
 
                         onAccepted: root.triggerPrimary()
@@ -408,6 +412,7 @@ Sheet {
 
                         escClears: false
                         enabled: !root._seedingGlobal
+                        numeric: true
                         placeholder: root._seedingGlobal ? "" : "∞"
                         trailing: root._seedingGlobal ? "" : qsTr("days")
                         width: parent.width

@@ -1472,6 +1472,7 @@ Sheet {
 
                                     Layout.fillWidth: true
                                     implicitWidth: Theme.space(80)
+                                    numeric: true
                                     placeholder: qsTr("∞")
                                     shortcuts: sheet._fieldShortcuts
                                     trailing: qsTr("KB/s")
@@ -1492,6 +1493,7 @@ Sheet {
 
                                     Layout.fillWidth: true
                                     implicitWidth: Theme.space(80)
+                                    numeric: true
                                     placeholder: qsTr("∞")
                                     shortcuts: sheet._fieldShortcuts
                                     trailing: qsTr("KB/s")

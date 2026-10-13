@@ -391,6 +391,7 @@ SettingsRow {
                     echoMode: fieldCell.modelData.kind === "password" ? TextInput.Password
                                                                       : TextInput.Normal
                     implicitWidth: Theme.space(fieldCell.modelData.width ?? 70)
+                    numeric: fieldCell.modelData.kind === "number"
                     objectName: "field-" + fieldCell.modelData.key
                     placeholder: fieldCell.modelData.noneText ?? ""
                     trailing: fieldCell.modelData.unit ?? ""
