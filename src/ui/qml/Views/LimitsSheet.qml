@@ -214,6 +214,18 @@ Sheet {
         return Number.isNaN(kb) ? NaN : Math.round(kb * 1024);
     }
 
+    /// A click on the share ratio's or seeding time's field while it is on `global`
+    /// (`which` is "ratio" or "seeding"): that limit leaves `global`, and the caret goes in.
+    function leaveGlobal(which: string): void {
+        if (which === "ratio") {
+            root._ratioGlobal = false;
+            ratioField.focusInput();
+        } else {
+            root._seedingGlobal = false;
+            seedingField.focusInput();
+        }
+    }
+
     property bool _ratioGlobal: true
     property bool _seedingGlobal: true
     /// The largest speed limit the Web API stores (a signed 32-bit bytes/s).
@@ -333,17 +345,34 @@ Sheet {
                 Layout.fillWidth: true
                 spacing: Theme.space(8)
 
-                Field {
-                    id: ratioField
-
+                // A disabled Field takes no clicks: the area over it turns `global` off and
+                // puts the caret in, the same as the chip and then a click on the field.
+                Item {
                     Layout.fillWidth: true
-                    escClears: false
-                    enabled: !root._ratioGlobal
-                    // Empty is no limit, as in the speed fields; under `global` the chip
-                    // says it all and the field has nothing to add (batch-2 J6).
-                    placeholder: root._ratioGlobal ? "" : "∞"
+                    implicitHeight: ratioField.height
+                    implicitWidth: ratioField.implicitWidth
 
-                    onAccepted: root.triggerPrimary()
+                    Field {
+                        id: ratioField
+
+                        escClears: false
+                        enabled: !root._ratioGlobal
+                        // Empty is no limit, as in the speed fields; under `global` the chip
+                        // says it all and the field has nothing to add (batch-2 J6).
+                        placeholder: root._ratioGlobal ? "" : "∞"
+                        width: parent.width
+
+                        onAccepted: root.triggerPrimary()
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.IBeamCursor
+                        enabled: root._ratioGlobal
+                        objectName: "ratioGlobalOff"
+
+                        onClicked: root.leaveGlobal("ratio")
+                    }
                 }
 
                 // In the tab order (`space` flips it): with the field disabled under
@@ -369,16 +398,31 @@ Sheet {
                 Layout.fillWidth: true
                 spacing: Theme.space(8)
 
-                Field {
-                    id: seedingField
-
+                Item {
                     Layout.fillWidth: true
-                    escClears: false
-                    enabled: !root._seedingGlobal
-                    placeholder: root._seedingGlobal ? "" : "∞"
-                    trailing: root._seedingGlobal ? "" : qsTr("days")
+                    implicitHeight: seedingField.height
+                    implicitWidth: seedingField.implicitWidth
 
-                    onAccepted: root.triggerPrimary()
+                    Field {
+                        id: seedingField
+
+                        escClears: false
+                        enabled: !root._seedingGlobal
+                        placeholder: root._seedingGlobal ? "" : "∞"
+                        trailing: root._seedingGlobal ? "" : qsTr("days")
+                        width: parent.width
+
+                        onAccepted: root.triggerPrimary()
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.IBeamCursor
+                        enabled: root._seedingGlobal
+                        objectName: "seedingGlobalOff"
+
+                        onClicked: root.leaveGlobal("seeding")
+                    }
                 }
 
                 Chip {

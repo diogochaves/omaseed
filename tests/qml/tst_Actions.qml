@@ -547,6 +547,34 @@ TestCase {
         verify(view.limitsSheetPanel.uploadField.editing, "tab did not reach the upload field");
     }
 
+    // A click on the share ratio or seeding time field under `global` did nothing: the
+    // field is disabled. Now it turns `global` off for that limit and puts the caret in.
+    function test_a_click_on_a_global_limit_field_turns_global_off() {
+        const sheet = view.limitsSheetPanel;
+        sheet.openFor([view.cursorHash]);
+        // The demo's rows are on the global ratio and seeding time (-2).
+        compare(sheet._ratioGlobal, true);
+        compare(sheet._seedingGlobal, true);
+        verify(!sheet.ratioField.enabled);
+        waitForRendering(sheet.panel, 500);
+
+        mouseClick(sheet.ratioField);
+        compare(sheet._ratioGlobal, false, "the click left the ratio on global");
+        verify(sheet.ratioField.editing, "the ratio field did not get the caret");
+        compare(sheet._seedingGlobal, true, "the click reached the other limit");
+
+        mouseClick(sheet.seedingField);
+        compare(sheet._seedingGlobal, false);
+        verify(sheet.seedingField.editing);
+
+        // Off global, the field is an ordinary one: the area over it steps aside.
+        keyClick("2");
+        compare(sheet.seedingField.text, "2");
+        mouseClick(sheet.ratioField);
+        verify(sheet.ratioField.editing);
+        sheet.close();
+    }
+
     function test_limits_sheet_prefills_from_the_cursor_torrent() {
         const hash = hashByName("Big Buck Bunny 4K (CC-BY)");
         view.table.moveCursorTo(App.filtered.rowOfHash(hash));
