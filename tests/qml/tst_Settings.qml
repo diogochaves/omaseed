@@ -689,6 +689,79 @@ TestCase {
         sheet.close();
     }
 
+    // #51 D4: a right-click on a server row opens its menu (edit, test, make default,
+    // remove), with the row's keys; "make default" is greyed on the default one.
+    function test_a_right_click_on_a_server_row_opens_its_menu() {
+        const first = testCase.addTestServer("first", "http://127.0.0.1:8081");
+        const second = testCase.addTestServer("second", "http://127.0.0.1:8082");
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        modal.showPane(1);
+        const menu = testCase.childNamed(modal, "serverMenu");
+        let row0 = testCase.childNamed(modal, "serverRow0");
+        let row1 = testCase.childNamed(modal, "serverRow1");
+        waitForItemPolished(row1.parent);
+        const item = action => menu.items.find(entry => entry.action === action);
+
+        mouseClick(row0, row0.width / 2, row0.height / 2, Qt.RightButton);
+        verify(menu.opened, "no menu on a server row");
+        verify(!modal.serverSheet.opened, "a right-click opened the sheet");
+        compare(menu.items.filter(entry => !entry.separator).map(entry => entry.text),
+                ["edit", "test", "make default", "remove"]);
+        compare(item("edit").key, "enter");
+        compare(item("default").key, "d");
+        compare(item("remove").key, "x");
+        verify(item("default").disabled, "make default on the default server");
+        keyClick("d");
+        verify(menu.opened, "make default ran on the default server");
+        keyClick(Qt.Key_Escape);
+        verify(!menu.opened);
+        verify(modal.opened, "esc closed the modal too");
+
+        mouseClick(row1, row1.width / 2, row1.height / 2, Qt.RightButton);
+        verify(menu.opened);
+        compare(modal.paneCursor, 1);
+        verify(!item("default").disabled);
+        const index = menu.items.findIndex(entry => entry.action === "default");
+        tryVerify(() => menu.rowsLayout.children[index].y > 0);
+        mouseClick(menu.rowsLayout.children[index]);
+        verify(!menu.opened);
+        compare(App.serverList.defaultId, second);
+        // The model is reset by a new default, so the rows are new too.
+        row0 = testCase.childNamed(modal, "serverRow0");
+        row1 = testCase.childNamed(modal, "serverRow1");
+        compare(row1.status, "default");
+        waitForItemPolished(row1.parent);
+
+        // edit opens the row's sheet; remove asks first, as `x` does.
+        mouseClick(row0, row0.width / 2, row0.height / 2, Qt.RightButton);
+        keyClick(Qt.Key_Return);
+        verify(modal.serverSheet.opened);
+        compare(modal.serverSheet.serverId, first);
+        modal.serverSheet.close();
+        mouseClick(row0, row0.width / 2, row0.height / 2, Qt.RightButton);
+        keyClick("x");
+        verify(modal.confirm.opened);
+        compare(modal.confirm.pendingId, first);
+        modal.confirm.close();
+
+        // test opens the sheet and tests, as the lost banner's "review certificate" does.
+        mouseClick(row1, row1.width / 2, row1.height / 2, Qt.RightButton);
+        const testRow = menu.rowsLayout.children[menu.items.findIndex(entry => entry.action === "test")];
+        tryVerify(() => testRow.y > 0);
+        mouseClick(testRow);
+        verify(modal.serverSheet.opened);
+        compare(modal.serverSheet.serverId, second);
+        verify(modal.serverSheet.testing || modal.serverSheet.tested);
+        modal.serverSheet.close();
+
+        // The dashed "add a server" row has no menu.
+        const add = testCase.childNamed(modal, "serverRowAdd");
+        mouseClick(add, add.width / 2, add.height / 2, Qt.RightButton);
+        verify(!menu.opened);
+        verify(!modal.serverSheet.opened);
+    }
+
     function test_the_toggles_round_trip_through_App() {
         const modal = createTemporaryObject(modalComponent, testCase);
         modal.open();

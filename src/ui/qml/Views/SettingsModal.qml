@@ -506,6 +506,34 @@ Item {
         confirm.open();
     }
 
+    /// A right-click on a server row (the cursor already moved there): its menu at `x`, `y`
+    /// in the modal's coordinates, the mouse's way to what `enter`, `d` and `x` do (#51 D4).
+    function openServerMenu(x: int, y: int): void {
+        const id = root.cursorServerId();
+        if (id.length === 0)
+            return;
+        serverMenu.serverId = id;
+        serverMenu.isDefault = App.serverList.serverMap(id).isDefault === true;
+        serverMenu.openAt(x, y);
+    }
+
+    /// A row of the server menu: what its key does on the row.
+    function serverMenuAction(action: string): void {
+        const id = serverMenu.serverId;
+        root.paneCursor = Math.max(0, App.serverList.indexOfId(id));
+        if (action === "edit") {
+            root.activateRow();
+        } else if (action === "test") {
+            const map = App.serverList.serverMap(id);
+            if (map.id !== undefined)
+                serverSheet.reviewFor(map);
+        } else if (action === "default") {
+            App.setDefaultServer(id);
+        } else if (action === "remove") {
+            root.removeCursorServer();
+        }
+    }
+
     /// The About pane's copyable `omaseed --install-bar-widget` line.
     function copyPluginLine(): void {
         clipboard.text = App.barWidgetCommand;
@@ -1496,6 +1524,13 @@ Item {
                                         bodyItem.forceActiveFocus();
                                         root.activateRow();
                                     }
+                                    onMenuRequested: (x, y) => {
+                                        root.paneCursor = serverRow.index;
+                                        root.area = "pane";
+                                        bodyItem.forceActiveFocus();
+                                        const at = serverRow.mapToItem(root, x, y);
+                                        root.openServerMenu(Math.round(at.x), Math.round(at.y));
+                                    }
                                 }
                             }
 
@@ -2470,6 +2505,50 @@ Item {
                 root.qbtRequest(changes, qbtMenu.confirmKind, qbtMenu.pick.key);
             bodyItem.forceActiveFocus();
         }
+        onRejected: bodyItem.forceActiveFocus()
+    }
+
+    // #51 D4: a right-click on a server row. The keys are the row's own (`enter`, `d`, `x`);
+    // `test` opens the sheet and tests, as the lost banner's "review certificate" does.
+    Menu {
+        id: serverMenu
+
+        property string serverId: ""
+        property bool isDefault: false
+
+        anchors.fill: parent
+        dimmed: false
+        items: [
+            {
+                "text": qsTr("edit"),
+                "key": "enter",
+                "action": "edit"
+            },
+            {
+                "text": qsTr("test"),
+                "action": "test"
+            },
+            {
+                "text": qsTr("make default"),
+                "key": "d",
+                "action": "default",
+                "disabled": serverMenu.isDefault
+            },
+            {
+                "separator": true
+            },
+            {
+                "text": qsTr("remove"),
+                "key": "x",
+                "action": "remove",
+                "danger": true
+            }
+        ]
+        menuWidth: Theme.space(220)
+        objectName: "serverMenu"
+        z: 1
+
+        onActivated: action => root.serverMenuAction(action)
         onRejected: bodyItem.forceActiveFocus()
     }
 

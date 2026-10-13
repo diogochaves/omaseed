@@ -7,6 +7,9 @@ import Omaseed.Kit
 // word — `default` for the one the engine is on, `retrying` in dim red for one that stopped
 // answering. `dashed` draws the figure's "+ add a server" row, which has no dot and a dim
 // title.
+//
+// A right-click sends `menuRequested` with the point in the row's own coordinates; the
+// Servers pane opens the row's menu there (#51 D4).
 Rectangle {
     id: root
 
@@ -24,6 +27,8 @@ Rectangle {
     property bool hasCursor: false
 
     signal clicked
+    /// A right-click at `x`, `y` (the row's coordinates).
+    signal menuRequested(real x, real y)
 
     readonly property bool hot: root.hasCursor || mouseArea.containsMouse
 
@@ -42,11 +47,17 @@ Rectangle {
     MouseArea {
         id: mouseArea
 
+        acceptedButtons: Qt.LeftButton | Qt.RightButton
         anchors.fill: parent
         cursorShape: Qt.PointingHandCursor
         hoverEnabled: true
 
-        onClicked: root.clicked()
+        onClicked: mouse => {
+            if (mouse.button === Qt.RightButton)
+                root.menuRequested(mouse.x, mouse.y);
+            else
+                root.clicked();
+        }
     }
 
     RowLayout {
