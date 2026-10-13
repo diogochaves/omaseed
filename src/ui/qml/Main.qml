@@ -95,12 +95,23 @@ Window {
     // Magnet text and .torrent files dropped anywhere on the window (charter §2 "Drag and
     // drop"): the first opens the add sheet, the rest queue behind it.
     DropArea {
+        id: dropArea
+
         anchors.fill: parent
 
         onDropped: drop => {
             const addables = Xdg.addablesFromDrop(drop.urls, drop.text);
             view.addDropped(addables.map(addable => addable.value));
         }
+    }
+
+    // #51 D7: while something is dragged over the window, an accent outline around the
+    // content and "drop to add" in the middle, so the drop has somewhere to aim. The drop
+    // area takes any drag (one with nothing to add says so when dropped), so it shows for any.
+    DropOverlay {
+        anchors.fill: parent
+        shown: dropArea.containsDrag
+        z: 2
     }
     // --- end T4.2 ---
 }

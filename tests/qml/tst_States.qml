@@ -1,5 +1,6 @@
 import QtQuick
 import QtTest
+import Omaseed.Kit
 import Omaseed.Views
 
 // T3.6: the five state views of spec v2 §7 (Fig. 22-25). `mouseClick()` never delivers under
@@ -137,6 +138,32 @@ TestCase {
                                                    "scopeName": "movies"
                                                });
         compare(filtered.message, "Nothing in movies");
+    }
+
+    // ------------------------------------------------------------------------- DropOverlay
+    Component {
+        id: dropOverlayComponent
+
+        DropOverlay {
+            anchors.fill: parent
+        }
+    }
+
+    // #51 D7: an accent outline and "drop to add" while a drag is over the window, never in
+    // the way of the drop itself.
+    function test_the_drop_overlay_shows_while_a_drag_is_over() {
+        const overlay = createTemporaryObject(dropOverlayComponent, testCase);
+        verify(!overlay.visible);
+        verify(!overlay.enabled, "the overlay must not take the pointer");
+        overlay.shown = true;
+        verify(overlay.visible);
+        const outline = findChild(overlay, "dropOutline");
+        compare(outline.border.color, Theme.accent);
+        compare(outline.border.width, 1);
+        fuzzyCompare(outline.color.a, Theme.fillIdle, 0.01);
+        compare(findChild(overlay, "dropLabel").text, "drop to add");
+        overlay.shown = false;
+        verify(!overlay.visible);
     }
 
     // -------------------------------------------------------------------- DisconnectedBanner

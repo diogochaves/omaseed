@@ -49,6 +49,7 @@ qt_add_qml_module(omaseed-views
         DetailsWebSeedsTab.qml
         DimmedOverlay.qml
         DisconnectedBanner.qml
+        DropOverlay.qml
         DuplicateSheet.qml
         EmptyState.qml
         FilteredEmpty.qml
