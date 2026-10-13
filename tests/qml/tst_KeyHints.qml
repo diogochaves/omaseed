@@ -5,7 +5,11 @@ import Omaseed.Kit
 TestCase {
     id: testCase
 
+    height: 200
     name: "KeyHints"
+    visible: true
+    when: windowShown
+    width: 600
 
     Component {
         id: keyHintsComponent
@@ -140,5 +144,34 @@ TestCase {
         compare(hints._shown, [false, false, false, true]);
         hints.width = 10;
         compare(hints.shownCount, 0);
+    }
+
+    // A `clickable` hint names a safe action: a pointing hand, and a click reports it. The
+    // others stay plain text.
+    function test_a_clickable_hint_reports_a_click() {
+        const hints = createTemporaryObject(keyHintsComponent, testCase, {
+                                                "model": [
+                                                    {
+                                                        "key": "space",
+                                                        "label": "toggle"
+                                                    },
+                                                    {
+                                                        "key": "enter",
+                                                        "label": "apply",
+                                                        "clickable": true
+                                                    }
+                                                ]
+                                            });
+        const clicked = [];
+        hints.hintClicked.connect((index, hint) => clicked.push(index + ":" + hint.key));
+        const plain = findChild(hints, "keyHint_space");
+        const apply = findChild(hints, "keyHint_enter");
+        verify(plain.width > 0 && apply.width > 0);
+        mouseClick(plain);
+        compare(clicked, [], "a plain hint ran");
+        mouseClick(apply);
+        compare(clicked, ["1:enter"]);
+        compare(findChild(apply, "keyHintArea").cursorShape, Qt.PointingHandCursor);
+        compare(findChild(plain, "keyHintArea").enabled, false);
     }
 }

@@ -15,6 +15,10 @@ import Omaseed.Kit
 // right; the pinned hint always keeps its place. A hint with `keep: true` is dropped last: the
 // others go from the right first, so a line that ends in the key that matters (the add sheet's
 // `enter add`, #8) loses the extras before it.
+//
+// A hint with `clickable: true` names a safe action the mouse may run too: it shows a pointing
+// hand and turns its key to the accent under the pointer, and a click sends `hintClicked`. The
+// row only reports it; the caller runs what that key runs.
 RowLayout {
     id: root
 
@@ -24,6 +28,9 @@ RowLayout {
     /// `.hints`); a sheet's or a palette's own hint line is `caption` (spec `.sheet .ft`,
     /// `.palette .ft`).
     property string size: "small"
+
+    /// A click on a `clickable` hint: its index in `model` and the hint itself.
+    signal hintClicked(int index, var hint)
 
     readonly property bool hasPinned: root.pinned !== null
     readonly property int _pixelSize: Theme.font[root.size]
@@ -74,27 +81,49 @@ RowLayout {
 
             model: root.model
 
-            Row {
+            Item {
                 id: hintRow
 
                 required property int index
                 required property var modelData
 
-                spacing: Theme.space(6)
+                implicitHeight: hintPair.implicitHeight
+                implicitWidth: hintPair.implicitWidth
+                objectName: "keyHint_" + hintRow.modelData.key
                 visible: root._shown[hintRow.index] === true
 
-                Text {
-                    color: Theme.foreground
-                    font.family: Theme.fontFamily
-                    font.pixelSize: root._pixelSize
-                    text: hintRow.modelData.key
+                Row {
+                    id: hintPair
+
+                    spacing: Theme.space(6)
+
+                    Text {
+                        color: hintArea.containsMouse ? Theme.accent : Theme.foreground
+                        font.family: Theme.fontFamily
+                        font.pixelSize: root._pixelSize
+                        text: hintRow.modelData.key
+                    }
+
+                    Text {
+                        color: Theme.dimForeground
+                        font.family: Theme.fontFamily
+                        font.pixelSize: root._pixelSize
+                        text: hintRow.modelData.label
+                    }
                 }
 
-                Text {
-                    color: Theme.dimForeground
-                    font.family: Theme.fontFamily
-                    font.pixelSize: root._pixelSize
-                    text: hintRow.modelData.label
+                MouseArea {
+                    id: hintArea
+
+                    Accessible.name: hintRow.modelData.key + " " + hintRow.modelData.label
+                    Accessible.role: Accessible.Button
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    enabled: hintRow.modelData.clickable === true
+                    hoverEnabled: true
+                    objectName: "keyHintArea"
+
+                    onClicked: root.hintClicked(hintRow.index, hintRow.modelData)
                 }
             }
         }
