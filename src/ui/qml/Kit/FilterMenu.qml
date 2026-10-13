@@ -13,6 +13,9 @@ import Omaseed.Kit
 // rows; there `j`/`k` and the arrows move, `enter` or `x` clears the row under the cursor,
 // and any other letter goes back to the field and types. `enter` in the field keeps the
 // filter and closes; `esc` closes from anywhere.
+//
+// Taller than the item it clamps itself in, the panel is cut to it and its content scrolls,
+// as the kit Menu's rows do: the wheel moves it and the cursor keeps itself in view.
 Item {
     id: root
 
@@ -37,6 +40,8 @@ Item {
     readonly property bool opened: root._opened
     readonly property alias panel: panel
     readonly property alias field: field
+    /// The Flickable the panel's content scrolls in, for the tests.
+    readonly property alias scroller: scroller
 
     signal textEdited(string text)
     /// The ✕ of one filter, by its `key`.
@@ -60,6 +65,7 @@ Item {
     field.text = root.text;
     root.cursorIndex = -1;
     root._opened = true;
+    scroller.contentY = 0;
     field.focusInput();
 }
 
@@ -87,7 +93,22 @@ Item {
     field.focusInput();
     else
     root.forceActiveFocus();
+    root._showCursor();
 }
+
+    /// Scroll the content so the cursor's row (or the field) is in view. Only the keyboard
+    /// asks: what the pointer is on is in view already.
+    function _showCursor(): void {
+        const at = root.cursorIndex;
+        const row = at < 0 ? field : at === root._clearAllIndex ? clearAllRow
+                                                                 : filterRepeater.itemAt(at);
+        if (row === null)
+            return;
+        if (row.y < scroller.contentY)
+            scroller.contentY = row.y;
+        else if (row.y + row.height > scroller.contentY + scroller.height)
+            scroller.contentY = row.y + row.height - scroller.height;
+    }
 
     /// Clear the row `index`: one filter, or all of them.
     function activate(index: int): void {
@@ -185,7 +206,10 @@ Item {
                     border.width: 1
                     color: Theme.background
                     implicitHeight: column.implicitHeight + 2 * panel.padding
-                    height: panel.implicitHeight
+                    // Never taller than the item it clamps itself in: the content scrolls.
+                    height: root.inline ? panel.implicitHeight
+                                        : Math.min(panel.implicitHeight, Math.max(0, root.height
+                                                                                  - 2 * root._edge))
                     radius: Theme.cornerRadius
                     width: Math.min(root.menuWidth, root.inline ? root.menuWidth : Math.max(0,
                                                                                             root.width
@@ -195,73 +219,157 @@ Item {
                     y: root.inline ? 0 : Math.max(root._edge, Math.min(root.anchorY, root.height
                                                                        - height - root._edge))
 
-                    ColumnLayout {
-                        id: column
+                    Flickable {
+                        id: scroller
 
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.top: parent.top
+                        anchors.fill: parent
+                        anchors.bottomMargin: panel.padding
                         anchors.topMargin: panel.padding
-                        spacing: 0
+                        boundsBehavior: Flickable.StopAtBounds
+                        clip: true
+                        contentHeight: column.implicitHeight
+                        contentWidth: width
+                        interactive: contentHeight > height
+                        objectName: "filterMenuScroller"
 
-                        Field {
-                            id: field
+                        ColumnLayout {
+                            id: column
 
-                            Layout.fillWidth: true
-                            Layout.leftMargin: Theme.space(8)
-                            Layout.rightMargin: Theme.space(8)
-                            // `esc` closes the menu rather than wiping the filter under the caret.
-                            escClears: false
-                            hasCursor: root.cursorIndex < 0
-                            hint: Glyphs.search
-                            objectName: "filterMenuField"
-                            placeholder: qsTr("filter by name")
-                            trailing: root.countText
+                            spacing: 0
+                            width: scroller.width
 
-                            onAccepted: {
-                                root.close();
-                                root.accepted();
+                            Field {
+                                id: field
+
+                                Layout.fillWidth: true
+                                Layout.leftMargin: Theme.space(8)
+                                Layout.rightMargin: Theme.space(8)
+                                // `esc` closes the menu rather than wiping the filter under the
+                                // caret.
+                                escClears: false
+                                hasCursor: root.cursorIndex < 0
+                                hint: Glyphs.search
+                                objectName: "filterMenuField"
+                                placeholder: qsTr("filter by name")
+                                trailing: root.countText
+
+                                onAccepted: {
+                                    root.close();
+                                    root.accepted();
+                                }
+                                onTextChanged: {
+                                    if (root._opened)
+                                        root.textEdited(field.text);
+                                }
                             }
-                            onTextChanged: {
-                                if (root._opened)
-                                    root.textEdited(field.text);
-                            }
-                        }
-
-                        Item {
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: 2 * Theme.space(4) + 1
-
-                            Hairline {
-                                anchors.left: parent.left
-                                anchors.leftMargin: Theme.space(14)
-                                anchors.right: parent.right
-                                anchors.rightMargin: Theme.space(14)
-                                anchors.verticalCenter: parent.verticalCenter
-                            }
-                        }
-
-                        Repeater {
-                            model: root.filters
 
                             Item {
-                                id: filterRow
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 2 * Theme.space(4) + 1
 
-                                required property int index
-                                required property var modelData
+                                Hairline {
+                                    anchors.left: parent.left
+                                    anchors.leftMargin: Theme.space(14)
+                                    anchors.right: parent.right
+                                    anchors.rightMargin: Theme.space(14)
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                            }
 
-                                readonly property bool current: filterRow.index === root.cursorIndex
+                            Repeater {
+                                id: filterRepeater
 
-                                Accessible.name: filterRow.modelData.text
+                                model: root.filters
+
+                                Item {
+                                    id: filterRow
+
+                                    required property int index
+                                    required property var modelData
+
+                                    readonly property bool current: filterRow.index
+                                                                    === root.cursorIndex
+
+                                    Accessible.name: filterRow.modelData.text
+                                    Accessible.role: Accessible.MenuItem
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: Theme.railRowHeight
+                                    objectName: "filterMenuRow_" + filterRow.modelData.key
+
+                                    Rectangle {
+                                        anchors.fill: parent
+                                        color: Theme.fill(Theme.fillHover)
+                                        visible: filterRow.current
+                                    }
+
+                                    RowLayout {
+                                        anchors.fill: parent
+                                        anchors.leftMargin: Theme.space(14)
+                                        anchors.rightMargin: Theme.space(14)
+                                        spacing: Theme.space(8)
+
+                                        Glyph {
+                                            Layout.preferredHeight: Theme.font.body
+                                            Layout.preferredWidth: Theme.space(14)
+                                            color: Theme.dimForeground
+                                            text: filterRow.modelData.glyph ?? ""
+                                        }
+
+                                        Label {
+                                            Layout.fillWidth: true
+                                            color: filterRow.current ? Theme.accent
+                                                                     : Theme.foreground
+                                            elide: Text.ElideRight
+                                            text: filterRow.modelData.text ?? ""
+                                        }
+
+                                        Label {
+                                            color: filterRow.current ? Theme.accent :
+                                                                       Theme.dimForeground
+                                            text: Glyphs.close
+                                        }
+                                    }
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        hoverEnabled: true
+
+                                        onClicked: root.activate(filterRow.index)
+                                        onEntered: root.cursorIndex = filterRow.index
+                                    }
+                                }
+                            }
+
+                            Item {
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 2 * Theme.space(4) + 1
+
+                                Hairline {
+                                    anchors.left: parent.left
+                                    anchors.leftMargin: Theme.space(14)
+                                    anchors.right: parent.right
+                                    anchors.rightMargin: Theme.space(14)
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                            }
+
+                            Item {
+                                id: clearAllRow
+
+                                readonly property bool current: root.cursorIndex
+                                                                === root._clearAllIndex
+
+                                Accessible.name: clearAllText.text
                                 Accessible.role: Accessible.MenuItem
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: Theme.railRowHeight
-                                objectName: "filterMenuRow_" + filterRow.modelData.key
+                                objectName: "filterMenuClearAll"
 
                                 Rectangle {
                                     anchors.fill: parent
                                     color: Theme.fill(Theme.fillHover)
-                                    visible: filterRow.current
+                                    visible: clearAllRow.current
                                 }
 
                                 RowLayout {
@@ -274,20 +382,16 @@ Item {
                                         Layout.preferredHeight: Theme.font.body
                                         Layout.preferredWidth: Theme.space(14)
                                         color: Theme.dimForeground
-                                        text: filterRow.modelData.glyph ?? ""
-                                    }
-
-                                    Label {
-                                        Layout.fillWidth: true
-                                        color: filterRow.current ? Theme.accent : Theme.foreground
-                                        elide: Text.ElideRight
-                                        text: filterRow.modelData.text ?? ""
-                                    }
-
-                                    Label {
-                                        color: filterRow.current ? Theme.accent :
-                                                                   Theme.dimForeground
                                         text: Glyphs.close
+                                    }
+
+                                    Label {
+                                        id: clearAllText
+
+                                        Layout.fillWidth: true
+                                        color: clearAllRow.current ? Theme.accent : Theme.foreground
+                                        elide: Text.ElideRight
+                                        text: qsTr("clear all filters")
                                     }
                                 }
 
@@ -296,74 +400,27 @@ Item {
                                     cursorShape: Qt.PointingHandCursor
                                     hoverEnabled: true
 
-                                    onClicked: root.activate(filterRow.index)
-                                    onEntered: root.cursorIndex = filterRow.index
+                                    onClicked: root.activate(root._clearAllIndex)
+                                    onEntered: root.cursorIndex = root._clearAllIndex
                                 }
                             }
                         }
+                    }
 
-                        Item {
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: 2 * Theme.space(4) + 1
+                    WheelScroll {
+                        anchors.fill: scroller
+                        flickable: scroller
+                        rowHeight: Theme.railRowHeight
+                    }
 
-                            Hairline {
-                                anchors.left: parent.left
-                                anchors.leftMargin: Theme.space(14)
-                                anchors.right: parent.right
-                                anchors.rightMargin: Theme.space(14)
-                                anchors.verticalCenter: parent.verticalCenter
-                            }
-                        }
-
-                        Item {
-                            id: clearAllRow
-
-                            readonly property bool current: root.cursorIndex === root._clearAllIndex
-
-                            Accessible.name: clearAllText.text
-                            Accessible.role: Accessible.MenuItem
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: Theme.railRowHeight
-                            objectName: "filterMenuClearAll"
-
-                            Rectangle {
-                                anchors.fill: parent
-                                color: Theme.fill(Theme.fillHover)
-                                visible: clearAllRow.current
-                            }
-
-                            RowLayout {
-                                anchors.fill: parent
-                                anchors.leftMargin: Theme.space(14)
-                                anchors.rightMargin: Theme.space(14)
-                                spacing: Theme.space(8)
-
-                                Glyph {
-                                    Layout.preferredHeight: Theme.font.body
-                                    Layout.preferredWidth: Theme.space(14)
-                                    color: Theme.dimForeground
-                                    text: Glyphs.close
-                                }
-
-                                Label {
-                                    id: clearAllText
-
-                                    Layout.fillWidth: true
-                                    color: clearAllRow.current ? Theme.accent : Theme.foreground
-                                    elide: Text.ElideRight
-                                    text: qsTr("clear all filters")
-                                }
-                            }
-
-                            MouseArea {
-                                anchors.fill: parent
-                                cursorShape: Qt.PointingHandCursor
-                                hoverEnabled: true
-
-                                onClicked: root.activate(root._clearAllIndex)
-                                onEntered: root.cursorIndex = root._clearAllIndex
-                            }
-                        }
+                    ScrollBar {
+                        flickable: scroller
+                        height: scroller.height
+                        objectName: "filterMenuScrollBar"
+                        vertical: true
+                        width: Theme.space(4)
+                        x: panel.width - width - panel.border.width - Theme.space(2)
+                        y: scroller.y
                     }
 
                     // The panel's own ground (its padding, the gaps between rows) takes the

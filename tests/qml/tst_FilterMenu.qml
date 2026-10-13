@@ -156,4 +156,34 @@ TestCase {
         mouseClick(findChild(menu, "filterMenuRow_status"));
         compare(menu.cleared, ["status"]);
     }
+
+    // A short window: the panel stops at its edges, and the rows scroll into view.
+    function test_a_long_menu_is_cut_to_the_window_and_scrolls() {
+        const many = [];
+        for (let i = 0; i < 30; ++i)
+            many.push({
+                          "key": "k" + i,
+                          "glyph": Glyphs.tag,
+                          "text": "filter " + i
+                      });
+        const menu = createTemporaryObject(menuComponent, testCase, {
+                                               "filters": many
+                                           });
+        menu.openAt(100, 40);
+        const edge = Theme.space(8);
+        verify(menu.panel.implicitHeight > testCase.height);
+        compare(menu.panel.height, testCase.height - 2 * edge);
+        compare(menu.panel.y, edge);
+        compare(menu.scroller.contentY, 0);
+        verify(findChild(menu, "filterMenuScrollBar").visible);
+
+        // Down to "clear all filters", the last row: it comes into view.
+        for (let i = 0; i <= 30; ++i)
+            keyClick(Qt.Key_Down);
+        compare(menu.cursorIndex, 30);
+        const clearAll = findChild(menu, "filterMenuClearAll");
+        verify(clearAll.y + clearAll.height <= menu.scroller.contentY + menu.scroller.height + 0.5);
+        mouseClick(clearAll);
+        compare(menu.clearedAll, 1);
+    }
 }
