@@ -27,6 +27,11 @@ import Omaseed.Kit
 // end of the list keep their ends: nothing lands above a leading one or below a trailing one.
 // Near the list's top or bottom edge the list scrolls on its own; `esc` drops the drag.
 //
+// The mouse: the pointer on a row moves the cursor there (as the kit Menu does), a click is
+// `enter` on it (`space` in a multi-select), and a right-click is `tab` on it where the palette
+// has a secondary action (`hasSecondary`). A footer hint flagged `clickable` runs too: the
+// palette sends `hintClicked`, and the caller does what that key does.
+//
 // Do NOT run `qmlformat` on this file: with the project's 100-column wrap it re-indents the
 // typed functions further on every pass (the defect MainView.qml and TorrentTable.qml note).
 // It is hand-formatted to qmlformat's own style instead.
@@ -45,6 +50,8 @@ Item {
     property var items: []
     /// Show the check column and let `space` toggle rows (the tags picker).
     property bool multi: false
+    /// The caller answers `secondary` (`tab`): a right-click on a row asks for it too.
+    property bool hasSecondary: false
     /// Let `alt+up`/`alt+down` ask to move the cursor's row and `ctrl+r` ask for the default
     /// order (`moveRequested`, `resetRequested`).
     property bool reorderable: false
@@ -88,6 +95,8 @@ Item {
     /// A dragged row was let go (`draggable`): put row `index` before row `slot`, or after
     /// the last row when `slot` is `items.length`. Never sent for a drop where it started.
     signal dropRequested(int index, var item, int slot)
+    /// A click on a footer hint flagged `clickable` (`{key, label, clickable: true}`).
+    signal hintClicked(int index, var hint)
 
     /// True while a row is being dragged.
     readonly property bool dragging: root._dragFrom >= 0
@@ -105,6 +114,8 @@ Item {
     property int _dragFrom: -1
     property real _dragY: 0
     property Item _previousFocus: null
+    /// Where the pointer last put the cursor, in this item's coordinates.
+    property point _pointer: Qt.point(-1, -1)
 
     readonly property int _margin: Theme.space(16)
     /// The rule between rows: the spec's `.palette .it` uses the foreground at 5 %, lighter
@@ -306,6 +317,29 @@ Item {
 
     function _cancelDrag(): void {
         root._dragFrom = -1;
+    }
+
+    /// The pointer is on row `index` (through its MouseArea `area`): the cursor follows it,
+    /// unless only the rows moved under a still pointer. Qt re-delivers hover when the list
+    /// scrolls, and the keyboard cursor scrolling into view would hand the cursor straight
+    /// back to whatever row came to rest under the pointer.
+    function _pointerOn(index: int, area: MouseArea): void {
+        const at = area.mapToItem(root, area.mouseX, area.mouseY);
+        if (at.x === root._pointer.x && at.y === root._pointer.y)
+            return;
+        root._pointer = at;
+        if (!root.dragging)
+            root.cursorIndex = index;
+    }
+
+    /// A right-click on row `index`: the cursor goes there and, where the palette has one,
+    /// its secondary action runs, as `tab` would.
+    function _secondaryClick(index: int): void {
+        if (index < 0 || index >= root.items.length)
+            return;
+        root.cursorIndex = index;
+        if (root.hasSecondary)
+            root.secondary(index, root.items[index]);
     }
 
     /// `enter`: hand the cursor's row to the caller. The caller closes the palette.
@@ -648,13 +682,23 @@ Item {
                     }
 
                     MouseArea {
-                        anchors.fill: parent
-                        hoverEnabled: false
+                        id: rowArea
 
+                        acceptedButtons: Qt.LeftButton | Qt.RightButton
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        hoverEnabled: true
+
+                        onEntered: root._pointerOn(row.index, rowArea)
+                        onPositionChanged: root._pointerOn(row.index, rowArea)
                         // In a multi-select a click is `space` on that row, not `enter`:
                         // `enter` applies the whole selection (the tags picker), so a
                         // click that activated could never pick a tag (KIT-4).
-                        onClicked: {
+                        onClicked: mouse => {
+                            if (mouse.button === Qt.RightButton) {
+                                root._secondaryClick(row.index);
+                                return;
+                            }
                             root.cursorIndex = row.index;
                             if (root.multi)
                                 root.toggled(row.index, row.modelData);
@@ -680,11 +724,14 @@ Item {
                     anchors.rightMargin: Theme.space(14)
                     anchors.verticalCenter: parent.verticalCenter
                     model: root.hints
+                    objectName: "paletteHints"
                     pinned: root.footerRight.length > 0 ? {
                         "key": "",
                         "label": root.footerRight
                     } : null
                     size: "caption"
+
+                    onHintClicked: (index, hint) => root.hintClicked(index, hint)
                 }
             }
         }

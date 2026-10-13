@@ -10,7 +10,8 @@ import Omaseed.Kit
 //
 // `enter` moves the table's cursor to the row, clearing the table's own filter first if that
 // row would otherwise stay hidden. `tab` does the same and also asks for the row's actions
-// menu (`actionsRequested`), the way Fig. 12's footer promises ("tab actions").
+// menu (`actionsRequested`), the way Fig. 12's footer promises ("tab actions").; a right-click
+// on a row is that row's `tab`.
 Palette {
     id: root
 
@@ -21,6 +22,7 @@ Palette {
     counter: qsTr("%1 of %2").arg(App.jumpMatchCount(root.query)).arg(App.torrents.count)
     footerRight: qsTr("also matches hash and tracker")
     glyph: Glyphs.jump
+    hasSecondary: true
     hints: [
         {
             "key": "↑↓",

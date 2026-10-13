@@ -429,6 +429,71 @@ TestCase {
         palette.close();
     }
 
+    // The pointer on a row moves the cursor there, as the kit Menu's rows do, with a pointing
+    // hand; rows that move under a still pointer (the keyboard scrolling) do not take it back.
+    function test_the_pointer_moves_the_cursor() {
+        const palette = createTemporaryObject(paletteComponent, testCase);
+        palette.open();
+        waitForRendering(palette.listView);
+        compare(palette.cursorIndex, 0);
+        const row = palette.listView.itemAtIndex(1);
+        const area = row.children[row.children.length - 1];
+        compare(area.cursorShape, Qt.PointingHandCursor);
+        mouseMove(row, 30, row.height / 2);
+        compare(palette.cursorIndex, 1, "hover did not move the cursor");
+        keyClick(Qt.Key_Up);
+        compare(palette.cursorIndex, 0);
+        // The same pointer position again, as Qt's hover re-delivery sends it: no move.
+        palette._pointerOn(1, area);
+        compare(palette.cursorIndex, 0, "a still pointer took the cursor back");
+        palette.close();
+    }
+
+    // A right-click is `tab` on that row where the palette has a secondary action.
+    function test_a_right_click_asks_for_the_secondary_action() {
+        const palette = createTemporaryObject(paletteComponent, testCase);
+        const secondary = createTemporaryObject(secondarySpy, testCase, {
+                                                    "target": palette
+                                                });
+        const activated = createTemporaryObject(activatedSpy, testCase, {
+                                                    "target": palette
+                                                });
+        palette.open();
+        waitForRendering(palette.listView);
+        mouseClick(palette.listView.itemAtIndex(1), 30, 10, Qt.RightButton);
+        compare(palette.cursorIndex, 1, "the right-click did not move the cursor");
+        compare(secondary.count, 0, "a palette without a secondary action got one");
+
+        palette.hasSecondary = true;
+        mouseClick(palette.listView.itemAtIndex(0), 30, 10, Qt.RightButton);
+        compare(palette.cursorIndex, 0);
+        compare(secondary.count, 1);
+        compare(secondary.signalArguments[0][0], 0);
+        compare(secondary.signalArguments[0][1].title, testCase.jumpRows[0].title);
+        compare(activated.count, 0, "a right-click activated the row");
+        palette.close();
+    }
+
+    // A footer hint flagged `clickable` reports its click; the caller runs it.
+    function test_a_clickable_hint_reports_its_click() {
+        const palette = createTemporaryObject(paletteComponent, testCase, {
+                                                  "hints": [
+                                                      {
+                                                          "key": "enter",
+                                                          "label": "apply",
+                                                          "clickable": true
+                                                      }
+                                                  ]
+                                              });
+        const clicked = [];
+        palette.hintClicked.connect((index, hint) => clicked.push(hint.key));
+        palette.open();
+        waitForRendering(palette.panel, 500); // the new hints laid out
+        mouseClick(findChild(palette, "keyHint_enter"));
+        compare(clicked, ["enter"]);
+        palette.close();
+    }
+
     // N2: a reorderable list asks to move the cursor's row; the caller owns the order.
     function test_alt_arrows_ask_to_move_the_row_in_a_reorderable_list() {
         const palette = createTemporaryObject(multiComponent, testCase, {
