@@ -48,7 +48,10 @@ struct TorrentProblem
 {
     bool found = false; ///< a log line was matched; false is S4, "didn't log a reason"
     bool missingFiles = false;
-    QString headline;       ///< "Can't write to its save folder"
+    QString headline; ///< "Can't write to its save folder"
+    /// The cause, untranslated: noAccess, readOnly, diskFull, missing, diskError,
+    /// nameTooLong, badName, missingFiles, other, notLogged.
+    QString causeKey;
     QString cause;          ///< the table's short word: "no access", "disk full"…
     QString detail;         ///< "Permission denied, opening x.bin", in libtorrent's words
     QString file;           ///< the full path, or empty

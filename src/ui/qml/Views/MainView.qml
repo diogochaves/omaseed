@@ -1118,8 +1118,12 @@ Item {
         Qt.callLater(root._applyStartupState);
     }
 
-    // A sync brings new numbers for the row the details pane is showing.
+    // A sync brings new numbers for the row the details pane is showing, and the server's log
+    // a reason for its error (docs/28).
     Connections {
+        function onProblemsChanged(): void {
+            details.torrent = root.cursorHash.length > 0 ? App.torrentRow(root.cursorHash) : null;
+        }
         function onUpdated(): void {
             details.torrent = root.cursorHash.length > 0 ? App.torrentRow(root.cursorHash) : null;
         }
@@ -1622,6 +1626,18 @@ Item {
             onNoteRequested: text => root.flashFooterNote(text)
             // docs/12 G5: "copied hash v1".
             onValueCopyRequested: (text, name) => root.copyText(text, qsTr("copied %1").arg(name))
+            // docs/28: the error block acts on the torrent it explains, never on a selection.
+            onProblemActionRequested: action => {
+                const hashes = root.cursorHash.length > 0 ? [root.cursorHash] : [];
+                if (hashes.length === 0)
+                    return;
+                if (action === "location")
+                    locationSheetPanel.openFor(hashes);
+                else if (action === "start")
+                    App.startTorrents(hashes);
+                else if (action === "recheck")
+                    App.recheck(hashes);
+            }
 
             Rectangle {
                 anchors.fill: parent

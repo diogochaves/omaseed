@@ -16,6 +16,7 @@ TestCase {
 
     readonly property string bbbName: "Big Buck Bunny 4K (CC-BY)"
     readonly property string archName: "archlinux-2026.09.01-x86_64.iso"
+    readonly property string elephantsName: "Elephants Dream 1080p (CC-BY)"
 
     Component {
         id: detailsComponent
@@ -70,6 +71,23 @@ TestCase {
         // docs/12 G5: General's rows are a list too, and the cursor starts on the first.
         compare(view.cursorIndex, 0);
         compare(view.rowCount, findChild(view, "generalTab").count);
+    }
+
+    // docs/28 G2: an errored torrent says why at the top of General, and its Status row
+    // carries the short cause; a healthy one shows neither.
+    function test_an_errored_torrent_says_why() {
+        const view = testCase.select(testCase.elephantsName);
+        const block = findChild(view, "errorBlock");
+        verify(block, "no error block");
+        verify(block.visible);
+        compare(findChild(view, "errorHeadline").text, "The disk is full");
+        verify(findChild(view, "errorDetail").text.startsWith("No space left on device, writing "));
+        verify(findChild(view, "errorMeta").text.startsWith("qBittorrent's log · "));
+        compare(block.hints.map(hint => hint.action), ["location", "start", "copy"]);
+        compare(findChild(view, "generalTail").text, "· disk full");
+
+        const healthy = testCase.select(testCase.archName);
+        verify(!findChild(healthy, "errorBlock").visible);
     }
 
     function test_the_tracker_badge_follows_the_torrent() {

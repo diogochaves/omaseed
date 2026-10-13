@@ -37,6 +37,7 @@ qt_add_qml_module(omaseed-views
         Details.qml
         DetailsAddSheet.qml
         DetailsCell.qml
+        DetailsErrorBlock.qml
         DetailsFilesTab.qml
         DetailsGeneralRow.qml
         DetailsGeneralTab.qml

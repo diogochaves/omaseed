@@ -405,7 +405,7 @@ void SyncEngine::applyData(const QJsonObject &data)
         m_lowDiskReported = false;
     }
 
-    m_problemLog->onSynced(fullUpdate);
+    m_problemLog->onSynced(fullUpdate, m_running);
     Q_EMIT synced(fullUpdate);
 }
 

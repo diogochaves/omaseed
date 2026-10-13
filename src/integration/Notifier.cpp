@@ -156,6 +156,28 @@ quint32 Notifier::notifyCompleted(const QString &hash,
                       QStringLiteral("show"));
 }
 
+quint32 Notifier::notifyErrored(const QString &hash,
+                                const QString &name,
+                                const QString &headline,
+                                const QString &detail)
+{
+    const QString key = QStringLiteral("errored|%1").arg(hash);
+    const QString summary = QStringLiteral("%1 stopped with an error").arg(name);
+    const QString body =
+        detail.isEmpty() ? headline : QStringLiteral("%1: %2").arg(headline, detail);
+    const QStringList actions{QStringLiteral("show"), QStringLiteral("show")};
+
+    return sendNotice(key,
+                      QStringLiteral("errored"),
+                      hash,
+                      summary,
+                      body,
+                      actions,
+                      kUrgencyNormal,
+                      QStringLiteral("transfer.error"),
+                      QStringLiteral("show"));
+}
+
 quint32 Notifier::notifyServerLost(const QString &serverId,
                                    const QString &serverName,
                                    const QString &hostText,

@@ -105,6 +105,9 @@ Item {
     /// to rename (TorrentFilesModel::renameTargets()) and whether they are the selection.
     signal renameFilesRequested(var paths, bool fromSelection)
     signal copyRequested(string text)
+    /// docs/28: an action of General's error block on this torrent: "location", "start",
+    /// "recheck" (MainView runs them); "rename" and "copy" are handled here.
+    signal problemActionRequested(string action)
     /// A few words for the window's footer note ("one file, nothing to filter").
     signal noteRequested(string text)
 
@@ -1168,6 +1171,24 @@ Item {
             properties: root.details.properties
             torrent: root.torrent
             visible: root.currentTab === 0
+            // docs/28 G2: how much room the full disk has left, read as the add sheet does.
+            freeText: {
+                const problem = root.torrent && root.torrent.problem ? root.torrent.problem : ({});
+                if (problem.causeKey !== "diskFull" || App.freeSpaceRevision < 0)
+                    return "";
+                const room = App.freeSpaceFor(root.torrent.savePath || "");
+                return room.source === "unknown" ? "" : qsTr("%1 free").arg(App.sizeText(room.bytesFree));
+            }
+
+            onProblemAction: action => {
+                if (action === "rename") {
+                    root.currentTab = 1;
+                } else if (action === "copy") {
+                    root.valueCopyRequested(generalTab.problem.line || "", qsTr("the log line"));
+                } else {
+                    root.problemActionRequested(action);
+                }
+            }
 
             // Another torrent may have fewer rows: keep the cursor on one.
             onCountChanged: root.generalCursor = Math.max(0, Math.min(root.generalCursor,

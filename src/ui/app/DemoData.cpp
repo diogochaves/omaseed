@@ -542,6 +542,31 @@ QJsonObject serverState()
     return state;
 }
 
+QJsonArray problemLog(const QJsonObject &maindata)
+{
+    QJsonArray entries;
+    const QJsonObject torrents = maindata.value(QStringLiteral("torrents")).toObject();
+    int id = 0;
+    for (auto it = torrents.constBegin(); it != torrents.constEnd(); ++it) {
+        const QJsonObject torrent = it.value().toObject();
+        if (torrent.value(QStringLiteral("state")).toString() != QLatin1String("error"))
+            continue;
+        const QString name = torrent.value(QStringLiteral("name")).toString();
+        const QString file = torrent.value(QStringLiteral("content_path")).toString();
+        const QString message =
+            QStringLiteral("File error alert. Torrent: \"%1\". File: \"%2\". Reason: \"%1 "
+                           "file_write (%2) error: No space left on device\"")
+                .arg(name, file);
+        entries.append(QJsonObject{
+            {QStringLiteral("id"), ++id},
+            {QStringLiteral("timestamp"), QDateTime::currentSecsSinceEpoch() - 600},
+            {QStringLiteral("type"), 4},
+            {QStringLiteral("message"), message},
+        });
+    }
+    return entries;
+}
+
 QJsonObject maindata(int rows)
 {
     const int count = std::max(1, rows);

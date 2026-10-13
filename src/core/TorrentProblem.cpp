@@ -188,6 +188,7 @@ QVariantMap TorrentProblem::toMap() const
         {QStringLiteral("missingFiles"), missingFiles},
         {QStringLiteral("headline"), headline},
         {QStringLiteral("cause"), cause},
+        {QStringLiteral("causeKey"), causeKey},
         {QStringLiteral("detail"), detail},
         {QStringLiteral("file"), file},
         {QStringLiteral("folder"), folder},
@@ -284,6 +285,7 @@ TorrentProblem describe(const ProblemLine &line)
 
     if (problem.missingFiles) {
         problem.headline = tr("Its files aren't where qBittorrent left them");
+        problem.causeKey = QStringLiteral("missingFiles");
         problem.cause = tr("missing files");
         problem.detail =
             tr("Moved, deleted or changed since qBittorrent last ran (%1)").arg(message);
@@ -292,37 +294,45 @@ TorrentProblem describe(const ProblemLine &line)
                lower.contains(QLatin1String("operation not permitted"))) {
         problem.headline = isRead(line.operation) ? tr("Can't read its files")
                                                   : tr("Can't write to its save folder");
+        problem.causeKey = QStringLiteral("noAccess");
         problem.cause = tr("no access");
         problem.actions = {location, start};
     } else if (lower.contains(QLatin1String("read-only file system"))) {
         problem.headline = tr("Its save folder is on a read-only disk");
+        problem.causeKey = QStringLiteral("readOnly");
         problem.cause = tr("read-only");
         problem.actions = {location, start};
     } else if (lower.contains(QLatin1String("no space left")) ||
                lower.contains(QLatin1String("disk quota exceeded"))) {
         problem.headline = tr("The disk is full");
+        problem.causeKey = QStringLiteral("diskFull");
         problem.cause = tr("disk full");
         problem.actions = {location, start};
     } else if (lower.contains(QLatin1String("no such file or directory"))) {
         problem.headline = tr("A file or folder it needs is gone");
+        problem.causeKey = QStringLiteral("missing");
         problem.cause = tr("missing");
         problem.actions = {location, recheck};
     } else if (lower.contains(QLatin1String("input/output error"))) {
         problem.headline =
             isRead(line.operation) ? tr("The disk failed a read") : tr("The disk failed a write");
+        problem.causeKey = QStringLiteral("diskError");
         problem.cause = tr("disk error");
         problem.actions = {recheck, start};
     } else if (lower.contains(QLatin1String("file name too long"))) {
         problem.headline = tr("A file name is too long for this disk");
+        problem.causeKey = QStringLiteral("nameTooLong");
         problem.cause = tr("name too long");
         problem.actions = {rename, start};
     } else if (lower.contains(QLatin1String("invalid argument")) &&
                line.operation == QLatin1String("file_open")) {
         problem.headline = tr("A file name isn't allowed on this disk");
+        problem.causeKey = QStringLiteral("badName");
         problem.cause = tr("bad name");
         problem.actions = {rename, start};
     } else {
         problem.headline = capitalised(message);
+        problem.causeKey = QStringLiteral("other");
         problem.cause = tr("error");
         problem.actions = {start, recheck};
     }
@@ -334,6 +344,7 @@ TorrentProblem notLogged(bool missingFiles)
     TorrentProblem problem;
     problem.missingFiles = missingFiles;
     problem.headline = tr("qBittorrent didn't log a reason");
+    problem.causeKey = QStringLiteral("notLogged");
     problem.cause = missingFiles ? tr("missing files") : tr("error");
     problem.actions = missingFiles
                           ? QStringList{QStringLiteral("location"), QStringLiteral("recheck")}

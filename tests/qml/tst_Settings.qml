@@ -780,11 +780,11 @@ TestCase {
         keyClick(Qt.Key_Space);
         compare(App.pathMapEnabled, !mapping);
 
-        // Notifications: three toggle rows (Q16 dropped the tracker one) bound to
-        // App.notificationsEnabled, then the low-disk threshold field. The keyboard is
-        // already in the pane — a digit moves the nav without taking it back.
+        // Notifications: four toggle rows (Q16 dropped the tracker one, docs/28 added the
+        // errored one) bound to App.notificationsEnabled, then the low-disk threshold field.
+        // The keyboard is already in the pane — a digit moves the nav without taking it back.
         keyClick(Qt.Key_3);
-        compare(modal.paneRowCount, 4);
+        compare(modal.paneRowCount, 5);
         compare(modal.area, "pane");
         keyClick(Qt.Key_Return);
         compare(App.notificationsEnabled["completed"] === true, !completed);
@@ -879,12 +879,13 @@ TestCase {
         const completedRow = testCase.childNamed(modal, "notifyRow-completed");
         verify(diskRow.implicitHeight > completedRow.implicitHeight);
 
-        // `j` x3 from the first row lands on the field's row; `enter` hands it the keyboard.
+        // `j` x4 from the first row lands on the field's row; `enter` hands it the keyboard.
         keyClick(Qt.Key_Tab);
         keyClick(Qt.Key_J);
         keyClick(Qt.Key_J);
         keyClick(Qt.Key_J);
-        compare(modal.paneCursor, 3);
+        keyClick(Qt.Key_J);
+        compare(modal.paneCursor, 4);
         compare(row.hasCursor, true);
         keyClick(Qt.Key_Return);
         verify(field.editing);

@@ -55,8 +55,9 @@ public:
     TorrentProblem problem(const QString &hash) const { return m_problems.value(hash); }
 
 public Q_SLOTS:
-    /// One poll was applied: SyncEngine::synced.
-    void onSynced(bool fullUpdate);
+    /// One poll was applied: SyncEngine::synced. `mayRead` false (a demo, applied with the
+    /// engine stopped) works out who is errored but never asks the server.
+    void onSynced(bool fullUpdate, bool mayRead = true);
     /// Forgets every line and the last id; the next read starts from the top of the log.
     void reset();
 

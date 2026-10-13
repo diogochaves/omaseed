@@ -25,9 +25,18 @@ Flickable {
     property int columns: 1
     /// docs/12 G5: the row under the pane's `j k` cursor, an index into `rows`.
     property int cursorIndex: -1
+    /// docs/28 G2: the free space on the torrent's disk, "0 B free", when its disk is full.
+    property string freeText: ""
 
     /// A click on a row (G5: Details moves the cursor there and copies the value).
     signal rowClicked(int row)
+    /// docs/28: an action of the error block, for the cursor torrent ("location", "start",
+    /// "recheck", "rename", "copy").
+    signal problemAction(string action)
+
+    /// docs/28: why the torrent is in error (TorrentProblem::toMap()), or an empty map.
+    readonly property var problem: root.torrent && root.torrent.problem ? root.torrent.problem : ({})
+    readonly property bool _hasProblem: (root.problem.headline || "").length > 0
 
     /// Every row in reading order (Transfer, Information, Options), each carrying its
     /// `index` there: the list the cursor walks.
@@ -83,9 +92,12 @@ Flickable {
         };
 
         const transfer = make();
+        // docs/28: the short cause after the state, dim, when the log says why.
+        const cause = row && row.problem ? (row.problem.cause || "") : "";
         if (row)
             add(transfer, qsTr("Status"), row.stateText, {
-                    "color": row.stateRole ? Theme[row.stateRole] : Theme.foreground
+                    "color": row.stateRole ? Theme[row.stateRole] : Theme.foreground,
+                    "tail": cause.length > 0 && cause !== row.stateText ? cause : ""
                 });
         add(transfer, qsTr("Downloaded"), map.downloaded);
         add(transfer, qsTr("Uploaded"), map.uploaded);
@@ -171,6 +183,28 @@ Flickable {
         id: first
 
         width: root._blockWidth
+
+        // docs/28 G1: why it is in error, over everything else.
+        Item {
+            height: root._hasProblem ? errorBlock.implicitHeight + Theme.space(12) : 0
+            visible: root._hasProblem
+            width: parent.width
+
+            DetailsErrorBlock {
+                id: errorBlock
+
+                anchors.left: parent.left
+                anchors.leftMargin: Theme.space(16)
+                anchors.right: parent.right
+                anchors.rightMargin: Theme.space(16)
+                anchors.top: parent.top
+                anchors.topMargin: Theme.space(12)
+                freeText: root.freeText
+                problem: root.problem
+
+                onActionTriggered: action => root.problemAction(action)
+            }
+        }
 
         // docs/12 G3: at the top of General, over Transfer.
         Item {

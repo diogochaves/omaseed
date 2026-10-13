@@ -394,6 +394,7 @@ private:
     /// A loss held back by the quiet start, with the retry period it would have announced.
     std::optional<std::pair<omaseed::core::ApiError, int>> m_heldLoss;
     bool m_notifyDiskFullEnabled = true;
+    bool m_notifyErroredEnabled = true; ///< docs/28 D4 a
     int m_lowDiskThresholdGiB = 2;
     bool m_notificationTogglesLoaded = false;
 
@@ -760,6 +761,9 @@ private:
     /// StoppedDownload/StoppedUpload/PausedDownload/PausedUpload: what `stopStart()` and
     /// `torrentRow()`'s `stopped` field both call "stopped".
     static bool isStoppedState(omaseed::core::TorrentState state);
+    /// What `p` (stopStart) does to a torrent in `state`: start it when stopped, or in error
+    /// ("try again", docs/28), stop it otherwise.
+    static bool startsOnToggle(omaseed::core::TorrentState state);
 
     bool m_deleteFilesDefault = false;
     bool m_deleteFilesDefaultLoaded = false;

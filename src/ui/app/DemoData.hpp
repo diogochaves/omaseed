@@ -15,6 +15,7 @@
 
 #include "core/Torrent.hpp"
 
+#include <QJsonArray>
 #include <QJsonObject>
 #include <QStringList>
 #include <QVariantMap>
@@ -34,6 +35,11 @@ QStringList specNames();
 /// every setting, and at 1 the generated rows are byte-identical to what they always were,
 /// so a screenshot meant for the figures is unaffected.
 QJsonObject maindata(int rows = 16);
+
+/// docs/28: what `log/main` would say about `maindata`'s errored torrents, for
+/// ProblemLog::applyEntries(): one "File error alert" each, the disk full, in libtorrent 2.0's
+/// form (the name where 2.1 puts a hash prefix: the demo's hashes are made up).
+QJsonArray problemLog(const QJsonObject &maindata);
 
 /// The hero's numbers of spec §1 Fig. 1 as a `server_state` object: 4.21 MB/s down,
 /// 812 KB/s up, 1.8 TB free, connected.

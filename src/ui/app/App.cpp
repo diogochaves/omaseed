@@ -6,6 +6,7 @@
 #include "core/MagnetLink.hpp"
 #include "core/PathMap.hpp"
 #include "core/PeerInput.hpp"
+#include "core/ProblemLog.hpp"
 #include "core/RenamePlan.hpp"
 #include "core/StateFile.hpp"
 #include "core/TorrentFile.hpp"
@@ -501,6 +502,9 @@ void App::applyDemoData(const QJsonObject &maindata)
     state->setLastSyncTime(QDateTime::currentDateTime());
 
     m_engine->applyDemoData(maindata);
+    // The demo's log goes with its library, not with every fictional diff a test applies.
+    if (maindata.value(QStringLiteral("full_update")).toBool())
+        m_engine->problems()->applyEntries(DemoData::problemLog(maindata));
 
     qInfo().noquote() << QStringLiteral("demo: %1 fictional torrents, no server")
                              .arg(m_engine->torrents()->count());
@@ -779,9 +783,11 @@ QVariantMap App::torrentRow(const QString &hash) const
     row.insert(QStringLiteral("stateText"), torrent.stateText());
     row.insert(QStringLiteral("stateRole"), torrent.stateRole());
     row.insert(QStringLiteral("hasTrackerError"), torrent.hasTrackerError);
+    // docs/28: why it is in error, from the server's log (ProblemLog); empty otherwise.
+    row.insert(QStringLiteral("problem"), m_engine->torrents()->problem(hash));
     // T4.3: exactly the check `stopStart()` makes, so the actions menu's "start"/"stop" row
     // and the delete sheet agree with what a bulk stop/start would actually do.
-    row.insert(QStringLiteral("stopped"), isStoppedState(torrent.state));
+    row.insert(QStringLiteral("stopped"), startsOnToggle(torrent.state));
     // docs/12 G4: General's Options group and the actions menu's four option rows.
     row.insert(QStringLiteral("seqDl"), torrent.seqDl);
     row.insert(QStringLiteral("firstLastPiecePrio"), torrent.firstLastPiecePrio);
@@ -853,6 +859,16 @@ void App::attachNotifier(omaseed::integration::Notifier *notifier)
                 m_completedContentPaths.insert(hash, localPath);
                 m_notifier->notifyCompleted(
                     hash, name, Format::size(sizeBytes), category, hasFolder);
+            });
+
+    // docs/28 N1: once per entry into error, after the log has been read, with its reason.
+    connect(m_engine->problems(),
+            &ProblemLog::torrentErrored,
+            this,
+            [this](const QString &hash, const QString &name, const TorrentProblem &problem) {
+                if (m_notifier.isNull() || !m_notifyErroredEnabled)
+                    return;
+                m_notifier->notifyErrored(hash, name, problem.headline, problem.detail);
             });
 
     connect(m_engine, &SyncEngine::diskAlmostFull, this, [this](qint64 freeBytes) {
@@ -935,6 +951,7 @@ QVariantMap App::notificationsEnabled() const
     map.insert(QStringLiteral("completed"), m_notifyCompletedEnabled);
     map.insert(QStringLiteral("serverLost"), m_notifyServerLostEnabled);
     map.insert(QStringLiteral("diskFull"), m_notifyDiskFullEnabled);
+    map.insert(QStringLiteral("errored"), m_notifyErroredEnabled);
     return map;
 }
 
@@ -948,6 +965,8 @@ void App::setNotificationEnabled(const QString &key, bool enabled)
         flag = &m_notifyServerLostEnabled;
     else if (key == QStringLiteral("diskFull"))
         flag = &m_notifyDiskFullEnabled;
+    else if (key == QStringLiteral("errored"))
+        flag = &m_notifyErroredEnabled;
     else
         return;
 
@@ -986,6 +1005,7 @@ void App::loadNotificationToggles()
     m_notifyCompletedEnabled = section.value(QStringLiteral("completed")).toBool(true);
     m_notifyServerLostEnabled = section.value(QStringLiteral("serverLost")).toBool(true);
     m_notifyDiskFullEnabled = section.value(QStringLiteral("diskFull")).toBool(true);
+    m_notifyErroredEnabled = section.value(QStringLiteral("errored")).toBool(true);
     m_lowDiskThresholdGiB = qMax(1, section.value(QStringLiteral("lowDiskThresholdGiB")).toInt(2));
     applyLowDiskThreshold();
 }
@@ -996,6 +1016,7 @@ void App::saveNotificationToggles()
     section.insert(QStringLiteral("completed"), m_notifyCompletedEnabled);
     section.insert(QStringLiteral("serverLost"), m_notifyServerLostEnabled);
     section.insert(QStringLiteral("diskFull"), m_notifyDiskFullEnabled);
+    section.insert(QStringLiteral("errored"), m_notifyErroredEnabled);
     section.insert(QStringLiteral("lowDiskThresholdGiB"), m_lowDiskThresholdGiB);
     writeStateSection(QStringLiteral("notifications"), section);
 }
@@ -1094,6 +1115,12 @@ void App::onNotifierActionInvoked(const QString &eventClass,
                                   const QString &subjectId,
                                   const QString &actionKey)
 {
+    if (eventClass == QStringLiteral("errored")) {
+        if (actionKey == QStringLiteral("show"))
+            Q_EMIT showTorrentRequested(subjectId);
+        return;
+    }
+
     if (eventClass == QStringLiteral("completed")) {
         if (actionKey == QStringLiteral("open-folder")) {
             const QString path = m_completedContentPaths.value(subjectId);
@@ -2215,6 +2242,14 @@ bool App::isStoppedState(TorrentState state)
            state == TorrentState::PausedDownload || state == TorrentState::PausedUpload;
 }
 
+bool App::startsOnToggle(TorrentState state)
+{
+    // docs/28: starting an errored torrent clears the error in qBittorrent and makes it try
+    // again (TorrentImpl::start), which is what `p` offers on the error block; stopping it
+    // would only hide the error.
+    return isStoppedState(state) || state == TorrentState::Error;
+}
+
 bool App::demoGuard(const QString &action, int count)
 {
     if (!m_demoMode)
@@ -2236,7 +2271,7 @@ void App::stopStart(const QStringList &hashes)
 
     const int index = m_engine->torrents()->indexOfHash(hashes.constFirst());
     const bool stopped =
-        index >= 0 && isStoppedState(m_engine->torrents()->torrent(hashes.constFirst()).state);
+        index >= 0 && startsOnToggle(m_engine->torrents()->torrent(hashes.constFirst()).state);
 
     auto *reply = stopped ? m_client->torrentsStart(hashes) : m_client->torrentsStop(hashes);
     reply->then(this, [this](const QbtResult<QByteArray> &result) {

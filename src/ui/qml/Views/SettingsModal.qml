@@ -131,7 +131,7 @@ Item {
         case 1:
             return App.serverList.count + 1; // the servers, then "+ add a server"
         case 2:
-            return 4; // three toggles, then the low-disk threshold field
+            return 5; // four toggles, then the low-disk threshold field
         case 4:
             // theme, base size, transparency, tray icon, the bar widget (#17), speed alignment,
             // the speed trends (#24 T2), then the rail's scroll hint, surface tint and tracker
@@ -365,7 +365,7 @@ Item {
             return;
         }
         if (root.paneIndex === 2) {
-            const keys = ["completed", "serverLost", "diskFull"];
+            const keys = ["completed", "errored", "serverLost", "diskFull"];
             if (root.paneCursor >= keys.length) {
                 thresholdField.focusInput();
                 return;
@@ -1601,6 +1601,12 @@ Item {
                                         "description": qsTr("One notice per finished torrent, with open folder and show.")
                                     },
                                     {
+                                        "key": "errored",
+                                        "glyph": Glyphs.statusErrored,
+                                        "title": qsTr("Torrent errored"),
+                                        "description": qsTr("One notice each time a torrent stops with an error, with the reason from the server's log.")
+                                    },
+                                    {
                                         "key": "serverLost",
                                         "glyph": Glyphs.trayDisconnected,
                                         "title": qsTr("Server lost and back"),
@@ -1650,12 +1656,12 @@ Item {
                                 Layout.fillWidth: true
                                 description: qsTr("The notice fires once when the free space drops below this.")
                                 glyph: Glyphs.altSpeed
-                                hasCursor: root.area === "pane" && root.paneCursor === 3
+                                hasCursor: root.area === "pane" && root.paneCursor === 4
                                 objectName: "lowDiskThresholdRow"
                                 title: qsTr("Low-disk threshold")
 
                                 onClicked: {
-                                    root.paneCursor = 3;
+                                    root.paneCursor = 4;
                                     root.area = "pane";
                                     thresholdField.focusInput();
                                 }

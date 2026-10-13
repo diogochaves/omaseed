@@ -35,6 +35,13 @@ public:
                             const QString &category,
                             bool hasFolder);
 
+    /// docs/28 N1: "<name> stopped with an error" / "<headline>: <detail>". Action "show",
+    /// also the click. Event class "errored", subject the torrent hash.
+    quint32 notifyErrored(const QString &hash,
+                          const QString &name,
+                          const QString &headline,
+                          const QString &detail);
+
     /// "<serverName> is unreachable" / "<hostText> · <reasonText> · retrying every N s".
     /// Action "settings". Event class "server", subject the server id.
     quint32 notifyServerLost(const QString &serverId,

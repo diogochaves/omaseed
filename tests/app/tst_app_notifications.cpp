@@ -6,6 +6,7 @@
 // file only checks what App does with those events once they arrive.
 
 #include "core/Format.hpp"
+#include "core/ProblemLog.hpp"
 #include "core/StateFile.hpp"
 #include "core/SyncEngine.hpp"
 #include "core/TorrentModel.hpp"
@@ -169,6 +170,7 @@ private slots:
     void completedNoticeOmitsOpenFolderWhenTheFolderIsUnknown();
     void trackerErrorSendsNoNotice();
     void diskAlmostFullMatchesQ2Wording();
+    void anErrorSendsOneNoticeWithItsReason();
     void disabledToggleSuppressesTheNotice();
     void flappingServerFiresOneLostAndOneBack();
     void aHiddenStartWaitsQuietlyForItsServer();
@@ -337,6 +339,69 @@ void TestAppNotifications::diskAlmostFullMatchesQ2Wording()
                           QStringLiteral("settings"),
                           QStringLiteral("default"),
                           QStringLiteral("settings")}));
+}
+
+// docs/28 N1: a torrent that goes into error while watched gets one notice, once the log has
+// been read, with the reason in it; a click shows it. The "errored" toggle turns it off.
+void TestAppNotifications::anErrorSendsOneNoticeWithItsReason()
+{
+    App app;
+    Notifier notifier(m_bus.connection());
+    app.attachNotifier(&notifier);
+
+    const QJsonObject seed{
+        {QStringLiteral("full_update"), true},
+        {QStringLiteral("rid"), 1},
+        {QStringLiteral("torrents"),
+         QJsonObject{
+             {kCompletedHash,
+              torrentRow(QStringLiteral("fixture-one"), QStringLiteral("linux"), 0.5, 1000)}}}};
+    app.applyDemoData(seed);
+
+    const QJsonObject errored{
+        {QStringLiteral("rid"), 2},
+        {QStringLiteral("torrents"),
+         QJsonObject{
+             {kCompletedHash, QJsonObject{{QStringLiteral("state"), QStringLiteral("error")}}}}}};
+    app.applyDemoData(errored);
+    QCOMPARE(m_bus.server()->calls.size(), 0); // waits for the log
+
+    const QJsonArray log{QJsonObject{
+        {QStringLiteral("id"), 7},
+        {QStringLiteral("timestamp"), 1791928475},
+        {QStringLiteral("type"), 4},
+        {QStringLiteral("message"),
+         QStringLiteral(
+             "File error alert. Torrent: \"fixture-one\". File: \"/d/fixture-one\". "
+             "Reason: \"4a4e3b file_open (/d/fixture-one) error: Permission denied\"")}}};
+    app.engine()->problems()->applyEntries(log);
+    QCOMPARE(m_bus.server()->calls.size(), 1);
+    const auto &call = m_bus.server()->calls.first();
+    QCOMPARE(call.summary, QStringLiteral("fixture-one stopped with an error"));
+    QCOMPARE(
+        call.body,
+        QStringLiteral("Can't write to its save folder: Permission denied, opening fixture-one"));
+    QCOMPARE(call.actions,
+             QStringList({QStringLiteral("show"),
+                          QStringLiteral("show"),
+                          QStringLiteral("default"),
+                          QStringLiteral("show")}));
+
+    // Another read is not another notice.
+    app.engine()->problems()->applyEntries(log);
+    QCOMPARE(m_bus.server()->calls.size(), 1);
+
+    // Off: back to work, then into error again, and nothing is sent.
+    app.setNotificationEnabled(QStringLiteral("errored"), false);
+    app.applyDemoData(QJsonObject{
+        {QStringLiteral("rid"), 3},
+        {QStringLiteral("torrents"),
+         QJsonObject{{kCompletedHash,
+                      QJsonObject{{QStringLiteral("state"), QStringLiteral("downloading")}}}}}});
+    app.applyDemoData(errored);
+    app.engine()->problems()->applyEntries({});
+    QCOMPARE(m_bus.server()->calls.size(), 1);
+    app.setNotificationEnabled(QStringLiteral("errored"), true);
 }
 
 void TestAppNotifications::disabledToggleSuppressesTheNotice()

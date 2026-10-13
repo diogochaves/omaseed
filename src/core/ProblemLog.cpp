@@ -48,7 +48,7 @@ void ProblemLog::reset()
     m_sinceRead.invalidate();
 }
 
-void ProblemLog::onSynced(bool fullUpdate)
+void ProblemLog::onSynced(bool fullUpdate, bool mayRead)
 {
     if (m_torrents.isNull())
         return;
@@ -61,7 +61,7 @@ void ProblemLog::onSynced(bool fullUpdate)
     updateErrored(fullUpdate);
     m_seenFirstSync = true;
 
-    if (m_errored.isEmpty())
+    if (m_errored.isEmpty() || !mayRead)
         return;
     const bool due =
         !m_readOnce || !m_sinceRead.isValid() || m_sinceRead.durationElapsed() >= m_interval;

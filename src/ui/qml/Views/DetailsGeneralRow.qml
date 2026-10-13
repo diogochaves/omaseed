@@ -6,7 +6,8 @@ import Omaseed.Kit
 // One key/value row of the details pane's General tab (spec v2 §3 Fig. 9 `.kv`, grouped by
 // docs/12 G1): a fixed key column and a flexible value column, closed by a row hairline, the
 // same measures as Kit's KeyValue. `entry` is one of DetailsGeneralTab's rows,
-// `{key, value, color?, dim?, halves?}`. A `halves` value that does not fit on one line breaks
+// `{key, value, color?, dim?, halves?, tail?}`; `tail` follows the value in the dim
+// colour (docs/28: the Status row's "error · no access"). A `halves` value that does not fit on one line breaks
 // at its middle (20 + 20 for a hash v1) instead of leaving two characters on a line of their
 // own. `hasCursor` draws the details lists' cursor (a hover fill and
 // a 1 px border, as Kit's TableRow does), so the tabs read as one family.
@@ -20,6 +21,7 @@ Rectangle {
     /// A click anywhere on the row.
     signal clicked
 
+    readonly property bool hasTail: (root.entry.tail || "").length > 0
     readonly property color valueColor: root.entry.color ? root.entry.color : root.entry.dim
                                                                                ? Theme.dimForeground :
                                                                                  Theme.foreground
@@ -57,7 +59,7 @@ Rectangle {
                                           && oneLine.advanceWidth > valueText.width
             readonly property int middle: Math.ceil(valueText.value.length / 2)
 
-            Layout.fillWidth: true
+            Layout.fillWidth: !root.hasTail
             color: root.valueColor
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.small
@@ -73,6 +75,19 @@ Rectangle {
                 font: valueText.font
                 text: root.entry.halves === true ? valueText.value : ""
             }
+        }
+
+        Text {
+            Layout.alignment: Qt.AlignTop
+            Layout.fillWidth: true
+            color: Theme.dimForeground
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.font.small
+            objectName: "generalTail"
+            text: "· " + (root.entry.tail || "")
+            textFormat: Text.PlainText
+            visible: root.hasTail
+            wrapMode: Text.Wrap
         }
     }
 

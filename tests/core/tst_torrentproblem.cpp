@@ -303,6 +303,7 @@ void TestTorrentProblem::unknownMessagesKeepQbittorrentsWords()
                        "file_open (/d/f) error: too many open files\"")));
     QCOMPARE(problem.headline, QStringLiteral("Too many open files"));
     QCOMPARE(problem.cause, QStringLiteral("error"));
+    QCOMPARE(problem.causeKey, QStringLiteral("other"));
     QCOMPARE(problem.actions, (QStringList{QStringLiteral("start"), QStringLiteral("recheck")}));
 }
 

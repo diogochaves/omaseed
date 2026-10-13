@@ -1156,6 +1156,8 @@ Item {
             required property string sizeText
             required property string stateRole
             required property string stateText
+            /// docs/28 R1: the short cause of an error from the server's log, or "".
+            required property string statusCause
             required property string upspeedText
 
             readonly property bool editing: root.renaming && row.index === internal.renameIndex
@@ -1371,7 +1373,7 @@ Item {
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.font.body
                         objectName: "status_" + row.index
-                        text: root.statusWord(row.stateText)
+                        text: root.statusWord(row.statusCause.length > 0 ? row.statusCause : row.stateText)
                     }
                 }
 

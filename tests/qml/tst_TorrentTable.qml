@@ -313,6 +313,23 @@ TestCase {
         compare(testCase.glyphProbe.color, Theme.stateSeeding);
     }
 
+    // docs/28 R1: an errored row says the short cause from the server's log, not "error".
+    // The demo's errored torrent comes with a "No space left on device" line.
+    function test_errored_row_shows_the_cause() {
+        let errored = -1;
+        for (let row = 0; row < App.filtered.count; ++row) {
+            if (App.torrentRow(App.filtered.hashAt(row)).stateText === "error") {
+                errored = row;
+                break;
+            }
+        }
+        verify(errored >= 0, "no errored row in the demo library");
+        compare(cellText("status_" + errored), "disk full");
+        testCase.glyphProbe = findChild(table, "statusGlyph_" + errored);
+        compare(testCase.glyphProbe.text, Glyphs.statusErrored);
+        compare(testCase.glyphProbe.color, Theme.stateError);
+    }
+
     function test_move_cursor_moves_the_cursor_hash() {
         compare(table.cursorIndex, 0);
         const first = table.cursorHash;
