@@ -174,4 +174,37 @@ TestCase {
         compare(findChild(apply, "keyHintArea").cursorShape, Qt.PointingHandCursor);
         compare(findChild(plain, "keyHintArea").enabled, false);
     }
+
+    // #51 D12: under the pointer a clickable hint's key and label both turn to the accent, as
+    // the console's "esc clear" and Field's clickable trailing do; a plain hint stays as it is.
+    function test_a_clickable_hint_lights_up_under_the_mouse() {
+        const hints = createTemporaryObject(keyHintsComponent, testCase, {
+                                                "model": [
+                                                    {
+                                                        "key": "space",
+                                                        "label": "toggle"
+                                                    },
+                                                    {
+                                                        "key": "enter",
+                                                        "label": "apply",
+                                                        "clickable": true
+                                                    }
+                                                ]
+                                            });
+        const texts = item => {
+            const pair = item.children[0];
+            return [pair.children[0], pair.children[1]];
+        };
+        const plain = findChild(hints, "keyHint_space");
+        const apply = findChild(hints, "keyHint_enter");
+        const [applyKey, applyLabel] = texts(apply);
+        compare(applyKey.color, Theme.foreground);
+        compare(applyLabel.color, Theme.dimForeground);
+        mouseMove(apply, apply.width / 2, apply.height / 2);
+        tryCompare(applyKey, "color", Theme.accent);
+        tryCompare(applyLabel, "color", Theme.accent);
+        mouseMove(plain, plain.width / 2, plain.height / 2);
+        tryCompare(applyLabel, "color", Theme.dimForeground);
+        compare(texts(plain)[1].color, Theme.dimForeground);
+    }
 }

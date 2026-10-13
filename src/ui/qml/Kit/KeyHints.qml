@@ -17,8 +17,9 @@ import Omaseed.Kit
 // `enter add`, #8) loses the extras before it.
 //
 // A hint with `clickable: true` names a safe action the mouse may run too: it shows a pointing
-// hand and turns its key to the accent under the pointer, and a click sends `hintClicked`. The
-// row only reports it; the caller runs what that key runs.
+// hand and turns its key and label to the accent under the pointer (as the console's
+// "esc clear" and Field's clickable trailing do), and a click sends `hintClicked`. The row
+// only reports it; the caller runs what that key runs.
 RowLayout {
     id: root
 
@@ -105,7 +106,7 @@ RowLayout {
                     }
 
                     Text {
-                        color: Theme.dimForeground
+                        color: hintArea.containsMouse ? Theme.accent : Theme.dimForeground
                         font.family: Theme.fontFamily
                         font.pixelSize: root._pixelSize
                         text: hintRow.modelData.label
