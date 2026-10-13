@@ -56,7 +56,7 @@ void TorrentFilterModel::setStatusFilter(StatusFilter filter)
     if (m_statusFilter == filter)
         return;
     m_statusFilter = filter;
-    refilter();
+    applyFilterChange();
     Q_EMIT statusFilterChanged();
     Q_EMIT countChanged();
 }
@@ -76,7 +76,7 @@ void TorrentFilterModel::setCategory(const QVariant &category)
     if (m_category && *m_category == next)
         return;
     m_category = next;
-    refilter();
+    applyFilterChange();
     Q_EMIT categoryChanged();
     Q_EMIT countChanged();
 }
@@ -86,7 +86,7 @@ void TorrentFilterModel::clearCategory()
     if (!m_category)
         return;
     m_category.reset();
-    refilter();
+    applyFilterChange();
     Q_EMIT categoryChanged();
     Q_EMIT countChanged();
 }
@@ -106,7 +106,7 @@ void TorrentFilterModel::setTag(const QVariant &tag)
     if (m_tag && *m_tag == next)
         return;
     m_tag = next;
-    refilter();
+    applyFilterChange();
     Q_EMIT tagChanged();
     Q_EMIT countChanged();
 }
@@ -116,7 +116,7 @@ void TorrentFilterModel::clearTag()
     if (!m_tag)
         return;
     m_tag.reset();
-    refilter();
+    applyFilterChange();
     Q_EMIT tagChanged();
     Q_EMIT countChanged();
 }
@@ -137,7 +137,7 @@ void TorrentFilterModel::setTracker(const QVariant &tracker)
         return;
     m_tracker = next;
     reloadTrackerHashes();
-    refilter();
+    applyFilterChange();
     Q_EMIT trackerChanged();
     Q_EMIT countChanged();
 }
@@ -148,7 +148,7 @@ void TorrentFilterModel::clearTracker()
         return;
     m_tracker.reset();
     m_trackerHashes.clear();
-    refilter();
+    applyFilterChange();
     Q_EMIT trackerChanged();
     Q_EMIT countChanged();
 }
@@ -214,9 +214,19 @@ void TorrentFilterModel::releaseSort()
     if (!m_sortHeld)
         return;
     m_sortHeld = false;
+    sortNow();
+    if (m_refilterAfterHold) {
+        m_refilterAfterHold = false;
+        refilter();
+    }
+}
+
+void TorrentFilterModel::sortNow()
+{
     // The sort compares each row about 2 log n times: read a numeric role once per row instead.
+    // A held order reads the held places, not the role.
     const QAbstractItemModel *source = sourceModel();
-    const int count = source->rowCount();
+    const int count = source != nullptr && m_heldPlaces.isEmpty() ? source->rowCount() : 0;
     m_heldKeys.resize(count);
     for (int row = 0; row < count; ++row) {
         const QVariant value = source->data(source->index(row, 0), m_sortRole);
@@ -227,12 +237,49 @@ void TorrentFilterModel::releaseSort()
         }
         m_heldKeys[row] = value.toDouble();
     }
-    setDynamicSortFilter(true); // sorts every row once: one layoutChanged
+    // Already dynamic, this still sorts every row once: one layoutChanged. (sort() with the
+    // same column and order would return without sorting.)
+    setDynamicSortFilter(true);
     m_heldKeys.clear();
-    if (m_refilterAfterHold) {
-        m_refilterAfterHold = false;
-        refilter();
+}
+
+void TorrentFilterModel::setHoldOrder(bool hold)
+{
+    if (m_holdOrder == hold)
+        return;
+    m_holdOrder = hold;
+    if (hold) {
+        freezeOrder();
+    } else {
+        m_heldPlaces.clear();
+        // Mid-bracket (never from the table, which sets this between polls), the bracket's
+        // own release sorts.
+        if (!m_sortHeld)
+            sortNow();
     }
+    Q_EMIT holdOrderChanged();
+}
+
+void TorrentFilterModel::freezeOrder()
+{
+    m_heldPlaces.clear();
+    const int count = rowCount();
+    m_heldPlaces.reserve(count);
+    for (int row = 0; row < count; ++row)
+        m_heldPlaces.insert(hashAt(row), row);
+}
+
+void TorrentFilterModel::applyFilterChange()
+{
+    if (!m_holdOrder) {
+        refilter();
+        return;
+    }
+    // Sorted first, so the rows the new filter lets in are placed among sorted ones.
+    m_heldPlaces.clear();
+    sortNow();
+    refilter();
+    freezeOrder();
 }
 
 bool TorrentFilterModel::outOfOrder(int sourceRow) const
@@ -299,7 +346,7 @@ void TorrentFilterModel::setText(const QString &text)
     if (m_text == next)
         return;
     m_text = next;
-    refilter();
+    applyFilterChange();
     Q_EMIT textChanged();
     Q_EMIT countChanged();
 }
@@ -311,7 +358,11 @@ void TorrentFilterModel::setSortRole(int role)
     m_sortRole = role;
     // With a dynamic sort, the base class re-sorts on a new role by itself (lessThan reads
     // m_sortRole, set above); a second sort, or an invalidate(), would be two more passes.
+    // A held order lets go for it, and holds again from the new order.
+    m_heldPlaces.clear();
     QSortFilterProxyModel::setSortRole(role);
+    if (m_holdOrder)
+        freezeOrder();
     Q_EMIT sortRoleChanged();
 }
 
@@ -355,7 +406,10 @@ void TorrentFilterModel::setSortOrder(Qt::SortOrder order)
     if (m_sortOrder == order)
         return;
     m_sortOrder = order;
+    m_heldPlaces.clear();
     resort();
+    if (m_holdOrder)
+        freezeOrder();
     Q_EMIT sortOrderChanged();
 }
 
@@ -449,6 +503,23 @@ bool TorrentFilterModel::lessThan(const QModelIndex &left, const QModelIndex &ri
     const auto *source = qobject_cast<const TorrentModel *>(sourceModel());
     if (source == nullptr)
         return false;
+
+    if (!m_heldPlaces.isEmpty()) {
+        // The held order: the places the rows had, and below them, rows new to the view in
+        // the live order. `before` is the view's order, which a descending sort reads from
+        // lessThan() the other way round.
+        const auto l = m_heldPlaces.constFind(source->torrentAt(left.row()).hash);
+        const auto r = m_heldPlaces.constFind(source->torrentAt(right.row()).hash);
+        const bool leftHeld = l != m_heldPlaces.cend();
+        const bool rightHeld = r != m_heldPlaces.cend();
+        if (leftHeld || rightHeld) {
+            const auto before = [&](bool aHeld, auto a, bool bHeld, auto b) {
+                return aHeld && bHeld ? *a < *b : aHeld;
+            };
+            return sortOrder() == Qt::DescendingOrder ? before(rightHeld, r, leftHeld, l)
+                                                      : before(leftHeld, l, rightHeld, r);
+        }
+    }
 
     int compared = 0;
     if (!m_heldKeys.isEmpty()) {

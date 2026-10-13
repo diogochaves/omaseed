@@ -190,6 +190,10 @@ private slots:
     void liveSortKeepingTheOrderDoesNotRelayout();
     void heldSortStillFilters();
     void tiesFollowRenamesAndNewRows();
+    void heldOrderKeepsRowsWhileValuesMove();
+    void heldOrderStillFiltersAndTakesNewRows();
+    void explicitChangesApplyWhileHeld();
+    void heldOrderOutlastsAPollBracket();
 
 private:
     TorrentModel m_source;
@@ -659,6 +663,189 @@ void TestFilterModel::tiesFollowRenamesAndNewRows()
         QJsonArray());
     QVERIFY(sortedBySpeedDescending(proxy));
     QCOMPARE(proxy.rowCount(), 51);
+}
+
+namespace {
+
+/// Every row's upload speed turned around (`base` less it), so a sort by speed turns the
+/// table upside down.
+QJsonObject reverseSpeeds(const TorrentModel &source, qint64 base)
+{
+    QJsonObject diff;
+    for (int row = 0; row < source.rowCount(); ++row) {
+        const Torrent &t = source.torrentAt(row);
+        diff.insert(t.hash, QJsonObject{{QStringLiteral("upspeed"), base - t.upspeed}});
+    }
+    return diff;
+}
+
+} // namespace
+
+void TestFilterModel::heldOrderKeepsRowsWhileValuesMove()
+{
+    // #51 D9: while the pointer is over the rows, a poll that re-sorts by speed changes the
+    // values but not the order; letting go sorts once, and the selection follows its torrents.
+    TorrentModel source;
+    source.applyFullUpdate(seedLibrary(60, 10));
+    TorrentFilterModel proxy;
+    proxy.setSourceModel(&source);
+    proxy.setSortRole(TorrentModel::UpspeedRole);
+    proxy.setSortOrder(Qt::DescendingOrder);
+    QItemSelectionModel selection(&proxy);
+    proxy.selectRows(&selection, 0, 4);
+    const QSet<QString> selected = selectedHashes(selection);
+    const QStringList before = visibleHashes(proxy);
+
+    QSignalSpy holds(&proxy, &TorrentFilterModel::holdOrderChanged);
+    proxy.setHoldOrder(true);
+    QVERIFY(proxy.holdOrder());
+    QCOMPARE(holds.count(), 1);
+
+    QSignalSpy layouts(&proxy, &QAbstractItemModel::layoutChanged);
+    QSignalSpy changed(&proxy, &QAbstractItemModel::dataChanged);
+    source.applyPartial(reverseSpeeds(source, 1000), QJsonArray());
+    QCOMPARE(visibleHashes(proxy), before);
+    QVERIFY(changed.count() > 0);
+    QCOMPARE(layouts.count(), 0);
+    // The values did change: the top row is now the slowest.
+    QCOMPARE(proxy.data(proxy.index(0, 0), TorrentModel::UpspeedRole).toLongLong(), 1000 - 590);
+
+    proxy.setHoldOrder(false);
+    QCOMPARE(layouts.count(), 1);
+    QVERIFY(sortedBySpeedDescending(proxy));
+    QVERIFY(visibleHashes(proxy) != before);
+    QCOMPARE(selectedHashes(selection), selected);
+    QVERIFY(proxy.dynamicSortFilter());
+}
+
+void TestFilterModel::heldOrderStillFiltersAndTakesNewRows()
+{
+    // Held under "active": a torrent that stops leaves, one that starts comes in below the
+    // held rows (nothing above it moves), and a new torrent appears; on release all sort.
+    TorrentModel source;
+    source.applyFullUpdate(seedLibrary(40, 10)); // torrent-000 idle, the rest busy
+    TorrentFilterModel proxy;
+    proxy.setSourceModel(&source);
+    proxy.setStatusFilter(TorrentFilterModel::Active);
+    proxy.setSortRole(TorrentModel::UpspeedRole);
+    proxy.setSortOrder(Qt::DescendingOrder);
+    QCOMPARE(proxy.rowCount(), 39);
+    QStringList before = visibleHashes(proxy);
+    proxy.setHoldOrder(true);
+
+    const QString stopping = before.at(10);
+    QString starting;
+    for (int row = 0; row < source.rowCount(); ++row) {
+        if (source.torrentAt(row).upspeed == 0)
+            starting = source.torrentAt(row).hash;
+    }
+    QVERIFY(!starting.isEmpty());
+    source.applyPartial(
+        QJsonObject{
+            {stopping, QJsonObject{{QStringLiteral("upspeed"), 0}}},
+            {starting, QJsonObject{{QStringLiteral("upspeed"), 99999}}},
+            {QStringLiteral("fresh"),
+             QJsonObject{{QStringLiteral("name"), QStringLiteral("fresh")},
+                         {QStringLiteral("state"), QStringLiteral("uploading")},
+                         {QStringLiteral("progress"), 1.0},
+                         {QStringLiteral("upspeed"), 88888}}},
+        },
+        QJsonArray());
+
+    before.removeOne(stopping);
+    const QStringList held = visibleHashes(proxy);
+    QCOMPARE(held.size(), 40);
+    QCOMPARE(held.mid(0, 38), before);
+    QCOMPARE(QSet<QString>(held.cbegin() + 38, held.cend()),
+             (QSet<QString>{starting, QStringLiteral("fresh")}));
+
+    proxy.setHoldOrder(false);
+    QVERIFY(sortedBySpeedDescending(proxy));
+    QCOMPARE(proxy.hashAt(0), starting);
+    QCOMPARE(proxy.hashAt(1), QStringLiteral("fresh"));
+    QCOMPARE(proxy.rowOfHash(stopping), -1);
+}
+
+void TestFilterModel::explicitChangesApplyWhileHeld()
+{
+    // A new sort order, sort role or filter, asked for while the order is held, applies at
+    // once; the hold then starts again from the new order.
+    TorrentModel source;
+    source.applyFullUpdate(seedLibrary(30, 10));
+    TorrentFilterModel proxy;
+    proxy.setSourceModel(&source);
+    proxy.setSortRole(TorrentModel::UpspeedRole);
+    proxy.setSortOrder(Qt::DescendingOrder);
+    proxy.setHoldOrder(true);
+    source.applyPartial(reverseSpeeds(source, 1000), QJsonArray());
+    QVERIFY(!sortedBySpeedDescending(proxy));
+
+    // The direction flips twice: back where it was, but sorted by the new speeds.
+    proxy.setSortOrder(Qt::AscendingOrder);
+    proxy.setSortOrder(Qt::DescendingOrder);
+    QVERIFY(sortedBySpeedDescending(proxy));
+    QVERIFY(proxy.holdOrder());
+    // Still held: the next poll moves nothing.
+    const QStringList afterSort = visibleHashes(proxy);
+    source.applyPartial(reverseSpeeds(source, 1000), QJsonArray());
+    QCOMPARE(visibleHashes(proxy), afterSort);
+
+    // The filter text: sorted at once, and held again.
+    proxy.setText(QStringLiteral("torrent-01"));
+    QCOMPARE(proxy.rowCount(), 10);
+    QVERIFY(sortedBySpeedDescending(proxy));
+    const QStringList afterText = visibleHashes(proxy);
+    source.applyPartial(reverseSpeeds(source, 1000), QJsonArray());
+    QCOMPARE(visibleHashes(proxy), afterText);
+
+    // A rail scope, likewise.
+    proxy.setText(QString());
+    proxy.setStatusFilter(TorrentFilterModel::Seeding);
+    QCOMPARE(proxy.rowCount(), 30);
+    QVERIFY(sortedBySpeedDescending(proxy));
+
+    // The sort role: names, a to z.
+    proxy.setSortRole(TorrentModel::NameRole);
+    proxy.setSortOrder(Qt::AscendingOrder);
+    QCOMPARE(visibleNames(proxy).first(), QStringLiteral("torrent-000"));
+    QCOMPARE(visibleNames(proxy).last(), QStringLiteral("torrent-029"));
+}
+
+void TestFilterModel::heldOrderOutlastsAPollBracket()
+{
+    // A poll scattered over many runs takes #48's bracket; the hover hold lasts through the
+    // bracket's own sort, and the release still sorts once with the selection following.
+    TorrentModel source;
+    source.applyFullUpdate(seedLibrary(200));
+    TorrentFilterModel proxy;
+    proxy.setSourceModel(&source);
+    proxy.setSortRole(TorrentModel::UpspeedRole);
+    proxy.setSortOrder(Qt::DescendingOrder);
+    QItemSelectionModel selection(&proxy);
+    proxy.selectRows(&selection, 3, 9);
+    const QSet<QString> selected = selectedHashes(selection);
+    const QStringList before = visibleHashes(proxy);
+    proxy.setHoldOrder(true);
+
+    QSignalSpy layouts(&proxy, &QAbstractItemModel::layoutChanged);
+    for (int poll = 1; poll <= 3; ++poll) {
+        QJsonObject diff;
+        for (int i = 0; i < 60; ++i) {
+            const int row = (i * 200 / 60 + poll) % 200;
+            diff.insert(
+                source.torrentAt(row).hash,
+                QJsonObject{{QStringLiteral("upspeed"), (i * 7919 + poll * 13) % 5000 + 1}});
+        }
+        source.applyPartial(diff, QJsonArray());
+        QCOMPARE(visibleHashes(proxy), before);
+        QVERIFY(proxy.dynamicSortFilter());
+    }
+    QCOMPARE(layouts.count(), 0);
+
+    proxy.setHoldOrder(false);
+    QCOMPARE(layouts.count(), 1);
+    QVERIFY(sortedBySpeedDescending(proxy));
+    QCOMPARE(selectedHashes(selection), selected);
 }
 
 QTEST_MAIN(TestFilterModel)

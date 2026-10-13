@@ -24,10 +24,20 @@
 // and sorts once after (#48). A poll that leaves the order alone goes through Qt as before.
 // Most rows tie on a live value (idle at 0 B/s), so the name tie-break reads a cached rank
 // instead of collating two names per comparison.
+//
+// `holdOrder` (#51 D9) holds the row order while the pointer is over the table's rows, so a
+// live re-sort never moves a row between a look and a click. The sort stays dynamic (rows
+// still enter and leave the filter, and values still change): lessThan() reads each row's
+// place when the hold began, by hash, so Qt's own re-sort finds nothing out of place, and a
+// row new to the view (added, or newly matching the filter) goes below the held ones. A
+// poll's bracket above composes with it: its one sort reads the held places too. Letting go
+// sorts once, like the bracket. An explicit change (sort role or order, filter text, a rail
+// scope) applies at once: the rows sort afresh and the hold starts again from there.
 
 #include "core/Torrent.hpp"
 
 #include <QCollator>
+#include <QHash>
 #include <QItemSelectionModel>
 #include <QPointer>
 #include <QSet>
@@ -58,6 +68,7 @@ class TorrentFilterModel : public QSortFilterProxyModel
         QString sortRoleName READ sortRoleName WRITE setSortByRoleName NOTIFY sortRoleChanged)
     Q_PROPERTY(Qt::SortOrder sortOrder READ sortOrder WRITE setSortOrder NOTIFY sortOrderChanged)
     Q_PROPERTY(int count READ count NOTIFY countChanged)
+    Q_PROPERTY(bool holdOrder READ holdOrder WRITE setHoldOrder NOTIFY holdOrderChanged)
 
 public:
     /// The rail's status rows (spec §1 Fig. 1), All first.
@@ -107,6 +118,10 @@ public:
 
     int count() const { return rowCount(); }
 
+    /// While true, the rows keep the order they had when it was set (see the header).
+    bool holdOrder() const { return m_holdOrder; }
+    void setHoldOrder(bool hold);
+
     /// The proxy row showing `hash`, or -1.
     Q_INVOKABLE int rowOfHash(const QString &hash) const;
     /// The hash on proxy row `row`, or an empty string.
@@ -137,10 +152,18 @@ Q_SIGNALS:
     void sortRoleChanged();
     void sortOrderChanged();
     void countChanged();
+    void holdOrderChanged();
 
 private:
     void refilter();
     void resort();
+    /// An explicit filter change (text, status, category, tag, tracker): a re-filter, and
+    /// while the order is held, a fresh sort first and a new hold after.
+    void applyFilterChange();
+    /// Every row sorted once, now: one layoutChanged.
+    void sortNow();
+    /// Notes every shown row's place, by hash, for the held order.
+    void freezeOrder();
     /// Reloads m_trackerHashes for the current tracker filter; true when it changed.
     bool reloadTrackerHashes();
     /// Whether the tracker filter goes by TrackerModel membership rather than the host of
@@ -173,6 +196,8 @@ private:
     QList<double> m_heldKeys;       ///< the sort role by source row, in releaseSort()
     mutable QList<int> m_nameRanks; ///< by source row; empty until a tie-break needs it
     QList<QMetaObject::Connection> m_sourceConnections;
+    QHash<QString, int> m_heldPlaces; ///< the held order: proxy row by hash, while holdOrder
+    bool m_holdOrder = false;
     bool m_sortHeld = false;
     bool m_refilterAfterHold = false;
 };
