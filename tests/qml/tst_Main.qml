@@ -1231,6 +1231,15 @@ TestCase {
         view.details.activateTab(0);
     }
 
+    // A drop with nothing addable in it (a file that is not a .torrent) says so.
+    function test_a_drop_with_nothing_to_add_says_so() {
+        view.footerNote = "";
+        view.addDropped([]);
+        compare(view.footerNote, "nothing to add");
+        compare(view.addSheet.opened, false);
+        view.footerNote = "";
+    }
+
     // ---- first run (review VIEW-4) -------------------------------------------------------
     function test_a_link_handed_over_during_first_run_waits_for_setup() {
         const magnet = "magnet:?xt=urn:btih:0102030405060708090a0b0c0d0e0f1011121314&dn=waiting";

@@ -2125,9 +2125,12 @@ Item {
         }
     }
 
-    /// The drop target in `Main.qml` hands its addables over here.
+    /// The drop target in `Main.qml` hands its addables over here. A drop that held none (a
+    /// file that is not a .torrent, text that is not a magnet) says so in the footer.
     function addDropped(values: var): void {
-        if (root.firstRun)
+        if (values.length === 0)
+            root.flashFooterNote(qsTr("nothing to add"));
+        else if (root.firstRun)
             root._pendingAdds = root._pendingAdds.concat(values);
         else if (values.length === 1)
             addSheet.openWith(values[0], "drop");

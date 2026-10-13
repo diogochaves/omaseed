@@ -99,9 +99,7 @@ Window {
 
         onDropped: drop => {
             const addables = Xdg.addablesFromDrop(drop.urls, drop.text);
-            const values = addables.map(addable => addable.value);
-            if (values.length > 0)
-                view.addDropped(values);
+            view.addDropped(addables.map(addable => addable.value));
         }
     }
     // --- end T4.2 ---
