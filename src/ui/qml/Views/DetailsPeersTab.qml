@@ -21,6 +21,9 @@ Item {
     property int cursorIndex: 0
 
     signal rowClicked(int row)
+    /// A right click on a row: the pane moves the cursor there and opens the tab's menu at
+    /// `x`, `y` (this item's coordinates).
+    signal rowMenuRequested(int row, real x, real y)
 
     readonly property int count: root.model ? root.model.count : 0
 
@@ -122,9 +125,14 @@ Item {
 
             hasCursor: row.index === root.cursorIndex
             height: Theme.railRowHeight
+            objectName: "peerRow_" + row.index
             width: ListView.view.width
 
             onClicked: root.rowClicked(row.index)
+            onRightClicked: {
+                const at = row.mapToItem(root, Theme.space(24), row.height);
+                root.rowMenuRequested(row.index, at.x, at.y);
+            }
 
             RowLayout {
                 anchors.left: parent.left

@@ -998,6 +998,19 @@ TestCase {
         verify(!view.menuOpen);
     }
 
+    // The menus sit on the window, so one opened low in a short pane is not cut by it.
+    function test_the_file_menu_is_hosted_on_the_window() {
+        const view = testCase.filesView();
+        view.height = 260;
+        waitForRendering(view);
+        const host = findChild(view, "detailsMenuHost");
+        verify(host !== null);
+        compare(host.parent, view.Window.window.contentItem);
+        view.openFileMenu(-1, -1);
+        verify(view.menuOpen);
+        keyClick(Qt.Key_Escape);
+    }
+
     // #42 (docs/27 D2/D3): `x` skips the cursor row, and on a skipped one ticks it back at
     // the priority it had.
     function test_x_skips_then_keeps_at_the_old_priority() {
@@ -1380,6 +1393,97 @@ TestCase {
         compare(files.filterText, "");
         verify(!field.visible, "the field stayed open");
         verify(view.activeFocus);
+    }
+
+    SignalSpy {
+        id: trackerSpy
+
+        signalName: "trackerAction"
+    }
+
+    SignalSpy {
+        id: peerSpy
+
+        signalName: "peerAction"
+    }
+
+    // Trackers: a right click moves the cursor and opens the tab's menu, whose rows are the
+    // tab's keys.
+    function test_a_right_click_opens_the_trackers_menu() {
+        const view = testCase.select(testCase.archName);
+        view.activateTab(2);
+        view.forceActiveFocus();
+        waitForRendering(view);
+        trackerSpy.target = view;
+        trackerSpy.clear();
+        copySpy.target = view;
+        copySpy.clear();
+        const trackers = App.details.trackers;
+
+        mouseClick(findChild(view, "trackerRow_1"), 120, 4, Qt.RightButton);
+        compare(view.trackersCursor, 1);
+        verify(view.menuOpen, "no menu on a tracker");
+        keyClick("d");
+        verify(!view.menuOpen);
+        compare(trackerSpy.count, 1);
+        compare(trackerSpy.signalArguments[0][0], "remove");
+        compare(trackerSpy.signalArguments[0][1], trackers.urlAt(1));
+
+        mouseClick(findChild(view, "trackerRow_2"), 120, 4, Qt.RightButton);
+        keyClick("y");
+        compare(copySpy.count, 1);
+        compare(copySpy.signalArguments[0][0], trackers.urlAt(2));
+
+        // DHT is a row, not a tracker: nothing to remove.
+        mouseClick(findChild(view, "trackerRow_3"), 120, 4, Qt.RightButton);
+        verify(view.menuOpen);
+        keyClick("d");
+        verify(view.menuOpen, "remove ran on DHT");
+        keyClick("a");
+        compare(trackerSpy.count, 2);
+        compare(trackerSpy.signalArguments[1][0], "add");
+    }
+
+    function test_a_right_click_opens_the_peers_menu() {
+        const view = testCase.select(testCase.archName);
+        view.activateTab(3);
+        view.forceActiveFocus();
+        waitForRendering(view);
+        peerSpy.target = view;
+        peerSpy.clear();
+        copySpy.target = view;
+        copySpy.clear();
+        const peers = App.details.peers;
+
+        mouseClick(findChild(view, "peerRow_2"), 120, 4, Qt.RightButton);
+        compare(view.peersCursor, 2);
+        verify(view.menuOpen, "no menu on a peer");
+        keyClick("b");
+        compare(peerSpy.count, 1);
+        compare(peerSpy.signalArguments[0][0], "ban");
+        compare(peerSpy.signalArguments[0][1], peers.addressAt(2));
+
+        mouseClick(findChild(view, "peerRow_0"), 120, 4, Qt.RightButton);
+        keyClick("y");
+        compare(copySpy.count, 1);
+        compare(copySpy.signalArguments[0][0], peers.addressAt(0));
+    }
+
+    function test_a_right_click_opens_the_http_sources_menu() {
+        const view = testCase.select(testCase.archName);
+        view.activateTab(4);
+        view.forceActiveFocus();
+        waitForRendering(view);
+        webSeedSpy.target = view;
+        webSeedSpy.clear();
+
+        mouseClick(findChild(view, "webSeedRow_1"), 120, 4, Qt.RightButton);
+        compare(view.webSeedsCursor, 1);
+        verify(view.menuOpen, "no menu on an HTTP source");
+        keyClick("d");
+        compare(webSeedSpy.count, 1);
+        compare(webSeedSpy.signalArguments[0][0], "remove");
+        compare(webSeedSpy.signalArguments[0][1], App.details.webSeeds.urlAt(1));
     }
 
     // Somewhere outside the pane that can hold the keyboard: the table, in the window.

@@ -113,11 +113,12 @@ Item {
     /// Something inside the pane holds the keyboard — the Files tab's filter, its inline
     /// rename or one of its menus — so Main still counts the focus as the pane's.
     readonly property bool editing: filesTab.filterEditing || filesTab.renamingRow >= 0
-                                    || fileMenu.opened || priorityMenu.opened || sortMenu.opened
+                                    || root.menuOpen
     /// The caret is in the Files tab's filter field (Main's footer teaches enter/esc then).
     readonly property bool filterEditing: filesTab.filterEditing
-    /// One of the Files tab's menus is up; Main's footer then keeps only its facts (D3).
+    /// One of the pane's menus is up; Main's footer then keeps only its facts (D3).
     readonly property bool menuOpen: fileMenu.opened || priorityMenu.opened || sortMenu.opened
+                                     || trackerMenu.opened || peerMenu.opened || webSeedMenu.opened
     /// The Files tab's range anchor: `v` and shift+click select from it to the cursor. The
     /// last row `space`, a plain click or a ctrl+click left it on, by path, so a fold, a sort
     /// or a filter that rebuilds the rows does not move it onto another file. Empty, or
@@ -468,7 +469,7 @@ Item {
     function openFileMenu(x: real, y: real) {
         if (root.currentTab !== 1 || root.details.files.count === 0)
             return;
-        const at = x < 0 ? filesTab.menuPoint(root.filesCursor, root) : Qt.point(x, y);
+        const at = x < 0 ? filesTab.menuPoint(root.filesCursor, menuHost) : root.mapToItem(menuHost, x, y);
         fileMenu.openAt(at.x, at.y);
     }
 
@@ -476,7 +477,7 @@ Item {
     function openPriorityMenu() {
         if (root.currentTab !== 1 || root.details.files.count === 0)
             return;
-        const at = filesTab.menuPoint(root.filesCursor, root);
+        const at = filesTab.menuPoint(root.filesCursor, menuHost);
         priorityMenu.openAt(at.x, at.y);
     }
 
@@ -484,8 +485,32 @@ Item {
     function openSortMenu() {
         if (root.currentTab !== 1)
             return;
-        const at = filesTab.mapToItem(root, Theme.space(16), Theme.font.body * 2);
+        const at = filesTab.mapToItem(menuHost, Theme.space(16), Theme.font.body * 2);
         sortMenu.openAt(at.x, at.y);
+    }
+
+    /// A right click on a Trackers, Peers or HTTP sources row (the cursor already moved
+    /// there): that tab's menu, at `x`, `y` in the pane's coordinates.
+    function openRowMenu(x: real, y: real): void {
+        const menu = root.currentTab === 2 ? trackerMenu : root.currentTab === 3
+                                                           ? peerMenu : root.currentTab === 4 ? webSeedMenu : null;
+        if (menu === null || root.rowCount === 0)
+            return;
+        const at = root.mapToItem(menuHost, x, y);
+        menu.openAt(at.x, at.y);
+    }
+
+    /// A row of the Trackers, Peers or HTTP sources menu: the same as its key on the list.
+    function rowMenuAction(action: string): void {
+        if (action === "copy") {
+            root.copyCurrent();
+        } else if (root.currentTab === 2) {
+            root.trackerAction(action, action === "add" ? "" : root.details.trackers.urlAt(root.trackersCursor));
+        } else if (root.currentTab === 3) {
+            root.peerAction(action, action === "add" ? "" : root.details.peers.addressAt(root.peersCursor));
+        } else if (root.currentTab === 4) {
+            root.webSeedAction(action, action === "add" ? "" : root.details.webSeeds.urlAt(root.webSeedsCursor));
+        }
     }
 
     /// `/` in the Files tab. A single file has no filter (docs/12 F2): the footer says so,
@@ -640,8 +665,7 @@ Item {
     Keys.onPressed: event => {
         // A menu of the pane is open: what it did not take stops here, so a letter it has no
         // row for cannot run the list's own key underneath it.
-        if ((fileMenu.opened || priorityMenu.opened || sortMenu.opened)
-                && (event.modifiers & Qt.ControlModifier) === 0) {
+        if (root.menuOpen && (event.modifiers & Qt.ControlModifier) === 0) {
             event.accepted = true;
             return;
         }
@@ -1071,6 +1095,12 @@ Item {
                 root.takeKeys();
                 root.trackersCursor = row;
             }
+            onRowMenuRequested: (row, x, y) => {
+                root.takeKeys();
+                root.trackersCursor = row;
+                const at = trackersTab.mapToItem(root, x, y);
+                root.openRowMenu(at.x, at.y);
+            }
         }
 
         DetailsPeersTab {
@@ -1084,6 +1114,12 @@ Item {
             onRowClicked: row => {
                 root.takeKeys();
                 root.peersCursor = row;
+            }
+            onRowMenuRequested: (row, x, y) => {
+                root.takeKeys();
+                root.peersCursor = row;
+                const at = peersTab.mapToItem(root, x, y);
+                root.openRowMenu(at.x, at.y);
             }
         }
 
@@ -1099,6 +1135,12 @@ Item {
             onRowClicked: row => {
                 root.takeKeys();
                 root.webSeedsCursor = row;
+            }
+            onRowMenuRequested: (row, x, y) => {
+                root.takeKeys();
+                root.webSeedsCursor = row;
+                const at = webSeedsTab.mapToItem(root, x, y);
+                root.openRowMenu(at.x, at.y);
             }
         }
     }
@@ -1215,161 +1257,276 @@ Item {
         }
     }
 
-    // --- the Files tab's menus (N1) -------------------------------------------------------
-    // Kit/Menu over the whole pane, opened at the cursor row: `enter` or a right click for the
-    // row's actions, `p` for its priority, `s` for the sort. Each row's key is the same key
-    // the list itself answers to, where it has one.
-
-    Menu {
-        id: fileMenu
-
-        readonly property bool onFolder: root.details.files.isFolder(root.filesCursor)
-        readonly property int selected: root.details.files.selectedCount
-        // Read again whenever the selection count moves (selectedFileCount() is a call).
-        readonly property int selectedFiles: fileMenu.selected >= 0 ? root.details.files.selectedFileCount() : 0
+    // --- the pane's menus (N1) -----------------------------------------------------------
+    // Kit/Menu, opened at the cursor row: in Files `enter` or a right click for the row's
+    // actions, `p` for its priority, `s` for the sort; in Trackers, Peers and HTTP sources a
+    // right click. Each row's key is the same key the list itself answers to.
+    //
+    // They cover the whole window, not the pane: under the table the pane can be a few rows
+    // tall, and a menu clamped inside it ran past its bottom edge and off the window.
+    Item {
+        id: menuHost
 
         anchors.fill: parent
-        items: [
-            {
-                "text": qsTr("open"),
-                "key": "O",
-                "action": "openFile",
-                "disabled": fileMenu.onFolder
-            },
-            {
-                "text": qsTr("open folder"),
-                "key": "o",
-                "action": "reveal"
-            },
-            {
-                "separator": true
-            },
-            {
-                "text": fileMenu.selected > 0 ? qsTr("priority of %n selected…", "", fileMenu.selected)
-                                              : qsTr("priority…"),
-                "key": "p",
-                "action": "priority"
-            },
-            {
-                "text": fileMenu.selectedFiles >= 2 ? qsTr("rename %n files…", "", fileMenu.selectedFiles)
-                        : fileMenu.onFolder ? qsTr("rename folder") : qsTr("rename"),
-                "key": "r",
-                "action": "rename"
-            },
-            {
-                "text": qsTr("rename files…"),
-                "action": "renameMany",
-                "disabled": root.details.files.fileCount < 2
-            },
-            {
-                "separator": true
-            },
-            {
-                "text": qsTr("copy path"),
-                "key": "y",
-                "action": "copyPath"
-            },
-            {
-                "text": qsTr("copy local path"),
-                "key": "Y",
-                "action": "copyLocalPath"
-            },
-            {
-                "text": qsTr("copy name"),
-                "key": "n",
-                "action": "copyName"
-            },
-            {
-                "separator": true
-            },
-            {
-                "text": qsTr("expand all"),
-                "key": "L",
-                "action": "expandAll"
-            },
-            {
-                "text": qsTr("collapse all"),
-                "key": "H",
-                "action": "collapseAll"
-            },
-            {
-                "text": root.details.files.hideSkipped ? qsTr("show skipped files")
-                                                      : qsTr("hide skipped files"),
-                "key": "X",
-                "action": "hideSkipped"
+        objectName: "detailsMenuHost"
+        parent: root.Window.window ? root.Window.window.contentItem : root
+        z: 50
+
+        Menu {
+            id: fileMenu
+
+            readonly property bool onFolder: root.details.files.isFolder(root.filesCursor)
+            readonly property int selected: root.details.files.selectedCount
+            // Read again whenever the selection count moves (selectedFileCount() is a call).
+            readonly property int selectedFiles: fileMenu.selected >= 0 ? root.details.files.selectedFileCount() : 0
+
+            anchors.fill: parent
+            items: [
+                {
+                    "text": qsTr("open"),
+                    "key": "O",
+                    "action": "openFile",
+                    "disabled": fileMenu.onFolder
+                },
+                {
+                    "text": qsTr("open folder"),
+                    "key": "o",
+                    "action": "reveal"
+                },
+                {
+                    "separator": true
+                },
+                {
+                    "text": fileMenu.selected > 0 ? qsTr("priority of %n selected…", "", fileMenu.selected)
+                                                  : qsTr("priority…"),
+                    "key": "p",
+                    "action": "priority"
+                },
+                {
+                    "text": fileMenu.selectedFiles >= 2 ? qsTr("rename %n files…", "", fileMenu.selectedFiles)
+                            : fileMenu.onFolder ? qsTr("rename folder") : qsTr("rename"),
+                    "key": "r",
+                    "action": "rename"
+                },
+                {
+                    "text": qsTr("rename files…"),
+                    "action": "renameMany",
+                    "disabled": root.details.files.fileCount < 2
+                },
+                {
+                    "separator": true
+                },
+                {
+                    "text": qsTr("copy path"),
+                    "key": "y",
+                    "action": "copyPath"
+                },
+                {
+                    "text": qsTr("copy local path"),
+                    "key": "Y",
+                    "action": "copyLocalPath"
+                },
+                {
+                    "text": qsTr("copy name"),
+                    "key": "n",
+                    "action": "copyName"
+                },
+                {
+                    "separator": true
+                },
+                {
+                    "text": qsTr("expand all"),
+                    "key": "L",
+                    "action": "expandAll"
+                },
+                {
+                    "text": qsTr("collapse all"),
+                    "key": "H",
+                    "action": "collapseAll"
+                },
+                {
+                    "text": root.details.files.hideSkipped ? qsTr("show skipped files")
+                                                          : qsTr("hide skipped files"),
+                    "key": "X",
+                    "action": "hideSkipped"
+                }
+            ]
+            menuWidth: Math.min(Theme.space(260), root.width - Theme.space(16))
+            z: 20
+
+            onActivated: action => root.fileAction(action)
+        }
+
+        Menu {
+            id: priorityMenu
+
+            /// The one priority every target shares, -1 when they differ.
+            readonly property int current: priorityMenu.opened
+                                           ? root.details.files.targetPriority(root.filesCursor) : -1
+
+            function row(text: string, key: string, priority: int): var {
+                return {
+                    "text": text,
+                    "key": key,
+                    "action": String(priority),
+                    "glyph": priorityMenu.current === priority ? Glyphs.check : ""
+                };
             }
-        ]
-        menuWidth: Math.min(Theme.space(260), root.width - Theme.space(16))
-        z: 20
 
-        onActivated: action => root.fileAction(action)
-    }
+            anchors.fill: parent
+            items: [priorityMenu.row(qsTr("maximal"), "m", 7), priorityMenu.row(qsTr("high"), "h", 6),
+                priorityMenu.row(qsTr("normal"), "n", 1), priorityMenu.row(qsTr("skip"), "x", 0), {
+                    "separator": true
+                }, {
+                    "text": qsTr("by shown file order"),
+                    "key": "b",
+                    "action": "shownOrder"
+                }]
+            menuWidth: Math.min(Theme.space(240), root.width - Theme.space(16))
+            z: 20
 
-    Menu {
-        id: priorityMenu
-
-        /// The one priority every target shares, -1 when they differ.
-        readonly property int current: priorityMenu.opened
-                                       ? root.details.files.targetPriority(root.filesCursor) : -1
-
-        function row(text: string, key: string, priority: int): var {
-            return {
-                "text": text,
-                "key": key,
-                "action": String(priority),
-                "glyph": priorityMenu.current === priority ? Glyphs.check : ""
-            };
+            onActivated: action => {
+                if (action === "shownOrder")
+                    root.applyShownOrder();
+                else
+                    root.applyPriority(Number(action));
+            }
         }
 
-        anchors.fill: parent
-        items: [priorityMenu.row(qsTr("maximal"), "m", 7), priorityMenu.row(qsTr("high"), "h", 6),
-            priorityMenu.row(qsTr("normal"), "n", 1), priorityMenu.row(qsTr("skip"), "x", 0), {
-                "separator": true
-            }, {
-                "text": qsTr("by shown file order"),
-                "key": "b",
-                "action": "shownOrder"
-            }]
-        menuWidth: Math.min(Theme.space(240), root.width - Theme.space(16))
-        z: 20
+        Menu {
+            id: sortMenu
 
-        onActivated: action => {
-            if (action === "shownOrder")
-                root.applyShownOrder();
-            else
-                root.applyPriority(Number(action));
-        }
-    }
+            function row(text: string, key: string, sortKey: string): var {
+                const files = root.details.files;
+                const current = files.sortKey === sortKey;
+                return {
+                    "text": text,
+                    "key": key,
+                    "action": sortKey,
+                    "glyph": !current ? "" : sortKey === "" ? Glyphs.check : files.sortDescending
+                                                                   ? Glyphs.chevronDown : Glyphs.chevronUp
+                };
+            }
 
-    Menu {
-        id: sortMenu
+            anchors.fill: parent
+            items: [sortMenu.row(qsTr("torrent order"), "t", ""), sortMenu.row(qsTr("name"), "n",
+                                                                                   "name"),
+                sortMenu.row(qsTr("size"), "s", "size"), sortMenu.row(qsTr("progress"), "p",
+                                                                      "progress"),
+                sortMenu.row(qsTr("remaining"), "r", "remaining"), sortMenu.row(qsTr("priority"), "i",
+                                                                                "priority"),
+                sortMenu.row(qsTr("availability"), "a", "availability"), sortMenu.row(qsTr(
+                                                                                         "pieces"),
+                                                                                     "c", "pieces")]
+            menuWidth: Math.min(Theme.space(220), root.width - Theme.space(16))
+            z: 20
 
-        function row(text: string, key: string, sortKey: string): var {
-            const files = root.details.files;
-            const current = files.sortKey === sortKey;
-            return {
-                "text": text,
-                "key": key,
-                "action": sortKey,
-                "glyph": !current ? "" : sortKey === "" ? Glyphs.check : files.sortDescending
-                                                               ? Glyphs.chevronDown : Glyphs.chevronUp
-            };
+            onActivated: action => root.sortFilesBy(action)
         }
 
-        anchors.fill: parent
-        items: [sortMenu.row(qsTr("torrent order"), "t", ""), sortMenu.row(qsTr("name"), "n",
-                                                                               "name"),
-            sortMenu.row(qsTr("size"), "s", "size"), sortMenu.row(qsTr("progress"), "p",
-                                                                  "progress"),
-            sortMenu.row(qsTr("remaining"), "r", "remaining"), sortMenu.row(qsTr("priority"), "i",
-                                                                            "priority"),
-            sortMenu.row(qsTr("availability"), "a", "availability"), sortMenu.row(qsTr(
-                                                                                     "pieces"),
-                                                                                 "c", "pieces")]
-        menuWidth: Math.min(Theme.space(220), root.width - Theme.space(16))
-        z: 20
+        // Trackers: DHT, PeX and LSD are rows of the list, not trackers of the torrent, so they
+        // have nothing to remove.
+        Menu {
+            id: trackerMenu
 
-        onActivated: action => root.sortFilesBy(action)
+            readonly property bool onPseudo: root.details.trackers.urlAt(root.trackersCursor).startsWith("** [")
+
+            anchors.fill: parent
+            items: [
+                {
+                    "text": qsTr("add…"),
+                    "key": "a",
+                    "action": "add"
+                },
+                {
+                    "text": qsTr("remove"),
+                    "key": "d",
+                    "action": "remove",
+                    "disabled": trackerMenu.onPseudo
+                },
+                {
+                    "text": qsTr("reannounce"),
+                    "key": "R",
+                    "action": "reannounce"
+                },
+                {
+                    "separator": true
+                },
+                {
+                    "text": qsTr("copy URL"),
+                    "key": "y",
+                    "action": "copy",
+                    "disabled": trackerMenu.onPseudo
+                }
+            ]
+            menuWidth: Math.min(Theme.space(220), root.width - Theme.space(16))
+            objectName: "trackerMenu"
+            z: 20
+
+            onActivated: action => root.rowMenuAction(action)
+        }
+
+        Menu {
+            id: peerMenu
+
+            anchors.fill: parent
+            items: [
+                {
+                    "text": qsTr("add peer…"),
+                    "key": "a",
+                    "action": "add"
+                },
+                {
+                    "text": qsTr("ban…"),
+                    "key": "b",
+                    "action": "ban"
+                },
+                {
+                    "separator": true
+                },
+                {
+                    "text": qsTr("copy address"),
+                    "key": "y",
+                    "action": "copy"
+                }
+            ]
+            menuWidth: Math.min(Theme.space(220), root.width - Theme.space(16))
+            objectName: "peerMenu"
+            z: 20
+
+            onActivated: action => root.rowMenuAction(action)
+        }
+
+        Menu {
+            id: webSeedMenu
+
+            anchors.fill: parent
+            items: [
+                {
+                    "text": qsTr("add…"),
+                    "key": "a",
+                    "action": "add"
+                },
+                {
+                    "text": qsTr("remove"),
+                    "key": "d",
+                    "action": "remove"
+                },
+                {
+                    "separator": true
+                },
+                {
+                    "text": qsTr("copy URL"),
+                    "key": "y",
+                    "action": "copy"
+                }
+            ]
+            menuWidth: Math.min(Theme.space(220), root.width - Theme.space(16))
+            objectName: "webSeedMenu"
+            z: 20
+
+            onActivated: action => root.rowMenuAction(action)
+        }
     }
 
     // A click away from an open rename commits it, wherever the keyboard went.
