@@ -659,6 +659,36 @@ TestCase {
         sheet.close();
     }
 
+    // #51 D4: the sheet of a server that is not the default has "make default", which does
+    // what `d` on its row does; the default one's sheet has no such button.
+    function test_the_server_sheet_makes_a_server_the_default() {
+        const first = testCase.addTestServer("first", "http://127.0.0.1:8081");
+        const second = testCase.addTestServer("second", "http://127.0.0.1:8082");
+        compare(App.serverList.defaultId, first);
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        modal.showPane(1);
+        const sheet = modal.serverSheet;
+        const texts = () => sheet.actionButtons().map(button => String(button.text));
+
+        sheet.openFor(App.serverList.serverMap(first));
+        compare(texts(), ["test", "remove", "edit"]);
+        sheet.close();
+
+        sheet.openFor(App.serverList.serverMap(second));
+        compare(texts(), ["make default", "test", "remove", "edit"]);
+        const button = sheet.actionButtons()[0];
+        // The foot lays its four buttons out on the next polish.
+        tryVerify(() => sheet.actionButtons()[3].x > button.x);
+        mouseClick(button);
+        compare(App.serverList.defaultId, second);
+        verify(sheet.opened, "the sheet closed");
+        verify(sheet.isDefault);
+        compare(texts(), ["test", "remove", "edit"]);
+        compare(testCase.childNamed(modal, "serverRow1").status, "default");
+        sheet.close();
+    }
+
     function test_the_toggles_round_trip_through_App() {
         const modal = createTemporaryObject(modalComponent, testCase);
         modal.open();

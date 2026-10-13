@@ -8,7 +8,8 @@ import Omaseed.Kit
 // pane. One `Kit/Sheet` with two bodies:
 //
 //   view mode   a `Kit/KeyValue` block — Auth, Key, Path map, Torrents, Reachable — and the
-//               actions `test` / `remove` (danger) / `edit` (primary).
+//               actions `make default` (only on a server that is not the default: what `d`
+//               on its row does, #51 D4) / `test` / `remove` (danger) / `edit` (primary).
 //   edit mode   "Edit opens the fields in place": Name, URL, the three auth chips, the key
 //               (or username + password), and one path mapping; `cancel` / `test` / `save`.
 //
@@ -66,6 +67,8 @@ Sheet {
 
     readonly property string serverId: root.server && root.server.id ? String(root.server.id) : ""
     readonly property bool isNew: root.serverId.length === 0
+    /// The server the app starts on and syncs with; `make default` shows on the others.
+    readonly property bool isDefault: root.server && root.server.isDefault === true
 
     /// The caller saved the sheet; `id` is the server that now exists.
     signal saved(string id)
@@ -86,6 +89,15 @@ Sheet {
     function reviewFor(map: var): void {
         root.openFor(map);
         root._runTest();
+    }
+
+    /// `make default`: the app moves to this server, as `d` on its row does. The sheet stays
+    /// open on it, now the default, so the button goes and the keyboard lands on `edit`.
+    function makeDefault(): void {
+        if (root.isNew || root.isDefault || !App.setDefaultServer(root.serverId))
+            return;
+        root.server = App.serverList.serverMap(root.serverId);
+        root.focusFirst();
     }
 
     /// Show an empty sheet in edit mode (Fig. 16's "+ add a server").
@@ -261,19 +273,23 @@ Sheet {
             "text": qsTr("save"),
             "primary": true
         }
-    ] : [
-        {
-            "text": qsTr("test")
-        },
-        {
-            "text": qsTr("remove"),
-            "danger": true
-        },
-        {
-            "text": qsTr("edit"),
-            "primary": true
-        }
-    ]
+    ] : (root.isNew || root.isDefault ? [] : [
+                                                 {
+                                                     "text": qsTr("make default")
+                                                 }
+                                             ]).concat([
+                                                           {
+                                                               "text": qsTr("test")
+                                                           },
+                                                           {
+                                                               "text": qsTr("remove"),
+                                                               "danger": true
+                                                           },
+                                                           {
+                                                               "text": qsTr("edit"),
+                                                               "primary": true
+                                                           }
+                                                       ])
     glyph: Glyphs.server
     hints: root.editing ? [
         {
@@ -314,6 +330,10 @@ Sheet {
     title: root.editName.length > 0 ? root.editName : qsTr("New server")
 
     onActionTriggered: text => {
+        if (text === qsTr("make default")) {
+            root.makeDefault();
+            return;
+        }
         if (text === qsTr("test")) {
             root._runTest();
             return;
