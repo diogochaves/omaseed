@@ -553,6 +553,17 @@ Flickable {
     interactive: column.height + 2 * scroller.margin > scroller.height
     objectName: "setupScroller"
 
+    // A wheel notch moves three rows and quick notches add up, as in the library
+    // (Kit/WheelScroll), while the column is taller than the room.
+    WheelScroll {
+        anchors.fill: parent
+        enabled: scroller.interactive
+        flickable: scroller
+        objectName: "setupWheel"
+        parent: scroller
+        z: 2
+    }
+
     ScrollBar {
         anchors.bottom: parent.bottom
         anchors.right: parent.right

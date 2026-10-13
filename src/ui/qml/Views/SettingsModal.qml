@@ -967,6 +967,16 @@ Item {
                     objectName: "settingsNav"
                     visible: !root.folded
 
+                    // A wheel notch moves three rows and quick notches add up, as in the
+                    // library (Kit/WheelScroll), on the Flickable rather than what scrolls.
+                    WheelScroll {
+                        anchors.fill: parent
+                        flickable: navScroller
+                        objectName: "settingsNavWheel"
+                        parent: navScroller
+                        z: 2
+                    }
+
                     ColumnLayout {
                         id: navColumn
 
@@ -1207,6 +1217,17 @@ Item {
                                                                                 root._paneOnShow.implicitHeight)
                         contentWidth: width - (paneBar.needed ? paneBar.width + Theme.space(8) : 0)
                         objectName: "paneScroller"
+
+                        // The wheel as in the nav. Not over Keybindings, whose list scrolls
+                        // itself inside a pane that never does.
+                        WheelScroll {
+                            anchors.fill: parent
+                            enabled: root.paneIndex !== 3
+                            flickable: paneStack
+                            objectName: "settingsPaneWheel"
+                            parent: paneStack
+                            z: 2
+                        }
 
                         // On the Flickable, not its content, so it stays put while the pane
                         // scrolls.

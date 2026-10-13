@@ -1049,6 +1049,21 @@ TestCase {
         keyClick(Qt.Key_Tab);
         keyClick(Qt.Key_1);
         compare(scroller.contentY, 0);
+
+        // The wheel moves the pane as it moves the library (Kit/WheelScroll; `mouseWheel`
+        // does not deliver offscreen, so through the one function its wheel calls), but not
+        // over Keybindings, whose list scrolls itself.
+        keyClick(Qt.Key_5);
+        const wheel = testCase.childNamed(scroller, "settingsPaneWheel");
+        verify(wheel !== null && wheel.enabled);
+        compare(wheel.flickable, scroller);
+        wheel.duration = 0;
+        wheel.scrollBy(wheel.step);
+        verify(scroller.contentY > 0);
+        keyClick(Qt.Key_4);
+        verify(!wheel.enabled);
+        compare(testCase.childNamed(modal, "settingsNavWheel").flickable,
+                testCase.childNamed(modal, "settingsNav"));
     }
 
     // docs/15 Q3 A: below 700 px the nav folds into tabs across the top, the rows take the
