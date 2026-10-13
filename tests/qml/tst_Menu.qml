@@ -102,7 +102,7 @@ TestCase {
 
     function test_the_rows_are_rail_row_tall() {
         const menu = createTemporaryObject(menuComponent, testCase);
-        const rows = menu.panel.children[0].children;
+        const rows = menu.rowsLayout.children;
         compare(rows[0].height, Theme.railRowHeight);
         compare(rows[1].height, Theme.railRowHeight);
         compare(rows[2].height, 2 * Theme.space(4) + 1); // the separator
@@ -121,8 +121,7 @@ TestCase {
         menu.heading = "2 selected";
         compare(heading.visible, true);
         compare(menu.panel.height, plain + Theme.railRowHeight + 2 * Theme.space(4) + 1);
-        const rows = menu.panel.children[0];
-        compare(rows.y, heading.y + heading.height);
+        compare(menu.rowsScroller.y, heading.y + heading.height);
         compare(heading.children[0].text, "2 selected");
         compare(heading.children[0].dim, true);
 
@@ -163,6 +162,71 @@ TestCase {
         menu.openAt(-200, -200);
         compare(menu.panel.x, Theme.space(8));
         compare(menu.panel.y, Theme.space(8));
+    }
+
+    // A long menu in a short window: the panel stops at the window's edges and its rows
+    // scroll, so the last ones ("open folder", "delete" in the actions menu) stay reachable.
+    function test_a_long_menu_is_cut_to_the_window_and_scrolls() {
+        const rows = [];
+        for (let i = 0; i < 30; ++i)
+            rows.push({
+                          "text": "row " + i,
+                          "action": "a" + i
+                      });
+        const menu = createTemporaryObject(menuComponent, testCase, {
+                                               "items": rows
+                                           });
+        menu.openAt(100, 300);
+        const edge = Theme.space(8);
+        verify(menu.panel.implicitHeight > testCase.height);
+        compare(menu.panel.y, edge);
+        compare(menu.panel.height, testCase.height - 2 * edge);
+        const scroller = menu.rowsScroller;
+        verify(scroller.contentHeight > scroller.height);
+        compare(scroller.contentY, 0);
+        verify(findChild(menu, "menuScrollBar").visible, "no scroll bar on an overflowing menu");
+
+        // The keyboard cursor keeps itself in view.
+        for (let i = 0; i < 29; ++i)
+            keyClick(Qt.Key_Down);
+        compare(menu.cursorIndex, 29);
+        const last = menu.rowsLayout.children[29];
+        verify(last.y + last.height <= scroller.contentY + scroller.height + 0.5,
+               "the cursor's row is below the fold");
+        verify(scroller.contentY > 0);
+        for (let i = 0; i < 29; ++i)
+            keyClick(Qt.Key_Up);
+        compare(scroller.contentY, 0);
+
+        // The wheel scrolls the rows rather than stopping at the panel.
+        mouseWheel(scroller, scroller.width / 2, scroller.height / 2, 0, -120);
+        tryVerify(() => scroller.contentY > 0, 1000, "the wheel did not scroll the rows");
+
+        // Opening again starts from the top.
+        menu.close();
+        menu.openAt(100, 300);
+        compare(scroller.contentY, 0);
+    }
+
+    function test_a_short_menu_does_not_scroll() {
+        const menu = createTemporaryObject(menuComponent, testCase);
+        menu.openAt(100, 100);
+        compare(menu.panel.height, menu.panel.implicitHeight);
+        compare(menu.rowsScroller.interactive, false);
+        compare(findChild(menu, "menuScrollBar").visible, false);
+    }
+
+    // A row that runs says so to the pointer, as the filter menu's rows do.
+    function test_rows_show_a_pointing_hand() {
+        const menu = createTemporaryObject(menuComponent, testCase);
+        menu.open();
+        const row = menu.rowsLayout.children[3];
+        const area = row.children[row.children.length - 1];
+        compare(area.cursorShape, Qt.PointingHandCursor);
+        mouseMove(row, 20, 5);
+        compare(menu.cursorIndex, 3, "hover did not move the cursor");
+        mouseClick(row, 20, 5);
+        compare(menu.opened, false, "a click did not run the row");
     }
 
     // ---- the cursor -------------------------------------------------------------------
@@ -310,7 +374,7 @@ TestCase {
         const menu = createTemporaryObject(menuComponent, testCase);
         menu.open();
         compare(menu.panel.Accessible.role, Accessible.PopupMenu);
-        const rows = menu.panel.children[0].children;
+        const rows = menu.rowsLayout.children;
         compare(rows[0].Accessible.role, Accessible.MenuItem);
         compare(rows[0].Accessible.name, "start");
         compare(rows[2].Accessible.role, Accessible.Separator);

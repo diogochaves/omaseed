@@ -6,7 +6,11 @@ import Omaseed.Kit
 // The anchored actions list of spec v2 §3 Fig. 11 (`.menu`, `.actions`): verb at the left,
 // key at the right, separators between the groups. Opened at the cursor row on `enter` or by
 // a right-click, so the caller sets `anchorX`/`anchorY` in this item's own coordinates; the
-// panel clamps itself inside the item rather than hanging off the window edge.
+// panel clamps itself inside the item rather than hanging off the window edge. Taller than the
+// item (the actions menu on a short window), the panel is cut to the item's height less the
+// edges and its rows scroll: the wheel moves them, and the keyboard cursor keeps itself in
+// view. The clamp already slides a panel that does not fit below its anchor up over it, so a
+// menu never needs to flip to open upwards.
 //
 // `items` is `[{text, glyph, key, action, disabled, danger}]`, or `{separator: true}` for a
 // rule. `activated` carries `action` when the row has one and the text otherwise. `heading`,
@@ -43,6 +47,9 @@ Item {
 
     readonly property bool opened: root._opened
     readonly property alias panel: panel
+    /// The rows' column and the Flickable that scrolls it, for the tests.
+    readonly property alias rowsLayout: rows
+    readonly property alias rowsScroller: rowScroller
 
     /// The row's `action`, or its `text` when it has none.
     signal activated(string action)
@@ -62,6 +69,8 @@ Item {
         root._previousFocus = root.Window.activeFocusItem;
         root.cursorIndex = root._firstEnabled();
         root._opened = true;
+        rowScroller.contentY = 0;
+        root._showCursor();
         root.forceActiveFocus();
     }
 
@@ -98,10 +107,23 @@ Item {
         while (at >= 0 && at < root.items.length) {
             if (root.selectable(at)) {
                 root.cursorIndex = at;
+                root._showCursor();
                 return;
             }
             at += delta;
         }
+    }
+
+    /// Scroll the rows so the cursor's row is in view. Only the keyboard asks: a row the
+    /// pointer moves onto is already in view, and scrolling to it would fight the wheel.
+    function _showCursor(): void {
+        const row = rowRepeater.itemAt(root.cursorIndex);
+        if (row === null)
+            return;
+        if (row.y < rowScroller.contentY)
+            rowScroller.contentY = row.y;
+        else if (row.y + row.height > rowScroller.contentY + rowScroller.height)
+            rowScroller.contentY = row.y + row.height - rowScroller.height;
     }
 
     /// True when row `index` is a real, enabled row.
@@ -216,6 +238,9 @@ Item {
         border.width: 1
         color: Theme.background
         implicitHeight: heading.height + rows.implicitHeight + 2 * panel.padding
+        // Never taller than the item it clamps itself in: the rows scroll instead.
+        height: root.inline ? implicitHeight
+                : Math.min(implicitHeight, Math.max(0, root.height - 2 * root._edge))
         radius: Theme.cornerRadius
         width: Math.min(root.menuWidth, root.inline ? root.menuWidth
                 : Math.max(0, root.width - 2 * root._edge))
@@ -225,93 +250,133 @@ Item {
                 : Math.max(root._edge, Math.min(root._up ? root.anchorY - height : root.anchorY,
                                                 root.height - height - root._edge))
 
-        ColumnLayout {
-            id: rows
+        Flickable {
+            id: rowScroller
 
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: panel.padding
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: heading.bottom
-            spacing: 0
+            boundsBehavior: Flickable.StopAtBounds
+            clip: true
+            contentHeight: rows.implicitHeight
+            contentWidth: width
+            interactive: contentHeight > height
+            objectName: "menuRowScroller"
 
-            Repeater {
-                model: root.items
+            ColumnLayout {
+                id: rows
 
-                Item {
-                    id: menuRow
+                objectName: "menuRows"
+                spacing: 0
+                width: rowScroller.width
 
-                    required property int index
-                    required property var modelData
+                Repeater {
+                    id: rowRepeater
 
-                    readonly property bool current: menuRow.index === root.cursorIndex
-                    readonly property bool disabled: menuRow.modelData.disabled === true
-                    readonly property bool separator: menuRow.modelData.separator === true
+                    model: root.items
 
-                    Accessible.name: menuRow.modelData.text ?? ""
-                    Accessible.role: menuRow.separator ? Accessible.Separator : Accessible.MenuItem
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: menuRow.separator ? 2 * Theme.space(4) + 1
-                            : Theme.railRowHeight
+                    Item {
+                        id: menuRow
 
-                    Rectangle {
-                        anchors.fill: parent
-                        color: Theme.fill(Theme.fillHover)
-                        visible: menuRow.current && !menuRow.separator
-                    }
+                        required property int index
+                        required property var modelData
 
-                    Hairline {
-                        anchors.left: parent.left
-                        anchors.leftMargin: Theme.space(14)
-                        anchors.right: parent.right
-                        anchors.rightMargin: Theme.space(14)
-                        anchors.verticalCenter: parent.verticalCenter
-                        visible: menuRow.separator
-                    }
+                        readonly property bool current: menuRow.index === root.cursorIndex
+                        readonly property bool disabled: menuRow.modelData.disabled === true
+                        readonly property bool separator: menuRow.modelData.separator === true
 
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: Theme.space(14)
-                        anchors.rightMargin: Theme.space(14)
-                        spacing: Theme.space(8)
-                        visible: !menuRow.separator
+                        Accessible.name: menuRow.modelData.text ?? ""
+                        Accessible.role: menuRow.separator ? Accessible.Separator
+                                                           : Accessible.MenuItem
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: menuRow.separator ? 2 * Theme.space(4) + 1
+                                : Theme.railRowHeight
 
-                        Glyph {
-                            Layout.preferredHeight: Theme.font.body
-                            Layout.preferredWidth: Theme.space(14)
-                            color: Theme.dimForeground
-                            text: menuRow.modelData.glyph ?? ""
-                            visible: text.length > 0
+                        Rectangle {
+                            anchors.fill: parent
+                            color: Theme.fill(Theme.fillHover)
+                            visible: menuRow.current && !menuRow.separator
                         }
 
-                        Label {
-                            Layout.fillWidth: true
-                            color: menuRow.disabled ? Theme.dimForeground
-                                    : menuRow.modelData.danger === true ? Theme.red
-                                    : menuRow.current ? Theme.accent : Theme.foreground
-                            elide: Text.ElideRight
-                            text: menuRow.modelData.text !== undefined ? menuRow.modelData.text : ""
+                        Hairline {
+                            anchors.left: parent.left
+                            anchors.leftMargin: Theme.space(14)
+                            anchors.right: parent.right
+                            anchors.rightMargin: Theme.space(14)
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: menuRow.separator
                         }
 
-                        Label {
-                            dim: true
-                            size: "caption"
-                            text: menuRow.modelData.key !== undefined ? menuRow.modelData.key : ""
-                            visible: text.length > 0
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: Theme.space(14)
+                            anchors.rightMargin: Theme.space(14)
+                            spacing: Theme.space(8)
+                            visible: !menuRow.separator
+
+                            Glyph {
+                                Layout.preferredHeight: Theme.font.body
+                                Layout.preferredWidth: Theme.space(14)
+                                color: Theme.dimForeground
+                                text: menuRow.modelData.glyph ?? ""
+                                visible: text.length > 0
+                            }
+
+                            Label {
+                                Layout.fillWidth: true
+                                color: menuRow.disabled ? Theme.dimForeground
+                                        : menuRow.modelData.danger === true ? Theme.red
+                                        : menuRow.current ? Theme.accent : Theme.foreground
+                                elide: Text.ElideRight
+                                text: menuRow.modelData.text !== undefined
+                                      ? menuRow.modelData.text : ""
+                            }
+
+                            Label {
+                                dim: true
+                                size: "caption"
+                                text: menuRow.modelData.key !== undefined
+                                      ? menuRow.modelData.key : ""
+                                visible: text.length > 0
+                            }
                         }
-                    }
 
-                    MouseArea {
-                        anchors.fill: parent
-                        enabled: !menuRow.separator && !menuRow.disabled
-                        hoverEnabled: true
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            enabled: !menuRow.separator && !menuRow.disabled
+                            hoverEnabled: true
 
-                        onClicked: root.activate(menuRow.index)
-                        onEntered: root.cursorIndex = menuRow.index
+                            onClicked: root.activate(menuRow.index)
+                            onEntered: root.cursorIndex = menuRow.index
+                        }
                     }
                 }
             }
         }
 
-        // After `rows` so `children[0]` stays the layout; drawn above it all the same.
+        // A wheel notch moves three rows, and adds to a glide still running.
+        WheelScroll {
+            anchors.fill: rowScroller
+            flickable: rowScroller
+            rowHeight: Theme.railRowHeight
+        }
+
+        // There is more above or below: a thin bar at the right edge, inside the border,
+        // shown only while the rows overflow.
+        ScrollBar {
+            flickable: rowScroller
+            height: rowScroller.height
+            objectName: "menuScrollBar"
+            vertical: true
+            width: Theme.space(4)
+            x: panel.width - width - panel.border.width - Theme.space(2)
+            y: rowScroller.y
+        }
+
+        // After the rows, drawn above them all the same.
         Item {
             id: heading
 
