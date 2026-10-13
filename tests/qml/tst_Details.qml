@@ -1295,6 +1295,63 @@ TestCase {
         compare(Math.round(headerX), Math.round(rowX));
     }
 
+    // A click away from an open rename commits it, as a file manager does: the pane is never
+    // left with the editor open and every key swallowed.
+    function test_a_click_on_another_row_commits_the_rename() {
+        const view = testCase.filesView();
+        const files = App.details.files;
+        waitForRendering(view);
+        view.moveCursor(4); // subs/bbb.en.srt
+        renameSpy.target = App;
+        renameSpy.clear();
+
+        keyClick("r");
+        keyClick("e");
+        keyClick("n");
+        mouseClick(findChild(view, "fileRow_1"), 120, 4);
+        compare(renameSpy.count, 1);
+        compare(renameSpy.signalArguments[0][2], "Big Buck Bunny 4K/subs/en.srt");
+        verify(!view.editing, "the editor stayed open");
+        compare(view.cursorIndex, 1);
+        verify(view.activeFocus, "the pane did not take the keys");
+        keyClick(Qt.Key_J);
+        compare(view.cursorIndex, 2, "the pane still swallows its keys");
+    }
+
+    // The keyboard going elsewhere (a click on the table) commits too, and stays there; `esc`
+    // still cancels.
+    function test_the_focus_leaving_commits_the_rename_and_esc_cancels() {
+        const view = testCase.filesView();
+        waitForRendering(view);
+        view.moveCursor(4);
+        renameSpy.target = App;
+        renameSpy.clear();
+
+        keyClick("r");
+        keyClick(Qt.Key_Escape);
+        verify(!view.editing);
+        compare(renameSpy.count, 0, "esc renamed the file");
+
+        keyClick("r");
+        keyClick("x");
+        elsewhere.forceActiveFocus();
+        compare(renameSpy.count, 1);
+        compare(renameSpy.signalArguments[0][2], "Big Buck Bunny 4K/subs/x.srt");
+        verify(!view.editing);
+        verify(elsewhere.activeFocus, "the commit took the keyboard back");
+
+        // The pane given the keyboard back while a rename is open (a click on a tab): it
+        // commits, and the pane hears its keys again.
+        view.forceActiveFocus();
+        view.moveCursor(1);
+        keyClick("r");
+        view.forceActiveFocus();
+        verify(!view.editing, "the rename stayed open without the keyboard");
+        compare(renameSpy.count, 1, "an unchanged name was sent");
+        keyClick(Qt.Key_K);
+        compare(view.cursorIndex, 4, "the pane still swallows its keys");
+    }
+
     // A click on a column's caption sorts and gives the pane the keyboard, as a row does.
     function test_a_header_click_sorts_and_takes_the_keys() {
         const view = testCase.filesView();

@@ -178,6 +178,16 @@ Item {
             editor.forceActiveFocus();
     }
 
+    /// True when `item` is the list or inside it: where the focus lands for a moment when a
+    /// reset or a scroll rebuilds the rename's row, before focusRenameEditor() takes it back.
+    function holdsListFocus(item: Item): bool {
+        for (let at = item; at !== null; at = at.parent) {
+            if (at === list)
+                return true;
+        }
+        return false;
+    }
+
     function _findEditor(item: Item): Item {
         if (item.objectName === "fileRenameEditor")
             return item;

@@ -358,11 +358,19 @@ Item {
     }
 
     function commitRename(text: string) {
+        root._endRename(text, true);
+    }
+
+    /// Closes the inline rename and sends `text` as the new name. `refocus` hands the keys
+    /// back to the pane, as `enter` in the editor does; a rename committed because the focus
+    /// went elsewhere (a click on the table) leaves it there.
+    function _endRename(text: string, refocus: bool) {
         const open = filesTab.renamingRow >= 0;
         const path = root._renamePath;
         filesTab.renamingRow = -1;
         root._renamePath = "";
-        root.forceActiveFocus();
+        if (refocus)
+            root.forceActiveFocus();
         // By the path the rename started on: a re-sort may have moved the rows since, so
         // the name and the file-or-folder kind come from the row that path is on now.
         const row = path.length > 0 ? root.details.files.rowOfPath(path) : -1;
@@ -388,9 +396,36 @@ Item {
 
     /// A click in the pane gives it the keyboard, as `l` from the table does: without it a
     /// click on a file left the keys with the table, and `ctrl+a` selected every torrent.
+    /// A click away from an open inline rename commits it first, as a file manager does.
     function takeKeys() {
+        if (filesTab.renamingRow >= 0)
+            root.commitRename(filesTab.renameText);
         if (!root.activeFocus)
             root.forceActiveFocus();
+    }
+
+    /// takeKeys() for a click on Files row `row`. The rename it may commit can rebuild the
+    /// rows (a local rename, a sort by name), so the clicked row is found again by its path.
+    function _takeKeysAt(row: int): int {
+        const path = root.details.files.pathAt(row);
+        root.takeKeys();
+        const now = path.length > 0 ? root.details.files.rowOfPath(path) : -1;
+        return now >= 0 ? now : row;
+    }
+
+    /// The window's keyboard moved while a rename was open. Anywhere but the editor, it
+    /// commits: a click on the table, the filter, another tab. Not when it went nowhere (the
+    /// window lost the keyboard to another app, and the rename waits for it to come back), nor
+    /// to the list or the window's root, where a row rebuilt by a reset or a scroll leaves it
+    /// for a moment before `_followRename` gives it back to the new editor.
+    function _focusMoved(): void {
+        if (filesTab.renamingRow < 0)
+            return;
+        const item = root.Window.activeFocusItem;
+        if (item === null || item === root.Window.contentItem || item.objectName === "fileRenameEditor"
+                || filesTab.holdsListFocus(item))
+            return;
+        root._endRename(filesTab.renameText, item === root);
     }
 
     function cancelRename() {
@@ -610,10 +645,16 @@ Item {
             event.accepted = true;
             return;
         }
-        // The inline rename's editor keeps every key it does not use itself.
+        // The inline rename's editor keeps every key it does not use itself. A key that
+        // reaches the pane while the editor no longer holds the keyboard (its row scrolled
+        // away) ends the rename instead, so the pane is never left deaf to its own keys.
         if (filesTab.renamingRow >= 0) {
-            event.accepted = true;
-            return;
+            const focused = root.Window.activeFocusItem;
+            if (focused !== null && focused.objectName === "fileRenameEditor") {
+                event.accepted = true;
+                return;
+            }
+            root.commitRename(filesTab.renameText);
         }
         // The one ctrl key of the Files tab; the rest of ctrl belongs to the window.
         if (root.currentTab === 1 && !root.menuOpen && event.key === Qt.Key_A
@@ -1005,17 +1046,13 @@ Item {
                 if (!root.details.files.isFolder(row))
                     root.openFileRequested(root.details.files.pathAt(row));
             }
-            onRowClicked: (row, modifiers) => {
-                root.takeKeys();
-                root.clickFile(row, modifiers);
-            }
+            onRowClicked: (row, modifiers) => root.clickFile(root._takeKeysAt(row), modifiers)
             onRowMenuRequested: (row, x, y) => {
                 const at = filesTab.mapToItem(root, x, y);
-                root.takeKeys();
-                root.fileMenuAt(row, at.x, at.y);
+                root.fileMenuAt(root._takeKeysAt(row), at.x, at.y);
             }
             onTickClicked: (row, wanted) => {
-                root.takeKeys();
+                row = root._takeKeysAt(row);
                 root.filesCursor = row;
                 App.setFilesWanted(root.details.hash, root.details.files.fileIndexes(row),
                                    wanted !== 2);
@@ -1333,6 +1370,15 @@ Item {
         z: 20
 
         onActivated: action => root.sortFilesBy(action)
+    }
+
+    // A click away from an open rename commits it, wherever the keyboard went.
+    Connections {
+        function onActiveFocusItemChanged(): void {
+            root._focusMoved();
+        }
+
+        target: root.Window.window
     }
 
     // Another torrent: the Files anchor belonged to the last one's rows.
