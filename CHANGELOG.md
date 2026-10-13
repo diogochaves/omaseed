@@ -31,6 +31,19 @@ before it will tag a release.
   through folded Settings tabs.
 - Tooltips name the keys of the add, settings and help buttons, and show the full text of
   cut-off names in the table, rail, details, seed console and settings.
+- A double-click on a torrent opens its details; a ✕ on the selection bar clears the
+  selection; a right-click on a column header opens the columns palette; the mouse's back
+  button steps back like `esc`, and a middle-click adds or removes a row from the selection.
+- While the pointer is over the torrent table, its rows hold their order (values still
+  update), so a click lands on the torrent you aimed at; leaving it sorts again.
+- Dragging files over the window shows "drop to add".
+- Trackers, Peers and HTTP sources select several rows: remove several trackers or HTTP
+  sources, ban several peers, or copy them all at once.
+- In the Files tab a folder folds on its arrow or a double-click; a plain click selects it.
+  A third click on the sorted column goes back to the torrent's own order.
+- A server can be made the default by mouse: a button in its sheet, or its row's right-click
+  menu in Settings.
+- A number field steps with the mouse wheel while it has the caret.
 
 ### Fixed
 
@@ -40,6 +53,10 @@ before it will tag a release.
 - Settings' own number fields (low-disk threshold, base size, transparency) lost a typed value
   when the caret left them by a click.
 - A switch in Settings kept its focus ring after a click.
+- Dropping one .torrent from a file manager listed it twice in the add sheet.
+- A palette or menu that opened under a resting pointer handed it the cursor.
+- The add sheet's "N ticked" line counted torrents already in the library; it now says how
+  many the add takes.
 
 - File and folder pickers open as dialogs of the omaseed window, so a portal chooser other
   than GTK's (Strata's, for one) floats over omaseed instead of tiling beside it.
