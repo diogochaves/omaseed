@@ -1505,9 +1505,21 @@ Item {
 
             FilteredEmpty {
                 anchors.centerIn: parent
-                scopeName: App.filtered.category !== undefined
-                           && App.filtered.category !== null ? String(
-                                                                   App.filtered.category) : ""
+                objectName: "filteredEmpty"
+                // #51 D13: every rail scope but the status, which has its own words.
+                scopeName: {
+                    const parts = [];
+                    const category = App.filtered.category;
+                    if (category !== undefined && category !== null)
+                        parts.push(category === "" ? qsTr("no category") : String(category));
+                    const tag = App.filtered.tag;
+                    if (tag !== undefined && tag !== null)
+                        parts.push(tag === "" ? qsTr("untagged") : String(tag));
+                    const tracker = App.filtered.tracker;
+                    if (tracker !== undefined && tracker !== null)
+                        parts.push(rail.trackerText(String(tracker)));
+                    return parts.join(" · ");
+                }
                 statusName: root.statusName(App.filtered.statusFilter)
                 text: App.filtered.text
                 visible: root.filterEmpty

@@ -3,12 +3,14 @@ import Omaseed.Kit
 
 // The filter-with-no-result state (spec v2 §7 Fig. 24): `Nothing matches "<text>" in
 // <status>` over the note `esc clears the filter · 0 shows all statuses` (small dim, `esc`
-// and `0` set as key chips, each half also clickable). Three shapes, chosen from the properties the caller passes:
+// and `0` set as key chips, each half also clickable). Each half shows only when its key does
+// something: `esc` while there is filter text, `0` while a status narrows the table (#51
+// D13). Three shapes, chosen from the properties the caller passes:
 //   - `text` set, `statusName` a real status (not "All"/empty): `Nothing matches "<text>" in
 //     <statusName>`.
 //   - `text` set, no narrowing status: `Nothing matches "<text>"`.
-//   - `text` empty, a category/tag/tracker filter narrowed the table to nothing:
-//     `Nothing in <scopeName>`.
+//   - `text` empty, a category/tag/tracker filter (or only a status) narrowed the table to
+//     nothing: `Nothing in <scopeName>` (or `<statusName>`).
 Item {
     id: root
 
@@ -17,6 +19,7 @@ Item {
     property string text: ""
 
     readonly property bool _hasStatus: root.statusName.length > 0 && root.statusName !== qsTr("All")
+    readonly property bool _hasText: root.text.length > 0
     readonly property string message: root._computeMessage()
 
     /// A click on `esc clears the filter`: the host runs what `esc` runs.
@@ -30,7 +33,9 @@ Item {
                                          root.statusName) : qsTr("Nothing matches \"%1\"").arg(
                                          root.text);
         }
-        return root.scopeName.length > 0 ? qsTr("Nothing in %1").arg(root.scopeName) : "";
+        if (root.scopeName.length > 0)
+            return qsTr("Nothing in %1").arg(root.scopeName);
+        return root._hasStatus ? qsTr("Nothing in %1").arg(root.statusName) : "";
     }
 
     implicitHeight: column.implicitHeight
@@ -58,6 +63,8 @@ Item {
             Item {
                 height: clearRow.implicitHeight
                 objectName: "clearFilterLink"
+                // Without filter text, `esc` has no filter to clear (#51 D13).
+                visible: root._hasText
                 width: clearRow.implicitWidth
 
                 Row {
@@ -97,7 +104,7 @@ Item {
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.font.small
                 text: "·"
-                visible: root._hasStatus
+                visible: root._hasText && root._hasStatus
             }
 
             Item {

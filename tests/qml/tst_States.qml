@@ -140,6 +140,40 @@ TestCase {
         compare(filtered.message, "Nothing in movies");
     }
 
+    // #51 D13: each half of the note only while its key does something there: no filter
+    // text, no `esc`; a scope with no status narrowing it, no note at all.
+    function test_the_note_offers_only_what_applies() {
+        const scoped = createTemporaryObject(filteredEmptyComponent, testCase, {
+                                                 "scopeName": "movies",
+                                                 "statusName": "All"
+                                             });
+        waitForRendering(scoped, 250);
+        verify(!findChild(scoped, "clearFilterLink").visible, "esc has no filter to clear");
+        verify(!findChild(scoped, "allStatusesLink").visible);
+
+        const statusAndScope = createTemporaryObject(filteredEmptyComponent, testCase, {
+                                                         "scopeName": "movies",
+                                                         "statusName": "Downloading"
+                                                     });
+        compare(statusAndScope.message, "Nothing in movies");
+        verify(!findChild(statusAndScope, "clearFilterLink").visible);
+        verify(findChild(statusAndScope, "allStatusesLink").visible);
+
+        const statusOnly = createTemporaryObject(filteredEmptyComponent, testCase, {
+                                                     "statusName": "Checking"
+                                                 });
+        compare(statusOnly.message, "Nothing in Checking");
+        verify(!findChild(statusOnly, "clearFilterLink").visible);
+        verify(findChild(statusOnly, "allStatusesLink").visible);
+
+        const text = createTemporaryObject(filteredEmptyComponent, testCase, {
+                                               "text": "x",
+                                               "statusName": "Downloading"
+                                           });
+        verify(findChild(text, "clearFilterLink").visible);
+        verify(findChild(text, "allStatusesLink").visible);
+    }
+
     // ------------------------------------------------------------------------- DropOverlay
     Component {
         id: dropOverlayComponent

@@ -1395,4 +1395,16 @@ TestCase {
         verify(!view.table.holdOrder);
         tryVerify(() => !App.filtered.holdOrder, 1000);
     }
+
+    // D13: the no-match note for a scope with no filter text names the scope and offers no
+    // `esc`, which would clear nothing.
+    function test_the_scope_only_note_has_no_escape_half() {
+        App.filtered.category = "nothing-is-filed-here";
+        verify(view.filterEmpty);
+        const empty = findChild(view, "filteredEmpty");
+        verify(empty.visible);
+        compare(empty.message, "Nothing in nothing-is-filed-here");
+        verify(!findChild(empty, "clearFilterLink").visible);
+        App.filtered.clearCategory();
+    }
 }
