@@ -182,6 +182,7 @@ QStringList Torrent::applyJson(const QJsonObject &json)
     take(json, QLatin1StringView("tags"), tags, asTags, changed);
     take(json, QLatin1StringView("save_path"), savePath, asString, changed);
     take(json, QLatin1StringView("content_path"), contentPath, asString, changed);
+    take(json, QLatin1StringView("download_path"), downloadPath, asString, changed);
 
     take(json, QLatin1StringView("added_on"), addedOn, asTimestamp, changed);
     take(json, QLatin1StringView("completion_on"), completionOn, asTimestamp, changed);

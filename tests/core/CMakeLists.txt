@@ -300,3 +300,8 @@ omaseed_add_test(tst_omaseedbackup
     SOURCES tst_omaseedbackup.cpp
     LIBRARIES omaseed::core Qt6::Sql
 )
+
+omaseed_add_test(tst_torrentproblem
+    SOURCES tst_torrentproblem.cpp
+    LIBRARIES omaseed::core
+)

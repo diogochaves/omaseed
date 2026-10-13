@@ -99,6 +99,7 @@ struct Torrent
     QStringList tags; ///< the comma list, split and trimmed
     QString savePath;
     QString contentPath;
+    QString downloadPath; ///< the incomplete folder, when "keep incomplete in" is on
 
     QDateTime addedOn;
     QDateTime completionOn; ///< invalid while the torrent is incomplete
