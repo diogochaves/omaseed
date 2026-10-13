@@ -506,6 +506,25 @@ Item {
         thresholdField.text = String(App.lowDiskThresholdGiB);
     }
 
+    /// The three number fields' values reach App on `enter` and when the caret leaves the
+    /// field (a click elsewhere), as the qBittorrent rows' fields do: typed and clicked away,
+    /// a value used to stay in the field unapplied. Either way, what does not parse is the
+    /// field's empty meaning, and the field then shows what App kept.
+    function _applyThreshold(): void {
+        App.lowDiskThresholdGiB = parseInt(thresholdField.text, 10) || 2;
+        root._syncThresholdField();
+    }
+
+    function _applyBaseSize(): void {
+        App.baseSizeOverride = parseInt(baseSizeField.text, 10) || 0;
+        root._syncAppearanceFields();
+    }
+
+    function _applyAlpha(): void {
+        App.windowAlphaOverride = parseInt(alphaField.text, 10) || 0;
+        root._syncAppearanceFields();
+    }
+
     /// Base size and transparency likewise show a stored override, and nothing (the
     /// placeholder: follow / the shell's value) when there is none, so an override set in an
     /// earlier session is visible, and a value App refused does not stay in the field. A
@@ -1520,14 +1539,17 @@ Item {
                                     trailing: qsTr("GiB")
 
                                     onAccepted: {
-                                        App.lowDiskThresholdGiB = parseInt(text, 10) || 2;
-                                        root._syncThresholdField();
+                                        root._applyThreshold();
                                         bodyItem.forceActiveFocus();
                                     }
                                     onCleared: {
                                         App.lowDiskThresholdGiB = 2;
                                         root._syncThresholdField();
                                         bodyItem.forceActiveFocus();
+                                    }
+                                    onEditingChanged: {
+                                        if (!thresholdField.editing)
+                                            root._applyThreshold();
                                     }
                                 }
                             }
@@ -1660,13 +1682,16 @@ Item {
                                     trailing: qsTr("px")
 
                                     onAccepted: {
-                                        App.baseSizeOverride = parseInt(text, 10) || 0;
+                                        root._applyBaseSize();
                                         bodyItem.forceActiveFocus();
-                                        root._syncAppearanceFields();
                                     }
                                     onCleared: {
                                         App.baseSizeOverride = 0;
                                         bodyItem.forceActiveFocus();
+                                    }
+                                    onEditingChanged: {
+                                        if (!baseSizeField.editing)
+                                            root._applyBaseSize();
                                     }
                                 }
                             }
@@ -1693,13 +1718,16 @@ Item {
                                     trailing: qsTr("%")
 
                                     onAccepted: {
-                                        App.windowAlphaOverride = parseInt(text, 10) || 0;
+                                        root._applyAlpha();
                                         bodyItem.forceActiveFocus();
-                                        root._syncAppearanceFields();
                                     }
                                     onCleared: {
                                         App.windowAlphaOverride = 0;
                                         bodyItem.forceActiveFocus();
+                                    }
+                                    onEditingChanged: {
+                                        if (!alphaField.editing)
+                                            root._applyAlpha();
                                     }
                                 }
                             }

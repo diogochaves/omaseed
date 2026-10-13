@@ -837,6 +837,50 @@ TestCase {
         compare(testCase.childNamed(modal, "baseSizeField").text, "");
     }
 
+    // A number typed and clicked away from reaches App as enter would have sent it: it used
+    // to show in the field and never apply. What does not parse is the empty meaning, again
+    // as on enter.
+    function test_the_number_fields_apply_when_the_caret_leaves() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        const probe = createTemporaryObject(probeComponent, testCase);
+
+        keyClick(Qt.Key_5);
+        const base = testCase.childNamed(modal, "baseSizeField");
+        base.focusInput();
+        base.text = "18";
+        probe.forceActiveFocus();
+        verify(!base.editing);
+        compare(App.baseSizeOverride, 18);
+        compare(base.text, "18");
+
+        const alpha = testCase.childNamed(modal, "windowAlphaField");
+        alpha.focusInput();
+        alpha.text = "40"; // outside 50–100: "follow the shell", as on enter
+        probe.forceActiveFocus();
+        compare(App.windowAlphaOverride, 0);
+        compare(alpha.text, "");
+        alpha.focusInput();
+        alpha.text = "85";
+        probe.forceActiveFocus();
+        compare(App.windowAlphaOverride, 85);
+
+        keyClick(Qt.Key_3);
+        const threshold = testCase.childNamed(modal, "lowDiskThresholdField");
+        threshold.focusInput();
+        threshold.text = "7";
+        probe.forceActiveFocus();
+        compare(App.lowDiskThresholdGiB, 7);
+        threshold.focusInput();
+        threshold.text = "x";
+        probe.forceActiveFocus();
+        compare(App.lowDiskThresholdGiB, 2);
+        compare(threshold.text, "2");
+
+        App.baseSizeOverride = 0;
+        App.windowAlphaOverride = 0;
+    }
+
     // #17: the bar widget row. The tests have no `omarchy` (tests/qml/CMakeLists.txt), so it
     // starts unavailable; pointed at `true`, the switch links the widget into the tests' own
     // config folder and takes it out again.
