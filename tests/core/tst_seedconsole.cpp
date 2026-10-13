@@ -223,6 +223,9 @@ private Q_SLOTS:
                  QStringLiteral("dataset"));
         QCOMPARE(f.console.ladderPoints().last().toMap().value(QStringLiteral("name")).toString(),
                  QStringLiteral("krita"));
+        // A click on a dot shows its torrent, so each dot carries the hash.
+        QCOMPARE(f.console.ladderPoints().first().toMap().value(QStringLiteral("hash")).toString(),
+                 QStringLiteral("ddd"));
     }
 
     // #45, #46: the scope's proxy signals once per run of rows; a poll that removes scattered

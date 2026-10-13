@@ -64,10 +64,11 @@ class SeedConsole : public QObject
     Q_PROPERTY(QVariantMap alive READ alive NOTIFY aliveChanged)
     /// The ratio ladder's line: `{summary}`.
     Q_PROPERTY(QVariantMap ladder READ ladder NOTIFY ladderChanged)
-    /// The ratio ladder's dots, `{ratio, size, name, ratioText, sizeText}` for each complete
-    /// torrent in scope, biggest first. Replaced only when a dot would move or read otherwise
-    /// (a ratio that moved less than 0.1 % and prints the same keeps its dot): the ladder lays
-    /// out every dot again on each change, thousands on a big library (#45).
+    /// The ratio ladder's dots, `{ratio, size, name, hash, ratioText, sizeText}` for each
+    /// complete torrent in scope, biggest first (`hash`: a click on a dot shows the torrent).
+    /// Replaced only when a dot would move or read otherwise (a ratio that moved less than
+    /// 0.1 % and prints the same keeps its dot): the ladder lays out every dot again on each
+    /// change, thousands on a big library (#45).
     Q_PROPERTY(QVariantList ladderPoints READ ladderPoints NOTIFY ladderPointsChanged)
     Q_PROPERTY(QVariantMap trackers READ trackers NOTIFY trackersChanged)
     Q_PROPERTY(QVariantMap earning READ earning NOTIFY earningChanged)

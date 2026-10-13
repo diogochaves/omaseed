@@ -13,9 +13,13 @@ import Omaseed.Kit
 // are placed first, each at the first free height in a small beeswarm (4-unit steps,
 // alternating down and up, at most 40 tries). Below 1.0 a dot is the foreground at 35 %,
 // from 1.0 the seeding colour at 75 %. Hover sets `hoveredIndex` (-1 when away), the index
-// into `points` of the topmost dot under the pointer; the caller draws the readout.
+// into `points` of the topmost dot under the pointer; the caller draws the readout. Over a dot
+// the pointer is a pointing hand, and a click emits `activated` with the dot's index.
 Item {
     id: root
+
+    /// A click on a dot: its index into `points`.
+    signal activated(int index)
 
     // Kept as the C++ list it comes in (RatioDots reads it there): a `var` would turn a
     // library's worth of points into JavaScript objects and back on every change (#50).
@@ -71,6 +75,16 @@ Item {
 
     HoverHandler {
         id: hover
+
+        cursorShape: root.hoveredIndex >= 0 ? Qt.PointingHandCursor : Qt.ArrowCursor
+    }
+
+    TapHandler {
+        onTapped: eventPoint => {
+            const index = root.indexAt(eventPoint.position.x, eventPoint.position.y);
+            if (index >= 0)
+                root.activated(index);
+        }
     }
 
     // The zone that still owes: 0.1 to 1.0.

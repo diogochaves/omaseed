@@ -186,4 +186,26 @@ TestCase {
         compare(ladder._dotCount, 0);
         compare(ladder._ticks.length, 8);
     }
+
+    // A click on a dot names it, as a console row's click names its torrent; a click between
+    // the dots names nothing.
+    function test_a_click_on_a_dot_activates_it() {
+        const ladder = createTemporaryObject(ladderComponent, testCase, {
+                                                 "points": [{
+                                                         "ratio": 0.3,
+                                                         "size": 9 * testCase.gib
+                                                     }, {
+                                                         "ratio": 5,
+                                                         "size": 2 * testCase.gib
+                                                     }]
+                                             });
+        let activated = [];
+        ladder.activated.connect(index => activated.push(index));
+        mouseClick(ladder, ladder._x(5), ladder._midY);
+        compare(activated, [1]);
+        mouseClick(ladder, ladder._x(0.3) + 1, ladder._midY);
+        compare(activated, [1, 0]);
+        mouseClick(ladder, ladder._x(1), ladder._midY);
+        compare(activated, [1, 0]);
+    }
 }

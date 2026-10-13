@@ -551,6 +551,13 @@ Flickable {
                     anchors.fill: parent
                     paidText: qsTr("paid back")
                     points: root.seed.ladderPoints
+
+                    // A dot shows its torrent, as a row does.
+                    onActivated: index => {
+                        const point = root.seed.ladderPoints[index];
+                        if (point && point.hash)
+                            root.showTorrent(point.hash);
+                    }
                 }
 
                 Rectangle {

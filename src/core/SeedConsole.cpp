@@ -567,6 +567,7 @@ void SeedConsole::refreshFast()
                 points.append(QVariantMap{{QStringLiteral("ratio"), d.ratio},
                                           {QStringLiteral("size"), double(d.size)},
                                           {QStringLiteral("name"), d.name},
+                                          {QStringLiteral("hash"), d.hash},
                                           {QStringLiteral("ratioText"), Format::ratio(d.ratio)},
                                           {QStringLiteral("sizeText"), Format::size(d.size)}});
             m_ladderDots = dots;
