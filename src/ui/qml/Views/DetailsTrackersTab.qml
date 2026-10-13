@@ -170,6 +170,23 @@ Item {
         }
     }
 
+    ScrollBar {
+        anchors.bottom: list.bottom
+        anchors.right: parent.right
+        anchors.top: list.top
+        flickable: list
+        vertical: true
+        width: Theme.space(4)
+    }
+
+    // A wheel notch moves three rows, and quick notches add up (Kit/WheelScroll).
+    WheelScroll {
+        anchors.fill: list
+        flickable: list
+        rowHeight: Theme.railRowHeight
+        z: 2
+    }
+
     // The whole announce URL on a host, the whole status on a cut one.
     Tooltip {
         id: tip

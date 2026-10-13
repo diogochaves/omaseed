@@ -731,6 +731,15 @@ Item {
         width: Theme.space(4)
     }
 
+    // A wheel notch moves three rows, and quick notches add up (Kit/WheelScroll).
+    WheelScroll {
+        anchors.fill: list
+        flickable: list
+        objectName: "filesWheel"
+        rowHeight: Theme.railRowHeight
+        z: 2
+    }
+
     // A filter that hides everything says so, rather than leaving an empty list.
     Text {
         anchors.horizontalCenter: parent.horizontalCenter

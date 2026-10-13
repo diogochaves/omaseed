@@ -215,6 +215,29 @@ Flickable {
         }
     }
 
+    // On the Flickable itself (`parent: root`), not in its content, so they stay put while
+    // the rows scroll under them.
+    ScrollBar {
+        anchors.bottom: parent.bottom
+        anchors.right: parent.right
+        anchors.top: parent.top
+        flickable: root
+        objectName: "generalScrollBar"
+        parent: root
+        vertical: true
+        width: Theme.space(4)
+    }
+
+    // A wheel notch moves three rows, and quick notches add up (Kit/WheelScroll).
+    WheelScroll {
+        anchors.fill: parent
+        flickable: root
+        objectName: "generalWheel"
+        parent: root
+        rowHeight: Theme.railRowHeight
+        z: 2
+    }
+
     Component {
         id: groupDelegate
 
