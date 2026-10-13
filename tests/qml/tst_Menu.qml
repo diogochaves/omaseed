@@ -223,7 +223,11 @@ TestCase {
         const row = menu.rowsLayout.children[3];
         const area = row.children[row.children.length - 1];
         compare(area.cursorShape, Qt.PointingHandCursor);
+        // The first hover after opening only notes the pointer (it may rest where the menu
+        // opened); the pointer moving on is what moves the cursor.
         mouseMove(row, 20, 5);
+        compare(menu.cursorIndex, 0, "a pointer that did not move took the cursor");
+        mouseMove(row, 22, 5);
         compare(menu.cursorIndex, 3, "hover did not move the cursor");
         mouseClick(row, 20, 5);
         compare(menu.opened, false, "a click did not run the row");

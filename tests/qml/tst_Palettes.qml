@@ -462,6 +462,28 @@ TestCase {
         verify(table.columnOrderIsDefault);
     }
 
+    // A palette that opens under a pointer left resting there: Qt re-sends hover when the
+    // rows move (alt+↑ here), and that first hover is no move of the pointer, so the cursor
+    // must stay on the row the keys moved (CI caught it; locally the pointer sat elsewhere).
+    function test_rows_moving_under_a_resting_pointer_keep_the_cursor() {
+        columnsPalette.open();
+        columnsPalette.cursorToKey("eta");
+        // The pointer rests on eta's row; alt+↑ slides the row above under it.
+        const area = findChild(columnsPalette, "paletteRow_"
+                               + columnsPalette.items.indexOf(columnsPalette.currentItem));
+        verify(area, "eta's row");
+        const at = area.mapToItem(testCase, area.width / 2, area.height / 2);
+        columnsPalette.close();
+        mouseMove(testCase, at.x, at.y);
+
+        columnsPalette.open();
+        columnsPalette.cursorToKey("eta");
+        keyClick(Qt.Key_Up, Qt.AltModifier);
+        compare(columnsPalette.currentItem.key, "eta", "the resting pointer took the cursor");
+        keyClick(Qt.Key_Down, Qt.AltModifier);
+        mouseMove(testCase, 1, 1);
+    }
+
     function test_name_stays_first() {
         columnsPalette.open();
         columnsPalette.cursorToKey("size");

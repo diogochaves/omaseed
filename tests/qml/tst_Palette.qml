@@ -439,7 +439,10 @@ TestCase {
         const row = palette.listView.itemAtIndex(1);
         const area = row.children[row.children.length - 1];
         compare(area.cursorShape, Qt.PointingHandCursor);
+        // The first hover after opening only notes the pointer; moving on moves the cursor.
         mouseMove(row, 30, row.height / 2);
+        compare(palette.cursorIndex, 0, "a pointer that did not move took the cursor");
+        mouseMove(row, 32, row.height / 2);
         compare(palette.cursorIndex, 1, "hover did not move the cursor");
         keyClick(Qt.Key_Up);
         compare(palette.cursorIndex, 0);

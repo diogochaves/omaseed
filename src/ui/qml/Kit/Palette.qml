@@ -126,6 +126,7 @@ Item {
         if (root._opened)
             return;
         root._previousFocus = root.Window.activeFocusItem;
+        root._pointer = Qt.point(-1, -1);
         root._opened = true;
         root.focusQuery();
     }
@@ -323,12 +324,16 @@ Item {
     /// unless only the rows moved under a still pointer. Qt re-delivers hover when the list
     /// scrolls, and the keyboard cursor scrolling into view would hand the cursor straight
     /// back to whatever row came to rest under the pointer.
+    /// The first hover after opening only notes where the pointer rests: a palette that opens
+    /// under a still pointer gets that hover when its rows first move under it, and it is no
+    /// move of the pointer.
     function _pointerOn(index: int, area: MouseArea): void {
         const at = area.mapToItem(root, area.mouseX, area.mouseY);
+        const known = root._pointer.x >= 0;
         if (at.x === root._pointer.x && at.y === root._pointer.y)
             return;
         root._pointer = at;
-        if (!root.dragging)
+        if (known && !root.dragging)
             root.cursorIndex = index;
     }
 
@@ -698,6 +703,7 @@ Item {
                         anchors.fill: parent
                         cursorShape: Qt.PointingHandCursor
                         hoverEnabled: true
+                        objectName: "paletteRow_" + row.index
 
                         onEntered: root._pointerOn(row.index, rowArea)
                         onPositionChanged: root._pointerOn(row.index, rowArea)

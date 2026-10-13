@@ -69,12 +69,17 @@ Item {
     /// unless only the rows moved under a still pointer. Qt re-delivers hover when content
     /// scrolls, and the keyboard cursor scrolling into view would hand the cursor straight
     /// back to whatever row came to rest under the pointer.
+    /// The first hover after opening only notes where the pointer rests, as in Kit Palette: a
+    /// menu that opens under a still pointer (a right-click opens it right there) gets that
+    /// hover without the pointer moving.
     function _pointerOn(index: int, area: MouseArea): void {
         const at = area.mapToItem(root, area.mouseX, area.mouseY);
+        const known = root._pointer.x >= 0;
         if (at.x === root._pointer.x && at.y === root._pointer.y)
             return;
         root._pointer = at;
-        root.cursorIndex = index;
+        if (known)
+            root.cursorIndex = index;
     }
 
     function open(): void {
@@ -82,6 +87,7 @@ Item {
             return;
         root._previousFocus = root.Window.activeFocusItem;
         root.cursorIndex = root._firstEnabled();
+        root._pointer = Qt.point(-1, -1);
         root._opened = true;
         rowScroller.contentY = 0;
         root._showCursor();
