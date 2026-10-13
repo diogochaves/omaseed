@@ -8,7 +8,9 @@ import Omaseed.Kit
 // parent; only `implicitHeight` (2 × `font.body`, the spec's `calc(var(--base)*2)`) matters
 // here. `dragging` is set on every cell while a column is being dragged along the header
 // (N2, M13): the pointer then shows a closed hand wherever it is over the header, instead of
-// the pointing hand that says "click to sort".
+// the pointing hand that says "click to sort". `clickable: false` is a caption that does
+// nothing on a click (the details lists that do not sort): the plain arrow, so it does not
+// promise one.
 Item {
     id: root
 
@@ -18,6 +20,8 @@ Item {
     property bool descending: false
     /// A column is being dragged along the header.
     property bool dragging: false
+    /// A click does something (sorts): the pointing hand. False keeps the arrow.
+    property bool clickable: true
 
     signal clicked
 
@@ -69,7 +73,8 @@ Item {
         id: mouseArea
 
         anchors.fill: parent
-        cursorShape: root.dragging ? Qt.ClosedHandCursor : Qt.PointingHandCursor
+        cursorShape: root.dragging ? Qt.ClosedHandCursor : root.clickable ? Qt.PointingHandCursor
+                                                                          : Qt.ArrowCursor
         hoverEnabled: true
         objectName: "headerMouse"
 

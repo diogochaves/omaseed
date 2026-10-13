@@ -64,4 +64,16 @@ TestCase {
         header.dragging = true;
         compare(mouse.cursorShape, Qt.ClosedHandCursor);
     }
+
+    // A list that does not sort keeps the arrow, so its captions do not promise a click.
+    function test_an_unclickable_header_keeps_the_arrow() {
+        const header = createTemporaryObject(headerComponent, testCase, {
+                                                 "text": "Tracker",
+                                                 "clickable": false
+                                             });
+        const mouse = findChild(header, "headerMouse");
+        compare(mouse.cursorShape, Qt.ArrowCursor);
+        header.dragging = true;
+        compare(mouse.cursorShape, Qt.ClosedHandCursor);
+    }
 }

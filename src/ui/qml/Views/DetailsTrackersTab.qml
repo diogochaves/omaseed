@@ -46,28 +46,33 @@ Item {
 
         DetailsHeader {
             Layout.preferredWidth: root.dotWidth
+            clickable: false
             text: ""
         }
 
         DetailsHeader {
             Layout.fillWidth: true
+            clickable: false
             text: qsTr("Tracker")
         }
 
         DetailsHeader {
             Layout.preferredWidth: root.seedsWidth
             alignRight: true
+            clickable: false
             text: qsTr("Seeds")
         }
 
         DetailsHeader {
             Layout.preferredWidth: root.peersWidth
             alignRight: true
+            clickable: false
             text: qsTr("Peers")
         }
 
         DetailsHeader {
             Layout.preferredWidth: root.statusWidth
+            clickable: false
             text: qsTr("Status")
         }
     }

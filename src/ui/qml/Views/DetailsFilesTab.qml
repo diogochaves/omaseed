@@ -52,6 +52,9 @@ Item {
     signal tickClicked(int row, int wanted)
     /// A click on the header's tick, for every file the filter shows (docs/27 D1/D4).
     signal headTickClicked
+    /// A click on a column's caption: the pane sorts by `key` (TorrentFilesModel::sortBy),
+    /// and takes the keyboard as a click on a row does.
+    signal headerClicked(string key)
 
     readonly property int count: root.model ? root.model.count : 0
     readonly property bool filterShown: root.filterOpen || (root.model !== null
@@ -449,7 +452,7 @@ Item {
             sorted: root.model !== null && root.model.sortKey === "name"
             text: qsTr("Name")
 
-            onClicked: root.model.sortBy("name")
+            onClicked: root.headerClicked("name")
         }
 
         DetailsHeader {
@@ -460,7 +463,7 @@ Item {
             sorted: root.model !== null && root.model.sortKey === "size"
             text: qsTr("Size")
 
-            onClicked: root.model.sortBy("size")
+            onClicked: root.headerClicked("size")
         }
 
         DetailsHeader {
@@ -471,7 +474,7 @@ Item {
             sorted: root.model !== null && root.model.sortKey === "progress"
             text: qsTr("Done")
 
-            onClicked: root.model.sortBy("progress")
+            onClicked: root.headerClicked("progress")
         }
 
         DetailsHeader {
@@ -483,7 +486,7 @@ Item {
             text: qsTr("Remaining")
             visible: root.showRemaining
 
-            onClicked: root.model.sortBy("remaining")
+            onClicked: root.headerClicked("remaining")
         }
 
         DetailsHeader {
@@ -493,7 +496,7 @@ Item {
             sorted: root.model !== null && root.model.sortKey === "priority"
             text: qsTr("Priority")
 
-            onClicked: root.model.sortBy("priority")
+            onClicked: root.headerClicked("priority")
         }
 
         DetailsHeader {
@@ -505,7 +508,7 @@ Item {
             text: qsTr("Avail.")
             visible: root.showAvailability
 
-            onClicked: root.model.sortBy("availability")
+            onClicked: root.headerClicked("availability")
         }
 
         DetailsHeader {
@@ -517,7 +520,7 @@ Item {
             text: qsTr("Pieces")
             visible: root.showPieces
 
-            onClicked: root.model.sortBy("pieces")
+            onClicked: root.headerClicked("pieces")
         }
     }
 

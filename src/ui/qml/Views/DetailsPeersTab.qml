@@ -54,11 +54,13 @@ Item {
 
         DetailsHeader {
             Layout.preferredWidth: root.addressWidth
+            clickable: false
             text: qsTr("Address")
         }
 
         DetailsHeader {
             Layout.preferredWidth: root.codeWidth
+            clickable: false
             text: qsTr("CC")
             visible: root.showCode
         }
@@ -67,24 +69,28 @@ Item {
             Layout.fillWidth: true
             Layout.minimumWidth: 0
             Layout.preferredWidth: 1
+            clickable: false
             text: qsTr("Client")
         }
 
         DetailsHeader {
             Layout.preferredWidth: root.speedWidth
             alignRight: true
+            clickable: false
             text: Glyphs.arrowDown
         }
 
         DetailsHeader {
             Layout.preferredWidth: root.speedWidth
             alignRight: true
+            clickable: false
             text: Glyphs.arrowUp
         }
 
         DetailsHeader {
             Layout.preferredWidth: root.doneWidth
             alignRight: true
+            clickable: false
             text: qsTr("Done")
         }
     }

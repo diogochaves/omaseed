@@ -38,6 +38,7 @@ Item {
 
         DetailsHeader {
             Layout.fillWidth: true
+            clickable: false
             text: qsTr("URL")
         }
     }

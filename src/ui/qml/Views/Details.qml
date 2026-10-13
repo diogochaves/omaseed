@@ -935,6 +935,10 @@ Item {
             visible: root.currentTab === 1
 
             onFilterDone: root.forceActiveFocus()
+            onHeaderClicked: key => {
+                root.takeKeys();
+                root.sortFilesBy(key);
+            }
             onHeadTickClicked: {
                 root.takeKeys();
                 App.setFilesWanted(root.details.hash, root.details.files.headFileIndexes(),

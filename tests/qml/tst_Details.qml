@@ -1192,6 +1192,25 @@ TestCase {
         compare(Math.round(headerX), Math.round(rowX));
     }
 
+    // A click on a column's caption sorts and gives the pane the keyboard, as a row does.
+    function test_a_header_click_sorts_and_takes_the_keys() {
+        const view = testCase.filesView();
+        const files = App.details.files;
+        waitForRendering(view);
+        elsewhere.forceActiveFocus();
+        mouseClick(findChild(view, "fileHeader_size"));
+        compare(files.sortKey, "size");
+        verify(view.activeFocus, "a header click left the keys where they were");
+    }
+
+    // Somewhere outside the pane that can hold the keyboard: the table, in the window.
+    Item {
+        id: elsewhere
+
+        height: 10
+        width: 10
+    }
+
     SignalSpy {
         id: renameSpy
 

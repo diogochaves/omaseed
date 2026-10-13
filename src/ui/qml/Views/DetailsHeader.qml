@@ -17,6 +17,8 @@ Item {
     property bool alignRight: false
     property bool sorted: false
     property bool descending: false
+    /// False on a list that does not sort (Trackers, Peers, HTTP sources): no pointing hand.
+    property bool clickable: true
 
     /// A click on the caption: the Files tab sorts by the column.
     signal clicked
@@ -28,6 +30,7 @@ Item {
         id: header
 
         alignRight: root.alignRight
+        clickable: root.clickable
         descending: root.descending
         height: parent.height
         sorted: root.sorted
