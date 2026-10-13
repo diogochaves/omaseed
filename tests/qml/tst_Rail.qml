@@ -9,7 +9,11 @@ import Omaseed.Views
 TestCase {
     id: testCase
 
+    height: 900
     name: "Rail"
+    visible: true
+    when: windowShown
+    width: 400
 
     Component {
         id: railComponent
@@ -282,6 +286,30 @@ TestCase {
         compare(App.serverList.defaultId, second);
         compare(rail._rowMap[rail.serversBase + 1].item.selected, true);
         compare(rail._rowMap[rail.serversBase].item.selected, false);
+    }
+
+    // A click selects the row and moves the cursor there, so the old cursor row loses its
+    // fill and the next `j` starts from the row clicked.
+    function test_a_click_moves_the_cursor_to_the_row() {
+        const rail = createTemporaryObject(railComponent, testCase, {
+                                               "height": 800
+                                           });
+        waitForRendering(rail, 250);
+        compare(rail.cursorIndex, 0);
+        const movies = rail._rowMap[rail.categoriesBase + 2].item;
+        mouseClick(movies, movies.width / 2, movies.height / 2);
+        compare(App.filtered.category, "movies");
+        compare(rail.cursorIndex, rail.categoriesBase + 2);
+        compare(rail._rowMap[0].item.hasCursor, false);
+        compare(movies.hasCursor, true);
+
+        rail.moveCursor(1);
+        compare(rail.cursorIndex, rail.categoriesBase + 3);
+
+        const seeding = rail._rowMap[rail.statusBase + 2].item;
+        mouseClick(seeding, seeding.width / 2, seeding.height / 2);
+        compare(App.filtered.statusFilter, TorrentFilterModel.Seeding);
+        compare(rail.cursorIndex, rail.statusBase + 2);
     }
 
     function test_width_is_the_spec_column() {

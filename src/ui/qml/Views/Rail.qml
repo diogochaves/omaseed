@@ -14,8 +14,8 @@ import Omaseed.Kit
 // group, `g`/`G` jump to the first/last row, `enter`/`space` select the cursor row, `0`-`9`
 // pick a status row directly (0 = all .. 8 = errored, 9 is unused — there are only nine status
 // rows), `l` hands focus to the table via `focusTable()`. Cursor and selection are independent
-// (the spec figure shows the cursor on "movies" while "downloading" is the selected status),
-// so clicking a row only ever changes selection.
+// (the spec figure shows the cursor on "movies" while "downloading" is the selected status):
+// the keys move the cursor alone, and a click on a row selects it and moves the cursor there.
 //
 // docs/08 §5: groups fold. `collapsedGroups` names the folded ones (the host owns and persists
 // it, per server); a click on a heading or `z` on any row asks for a toggle through
@@ -270,6 +270,15 @@ Item {
             entry.select();
     }
 
+    /// A click on a row: the cursor goes there too, so the old cursor row loses its fill and
+    /// the next `j`/`k` starts from the row clicked.
+    function clickRow(index: int): void {
+        if (index < 0)
+            return;
+        root.cursorIndex = index;
+        root.selectCursor();
+    }
+
     function selectStatus(index) {
         if (index < 0 || index >= root.statusRowCount)
             return;
@@ -407,7 +416,7 @@ Item {
                         visible: !root.statusFolded
                         width: content.width
 
-                        onClicked: root.selectStatus(statusDelegate.index)
+                        onClicked: root.clickRow(statusDelegate.globalIndex)
 
                         Component.onCompleted: root._registerRow(statusDelegate, ()
                                                                  => root.selectStatus(
@@ -449,7 +458,7 @@ Item {
                     visible: !root.categoriesFolded
                     width: content.width
 
-                    onClicked: root.filtered.clearCategory()
+                    onClicked: root.clickRow(categoriesAll.globalIndex)
 
                     Component.onCompleted: root._registerRow(categoriesAll, ()
                                                              => root.filtered.clearCategory())
@@ -478,7 +487,7 @@ Item {
                         visible: !root.categoriesFolded
                         width: content.width
 
-                        onClicked: root.filtered.category = categoryDelegate.name
+                        onClicked: root.clickRow(categoryDelegate.globalIndex)
 
                         Component.onCompleted: root._registerRow(categoryDelegate, () => {
                                                                      root.filtered.category
@@ -505,7 +514,7 @@ Item {
                     visible: root.categoriesNoneVisible && !root.categoriesFolded
                     width: content.width
 
-                    onClicked: root.filtered.category = ""
+                    onClicked: root.clickRow(categoriesNone.globalIndex)
 
                     Component.onCompleted: root._registerRow(categoriesNone, () => {
                                                                  root.filtered.category = "";
@@ -543,7 +552,7 @@ Item {
                     visible: !root.tagsFolded
                     width: content.width
 
-                    onClicked: root.filtered.clearTag()
+                    onClicked: root.clickRow(tagsAll.globalIndex)
 
                     Component.onCompleted: root._registerRow(tagsAll, () => root.filtered.clearTag())
                     Component.onDestruction: root._unregisterRow(tagsAll)
@@ -569,7 +578,7 @@ Item {
                         visible: !root.tagsFolded
                         width: content.width
 
-                        onClicked: root.filtered.tag = tagDelegate.name
+                        onClicked: root.clickRow(tagDelegate.globalIndex)
 
                         Component.onCompleted: root._registerRow(tagDelegate, () => {
                                                                      root.filtered.tag
@@ -593,7 +602,7 @@ Item {
                     visible: root.tagsUntaggedVisible && !root.tagsFolded
                     width: content.width
 
-                    onClicked: root.filtered.tag = ""
+                    onClicked: root.clickRow(tagsUntagged.globalIndex)
 
                     Component.onCompleted: root._registerRow(tagsUntagged, () => {
                                                                  root.filtered.tag = "";
@@ -632,7 +641,7 @@ Item {
                     visible: !root.trackersFolded
                     width: content.width
 
-                    onClicked: root.filtered.clearTracker()
+                    onClicked: root.clickRow(trackersAll.globalIndex)
 
                     Component.onCompleted: root._registerRow(trackersAll, ()
                                                              => root.filtered.clearTracker())
@@ -677,7 +686,7 @@ Item {
                         }
                         width: content.width
 
-                        onClicked: root.filtered.tracker = trackerDelegate.host
+                        onClicked: root.clickRow(trackerDelegate.globalIndex)
 
                         Component.onCompleted: root._registerRow(trackerDelegate, () => {
                                                                      root.filtered.tracker
@@ -734,8 +743,7 @@ Item {
                         visible: !root.serversFolded
                         width: content.width
 
-                        onClicked: root.serverActivated(root.serverList.idAt(
-                                                            serverDelegate.index))
+                        onClicked: root.clickRow(serverDelegate.globalIndex)
 
                         Component.onCompleted: root._registerRow(serverDelegate, () => {
                                                                      root.serverActivated(
