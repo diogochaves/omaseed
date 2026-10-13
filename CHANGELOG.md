@@ -7,7 +7,21 @@ before it will tag a release.
 
 ## Unreleased
 
+### Added
+
+- An errored torrent says why. qBittorrent's API never gives the reason, so omaseed reads it
+  from qBittorrent's own log and ties each line to its torrent. General then opens with what
+  went wrong in plain words ("Can't write to its save folder", "The disk is full"),
+  qBittorrent's own words, the folder, and the actions that fix it: set location, try again,
+  recheck. The table's status reads the short cause ("no access", "disk full") instead of
+  "error". A torrent whose files are gone says where qBittorrent looked.
+- A notice when a torrent stops with an error, with the reason; a click shows it. It has its
+  own switch in Settings › Notifications.
+
 ### Changed
+
+- `p` on an errored torrent starts it, which makes qBittorrent try again, instead of stopping
+  it.
 
 - Everything works with the mouse as well as the keys. Every list follows one set of click
   rules: a click picks a row, ctrl+click adds or removes one, shift+click selects a range
