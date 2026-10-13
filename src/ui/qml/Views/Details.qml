@@ -444,6 +444,14 @@ Item {
         root._followPath(path);
     }
 
+    /// A click on a Files column header (#51 D14): its first direction, the other, then the
+    /// torrent's own order again; the cursor stays on its row throughout.
+    function cycleFilesSort(key: string): void {
+        const path = root.details.files.pathAt(root.filesCursor);
+        root.details.files.cycleSort(key);
+        root._followPath(path);
+    }
+
     /// `H` / `L`: fold or open every folder.
     function foldAll(folded: bool) {
         const path = root.details.files.pathAt(root.filesCursor);
@@ -1071,7 +1079,7 @@ Item {
             onFilterDone: root.forceActiveFocus()
             onHeaderClicked: key => {
                 root.takeKeys();
-                root.sortFilesBy(key);
+                root.cycleFilesSort(key);
             }
             onHeadTickClicked: {
                 root.takeKeys();

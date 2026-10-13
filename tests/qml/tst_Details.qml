@@ -1376,6 +1376,36 @@ TestCase {
         verify(view.activeFocus, "a header click left the keys where they were");
     }
 
+    // #51 D14: a header's third click goes back to the torrent's own order, and the cursor
+    // keeps its file the whole way round.
+    function test_a_third_header_click_returns_to_torrent_order() {
+        const view = testCase.filesView();
+        const files = App.details.files;
+        waitForRendering(view);
+        mouseClick(findChild(view, "fileRow_6"), 120, 4); // LICENSE.txt
+        const license = files.pathAt(6);
+
+        mouseClick(findChild(view, "fileHeader_size"));
+        compare(files.sortKey, "size");
+        compare(files.sortDescending, true);
+        mouseClick(findChild(view, "fileHeader_size"));
+        compare(files.sortKey, "size");
+        compare(files.sortDescending, false);
+        mouseClick(findChild(view, "fileHeader_size"));
+        compare(files.sortKey, "");
+        compare(files.pathAt(6), license, "torrent order is not the order it started in");
+        compare(view.cursorIndex, 6);
+
+        // Name starts a to z, so its cycle runs a to z, z to a, torrent order.
+        mouseClick(findChild(view, "fileHeader_name"));
+        compare(files.sortDescending, false);
+        mouseClick(findChild(view, "fileHeader_name"));
+        compare(files.sortDescending, true);
+        mouseClick(findChild(view, "fileHeader_name"));
+        compare(files.sortKey, "");
+        compare(files.pathAt(view.cursorIndex), license);
+    }
+
     // The filter's `esc` cap is a button: it clears the filter and closes the field.
     function test_the_filter_esc_cap_clears_it() {
         const view = testCase.filesView();

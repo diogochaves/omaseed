@@ -52,8 +52,9 @@ Item {
     signal tickClicked(int row, int wanted)
     /// A click on the header's tick, for every file the filter shows (docs/27 D1/D4).
     signal headTickClicked
-    /// A click on a column's caption: the pane sorts by `key` (TorrentFilesModel::sortBy),
-    /// and takes the keyboard as a click on a row does.
+    /// A click on a column's caption: the pane sorts by `key` (TorrentFilesModel::cycleSort:
+    /// one way, the other, then torrent order), and takes the keyboard as a click on a row
+    /// does.
     signal headerClicked(string key)
 
     readonly property int count: root.model ? root.model.count : 0

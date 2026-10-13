@@ -52,6 +52,7 @@ private Q_SLOTS:
     void a_long_list_reorders_in_one_layout_change();
     void a_priority_on_every_file_of_a_huge_torrent_is_linear();
     void sort_by_flips_the_current_key_and_picks_a_direction_for_a_new_one();
+    void a_header_cycle_goes_back_to_the_torrent_order();
     void the_filter_keeps_the_folders_of_a_match();
     void a_folder_acts_on_the_files_the_filter_shows();
     void remaining_availability_and_pieces_add_up();
@@ -466,6 +467,44 @@ void TestTorrentFilesModel::sort_by_flips_the_current_key_and_picks_a_direction_
     QVERIFY(!model.sortDescending()); // text: a to z
     model.sortBy(QStringLiteral("pieces"));
     QVERIFY(!model.sortDescending());
+}
+
+// #51 D14: first click as sortBy() starts it, second flips, third is the torrent's order;
+// whichever way the key starts.
+void TestTorrentFilesModel::a_header_cycle_goes_back_to_the_torrent_order()
+{
+    TorrentFilesModel model;
+    model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
+    const QString first = model.pathAt(1);
+
+    model.cycleSort(QStringLiteral("size"));
+    QCOMPARE(model.sortKey(), QStringLiteral("size"));
+    QVERIFY(model.sortDescending());
+    model.cycleSort(QStringLiteral("size"));
+    QCOMPARE(model.sortKey(), QStringLiteral("size"));
+    QVERIFY(!model.sortDescending());
+    model.cycleSort(QStringLiteral("size"));
+    QCOMPARE(model.sortKey(), QString());
+    QVERIFY(!model.sortDescending());
+    QCOMPARE(model.pathAt(1), first);
+    model.cycleSort(QStringLiteral("size"));
+    QCOMPARE(model.sortKey(), QStringLiteral("size"));
+    QVERIFY(model.sortDescending());
+
+    model.cycleSort(QStringLiteral("name"));
+    QVERIFY(!model.sortDescending());
+    model.cycleSort(QStringLiteral("name"));
+    QVERIFY(model.sortDescending());
+    model.cycleSort(QStringLiteral("name"));
+    QCOMPARE(model.sortKey(), QString());
+
+    // A key set the other way round by the sort menu (`s`, picked twice) goes to the torrent
+    // order on its next header click.
+    model.sortBy(QStringLiteral("progress"));
+    model.sortBy(QStringLiteral("progress"));
+    QVERIFY(!model.sortDescending());
+    model.cycleSort(QStringLiteral("progress"));
+    QCOMPARE(model.sortKey(), QString());
 }
 
 void TestTorrentFilesModel::the_filter_keeps_the_folders_of_a_match()

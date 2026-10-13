@@ -161,6 +161,13 @@ public:
     /// The header click and the sort menu: a new key starts in its natural direction (text
     /// and pieces ascending, numbers largest first); the current key flips direction.
     Q_INVOKABLE void sortBy(const QString &key);
+    /// A column header's click (#51 D14): a new key starts as sortBy() starts it, a second
+    /// click flips it, and a third goes back to the torrent's own order (the `s` menu's
+    /// "torrent order"), so the header alone reaches every order.
+    Q_INVOKABLE void cycleSort(const QString &key);
+    /// The direction a key starts in: false for text and pieces (and the torrent order),
+    /// true for the numbers, largest first.
+    static bool startsDescending(const QString &key);
 
     // --- folding ---------------------------------------------------------------------
     Q_INVOKABLE bool isFolder(int row) const;

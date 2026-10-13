@@ -596,12 +596,25 @@ void TorrentFilesModel::sortBy(const QString &key)
         setSortDescending(!m_sortDescending);
         return;
     }
-    const bool textual =
-        key.isEmpty() || key == QLatin1String("name") || key == QLatin1String("pieces");
     m_sortKey = key;
-    m_sortDescending = !textual;
+    m_sortDescending = startsDescending(key);
     relayout();
     Q_EMIT sortChanged();
+}
+
+void TorrentFilesModel::cycleSort(const QString &key)
+{
+    if (key.isEmpty() || key != m_sortKey)
+        sortBy(key);
+    else if (m_sortDescending == startsDescending(key))
+        setSortDescending(!m_sortDescending);
+    else
+        sortBy(QString());
+}
+
+bool TorrentFilesModel::startsDescending(const QString &key)
+{
+    return !(key.isEmpty() || key == QLatin1String("name") || key == QLatin1String("pieces"));
 }
 
 bool TorrentFilesModel::lessThan(int left, int right) const
