@@ -663,4 +663,88 @@ TestCase {
         compare(taken, 2);
         compare(triggered, "add");
     }
+
+    // The head's `esc` looks like a close control, so it is one: a click does what the key
+    // does for that sheet.
+    function test_a_click_on_esc_closes_and_rejects() {
+        const sheet = createTemporaryObject(keySheetComponent, testCase);
+        const rejected = createTemporaryObject(rejectedSpy, testCase, {
+                                                   "target": sheet
+                                               });
+        sheet.open();
+        compare(sheet.escButton.cursorShape, Qt.PointingHandCursor);
+        mouseClick(sheet.escButton);
+        compare(sheet.opened, false);
+        compare(rejected.count, 1);
+    }
+
+    // M5: on the guarded add sheet the first click on `esc` only puts the keyboard on
+    // `cancel`, as the first key does; the next one closes.
+    function test_a_click_on_esc_of_a_guarded_sheet_goes_to_cancel_first() {
+        const sheet = createTemporaryObject(keySheetComponent, testCase, {
+                                                "guarded": true
+                                            });
+        const rejected = createTemporaryObject(rejectedSpy, testCase, {
+                                                   "target": sheet
+                                               });
+        sheet.open();
+        mouseClick(sheet.escButton);
+        compare(sheet.opened, true, "the first click closed a guarded sheet");
+        compare(sheet.focusables()[sheet.focusedIndex()], sheet.cancelButton());
+        compare(rejected.count, 0);
+        mouseClick(sheet.escButton);
+        compare(sheet.opened, false);
+        compare(rejected.count, 1);
+    }
+
+    // The sheet's own key handler hears the click's `esc` first, as it hears the key.
+    function test_a_click_on_esc_asks_the_key_handler_first() {
+        const sheet = createTemporaryObject(keySheetComponent, testCase);
+        let seen = 0;
+        sheet.keyHandler = event => {
+            if (event.key === Qt.Key_Escape) {
+                ++seen;
+                event.accepted = true;
+            }
+        };
+        sheet.open();
+        mouseClick(sheet.escButton);
+        compare(seen, 1);
+        compare(sheet.opened, true, "the handler took esc, but the sheet closed");
+    }
+
+    Component {
+        id: tallSheetComponent
+
+        Sheet {
+            anchors.fill: parent
+            title: "Tall"
+
+            Repeater {
+                model: 40
+
+                Text {
+                    required property int index
+
+                    text: "row " + index
+                }
+            }
+        }
+    }
+
+    // A body taller than its room scrolls, and a bar says so; a short one has no bar.
+    function test_an_overflowing_body_shows_a_scroll_bar() {
+        const tall = createTemporaryObject(tallSheetComponent, testCase);
+        tall.open();
+        const scroller = findChild(tall, "sheetBody");
+        verify(scroller.contentHeight > scroller.height, "the body does not overflow");
+        verify(tall.bodyScrollBar.visible, "no scroll bar on an overflowing body");
+        verify(tall.body.width + tall.bodyScrollBar.width <= scroller.width,
+               "the rows run under the bar");
+        tall.close();
+
+        const short = createTemporaryObject(keySheetComponent, testCase);
+        short.open();
+        compare(short.bodyScrollBar.visible, false);
+    }
 }

@@ -35,6 +35,10 @@ import Omaseed.Kit
 // first button, else to the body's first child, so a sheet of plain content still owns the
 // keyboard. `close()` gives the focus back.
 //
+// The mouse: the head's `esc` is a button that does what the key does for this sheet
+// (`pressEscape()`: a guarded sheet puts the keyboard on `cancel` first). A body taller than the
+// room it has scrolls, and a scroll bar at its right edge says so.
+//
 // Do NOT run `qmlformat` on this file: with the project's 100-column wrap it re-indents the
 // typed functions further on every pass (the defect MainView.qml and TorrentTable.qml note).
 // It is hand-formatted to qmlformat's own style instead.
@@ -79,6 +83,9 @@ Item {
     readonly property alias panel: panel
     readonly property alias actionsRow: actionsRow
     readonly property alias body: bodyColumn
+    /// The head's `esc` button and the body's scroll bar, for the tests.
+    readonly property alias escButton: escArea
+    readonly property alias bodyScrollBar: bodyScrollBar
     /// How tall the caller's rows can be before the body starts to scroll: the window less
     /// the margins, padding, head, buttons and hint line. A row that should take what is left
     /// (the add sheet's file tree) sizes itself from this.
@@ -241,6 +248,19 @@ Item {
             }
         }
         panel.forceActiveFocus();
+    }
+
+    /// Do what `esc` does: the sheet's own key handler is asked first, then the kit's (close
+    /// and reject; on a guarded sheet, the keyboard goes to `cancel` first). The head's `esc`
+    /// runs this. A field's own `esc` (clearing a filter) is not part of it.
+    function pressEscape(): void {
+        const event = {
+            "key": Qt.Key_Escape,
+            "modifiers": Qt.NoModifier,
+            "text": "",
+            "accepted": false
+        };
+        root._onKey(event);
     }
 
     /// Run the `primary` action, as `enter` does. Callers wire a field's `accepted` to this,
@@ -447,12 +467,27 @@ Item {
                     }
                 }
 
+                // It looks like a close control, so it is one: what `esc` does, by click.
                 Label {
                     Layout.alignment: Qt.AlignTop
-                    dim: true
+                    color: escArea.containsMouse ? Theme.accent : Theme.dimForeground
                     size: "caption"
                     text: root.escText
                     visible: root.escText.length > 0
+
+                    MouseArea {
+                        id: escArea
+
+                        Accessible.name: root.escText
+                        Accessible.role: Accessible.Button
+                        anchors.fill: parent
+                        anchors.margins: -Theme.space(4)
+                        cursorShape: Qt.PointingHandCursor
+                        hoverEnabled: true
+                        objectName: "sheetEsc"
+
+                        onClicked: root.pressEscape()
+                    }
                 }
             }
 
@@ -483,9 +518,25 @@ Item {
                     id: bodyColumn
 
                     spacing: Theme.space(12)
-                    width: parent.width - 2 * Theme.focusExtent
+                    // Clear of the scroll bar while there is one.
+                    width: bodyScroller.width - 2 * Theme.focusExtent
+                           - (bodyScrollBar.needed ? bodyScrollBar.width + Theme.space(4) : 0)
                     x: Theme.focusExtent
                     y: Theme.focusExtent
+                }
+
+                // More body than room: the bar says so. Parented to the Flickable itself, not
+                // its content, so it stays put while the rows scroll (the help sheet's).
+                ScrollBar {
+                    id: bodyScrollBar
+
+                    anchors.bottom: parent.bottom
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    flickable: bodyScroller
+                    objectName: "sheetBodyScrollBar"
+                    parent: bodyScroller
+                    vertical: true
                 }
             }
 
