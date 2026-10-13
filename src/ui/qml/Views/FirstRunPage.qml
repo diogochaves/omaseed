@@ -750,6 +750,8 @@ Flickable {
 
                     HoverHandler {
                         id: hoverHandler
+
+                        cursorShape: Qt.PointingHandCursor
                     }
 
                     TapHandler {

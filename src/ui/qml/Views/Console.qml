@@ -96,11 +96,18 @@ Flickable {
 
             Text {
                 Layout.alignment: Qt.AlignBaseline
-                color: Theme.dimForeground
+                color: clearHover.hovered ? Theme.accent : Theme.dimForeground
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.font.caption
+                objectName: "consoleClearScope"
                 text: qsTr("esc  clear")
                 visible: root.seed.scoped
+
+                HoverHandler {
+                    id: clearHover
+
+                    cursorShape: Qt.PointingHandCursor
+                }
 
                 TapHandler {
                     onTapped: root.clearScope()
@@ -273,9 +280,12 @@ Flickable {
                         required property string modelData
                         readonly property bool on: rangeChip.modelData === root.seed.range
 
-                        border.color: rangeChip.on ? "transparent" : Theme.fill(Theme.hairlineAlpha)
+                        border.color: rangeChip.on ? "transparent" : rangeHover.hovered ? Theme.fill(Theme.borderHover)
+                                                                                        : Theme.fill(Theme.hairlineAlpha)
                         border.width: 1
-                        color: rangeChip.on ? Theme.fill(Theme.fillSelected) : "transparent"
+                        // Kit Chip's hover fill, so the pointer says it is a choice.
+                        color: rangeChip.on ? Theme.fill(Theme.fillSelected) : rangeHover.hovered ? Theme.fill(Theme.fillHover)
+                                                                                                  : "transparent"
                         implicitHeight: chipText.implicitHeight + Theme.space(4)
                         implicitWidth: chipText.implicitWidth + Theme.space(16)
 
@@ -287,6 +297,12 @@ Flickable {
                             font.family: Theme.fontFamily
                             font.pixelSize: Theme.font.caption
                             text: rangeChip.modelData
+                        }
+
+                        HoverHandler {
+                            id: rangeHover
+
+                            cursorShape: Qt.PointingHandCursor
                         }
 
                         TapHandler {
