@@ -925,11 +925,66 @@ TestCase {
         compare(files.selectedCount, 3); // 4 to 6
         verify(files.isSelected(4) && files.isSelected(5) && files.isSelected(6));
 
-        // On a folder a plain click still folds it, and lets the selection go too.
+        // On a folder a plain click lets the selection go too, and leaves it open (#51 D5).
         verify(findChild(view, "fileRow_3").expanded);
         mouseClick(findChild(view, "fileRow_3"), 120, 4);
         compare(files.selectedCount, 0);
-        verify(!files.isExpanded(3), "a plain click no longer folds a folder");
+        compare(view.cursorIndex, 3);
+        verify(files.isExpanded(3), "a plain click folded a folder");
+    }
+
+    // #51 D5, as the add sheet's tree: the arrow folds, a double click folds, a plain click
+    // only moves the cursor; a double click on a file still opens it.
+    function test_a_folder_folds_on_its_arrow_or_a_double_click() {
+        const view = testCase.filesView();
+        const files = App.details.files;
+        waitForRendering(view);
+        verify(files.isFolder(3) && files.isExpanded(3));
+
+        mouseClick(findChild(view, "fileRow_1"), 120, 4, Qt.LeftButton, Qt.ControlModifier);
+        mouseClick(findChild(view, "fileRow_2"), 120, 4, Qt.LeftButton, Qt.ControlModifier);
+        const arrow = findChild(view, "fileFold_3");
+        verify(arrow !== null && arrow.enabled, "no fold arrow on the folder");
+        compare(arrow.cursorShape, Qt.PointingHandCursor);
+        verify(arrow.width > findChild(view, "fileRow_3").height / 2, "the arrow is hard to hit");
+        mouseClick(arrow);
+        verify(!files.isExpanded(3), "the arrow did not fold");
+        compare(view.cursorIndex, 3);
+        compare(files.selectedCount, 2, "folding let the selection go");
+        mouseClick(findChild(view, "fileFold_3"));
+        verify(files.isExpanded(3), "the arrow did not open it again");
+        compare(findChild(view, "fileFold_1").enabled, false, "a file has a fold arrow");
+
+        mouseDoubleClickSequence(findChild(view, "fileRow_3"), 120, 4);
+        verify(!files.isExpanded(3), "a double click did not fold");
+        mouseDoubleClickSequence(findChild(view, "fileRow_3"), 120, 4);
+        verify(files.isExpanded(3), "a double click did not open it again");
+
+        fileSpy.target = view;
+        fileSpy.clear();
+        mouseDoubleClickSequence(findChild(view, "fileRow_6"), 120, 4);
+        compare(fileSpy.count, 1);
+        compare(fileSpy.signalArguments[0][0], files.pathAt(6));
+    }
+
+    // #51 D8: a middle click toggles a row in the selection, as ctrl+click does.
+    function test_a_middle_click_toggles_a_file() {
+        const view = testCase.filesView();
+        const files = App.details.files;
+        waitForRendering(view);
+
+        mouseClick(findChild(view, "fileRow_1"), 120, 4, Qt.MiddleButton);
+        mouseClick(findChild(view, "fileRow_4"), 120, 4, Qt.MiddleButton);
+        compare(files.selectedCount, 2);
+        verify(files.isSelected(1) && files.isSelected(4));
+        compare(view.cursorIndex, 4);
+        compare(view.filesAnchorPath, files.pathAt(4));
+        // A folder is selected, not folded.
+        mouseClick(findChild(view, "fileRow_3"), 120, 4, Qt.MiddleButton);
+        verify(files.isSelected(3) && files.isExpanded(3));
+        mouseClick(findChild(view, "fileRow_4"), 120, 4, Qt.MiddleButton);
+        verify(!files.isSelected(4));
+        compare(files.selectedCount, 2);
     }
 
     // With no anchor yet, shift+click starts from the cursor; `v` still adds to the selection.

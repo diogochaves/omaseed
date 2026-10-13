@@ -292,9 +292,10 @@ Item {
     }
 
     /// A click on Files row `row`, by the pane's click rules: a plain click puts the cursor
-    /// and the anchor there and lets the selection go (a folder also folds); ctrl+click
-    /// toggles the row; shift+click makes the selection exactly anchor..row, and
-    /// ctrl+shift+click adds that range. Shift leaves the anchor where it was.
+    /// and the anchor there and lets the selection go (on a folder too: its arrow or a double
+    /// click folds it, #51 D5); ctrl+click, or a middle click, toggles the row; shift+click
+    /// makes the selection exactly anchor..row, and ctrl+shift+click adds that range. Shift
+    /// leaves the anchor where it was.
     function clickFile(row: int, modifiers: int): void {
         const files = root.details.files;
         if (row < 0 || row >= files.count)
@@ -317,8 +318,16 @@ Item {
             return;
         }
         files.clearSelection();
-        if (files.isFolder(row))
-            files.toggle(row);
+    }
+
+    /// A click on a folder's fold arrow, or a double click on it: the cursor goes there and
+    /// the folder folds or opens. The selection stays as it was.
+    function foldFileRow(row: int): void {
+        const files = root.details.files;
+        if (row < 0 || row >= files.count || !files.isFolder(row))
+            return;
+        root.filesCursor = row;
+        files.toggle(row);
     }
 
     /// A right click on Files row `row`: a row outside the selection becomes the menu's
@@ -1089,11 +1098,16 @@ Item {
             onHideSkippedRequested: root.toggleHideSkipped()
             onRenameCancelled: root.cancelRename()
             onRenameCommitted: text => root.commitRename(text)
+            onFoldClicked: row => root.foldFileRow(root._takeKeysAt(row))
+            // A double click opens a file and folds a folder (the add sheet's tree, D5).
             onRowActivated: row => {
-                if (!root.details.files.isFolder(row))
+                if (root.details.files.isFolder(row))
+                    root.foldFileRow(row);
+                else
                     root.openFileRequested(root.details.files.pathAt(row));
             }
             onRowClicked: (row, modifiers) => root.clickFile(root._takeKeysAt(row), modifiers)
+            onRowMiddleClicked: row => root.clickFile(root._takeKeysAt(row), Qt.ControlModifier)
             onRowMenuRequested: (row, x, y) => {
                 const at = filesTab.mapToItem(root, x, y);
                 root.fileMenuAt(root._takeKeysAt(row), at.x, at.y);

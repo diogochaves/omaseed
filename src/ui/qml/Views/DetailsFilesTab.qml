@@ -36,9 +36,15 @@ Item {
     /// `/` was pressed: show the filter field even while it is still empty.
     property bool filterOpen: false
 
-    /// `modifiers`: ctrl and shift select instead of folding a folder (the pane's click rules).
+    /// `modifiers`: ctrl and shift select (the pane's click rules). A plain click on a folder
+    /// moves the cursor, as on a file; its arrow, or a double click, folds it (#51 D5).
     signal rowClicked(int row, int modifiers)
+    /// A double click: a file opens, a folder folds or unfolds.
     signal rowActivated(int row)
+    /// A click on a folder's fold arrow.
+    signal foldClicked(int row)
+    /// A middle click on a row (#51 D8): the pane toggles it in the selection, as ctrl+click.
+    signal rowMiddleClicked(int row)
     /// A right click on a row: the pane opens its menu there (in this item's coordinates).
     signal rowMenuRequested(int row, real x, real y)
     signal renameCommitted(string text)
@@ -593,6 +599,15 @@ Item {
                 root.rowMenuRequested(row.index, at.x, at.y);
             }
 
+            // #51 D8: the middle button, which TableRow leaves alone, toggles the row.
+            MouseArea {
+                acceptedButtons: Qt.MiddleButton
+                anchors.fill: parent
+                parent: row
+
+                onClicked: root.rowMiddleClicked(row.index)
+            }
+
             // Above the row's own MouseArea (`parent: row`, z 1), as the add tree's, so the
             // tick takes its clicks; a click anywhere else falls through to the row.
             RowLayout {
@@ -627,17 +642,48 @@ Item {
                     // one step of Theme.space(14) per level on top of the row's own padding.
                     Layout.leftMargin: row.depth * Theme.space(14)
 
+                    // The fold arrow's own hover fill, as the add sheet's tree draws it.
+                    Rectangle {
+                        anchors.centerIn: glyph
+                        color: foldMouse.containsMouse ? Theme.fill(Theme.fillHover) : "transparent"
+                        height: Theme.railRowHeight - Theme.space(6)
+                        radius: Theme.cornerRadius
+                        visible: row.isFolder
+                        width: glyph.implicitWidth + Theme.space(8)
+                    }
+
                     Text {
                         id: glyph
 
                         anchors.left: parent.left
                         anchors.verticalCenter: parent.verticalCenter
-                        color: Theme.dimForeground
+                        color: foldMouse.containsMouse ? Theme.brightForeground : Theme.dimForeground
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.font.small
                         text: row.expanded ? Glyphs.chevronDown : Glyphs.chevronRight
                         visible: row.isFolder
                         width: row.isFolder ? implicitWidth : 0
+                    }
+
+                    // #51 D5: the arrow folds, as in the add sheet's tree; the rest of the
+                    // row only moves the cursor. The whole row's height, and a few pixels
+                    // either side of the glyph, so it is easy to hit.
+                    MouseArea {
+                        id: foldMouse
+
+                        anchors.horizontalCenter: glyph.horizontalCenter
+                        anchors.verticalCenter: parent.verticalCenter
+                        cursorShape: Qt.PointingHandCursor
+                        enabled: row.isFolder
+                        height: Theme.railRowHeight
+                        hoverEnabled: true
+                        objectName: "fileFold_" + row.index
+                        width: glyph.implicitWidth + Theme.space(12)
+
+                        onClicked: root.foldClicked(row.index)
+                        // A quick second click on the arrow folds back, rather than reaching
+                        // the row as a double click.
+                        onDoubleClicked: root.foldClicked(row.index)
                     }
 
                     DetailsCell {
