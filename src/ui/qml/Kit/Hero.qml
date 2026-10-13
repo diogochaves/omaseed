@@ -702,6 +702,10 @@ Item {
             placeholder: root.level >= 2 ? qsTr("filter") : qsTr("filter torrents")
             text: root.searchText
             trailing: root.searchCountText
+            // While it filters, the count and an `esc` cap clear it with a click, as `esc`
+            // does; the cap only where the field has room for it beside the count.
+            trailingClickable: searchField.text.length > 0
+            trailingKey: searchField.text.length > 0 && root.level < 2 ? "esc" : ""
 
             onAccepted: {
                 root.searchChanged(searchField.text);
@@ -713,6 +717,10 @@ Item {
                     root.searchOpen = false;
             }
             onTextChanged: root.searchChanged(searchField.text)
+            onTrailingClicked: {
+                searchField.text = "";
+                root.searchCleared();
+            }
         }
 
         // Alt-speed is its glyph alone while off, named by its tooltip (manual box M14), and

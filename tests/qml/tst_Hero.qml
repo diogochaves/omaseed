@@ -127,6 +127,23 @@ TestCase {
         compare(findChild(hero, "helpButton").tooltip, "help · ?");
     }
 
+    // While the field filters, its count and `esc` cap clear it with a click, as `esc` does.
+    function test_a_click_on_the_trailing_esc_clears_the_filter() {
+        const hero = createTemporaryObject(heroComponent, testCase);
+        let cleared = 0;
+        hero.searchCleared.connect(() => cleared++);
+        const field = hero.searchField;
+        const cap = findChild(field, "fieldTrailingKey");
+        verify(!cap.visible, "an empty filter shows the esc cap");
+        field.text = "iso";
+        verify(cap.visible);
+        waitForItemPolished(hero.children[0]);
+        mouseClick(cap, cap.width / 2, cap.height / 2);
+        compare(cleared, 1);
+        compare(field.text, "");
+        verify(!cap.visible);
+    }
+
     // Folded to its ✕ (step 3), a chip still names what it clears.
     function test_a_folded_chip_names_its_filter_in_a_tooltip() {
         const hero = createTemporaryObject(heroComponent, testCase);
