@@ -2158,6 +2158,13 @@ Item {
 
         anchors.fill: parent
         z: 11
+
+        // The Keybindings pane's `?`, clicked: the help sheet sits under the modal, so the
+        // modal goes first.
+        onHelpRequested: {
+            settingsModal.dismiss();
+            root.helpOpen = true;
+        }
     }
 
     // The Appearance pane's transparency override; 0 keeps the shell's `[launcher]

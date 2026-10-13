@@ -58,6 +58,9 @@ Item {
     }
 
     signal closed
+    /// The Keybindings pane's `?` was clicked: the help sheet, as `?` opens it outside the
+    /// modal. MainView closes the modal and opens it.
+    signal helpRequested
 
     readonly property var navRows: [
         {
@@ -304,11 +307,23 @@ Item {
             if (App.serverList.idAt(i) === current)
                 at = i;
         }
+        // A demo run's table key is "demo", no server's id: go on from the default one.
+        if (at < 0)
+            at = App.serverList.indexOfId(App.serverList.defaultId);
         App.setDefaultServer(App.serverList.idAt((at + 1) % count));
     }
 
     function close(): void {
         sheet.close();
+    }
+
+    /// The pane head's `esc`, clicked: what the key does with nothing over the modal, close
+    /// it as rejected.
+    function dismiss(): void {
+        if (!sheet.opened)
+            return;
+        sheet.close();
+        sheet.rejected();
     }
 
     /// Go to a pane by index and put the cursor on its first row.
@@ -1003,16 +1018,39 @@ Item {
                             tracked: true
                         }
 
+                        // With two servers or more, a click does what `s` does: the next
+                        // server, and the group with it.
                         Label {
+                            id: qbtNavServer
+
+                            readonly property bool switches: App.serverList.count > 1
+
                             Layout.bottomMargin: Theme.space(8)
                             Layout.fillWidth: true
                             Layout.leftMargin: Theme.space(4)
-                            dim: true
+                            color: qbtNavServer.switches && qbtNavServerHover.hovered ? Theme.accent
+                                                                                      : Theme.dimForeground
                             elide: Text.ElideRight
                             objectName: "qbtNavServer"
                             size: "small"
                             text: root.qbtServerText
                             visible: root.qbtServerText.length > 0
+
+                            HoverHandler {
+                                id: qbtNavServerHover
+
+                                cursorShape: qbtNavServer.switches ? Qt.PointingHandCursor
+                                                                   : Qt.ArrowCursor
+                            }
+
+                            TapHandler {
+                                enabled: qbtNavServer.switches
+
+                                onTapped: {
+                                    root.qbtNextServer();
+                                    bodyItem.forceActiveFocus();
+                                }
+                            }
                         }
 
                         Repeater {
@@ -1134,10 +1172,22 @@ Item {
                             visible: root.inQbt
                         }
 
+                        // A click does what the key does: closes the modal.
                         Label {
-                            dim: true
+                            color: escHover.hovered ? Theme.accent : Theme.dimForeground
+                            objectName: "settingsEsc"
                             size: "caption"
                             text: qsTr("esc")
+
+                            HoverHandler {
+                                id: escHover
+
+                                cursorShape: Qt.PointingHandCursor
+                            }
+
+                            TapHandler {
+                                onTapped: root.dismiss()
+                            }
                         }
                     }
 
@@ -1584,14 +1634,18 @@ Item {
                                 }
 
                                 // `?` as a key, in the outline of the sheets' icon squares.
+                                // A click opens the help sheet, as the key does elsewhere.
                                 Rectangle {
                                     anchors.verticalCenter: parent.verticalCenter
-                                    border.color: Theme.fill(Theme.borderIdle)
+                                    border.color: helpKeyHover.hovered ? Theme.fill(Theme.borderHover)
+                                                                       : Theme.fill(Theme.borderIdle)
                                     border.width: 1
-                                    color: Theme.fill(Theme.fillIdle)
+                                    color: helpKeyHover.hovered ? Theme.fill(Theme.fillHover)
+                                                                : Theme.fill(Theme.fillIdle)
                                     implicitHeight: keyText.implicitHeight + Theme.space(2)
                                     implicitWidth: Math.max(implicitHeight, keyText.implicitWidth
                                                             + Theme.space(10))
+                                    objectName: "keysHelpKey"
                                     radius: Theme.cornerRadius
 
                                     Text {
@@ -1603,6 +1657,16 @@ Item {
                                         font.pixelSize: Theme.font.small
                                         font.weight: Font.Medium
                                         text: "?"
+                                    }
+
+                                    HoverHandler {
+                                        id: helpKeyHover
+
+                                        cursorShape: Qt.PointingHandCursor
+                                    }
+
+                                    TapHandler {
+                                        onTapped: root.helpRequested()
                                     }
                                 }
 

@@ -237,6 +237,70 @@ TestCase {
         signalName: "closed"
     }
 
+    SignalSpy {
+        id: helpSpy
+
+        signalName: "helpRequested"
+    }
+
+    SignalSpy {
+        id: serverChangedSpy
+
+        signalName: "serverChanged"
+        target: App
+    }
+
+    // The pane head's `esc` looks like a key, so a click does what the key does.
+    function test_a_click_on_the_esc_caption_closes_the_modal() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        closedSpy.clear();
+        closedSpy.target = modal;
+        const esc = testCase.childNamed(modal, "settingsEsc");
+        verify(esc !== null && esc.visible);
+        mouseClick(esc);
+        verify(!modal.opened);
+        compare(closedSpy.count, 1);
+    }
+
+    // The Keybindings pane's `?` cap opens the help sheet, as the key does (MainView closes
+    // the modal for it).
+    function test_a_click_on_the_question_cap_asks_for_help() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        keyClick(Qt.Key_4);
+        helpSpy.clear();
+        helpSpy.target = modal;
+        const cap = testCase.childNamed(modal, "keysHelpKey");
+        verify(cap !== null && cap.visible);
+        mouseClick(cap);
+        compare(helpSpy.count, 1);
+    }
+
+    // The qBittorrent group's server line does what `s` does, once there are two servers.
+    function test_a_click_on_the_qbittorrent_server_line_moves_to_the_next_server() {
+        const first = testCase.addTestServer("first", "http://127.0.0.1:8081");
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.openQbt();
+        const line = testCase.childNamed(modal, "qbtNavServer");
+        verify(line !== null && line.visible);
+        waitForItemPolished(line.parent);
+        verify(line.width > 0);
+        serverChangedSpy.clear();
+        mouseClick(line);
+        compare(serverChangedSpy.count, 0, "one server: nothing to move to");
+        verify(modal.opened);
+
+        testCase.addTestServer("second", "http://127.0.0.1:8082");
+        compare(App.serverList.defaultId, first);
+        serverChangedSpy.clear();
+        mouseClick(line);
+        verify(serverChangedSpy.count > 0);
+        verify(App.serverList.defaultId !== first);
+        verify(modal.opened);
+        verify(modal.inQbt);
+    }
+
     // Review RUN-14: lowercase buttons, and a server without a credential has no secret to lose.
     function test_removing_a_server_without_auth_does_not_mention_a_secret() {
         const id = App.serverList.add({
