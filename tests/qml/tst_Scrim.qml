@@ -44,11 +44,43 @@ TestCase {
         compare(spy.count, 1);
     }
 
+    // Every button dismisses, the right one too, unless `passRightClick` asks for it as
+    // `rightClicked(x, y)` (#51 D17).
+    function test_a_right_click_dismisses_unless_it_is_passed_on() {
+        const scrim = createTemporaryObject(scrimComponent, testCase);
+        const dismissed = createTemporaryObject(spyComponent, testCase, {
+                                                    "target": scrim
+                                                });
+        const right = createTemporaryObject(rightSpyComponent, testCase, {
+                                                "target": scrim
+                                            });
+        waitForRendering(scrim, 250);
+        mouseClick(scrim, 50, 60, Qt.RightButton);
+        compare(dismissed.count, 1);
+        compare(right.count, 0);
+        scrim.passRightClick = true;
+        mouseClick(scrim, 50, 60, Qt.RightButton);
+        compare(dismissed.count, 1);
+        compare(right.count, 1);
+        compare(right.signalArguments[0][0], 50);
+        compare(right.signalArguments[0][1], 60);
+        mouseClick(scrim, 50, 60);
+        compare(dismissed.count, 2);
+    }
+
     Component {
         id: spyComponent
 
         SignalSpy {
             signalName: "dismissed"
+        }
+    }
+
+    Component {
+        id: rightSpyComponent
+
+        SignalSpy {
+            signalName: "rightClicked"
         }
     }
 }

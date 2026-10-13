@@ -830,4 +830,23 @@ TestCase {
             target: App.filtered
         }
     }
+
+    // #51 D17: a right-click handed on from the open menu's scrim, at a point in the table:
+    // the row there by the right-click rule, nothing off the rows.
+    function test_a_right_click_handed_on_lands_on_the_row_there() {
+        actionsSpy.clear();
+        clickRow(1, Qt.NoModifier);
+        clickRow(3, Qt.ShiftModifier);
+        const inside = findChild(table, "row_2").mapToItem(table, Theme.space(40), Theme.space(4));
+        verify(table.contextClickAt(inside.x, inside.y));
+        compare(selectedRows(), [1, 2, 3], "a row inside the selection keeps it");
+        compare(table.cursorIndex, 2);
+        const outside = findChild(table, "row_6").mapToItem(table, Theme.space(40), Theme.space(4));
+        verify(table.contextClickAt(outside.x, outside.y));
+        compare(selectedRows(), [6]);
+        compare(actionsSpy.count, 2);
+        compare(actionsSpy.signalArguments[1][0], App.filtered.hashAt(6));
+        verify(!table.contextClickAt(Theme.space(40), Theme.space(4)), "the header is no row");
+        compare(actionsSpy.count, 2);
+    }
 }

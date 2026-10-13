@@ -1396,6 +1396,39 @@ TestCase {
         tryVerify(() => !App.filtered.holdOrder, 1000);
     }
 
+    // D17: with the actions menu open, a right-click on another row closes it and opens it
+    // again there, by the right-click rule (outside the selection: that row alone).
+    function test_a_right_click_on_another_row_reopens_the_menu_there() {
+        waitForRendering(view, 250);
+        const first = rowItem(1);
+        mouseClick(first, Theme.space(40), first.height / 2, Qt.RightButton);
+        compare(view.actionsMenuPanel.opened, true);
+        compare(view.table.selectedHashes(), [App.filtered.hashAt(1)]);
+
+        // Past the panel, on row 8: the click lands on the menu's scrim.
+        const target = rowItem(8);
+        const at = target.mapToItem(view, view.table.width - Theme.space(60), target.height / 2);
+        const panel = view.actionsMenuPanel.panel;
+        verify(at.x > panel.mapToItem(view, panel.width, 0).x, "the point is on the panel");
+        const hash = App.filtered.hashAt(8);
+        mouseClick(view, at.x, at.y, Qt.RightButton);
+        compare(view.actionsMenuPanel.opened, true, "the menu did not open again");
+        compare(view.table.cursorHash, hash);
+        compare(view.table.selectedHashes(), [hash]);
+        compare(view.actionsMenuPanel.heading, view.actionsHeading(hash));
+        // It opens afresh: the cursor on the first row, not the one the pointer rests on.
+        compare(view.actionsMenuPanel.cursorIndex, view.actionsMenuPanel._firstEnabled());
+        wait(50);
+        compare(view.actionsMenuPanel.cursorIndex, view.actionsMenuPanel._firstEnabled());
+
+        // A left click on the scrim (above the panel, which now hangs from row 8) still
+        // only closes.
+        const above = first.mapToItem(view, view.table.width - Theme.space(60), first.height / 2);
+        mouseClick(view, above.x, above.y);
+        compare(view.actionsMenuPanel.opened, false);
+        verify(view.table.activeFocus);
+    }
+
     // D13: the no-match note for a scope with no filter text names the scope and offers no
     // `esc`, which would clear nothing.
     function test_the_scope_only_note_has_no_escape_half() {

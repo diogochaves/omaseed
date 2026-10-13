@@ -44,6 +44,9 @@ Item {
     /// While open, keys the menu has no use for stop here instead of reaching the view
     /// behind the scrim (KIT-6); only `ctrl+q` goes on, since quitting is never modal.
     property bool modal: true
+    /// A right-click outside the panel closes the menu as any click does, and is then
+    /// `rightClickedOutside`, for the owner to right-click what lies there (#51 D17).
+    property bool passRightClick: false
 
     readonly property bool opened: root._opened
     readonly property alias panel: panel
@@ -55,6 +58,9 @@ Item {
     signal activated(string action)
     /// `esc`, or a click outside the panel.
     signal rejected
+    /// With `passRightClick`: a right-click outside the panel at `x`, `y` (this item's
+    /// coordinates), after the menu closed and `rejected` went out.
+    signal rightClickedOutside(real x, real y)
 
     property bool _opened: false
     property Item _previousFocus: null
@@ -240,11 +246,18 @@ Item {
 
         anchors.fill: parent
         opacity: root.dimmed ? 1 : 0
+        passRightClick: root.passRightClick
         visible: !root.inline
 
         onDismissed: {
             root.close();
             root.rejected();
+        }
+        onRightClicked: (x, y) => {
+            const at = scrim.mapToItem(root, x, y);
+            root.close();
+            root.rejected();
+            root.rightClickedOutside(at.x, at.y);
         }
     }
 

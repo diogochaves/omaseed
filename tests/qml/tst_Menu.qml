@@ -420,6 +420,46 @@ TestCase {
         verify(menu.panel.height > 0, "the inline menu has no height");
     }
 
+    // #51 D17: a right-click outside the panel closes the menu as any click does; with
+    // `passRightClick` it is then handed on, at its point, for the owner to right-click there.
+    function test_a_right_click_outside_closes_and_is_handed_on_when_asked() {
+        const menu = createTemporaryObject(menuComponent, testCase);
+        const rejected = createTemporaryObject(rejectedSpy, testCase, {
+                                                   "target": menu
+                                               });
+        const outside = createTemporaryObject(outsideSpy, testCase, {
+                                                  "target": menu
+                                              });
+        menu.openAt(10, 10);
+        waitForRendering(menu, 250);
+        mouseClick(menu, testCase.width - 20, testCase.height - 30, Qt.RightButton);
+        compare(menu.opened, false);
+        compare(rejected.count, 1);
+        compare(outside.count, 0, "handed on without passRightClick");
+
+        menu.passRightClick = true;
+        menu.openAt(10, 10);
+        mouseClick(menu, testCase.width - 20, testCase.height - 30, Qt.RightButton);
+        compare(menu.opened, false);
+        compare(rejected.count, 2);
+        compare(outside.count, 1);
+        compare(outside.signalArguments[0][0], testCase.width - 20);
+        compare(outside.signalArguments[0][1], testCase.height - 30);
+        // A left click outside still only closes.
+        menu.openAt(10, 10);
+        mouseClick(menu, testCase.width - 20, testCase.height - 30);
+        compare(menu.opened, false);
+        compare(outside.count, 1);
+    }
+
+    Component {
+        id: outsideSpy
+
+        SignalSpy {
+            signalName: "rightClickedOutside"
+        }
+    }
+
     Component {
         id: activatedSpy
 

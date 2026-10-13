@@ -1866,9 +1866,17 @@ Item {
         id: actionsMenuPanel
 
         anchors.fill: parent
+        // #51 D17: a right-click on another row closes the menu and opens it again there.
+        passRightClick: true
         z: 9
 
         onActivated: action => root.torrentAction(action)
+        onRightClickedOutside: (x, y) => {
+            if (!table.visible || root.serverLost)
+                return;
+            const at = actionsMenuPanel.mapToItem(table, x, y);
+            table.contextClickAt(at.x, at.y);
+        }
     }
 
     DeleteConfirm {

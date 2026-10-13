@@ -739,6 +739,38 @@ Item {
         internal.closeRename();
     }
 
+    /// A right-click on row `index` at `x`, `y` (this item's coordinates): the cursor goes
+    /// there, a row outside the selection becomes the selection alone, and the actions menu
+    /// opens at the point.
+    function contextClick(index: int, x: real, y: real): void {
+        const hash = root.filtered.hashAt(index);
+        if (hash.length === 0)
+            return;
+        root.cursorIndex = index;
+        if (!root.isRowSelected(index))
+            root.selectOnly(index);
+        root.actionsRequested(hash, x, y);
+    }
+
+    /// The row under `x`, `y` (this item's coordinates), or -1 off the rows.
+    function rowAt(x: real, y: real): int {
+        const at = root.mapToItem(list.contentItem, x, y);
+        if (x < list.x || x >= list.x + list.width || y < list.y || y >= list.y + list.height)
+            return -1;
+        return list.indexAt(at.x, at.y);
+    }
+
+    /// #51 D17: a right-click that lands on the scrim of the open actions menu, at `x`, `y`
+    /// (this item's coordinates), right-clicks the row there. False off the rows.
+    function contextClickAt(x: real, y: real): bool {
+        const index = root.rowAt(x, y);
+        if (index < 0)
+            return false;
+        root.forceActiveFocus();
+        root.contextClick(index, x, y);
+        return true;
+    }
+
     /// `enter` and right-click: ask for the actions menu, anchored on the cursor row.
     function requestActions(): void {
         if (root.cursorHash.length === 0)
@@ -1535,11 +1567,8 @@ Item {
                 onClicked: mouse => {
                     root.forceActiveFocus();
                     if (mouse.button === Qt.RightButton) {
-                        root.cursorIndex = row.index;
-                        if (!row.isSelected)
-                            root.selectOnly(row.index);
                         const point = pointer.mapToItem(root, mouse.x, mouse.y);
-                        root.actionsRequested(row.hash, point.x, point.y);
+                        root.contextClick(row.index, point.x, point.y);
                         return;
                     }
                     if (mouse.modifiers & Qt.ShiftModifier) {
