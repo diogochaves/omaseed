@@ -1540,6 +1540,29 @@ Item {
         }
     }
 
+    // The list's empty space, below its last row and in the `bottomRoom` under the
+    // selection bar: a click there clears the selection, as it does in a file manager, which
+    // also puts the selection bar away. The cursor stays where it is.
+    MouseArea {
+        id: emptySpace
+
+        /// Where the rows end, in the list's coordinates.
+        readonly property real rowsEnd: list.originY + list.contentHeight - list.contentY
+
+        height: Math.max(0, list.y + list.height - emptySpace.y)
+        objectName: "emptySpace"
+        width: list.width
+        x: list.x
+        y: list.y + Math.max(0, Math.min(list.height, emptySpace.rowsEnd))
+        z: 1
+
+        onClicked: {
+            // Taking the focus also commits an open rename (the editor's focus loss).
+            root.forceActiveFocus();
+            root.clearSelection();
+        }
+    }
+
     ScrollBar {
         id: sideways
 

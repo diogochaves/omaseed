@@ -659,6 +659,22 @@ TestCase {
         compare(actionsSpy.count, 2);
     }
 
+    // A click below the last row (and in the room left for the selection bar) clears the
+    // selection, which puts the bar away; the cursor stays.
+    function test_a_click_on_the_empty_space_clears_the_selection() {
+        table.bottomRoom = Theme.space(80);
+        const empty = findChild(table, "emptySpace");
+        verify(empty);
+        verify(empty.height > 0, "sixteen rows leave no empty space");
+        clickRow(1, Qt.NoModifier);
+        clickRow(4, Qt.ShiftModifier);
+        compare(table.selectedCount, 4);
+        mouseClick(empty, empty.width / 2, empty.height - Theme.space(10));
+        compare(table.selectedCount, 0);
+        compare(table.cursorIndex, 4);
+        table.bottomRoom = 0;
+    }
+
     function test_enter_asks_for_the_actions_menu() {
         table.moveCursorTo(2);
         table.forceActiveFocus();
