@@ -36,7 +36,8 @@ Item {
     /// `/` was pressed: show the filter field even while it is still empty.
     property bool filterOpen: false
 
-    signal rowClicked(int row)
+    /// `modifiers`: ctrl and shift select (as `space` and `v`) instead of folding a folder.
+    signal rowClicked(int row, int modifiers)
     signal rowActivated(int row)
     /// A right click on a row: the pane opens its menu there (in this item's coordinates).
     signal rowMenuRequested(int row, real x, real y)
@@ -560,10 +561,11 @@ Item {
 
             hasCursor: row.index === root.cursorIndex
             height: Theme.railRowHeight
+            objectName: "fileRow_" + row.index
             selected: row.rowSelected
             width: ListView.view.width
 
-            onClicked: root.rowClicked(row.index)
+            onClicked: modifiers => root.rowClicked(row.index, modifiers)
             onDoubleClicked: root.rowActivated(row.index)
             onRightClicked: {
                 const at = row.mapToItem(root, Theme.space(24), row.height);

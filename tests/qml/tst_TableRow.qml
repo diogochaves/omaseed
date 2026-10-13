@@ -5,7 +5,11 @@ import Omaseed.Kit
 TestCase {
     id: testCase
 
+    height: 300
     name: "TableRow"
+    visible: true
+    when: windowShown
+    width: 400
 
     Component {
         id: rowComponent
@@ -55,12 +59,17 @@ TestCase {
         compare(row.content.length, 0);
     }
 
-    function test_click_emits_clicked() {
-        const row = createTemporaryObject(rowComponent, testCase);
-        let clicks = 0;
-        row.clicked.connect(() => clicks++);
-        row.clicked();
-        compare(clicks, 1);
+    function test_click_emits_clicked_with_its_modifiers() {
+        const row = createTemporaryObject(rowComponent, testCase, {
+                                              "width": 200
+                                          });
+        const seen = [];
+        row.clicked.connect(modifiers => seen.push(modifiers));
+        mouseClick(row);
+        mouseClick(row, 10, 10, Qt.LeftButton, Qt.ShiftModifier);
+        compare(seen.length, 2);
+        compare(seen[0], Qt.NoModifier);
+        compare(seen[1], Qt.ShiftModifier);
     }
 
     function test_right_click_emits_right_clicked() {

@@ -16,7 +16,8 @@ Rectangle {
     property bool selected: false
     property bool hasCursor: false
 
-    signal clicked
+    /// `modifiers` is the click's Qt.KeyboardModifiers, for a list that selects on ctrl / shift.
+    signal clicked(int modifiers)
     signal rightClicked
     signal doubleClicked
 
@@ -63,7 +64,7 @@ Rectangle {
             if (mouse.button === Qt.RightButton)
                 root.rightClicked();
             else
-                root.clicked();
+                root.clicked(mouse.modifiers);
         }
         onDoubleClicked: root.doubleClicked()
     }

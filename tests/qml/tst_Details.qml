@@ -862,6 +862,39 @@ TestCase {
         compare(files.selectedCount, 0);
     }
 
+    // ctrl+click is `space` and shift+click is `v`, as in the torrent table; a plain click
+    // only moves the cursor and leaves the selection alone.
+    function test_ctrl_and_shift_click_select_files() {
+        const view = testCase.filesView();
+        const files = App.details.files;
+        waitForRendering(view);
+
+        mouseClick(findChild(view, "fileRow_1"), 120, 4, Qt.LeftButton, Qt.ControlModifier);
+        compare(files.selectedCount, 1);
+        verify(files.isSelected(1));
+        compare(view.cursorIndex, 1);
+
+        mouseClick(findChild(view, "fileRow_4"), 120, 4, Qt.LeftButton, Qt.ShiftModifier);
+        compare(files.selectedCount, 4); // rows 1 to 4
+        compare(view.cursorIndex, 4);
+
+        // A ctrl+click on a selected row lets it go; on a folder it selects, not folds.
+        mouseClick(findChild(view, "fileRow_2"), 120, 4, Qt.LeftButton, Qt.ControlModifier);
+        verify(!files.isSelected(2));
+        verify(files.isFolder(3));
+        const expanded = findChild(view, "fileRow_3").expanded;
+        mouseClick(findChild(view, "fileRow_3"), 120, 4, Qt.LeftButton, Qt.ControlModifier);
+        verify(!files.isSelected(3));
+        compare(findChild(view, "fileRow_3").expanded, expanded);
+
+        mouseClick(findChild(view, "fileRow_5"), 120, 4);
+        compare(view.cursorIndex, 5);
+        compare(files.selectedCount, 2);
+
+        keyClick(Qt.Key_Escape);
+        compare(files.selectedCount, 0);
+    }
+
     // #42 (docs/27 D2/D3): `x` skips the cursor row, and on a skipped one ticks it back at
     // the priority it had.
     function test_x_skips_then_keeps_at_the_old_priority() {

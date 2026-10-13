@@ -947,10 +947,16 @@ Item {
                 if (!root.details.files.isFolder(row))
                     root.openFileRequested(root.details.files.pathAt(row));
             }
-            onRowClicked: row => {
+            onRowClicked: (row, modifiers) => {
                 root.takeKeys();
                 root.filesCursor = row;
-                if (root.details.files.isFolder(row))
+                // ctrl+click is `space` and shift+click is `v`, as in the torrent table; a
+                // folder clicked that way is selected, not folded.
+                if (modifiers & Qt.ControlModifier)
+                    root.toggleFileSelection();
+                else if (modifiers & Qt.ShiftModifier)
+                    root.selectFileRange();
+                else if (root.details.files.isFolder(row))
                     root.details.files.toggle(row);
             }
             onRowMenuRequested: (row, x, y) => {
