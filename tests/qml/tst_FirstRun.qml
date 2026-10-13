@@ -723,6 +723,49 @@ TestCase {
         verify(!line.visible);
     }
 
+    // The mouse's way back to step 1: the "server" step name, where esc goes back, and only
+    // there. On step 1 it quits nothing; once the server is saved it does nothing.
+    function test_the_server_step_name_goes_back_to_step_one() {
+        const page = createTemporaryObject(pageComponent, testCase, {
+                                               "candidates": [],
+                                               "height": testCase.height,
+                                               "width": testCase.width
+                                           });
+        const quitSpy = createTemporaryObject(signalSpyComponent, testCase, {
+                                                   "target": page,
+                                                   "signalName": "quitRequested"
+                                               });
+        const server = findChild(page, "setupStep1");
+        verify(server !== null);
+        waitForItemPolished(findChild(page, "setupColumn"));
+        verify(!server.goesBack);
+        mouseClick(server);
+        compare(page.page, "choose");
+        compare(quitSpy.count, 0);
+
+        page.chooseCursor(); // remote
+        compare(page.page, "apikey");
+        verify(server.goesBack);
+        verify(!findChild(page, "setupStep2").goesBack);
+        waitForItemPolished(findChild(page, "setupColumn"));
+        mouseClick(server);
+        compare(page.page, "choose");
+
+        page.cursorIndex = 1; // install
+        page.chooseCursor();
+        compare(page.page, "install");
+        waitForItemPolished(findChild(page, "setupColumn"));
+        mouseClick(server);
+        compare(page.page, "choose");
+
+        page.page = "handler";
+        waitForItemPolished(findChild(page, "setupColumn"));
+        verify(!server.goesBack);
+        mouseClick(server);
+        compare(page.page, "handler");
+        compare(quitSpy.count, 0);
+    }
+
     Component {
         id: signalSpyComponent
 

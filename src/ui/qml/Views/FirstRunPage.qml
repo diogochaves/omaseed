@@ -362,6 +362,10 @@ function openLibrary(): void {
     root.finished();
 }
 
+/// Step 1's choice is still open to change: the install and sign-in pages, where `esc` (and a
+/// click on the "server" step) goes back to it.
+readonly property bool canGoBack: root.page === "install" || root.page === "apikey"
+
 /// `esc`: quit before anything is chosen, back to step 1 while filling one in, and nothing
 /// once the server is saved (steps 3, 4 and done).
 function goBack(): void {
@@ -673,6 +677,8 @@ Flickable {
         }
 
         // docs/14 D1: done steps in green with a tick, the current one bright, the rest dim.
+        // "server" takes a click back to step 1 while `esc` would go there (the install and
+        // sign-in pages): the mouse's way back, with no button added to the page.
         Row {
             objectName: "setupSteps"
             spacing: Theme.space(18)
@@ -682,17 +688,35 @@ Flickable {
                 model: root.barStep ? [qsTr("server"), qsTr("sign in"), qsTr("links"), qsTr("bar")] : [qsTr("server"), qsTr("sign in"), qsTr("links")]
 
                 Label {
+                    id: stepName
+
                     required property int index
                     required property string modelData
 
                     readonly property int number: index + 1
+                    readonly property bool goesBack: stepName.number === 1 && root.canGoBack
 
                     bright: number === root.stepNumber
-                    color: number < root.stepNumber ? Theme.green : number === root.stepNumber
-                                                                    ? Theme.brightForeground :
-                                                                      Theme.dimForeground
+                    color: stepName.goesBack && stepHover.hovered ? Theme.accent
+                                                                   : number < root.stepNumber ? Theme.green
+                                                                                              : number === root.stepNumber
+                                                                                                ? Theme.brightForeground
+                                                                                                : Theme.dimForeground
+                    objectName: "setupStep" + stepName.number
                     size: "small"
                     text: number < root.stepNumber ? "✓ " + modelData : modelData
+
+                    HoverHandler {
+                        id: stepHover
+
+                        cursorShape: stepName.goesBack ? Qt.PointingHandCursor : Qt.ArrowCursor
+                    }
+
+                    TapHandler {
+                        enabled: stepName.goesBack
+
+                        onTapped: root.goBack()
+                    }
                 }
             }
         }
