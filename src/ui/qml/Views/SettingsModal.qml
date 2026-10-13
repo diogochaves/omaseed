@@ -2284,9 +2284,14 @@ Item {
                                     },
                                     {
                                         "key": qsTr("Repository"),
-                                        "value": App.repoUrl
+                                        "value": App.repoUrl,
+                                        "url": App.repoUrl
                                     }
                                 ]
+                                objectName: "aboutKeyValue"
+
+                                // In the browser, as first run's `open the Web UI` does.
+                                onLinkActivated: url => Qt.openUrlExternally(url)
                             }
 
                             FormRow {

@@ -12,10 +12,16 @@ import Omaseed.Kit
 // under `caption` (as Strip's labels are), `.kv .v` is fg-bright on a single line with an
 // ellipsis. Every row is therefore `Theme.space(26)` tall; a value that had to elide shows in
 // full in a tooltip (IconButton's look) while the pointer rests on it.
+//
+// An item with a `url` is a link (About's repository): its value takes the pointing hand and
+// the accent under the pointer, and a click emits `linkActivated(url)` for the caller to open.
 Item {
     id: root
 
     property var items: []
+
+    /// A click on the value of an item that has a `url`.
+    signal linkActivated(string url)
 
     /// `.kv .k`: one pixel under the caption size.
     readonly property int _keySize: Math.max(1, Theme.font.caption - 1)
@@ -43,6 +49,7 @@ Item {
                 required property var modelData
 
                 readonly property alias valueText: valueText
+                readonly property bool isLink: !!rowItem.modelData.url
 
                 height: Math.max(Theme.space(26), rowLayout.implicitHeight)
                 objectName: "keyValueRow"
@@ -72,9 +79,14 @@ Item {
                     Text {
                         id: valueText
 
+                        Accessible.role: rowItem.isLink ? Accessible.Link : Accessible.StaticText
                         Layout.fillWidth: true
-                        color: rowItem.modelData.color ? rowItem.modelData.color :
-                                                         Theme.brightForeground
+                        // A link ends where its text does, so the empty end of the row is no
+                        // click target.
+                        Layout.maximumWidth: rowItem.isLink ? valueText.implicitWidth : Number.POSITIVE_INFINITY
+                        color: rowItem.isLink && valueHover.hovered ? Theme.accent
+                                                                    : rowItem.modelData.color ? rowItem.modelData.color
+                                                                                              : Theme.brightForeground
                         elide: Text.ElideRight
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.font.small
@@ -85,6 +97,14 @@ Item {
 
                         HoverHandler {
                             id: valueHover
+
+                            cursorShape: rowItem.isLink ? Qt.PointingHandCursor : Qt.ArrowCursor
+                        }
+
+                        TapHandler {
+                            enabled: rowItem.isLink
+
+                            onTapped: root.linkActivated(rowItem.modelData.url)
                         }
 
                         // The kit's one tooltip (ruling 8), on the window's content item like

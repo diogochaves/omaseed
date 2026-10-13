@@ -7,6 +7,7 @@ TestCase {
 
     height: 200
     name: "KeyValue"
+    visible: true
     when: windowShown
     width: 400
 
@@ -111,5 +112,42 @@ TestCase {
         tryCompare(tip, "shown", true);
         compare(tip.text, long);
         tip.hide();
+    }
+
+    // An item with a `url` is a link: a click on its value says which, for the caller to
+    // open (About's repository); a plain value takes no click.
+    function test_a_url_item_is_a_link() {
+        const kv = createTemporaryObject(keyValueComponent, testCase, {
+                                             "items": [
+                                                 {
+                                                     "key": "version",
+                                                     "value": "0.9.0"
+                                                 },
+                                                 {
+                                                     "key": "repository",
+                                                     "value": "https://example.invalid/omaseed",
+                                                     "url": "https://example.invalid/omaseed"
+                                                 }
+                                             ],
+                                             "width": 400
+                                         });
+        let opened = [];
+        kv.linkActivated.connect(url => opened.push(url));
+        const rows = [];
+        for (let i = 0; i < kv.children[0].children.length; ++i) {
+            const child = kv.children[0].children[i];
+            if (child.objectName === "keyValueRow")
+                rows.push(child);
+        }
+        compare(rows.length, 2);
+        verify(!rows[0].isLink);
+        verify(rows[1].isLink);
+        waitForItemPolished(rows[1]);
+        // The link ends with its text: the rest of the row is no target.
+        verify(rows[1].valueText.width <= rows[1].valueText.implicitWidth + 0.5);
+        mouseClick(rows[0].valueText);
+        compare(opened.length, 0);
+        mouseClick(rows[1].valueText);
+        compare(opened, ["https://example.invalid/omaseed"]);
     }
 }
