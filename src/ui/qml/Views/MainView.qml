@@ -1458,6 +1458,8 @@ Item {
                 // docs/17 M9.6: the last row can always scroll clear of the selection bar.
                 bottomRoom: selectionBar.visible ? selectionBar.height + Theme.space(12) : 0
                 filtered: App.filtered
+                // #51 D9: rows hold still under the open actions menu, for D17's right-click.
+                holdOrder: actionsMenuPanel.opened
                 // Fig. 23: the last list stays, dimmed and read-only.
                 opacity: root.serverLost ? 0.45 : 1.0
                 visible: !root.filterEmpty

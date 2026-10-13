@@ -1333,4 +1333,23 @@ TestCase {
         verify(second !== first);
         compare(view.details.torrent.name, App.torrentRow(second).name);
     }
+
+    // ---- the mouse pass's decisions (#51) -----------------------------------------------------
+    function rowItem(index: int): Item {
+        const row = findChild(view.table, "row_" + index);
+        verify(row, "no row " + index);
+        return row;
+    }
+
+    // D9: the rows hold their order under the open actions menu too.
+    function test_the_open_actions_menu_holds_the_row_order() {
+        verify(!view.table.holdOrder);
+        view.table.requestActions();
+        verify(view.table.holdOrder);
+        verify(view.table.orderHeld);
+        tryVerify(() => App.filtered.holdOrder, 1000);
+        view.actionsMenuPanel.close();
+        verify(!view.table.holdOrder);
+        tryVerify(() => !App.filtered.holdOrder, 1000);
+    }
 }

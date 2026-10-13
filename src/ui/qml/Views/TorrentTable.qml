@@ -418,6 +418,13 @@ Item {
     property string initialSortRoleName: "dlspeed"
     property int initialSortOrder: Qt.DescendingOrder
 
+    /// The host holds the row order too, beside the pointer over the rows (#51 D9): while the
+    /// actions menu is open over them, so a right-click on another row (D17) lands on the
+    /// torrent it was aimed at.
+    property bool holdOrder: false
+    /// Whether the rows' order is held now (TorrentFilterModel::holdOrder).
+    readonly property bool orderHeld: rowsHover.hovered || root.holdOrder
+
     /// The filled band of `.tbl .r.sel`, exposed so the details pane can follow it.
     readonly property ItemSelectionModel selection: ItemSelectionModel {
         model: root.filtered
@@ -1088,6 +1095,11 @@ Item {
         objectName: "rows"
         reuseItems: true
 
+        // #51 D9 (see `orderHeld`): an ancestor of the rows, it hears the hover they take.
+        HoverHandler {
+            id: rowsHover
+        }
+
         delegate: Item {
             id: row
 
@@ -1610,6 +1622,21 @@ Item {
         flickable: list
         objectName: "tableWheel"
         z: 2
+    }
+
+    // #51 D9: while the pointer is over the rows, they keep their order, so a row sorted by a
+    // live value (speed) is still the one under the pointer when the click comes. Values go on
+    // changing; torrents still come and go; a new sort or filter applies at once
+    // (TorrentFilterModel::holdOrder). Leaving the rows lets go: one re-sort. The keyboard
+    // holds nothing. The HoverHandler (`rowsHover`) is the list's own, not on an item over the
+    // rows: there it left the rows' MouseAreas hovered for good after a click. Delayed to the
+    // end of the event: D17's right-click on the menu's scrim closes the menu (the host's hold
+    // goes) and opens it again on the row under the point, which must not move in between.
+    Binding {
+        delayed: true
+        property: "holdOrder"
+        target: root.filtered
+        value: root.orderHeld
     }
 
     // Where the rows are in the list: the rail's "scrollbar" look (Kit/ScrollHint), whatever

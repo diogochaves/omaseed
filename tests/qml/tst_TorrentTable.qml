@@ -757,4 +757,38 @@ TestCase {
         testCase.spare.destroy();
         testCase.spare = null;
     }
+
+    // #51 D9: the pointer over the rows holds their order; over the header it does not. The
+    // host can hold it too (the open actions menu).
+    function test_the_pointer_over_the_rows_holds_their_order() {
+        const row = findChild(table, "row_2");
+        mouseMove(row, Theme.space(40), row.height / 2);
+        tryVerify(() => table.orderHeld, 1000, "hovering a row did not hold the order");
+        tryVerify(() => App.filtered.holdOrder, 1000);
+        const size = header("size");
+        mouseMove(size, size.width / 2, size.height / 2);
+        tryVerify(() => !table.orderHeld, 1000, "leaving the rows did not let go");
+        tryVerify(() => !App.filtered.holdOrder, 1000);
+        table.holdOrder = true;
+        tryVerify(() => App.filtered.holdOrder, 1000);
+        // Let go and taken again in one event (D17: the menu closes and opens again on
+        // another row): the hold never lapses, so the rows never re-sort in between.
+        const spy = createTemporaryObject(holdSpyComponent, testCase);
+        table.holdOrder = false;
+        table.holdOrder = true;
+        wait(50);
+        compare(spy.count, 0);
+        verify(App.filtered.holdOrder);
+        table.holdOrder = false;
+        tryVerify(() => !App.filtered.holdOrder, 1000);
+    }
+
+    Component {
+        id: holdSpyComponent
+
+        SignalSpy {
+            signalName: "holdOrderChanged"
+            target: App.filtered
+        }
+    }
 }
