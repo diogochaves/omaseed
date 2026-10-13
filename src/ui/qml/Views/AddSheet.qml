@@ -349,9 +349,27 @@ Sheet {
                                                                                  t => !t.inLibrary
                                                                                  && downloadsList.ticked.indexOf(t.path) >= 0).length
                                                                            : 0
+    /// The ticks in In Downloads on torrents already in the library: the add leaves them out.
+    readonly property int _tickedInLibrary: sheet.showDownloads ? App.downloadsTorrents.filter(
+                                                                      t => t.inLibrary
+                                                                      && downloadsList.ticked.indexOf(t.path) >= 0).length
+                                                                : 0
     readonly property string _addText: sheet._addCount > 1 ? qsTr("add %1").arg(sheet._addCount) : qsTr("add")
     readonly property string _addStoppedText: sheet._addCount > 1 ? qsTr("add %1 stopped").arg(sheet._addCount)
                                                                   : qsTr("add stopped")
+
+    /// In Downloads' line over its ticks: how many, and what the add takes of them, so it says
+    /// what the button counts (#51 D18: "5 ticked" over "add 3").
+    function tickedText(ticked: int, inLibrary: int): string {
+        if (inLibrary <= 0)
+            return qsTr("%1 ticked · add takes them together").arg(ticked);
+        if (inLibrary >= ticked)
+            return ticked === 1 ? qsTr("1 ticked · already in the library")
+                                : qsTr("%1 ticked · all already in the library").arg(ticked);
+        return qsTr("%1 ticked · %2 already in the library · add takes %3").arg(ticked).arg(inLibrary).arg(
+                    ticked - inLibrary);
+    }
+
     /// #43: every file of the `.torrent` unticked. It is still added, stopped, so its files
     /// can be chosen later in the Files tab; the primary button says so.
     readonly property bool _nothingTicked: sheet.showFiles && App.addFiles.wantedCount === 0
@@ -1293,7 +1311,7 @@ Sheet {
                                 dim: true
                                 objectName: "downloadsTicked"
                                 size: "caption"
-                                text: qsTr("%1 ticked · add takes them together").arg(downloadsList.ticked.length)
+                                text: sheet.tickedText(downloadsList.ticked.length, sheet._tickedInLibrary)
                                 visible: downloadsList.ticked.length > 0
                             }
                         }

@@ -1367,6 +1367,29 @@ TestCase {
         compare(request.stopped, false);
     }
 
+    // #51 D18: In Downloads' line counts what the button adds, and says how many ticks are
+    // on torrents already in the library, which the add leaves out.
+    function test_the_ticked_line_says_what_the_add_takes() {
+        const sheet = testCase.openOnFixtures();
+        compare(sheet.tickedText(3, 0), "3 ticked · add takes them together");
+        compare(sheet.tickedText(5, 2), "5 ticked · 2 already in the library · add takes 3");
+        compare(sheet.tickedText(1, 1), "1 ticked · already in the library");
+        compare(sheet.tickedText(2, 2), "2 ticked · all already in the library");
+
+        const fresh = App.downloadsTorrents.filter(t => !t.inLibrary).length;
+        verify(fresh >= 2);
+        sheet.downloadsList.toggleTick(App.downloadsTorrents.findIndex(t => !t.inLibrary));
+        compare(sheet._tickedInLibrary, 0);
+        compare(findChild(sheet, "downloadsTicked").text, "1 ticked · add takes them together");
+        const library = App.downloadsTorrents.length - fresh;
+        for (let i = 0; i < App.downloadsTorrents.length; ++i) {
+            if (App.downloadsTorrents[i].inLibrary)
+                sheet.downloadsList.toggleTick(i);
+        }
+        compare(sheet._tickedInLibrary, library);
+        compare(findChild(sheet, "downloadsTicked").text, sheet.tickedText(1 + library, library));
+    }
+
     // One tick and `add stopped`: that file, added stopped, once it is read.
     function test_add_stopped_takes_a_single_tick_in_downloads() {
         const sheet = testCase.openOnFixtures();
