@@ -608,6 +608,12 @@ Item {
                     Layout.preferredHeight: Theme.railRowHeight
                     Layout.preferredWidth: root.tickWidth
                     objectName: "fileTick_" + row.index
+                    // What a click does, as the header's tick says it for every file.
+                    tip: row.wanted === 2 ? (row.isFolder ? qsTr("skip this folder · x")
+                                                          : qsTr("skip this file · x"))
+                                          : (row.isFolder ? qsTr("tick this folder · x")
+                                                          : qsTr("tick this file · x"))
+                    tooltip: nameTip
                     wanted: row.wanted
 
                     onClicked: root.tickClicked(row.index, row.wanted)

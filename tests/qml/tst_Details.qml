@@ -1395,6 +1395,30 @@ TestCase {
         verify(view.activeFocus);
     }
 
+    // The row ticks say what a click does, as the header's does for every file.
+    function test_the_row_ticks_have_a_tip() {
+        const view = testCase.filesView();
+        waitForRendering(view);
+        compare(findChild(view, "fileTick_1").tip, "skip this file · x");
+        compare(findChild(view, "fileTick_3").tip, "tick this folder · x");
+        verify(findChild(view, "fileTick_1").tooltip !== null);
+    }
+
+    // A name the head had to cut shows whole on hover.
+    function test_a_cut_torrent_name_shows_whole_on_hover() {
+        const view = testCase.select(testCase.bbbName);
+        view.width = 160;
+        waitForRendering(view);
+        const name = findChild(view, "headName");
+        verify(name.truncated, "the name fits; the case needs a narrower pane");
+        mouseMove(name, 10, 5);
+        const tip = findChild(view, "headTip");
+        tryVerify(() => tip.shown, 2000, "no tip on the cut name");
+        compare(tip.text, testCase.bbbName);
+        mouseMove(view, 100, 400);
+        verify(!tip.shown);
+    }
+
     SignalSpy {
         id: trackerSpy
 

@@ -822,13 +822,28 @@ Item {
             spacing: Theme.space(2)
 
             Text {
+                id: headName
+
                 color: Theme.brightForeground
                 elide: Text.ElideRight
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.font.body
                 font.weight: Font.DemiBold
+                objectName: "headName"
                 text: root.torrent ? root.torrent.name : qsTr("no torrent selected")
                 width: parent.width
+
+                // A name the pane had to cut shows whole under it while the pointer rests.
+                HoverHandler {
+                    id: headNameHover
+
+                    onHoveredChanged: {
+                        if (headNameHover.hovered && headName.truncated)
+                            headTip.showFor(headName, headName.text);
+                        else
+                            headTip.hide();
+                    }
+                }
             }
 
             // Spec §1 Fig. 1: "linux · keep · added today 10:41" — category, tags, added.
@@ -1255,6 +1270,13 @@ Item {
                         ];
             }
         }
+    }
+
+    // The head's whole name, over the pane (the head itself is clipped to its two lines).
+    Tooltip {
+        id: headTip
+
+        objectName: "headTip"
     }
 
     // --- the pane's menus (N1) -----------------------------------------------------------
