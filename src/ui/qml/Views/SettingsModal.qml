@@ -944,6 +944,29 @@ Item {
 
             Keys.onPressed: event => root._onKey(event)
 
+            // A press anywhere in the body outside the field with the caret takes the caret
+            // out of it, so a value typed and clicked away from is applied (the fields apply
+            // on editing end): a click on the pane's empty space or a switch would otherwise
+            // leave the caret where it was. Over everything, and it lets every press go on
+            // to what is under it.
+            MouseArea {
+                acceptedButtons: Qt.AllButtons
+                anchors.fill: parent
+                objectName: "settingsBlur"
+                z: 1
+
+                onPressed: mouse => {
+                    mouse.accepted = false;
+                    const focused = bodyItem.Window.activeFocusItem;
+                    const field = focused ? focused.parent : null;
+                    if (!field || typeof field.focusInput !== "function" || field.editing !== true)
+                        return;
+                    const at = mapToItem(field, mouse.x, mouse.y);
+                    if (!field.contains(at))
+                        bodyItem.forceActiveFocus();
+                }
+            }
+
             RowLayout {
                 id: bodyRow
 

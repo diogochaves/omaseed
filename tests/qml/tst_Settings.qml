@@ -945,6 +945,26 @@ TestCase {
         App.windowAlphaOverride = 0;
     }
 
+    // A click on the pane's empty space takes the caret out of the field, which applies it;
+    // a click in the field leaves it there.
+    function test_a_click_beside_a_number_field_applies_it() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        keyClick(Qt.Key_3);
+        const threshold = testCase.childNamed(modal, "lowDiskThresholdField");
+        waitForItemPolished(threshold.parent);
+        threshold.focusInput();
+        threshold.text = "9";
+        mouseClick(threshold);
+        verify(threshold.editing);
+        compare(App.lowDiskThresholdGiB, 2);
+        const scroller = testCase.childNamed(modal, "paneScroller");
+        mouseClick(scroller, scroller.width / 2, scroller.height - 10);
+        verify(!threshold.editing);
+        compare(App.lowDiskThresholdGiB, 9);
+        App.lowDiskThresholdGiB = 2;
+    }
+
     // #17: the bar widget row. The tests have no `omarchy` (tests/qml/CMakeLists.txt), so it
     // starts unavailable; pointed at `true`, the switch links the widget into the tests' own
     // config folder and takes it out again.
