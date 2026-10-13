@@ -1144,6 +1144,7 @@ Item {
                                        }))
                         objectName: "settingsTabs"
                         visible: root.folded
+                        wheelSteps: true
 
                         onActivated: index => {
                             root.showPane(index + (root.inQbt ? root.qbtStart : 0));

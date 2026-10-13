@@ -14,7 +14,37 @@ Item {
     property var model: []
     property int currentIndex: 0
 
+    /// The wheel over the strip moves the current tab, a notch a tab, as a click would
+    /// (Settings' folded sections, which clip at the right edge and only slide to keep the
+    /// current one in view). Off by default: the details pane's four tabs always fit.
+    property bool wheelSteps: false
+
     signal activated(int index)
+
+    /// Move the current tab `delta` tabs, stopping at the ends, and say so as a click does.
+    function step(delta: int): void {
+        const to = Math.max(0, Math.min(tabRepeater.count - 1, root.currentIndex + delta));
+        if (to < 0 || to === root.currentIndex)
+            return;
+        root.currentIndex = to;
+        root.activated(to);
+    }
+
+    /// A wheel's angle, in eighths of a degree: 120 a notch, smaller pieces from a fine wheel
+    /// or a touchpad adding up to one. Down or right is the next tab.
+    function _wheel(angleX: real, angleY: real): void {
+        root._wheelRest += angleY !== 0 ? angleY : angleX;
+        while (root._wheelRest <= -120) {
+            root._wheelRest += 120;
+            root.step(1);
+        }
+        while (root._wheelRest >= 120) {
+            root._wheelRest -= 120;
+            root.step(-1);
+        }
+    }
+
+    property real _wheelRest: 0
 
     readonly property int _tabHeight: Math.round(Theme.font.body * 2.2)
     /// How far the row slides left so the current tab stays in view when the tabs are wider
@@ -33,6 +63,14 @@ Item {
 
     height: implicitHeight
     implicitHeight: root._tabHeight
+
+    WheelHandler {
+        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+        enabled: root.wheelSteps
+        target: null
+
+        onWheel: event => root._wheel(event.angleDelta.x, event.angleDelta.y)
+    }
 
     Row {
         id: row

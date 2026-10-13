@@ -72,4 +72,31 @@ TestCase {
         compare(tabs.model[2].badge, true);
         compare(tabs.model[0].badge, undefined);
     }
+
+    // `wheelSteps`: a notch is a tab, down or right the next, smaller pieces adding up, and
+    // the ends stop it. `mouseWheel` does not deliver offscreen (tst_WheelScroll.qml), so the
+    // angles go through `_wheel`, the one function the wheel calls.
+    function test_the_wheel_steps_a_tab_a_notch() {
+        const tabs = createTemporaryObject(tabsComponent, testCase, {
+                                               "model": testCase.sampleModel,
+                                               "wheelSteps": true
+                                           });
+        let activated = [];
+        tabs.activated.connect(index => activated.push(index));
+        tabs._wheel(0, -120);
+        compare(tabs.currentIndex, 1);
+        tabs._wheel(0, -60);
+        compare(tabs.currentIndex, 1);
+        tabs._wheel(0, -60);
+        compare(tabs.currentIndex, 2);
+        tabs._wheel(-120, 0); // sideways: right is the next one too
+        compare(tabs.currentIndex, 3);
+        tabs._wheel(0, -360);
+        compare(tabs.currentIndex, 3);
+        tabs._wheel(0, 240);
+        compare(tabs.currentIndex, 1);
+        compare(activated, [1, 2, 3, 2, 1]);
+        tabs._wheel(0, 600);
+        compare(tabs.currentIndex, 0);
+    }
 }

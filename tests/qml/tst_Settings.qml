@@ -1116,6 +1116,14 @@ TestCase {
         tabs.activated(0);
         compare(modal.paneIndex, 0);
 
+        // The wheel over the strip moves a section a notch, so the clipped ones are in reach
+        // of the mouse too.
+        verify(tabs.wheelSteps);
+        tabs._wheel(0, -120);
+        compare(modal.paneIndex, 1);
+        tabs._wheel(0, 120);
+        compare(modal.paneIndex, 0);
+
         // At the fold and above, the nav is back.
         host.width = Theme.space(600);
         verify(!modal.folded);
