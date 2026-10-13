@@ -33,6 +33,7 @@ qt_add_qml_module(omaseed-kit
         Hero.qml
         Icon.qml
         IconButton.qml
+        InputMouseArea.qml
         KeyCap.qml
         KeyHints.qml
         KeyValue.qml

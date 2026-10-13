@@ -11,6 +11,10 @@ import Omaseed.Kit
 // inner `TextInput`), so a caller that wants single-source-of-truth state should listen for
 // `onTextChanged` and write back through a `Connections`/binding of its own — assigning
 // `text` imperatively from outside while focused would fight the user's keystrokes.
+//
+// The mouse: a press anywhere in the box puts the caret in the text, nearest the press (the
+// input itself is one line tall), and a right-click opens cut / copy / paste / select all
+// (`Kit/InputMouseArea`).
 Rectangle {
     id: root
 
@@ -92,6 +96,13 @@ Rectangle {
 
     HoverHandler {
         id: hoverHandler
+    }
+
+    // Under everything that takes a click: the input, and the trailing button over it.
+    InputMouseArea {
+        anchors.fill: parent
+        input: input
+        objectName: "fieldMouse"
     }
 
     Text {

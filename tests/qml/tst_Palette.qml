@@ -494,6 +494,29 @@ TestCase {
         palette.close();
     }
 
+    // The query row: a press anywhere on it puts the caret in the query, and a right-click
+    // opens cut / copy / paste / select all.
+    function test_the_query_row_takes_the_mouse() {
+        const palette = createTemporaryObject(paletteComponent, testCase);
+        palette.open();
+        palette.query = "fedora";
+        waitForRendering(palette.panel, 500);
+        const row = findChild(palette, "paletteQueryMouse");
+        mouseClick(row, 2, 2); // the left padding, top band
+        compare(palette.query, "fedora");
+        mouseClick(row, row.width - 2, row.height - 2);
+        mouseClick(row, 2, row.height - 2);
+        compare(row.input.cursorPosition, 0);
+        verify(row.input.activeFocus);
+        mouseClick(row, row.width / 2, row.height / 2, Qt.RightButton);
+        verify(row.menu !== null, "no menu");
+        keyClick(Qt.Key_Escape);
+        verify(row.menu === null);
+        verify(palette.opened, "esc in the menu closed the palette");
+        verify(row.input.activeFocus);
+        palette.close();
+    }
+
     // N2: a reorderable list asks to move the cursor's row; the caller owns the order.
     function test_alt_arrows_ask_to_move_the_row_in_a_reorderable_list() {
         const palette = createTemporaryObject(multiComponent, testCase, {

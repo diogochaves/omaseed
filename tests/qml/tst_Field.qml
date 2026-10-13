@@ -214,4 +214,35 @@ TestCase {
         keyClick(Qt.Key_E, Qt.ControlModifier | Qt.ShiftModifier);
         compare(pressed, 1, "ctrl+shift+e is not ctrl+e");
     }
+
+    // The input is one line tall and centred: a press on the band above it, the padding or
+    // the hint glyph still puts the caret in, nearest the press.
+    function test_a_press_anywhere_in_the_box_focuses_the_input() {
+        const field = createTemporaryObject(fieldComponent, testCase, {
+                                                "hint": "/",
+                                                "text": "/data/torrents",
+                                                "width": 300
+                                            });
+        verify(!field.editing);
+        mouseClick(field, 3, 2); // the hint's padding, top band
+        verify(field.editing, "a press on the padding did not focus the field");
+        compare(field.cursorPosition, 0);
+        mouseClick(field, field.width - 3, field.height - 2);
+        compare(field.cursorPosition, field.text.length);
+    }
+
+    // A mouse-only user pastes a path through the right-click menu.
+    function test_a_right_click_opens_cut_copy_paste() {
+        const field = createTemporaryObject(fieldComponent, testCase, {
+                                                "text": "/data",
+                                                "width": 300
+                                            });
+        const mouse = findChild(field, "fieldMouse");
+        mouseClick(field, field.width / 2, field.height / 2, Qt.RightButton);
+        verify(mouse.menu !== null, "no menu");
+        compare(mouse.menu.items[2].action, "paste");
+        keyClick(Qt.Key_Escape);
+        verify(mouse.menu === null);
+        verify(field.editing, "the keyboard did not come back");
+    }
 }

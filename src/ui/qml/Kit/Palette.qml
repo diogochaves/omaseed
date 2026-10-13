@@ -571,6 +571,16 @@ Item {
                     anchors.left: parent.left
                     anchors.right: parent.right
                 }
+
+                // A press anywhere on the row puts the caret in the query; a right-click
+                // opens cut / copy / paste / select all, as in a Field. Last, at z -1: under
+                // the input, and `children[0]` is still the row's layout.
+                InputMouseArea {
+                    anchors.fill: parent
+                    input: input
+                    objectName: "paletteQueryMouse"
+                    z: -1
+                }
             }
 
             // the rows (`.palette .it`) ---------------------------------------------
