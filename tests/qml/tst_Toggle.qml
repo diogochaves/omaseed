@@ -5,7 +5,11 @@ import Omaseed.Kit
 TestCase {
     id: testCase
 
+    height: 200
     name: "Toggle"
+    visible: true
+    when: windowShown
+    width: 300
 
     Component {
         id: toggleComponent
@@ -64,5 +68,26 @@ TestCase {
         toggle.toggled.connect(() => toggles++);
         toggle.toggled();
         compare(toggles, 1);
+    }
+
+    // M8: a click flips the switch and leaves the keyboard where it was, so no ring stays
+    // round the track once the pointer has gone.
+    function test_a_click_does_not_take_the_focus() {
+        const holder = createTemporaryQmlObject("import QtQuick; Item { width: 10; height: 10 }",
+                                                testCase);
+        const toggle = createTemporaryObject(toggleComponent, testCase, {
+                                                 "x": 40,
+                                                 "y": 40,
+                                                 "text": "label"
+                                             });
+        let toggles = 0;
+        toggle.toggled.connect(() => toggles++);
+        holder.forceActiveFocus();
+        mouseClick(toggle);
+        compare(toggle.checked, true);
+        compare(toggles, 1);
+        verify(holder.activeFocus, "the click took the keyboard");
+        compare(toggle.activeFocus, false);
+        compare(findChild(toggle, "focusRing").shown, false);
     }
 }

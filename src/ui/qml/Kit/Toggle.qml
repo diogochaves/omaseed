@@ -5,6 +5,8 @@ import Omaseed.Kit
 // /usr/share/omarchy/shell/Ui/ToggleSwitch.qml). Track `Theme.space(28)` × `Theme.space(14)`;
 // `Space` toggles when focused; clicking anywhere in the control toggles too. On fills the
 // track at the pressed step of `accent` (Q25), so on and off differ by more than the knob.
+// A click leaves the keyboard where it was, as Button's does (docs/UX-NOTES M8): the focus
+// ring stayed round the track after the pointer left. `tab` still focuses and rings it.
 Item {
     id: root
 
@@ -94,7 +96,6 @@ Item {
         hoverEnabled: true
 
         onClicked: {
-            root.forceActiveFocus();
             root.checked = !root.checked;
             root.toggled();
         }
