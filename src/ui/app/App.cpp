@@ -2296,8 +2296,10 @@ void App::removeTrackers(const QString &hash, const QStringList &urls)
         demoGuard(QStringLiteral("remove tracker"), int(urls.size())) || !m_hasServer)
         return;
     m_client->torrentsRemoveTrackers(hash, urls)
-        ->then(this, [this](const QbtResult<QByteArray> &result) {
+        ->then(this, [this, hash](const QbtResult<QByteArray> &result) {
             reportActionResult(QStringLiteral("remove tracker"), result);
+            if (!result.isError() && m_details->hash() == hash)
+                m_details->refreshNow();
         });
 }
 

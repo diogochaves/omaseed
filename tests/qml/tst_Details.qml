@@ -1706,7 +1706,7 @@ TestCase {
         mouseClick(findChild(view, "trackerRow_1"), 120, 4, Qt.RightButton);
         verify(view.menuOpen);
         compare(selection.count, 3);
-        compare(testCase.menuItem(view, "trackerMenu", "remove").text, "remove 3 trackers…");
+        compare(testCase.menuItem(view, "trackerMenu", "remove").text, "remove 3 trackers");
         compare(testCase.menuItem(view, "trackerMenu", "copy").text, "copy 3 URLs");
         keyClick(Qt.Key_Escape);
         verify(!view.menuOpen);
@@ -1801,7 +1801,7 @@ TestCase {
         compare(webSeedSpy.signalArguments[0][1], [seeds.urlAt(0), seeds.urlAt(2)]);
 
         mouseClick(findChild(view, "webSeedRow_0"), 120, 4, Qt.RightButton);
-        compare(testCase.menuItem(view, "webSeedMenu", "remove").text, "remove 2 sources…");
+        compare(testCase.menuItem(view, "webSeedMenu", "remove").text, "remove 2 sources");
         keyClick(Qt.Key_Escape);
         keyClick(Qt.Key_Escape);
         compare(selection.count, 0);

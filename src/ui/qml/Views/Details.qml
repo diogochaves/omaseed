@@ -1646,7 +1646,7 @@ Item {
                     "action": "add"
                 },
                 {
-                    "text": trackerMenu.targets > 1 ? qsTr("remove %n trackers…", "", trackerMenu.targets)
+                    "text": trackerMenu.targets > 1 ? qsTr("remove %n trackers", "", trackerMenu.targets)
                                                     : qsTr("remove"),
                     "key": "d",
                     "action": "remove",
@@ -1722,7 +1722,7 @@ Item {
                     "action": "add"
                 },
                 {
-                    "text": webSeedMenu.selected > 1 ? qsTr("remove %n sources…", "", webSeedMenu.selected)
+                    "text": webSeedMenu.selected > 1 ? qsTr("remove %n sources", "", webSeedMenu.selected)
                                                      : qsTr("remove"),
                     "key": "d",
                     "action": "remove"
