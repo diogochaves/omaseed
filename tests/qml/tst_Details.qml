@@ -1203,6 +1203,25 @@ TestCase {
         verify(view.activeFocus, "a header click left the keys where they were");
     }
 
+    // The filter's `esc` cap is a button: it clears the filter and closes the field.
+    function test_the_filter_esc_cap_clears_it() {
+        const view = testCase.filesView();
+        const files = App.details.files;
+        waitForRendering(view);
+        keyClick("/");
+        keyClick("s");
+        keyClick("r");
+        keyClick("t");
+        compare(files.filterText, "srt");
+        const field = findChild(view, "filesFilter");
+        const button = findChild(field, "fieldTrailingButton");
+        verify(button.enabled, "the esc cap is not clickable");
+        mouseClick(button);
+        compare(files.filterText, "");
+        verify(!field.visible, "the field stayed open");
+        verify(view.activeFocus);
+    }
+
     // Somewhere outside the pane that can hold the keyboard: the table, in the window.
     Item {
         id: elsewhere

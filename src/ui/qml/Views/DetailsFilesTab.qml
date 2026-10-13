@@ -375,6 +375,8 @@ Item {
                                                                         root.model.matchCount).arg(
                                                                         root.model.fileCount) : ""
         trailingKey: qsTr("esc")
+        // The cap does what `esc` does: clears the filter and closes the field.
+        trailingClickable: true
         visible: root.filterShown
 
         Keys.onPressed: event => {
@@ -389,6 +391,11 @@ Item {
             }
         }
         onAccepted: root.filterDone()
+        onTrailingClicked: {
+            filterField.text = "";
+            root.filterOpen = false;
+            root.filterDone();
+        }
         onCleared: {
             root.filterOpen = false;
             root.filterDone();
