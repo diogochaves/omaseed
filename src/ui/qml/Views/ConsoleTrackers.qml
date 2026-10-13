@@ -100,12 +100,34 @@ Column {
                     }
 
                     Text {
+                        id: hostText
+
                         Layout.fillWidth: true
                         color: Theme.foreground
                         elide: Text.ElideRight
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.font.small
+                        objectName: "consoleTrackerHost"
                         text: row.modelData.host
+
+                        HoverHandler {
+                            id: hostHover
+                        }
+
+                        // The kit's one tooltip, as KeyValue's: the full text
+                        // while it is cut off and the pointer is on it.
+                        Tooltip {
+                            id: hostTip
+
+                            readonly property bool wanted: hostText.truncated && hostHover.hovered
+
+                            objectName: "consoleTrackerTip"
+                            parent: hostText.Window.window ? hostText.Window.window.contentItem : hostText
+                            z: 1000
+
+                            onWantedChanged: hostTip.wanted ? hostTip.showFor(hostText, hostText.text, false)
+                                                           : hostTip.hide()
+                        }
                     }
                 }
 

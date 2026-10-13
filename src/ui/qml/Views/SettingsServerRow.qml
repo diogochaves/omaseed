@@ -90,12 +90,34 @@ Rectangle {
             }
 
             Label {
+                id: lineText
+
                 Layout.fillWidth: true
                 dim: true
                 elide: Text.ElideRight
+                objectName: "serverRowDescription"
                 size: "small"
                 text: root.description
                 visible: root.description.length > 0
+
+                HoverHandler {
+                    id: lineHover
+                }
+
+                // The kit's one tooltip, as KeyValue's: the full text
+                // while it is cut off and the pointer is on it.
+                Tooltip {
+                    id: lineTip
+
+                    readonly property bool wanted: lineText.truncated && lineHover.hovered
+
+                    objectName: "serverRowTip"
+                    parent: lineText.Window.window ? lineText.Window.window.contentItem : lineText
+                    z: 1000
+
+                    onWantedChanged: lineTip.wanted ? lineTip.showFor(lineText, lineText.text, false)
+                                                   : lineTip.hide()
+                }
             }
         }
 

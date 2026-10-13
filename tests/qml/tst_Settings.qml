@@ -1131,6 +1131,27 @@ TestCase {
         verify(!tabs.visible);
     }
 
+    // A title cut off by a narrow row shows in full in the kit's tooltip; one that fits has
+    // none to show. Hover does not reach an offscreen window, so `wanted` is read instead.
+    function test_a_cut_off_row_title_has_its_tooltip() {
+        const row = createTemporaryObject(rowComponent, testCase, {
+                                              "width": Theme.space(400)
+                                          });
+        const title = testCase.childNamed(row, "settingsRowTitle");
+        const tip = testCase.childNamed(testCase.Window.window.contentItem, "settingsRowTip");
+        verify(title !== null && tip !== null);
+        compare(tip.parent, testCase.Window.window.contentItem);
+        verify(!title.truncated);
+        row.title = "A title much too long to fit beside its switch in a narrow settings row";
+        row.width = Theme.space(200);
+        waitForItemPolished(title.parent);
+        verify(title.truncated);
+        tip.showFor(title, title.text, false);
+        tryCompare(tip, "shown", true);
+        compare(tip.text, row.title);
+        tip.hide();
+    }
+
     // docs/15 Q3 A: a row under about 380 px (base 14) moves its control under the text,
     // lined up with the text's left edge; wider, the control stays at the row's end.
     function test_a_narrow_row_stacks_its_control_under_the_text() {

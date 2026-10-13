@@ -53,13 +53,35 @@ Item {
         }
 
         Text {
+            id: nameText
+
             Layout.fillWidth: true
             color: Theme.foreground
             elide: Text.ElideRight
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.small
+            objectName: "consoleRowName"
             text: root.name
             textFormat: Text.PlainText
+
+            HoverHandler {
+                id: nameHover
+            }
+
+            // The kit's one tooltip, as KeyValue's: the full text
+            // while it is cut off and the pointer is on it.
+            Tooltip {
+                id: nameTip
+
+                readonly property bool wanted: nameText.truncated && nameHover.hovered
+
+                objectName: "consoleRowTip"
+                parent: nameText.Window.window ? nameText.Window.window.contentItem : nameText
+                z: 1000
+
+                onWantedChanged: nameTip.wanted ? nameTip.showFor(nameText, nameText.text, false)
+                                               : nameTip.hide()
+            }
         }
 
         Rectangle {

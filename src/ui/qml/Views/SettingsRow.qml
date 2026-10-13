@@ -88,11 +88,33 @@ Rectangle {
             spacing: Theme.space(1)
 
             Label {
+                id: titleText
+
                 Layout.fillWidth: true
                 bright: true
                 elide: Text.ElideRight
                 font.weight: Font.Medium
+                objectName: "settingsRowTitle"
                 text: root.title
+
+                HoverHandler {
+                    id: titleHover
+                }
+
+                // The kit's one tooltip, as KeyValue's: the full text
+                // while it is cut off and the pointer is on it.
+                Tooltip {
+                    id: titleTip
+
+                    readonly property bool wanted: titleText.truncated && titleHover.hovered
+
+                    objectName: "settingsRowTip"
+                    parent: titleText.Window.window ? titleText.Window.window.contentItem : titleText
+                    z: 1000
+
+                    onWantedChanged: titleTip.wanted ? titleTip.showFor(titleText, titleText.text, false)
+                                                    : titleTip.hide()
+                }
             }
 
             Label {
