@@ -641,6 +641,19 @@ TestCase {
         compare(table.cursorIndex, 6);
     }
 
+    // The live sort moves rows between two clicks: the anchor stays on its torrent.
+    function test_the_anchor_follows_its_torrent_across_a_resort() {
+        clickRow(2, Qt.NoModifier);
+        const anchor = App.filtered.hashAt(2);
+        table.sortBy("name");
+        const from = App.filtered.rowOfHash(anchor);
+        const to = from > 3 ? from - 2 : from + 2;
+        clickRow(to, Qt.ShiftModifier);
+        const hashes = table.selectedHashes();
+        compare(hashes.length, 3);
+        verify(hashes.indexOf(anchor) >= 0, "the range no longer starts at the anchor's torrent");
+    }
+
     // With no click yet the cursor is the anchor, as it is for `v`.
     function test_a_first_shift_click_draws_from_the_cursor() {
         table.moveCursorTo(2);

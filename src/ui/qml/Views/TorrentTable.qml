@@ -650,7 +650,7 @@ Item {
 
     function clearSelection(): void {
         root.selection.clearSelection();
-        internal.anchorIndex = -1;
+        internal.anchorHash = "";
         internal.refreshSelection();
     }
 
@@ -660,7 +660,7 @@ Item {
 
     /// `v`: select everything between the last toggled row and the cursor.
     function selectRangeToCursor(): void {
-        const anchor = internal.anchorIndex < 0 ? root.cursorIndex : internal.anchorIndex;
+        const anchor = internal.anchorRow();
         const from = Math.min(anchor, root.cursorIndex);
         const to = Math.max(anchor, root.cursorIndex);
         root.filtered.selectRows(root.selection, from, to);
@@ -670,13 +670,13 @@ Item {
     /// Select only this row: the plain left click.
     function selectOnly(index: int): void {
         internal.selectRow(index, ItemSelectionModel.ClearAndSelect);
-        internal.anchorIndex = index;
+        internal.anchorHash = root.filtered.hashAt(index);
         internal.refreshSelection();
     }
 
     function toggleSelection(index: int): void {
         internal.selectRow(index, ItemSelectionModel.Toggle);
-        internal.anchorIndex = index;
+        internal.anchorHash = root.filtered.hashAt(index);
         internal.refreshSelection();
     }
 
@@ -684,9 +684,9 @@ Item {
     /// ctrl+shift+click (`add` true): that range joins the selection. Either way the cursor
     /// goes to `index` and the anchor stays, so a second shift+click re-draws from it.
     function selectRangeTo(index: int, add: bool): void {
-        const anchor = internal.anchorIndex < 0 ? root.cursorIndex : internal.anchorIndex;
+        const anchor = internal.anchorRow();
         root.cursorIndex = index;
-        internal.anchorIndex = anchor;
+        internal.anchorHash = root.filtered.hashAt(anchor);
         root.filtered.selectRows(root.selection, anchor, index, !add);
         internal.refreshSelection();
     }
@@ -823,7 +823,9 @@ Item {
 
         property int selectedCount: 0
         property int revision: 0
-        property int anchorIndex: -1
+        /// The range anchor (the last row clicked or toggled), by hash: the live sort moves
+        /// rows between two clicks, and a shift+click must still draw from the same torrent.
+        property string anchorHash: ""
         property int renameIndex: -1
         property string renameHash: ""
         property string cursorHash: ""
@@ -864,6 +866,13 @@ Item {
             if (target !== null)
                 root.placeColumn(internal.dragKey, target.key, target.after);
             internal.dragKey = "";
+        }
+
+        /// The anchor's row now, or the cursor's when there is none (or it left the view).
+        function anchorRow(): int {
+            const row = internal.anchorHash.length > 0 ? root.filtered.rowOfHash(internal.anchorHash)
+                                                       : -1;
+            return row < 0 ? root.cursorIndex : row;
         }
 
         function selectRow(row: int, command: int): void {
