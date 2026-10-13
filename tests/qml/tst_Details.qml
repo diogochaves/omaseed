@@ -862,8 +862,9 @@ TestCase {
         compare(files.selectedCount, 0);
     }
 
-    // ctrl+click is `space` and shift+click is `v`, as in the torrent table; a plain click
-    // only moves the cursor and leaves the selection alone.
+    // The click rules: ctrl+click toggles a row and moves the anchor there; shift+click makes
+    // the selection exactly anchor..row and leaves the anchor; ctrl+shift+click adds that
+    // range. A folder clicked with ctrl is selected, not folded.
     function test_ctrl_and_shift_click_select_files() {
         const view = testCase.filesView();
         const files = App.details.files;
@@ -886,13 +887,115 @@ TestCase {
         mouseClick(findChild(view, "fileRow_3"), 120, 4, Qt.LeftButton, Qt.ControlModifier);
         verify(!files.isSelected(3));
         compare(findChild(view, "fileRow_3").expanded, expanded);
+        compare(files.selectedCount, 2); // 1 and 4
 
-        mouseClick(findChild(view, "fileRow_5"), 120, 4);
+        // The anchor is the last ctrl+click, row 3: shift replaces the selection with 3..5.
+        mouseClick(findChild(view, "fileRow_5"), 120, 4, Qt.LeftButton, Qt.ShiftModifier);
+        compare(files.selectedCount, 3);
+        verify(files.isSelected(3) && files.isSelected(4) && files.isSelected(5));
+        verify(!files.isSelected(1), "shift+click kept a row outside the range");
         compare(view.cursorIndex, 5);
-        compare(files.selectedCount, 2);
+
+        // ctrl+shift adds the anchor's range (still from row 3) to what is selected.
+        mouseClick(findChild(view, "fileRow_1"), 120, 4, Qt.LeftButton,
+                   Qt.ControlModifier | Qt.ShiftModifier);
+        compare(files.selectedCount, 5); // 1 to 5
+        compare(view.cursorIndex, 1);
 
         keyClick(Qt.Key_Escape);
         compare(files.selectedCount, 0);
+    }
+
+    // A plain click lets the selection go and puts the anchor on its row, so a shift+click
+    // after it selects from there (it used to select the clicked row alone).
+    function test_a_plain_click_clears_the_selection_and_sets_the_anchor() {
+        const view = testCase.filesView();
+        const files = App.details.files;
+        waitForRendering(view);
+
+        mouseClick(findChild(view, "fileRow_1"), 120, 4, Qt.LeftButton, Qt.ControlModifier);
+        mouseClick(findChild(view, "fileRow_2"), 120, 4, Qt.LeftButton, Qt.ControlModifier);
+        compare(files.selectedCount, 2);
+
+        mouseClick(findChild(view, "fileRow_4"), 120, 4);
+        compare(files.selectedCount, 0);
+        compare(view.cursorIndex, 4);
+
+        mouseClick(findChild(view, "fileRow_6"), 120, 4, Qt.LeftButton, Qt.ShiftModifier);
+        compare(files.selectedCount, 3); // 4 to 6
+        verify(files.isSelected(4) && files.isSelected(5) && files.isSelected(6));
+
+        // On a folder a plain click still folds it, and lets the selection go too.
+        verify(findChild(view, "fileRow_3").expanded);
+        mouseClick(findChild(view, "fileRow_3"), 120, 4);
+        compare(files.selectedCount, 0);
+        verify(!files.isExpanded(3), "a plain click no longer folds a folder");
+    }
+
+    // With no anchor yet, shift+click starts from the cursor; `v` still adds to the selection.
+    function test_shift_click_without_an_anchor_starts_at_the_cursor() {
+        const view = testCase.filesView();
+        const files = App.details.files;
+        waitForRendering(view);
+
+        view.moveCursor(2);
+        mouseClick(findChild(view, "fileRow_4"), 120, 4, Qt.LeftButton, Qt.ShiftModifier);
+        compare(files.selectedCount, 3); // 2 to 4
+        compare(view.filesAnchorPath, files.pathAt(2));
+
+        view.moveCursor(2); // row 6
+        keyClick(Qt.Key_V);
+        compare(files.selectedCount, 5); // `v` adds 2..6 to what was there
+    }
+
+    // The anchor is a file, not a row number: a sort, a fold or a filter that rebuilds the
+    // rows keeps it on its file, and another torrent drops it.
+    function test_the_anchor_follows_its_file() {
+        const view = testCase.filesView();
+        const files = App.details.files;
+        waitForRendering(view);
+
+        mouseClick(findChild(view, "fileRow_6"), 120, 4); // LICENSE.txt
+        const license = files.pathAt(6);
+        view.sortFilesBy("size");
+        if (files.rowOfPath(license) === 6)
+            view.sortFilesBy("size"); // the other way round, then
+        verify(files.rowOfPath(license) !== 6, "the sort did not move the file");
+        compare(view.filesAnchorRow(), files.rowOfPath(license));
+
+        App.selectTorrent(testCase.hashOf(testCase.archName));
+        compare(view.filesAnchorPath, "");
+    }
+
+    // A right click on a row outside the selection makes that row the menu's only target;
+    // on a row inside it, the selection stays and the menu acts on all of it.
+    function test_a_right_click_retargets_the_file_menu() {
+        const view = testCase.filesView();
+        const files = App.details.files;
+        waitForRendering(view);
+
+        mouseClick(findChild(view, "fileRow_1"), 120, 4, Qt.LeftButton, Qt.ControlModifier);
+        mouseClick(findChild(view, "fileRow_2"), 120, 4, Qt.LeftButton, Qt.ControlModifier);
+        compare(files.selectedCount, 2);
+
+        mouseClick(findChild(view, "fileRow_6"), 120, 4, Qt.RightButton);
+        verify(view.menuOpen, "a right click did not open the file menu");
+        compare(files.selectedCount, 0);
+        compare(view.cursorIndex, 6);
+        keyClick("p"); // the priority menu, for LICENSE.txt alone
+        keyClick("m");
+        compare(files.priority(6), 7);
+        compare(files.priority(1), 6, "the old selection changed priority");
+        compare(files.priority(2), 1, "the old selection changed priority");
+
+        mouseClick(findChild(view, "fileRow_1"), 120, 4, Qt.LeftButton, Qt.ControlModifier);
+        mouseClick(findChild(view, "fileRow_2"), 120, 4, Qt.LeftButton, Qt.ControlModifier);
+        mouseClick(findChild(view, "fileRow_2"), 120, 4, Qt.RightButton);
+        verify(view.menuOpen);
+        compare(files.selectedCount, 2);
+        compare(view.cursorIndex, 2);
+        keyClick(Qt.Key_Escape);
+        verify(!view.menuOpen);
     }
 
     // #42 (docs/27 D2/D3): `x` skips the cursor row, and on a skipped one ticks it back at

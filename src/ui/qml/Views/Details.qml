@@ -118,8 +118,11 @@ Item {
     readonly property bool filterEditing: filesTab.filterEditing
     /// One of the Files tab's menus is up; Main's footer then keeps only its facts (D3).
     readonly property bool menuOpen: fileMenu.opened || priorityMenu.opened || sortMenu.opened
-    /// `v` selects from here to the cursor; the last row `space` toggled.
-    property int filesAnchor: -1
+    /// The Files tab's range anchor: `v` and shift+click select from it to the cursor. The
+    /// last row `space`, a plain click or a ctrl+click left it on, by path, so a fold, a sort
+    /// or a filter that rebuilds the rows does not move it onto another file. Empty, or
+    /// folded out of sight, the cursor stands in for it.
+    property string filesAnchorPath: ""
 
     readonly property bool hasTrackerError: (root.torrent && root.torrent.hasTrackerError === true)
                                             || root.details.hasTrackerError
@@ -270,15 +273,66 @@ Item {
         if (root.currentTab !== 1 || root.details.files.count === 0)
             return;
         root.details.files.toggleSelected(root.filesCursor);
-        root.filesAnchor = root.filesCursor;
+        root.filesAnchorPath = root.details.files.pathAt(root.filesCursor);
     }
 
-    /// `v`: select every row from the last one `space` toggled to the cursor.
+    /// `v`: add every row from the anchor to the cursor to the selection.
     function selectFileRange() {
         if (root.currentTab !== 1 || root.details.files.count === 0)
             return;
-        const anchor = root.filesAnchor < 0 ? root.filesCursor : root.filesAnchor;
-        root.details.files.selectRange(anchor, root.filesCursor);
+        root.details.files.selectRange(root.filesAnchorRow(), root.filesCursor);
+    }
+
+    /// The anchor's row now, or the cursor's when there is none on show.
+    function filesAnchorRow(): int {
+        const row = root.filesAnchorPath.length > 0 ? root.details.files.rowOfPath(root.filesAnchorPath)
+                                                    : -1;
+        return row >= 0 ? row : root.filesCursor;
+    }
+
+    /// A click on Files row `row`, by the pane's click rules: a plain click puts the cursor
+    /// and the anchor there and lets the selection go (a folder also folds); ctrl+click
+    /// toggles the row; shift+click makes the selection exactly anchor..row, and
+    /// ctrl+shift+click adds that range. Shift leaves the anchor where it was.
+    function clickFile(row: int, modifiers: int): void {
+        const files = root.details.files;
+        if (row < 0 || row >= files.count)
+            return;
+        const ctrl = (modifiers & Qt.ControlModifier) !== 0;
+        if (modifiers & Qt.ShiftModifier) {
+            // Read before the cursor moves: with no anchor, the cursor it had stands in.
+            const anchor = root.filesAnchorRow();
+            if (!ctrl)
+                files.clearSelection();
+            files.selectRange(anchor, row);
+            root.filesAnchorPath = files.pathAt(anchor);
+            root.filesCursor = row;
+            return;
+        }
+        root.filesCursor = row;
+        root.filesAnchorPath = files.pathAt(row);
+        if (ctrl) {
+            files.toggleSelected(row);
+            return;
+        }
+        files.clearSelection();
+        if (files.isFolder(row))
+            files.toggle(row);
+    }
+
+    /// A right click on Files row `row`: a row outside the selection becomes the menu's
+    /// target alone (the selection goes, the cursor and anchor move there); a row inside it
+    /// keeps the selection, so the menu's priority and rename still act on all of it.
+    function fileMenuAt(row: int, x: real, y: real): void {
+        const files = root.details.files;
+        if (row < 0 || row >= files.count)
+            return;
+        if (!files.isSelected(row)) {
+            files.clearSelection();
+            root.filesAnchorPath = files.pathAt(row);
+        }
+        root.filesCursor = row;
+        root.openFileMenu(x, y);
     }
 
     /// `ctrl+a` (docs/12 F3): every file the filter shows, so `p` / `+` `-` `x` then act on
@@ -510,7 +564,7 @@ Item {
         case Qt.Key_Escape:
             if (root.details.files.selectedCount > 0) {
                 root.details.files.clearSelection();
-                root.filesAnchor = -1;
+                root.filesAnchorPath = "";
                 return true;
             }
             if (root.details.files.filterText.length > 0) {
@@ -953,21 +1007,12 @@ Item {
             }
             onRowClicked: (row, modifiers) => {
                 root.takeKeys();
-                root.filesCursor = row;
-                // ctrl+click is `space` and shift+click is `v`, as in the torrent table; a
-                // folder clicked that way is selected, not folded.
-                if (modifiers & Qt.ControlModifier)
-                    root.toggleFileSelection();
-                else if (modifiers & Qt.ShiftModifier)
-                    root.selectFileRange();
-                else if (root.details.files.isFolder(row))
-                    root.details.files.toggle(row);
+                root.clickFile(row, modifiers);
             }
             onRowMenuRequested: (row, x, y) => {
-                root.takeKeys();
-                root.filesCursor = row;
                 const at = filesTab.mapToItem(root, x, y);
-                root.openFileMenu(at.x, at.y);
+                root.takeKeys();
+                root.fileMenuAt(row, at.x, at.y);
             }
             onTickClicked: (row, wanted) => {
                 root.takeKeys();
@@ -1288,6 +1333,15 @@ Item {
         z: 20
 
         onActivated: action => root.sortFilesBy(action)
+    }
+
+    // Another torrent: the Files anchor belonged to the last one's rows.
+    Connections {
+        function onHashChanged(): void {
+            root.filesAnchorPath = "";
+        }
+
+        target: root.details
     }
 
     // A filter or a fold that shrinks the list pulls the cursor back onto a row.

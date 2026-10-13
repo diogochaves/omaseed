@@ -36,7 +36,7 @@ Item {
     /// `/` was pressed: show the filter field even while it is still empty.
     property bool filterOpen: false
 
-    /// `modifiers`: ctrl and shift select (as `space` and `v`) instead of folding a folder.
+    /// `modifiers`: ctrl and shift select instead of folding a folder (the pane's click rules).
     signal rowClicked(int row, int modifiers)
     signal rowActivated(int row)
     /// A right click on a row: the pane opens its menu there (in this item's coordinates).
