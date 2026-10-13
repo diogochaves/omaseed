@@ -316,7 +316,8 @@ Sheet {
             return String(item.text);
         return root.editing ? qsTr("save") : qsTr("edit");
     }
-    sheetWidth: Theme.space(460)
+    // Four equal buttons need more room than three: "make default" sat on its outline.
+    sheetWidth: Theme.space(root.editing || root.isNew || root.isDefault ? 460 : 520)
     subtitle: {
         const parts = [];
         if (root.editUrl.length > 0)
