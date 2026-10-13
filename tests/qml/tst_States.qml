@@ -107,6 +107,31 @@ TestCase {
         verify(!findChild(all, "allStatusesHint").visible);
     }
 
+    // Each half of the note is a link doing what its key does.
+    function test_the_note_halves_are_clickable() {
+        const filtered = createTemporaryObject(filteredEmptyComponent, testCase, {
+                                                   "text": "x",
+                                                   "statusName": "Downloading"
+                                               });
+        const clearSpy = createTemporaryObject(signalSpyComponent, testCase, {
+                                                   "target": filtered,
+                                                   "signalName": "clearRequested"
+                                               });
+        const allSpy = createTemporaryObject(signalSpyComponent, testCase, {
+                                                 "target": filtered,
+                                                 "signalName": "allStatusesRequested"
+                                             });
+        waitForRendering(filtered, 250);
+        const clear = findChild(filtered, "clearFilterLink");
+        mouseClick(clear, clear.width - 2, clear.height / 2);
+        compare(clearSpy.count, 1);
+        compare(allSpy.count, 0);
+        const all = findChild(filtered, "allStatusesLink");
+        mouseClick(all, 2, all.height / 2);
+        compare(allSpy.count, 1);
+        compare(clearSpy.count, 1);
+    }
+
     function test_filtered_empty_scope_only_message() {
         const filtered = createTemporaryObject(filteredEmptyComponent, testCase, {
                                                    "scopeName": "movies"

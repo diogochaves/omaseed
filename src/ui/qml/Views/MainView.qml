@@ -1492,6 +1492,9 @@ Item {
                 statusName: root.statusName(App.filtered.statusFilter)
                 text: App.filtered.text
                 visible: root.filterEmpty
+
+                onAllStatusesRequested: root.selectStatus(0)
+                onClearRequested: root.handleEscape()
             }
 
             // docs/17 M9: over the table, centred, 12 u above its bottom edge, while one or

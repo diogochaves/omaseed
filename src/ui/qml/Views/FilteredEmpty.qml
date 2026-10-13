@@ -3,7 +3,7 @@ import Omaseed.Kit
 
 // The filter-with-no-result state (spec v2 §7 Fig. 24): `Nothing matches "<text>" in
 // <status>` over the note `esc clears the filter · 0 shows all statuses` (small dim, `esc`
-// and `0` set as key chips). Three shapes, chosen from the properties the caller passes:
+// and `0` set as key chips, each half also clickable). Three shapes, chosen from the properties the caller passes:
 //   - `text` set, `statusName` a real status (not "All"/empty): `Nothing matches "<text>" in
 //     <statusName>`.
 //   - `text` set, no narrowing status: `Nothing matches "<text>"`.
@@ -18,6 +18,11 @@ Item {
 
     readonly property bool _hasStatus: root.statusName.length > 0 && root.statusName !== qsTr("All")
     readonly property string message: root._computeMessage()
+
+    /// A click on `esc clears the filter`: the host runs what `esc` runs.
+    signal clearRequested
+    /// A click on `0 shows all statuses`: the host runs what `0` runs.
+    signal allStatusesRequested
 
     function _computeMessage() {
         if (root.text.length > 0) {
@@ -49,19 +54,42 @@ Item {
             anchors.horizontalCenter: parent.horizontalCenter
             spacing: Theme.space(4)
 
-            Text {
-                color: Theme.foreground
-                font.family: Theme.fontFamily
-                font.letterSpacing: Math.max(1, Math.round(Theme.font.caption * 0.08))
-                font.pixelSize: Theme.font.caption
-                text: "esc"
-            }
+            // Each half of the note is also a link that does what its key does.
+            Item {
+                height: clearRow.implicitHeight
+                objectName: "clearFilterLink"
+                width: clearRow.implicitWidth
 
-            Text {
-                color: Theme.dimForeground
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.font.small
-                text: qsTr("clears the filter")
+                Row {
+                    id: clearRow
+
+                    spacing: Theme.space(4)
+
+                    Text {
+                        color: Theme.foreground
+                        font.family: Theme.fontFamily
+                        font.letterSpacing: Math.max(1, Math.round(Theme.font.caption * 0.08))
+                        font.pixelSize: Theme.font.caption
+                        text: "esc"
+                    }
+
+                    Text {
+                        color: clearArea.containsMouse ? Theme.foreground : Theme.dimForeground
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.font.small
+                        text: qsTr("clears the filter")
+                    }
+                }
+
+                MouseArea {
+                    id: clearArea
+
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    hoverEnabled: true
+
+                    onClicked: root.clearRequested()
+                }
             }
 
             Text {
@@ -72,23 +100,44 @@ Item {
                 visible: root._hasStatus
             }
 
-            Text {
-                color: Theme.foreground
-                font.family: Theme.fontFamily
-                font.letterSpacing: Math.max(1, Math.round(Theme.font.caption * 0.08))
-                font.pixelSize: Theme.font.caption
-                text: "0"
-                visible: root._hasStatus
-            }
-
-            Text {
-                color: Theme.dimForeground
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.font.small
-                objectName: "allStatusesHint"
-                text: qsTr("shows all statuses")
+            Item {
+                height: allRow.implicitHeight
+                objectName: "allStatusesLink"
                 // Nothing to widen when the status is already "all" (review RUN-13).
                 visible: root._hasStatus
+                width: allRow.implicitWidth
+
+                Row {
+                    id: allRow
+
+                    spacing: Theme.space(4)
+
+                    Text {
+                        color: Theme.foreground
+                        font.family: Theme.fontFamily
+                        font.letterSpacing: Math.max(1, Math.round(Theme.font.caption * 0.08))
+                        font.pixelSize: Theme.font.caption
+                        text: "0"
+                    }
+
+                    Text {
+                        color: allArea.containsMouse ? Theme.foreground : Theme.dimForeground
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.font.small
+                        objectName: "allStatusesHint"
+                        text: qsTr("shows all statuses")
+                    }
+                }
+
+                MouseArea {
+                    id: allArea
+
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    hoverEnabled: true
+
+                    onClicked: root.allStatusesRequested()
+                }
             }
         }
     }
