@@ -675,6 +675,27 @@ TestCase {
         table.bottomRoom = 0;
     }
 
+    // Like Nautilus: clicking away from the inline editor commits it.
+    function test_a_click_away_commits_the_rename() {
+        table.forceActiveFocus();
+        table.startRename();
+        table.renameText = "archlinux-clicked-away.iso";
+        const renamed = App.filtered.hashAt(0);
+        clickRow(3, Qt.NoModifier);
+        compare(table.renaming, false);
+        compare(renameSpy.count, 1);
+        compare(renameSpy.signalArguments[0][0], renamed);
+        compare(renameSpy.signalArguments[0][1], "archlinux-clicked-away.iso");
+        compare(table.cursorIndex, 3);
+        verify(table.activeFocus);
+
+        table.startRename();
+        table.renameText = "also-committed.iso";
+        mouseClick(findChild(table, "emptySpace"), Theme.space(40), Theme.space(4));
+        compare(table.renaming, false);
+        compare(renameSpy.count, 2);
+    }
+
     function test_enter_asks_for_the_actions_menu() {
         table.moveCursorTo(2);
         table.forceActiveFocus();

@@ -1655,6 +1655,13 @@ Item {
 
                 Keys.onEscapePressed: root.cancelRename()
                 onAccepted: root.commitRename()
+                // A click away (another row, the empty space, the rail) commits, as Nautilus
+                // does; esc and enter close the editor before its focus goes, so they do not
+                // pass here. Losing the focus to another window leaves the rename open.
+                onActiveFocusChanged: {
+                    if (!editor.activeFocus && root.renaming && editor.Window.active)
+                        root.commitRename();
+                }
                 onTextChanged: root.renameText = editor.text
 
                 Component.onCompleted: {
