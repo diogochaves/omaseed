@@ -1384,6 +1384,47 @@ TestCase {
         compare(view.columnsPalette.opened, false);
     }
 
+    // D8: the mouse's back button is one `esc` wherever the pointer is: the menu on top
+    // closes, then the selection clears, then the filter; forward does nothing.
+    function test_the_back_button_steps_the_escape_ladder() {
+        waitForRendering(view, 250);
+        App.filtered.text = "e";
+        view.hero.searchField.text = "e";
+        view.table.forceActiveFocus();
+        verify(App.filtered.count > 2);
+        testCase.selectTwo();
+        view.table.requestActions();
+        compare(view.actionsMenuPanel.opened, true);
+
+        // Over the menu's scrim, which takes every button.
+        mouseClick(view, view.width - 20, view.height / 2, Qt.ForwardButton);
+        compare(view.actionsMenuPanel.opened, true, "forward did something");
+        mouseClick(view, view.width - 20, view.height / 2, Qt.BackButton);
+        compare(view.actionsMenuPanel.opened, false);
+        compare(view.table.selectedCount, 2);
+        verify(view.table.activeFocus);
+
+        // Over a row, whose MouseArea takes the left, right and middle buttons.
+        const row = rowItem(1);
+        mouseClick(row, Theme.space(40), row.height / 2, Qt.BackButton);
+        compare(view.table.selectedCount, 0);
+        compare(App.filtered.text, "e");
+        mouseClick(row, Theme.space(40), row.height / 2, Qt.BackButton);
+        compare(App.filtered.text, "");
+    }
+
+    // D8: a middle-click toggles a row in the selection, as ctrl+click does.
+    function test_a_middle_click_toggles_a_row() {
+        waitForRendering(view, 250);
+        mouseClick(rowItem(1), Theme.space(40), rowItem(1).height / 2, Qt.MiddleButton);
+        mouseClick(rowItem(4), Theme.space(40), rowItem(4).height / 2, Qt.MiddleButton);
+        compare(view.table.selectedHashes().slice().sort(),
+                [App.filtered.hashAt(1), App.filtered.hashAt(4)].sort());
+        compare(view.table.cursorIndex, 4);
+        mouseClick(rowItem(1), Theme.space(40), rowItem(1).height / 2, Qt.MiddleButton);
+        compare(view.table.selectedHashes(), [App.filtered.hashAt(4)]);
+    }
+
     // D9: the rows hold their order under the open actions menu too.
     function test_the_open_actions_menu_holds_the_row_order() {
         verify(!view.table.holdOrder);

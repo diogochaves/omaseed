@@ -215,6 +215,15 @@ Item {
         value: root.consoleShown && root.visible && (root.Window.window?.visible ?? false)
     }
 
+    // #51 D8: the mouse's back button anywhere in the window is one `esc`, where the keyboard
+    // is: the top sheet or menu closes, then the selection clears, then the filter. Not on
+    // first run, where `esc` on the first step quits.
+    BackButtonEscape {
+        id: backButton
+
+        enabled: !root.firstRun
+    }
+
     /// Which view holds the focus, for `HintModel`.
     readonly property string focusArea: {
         if (hero.searchField.editing || details.filterEditing)

@@ -1559,7 +1559,7 @@ Item {
             MouseArea {
                 id: pointer
 
-                acceptedButtons: Qt.LeftButton | Qt.RightButton
+                acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
                 anchors.fill: parent
                 enabled: !row.editing
                 hoverEnabled: true
@@ -1569,6 +1569,12 @@ Item {
                     if (mouse.button === Qt.RightButton) {
                         const point = pointer.mapToItem(root, mouse.x, mouse.y);
                         root.contextClick(row.index, point.x, point.y);
+                        return;
+                    }
+                    // #51 D8: a middle-click toggles the row, as ctrl+click does.
+                    if (mouse.button === Qt.MiddleButton) {
+                        root.cursorIndex = row.index;
+                        root.toggleSelection(row.index);
                         return;
                     }
                     if (mouse.modifiers & Qt.ShiftModifier) {

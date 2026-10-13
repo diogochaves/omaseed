@@ -788,6 +788,17 @@ TestCase {
         compare(activatedSpy.count, 1);
     }
 
+    // #51 D8: a middle-click toggles its row, as ctrl+click does, and moves the cursor.
+    function test_a_middle_click_toggles_its_row() {
+        clickRow(2, Qt.NoModifier);
+        pressRow(5, Qt.MiddleButton, Qt.NoModifier);
+        compare(selectedRows(), [2, 5]);
+        compare(table.cursorIndex, 5);
+        pressRow(2, Qt.MiddleButton, Qt.NoModifier);
+        compare(selectedRows(), [5]);
+        compare(table.cursorIndex, 2);
+    }
+
     // #51 D6: a right-click on a header cell asks for the columns palette and sorts nothing.
     function test_a_header_right_click_asks_for_the_columns() {
         columnsSpy.clear();
