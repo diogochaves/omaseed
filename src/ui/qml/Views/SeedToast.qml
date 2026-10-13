@@ -30,7 +30,8 @@ Rectangle {
             return;
         root.current = root._queue[0];
         root._queue = root._queue.slice(1);
-        timer.restart();
+        if (!hover.hovered)
+            timer.restart();
     }
 
     onAllowedChanged: root._next()
@@ -48,6 +49,8 @@ Rectangle {
         id: timer
 
         interval: 5000
+        objectName: "seedToastTimer"
+
         onTriggered: {
             root.current = null;
             root._next();
@@ -83,8 +86,19 @@ Rectangle {
         }
     }
 
+    // The pointer resting on the toast holds its five seconds; they start over when it
+    // leaves, so a toast being read is not taken away from under the pointer.
     HoverHandler {
+        id: hover
+
         cursorShape: Qt.PointingHandCursor
+
+        onHoveredChanged: {
+            if (hover.hovered)
+                timer.stop();
+            else if (root.current !== null)
+                timer.restart();
+        }
     }
 
     TapHandler {
