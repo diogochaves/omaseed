@@ -1372,6 +1372,18 @@ TestCase {
         verify(view.table.activeFocus, "the ✕ took the keyboard from the table (M9.4)");
     }
 
+    // D6: a right-click on a header cell opens the columns palette and sorts nothing.
+    function test_a_right_click_on_a_header_opens_the_columns_palette() {
+        waitForRendering(view, 250);
+        const size = findChild(view.table, "header_size");
+        verify(size);
+        mouseClick(size, size.width / 2, size.height / 2, Qt.RightButton);
+        compare(view.columnsPalette.opened, true);
+        compare(App.filtered.sortRoleName, "dlspeed");
+        keyClick(Qt.Key_Escape);
+        compare(view.columnsPalette.opened, false);
+    }
+
     // D9: the rows hold their order under the open actions menu too.
     function test_the_open_actions_menu_holds_the_row_order() {
         verify(!view.table.holdOrder);

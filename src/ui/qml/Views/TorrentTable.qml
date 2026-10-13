@@ -436,6 +436,8 @@ Item {
     signal focusRail
     signal focusDetails
     signal escapePressed
+    /// A right-click on a header cell (#51 D6): the host opens the columns palette.
+    signal columnsRequested
 
     // ---- derived -------------------------------------------------------------------------
     /// `columns` in `columnOrder`.
@@ -990,7 +992,10 @@ Item {
                 width: headerCell.box.w
                 x: headerCell.box.x
 
+                rightClickable: true
+
                 onClicked: root.sortBy(headerCell.modelData.role)
+                onRightClicked: root.columnsRequested()
 
                 // N2, qui-style: drag a header cell along the header to move its column.
                 // Past the drag threshold the handler takes the press from the cell's own

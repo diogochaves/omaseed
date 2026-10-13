@@ -1488,6 +1488,7 @@ Item {
                     actionsMenuPanel.openAt(point.x, point.y);
                 }
                 onActivated: root.openDetails()
+                onColumnsRequested: columnsPalette.open()
                 onEscapePressed: root.handleEscape()
                 onFocusDetails: {
                     if (!details.collapsed)

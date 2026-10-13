@@ -5,7 +5,11 @@ import Omaseed.Kit
 TestCase {
     id: testCase
 
+    height: 200
     name: "TableHeader"
+    visible: true
+    when: windowShown
+    width: 300
 
     Component {
         id: headerComponent
@@ -75,5 +79,29 @@ TestCase {
         compare(mouse.cursorShape, Qt.ArrowCursor);
         header.dragging = true;
         compare(mouse.cursorShape, Qt.ClosedHandCursor);
+    }
+
+    // #51 D6: with `rightClickable` a right-click is `rightClicked`, never `clicked`; without
+    // it the right button is not the header's at all.
+    function test_a_right_click_is_its_own_signal_when_asked() {
+        const header = createTemporaryObject(headerComponent, testCase, {
+                                                 "text": "size"
+                                             });
+        const mouse = findChild(header, "headerMouse");
+        compare(mouse.acceptedButtons, Qt.LeftButton);
+        header.rightClickable = true;
+        compare(mouse.acceptedButtons, Qt.LeftButton | Qt.RightButton);
+        let clicks = 0;
+        let rightClicks = 0;
+        header.clicked.connect(() => clicks++);
+        header.rightClicked.connect(() => rightClicks++);
+        header.width = 120;
+        waitForRendering(header, 250);
+        mouseClick(header, 60, header.height / 2, Qt.RightButton);
+        compare(rightClicks, 1);
+        compare(clicks, 0);
+        mouseClick(header, 60, header.height / 2);
+        compare(clicks, 1);
+        compare(rightClicks, 1);
     }
 }

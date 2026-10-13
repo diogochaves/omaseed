@@ -10,7 +10,8 @@ import Omaseed.Kit
 // (N2, M13): the pointer then shows a closed hand wherever it is over the header, instead of
 // the pointing hand that says "click to sort". `clickable: false` is a caption that does
 // nothing on a click (the details lists that do not sort): the plain arrow, so it does not
-// promise one.
+// promise one. With `rightClickable`, a right-click is `rightClicked` (the torrent table opens
+// its columns palette, #51 D6); without it the right button passes through, as before.
 Item {
     id: root
 
@@ -22,8 +23,11 @@ Item {
     property bool dragging: false
     /// A click does something (sorts): the pointing hand. False keeps the arrow.
     property bool clickable: true
+    /// The cell takes the right button too, as `rightClicked`.
+    property bool rightClickable: false
 
     signal clicked
+    signal rightClicked
 
     readonly property int _pixelSize: Theme.font.caption
 
@@ -72,12 +76,18 @@ Item {
     MouseArea {
         id: mouseArea
 
+        acceptedButtons: root.rightClickable ? Qt.LeftButton | Qt.RightButton : Qt.LeftButton
         anchors.fill: parent
         cursorShape: root.dragging ? Qt.ClosedHandCursor : root.clickable ? Qt.PointingHandCursor
                                                                           : Qt.ArrowCursor
         hoverEnabled: true
         objectName: "headerMouse"
 
-        onClicked: root.clicked()
+        onClicked: mouse => {
+            if (mouse.button === Qt.RightButton)
+                root.rightClicked();
+            else
+                root.clicked();
+        }
     }
 }

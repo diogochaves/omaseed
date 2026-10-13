@@ -85,6 +85,13 @@ TestCase {
         target: table
     }
 
+    SignalSpy {
+        id: columnsSpy
+
+        signalName: "columnsRequested"
+        target: table
+    }
+
     Component {
         id: tableComponent
 
@@ -779,6 +786,15 @@ TestCase {
         mouseDoubleClickSequence(row, Theme.space(40), row.height / 2, Qt.LeftButton,
                                  Qt.ControlModifier);
         compare(activatedSpy.count, 1);
+    }
+
+    // #51 D6: a right-click on a header cell asks for the columns palette and sorts nothing.
+    function test_a_header_right_click_asks_for_the_columns() {
+        columnsSpy.clear();
+        const size = header("size");
+        mouseClick(size, size.width / 2, size.height / 2, Qt.RightButton);
+        compare(columnsSpy.count, 1);
+        compare(App.filtered.sortRoleName, "dlspeed");
     }
 
     // #51 D9: the pointer over the rows holds their order; over the header it does not. The
