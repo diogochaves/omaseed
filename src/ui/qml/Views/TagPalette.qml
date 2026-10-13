@@ -8,6 +8,10 @@ import Omaseed.Kit
 // diff against what the torrents started with (torrents/addTags + torrents/removeTags in one
 // call each) and closes. A query nothing matches adds a `create "<query>"` row that creates
 // the tag (torrents/createTags), selects it and applies immediately.
+//
+// The mouse: a click ticks a row, and a click on the create row creates the tag and ticks
+// it. The footer's `enter apply` is a button too, and runs what `enter` runs, so a mouse user
+// can save the ticks (the selection bar's `tags` opens this palette).
 Palette {
     id: root
 
@@ -30,7 +34,8 @@ Palette {
         },
         {
             "key": "enter",
-            "label": qsTr("apply")
+            "label": qsTr("apply"),
+            "clickable": true
         }
     ]
     items: root._rows
@@ -43,6 +48,8 @@ Palette {
     property var _original: ({})
     /// tag name -> bool, the state the user has toggled to.
     property var _state: ({})
+    /// Tags this palette has asked the server to create since it opened.
+    property var _created: []
     /// Bumped by `_toggle()` so `_rows` (a plain read of `_state`) re-evaluates: QML cannot
     /// see through a mutation of a JS object held in a property.
     property int _rev: 0
@@ -83,6 +90,8 @@ Palette {
             rows.push({
                 "title": qsTr("create \"%1\"").arg(created),
                 "key": created,
+                // Ticked by a click while the server has not answered with the tag yet.
+                "checked": root._state[created] === true,
                 "isCreate": true
             });
         return rows;
@@ -98,10 +107,41 @@ Palette {
     }
 
     function _toggle(tag: string): void {
+        root._setTicked(tag, !root._state[tag]);
+    }
+
+    function _setTicked(tag: string, on: bool): void {
         const next = Object.assign({}, root._state);
-        next[tag] = !next[tag];
+        next[tag] = on;
         root._state = next;
         root._rev += 1;
+    }
+
+    /// The create row: ask the server for the tag (once) and tick it. Ticking, not toggling:
+    /// a click on the row and then `enter` on it must leave it ticked.
+    function _createAndTick(tag: string): void {
+        if (root._created.indexOf(tag) < 0) {
+            root._created = root._created.concat([tag]);
+            App.createTag(tag);
+        }
+        root._setTicked(tag, true);
+    }
+
+    /// `enter` on `item` (the cursor's row, or null), or a click on `enter apply`: apply the
+    /// ticks (or hand them to the caller in choice mode) and close. On the create row, the tag
+    /// is created and ticked first.
+    function apply(item: var): void {
+        if (item && item.isCreate === true)
+            root._createAndTick(item.key);
+        if (root.choiceMode) {
+            const picked = root.checkedTags();
+            // close() first: the keyboard goes back to the caller before it hears the answer.
+            root.close();
+            root.chosen(picked);
+            return;
+        }
+        root._applyDiff();
+        root.close();
     }
 
     /// Opens the palette for `newHashes` (the seam `App.tagPickerRequested` drives).
@@ -113,6 +153,7 @@ Palette {
             seed[name] = root._everyHasTag(name);
         root._original = seed;
         root._state = Object.assign({}, seed);
+        root._created = [];
         root._rev += 1;
         root.query = "";
         root.open();
@@ -130,6 +171,7 @@ Palette {
             seed[name] = true;
         root._original = seed;
         root._state = Object.assign({}, seed);
+        root._created = [];
         root._rev += 1;
         root.query = "";
         root.open();
@@ -161,21 +203,18 @@ Palette {
             App.applyTags(root.hashes, added, removed);
     }
 
-    onActivated: (index, item) => {
-        if (item.isCreate === true) {
-            App.createTag(item.key);
-            root._toggle(item.key);
-        }
-        if (root.choiceMode) {
-            const picked = root.checkedTags();
-            // close() first: the keyboard goes back to the caller before it hears the answer.
-            root.close();
-            root.chosen(picked);
-            return;
-        }
-        root._applyDiff();
-        root.close();
+    onActivated: (index, item) => root.apply(item)
+    onHintClicked: (index, hint) => {
+        if (hint.key === "enter")
+            root.apply(root.currentItem);
     }
     onRejected: root.close()
-    onToggled: (index, item) => root._toggle(item.key)
+    // `space` or a click. On the create row the first one creates the tag and ticks it; the
+    // tag exists from then on, so another only unticks it.
+    onToggled: (index, item) => {
+        if (item.isCreate === true && root._state[item.key] !== true)
+            root._createAndTick(item.key);
+        else
+            root._toggle(item.key);
+    }
 }

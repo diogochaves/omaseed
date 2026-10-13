@@ -65,6 +65,14 @@ TestCase {
     }
 
     Component {
+        id: rejectedSpy
+
+        SignalSpy {
+            signalName: "rejected"
+        }
+    }
+
+    Component {
         id: chosenSpy
 
         SignalSpy {
@@ -130,6 +138,21 @@ TestCase {
         jumpPalette.open();
         jumpPalette.query = "bunny";
         keyClick(Qt.Key_Tab);
+
+        compare(table.cursorHash, hashFor("Bunny"));
+        compare(actionsSpy.count, 1);
+        compare(actionsSpy.signalArguments[0][0], hashFor("Bunny"));
+        verify(!jumpPalette.opened);
+    }
+
+    // A right-click on a row is that row's `tab`: jump there and ask for its actions menu.
+    function test_jump_right_click_is_tab_on_that_row() {
+        jumpPalette.open();
+        jumpPalette.query = "bunny";
+        waitForRendering(jumpPalette.listView, 500);
+        const row = jumpPalette.listView.itemAtIndex(0);
+        verify(row);
+        mouseClick(row, 30, 10, Qt.RightButton);
 
         compare(table.cursorHash, hashFor("Bunny"));
         compare(actionsSpy.count, 1);
@@ -238,6 +261,94 @@ TestCase {
     }
 
     // ---- tags --------------------------------------------------------------------------
+    /// The tag palette's row `key`, laid out.
+    function tagRow(key) {
+        const index = tagPalette.items.findIndex(item => item.key === key);
+        verify(index >= 0, "no row " + key);
+        tagPalette.listView.positionViewAtIndex(index, ListView.Contain);
+        waitForRendering(tagPalette.panel, 500); // laid out where the mouse will look
+        const row = tagPalette.listView.itemAtIndex(index);
+        verify(row, "row " + key + " is not laid out");
+        return row;
+    }
+
+    // The selection bar's `tags` opens this palette: a mouse user ticks a row and clicks
+    // `enter apply`, which applies as `enter` does.
+    function test_tag_enter_apply_is_a_button() {
+        const hash = App.filtered.hashAt(0);
+        tagPalette.openFor([hash]);
+        const index = tagPalette.items.findIndex(item => item.checked !== true);
+        verify(index >= 0, "every demo tag is already on the torrent");
+        const tag = tagPalette.items[index].key;
+        const rejected = createTemporaryObject(rejectedSpy, testCase, {
+                                                   "target": tagPalette
+                                               });
+        mouseClick(tagRow(tag), 30, 10);
+        verify(tagPalette.opened, "a click on a row closed the palette");
+        compare(tagPalette.items.find(item => item.key === tag).checked, true);
+
+        mouseClick(findChild(tagPalette, "keyHint_enter"));
+        verify(!tagPalette.opened, "enter apply did not close the palette");
+        compare(rejected.count, 0, "enter apply threw the ticks away");
+        // What `_applyDiff()` sent: the tag ticked that was not.
+        compare(tagPalette._state[tag], true);
+        verify(tagPalette._original[tag] !== true);
+        compare(findChild(findChild(tagPalette, "keyHint_enter"), "keyHintArea").cursorShape,
+                Qt.PointingHandCursor);
+    }
+
+    // The add sheet's `…` chip: the same button answers with `chosen`.
+    function test_tag_enter_apply_answers_in_choice_mode() {
+        const chosen = createTemporaryObject(chosenSpy, testCase, {
+                                                 "target": tagPalette
+                                             });
+        tagPalette.openForChoice([]);
+        mouseClick(tagRow("private"), 30, 10);
+        mouseClick(findChild(tagPalette, "keyHint_enter"));
+        compare(chosen.count, 1);
+        compare(chosen.signalArguments[0][0], ["private"]);
+        verify(!tagPalette.opened);
+    }
+
+    // A click on `create "x"` creates the tag and ticks it, and a later `enter` on it keeps
+    // it ticked: it toggled it off again, and nothing was applied.
+    function test_tag_a_click_on_the_create_row_creates_and_ticks_it() {
+        tagPalette.openFor([App.filtered.hashAt(0)]);
+        tagPalette.query = "fresh-tag";
+        const create = tagPalette.items[tagPalette.items.length - 1];
+        verify(create.isCreate === true);
+
+        const rejected = createTemporaryObject(rejectedSpy, testCase, {
+                                                   "target": tagPalette
+                                               });
+        mouseClick(tagRow("fresh-tag"), 30, 10);
+        const ticked = tagPalette.items.find(item => item.key === "fresh-tag");
+        compare(ticked.checked, true, "the click did not tick the new tag");
+        verify(tagPalette.checkedTags().indexOf("fresh-tag") >= 0);
+        compare(tagPalette._created, ["fresh-tag"]);
+
+        // `enter` on the row it still is: created once, still ticked, applied.
+        compare(tagPalette.currentItem.key, "fresh-tag");
+        keyClick(Qt.Key_Return);
+        verify(!tagPalette.opened);
+        compare(rejected.count, 0);
+        compare(tagPalette._created, ["fresh-tag"], "the tag was created twice");
+        compare(tagPalette._state["fresh-tag"], true, "enter ticked the new tag off again");
+    }
+
+    // Choice mode: the created tag comes back to the caller, ticked once.
+    function test_tag_create_row_click_in_choice_mode() {
+        const chosen = createTemporaryObject(chosenSpy, testCase, {
+                                                 "target": tagPalette
+                                             });
+        tagPalette.openForChoice([]);
+        tagPalette.query = "fresh-choice";
+        mouseClick(tagRow("fresh-choice"), 30, 10);
+        keyClick(Qt.Key_Return);
+        compare(chosen.count, 1);
+        compare(chosen.signalArguments[0][0], ["fresh-choice"]);
+    }
+
     function test_tag_toggle_flips_the_checked_row() {
         const hash = App.filtered.hashAt(0);
         tagPalette.openFor([hash]);
