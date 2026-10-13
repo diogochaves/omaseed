@@ -153,14 +153,6 @@ Rectangle {
         id: hoverHandler
     }
 
-    // Only while the caret is in a numeric field; otherwise the wheel goes on to the scroller.
-    WheelHandler {
-        enabled: root.takesWheel
-        objectName: "fieldWheel"
-
-        onWheel: event => root._wheel(event.angleDelta.y)
-    }
-
     // Under everything that takes a click: the input, and the trailing button over it.
     InputMouseArea {
         anchors.fill: parent
@@ -297,5 +289,22 @@ Rectangle {
         // Keypad `enter` is its own key; without this it went past `accepted` to the Sheet's
         // primary action (KIT-7).
         Keys.onEnterPressed: event => root._onEnter(event)
+    }
+
+    // The wheel, over the whole box: taken only while the caret is in a numeric field, else
+    // passed on to the scroller around it. Above the input, but it takes no buttons and sets
+    // no cursor, so clicks, drags and the I-beam are the input's as before.
+    MouseArea {
+        acceptedButtons: Qt.NoButton
+        anchors.fill: parent
+        objectName: "fieldWheel"
+
+        onWheel: wheel => {
+            if (!root.takesWheel) {
+                wheel.accepted = false;
+                return;
+            }
+            root._wheel(wheel.angleDelta.y);
+        }
     }
 }
