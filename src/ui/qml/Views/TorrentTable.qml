@@ -680,9 +680,15 @@ Item {
         internal.refreshSelection();
     }
 
-    function selectRangeTo(index: int): void {
+    /// shift+click (`add` false): the selection becomes the anchor row through `index`;
+    /// ctrl+shift+click (`add` true): that range joins the selection. Either way the cursor
+    /// goes to `index` and the anchor stays, so a second shift+click re-draws from it.
+    function selectRangeTo(index: int, add: bool): void {
+        const anchor = internal.anchorIndex < 0 ? root.cursorIndex : internal.anchorIndex;
         root.cursorIndex = index;
-        root.selectRangeToCursor();
+        internal.anchorIndex = anchor;
+        root.filtered.selectRows(root.selection, anchor, index, !add);
+        internal.refreshSelection();
     }
 
     function isRowSelected(index: int): bool {
@@ -1487,13 +1493,13 @@ Item {
                         root.actionsRequested(row.hash, point.x, point.y);
                         return;
                     }
+                    if (mouse.modifiers & Qt.ShiftModifier) {
+                        root.selectRangeTo(row.index, (mouse.modifiers & Qt.ControlModifier) !== 0);
+                        return;
+                    }
                     if (mouse.modifiers & Qt.ControlModifier) {
                         root.cursorIndex = row.index;
                         root.toggleSelection(row.index);
-                        return;
-                    }
-                    if (mouse.modifiers & Qt.ShiftModifier) {
-                        root.selectRangeTo(row.index);
                         return;
                     }
                     root.cursorIndex = row.index;

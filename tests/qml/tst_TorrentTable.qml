@@ -596,6 +596,69 @@ TestCase {
         compare(table.normalizedColumnOrder(undefined), all);
     }
 
+    // The click rules: a plain click selects only its row and is the range anchor, ctrl
+    // toggles and moves the anchor, shift makes the selection anchor..row, ctrl+shift adds
+    // anchor..row; the cursor follows every click.
+    function clickRow(index: int, modifiers: int): void {
+        pressRow(index, Qt.LeftButton, modifiers);
+    }
+
+    function pressRow(index: int, button: int, modifiers: int): void {
+        const row = findChild(table, "row_" + index);
+        verify(row, "no row " + index);
+        mouseClick(row, Theme.space(40), row.height / 2, button, modifiers);
+    }
+
+    function selectedRows(): list<int> {
+        const rows = [];
+        for (let i = 0; i < App.filtered.count; ++i) {
+            if (table.isRowSelected(i))
+                rows.push(i);
+        }
+        return rows;
+    }
+
+    function test_a_shift_click_replaces_the_selection_with_the_range() {
+        clickRow(2, Qt.NoModifier);
+        compare(selectedRows(), [2]);
+        clickRow(5, Qt.ControlModifier);
+        compare(selectedRows(), [2, 5]);
+        clickRow(7, Qt.ShiftModifier);
+        compare(selectedRows(), [5, 6, 7], "shift+click added to the selection");
+        compare(table.cursorIndex, 7);
+        // The anchor stayed on 5: a second shift+click re-draws from it.
+        clickRow(3, Qt.ShiftModifier);
+        compare(selectedRows(), [3, 4, 5]);
+        compare(table.cursorIndex, 3);
+    }
+
+    function test_a_ctrl_shift_click_adds_the_range() {
+        clickRow(1, Qt.NoModifier);
+        clickRow(4, Qt.ControlModifier);
+        compare(selectedRows(), [1, 4]);
+        clickRow(6, Qt.ControlModifier | Qt.ShiftModifier);
+        compare(selectedRows(), [1, 4, 5, 6], "ctrl+shift+click did not add anchor..row");
+        compare(table.cursorIndex, 6);
+    }
+
+    // With no click yet the cursor is the anchor, as it is for `v`.
+    function test_a_first_shift_click_draws_from_the_cursor() {
+        table.moveCursorTo(2);
+        clickRow(4, Qt.ShiftModifier);
+        compare(selectedRows(), [2, 3, 4]);
+    }
+
+    function test_a_right_click_keeps_a_selection_it_lands_in() {
+        clickRow(1, Qt.NoModifier);
+        clickRow(3, Qt.ShiftModifier);
+        pressRow(2, Qt.RightButton, Qt.NoModifier);
+        compare(selectedRows(), [1, 2, 3]);
+        compare(actionsSpy.count, 1);
+        pressRow(6, Qt.RightButton, Qt.NoModifier);
+        compare(selectedRows(), [6]);
+        compare(actionsSpy.count, 2);
+    }
+
     function test_enter_asks_for_the_actions_menu() {
         table.moveCursorTo(2);
         table.forceActiveFocus();

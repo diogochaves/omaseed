@@ -114,8 +114,10 @@ public:
     /// Selects rows `from` to `to` (either order, clamped) in `selection`, a selection model
     /// over this proxy, as one range: one selectionChanged instead of one per row. The table's
     /// per-row loop froze the window for seconds on a 3,450-torrent library (ctrl+a), long
-    /// enough for Hyprland's "not responding".
-    Q_INVOKABLE void selectRows(QItemSelectionModel *selection, int from, int to) const;
+    /// enough for Hyprland's "not responding". Added to what is selected, or with `replace`
+    /// in its place (a shift+click), still in one selectionChanged.
+    Q_INVOKABLE void
+    selectRows(QItemSelectionModel *selection, int from, int to, bool replace = false) const;
 
     /// The flag a StatusFilter stands for; StatusGroup::NoGroup for All.
     static StatusGroup groupFor(StatusFilter filter);

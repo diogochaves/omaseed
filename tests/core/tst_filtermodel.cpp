@@ -488,6 +488,14 @@ void TestFilterModel::selectRowsIsOneRange()
     m_proxy.selectRows(&selection, 5, 99);
     QCOMPARE(selection.selectedRows().size(), 5);
 
+    // `replace` puts the range in place of what is selected, in one change: a shift+click.
+    changed.clear();
+    m_proxy.selectRows(&selection, 3, 2, true);
+    QCOMPARE(changed.count(), 1);
+    QCOMPARE(selection.selectedRows().size(), 2);
+    QVERIFY(selection.isRowSelected(2) && selection.isRowSelected(3));
+    QVERIFY(!selection.isRowSelected(0));
+
     // A selection model over another model is left alone.
     QItemSelectionModel other(&m_source);
     m_proxy.selectRows(&other, 0, 3);
