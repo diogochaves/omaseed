@@ -119,6 +119,26 @@ TestCase {
         compare(cleared, 1);
     }
 
+    // The icon buttons name their keys, as `more · ctrl+.` and `alt-speed · A` do.
+    function test_the_icon_buttons_name_their_keys() {
+        const hero = createTemporaryObject(heroComponent, testCase);
+        compare(hero.addButton.tooltip, "add · a");
+        compare(findChild(hero, "settingsButton").tooltip, "settings · ,");
+        compare(findChild(hero, "helpButton").tooltip, "help · ?");
+    }
+
+    // Folded to its ✕ (step 3), a chip still names what it clears.
+    function test_a_folded_chip_names_its_filter_in_a_tooltip() {
+        const hero = createTemporaryObject(heroComponent, testCase);
+        hero.filterChips = testCase.fourChips;
+        const chip = findChild(hero, "filterChip_tag");
+        compare(chip.tooltip, "", "an unfolded chip already shows its text");
+        hero.width = Theme.space(700);
+        waitForItemPolished(hero.children[0]);
+        verify(hero.chipsFolded);
+        compare(chip.tooltip, "keep");
+    }
+
     // T5.4: with no server configured the dot is absent-looking (spec `.dot.off`), not the
     // green of a healthy connection.
     function test_the_status_dot_follows_the_connection_state() {

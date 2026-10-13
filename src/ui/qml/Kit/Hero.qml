@@ -588,6 +588,8 @@ Item {
                 glyph: filterChip.modelData.glyph
                 objectName: "filterChip_" + filterChip.modelData.key
                 text: root.chipsFolded ? Glyphs.close : filterChip.modelData.text + "  " + Glyphs.close
+                // Folded to its ✕, the chip still says what it clears.
+                tooltip: root.chipsFolded ? filterChip.modelData.text : ""
                 visible: !root.filtersInButton
 
                 onClicked: root.filterChipCleared(filterChip.modelData.key)
@@ -741,7 +743,7 @@ Item {
                 // did not read as a button. The kit's primary outline does (docs/08 §3, REVIEW §9).
                 glyph: Glyphs.add
                 primary: true
-                tooltip: qsTr("add")
+                tooltip: qsTr("add · a")
 
                 onClicked: root.addClicked()
             }
@@ -750,7 +752,7 @@ Item {
             IconButton {
                 glyph: Glyphs.settings
                 objectName: "settingsButton"
-                tooltip: qsTr("settings")
+                tooltip: qsTr("settings · ,")
                 visible: !root.compact
 
                 onClicked: root.settingsClicked()
@@ -769,7 +771,7 @@ Item {
             IconButton {
                 glyph: Glyphs.help
                 objectName: "helpButton"
-                tooltip: qsTr("help")
+                tooltip: qsTr("help · ?")
                 visible: !root.compact
 
                 onClicked: root.helpClicked()
