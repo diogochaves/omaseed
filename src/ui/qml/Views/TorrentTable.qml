@@ -1109,6 +1109,25 @@ Item {
                 return glyph !== undefined ? glyph : Glyphs.dot;
             }
 
+            /// The whole text of the cell at `x` when the cell had to elide it, else "": what
+            /// the hover label shows (the name, the status word, an optional column).
+            function elidedTextAt(x: real): string {
+                const shown = root.activeColumns;
+                for (const column of shown) {
+                    const box = root.columnLayout[column.key];
+                    if (x < box.x || x >= box.x + box.w)
+                        continue;
+                    if (column.key === "name")
+                        return nameText.truncated ? row.name : "";
+                    if (column.key === "status")
+                        return statusWord.truncated ? statusWord.text : "";
+                    const at = root.textColumns.indexOf(column);
+                    const cell = at >= 0 ? optionalCells.itemAt(at) as Text : null;
+                    return cell !== null && cell.truncated ? cell.text : "";
+                }
+                return "";
+            }
+
             height: Theme.rowHeight
             objectName: "row_" + row.index
             width: root.rowWidth
@@ -1282,6 +1301,8 @@ Item {
                     }
 
                     Text {
+                        id: statusWord
+
                         anchors.left: statusGlyphText.right
                         anchors.leftMargin: Theme.space(6)
                         anchors.right: parent.right
@@ -1374,6 +1395,8 @@ Item {
 
                 // The optional columns: one plain cell each, the number columns tabular.
                 Repeater {
+                    id: optionalCells
+
                     model: root.textColumns
 
                     delegate: Text {
@@ -1508,14 +1531,13 @@ Item {
                 onDoubleClicked: root.activated(row.hash)
                 onExited: root.hideNameTip()
                 onPositionChanged: mouse => {
-                    const overName = mouse.x >= nameCell.x
-                                   && mouse.x < nameCell.x + nameCell.width;
-                    if (!overName || !nameText.truncated) {
+                    const text = row.elidedTextAt(mouse.x);
+                    if (text.length === 0) {
                         root.hideNameTip();
                         return;
                     }
                     const at = pointer.mapToItem(root, mouse.x, mouse.y);
-                    root.showNameTip(at.x, at.y, row.name);
+                    root.showNameTip(at.x, at.y, text);
                 }
             }
 

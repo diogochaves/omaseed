@@ -696,6 +696,22 @@ TestCase {
         compare(renameSpy.count, 2);
     }
 
+    // The hover label covers every cell that elides, not only the name: an optional column
+    // cut short (the 40-digit hash) names itself in full; a cell shown whole asks for none.
+    function test_an_elided_cell_offers_its_whole_text() {
+        const saved = table.visibleColumns.slice();
+        table.visibleColumns = saved.concat(["hash"]);
+        waitForRendering(table, 250);
+        const row = findChild(table, "row_0");
+        const box = table.columnLayout.hash;
+        testCase.cellProbe = findChild(table, "hash_0");
+        verify(testCase.cellProbe.truncated, "the hash fits its column");
+        compare(row.elidedTextAt(box.x + box.w / 2), testCase.cellProbe.text);
+        const size = table.columnLayout.size;
+        compare(row.elidedTextAt(size.x + size.w / 2), "");
+        table.visibleColumns = saved;
+    }
+
     function test_enter_asks_for_the_actions_menu() {
         table.moveCursorTo(2);
         table.forceActiveFocus();
