@@ -1,0 +1,511 @@
+<title>omaseed error reasons</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap">
+<style>
+/* ------------------------------------------------------------------
+   docs/28: why a torrent errored, a proposal (2026-10-13). Issue #54.
+   Board chrome: board 26's. The details mock copies the General tab
+   as built (DetailsGeneralTab / DetailsGeneralRow), measured on an
+   omabox shot at base 14; the error block is the Kit Banner's
+   language (1 px left rule, kind glyph, accent links) on several lines.
+   Mocks: Theme roles only, fills at 4/8/18/22 %, hairlines at 12 %,
+   base 14, switchable between themes. Log lines are real (playground,
+   qBittorrent 5.2.3 / libtorrent 2.1.1); other data is example data.
+   ------------------------------------------------------------------ */
+:root {
+  --accent:#5492f8; --bg:#11111b; --bg-dark:#0d0d14;
+  --fg:#b9c5ef; --fg-dark:#8b94b3; --fg-bright:#cbd4f3;
+  --green:#7dd676; --red:#ee5681; --yellow:#f6d58c;
+  --fill-normal: color-mix(in srgb, var(--fg) 4%, transparent);
+  --hairline: color-mix(in srgb, var(--fg) 12%, transparent);
+  --mono: "JetBrains Mono", "JetBrainsMono Nerd Font", ui-monospace, monospace;
+  color-scheme: dark;
+}
+* { box-sizing:border-box; }
+[hidden] { display:none !important; }
+body { margin:0; background:var(--bg-dark); color:var(--fg); font:400 13px/1.6 var(--mono); -webkit-font-smoothing:antialiased; }
+main { max-width:1320px; margin:0 auto; padding-block:32px 72px; padding-inline:16px; display:grid; gap:32px; }
+h1,h2,h3 { margin:0; font-weight:600; color:var(--fg-bright); text-wrap:balance; }
+h1 { font-size:26px; } h2 { font-size:17px; } h3 { font-size:13px; }
+p, li { max-width:84ch; }
+p { margin:0; }
+ul, ol { margin:0; padding-left:20px; display:grid; gap:4px; }
+code { color:var(--fg-bright); background:var(--fill-normal); padding:0 4px; overflow-wrap:anywhere; }
+b { color:var(--fg-bright); font-weight:600; }
+a { color:var(--accent); }
+.eyebrow { font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--fg-dark); }
+.dim { color:var(--fg-dark); }
+.lead { font-size:14px; color:var(--fg); max-width:86ch; }
+section { display:grid; gap:14px; border-top:1px solid var(--hairline); padding-top:22px; min-width:0; }
+.sec-head { display:grid; gap:4px; }
+figure { margin:0; display:grid; gap:6px; align-content:start; min-width:0; }
+figcaption { font-size:11px; color:var(--fg-dark); max-width:90ch; }
+figcaption b { color:var(--fg); font-weight:500; }
+.scroll { overflow-x:auto; }
+.cols { display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:20px; }
+.cols > * { min-width:0; }
+table.t { border-collapse:collapse; width:100%; font-size:12px; }
+.t th, .t td { text-align:left; padding:6px 10px; border-bottom:1px solid var(--hairline); vertical-align:top; }
+.t th { font-weight:500; color:var(--fg-dark); font-size:10px; letter-spacing:.1em; text-transform:uppercase; white-space:nowrap; }
+.t td:first-child { color:var(--fg-bright); }
+.t td.nw { white-space:nowrap; }
+.t .y { color:var(--green); } .t .n { color:var(--red); } .t .m { color:var(--yellow); }
+.themes { display:flex; flex-wrap:wrap; gap:6px; align-items:center; font-size:12px; color:var(--fg-dark); position:sticky; top:env(safe-area-inset-top, 0px); background:var(--bg-dark); padding-block:8px; z-index:20; border-bottom:1px solid var(--hairline); }
+.themes button { font:inherit; font-size:12px; color:var(--fg); background:transparent; border:1px solid var(--hairline); padding:2px 10px; cursor:pointer; }
+.themes button[aria-pressed="true"] { background:color-mix(in srgb, var(--fg) 18%, transparent); color:var(--fg-bright); border-color:transparent; }
+button:focus-visible, input:focus-visible, textarea:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.shot { border:1px solid var(--hairline); display:block; max-width:100%; height:auto; }
+.note { border-left:2px solid var(--accent); padding:6px 12px; background:var(--fill-normal); font-size:12px; max-width:96ch; }
+.note.warn { border-color:var(--yellow); }
+.log { font-size:11.5px; line-height:1.55; background:var(--bg); border:1px solid var(--hairline); padding:10px 12px; white-space:pre-wrap; overflow-wrap:anywhere; color:var(--fg); }
+.log .k { color:var(--fg-dark); } .log .h { color:var(--yellow); } .log .n { color:var(--green); } .log .r { color:var(--red); } .log .p { color:var(--accent); }
+
+/* ---------- the stage: Theme roles only, base 14 ---------- */
+.stage {
+  --t-fg:#b9c5ef; --t-bg:#11111b; --t-accent:#5492f8; --t-red:#ee5681; --t-yellow:#f6d58c;
+  --t-green:#7dd676; --t-blue:#5492f8; --t-magenta:#b47ff3; --t-cyan:#63d5c2;
+  --t-bright: color-mix(in srgb, var(--t-fg) 100%, white 12%);
+  --t-hair: color-mix(in srgb, var(--t-fg) 12%, transparent);
+  --t-dim: color-mix(in srgb, var(--t-fg) 62%, transparent);
+  --t-faint: color-mix(in srgb, var(--t-fg) 40%, transparent);
+  --f4: color-mix(in srgb, var(--t-fg) 4%, transparent);
+  --f8: color-mix(in srgb, var(--t-fg) 8%, transparent);
+  --f18: color-mix(in srgb, var(--t-fg) 18%, transparent);
+  --cap:11.7px; --body:14px; --small:13px;
+  color:var(--t-fg); font-family:var(--mono); font-size:var(--body); line-height:1.4;
+  background:color-mix(in srgb, var(--t-bg) 70%, black); border:1px solid var(--hairline);
+  padding:22px; display:flex; flex-wrap:wrap; gap:22px; align-items:start; overflow-x:auto;
+}
+.stage.light { --t-bright: color-mix(in srgb, var(--t-fg) 100%, black 18%); background:color-mix(in srgb, var(--t-bg) 88%, black); }
+
+/* the details pane as built: 466 wide at base 14 */
+.dp { width:466px; flex:none; background:var(--t-bg); border:1px solid var(--t-hair); font-size:var(--small); }
+.dp .hd { padding:14px 16px 10px; display:grid; gap:2px; }
+.dp .nm { color:var(--t-bright); font-weight:600; }
+.dp .sub { color:var(--t-dim); font-size:12.4px; }
+.dp .kpi { display:grid; grid-template-columns:repeat(4, 1fr); padding:8px 16px 12px; gap:4px; }
+.dp .kpi span { display:block; color:var(--t-dim); font-size:var(--cap); letter-spacing:.06em; text-transform:uppercase; }
+.dp .tabs { display:flex; gap:2px; padding:0 12px; border-bottom:1px solid var(--t-hair); }
+.dp .tabs span { padding:5px 8px; color:var(--t-dim); }
+.dp .tabs span.on { color:var(--t-fg); background:var(--f8); }
+.dp .tabs i { font-style:normal; color:var(--t-faint); margin-left:4px; font-size:12px; }
+.dp .body { padding:10px 0 14px; display:grid; gap:0; }
+.dp .pc { padding:4px 16px 8px; color:var(--t-dim); font-size:var(--cap); letter-spacing:.06em; text-transform:uppercase; display:flex; justify-content:space-between; }
+.dp .bar { margin:0 16px 10px; height:6px; background:var(--f8); }
+.dp .sh { padding:8px 16px 4px; color:var(--t-yellow); font-size:var(--cap); letter-spacing:.08em; text-transform:uppercase; font-weight:600; }
+.dp .row { display:grid; grid-template-columns:116px 1fr; gap:10px; padding:4px 16px; border-bottom:1px solid var(--t-hair); }
+.dp .row > span:first-child { color:var(--t-dim); font-size:var(--cap); letter-spacing:.06em; text-transform:uppercase; padding-top:1px; }
+.dp .row.cur { background:var(--f8); outline:1px solid var(--f18); }
+.red { color:var(--t-red); } .yel { color:var(--t-yellow); } .dimt { color:var(--t-dim); }
+
+/* the error block: the Kit Banner, on several lines */
+.eb { margin:2px 16px 12px; border-left:1px solid var(--t-red); padding:6px 0 6px 12px; display:grid; grid-template-columns:16px 1fr; column-gap:8px; row-gap:3px; background:var(--f4); }
+.eb.warn { border-color:var(--t-yellow); }
+.eb > .g { color:var(--t-red); grid-row:1; }
+.eb.warn > .g { color:var(--t-yellow); }
+.eb > .h { color:var(--t-bright); font-weight:500; }
+.eb > .l { grid-column:2; color:var(--t-fg); font-size:12.4px; line-height:1.45; overflow-wrap:anywhere; }
+.eb > .l.d { color:var(--t-dim); }
+.eb > .acts { grid-column:2; display:flex; flex-wrap:wrap; gap:4px 14px; margin-top:4px; font-size:12.4px; }
+.eb .acts span { color:var(--t-accent); }
+.eb .acts span kbd { font:inherit; color:var(--t-dim); margin-right:5px; }
+.eb .acts span.sec { color:var(--t-dim); }
+
+/* the table as built */
+.tb { flex:none; width:760px; background:var(--t-bg); border:1px solid var(--t-hair); font-size:var(--small); }
+.tb .r { display:grid; grid-template-columns:230px 80px 150px 150px 1fr; gap:10px; padding:5px 12px; border-bottom:1px solid transparent; align-items:center; white-space:nowrap; }
+.tb .r.th { color:var(--t-dim); font-size:12.4px; }
+.tb .r.cur { background:var(--f8); outline:1px solid var(--f18); }
+.tb .r > span { overflow:hidden; text-overflow:ellipsis; }
+.tb .num { text-align:right; }
+.tb .cat { color:var(--t-dim); margin-left:6px; }
+.tb .pb { display:inline-block; width:70px; height:2px; background:var(--f18); vertical-align:middle; margin-right:8px; }
+.tb .pb.full { background:var(--t-green); }
+.tb .r > span.tip { position:relative; overflow:visible; }
+.tip .tt { position:absolute; left:20px; top:24px; z-index:2; background:var(--t-bg); border:1px solid var(--f18); padding:5px 9px; font-size:12.4px; color:var(--t-fg); white-space:nowrap; box-shadow:0 6px 18px color-mix(in srgb, black 40%, transparent); }
+
+/* a notification as mako draws it in Omarchy */
+.nt { width:380px; flex:none; background:var(--t-bg); border:2px solid var(--t-accent); padding:12px 14px; display:grid; gap:3px; font-size:var(--small); }
+.nt .a { color:var(--t-bright); font-weight:600; }
+.nt .act { color:var(--t-dim); font-size:12px; margin-top:4px; }
+
+/* ---------- the decision sheet ---------- */
+.dec { display:grid; gap:18px; }
+.q { display:grid; gap:8px; border:1px solid var(--hairline); padding:14px; }
+.q fieldset { border:0; margin:0; padding:0; display:grid; gap:6px; }
+.q legend { padding:0; color:var(--fg-bright); font-weight:500; margin-bottom:4px; }
+.q .id { color:var(--accent); font-weight:600; }
+.opt { display:grid; grid-template-columns:18px 1fr; gap:8px; align-items:start; font-size:12.4px; cursor:pointer; }
+.opt input { margin:3px 0 0; accent-color:var(--accent); }
+.opt .rec { color:var(--green); font-size:10px; letter-spacing:.1em; text-transform:uppercase; margin-left:6px; }
+.out { display:grid; gap:8px; }
+.out textarea { width:100%; min-height:150px; font:inherit; font-size:12.4px; color:var(--fg); background:var(--bg); border:1px solid var(--hairline); padding:10px; resize:vertical; }
+.out button { font:inherit; justify-self:start; color:var(--bg); background:var(--accent); border:0; padding:6px 14px; cursor:pointer; }
+.out .ok { color:var(--green); font-size:12px; }
+@media (max-width: 560px) { .stage { padding:12px; } }
+</style>
+<main>
+  <header style="display:grid;gap:10px">
+    <div class="eyebrow">docs/28 · proposal for Diogo · 2026-10-13 · issue #54 · v1 and v2 stay frozen</div>
+    <h1>Why a torrent errored</h1>
+    <p class="lead">When qBittorrent puts a torrent in <b>error</b>, omaseed shows the word "error" and nothing else, so you have to go to qBittorrent's Web UI log to find out why. qBittorrent's API never gives the reason. Its log does, as one line naming the torrent, and libtorrent stamps that line with the first characters of the torrent's info hash. omaseed can read the log, tie each line to its torrent, and say in plain words what went wrong, with the action that fixes it next to it.</p>
+    <p class="dim" style="font-size:12px">The screenshot in §1 and every log line in §2 are real: the :8081 playground (qBittorrent 5.2.3, libtorrent 2.1.1), broken with <code>swarm.sh break error</code> and <code>break missing</code>. The other names and times in the mocks are example data. Use the theme switch below: the mocks use Theme roles only.</p>
+  </header>
+
+  <nav class="themes" aria-label="Theme of the mocks">
+    <span>theme</span>
+    <button type="button" data-theme-name="frieren" aria-pressed="true">frieren</button>
+    <button type="button" data-theme-name="tokyo-night" aria-pressed="false">tokyo-night</button>
+    <button type="button" data-theme-name="gruvbox" aria-pressed="false">gruvbox</button>
+    <button type="button" data-theme-name="everforest" aria-pressed="false">everforest</button>
+    <button type="button" data-theme-name="catppuccin-latte" aria-pressed="false">catppuccin-latte</button>
+  </nav>
+
+  <!-- 1 -->
+  <section id="today">
+    <div class="sec-head"><div class="eyebrow">1 · where we are</div><h2>Today: "error", and nothing about why</h2></div>
+    <figure>
+      <img class="shot" width="1200" height="311" alt="omaseed with an errored torrent selected: the table row reads ! error, and the details pane's General tab has STATUS error, with no reason anywhere" src="data:image/webp;base64,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">
+      <figcaption><b>Real screenshot</b>, commit <code>0d70181</code>, in an omabox (theme frieren, base 14) against the :8081 playground. <code>unwritable-fixture.bin</code> saves into a folder with no write permission. The row and the General tab both say <b>error</b>. The reason, "Permission denied", is only in qBittorrent's log.</figcaption>
+    </figure>
+  </section>
+
+  <!-- 2 -->
+  <section id="qbt">
+    <div class="sec-head"><div class="eyebrow">2 · what qBittorrent gives</div><h2>The reason is only in the log, and the log ties it to the torrent by name</h2></div>
+    <div class="cols">
+      <div style="display:grid;gap:10px;align-content:start">
+        <h3>Not in the API</h3>
+        <p>qBittorrent keeps the reason itself. Its desktop app shows <code>Errored: &lt;reason&gt;</code> in the status column, from <code>TorrentImpl::error()</code> (libtorrent's error code, or "couldn't write, now in upload-only mode"). The Web UI API doesn't return it: <code>torrents/info</code> and <code>torrents/properties</code> have <code>state: "error"</code> and no message (checked on 5.2.3: 63 fields, none an error).</p>
+        <h3>In the log, as a warning</h3>
+        <p><code>GET /api/v2/log/main</code> returns <code>{id, timestamp, type, message}</code>. Type 4 is a warning. qBittorrent writes one line when libtorrent reports a file error, at most once a second per torrent, and again every time the torrent is started or the server restarts.</p>
+      </div>
+      <div class="log"><span class="k">id 30 · type 4 · 1791928475</span>
+File error alert. Torrent: "<span class="n">unwritable-fixture.bin</span>". File: "<span class="p">/…/swarm-readonly/unwritable-fixture.bin</span>". Reason: "<span class="h">ad91d5</span> file_open (/…/swarm-readonly/unwritable-fixture.bin) error: <span class="r">Permission denied</span>"
+
+<span class="k">id 28 · type 4 · after a restart, the files deleted</span>
+Failed to restore torrent. Files were probably moved or storage isn't accessible. Torrent: "<span class="n">tiny-notes.txt</span>". Reason: "<span class="h">81f2da</span> fast resume rejected. file_stat(/…/swarm/tiny-notes.txt): <span class="r">mismatching file size</span>"</div>
+    </div>
+    <h3>How the line is tied to its torrent</h3>
+    <div class="scroll"><table class="t">
+      <thead><tr><th>part of the line</th><th>where it comes from</th><th>enough on its own?</th></tr></thead>
+      <tbody>
+        <tr><td class="nw">Torrent: "<span class="dim">name</span>"</td><td>qBittorrent's own wrapper, <code>torrent-&gt;name()</code>. This is the only way qBittorrent itself names the torrent. There is no hash in its part of the line.</td><td class="m">no: two torrents can share a name, and a cross-seed always does</td></tr>
+        <tr><td class="nw">File: "<span class="dim">path</span>"</td><td>Only in file errors: the full path libtorrent was using. It falls under exactly one torrent's save path (or download path)</td><td class="m">nearly always, unless both torrents save to the same folder</td></tr>
+        <tr><td class="nw"><span class="dim">ad91d5</span> at the start of Reason</td><td>libtorrent 2.1 starts every torrent alert's text with the first 3 bytes of the info hash in hex (v2 when there is one, otherwise v1; <code>torrent_alert::message()</code>). <code>ad91d5</code> is the start of this torrent's v2 hash. libtorrent 2.0 puts the torrent's name there instead</td><td class="y">yes, on libtorrent 2.1 (one chance in 16 million of a clash); <code>app/buildInfo</code> says which libtorrent the server runs</td></tr>
+        <tr><td class="nw">operation, error</td><td>libtorrent: <code>file_open</code>, <code>file_write</code>, <code>mkdir</code>, <code>file_fallocate</code>, <code>file_stat</code>…, then the system's message (<code>strerror</code>)</td><td class="dim">what went wrong, used for the plain wording in §5</td></tr>
+      </tbody>
+    </table></div>
+    <div class="cols">
+      <div class="note warn"><b>The log is translated.</b> qBittorrent writes these lines in its own language ("File error alert. Torrent:" is <code>tr()</code>). So omaseed never matches the English words. It looks for <code>"&lt;name&gt;"</code> in quotes, a path under a save path, and the 6-hex prefix, which are the same in every language.</div>
+      <div class="note warn"><b>The log is in memory.</b> It holds 20 000 lines and starts empty when qBittorrent restarts, and its ids start again from 0 (seen on the playground: 33 before, 28 after). omaseed asks for lines after the last id it has seen (<code>last_known_id</code>), starts over when ids go backwards or the server comes back, and shows "no reason logged" when there is none (S4).</div>
+    </div>
+  </section>
+
+  <!-- 3 -->
+  <section id="others">
+    <div class="sec-head"><div class="eyebrow">3 · how others do it</div><h2>Other clients show the reason. qBittorrent's front-ends mostly don't</h2></div>
+    <div class="scroll"><table class="t">
+      <thead><tr><th>client</th><th>where it gets the reason</th><th>where it shows it</th><th>fix action</th></tr></thead>
+      <tbody>
+        <tr><td class="nw">Transmission</td><td>RPC <code>error</code> (0 none, 1 tracker warning, 2 tracker error, 3 local error) and <code>error_string</code></td><td>in the row's status line ("Local error: '…'", red, with an emblem in Qt), and an <b>Error:</b> row in Details that reads "No errors" when there's none</td><td class="dim">none</td></tr>
+        <tr><td class="nw">Deluge</td><td><code>message</code>: "OK" or libtorrent's text, and its own plain wording ("Unable to locate Download Folder!", "Missing or invalid torrent data!")</td><td>"Error: …" on the Status tab's progress bar (GTK), and a Status row (web)</td><td class="dim">none</td></tr>
+        <tr><td class="nw">qBittorrent desktop</td><td><code>TorrentImpl::error()</code>, in memory</td><td>"Errored: &lt;reason&gt;" in the status column, and an "I/O Error" desktop notice with the reason</td><td class="dim">none</td></tr>
+        <tr><td class="nw">qBittorrent Web UI</td><td class="n">nothing</td><td>"Errored". The reason is only in View → Log</td><td class="dim">none</td></tr>
+        <tr><td class="nw">ruTorrent, Flood</td><td>rTorrent's <code>d.message</code>. Flood on qBittorrent takes the first tracker message, so a disk error shows as "error" with no reason</td><td>an error icon on the row, the text in General (ruTorrent); a "Tracker Message" field (Flood)</td><td class="dim">none</td></tr>
+        <tr><td class="nw">VueTorrent, qui, Taurent</td><td class="n">nothing: none reads <code>log/main</code> for a torrent (VueTorrent only for its Logs page)</td><td>a red badge or ❌ with the state word</td><td class="dim">none</td></tr>
+        <tr><td class="nw">qBitController</td><td class="n">nothing (has a Log screen)</td><td>the state word</td><td><b>Resume</b> on error and missing files</td></tr>
+      </tbody>
+    </table></div>
+    <div class="cols">
+      <div class="note"><b>What the ones that show it agree on</b>: the reason goes in the row's status text in red, a details field repeats it, and an empty value says so ("No errors", "OK"). Transmission keeps local errors apart from tracker errors, as omaseed already does (tracker errors have their own badge on the Trackers tab).</div>
+      <div class="note"><b>Nobody matches log lines to torrents.</b> No qBittorrent front-end found does, and no qBittorrent issue or PR asks for the reason in <code>torrents/info</code>. Master (API 2.17.0, 5.3.0rc1) has no such field. Fix actions next to the reason are rare (only qBitController's Resume). qBittorrent #22134 says set location alone doesn't clear a disk-space error, which is why the block always offers <code>p</code> try again as well.</div>
+    </div>
+    <p class="dim" style="font-size:11px">Sources read for behaviour only, at these commits: Transmission <code>85278c4</code> (docs/rpc-spec.md, gtk/Torrent.cc, qt/TorrentDelegate.cc, web/src/inspector.js), Deluge <code>e580754</code> (core/torrent.py, ui/gtk3/tab_data_funcs.py), ruTorrent <code>f9c5a32</code>, Flood <code>7629199</code> (server/services/qBittorrent/clientGatewayService.ts), qBittorrent <code>release-5.2.3</code> and master <code>df402f9</code> (gui/transferlistmodel.cpp, base/bittorrent/sessionimpl.cpp, torrentimpl.cpp), libtorrent <code>v2.1.1</code> and <code>RC_2_0</code> (src/alert.cpp), VueTorrent <code>3ea452d</code>, qui <code>332a5a5</code>, Taurent <code>6583dff</code>, qBitController <code>4d13d4b</code>. Not confirmed: whether rTorrent puts disk errors in <code>d.message</code>.</p>
+  </section>
+
+  <!-- 4 -->
+  <section id="proposal">
+    <div class="sec-head"><div class="eyebrow">4 · the proposal</div><h2>Say why, in plain words, where you already look</h2></div>
+    <p>An errored torrent gets an <b>error block</b> at the top of its General tab: a plain headline, qBittorrent's own words, the file, when it was logged, and the actions that fix this cause. The STATUS row and the table's status cell carry the short version. Nothing changes for torrents that aren't errored.</p>
+    <div class="stage">
+      <figure>
+        <div class="dp">
+          <div class="hd"><span class="nm">unwritable-fixture.bin</span><span class="sub">swarm · added today 19:00</span></div>
+          <div class="kpi"><div><span>size</span>3.00 MB</div><div><span>done</span>0 %</div><div><span>ratio</span>0.00</div><div><span>eta</span>—</div></div>
+          <div class="tabs"><span class="on">General<i>1</i></span><span>Files<i>2</i></span><span>Trackers<i>3</i></span><span>Peers<i>4</i></span></div>
+          <div class="body">
+            <div class="eb">
+              <span class="g">✕</span><span class="h">Can't write to its save folder</span>
+              <span class="l">Permission denied, opening unwritable-fixture.bin</span>
+              <span class="l d">/home/chaves/.local/share/omaseed-test/downloads/swarm-readonly</span>
+              <span class="l d">qBittorrent's log · today 19:00 · 2 times</span>
+              <div class="acts"><span><kbd>m</kbd>set location</span><span><kbd>p</kbd>try again</span><span class="sec">copy the line</span></div>
+            </div>
+            <div class="pc"><span>pieces · 0 of 96</span><span>0 %</span></div>
+            <div class="bar"></div>
+            <div class="sh">transfer</div>
+            <div class="row"><span>status</span><span><span class="red">error</span> <span class="dimt">· can't write to its folder</span></span></div>
+            <div class="row"><span>downloaded</span><span>32 KB of 3.00 MB</span></div>
+            <div class="row"><span>uploaded</span><span>0</span></div>
+          </div>
+        </div>
+        <figcaption><b>G1 · Can't write.</b> The headline says what's wrong in your words. The next line is the cause and the file in qBittorrent's words, the folder is next, and then when it was logged and how many times. <code>m</code> opens the location sheet. <code>p</code> starts the torrent again, which clears the error in qBittorrent and makes it try once more (<code>TorrentImpl::start</code> calls <code>clear_error</code>). "copy the line" copies the whole log line, as qBittorrent wrote it, for a bug report.</figcaption>
+      </figure>
+      <figure>
+        <div class="dp">
+          <div class="hd"><span class="nm">Open Movie Night (2026)</span><span class="sub">movies · added today 08:12</span></div>
+          <div class="kpi"><div><span>size</span>716 MB</div><div><span>done</span>41 %</div><div><span>ratio</span>0.00</div><div><span>eta</span>—</div></div>
+          <div class="tabs"><span class="on">General<i>1</i></span><span>Files<i>2</i></span><span>Trackers<i>3</i></span><span>Peers<i>4</i></span></div>
+          <div class="body">
+            <div class="eb">
+              <span class="g">✕</span><span class="h">The disk is full</span>
+              <span class="l">No space left on device, writing Open.Movie.Night.2026.mkv</span>
+              <span class="l d">/mnt/media/movies · 0 B free</span>
+              <span class="l d">qBittorrent's log · today 09:40</span>
+              <div class="acts"><span><kbd>m</kbd>set location</span><span><kbd>p</kbd>try again</span><span class="sec">copy the line</span></div>
+            </div>
+            <div class="pc"><span>pieces · 2 920 of 7 160</span><span>41 %</span></div>
+            <div class="bar" style="background:linear-gradient(to right, var(--t-green) 41%, var(--f8) 41%)"></div>
+            <div class="sh">transfer</div>
+            <div class="row"><span>status</span><span><span class="red">error</span> <span class="dimt">· disk full</span></span></div>
+          </div>
+        </div>
+        <figcaption><b>G2 · Disk full.</b> omaseed already knows the free space on the save path (the status bar's "free"), so it says so. Once you've made room, <code>p</code> picks up where it stopped. Nothing is lost, because the pieces already written stay.</figcaption>
+      </figure>
+      <figure>
+        <div class="dp">
+          <div class="hd"><span class="nm">tiny-notes.txt</span><span class="sub">swarm · added 2 Oct</span></div>
+          <div class="kpi"><div><span>size</span>4 KB</div><div><span>done</span>100 %</div><div><span>ratio</span>0.00</div><div><span>eta</span>—</div></div>
+          <div class="tabs"><span class="on">General<i>1</i></span><span>Files<i>2</i></span><span>Trackers<i>3</i></span><span>Peers<i>4</i></span></div>
+          <div class="body">
+            <div class="eb warn">
+              <span class="g">!</span><span class="h">Its files aren't where qBittorrent left them</span>
+              <span class="l">Moved, deleted or changed since qBittorrent last ran (mismatching file size)</span>
+              <span class="l d">/home/chaves/.local/share/omaseed-test/downloads/swarm/tiny-notes.txt</span>
+              <span class="l d">qBittorrent's log · today 18:54, at its start</span>
+              <div class="acts"><span><kbd>m</kbd>set location</span><span><kbd>c</kbd>recheck</span><span class="sec">copy the line</span></div>
+            </div>
+            <div class="sh">transfer</div>
+            <div class="row"><span>status</span><span><span class="yel">missing files</span></span></div>
+          </div>
+        </div>
+        <figcaption><b>G3 · Missing files.</b> omaseed already shows "missing files" as its own state. The block adds where qBittorrent looked, from the "Failed to restore torrent" line, in yellow like the state, with the two ways out: point it at where the files are now (<code>m</code>), or recheck (<code>c</code>) once they're back.</figcaption>
+      </figure>
+      <figure>
+        <div class="dp">
+          <div class="hd"><span class="nm">distro-2026.09-x86_64.iso</span><span class="sub">isos · added 4 Oct</span></div>
+          <div class="kpi"><div><span>size</span>480 MB</div><div><span>done</span>63 %</div><div><span>ratio</span>0.12</div><div><span>eta</span>—</div></div>
+          <div class="tabs"><span class="on">General<i>1</i></span><span>Files<i>2</i></span><span>Trackers<i>3</i></span><span>Peers<i>4</i></span></div>
+          <div class="body">
+            <div class="eb">
+              <span class="g">✕</span><span class="h">qBittorrent didn't log a reason</span>
+              <span class="l d">Its log starts at its last restart (today 18:54) and keeps 20 000 lines. Trying again usually logs the reason again.</span>
+              <div class="acts"><span><kbd>p</kbd>try again</span><span><kbd>c</kbd>recheck</span></div>
+            </div>
+            <div class="sh">transfer</div>
+            <div class="row"><span>status</span><span><span class="red">error</span></span></div>
+          </div>
+        </div>
+        <figcaption><b>S4 · No line found.</b> The block says the log has nothing and why. It never invents a reason. If the error comes back after <code>p</code>, qBittorrent logs it again and the block fills in on the next refresh.</figcaption>
+      </figure>
+      <figure>
+        <div class="dp">
+          <div class="hd"><span class="nm">Field Recordings Vol. 3 [FLAC]</span><span class="sub">music · added 1 Oct</span></div>
+          <div class="kpi"><div><span>size</span>103 MB</div><div><span>done</span>100 %</div><div><span>ratio</span>0.42</div><div><span>eta</span>—</div></div>
+          <div class="tabs"><span class="on">General<i>1</i></span><span>Files<i>2</i></span><span>Trackers<i>3</i></span><span>Peers<i>4</i></span></div>
+          <div class="body">
+            <div class="eb">
+              <span class="g">✕</span><span class="h">The disk failed a read</span>
+              <span class="l">Input/output error, reading 03 - Dawn Chorus.flac</span>
+              <span class="l d">/mnt/media/music/Field Recordings Vol. 3 [FLAC]</span>
+              <span class="l d">qBittorrent's log · today 11:02 · may be about the other torrent named this</span>
+              <div class="acts"><span><kbd>c</kbd>recheck</span><span><kbd>p</kbd>try again</span><span class="sec">copy the line</span></div>
+            </div>
+            <div class="sh">transfer</div>
+            <div class="row"><span>status</span><span><span class="red">error</span> <span class="dimt">· disk read failed</span></span></div>
+          </div>
+        </div>
+        <figcaption><b>S5 · Can't tell which twin.</b> Only on a libtorrent 2.0 server (no hash prefix), with two torrents of the same name in the same folder (a cross-seed). Both are in error, since they read the same file. Each shows the line with this note rather than nothing.</figcaption>
+      </figure>
+    </div>
+    <figcaption>Mocks, base 14, on the General tab at 466 px as built. The error block is new. The STATUS row gets a short tail after "error". With the details docked at the bottom or in the narrow layout, the block spans the pane's width and the rest is unchanged.</figcaption>
+
+    <h3 style="margin-top:8px">In the table</h3>
+    <div class="stage">
+      <figure>
+        <div class="tb">
+          <div class="r th"><span>Name</span><span class="num">Size</span><span>Progress</span><span>Status</span><span class="num">↓</span></div>
+          <div class="r cur"><span>unwritable-fixture.bin<span class="cat">swarm</span></span><span class="num">3.00 MB</span><span><i class="pb"></i>0%</span><span><span class="red">!</span> no access</span><span class="num">0</span></div>
+          <div class="r"><span>Open Movie Night (2026)<span class="cat">movies</span></span><span class="num">716 MB</span><span><i class="pb" style="background:linear-gradient(to right, var(--t-green) 41%, var(--f18) 41%)"></i>41%</span><span><span class="red">!</span> disk full</span><span class="num">0</span></div>
+          <div class="r"><span>tiny-notes.txt<span class="cat">swarm</span></span><span class="num">4 KB</span><span><i class="pb full"></i>100%</span><span><span class="yel">!</span> missing files</span><span class="num">0</span></div>
+          <div class="r"><span>distro-2026.09-x86_64.iso<span class="cat">isos</span></span><span class="num">480 MB</span><span><i class="pb" style="background:linear-gradient(to right, var(--t-green) 63%, var(--f18) 63%)"></i>63%</span><span><span class="red">!</span> error</span><span class="num">0</span></div>
+        </div>
+        <figcaption><b>R1 · The short cause in the status cell</b> (D2 a), the way "missing files" already does. It's one or two words that fit the column: <code>no access</code>, <code>disk full</code>, <code>read-only</code>, <code>disk error</code>, <code>name too long</code>, and <code>error</code> when there's no line. The rail's "errored" filter and its count don't change.</figcaption>
+      </figure>
+      <figure>
+        <div class="tb">
+          <div class="r th"><span>Name</span><span class="num">Size</span><span>Progress</span><span>Status</span><span class="num">↓</span></div>
+          <div class="r cur"><span>unwritable-fixture.bin<span class="cat">swarm</span></span><span class="num">3.00 MB</span><span><i class="pb"></i>0%</span><span class="tip"><span class="red">!</span> error<span class="tt">Can't write to its save folder</span></span><span class="num">0</span></div>
+          <div class="r"><span>Open Movie Night (2026)<span class="cat">movies</span></span><span class="num">716 MB</span><span><i class="pb" style="background:linear-gradient(to right, var(--t-green) 41%, var(--f18) 41%)"></i>41%</span><span><span class="red">!</span> error</span><span class="num">0</span></div>
+          <div class="r" style="opacity:.0"><span>.</span></div>
+          <div class="r" style="opacity:.0"><span>.</span></div>
+        </div>
+        <figcaption><b>R2 · "error", with the headline as a tooltip</b> (D2 b). The table looks as it does today. You see why only on hover or in the details.</figcaption>
+      </figure>
+    </div>
+
+    <h3 style="margin-top:8px">When it happens</h3>
+    <div class="stage">
+      <figure>
+        <div class="nt">
+          <span class="a">unwritable-fixture.bin stopped with an error</span>
+          <span>Can't write to its save folder: Permission denied</span>
+          <span class="act">click to show it in omaseed</span>
+        </div>
+        <figcaption><b>N1 · A notice</b> (D4 a), the way a finished download gets one (<code>notify-walk.sh</code>), with the same click to show the torrent. One notice each time a torrent goes into error, never one for each log line. qBittorrent's desktop app does the same ("I/O Error … Reason: …"). The Web UI and the API don't.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <!-- 5 -->
+  <section id="words">
+    <div class="sec-head"><div class="eyebrow">5 · the wording</div><h2>From the system's words to yours</h2></div>
+    <p>The headline comes from the system's message at the end of the line (<code>error: …</code>), which is the same whatever language qBittorrent runs in. The second line keeps that message and says what libtorrent was doing, from the operation (<code>file_open</code> opening, <code>file_write</code> writing, <code>file_read</code> reading, <code>mkdir</code> creating the folder for, <code>file_fallocate</code> making room for, <code>file_rename</code> renaming, <code>file_stat</code> looking at). A message that isn't in the table keeps qBittorrent's words as the headline.</p>
+    <div class="scroll"><table class="t">
+      <thead><tr><th>system says</th><th>headline</th><th>in the table</th><th>actions offered</th></tr></thead>
+      <tbody>
+        <tr><td>Permission denied</td><td>Can't write to its save folder</td><td class="nw">no access</td><td>set location · try again</td></tr>
+        <tr><td>Read-only file system</td><td>Its save folder is on a read-only disk</td><td class="nw">read-only</td><td>set location · try again</td></tr>
+        <tr><td>No space left on device</td><td>The disk is full (with the free space)</td><td class="nw">disk full</td><td>set location · try again</td></tr>
+        <tr><td>No such file or directory</td><td>A file or folder it needs is gone</td><td class="nw">missing</td><td>set location · recheck</td></tr>
+        <tr><td>Input/output error</td><td>The disk failed a read / a write</td><td class="nw">disk error</td><td>recheck · try again</td></tr>
+        <tr><td>File name too long</td><td>A file name is too long for this disk</td><td class="nw">name too long</td><td>rename (Files tab) · try again</td></tr>
+        <tr><td>Invalid argument, on <code>file_open</code></td><td>A file name isn't allowed on this disk</td><td class="nw">bad name</td><td>rename (Files tab) · try again</td></tr>
+        <tr><td>fast resume rejected (missing files)</td><td>Its files aren't where qBittorrent left them</td><td class="nw">missing files</td><td>set location · recheck</td></tr>
+        <tr><td><span class="dim">anything else</span></td><td>qBittorrent's words, as written</td><td class="nw">error</td><td>try again · recheck</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <!-- 6 -->
+  <section id="build">
+    <div class="sec-head"><div class="eyebrow">6 · building it</div><h2>How it would be built</h2></div>
+    <div class="cols">
+      <div style="display:grid;gap:8px;align-content:start">
+        <h3>core</h3>
+        <ul>
+          <li><code>ServerLog</code>: <code>log/main?normal=false&amp;info=false</code> with <code>last_known_id</code>, polled only while a torrent is in error or missing files, and once more when one goes into either. It starts over when ids go backwards or the server reconnects.</li>
+          <li><code>TorrentProblem::parse(line)</code>: finds the quoted name, the file path, the hash prefix, the operation and the system message, without relying on the English words around them. <code>match(problem, torrents)</code>: the hash prefix first, then the name, then the file under a save or download path. When it can't decide, it says so (S5).</li>
+          <li><code>Torrent</code> gets <code>problem</code> (headline, detail, file, time, count, raw line, ambiguous). The table and the details read it.</li>
+          <li>QtTests: every line in §2, a French log, two torrents with the same name on 2.0 and on 2.1, ids going backwards, and a line for a torrent that's gone.</li>
+        </ul>
+      </div>
+      <div style="display:grid;gap:8px;align-content:start">
+        <h3>views</h3>
+        <ul>
+          <li><code>DetailsErrorBlock</code>: the Kit Banner's language on several lines, with actions as clickable key hints. The table's Status delegate gets the short cause.</li>
+          <li>With D4 a, <code>Notifier::notifyErrored</code>, beside <code>notifyCompleted</code>, with the same click.</li>
+          <li>A spec line in <code>REVIEW-v0.1.0.md</code>: this adds to the General tab of the frozen v2 (Fig. 10) and the status cell.</li>
+        </ul>
+      </div>
+      <div style="display:grid;gap:8px;align-content:start">
+        <h3>checks</h3>
+        <ul>
+          <li>A new <code>error-walk.sh</code>: <code>swarm.sh break error</code>, then the block, the row and the notice in an omabox. Then <code>m</code> to a writable folder and <code>p</code>, and the block goes away. Then <code>break missing</code> for G3, and a playground restart for S4.</li>
+          <li>Live tests against :8081 and the strict :8082, since <code>log/main</code> needs the same login.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7 -->
+  <section id="decide">
+    <div class="sec-head"><div class="eyebrow">7 · your calls</div><h2>Decisions, and your answers in one paste</h2></div>
+    <p>Recommended options are marked and preselected. Change what you disagree with and paste the block back into a session.</p>
+    <div class="dec" id="dec"></div>
+    <div class="out">
+      <textarea id="answers" readonly aria-label="Your answers"></textarea>
+      <div style="display:flex;gap:12px;align-items:center"><button type="button" id="copy">Copy answers</button><span class="ok" id="copied" hidden>Copied</span></div>
+    </div>
+  </section>
+</main>
+
+<script>
+(() => {
+"use strict";
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const THEMES = {
+  "frieren":          { fg:"#b9c5ef", bg:"#11111b", accent:"#5492f8", red:"#ee5681", yellow:"#f6d58c", green:"#7dd676", blue:"#5492f8", magenta:"#b47ff3", cyan:"#63d5c2" },
+  "tokyo-night":      { fg:"#a9b1d6", bg:"#1a1b26", accent:"#7aa2f7", red:"#f7768e", yellow:"#e0af68", green:"#9ece6a", blue:"#7aa2f7", magenta:"#ad8ee6", cyan:"#449dab" },
+  "gruvbox":          { fg:"#d4be98", bg:"#282828", accent:"#7daea3", red:"#ea6962", yellow:"#d8a657", green:"#a9b665", blue:"#7daea3", magenta:"#d3869b", cyan:"#89b482" },
+  "everforest":       { fg:"#d3c6aa", bg:"#2d353b", accent:"#7fbbb3", red:"#e67e80", yellow:"#dbbc7f", green:"#a7c080", blue:"#7fbbb3", magenta:"#d699b6", cyan:"#83c092" },
+  "catppuccin-latte": { fg:"#4c4f69", bg:"#eff1f5", accent:"#1e66f5", red:"#d20f39", yellow:"#df8e1d", green:"#40a02b", blue:"#1e66f5", magenta:"#ea76cb", cyan:"#179299", light:true },
+};
+function applyTheme(name) {
+  const t = THEMES[name];
+  for (const st of $$(".stage")) {
+    for (const k of ["fg","bg","accent","red","yellow","green","blue","magenta","cyan"]) st.style.setProperty("--t-" + k, t[k]);
+    st.classList.toggle("light", !!t.light);
+  }
+  for (const b of $$("[data-theme-name]")) b.setAttribute("aria-pressed", String(b.dataset.themeName === name));
+}
+for (const b of $$("[data-theme-name]")) b.addEventListener("click", () => applyTheme(b.dataset.themeName));
+
+const DEC = [
+  { id:"D1", q:"Where the reason lives in the details", opts:[
+    ["a","An error block at the top of the General tab, plus a short tail on the STATUS row (G1–S5)", true],
+    ["b","Only the STATUS row: \"error · can't write to its folder\", the rest as a tooltip"],
+    ["c","A Log tab of its own, with every log line about this torrent"]]},
+  { id:"D2", q:"The table's status cell", opts:[
+    ["a","The short cause instead of \"error\" (no access, disk full…), as \"missing files\" already does (R1)", true],
+    ["b","\"error\" as today, with the headline as a tooltip (R2)"]]},
+  { id:"D3", q:"Wording", opts:[
+    ["a","A plain headline from the table in §5, with qBittorrent's words on the line under it", true],
+    ["b","qBittorrent's words only"]]},
+  { id:"D4", q:"A notice when a torrent goes into error", opts:[
+    ["a","Yes: one each time it happens, with the headline; a click shows it (N1)", true],
+    ["b","No: the tray and the rail's count are enough"]]},
+  { id:"D5", q:"Actions in the block", opts:[
+    ["a","The ones that fit the cause (§5), as clickable key hints, plus \"copy the line\"", true],
+    ["b","None: the block only explains"]]},
+  { id:"D6", q:"Two torrents of the same name, no hash prefix (libtorrent 2.0 servers)", opts:[
+    ["a","Match by file path first; if still unsure, show the line on each with \"may be about the other torrent\" (S5)", true],
+    ["b","Show nothing when unsure"]]},
+  { id:"D7", q:"Other per-torrent failures in the log (a move failed, a rename failed, a web seed failed)", opts:[
+    ["a","Errored and missing-files torrents now; the others in a follow-up issue", true],
+    ["b","Now too: the last failure shows in the same block on any torrent until you dismiss it"]]},
+  { id:"D8", q:"qBittorrent's whole log in omaseed (its Web UI has View → Log)", opts:[
+    ["a","Not in this issue; an issue of its own if you want it", true],
+    ["b","Yes, with this: a log view in settings or the console"]]},
+];
+const dec = $("#dec");
+for (const d of DEC) {
+  const box = document.createElement("div"); box.className = "q";
+  const inputs = d.opts.map(([v, label, rec]) => {
+    const id = `${d.id}-${v}`;
+    return `<label class="opt" for="${id}"><input id="${id}" type="radio" name="${d.id}" value="${v}" ${rec ? "checked" : ""}><span><b>${v}</b> · ${label}${rec ? '<span class="rec">recommended</span>' : ""}</span></label>`;
+  }).join("");
+  box.innerHTML = `<fieldset><legend><span class="id">${d.id}</span> · ${d.q}</legend>${inputs}</fieldset>`;
+  dec.append(box);
+}
+const notes = document.createElement("div"); notes.className = "q";
+notes.innerHTML = `<label for="free" style="color:var(--fg-bright);font-weight:500">Anything else (a cause I missed, wording)</label><textarea id="free" style="min-height:70px;font:inherit;font-size:12.4px;color:var(--fg);background:var(--bg);border:1px solid var(--hairline);padding:8px"></textarea>`;
+dec.append(notes);
+function answers() {
+  const lines = ["docs/28 why it errored:"];
+  for (const d of DEC) { const c = $(`input[name="${d.id}"]:checked`); lines.push(`${d.id} ${c ? c.value : "-"}`); }
+  const f = $("#free").value.trim(); if (f) lines.push("notes: " + f);
+  $("#answers").value = lines.join("\n");
+}
+dec.addEventListener("input", answers); answers();
+$("#copy").addEventListener("click", () => {
+  const ta = $("#answers");
+  const done = () => { $("#copied").hidden = false; setTimeout(() => $("#copied").hidden = true, 1600); };
+  if (navigator.clipboard?.writeText) navigator.clipboard.writeText(ta.value).then(done, () => { ta.select(); });
+  else ta.select();
+});
+})();
+</script>
