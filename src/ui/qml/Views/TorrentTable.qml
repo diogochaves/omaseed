@@ -1549,7 +1549,12 @@ Item {
                     root.cursorIndex = row.index;
                     root.selectOnly(row.index);
                 }
-                onDoubleClicked: root.activated(row.hash)
+                // The press before it already put the cursor and the selection on the row.
+                onDoubleClicked: mouse => {
+                    if (mouse.button === Qt.LeftButton && !(mouse.modifiers & (Qt.ShiftModifier
+                                                                              | Qt.ControlModifier)))
+                        root.activated(row.hash);
+                }
                 onExited: root.hideNameTip()
                 onPositionChanged: mouse => {
                     const text = row.elidedTextAt(mouse.x);

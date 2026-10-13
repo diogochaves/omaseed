@@ -391,6 +391,17 @@ Item {
         root.flashFooterNote(qsTr("details: %1 · I to change").arg(words[next]));
     }
 
+    /// #51 D1: a double-click on a torrent: the details pane unfolded, with the keys (`i`
+    /// when it is folded, then `l`). The click before it already put the cursor there.
+    function openDetails(): void {
+        if (split.folded)
+            split.toggleFold();
+        Qt.callLater(() => {
+            if (!details.collapsed && !root.overlayOpen)
+                details.forceActiveFocus();
+        });
+    }
+
     /// `esc`, in the order Fig. 26 promises: clear, then filter, then close.
     function handleEscape(): void {
         if (table.selectedCount > 0) {
@@ -1476,7 +1487,7 @@ Item {
                     actionsMenuPanel.heading = root.actionsHeading(hash);
                     actionsMenuPanel.openAt(point.x, point.y);
                 }
-                onActivated: hash => console.log("activated:", hash)
+                onActivated: root.openDetails()
                 onEscapePressed: root.handleEscape()
                 onFocusDetails: {
                     if (!details.collapsed)

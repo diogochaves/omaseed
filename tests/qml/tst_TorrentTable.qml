@@ -78,6 +78,13 @@ TestCase {
         target: table
     }
 
+    SignalSpy {
+        id: activatedSpy
+
+        signalName: "activated"
+        target: table
+    }
+
     Component {
         id: tableComponent
 
@@ -756,6 +763,22 @@ TestCase {
         compare(testCase.spare.cursorHash, App.filtered.hashAt(0));
         testCase.spare.destroy();
         testCase.spare = null;
+    }
+
+    // #51 D1: a left double-click on a row is `activated(hash)`, after the first click put
+    // the cursor and the selection there; a right or modified double-click is not.
+    function test_a_double_click_activates_its_row() {
+        activatedSpy.clear();
+        const row = findChild(table, "row_3");
+        mouseDoubleClickSequence(row, Theme.space(40), row.height / 2);
+        compare(activatedSpy.count, 1);
+        compare(activatedSpy.signalArguments[0][0], App.filtered.hashAt(3));
+        compare(table.cursorIndex, 3);
+        compare(selectedRows(), [3]);
+        mouseDoubleClickSequence(row, Theme.space(40), row.height / 2, Qt.RightButton);
+        mouseDoubleClickSequence(row, Theme.space(40), row.height / 2, Qt.LeftButton,
+                                 Qt.ControlModifier);
+        compare(activatedSpy.count, 1);
     }
 
     // #51 D9: the pointer over the rows holds their order; over the header it does not. The

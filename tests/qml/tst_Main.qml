@@ -1341,6 +1341,25 @@ TestCase {
         return row;
     }
 
+    // D1: a double-click on a torrent unfolds the details and gives them the keys.
+    function test_a_double_click_on_a_torrent_opens_its_details() {
+        keyClick("i");
+        compare(view.split.folded, true);
+        verify(view.table.activeFocus);
+        waitForRendering(view, 250);
+        const row = rowItem(3);
+        mouseDoubleClickSequence(row, Theme.space(40), row.height / 2);
+        compare(view.table.cursorHash, App.filtered.hashAt(3));
+        compare(view.split.folded, false);
+        tryVerify(() => view.details.activeFocus, 1000, "the details did not get the keys");
+        compare(view.details.torrent.name, App.torrentRow(App.filtered.hashAt(3)).name);
+        // Already unfolded, it only hands the keys over.
+        view.table.forceActiveFocus();
+        mouseDoubleClickSequence(row, Theme.space(40), row.height / 2);
+        compare(view.split.folded, false);
+        tryVerify(() => view.details.activeFocus, 1000);
+    }
+
     // D9: the rows hold their order under the open actions menu too.
     function test_the_open_actions_menu_holds_the_row_order() {
         verify(!view.table.holdOrder);
