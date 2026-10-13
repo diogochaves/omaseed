@@ -15,7 +15,15 @@ Item {
     required property TorrentWebSeedsModel model
     property int cursorIndex: 0
 
-    signal rowClicked(int row)
+    /// The pane's selection (#51 D15), as URLs: those rows fill.
+    property var selectedKeys: []
+
+    /// `modifiers`: ctrl and shift select by the pane's click rules.
+    signal rowClicked(int row, int modifiers)
+    /// A middle click on a row: the pane toggles it in the selection, as ctrl+click.
+    signal rowMiddleClicked(int row)
+    /// A click on the list's empty space, under its last row: the selection goes.
+    signal emptyClicked
     /// A right click on a row: the pane moves the cursor there and opens the tab's menu at
     /// `x`, `y` (this item's coordinates).
     signal rowMenuRequested(int row, real x, real y)
@@ -67,12 +75,22 @@ Item {
             hasCursor: row.index === root.cursorIndex
             height: Theme.railRowHeight
             objectName: "webSeedRow_" + row.index
+            selected: root.selectedKeys.indexOf(row.url) >= 0
             width: ListView.view.width
 
-            onClicked: root.rowClicked(row.index)
+            onClicked: modifiers => root.rowClicked(row.index, modifiers)
             onRightClicked: {
                 const at = row.mapToItem(root, Theme.space(24), row.height);
                 root.rowMenuRequested(row.index, at.x, at.y);
+            }
+
+            // The middle button, which TableRow leaves alone, toggles the row (#51 D8).
+            MouseArea {
+                acceptedButtons: Qt.MiddleButton
+                anchors.fill: parent
+                parent: row
+
+                onClicked: root.rowMiddleClicked(row.index)
             }
 
             DetailsCell {
@@ -90,6 +108,24 @@ Item {
                 tipText: row.url
             }
         }
+    }
+
+    // The list's empty space, under its last row: a click there lets the selection go, as
+    // in the table.
+    MouseArea {
+        id: emptySpace
+
+        /// Where the rows end, in the list's coordinates.
+        readonly property real rowsEnd: list.originY + list.contentHeight - list.contentY
+
+        height: Math.max(0, list.y + list.height - emptySpace.y)
+        objectName: "webSeedsEmptySpace"
+        width: list.width
+        x: list.x
+        y: list.y + Math.max(0, Math.min(list.height, emptySpace.rowsEnd))
+        z: 1
+
+        onClicked: root.emptyClicked()
     }
 
     ScrollBar {

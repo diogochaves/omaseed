@@ -133,16 +133,20 @@ QtObject {
                                                                                            "ctrl+a"),
                     root._hint("details", "p"), root._hint("details", "enter"), root._hint("details",
                                                                                            "/")];
+        // Then, as Files, the keys that mark rows for those actions (#51 D15).
         case 2: // Fig. 3, Trackers
             return [root._hint("details", "a"), root._hint("details", "d"), root._hint("details",
                                                                                        "R"),
-                    root._hint("details", "y")];
+                    root._hint("details", "y"), root._hint("details", "space"), root._hint("details",
+                                                                                           "ctrl+a")];
         case 3: // Fig. 4, Peers
             return [root._hint("details", "b"), root._hint("details", "a", qsTr("add peer")),
-                    root._hint("details", "y")];
+                    root._hint("details", "y"), root._hint("details", "space"), root._hint("details",
+                                                                                           "ctrl+a")];
         case 4: // #10, HTTP sources
             return [root._hint("details", "a"), root._hint("details", "d"), root._hint("details",
-                                                                                       "y")];
+                                                                                       "y"),
+                    root._hint("details", "space"), root._hint("details", "ctrl+a")];
         default:
             // docs/12 G5 and G4: General's rows are a list with a cursor, `y` copies a value
             // and `enter` changes an option row.

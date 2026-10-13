@@ -582,32 +582,37 @@ Item {
     }
 
     /// The Trackers and Peers tabs' keys (Fig. 3/4). `R` reannounces the torrent (the API has
-    /// no per-tracker reannounce) and `d` removes the tracker under the cursor. `a` opens the
-    /// input sheet for trackers or peers, and `b` bans the peer under the cursor once the
-    /// confirm dialog has said the ban is permanent and global (ruling Q4, review VIEW-6).
-    function detailsRowAction(kind: string, action: string, value: string): void {
+    /// no per-tracker reannounce) and `d` removes the trackers it is given (the tab's
+    /// selection, or the cursor's row, #51 D15). `a` opens the input sheet for trackers or
+    /// peers, and `b` bans the peers it is given once the confirm dialog has said the ban is
+    /// permanent and global (ruling Q4, review VIEW-6).
+    function detailsRowAction(kind: string, action: string, values: var): void {
         const hash = App.details.hash;
         if (hash.length === 0)
             return;
+        // DHT, PeX and LSD are rows of the list but not trackers of the torrent.
+        const targets = (values || []).filter(value => value.length > 0 && !value.startsWith("** ["));
+        const removed = targets.length === 1 ? qsTr("removed %1").arg(targets[0])
+                                             : kind === "tracker" ? qsTr("removed %n trackers", "", targets.length)
+                                                                  : qsTr("removed %n HTTP sources", "", targets.length);
         if (kind === "tracker" && action === "reannounce") {
             App.reannounce([hash]);
             root.flashFooterNote(qsTr("reannounced"));
         } else if (kind === "tracker" && action === "remove") {
-            // DHT, PeX and LSD are rows of the list but not trackers of the torrent.
-            if (value.length === 0 || value.startsWith("** ["))
+            if (targets.length === 0)
                 return;
-            App.removeTracker(hash, value);
-            root.flashFooterNote(qsTr("removed %1").arg(value));
+            App.removeTrackers(hash, targets);
+            root.flashFooterNote(removed);
         } else if (kind === "webseed" && action === "remove") {
-            if (value.length === 0)
+            if (targets.length === 0)
                 return;
-            App.removeWebSeed(hash, value);
-            root.flashFooterNote(qsTr("removed %1").arg(value));
+            App.removeWebSeeds(hash, targets);
+            root.flashFooterNote(removed);
         } else if (action === "add") {
             detailsAddSheet.openFor(kind, hash);
         } else if (kind === "peer" && action === "ban") {
-            if (value.length > 0)
-                banPeerConfirm.openFor(value);
+            if (targets.length > 0)
+                banPeerConfirm.openFor(targets);
         }
     }
 
@@ -1589,9 +1594,9 @@ Item {
                 z: -1
             }
             onOpenFolderRequested: path => App.revealTorrentFile(App.details.hash, path)
-            onPeerAction: (action, address) => root.detailsRowAction("peer", action, address)
-            onTrackerAction: (action, url) => root.detailsRowAction("tracker", action, url)
-            onWebSeedAction: (action, url) => root.detailsRowAction("webseed", action, url)
+            onPeerAction: (action, addresses) => root.detailsRowAction("peer", action, addresses)
+            onTrackerAction: (action, urls) => root.detailsRowAction("tracker", action, urls)
+            onWebSeedAction: (action, urls) => root.detailsRowAction("webseed", action, urls)
             onRenameFilesRequested: (paths, fromSelection) => renameFilesSheet.openFor(App.details.hash, paths, fromSelection)
         }
 

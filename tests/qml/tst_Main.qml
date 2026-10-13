@@ -1231,6 +1231,38 @@ TestCase {
         view.details.activateTab(0);
     }
 
+    // #51 D15: with peers selected, `b` asks once about all of them, and `d` in Trackers
+    // removes every selected tracker.
+    function test_b_on_selected_peers_asks_about_them_all() {
+        testCase._cursorOn("Big Buck Bunny 4K (CC-BY)");
+        view.details.activateTab(3);
+        view.details.forceActiveFocus();
+        tryVerify(() => App.details.peers.rowCount() > 1, 2000, "the demo torrent has too few peers");
+        const peers = App.details.peers;
+        const wanted = [peers.addressAt(0), peers.addressAt(1)];
+        keyClick(Qt.Key_Space);
+        keyClick(Qt.Key_J);
+        keyClick(Qt.Key_Space);
+        keyClick("b");
+        compare(view.banPeerConfirm.opened, true);
+        compare(view.banPeerConfirm.addresses, wanted);
+        compare(view.banPeerConfirm.message, "Ban 2 peers?");
+        keyClick(Qt.Key_Escape);
+        keyClick(Qt.Key_Escape); // and the selection
+        compare(view.details.peersSelection.count, 0);
+
+        testCase._cursorOn("archlinux-2026.09.01-x86_64.iso");
+        view.details.activateTab(2);
+        view.details.forceActiveFocus();
+        keyClick(Qt.Key_A, Qt.ControlModifier);
+        const count = view.details.trackersSelection.count;
+        verify(count >= 2, "the demo torrent has too few trackers");
+        keyClick("d");
+        compare(view.footerNote, "removed " + count + " trackers");
+        keyClick(Qt.Key_Escape);
+        view.details.activateTab(0);
+    }
+
     // A drop with nothing addable in it (a file that is not a .torrent) says so.
     function test_a_drop_with_nothing_to_add_says_so() {
         view.footerNote = "";

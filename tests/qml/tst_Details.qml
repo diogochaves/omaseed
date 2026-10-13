@@ -377,10 +377,12 @@ TestCase {
         const hints = findChild(view, "detailsHints");
         view.activateTab(2);
         compare(hints.model.map(hint => hint.key + " " + hint.label), ["a add", "d remove",
-                                                                          "R reannounce", "y copy"]);
+                                                                          "R reannounce", "y copy",
+                                                                          "space mark", "ctrl+a mark all"]);
         view.activateTab(3);
         compare(hints.model.map(hint => hint.key + " " + hint.label), ["b ban", "a add peer",
-                                                                          "y copy"]);
+                                                                          "y copy", "space mark",
+                                                                          "ctrl+a mark all"]);
         view.activateTab(0);
     }
 
@@ -1536,7 +1538,7 @@ TestCase {
         verify(!view.menuOpen);
         compare(trackerSpy.count, 1);
         compare(trackerSpy.signalArguments[0][0], "remove");
-        compare(trackerSpy.signalArguments[0][1], trackers.urlAt(1));
+        compare(trackerSpy.signalArguments[0][1], [trackers.urlAt(1)]);
 
         mouseClick(findChild(view, "trackerRow_2"), 120, 4, Qt.RightButton);
         keyClick("y");
@@ -1570,7 +1572,7 @@ TestCase {
         keyClick("b");
         compare(peerSpy.count, 1);
         compare(peerSpy.signalArguments[0][0], "ban");
-        compare(peerSpy.signalArguments[0][1], peers.addressAt(2));
+        compare(peerSpy.signalArguments[0][1], [peers.addressAt(2)]);
 
         mouseClick(findChild(view, "peerRow_0"), 120, 4, Qt.RightButton);
         keyClick("y");
@@ -1592,7 +1594,200 @@ TestCase {
         keyClick("d");
         compare(webSeedSpy.count, 1);
         compare(webSeedSpy.signalArguments[0][0], "remove");
-        compare(webSeedSpy.signalArguments[0][1], App.details.webSeeds.urlAt(1));
+        compare(webSeedSpy.signalArguments[0][1], [App.details.webSeeds.urlAt(1)]);
+    }
+
+    // ---- #51 D15: Trackers, Peers and HTTP sources select several ---------------------
+
+    function listView(tab) {
+        const view = testCase.select(testCase.archName);
+        view.activateTab(tab);
+        view.forceActiveFocus();
+        waitForRendering(view);
+        return view;
+    }
+
+    function menuItem(view, menuName, action) {
+        const menu = findChild(findChild(view, "detailsMenuHost"), menuName);
+        return menu.items.find(item => item.action === action);
+    }
+
+    // The click rules, as the table has them: a plain click selects that row alone, ctrl
+    // toggles, shift draws anchor..row, ctrl+shift adds it, a middle click toggles, a click
+    // on the empty space clears. DHT, PeX and LSD never join.
+    function test_trackers_select_by_the_click_rules() {
+        const view = testCase.listView(2);
+        const trackers = App.details.trackers;
+        const selection = view.trackersSelection;
+        compare(trackers.urlAt(3), "** [DHT] **");
+        const url = row => trackers.urlAt(row);
+
+        mouseClick(findChild(view, "trackerRow_0"), 120, 4);
+        compare(selection.keys, [url(0)]);
+        compare(view.trackersCursor, 0);
+        mouseClick(findChild(view, "trackerRow_1"), 120, 4);
+        compare(selection.keys, [url(1)], "a plain click kept the last row");
+
+        mouseClick(findChild(view, "trackerRow_0"), 120, 4, Qt.LeftButton, Qt.ControlModifier);
+        compare(selection.count, 2);
+        verify(findChild(view, "trackerRow_0").selected && findChild(view, "trackerRow_1").selected);
+
+        // The anchor is row 0 (the last ctrl+click): shift draws 0..4, without DHT and PeX.
+        mouseClick(findChild(view, "trackerRow_4"), 120, 4, Qt.LeftButton, Qt.ShiftModifier);
+        compare(selection.targets(view.trackersCursor), [url(0), url(1), url(2)]);
+        compare(view.trackersCursor, 4);
+        verify(!findChild(view, "trackerRow_3").selected, "DHT took a selection fill");
+
+        // shift again re-draws from the same anchor: 0..1.
+        mouseClick(findChild(view, "trackerRow_1"), 120, 4, Qt.LeftButton, Qt.ShiftModifier);
+        compare(selection.targets(0), [url(0), url(1)]);
+        // ctrl+shift adds 0..2.
+        mouseClick(findChild(view, "trackerRow_2"), 120, 4, Qt.LeftButton,
+                   Qt.ControlModifier | Qt.ShiftModifier);
+        compare(selection.count, 3);
+
+        mouseClick(findChild(view, "trackerRow_3"), 120, 4, Qt.LeftButton, Qt.ControlModifier);
+        compare(selection.count, 3, "ctrl+click selected DHT");
+        mouseClick(findChild(view, "trackerRow_2"), 120, 4, Qt.MiddleButton);
+        compare(selection.targets(0), [url(0), url(1)], "a middle click did not toggle");
+        compare(view.trackersCursor, 2);
+
+        const empty = findChild(view, "trackersEmptySpace");
+        verify(empty.height > 0);
+        mouseClick(empty);
+        compare(selection.count, 0, "a click on the empty space kept the selection");
+    }
+
+    // The Files tab's keys: space, v, ctrl+a, esc; `d` removes every selected tracker in
+    // one action, `y` copies their URLs a line each, and the menu names the count.
+    function test_tracker_keys_select_and_d_removes_them_all() {
+        const view = testCase.listView(2);
+        const trackers = App.details.trackers;
+        const selection = view.trackersSelection;
+        trackerSpy.target = view;
+        trackerSpy.clear();
+        copySpy.target = view;
+        copySpy.clear();
+
+        keyClick(Qt.Key_Space);
+        compare(selection.keys, [trackers.urlAt(0)]);
+        keyClick(Qt.Key_J);
+        keyClick(Qt.Key_J);
+        keyClick(Qt.Key_V);
+        compare(selection.count, 3);
+
+        keyClick(Qt.Key_D);
+        compare(trackerSpy.count, 1);
+        compare(trackerSpy.signalArguments[0][0], "remove");
+        compare(trackerSpy.signalArguments[0][1], [trackers.urlAt(0), trackers.urlAt(1),
+                                                   trackers.urlAt(2)]);
+        keyClick(Qt.Key_Y);
+        compare(copySpy.signalArguments[0][0], [trackers.urlAt(0), trackers.urlAt(1),
+                                                trackers.urlAt(2)].join("\n"));
+
+        // The menu, on a selected row, keeps the selection and says how many.
+        mouseClick(findChild(view, "trackerRow_1"), 120, 4, Qt.RightButton);
+        verify(view.menuOpen);
+        compare(selection.count, 3);
+        compare(testCase.menuItem(view, "trackerMenu", "remove").text, "remove 3 trackers…");
+        compare(testCase.menuItem(view, "trackerMenu", "copy").text, "copy 3 URLs");
+        keyClick(Qt.Key_Escape);
+        verify(!view.menuOpen);
+        compare(selection.count, 3, "esc on the menu cleared the selection");
+
+        keyClick(Qt.Key_Escape);
+        compare(selection.count, 0);
+        keyClick(Qt.Key_A, Qt.ControlModifier);
+        compare(selection.count, 3, "ctrl+a took DHT or PeX, or missed a tracker");
+
+        // A right click outside the selection makes that row the only target.
+        mouseClick(findChild(view, "trackerRow_4"), 120, 4, Qt.RightButton);
+        compare(selection.count, 0);
+        compare(view.trackersCursor, 4);
+        compare(testCase.menuItem(view, "trackerMenu", "remove").disabled, true);
+        keyClick(Qt.Key_Escape);
+        mouseClick(findChild(view, "trackerRow_2"), 120, 4, Qt.RightButton);
+        compare(selection.keys, [trackers.urlAt(2)]);
+        compare(testCase.menuItem(view, "trackerMenu", "remove").text, "remove");
+        keyClick("d");
+        compare(trackerSpy.signalArguments[1][1], [trackers.urlAt(2)]);
+
+        // `d` on DHT with nothing selected sends nothing.
+        keyClick(Qt.Key_Escape);
+        view.trackersCursor = 3;
+        trackerSpy.clear();
+        keyClick(Qt.Key_D);
+        compare(trackerSpy.count, 0, "remove ran on DHT");
+
+        // Another torrent lets the selection go.
+        keyClick(Qt.Key_A, Qt.ControlModifier);
+        verify(selection.count > 0);
+        App.selectTorrent(testCase.hashOf(testCase.bbbName));
+        compare(selection.count, 0);
+    }
+
+    // Peers: kept by address, banned all at once, the menu naming how many.
+    function test_peers_select_several_and_ban_them() {
+        const view = testCase.listView(3);
+        const peers = App.details.peers;
+        const selection = view.peersSelection;
+        peerSpy.target = view;
+        peerSpy.clear();
+        copySpy.target = view;
+        copySpy.clear();
+        verify(peers.count >= 3);
+
+        mouseClick(findChild(view, "peerRow_0"), 120, 4, Qt.LeftButton, Qt.ControlModifier);
+        mouseClick(findChild(view, "peerRow_2"), 120, 4, Qt.MiddleButton);
+        compare(selection.keys, [peers.addressAt(0), peers.addressAt(2)]);
+        verify(findChild(view, "peerRow_2").selected);
+
+        mouseClick(findChild(view, "peerRow_2"), 120, 4, Qt.RightButton);
+        compare(testCase.menuItem(view, "peerMenu", "ban").text, "ban 2 peers…");
+        compare(testCase.menuItem(view, "peerMenu", "copy").text, "copy 2 addresses");
+        keyClick("b");
+        compare(peerSpy.count, 1);
+        compare(peerSpy.signalArguments[0][0], "ban");
+        compare(peerSpy.signalArguments[0][1], [peers.addressAt(0), peers.addressAt(2)]);
+
+        keyClick(Qt.Key_Y);
+        compare(copySpy.signalArguments[0][0], peers.addressAt(0) + "\n" + peers.addressAt(2));
+
+        // Outside the selection, a right click retargets.
+        mouseClick(findChild(view, "peerRow_1"), 120, 4, Qt.RightButton);
+        compare(selection.keys, [peers.addressAt(1)]);
+        compare(testCase.menuItem(view, "peerMenu", "ban").text, "ban…");
+        keyClick(Qt.Key_Escape);
+
+        keyClick(Qt.Key_Escape);
+        compare(selection.count, 0);
+        keyClick(Qt.Key_A, Qt.ControlModifier);
+        compare(selection.count, peers.count);
+        mouseClick(findChild(view, "peersEmptySpace"));
+        compare(selection.count, 0);
+    }
+
+    // HTTP sources: the same rules; `d` removes the selection.
+    function test_http_sources_select_several_and_remove_them() {
+        const view = testCase.listView(4);
+        const seeds = App.details.webSeeds;
+        const selection = view.webSeedsSelection;
+        webSeedSpy.target = view;
+        webSeedSpy.clear();
+
+        mouseClick(findChild(view, "webSeedRow_2"), 120, 4);
+        mouseClick(findChild(view, "webSeedRow_0"), 120, 4, Qt.LeftButton, Qt.ShiftModifier);
+        compare(selection.count, 3);
+        mouseClick(findChild(view, "webSeedRow_1"), 120, 4, Qt.LeftButton, Qt.ControlModifier);
+        keyClick(Qt.Key_D);
+        compare(webSeedSpy.signalArguments[0][0], "remove");
+        compare(webSeedSpy.signalArguments[0][1], [seeds.urlAt(0), seeds.urlAt(2)]);
+
+        mouseClick(findChild(view, "webSeedRow_0"), 120, 4, Qt.RightButton);
+        compare(testCase.menuItem(view, "webSeedMenu", "remove").text, "remove 2 sources…");
+        keyClick(Qt.Key_Escape);
+        keyClick(Qt.Key_Escape);
+        compare(selection.count, 0);
     }
 
     // Somewhere outside the pane that can hold the keyboard: the table, in the window.
@@ -1718,14 +1913,15 @@ TestCase {
         compare(webSeedSpy.count, 1);
         compare(webSeedSpy.signalArguments[0][0], "remove");
         compare(webSeedSpy.signalArguments[0][1],
-                "https://geo.mirror.example.org/archlinux/iso/2026.09.01/");
+                ["https://geo.mirror.example.org/archlinux/iso/2026.09.01/"]);
         keyClick(Qt.Key_A);
         compare(webSeedSpy.count, 2);
         compare(webSeedSpy.signalArguments[1][0], "add");
 
         const hints = findChild(view, "detailsHints");
         compare(hints.model.map(hint => hint.key + " " + hint.label), ["a add", "d remove",
-                                                                          "y copy"]);
+                                                                          "y copy", "space mark",
+                                                                          "ctrl+a mark all"]);
         view.activateTab(0);
     }
 

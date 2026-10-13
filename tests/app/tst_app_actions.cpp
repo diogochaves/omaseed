@@ -477,7 +477,7 @@ void TestAppActions::trackersPeersAndBansReachTheServer()
 
     m_app->addTrackers(kFixtureOne, {url});
     QVERIFY2(waitFor(hasTracker, 8000), "the added tracker never showed up");
-    m_app->removeTracker(kFixtureOne, url);
+    m_app->removeTrackers(kFixtureOne, {url});
     QVERIFY2(waitFor([&hasTracker]() { return !hasTracker(); }, 8000),
              "the added tracker was never removed again");
 
@@ -486,7 +486,7 @@ void TestAppActions::trackersPeersAndBansReachTheServer()
     QVERIFY2(!before.isError(), qPrintable(before.error().toString()));
     const QString bannedBefore = before.value().value(QStringLiteral("banned_IPs")).toString();
 
-    m_app->banPeer(peer);
+    m_app->banPeers({peer});
     const bool banned = waitFor(
         [this]() {
             const QbtResult<QJsonObject> prefs = await(this, m_app->client()->appPreferences());

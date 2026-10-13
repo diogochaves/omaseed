@@ -628,22 +628,23 @@ public:
     Q_INVOKABLE void forceStart(const QStringList &hashes);
     Q_INVOKABLE void recheck(const QStringList &hashes);
     Q_INVOKABLE void reannounce(const QStringList &hashes);
-    /// The Trackers tab's `d` (Fig. 3): one tracker off one torrent.
-    Q_INVOKABLE void removeTracker(const QString &hash, const QString &url);
+    /// The Trackers tab's `d` (Fig. 3): trackers off one torrent, in one call (the tab's
+    /// selection, or the cursor's row, #51 D15).
+    Q_INVOKABLE void removeTrackers(const QString &hash, const QStringList &urls);
     /// The Trackers tab's `a` (ruling Q4): announce URLs onto one torrent. The details pane
     /// polls again once the server has them.
     Q_INVOKABLE void addTrackers(const QString &hash, const QStringList &urls);
     /// The HTTP sources tab's `a` (#10): web seed URLs onto one torrent; the list is asked
     /// for again once the server has them.
     Q_INVOKABLE void addWebSeeds(const QString &hash, const QStringList &urls);
-    /// The HTTP sources tab's `d` (#10): one web seed off one torrent.
-    Q_INVOKABLE void removeWebSeed(const QString &hash, const QString &url);
+    /// The HTTP sources tab's `d` (#10): web seeds off one torrent, in one call.
+    Q_INVOKABLE void removeWebSeeds(const QString &hash, const QStringList &urls);
     /// The Peers tab's `a` (ruling Q4): `host:port` peers onto one torrent.
     Q_INVOKABLE void addPeers(const QString &hash, const QStringList &peers);
-    /// The Peers tab's `b` (ruling Q4): one `host:port` into qBittorrent's IP filter. The
-    /// ban is permanent and global (every torrent, until removed in qBittorrent's settings),
-    /// so the view asks first.
-    Q_INVOKABLE void banPeer(const QString &address);
+    /// The Peers tab's `b` (ruling Q4): `host:port` peers into qBittorrent's IP filter, in
+    /// one call. The ban is permanent and global (every torrent, until removed in
+    /// qBittorrent's settings), so the view asks first.
+    Q_INVOKABLE void banPeers(const QStringList &addresses);
     /// The add-tracker and add-peer sheets' light check (core::PeerInput): `{entries,
     /// invalid}`, the accepted entries and the first refused one ("" when none was).
     Q_INVOKABLE QVariantMap checkTrackerUrls(const QString &text) const;

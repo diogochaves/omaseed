@@ -92,12 +92,14 @@ Item {
     signal openFileRequested(string path)
     /// `h` on anything that is not an open folder hands the focus back to the table.
     signal focusTable
-    /// `a` add, `d` remove, `R` reannounce (Phase 4 wires them; App only re-emits for now).
-    signal trackerAction(string action, string url)
-    /// `b` ban, `a` add peer.
-    signal peerAction(string action, string address)
-    /// The HTTP sources tab (#10): `a` add, `d` remove.
-    signal webSeedAction(string action, string url)
+    /// `a` add, `d` remove, `R` reannounce. `urls`: what `d` removes, the tab's selection or
+    /// else the cursor's row (#51 D15), never DHT, PeX or LSD; empty for add and reannounce.
+    signal trackerAction(string action, var urls)
+    /// `b` ban, `a` add peer. `addresses`: the `ip:port` peers `b` bans, the selection or
+    /// else the cursor's row; empty for add.
+    signal peerAction(string action, var addresses)
+    /// The HTTP sources tab (#10): `a` add, `d` remove, as the Trackers tab.
+    signal webSeedAction(string action, var urls)
     /// `y`: the text the caller should put on the clipboard.
     /// #11: `r` on two or more selected files, or the file menu's "rename files…": the files
     /// to rename (TorrentFilesModel::renameTargets()) and whether they are the selection.
@@ -124,6 +126,24 @@ Item {
     /// or a filter that rebuilds the rows does not move it onto another file. Empty, or
     /// folded out of sight, the cursor stands in for it.
     property string filesAnchorPath: ""
+
+    /// The Trackers, Peers and HTTP sources selections (#51 D15), by the click rules and
+    /// the Files tab's keys (`space`, `v`, `ctrl+a`, `esc`). Kept by URL or address, since
+    /// the peers move on every poll, and let go on another torrent. DHT, PeX and LSD are
+    /// rows of the Trackers list, not trackers of the torrent: they never join it.
+    readonly property DetailsSelection trackersSelection: DetailsSelection {
+        keyAt: row => root.details.trackers.urlAt(row)
+        rowCount: root.details.trackers.count
+        selectable: row => !root.details.trackers.urlAt(row).startsWith("** [")
+    }
+    readonly property DetailsSelection peersSelection: DetailsSelection {
+        keyAt: row => root.details.peers.addressAt(row)
+        rowCount: root.details.peers.count
+    }
+    readonly property DetailsSelection webSeedsSelection: DetailsSelection {
+        keyAt: row => root.details.webSeeds.urlAt(row)
+        rowCount: root.details.webSeeds.count
+    }
 
     readonly property bool hasTrackerError: (root.torrent && root.torrent.hasTrackerError === true)
                                             || root.details.hasTrackerError
@@ -205,9 +225,12 @@ Item {
     }
 
     /// `y` on the current row: the announce URL, the peer address, the web seed, or the file
-    /// path.
+    /// path. With rows selected in Trackers, Peers or HTTP sources, all of theirs, one a line.
     function copyCurrent() {
-        if (root.currentTab === 2)
+        const selection = root._listSelection();
+        if (selection !== null && selection.count > 0)
+            root.copyRequested(selection.targets(root.cursorIndex).join("\n"));
+        else if (root.currentTab === 2)
             root.copyRequested(root.details.trackers.urlAt(root.trackersCursor));
         else if (root.currentTab === 4)
             root.copyRequested(root.details.webSeeds.urlAt(root.webSeedsCursor));
@@ -521,13 +544,81 @@ Item {
     function rowMenuAction(action: string): void {
         if (action === "copy") {
             root.copyCurrent();
-        } else if (root.currentTab === 2) {
-            root.trackerAction(action, action === "add" ? "" : root.details.trackers.urlAt(root.trackersCursor));
-        } else if (root.currentTab === 3) {
-            root.peerAction(action, action === "add" ? "" : root.details.peers.addressAt(root.peersCursor));
-        } else if (root.currentTab === 4) {
-            root.webSeedAction(action, action === "add" ? "" : root.details.webSeeds.urlAt(root.webSeedsCursor));
+            return;
         }
+        const selection = root._listSelection();
+        if (selection === null)
+            return;
+        // Remove and ban act on the selection, or on the cursor's row; with neither (the
+        // cursor on DHT) there is nothing to send.
+        const values = action === "add" || action === "reannounce" ? [] : selection.targets(root.cursorIndex);
+        if ((action === "remove" || action === "ban") && values.length === 0)
+            return;
+        if (root.currentTab === 2)
+            root.trackerAction(action, values);
+        else if (root.currentTab === 3)
+            root.peerAction(action, values);
+        else
+            root.webSeedAction(action, values);
+    }
+
+    /// The selection of the tab on show, when it is Trackers, Peers or HTTP sources.
+    function _listSelection(): DetailsSelection {
+        return root.currentTab === 2 ? root.trackersSelection : root.currentTab === 3
+                                                                ? root.peersSelection : root.currentTab === 4
+                                                                  ? root.webSeedsSelection : null;
+    }
+
+    /// A click on Trackers, Peers or HTTP sources row `row`, by the click rules the table
+    /// follows: a plain click puts the cursor there and selects that row alone; ctrl+click
+    /// (or a middle click) toggles it; shift+click makes the selection anchor..row and
+    /// ctrl+shift+click adds that range, leaving the anchor where it was.
+    function clickListRow(row: int, modifiers: int): void {
+        const selection = root._listSelection();
+        if (selection === null || row < 0 || row >= root.rowCount)
+            return;
+        const ctrl = (modifiers & Qt.ControlModifier) !== 0;
+        if (modifiers & Qt.ShiftModifier) {
+            const anchor = selection.anchorRow(root.cursorIndex);
+            selection.range(anchor, row, ctrl);
+            selection.anchorKey = selection.keyOf(anchor);
+        } else if (ctrl) {
+            selection.toggle(row);
+        } else {
+            selection.only(row);
+        }
+        root._setCursor(row);
+    }
+
+    /// A right click on one of those rows: one outside the selection becomes the menu's
+    /// only target, one inside it keeps the selection; then the menu, at `x`, `y` in the
+    /// pane's coordinates.
+    function listMenuAt(row: int, x: real, y: real): void {
+        const selection = root._listSelection();
+        if (selection === null || row < 0 || row >= root.rowCount)
+            return;
+        if (!selection.has(selection.keyOf(row)))
+            selection.only(row);
+        root._setCursor(row);
+        root.openRowMenu(x, y);
+    }
+
+    /// `space` in those tabs: the cursor's row in or out of the selection.
+    function toggleListSelection(): bool {
+        const selection = root._listSelection();
+        if (selection === null || root.rowCount === 0)
+            return false;
+        selection.toggle(root.cursorIndex);
+        return true;
+    }
+
+    /// `v`: the rows from the anchor to the cursor join the selection.
+    function selectListRange(): bool {
+        const selection = root._listSelection();
+        if (selection === null || root.rowCount === 0)
+            return false;
+        selection.range(selection.anchorRow(root.cursorIndex), root.cursorIndex, true);
+        return true;
     }
 
     /// `/` in the Files tab. A single file has no filter (docs/12 F2): the footer says so,
@@ -709,6 +800,13 @@ Item {
             event.accepted = true;
             return;
         }
+        // #51 D15: `ctrl+a` selects every row of Trackers, Peers or HTTP sources too.
+        if (root._listSelection() !== null && !root.menuOpen && event.key === Qt.Key_A
+                && event.modifiers === Qt.ControlModifier) {
+            root._listSelection().all();
+            event.accepted = true;
+            return;
+        }
         // The rest of ctrl belongs to the window: `ctrl+k` is jump, not `k`, and `ctrl+b`
         // hides the rail rather than doing whatever `b` does here.
         if (event.modifiers & Qt.ControlModifier)
@@ -766,6 +864,20 @@ Item {
         case Qt.Key_Y:
             root.copyCurrent();
             break;
+        // #51 D15: Trackers, Peers and HTTP sources select as the Files tab does.
+        case Qt.Key_Space:
+            if (!root.toggleListSelection())
+                return;
+            break;
+        case Qt.Key_V:
+            if (!root.selectListRange())
+                return;
+            break;
+        case Qt.Key_Escape:
+            if (root._listSelection() === null || root._listSelection().count === 0)
+                return;
+            root._listSelection().clear();
+            break;
         case Qt.Key_Return:
         case Qt.Key_Enter:
             // G4: General's option rows; anything else goes on to the window.
@@ -775,32 +887,24 @@ Item {
         // The Trackers and Peers keys (Fig. 3/4) belong to those tabs only: anywhere else the
         // key goes on to the window, so `a` still adds a torrent from General or Files.
         case Qt.Key_A:
-            if (root.currentTab === 2)
-                root.trackerAction("add", "");
-            else if (root.currentTab === 3)
-                root.peerAction("add", "");
-            else if (root.currentTab === 4)
-                root.webSeedAction("add", "");
-            else
+            if (root._listSelection() === null)
                 return;
+            root.rowMenuAction("add");
             break;
         case Qt.Key_D:
-            if (root.currentTab === 2)
-                root.trackerAction("remove", root.details.trackers.urlAt(root.trackersCursor));
-            else if (root.currentTab === 4)
-                root.webSeedAction("remove", root.details.webSeeds.urlAt(root.webSeedsCursor));
-            else
+            if (root.currentTab !== 2 && root.currentTab !== 4)
                 return;
+            root.rowMenuAction("remove");
             break;
         case Qt.Key_R:
             if (root.currentTab !== 2 || !(event.modifiers & Qt.ShiftModifier))
                 return;
-            root.trackerAction("reannounce", root.details.trackers.urlAt(root.trackersCursor));
+            root.rowMenuAction("reannounce");
             break;
         case Qt.Key_B:
             if (root.currentTab !== 3)
                 return;
-            root.peerAction("ban", root.details.peers.addressAt(root.peersCursor));
+            root.rowMenuAction("ban");
             break;
         default:
             return;
@@ -1128,15 +1232,24 @@ Item {
             model: root.details.trackers
             visible: root.currentTab === 2
 
-            onRowClicked: row => {
+            selectedKeys: root.trackersSelection.keys
+
+            onEmptyClicked: {
                 root.takeKeys();
-                root.trackersCursor = row;
+                root.trackersSelection.clear();
+            }
+            onRowClicked: (row, modifiers) => {
+                root.takeKeys();
+                root.clickListRow(row, modifiers);
             }
             onRowMenuRequested: (row, x, y) => {
                 root.takeKeys();
-                root.trackersCursor = row;
                 const at = trackersTab.mapToItem(root, x, y);
-                root.openRowMenu(at.x, at.y);
+                root.listMenuAt(row, at.x, at.y);
+            }
+            onRowMiddleClicked: row => {
+                root.takeKeys();
+                root.clickListRow(row, Qt.ControlModifier);
             }
         }
 
@@ -1148,15 +1261,24 @@ Item {
             model: root.details.peers
             visible: root.currentTab === 3
 
-            onRowClicked: row => {
+            selectedKeys: root.peersSelection.keys
+
+            onEmptyClicked: {
                 root.takeKeys();
-                root.peersCursor = row;
+                root.peersSelection.clear();
+            }
+            onRowClicked: (row, modifiers) => {
+                root.takeKeys();
+                root.clickListRow(row, modifiers);
             }
             onRowMenuRequested: (row, x, y) => {
                 root.takeKeys();
-                root.peersCursor = row;
                 const at = peersTab.mapToItem(root, x, y);
-                root.openRowMenu(at.x, at.y);
+                root.listMenuAt(row, at.x, at.y);
+            }
+            onRowMiddleClicked: row => {
+                root.takeKeys();
+                root.clickListRow(row, Qt.ControlModifier);
             }
         }
 
@@ -1169,15 +1291,24 @@ Item {
             objectName: "webSeedsTab"
             visible: root.currentTab === 4
 
-            onRowClicked: row => {
+            selectedKeys: root.webSeedsSelection.keys
+
+            onEmptyClicked: {
                 root.takeKeys();
-                root.webSeedsCursor = row;
+                root.webSeedsSelection.clear();
+            }
+            onRowClicked: (row, modifiers) => {
+                root.takeKeys();
+                root.clickListRow(row, modifiers);
             }
             onRowMenuRequested: (row, x, y) => {
                 root.takeKeys();
-                root.webSeedsCursor = row;
                 const at = webSeedsTab.mapToItem(root, x, y);
-                root.openRowMenu(at.x, at.y);
+                root.listMenuAt(row, at.x, at.y);
+            }
+            onRowMiddleClicked: row => {
+                root.takeKeys();
+                root.clickListRow(row, Qt.ControlModifier);
             }
         }
     }
@@ -1259,6 +1390,14 @@ Item {
                                 {
                                     "key": "y",
                                     "label": qsTr("copy")
+                                },
+                                {
+                                    "key": "space",
+                                    "label": Keymap.labelOf("details", "space")
+                                },
+                                {
+                                    "key": "ctrl+a",
+                                    "label": Keymap.labelOf("details", "ctrl+a")
                                 }
                             ];
                 if (root.currentTab === 4)
@@ -1274,6 +1413,14 @@ Item {
                                 {
                                     "key": "y",
                                     "label": qsTr("copy")
+                                },
+                                {
+                                    "key": "space",
+                                    "label": Keymap.labelOf("details", "space")
+                                },
+                                {
+                                    "key": "ctrl+a",
+                                    "label": Keymap.labelOf("details", "ctrl+a")
                                 }
                             ];
                 return [
@@ -1288,6 +1435,14 @@ Item {
                             {
                                 "key": "y",
                                 "label": qsTr("copy")
+                            },
+                            {
+                                "key": "space",
+                                "label": Keymap.labelOf("details", "space")
+                            },
+                            {
+                                "key": "ctrl+a",
+                                "label": Keymap.labelOf("details", "ctrl+a")
                             }
                         ];
             }
@@ -1474,6 +1629,9 @@ Item {
             id: trackerMenu
 
             readonly property bool onPseudo: root.details.trackers.urlAt(root.trackersCursor).startsWith("** [")
+            /// How many trackers remove and copy act on: the selection, or the cursor's row.
+            readonly property int targets: root.trackersSelection.count > 0 ? root.trackersSelection.count
+                                                                            : trackerMenu.onPseudo ? 0 : 1
 
             anchors.fill: parent
             items: [
@@ -1483,10 +1641,11 @@ Item {
                     "action": "add"
                 },
                 {
-                    "text": qsTr("remove"),
+                    "text": trackerMenu.targets > 1 ? qsTr("remove %n trackers…", "", trackerMenu.targets)
+                                                    : qsTr("remove"),
                     "key": "d",
                     "action": "remove",
-                    "disabled": trackerMenu.onPseudo
+                    "disabled": trackerMenu.targets === 0
                 },
                 {
                     "text": qsTr("reannounce"),
@@ -1497,10 +1656,11 @@ Item {
                     "separator": true
                 },
                 {
-                    "text": qsTr("copy URL"),
+                    "text": trackerMenu.targets > 1 ? qsTr("copy %n URLs", "", trackerMenu.targets)
+                                                    : qsTr("copy URL"),
                     "key": "y",
                     "action": "copy",
-                    "disabled": trackerMenu.onPseudo
+                    "disabled": trackerMenu.targets === 0
                 }
             ]
             menuWidth: Math.min(Theme.space(220), root.width - Theme.space(16))
@@ -1513,6 +1673,8 @@ Item {
         Menu {
             id: peerMenu
 
+            readonly property int selected: root.peersSelection.count
+
             anchors.fill: parent
             items: [
                 {
@@ -1521,7 +1683,7 @@ Item {
                     "action": "add"
                 },
                 {
-                    "text": qsTr("ban…"),
+                    "text": peerMenu.selected > 1 ? qsTr("ban %n peers…", "", peerMenu.selected) : qsTr("ban…"),
                     "key": "b",
                     "action": "ban"
                 },
@@ -1529,7 +1691,8 @@ Item {
                     "separator": true
                 },
                 {
-                    "text": qsTr("copy address"),
+                    "text": peerMenu.selected > 1 ? qsTr("copy %n addresses", "", peerMenu.selected)
+                                                  : qsTr("copy address"),
                     "key": "y",
                     "action": "copy"
                 }
@@ -1544,6 +1707,8 @@ Item {
         Menu {
             id: webSeedMenu
 
+            readonly property int selected: root.webSeedsSelection.count
+
             anchors.fill: parent
             items: [
                 {
@@ -1552,7 +1717,8 @@ Item {
                     "action": "add"
                 },
                 {
-                    "text": qsTr("remove"),
+                    "text": webSeedMenu.selected > 1 ? qsTr("remove %n sources…", "", webSeedMenu.selected)
+                                                     : qsTr("remove"),
                     "key": "d",
                     "action": "remove"
                 },
@@ -1560,7 +1726,8 @@ Item {
                     "separator": true
                 },
                 {
-                    "text": qsTr("copy URL"),
+                    "text": webSeedMenu.selected > 1 ? qsTr("copy %n URLs", "", webSeedMenu.selected)
+                                                     : qsTr("copy URL"),
                     "key": "y",
                     "action": "copy"
                 }
@@ -1582,10 +1749,14 @@ Item {
         target: root.Window.window
     }
 
-    // Another torrent: the Files anchor belonged to the last one's rows.
+    // Another torrent: the Files anchor, and the other lists' selections, belonged to the
+    // last one's rows.
     Connections {
         function onHashChanged(): void {
             root.filesAnchorPath = "";
+            root.trackersSelection.clear();
+            root.peersSelection.clear();
+            root.webSeedsSelection.clear();
         }
 
         target: root.details
@@ -1631,6 +1802,7 @@ Item {
         function onCountChanged(): void {
             if (root.trackersCursor >= root.details.trackers.count)
                 root.trackersCursor = Math.max(0, root.details.trackers.count - 1);
+            root.trackersSelection.prune(); // a removed tracker leaves the selection
         }
 
         target: root.details.trackers
@@ -1641,6 +1813,7 @@ Item {
         function onCountChanged(): void {
             if (root.webSeedsCursor >= root.details.webSeeds.count)
                 root.webSeedsCursor = Math.max(0, root.details.webSeeds.count - 1);
+            root.webSeedsSelection.prune();
         }
 
         target: root.details.webSeeds
@@ -1655,6 +1828,7 @@ Item {
             root.peersCursor = row >= 0 ? row : Math.max(0, Math.min(root.peersCursor,
                                                                      peers.count - 1));
             root.peersCursorAddress = peers.addressAt(root.peersCursor);
+            root.peersSelection.prune(); // a peer that left leaves the selection
         }
 
         target: root.details.peers

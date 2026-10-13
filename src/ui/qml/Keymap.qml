@@ -466,7 +466,7 @@ QtObject {
             "rank": 3,
             "helpKeys": "ctrl+a",
             "help": qsTr("all visible"),
-            "about": qsTr("Select every torrent the filter shows; in the Files tab, every file it shows")
+            "about": qsTr("Select every torrent the filter shows; in the Files tab, every file it shows; in Trackers, Peers and HTTP sources, every row")
         },
         {
             "area": "table",

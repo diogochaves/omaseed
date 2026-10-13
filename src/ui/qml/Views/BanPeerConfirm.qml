@@ -13,14 +13,18 @@ import Omaseed.Kit
 ConfirmDialog {
     id: root
 
-    /// The `host:port` being banned. Read once, at `openFor()`: the peer list moves every
-    /// two seconds and the question must stay about the row the user pressed `b` on.
-    property string address: ""
+    /// The `host:port` peers being banned: the Peers tab's selection, or its cursor row
+    /// (#51 D15). Read once, at `openFor()`: the peer list moves every two seconds and the
+    /// question must stay about the rows the user pressed `b` on.
+    property var addresses: []
+    /// The first of them, the one the message names when there is only one.
+    readonly property string address: root.addresses.length > 0 ? root.addresses[0] : ""
 
     cancelText: qsTr("cancel")
     confirmText: qsTr("ban")
     destructive: true
-    message: qsTr("Ban %1?").arg(root._host)
+    message: root.addresses.length > 1 ? qsTr("Ban %n peers?", "", root.addresses.length)
+                                       : qsTr("Ban %1?").arg(root._host)
     subtitle: qsTr(
                   "The ban is permanent and applies to every torrent, until you remove it in qBittorrent's settings (IP filtering).")
 
@@ -30,10 +34,11 @@ ConfirmDialog {
         return colon > 0 ? root.address.slice(0, colon) : root.address;
     }
 
-    function openFor(address: string): void {
-        root.address = address;
+    /// `addresses`: one `host:port`, or a list of them.
+    function openFor(addresses: var): void {
+        root.addresses = typeof addresses === "string" ? [addresses] : addresses;
         root.open();
     }
 
-    onAccepted: App.banPeer(root.address)
+    onAccepted: App.banPeers(root.addresses)
 }

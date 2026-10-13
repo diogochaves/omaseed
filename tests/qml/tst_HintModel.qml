@@ -98,10 +98,15 @@ TestCase {
                 "x skip / keep · space mark · ctrl+a mark all · p priority · enter menu · / filter");
 
         model.detailsTab = 2;
-        compare(testCase.line(model.hints), "a add · d remove · R reannounce · y copy");
+        // #51 D15: then the keys that mark rows, as Files has them.
+        compare(testCase.line(model.hints),
+                "a add · d remove · R reannounce · y copy · space mark · ctrl+a mark all");
 
         model.detailsTab = 3;
-        compare(testCase.line(model.hints), "b ban · a add peer · y copy");
+        compare(testCase.line(model.hints), "b ban · a add peer · y copy · space mark · ctrl+a mark all");
+
+        model.detailsTab = 4;
+        compare(testCase.line(model.hints), "a add · d remove · y copy · space mark · ctrl+a mark all");
     }
 
     function test_the_empty_state_teaches_figure_22() {

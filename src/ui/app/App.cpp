@@ -2290,12 +2290,12 @@ void App::reannounce(const QStringList &hashes)
     });
 }
 
-void App::removeTracker(const QString &hash, const QString &url)
+void App::removeTrackers(const QString &hash, const QStringList &urls)
 {
-    if (hash.isEmpty() || url.isEmpty() || demoGuard(QStringLiteral("remove tracker"), 1) ||
-        !m_hasServer)
+    if (hash.isEmpty() || urls.isEmpty() ||
+        demoGuard(QStringLiteral("remove tracker"), int(urls.size())) || !m_hasServer)
         return;
-    m_client->torrentsRemoveTrackers(hash, QStringList{url})
+    m_client->torrentsRemoveTrackers(hash, urls)
         ->then(this, [this](const QbtResult<QByteArray> &result) {
             reportActionResult(QStringLiteral("remove tracker"), result);
         });
@@ -2481,12 +2481,12 @@ void App::addWebSeeds(const QString &hash, const QStringList &urls)
         });
 }
 
-void App::removeWebSeed(const QString &hash, const QString &url)
+void App::removeWebSeeds(const QString &hash, const QStringList &urls)
 {
-    if (hash.isEmpty() || url.isEmpty() || demoGuard(QStringLiteral("remove HTTP source"), 1) ||
-        !m_hasServer)
+    if (hash.isEmpty() || urls.isEmpty() ||
+        demoGuard(QStringLiteral("remove HTTP source"), int(urls.size())) || !m_hasServer)
         return;
-    m_client->torrentsRemoveWebSeeds(hash, QStringList{url})
+    m_client->torrentsRemoveWebSeeds(hash, urls)
         ->then(this, [this, hash](const QbtResult<QByteArray> &result) {
             reportActionResult(QStringLiteral("remove HTTP source"), result);
             if (!result.isError() && m_details->hash() == hash)
@@ -2507,16 +2507,16 @@ void App::addPeers(const QString &hash, const QStringList &peers)
         });
 }
 
-void App::banPeer(const QString &address)
+void App::banPeers(const QStringList &addresses)
 {
-    if (address.isEmpty() || demoGuard(QStringLiteral("ban peer"), 1) || !m_hasServer)
+    if (addresses.isEmpty() || demoGuard(QStringLiteral("ban peer"), int(addresses.size())) ||
+        !m_hasServer)
         return;
-    m_client->transferBanPeers(QStringList{address})
-        ->then(this, [this](const QbtResult<QByteArray> &result) {
-            reportActionResult(QStringLiteral("ban"), result);
-            if (!result.isError())
-                m_details->refreshNow();
-        });
+    m_client->transferBanPeers(addresses)->then(this, [this](const QbtResult<QByteArray> &result) {
+        reportActionResult(QStringLiteral("ban"), result);
+        if (!result.isError())
+            m_details->refreshNow();
+    });
 }
 
 namespace {
