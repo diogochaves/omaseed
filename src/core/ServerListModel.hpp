@@ -16,7 +16,7 @@
 //     torrent count, last error. `setProbeResult()` writes those; they are cleared when the
 //     server is removed. Its argument order is `App::serverTested()`'s, so a sheet that
 //     tested a server before it had an id can hand the answer straight on once it does
-//     (docs/QUESTIONS.md Q23).
+//     (docs/DECISIONS.md Q23).
 //
 // Secrets never travel through `Server` or `servers.json`. `add()`/`update()` take the secret
 // separately and hand it to `SecretStore` (asynchronously, keyed by the server's id);

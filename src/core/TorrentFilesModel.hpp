@@ -1,6 +1,6 @@
 #pragma once
 
-// TorrentFilesModel — the details pane's Files tab (spec §2 Fig. 2, UX-NOTES N1).
+// TorrentFilesModel — the details pane's Files tab (spec §2 Fig. 2, docs/DECISIONS.md N1).
 //
 // `torrents/files` sends a flat array of files whose `name` is the full path inside the
 // torrent ("Big Buck Bunny 4K/subs/bbb.en.srt"). The figure draws that as a tree: the

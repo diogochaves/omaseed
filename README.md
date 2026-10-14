@@ -36,6 +36,10 @@ Linux, with a bundled theme when Omarchy is not there.
   anyone has, asks first
 - **Backs itself up**, seeding history included
 
+What it leaves out, on purpose: a torrent engine of its own, cross-seeding and *arr
+automation (that is [qui](https://github.com/autobrr/qui) and autobrr's ground), and the
+server-side things a desktop app has no use for, such as multiple users or metrics.
+
 ## Install
 
 ### Arch / Omarchy
@@ -318,10 +322,11 @@ mkdir -p build/makepkg-scratch && cp packaging/arch/PKGBUILD.local build/makepkg
 cd build/makepkg-scratch && makepkg -f
 ```
 
-[docs/RELEASING.md](docs/RELEASING.md) is how a release is cut;
-[docs/03-charter.md](docs/03-charter.md) is what omaseed is for and what it leaves out;
-[docs/06-implementation-plan.md](docs/06-implementation-plan.md) is the architecture;
-[docs/05-ui-spec-v2.html](docs/05-ui-spec-v2.html) is the design (open it in a browser).
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) is how the code is laid out and the theme rules
+every QML file follows; [docs/05-ui-spec-v2.html](docs/05-ui-spec-v2.html) is the design and the
+numbered boards after it design one feature each (open them in a browser);
+[docs/DECISIONS.md](docs/DECISIONS.md) keeps the rulings the code cites;
+[docs/RELEASING.md](docs/RELEASING.md) is how a release is cut.
 
 ## Built with omabox
 

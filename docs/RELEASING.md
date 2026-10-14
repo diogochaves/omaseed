@@ -14,7 +14,7 @@ this file is the order to run them in and what to check by hand around them.
    ctest --test-dir build --output-on-failure
    scripts/dev/lint.sh build
    ```
-2. **Theme sweep (T5.4).** Screenshot every theme via `--demo` and `omarchy-theme-set`
+2. **Theme sweep.** Screenshot every theme via `--demo` and `omarchy-theme-set`
    against the spec figures. Note the starting theme first
    (`cat ~/.local/state/omarchy/current/theme.name`) and restore it afterwards — never
    leave the desktop changed.
@@ -35,7 +35,7 @@ this file is the order to run them in and what to check by hand around them.
    (`dist/` is gitignored). It creates **no tag and no commit and edits no file**, so step 6
    can follow straight away. Inspect `dist/` before moving on; `tar tf
    dist/omaseed-X.Y.Z.tar.gz | head` should show the `omaseed-X.Y.Z/` prefix and no
-   `docs/evidence` entries. With `--bump` the dry run only reports the bump, so its tarball
+   `.github/` entries. With `--bump` the dry run only reports the bump, so its tarball
    still carries the old version.
 6. **Publish.**
    ```
@@ -111,7 +111,7 @@ this file is the order to run them in and what to check by hand around them.
 - `packaging/arch/PKGBUILD` downloads GitHub's own archive of the tag
   (`https://github.com/diogochaves/omaseed/archive/refs/tags/vX.Y.Z.tar.gz`). GitHub
   builds it as `git archive --prefix=omaseed-X.Y.Z/ vX.Y.Z | gzip -n`, leaving out what
-  `.gitattributes` marks `export-ignore` (`docs/evidence`). `release.sh` builds the same
+  `.gitattributes` marks `export-ignore` (`.github/`). `release.sh` builds the same
   bytes into `dist/`, uploads them as the release asset, and after the push checks them
   against GitHub's download; if they ever differ, the PKGBUILD gets GitHub's checksum,
   since that is the file makepkg fetches, and the script says so.

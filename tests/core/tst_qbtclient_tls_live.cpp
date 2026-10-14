@@ -1,4 +1,4 @@
-// Trust on first use against a real qBittorrent (issue #2, docs/QUESTIONS.md Q27): a
+// Trust on first use against a real qBittorrent (issue #2, docs/DECISIONS.md Q27): a
 // qbittorrent-nox of the test's own (tests/ThrowawayQbt.hpp) serving its Web UI over HTTPS
 // with a self-signed certificate made for the run. Without a pin the client refuses it with
 // Kind::Certificate and says which certificate it saw; pinned to that certificate every kind

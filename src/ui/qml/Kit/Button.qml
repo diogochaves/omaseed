@@ -20,7 +20,7 @@ import Omaseed.Kit
 // A click runs `clicked()` and does not take the focus (IconButton and Chip do the same): the
 // keyboard stays where it was, so a mouse click never leaves the focus ring (or IconButton's
 // tooltip) behind, and an overlay the click opens gives the keyboard back to what had it —
-// the table, not the hero's gear (docs/UX-NOTES M8). `tab` still focuses and rings it.
+// the table, not the hero's gear (docs/DECISIONS.md M8). `tab` still focuses and rings it.
 Rectangle {
     id: root
 

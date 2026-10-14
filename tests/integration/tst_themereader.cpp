@@ -244,7 +244,7 @@ void TestThemeReader::spacingAndTypeFollowTheBaseSize()
     QCOMPARE(theme.font()->body(), 14);
 }
 
-/// docs/QUESTIONS.md Q1: the ground's default alpha is `[launcher] background-alpha`, 0.95
+/// docs/DECISIONS.md Q1: the ground's default alpha is `[launcher] background-alpha`, 0.95
 /// when the key is missing, the user's overlay winning; an override set through
 /// setWindowAlpha() survives a theme change.
 void TestThemeReader::windowAlphaFollowsTheLaunchersBackgroundAlpha()
@@ -298,7 +298,7 @@ void TestThemeReader::windowAlphaFollowsTheLaunchersBackgroundAlpha()
     QCOMPARE(theme.defaultWindowAlpha(), 0.95);
 }
 
-/// docs/QUESTIONS.md Q19: a theme whose dark_foreground is under 3:1 against its background
+/// docs/DECISIONS.md Q19: a theme whose dark_foreground is under 3:1 against its background
 /// gets the role lifted towards the foreground; one already there keeps it byte for byte.
 void TestThemeReader::dimForegroundIsLiftedToTheContrastFloor()
 {

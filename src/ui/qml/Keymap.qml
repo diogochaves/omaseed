@@ -1145,7 +1145,7 @@ QtObject {
             "help": ""
         },
 
-        // The Files tab (UX-NOTES N1): the same verbs as the table where there is one
+        // The Files tab (docs/DECISIONS.md N1): the same verbs as the table where there is one
         // (space, v, enter, r, y, n, g G, s, /), and qBittorrent's content actions.
         {
             "area": "details",

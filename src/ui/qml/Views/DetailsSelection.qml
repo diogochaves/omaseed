@@ -1,7 +1,7 @@
 import QtQuick
 
 // The selection of one of the details pane's flat lists — Trackers, Peers, HTTP sources
-// (#51 D15) — by the click rules every list follows (UX-NOTES "Mouse pass").
+// (#51 D15) — by the click rules every list follows (docs/DECISIONS.md, "The click rules").
 //
 // It is kept by key (a tracker's or web seed's URL, a peer's `ip:port`), not by row: the
 // peers move on every poll as their speeds change, and a tracker list comes back whole. So

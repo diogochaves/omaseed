@@ -1,12 +1,10 @@
 # Companion bar widget — brief
 
-Status: **superseded in part by `docs/20-companion-widget-contract.md` (2026-10-02), which wins where they
-differ; §1, §2's abbreviation rules, §4's status-file mechanism and §6 still hold.** Approved by Diogo 2026-10-02 (Q6–Q12 ruled as proposed, plugin id `chaves.omaseed`;
-built before v0.1.0, issues #12–#17). Proposed 2026-09-19. Stage 1 of the companion-widget work. The drawing
-is `docs/07-companion-widget-spec.html`; this file decides what is drawn and why. Foreseen by
-charter §9 ("a thin QML plugin that shows speeds in the bar and summons the app over D-Bus");
-this turns that sentence into a contract. Nothing here edits the approved specs
-(`docs/04-ui-spec.html`, `docs/05-ui-spec-v2.html`) — they stay frozen.
+Status: **superseded in part by `docs/20-companion-widget-contract.md` (2026-10-02), which wins
+where they differ; §1, §2's abbreviation rules, §4's status-file mechanism and §6 still hold.**
+Proposed 2026-09-19, approved 2026-10-02 (Q6–Q12, plugin id `chaves.omaseed`) and built for
+v0.1.0 (#12–#17). This file decides what the widget shows and why; `docs/19-companion-widget.html`
+is the drawing.
 
 Everything is a decision, not an option, unless it says **[decide]**.
 
@@ -573,87 +571,3 @@ neighbourhood; the app's D-Bus name stays `io.github.diogochaves.omaseed`. **Rul
 `omarchy plugin validate plugin/` runs in CI and must exit 0: it enforces `schemaVersion: 1`,
 the five required fields, an entry point per declared kind, relative safe paths, no symlinks,
 and a valid `barWidget.defaultSection`.
-
----
-
-## 7. Consequences for the app plan
-
-Proposed new section for `docs/06-implementation-plan.md`, replacing the line in §7 that says
-"the companion bar widget (charter §9) is post-v1".
-
-> ### Phase 6 — companion bar widget (post-v1)
->
-> Goal: the shell plugin of `docs/07-companion-widget-spec.html`, and the app-side status
-> surface it mirrors. Ships after v1 is on the AUR; nothing in Phases 1–5 depends on it.
-> The design contract is `docs/07-companion-widget-brief.md`.
->
-> - **T6.1 StatusWriter (Sonnet, after T2.3).** `integration/StatusWriter`: builds the JSON of
->   brief §4 from `GlobalState`, `TorrentModel` and `FilterCounts`; writes
->   `$XDG_RUNTIME_DIR/omaseed/status.json` atomically (temp + `rename`), directory `0700`,
->   file `0600`; rate-limited to 1 Hz moving / 10 s idle with three-significant-figure change
->   detection; removes the file on clean quit; persists `recent` (last 5 completions) in
->   `state.json`. Acceptance: unit tests with `XDG_RUNTIME_DIR` in a temp dir asserting the
->   schema, atomicity (no reader ever sees a partial file under a 1 kHz read loop), the rate
->   limit, the idle heartbeat, and that no secret ever appears in the output (grep the file for
->   the strict test server's key).
-> - **T6.2 Status D-Bus interface (Sonnet, after T2.5, T6.1).** `io.github.diogochaves.omaseed.Status`
->   on the existing object path: `ToggleAltSpeed`, `SetAltSpeed`, `PauseAll`, `ResumeAll`,
->   `AddFromClipboard`, `ShowTorrent`, `OpenFolder`, with the signatures of brief §4. Acceptance:
->   `busctl --user introspect` shows the interface; a test calls every method against the :8081
->   playground and asserts the effect in `torrents/info` and in the next status file write.
-> - **T6.3 Tray/widget coexistence (Sonnet, after T1.5, T6.1).** The widget heartbeat file
->   `$XDG_RUNTIME_DIR/omaseed/widget.alive`; the app hides the SNI icon while it is under 90 s
->   old; `Settings → Appearance → Tray icon: auto | always | never`, default `auto`.
->   Acceptance: touching the file hides the icon within one watcher tick; letting it go stale
->   restores it; `always` and `never` override both ways.
-> - **T6.4 The plugin (Opus, after T6.1–T6.3).** `plugin/` per brief §6: manifest, `Widget.qml`
->   (bar presence, tooltip, click map, `Ui.Panel` + `Ui.PopupCard`), `Popup.qml` (the seven
->   sections and five states of brief §3), `Format.js` (the abbreviation rules of brief §2).
->   Only `Style` and `Color` tokens, no literal sizes, no hex. Acceptance:
->   `omarchy plugin validate plugin/` exits 0; installed into `~/.config/omarchy/plugins/` and
->   enabled on the right, it renders every state; screenshots of the bar strip and the popup in
->   Tokyo Night, Hackerman and Lupine at base 12 and 14, compared against the spec figures by
->   the orchestrator; the shell's console is clean (no QML warnings).
-> - **T6.5 Format tests (Sonnet).** `qmltestrunner` over `Format.js`: every abbreviation rule
->   of brief §2 (boundaries at 0, 999, 1000, 1023, 1024, 10 M, 999 M, 1 G), ETA and relative
->   time, byte sizes, and the fixed-width guarantee (every output is exactly five characters).
-> - **T6.6 Publish (Sonnet, after T6.4).** `git subtree split` of `plugin/` pushed to the public
->   `omaseed-bar` repo on release; PKGBUILD installs `/usr/share/omaseed/plugin/`;
->   `omaseed --install-bar-widget` copies it into `~/.config/omarchy/plugins/` and prints the
->   enable line; marketplace submission per charter §9. Acceptance:
->   `omarchy plugin add <url> --enable` works on a clean checkout of the published repo.
->
-> Phase 6 exit: the widget in Diogo's bar for a day with the SNI icon gone, a screenshot of every
-> state, and `omarchy plugin add` from the public repo on a second machine or a clean profile.
-
-Two smaller consequences outside Phase 6:
-
-- **T2.3** should emit the completion event with the fields `recent[]` needs (hash, name, size,
-  category, mapped path, timestamp) rather than just a hash, so `StatusWriter` does not re-read
-  the model.
-- **T4.5** gains one Appearance row (tray icon: auto/always/never) and one About row (the
-  `omarchy plugin add` line, copyable), which is cheap if it is known now.
-
----
-
-## 8. Open questions for Diogo
-
-Collected here rather than written into `docs/QUESTIONS.md`, which the orchestrator owns.
-
-1. **In flight in or out?** (§1) It is the section that makes the popup more than a tooltip, and
-   the section closest to "a table". Keep, or cut and keep the popup to five sections?
-2. **Tray heartbeat, or a plain setting?** (§2) Auto-hide the SNI icon when the widget is alive,
-   or no magic and a switch in Settings the user flips themselves?
-3. **Plugin id**: `chaves.omaseed` (matches your other plugins) or `diogochaves.omaseed`
-   (matches the app id)? Which publisher handle will the marketplace entry use?
-4. **Middle click default**: alt-speed (proposed, matches the tray) or stop-all?
-5. **Colour narrowing** (§2): the shell gives five roles, so downloading, seeding, checking and
-   queued all read as plain foreground and only errors get `urgent`. Acceptable, or should the
-   widget read `colors.toml` itself to recover the app's semantic colours? (It can — `Color`
-   already resolves the theme — but it would be the only plugin on the bar using colours the
-   shell does not sanction, which is the one discipline `omarqui` breaks.)
-6. **Settings view in the popup?** (§5) Your other plugins all have one behind `s`. Proposed:
-   no — six options in the shell's own form, and `󰒓` opens omaseed's settings instead.
-7. **Status file schema `v: 1` — do we owe compatibility?** Proposed: no. The widget refuses a
-   `v` it does not know and shows "app not running"; app and plugin are versioned together and
-   released together, so a mismatch is a packaging bug, not a supported state.

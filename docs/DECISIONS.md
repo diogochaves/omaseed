@@ -1,0 +1,107 @@
+# Decisions
+
+Rulings the code cites by number, kept here so the comments lead somewhere. `Q` numbers were
+design questions; `N` and `S` came from a visual pass over the app, `M` from a manual pass over
+the running app. Each is settled and built. Bigger designs live in the numbered boards (see
+[ARCHITECTURE.md](ARCHITECTURE.md)).
+
+## Q1 — The window's alpha
+
+The window's ground defaults to the shell's `[launcher] background-alpha` from `shell.toml`
+(0.95 on a stock Omarchy), so omaseed sits on the wallpaper the way the launcher does.
+Settings → Appearance overrides it. Sheets, palettes and popups stay opaque.
+
+## Q16 — Formatting, states and notices
+
+- Sizes and speeds print three significant digits everywhere (`641 MB`).
+- `stoppedUP` / `pausedUP` show as green "completed"; `stoppedDL` as grey "stopped".
+- The low-disk notice's threshold is a setting (Notifications, 2 GiB by default). It watches
+  `free_space_on_disk`, which qBittorrent reports for its default save path only; other disks
+  and per-category paths are not covered, and the setting's caption says so.
+- Tracker health is a badge and a filter, never a desktop notice. That is what qBittorrent,
+  qui, Transmission, Deluge and Flood all do.
+- While the sync engine polls, the HTTP client does not retry reads on its own: the engine's
+  visible "retry in 10 s" is the only retry, so a lost server shows after one failure.
+
+## Q17 — The Status column is 116 px
+
+The design's 104 px cannot hold `downloading` beside its glyph in JetBrains Mono. The column
+is 116 px, taken from the flexible Name column, and the word is never cut.
+
+## Q19 — Captions stay readable on every theme
+
+In about half of Omarchy's themes `dark_foreground` is under 3:1 against `background`
+(everforest 1.72, white 1.82, miasma 2.13, Tokyo Night 2.76), which made captions and column
+headers faint. `Theme.dimForeground` therefore has a contrast floor: it is mixed towards
+`foreground` until it reads at 3:1 against the window background. A theme already at 3:1
+keeps its own colour.
+
+## Q23 — A server tested before it is saved keeps its result
+
+Settings → Servers shows each server's version and torrent count from its last test. A test
+run in the server sheet before `save` has no server to belong to yet, so on save the sheet's
+fresh result is carried onto the new row.
+
+## Q27 — Self-signed certificates: trust on first use
+
+On a server's first TLS error, the server sheet (and first run) shows the certificate's
+fingerprint and offers "trust this certificate". The fingerprint is saved with the server in
+`servers.json` (it is not a secret) and only that exact certificate is accepted afterwards.
+Turning on the Web UI's HTTPS in qBittorrent's settings warns about this first.
+
+## M8 — A click leaves the keyboard focus where it was
+
+Buttons and toggles do not take the focus when clicked. Otherwise an overlay gives the focus
+back to the button that opened it, and the button keeps its focus ring and tooltip with the
+pointer far away. `tab` still focuses them.
+
+## M11 — Clicked rows lose their hover fill
+
+Rail rows that were clicked kept the hover fill after the pointer left: the scroll hint lay
+over the list with its own hover handler, which took the hover events of the rows under it.
+Overlays on a list take no buttons and no hover; whatever must follow the pointer listens on
+the list itself, alongside its rows.
+
+## M12 — An option shows its new state at once
+
+Ticking an option (sequential download, first and last pieces, super seeding, automatic
+management) shows the requested state immediately, from `SyncEngine`'s pending values, instead
+of waiting for the next poll. If the server refuses, it goes back.
+
+## M16 — The footer's note stays in the footer
+
+A short note such as "details: bottom · I to change" sits in the footer's own line, after the
+facts. It never draws over the details panel.
+
+## M18 — Renaming files in the add sheet
+
+qBittorrent's `torrents/add` takes no per-file names, so renames made in the add sheet are
+applied right after the add with `torrents/renameFile` and `torrents/renameFolder`, the same
+way the file priorities are.
+
+## N1 — The Files tab matches qBittorrent's
+
+The details pane's Files tab does what qBittorrent's Web UI allows on a torrent's content:
+filter by name, sort by any column the API gives (name, size, progress, priority, remaining,
+availability, pieces), progress on every row, priority changes, copy path, rename files and
+folders.
+
+## S1 — The status keys are `0`–`8`
+
+The rail has nine status rows, `0` (all) to `8` (errored), so the help sheet and the rail's
+footer print `0–8`. The approved design's figure prints `0–9`; `9` does nothing.
+
+## The click rules every list follows
+
+From a pass over the whole app with the mouse:
+
+- A plain click puts the cursor and the range anchor on that row. The table selects only that
+  row; the Files tab clears its selection, since there the cursor is the target when nothing is
+  marked.
+- Ctrl+click toggles a row. Shift+click makes the selection anchor..row; ctrl+shift+click adds
+  anchor..row.
+- A right-click outside the selection retargets to that row; inside it, the selection stays.
+- A click on empty list space clears the selection. A click away from an inline rename commits
+  it (`esc` still cancels).
+- Anchors are kept by hash or path, so a live re-sort or a fold does not move them.
+- Text that names a safe key ("esc", "enter apply", "?") is clickable, with a pointing hand.

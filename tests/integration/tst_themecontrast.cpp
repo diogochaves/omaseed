@@ -15,7 +15,7 @@ constexpr qreal kStepEpsilon = 0.06;
 
 } // namespace
 
-/// docs/QUESTIONS.md Q19: `dimForeground` reads at 3:1 against the window background in
+/// docs/DECISIONS.md Q19: `dimForeground` reads at 3:1 against the window background in
 /// every theme. The ratio is WCAG 2's, and the lift is the least one that gets there.
 class TestThemeContrast : public QObject
 {
@@ -37,7 +37,7 @@ void TestThemeContrast::contrastRatioIsWcags()
     QCOMPARE(Theme::contrastRatio(Qt::white, Qt::white), 1.0);
     // WCAG's own worked example: #767676 on white passes AA at 4.54.
     QVERIFY(qAbs(Theme::contrastRatio(QColor(QStringLiteral("#767676")), Qt::white) - 4.54) < 0.01);
-    // The review's table (docs/REVIEW-v0.1.0.md §2) came from the same formula.
+    // The 1.72 for everforest in docs/DECISIONS.md Q19 came from the same formula.
     QVERIFY(qAbs(Theme::contrastRatio(QColor(QStringLiteral("#4f585e")),
                                       QColor(QStringLiteral("#2d353b"))) -
                  1.72) < 0.01);

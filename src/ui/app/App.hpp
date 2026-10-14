@@ -315,7 +315,7 @@ Q_SIGNALS:
 
     // --- T4.7: notifications ---------------------------------------------------------------
     // Wires SyncEngine's four events (spec §6, minus Fig. 20's tracker notice — dropped in
-    // T5.5 per docs/QUESTIONS.md Q16: tracker health is the Trackers tab badge and the rail
+    // T5.5 per docs/DECISIONS.md Q16: tracker health is the Trackers tab badge and the rail
     // filter, as in qBittorrent's own GUI) to the real Notifier, handles the shell's
     // ActionInvoked for them, and keeps the per-event enable/disable toggles the Notifications
     // pane (T4.5) reads and writes. Everything this adds to App sits in this one block, at the
@@ -341,7 +341,7 @@ public:
     /// toggle is the off switch). Persisted next to the toggles as `lowDiskThresholdGiB` and
     /// pushed into SyncEngine::lowDiskThreshold as bytes. It watches one number, the
     /// server's `free_space_on_disk`, which qBittorrent reports for its default save path
-    /// only; other disks and per-category paths are not covered (docs/QUESTIONS.md Q16).
+    /// only; other disks and per-category paths are not covered (docs/DECISIONS.md Q16).
     Q_PROPERTY(int lowDiskThresholdGiB READ lowDiskThresholdGiB WRITE setLowDiskThresholdGiB NOTIFY
                    lowDiskThresholdGiBChanged)
     int lowDiskThresholdGiB() const;
@@ -458,7 +458,7 @@ public:
     void setBaseSizeOverride(int pixels);
 
     /// Window transparency in percent, 50…100; 0 means "the default", which is
-    /// `Theme.defaultWindowAlpha` (docs/QUESTIONS.md Q1: `shell.toml` `[launcher]
+    /// `Theme.defaultWindowAlpha` (docs/DECISIONS.md Q1: `shell.toml` `[launcher]
     /// background-alpha`, 0.95 when missing); this is its override.
     Q_PROPERTY(int windowAlphaOverride READ windowAlphaOverride WRITE setWindowAlphaOverride NOTIFY
                    settingsChanged)
@@ -1255,7 +1255,7 @@ Q_SIGNALS:
     // --- end N1 -----------------------------------------------------------------------------
 
     // --- #2: trusted certificates -------------------------------------------------------------
-    // Trust on first use (docs/QUESTIONS.md Q27): a server whose certificate the system does
+    // Trust on first use (docs/DECISIONS.md Q27): a server whose certificate the system does
     // not trust is refused with ApiError::Kind::Certificate, the server sheet and first run
     // show the certificate's fingerprint, and "trust this certificate" saves it with the
     // server (CertificatePin). Only that exact certificate is accepted afterwards.

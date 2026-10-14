@@ -83,9 +83,9 @@ echo "==> The tarball's prefix"
 FIRST_ENTRY="${TAR_LISTING%%$'\n'*}" # no pipe: head exiting early SIGPIPEs printf under pipefail
 [[ "$FIRST_ENTRY" == "omaseed-$VERSION/"* ]] || fail "tarball's first entry is not prefixed omaseed-$VERSION/: $FIRST_ENTRY"
 
-echo "==> docs/evidence is export-ignored"
-if grep -qE "^omaseed-$VERSION/(docs/evidence/|build|dist/)" <<<"$TAR_LISTING"; then
-    fail "docs/evidence, build*/ or dist/ leaked into the tarball"
+echo "==> No build output in the tarball"
+if grep -qE "^omaseed-$VERSION/(build|dist/)" <<<"$TAR_LISTING"; then
+    fail "build*/ or dist/ leaked into the tarball"
 fi
 grep -qx "omaseed-$VERSION/CMakeLists.txt" <<<"$TAR_LISTING" || fail "CMakeLists.txt is missing from the tarball"
 

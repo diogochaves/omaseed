@@ -78,7 +78,7 @@ class Theme : public QObject
     Q_PROPERTY(QColor background READ background NOTIFY changed FINAL)
     Q_PROPERTY(QColor foreground READ foreground NOTIFY changed FINAL)
     /// `dark_foreground`, lifted towards `foreground` until it reads at 3:1 against
-    /// `background` (docs/QUESTIONS.md Q19). A theme already at 3:1 keeps its colour.
+    /// `background` (docs/DECISIONS.md Q19). A theme already at 3:1 keeps its colour.
     Q_PROPERTY(QColor dimForeground READ dimForeground NOTIFY changed FINAL)
     Q_PROPERTY(QColor brightForeground READ brightForeground NOTIFY changed FINAL)
     Q_PROPERTY(QColor accent READ accent NOTIFY changed FINAL)
@@ -142,7 +142,7 @@ class Theme : public QObject
     /// the compositor's border is the edge, and its corners are Hyprland's.
     Q_PROPERTY(bool windowEdge READ windowEdge NOTIFY windowEdgeChanged FINAL)
     /// The ground's alpha as the shell wants it: `[launcher] background-alpha`, 0.95 when the
-    /// key is missing (docs/QUESTIONS.md Q1). `windowAlpha` starts here; the Appearance
+    /// key is missing (docs/DECISIONS.md Q1). `windowAlpha` starts here; the Appearance
     /// pane's override writes it, and a theme change only moves the default.
     Q_PROPERTY(qreal defaultWindowAlpha READ defaultWindowAlpha NOTIFY changed FINAL)
     Q_PROPERTY(
@@ -224,7 +224,7 @@ public:
     static qreal contrastRatio(const QColor &a, const QColor &b);
     /// `dim` itself when it already reads at `minimum` against `against`; otherwise the first
     /// colour on the line from `dim` towards `toward`, walked in 1/256 steps, that does, or
-    /// `toward` when even that falls short (docs/QUESTIONS.md Q19, the floor on dimForeground).
+    /// `toward` when even that falls short (docs/DECISIONS.md Q19, the floor on dimForeground).
     static QColor
     liftToContrast(const QColor &dim, const QColor &toward, const QColor &against, qreal minimum);
 

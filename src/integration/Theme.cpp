@@ -55,7 +55,7 @@ int roundPositive(double value)
 }
 
 /// The contrast every tracked caption and column header must reach against the window
-/// background (docs/QUESTIONS.md Q19, Diogo's ruling of 2026-09-19).
+/// background (docs/DECISIONS.md Q19, Diogo's ruling of 2026-09-19).
 constexpr qreal kMinimumDimContrast = 3.0;
 
 /// WCAG relative luminance of an opaque colour: each sRGB channel linearised, then weighted.

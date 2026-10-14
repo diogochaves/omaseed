@@ -4,7 +4,7 @@ import QtQuick.Layouts
 import Omaseed
 import Omaseed.Kit
 
-// The details pane's Files tab (spec v2 §2 Fig. 2 `.list.files`, UX-NOTES N1): a summary line
+// The details pane's Files tab (spec v2 §2 Fig. 2 `.list.files`, docs/DECISIONS.md N1): a summary
 // that turns into the filter field (docs/12 F1), a header row that sorts on a click, then the
 // visible rows of the torrent's file tree. Folders carry a `▾`/`›` fold glyph and their
 // subtree's totals; every level indents by `Theme.space(14)`, matching the figure's
