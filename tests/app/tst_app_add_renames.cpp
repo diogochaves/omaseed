@@ -1,4 +1,4 @@
-// Renaming files and folders in the add sheet (docs/UX-NOTES M18): `torrents/add` takes no
+// Renaming files and folders in the add sheet (docs/DECISIONS.md M18): `torrents/add` takes no
 // per-file names, so App adds the torrent stopped, reads `torrents/files` to learn the root
 // folder the server puts in front of the paths, sends each rename in the order it was made,
 // then the file priorities, then starts it. A fake server records what arrives: the order,

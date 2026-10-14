@@ -10,7 +10,7 @@
 namespace omaseed::core {
 
 /// The value half of an omaseed API call: either a T or an ApiError, never both.
-/// Errors are values here too (docs/06-implementation-plan.md §2), so no call throws.
+/// Errors are values here too (docs/ARCHITECTURE.md), so no call throws.
 template<class T>
 class QbtResult
 {

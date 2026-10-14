@@ -1,5 +1,5 @@
-// Manual check for T1.7: reveal a real file in the real file manager over the real session
-// bus. Not a test, not registered with ctest — see docs/06-implementation-plan.md T1.7.
+// Manual check: reveal a real file in the real file manager over the real session
+// bus. Not a test, not registered with ctest — run it by hand.
 // Usage: omaseed-reveal-manual <path>
 
 #include "integration/Xdg.hpp"

@@ -1,4 +1,4 @@
-// SyncEngine's pending torrent values (docs/UX-NOTES M12): a torrent option the server has
+// SyncEngine's pending torrent values (docs/DECISIONS.md M12): a torrent option the server has
 // been asked to change shows at once, no poll flips it back while the request is out, and
 // maindata is authoritative again once a poll sent after the answer has been applied.
 //

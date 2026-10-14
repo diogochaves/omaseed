@@ -3,7 +3,7 @@ import QtQuick.Layouts
 import Omaseed
 import Omaseed.Kit
 
-// Trust on first use (issue #2, docs/QUESTIONS.md Q27): what the server sheet and first run's
+// Trust on first use (issue #2, docs/DECISIONS.md Q27): what the server sheet and first run's
 // sign-in step show when a test met a certificate the system does not trust. A warning line,
 // one sentence on what trusting means, the certificate's SHA-256 in the colon form
 // certificate tools print (two lines of 16 pairs, so the halves line up for comparing), and

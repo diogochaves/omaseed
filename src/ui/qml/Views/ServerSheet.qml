@@ -17,7 +17,7 @@ import Omaseed.Kit
 // and into the Torrents / Reachable rows. A saved server's test lands on its list row by
 // itself (App stores the probe under the id it was given); a new server has no id until
 // `save`, so `_save()` hands the sheet's fresh result to the new row itself, or the Servers
-// pane would show no version or count until the next test (docs/QUESTIONS.md Q23). Nothing
+// pane would show no version or count until the next test (docs/DECISIONS.md Q23). Nothing
 // here ever reads a stored secret back: the `Key` row shows a fixed mask, and an empty key
 // field on save means "keep the stored one".
 //

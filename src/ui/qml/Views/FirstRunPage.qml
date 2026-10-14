@@ -312,7 +312,7 @@ function continueFromApiKey(): void {
     if (id.length === 0)
         return;
     // The test ran before the server had an id: give its answer to the row that now exists,
-    // so Settings → Servers shows the version and count straight away (QUESTIONS.md Q23).
+    // so Settings → Servers shows the version and count straight away (docs/DECISIONS.md Q23).
     if (root.tested)
         App.serverList.setProbeResult(id, root.testOk, root.testVersion, root.testApiVersion,
                                       root.testCount, root.testLatency, root.testError);

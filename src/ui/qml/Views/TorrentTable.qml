@@ -80,7 +80,7 @@ Item {
             // The spec's grid says 104, which cannot hold "downloading" next to its glyph in
             // the mono font at any base size; the orchestrator widened it to 116 (taken from
             // the flexible Name column) rather than elide the most-read word in the table.
-            // Diogo's call to revert: docs/QUESTIONS.md Q17.
+            // Kept that way: docs/DECISIONS.md Q17.
             "width": 116,
             "align": Qt.AlignLeft,
             "order": Qt.AscendingOrder,

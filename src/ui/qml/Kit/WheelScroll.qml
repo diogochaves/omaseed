@@ -10,7 +10,7 @@ import Omaseed.Kit
 // going, and the move is a short glide.
 //
 // Lay it over the list (`anchors.fill`, a `z` above it). It takes no buttons and no hover, so
-// the rows under it still hear clicks and the pointer (docs/UX-NOTES M11). What it leaves
+// the rows under it still hear clicks and the pointer (docs/DECISIONS.md M11). What it leaves
 // alone goes on to the list: a touchpad's pixel deltas (Flickable follows those 1:1 and
 // stops them with its own kinetic glide), sideways wheels, a wheel with shift or ctrl
 // held, and a wheel over the focused number field that steps with it (Kit/Field

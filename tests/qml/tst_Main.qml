@@ -231,7 +231,7 @@ TestCase {
         view.split.placement = Qt.binding(() => App.detailsPlacement);
     }
 
-    // docs/UX-NOTES M16: the footer's note sits in the footer's own line, never over the pane.
+    // docs/DECISIONS.md M16: the footer's note sits in the footer's own line, never over the pane.
     function test_the_footer_note_stays_in_the_footer() {
         view.flashFooterNote("details: bottom · I to change");
         const note = findChild(view, "footerNote");

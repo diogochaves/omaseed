@@ -85,7 +85,7 @@ TestCase {
 
     function test_window_alpha_starts_at_the_shells_default_and_is_writable() {
         // The harness points XDG at an empty directory, so no shell.toml: the fallback of
-        // QUESTIONS Q1 applies, and the ground starts there.
+        // docs/DECISIONS.md Q1 applies, and the ground starts there.
         fuzzyCompare(Theme.defaultWindowAlpha, 0.95, 0.001);
         fuzzyCompare(Theme.windowAlpha, Theme.defaultWindowAlpha, 0.001);
         Theme.windowAlpha = 0.75; // the Appearance override, through MainView's Binding
@@ -99,7 +99,7 @@ TestCase {
         verify(Theme.cornerRadius >= 0);
     }
 
-    // docs/QUESTIONS.md Q19: the dim role reads at 3:1 against the window background. Tokyo
+    // docs/DECISIONS.md Q19: the dim role reads at 3:1 against the window background. Tokyo
     // Night's own dark_foreground is at 2.76, so this only passes because the floor lifts it.
     function luminance(c) {
         function linear(v) {

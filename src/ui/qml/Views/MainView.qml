@@ -1762,7 +1762,7 @@ Item {
                 }
             }
 
-            // The note sits in the footer's own line, after the facts (docs/UX-NOTES M16): it
+            // The note sits in the footer's own line, after the facts (docs/DECISIONS.md M16): it
             // used to float above the footer and covered whatever was there, the details
             // pane's first column included. The hints after it drop what no longer fits.
             Label {
@@ -2233,7 +2233,7 @@ Item {
     }
 
     // The Appearance pane's transparency override; 0 keeps the shell's `[launcher]
-    // background-alpha` (QUESTIONS Q1), which a theme change can move under us.
+    // background-alpha` (docs/DECISIONS.md Q1), which a theme change can move under us.
     Binding {
         property: "windowAlpha"
         target: Theme

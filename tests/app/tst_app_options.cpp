@@ -1,4 +1,4 @@
-// A torrent option from the actions menu or General (docs/12 G4) shows at once (docs/UX-NOTES
+// A torrent option from the actions menu or General (docs/12 G4) shows at once (docs/DECISIONS.md
 // M12): the menu opened right after reads the new value, a refusal puts the old one back, a
 // poll the server answered before it took the change does not flip it back, and a server that
 // ignored the change ends up showing what it really holds.

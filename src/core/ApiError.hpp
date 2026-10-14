@@ -5,7 +5,7 @@
 
 namespace omaseed::core {
 
-/// Errors in omaseed are values, never exceptions (see docs/06-implementation-plan.md §2).
+/// Errors in omaseed are values, never exceptions (see docs/ARCHITECTURE.md).
 /// A default-constructed ApiError means "no error", so every call that can fail returns one
 /// and the caller checks isError().
 class ApiError
