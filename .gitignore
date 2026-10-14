@@ -4,13 +4,13 @@ build-box/
 .cache/
 *.user
 .qmlls.ini
-/docs/QUESTIONS.md.bak
 
 # GPL projects cloned for behaviour reference only; never copied, never committed
 reference/
 
-# Local scratch (design drafts, assets not yet in the tree)
+# Local scratch and the maintainer's working papers (.local/docs: checkpoint, questions, history)
 .local/
+CLAUDE.local.md
 
 # scripts/release.sh output
 /dist/

@@ -1,17 +1,14 @@
 # Companion bar widget — build contract
 
-Status: **settled 2026-10-02.** Every decision below is Diogo's, across Q6–Q12 and four rounds of
-`docs/19-companion-widget.html` (artifact https://claude.ai/artifact/5MGszxU3UmZutosjtfLupX). This
-is what Phase 6 (#12–#17) builds. It is built before v0.1.0, and **nothing starts until Diogo says
-go.**
+Status: **settled 2026-10-02 and built** (#12–#17, shipped in v0.1.0). Every decision below was
+made across Q6–Q12 and four rounds of `docs/19-companion-widget.html`.
 
 How the documents relate:
 
 - **This file wins** wherever it differs from the September design.
 - `docs/07-companion-widget-brief.md` still holds for the purpose and boundary (§1), the status
-  file's mechanism and cadence (§4, spec Fig. 36/36b), the abbreviation rules (§2), and the
+  file's mechanism and cadence (§4), the abbreviation rules (§2), and the
   plugin's file layout (§6). Everything else there is superseded here.
-- `docs/07-companion-widget-spec.html` is history.
 - `docs/19-companion-widget.html` is the current drawing.
 
 ## 1. Settled rulings
@@ -182,7 +179,7 @@ the app's own sampling. The widget computes none of it: the app writes it into t
 
 **Read:** `$XDG_RUNTIME_DIR/omaseed/status.json`, watched with `FileView { watchChanges: true }`.
 
-- Schema, cadence, atomicity and the rule against secrets are as in `docs/07` spec Fig. 36/36b.
+- Schema, cadence, atomicity and the rule against secrets are as in `plugin/STATUS.md`.
 - Bump `v` to 2 for these additions:
   - `categories` (name, save path, auto-TMM);
   - `share` (session up/down/ratio, all-time up/down/ratio);
