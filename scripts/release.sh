@@ -171,6 +171,21 @@ bump_files() {
     sed -i -E "s/^sha256sums=\([^)]*\)/sha256sums=('SKIP')/" "$PKGBUILD_PATH"
 }
 
+# unwrap_markdown: join each paragraph's and list item's wrapped lines into one. CHANGELOG.md
+# is wrapped for the terminal, but a GitHub release body turns every newline into a line break.
+# Headings, list item starts, blank lines and code blocks stay as they are.
+unwrap_markdown() {
+    awk '
+        function flush() { if (buf != "") print buf; buf = "" }
+        /^```/ { flush(); print; code = !code; next }
+        code { print; next }
+        /^[[:space:]]*$/ || /^#/ { flush(); print; next }
+        /^[[:space:]]*([-*+] |[0-9]+\. |> )/ { flush(); buf = $0; next }
+        { line = $0; sub(/^[[:space:]]+/, "", line); buf = (buf == "" ? line : buf " " line) }
+        END { flush() }
+    '
+}
+
 # build_tarball REV: GitHub's archive of REV, byte for byte (see the header).
 build_tarball() {
     git archive --format=tar --prefix="$ARCHIVE_PREFIX" "$1" | gzip -n > "$TARBALL_PATH"
@@ -335,7 +350,7 @@ write_sums
 log "Writing release notes"
 {
     printf '# omaseed %s\n\n' "$TAG"
-    printf '%s\n\n' "$CHANGELOG_SECTION"
+    printf '%s\n\n' "$CHANGELOG_SECTION" | unwrap_markdown
     printf '## Install\n\n'
     if [[ -n "$PKG_NAME" ]]; then
         printf 'Arch / Omarchy, the prebuilt package (pacman pulls Qt and the rest from the Arch repos):\n\n'

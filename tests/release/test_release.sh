@@ -45,7 +45,9 @@ git init --quiet --bare "$ORIGIN"
 git remote set-url origin "$ORIGIN"
 git push --quiet origin main
 
-printf '\n## %s — test\n\nA synthetic release for tests/release/test_release.sh.\n' "$TAG" >>CHANGELOG.md
+# shellcheck disable=SC2016 # backticks are a Markdown code fence, not command substitution
+printf '\n## %s — test\n\nA synthetic release for tests/release/test_release.sh.\n\n- A bullet wrapped\n  over two lines.\n\n```\nkept\nas is\n```\n' \
+    "$TAG" >>CHANGELOG.md
 git commit --quiet -am "Add a synthetic $TAG changelog section"
 git push --quiet origin main
 
@@ -91,6 +93,8 @@ echo "==> SHA256SUMS"
 grep -qE "^[0-9a-f]{64}  omaseed-${VERSION//./\\.}\.tar\.gz$" "$SUMS" || fail "SHA256SUMS has the wrong line format"
 (cd "$CLONE/dist" && sha256sum --check --status SHA256SUMS) || fail "SHA256SUMS does not verify against the tarball"
 head -n1 "$NOTES" | grep -qxF "# omaseed $TAG" || fail "RELEASE_NOTES.md title is wrong: $(head -n1 "$NOTES")"
+grep -qxF -- "- A bullet wrapped over two lines." "$NOTES" || fail "RELEASE_NOTES.md did not unwrap the changelog's lines"
+grep -A1 -xF "kept" "$NOTES" | grep -qxF "as is" || fail "RELEASE_NOTES.md unwrapped a code block"
 echo "$OUTPUT" | grep -qF \
     "gh release create $TAG dist/omaseed-$VERSION.tar.gz dist/SHA256SUMS --notes-file dist/RELEASE_NOTES.md" ||
     fail "did not print the expected gh release create command"
