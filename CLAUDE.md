@@ -1,22 +1,22 @@
 # omaseed — instructions for agents
 
 Native Linux desktop client for qBittorrent, Omarchy-first. C++20 + Qt 6 Quick, CMake, MIT.
-Read in this order before doing anything: this file → `docs/CHECKPOINT.md` (where the last
-session stopped and what is next) → `docs/06-implementation-plan.md`
-(the work breakdown you execute) → `docs/05-ui-spec-v2.html` (the approved look, open it in
-a browser) → `docs/03-charter.md` (scope and decisions). `docs/01` and `02` are history.
+Read in this order before changing anything: this file → `README.md` → `docs/ARCHITECTURE.md`
+(the layers and the theme rules) → `docs/DECISIONS.md` (rulings the code cites) →
+`docs/05-ui-spec-v2.html` and the numbered boards after it (the design; open them in a browser).
+A maintainer's private `CLAUDE.local.md` beside this file, when there is one, adds to it.
 
 ## Non-negotiables
 
-- **The approved design is v2** (`docs/05-ui-spec-v2.html`). `docs/04-ui-spec.html` (v1) is
-  kept for comparison. **Never edit either spec file.** Design changes go in a new file
-  `docs/07-…` and need Diogo's approval.
+- **The approved design is v2** (`docs/05-ui-spec-v2.html`). **Never edit it**, nor a board
+  that has been ruled. A design change is a new numbered board (`docs/NN-….html`) and needs
+  the maintainer's approval before it is built.
 - **MIT only. No code copied from qui, qBittorrent, Taurent or any GPL project.** Read them
   for behaviour, implement against the public qBittorrent WebUI API v2 (2.15).
-- **Two servers exist on this machine. Know which you are talking to.**
-  - `http://127.0.0.1:8080` is Diogo's real library ("home"). **Agents never talk to it.**
-    No credential for it exists in the dev environment on purpose. The only permitted contact
-    is the first-run detector's TCP port probe (T4.6), which never authenticates.
+- **Know which qBittorrent you are talking to.**
+  - A real library on this machine (often `http://127.0.0.1:8080`) is off limits to agents.
+    The only permitted contact is the first-run detector's TCP port probe, which never
+    authenticates.
   - `http://127.0.0.1:8081` is the playground: `scripts/dev/test-server.sh start`. Localhost
     is auth-bypassed, so no credential is needed. Add, delete, `reset` at will.
   - `http://127.0.0.1:8082` is the strict twin: `scripts/dev/test-server.sh start --strict`.
@@ -28,22 +28,23 @@ a browser) → `docs/03-charter.md` (scope and decisions). `docs/01` and `02` ar
   `set -a; . ~/.config/omaseed/dev.env; set +a`. Never print them, never commit them: no
   credential is written in the repo. Scripts and tests read `QBT_STRICT_*` from the
   environment, and live strict tests skip when those are unset.
-- No `sudo`. Everything needed is installed; if something is missing, stop and report it.
-- Follow the Omarchy theme rules in the plan's §3 exactly: no hex colours in QML, only
+- No `sudo`. If something needed is missing, stop and report it.
+- Follow the theme rules in `docs/ARCHITECTURE.md` exactly: no hex colours in QML, only
   `Theme` roles; sizes from `base-size`; fills 4/8/18/22 %; hairlines at 12 %.
 
-## Layout (created by phase 1; keep it)
+## Layout
 
 ```
 CMakeLists.txt            top-level, Qt 6.8+, C++20, warnings as errors in CI
 src/core/                 pure Qt, no QML: api client, sync model, servers, secrets, parsing
 src/integration/          dbus, tray, notifications, theme reader, hooks, xdg helpers
-src/ui/                   main.cpp, QML kit (qml/Kit/), views (qml/Views/), resources
-tests/                    QtTest unit tests (core) + qmltestrunner tests (kit)
+src/ui/                   main.cpp, App (app/), QML kit (qml/Kit/), views (qml/Views/)
+plugin/                   the companion bar widget (a Quickshell plugin), and its status file
+tests/                    QtTest unit tests (core, integration, app) + qmltestrunner tests
 data/                     .desktop, icons, hyprland rule snippet, theme-set hook, menu row
-packaging/arch/           PKGBUILD
+packaging/                arch/ PKGBUILD, omarchy/ package.json for omarchy-pkgs
 scripts/dev/              test-server.sh and other developer scripts
-docs/                     charter, specs, plan
+docs/                     architecture, decisions, the design (spec v2 and the boards), releasing
 .github/workflows/ci.yml  CI: Arch container, -DOMASEED_WERROR=ON, ctest -LE live, lint, shellcheck
 ```
 
@@ -62,6 +63,12 @@ scripts/dev/test-server.sh start|stop|status|reset|seed [--strict]
 scripts/dev/test-server.sh rotate --strict        # new random strict login in dev.env; key kept
 scripts/dev/swarm.sh start|seed|status|break CASE|fix|reset|stop   # offline swarm: real downloads on :8081
 scripts/dev/swarm.sh leech start [--rate KIB]|status|stop  # a leecher on :8084 pulls from :8081, nonstop: live uploads
+```
+
+The walks and boxes below run the app in an [omabox](https://github.com/diogochaves/omabox), an
+invisible Omarchy desktop, so nothing opens on the real one:
+
+```
 scripts/dev/swarm-walk.sh [OUT] | --interactive   # every torrent state, shown in the app in an omabox
 scripts/dev/strict-walk.sh [OUT] | --interactive  # first run + cookie / API key login against :8082, in an omabox
 scripts/dev/notify-walk.sh [OUT] | --interactive  # downloads finish: one notice each, a click shows the torrent
@@ -70,21 +77,19 @@ scripts/dev/actions-walk.sh [OUT] | --interactive # renames, categories, tags, a
 scripts/dev/settings-walk.sh [OUT] | --interactive  # qBittorrent settings pane on a box-owned qBittorrent: sections, switches, Web UI port and API key confirms
 scripts/dev/servers-walk.sh [OUT] | --interactive # two qBittorrents: first run, add, switch three ways, an action each side, remove
 scripts/dev/manual-box.sh [--headless] | down          # throwaway desktop for manual tests: omaseed installed, two qBittorrents (public :8090, private :8091)
-scripts/dev/side-by-side.sh | down               # main and the seed-console branch, each in an interactive box on :8081 (#24)
 scripts/dev/app-box.sh up [-b NAME] [--build DIR] [--handlers] [--qbt]  # agents: build/omaseed in a box on :8081 (--qbt: the box's own qBittorrent), swarm .torrents in ~/Downloads
 scripts/dev/app-box.sh restart | shot | down [-b NAME]  # relaunch after a rebuild (the log has Qt's output), a window shot, away
 scripts/dev/app-box.sh api [-b NAME] [--server public|private] [-X M] PATH [CURL ARGS]  # the box's qBittorrent (playground, or a manual box's own, signed in)
 ```
 
-Anything that can open a window, reach the session D-Bus or the keyring runs in an omabox
-(load the omabox skill first) or through `ctest`, never straight on the desktop. Test binaries
-force Qt's offscreen platform even when run directly; `OMASEED_TEST_PLATFORM` overrides that,
-and only inside an omabox.
+Anything that can open a window, reach the session D-Bus or the keyring runs in an omabox or
+through `ctest`, never straight on the desktop. Test binaries force Qt's offscreen platform
+even when run directly; `OMASEED_TEST_PLATFORM` overrides that, and only inside an omabox.
 
-Visual checks under Hyprland: run the app, find it with `hyprctl -j clients`, screenshot with
-`grim -g "X,Y WxH" out.png`, and look at the image. Close what you open.
-Theme switch test: `omarchy-theme-set <name>` changes the live theme; put it back afterwards
-(`cat ~/.local/state/omarchy/current/theme.name` first). Never leave the desktop changed.
+Visual checks: run the app in a box, take a window shot (`app-box.sh shot`), and look at the
+image. Close what you open. A theme switch (`omarchy-theme-set <name>`) inside a box is fine;
+on a real desktop, note the theme first (`cat ~/.local/state/omarchy/current/theme.name`) and
+put it back afterwards.
 
 ## Conventions
 
@@ -98,6 +103,5 @@ Theme switch test: `omarchy-theme-set <name>` changes the live theme; put it bac
   per-line `# shellcheck disable=SCxxxx # reason`, never a behaviour change.
 - Tests before UI: every `core` class ships with a QtTest. Kit components ship a
   `tst_<Name>.qml`.
-- The user (Diogo) is often away. Do not stop to ask about things the plan already decides.
-  If genuinely blocked, write the question into `docs/QUESTIONS.md` and continue with the
-  next independent task.
+- A comment that rests on a ruling cites it (`docs/DECISIONS.md Q19`, `docs/12 §3`). A new
+  ruling the code depends on gets an entry in `docs/DECISIONS.md`.
