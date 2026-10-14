@@ -14,3 +14,9 @@ reference/
 
 # scripts/release.sh output
 /dist/
+
+# makepkg in packaging/arch (the README's build from source)
+/packaging/arch/src/
+/packaging/arch/pkg/
+/packaging/arch/*.pkg.tar.zst
+/packaging/arch/*.tar.gz
