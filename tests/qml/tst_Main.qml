@@ -1425,8 +1425,15 @@ TestCase {
         compare(view.table.selectedHashes(), [App.filtered.hashAt(4)]);
     }
 
-    // D9: the rows hold their order under the open actions menu too.
+    // D9: the rows hold their order under the open actions menu too. The pointer waits on
+    // the header, off the rows: earlier tests leave it over them, and in CI (Qt 6.12) the rows
+    // read as hovered once the menu closed, which holds the order by itself (#59).
     function test_the_open_actions_menu_holds_the_row_order() {
+        waitForRendering(view, 250);
+        const size = findChild(view.table, "header_size");
+        verify(size);
+        mouseMove(size, size.width / 2, size.height / 2);
+        tryVerify(() => !view.table.orderHeld, 1000, "the pointer on the header held the order");
         verify(!view.table.holdOrder);
         view.table.requestActions();
         verify(view.table.holdOrder);

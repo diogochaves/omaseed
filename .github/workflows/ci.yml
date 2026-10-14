@@ -39,7 +39,7 @@ jobs:
             gcc cmake ninja git \
             qt6-base qt6-declarative qt6-svg qt6-wayland qtkeychain-qt6 \
             librsvg hicolor-icon-theme \
-            clang shellcheck python dbus systemd qbittorrent-nox \
+            clang shellcheck python dbus systemd qbittorrent-nox diffutils \
             fontconfig ttf-jetbrains-mono-nerd ttf-liberation
 
       # The QML tests measure text: give "monospace" the font Omarchy maps it to
