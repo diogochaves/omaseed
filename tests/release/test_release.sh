@@ -6,7 +6,10 @@ set -euo pipefail
 # tags are dropped, a CHANGELOG section is added there, and "origin" is a bare repository in
 # the scratch directory. `gh` is a stub on PATH that records its arguments and plays GitHub:
 # it writes GitHub's tag archive (git archive | gzip -n of the pushed tag) where release.sh
-# is told to download it from. No network, and this checkout's git state is never touched.
+# is told to download it from, and keeps the release's assets. `makepkg` is a stub too: it
+# checks the PKGBUILD's checksum against the source it was given and writes a placeholder
+# package and -debug package. No network, no compiler, and this checkout's git state is never
+# touched.
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/omaseed-release-test.XXXXXX")"
@@ -64,6 +67,10 @@ NOTES="$CLONE/dist/RELEASE_NOTES.md"
 [[ -f "$SUMS" ]] || fail "SHA256SUMS not created: $SUMS"
 [[ -f "$NOTES" ]] || fail "RELEASE_NOTES.md not created: $NOTES"
 
+echo "==> A dry run with a bump still to make builds no package"
+compgen -G "$CLONE/dist/*.pkg.tar.zst" >/dev/null && fail "the --bump dry run built a package"
+[[ "$(wc -l <"$SUMS")" -eq 1 ]] || fail "the --bump dry run's SHA256SUMS lists more than the tarball"
+
 echo "==> The dry run left git alone: no tag, no commit, a clean tree"
 git rev-parse -q --verify "refs/tags/$TAG" >/dev/null && fail "the dry run created $TAG"
 [[ "$(git rev-parse HEAD)" == "$HEAD_BEFORE" ]] || fail "the dry run made a commit"
@@ -89,20 +96,44 @@ echo "$OUTPUT" | grep -qF \
     fail "did not print the expected gh release create command"
 
 # ---- publish --------------------------------------------------------------------------------
-mkdir "$WORK/bin"
+mkdir "$WORK/bin" "$WORK/assets"
 cat >"$WORK/bin/gh" <<EOF
 #!/usr/bin/env bash
+set -euo pipefail
 printf '%s\n' "\$*" >>"$WORK/gh.log"
-# GitHub: the tag's archive, as served at /archive/refs/tags/<tag>.tar.gz.
-if [[ "\$1 \$2" == "release create" ]]; then
+case "\$1 \$2" in
+# GitHub: the tag's archive, as served at /archive/refs/tags/<tag>.tar.gz, and the assets.
+"release create")
     git -C "$ORIGIN" archive --format=tar --prefix="omaseed-$VERSION/" "\$3" | gzip -n >"$WORK/github-archive.tar.gz"
-fi
+    for a in "\${@:4}"; do [[ -f "\$a" ]] && cp "\$a" "$WORK/assets/"; done
+    ;;
+"release view") ls "$WORK/assets" ;;
+"release download") cat "$WORK/assets/SHA256SUMS" ;;
+"release upload") for a in "\${@:3}"; do [[ -f "\$a" ]] && cp "\$a" "$WORK/assets/"; done ;;
+esac
+exit 0
 EOF
-chmod +x "$WORK/bin/gh"
+cat >"$WORK/bin/makepkg" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "\$*" >>"$WORK/makepkg.log"
+. ./PKGBUILD
+src="\$SRCDEST/\$pkgname-\$pkgver.tar.gz"
+[[ "\$(sha256sum "\$src" | cut -d' ' -f1)" == "\${sha256sums[0]}" ]] || { echo "makepkg stub: checksum" >&2; exit 1; }
+cp PKGBUILD "$WORK/makepkg-PKGBUILD"
+cp "\$src" "$WORK/makepkg-source.tar.gz"
+printf '%s\n' "\$SOURCE_DATE_EPOCH" >"$WORK/makepkg-epoch"
+mkdir -p "\$PKGDEST"
+printf 'package %s\n' "\$pkgver-\$pkgrel" >"\$PKGDEST/\$pkgname-\$pkgver-\$pkgrel-x86_64.pkg.tar.zst"
+printf 'debug\n' >"\$PKGDEST/\$pkgname-debug-\$pkgver-\$pkgrel-x86_64.pkg.tar.zst"
+EOF
+chmod +x "$WORK/bin/gh" "$WORK/bin/makepkg"
+PKG="omaseed-$VERSION-1-x86_64.pkg.tar.zst"
+LATEST="omaseed-x86_64.pkg.tar.zst"
 
 echo "==> scripts/release.sh $VERSION --bump --publish (stub gh, local origin)"
 PATH="$WORK/bin:$PATH" OMASEED_RELEASE_ARCHIVE_URL="file://$WORK/github-archive.tar.gz" \
-    bash scripts/release.sh "$VERSION" --bump --publish
+    OMASEED_RELEASE_MAKEPKG="$WORK/bin/makepkg" bash scripts/release.sh "$VERSION" --bump --publish
 
 echo "==> The tag, on origin, carries the bumped versions and no checksum"
 git -C "$ORIGIN" rev-parse -q --verify "refs/tags/$TAG" >/dev/null || fail "$TAG was not pushed"
@@ -124,10 +155,27 @@ git -C "$ORIGIN" show "main:packaging/arch/PKGBUILD" | grep -qx "sha256sums=('$A
 [[ "$(git rev-parse HEAD)" == "$(git -C "$ORIGIN" rev-parse main)" ]] || fail "local main and origin differ"
 
 echo "==> The local tarball is GitHub's archive, byte for byte"
-[[ "$(cut -d' ' -f1 "$SUMS")" == "$ARCHIVE_SHA" ]] || fail "dist/ tarball and GitHub's archive differ"
+[[ "$(sha256sum "$TARBALL" | cut -d' ' -f1)" == "$ARCHIVE_SHA" ]] || fail "dist/ tarball and GitHub's archive differ"
 
-echo "==> gh was asked for the release"
-grep -qxF "release create $TAG dist/omaseed-$VERSION.tar.gz dist/SHA256SUMS --notes-file dist/RELEASE_NOTES.md" "$WORK/gh.log" ||
+echo "==> The package was built from the tag's PKGBUILD and the tag's archive"
+[[ "$(wc -l <"$WORK/makepkg.log")" -eq 1 ]] || fail "makepkg ran $(wc -l <"$WORK/makepkg.log") times"
+diff <(git -C "$ORIGIN" show "$TAG:packaging/arch/PKGBUILD" | grep -v '^sha256sums=') \
+    <(grep -v '^sha256sums=' "$WORK/makepkg-PKGBUILD") >/dev/null || fail "makepkg did not get the tagged PKGBUILD"
+cmp -s "$WORK/makepkg-source.tar.gz" "$WORK/github-archive.tar.gz" || fail "makepkg did not build GitHub's archive of $TAG"
+[[ "$(cat "$WORK/makepkg-epoch")" == "$(git -C "$ORIGIN" log -1 --format=%ct "$TAG")" ]] ||
+    fail "the build is not dated at the tag's commit"
+
+echo "==> The package, twice, in dist/ and SHA256SUMS; no -debug package"
+cmp -s "$CLONE/dist/$PKG" "$CLONE/dist/$LATEST" || fail "dist/$LATEST is not dist/$PKG"
+grep -qx "package $VERSION-1" "$CLONE/dist/$PKG" || fail "dist/$PKG is not the package makepkg made"
+compgen -G "$CLONE/dist/*debug*" >/dev/null && fail "the -debug package reached dist/"
+[[ "$(cut -d' ' -f3 "$SUMS" | tr '\n' ' ')" == "omaseed-$VERSION.tar.gz $PKG $LATEST " ]] ||
+    fail "SHA256SUMS does not list the tarball and both packages: $(cat "$SUMS")"
+(cd "$CLONE/dist" && sha256sum --check --status SHA256SUMS) || fail "SHA256SUMS does not verify"
+grep -qF "releases/download/$TAG/$PKG" "$NOTES" || fail "the release notes do not give the package's URL"
+
+echo "==> gh was asked for the release, with both packages"
+grep -qxF "release create $TAG dist/omaseed-$VERSION.tar.gz dist/$PKG dist/$LATEST dist/SHA256SUMS --notes-file dist/RELEASE_NOTES.md" "$WORK/gh.log" ||
     fail "gh was not called as expected: $(cat "$WORK/gh.log")"
 [[ -z "$(git status --porcelain)" ]] || fail "publish left the tree dirty: $(git status --porcelain)"
 
@@ -135,6 +183,34 @@ echo "==> A second publish of the same version is refused"
 if PATH="$WORK/bin:$PATH" bash scripts/release.sh "$VERSION" --publish >/dev/null 2>&1; then
     fail "a second publish of $TAG went through"
 fi
+
+# ---- add-package ----------------------------------------------------------------------------
+echo "==> --add-package refuses a release that already has a package"
+if PATH="$WORK/bin:$PATH" OMASEED_RELEASE_MAKEPKG="$WORK/bin/makepkg" \
+    bash scripts/release.sh "$VERSION" --add-package >/dev/null 2>&1; then
+    fail "--add-package went through on a release with a package"
+fi
+
+echo "==> --add-package on a release made before packages: builds from the tag, uploads both and SHA256SUMS"
+rm "$WORK/assets/$PKG" "$WORK/assets/$LATEST"
+(cd "$WORK/assets" && sha256sum "omaseed-$VERSION.tar.gz" >SHA256SUMS)
+rm -rf "$CLONE/dist"
+: >"$WORK/gh.log"
+: >"$WORK/makepkg.log"
+# The tag decides what is built, not the branch or the working tree.
+git checkout --quiet -b elsewhere
+echo "not in the tag" >>packaging/arch/PKGBUILD
+PATH="$WORK/bin:$PATH" OMASEED_RELEASE_MAKEPKG="$WORK/bin/makepkg" bash scripts/release.sh "$VERSION" --add-package
+grep -q "not in the tag" "$WORK/makepkg-PKGBUILD" && fail "--add-package built the working tree's PKGBUILD"
+cmp -s "$WORK/makepkg-source.tar.gz" "$WORK/github-archive.tar.gz" || fail "--add-package did not build the tag's archive"
+cmp -s "$WORK/assets/$PKG" "$WORK/assets/$LATEST" || fail "--add-package did not upload the package twice"
+(cd "$WORK/assets" && sha256sum --check --status SHA256SUMS) || fail "the uploaded SHA256SUMS does not verify"
+[[ "$(wc -l <"$WORK/assets/SHA256SUMS")" -eq 3 ]] || fail "the uploaded SHA256SUMS does not list three files"
+grep -qxF "release upload $TAG --repo diogochaves/omaseed --clobber dist/SHA256SUMS" "$WORK/gh.log" ||
+    fail "SHA256SUMS was not replaced: $(cat "$WORK/gh.log")"
+grep -q "release upload .*--clobber.*pkg\.tar\.zst" "$WORK/gh.log" && fail "--add-package overwrote a package"
+git checkout --quiet -- packaging/arch/PKGBUILD
+git checkout --quiet main
 
 echo "==> This checkout is untouched"
 [[ "$(git -C "$REPO_ROOT" status --porcelain)" == "$SOURCE_STATUS_BEFORE" ]] || fail "the source repo's working tree changed"
