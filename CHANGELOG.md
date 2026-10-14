@@ -20,6 +20,8 @@ before it will tag a release.
 
 ### Changed
 
+- Each release ships a prebuilt package, so omaseed installs with one line and no build:
+  `curl -fLO https://github.com/diogochaves/omaseed/releases/latest/download/omaseed-x86_64.pkg.tar.zst && sudo pacman -U omaseed-x86_64.pkg.tar.zst`.
 - `p` on an errored torrent starts it, which makes qBittorrent try again, instead of stopping
   it.
 

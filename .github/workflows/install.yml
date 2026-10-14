@@ -1,5 +1,7 @@
-# Install omaseed the way the README says, on a bare Arch container, as a stranger would:
-# clone the public repo, `makepkg -si`, turn on the Omarchy extras, run it. Also plays the
+# Install omaseed the way the README says, on a bare Arch container, as a stranger would.
+# prebuilt: the README's one line (curl the package from releases/latest, pacman -U it).
+# install: clone the public
+# repo, `makepkg -si`, turn on the Omarchy extras, run it. Also plays the
 # README's note on agents: one without a password stops at sudo, and the same agent can still
 # build with plain `makepkg` once the dependencies are there.
 #
@@ -15,6 +17,37 @@ permissions:
   contents: read
 
 jobs:
+  prebuilt:
+    name: Arch · the README's prebuilt package line, run
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - name: A bare Arch
+        run: pacman -Syu --noconfirm --needed sudo
+
+      - name: The README's line installs the latest release
+        run: |
+          curl -fsSL "https://raw.githubusercontent.com/${{ github.repository }}/${{ github.event.repository.default_branch }}/README.md" -o /tmp/README.md
+          line=$(grep -m1 -xE 'curl -fLO https://github\.com/diogochaves/omaseed/releases/latest/download/omaseed-x86_64\.pkg\.tar\.zst && sudo pacman -U omaseed-x86_64\.pkg\.tar\.zst' /tmp/README.md)
+          echo "$line"
+          cd /tmp && bash -ec "$line --noconfirm"
+
+      - name: It is the latest release, and it starts
+        run: |
+          latest=$(curl -fsSL "https://api.github.com/repos/${{ github.repository }}/releases/latest" | sed -n 's/.*"tag_name": *"v\([^"]*\)".*/\1/p')
+          echo "latest release $latest"
+          pacman -Qi omaseed | grep -E '^(Name|Version)'
+          pacman -Qi omaseed | grep -q "^Version *: $latest-"
+          useradd --create-home person
+          runuser -u person -- omaseed --help | head -3
+          runuser -u person -- omaseed --demo table --headless
+
   install:
     name: Arch · clone, makepkg -si, extras, run
     runs-on: ubuntu-latest

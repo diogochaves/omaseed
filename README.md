@@ -28,18 +28,16 @@ not there.
 
 ### Arch / Omarchy
 
-From the latest release:
-
 ```
-git clone https://github.com/diogochaves/omaseed.git
-cd omaseed/packaging/arch
-makepkg -si
+curl -fLO https://github.com/diogochaves/omaseed/releases/latest/download/omaseed-x86_64.pkg.tar.zst && sudo pacman -U omaseed-x86_64.pkg.tar.zst
 ```
 
-`makepkg -si` asks for your password: pacman installs the build dependencies, then omaseed.
-An AI agent installing omaseed for you cannot type it, so it should clone the repo and hand
-you that command. With the dependencies already installed, it can build with plain
-`makepkg` and hand you `sudo pacman -U omaseed-[0-9]*.pkg.tar.zst` instead.
+That downloads the latest release, already built, and installs it; pacman pulls Qt and the
+rest of what omaseed needs from the Arch repos. (A bare `sudo pacman -U <url>` stops at
+"failed retrieving file ….sig": pacman wants a signature for a package it downloads itself,
+not for a file already on disk.) omaseed is not in a repo yet, so `pacman -Syu` does not
+update it: for a new release, run the same line again. An AI agent installing omaseed for
+you cannot type your password, so it should hand you the line.
 
 **You need** qBittorrent 5.2 or newer with its Web UI turned on (`Tools → Options → Web UI`
 in the desktop app, or `qbittorrent-nox`), on this machine or another. omaseed signs in with
@@ -70,6 +68,21 @@ not edit your config:
 - **A "Torrents" row for the Omarchy menu**: copy it from
   `/usr/share/omaseed/omarchy-menu.jsonc` into `~/.config/omarchy/extensions/omarchy-menu.jsonc`.
   omaseed is in the menu's Apps list without it.
+
+### Build from source
+
+The latest release, built on your machine:
+
+```
+git clone https://github.com/diogochaves/omaseed.git
+cd omaseed/packaging/arch
+makepkg -si
+```
+
+`makepkg -si` asks for your password: pacman installs the build dependencies, then omaseed.
+An AI agent installing omaseed for you cannot type it, so it should clone the repo and hand
+you that command. With the dependencies already installed, it can build with plain
+`makepkg` and hand you `sudo pacman -U omaseed-[0-9]*.pkg.tar.zst` instead.
 
 ## First run
 

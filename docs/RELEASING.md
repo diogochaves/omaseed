@@ -42,10 +42,31 @@ this file is the order to run them in and what to check by hand around them.
    scripts/release.sh X.Y.Z --publish          # or: --bump --publish
    ```
    In order: commits the bump (`Release vX.Y.Z`, with `--bump`), tags `vX.Y.Z`, rebuilds
-   `dist/` from the tag, pushes `main` and the tag, runs
-   `gh release create vX.Y.Z dist/omaseed-X.Y.Z.tar.gz dist/SHA256SUMS --notes-file dist/RELEASE_NOTES.md`,
+   `dist/` from the tag, builds the binary package (below), pushes `main` and the tag, runs
+   `gh release create vX.Y.Z dist/omaseed-X.Y.Z.tar.gz dist/omaseed-X.Y.Z-1-x86_64.pkg.tar.zst dist/omaseed-x86_64.pkg.tar.zst dist/SHA256SUMS --notes-file dist/RELEASE_NOTES.md`,
    downloads GitHub's archive of the tag, and commits its sha256 into
-   `packaging/arch/PKGBUILD` (`Set the vX.Y.Z checksum in PKGBUILD`) and pushes that.
+   `packaging/arch/PKGBUILD` (`Set the vX.Y.Z checksum in PKGBUILD`) and pushes that. If the
+   package does not build, nothing has been pushed: `git tag -d vX.Y.Z`, fix, run again.
+
+   The package: makepkg in a fresh `dist/pkgbuild/`, from the tag's PKGBUILD and the tag's
+   archive (never the working tree), with that archive's checksum filled in, dated at the
+   tag's commit (`SOURCE_DATE_EPOCH`), so the same tag builds the same bytes. It goes up
+   twice, as `omaseed-X.Y.Z-<rel>-x86_64.pkg.tar.zst` and as `omaseed-x86_64.pkg.tar.zst`:
+   the versionless name is what keeps the README's
+   `releases/latest/download/omaseed-x86_64.pkg.tar.zst` pointing at the newest release (the
+   README downloads it, then `pacman -U`s the file: pacman refuses a URL without a `.sig`
+   beside it, and the packages are not signed). The
+   `-debug` package stays in `dist/pkgbuild/out/`. Before announcing, check the uploads:
+   ```
+   pacman -Qip dist/omaseed-x86_64.pkg.tar.zst; pacman -Qlp dist/omaseed-x86_64.pkg.tar.zst
+   curl -sL https://github.com/diogochaves/omaseed/releases/latest/download/omaseed-x86_64.pkg.tar.zst | sha256sum
+   ```
+
+   A release made without a package (v0.1.0 was): `scripts/release.sh X.Y.Z --add-package`
+   (`--dry-run` to build and check without uploading). It needs the tag locally, checks the
+   tag's archive is the release's tarball, builds as above and uploads the two packages and a
+   new `SHA256SUMS`; it never touches the tag or the tarball, and refuses a release that
+   already has a package.
 7. **omarchy-pkgs PR.**
    ```
    scripts/release.sh X.Y.Z --omarchy-pr
