@@ -5,7 +5,7 @@ All notable changes to omaseed are logged here, newest first. Loosely follows
 versioning stability (pre-1.0). `scripts/release.sh` requires a `## v<version>` section here
 before it will tag a release.
 
-## Unreleased
+## v0.2.0 — 2026-10-13
 
 ### Added
 
@@ -24,7 +24,6 @@ before it will tag a release.
   `curl -fLO https://github.com/diogochaves/omaseed/releases/latest/download/omaseed-x86_64.pkg.tar.zst && sudo pacman -U omaseed-x86_64.pkg.tar.zst`.
 - `p` on an errored torrent starts it, which makes qBittorrent try again, instead of stopping
   it.
-
 - Everything works with the mouse as well as the keys. Every list follows one set of click
   rules: a click picks a row, ctrl+click adds or removes one, shift+click selects a range
   (ctrl+shift+click adds the range), a click on empty space clears the selection, a
@@ -73,7 +72,6 @@ before it will tag a release.
 - A palette or menu that opened under a resting pointer handed it the cursor.
 - The add sheet's "N ticked" line counted torrents already in the library; it now says how
   many the add takes.
-
 - File and folder pickers open as dialogs of the omaseed window, so a portal chooser other
   than GTK's (Strata's, for one) floats over omaseed instead of tiling beside it.
 - The add sheet's `add` button takes the files ticked in "In Downloads" (ctrl+click or
