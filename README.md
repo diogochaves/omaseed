@@ -1,28 +1,40 @@
-# omaseed
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/media/omaseed-lockup-dark.svg">
+    <img alt="omaseed" src="docs/media/omaseed-lockup-light.svg" height="60">
+  </picture>
+</h1>
 
-Torrents for Omarchy, powered by qBittorrent.
+[![Built for Omarchy](https://raw.githubusercontent.com/tcballard/omarchy-badges/85f859029e236e784e7b05ada6dbe73506d07a91/badges/v1/built-for-omarchy.svg)](https://github.com/tcballard/omarchy-badges)\
+[omaseed.app](https://omaseed.app) · an independent community project, not affiliated with or endorsed by
+Omarchy
 
-A native Linux desktop client (C++20, Qt 6 Quick) for one or many qBittorrent servers. It
-opens `magnet:` links and `.torrent` files, lives in the tray or the Omarchy bar, notifies
-when a download finishes, a server goes away or a disk fills up, and shows a dense,
-keyboard-driven library in the visual language of the Omarchy shell, repainting the moment
-the Omarchy theme changes. omaseed has no torrent engine of its own: qBittorrent, local or
-remote, does the transferring. It runs on any Linux, with a bundled theme when Omarchy is
-not there.
+**Torrents, finally at home on Omarchy.** omaseed is a native desktop client for one
+qBittorrent server or many: this PC, a NAS, a seedbox, or all of them at once. It looks like
+the rest of your desktop and repaints the moment the Omarchy theme changes, every action has a
+key, and it keeps the seeding history qBittorrent does not. It opens `magnet:` links and
+`.torrent` files, lives in the Omarchy bar or the tray, and speaks up when a download
+finishes, a server goes away or a disk fills up.
 
-<p>
-  <img src="docs/screenshots/library-tokyo-night.png" alt="omaseed's library in Tokyo Night" width="49%">
-  <img src="docs/screenshots/library-lupine.png" alt="omaseed's library in Lupine, a light theme" width="49%">
-</p>
+<img src="docs/screenshots/library-tokyo-night.png" alt="omaseed's library in Tokyo Night: the status, category, tag and tracker rail, the torrent table with two rows selected, and a torrent's details on the right" width="100%">
 
-- Follows the Omarchy theme live, every bundled theme including the light ones
-- Keyboard-first: every action has a key, and `?` shows them all
-- Adds from magnet links, `.torrent` files, the clipboard, drag and drop or your Downloads
-  folder, spots duplicates and files already on disk
-- A seed console for what you give back: upload over time, ratios, a year of seeding days
-- A bar widget for the Omarchy bar, shipped with the app
-- One server or many; passwords and API keys in the system keyring
-- Backs itself up, including the seeding history qBittorrent does not keep
+omaseed has no torrent engine of its own: qBittorrent, local or remote, does the
+transferring, and omaseed is the window you see it through. Built for Omarchy, it runs on any
+Linux, with a bundled theme when Omarchy is not there.
+
+- **The seed console**: what you give back, from the last hour to the last year, kept by
+  omaseed itself
+- **Knows your library before you add**: your newest downloads waiting, files already on disk
+  to seed from, duplicates caught before they're added
+- **Says why a torrent errored**, in plain words, with the keys that fix it
+- **In your bar**: a widget with the speeds, an hour of upload and what to add
+- **Keyboard first**: every action has a key, and `?` lists them all; the mouse works
+  everywhere too
+- **Every Omarchy theme, live**, the light ones included
+- **Any server**: an API key, a username and password, or none; secrets in the system keyring
+- **Careful with your data**: deleting files another torrent still seeds, or the last copy
+  anyone has, asks first
+- **Backs itself up**, seeding history included
 
 ## Install
 
@@ -105,6 +117,8 @@ at any point.
 
 ## The bar widget
 
+<img src="docs/screenshots/widget-tokyo-night.png" alt="The Omaseed widget's popup under the Omarchy bar: upload speed with an hour's graph, a .torrent from Downloads ready to add, the session's share, the torrents kept alive, and what finished lately" width="420" align="right">
+
 The widget, *Omaseed*, mirrors omaseed in the Omarchy bar: its arrows light while something
 downloads or uploads, and a click opens a popup with the speeds, an hour of upload, a list of
 `.torrent` files to add, today's share, the torrents you keep alive, and what is downloading
@@ -121,21 +135,37 @@ omaseed --install-bar-widget
 That links `~/.config/omarchy/plugins/chaves.omaseed` to the installed widget, so upgrading
 omaseed upgrades the widget too. More in [plugin/README.md](plugin/README.md).
 
+<br clear="right">
+
 ## The seed console
 
-<img src="docs/screenshots/seed-tokyo-night.png" alt="omaseed's seed console" width="100%">
+<img src="docs/screenshots/seed-tokyo-night.png" alt="omaseed's seed console: given, taken, ratio and streak; the upload tide over the last day; a cell for every day of the last year; the torrents few others still seed; and the ratio ladder" width="100%">
 
-`` ` `` flips the window between the library and the seed console: what you have given and
+qBittorrent counts your uploads but keeps no history of them. omaseed keeps its own, so a
+year of seeding is one key away: `` ` `` flips the window between the library and the seed console: what you have given and
 taken, the upload tide over an hour to a year, a cell for every day of the last year, the
 torrents only a few people still seed, a ratio ladder and the trackers you seed to. The rail
 and the filter scope it, and so does a selection. omaseed keeps this history itself, in
-`~/.local/share/omaseed/ledger/`, from the day you start using it.
+`~/.local/share/omaseed/ledger/`, from the day you start using it, so it stays when a
+server is replaced.
+
+## When a torrent errors
+
+<img src="docs/screenshots/errored-tokyo-night.png" alt="An errored torrent: the table's status reads disk full, and General opens with The disk is full, qBittorrent's own words, the folder, and set location, try again and copy the line" width="100%">
+
+qBittorrent's API only says a torrent is in error, never why. omaseed reads qBittorrent's own
+log, ties each line to its torrent and says it in plain words: the table's status reads the
+short cause ("disk full", "no access"), and General opens with what went wrong, the folder,
+and the keys that fix it. A notice says so too, with its own switch in Settings ›
+Notifications.
 
 ## Keys
 
 Every key comes from one table (`src/ui/qml/Keymap.qml`), and the `?` sheet is drawn from
 it. A capital letter is the stronger variant of its lower-case neighbour (`p` stop/start,
 `P` force start; `d` delete, `D` delete with files).
+
+<p align="center"><img src="docs/screenshots/shortcuts-tokyo-night.png" alt="The shortcuts sheet: a filter field, and the keys to move, select, view and act on torrents, each with what it does" width="560"></p>
 
 **Move**
 
@@ -206,6 +236,8 @@ Keys cannot be rebound yet. omaseed binds no global shortcut; to summon it with,
 `super+t`, bind that in Hyprland to launch `omaseed`: a second launch raises the running one.
 
 ## Theme
+
+<img src="docs/screenshots/library-lupine.png" alt="omaseed's library in Lupine, a light Omarchy theme" width="100%">
 
 omaseed reads the same `colors.toml` and `shell.toml` as the rest of the Omarchy shell and
 repaints as soon as `omarchy-theme-set` runs, on every bundled theme. Text size follows
@@ -290,6 +322,13 @@ cd build/makepkg-scratch && makepkg -f
 [docs/03-charter.md](docs/03-charter.md) is what omaseed is for and what it leaves out;
 [docs/06-implementation-plan.md](docs/06-implementation-plan.md) is the architecture;
 [docs/05-ui-spec-v2.html](docs/05-ui-spec-v2.html) is the design (open it in a browser).
+
+## Built with omabox
+
+No desktops were harmed in the making of omaseed. And no mouse was captured. Every window,
+scale and multi-monitor check ran inside [omabox](https://github.com/diogochaves/omabox), an
+invisible Omarchy desktop, so the AI agent building omaseed never touched the desktop it was
+building for.
 
 ## License
 
