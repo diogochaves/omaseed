@@ -119,6 +119,70 @@ TestCase {
         App.saveTableState("demo", original);
     }
 
+    // #52: dragged widths come back with the table's layout, in base-12 units, and a state
+    // file without them (before #52) gives the defaults.
+    function test_a_new_window_shows_the_saved_widths() {
+        const original = App.tableState("demo");
+        App.saveTableState("demo", {
+                               "columnWidths": {
+                                   "size": 140,
+                                   "name": 300
+                               }
+                           });
+        const view = createTemporaryObject(viewComponent, testCase);
+        tryCompare(view, "_stateKey", "demo");
+        compare(view.table.columnWidths.size, 140);
+        compare(view.table.columnWidths.name, 300);
+        compare(view.table.columnLayout.size.w, Theme.space(140));
+        verify(view.table.columnLayout.name.w >= Theme.space(300));
+        compare(App.tableState("demo").columnWidths.size, 140, "startup wrote over the widths");
+
+        App.saveTableState("demo", {
+                               "columns": ["name", "size", "progress", "status"]
+                           });
+        view.reloadTableState();
+        verify(view.table.columnWidthsAreDefault, "an older state file kept the last widths");
+
+        App.saveTableState("demo", original);
+    }
+
+    // A width set in the table (a grip's release, a fit) lands in state.json, and the
+    // columns palette's "default order" takes it out again.
+    function test_a_width_change_is_saved_and_reset_with_the_order() {
+        const original = App.tableState("demo");
+        App.saveTableState("demo", {});
+        const view = createTemporaryObject(viewComponent, testCase);
+        tryCompare(view, "_stateKey", "demo");
+
+        view.table.setColumnWidth("eta", 90);
+        compare(App.tableState("demo").columnWidths.eta, 90);
+        view.table.resetColumns();
+        compare(JSON.stringify(App.tableState("demo").columnWidths), "{}");
+
+        App.saveTableState("demo", original);
+    }
+
+    // #34: a restore's widths show at once, as its order and sort do.
+    function test_a_restore_shows_the_restored_widths_at_once() {
+        const original = App.tableState("demo");
+        App.saveTableState("demo", {});
+        const view = createTemporaryObject(viewComponent, testCase);
+        tryCompare(view, "_stateKey", "demo");
+        verify(view.table.columnWidthsAreDefault);
+
+        App.saveTableState("demo", {
+                               "columnWidths": {
+                                   "progress": 200
+                               }
+                           });
+        App.tableStatesRestored();
+        compare(view.table.columnWidths.progress, 200);
+        compare(view.table.columnLayout.progress.w, Theme.space(200));
+        compare(App.tableState("demo").columnWidths.progress, 200);
+
+        App.saveTableState("demo", original);
+    }
+
     // A state file from before docs/17 has no `detailsFolded`: the pane opens, as it always did.
     function test_an_older_state_file_opens_the_details() {
         const original = App.tableState("demo");

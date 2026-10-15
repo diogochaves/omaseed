@@ -9,6 +9,12 @@ before it will tag a release.
 
 ### Added
 
+- The table's columns resize: drag the right edge of a header cell (the pointer turns into a
+  resize arrow), or double-click it to fit the widest cell on screen. Widths are kept per
+  server with the rest of the table's layout and grow with the base size; the columns
+  palette's "default order" puts them back. Name still takes whatever room is left, and its
+  edge sets the least it gets.
+
 - A magnet in the add sheet shows its files before anything downloads. omaseed asks
   qBittorrent for the magnet's file list as soon as it's in the sheet; usually it's there in a
   second, as the same tree a `.torrent` gets, so you untick what you don't want and add it with

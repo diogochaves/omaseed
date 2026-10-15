@@ -92,6 +92,7 @@ TestCase {
         App.filtered.sortOrder = Qt.DescendingOrder;
         table.visibleColumns = table.columns.map(column => column.key);
         table.resetColumnOrder();
+        table.resetColumnWidths();
         table.moveCursorTo(0);
         jumpPalette.close();
         categoryPalette.close();
@@ -526,6 +527,24 @@ TestCase {
         columnsPalette.cursorIndex = columnsPalette.items.length - 1;
         keyClick(Qt.Key_Return);
         verify(table.columnOrderIsDefault, "enter on the last row did not reset");
+    }
+
+    // #52: a dragged width alone offers the reset too, and the reset puts it back.
+    function test_default_order_puts_back_the_widths_too() {
+        table.setColumnWidth("size", 150);
+        columnsPalette.open();
+        const last = () => columnsPalette.items[columnsPalette.items.length - 1];
+        verify(table.columnOrderIsDefault);
+        compare(last().key, columnsPalette.resetKey, "a dragged width offers no reset");
+
+        keyClick("r", Qt.ControlModifier);
+        verify(table.columnWidthsAreDefault, "ctrl+r kept the width");
+        verify(last().key !== columnsPalette.resetKey);
+
+        table.setColumnWidth("eta", 120);
+        columnsPalette.cursorIndex = columnsPalette.items.length - 1;
+        keyClick(Qt.Key_Return);
+        verify(table.columnWidthsAreDefault, "enter on the last row kept the width");
     }
 
     function test_enter_toggles_a_column_too() {

@@ -2517,11 +2517,17 @@ Item {
             root.saveTableState();
         }
 
+        // #52: once per drag or fit; a drag in progress is the table's own.
+        function onColumnWidthsChanged() {
+            root.saveTableState();
+        }
+
         target: table
     }
 
     // The columns palette toggles `table.visibleColumns` and moves `table.columnOrder` live
-    // (a header drag moves it too), and the header (and every other sort trigger, including
+    // (a header drag moves it too; a grip drag sets `table.columnWidths`, #52), and the header
+    // (and every other sort trigger, including
     // a click) can change `App.filtered`'s sort at any time; all of it round-trips through `state.json`, keyed by the chosen server (or "demo").
     function saveTableState(): void {
         const key = App.tableStateKey();
@@ -2532,6 +2538,8 @@ Item {
         App.saveTableState(key, {
                                "columns": table.visibleColumns,
                                "columnOrder": table.columnOrder,
+                               // #52: base-12 units, like `columns[].width`; only the changed.
+                               "columnWidths": table.columnWidths,
                                "sortRole": App.filtered.sortRoleName,
                                "sortOrder": App.filtered.sortOrder,
                                "railFolded": root.railFolded,
@@ -2588,6 +2596,8 @@ Item {
             table.visibleColumns = state.columns;
         table.setColumnOrder(state.columnOrder !== undefined ? state.columnOrder
                                                              : table.defaultColumnOrder);
+        // Absent before #52, and for a server whose columns were never dragged: the defaults.
+        table.setColumnWidths(state.columnWidths);
         if (state.sortRole !== undefined && String(state.sortRole).length > 0) {
             App.filtered.setSortByRoleName(state.sortRole);
             App.filtered.sortOrder = state.sortOrder !== undefined ? state.sortOrder : Qt.DescendingOrder;

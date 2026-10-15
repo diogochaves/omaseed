@@ -7,7 +7,8 @@ import Omaseed.Kit
 // `space` (or `enter`, or a click) toggles `table.visibleColumns` live, so the header changes
 // under the palette as you go; Name can never be hidden (there would be nothing left to
 // click). N2: `alt+↑`/`alt+↓` move the cursor's column through `table.columnOrder` and the
-// cursor follows it; `ctrl+r`, or the last row, puts back the default order. M13: a row can
+// cursor follows it; `ctrl+r`, or the last row, puts back the default order, and the default
+// widths of columns dragged in the header (#52). M13: a row can
 // also be dragged to its place with the mouse (the Kit's `draggable`); a press that does not
 // travel is still the toggle. Name is pinned first, so it neither moves nor is passed, and
 // the "default order" row stays last. Like `alt+↑↓`, dragging waits for an empty query.
@@ -68,11 +69,11 @@ Palette {
             });
         }
         // Only while the whole list shows and there is an order to undo.
-        if (q.length === 0 && !root.table.columnOrderIsDefault)
+        if (q.length === 0 && !root.table.columnLayoutIsDefault)
             rows.push({
                 "title": qsTr("default order"),
                 "meta": "ctrl+r",
-                "detail": qsTr("put the columns back in the order they came in"),
+                "detail": qsTr("put the columns back in the order and widths they came in"),
                 "checked": false,
                 "key": root.resetKey,
                 "pinned": true
@@ -84,7 +85,7 @@ Palette {
         if (root.table === null || item.key === "name")
             return;
         if (item.key === root.resetKey) {
-            root.table.resetColumnOrder();
+            root.table.resetColumns();
             return;
         }
         const list = root.table.visibleColumns.slice();
@@ -127,7 +128,7 @@ Palette {
         if (root.table === null)
             return;
         const key = root.currentItem !== null ? root.currentItem.key : "";
-        root.table.resetColumnOrder();
+        root.table.resetColumns();
         root.cursorToKey(key);
     }
     onToggled: (index, item) => root._toggle(item)

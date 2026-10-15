@@ -295,3 +295,23 @@ From a pass over the whole app with the mouse:
   it (`esc` still cancels).
 - Anchors are kept by hash or path, so a live re-sort or a fold does not move them.
 - Text that names a safe key ("esc", "enter apply", "?") is clickable, with a pointing hand.
+
+## The table's column widths
+
+From the mouse pass (#51 D6, #52). What the issue left open:
+
+- Name stays the flexible column. Its grip sets the least it gets (never under its 160 u
+  minimum); with room to spare it still takes the rest, so dragging it narrower than the room
+  changes nothing, and widening it past the room makes the rows scroll sideways (docs/10 §4).
+- Every other column stops at 32 u and at 1200 u. A cell too narrow for its text elides it,
+  and the hover label offers the whole of it; the header's caption elides too.
+- A double-click fits the column to its caption (with room for the sort chevron) and the
+  cells of the rows on screen. Progress has no natural width: it fits to 40 u of line and its
+  percent. A complete row's Ratio keeps its tracks and the gap before the number.
+- `tables.<server>.columnWidths` holds only the columns that differ from the default, in
+  base-12 units like the defaults, so a base size change scales them and a later default
+  reaches the rest. A drag writes `state.json` once, on release.
+- The grip is 6 u across the boundary and shows nothing until the pointer is on it; then an
+  accent mark, as the split's grip has. While a column is being moved, the grips are away.
+- The columns palette's "default order" row (and `ctrl+r`) puts back the widths too, and shows
+  whenever the order or a width differs.
