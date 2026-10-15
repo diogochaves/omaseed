@@ -704,6 +704,153 @@ TestCase {
         host.hosted.close();
     }
 
+    // ---- rows that can't run (docs/30 §3, D4) -------------------------------------------
+    // Board 30 P1–P3: a row that can't run now is drawn dim with its reason, the cursor skips
+    // it, and `enter` or a click on it does nothing.
+    readonly property var commandRows: [
+        {
+            "title": "stop",
+            "meta": "p",
+            "detail": "torrents · 2 selected"
+        },
+        {
+            "title": "start",
+            "detail": "torrents · both already running",
+            "disabled": true
+        },
+        {
+            "title": "sequential download on",
+            "via": "enter s",
+            "detail": "torrents · 2 selected · now off on Field Recordings"
+        },
+        {
+            "title": "details smaller",
+            "meta": "<",
+            "detail": "view · details hidden · i shows them",
+            "disabled": true
+        }
+    ]
+
+    function test_the_cursor_skips_rows_that_cannot_run() {
+        const palette = createTemporaryObject(paletteComponent, testCase, {
+                                                  "items": testCase.commandRows
+                                              });
+        palette.open();
+        compare(palette.cursorIndex, 0);
+        keyClick(Qt.Key_Down);
+        compare(palette.cursorIndex, 2, "the cursor landed on a dim row");
+        keyClick(Qt.Key_Down);
+        compare(palette.cursorIndex, 2, "the cursor went past the last row that can run");
+        keyClick("p", Qt.ControlModifier);
+        compare(palette.cursorIndex, 0);
+        palette.close();
+    }
+
+    function test_the_cursor_starts_on_the_first_row_that_can_run() {
+        const palette = createTemporaryObject(paletteComponent, testCase, {
+                                                  "items": testCase.commandRows.slice(1)
+                                              });
+        palette.open();
+        compare(palette.cursorIndex, 1);
+        compare(palette.currentItem.title, "sequential download on");
+        // A new list whose first row can't run moves the cursor down to one that can.
+        palette.items = testCase.commandRows.slice(3).concat(testCase.commandRows.slice(0, 1));
+        compare(palette.cursorIndex, 1);
+        palette.close();
+    }
+
+    // P3: with no row able to run there is no cursor, and `enter` does nothing.
+    function test_no_row_that_can_run_means_no_cursor() {
+        const palette = createTemporaryObject(paletteComponent, testCase, {
+                                                  "items": [testCase.commandRows[1], testCase.commandRows[3]]
+                                              });
+        const activated = createTemporaryObject(activatedSpy, testCase, {
+                                                    "target": palette
+                                                });
+        palette.open();
+        compare(palette.cursorIndex, -1);
+        compare(palette.currentItem, null);
+        keyClick(Qt.Key_Down);
+        keyClick(Qt.Key_Return);
+        compare(activated.count, 0);
+        palette.close();
+    }
+
+    function test_enter_and_a_click_on_a_row_that_cannot_run_do_nothing() {
+        const palette = createTemporaryObject(paletteComponent, testCase, {
+                                                  "items": testCase.commandRows
+                                              });
+        const activated = createTemporaryObject(activatedSpy, testCase, {
+                                                    "target": palette
+                                                });
+        palette.open();
+        waitForRendering(palette.listView);
+        mouseClick(palette.listView.itemAtIndex(1));
+        compare(activated.count, 0, "a click ran a dim row");
+        compare(palette.cursorIndex, 0, "a click put the cursor on a dim row");
+        // Even put there by hand, it is no current row.
+        palette.cursorIndex = 1;
+        compare(palette.currentItem, null);
+        keyClick(Qt.Key_Return);
+        compare(activated.count, 0, "enter ran a dim row");
+        palette.close();
+    }
+
+    // §3: a dim row's title is dim and not medium, its key and second line faint; a row
+    // that can run keeps the bright, medium title. A menu-only action shows "via" and its path.
+    function test_a_row_that_cannot_run_is_drawn_dim() {
+        const palette = createTemporaryObject(paletteComponent, testCase, {
+                                                  "items": testCase.commandRows
+                                              });
+        palette.open();
+        waitForRendering(palette.listView);
+        const faint = Theme.fill(Theme.borderIdle);
+
+        const runs = palette.listView.itemAtIndex(0);
+        compare(findChild(runs, "paletteRowTitle").color, Theme.brightForeground);
+        compare(findChild(runs, "paletteRowTitle").font.weight, Font.Medium);
+        compare(findChild(runs, "paletteRowMeta").text, "p");
+        compare(findChild(runs, "paletteRowMeta").color, Theme.dimForeground);
+        compare(findChild(runs, "paletteRowVia").visible, false);
+
+        const dim = palette.listView.itemAtIndex(3);
+        compare(findChild(dim, "paletteRowTitle").color, Theme.dimForeground);
+        compare(findChild(dim, "paletteRowTitle").font.weight, Font.Normal);
+        compare(findChild(dim, "paletteRowMeta").color, faint);
+        compare(findChild(dim, "paletteRowDetail").color, faint);
+
+        const via = palette.listView.itemAtIndex(2);
+        compare(findChild(via, "paletteRowVia").visible, true);
+        compare(findChild(via, "paletteRowVia").color, faint);
+        compare(findChild(via, "paletteRowMeta").text, "enter s");
+        palette.close();
+    }
+
+    // P4: a dim line over the list says why it is empty.
+    function test_the_empty_text_is_a_dim_line_over_the_list() {
+        const palette = createTemporaryObject(paletteComponent, testCase);
+        const line = findChild(palette, "paletteEmptyText");
+        verify(line !== null);
+        compare(line.visible, false);
+        palette.emptyText = "No command matches “ubuntu”.";
+        palette.open();
+        compare(line.visible, true);
+        compare(line.color, Theme.dimForeground);
+        palette.close();
+    }
+
+    // docs/30 §2: ctrl+shift+p is the command palette's key, not "up" with a shift.
+    function test_ctrl_shift_p_does_not_move_the_cursor() {
+        const palette = createTemporaryObject(paletteComponent, testCase);
+        palette.open();
+        keyClick(Qt.Key_Down);
+        compare(palette.cursorIndex, 1);
+        keyClick(Qt.Key_P, Qt.ControlModifier | Qt.ShiftModifier);
+        compare(palette.cursorIndex, 1, "ctrl+shift+p moved the cursor up");
+        compare(palette.query, "");
+        palette.close();
+    }
+
     // ---- inline (the gallery) ---------------------------------------------------------
     function test_inline_drops_the_scrim_and_the_centring() {
         const palette = createTemporaryObject(paletteComponent, testCase, {

@@ -32,6 +32,12 @@ import Omaseed.Kit
 // has a secondary action (`hasSecondary`). A footer hint flagged `clickable` runs too: the
 // palette sends `hintClicked`, and the caller does what that key does.
 //
+// A row with `disabled: true` can't run now (docs/30 §3, D4): its title is dim, its meta and
+// second line faint, the cursor skips it (and is -1 when no row can run), and `enter`, a click
+// or the pointer do nothing on it, as the kit Menu has it. A row's `via` ("enter s") prints in
+// the meta's place after a faint "via": the path to an action that has no key of its own.
+// `emptyText` is a dim line over the list, for "nothing matches" (docs/30 P4).
+//
 // Do NOT run `qmlformat` on this file: with the project's 100-column wrap it re-indents the
 // typed functions further on every pass (the defect MainView.qml and TorrentTable.qml note).
 // It is hand-formatted to qmlformat's own style instead.
@@ -46,8 +52,10 @@ Item {
     /// The dim caption at the right of the query row (`.q .c`), e.g. "2 of 142".
     property string counter: ""
     property alias query: input.text
-    /// `[{title, meta, detail, checked, key, pinned}]`.
+    /// `[{title, meta, via, detail, checked, key, pinned, disabled}]`.
     property var items: []
+    /// A dim line between the query row and the list; empty draws nothing.
+    property string emptyText: ""
     /// Show the check column and let `space` toggle rows (the tags picker).
     property bool multi: false
     /// The caller answers `secondary` (`tab`): a right-click on a row asks for it too.
@@ -75,9 +83,9 @@ Item {
     readonly property bool opened: root._opened
     readonly property alias panel: panel
     readonly property alias listView: list
-    /// The row under the cursor, or null.
-    readonly property var currentItem: root.cursorIndex >= 0 && root.cursorIndex < root.items.length
-            ? root.items[root.cursorIndex] : null
+    /// The row under the cursor, or null. A row that can't run is never the current one.
+    readonly property var currentItem: root.canLand(root.cursorIndex) ? root.items[root.cursorIndex]
+            : null
 
     /// `enter` on a row.
     signal activated(int index, var item)
@@ -148,13 +156,14 @@ Item {
     function openOn(key: var): void {
         root.open();
         root.cursorIndex = 0; // the fallback, not the row the last session left it on
+        root._settleCursor();
         root.cursorToKey(key);
     }
 
     /// Move the cursor onto the row carrying `key`. A no-op when there is none.
     function cursorToKey(key: var): void {
         for (let i = 0; i < root.items.length; ++i) {
-            if (root.items[i].key === key) {
+            if (root.items[i].key === key && root.canLand(i)) {
                 root.cursorIndex = i;
                 root._showRow(i);
                 return;
@@ -167,12 +176,49 @@ Item {
         input.forceActiveFocus();
     }
 
-    /// Move the cursor by `delta` rows, clamped at both ends, keeping it in view.
+    /// Move the cursor by `delta` rows that can run, stopping at the last one each way,
+    /// keeping it in view.
     function moveCursor(delta: int): void {
-        if (root.items.length === 0)
+        if (root.items.length === 0 || delta === 0)
             return;
-        root.cursorIndex = Math.max(0, Math.min(root.items.length - 1, root.cursorIndex + delta));
+        const step = delta > 0 ? 1 : -1;
+        let target = root.cursorIndex >= 0 ? root.cursorIndex : (step > 0 ? -1 : root.items.length);
+        for (let n = Math.abs(delta); n > 0; --n) {
+            const next = root._landing(target + step, step);
+            if (next < 0)
+                break;
+            target = next;
+        }
+        if (!root.canLand(target))
+            return;
+        root.cursorIndex = target;
         root._showRow(root.cursorIndex);
+    }
+
+    /// Whether the cursor may rest on row `index`: a row that exists and can run.
+    function canLand(index: int): bool {
+        return index >= 0 && index < root.items.length && root.items[index].disabled !== true;
+    }
+
+    /// The first row from `index` on, going by `step`, that the cursor may rest on; -1 if none.
+    function _landing(index: int, step: int): int {
+        for (let i = index; i >= 0 && i < root.items.length; i += step) {
+            if (root.canLand(i))
+                return i;
+        }
+        return -1;
+    }
+
+    /// Keep the cursor on a row that can run: where it is, else the next one down, else the
+    /// next one up; -1 when no row can run.
+    function _settleCursor(): void {
+        if (root.items.length === 0) {
+            root.cursorIndex = 0;
+            return;
+        }
+        const at = Math.max(0, Math.min(root.cursorIndex, root.items.length - 1));
+        const down = root._landing(at, 1);
+        root.cursorIndex = down >= 0 ? down : root._landing(at, -1);
     }
 
     /// Scroll row `index` into view and clear of the hint's bands or fades.
@@ -333,14 +379,14 @@ Item {
         if (at.x === root._pointer.x && at.y === root._pointer.y)
             return;
         root._pointer = at;
-        if (known && !root.dragging)
+        if (known && !root.dragging && root.canLand(index))
             root.cursorIndex = index;
     }
 
     /// A right-click on row `index`: the cursor goes there and, where the palette has one,
     /// its secondary action runs, as `tab` would.
     function _secondaryClick(index: int): void {
-        if (index < 0 || index >= root.items.length)
+        if (!root.canLand(index))
             return;
         root.cursorIndex = index;
         if (root.hasSecondary)
@@ -390,7 +436,9 @@ Item {
             event.accepted = true;
             return;
         }
-        if (ctrl && (event.key === Qt.Key_N || event.key === Qt.Key_P)) {
+        // Not ctrl+shift+p: that is the command palette's key (docs/30 §2), not "up".
+        const shift = (event.modifiers & Qt.ShiftModifier) !== 0;
+        if (ctrl && (event.key === Qt.Key_N || (event.key === Qt.Key_P && !shift))) {
             root.moveCursor(event.key === Qt.Key_N ? 1 : -1);
             event.accepted = true;
             return;
@@ -442,10 +490,12 @@ Item {
         if (root.modal && root._opened && !event.accepted)
             event.accepted = !root._passesThrough(event);
     }
-    onItemsChanged: root.cursorIndex = Math.max(0,
-            Math.min(root.cursorIndex, root.items.length - 1))
+    onItemsChanged: root._settleCursor()
 
-    onQueryChanged: root.cursorIndex = 0
+    onQueryChanged: {
+        root.cursorIndex = 0;
+        root._settleCursor();
+    }
 
     // A drag held near the list's top or bottom edge scrolls it, faster the closer it gets;
     // `dropSlot` follows the scroll on its own.
@@ -588,6 +638,21 @@ Item {
                 }
             }
 
+            // docs/30 P4: why the list is empty (`.pal .empty`) ----------------------------
+            Label {
+                Layout.bottomMargin: Theme.space(10)
+                Layout.fillWidth: true
+                Layout.leftMargin: Theme.space(16)
+                Layout.rightMargin: Theme.space(16)
+                Layout.topMargin: Theme.space(14)
+                dim: true
+                elide: Text.ElideRight
+                objectName: "paletteEmptyText"
+                size: "small"
+                text: root.emptyText
+                visible: root.emptyText.length > 0
+            }
+
             // the rows (`.palette .it`) ---------------------------------------------
             ListView {
                 id: list
@@ -606,6 +671,11 @@ Item {
                     required property var modelData
 
                     readonly property bool current: row.index === root.cursorIndex
+                    /// docs/30 D4: this row can't run now.
+                    readonly property bool disabled: row.modelData.disabled === true
+                    /// The faint step (the board's 40 %), for a dim row's meta and second line
+                    /// and the "via" before a path.
+                    readonly property color faint: Theme.fill(Theme.borderIdle)
                     /// This row is the one being dragged: it keeps the selected fill until
                     /// it lands.
                     readonly property bool lifted: row.index === root._dragFrom
@@ -671,24 +741,37 @@ Item {
 
                                 Label {
                                     Layout.fillWidth: true
-                                    bright: true
+                                    bright: !row.disabled
+                                    dim: row.disabled
                                     elide: Text.ElideRight
-                                    font.weight: Font.Medium
+                                    font.weight: row.disabled ? Font.Normal : Font.Medium
+                                    objectName: "paletteRowTitle"
                                     text: row.modelData.title ?? ""
                                 }
 
                                 Label {
-                                    dim: true
+                                    color: row.faint
+                                    objectName: "paletteRowVia"
                                     size: "small"
-                                    text: row.modelData.meta !== undefined ? row.modelData.meta : ""
+                                    text: qsTr("via")
+                                    visible: (row.modelData.via ?? "").length > 0
+                                }
+
+                                Label {
+                                    color: row.disabled ? row.faint : Theme.dimForeground
+                                    objectName: "paletteRowMeta"
+                                    size: "small"
+                                    text: (row.modelData.via ?? "").length > 0 ? row.modelData.via
+                                            : (row.modelData.meta ?? "")
                                     visible: text.length > 0
                                 }
                             }
 
                             Label {
                                 Layout.fillWidth: true
-                                dim: true
+                                color: row.disabled ? row.faint : Theme.dimForeground
                                 elide: Text.ElideRight
+                                objectName: "paletteRowDetail"
                                 size: "small"
                                 text: row.modelData.detail !== undefined ? row.modelData.detail : ""
                                 visible: text.length > 0
@@ -701,7 +784,7 @@ Item {
 
                         acceptedButtons: Qt.LeftButton | Qt.RightButton
                         anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
+                        cursorShape: row.disabled ? Qt.ArrowCursor : Qt.PointingHandCursor
                         hoverEnabled: true
                         objectName: "paletteRow_" + row.index
 
@@ -715,6 +798,8 @@ Item {
                                 root._secondaryClick(row.index);
                                 return;
                             }
+                            if (row.disabled)
+                                return;
                             root.cursorIndex = row.index;
                             if (root.multi)
                                 root.toggled(row.index, row.modelData);
@@ -776,7 +861,7 @@ Item {
             onCanceled: root._cancelDrag()
             onClicked: {
                 const index = dragArea.pressRow;
-                if (dragArea.dragged || index < 0 || index >= root.items.length)
+                if (dragArea.dragged || !root.canLand(index))
                     return;
                 root.cursorIndex = index;
                 if (root.multi)
