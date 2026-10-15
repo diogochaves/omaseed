@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # omaseed — the risky actions, walked through the app's own UI: renames, categories, tags,
 # automatic torrent management, set location (also onto another filesystem, a 2 GiB torrent),
-# recheck, the selection bar on two torrents, delete with and without files, and two torrents
-# that share one file (#27: the twin goes in through the add sheet's "save there"; #28: the
-# delete confirm, the location sheet and a category change ask). After each step it checks
-# what qBittorrent says and what is on disk, and stops at the first mismatch.
+# recheck, the selection bar on two torrents, the command palette (docs/30), delete with and
+# without files, and two torrents that share one file (#27: the twin goes in through the add
+# sheet's "save there"; #28: the delete confirm, the location sheet and a category change
+# ask). After each step it checks what qBittorrent says and what is on disk, and stops at the
+# first mismatch.
 # Run it again after any change to an action, a sheet, a palette or the selection bar.
 #
 #   scripts/dev/actions-walk.sh [OUT_DIR]        # agents: a headless box, a shot per step,
@@ -494,6 +495,28 @@ click "$BAR_START" "$BAR_Y"
 expect "both seed again" "$FIELD" 'all(x["state"] in '"$SEEDING"' for x in every if x["hash"] in ("'"$FIELD"'", "'"$NESTED"'"))' 30
 shot "Both rows seeding, still selected, walk and bulk on them."
 keys Escape # clears the selection
+
+# docs/30 §7: the command palette runs a command as its key would, menu-only ones included.
+step "Force start from the command palette" "Field Recordings, p (stopped); then : \"force\", enter: force start, on the server. Then : \"seq\", enter: sequential download, the actions menu's s, which has no window key."
+table_on "Field Recordings"
+keys p
+expect "Field Recordings is stopped" "$FIELD" 't["state"] == "stoppedUP"'
+keys -t ":force"
+shot "The command palette, \"force\" typed, force start under the cursor with its key P." palette
+keys Return
+expect "Field Recordings is force-started" "$FIELD" 't["force_start"] and t["state"] == "forcedUP"' 30
+expect "no other torrent is" "$FIELD" 'not any(x["force_start"] for x in every if x["hash"] != "'"$FIELD"'")'
+keys -t ":seq"
+shot "\"seq\": sequential download on, via enter s, now off on Field Recordings." seq
+keys Return
+expect "sequential download is on" "$FIELD" 't["seq_dl"]'
+keys -t ":seq"
+keys Return
+expect "…and off again" "$FIELD" 'not t["seq_dl"]'
+keys p
+expect "p stops it" "$FIELD" 't["state"] == "stoppedUP"'
+keys p
+expect "it seeds again, not forced" "$FIELD" "t['state'] in $SEEDING and not t['force_start']" 30
 
 step "Delete, keep the files" "tiny notes (renamed).txt, d in the table: the toggle is off (nothing remembered yet), the cursor on cancel; l, enter."
 table_on "tiny notes"

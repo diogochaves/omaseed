@@ -666,8 +666,9 @@ Item {
             Label {
                 Layout.bottomMargin: Theme.space(10)
                 Layout.fillWidth: true
-                Layout.leftMargin: Theme.space(16)
-                Layout.rightMargin: Theme.space(16)
+                // The rows' own inset, so the line starts where their titles do.
+                Layout.leftMargin: Theme.space(14)
+                Layout.rightMargin: Theme.space(14)
                 Layout.topMargin: Theme.space(14)
                 dim: true
                 elide: Text.ElideRight

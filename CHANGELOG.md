@@ -5,6 +5,16 @@ All notable changes to omaseed are logged here, newest first. Loosely follows
 versioning stability (pre-1.0). `scripts/release.sh` requires a `## v<version>` section here
 before it will tag a release.
 
+## Unreleased
+
+### Added
+
+- A command palette: `:` (or `ctrl+shift+p`, which works from a field too) lists every command
+  that makes sense now, with its key and what it acts on; type a few letters and enter runs it
+  as its key would. Commands that can't run say why, the last five run come first, and a name
+  that is no command goes to the jump palette. The footer, the ⋯ menu and the `?` sheet point
+  to it.
+
 ## v0.2.0 — 2026-10-13
 
 ### Added
