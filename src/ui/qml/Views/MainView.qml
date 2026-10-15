@@ -1916,8 +1916,10 @@ Item {
         anchors.fill: parent
         glyph: Glyphs.help
         sheetWidth: Theme.space(760)
-        // docs/30 D10: the sheet names the palette that runs them.
-        subtitle: qsTr("single letters act on the table \u00b7 capitals are the stronger variant \u00b7 ctrl is app-level \u00b7 : runs any of them by name")
+        // docs/30 D10: the sheet names the palette that runs them, on a line of its own: the
+        // head's one line at 760 cut it off (#66).
+        subtitle: qsTr("single letters act on the table \u00b7 capitals are the stronger variant \u00b7 ctrl is app-level\n: runs any of them by name")
+        subtitleWraps: true
         title: qsTr("Shortcuts")
         z: 10
 

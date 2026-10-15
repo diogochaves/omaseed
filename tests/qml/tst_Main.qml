@@ -363,6 +363,23 @@ TestCase {
         verify(view.helpSheetPanel.subtitle.endsWith(": runs any of them by name"));
     }
 
+    // #66: the ? sheet's head is 760 wide; its subtitle takes a second line rather than losing
+    // the palette's words at the edge.
+    function test_the_help_sheets_whole_subtitle_is_visible() {
+        view.helpOpen = true;
+        tryCompare(view.helpSheetPanel.panel, "visible", true);
+        compare(view.helpSheetPanel.panel.width, Theme.space(760));
+        const line = findChild(view.helpSheetPanel, "sheetSubtitle");
+        verify(line !== null);
+        compare(line.text, view.helpSheetPanel.subtitle);
+        tryVerify(() => line.width > 0 && !line.truncated, 1000, "the subtitle is cut");
+        compare(line.lineCount, 2);
+        // The second line lies inside the panel, above the shortcuts.
+        const bottom = line.mapToItem(view.helpSheetPanel.panel, 0, line.height).y;
+        verify(bottom < view.helpSheetPanel.panel.height, "the subtitle runs out of the panel");
+        view.helpOpen = false;
+    }
+
     // docs/08 §3: ctrl+. opens the ⋯ menu under its button; its rows reach the limits sheet,
     // the columns palette and select-all.
     function test_ctrl_period_opens_the_more_menu_and_its_rows_run() {
