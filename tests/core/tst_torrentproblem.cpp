@@ -140,8 +140,7 @@ void TestTorrentProblem::ignoresOtherWarnings()
     for (const QString &message :
          {QStringLiteral("Detected inconsistent data: invalid category. Torrent: \"a\". "
                          "Category: \"b\""),
-          QStringLiteral("URL seed connection failed. Torrent: \"a\". URL: \"http://x\". "
-                         "Error: \"timed out\""),
+          // A URL seed line is docs/32's (#55, tst_failurelines), never a reason for an error.
           QStringLiteral("WebUI: Now listening on IP: 127.0.0.1, port: 8081"),
           QString()}) {
         QCOMPARE(ProblemLine::parse(message).kind, ProblemLine::Kind::Unknown);

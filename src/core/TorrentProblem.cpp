@@ -99,6 +99,116 @@ bool parseTorrentErrored(const QString &message, ProblemLine &line)
     return true;
 }
 
+bool isAbsolutePath(const QString &path)
+{
+    static const QRegularExpression drive(QStringLiteral("^[A-Za-z]:[/\\\\]"));
+    return path.startsWith(QLatin1Char('/')) || drive.match(path).hasMatch();
+}
+
+bool looksLikeUrl(const QString &text)
+{
+    static const QRegularExpression url(QStringLiteral("^[A-Za-z][A-Za-z0-9+.-]*://\\S+$"));
+    return url.match(text).hasMatch();
+}
+
+/// `storage_moved_failed_alert::message()`: "<head> storage move failed. <op> (<file>):
+/// <message>". The Source and Destination segments come before it, in the translation's
+/// order; the source is the one libtorrent's file lies under (the deepest, when one folder
+/// holds the other), so no English word decides which is which.
+bool parseMoveFailed(const QStringList &segments, ProblemLine &line)
+{
+    static const QRegularExpression re(
+        QStringLiteral("^(.*?) storage move failed\\.\\s*(?:([a-z_]+) \\((.*)\\): )?(.*)$"),
+        QRegularExpression::DotMatchesEverythingOption);
+    const QRegularExpressionMatch m = re.match(segments.last());
+    if (!m.hasMatch())
+        return false;
+    line.kind = ProblemLine::Kind::MoveFailed;
+    takeHead(m.captured(1), line);
+    line.operation = m.captured(2);
+    line.file = m.captured(3);
+    line.systemMessage = m.captured(4).trimmed();
+    line.quoted = segments.mid(0, segments.size() - 1);
+
+    QStringList paths;
+    for (const QString &segment : std::as_const(line.quoted)) {
+        if (isAbsolutePath(segment))
+            paths << segment;
+    }
+    qsizetype best = -1;
+    for (qsizetype i = 0; i < paths.size(); ++i) {
+        if (!line.file.isEmpty() && SharedData::isUnder(line.file, paths.at(i)) &&
+            (best < 0 || paths.at(i).size() > paths.at(best).size()))
+            best = i;
+    }
+    if (best < 0 && !paths.isEmpty())
+        best = 0;
+    if (best >= 0) {
+        line.source = paths.at(best);
+        if (paths.size() > 1)
+            line.destination = paths.at(best == 0 ? 1 : 0);
+    }
+    return true;
+}
+
+/// `url_seed_alert::message()`: "<head> url seed (<url>) <message>", where libtorrent's
+/// message starts "failed: " when it could not connect.
+bool parseUrlSeedConnection(const QStringList &segments, ProblemLine &line)
+{
+    static const QRegularExpression re(QStringLiteral("^(.*?) url seed \\((.*?)\\) (.*)$"),
+                                       QRegularExpression::DotMatchesEverythingOption);
+    const QRegularExpressionMatch m = re.match(segments.last());
+    if (!m.hasMatch())
+        return false;
+    line.kind = ProblemLine::Kind::UrlSeedFailed;
+    takeHead(m.captured(1), line);
+    line.url = m.captured(2);
+    QString message = m.captured(3).trimmed();
+    if (message.startsWith(QLatin1String("failed: ")))
+        message = message.mid(8);
+    line.systemMessage = message;
+    line.quoted = segments.mid(0, segments.size() - 1);
+    return true;
+}
+
+/// The lines with no libtorrent text, by their shape (docs/32 §2): the torrent's name comes
+/// first and qBittorrent's or the system's message last.
+void parseByShape(const QString &message, const QStringList &segments, ProblemLine &line)
+{
+    const QString &name = segments.first();
+    if (segments.size() == 3) {
+        const QString &middle = segments.at(1);
+        if (looksLikeUrl(middle)) {
+            line.kind = ProblemLine::Kind::UrlSeedFailed;
+            line.url = middle;
+        } else if (isAbsolutePath(middle) &&
+                   middle.endsWith(QLatin1String(".torrent"), Qt::CaseInsensitive)) {
+            line.kind = ProblemLine::Kind::ExportFailed;
+            line.file = middle;
+        } else if (message.startsWith(QLatin1String("File rename failed.")) ||
+                   (!isAbsolutePath(middle) &&
+                    (middle == name || middle.startsWith(name + QLatin1Char('/'))))) {
+            line.kind = ProblemLine::Kind::RenameFailed;
+            line.torrentFile = middle;
+        } else {
+            return;
+        }
+        line.quoted = {name};
+        line.systemMessage = segments.at(2).trimmed();
+        return;
+    }
+    if (segments.size() == 2) {
+        if (message.startsWith(QLatin1String("Failed to remove partfile.")))
+            line.kind = ProblemLine::Kind::PartfileFailed;
+        else if (message.startsWith(QLatin1String("Failed to remove torrent content.")))
+            line.kind = ProblemLine::Kind::ContentRemovalFailed;
+        else
+            return;
+        line.quoted = {name};
+        line.systemMessage = segments.at(1).trimmed();
+    }
+}
+
 QString baseName(const QString &path)
 {
     const QString p = SharedData::normalize(path);
@@ -175,9 +285,13 @@ ProblemLine ProblemLine::parse(const QString &message)
     if (segments.size() < 2)
         return line;
     const QString &reason = segments.last();
-    if (!parseFileError(reason, line) && !parseRestoreFailed(reason, line))
+    if (parseFileError(reason, line) || parseRestoreFailed(reason, line)) {
+        line.quoted = segments.mid(0, segments.size() - 1);
         return line;
-    line.quoted = segments.mid(0, segments.size() - 1);
+    }
+    if (parseMoveFailed(segments, line) || parseUrlSeedConnection(segments, line))
+        return line;
+    parseByShape(message, segments, line);
     return line;
 }
 
@@ -200,7 +314,112 @@ QVariantMap TorrentProblem::toMap() const
     };
 }
 
+QVariantMap TorrentFailure::toMap() const
+{
+    if (isEmpty())
+        return {};
+    return {
+        {QStringLiteral("found"), true},
+        {QStringLiteral("kind"), kind},
+        {QStringLiteral("headline"), headline},
+        {QStringLiteral("detail"), detail},
+        {QStringLiteral("folder"), folder},
+        {QStringLiteral("destination"), destination},
+        {QStringLiteral("torrentFile"), torrentFile},
+        {QStringLiteral("loggedAtText"), Format::relativeTime(loggedAt)},
+        {QStringLiteral("count"), count},
+        {QStringLiteral("line"), line},
+        {QStringLiteral("ambiguous"), ambiguous},
+        {QStringLiteral("actions"), actions},
+    };
+}
+
 namespace ProblemMatch {
+
+QString lastTwoFolders(const QString &path)
+{
+    const QStringList parts =
+        SharedData::normalize(path).split(QLatin1Char('/'), Qt::SkipEmptyParts);
+    return parts.mid(std::max<qsizetype>(0, parts.size() - 2)).join(QLatin1Char('/'));
+}
+
+TorrentFailure describeMove(const ProblemLine &line)
+{
+    TorrentFailure failure;
+    failure.kind = QStringLiteral("move");
+    const QString where = lastTwoFolders(line.destination);
+    failure.headline = where.isEmpty() ? tr("The move didn't happen")
+                                       : tr("The move to %1 didn't happen").arg(where);
+    const QString verb = verbFor(line.operation);
+    const QString name = baseName(line.file);
+    failure.detail = verb.isEmpty() || name.isEmpty()
+                         ? capitalised(line.systemMessage)
+                         : tr("%1, %2 %3").arg(capitalised(line.systemMessage), verb, name);
+    if (!line.source.isEmpty())
+        failure.folder = tr("Its files are still in %1").arg(SharedData::normalize(line.source));
+    failure.destination = line.destination;
+    failure.actions = {QStringLiteral("location"), QStringLiteral("folder")};
+    return failure;
+}
+
+TorrentFailure describeRename(const QList<ProblemLine> &lines, const QString &savePath)
+{
+    TorrentFailure failure;
+    if (lines.isEmpty())
+        return failure;
+    failure.kind = QStringLiteral("rename");
+    const ProblemLine &first = lines.first();
+    const qsizetype more = lines.size() - 1;
+    failure.headline = more == 0 ? tr("A file kept its old name")
+                                 : tr("%1 files kept their old names").arg(lines.size());
+    failure.detail =
+        tr("%1, renaming %2").arg(capitalised(lines.last().systemMessage), first.torrentFile);
+    if (more > 0)
+        failure.detail += tr(" and %1 more").arg(more);
+    failure.torrentFile = first.torrentFile;
+    const qsizetype slash = first.torrentFile.lastIndexOf(QLatin1Char('/'));
+    const QString root = SharedData::normalize(savePath);
+    failure.folder = slash > 0 && !root.isEmpty()
+                         ? root + QLatin1Char('/') + first.torrentFile.left(slash)
+                         : root;
+    failure.actions = {QStringLiteral("rename"), QStringLiteral("folder")};
+    return failure;
+}
+
+TorrentFailure describePartfile(const ProblemLine &line, const QString &savePath)
+{
+    TorrentFailure failure;
+    failure.kind = QStringLiteral("partfile");
+    failure.headline = tr("Its part file couldn't be removed");
+    failure.detail = capitalised(line.systemMessage);
+    const QString root = SharedData::normalize(savePath);
+    failure.folder = root.isEmpty()
+                         ? tr("the .parts file holds pieces of files you skipped")
+                         : tr("%1 · the .parts file holds pieces of files you skipped").arg(root);
+    failure.actions = {QStringLiteral("folder")};
+    return failure;
+}
+
+QString webSeedStatusText(const ProblemLine &line)
+{
+    QString text = line.systemMessage.trimmed();
+    // libtorrent's "Host not found (authoritative)": the resolver's aside says nothing here.
+    static const QRegularExpression aside(QStringLiteral("\\s*\\([^()]*\\)$"));
+    if (line.hashPrefix.size() + line.libtorrentName.size() > 0)
+        text.remove(aside);
+    // "Host not found" -> "host not found", but "HTTP error" and "404 …" keep their case.
+    if (text.size() > 1 && text.at(0).isUpper() && text.at(1).isLower())
+        text[0] = text.at(0).toLower();
+    return text;
+}
+
+bool isWebSeedUrl(const QString &lineUrl, const QString &seedUrl)
+{
+    if (lineUrl.isEmpty() || seedUrl.isEmpty())
+        return false;
+    return lineUrl == seedUrl ||
+           (seedUrl.endsWith(QLatin1Char('/')) && lineUrl.startsWith(seedUrl));
+}
 
 bool isUnder(const QString &path, const QString &root)
 {

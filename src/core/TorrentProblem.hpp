@@ -11,7 +11,8 @@
 namespace omaseed::core {
 
 /// One warning qBittorrent wrote to its log about a torrent's files, taken apart (docs/28 §2,
-/// #54). The API never says why a torrent is in error; this line is the only place it does:
+/// #54; docs/32 §2, #55). The API never says why a torrent is in error, nor that a move, a
+/// rename, a web seed or a .torrent copy failed; these lines are the only place it does:
 ///
 ///   File error alert. Torrent: "<name>". File: "<path>". Reason: "<prefix> file_open (<path>)
 ///   error: Permission denied"
@@ -22,6 +23,26 @@ namespace omaseed::core {
 /// quoted segments are what it fills in, and the last one is libtorrent's own text, which is
 /// never translated. libtorrent 2.1 starts that text with the first 6 hex characters of the
 /// torrent's info hash (v2 when it has one, otherwise v1); 2.0 puts the torrent's name there.
+///
+/// docs/32 §2's lines (#55), as qBittorrent 5.2.3 writes them:
+///
+///   Failed to move torrent. Torrent: "<name>". Source: "<from>". Destination: "<to>".
+///   Reason: "<prefix> storage move failed. file_rename (<path>): Permission denied"
+///   File rename failed. Torrent: "<name>", file: "<path in the torrent>", reason: "<message>"
+///   URL seed connection failed. Torrent: "<name>". URL: "<url>". Error: "<prefix> url seed
+///   (<url>) failed: Host not found (authoritative)"
+///   Received error message from URL seed. Torrent: "<name>". URL: "<a file's url>".
+///   Message: "404 File not found"
+///   Failed to export torrent. Torrent: "<name>". Destination: "<…/name.torrent>". Reason:
+///   "<message>"
+///   Failed to remove partfile. Torrent: "<name>". Reason: "<message>".
+///   Failed to remove torrent content. Torrent: "<name>". Error: "<message>"
+///
+/// A move and a URL seed connection end in libtorrent's text, so they read the same in any
+/// language. The rest carry none: a URL seed's message and an export are known by their shape
+/// (a URL; an absolute path ending in .torrent), a rename by a file path under the torrent's
+/// name (or its English words), and the part file and content lines by their English words
+/// only.
 struct ProblemLine
 {
     enum class Kind {
@@ -29,6 +50,12 @@ struct ProblemLine
         FileError,      ///< "File error alert": libtorrent could not open, read or write a file
         RestoreFailed,  ///< "Failed to restore torrent": fast resume rejected (missing files)
         TorrentErrored, ///< "Torrent errored" (English logs only): the error code's text alone
+        MoveFailed,     ///< "Failed to move torrent": the files stayed in `source`
+        RenameFailed,   ///< "File rename failed": `torrentFile` kept its name
+        UrlSeedFailed,  ///< a web seed (`url`) failed to connect, or answered an error
+        ExportFailed,   ///< "Failed to export torrent": the .torrent copy (`file`) wasn't written
+        PartfileFailed, ///< "Failed to remove partfile" (English logs only)
+        ContentRemovalFailed, ///< "Failed to remove torrent content" (English logs only)
     };
 
     Kind kind = Kind::Unknown;
@@ -38,6 +65,14 @@ struct ProblemLine
     QString libtorrentName; ///< libtorrent 2.0's name in place of the prefix, or empty
     QString operation;      ///< file_open, file_write, file_stat…, or empty
     QString systemMessage;  ///< "Permission denied", "mismatching file size"…
+    QString source;         ///< MoveFailed: the folder its files are still in
+    QString destination;    ///< MoveFailed: the folder they were meant to go to
+    QString torrentFile;    ///< RenameFailed: the file's path inside the torrent
+    QString url;            ///< UrlSeedFailed: the web seed's URL, or a file's under it
+
+    /// Whether this is one of docs/32's failures: a move, rename, web seed, export, part file
+    /// or content removal, rather than a reason for an error.
+    bool isFailure() const { return kind >= Kind::MoveFailed; }
 
     /// Takes one log message apart; a line that is not about a torrent's files gives Unknown.
     static ProblemLine parse(const QString &message);
@@ -66,6 +101,29 @@ struct TorrentProblem
     bool operator==(const TorrentProblem &other) const = default;
 };
 
+/// What omaseed shows for a failure that left a torrent working (docs/32 §4–§5, #55): a move
+/// or a rename that didn't happen, a part file left behind. General shows it in yellow, under
+/// #54's red block when the torrent is also in error.
+struct TorrentFailure
+{
+    QString kind;           ///< "move", "rename" or "partfile"; empty for none
+    QString headline;       ///< "The move to log55/dest didn't happen"
+    QString detail;         ///< "Permission denied, moving log55-move.bin"
+    QString folder;         ///< where things are now: "Its files are still in …"
+    QString destination;    ///< a move: where it was meant to go, for the location sheet
+    QString torrentFile;    ///< a rename: the (first) file that kept its name, for Files
+    QDateTime loggedAt;     ///< the newest line behind it
+    int count = 0;          ///< a move: the times it failed the same way
+    QString line;           ///< the newest line, whole, for "copy the line"
+    bool ambiguous = false; ///< another torrent of the same name may own the line
+    QStringList actions;    ///< in order: "location", "rename", "folder"
+    QStringList keys;       ///< ProblemLog::lineKey() of every line behind it, for a dismissal
+
+    bool isEmpty() const { return kind.isEmpty(); }
+    QVariantMap toMap() const;
+    bool operator==(const TorrentFailure &other) const = default;
+};
+
 /// Ties log lines to torrents and words them.
 namespace ProblemMatch {
 
@@ -82,6 +140,29 @@ TorrentProblem notLogged(bool missingFiles);
 
 /// Whether `path` is `root` or lies under it, as the server writes paths.
 bool isUnder(const QString &path, const QString &root);
+
+/// docs/32 F1: a move that didn't happen. The headline names the destination's last two
+/// folders; the detail is libtorrent's reason and operation, as board 28 words them.
+TorrentFailure describeMove(const ProblemLine &line);
+
+/// docs/32 F2: files that kept their names. `lines` are the torrent's rename failures still
+/// standing, one per file, oldest first; `savePath` is where the torrent's files are.
+TorrentFailure describeRename(const QList<ProblemLine> &lines, const QString &savePath);
+
+/// docs/32 F3: a part file that couldn't be removed, from a torrent saved in `savePath`.
+TorrentFailure describePartfile(const ProblemLine &line, const QString &savePath);
+
+/// "/a/b/log55/dest/" -> "log55/dest": the last two folders of a path, as F1's headline names
+/// a destination.
+QString lastTwoFolders(const QString &path);
+
+/// docs/32 W1: a web seed's failure in its own words, short: "host not found", "404 File not
+/// found", "connection refused".
+QString webSeedStatusText(const ProblemLine &line);
+
+/// Whether a URL seed line's `lineUrl` is about the web seed `seedUrl`: the same URL, or a
+/// file's under a seed that ends in "/" (a multi-file torrent's seed names its folder).
+bool isWebSeedUrl(const QString &lineUrl, const QString &seedUrl);
 
 } // namespace ProblemMatch
 

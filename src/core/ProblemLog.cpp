@@ -159,6 +159,9 @@ void ProblemLog::rematch()
     // Oldest first, so the newest line for a torrent is the one kept.
     QHash<QString, TorrentProblem> found;
     for (const Line &line : std::as_const(m_lines)) {
+        // docs/32's failures leave a torrent working: never the reason for an error.
+        if (line.parsed.isFailure())
+            continue;
         bool ambiguous = false;
         const QStringList hashes = ProblemMatch::match(line.parsed, candidates, &ambiguous);
         for (const QString &hash : hashes) {
