@@ -9,6 +9,16 @@ before it will tag a release.
 
 ### Added
 
+- Export and import a qBittorrent's settings (Settings › qBittorrent › Backup): its
+  preferences, categories, tags, RSS feeds and rules in one readable JSON file, with no
+  password or API key in it. Importing shows only what differs, in the settings' own words, and
+  changes nothing until you apply: folders, ports, the network interface and the Web UI's
+  address and login stay as they are unless you tick them, settings the other qBittorrent
+  version lacks are counted and left out, and categories, tags, feeds and rules are only
+  added. A category's or RSS rule's folder under the old default save path moves under the new
+  one. "export current first" saves what the server has before you apply. The weekly automatic
+  copies of omaseed now carry each server's qBittorrent settings too, and an import can read
+  them from a copy.
 - Rows that are uploading can pulse: a thin green tick at the left of each one, breathing
   faster the more it sends (Settings › Appearance › Pulse sending rows, off by default). It
   moves only while omaseed's window is the one in use and holds still when the desktop asks

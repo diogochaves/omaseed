@@ -290,6 +290,49 @@ off by default". What the board left open:
   (`MotionPreference`). It also stills the tide's halo, which board 22's own page stills under
   `prefers-reduced-motion`.
 
+## C8 — A qBittorrent's settings, exported and imported (board 24, ruled 2026-10-03)
+
+Board [24](24-backup-restore.html) §4–§6, D1 a, D2 a, D3 a, D5 a (#32). What the board left
+open, or what the API decided:
+
+- **Secrets** (D5 a) are kept out by name and by suffix (`core/QbtSettingsExport`):
+  `web_ui_password`, `web_ui_api_key`, `proxy_password`, `mail_notification_password`,
+  `dyndns_password`, qBittorrent 4.1's `ssl_key`/`ssl_cert`, an RSS rule's
+  `torrentParams.ssl_private_key`, and any key ending in `password`, `_api_key`, `_apikey`,
+  `_secret`, `_private_key` or `_token`. A file read back drops them again, and the import
+  never sends one.
+- **Machine-specific** (§6), unticked on import (`core/QbtSettingsImport::machineGroup`): the
+  board's keys, plus `random_port`, `ssl_listen_port`, `announce_ip`, `announce_port`,
+  `embedded_tracker_port`, `embedded_tracker_port_forwarding` and `current_interface_name`
+  (network, for the board's own reason: a port forwarded to one machine), and `use_https`,
+  `web_ui_upnp` and `alternative_webui_enabled` (Web UI: each can cut the connection the
+  import goes through).
+- **Folders of new categories and RSS rules.** §6 calls them machine-specific; the settings
+  sheet has no "from → to" rows (those are the torrents sheet's, #33). So one more row under
+  "this machine only", "category and RSS rule folders", unticked: then a folder under the
+  file's default save path (or incomplete folder) moves to the same place under the target's
+  (the file's own, when its save path row is ticked), and any other absolute folder is left
+  out, so qBittorrent uses its default (`<save path>/<category>`). Ticked, they are kept as
+  exported.
+- **Matching.** Categories, tags and rules by name, feeds by URL, never by an id either
+  machine gave them. What is already there is kept as it is, including a category's folder.
+- **Categories' share limits** are exported, but qBittorrent 5.2.3's
+  `torrents/createCategory` and `editCategory` take none (checked on the playground), so they
+  are left out and the sheet counts them.
+- **Order**: categories, tags, RSS folders, feeds, rules, then the preferences, last (the
+  board's §8 puts RSS after them): a ticked Web UI change could move the connection the rest
+  goes through. A step that fails is reported and the rest still runs.
+- **The preferences** go through `ServerPreferences.apply`, as a change made in the panes, so
+  the panes show them at once and App follows a Web UI port or login change.
+- **Which server.** The pane acts on the server the app is on. Import needs it connected (the
+  preview is read against it), so both rows dim while it is not; the board's "import is always
+  on" assumed a choice of target that the app's one connection can't offer.
+- **Automatic copies** (D3 a) carry `qbittorrent/<server id>.json` for each server: the
+  connected server's is read just before the copy; another server keeps what the newest copy
+  had. An import can read one from an omaseed backup; it finds this server's by address, then
+  by id, then as the only one, since ids differ between machines (#34).
+- **Keys**: `0` picks the qBittorrent group's tenth section, Backup.
+
 ## M8 — A click leaves the keyboard focus where it was
 
 Buttons and toggles do not take the focus when clicked. Otherwise an overlay gives the focus

@@ -34,7 +34,8 @@ Three static libraries and the executable. Each layer only depends on the ones a
   through qtkeychain, a 0600 file under `secrets/` when there is none), `StateFile`,
   `ServerPreferences` (qBittorrent's own settings), `CertificatePin` (trust on first use).
 - Features built on top: `SeedConsole`, `SeedLedger` and `WeeklyRecap` (the seed console),
-  `OmaseedBackup`, `AutoBackup` and `TarArchive` (backups), `LibraryMatch`, `FreeSpace` and
+  `OmaseedBackup`, `AutoBackup` and `TarArchive` (backups), `QbtSettingsExport` and
+  `QbtSettingsImport` (a server's settings as a file, and back), `LibraryMatch`, `FreeSpace` and
   `SharedData` (what the add and delete sheets know about files already on disk), `RenamePlan`
   and `RenameDisk` (what a rename would land on).
 
