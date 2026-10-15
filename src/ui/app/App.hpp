@@ -1456,6 +1456,15 @@ public:
     /// and another category now.
     Q_INVOKABLE QStringList movedByCategory(const QStringList &hashes,
                                             const QString &category) const;
+    /// #65: of `hashes`, the ones turning automatic management on would move on disk: off
+    /// now, and not already complete in the folder their category gives them.
+    Q_INVOKABLE QStringList movedByAutoManagement(const QStringList &hashes) const;
+    /// #65: "move both" for automatic management. Sets each torrent of `categories` (hash →
+    /// category) to its category first, then turns automatic management on for `hashes`,
+    /// so the sharers land in the same folder. Nothing is turned on when a category was
+    /// refused.
+    Q_INVOKABLE void setAutoManagementWithCategories(const QStringList &hashes,
+                                                     const QVariantMap &categories);
     /// Demo mode only (the QML tests, screenshots): merges `torrents` (hash → maindata keys)
     /// into the fictional library.
     Q_INVOKABLE void patchDemoTorrents(const QVariantMap &torrents);

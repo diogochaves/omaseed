@@ -41,6 +41,9 @@ Item {
     /// head and the strip share one band across the top (name on the left, the four facts on
     /// the right) and the tabs get the whole width below it, General's rows in two columns.
     property bool wide: false
+    /// #65: General's "Auto manage" row raises `autoManagementRequested` instead of applying,
+    /// so Main can ask first when turning it on moves files another torrent uses.
+    property bool asksBeforeAutoManagement: false
     /// docs/13: the strip's width in the band. Fixed, so the name does not shift as the ETA
     /// changes length; never more than half the pane, so the name keeps room.
     readonly property int bandStripWidth: Math.min(Theme.space(440), Math.floor(root.width / 2))
@@ -114,6 +117,8 @@ Item {
     /// `y` or a click on a General row (docs/12 G5): the whole value, and the row's name for
     /// the footer's "copied hash v1".
     signal valueCopyRequested(string text, string name)
+    /// #65: `enter` on General's "Auto manage" row, when `asksBeforeAutoManagement`.
+    signal autoManagementRequested(var hashes, bool on)
 
     /// Something inside the pane holds the keyboard — the Files tab's filter, its inline
     /// rename or one of its menus — so Main still counts the focus as the pane's.
@@ -273,7 +278,10 @@ Item {
             App.setSuperSeeding(hashes, !entry.on);
             break;
         case "autoManagement":
-            App.setAutoManagement(hashes, !entry.on);
+            if (root.asksBeforeAutoManagement)
+                root.autoManagementRequested(hashes, !entry.on);
+            else
+                App.setAutoManagement(hashes, !entry.on);
             break;
         }
         return true;

@@ -519,6 +519,116 @@ TestCase {
         compare((App.sharedData([sintel], true).outside ?? []).length, 0);
     }
 
+    // ---- #65: automatic management on, for one of a shared pair ----------------------------
+
+    /// Takes `hash` off automatic management and puts it in `category`, where its files are
+    /// not: turning management on would move them. unshareData() puts both back.
+    function unmanage(hash, category) {
+        const row = App.torrentRow(hash);
+        const back = testCase._unshare;
+        back[hash] = Object.assign(back[hash] ?? {}, {
+                                       "auto_tmm": row.autoTmm,
+                                       "category": row.category
+                                   });
+        testCase._unshare = back;
+        const patch = {};
+        patch[hash] = {
+            "auto_tmm": false,
+            "category": category
+        };
+        App.patchDemoTorrents(patch);
+    }
+
+    function test_auto_management_on_for_one_of_a_shared_pair_asks_first() {
+        const sintel = hashByName("Sintel 1080p (CC-BY)");
+        const tears = hashByName("Tears of Steel 4K (CC-BY)");
+        shareData(sintel, tears);
+        unmanage(tears, "tv");
+        compare(App.movedByAutoManagement([tears]), [tears]);
+        // The actions menu's `a`, on tears.
+        view.table.moveCursorTo(App.filtered.rowOfHash(tears));
+        view.table.requestActions();
+        keyClick("a");
+        compare(view.actionsMenuPanel.opened, false);
+        compare(view.sharedMoveConfirm.opened, true);
+        compare(App.torrentRow(tears).autoTmm, false, "turned on before the answer");
+        compare(view.sharedMoveConfirm.autoManagement, true);
+        compare(view.sharedMoveConfirm.message, "Turn on automatic management?");
+        compare(view.sharedMoveConfirm.applyHashes(), [tears, sintel]);
+        compare(view.sharedMoveConfirm.confirmText, "move 2");
+        // "Move both": sintel takes tears' category, so the two land in one folder.
+        compare(view.sharedMoveConfirm._sharerCategories(), {
+                    [sintel]: "tv"
+                });
+        keyClick("j");
+        compare(view.sharedMoveConfirm.applyHashes(), [tears]);
+        compare(view.sharedMoveConfirm.confirmText, "turn on");
+        keyClick("k");
+        view.sharedMoveConfirm.confirm();
+        compare(App.torrentRow(tears).autoTmm, true);
+    }
+
+    function test_auto_management_on_waits_for_a_no_root_sharers_files() {
+        const sintel = hashByName("Sintel 1080p (CC-BY)");
+        const tears = hashByName("Tears of Steel 4K (CC-BY)");
+        const name = App.torrentRow(sintel).name;
+        shareWithoutRoot(sintel, tears, [name + "/movie.mkv"], [name + "/movie.mkv", name + "/extra.nfo"]);
+        unmanage(tears, "tv");
+        view.table.moveCursorTo(App.filtered.rowOfHash(tears));
+        view.torrentAction("autoManagement");
+        // Nothing known yet: the request waits rather than going ahead without the sharer.
+        compare(view.sharedMoveConfirm.opened, false);
+        compare(view.sharedMoveConfirm._held.length, 1);
+        compare(App.torrentRow(tears).autoTmm, false);
+        tryCompare(view.sharedMoveConfirm, "opened", true, 1000);
+        compare(view.sharedMoveConfirm._held.length, 0);
+        compare(view.sharedMoveConfirm.applyHashes(), [tears, sintel]);
+        view.sharedMoveConfirm.close();
+        compare(App.torrentRow(tears).autoTmm, false);
+    }
+
+    function test_auto_management_on_where_the_files_already_are_asks_nothing() {
+        const sintel = hashByName("Sintel 1080p (CC-BY)");
+        const tears = hashByName("Tears of Steel 4K (CC-BY)");
+        shareData(sintel, tears);
+        // Tears in movies, saved in the movies folder: management keeps it there.
+        unmanage(tears, "movies");
+        compare(App.movedByAutoManagement([tears]), []);
+        view.table.moveCursorTo(App.filtered.rowOfHash(tears));
+        view.torrentAction("autoManagement");
+        compare(view.sharedMoveConfirm.opened, false);
+        compare(App.torrentRow(tears).autoTmm, true);
+    }
+
+    function test_auto_management_off_never_asks() {
+        const sintel = hashByName("Sintel 1080p (CC-BY)");
+        const tears = hashByName("Tears of Steel 4K (CC-BY)");
+        shareData(sintel, tears);
+        verify(App.torrentRow(tears).autoTmm);
+        view.table.moveCursorTo(App.filtered.rowOfHash(tears));
+        view.torrentAction("autoManagement");
+        compare(view.sharedMoveConfirm.opened, false);
+        compare(App.torrentRow(tears).autoTmm, false);
+        App.setAutoManagement([tears], true);
+    }
+
+    function test_generals_auto_manage_row_asks_too() {
+        const sintel = hashByName("Sintel 1080p (CC-BY)");
+        const tears = hashByName("Tears of Steel 4K (CC-BY)");
+        shareData(sintel, tears);
+        unmanage(tears, "tv");
+        view.table.moveCursorTo(App.filtered.rowOfHash(tears));
+        tryCompare(App.details, "hash", tears, 1000);
+        const general = findChild(view.details, "generalTab");
+        tryVerify(() => general.rows.some(row => row.option === "autoManagement" && row.on === false), 1000);
+        const row = general.rows.findIndex(entry => entry.option === "autoManagement");
+        verify(view.details.toggleGeneralOption(row));
+        compare(view.sharedMoveConfirm.opened, true);
+        compare(view.sharedMoveConfirm.applyHashes(), [tears, sintel]);
+        compare(App.torrentRow(tears).autoTmm, false);
+        view.sharedMoveConfirm.close();
+    }
+
     // ---- the location sheet (Fig. 7) -------------------------------------------------------
     function test_location_sheet_prefills_the_save_path() {
         const hash = hashByName("Big Buck Bunny 4K (CC-BY)");

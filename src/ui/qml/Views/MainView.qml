@@ -578,12 +578,21 @@ Item {
             App.setSuperSeeding(hashes, App.torrentRow(root.cursorHash).superSeeding !== true);
             break;
         case "autoManagement":
-            App.setAutoManagement(hashes, App.torrentRow(root.cursorHash).autoTmm !== true);
+            root.setAutoManagement(hashes, App.torrentRow(root.cursorHash).autoTmm !== true);
             break;
         default:
             console.log("action:", action, hashes.length, "torrents");
             break;
         }
+    }
+
+    /// Automatic management on or off for `hashes`. Turning it on moves the files to the
+    /// category's folder, so it asks first when another torrent uses them (#65, docs/26).
+    function setAutoManagement(hashes: var, on: bool): void {
+        if (on)
+            sharedMoveConfirm.turnOnAutoManagement(hashes);
+        else
+            App.setAutoManagement(hashes, false);
     }
 
     /// The selection bar's buttons (docs/17 M9.3): the actions menu's own path, plus start
@@ -1729,6 +1738,8 @@ Item {
             // docs/10 §5 and docs/13: under the table, the head band over full-width tabs.
             wide: !split.docked
 
+            asksBeforeAutoManagement: true
+            onAutoManagementRequested: (hashes, on) => root.setAutoManagement(hashes, on)
             onFocusTable: table.forceActiveFocus()
             onCopyRequested: text => root.copyText(text, qsTr("copied"))
             onOpenFileRequested: path => App.openTorrentFile(App.details.hash, path)

@@ -1,15 +1,18 @@
 // App's #28 block (docs/26): which torrents use the same data on disk, for the delete
-// confirm, the location sheet and a category change. Kept out of App.cpp so it reads as one
-// piece; the declarations sit at the end of App.hpp.
+// confirm, the location sheet, a category change and turning automatic management on (#65).
+// Kept out of App.cpp so it reads as one piece; the declarations sit at the end of App.hpp.
 #include "ui/app/App.hpp"
 
 #include "core/Format.hpp"
 #include "core/SharedData.hpp"
 
+#include <QDir>
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QTimer>
 #include <QUrl>
+
+#include <memory>
 
 namespace omaseed::app {
 
@@ -24,6 +27,14 @@ QString trackerHost(const QString &url)
         return QString();
     const QString host = QUrl(url).host();
     return host.isEmpty() ? url : host;
+}
+
+/// "/data/torrents" for "/data/torrents/" (and "/" stays "/").
+QString withoutTrailingSlash(QString path)
+{
+    while (path.size() > 1 && (path.endsWith(QLatin1Char('/')) || path.endsWith(QLatin1Char('\\'))))
+        path.chop(1);
+    return path;
 }
 
 } // namespace
@@ -131,6 +142,75 @@ QStringList App::movedByCategory(const QStringList &hashes, const QString &categ
             moved.append(hash);
     }
     return moved;
+}
+
+QStringList App::movedByAutoManagement(const QStringList &hashes) const
+{
+    // Where automatic management puts a torrent, as qBittorrent resolves it: the category's
+    // folder, relative ones and unset ones under the default save path (unset: the
+    // category's name), the default save path itself without a category. When that is not
+    // known, or the torrent is not complete (its files may sit in the incomplete folder),
+    // it counts as moving.
+    const QString defaultPath =
+        withoutTrailingSlash(m_prefs->value(QStringLiteral("save_path")).toString());
+    TorrentModel *model = m_engine->torrents();
+    QStringList moved;
+    for (const QString &hash : hashes) {
+        if (model->indexOfHash(hash) < 0)
+            continue;
+        const Torrent &torrent = model->torrent(hash);
+        if (torrent.autoTmm)
+            continue;
+        if (!defaultPath.isEmpty() && torrent.progress >= 1.0) {
+            QString folder = defaultPath;
+            if (!torrent.category.isEmpty()) {
+                const QString own = m_engine->categories()->savePathOf(torrent.category);
+                if (own.isEmpty())
+                    folder = defaultPath + QLatin1Char('/') + torrent.category;
+                else if (QDir::isAbsolutePath(own))
+                    folder = own;
+                else
+                    folder = defaultPath + QLatin1Char('/') + own;
+            }
+            if (withoutTrailingSlash(folder) == withoutTrailingSlash(torrent.savePath))
+                continue;
+        }
+        moved.append(hash);
+    }
+    return moved;
+}
+
+void App::setAutoManagementWithCategories(const QStringList &hashes, const QVariantMap &categories)
+{
+    QHash<QString, QStringList> byCategory;
+    for (auto it = categories.cbegin(); it != categories.cend(); ++it)
+        byCategory[it.value().toString()].append(it.key());
+    if (byCategory.isEmpty() || m_demoMode || !m_hasServer) {
+        for (auto it = byCategory.cbegin(); it != byCategory.cend(); ++it)
+            applyCategory(it.value(), it.key());
+        setAutoManagement(hashes, true);
+        return;
+    }
+    // The requests may run side by side: management goes on only once every category is
+    // set, or a sharer would move to its old category's folder first.
+    auto remaining = std::make_shared<qsizetype>(byCategory.size());
+    auto refused = std::make_shared<bool>(false);
+    for (auto it = byCategory.cbegin(); it != byCategory.cend(); ++it) {
+        const QString name = it.key();
+        m_client->torrentsSetCategory(it.value(), name)
+            ->then(this,
+                   [this, hashes, name, remaining, refused](const QbtResult<QByteArray> &result) {
+                       if (result.isError()) {
+                           *refused = true;
+                           qWarning().noquote()
+                               << QStringLiteral("set category %1 failed, automatic management "
+                                                 "left off: %2")
+                                      .arg(name, result.error().toString());
+                       }
+                       if (--*remaining == 0 && !*refused)
+                           setAutoManagement(hashes, true);
+                   });
+    }
 }
 
 void App::patchDemoFiles(const QVariantMap &files)
