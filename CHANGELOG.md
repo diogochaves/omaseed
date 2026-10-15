@@ -14,6 +14,17 @@ before it will tag a release.
   as its key would. Commands that can't run say why, the last five run come first, and a name
   that is no command goes to the jump palette. The footer, the ⋯ menu and the `?` sheet point
   to it.
+- A move or a file rename that qBittorrent accepted and then couldn't do no longer goes
+  unnoticed. qBittorrent says "OK" and writes the reason only to its log, so omaseed reads it:
+  General opens with a yellow block saying what didn't happen, why, and where the files still
+  are, with set location (already holding the destination), open folder or rename in Files,
+  and `x` to dismiss it. It goes by itself once the move or rename happens, and a dismissal is
+  remembered. When omaseed asked for the move, rename or delete itself, the footer says so at
+  once ("x.bin didn't move: Permission denied").
+- The HTTP sources tab says under each URL what qBittorrent's log says about it ("404 File not
+  found · today 09:40", "host not found · 10 times"), or that nothing was logged.
+- Settings › qBittorrent › Downloads says under "Copy .torrent files to" when the last copy
+  into that folder failed, and why.
 
 ### Fixed
 

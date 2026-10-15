@@ -24,7 +24,8 @@ Three static libraries and the executable. Each layer only depends on the ones a
   `TorrentTrackersModel`, `TorrentPeersModel`, `TorrentWebSeedsModel`, `PieceStates`).
 - Parsing: `Bencode`, `TorrentFile` and `MagnetLink` read names, sizes and info-hashes for the
   add sheet and duplicate detection. `TorrentProblem` and `ProblemLog` explain an errored
-  torrent from qBittorrent's own log.
+  torrent from qBittorrent's own log, and the failures only that log knows: a move, rename,
+  web seed or .torrent copy that didn't happen ([DECISIONS.md](DECISIONS.md) C2).
 - Servers and settings: `Server`, `ServerStore` (`servers.json`), `SecretStore` (the keyring
   through qtkeychain, a 0600 file under `secrets/` when there is none), `StateFile`,
   `ServerPreferences` (qBittorrent's own settings), `CertificatePin` (trust on first use).

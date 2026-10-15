@@ -80,6 +80,38 @@ Board [30](30-command-palette.html) (#61), all ten decisions as recommended:
 The rows come from one pure `Keymap.commandRows(context)` over plain data, so the site's demo
 can reuse it.
 
+## C2 — Failures only qBittorrent's log knows (board 32, ruled 2026-10-15)
+
+Board [32](32-log-and-failures.html) (#55), D1–D8 as recommended. qBittorrent answers "OK" to
+a move or rename that then fails, and a dead web seed or a .torrent copy it can't write leaves
+the torrent looking fine: the reason is in `log/main` only. D9–D15 (the log as a face of its
+own) are #56.
+
+- **D1** A move, rename or part file that failed gets #54's block at the top of General, in
+  yellow (the torrent still works), under the red one when it is also errored. Two failures on
+  one torrent show the newest. The block's actions: set location (the sheet holds the
+  destination), open folder, rename in Files (the cursor on that file), copy the line, dismiss.
+- **D2** After a move, a rename or a delete with files that omaseed asked for, the log is read
+  on every poll for 30 s; a failure shows at once in the footer's note line, yellow, one note
+  per action ("3 of 12 didn't move"), then stays as the block.
+- **D3** The block stays until it is fixed (the save path changes; the file is no longer among
+  the torrent's files), dismissed with `x`, or qBittorrent restarts (its log is in memory).
+- **D4** Dismissals are kept in `state.json` (`"failures"`), per server, as line keys (id,
+  time and a hash of the text, since ids start from 0 again at each restart). A read from the
+  top of the log forgets those whose line is gone.
+- **D5** Web seed failures are a status under each URL on the HTTP sources tab: the error's
+  own words and when, or "no errors logged" (never "working"). No block, no notice.
+- **D6** An export failure is a note under "Copy .torrent files to" in Settings › qBittorrent ›
+  Downloads, while either export folder is the one the copy tried.
+- **D7** The table does not change.
+- **D8** None of them is a desktop notice.
+
+The log is read every 15 s while the window shows (failures nobody watched, such as a category
+change's automatic move, show within that). Lines are told apart as #54's are: the quoted
+segments and libtorrent's untranslated text; a URL seed message and an export by their shape; a
+rename by a file path under the torrent's name; the part file and content lines in English only.
+A line older than a torrent's `added_on` is never about it.
+
 ## M8 — A click leaves the keyboard focus where it was
 
 Buttons and toggles do not take the focus when clicked. Otherwise an overlay gives the focus
