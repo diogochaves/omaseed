@@ -40,6 +40,7 @@ TestCase {
         compare(model.area, "overlay");
         compare(model.hints.length, 0);
         compare(model.pinned, null, "`? help` cannot work under an overlay");
+        compare(model.pinnedLead, null, "`: commands` cannot work under an overlay");
 
         model.overlayOpen = false;
         verify(model.hints.length > 0, "the table's hints did not come back");
@@ -60,6 +61,9 @@ TestCase {
                 "j k move · space select · enter actions · p stop/start · d delete · o folder · / filter");
         compare(model.pinned.key, "?");
         compare(model.pinned.label, "help");
+        // docs/30 D10: the command palette's key beside it.
+        compare(model.pinnedLead.key, ":");
+        compare(model.pinnedLead.label, "commands");
     }
 
     function test_an_inline_rename_teaches_its_two_keys() {

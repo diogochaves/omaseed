@@ -237,4 +237,28 @@ TestCase {
         mouseClick(pinned);
         compare(clicked, ["esc back"]);
     }
+
+    // docs/30 D10: `: commands` sits beside `? help` at the right edge, kept like it.
+    function test_a_lead_pair_sits_before_the_pinned_one() {
+        const hints = createTemporaryObject(keyHintsComponent, testCase, {
+                                                "model": [],
+                                                "pinned": {
+                                                    "key": "?",
+                                                    "label": "help"
+                                                },
+                                                "pinnedLead": {
+                                                    "key": ":",
+                                                    "label": "commands"
+                                                }
+                                            });
+        const lead = findChild(hints, "keyHintPinnedLead");
+        const pinned = findChild(hints, "keyHintPinned");
+        verify(lead.visible);
+        verify(lead.width > 0);
+        verify(lead.x + lead.width < pinned.x, "the lead pair is not just left of the pinned one");
+        compare(lead.children[0].children[0].text, ":");
+        compare(lead.children[0].children[1].text, "commands");
+        hints.pinnedLead = null;
+        compare(lead.visible, false);
+    }
 }

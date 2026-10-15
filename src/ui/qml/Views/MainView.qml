@@ -42,6 +42,7 @@ Item {
     readonly property alias split: split
     readonly property alias hintModel: hintModel
     readonly property alias helpSheet: helpSheet
+    readonly property alias helpSheetPanel: helpSheetPanel
     // T4.3
     readonly property alias actionsMenuPanel: actionsMenuPanel
     readonly property alias selectionBar: selectionBar
@@ -1892,6 +1893,7 @@ Item {
                 Layout.minimumWidth: 0
                 model: hintModel.hints
                 pinned: hintModel.pinned
+                pinnedLead: hintModel.pinnedLead
             }
         }
     }
@@ -1903,7 +1905,8 @@ Item {
         anchors.fill: parent
         glyph: Glyphs.help
         sheetWidth: Theme.space(760)
-        subtitle: qsTr("single letters act on the table \u00b7 capitals are the stronger variant \u00b7 ctrl is app-level")
+        // docs/30 D10: the sheet names the palette that runs them.
+        subtitle: qsTr("single letters act on the table \u00b7 capitals are the stronger variant \u00b7 ctrl is app-level \u00b7 : runs any of them by name")
         title: qsTr("Shortcuts")
         z: 10
 

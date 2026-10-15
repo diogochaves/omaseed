@@ -21,11 +21,15 @@ import Omaseed.Kit
 // "esc clear" and Field's clickable trailing do), and a click sends `hintClicked`. A clickable
 // `pinned` hint does the same and sends `pinnedClicked`. The row only reports it; the caller
 // runs what that key runs.
+//
+// `pinnedLead` is one more pair kept at the right edge, just before `pinned` (docs/30 D10's
+// `: commands` beside `? help`). It is never dropped either.
 RowLayout {
     id: root
 
     property var model: []
     property var pinned: null
+    property var pinnedLead: null
     /// Which `Theme.font.*` token the row prints at. The window footer is `small` (spec
     /// `.hints`); a sheet's or a palette's own hint line is `caption` (spec `.sheet .ft`,
     /// `.palette .ft`).
@@ -37,6 +41,7 @@ RowLayout {
     signal pinnedClicked(var hint)
 
     readonly property bool hasPinned: root.pinned !== null
+    readonly property bool hasPinnedLead: root.pinnedLead !== null
     readonly property int _pixelSize: Theme.font[root.size]
     /// Which of `model`'s hints are shown, by index: every `keep` hint that fits (left to
     /// right), then the others from the left while there is room.
@@ -46,7 +51,8 @@ RowLayout {
         const shown = [];
         for (let i = 0; i < count; ++i)
             shown.push(false);
-        let room = root.width - (root.hasPinned ? pinnedRow.implicitWidth + root.spacing : 0);
+        let room = root.width - (root.hasPinned ? pinnedRow.implicitWidth + root.spacing : 0)
+                - (root.hasPinnedLead ? pinnedLeadRow.implicitWidth + root.spacing : 0);
         // Each shown hint takes its width and one gap; the first gap is given back.
         room += hintsRow.spacing;
         const need = i => {
@@ -135,6 +141,31 @@ RowLayout {
 
     Item {
         Layout.fillWidth: true
+    }
+
+    Row {
+        id: pinnedLeadRow
+
+        objectName: "keyHintPinnedLead"
+        visible: root.hasPinnedLead
+
+        Row {
+            spacing: Theme.space(6)
+
+            Text {
+                color: Theme.foreground
+                font.family: Theme.fontFamily
+                font.pixelSize: root._pixelSize
+                text: root.pinnedLead ? root.pinnedLead.key : ""
+            }
+
+            Text {
+                color: Theme.dimForeground
+                font.family: Theme.fontFamily
+                font.pixelSize: root._pixelSize
+                text: root.pinnedLead ? root.pinnedLead.label : ""
+            }
+        }
     }
 
     Item {

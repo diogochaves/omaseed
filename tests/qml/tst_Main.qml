@@ -341,13 +341,26 @@ TestCase {
         verify(actions().indexOf("settings") < 0);
         testCase.width = Theme.space(800); // the view fills the case, the hero spans the view
         verify(view.hero.compact);
-        compare(actions().slice(0, 2), ["settings", "help"]);
+        // docs/30 D10: after the command palette's row and its rule.
+        compare(actions().slice(0, 4), ["commands", undefined, "settings", "help"]);
         view.moreAction("settings");
         compare(settingsSpy.count, 1);
         view.moreAction("help");
         compare(view.helpOpen, true);
         view.helpOpen = false;
         testCase.width = 1360;
+    }
+
+    // docs/30 D10: the ⋯ menu's first row opens the command palette, and the footer and the
+    // ? sheet name it.
+    function test_the_palette_is_found_without_its_key() {
+        compare(view.moreMenu.items[0].action, "commands");
+        compare(view.moreMenu.items[0].key, ":");
+        view.moreAction("commands");
+        compare(view.commandPalette.opened, true);
+        view.commandPalette.close();
+        compare(view.hintModel.pinnedLead.key, ":");
+        verify(view.helpSheetPanel.subtitle.endsWith(": runs any of them by name"));
     }
 
     // docs/08 §3: ctrl+. opens the ⋯ menu under its button; its rows reach the limits sheet,

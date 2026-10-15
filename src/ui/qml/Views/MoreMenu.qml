@@ -32,8 +32,21 @@ Menu {
         }
     ]
 
+    /// docs/30 D10: the command palette, first, for the mouse.
+    readonly property var _commandRows: [
+        {
+            "text": qsTr("commands…"),
+            "glyph": Glyphs.commands,
+            "key": ":",
+            "action": "commands"
+        },
+        {
+            "separator": true
+        }
+    ]
+
     menuWidth: Theme.space(280)
-    items: (root.appRows ? root._appRows : []).concat(root._rows)
+    items: root._commandRows.concat(root.appRows ? root._appRows : [], root._rows)
 
     readonly property var _rows: [
         {

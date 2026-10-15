@@ -100,6 +100,8 @@ QtObject {
     /// The `? help` pair `KeyHints` pushes to the right edge, or null.
     readonly property var pinned: (root.area === "disconnected" || root.area === "filteredEmpty"
                                    || root.area === "overlay") ? null : root._hint("global", "?")
+    /// docs/30 D10: `: commands`, kept just before `? help` wherever that shows.
+    readonly property var pinnedLead: root.pinned === null ? null : root._hint("global", ":")
 
     // internals ----------------------------------------------------------------------
     /// One `{key, label}` pair. `keys` is what the footer prints ("j k", "+ -"); the label
