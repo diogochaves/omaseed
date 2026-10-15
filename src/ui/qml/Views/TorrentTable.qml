@@ -20,6 +20,12 @@ import Omaseed.Kit
 // 72px 118px 104px 62px 84px 84px 62px` put through `Theme.space()`, so base 14 scales them
 // the way the spec's `[data-base="14"]` rule does.
 //
+// #52: a grip on each header cell's right edge resizes its column (a double-click fits the
+// widest cell on screen). `columnWidths` keeps what was changed, in the same base-12 units, so
+// a base size change scales a dragged width as it does a default one. Name stays the flexible
+// column: its grip sets the least it may get (never under `minimumNameWidth`), and it still
+// takes whatever room the others leave (docs/DECISIONS.md, "The table's column widths").
+//
 // Cursor and selection are two different things, as in the figure. `cursorIndex` is the
 // outlined band (`.tbl .r.cur`), the row every key acts on; the `ItemSelectionModel` is the
 // filled band (`.tbl .r.sel`); a row that is both gets `TableRow`'s single 24 % fill
@@ -394,6 +400,23 @@ Item {
 
     /// The smallest the flexible Name column is allowed to get, in spec pixels.
     property int minimumNameWidth: 160
+
+    /// #52: the widths changed from the default, `{key: width}` in spec pixels at base 12
+    /// like `columns[].width` (a base size change scales them too). A column at its default
+    /// has no entry, so a later default reaches it. Name's entry is the least it may get: it
+    /// still takes the room the others leave. Write it through `setColumnWidth()`,
+    /// `setColumnWidths()` or `resetColumnWidths()`, which keep it whole.
+    property var columnWidths: ({})
+    /// The narrowest a column other than Name can be dragged, in spec pixels: room for its
+    /// padding and a glyph or two.
+    property int minimumColumnWidth: 32
+    /// The widest any column can be dragged or fitted, in spec pixels.
+    property int maximumColumnWidth: 1200
+    /// False once a column has a width of its own.
+    readonly property bool columnWidthsAreDefault: Object.keys(root.columnWidths).length === 0
+    /// The columns palette's "default order" row puts back both (#52).
+    readonly property bool columnLayoutIsDefault: root.columnOrderIsDefault
+                                                  && root.columnWidthsAreDefault
     /// Room past the last row, so something floating over the table's bottom (the selection
     /// bar, docs/17 M9.6) never hides it: the list can always scroll it clear.
     property real bottomRoom: 0
@@ -456,11 +479,14 @@ Item {
     /// How wide the rows are: the view's width, or more when the chosen columns need it.
     readonly property int rowWidth: {
         let fixed = 0;
+        let least = Theme.space(root.minimumNameWidth);
         for (const column of root.activeColumns) {
             if (column.width > 0)
-                fixed += Theme.space(column.width);
+                fixed += Theme.space(root.widthOf(column.key));
+            else
+                least = Theme.space(root.widthOf(column.key));
         }
-        return Math.max(root.width, fixed + Theme.space(root.minimumNameWidth));
+        return Math.max(root.width, fixed + least);
     }
 
     /// `{key: {"x": px, "w": px}}` for every key in `columns`; a hidden column has `w` 0.
@@ -475,12 +501,12 @@ Item {
         let fixed = 0;
         for (const column of shown) {
             if (column.width > 0)
-                fixed += Theme.space(column.width);
+                fixed += Theme.space(root.widthOf(column.key));
         }
         const flexible = root.rowWidth - fixed;
         let x = 0;
         for (const column of shown) {
-            const w = column.width > 0 ? Theme.space(column.width) : flexible;
+            const w = column.width > 0 ? Theme.space(root.widthOf(column.key)) : flexible;
             layout[column.key] = {
                 "x": x,
                 "w": w
@@ -489,6 +515,9 @@ Item {
         }
         return layout;
     }
+
+    /// The Ratio cell's two tracks (#24 T4) side by side, as its row draws them.
+    readonly property int ratioTracksWidth: Theme.space(20) + Theme.space(2) + Theme.space(16)
 
     /// The status glyph per `stateText`, built once instead of per row (spec §1 `ST`).
     readonly property var statusGlyphs: {
@@ -603,6 +632,108 @@ Item {
         if (at < 0 || delta === 0 || to < 0 || to >= list.length)
             return false;
         return root.placeColumn(key, list[to], delta > 0);
+    }
+
+    // ---- column widths (#52) ---------------------------------------------------------------
+    /// `key`'s width in spec pixels: the one being dragged, else its own, else the default.
+    /// Name's is the least it may get (the flexible column takes more when there is room).
+    function widthOf(key: string): real {
+        if (internal.resizeKey === key)
+            return internal.resizeWidth;
+        const own = root.columnWidths[key];
+        if (own !== undefined)
+            return own;
+        return root.defaultWidthOf(key);
+    }
+
+    /// `key`'s width as `columns` declares it; Name's is `minimumNameWidth`.
+    function defaultWidthOf(key: string): real {
+        if (key === "name")
+            return root.minimumNameWidth;
+        const column = root.columns.find(other => other.key === key);
+        return column !== undefined ? column.width : 0;
+    }
+
+    /// `units` held between `key`'s least and the widest a column may be.
+    function clampWidth(key: string, units: real): real {
+        const least = key === "name" ? root.minimumNameWidth : root.minimumColumnWidth;
+        return Math.max(least, Math.min(root.maximumColumnWidth, units));
+    }
+
+    /// Spec pixels (base 12) for `px` screen pixels at the current base size.
+    function unitsOf(px: real): real {
+        return px * 1200 / Theme.space(1200);
+    }
+
+    /// Give `key` a width of `units` spec pixels, rounded and held to its limits; back at the
+    /// default it loses its entry. An unknown key changes nothing.
+    function setColumnWidth(key: string, units: real): void {
+        if (root.defaultColumnOrder.indexOf(key) < 0 || !isFinite(units))
+            return;
+        const width = Math.round(root.clampWidth(key, units));
+        const next = Object.assign({}, root.columnWidths);
+        if (width === root.defaultWidthOf(key))
+            delete next[key];
+        else
+            next[key] = width;
+        if (next[key] !== root.columnWidths[key])
+            root.columnWidths = next;
+    }
+
+    /// A saved `{key: width}` made whole: unknown keys and values that are not numbers
+    /// dropped, the rest held to their limits, defaults left out.
+    function setColumnWidths(widths: var): void {
+        const next = {};
+        if (widths !== undefined && widths !== null && typeof widths === "object") {
+            for (const key of Object.keys(widths)) {
+                const units = Number(widths[key]);
+                if (root.defaultColumnOrder.indexOf(key) < 0 || !isFinite(units) || units <= 0)
+                    continue;
+                const width = Math.round(root.clampWidth(key, units));
+                if (width !== root.defaultWidthOf(key))
+                    next[key] = width;
+            }
+        }
+        if (JSON.stringify(next) !== JSON.stringify(root.columnWidths))
+            root.columnWidths = next;
+    }
+
+    function resetColumnWidths(): void {
+        root.setColumnWidths({});
+    }
+
+    /// The columns palette's "default order": the order and the widths they came in.
+    function resetColumns(): void {
+        root.resetColumnOrder();
+        root.resetColumnWidths();
+    }
+
+    /// A double-click on `key`'s grip: as wide as its header and the widest of its cells on
+    /// screen need, so none of them elides. Rows scrolled out of view are not measured.
+    function fitColumn(key: string): void {
+        const at = root.activeColumns.findIndex(column => column.key === key);
+        if (at < 0)
+            return;
+        const cell = headerCells.itemAt(at) as TableHeader;
+        let need = cell !== null ? cell.fitWidth : 0;
+        const top = list.contentY;
+        const bottom = top + list.height;
+        const first = Math.max(0, list.indexAt(list.contentX + 1, top + 1));
+        for (let index = first; index < root.filtered.count; ++index) {
+            const row = list.itemAtIndex(index);
+            if (row === null)
+                continue;
+            if (row.y >= bottom)
+                break;
+            if (row.y + row.height <= top)
+                continue;
+            // The delegate is no named type, so its function is looked up by name.
+            const measure = "fitWidth";
+            const fit = row[measure];
+            if (typeof fit === "function")
+                need = Math.max(need, fit(key));
+        }
+        root.setColumnWidth(key, Math.ceil(root.unitsOf(Math.ceil(need))));
     }
 
     /// `ctrl+h` / `ctrl+l` and shift+wheel: scroll the rows sideways by `step` pixels.
@@ -876,6 +1007,10 @@ Item {
         property string dragKey: ""
         property real dragX: 0
         property real dragGrab: 0
+        // A grip being dragged (#52): its column, and the width it has now in spec pixels.
+        // `columnWidths` takes it on release, so a drag writes `state.json` once.
+        property string resizeKey: ""
+        property real resizeWidth: 0
         /// `{key, after, x}`: the column the drag would land beside, or null while nothing
         /// is dragged or the drop would change nothing.
         readonly property var dropTarget: {
@@ -1006,6 +1141,8 @@ Item {
         x: -list.contentX
 
         Repeater {
+            id: headerCells
+
             model: root.activeColumns
 
             delegate: TableHeader {
@@ -1016,6 +1153,7 @@ Item {
                 readonly property var box: root.columnLayout[headerCell.modelData.key]
 
                 alignRight: headerCell.modelData.align === Qt.AlignRight
+                elides: true
                 descending: root.filtered.sortOrder === Qt.DescendingOrder
                 dragging: internal.dragKey.length > 0
                 objectName: "header_" + headerCell.modelData.key
@@ -1060,6 +1198,81 @@ Item {
                     anchors.fill: parent
                     color: Theme.fill(Theme.fillSelected)
                     visible: internal.dragKey === headerCell.modelData.key
+                }
+            }
+        }
+
+        // #52: a grip across each cell's right edge, over the cells so a press there neither
+        // sorts nor moves the column. Dragging it resizes the column, a double-click fits it;
+        // nothing shows until the pointer is on it. Hidden while a column is being moved.
+        Repeater {
+            model: root.activeColumns
+
+            delegate: MouseArea {
+                id: grip
+
+                required property var modelData
+
+                readonly property string key: grip.modelData.key
+                readonly property var box: root.columnLayout[grip.key]
+                /// Where the press landed (the table's x, steady while the header scrolls)
+                /// and the column's width then, in pixels. Until the pointer goes further than
+                /// a click would, a press is a click, maybe the first of a double-click.
+                property real pressX: 0
+                property real startWidth: 0
+                property bool moved: false
+
+                function finish(keep: bool): void {
+                    if (keep && grip.moved)
+                        root.setColumnWidth(grip.key, internal.resizeWidth);
+                    if (internal.resizeKey === grip.key)
+                        internal.resizeKey = "";
+                    grip.moved = false;
+                }
+
+                cursorShape: Qt.SplitHCursor
+                height: parent.height
+                hoverEnabled: true
+                objectName: "grip_" + grip.key
+                // The cell under it hears the press too: past the drag distance its
+                // DragHandler would take the drag over and move the column instead.
+                preventStealing: true
+                visible: internal.dragKey.length === 0
+                width: Theme.space(6)
+                x: grip.box.x + grip.box.w - Math.round(grip.width / 2)
+                z: 4
+
+                onCanceled: grip.finish(false)
+                onDoubleClicked: root.fitColumn(grip.key)
+                onPositionChanged: mouse => {
+                    if (!grip.pressed)
+                        return;
+                    const along = grip.mapToItem(root, mouse.x, mouse.y).x - grip.pressX;
+                    if (!grip.moved) {
+                        if (Math.abs(along) < Application.styleHints.startDragDistance)
+                            return;
+                        grip.moved = true;
+                    }
+                    internal.resizeWidth = root.clampWidth(grip.key, root.unitsOf(
+                                                               grip.startWidth + along));
+                    internal.resizeKey = grip.key;
+                }
+                onPressed: mouse => {
+                    grip.pressX = grip.mapToItem(root, mouse.x, mouse.y).x;
+                    grip.startWidth = grip.box.w;
+                    grip.moved = false;
+                }
+                onReleased: grip.finish(true)
+
+                // On the boundary while the pointer is on it, as the split's grip shows.
+                Rectangle {
+                    anchors.centerIn: parent
+                    color: Theme.accent
+                    height: Theme.font.body
+                    objectName: "gripMark"
+                    radius: Theme.space(1)
+                    visible: grip.containsMouse || grip.pressed
+                    width: Theme.space(2)
                 }
             }
         }
@@ -1181,11 +1394,53 @@ Item {
                         return nameText.truncated ? row.name : "";
                     if (column.key === "status")
                         return statusWord.truncated ? statusWord.text : "";
-                    const at = root.textColumns.indexOf(column);
-                    const cell = at >= 0 ? optionalCells.itemAt(at) as Text : null;
+                    const cell = row.textCellOf(column.key);
                     return cell !== null && cell.truncated ? cell.text : "";
                 }
                 return "";
+            }
+
+            /// The cell of `key` when it is one plain text (Size, the speeds, an optional
+            /// column...), else null.
+            function textCellOf(key: string): Text {
+                switch (key) {
+                case "size":
+                    return sizeCell;
+                case "seedsPeers":
+                    return seedsPeersCell;
+                case "dlspeed":
+                    return dlspeedCell;
+                case "upspeed":
+                    return upspeedCell;
+                case "eta":
+                    return etaCell;
+                default:
+                    break;
+                }
+                const at = root.textColumns.findIndex(column => column.key === key);
+                return at >= 0 ? optionalCells.itemAt(at) as Text : null;
+            }
+
+            /// #52: how wide `key`'s cell must be to show all of this row's content, in pixels.
+            // `if`s, not a `switch`: Qt 6.11's compiled QML returned garbage from the path
+            // after a `switch` whose cases return and whose default breaks.
+            function fitWidth(key: string): real {
+                const pad = Theme.space(8);
+                if (key === "name")
+                    return pad + nameText.implicitWidth + nameCell.tail + pad;
+                // The line has no width of its own: 40 u of it, then the percent.
+                if (key === "progress")
+                    return pad + Theme.space(40) + pad + progressText.width + pad;
+                if (key === "status")
+                    return pad + statusGlyphText.width + Theme.space(6) + statusWord.implicitWidth
+                            + pad;
+                const cell = row.textCellOf(key);
+                if (cell === null)
+                    return 0;
+                // #24 T4: a complete row's ratio keeps its tracks and the gap before the number.
+                const tracks = key === "ratio" && row.progress >= 1 ? root.ratioTracksWidth
+                                                                      + Theme.space(6) : 0;
+                return cell.implicitWidth + tracks;
             }
 
             height: Theme.rowHeight
@@ -1275,7 +1530,10 @@ Item {
                 }
 
                 Text {
+                    id: sizeCell
+
                     color: band.textColor
+                    elide: Text.ElideRight
                     font.family: Theme.fontFamily
                     font.features: ({
                             "tnum": 1
@@ -1298,6 +1556,8 @@ Item {
                 Item {
                     id: progressCell
 
+                    // Dragged narrower than its percent (#52), the percent is cut at the edge.
+                    clip: true
                     height: parent.height
                     visible: width > 0
                     width: root.columnLayout.progress.w
@@ -1378,7 +1638,10 @@ Item {
                 }
 
                 Text {
+                    id: seedsPeersCell
+
                     color: band.textColor
+                    elide: Text.ElideRight
                     font.family: Theme.fontFamily
                     font.features: ({
                             "tnum": 1
@@ -1397,7 +1660,10 @@ Item {
                 }
 
                 Text {
+                    id: dlspeedCell
+
                     color: band.textColor
+                    elide: Text.ElideRight
                     font.family: Theme.fontFamily
                     font.features: ({
                             "tnum": 1
@@ -1416,7 +1682,10 @@ Item {
                 }
 
                 Text {
+                    id: upspeedCell
+
                     color: band.textColor
+                    elide: Text.ElideRight
                     font.family: Theme.fontFamily
                     font.features: ({
                             "tnum": 1
@@ -1435,7 +1704,10 @@ Item {
                 }
 
                 Text {
+                    id: etaCell
+
                     color: band.textColor
+                    elide: Text.ElideRight
                     font.family: Theme.fontFamily
                     font.features: ({
                             "tnum": 1

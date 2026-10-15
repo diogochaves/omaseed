@@ -20,6 +20,7 @@ TestCase {
     property Glyph glyphProbe: null
     property ListView rowsProbe: null
     property TorrentTable spare: null
+    property MouseArea gripProbe: null
 
     readonly property list<string> allColumns: ["name", "size", "progress", "status", "seedsPeers",
         "dlspeed", "upspeed", "eta"]
@@ -128,6 +129,7 @@ TestCase {
         table.clearSelection();
         table.visibleColumns = testCase.allColumns;
         table.resetColumnOrder();
+        table.resetColumnWidths();
         App.filtered.setSortByRoleName("dlspeed");
         App.filtered.sortOrder = Qt.DescendingOrder;
         table.moveCursorTo(0);
@@ -625,6 +627,225 @@ TestCase {
         compare(table.normalizedColumnOrder(withoutHash), all);
         compare(table.normalizedColumnOrder([]), all);
         compare(table.normalizedColumnOrder(undefined), all);
+    }
+
+    // ---- column widths (#52) -----------------------------------------------------------
+    function grip(key: string): MouseArea {
+        testCase.gripProbe = findChild(table, "grip_" + key);
+        verify(testCase.gripProbe, "no grip for " + key);
+        return testCase.gripProbe;
+    }
+
+    /// Drag `key`'s grip sideways by `dx` pixels, in steps, the way a hand would. The grip
+    /// follows the edge it resizes, so the pointer is placed in the table's coordinates.
+    function dragGrip(key: string, dx: real): void {
+        const handle = grip(key);
+        const at = handle.mapToItem(table, handle.width / 2, handle.height / 2);
+        mousePress(table, at.x, at.y);
+        const steps = 10;
+        for (let i = 1; i <= steps; ++i)
+            mouseMove(table, at.x + dx * i / steps, at.y);
+        mouseRelease(table, at.x + dx, at.y);
+    }
+
+    // Nothing in the header changes until the pointer is on a grip: then the resize cursor
+    // and a mark on the boundary.
+    function test_a_grip_sits_on_the_right_edge_and_shows_only_under_the_pointer() {
+        const size = header("size");
+        const handle = grip("size");
+        compare(handle.x + handle.width / 2, size.x + size.width);
+        compare(handle.cursorShape, Qt.SplitHCursor);
+        const mark = findChild(handle, "gripMark");
+        mouseMove(header("progress"), header("progress").width / 2, size.height / 2);
+        verify(!mark.visible, "the grip shows with the pointer away");
+        mouseMove(handle, handle.width / 2, handle.height / 2);
+        verify(mark.visible, "the grip does not show under the pointer");
+        mouseMove(header("progress"), header("progress").width / 2, size.height / 2);
+        verify(!mark.visible);
+    }
+
+    // A drag on the grip widens its column by as much as the pointer went; Name gives up the
+    // room. It neither sorts nor moves the column, and the width is kept in base-12 units.
+    function test_dragging_a_grip_resizes_its_column() {
+        const before = header("size").width;
+        const name = header("name").width;
+        dragGrip("size", 40);
+        verify(Math.abs(header("size").width - (before + 40)) <= 1, "Size is "
+               + header("size").width);
+        verify(Math.abs(header("name").width - (name - 40)) <= 1);
+        compare(table.columnWidths.size, Math.round(table.unitsOf(before + 40)));
+        compare(header("size").width, Theme.space(table.columnWidths.size));
+        testCase.cellProbe = findChild(table, "size_0");
+        compare(testCase.cellProbe.width, header("size").width);
+        compare(App.filtered.sortRoleName, "dlspeed", "the drag also sorted");
+        verify(table.columnOrderIsDefault, "the drag moved the column");
+        verify(!table.columnWidthsAreDefault);
+        verify(!table.columnLayoutIsDefault);
+    }
+
+    // A press that does not travel changes nothing, and a click on the grip does not sort.
+    function test_a_click_on_a_grip_changes_nothing() {
+        const handle = grip("size");
+        mouseClick(handle, handle.width / 2, handle.height / 2);
+        verify(table.columnWidthsAreDefault);
+        compare(App.filtered.sortRoleName, "dlspeed");
+    }
+
+    // Every column but Name stops at `minimumColumnWidth`; Name never goes under its own
+    // minimum, and its grip only sets the least it gets: with room it still takes the rest.
+    function test_columns_keep_their_minimum_and_name_keeps_its_own() {
+        dragGrip("size", -2000);
+        compare(header("size").width, Theme.space(table.minimumColumnWidth));
+        compare(table.columnWidths.size, table.minimumColumnWidth);
+
+        table.setColumnWidth("eta", 2);
+        compare(header("eta").width, Theme.space(table.minimumColumnWidth));
+        table.setColumnWidth("eta", 99999);
+        compare(table.columnWidths.eta, table.maximumColumnWidth);
+
+        const rest = header("name").width;
+        dragGrip("name", -2000);
+        compare(header("name").width, rest, "Name gave up room nobody else takes");
+        verify(table.columnWidths.name === undefined, "Name kept a width under its minimum");
+        table.setColumnWidth("name", 10);
+        verify(table.columnWidths.name === undefined);
+
+        // Its least past the room there is: the rows grow and scroll sideways.
+        dragGrip("name", 100);
+        verify(Math.abs(header("name").width - (rest + 100)) <= 1);
+        verify(table.rowWidth > table.width);
+        verify(findChild(table, "sideways").needed);
+    }
+
+    // Too narrow for its text, a cell elides and the hover label offers the whole of it;
+    // the header's caption elides too, instead of running into the next one.
+    function test_a_narrow_column_elides_its_cells_and_caption() {
+        table.setColumnWidth("size", table.minimumColumnWidth);
+        table.setColumnWidth("status", table.minimumColumnWidth);
+        waitForRendering(table, 250);
+        cellText("size_0");
+        verify(testCase.cellProbe.truncated, "Size did not elide at its minimum");
+        const caption = findChild(header("status"), "caption");
+        verify(caption.truncated, "the Status caption runs past its cell");
+        verify(caption.x + caption.width <= header("status").width);
+        const row = findChild(table, "row_0");
+        const box = table.columnLayout.size;
+        compare(row.elidedTextAt(box.x + 2), App.filtered.data(App.filtered.index(0, 0),
+                                                               TorrentModel.SizeTextRole));
+    }
+
+    // A double-click on a grip fits its column to the widest cell on screen and the caption,
+    // so none of them elides; it works from a narrower or a wider width alike.
+    function test_a_double_click_on_a_grip_fits_the_widest_visible_cell() {
+        for (const key of ["size", "status", "eta", "dlspeed"]) {
+            table.setColumnWidth(key, table.minimumColumnWidth);
+            waitForRendering(table, 250);
+            const handle = grip(key);
+            mouseDoubleClickSequence(handle, handle.width / 2, handle.height / 2);
+            waitForRendering(table, 250);
+            let widest = header(key).fitWidth;
+            const rows = findChild(table, "rows");
+            for (let i = 0; i < App.filtered.count; ++i) {
+                const row = findChild(table, "row_" + i);
+                if (row === null || row.y >= rows.contentY + rows.height)
+                    continue;
+                widest = Math.max(widest, row.fitWidth(key));
+                if (key === "status")
+                    continue;
+                cellText(key + "_" + i);
+                verify(!testCase.cellProbe.truncated, key + " " + i + " still elides");
+            }
+            verify(header(key).width >= widest, key + " is " + header(key).width + ", needs "
+                   + widest);
+            verify(header(key).width <= widest + Theme.space(2), key + " is wider than it needs");
+        }
+        // The status word: the widest of the demo's is "downloading" (Q17).
+        for (let i = 0; i < 8; ++i)
+            verify(!findChild(table, "status_" + i).truncated, "status " + i + " elides");
+
+        // From wider than needed, it narrows to fit.
+        table.setColumnWidth("eta", 400);
+        mouseDoubleClickSequence(grip("eta"), grip("eta").width / 2, grip("eta").height / 2);
+        verify(header("eta").width < Theme.space(400));
+    }
+
+    // #24 T4: fitted, a complete row's ratio keeps its tracks and the gap before them.
+    function test_a_fitted_ratio_keeps_its_tracks() {
+        table.visibleColumns = testCase.allColumns.concat(["ratio"]);
+        table.setColumnWidth("ratio", table.minimumColumnWidth);
+        waitForRendering(table, 250);
+        verify(!findChild(table, "ratioTracks_0").visible, "the tracks crowd a narrow ratio");
+        table.fitColumn("ratio");
+        waitForRendering(table, 250);
+        let shown = 0;
+        for (let i = 0; i < App.filtered.count; ++i) {
+            const tracks = findChild(table, "ratioTracks_" + i);
+            if (!tracks)
+                continue;
+            const complete = App.filtered.data(App.filtered.index(i, 0), TorrentModel.ProgressRole) >= 1;
+            if (!complete)
+                continue;
+            verify(tracks.visible, "row " + i + " lost its tracks");
+            cellText("ratio_" + i);
+            verify(tracks.x + tracks.width + Theme.space(6)
+                   <= testCase.cellProbe.width - testCase.cellProbe.rightPadding
+                   - testCase.cellProbe.contentWidth, "row " + i);
+            shown += 1;
+        }
+        verify(shown > 0, "no complete row to check");
+    }
+
+    // The widths are base-12 units: what a cell draws is `Theme.space()` of them, as for the
+    // defaults, so a base size change scales a dragged column with the rest.
+    function test_widths_are_kept_in_base_units() {
+        table.setColumnWidth("progress", 150);
+        compare(table.columnWidths.progress, 150);
+        compare(header("progress").width, Theme.space(150));
+        compare(table.unitsOf(Theme.space(150)), 150);
+        // Back at the default, the entry goes, so a later default reaches it.
+        table.setColumnWidth("progress", 118);
+        verify(table.columnWidthsAreDefault);
+    }
+
+    // A saved map is repaired, not trusted.
+    function test_saved_widths_are_made_whole() {
+        table.setColumnWidths({
+                                  "size": 90,
+                                  "bogus": 50,
+                                  "eta": "wide",
+                                  "status": 116,
+                                  "dlspeed": 3,
+                                  "name": 40
+                              });
+        compare(JSON.stringify(table.columnWidths), JSON.stringify({
+                                                                       "size": 90,
+                                                                       "dlspeed": table.minimumColumnWidth
+                                                                   }));
+        table.setColumnWidths(null);
+        verify(table.columnWidthsAreDefault);
+    }
+
+    // "default order" puts back both the order and the widths.
+    function test_reset_columns_puts_back_order_and_widths() {
+        table.setColumnWidth("size", 150);
+        table.moveColumn("eta", -1, null);
+        verify(!table.columnLayoutIsDefault);
+        table.resetColumns();
+        verify(table.columnOrderIsDefault);
+        verify(table.columnWidthsAreDefault);
+        compare(header("size").width, Theme.space(72));
+    }
+
+    // docs/10 §4 with a dragged column: the table scrolls, Name keeps its minimum.
+    function test_a_widened_column_in_a_narrow_table_scrolls_instead_of_squeezing() {
+        table.anchors.fill = undefined;
+        table.width = 700;
+        table.height = 400;
+        table.setColumnWidth("status", 400);
+        compare(header("name").width, Theme.space(table.minimumNameWidth));
+        compare(header("status").width, Theme.space(400));
+        verify(findChild(table, "sideways").needed);
+        table.anchors.fill = testCase;
     }
 
     // The click rules: a plain click selects only its row and is the range anchor, ctrl
