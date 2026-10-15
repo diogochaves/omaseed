@@ -426,63 +426,65 @@ void App::applyTorrentsImport(const QVariantMap &choice)
                                    ? tr("checking files: %1 of %2…").arg(done).arg(of)
                                    : tr("adding %1 of %2…").arg(done).arg(of));
         });
-    connect(import,
-            &TorrentsImport::finished,
-            this,
-            [this, import, name, total](const TorrentsImport::Outcome &o) {
-                import->deleteLater();
-                setTorrentsRunning(QString());
-                QStringList parts;
-                const int torrents = o.added + o.finished;
-                if (torrents > 0)
-                    parts.append(count(torrents, "1 torrent", "%1 torrents"));
-                if (o.magnets > 0)
-                    parts.append(count(o.magnets, "1 link", "%1 links"));
-                QString text =
-                    parts.isEmpty()
-                        ? tr("Nothing was imported into %1.").arg(name)
-                        : tr("Imported into %1: %2.").arg(name, parts.join(QStringLiteral(", ")));
-                if (o.started > 0 || o.leftStopped > 0) {
-                    QStringList state;
-                    if (o.started > 0)
-                        state.append(tr("%1 started").arg(o.started));
-                    if (o.leftStopped > 0)
-                        state.append(tr("%1 left stopped").arg(o.leftStopped));
-                    text += QLatin1Char(' ') +
-                            tr("After the check: %1.").arg(state.join(QStringLiteral(", ")));
-                }
-                if (!o.refused.isEmpty())
-                    text += QLatin1Char(' ') +
-                            tr("Kept stopped, its files not renamed: a file of the new name is "
-                               "already on disk (%1).")
-                                .arg(o.refused.join(QStringLiteral(", ")));
-                if (o.keptManual > 0)
-                    text += QLatin1Char(' ') +
-                            count(o.keptManual,
-                                  "1 torrent kept its folder by hand: automatic management "
-                                  "would move it here.",
-                                  "%1 torrents kept their folders by hand: automatic "
-                                  "management would move them here.");
-                if (o.cancelled || !o.complete) {
-                    const int done = o.added + o.magnets + o.finished;
-                    text += QLatin1Char(' ') +
-                            (o.cancelled ? tr("Stopped after %1 of %2.")
-                                         : tr("It stopped after %1 of %2."))
-                                .arg(done)
-                                .arg(total) +
-                            QLatin1Char(' ') +
-                            tr("Import the same file again to finish: what is here is kept.");
-                }
-                if (!o.errors.isEmpty())
-                    text += QLatin1Char(' ') + (o.errors.size() == 1
-                                                    ? tr("Not done: %1.").arg(o.errors.constFirst())
-                                                    : tr("Not done: %1, and %2 more.")
-                                                          .arg(o.errors.constFirst())
-                                                          .arg(o.errors.size() - 1));
-                qInfo().noquote() << QStringLiteral("torrents: %1").arg(text);
-                m_torrentsFile.reset();
-                Q_EMIT torrentsImportFinished(text, o.complete && o.errors.isEmpty());
-            });
+    connect(
+        import,
+        &TorrentsImport::finished,
+        this,
+        [this, import, name, total](const TorrentsImport::Outcome &o) {
+            import->deleteLater();
+            setTorrentsRunning(QString());
+            QStringList parts;
+            const int torrents = o.added + o.finished;
+            if (torrents > 0)
+                parts.append(count(torrents, "1 torrent", "%1 torrents"));
+            if (o.magnets > 0)
+                parts.append(count(o.magnets, "1 link", "%1 links"));
+            QString text =
+                parts.isEmpty()
+                    ? tr("Nothing was imported into %1.").arg(name)
+                    : tr("Imported into %1: %2.").arg(name, parts.join(QStringLiteral(", ")));
+            if (o.started > 0 || o.leftStopped > 0) {
+                QStringList state;
+                if (o.started > 0)
+                    state.append(tr("%1 started").arg(o.started));
+                if (o.leftStopped > 0)
+                    state.append(tr("%1 left stopped").arg(o.leftStopped));
+                text += QLatin1Char(' ') +
+                        tr("After the check: %1.").arg(state.join(QStringLiteral(", ")));
+            }
+            if (!o.refused.isEmpty())
+                text += QLatin1Char(' ') +
+                        tr("Kept stopped, its files not renamed: the rename would replace a file "
+                           "already on disk (%1).")
+                            .arg(o.refused.join(QStringLiteral(", ")));
+            if (o.keptManual > 0)
+                text += QLatin1Char(' ') +
+                        count(o.keptManual,
+                              "1 torrent kept its folder by hand: automatic management "
+                              "would move it here.",
+                              "%1 torrents kept their folders by hand: automatic "
+                              "management would move them here.");
+            if (o.cancelled || !o.complete) {
+                const int done = o.added + o.magnets + o.finished;
+                text +=
+                    QLatin1Char(' ') +
+                    (o.cancelled ? tr("Stopped after %1 of %2.") : tr("It stopped after %1 of %2."))
+                        .arg(done)
+                        .arg(total) +
+                    QLatin1Char(' ') +
+                    tr("Import the same file again to finish: what is here is kept.");
+            }
+            if (!o.errors.isEmpty())
+                text += QLatin1Char(' ') + (o.errors.size() == 1
+                                                ? tr("Not done: %1.").arg(o.errors.constFirst())
+                                                : tr("Not done: %1, and %2 more.")
+                                                      .arg(o.errors.constFirst())
+                                                      .arg(o.errors.size() - 1));
+            qInfo().noquote() << QStringLiteral("torrents: %1").arg(text);
+            m_torrentsFile.reset();
+            Q_EMIT torrentsImportFinished(text,
+                                          o.complete && o.errors.isEmpty() && o.refused.isEmpty());
+        });
     import->start(*m_torrentsFile, m_torrentsPlan, options);
 }
 

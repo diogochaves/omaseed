@@ -53,6 +53,9 @@ Sheet {
 
     function openFor(map: var): void {
         sheet.info = map;
+        // Emptied first, so a sheet opened again builds its rows afresh: a field the person
+        // typed into no longer follows its row's value.
+        sheet.rows = [];
         sheet.rows = (map.paths ?? []).map(p => ({ "from": p.from ?? "", "to": p.to ?? "", "source": p.source ?? "" }));
         sheet.check = map.check !== false;
         sheet.revision++;

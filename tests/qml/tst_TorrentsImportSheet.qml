@@ -92,6 +92,20 @@ TestCase {
         compare(sheet.choice().rows, []);
     }
 
+    // Opened again (the same file once more), the rows are the new read's, not what was typed.
+    function test_opened_again_shows_the_new_rows() {
+        const sheet = createTemporaryObject(sheetComponent, testCase);
+        const first = info();
+        first.paths = [{ "from": "/data/torrents", "to": "", "source": "" }];
+        sheet.openFor(first);
+        sheet.fieldAt(0, "to").text = "/mnt/typed";
+        compare(sheet.rows[0].to, "/mnt/typed");
+        sheet.close();
+        sheet.openFor(first);
+        compare(sheet.rows[0].to, "");
+        tryCompare(sheet.fieldAt(0, "to"), "text", "");
+    }
+
     function test_another_row_is_added_and_focused() {
         const sheet = createTemporaryObject(sheetComponent, testCase);
         sheet.openFor(info());
