@@ -1,7 +1,8 @@
 // N1 — the Files tab's server actions through App (src/ui/app/App.hpp, the "// --- N1" block
 // and setFilePriority) against the :8081 playground: a priority on one file, the "by shown
 // file order" split, a file rename and a folder rename, each read back through
-// torrents/files. QSKIPs when the playground does not answer.
+// torrents/files; and #64's guard, which refuses a name a stray file already holds on disk.
+// QSKIPs when the playground does not answer.
 //
 // It borrows tests/fixtures/multi_file_v1_unicode.torrent (three files in two nested folders),
 // added stopped under its own category and deleted with its files and category at the end.
@@ -17,9 +18,11 @@
 
 #include "LiveServer.hpp"
 
+#include <QDir>
 #include <QElapsedTimer>
 #include <QEventLoop>
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QProcessEnvironment>
@@ -88,10 +91,16 @@ private slots:
 
     void priorityRenameAndFolderRenameReachTheServer();
     void manyFilesRenameReachesTheServer();
+    void aNameAlreadyOnDiskIsNeverSent();
 
 private:
     /// torrents/files as {name: priority}, or empty on an error.
     QHash<QString, int> serverFiles();
+    /// Removes what earlier runs left of the fixture's folder on disk, when the playground
+    /// saves on this machine and no torrent of it lives there. qBittorrent's delete with files
+    /// does not always take every file the renames made, and a leftover file is one #64's
+    /// guard rightly refuses to rename onto.
+    void clearLeftovers();
 
     QTemporaryDir m_config;
     QbtClient *m_client = nullptr;
@@ -111,6 +120,7 @@ void TestAppFilesLive::initTestCase()
     m_client->setBaseUrl(url);
     // A run that failed half-way leaves the torrent behind; start from nothing.
     await(this, m_client->torrentsDelete({kHash}, /*deleteFiles=*/true));
+    clearLeftovers();
 
     QFile file(QString::fromLatin1(kFixtureFile));
     QVERIFY2(file.open(QIODevice::ReadOnly), qPrintable(file.fileName()));
@@ -132,6 +142,28 @@ void TestAppFilesLive::cleanupTestCase()
         return;
     await(this, m_client->torrentsDelete({kHash}, /*deleteFiles=*/true));
     await(this, m_client->torrentsRemoveCategories({kCategory}));
+    clearLeftovers();
+}
+
+void TestAppFilesLive::clearLeftovers()
+{
+    const QbtResult<QJsonObject> prefs = await(this, m_client->appPreferences());
+    if (prefs.isError())
+        return;
+    const QString savePath = prefs.value().value(QStringLiteral("save_path")).toString();
+    const QString folder = QDir::cleanPath(savePath + QStringLiteral("/Unicode Pack"));
+    if (!QDir::isAbsolutePath(savePath) || !QFileInfo(folder).isDir())
+        return;
+    const QbtResult<QJsonArray> torrents = await(this, m_client->torrentsInfo());
+    if (torrents.isError())
+        return;
+    for (const QJsonValue &value : torrents.value()) {
+        const QString content =
+            QDir::cleanPath(value.toObject().value(QStringLiteral("content_path")).toString());
+        if (content == folder || content.startsWith(folder + QLatin1Char('/')))
+            return;
+    }
+    QDir(folder).removeRecursively();
 }
 
 QHash<QString, int> TestAppFilesLive::serverFiles()
@@ -246,6 +278,83 @@ void TestAppFilesLive::manyFilesRenameReachesTheServer()
                  },
                  10000),
              "the numbered names never reached the server");
+
+    app.engine()->stop();
+}
+
+// #64: qBittorrent lets a rename replace a file of that name that the torrent does not own.
+// The playground saves on this machine, so App sees its disk (FreeSpaceProbe's calibration)
+// and refuses such a name before asking: a file, a folder holding a stray file, and the
+// many-files plan. The stray files are written beside the fixture's (added stopped, so its
+// own files are not on disk) and removed again. QSKIPs where this machine does not see the
+// playground's disk (inside an omabox, say).
+void TestAppFilesLive::aNameAlreadyOnDiskIsNeverSent()
+{
+    App app;
+    app.start();
+    QVERIFY(app.hasServer());
+    QVERIFY2(waitFor([&app]() { return app.torrents()->indexOfHash(kHash) >= 0; }, 10000),
+             "the fixture never reached the table");
+    app.selectTorrent(kHash);
+    TorrentFilesModel *files = app.details()->files();
+    QVERIFY2(waitFor([files]() { return files->filePaths().size() == 3; }, 10000),
+             "the Files tab never filled");
+    // Any folder but the default save path reads "local" only once the calibration holds.
+    if (!waitFor(
+            [&app]() {
+                return app.freeSpaceFor(QDir::tempPath()).value(QStringLiteral("source")) ==
+                       QStringLiteral("local");
+            },
+            10000))
+        QSKIP("this machine does not see the playground's disk");
+
+    // A file of the fixture inside a folder of its own, whatever the tests before renamed.
+    QString file;
+    for (const QString &path : files->filePaths()) {
+        if (path.count(QLatin1Char('/')) >= 2)
+            file = path;
+    }
+    QVERIFY(!file.isEmpty());
+    const QString folder = file.left(file.lastIndexOf(QLatin1Char('/')));
+    const QString parent = folder.left(folder.lastIndexOf(QLatin1Char('/')));
+    const QString strayFile =
+        app.torrentFileLocalPath(kHash, folder + QStringLiteral("/stray-64.txt"));
+    const QString strayFolder =
+        app.torrentFileLocalPath(kHash, parent + QStringLiteral("/stray-64/keep.txt"));
+    QVERIFY(QDir::isAbsolutePath(strayFile));
+    const auto write = [](const QString &path) {
+        QDir().mkpath(QFileInfo(path).path());
+        QFile out(path);
+        return out.open(QIODevice::WriteOnly) && out.write("keep me") == 7;
+    };
+    QVERIFY(write(strayFile));
+    QVERIFY(write(strayFolder));
+    const auto cleanup = qScopeGuard([&]() {
+        QFile::remove(strayFile);
+        QDir(QFileInfo(strayFolder).path()).removeRecursively();
+    });
+
+    QSignalSpy requested(&app, &App::torrentFileRenameRequested);
+    QSignalSpy failed(&app, &App::actionFailed);
+    const QHash<QString, int> before = serverFiles();
+    app.renameTorrentFile(kHash, file, QStringLiteral("stray-64.txt"), false);
+    app.renameTorrentFile(kHash, folder, QStringLiteral("stray-64"), true);
+    const QVariantMap options{{QStringLiteral("find"), QStringLiteral("^.+$")},
+                              {QStringLiteral("replace"), QStringLiteral("stray-64.txt")},
+                              {QStringLiteral("regex"), true},
+                              {QStringLiteral("includeExtension"), true}};
+    const QVariantMap plan = app.planFileRenames({file}, options);
+    QCOMPARE(plan.value(QStringLiteral("collisions")).toInt(), 1);
+    app.renameTorrentFiles(kHash, {file}, options);
+    QCOMPARE(requested.count(), 0);
+    QCOMPARE(failed.count(), 3);
+
+    // Nothing reached the server, and the stray files are as they were.
+    QTest::qWait(1500);
+    QCOMPARE(serverFiles(), before);
+    QFile kept(strayFile);
+    QVERIFY(kept.open(QIODevice::ReadOnly));
+    QCOMPARE(kept.readAll(), QByteArray("keep me"));
 
     app.engine()->stop();
 }

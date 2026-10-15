@@ -3859,6 +3859,13 @@ void App::renameTorrentFile(const QString &hash,
     const QString newPath = slash < 0 ? name : oldPath.left(slash + 1) + name;
     if (newPath == oldPath)
         return;
+    // #64: qBittorrent refuses a name another of the torrent's files has, but lets the rename
+    // replace any other file of that name.
+    const RenameDisk disk = renameDisk(hash);
+    if (folder ? disk.folderTaken(newPath) : disk.fileTaken(newPath)) {
+        Q_EMIT actionFailed(QStringLiteral("rename"), tr("%1 already exists on disk").arg(name));
+        return;
+    }
 
     Q_EMIT torrentFileRenameRequested(hash, oldPath, newPath, folder);
     if (m_demoMode) {
@@ -3945,8 +3952,10 @@ QString renameStatusText(RenameRow::Status status)
     return QStringLiteral("unchanged");
 }
 
-RenamePlan
-planFor(const TorrentFilesModel *files, const QStringList &paths, const QVariantMap &options)
+RenamePlan planFor(const TorrentFilesModel *files,
+                   const QStringList &paths,
+                   const QVariantMap &options,
+                   const RenameDisk &disk)
 {
     const QSet<QString> renamed(paths.cbegin(), paths.cend());
     QStringList others;
@@ -3954,14 +3963,42 @@ planFor(const TorrentFilesModel *files, const QStringList &paths, const QVariant
         if (!renamed.contains(path))
             others.append(path);
     }
-    return RenamePlan::make(paths, others, renameOptionsFrom(options));
+    std::function<bool(const QString &)> taken;
+    if (disk.sees())
+        taken = [&disk](const QString &path) { return disk.fileTaken(path); };
+    return RenamePlan::make(paths, others, renameOptionsFrom(options), taken);
 }
 
 } // namespace
 
+RenameDisk App::renameDisk(const QString &hash) const
+{
+    if (hash.isEmpty() || hash != m_details->hash())
+        return {};
+    const QStringList own = m_details->files()->filePaths();
+    if (own.isEmpty())
+        return {};
+    if (m_demoMode)
+        return m_demoDiskFolder.isEmpty() ? RenameDisk() : RenameDisk(m_demoDiskFolder, own);
+    if (!m_hasServer || m_engine->torrents()->indexOfHash(hash) < 0)
+        return {};
+    // The folder the file names are relative to, as the server writes it: one file's full
+    // path (TorrentFilesModel::serverPathOf, which follows the content path to a download
+    // path) less its name.
+    const Torrent &torrent = m_engine->torrents()->torrent(hash);
+    const QString first = own.first();
+    const QString server =
+        TorrentFilesModel::serverPathOf(torrent.contentPath, torrent.savePath, first);
+    if (server.size() <= first.size())
+        return {};
+    const QString local = m_freeSpace.localPathFor(server.left(server.size() - first.size() - 1));
+    return local.isEmpty() ? RenameDisk() : RenameDisk(local, own);
+}
+
 QVariantMap App::planFileRenames(const QStringList &paths, const QVariantMap &options) const
 {
-    const RenamePlan plan = planFor(m_details->files(), paths, options);
+    const RenamePlan plan =
+        planFor(m_details->files(), paths, options, renameDisk(m_details->hash()));
     QVariantList rows;
     for (const RenameRow &row : plan.rows()) {
         QVariantList marks;
@@ -3991,8 +4028,9 @@ void App::renameTorrentFiles(const QString &hash,
 {
     if (hash.isEmpty() || hash != m_details->hash())
         return;
-    // Planned again here, against the list as it is now, rather than trusting the preview.
-    const RenamePlan plan = planFor(m_details->files(), paths, options);
+    // Planned again here, against the list and the disk as they are now, rather than trusting
+    // the preview.
+    const RenamePlan plan = planFor(m_details->files(), paths, options, renameDisk(hash));
     if (!plan.canRun()) {
         Q_EMIT actionFailed(QStringLiteral("rename"), tr("the new names collide or are not valid"));
         return;

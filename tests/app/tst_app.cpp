@@ -25,8 +25,10 @@
 
 #include "LiveServer.hpp"
 
+#include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonObject>
 #include <QProcessEnvironment>
 #include <QQmlComponent>
@@ -103,6 +105,7 @@ private slots:
     void trayStateFollowsTheWorld();
     void environmentOverrideReachesThePlayground();
     void filesTabActionsRunLocallyInDemo();
+    void renamesRefuseANameAlreadyOnDisk();
     void filesWantedRemembersThePriority();
     void manyFilesRenameLocallyInDemo();
 
@@ -436,6 +439,79 @@ void TestApp::filesTabActionsRunLocallyInDemo()
     QCOMPARE(app.torrentFileLocalPath(hash, QStringLiteral("Big Buck Bunny 4K/LICENSE.txt")),
              savePath + QStringLiteral("/Big Buck Bunny 4K/LICENSE.txt"));
     QVERIFY(app.torrentFileLocalPath(QStringLiteral("nope"), QStringLiteral("a")).isEmpty());
+}
+
+// #64: qBittorrent lets a rename replace a file the torrent does not own, so App refuses a
+// new name that something already holds on disk, before anything is asked: a file, a folder
+// holding a stray file, and the many-files plan. The demo has no disk; setDemoDiskFolder gives
+// it a temporary one. Without a folder, nothing is refused (a server whose disks this machine
+// cannot see).
+void TestApp::renamesRefuseANameAlreadyOnDisk()
+{
+    App app;
+    app.startDemo(16);
+    QString hash;
+    for (int row = 0; row < app.torrents()->count(); ++row) {
+        if (roleOf(app.torrents(), row, "name").toString() ==
+            QStringLiteral("Big Buck Bunny 4K (CC-BY)"))
+            hash = roleOf(app.torrents(), row, "hash").toString();
+    }
+    QVERIFY(!hash.isEmpty());
+    app.selectTorrent(hash);
+    QVERIFY(app.details()->files()->count() > 0);
+
+    QTemporaryDir disk;
+    QVERIFY(disk.isValid());
+    const auto write = [&disk](const QString &relative) {
+        const QString path = disk.filePath(relative);
+        QDir().mkpath(QFileInfo(path).path());
+        QFile file(path);
+        return file.open(QIODevice::WriteOnly) && file.write("keep me") == 7;
+    };
+    QVERIFY(write(QStringLiteral("Big Buck Bunny 4K/notes.txt")));
+    QVERIFY(write(QStringLiteral("Big Buck Bunny 4K/extras/keep.txt")));
+    QVERIFY(QDir().mkpath(disk.filePath(QStringLiteral("Big Buck Bunny 4K/empty"))));
+    app.setDemoDiskFolder(disk.path());
+
+    QSignalSpy requested(&app, &App::torrentFileRenameRequested);
+    QSignalSpy failed(&app, &App::actionFailed);
+    const QString license = QStringLiteral("Big Buck Bunny 4K/LICENSE.txt");
+    app.renameTorrentFile(hash, license, QStringLiteral("notes.txt"), false);
+    QCOMPARE(requested.count(), 0);
+    QCOMPARE(failed.count(), 1);
+    QCOMPARE(failed.at(0).at(1).toString(), QStringLiteral("notes.txt already exists on disk"));
+    QVERIFY(app.details()->files()->rowOfPath(license) >= 0);
+
+    const QString subs = QStringLiteral("Big Buck Bunny 4K/subs");
+    app.renameTorrentFile(hash, subs, QStringLiteral("extras"), true);
+    QCOMPARE(requested.count(), 0);
+    QCOMPARE(failed.count(), 2);
+
+    // The many-files plan marks the row and will not run.
+    const QVariantMap options{{QStringLiteral("find"), QStringLiteral("LICENSE")},
+                              {QStringLiteral("replace"), QStringLiteral("notes")}};
+    QVariantMap plan = app.planFileRenames({license}, options);
+    QCOMPARE(plan.value(QStringLiteral("collisions")).toInt(), 1);
+    QCOMPARE(plan.value(QStringLiteral("canRun")).toBool(), false);
+    QSignalSpy renamed(&app, &App::torrentFilesRenamed);
+    app.renameTorrentFiles(hash, {license}, options);
+    QCOMPARE(renamed.count(), 0);
+    QCOMPARE(failed.count(), 3);
+
+    // An empty folder is free: the folder rename goes, and comes back.
+    app.renameTorrentFile(hash, subs, QStringLiteral("empty"), true);
+    QCOMPARE(requested.count(), 1);
+    app.renameTorrentFile(
+        hash, QStringLiteral("Big Buck Bunny 4K/empty"), QStringLiteral("subs"), true);
+    QCOMPARE(requested.count(), 2);
+
+    // No disk to read: as before #64.
+    app.setDemoDiskFolder(QString());
+    plan = app.planFileRenames({license}, options);
+    QCOMPARE(plan.value(QStringLiteral("canRun")).toBool(), true);
+    app.renameTorrentFile(hash, license, QStringLiteral("notes.txt"), false);
+    QCOMPARE(requested.count(), 3);
+    QCOMPARE(failed.count(), 3);
 }
 
 // #42 (docs/27 D3): the Files tab's ticks. Skipping remembers each file's priority for the

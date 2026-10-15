@@ -31,6 +31,7 @@
 #include "core/GlobalState.hpp"
 #include "core/OmaseedBackup.hpp"
 #include "core/QbtClient.hpp"
+#include "core/RenameDisk.hpp"
 #include "core/SecretStore.hpp"
 #include "core/SeedConsole.hpp"
 #include "core/SeedLedger.hpp"
@@ -1047,6 +1048,12 @@ private:
                          const QVariantList &priorities,
                          bool keepStopped,
                          int attempt = 0);
+    /// #64: what the details torrent's renames would land on, on disk. Sees nothing (and so
+    /// refuses nothing) unless `hash` is the details torrent and this machine reads the
+    /// server's disks: FreeSpaceProbe's calibration (#29), through the path map when there
+    /// is one.
+    omaseed::core::RenameDisk renameDisk(const QString &hash) const;
+    QString m_demoDiskFolder;
     /// Sends `moves[at]` of a renameTorrentFiles() run and the rest after it.
     void
     sendFileRename(const QString &hash, const QList<std::pair<QString, QString>> &moves, int at);
@@ -1230,7 +1237,10 @@ public:
     /// `o`: show the file (or folder) in the file manager.
     Q_INVOKABLE void revealTorrentFile(const QString &hash, const QString &relativePath);
     /// `r`: rename one file or folder to `newName` (a name, not a path) inside its own
-    /// folder, through torrents/renameFile or torrents/renameFolder.
+    /// folder, through torrents/renameFile or torrents/renameFolder. Where this machine sees
+    /// the server's disks, a new name that something the torrent does not own already holds
+    /// is refused before it is sent (#64): `actionFailed`, as qBittorrent's own refusal of a
+    /// name another of the torrent's files has.
     Q_INVOKABLE void renameTorrentFile(const QString &hash,
                                        const QString &oldPath,
                                        const QString &newName,
@@ -1240,7 +1250,8 @@ public:
     /// includeExtension}`. Answers `{rows: [{path, name, newName, status, marks}], error,
     /// changed, collisions, invalid, canRun}`; `status` is "unchanged", "changed", "collides"
     /// or "invalid", `marks` `[[start, length]…]` in newName. The details torrent's other
-    /// files count for collisions.
+    /// files count for collisions, and so does a file it does not own already on disk at a
+    /// new path, where this machine sees the server's disks (#64).
     Q_INVOKABLE QVariantMap planFileRenames(const QStringList &paths,
                                             const QVariantMap &options) const;
     /// Runs that plan for the details torrent: one torrents/renameFile per changed file, in
@@ -1248,6 +1259,10 @@ public:
     /// `torrentFilesRenamed`.
     Q_INVOKABLE void
     renameTorrentFiles(const QString &hash, const QStringList &paths, const QVariantMap &options);
+    /// A test seam (#64): in demo mode, the folder on this machine the details torrent's files
+    /// are read under, so the rename guard has a disk to look at. Nothing in the app calls
+    /// it; outside demo mode the folder comes from the server (renameDisk()).
+    Q_INVOKABLE void setDemoDiskFolder(const QString &folder) { m_demoDiskFolder = folder; }
     /// qBittorrent's "by shown file order": `groups` is TorrentFilesModel::shownOrderGroups(),
     /// one torrents/filePrio call per group.
     Q_INVOKABLE void setFilePriorityGroups(const QString &hash, const QVariantList &groups);
