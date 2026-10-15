@@ -25,6 +25,12 @@ Item {
     property bool clickable: true
     /// The cell takes the right button too, as `rightClicked`.
     property bool rightClickable: false
+    /// The caption elides to the cell's width instead of running past it: the torrent table,
+    /// whose columns can be dragged narrower than their captions (#52).
+    property bool elides: false
+    /// How wide the cell must be to show its whole caption and a sort chevron (#52's fit).
+    readonly property real fitWidth: 2 * Theme.space(8) + caption.implicitWidth + Theme.space(4)
+                                     + chevron.implicitWidth
 
     signal clicked
     signal rightClicked
@@ -49,15 +55,26 @@ Item {
         spacing: Theme.space(4)
 
         Text {
+            id: caption
+
             anchors.verticalCenter: parent.verticalCenter
             color: root.sorted ? Theme.foreground : Theme.dimForeground
+            elide: root.elides ? Text.ElideRight : Text.ElideNone
             font.family: Theme.fontFamily
             font.letterSpacing: root._pixelSize * 0.04
             font.pixelSize: root._pixelSize
+            objectName: "caption"
             text: root.text
+            width: root.elides ? Math.max(0, Math.min(caption.implicitWidth, root.width - 2
+                                                      * Theme.space(8) - (root.sorted
+                                                                          ? chevron.implicitWidth
+                                                                            + Theme.space(4) : 0)))
+                               : caption.implicitWidth
         }
 
         Text {
+            id: chevron
+
             anchors.verticalCenter: parent.verticalCenter
             color: Theme.foreground
             font.family: Theme.fontFamily

@@ -49,6 +49,24 @@ TestCase {
         compare(header.alignRight, true);
     }
 
+    // #52: `elides` keeps the caption inside a narrow cell; without it the caption keeps its
+    // whole width, as every other list's headers have it. `fitWidth` holds caption and chevron.
+    function test_a_caption_elides_only_when_asked() {
+        const header = createTemporaryObject(headerComponent, testCase, {
+                                                 "text": "Progress",
+                                                 "width": Theme.space(40)
+                                             });
+        const caption = findChild(header, "caption");
+        verify(!caption.truncated);
+        compare(caption.width, caption.implicitWidth);
+        header.elides = true;
+        verify(caption.truncated);
+        verify(caption.x + caption.width <= header.width);
+        header.width = header.fitWidth;
+        header.sorted = true;
+        verify(!caption.truncated, "fitWidth leaves no room for the chevron");
+    }
+
     function test_click_emits_clicked() {
         const header = createTemporaryObject(headerComponent, testCase, {
                                                  "text": "name"
