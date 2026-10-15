@@ -268,7 +268,7 @@ QVariantMap App::torrentsImportInfo()
                                 {QStringLiteral("label"), label},
                                 {QStringLiteral("verb"), verb},
                                 {QStringLiteral("count"), n},
-                                {QStringLiteral("sizeText"), size},
+                                {QStringLiteral("sizeText"), n > 0 ? size : QStringLiteral("—")},
                                 {QStringLiteral("dim"), dim}});
     };
     row(QStringLiteral("new"),

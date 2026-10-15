@@ -90,6 +90,7 @@ qt_add_qml_module(omaseed-views
         TagPalette.qml
         ThemeGallery.qml
         TorrentTable.qml
+        TorrentsImportSheet.qml
 )
 
 target_link_libraries(omaseed-views

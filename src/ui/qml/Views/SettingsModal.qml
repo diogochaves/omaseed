@@ -104,7 +104,7 @@ Item {
                                                                       "glyph": Glyphs.backup,
                                                                       "name": qsTr("Backup"),
                                                                       "shortName": qsTr("Backup"),
-                                                                      "sub": qsTr("export and import this server's settings"),
+                                                                      "sub": qsTr("export and import this server's settings and torrents"),
                                                                       "rows": []
                                                                   }])
     /// The qBittorrent group's Backup pane is on show.
@@ -140,7 +140,7 @@ Item {
     /// How many cursor rows the pane on show has. Keybindings is a read-only list in v1.
     readonly property int paneRowCount: {
         if (root.inQbtBackup)
-            return 2; // export, import (#32)
+            return 4; // settings: export, import (#32); torrents: export, import (#33)
         if (root.inQbt)
             return qbtPane.cursorCount;
         switch (root.paneIndex) {
@@ -361,8 +361,12 @@ Item {
         if (root.inQbtBackup) {
             if (root.paneCursor === 0)
                 root.exportQbt();
-            else
+            else if (root.paneCursor === 1)
                 root.chooseQbtImport();
+            else if (root.paneCursor === 2)
+                root.exportTorrents();
+            else
+                root.chooseTorrentsImport();
             return;
         }
         if (root.inQbt) {
@@ -508,6 +512,40 @@ Item {
         bodyItem.forceActiveFocus(); // back from the file dialog
         const error = App.readQbtSettings(path);
         root.backupNote = error.length > 0 ? error : qsTr("reading %1…").arg(App.serverName);
+        root.backupNoteError = error.length > 0;
+    }
+
+    /// #33, docs/24 §4: "export…" under torrents, or "stop" while an export runs.
+    function exportTorrents(): void {
+        if (App.torrentsBackupRunning === "export") {
+            App.cancelTorrentsBackup();
+            return;
+        }
+        if (!App.globalState.connected || App.torrentsBackupRunning.length > 0)
+            return;
+        const path = App.pickTorrentsExportPath();
+        if (path.length === 0)
+            return;
+        bodyItem.forceActiveFocus(); // back from the file dialog
+        root.backupNote = "";
+        App.exportTorrents(path);
+    }
+
+    /// "import…" under torrents: the portal's open dialog, then the file and the server are
+    /// read and the sheet opens on `torrentsImportRead`; "stop" while an import runs.
+    function chooseTorrentsImport(): void {
+        if (App.torrentsBackupRunning === "import") {
+            App.cancelTorrentsBackup();
+            return;
+        }
+        if (!App.globalState.connected || App.torrentsBackupRunning.length > 0)
+            return;
+        const path = App.pickTorrentsImportFile();
+        if (path.length === 0)
+            return;
+        bodyItem.forceActiveFocus(); // back from the file dialog
+        const error = App.readTorrentsImport(path);
+        root.backupNote = error;
         root.backupNoteError = error.length > 0;
     }
 
@@ -2338,14 +2376,15 @@ Item {
                             }
                         }
 
-                        // ---- qBittorrent › Backup (#32, docs/24 §4) -------------------------
-                        // The server's settings, as a file and back. Torrents (#33) will be
-                        // a second group under this one. Both rows need the server: they dim
-                        // and say so while it is not connected.
+                        // ---- qBittorrent › Backup (#32, #33, docs/24 §4) --------------------
+                        // The server's settings, as a file and back, then its torrents. Every
+                        // row needs the server: they dim and say so while it is not connected.
                         ColumnLayout {
                             id: qbtBackupPane
 
                             readonly property bool ready: App.globalState.connected && !App.qbtBackupBusy
+                            readonly property bool torrentsReady: App.globalState.connected
+                                                                  && App.torrentsBackupRunning.length === 0
 
                             anchors.left: parent.left
                             anchors.right: parent.right
@@ -2414,6 +2453,86 @@ Item {
                                     onClicked: {
                                         root.paneCursor = 1;
                                         root.chooseQbtImport();
+                                    }
+                                }
+                            }
+
+                            // ---- torrents (#33, docs/24 §4) -------------------------------
+                            // Every .torrent with what the server keeps about it, and back.
+                            // While one runs, its row says how far it got and its button
+                            // stops it.
+                            Label {
+                                Layout.topMargin: Theme.space(6)
+                                leftPadding: Theme.space(4)
+                                text: qsTr("torrents")
+                                tracked: true
+                            }
+
+                            SettingsRow {
+                                id: torrentsExportRow
+
+                                readonly property bool running: App.torrentsBackupRunning === "export"
+
+                                Layout.fillWidth: true
+                                description: running ? App.torrentsBackupProgress
+                                                     : App.globalState.connected ? App.torrentsExportSummary
+                                                                                 : qsTr("Connect to %1 to export.").arg(App.serverName)
+                                glyph: Glyphs.arrowDown
+                                hasCursor: root.area === "pane" && root.paneCursor === 2
+                                objectName: "torrentsExportRow"
+                                opacity: running || qbtBackupPane.torrentsReady ? 1 : 0.55
+                                title: qsTr("Export torrents")
+
+                                onClicked: {
+                                    root.paneCursor = 2;
+                                    root.area = "pane";
+                                    root.exportTorrents();
+                                }
+
+                                Button {
+                                    bordered: true
+                                    enabled: torrentsExportRow.running || qbtBackupPane.torrentsReady
+                                    objectName: "torrentsExportButton"
+                                    primary: !torrentsExportRow.running
+                                    text: torrentsExportRow.running ? qsTr("stop") : qsTr("export…")
+
+                                    onClicked: {
+                                        root.paneCursor = 2;
+                                        root.exportTorrents();
+                                    }
+                                }
+                            }
+
+                            SettingsRow {
+                                readonly property bool running: App.torrentsBackupRunning === "import"
+                                                                || App.torrentsBackupRunning === "read"
+
+                                Layout.fillWidth: true
+                                description: running ? App.torrentsBackupProgress
+                                                     : App.globalState.connected
+                                                       ? qsTr("Adds them, lets qBittorrent check the files on disk, then starts the complete ones. Torrents already here are skipped.")
+                                                       : qsTr("Connect to %1 to import: what is new is read against it.").arg(App.serverName)
+                                glyph: Glyphs.arrowUp
+                                hasCursor: root.area === "pane" && root.paneCursor === 3
+                                objectName: "torrentsImportRow"
+                                opacity: running || qbtBackupPane.torrentsReady ? 1 : 0.55
+                                title: qsTr("Import torrents")
+
+                                onClicked: {
+                                    root.paneCursor = 3;
+                                    root.area = "pane";
+                                    root.chooseTorrentsImport();
+                                }
+
+                                Button {
+                                    bordered: true
+                                    enabled: App.torrentsBackupRunning === "import" || qbtBackupPane.torrentsReady
+                                    objectName: "torrentsImportButton"
+                                    text: App.torrentsBackupRunning === "import" ? qsTr("stop") : qsTr("import…")
+
+                                    onClicked: {
+                                        root.paneCursor = 3;
+                                        root.chooseTorrentsImport();
                                     }
                                 }
                             }
@@ -2681,7 +2800,40 @@ Item {
             root.backupNoteError = !ok;
         }
 
+        // #33: the torrents rows' answers.
+        function onTorrentsExportFinished(text: string, ok: bool): void {
+            root.backupNote = text;
+            root.backupNoteError = !ok;
+        }
+
+        function onTorrentsImportRead(info: var): void {
+            if (info.ok !== true) {
+                root.backupNote = info.error;
+                root.backupNoteError = true;
+                return;
+            }
+            root.backupNote = "";
+            torrentsImportSheet.openFor(info);
+        }
+
+        function onTorrentsImportFinished(text: string, ok: bool): void {
+            root.backupNote = text;
+            root.backupNoteError = !ok;
+        }
+
         target: App
+    }
+
+    // #33, docs/24 §5: the torrents import sheet, over the modal like the settings one.
+    TorrentsImportSheet {
+        id: torrentsImportSheet
+
+        anchors.fill: parent
+        objectName: "torrentsImportSheet"
+        z: 1
+
+        onApplied: bodyItem.forceActiveFocus()
+        onRejected: bodyItem.forceActiveFocus()
     }
 
     // The server sheet of Fig. 9, over the modal: it takes the keyboard, so `esc` closes it

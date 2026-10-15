@@ -88,8 +88,9 @@ TestCase {
         compare(modal.paneIndex, 0);
     }
 
-    // #32, docs/24 §4: the group's Backup pane, on the server the group is about: export and
-    // import rows, the server and its version in the head, `0` to reach it.
+    // #32, #33, docs/24 §4: the group's Backup pane, on the server the group is about: export
+    // and import rows for its settings, then for its torrents, the server and its version in
+    // the head, `0` to reach it.
     function test_the_backup_pane_closes_the_group() {
         const modal = createTemporaryObject(modalComponent, testCase);
         modal.openQbt();
@@ -106,12 +107,24 @@ TestCase {
         compare(exportRow.opacity, 1);
         compare(testCase.childNamed(modal, "qbtImportRow").title, "Import settings");
         compare(testCase.childNamed(modal, "qbtHeadNote").text, "home · qBittorrent 5.2.3");
-        compare(modal.paneRowCount, 2);
+        const torrentsRow = testCase.childNamed(modal, "torrentsExportRow");
+        compare(torrentsRow.title, "Export torrents");
+        compare(torrentsRow.description, App.torrentsExportSummary);
+        verify(/^\d+ torrents with their save paths, categories, tags and limits\. The .+ of files stay where they are\./
+               .test(torrentsRow.description), torrentsRow.description);
+        compare(testCase.childNamed(modal, "torrentsExportButton").text, "export…");
+        compare(testCase.childNamed(modal, "torrentsImportRow").title, "Import torrents");
+        compare(testCase.childNamed(modal, "torrentsImportButton").text, "import…");
+        compare(modal.paneRowCount, 4);
         keyClick(Qt.Key_Tab);
         compare(modal.area, "pane");
         verify(exportRow.hasCursor);
         keyClick(Qt.Key_J);
         verify(testCase.childNamed(modal, "qbtImportRow").hasCursor);
+        keyClick(Qt.Key_J);
+        verify(torrentsRow.hasCursor);
+        keyClick(Qt.Key_J);
+        verify(testCase.childNamed(modal, "torrentsImportRow").hasCursor);
         keyClick(Qt.Key_J);
         verify(exportRow.hasCursor);
         // The footer: rows to act on, nothing to toggle or edit.
