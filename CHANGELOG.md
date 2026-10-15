@@ -34,6 +34,20 @@ before it will tag a release.
   torrent's lines; a torrent's error or failure block has "its lines in the log". The face says
   where qBittorrent's memory of its log begins and where its log file is. It is read from the
   server only while it is on screen.
+- Burst: alternative speed limits that are faster than your normal ones are called **burst**,
+  in green, with the gauge's needle up; slower ones are **turtle**, in today's yellow, and a
+  set that is faster one way and slower the other keeps "alt-speed". Nothing to set: omaseed
+  reads it from the two sets, and `A` works as before. With qBittorrent's schedule on, the
+  hero's chip says until when ("burst ↓∞ ↑∞ · until 07:00"), its tooltip says whether the
+  schedule or a hand toggle did it, and after `A` the footer says how long a hand toggle really
+  lasts (until the schedule next flips the other way, often later than you'd think). The tray,
+  the `?` sheet, the command palette, the ⋯ menu and the limits sheet use the same word, and
+  the bar widget draws burst in green with its end.
+- Settings › qBittorrent › Speed says which way your alternative set goes, has a "nights"
+  preset (`n`, 23:00 to 07:00 every day), and says under Days what the schedule will really
+  do, warning when a time past midnight makes qBittorrent read the days the other way round.
+  omaseed reads the sets and the schedule again whenever the alternative limits switch, so a
+  change made in qBittorrent's Web UI shows the next time they flip.
 
 ### Fixed
 

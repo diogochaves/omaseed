@@ -145,6 +145,59 @@ The face's keys are the Keymap's "log" area, so the `?` sheet and the command pa
 qBittorrent numbers its log from 0 again after a restart: a full update, or ids that go
 backwards, start the face over, as `ProblemLog` does.
 
+## C4 — Burst: the alternative limits named from the two sets (board 31, ruled 2026-10-15)
+
+Board [31](31-burst.html) (#62), D1–D14 as recommended:
+
+- **D1** The state is named from the two sets, never from a setting: for each direction the
+  alternative limit is compared with the normal one, 0 read as no limit (above any number).
+  At least one direction faster and none slower is **burst**; at least one slower and none
+  faster is **turtle**; anything else, and the preferences not read yet, keeps today's
+  **alt-speed** (**D2**: faster one way and slower the other is no claim either way). The word
+  never changes what `A` does or what qBittorrent stores. Someone who uses the set as the slow
+  one sees "turtle", in the same yellow, with the same limits, in the same place.
+- **D3** Burst is the theme's green; turtle and alt-speed stay yellow. **D4** The same gauge
+  glyph, its needle up to the right for burst (`Glyphs.burst`), down to the left otherwise.
+- **D5** The hero's chip prints the word, the limits and "· until 07:00" (a little fainter),
+  folding to word and end at step 2 and to the glyph at step 3; mixed or the same is today's
+  chip. Off, the glyph alone, its needle already pointing the way the set goes.
+- **D6** "until" is when the schedule ends the current state, with the day when it is more
+  than a day away ("Mon 07:00"); tooltips add "tomorrow". With the schedule off there is none.
+  A hand toggle with the schedule on lasts until the schedule next flips **the other way**:
+  qBittorrent acts only when its own reading changes, so a change that agrees with the hand is
+  silent and the one after it ends it (burst by hand at 15:00 against 23:00–07:00 lasts until
+  07:00 tomorrow). A state that differs from the schedule within 30 s of a boundary is still
+  the schedule's (qBittorrent looks every 30 s).
+- **D7** The chip's tooltip says whether the schedule or a hand set it; after `A` (or the chip,
+  or the palette), once the server has flipped and the schedule is on, the footer's note slot
+  says how long the hand toggle lasts, until the next key.
+- **D8** Settings › qBittorrent › Speed has a "nights" preset (`n`): 23:00 to 07:00 every day,
+  all four time keys at once. **D9** A plain summary under Days says what the schedule will
+  do by qBittorrent's rule, and warns in yellow when a window past midnight reads the days
+  backwards (on a day that is not picked it is on all day; diogochaves/upstream#84). A line
+  under the four limits names the set; the schedule's row title follows the word.
+- **D10** The guidance line under the alternative upload limit ("85–90 % of your real upload
+  speed") is **not shipped**: the measurement it waited for did not support it (2026-10-15, two
+  qBittorrent 5.2.3 in network namespaces behind an emulated 20 Mbit/s line with a 200 ms
+  buffer). Over TCP peers a burst at 90 % or 85 % left a parallel upload the same share as no
+  limit (about 970 against 914 KB/s of 2.5 MB/s) and the ping at about 200 ms; even 70–80 %
+  alone kept it near 130 ms. µTP peers did back off (seeding fell to about 235 KB/s), but at
+  any limit, adding about 100 ms. A percentage would promise a usable line it doesn't keep.
+- **D11** No desktop notice when the schedule switches.
+- **D12** The bar widget follows the word (green outline and line for burst, "M: burst"). The
+  app writes `alt.kind`, `alt.until` and `alt.byHand` into the status file as additions
+  within schema v2: a reader that does not know them reads today's alt-speed.
+- **D13** qBittorrent's preferences (the only place the other set and the schedule live) are
+  read again whenever the alternative limits flip, and after the limits sheet writes them, as
+  well as on connect.
+- **D14** The tray's checkbox reads "burst · until 07:00" and its icon's mark is a green disc
+  with ⏶; turtle keeps today's yellow ⏷.
+
+The server's clock is read as this computer's: the API gives no time zone, so for a server in
+another zone the time printed is right and only the day and the "by hand" guess can be off.
+The pure parts are `core/SpeedSets` and `core/AltSchedule`; `core/AltSpeed` puts them together
+for the server the app is on.
+
 ## M8 — A click leaves the keyboard focus where it was
 
 Buttons and toggles do not take the focus when clicked. Otherwise an overlay gives the focus
