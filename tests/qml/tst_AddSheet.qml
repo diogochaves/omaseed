@@ -75,6 +75,15 @@ TestCase {
     }
 
     Component {
+        id: addFinishedSpy
+
+        SignalSpy {
+            signalName: "addFinished"
+            target: App
+        }
+    }
+
+    Component {
         id: duplicateSpy
 
         SignalSpy {
@@ -128,6 +137,7 @@ TestCase {
     // The harness's own Downloads is empty (tests/qml/CMakeLists.txt): no list, and nothing
     // of the next test's is left behind.
     function cleanup() {
+        App.setDemoDiskFolder("");
         App.downloadsFolder = "";
         App.scanDownloads();
         tryVerify(() => App.downloadsTorrents.length === 0, 10000);
@@ -1100,6 +1110,57 @@ TestCase {
         keyClick(Qt.Key_Backspace);
         compare(sheet.filesTree.renameError, "");
         keyClick(Qt.Key_Escape);
+    }
+
+    // #67: a name that something the torrent will not own already has where the add saves to
+    // is refused, as the library's renames do (#64): qBittorrent would replace it. The demo
+    // has no disk, so App.setDemoDiskFolder gives it one holding a stray file in the torrent's
+    // folder.
+    function test_a_name_already_on_disk_is_refused() {
+        const root = "Blender Open Movies";
+        verify(TestFiles.write(root + "/notes on disk.txt", "keep me")); // qmllint disable unqualified
+        App.setDemoDiskFolder(TestFiles.folder()); // qmllint disable unqualified
+        const sheet = testCase.openTorrent(addSheetComponent);
+        testCase.focusRow(sheet, "README.txt");
+        keyClick("r");
+        const input = testCase.renameInput(sheet);
+        tryVerify(() => input.activeFocus, 1000);
+        input.text = "notes on disk.txt";
+        keyClick(Qt.Key_Return);
+
+        verify(sheet.filesTree.editing, "still in the field");
+        compare(sheet.filesTree.renameError, "already exists on disk");
+        const view = sheet.filesTree.view;
+        view.currentIndex = sheet.filesTree.editingRow;
+        verify(findChild(view.currentItem, "addFilesRenameError").visible);
+        compare(App.addFiles.renameList().length, 0);
+        // A name nothing holds goes through.
+        input.text = "notes.txt";
+        keyClick(Qt.Key_Return);
+        verify(!sheet.filesTree.editing);
+        compare(App.addFiles.renameList().length, 1);
+
+        // "No subfolder" puts the files straight in the save path, where that stray is not.
+        sheet.layoutChips.current = "No subfolder";
+        verify(App.addFiles.renameError(testCase.rowNamed(sheet, "notes.txt"), "notes on disk.txt").length === 0);
+        verify(TestFiles.write("loose.txt", "keep me")); // qmllint disable unqualified
+        compare(App.addFiles.renameError(testCase.rowNamed(sheet, "notes.txt"), "loose.txt"),
+                "already exists on disk");
+        sheet.layoutChips.current = "Original";
+
+        // Something put there after the rename: the add refuses rather than replace it.
+        verify(TestFiles.write(root + "/notes.txt", "keep me too")); // qmllint disable unqualified
+        const finished = createTemporaryObject(addFinishedSpy, testCase);
+        App.addTorrent(sheet.request(false));
+        compare(finished.count, 1);
+        compare(finished.signalArguments[0][0], false);
+        compare(finished.signalArguments[0][1], "notes.txt already exists on disk");
+
+        // Without a disk to read, nothing is seen: as before #67.
+        App.setDemoDiskFolder("");
+        App.addTorrent(sheet.request(false));
+        compare(finished.count, 2);
+        compare(finished.signalArguments[1][0], true);
     }
 
     function test_the_pencil_opens_the_field() {

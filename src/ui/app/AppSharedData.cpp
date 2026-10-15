@@ -146,13 +146,9 @@ QStringList App::movedByCategory(const QStringList &hashes, const QString &categ
 
 QStringList App::movedByAutoManagement(const QStringList &hashes) const
 {
-    // Where automatic management puts a torrent, as qBittorrent resolves it: the category's
-    // folder, relative ones and unset ones under the default save path (unset: the
-    // category's name), the default save path itself without a category. When that is not
+    // Where automatic management puts a torrent (autoManagedFolder()). When that is not
     // known, or the torrent is not complete (its files may sit in the incomplete folder),
     // it counts as moving.
-    const QString defaultPath =
-        withoutTrailingSlash(m_prefs->value(QStringLiteral("save_path")).toString());
     TorrentModel *model = m_engine->torrents();
     QStringList moved;
     for (const QString &hash : hashes) {
@@ -161,23 +157,29 @@ QStringList App::movedByAutoManagement(const QStringList &hashes) const
         const Torrent &torrent = model->torrent(hash);
         if (torrent.autoTmm)
             continue;
-        if (!defaultPath.isEmpty() && torrent.progress >= 1.0) {
-            QString folder = defaultPath;
-            if (!torrent.category.isEmpty()) {
-                const QString own = m_engine->categories()->savePathOf(torrent.category);
-                if (own.isEmpty())
-                    folder = defaultPath + QLatin1Char('/') + torrent.category;
-                else if (QDir::isAbsolutePath(own))
-                    folder = own;
-                else
-                    folder = defaultPath + QLatin1Char('/') + own;
-            }
-            if (withoutTrailingSlash(folder) == withoutTrailingSlash(torrent.savePath))
-                continue;
-        }
+        const QString folder = autoManagedFolder(torrent.category);
+        if (!folder.isEmpty() && torrent.progress >= 1.0 &&
+            folder == withoutTrailingSlash(torrent.savePath))
+            continue;
         moved.append(hash);
     }
     return moved;
+}
+
+QString App::autoManagedFolder(const QString &category) const
+{
+    // The category's folder; a relative one, or none (then the category's name), under the
+    // default save path; the default save path itself without a category.
+    const QString defaultPath =
+        withoutTrailingSlash(m_prefs->value(QStringLiteral("save_path")).toString());
+    if (defaultPath.isEmpty() || category.isEmpty())
+        return defaultPath;
+    const QString own = m_engine->categories()->savePathOf(category);
+    if (own.isEmpty())
+        return defaultPath + QLatin1Char('/') + category;
+    if (QDir::isAbsolutePath(own))
+        return withoutTrailingSlash(own);
+    return defaultPath + QLatin1Char('/') + withoutTrailingSlash(own);
 }
 
 void App::setAutoManagementWithCategories(const QStringList &hashes, const QVariantMap &categories)

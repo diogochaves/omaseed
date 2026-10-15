@@ -853,6 +853,11 @@ public:
     /// Shows the files of the parsed `.torrent` behind `token` in `addFiles`, every one at
     /// "normal"; empties it when the token names nothing (a magnet, a URL, a stale parse).
     Q_INVOKABLE void loadAddFiles(const QString &token);
+    /// #67: where the add sheet would put the files of the `.torrent` behind `where.token`
+    /// (`savePath`, `autoTMM`, `category`, `contentLayout`, as the add request has them), so
+    /// `addFiles` refuses a rename onto something already on disk there. Sees nothing unless
+    /// this machine reads the server's disks (#29), as the library's renames (#64).
+    Q_INVOKABLE void setAddFilesWhere(const QVariantMap &where);
 
     /// What one line of "magnet / http(s) URL / .torrent path" is, as the sheet draws it:
     ///   kind         "magnet" | "url" | "file" | "none"
@@ -1081,6 +1086,12 @@ private:
     QMetaObject::Connection m_addWatch;
     int m_nextAddableToken = 0;
     omaseed::core::AddFilesModel *m_addFiles = new omaseed::core::AddFilesModel(this);
+    /// #67: what the add sheet's renames would land on, for the add `where` describes (see
+    /// setAddFilesWhere()), and the torrent's root folder in the save path ("" without one).
+    std::pair<omaseed::core::RenameDisk, QString> addRenameDisk(const QVariantMap &where) const;
+    /// #67: the new name of the first of `request`'s file renames that something already
+    /// holds on disk, or "".
+    QString addRenameTaken(const QVariantMap &request) const;
     QVariantList m_downloadsTorrents;
     /// Each entry's `inLibrary` read again: the library moved since the scan (#20).
     void refreshDownloadsInLibrary();
@@ -1465,6 +1476,9 @@ public:
     /// refused.
     Q_INVOKABLE void setAutoManagementWithCategories(const QStringList &hashes,
                                                      const QVariantMap &categories);
+    /// The folder on the server automatic management puts a torrent of `category` in, as
+    /// qBittorrent resolves it; "" while the default save path is not known.
+    QString autoManagedFolder(const QString &category) const;
     /// Demo mode only (the QML tests, screenshots): merges `torrents` (hash → maindata keys)
     /// into the fictional library.
     Q_INVOKABLE void patchDemoTorrents(const QVariantMap &torrents);

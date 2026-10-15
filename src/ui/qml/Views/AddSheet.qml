@@ -426,6 +426,17 @@ Sheet {
     property bool _savePathEdited: false
     /// The parse whose files the picker holds, so a re-emit of the same map keeps the choices.
     property string _filesToken: ""
+    /// #67: where the add would put those files, so a rename in the tree is refused when
+    /// something not the torrent's already has that name on disk there (as #64 in the library).
+    readonly property var _filesWhere: ({
+            "token": sheet._filesToken,
+            "savePath": savePathField.text,
+            "autoTMM": sheet.autoTMM,
+            "category": categoryChips.current,
+            "contentLayout": sheet.layoutValue()
+        })
+
+    on_FilesWhereChanged: App.setAddFilesWhere(sheet._filesWhere)
 
     /// What the clipboard offers, or "" — the fake first, so a test can drive it.
     function clipboardText(): string {

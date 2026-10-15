@@ -1765,6 +1765,16 @@ void App::addTorrent(const QVariantMap &request)
         return;
     }
 
+    // #67: the sheet refused such a name when it was typed, but Save to may have changed
+    // since. qBittorrent would replace the file without a word (#64).
+    if (kind == QLatin1String("file")) {
+        const QString taken = addRenameTaken(request);
+        if (!taken.isEmpty()) {
+            Q_EMIT addFinished(false, tr("%1 already exists on disk").arg(taken), QString());
+            return;
+        }
+    }
+
     if (m_demoMode) {
         qInfo().noquote() << QStringLiteral("demo: would add %1 (%2)").arg(value, kind);
         Q_EMIT addFinished(true, QString(), hash);
@@ -2082,6 +2092,71 @@ void App::loadAddFiles(const QString &token)
         return;
     }
     m_addFiles->load(it->files);
+}
+
+std::pair<RenameDisk, QString> App::addRenameDisk(const QVariantMap &where) const
+{
+    const auto it =
+        m_pendingTorrentFiles.constFind(where.value(QStringLiteral("token")).toString());
+    if (it == m_pendingTorrentFiles.constEnd() || it->files.isEmpty())
+        return {};
+
+    // The torrent's folder in the save path, as qBittorrent lays the files out: a multi-file
+    // torrent's own folder, one named after a single file (less its extension) with
+    // "Subfolder", none with "No subfolder".
+    const QString layout = where.value(QStringLiteral("contentLayout")).toString();
+    QString root;
+    if (layout != QLatin1String("NoSubfolder")) {
+        if (it->multiFile) {
+            root = it->name;
+        } else if (layout == QLatin1String("Subfolder")) {
+            const qsizetype dot = it->name.lastIndexOf(QLatin1Char('.'));
+            root = dot > 0 ? it->name.left(dot) : it->name;
+        }
+    }
+    QStringList own;
+    own.reserve(it->files.size());
+    for (const TorrentFileEntry &file : it->files)
+        own.append(root.isEmpty() ? file.path : root + QLatin1Char('/') + file.path);
+
+    if (m_demoMode)
+        return {m_demoDiskFolder.isEmpty() ? RenameDisk() : RenameDisk(m_demoDiskFolder, own),
+                root};
+    // Where the add saves to: the category's folder under automatic management, else Save
+    // to, else the server's default.
+    QString server = where.value(QStringLiteral("autoTMM")).toBool()
+                         ? autoManagedFolder(where.value(QStringLiteral("category")).toString())
+                         : where.value(QStringLiteral("savePath")).toString();
+    if (server.isEmpty())
+        server = autoManagedFolder(QString());
+    const QString local = server.isEmpty() ? QString() : m_freeSpace.localPathFor(server);
+    return {local.isEmpty() ? RenameDisk() : RenameDisk(local, own), root};
+}
+
+void App::setAddFilesWhere(const QVariantMap &where)
+{
+    const auto [disk, root] = addRenameDisk(where);
+    m_addFiles->setRenameDisk(disk, root);
+}
+
+QString App::addRenameTaken(const QVariantMap &request) const
+{
+    const QVariantList renames = request.value(QStringLiteral("fileRenames")).toList();
+    if (renames.isEmpty())
+        return {};
+    const auto [disk, root] = addRenameDisk(request);
+    if (!disk.sees())
+        return {};
+    for (const QVariant &value : renames) {
+        const QVariantMap rename = value.toMap();
+        const QString to = rename.value(QStringLiteral("to")).toString();
+        const QString onDisk = root.isEmpty() ? to : root + QLatin1Char('/') + to;
+        const bool folder =
+            rename.value(QStringLiteral("kind")).toString() == QLatin1String("folder");
+        if (folder ? disk.folderTaken(onDisk) : disk.fileTaken(onDisk))
+            return to.section(QLatin1Char('/'), -1);
+    }
+    return {};
 }
 
 void App::watchForAddedHash(const QString &hash)

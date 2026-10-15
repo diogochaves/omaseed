@@ -24,6 +24,8 @@ before it will tag a release.
   qBittorrent only checks the torrent's own files and lets the rename overwrite anything else,
   so where omaseed can see the server's disk (a local server, or a mapped path) it refuses such
   a name first: the rename sheet marks the row, `r` says the name already exists on disk.
+  The add sheet checks its file renames the same way against where the torrent will be saved,
+  and refuses the add if something took the name since.
 
 ## v0.2.0 — 2026-10-13
 
