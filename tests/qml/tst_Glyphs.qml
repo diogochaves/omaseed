@@ -6,7 +6,7 @@ TestCase {
     name: "Glyphs"
 
     function test_every_glyph_is_one_non_empty_string() {
-        const names = ["mark", "arrowDown", "arrowUp", "add", "altSpeed", "settings", "help",
+        const names = ["mark", "arrowDown", "arrowUp", "add", "altSpeed", "burst", "settings", "help",
                        "search", "folder", "trayIdle", "trayDownloading", "trayAltSpeed",
                        "trayError", "trayDisconnected", "statusAll", "statusDownloading",
                        "statusSeeding", "statusCompleted", "statusStopped", "statusActive",

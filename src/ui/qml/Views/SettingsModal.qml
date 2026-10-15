@@ -1772,6 +1772,7 @@ Item {
                             HelpSheet {
                                 id: keysBody
 
+                                altKind: App.altSpeed.kind
                                 anchors.left: parent.left
                                 anchors.right: parent.right
                                 anchors.top: keysNote.bottom

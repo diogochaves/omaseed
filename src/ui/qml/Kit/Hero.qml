@@ -75,6 +75,16 @@ Item {
     /// The same limits in short form ("1.00M"), for the chip from step 1.
     property string altDownLimitShort: root.altDownLimit
     property string altUpLimitShort: root.altUpLimit
+    /// docs/31 (DECISIONS.md C4): which way the alternative set goes, "burst", "turtle" or
+    /// "alt" (mixed, the same, or not known). Burst and turtle put their word before the
+    /// limits; burst is green with the needle up. "alt" is today's chip.
+    property string altKind: "alt"
+    /// When the schedule ends the alternative limits ("07:00", "Mon 07:00"); "" for no end.
+    property string altUntil: ""
+    /// The chip's tooltip; "" for today's ("alt-speed on · A").
+    property string altTooltip: ""
+    /// Burst or turtle: the chip leads with its word.
+    readonly property bool altNamed: root.altKind === "burst" || root.altKind === "turtle"
     property string downSpeed: "—"
     /// The speeds in their short form ("4.21M"), printed on step 4 (docs/15 Q1 A).
     property string downSpeedShort: root.downSpeed
@@ -152,8 +162,9 @@ Item {
                                                       ? Theme.space(6) + networkLabel.implicitWidth
                                                       : 0));
         const altWidth = step >= 3 ? measureAltGlyph.implicitWidth
-                                   : step >= 1 ? measureAltShort.implicitWidth
-                                               : measureAltFull.implicitWidth;
+                                   : step >= 2 ? measureAltWord.implicitWidth
+                                               : step >= 1 ? measureAltShort.implicitWidth
+                                                           : measureAltFull.implicitWidth;
         const searchWidth = step >= 3 ? addButton.implicitWidth : Theme.space([220, 180, 140][step]);
         // mark, identity (or the dot), two spacers, two speeds, search, alt-speed, buttons:
         // nine items and eight spacings; the chips bring their own (`_chipsWidth`).
@@ -189,14 +200,27 @@ Item {
     property bool searchOpen: false
     readonly property bool searchFolded: root.level >= 3 && !root.searchOpen
     /// The alt-speed chip's words for the current step: "" leaves the glyph alone.
-    readonly property string altChipText: {
-        if (root.level >= 3)
+    readonly property string altChipText: root._altText(root.level)
+    /// What follows them, a little fainter: "· until 07:00" (docs/31 D5).
+    readonly property string altChipSuffix: root._altSuffix(root.level)
+
+    /// The chip's words at `step` (docs/31 H1–H4). Off, the glyph alone at every step; the
+    /// tooltip names it (manual box M14). Burst and turtle lead with their word, which keeps
+    /// only itself from step 2; mixed or the same is today's chip, limits only.
+    function _altText(step: int): string {
+        if (step >= 3 || !root.altSpeedActive)
             return "";
-        // Off, the glyph alone at every step; the tooltip names it (manual box M14).
-        if (!root.altSpeedActive)
+        const limits = step >= 1 ? qsTr("↓%1 ↑%2").arg(root.altDownLimitShort).arg(root.altUpLimitShort)
+                                 : qsTr("↓%1 ↑%2").arg(root.altDownLimit).arg(root.altUpLimit);
+        if (!root.altNamed)
+            return limits;
+        return step >= 2 ? root.altKind : root.altKind + " " + limits;
+    }
+
+    function _altSuffix(step: int): string {
+        if (step >= 3 || !root.altSpeedActive || !root.altNamed || root.altUntil.length === 0)
             return "";
-        return root.level >= 1 ? qsTr("↓%1 ↑%2").arg(root.altDownLimitShort).arg(root.altUpLimitShort)
-                               : qsTr("↓%1 ↑%2").arg(root.altDownLimit).arg(root.altUpLimit);
+        return qsTr("· until %1").arg(root.altUntil);
     }
 
     /// `/`: focus the filter, opening it first when it is folded into its button. While the
@@ -727,15 +751,22 @@ Item {
         // while it throttles prints the limits in the warning role, so the state reads from
         // across the room (docs/08 §3; Fig. 1 had the `⏷` glyph, which read as a dropdown).
         // `A` still toggles it.
+        // docs/31: burst is green with its needle up to the right; turtle and plain
+        // alt-speed keep the yellow and today's needle. Off, the needle already points the way
+        // the set goes.
         Chip {
             id: altChip
 
             Layout.alignment: Qt.AlignVCenter
-            glyph: Glyphs.altSpeed
+            glyph: root.altKind === "burst" ? Glyphs.burst : Glyphs.altSpeed
+            suffix: root.altChipSuffix
             text: root.altChipText
-            tooltip: root.altSpeedActive ? qsTr("alt-speed on · A") : qsTr("alt-speed · A")
+            tooltip: root.altTooltip.length > 0 ? root.altTooltip
+                                                : root.altSpeedActive ? qsTr("alt-speed on · A")
+                                                                      : qsTr("alt-speed · A")
             visible: !(root.level >= 3 && root.searchOpen)
             warn: root.altSpeedActive
+            warnColor: root.altKind === "burst" ? Theme.green : Theme.yellow
 
             onClicked: root.altSpeedClicked()
         }
@@ -829,16 +860,24 @@ Item {
             id: measureAltFull
 
             glyph: Glyphs.altSpeed
-            text: root.altSpeedActive ? qsTr("↓%1 ↑%2").arg(root.altDownLimit).arg(root.altUpLimit)
-                                      : ""
+            suffix: root._altSuffix(0)
+            text: root._altText(0)
         }
 
         Chip {
             id: measureAltShort
 
             glyph: Glyphs.altSpeed
-            text: root.altSpeedActive ? qsTr("↓%1 ↑%2").arg(root.altDownLimitShort).arg(
-                                            root.altUpLimitShort) : ""
+            suffix: root._altSuffix(1)
+            text: root._altText(1)
+        }
+
+        Chip {
+            id: measureAltWord
+
+            glyph: Glyphs.altSpeed
+            suffix: root._altSuffix(2)
+            text: root._altText(2)
         }
 
         Chip {

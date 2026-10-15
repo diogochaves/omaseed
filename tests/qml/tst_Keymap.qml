@@ -193,6 +193,35 @@ TestCase {
         return rows.find(row => row.action === action) || null;
     }
 
+    // docs/31 S1: A's line follows the word; mixed, the same or not known keep today's, and
+    // every one still says "alternative", so a search for "alt" finds it.
+    function test_the_alt_speed_rows_follow_the_set() {
+        const line = kind => Keymap.helpRows("app", kind).find(row => row.action === "altSpeed");
+        compare(line("burst").about, "Burst: switch to your alternative limits, the faster ones");
+        compare(line("burst").help, "burst");
+        compare(line("turtle").about, "Turtle: switch to your alternative limits, the slower ones");
+        compare(line("alt").about, "Toggle the alternative speed limits");
+        compare(line(undefined).help, "alt-speed");
+        for (const kind of ["burst", "turtle", "alt"])
+            verify(line(kind).about.includes("alternative"), kind);
+        // The table itself is not touched.
+        compare(Keymap.find("global", "A").help, "alt-speed");
+
+        const rows = kind => Keymap.commandRows(testCase._context({
+                                                                       "altKind": kind
+                                                                   }));
+        compare(testCase._row(rows("burst"), "altSpeed").title, "burst on");
+        compare(testCase._row(rows("burst"), "altLimits").title, "burst limits…");
+        compare(testCase._row(rows("turtle"), "altSpeed").title, "turtle on");
+        compare(testCase._row(rows("alt"), "altSpeed").title, "alt-speed on");
+        compare(testCase._row(rows("alt"), "altLimits").title, "alt-speed limits…");
+        const on = testCase._context({
+                                         "altKind": "burst"
+                                     });
+        on.states.altSpeed = true;
+        compare(testCase._row(Keymap.commandRows(on), "altSpeed").title, "burst off");
+    }
+
     function test_the_palette_has_a_key_and_a_help_row() {
         compare(Keymap.find("global", ":").action, "commands");
         compare(Keymap.find("global", "ctrl+shift+p").action, "commands");

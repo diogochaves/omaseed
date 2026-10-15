@@ -13,6 +13,8 @@ Menu {
     property bool railHidden: false
     /// docs/10 §2: the hero is too narrow for its gear and `?`, so they lead the menu.
     property bool appRows: false
+    /// docs/31: the alternative set's kind, "burst", "turtle" or "alt"; its row follows it.
+    property string altKind: "alt"
 
     readonly property var _appRows: [
         {
@@ -55,8 +57,10 @@ Menu {
             "action": "globalLimits"
         },
         {
-            "text": qsTr("alt-speed limits…"),
-            "glyph": Glyphs.altSpeed,
+            "text": root.altKind === "burst" ? qsTr("burst limits…") : root.altKind === "turtle"
+                                                                         ? qsTr("turtle limits…")
+                                                                         : qsTr("alt-speed limits…"),
+            "glyph": root.altKind === "burst" ? Glyphs.burst : Glyphs.altSpeed,
             "action": "altLimits"
         },
         {

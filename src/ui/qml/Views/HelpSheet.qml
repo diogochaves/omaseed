@@ -26,13 +26,15 @@ FocusScope {
     signal runRequested(string action)
 
     readonly property alias filterField: filterField
+    /// docs/31 S1: A's line follows the alternative set, "burst", "turtle" or "alt".
+    property string altKind: "alt"
     readonly property string query: filterField.text.trim().toLowerCase()
     /// The sections that still have rows, each `{key, title, about, rows}`.
     readonly property var sections: Keymap.columns.map(column => ({
                                                                       "key": column,
                                                                       "title": Keymap.columnTitles[column],
                                                                       "about": Keymap.columnAbout[column],
-                                                                      "rows": Keymap.helpRows(column).filter(
+                                                                      "rows": Keymap.helpRows(column, root.altKind).filter(
                                                                                   row => root.matches(row))
                                                                   })).filter(section => section.rows.length > 0)
     /// Every row still shown, in reading order (left column first).

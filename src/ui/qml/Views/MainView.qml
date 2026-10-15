@@ -874,7 +874,7 @@ Item {
             break;
         case Qt.Key_A:
             if (shift)
-                App.toggleAltSpeed();
+                root.toggleAltSpeed();
             else
                 App.addRequested();
             break;
@@ -1015,7 +1015,7 @@ Item {
             split.resizeBy(Theme.space(40));
         },
         // speed
-        "altSpeed": () => App.toggleAltSpeed(),
+        "altSpeed": () => root.toggleAltSpeed(),
         "globalLimits": () => globalLimitsSheet.openFor(false),
         "altLimits": () => globalLimitsSheet.openFor(true),
         // app
@@ -1128,6 +1128,7 @@ Item {
             "row": row,
             "rowIsFolder": rowIsFolder,
             "serverLost": root.serverLost,
+            "altKind": App.altSpeed.kind,
             "recent": App.recentCommands(),
             "states": {
                 "detailsShown": !details.collapsed,
@@ -1478,6 +1479,10 @@ Item {
         altDownLimitShort: App.limitShortText(App.globalState.dlRateLimit)
         altUpLimitShort: App.limitShortText(App.globalState.upRateLimit)
         altSpeedActive: App.globalState.useAltSpeedLimits
+        // docs/31: burst, turtle or today's alt-speed, until when, and how it came about.
+        altKind: App.altSpeed.kind
+        altTooltip: App.altSpeed.chipTooltip
+        altUntil: App.altSpeed.untilText
         altUpLimit: App.globalState.upRateLimitText
         appName: qsTr("omaseed")
         connected: !root.serverLost
@@ -1543,7 +1548,7 @@ Item {
         onViewSelected: key => root.setView(key)
         onUpClicked: root.setView("seed")
         onAddClicked: App.addRequested()
-        onAltSpeedClicked: App.toggleAltSpeed()
+        onAltSpeedClicked: root.toggleAltSpeed()
         onHelpClicked: root.helpOpen = true
         onFilterChipCleared: key => root.clearOneFilter(key)
         onFiltersClicked: root.openFilterMenu()
@@ -2052,12 +2057,24 @@ Item {
             // The note sits in the footer's own line, after the facts (docs/DECISIONS.md M16): it
             // used to float above the footer and covered whatever was there, the details
             // pane's first column included. The hints after it drop what no longer fits.
+            // docs/31 F1: the note after A leads with the set's mark, ▲ for burst in green and
+            // ▼ for turtle in yellow, and reads in the foreground.
+            Label {
+                Layout.alignment: Qt.AlignVCenter
+                color: root.footerNoteMark === "▲" ? Theme.green : Theme.yellow
+                objectName: "footerNoteMark"
+                size: "caption"
+                text: root.footerNoteMark
+                visible: root.footerNote.length > 0 && root.footerNoteMark.length > 0
+            }
+
             Label {
                 id: footerNoteText
 
                 Layout.alignment: Qt.AlignVCenter
                 // docs/32 N1: a failure the log told of is yellow, as its block is.
-                color: root.footerNoteWarn ? Theme.yellow : Theme.accent
+                color: root.footerNoteWarn ? Theme.yellow : root.footerNoteSticky ? Theme.foreground
+                                                                                  : Theme.accent
                 objectName: "footerNote"
                 size: "small"
                 text: root.footerNote
@@ -2165,6 +2182,7 @@ Item {
             id: helpSheet
 
             Layout.fillWidth: true
+            altKind: App.altSpeed.kind
 
             onCloseRequested: root.helpOpen = false
             onRunRequested: action => {
@@ -2187,12 +2205,81 @@ Item {
     property bool footerNoteHint: false
     readonly property int _footerNoteSeconds: 5
 
+    /// docs/31 F1: the note after A stays until the next key, not for a few seconds.
+    property bool footerNoteSticky: false
+    /// The set's mark before the note after A ("▲", "▼"), "" for none.
+    property string footerNoteMark: ""
+
     /// `y`/`Y`'s "copied", and (through `Connections` below) `App.actionFailed`.
     function flashFooterNote(text: string): void {
         root.footerNoteWarn = false;
         root.footerNoteHint = false;
+        root.footerNoteSticky = false;
+        root.footerNoteMark = "";
         root.footerNote = text;
         footerNoteTimer.restart();
+    }
+
+    // --- docs/31 D7: A, and the footer's note after it ---
+    // With the schedule on, a hand toggle lasts until the schedule next flips the other way,
+    // which is later than most people expect. Once the server has flipped, the footer says
+    // so in its note slot (M16) until the next key: "burst on by hand · the schedule ends it
+    // at 07:00 tomorrow". With the schedule off there is nothing to add.
+
+    /// The state A asked to leave, while its flip has not come back yet; null otherwise.
+    property var _altFlipFrom: null
+
+    /// A, the hero's chip and the palette's row.
+    function toggleAltSpeed(): void {
+        root._altFlipFrom = App.globalState.useAltSpeedLimits === true;
+        altFlipTimer.restart();
+        App.toggleAltSpeed();
+    }
+
+    function _altFlipped(): void {
+        if (root._altFlipFrom === null || App.altSpeed.on === root._altFlipFrom)
+            return;
+        root._altFlipFrom = null;
+        altFlipTimer.stop();
+        const note = App.altSpeed.footerNote;
+        if (note.length === 0)
+            return;
+        root.flashFooterNote(note);
+        footerNoteTimer.stop();
+        root.footerNoteSticky = true;
+        root.footerNoteMark = App.altSpeed.kind === "burst" ? "▲" : App.altSpeed.kind === "turtle"
+                                                                    ? "▼" : "";
+    }
+
+    Connections {
+        function onChanged(): void {
+            root._altFlipped();
+            // A flip from elsewhere (the schedule, the bar, the tray) makes the note stale.
+            if (root.footerNoteSticky && root._altFlipFrom === null
+                    && App.altSpeed.footerNote.length === 0)
+                root.footerNote = "";
+        }
+
+        target: App.altSpeed
+    }
+
+    // A toggle the server never answered (a refusal, a lost server) leaves no note behind.
+    Timer {
+        id: altFlipTimer
+
+        interval: 15000
+
+        onTriggered: root._altFlipFrom = null
+    }
+
+    // The next key takes the note away.
+    KeyWatch {
+        enabled: root.footerNoteSticky && root.footerNote.length > 0
+
+        onKeyPressed: {
+            root.footerNote = "";
+            root.footerNoteSticky = false;
+        }
     }
 
     /// docs/32 N1 (`App.loggedFailure`): a move, rename or delete omaseed asked for didn't
@@ -2216,6 +2303,7 @@ Item {
 
         anchors.fill: parent
         // docs/10 §2: once the hero is too narrow for them, settings and help are here.
+        altKind: App.altSpeed.kind
         appRows: hero.compact
         railHidden: App.railHidden
         z: 9

@@ -34,11 +34,14 @@ Sheet {
             "primary": true
         }
     ]
-    glyph: root.alt ? Glyphs.altSpeed : Glyphs.limits
+    /// docs/31: the alternative pair is named for the way it goes, burst, turtle or alt-speed.
+    readonly property string altWord: App.altSpeed.word
+    glyph: root.alt ? (App.altSpeed.kind === "burst" ? Glyphs.burst : Glyphs.altSpeed) : Glyphs.limits
     sheetWidth: Theme.space(460)
-    subtitle: !root.loaded ? qsTr("reading the server…") : root.alt ? qsTr("used while alt-speed is on · A switches it")
+    subtitle: !root.loaded ? qsTr("reading the server…") : root.alt ? qsTr("used while %1 is on · A switches it").arg(root.altWord)
                                                                     : qsTr("the server's global limits")
-    title: root.alt ? qsTr("Alt-speed limits") : qsTr("Speed limits")
+    title: root.alt ? qsTr("%1 limits").arg(root.altWord.charAt(0).toUpperCase() + root.altWord.slice(1))
+                    : qsTr("Speed limits")
 
     /// Opens with the caret in the normal pair, or in the alternative pair when `alt`.
     function openFor(alt: bool): void {

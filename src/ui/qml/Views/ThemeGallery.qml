@@ -284,6 +284,10 @@ Window {
                                     "glyph": Glyphs.altSpeed
                                 },
                                 {
+                                    "name": "burst",
+                                    "glyph": Glyphs.burst
+                                },
+                                {
                                     "name": "settings",
                                     "glyph": Glyphs.settings
                                 },

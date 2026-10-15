@@ -13,6 +13,8 @@ qt_add_qml_module(omaseed-kit
     SOURCES
         BackButtonEscape.cpp
         BackButtonEscape.hpp
+        KeyWatch.cpp
+        KeyWatch.hpp
         RatioDots.cpp
         RatioDots.hpp
         ThemeForeign.hpp

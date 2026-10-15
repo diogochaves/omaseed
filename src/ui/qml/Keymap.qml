@@ -2145,7 +2145,8 @@ QtObject {
     /// "peers" | "webseeds" | "console" | "log", selected: 2, cursor: "<the cursor torrent's name>",
     /// stopped: 0, running: 2 (of the targets), firstStopped: false (`p` starts),
     /// marked: 3, row: "<the focused tab's cursor row>", rowIsFolder: false,
-    /// serverLost: false, recent: ["stop", …], states: {detailsShown, railShown,
+    /// serverLost: false, recent: ["stop", …], altKind: "burst" (docs/31, A's words),
+    /// states: {detailsShown, railShown,
     /// consoleShown, consoleScoped, logShown, logFollowing, logNormal, logInfo, logWarning,
     /// logCritical, altSpeed, placement, hideSkipped, seqDl, firstLast, superSeeding,
     /// autoTmm}}`. On the log face `area` is "log", `marked` its marked lines and `row` the
@@ -2160,9 +2161,10 @@ QtObject {
             if (group.area !== undefined && group.area !== ctx.area)
                 continue;
             for (const action of group.actions) {
-                const entry = root.commandEntry(group.group, action);
-                if (entry === null)
+                const found = root.commandEntry(group.group, action);
+                if (found === null)
                     continue;
+                const entry = root.worded(found, ctx.altKind);
                 const row = root._commandRow(entry, group, ctx);
                 if (row.disabled)
                     off.push(row);
@@ -2188,9 +2190,53 @@ QtObject {
         return global ? global.label : key;
     }
 
-    /// The rows of one help-sheet column, in Fig. 26's order.
-    function helpRows(column) {
+    /// The rows of one help-sheet column, in Fig. 26's order. `altKind` ("burst", "turtle",
+    /// "alt") words A's row for the way the alternative set goes (docs/31 S1).
+    function helpRows(column, altKind) {
         return root.entries.filter(entry => entry.column === column).sort((a, b) => a.rank
-                                                                                    - b.rank);
+                                                                                    - b.rank).map(
+                    entry => root.worded(entry, altKind));
+    }
+
+    /// docs/31 (DECISIONS.md C4): the alternative limits' entries say "burst" or "turtle"
+    /// when the set goes one way; mixed, the same or not known keep today's words. The `?`
+    /// sheet's line still says "alternative", so a search for "alt" finds it either way.
+    function altWords(altKind) {
+        if (altKind === "burst")
+            return {
+                "help": qsTr("burst"),
+                "about": qsTr("Burst: switch to your alternative limits, the faster ones"),
+                "title": qsTr("burst on"),
+                "titleOn": qsTr("burst off"),
+                "limitsTitle": qsTr("burst limits…")
+            };
+        if (altKind === "turtle")
+            return {
+                "help": qsTr("turtle"),
+                "about": qsTr("Turtle: switch to your alternative limits, the slower ones"),
+                "title": qsTr("turtle on"),
+                "titleOn": qsTr("turtle off"),
+                "limitsTitle": qsTr("turtle limits…")
+            };
+        return null;
+    }
+
+    /// `entry` with its words for `altKind`: A's row and the alternative limits' row.
+    function worded(entry, altKind) {
+        const words = root.altWords(altKind);
+        if (words === null)
+            return entry;
+        if (entry.action === "altSpeed")
+            return Object.assign({}, entry, {
+                                     "help": words.help,
+                                     "about": words.about,
+                                     "title": words.title,
+                                     "titleOn": words.titleOn
+                                 });
+        if (entry.action === "altLimits")
+            return Object.assign({}, entry, {
+                                     "title": words.limitsTitle
+                                 });
+        return entry;
     }
 }

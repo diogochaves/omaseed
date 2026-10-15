@@ -196,4 +196,30 @@ TestCase {
         chip.selected = true;
         compare(chip.border.width, 1);
     }
+
+    // docs/31 D3, D5: the hero's burst warns in green, and "until" follows the limits a
+    // little fainter, in the same colour.
+    function test_a_warning_chip_takes_its_colour_and_a_suffix() {
+        const chip = createTemporaryObject(chipComponent, testCase, {
+                                               "text": "burst ↓∞ ↑∞",
+                                               "suffix": "· until 07:00",
+                                               "warn": true,
+                                               "warnColor": Theme.green
+                                           });
+        compare(chip.border.color, Theme.green);
+        const label = findChild(chip, "chipLabel");
+        const suffix = findChild(chip, "chipSuffix");
+        compare(label.color, Theme.green);
+        compare(suffix.color, Theme.green);
+        verify(suffix.visible);
+        verify(suffix.opacity < 1);
+        compare(chip.Accessible.name, "burst ↓∞ ↑∞ · until 07:00");
+        // Without a suffix nothing is drawn after the text, and warn is yellow by default.
+        const plain = createTemporaryObject(chipComponent, testCase, {
+                                                "text": "↓10 KB/s ↑∞",
+                                                "warn": true
+                                            });
+        verify(!findChild(plain, "chipSuffix").visible);
+        compare(plain.border.color, Theme.yellow);
+    }
 }

@@ -24,6 +24,8 @@ QtObject {
     // ---- hero actions, spec §1 `.acts` ----------------------------------------------
     readonly property string add: "+"
     readonly property string altSpeed: "icon:altSpeed" // spec §1 `.btn.icon` alt-speed
+    // docs/31 D4: the same gauge with its needle up to the right, for a burst set.
+    readonly property string burst: "icon:burst"
     readonly property string settings: "icon:gear"
     readonly property string help: "?"
     readonly property string commands: ":" // docs/30: the command palette's query row and ⋯ row

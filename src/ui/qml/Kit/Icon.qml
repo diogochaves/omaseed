@@ -36,6 +36,11 @@ Item {
                                            "stroke": "M4.2 17.5 A8.6 8.6 0 1 1 19.8 17.5 M12 14.2 L7.2 10.4",
                                            "fill": ""
                                        },
+                                       // docs/31 D4: altSpeed's gauge, the needle up to the right.
+                                       "burst": {
+                                           "stroke": "M4.2 17.5 A8.6 8.6 0 1 1 19.8 17.5 M12 14.2 L16.8 10.4",
+                                           "fill": ""
+                                       },
                                        "jump": {
                                            "stroke": "M16.5 10.5 A6 6 0 1 1 4.5 10.5 A6 6 0 1 1 16.5 10.5 Z M15 15 L20 20",
                                            "fill": ""

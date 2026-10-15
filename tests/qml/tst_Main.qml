@@ -243,6 +243,54 @@ TestCase {
         view.footerNote = "";
     }
 
+    // docs/31 F1 (D7): with the schedule on, a hand toggle is said in the footer's note slot
+    // once the server has flipped, in the foreground with the set's mark, until the next key.
+    function test_the_note_after_A_says_how_long_a_hand_toggle_lasts() {
+        const prefs = App.serverPrefs;
+        const keys = ["scheduler_enabled", "schedule_from_hour", "schedule_from_min",
+                      "schedule_to_hour", "schedule_to_min", "scheduler_days"];
+        const before = {};
+        for (const key of keys)
+            before[key] = prefs.value(key);
+        // 23:00 to 07:00 on tomorrow's day only: qBittorrent's backwards days put today all
+        // on (diogochaves/upstream#84), so the demo's "off" is a hand toggle, whatever the time.
+        const tomorrow = (new Date().getDay() + 1) % 7; // 0 is Sunday
+        prefs.apply({
+                        "scheduler_enabled": true,
+                        "schedule_from_hour": 23,
+                        "schedule_from_min": 0,
+                        "schedule_to_hour": 7,
+                        "schedule_to_min": 0,
+                        "scheduler_days": tomorrow === 0 ? 9 : tomorrow + 2
+                    });
+        compare(App.altSpeed.kind, "turtle"); // the demo's 10 KB/s set
+        verify(!App.altSpeed.on);
+        verify(App.altSpeed.byHand);
+        compare(view.hero.altChip.tooltip.indexOf("off by hand · the schedule starts turtle at "), 0);
+
+        view.footerNote = "";
+        view._altFlipFrom = true; // as if A had asked to leave "on" and the poll came back
+        view._altFlipped();
+        compare(view.footerNote.indexOf("turtle off by hand · back at "), 0);
+        verify(view.footerNoteSticky);
+        const mark = findChild(view, "footerNoteMark");
+        verify(mark.visible);
+        compare(mark.text, "▼");
+        compare(findChild(view, "footerNote").color, Theme.foreground);
+        keyClick("j");
+        compare(view.footerNote, "");
+        verify(!mark.visible);
+
+        // With the schedule off there is nothing to add.
+        prefs.apply({
+                        "scheduler_enabled": false
+                    });
+        view._altFlipFrom = true;
+        view._altFlipped();
+        compare(view.footerNote, "");
+        prefs.apply(before);
+    }
+
     // docs/32 N1 (#55): a move, rename or delete answered "OK" that the log then says failed
     // is a yellow note, and "· i details" says where its block is while the pane is hidden.
     function test_a_logged_failure_is_a_yellow_note() {
@@ -456,9 +504,10 @@ TestCase {
         tryCompare(view.globalLimitsSheet, "loaded", true);
         compare(view.globalLimitsSheet.altDownloadField.text, "1024");
         compare(view.globalLimitsSheet.downloadField.text, "");
-        // Batch-2 D2: opened from "alt-speed limits…", the sheet says so.
-        compare(view.globalLimitsSheet.title, "Alt-speed limits");
-        verify(view.globalLimitsSheet.subtitle.indexOf("alt-speed is on") >= 0);
+        // Batch-2 D2: opened from "alt-speed limits…", the sheet says so, named for the way
+        // the demo's set goes (docs/31: slower than its normal limits, a turtle).
+        compare(view.globalLimitsSheet.title, "Turtle limits");
+        verify(view.globalLimitsSheet.subtitle.indexOf("turtle is on") >= 0);
         view.globalLimitsSheet.close();
 
         view.moreAction("globalLimits");

@@ -13,6 +13,11 @@ Rectangle {
     /// A state worth noticing (the hero's alt-speed while it throttles): the border and text
     /// take the warning role instead of the foreground. The fill stays foreground-based.
     property bool warn: false
+    /// The role `warn` draws in: the warning colour, or the hero's burst green (docs/31 D3).
+    property color warnColor: Theme.yellow
+    /// Words after the text in the same colour, a little fainter ("· until 07:00", docs/31
+    /// D5); "" draws none.
+    property string suffix: ""
     property bool selected: false
     property bool hasCursor: false
     /// A switch rather than a label (docs/32 L1's level chips): off, its text reads dim.
@@ -40,11 +45,11 @@ Rectangle {
 
     readonly property bool hot: root.hasCursor || mouseArea.containsMouse
 
-    Accessible.name: root.text
+    Accessible.name: root.suffix.length > 0 ? root.text + " " + root.suffix : root.text
     Accessible.role: Accessible.Button
 
     activeFocusOnTab: root.focusable && root.enabled
-    border.color: root.warn ? Theme.yellow : root.accent ? Theme.accent : root.hot ? Theme.fill(
+    border.color: root.warn ? root.warnColor : root.accent ? Theme.accent : root.hot ? Theme.fill(
                                                                                           Theme.borderHover)
                                                                                     : Theme.fill(Theme.borderIdle)
     border.width: root.selected && !root.accent ? 0 : 1
@@ -93,7 +98,7 @@ Rectangle {
             anchors.verticalCenter: parent.verticalCenter
             color: {
                 if (root.warn)
-                    return Theme.yellow;
+                    return root.warnColor;
                 if (root.selected)
                     return root.tone.a > 0 ? root.tone : Theme.brightForeground;
                 return root.toggle ? Theme.dimForeground : Theme.foreground;
@@ -103,6 +108,17 @@ Rectangle {
             font.pixelSize: Theme.font.small
             objectName: "chipLabel"
             text: root.text
+        }
+
+        Text {
+            anchors.verticalCenter: parent.verticalCenter
+            color: label.color
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.font.small
+            objectName: "chipSuffix"
+            opacity: 0.72
+            text: root.suffix
+            visible: root.suffix.length > 0
         }
 
         Text {

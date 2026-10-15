@@ -111,6 +111,100 @@ TestCase {
         compare(clicks, 1);
     }
 
+    // docs/31 H1 and the burst steps 0 to 3: the word, the limits and "until", in green with
+    // the needle up; from step 2 the word and "until", from step 3 the glyph.
+    function test_a_burst_chip_names_itself_and_its_end() {
+        const hero = createTemporaryObject(heroComponent, testCase, {
+                                               "altKind": "burst",
+                                               "altUntil": "07:00",
+                                               "altDownLimit": "∞",
+                                               "altUpLimit": "∞",
+                                               "altTooltip": "burst until 07:00, by the schedule · A"
+                                           });
+        // Off: the glyph alone, its needle already up.
+        compare(hero.altChip.text, "");
+        compare(hero.altChip.suffix, "");
+        compare(hero.altChip.glyph, Glyphs.burst);
+        verify(!hero.altChip.warn);
+        hero.altSpeedActive = true;
+        compare(hero.level, 0);
+        compare(hero.altChip.text, "burst ↓∞ ↑∞");
+        compare(hero.altChip.suffix, "· until 07:00");
+        compare(hero.altChip.tooltip, "burst until 07:00, by the schedule · A");
+        verify(hero.altChip.warn);
+        compare(hero.altChip.border.color, Theme.green);
+        compare(findChild(hero.altChip, "chipLabel").color, Theme.green);
+        compare(hero._altText(1), "burst ↓∞ ↑∞");
+        compare(hero._altText(2), "burst");
+        compare(hero._altSuffix(2), "· until 07:00");
+        compare(hero._altText(3), "");
+        compare(hero._altSuffix(3), "");
+        hero.width = Theme.space(800);
+        compare(hero.level, 2);
+        compare(hero.altChip.text, "burst");
+        compare(hero.altChip.suffix, "· until 07:00");
+        // No schedule, no end.
+        hero.altUntil = "";
+        compare(hero.altChip.suffix, "");
+    }
+
+    // docs/31 H2 and the turtle steps: today's yellow chip with its word and its end. Someone
+    // who uses the set as a turtle keeps everything they had.
+    function test_a_turtle_chip_is_todays_with_its_word() {
+        const hero = createTemporaryObject(heroComponent, testCase, {
+                                               "altKind": "turtle",
+                                               "altUntil": "18:00",
+                                               "altSpeedActive": true,
+                                               "altDownLimit": "10 KB/s",
+                                               "altUpLimit": "10 KB/s",
+                                               "altDownLimitShort": "10K",
+                                               "altUpLimitShort": "10K"
+                                           });
+        compare(hero.altChip.text, "turtle ↓10 KB/s ↑10 KB/s");
+        compare(hero.altChip.suffix, "· until 18:00");
+        compare(hero.altChip.glyph, Glyphs.altSpeed);
+        compare(hero.altChip.border.color, Theme.yellow);
+        compare(hero._altText(1), "turtle ↓10K ↑10K");
+        compare(hero._altText(2), "turtle");
+        compare(hero._altText(3), "");
+        // Today's tooltip until the caller gives one.
+        compare(hero.altChip.tooltip, "alt-speed on · A");
+    }
+
+    // Mixed or the same: today's chip, unchanged at every step, and no "until" on it.
+    function test_a_mixed_set_keeps_todays_chip() {
+        const hero = createTemporaryObject(heroComponent, testCase, {
+                                               "altKind": "alt",
+                                               "altUntil": "07:00",
+                                               "altSpeedActive": true,
+                                               "altDownLimit": "2.00 MB/s",
+                                               "altUpLimit": "∞",
+                                               "altDownLimitShort": "2.00M",
+                                               "altUpLimitShort": "∞"
+                                           });
+        compare(hero.altChip.text, "↓2.00 MB/s ↑∞");
+        compare(hero.altChip.suffix, "");
+        compare(hero._altText(1), "↓2.00M ↑∞");
+        compare(hero._altText(2), "↓2.00M ↑∞");
+        compare(hero._altText(3), "");
+        compare(hero.altChip.border.color, Theme.yellow);
+    }
+
+    // The ladder measures the chip as it is drawn at each step, word and end included.
+    function test_the_ladder_measures_the_named_chip() {
+        const hero = createTemporaryObject(heroComponent, testCase, {
+                                               "altSpeedActive": true,
+                                               "altDownLimit": "10 KB/s",
+                                               "altUpLimit": "10 KB/s"
+                                           });
+        const plain = hero._rowWidth(0);
+        hero.altKind = "turtle";
+        hero.altUntil = "18:00";
+        // The measuring copies are Rows: they lay out at the next polish.
+        tryVerify(() => hero._rowWidth(0) > plain);
+        tryVerify(() => hero._rowWidth(2) < hero._rowWidth(1));
+    }
+
     function test_emits_search_cleared() {
         const hero = createTemporaryObject(heroComponent, testCase);
         let cleared = 0;
