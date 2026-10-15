@@ -239,6 +239,32 @@ The pure parts are `core/MetadataLookup` (the schedule, the phases, the 200's pa
 `core/PrivateTrackers`; `App.addLookup` is the one lookup the sheet shows, and
 `Views/AddFetchLine.qml` draws its waits.
 
+## C6 — The weekly recap (board 22 T8, ruled with the console)
+
+Board [22](22-seed-console.html) draws T8 as one desktop notice on Sunday evening, off by
+default, through the notices omaseed already sends, its button opening the console on 7d.
+What the board left open:
+
+- **When.** Sunday from 18:00, local time, checked every ten minutes and after each sync; once
+  per Sunday (`state.json` `"notifications"."weeklyRecapSent"`). A Sunday evening omaseed did
+  not run is skipped: Monday's notice would be about a week already over. It covers the server
+  omaseed is on (the ledger is per server), and a week that gave nothing sends nothing.
+- **The week** is the seven days ending that Sunday, Monday to Sunday, as the console's 7d.
+- **The numbers**, each as the console already counts it, so the notice and the console it
+  opens agree: given is the ledger's days; the ratio is the server's all-time given ÷ taken
+  (the totals' ratio; a week's own ratio is ∞ for a library that only seeds); the streak is the
+  ledger's; "rare torrents kept alive" are the keeping-alive block's rare ones now (complete,
+  seeding, at or under the rare threshold of seeds); "paid back" are the torrents whose ratio
+  crossed 1.0 this week, from what the ledger saw each one give; the best day is the weekday
+  that gave most. A part with nothing to say (no streak of two days or more, nothing rare,
+  nothing paid back) is left out.
+- **Words.** Title "Your week", the board's two lines, the button "open the console" (also the
+  click, for Omarchy's toasts, which draw no buttons). The ratio prints as the console prints
+  it ("2.40", where the board's mock says "2.4").
+- **The setting** is a fifth switch under Settings › Notifications, "Weekly recap", off.
+
+The pure part is `core/WeeklyRecap`.
+
 ## M8 — A click leaves the keyboard focus where it was
 
 Buttons and toggles do not take the focus when clicked. Otherwise an overlay gives the focus

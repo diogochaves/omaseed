@@ -28,16 +28,6 @@ QLocale english()
     return QLocale(QLocale::English, QLocale::UnitedKingdom);
 }
 
-QString ratioText(double given, double taken)
-{
-    if (taken <= 0)
-        return given > 0 ? QStringLiteral("∞") : QStringLiteral("—");
-    const double r = given / taken;
-    return r >= 100  ? QString::number(r, 'f', 0)
-           : r >= 10 ? QString::number(r, 'f', 1)
-                     : QString::number(r, 'f', 2);
-}
-
 QString timesText(double x)
 {
     return (x >= 100  ? QString::number(x, 'f', 0)
@@ -267,6 +257,16 @@ QPair<qint64, int> SeedConsole::rangeShape(const QString &range)
     if (range == QLatin1String("1y"))
         return {kDay, 365};
     return {600, 144};
+}
+
+QString SeedConsole::ratioText(double given, double taken)
+{
+    if (taken <= 0)
+        return given > 0 ? QStringLiteral("∞") : QStringLiteral("—");
+    const double r = given / taken;
+    return r >= 100  ? QString::number(r, 'f', 0)
+           : r >= 10 ? QString::number(r, 'f', 1)
+                     : QString::number(r, 'f', 2);
 }
 
 int SeedConsole::knownSeeds(const Torrent &t)

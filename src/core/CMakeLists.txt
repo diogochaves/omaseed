@@ -123,6 +123,8 @@ qt_add_library(omaseed-core STATIC
     TrackerModel.hpp
     Version.cpp
     Version.hpp
+    WeeklyRecap.cpp
+    WeeklyRecap.hpp
 )
 add_library(omaseed::core ALIAS omaseed-core)
 

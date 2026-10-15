@@ -145,6 +145,9 @@ public:
     static QPair<qint64, int> rangeShape(const QString &range);
     /// Seeds in the swarm we trust: -1 when the tracker gave no count (or reported an error).
     static int knownSeeds(const Torrent &t);
+    /// Given ÷ taken as the totals print it: "2.40", "12.3", "∞" with nothing taken, "—" with
+    /// neither (the weekly recap says it the same way, T8).
+    static QString ratioText(double given, double taken);
 
 Q_SIGNALS:
     void activeChanged();
