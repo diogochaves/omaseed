@@ -3,7 +3,10 @@
 # as a browser or a file manager does, lands in omaseed's add sheet, pre-filled, whether the
 # app is closed, hidden in the tray, or already has that torrent (and, for a public one, merges
 # the trackers the link brings). Three links handed over one after another make one batch,
-# added in one request (#40).
+# added in one request (#40). Then, on a second box with its own qBittorrent, a magnet's file
+# list before the add (docs/29, #44): the Sampler's magnet from the tray shows its tree, one file
+# unticked is never written, and a private magnet goes through "fetching", "still looking" and
+# "may never come" on a faster clock and is still added.
 #
 #   scripts/dev/magnet-walk.sh [OUT_DIR]        # agents: a headless box, a screenshot per step,
 #                                               # OUT_DIR/index.md says what to look for in each
@@ -287,7 +290,7 @@ open_in_box "$MAGNET"
 wait_window 15 || true
 sleep 3 # the first sync, and the sheet's parse of the magnet
 check "the magnet started omaseed" window_shown
-step "Magnet, app closed" "The app opened with the add sheet on top: \"Add torrent\", \"tiny-notes.txt · 4 KB · from browser\", the magnet in the first field, the name filled in, \"add\" highlighted."
+step "Magnet, app closed" "The app opened with the add sheet on top: \"Add torrent\", \"tiny-notes.txt · 4 KB · from magnet link\", the magnet in the first field, the name filled in, \"add\" highlighted. Files says \"private tracker\": the playground's swarm torrents announce to the same tracker and are private, so no file list is asked for (docs/29 F5)."
 check "one omaseed process" one_process
 keys Return
 # It stays at "metadata" here: the swarm's torrents are private, and libtorrent never hands a
@@ -354,6 +357,110 @@ step "Three links, one batch" "\"Add 3 torrents\", \"3 without a size yet\"; Tor
 keys Return
 check "enter added all three to the playground" three_in_batch
 step "Three added" "The sheet is gone; the three $BATCH rows are in the table, fetching metadata."
+
+# ---- a magnet's files before the add (docs/29, #44) ---------------------------------------
+# On a box with its own qBittorrent (app-box.sh --qbt), so the playground, which already holds
+# the Sampler and the swarm's private torrents, stays put. That library starts empty, and the
+# Sampler (public, seeded) goes first: the swarm's private torrents announce to the same
+# 127.0.0.1 tracker, so once one is in the library the Sampler's magnet would read as a private
+# tracker's (F5). The lookup's clock runs 6 times faster (OMASEED_LOOKUP_CLOCK_SCALE), so the
+# private magnet's "still looking" (10 s) and "may never come" (60 s) come in 2 and 10 s.
+SEEDER="http://127.0.0.1:8083/api/v2"
+# seeder_field NAME KEY: KEY of the seeder's torrent called NAME.
+seeder_field() {
+    curl -fs "$SEEDER/torrents/info" | python3 -c '
+import json, sys
+for t in json.load(sys.stdin):
+    if t["name"] == sys.argv[1]:
+        print(t[sys.argv[2]]); break' "$1" "$2"
+}
+PRIVATE_NAME="Field Recordings Vol. 3 [FLAC]"
+SAMPLER_MAGNET="$(seeder_field "$PUBLIC" magnet_uri)"
+SAMPLER_HASH="$(seeder_field "$PUBLIC" hash)"
+PRIVATE_MAGNET="$(seeder_field "$PRIVATE_NAME" magnet_uri)"
+[ -n "$SAMPLER_MAGNET" ] && [ -n "$PRIVATE_MAGNET" ] ||
+    { echo "the seeder lacks $PUBLIC or $PRIVATE_NAME: run scripts/dev/swarm.sh seed" >&2; exit 1; }
+
+echo "starting a second box, with its own qBittorrent"
+[ "$INTERACTIVE" = 1 ] || omabox down -b "$BOX" >/dev/null 2>&1 || true
+BOX="magnet-walk-qbt"
+qbt_args=(up -b "$BOX" --qbt --handlers)
+[ "$INTERACTIVE" = 1 ] && qbt_args+=(--interactive)
+OMASEED_LOOKUP_CLOCK_SCALE=6 "$repo/scripts/dev/app-box.sh" "${qbt_args[@]}" >/dev/null
+SAMPLER_DIR=/home/sbx/Torrents/$PUBLIC
+
+# box_files HASH: the file priorities the box's qBittorrent holds for HASH, comma-separated.
+box_files() {
+    omabox run -b "$BOX" -- curl -fs "http://127.0.0.1:8090/api/v2/torrents/files?hash=$1" |
+        python3 -c 'import json, sys; print(",".join(str(f["priority"]) for f in json.load(sys.stdin)))'
+}
+# box_priorities_are HASH LIST [SECONDS]: until HASH's priorities read LIST.
+box_priorities_are() {
+    for _ in $(seq 1 $((${3:-10} * 2))); do
+        [ "$(box_files "$1" 2>/dev/null)" = "$2" ] && return 0
+        sleep 0.5
+    done
+    return 1
+}
+# box_progress HASH: HASH's progress on the box's qBittorrent ("" when it has none).
+box_progress() {
+    omabox run -b "$BOX" -- curl -fs "http://127.0.0.1:8090/api/v2/torrents/info?hashes=$1" |
+        python3 -c 'import json, sys; t = json.load(sys.stdin); print(t[0]["progress"] if t else "")'
+}
+box_finished() {
+    for _ in $(seq 1 60); do
+        [ "$(box_progress "$1" 2>/dev/null)" = 1 ] && return 0
+        sleep 0.5
+    done
+    return 1
+}
+# box_appears HASH: until the box's qBittorrent has HASH.
+box_appears() {
+    for _ in $(seq 1 20); do
+        [ -n "$(box_progress "$1" 2>/dev/null)" ] && return 0
+        sleep 0.5
+    done
+    return 1
+}
+no_mkv() { omabox run -b "$BOX" -- test ! -e "$SAMPLER_DIR/sampler.mkv"; }
+has_srt() { omabox run -b "$BOX" -- test -f "$SAMPLER_DIR/sampler.srt"; }
+
+# 6. The Sampler's magnet with the app in the tray: the window comes back with the sheet, and
+# the tree arrives in it (F2).
+omabox hyprctl -b "$BOX" dispatch "hl.dsp.window.close(\"class:$APP_ID\")" >/dev/null
+sleep 1
+check "closing the window hides it to the tray" window_hidden
+open_in_box "$SAMPLER_MAGNET"
+wait_window 10 || true
+sleep 4 # the lookup: about a second on the swarm, a little more on a box just started
+check "the magnet brought the hidden window back" window_shown
+step "A magnet's files, from the tray" "The add sheet for Public Domain Sampler, \"24.0 MB · from magnet link\"; under the switches, Files \"3 files · 24.0 MB\": README.txt, sampler.mkv, sampler.srt, all ticked; the free line needs 24.0 MB."
+
+# From the field, shift+tab goes back past add, add stopped and cancel to the tree.
+keys shift+Tab shift+Tab shift+Tab shift+Tab j space
+sleep 0.5
+step "sampler.mkv unticked" "The tree has the keyboard: sampler.mkv unticked and \"skip\", Files \"2 of 3 files · 43 KB\", the free line \"needs 43 KB of 24.0 MB\"."
+keys Return
+check "added in one call with sampler.mkv skipped (priorities 1,0,1 at once)" \
+    box_priorities_are "$SAMPLER_HASH" "1,0,1"
+check "and it finished" box_finished "$SAMPLER_HASH"
+check "sampler.mkv was never written" no_mkv
+check "sampler.srt was" has_srt
+step "The Sampler added" "The sheet is gone; Public Domain Sampler is a row, 43 KB, 100 %, seeding."
+
+# 7. A private swarm magnet: no peer ever sends its list, so the sheet goes through F1, F3 and
+# F4 (on the walk's clock), and enter still adds it.
+open_in_box "$PRIVATE_MAGNET"
+sleep 1.2
+step "A magnet looking for its list" "The sheet for $PRIVATE_NAME, 104 MB; Files: \"fetching · 7 s\" (or so) on the right, a box \"Asking qBittorrent for the file list\", add highlighted."
+sleep 3
+step "Still looking" "Files: \"still looking\" and its seconds; a yellow ◷, \"No peer has sent the file list yet\", and a dim line naming enter and shift+enter."
+sleep 7
+step "May never come" "Files: \"no list after 1 min …\" in yellow; a yellow \"!\", \"The file list may never come\", and \"qBittorrent goes on looking until it restarts, even after you close this sheet.\""
+keys Return
+PRIVATE_HASH="$(seeder_field "$PRIVATE_NAME" hash)"
+check "enter added it, still fetching its metadata" box_appears "$PRIVATE_HASH"
+step "The private magnet added" "The sheet is gone; $PRIVATE_NAME is a row at \"metadata\", beside the Sampler."
 
 if [ "$INTERACTIVE" = 0 ]; then
     printf '\n## Checks\n\n%s' "$CHECKS" >>"$OUT/index.md"

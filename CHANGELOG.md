@@ -9,6 +9,17 @@ before it will tag a release.
 
 ### Added
 
+- A magnet in the add sheet shows its files before anything downloads. omaseed asks
+  qBittorrent for the magnet's file list as soon as it's in the sheet; usually it's there in a
+  second, as the same tree a `.torrent` gets, so you untick what you don't want and add it with
+  those choices in one go (a skipped file is never created). Renames, the free-space line and
+  "files already on disk" work as for a `.torrent`. While the list is on its way, the Files row
+  says so, then that it's still looking, then that it may never come and that qBittorrent goes
+  on looking after you close the sheet. `add` never waits: before the list it adds every file,
+  and "add stopped" stops the torrent as soon as its list arrives, so you choose in the Files
+  tab before a byte is downloaded. A magnet from a tracker your library knows as private isn't
+  asked about (qBittorrent can't get a private torrent's list from a magnet): the sheet says to
+  use the site's `.torrent`. A link to a `.torrent` gets the same. Needs qBittorrent 5.2.
 - A command palette: `:` (or `ctrl+shift+p`, which works from a field too) lists every command
   that makes sense now, with its key and what it acts on; type a few letters and enter runs it
   as its key would. Commands that can't run say why, the last five run come first, and a name

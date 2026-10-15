@@ -23,7 +23,9 @@ Three static libraries and the executable. Each layer only depends on the ones a
 - The details tabs have their own models (`TorrentDetails`, `TorrentFilesModel`,
   `TorrentTrackersModel`, `TorrentPeersModel`, `TorrentWebSeedsModel`, `PieceStates`).
 - Parsing: `Bencode`, `TorrentFile` and `MagnetLink` read names, sizes and info-hashes for the
-  add sheet and duplicate detection. `TorrentProblem` and `ProblemLog` explain an errored
+  add sheet and duplicate detection. `MetadataLookup` asks qBittorrent for a magnet's file list
+  before the add, and `PrivateTrackers` says which magnets it can't get one for
+  ([DECISIONS.md](DECISIONS.md) C5). `TorrentProblem` and `ProblemLog` explain an errored
   torrent from qBittorrent's own log, and the failures only that log knows: a move, rename,
   web seed or .torrent copy that didn't happen ([DECISIONS.md](DECISIONS.md) C2).
   `ServerLog` reads the whole log for the log face while it shows, and `LogFilterModel` narrows

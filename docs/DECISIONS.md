@@ -198,6 +198,47 @@ another zone the time printed is right and only the day and the "by hand" guess 
 The pure parts are `core/SpeedSets` and `core/AltSchedule`; `core/AltSpeed` puts them together
 for the server the app is on.
 
+## C5 — A magnet's files before the add (board 29, ruled 2026-10-15)
+
+Board [29](29-magnet-files.html) (#44), D1–D11 as recommended:
+
+- **D1** As soon as one magnet (or one link to a `.torrent`) is in the add sheet and isn't a
+  duplicate, qBittorrent is asked for its metadata (`torrents/fetchMetadata`), on the current
+  server's client: the answer is kept in the Web UI session, so every poll and the add after it
+  must share that session's cookie or API key (diogochaves/upstream#86). A magnet is keyed by its
+  infohash, so typing `&dn=…` after a whole hash starts nothing new.
+- **D2** Nothing shows for the first 0.5 s, so a quick answer just shows the tree. **D3**
+  "Fetching" until 10 s, "still looking" until 60 s, then "may never come" in yellow. The polls
+  go at 0, 0.25, 0.5 and 1 s, then every second, and every 5 s after a minute, one at a time; they
+  never stop while the sheet is open.
+- **D4** `add` before the list is in adds every file, as before. **D5** "add stopped" before the
+  list is a started add with `stopCondition=MetadataReceived`: it stops as soon as its list
+  arrives, with nothing downloaded (a plain stopped magnet never connects).
+- **D6** Closing the sheet, another source over it or a batch leaves an unanswered lookup running
+  on the server until it restarts or that hash is added: there is no cancel
+  (diogochaves/upstream#87), and add-then-delete would flash a row everywhere. The 60 s line says
+  so. Any add of the magnet ends it.
+- **D7** A magnet whose `tr=` host is one the library's private torrents announce to (maindata's
+  `private`, every announce URL in the tracker map) is not looked up: libtorrent never hands a
+  private torrent's metadata to a magnet. The line points to the site's `.torrent`. A private
+  tracker the library doesn't know goes through the slow states like a dead magnet. A magnet
+  handed over before the first sync waits for the library before this check.
+- **D8** A link to a `.torrent` takes the same flow (qBittorrent downloads it); its duplicate
+  check runs when the answer brings the hash. A dead link never fails: it stays "no answer".
+- **D9** Once in, a magnet gets everything a `.torrent` gets: the tree (the paths' `<name>/`
+  root stripped), the size, the free line's need of the ticked files, the files-on-disk match
+  (#27) and renames with #67's disk check. The choices go with the add itself (`urls` plus
+  `filePriorities`, nothing stopped and started); renames are replayed after a stopped add, as
+  for a `.torrent`. A 400 to the priorities means the session was replaced: the metadata is asked
+  for once more, then the magnet is added to stop at its metadata and the priorities set then.
+- **D10** No lookups in a batch: it has no Files row. "one by one" gives each its own.
+- **D11** Below Web API 2.11.9, or on a 404, the sheet is today's with nothing more said. A
+  source qBittorrent refuses outright (another 4xx) is the same.
+
+The pure parts are `core/MetadataLookup` (the schedule, the phases, the 200's parse) and
+`core/PrivateTrackers`; `App.addLookup` is the one lookup the sheet shows, and
+`Views/AddFetchLine.qml` draws its waits.
+
 ## M8 — A click leaves the keyboard focus where it was
 
 Buttons and toggles do not take the focus when clicked. Otherwise an overlay gives the focus
