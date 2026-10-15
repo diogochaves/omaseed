@@ -333,6 +333,68 @@ open, or what the API decided:
   by id, then as the only one, since ids differ between machines (#34).
 - **Keys**: `0` picks the qBittorrent group's tenth section, Backup.
 
+## C9 — A qBittorrent's torrents, exported and imported (board 24, ruled 2026-10-03)
+
+Board [24](24-backup-restore.html) §2, §4, §5, §7, D2 a, D3 a, D6 a, D7 a, D8 a (#33). What the
+board left open, or what the API decided:
+
+- **The file** (`core/TorrentsBackup`) is a plain tar, `.omaseed-torrents`: `manifest.json`,
+  then per torrent `torrents/<id>.json` and `torrents/<id>.torrent` side by side, `<id>` being
+  qBittorrent's id. It is written once through (`TarWriter`), to a temporary name that takes
+  the file's place only when every torrent is in, so a failure or "stop" leaves no half file.
+  It is **private (0600)**: a private tracker's announce URL carries the account's passkey, in
+  the .torrent files and the records alike. The automatic copies don't carry torrents (D3 a).
+- **A record** keeps the board's list. Renamed files are kept against the .torrent's own names
+  under the content layout that leaves fewest renames (a torrent moved out of its folder is
+  `NoSubfolder`, not a rename per file). `torrents/export` already writes a torrent's current
+  trackers into its .torrent; the import still adds any tracker the record has and the .torrent
+  lacks. A torrent without metadata (`has_metadata` false, or the export's 409) goes in as its
+  magnet link. A torrent deleted while the export runs is left out and counted.
+- **Large libraries.** The export reads 20 torrents at a time (.torrent, files, trackers) and
+  writes them as soon as their batch is in; the import reads only the headers and records and
+  fetches a .torrent when it is sent. Measured on 3,000 torrents (a Debug core, qBittorrent
+  5.2.3 on this machine, torrents without data): export 1.0 s, import 10.6 s (adding 6.8 s,
+  the check the rest), 54 MB peak for the whole process.
+- **Already there** (D8 a) is any of the record's id, v1 or v2 hash on the server.
+- **Save paths** (D7 a): the longest `from` a path starts with, at a folder boundary, is
+  replaced by its `to`; a path no row covers is kept, and the "!" line counts those. A
+  category created first takes its folder through the same rows. The rows start from the path
+  maps omaseed has: when the file's server is one of omaseed's (by address) and not the
+  target, each of its remote folders goes to where the target sees that same local folder (as
+  it is when the target has no map); and the target's own map read backwards, for a file whose
+  paths are this machine's. Only rows that change some torrent's path. With none, one row from
+  the file's default save path, its "to" left to fill.
+- **The add.** Each torrent is added stopped, with its content layout, folders (the incomplete
+  folder said either way, so the server's own default can't send a check to a folder the files
+  were never in), category, tags, speed limits, sequential and first/last piece; torrents
+  whose options agree share one request, up to 20. qBittorrent answers an add before the
+  torrent is in its session, so the next steps wait until it is listed. Then renames, file
+  priorities, missing trackers and share limits (`torrents/setShareLimits`, as the add takes no
+  action). **Automatic management** is turned on only where the category's folder here is the
+  folder the files are in and there is no incomplete folder; otherwise it would move them, so
+  the torrent stays managed by hand and the result counts it. **The queue**: a multipart add
+  keeps no order, so the queued ones go to the bottom once more, one by one, in their exported
+  order (409, queueing off, is fine).
+- **The check** (D6 a): every added torrent is rechecked; a torrent counts as checked once it
+  is no longer checking and was seen checking, or after three polls (a check that ended before
+  the first). It starts when it is complete (nothing left of its wanted files) and was started
+  or forced at export (forced again). "Complete ones start" is taken as written: a torrent that
+  was still downloading stays stopped, whatever it has. Links are not checked: they start as
+  exported, unless "leave them stopped", which adds everything stopped and checks nothing.
+- **Renames on the target's disk** (#64, #67, upstream#85): where this machine sees the
+  server's folders (`FreeSpaceProbe::localPathFor`, as the rename sheets), a rename whose old
+  and new names are both on disk would move the one over the other, so it is not sent, and
+  that torrent is never started; the result names it, as a warning. A new name alone on disk
+  is the expected case (qBittorrent only notes where the file is); an old name alone is a plain
+  rename. Where the disk can't be seen the renames are sent (#64's rule).
+- **Resumable** (§7): a journal per server, `$XDG_DATA_HOME/omaseed/imports/<server id>.json`
+  (0600), keyed by the file's date, server and count, holds each torrent between its add and
+  its last step, saved after every batch and every poll and removed when the run ends. A run
+  that fails or is stopped keeps it; the same file read again shows those torrents as "added
+  last time, not finished" and finishes them instead of skipping them.
+- **Which server**, as C8: the one the app is on, connected; one export or import at a time,
+  its row saying how far it got, its button "stop". Not in the demo.
+
 ## M8 — A click leaves the keyboard focus where it was
 
 Buttons and toggles do not take the focus when clicked. Otherwise an overlay gives the focus

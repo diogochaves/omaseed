@@ -35,9 +35,10 @@ Three static libraries and the executable. Each layer only depends on the ones a
   `ServerPreferences` (qBittorrent's own settings), `CertificatePin` (trust on first use).
 - Features built on top: `SeedConsole`, `SeedLedger` and `WeeklyRecap` (the seed console),
   `OmaseedBackup`, `AutoBackup` and `TarArchive` (backups), `QbtSettingsExport` and
-  `QbtSettingsImport` (a server's settings as a file, and back), `LibraryMatch`, `FreeSpace` and
-  `SharedData` (what the add and delete sheets know about files already on disk), `RenamePlan`
-  and `RenameDisk` (what a rename would land on).
+  `QbtSettingsImport` (a server's settings as a file, and back), `TorrentsBackup`,
+  `TorrentsExport` and `TorrentsImport` (its torrents as a file, and back), `LibraryMatch`,
+  `FreeSpace` and `SharedData` (what the add and delete sheets know about files already on
+  disk), `RenamePlan` and `RenameDisk` (what a rename would land on).
 
 **`omaseed-integration`** (`src/integration/`): the desktop, through Qt DBus and Gui.
 

@@ -9,6 +9,17 @@ before it will tag a release.
 
 ### Added
 
+- Export and import a qBittorrent's torrents (Settings › qBittorrent › Backup): every
+  `.torrent` with its save path, category, tags, limits, started or stopped, queue position,
+  renamed files and file priorities, in one plain tar file that stays private (announce URLs
+  can carry a tracker's passkey); magnets that never got their metadata go in as links. Large
+  libraries are fine: a few thousand torrents export in seconds, with a progress line and a
+  stop button. Importing shows what is new, what is already there (skipped) and the links;
+  "from → to" rows, started from the path maps omaseed knows, move the save paths to where the
+  files are now. Categories and tags come first, every torrent is added stopped and checked
+  against the files on disk, and the complete ones start; the rest stay stopped instead of
+  downloading from zero. A rename that would replace a file on disk is not made. An import that
+  fails or is stopped keeps what it added, and importing the same file again finishes it.
 - Export and import a qBittorrent's settings (Settings › qBittorrent › Backup): its
   preferences, categories, tags, RSS feeds and rules in one readable JSON file, with no
   password or API key in it. Importing shows only what differs, in the settings' own words, and
