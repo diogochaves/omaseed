@@ -407,8 +407,18 @@ TestCase {
         compare(sheet.moveHashes(), [sintel, tears]);
         compare(sheet.actions[1].text, "move 2");
         compare(sheet.sheetWidth, Theme.space(520));
+        // #35: the line under the title counts what moves: both, their one copy once.
+        const once = Math.max(App.torrentRow(sintel).size, App.torrentRow(tears).size);
+        compare(sheet.subtitle, "2 torrents · " + App.sizeText(once) + " moves with it");
         // The path field is still the first stop for the keyboard.
         compare(sheet.focusables()[0].text, App.torrentRow(sintel).savePath);
+        // "Move only this one": the line counts the one again.
+        keyClick(Qt.Key_Tab);
+        keyClick("j");
+        compare(sheet.choice, 1);
+        compare(sheet.moveHashes(), [sintel]);
+        compare(sheet.subtitle, "1 torrent · " + App.sizeText(App.torrentRow(sintel).size) + " moves with it");
+        sheet.close();
     }
 
     function test_a_category_change_that_moves_shared_files_asks_first() {

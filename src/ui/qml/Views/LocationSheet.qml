@@ -54,9 +54,15 @@ Sheet {
     ]
     glyph: "⌂" // ⌂, spec Fig. 7
     sheetWidth: root.asking ? Theme.space(520) : Theme.space(420)
-    subtitle: qsTr("%1 · %2 moves with it").arg(root.hashes.length === 1 ? qsTr("1 torrent") : qsTr(
-                                                    "%1 torrents").arg(root.hashes.length)).arg(
-                 App.sizeText(root._totalSize))
+    // #35: what `move` sends, so "move both" counts the sharers too. Their data is the same
+    // copy, so the size counts it once (docs/26 D3 a).
+    subtitle: {
+        const both = root.asking && sharedChoice.choice === 0;
+        const count = root.moveHashes().length;
+        const size = both ? root._shared.diskSizeWithOutside : root._shared.diskSize ?? root._totalSize;
+        return qsTr("%1 · %2 moves with it").arg(count === 1 ? qsTr("1 torrent") : qsTr("%1 torrents").arg(count)).arg(
+                    App.sizeText(size));
+    }
     title: qsTr("Set location")
 
     /// `browse` and `ctrl+o`: the picker at the local side of the field's path; the pick goes
