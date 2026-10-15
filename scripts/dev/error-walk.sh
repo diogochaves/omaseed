@@ -2,7 +2,9 @@
 # omaseed — the error walkthrough (docs/28, #54): a torrent goes into error while the app
 # runs, and the app says why, from qBittorrent's log. Its row shows the short cause, General
 # opens with the error block, and one notice carries the reason. Then the torrent is moved to
-# a writable folder and `p` (try again) brings it back. Last, a torrent whose files are gone
+# a writable folder and `p` (try again) brings it back. Then (docs/32, #55) a move out of a
+# folder that can't be written fails: General's yellow block, the footer's note when the app
+# asked for it, and the block gone once the move lands. Last, a torrent whose files are gone
 # after a restart shows the missing-files block.
 #
 #   scripts/dev/error-walk.sh [OUT_DIR]        # agents: a headless box, a screenshot per step,
@@ -29,6 +31,7 @@ PLAY="http://127.0.0.1:$PLAY_PORT/api/v2"
 refuse_home "$PLAY"
 DOWNLOADS="${OMASEED_TEST_PROFILE:-$HOME/.local/share/omaseed-test}/downloads"
 WRITABLE="$DOWNLOADS/swarm-writable"
+MOVED="$DOWNLOADS/swarm-moved"
 APP_ID=io.github.diogochaves.omaseed
 BOX=error-walk
 INTERACTIVE=0
@@ -135,6 +138,43 @@ app_back() {
     return 1
 }
 broken_moves_again() { wait_state "$BROKEN" "^(downloading|stalledDL|uploading|stalledUP|forcedUP)" 60; }
+# failed_moves: how many failed moves of the fixture the playground's log holds.
+failed_moves() {
+    curl -fs "$PLAY/log/main?normal=false&info=false&warning=true&critical=true" | python3 -c '
+import json, sys
+print(sum(1 for e in json.load(sys.stdin) if e["message"].startswith("Failed to move torrent.")
+          and "\"" + sys.argv[1] + "\"" in e["message"]))' "$BROKEN" 2>/dev/null || echo 0
+}
+MOVES_BEFORE=0
+# moves_failed COUNT SECONDS: until the log holds COUNT more failed moves than MOVES_BEFORE.
+moves_failed() {
+    local want="$1" limit="$2" have=0
+    for _ in $(seq 1 $((limit * 2))); do
+        have=$(($(failed_moves) - MOVES_BEFORE))
+        [ "$have" -ge "$want" ] && return 0
+        sleep 0.5
+    done
+    echo "  (waited ${limit}s: $have new failed moves of $BROKEN logged, not $want)" >&2
+    return 1
+}
+# move_from_app: `m` on the table's row (the sheet holds the failed move's destination), then
+# enter, each once the window has settled.
+move_from_app() {
+    omabox keys -b "$BOX" --window "$APP_ID" --wait m >/dev/null || true
+    omabox keys -b "$BOX" --window "$APP_ID" --wait Return >/dev/null || true
+}
+# moved_to FOLDER SECONDS: until the fixture's save path is FOLDER.
+moved_to() {
+    local folder="$1" limit="$2" path=""
+    for _ in $(seq 1 $((limit * 2))); do
+        path="$(curl -fs "$PLAY/torrents/info?hashes=$(hash_of "$BROKEN")" |
+            python3 -c 'import json,sys; print(json.load(sys.stdin)[0]["save_path"].rstrip("/"))' 2>/dev/null || true)"
+        [ "$path" = "${folder%/}" ] && return 0
+        sleep 0.5
+    done
+    echo "  (waited ${limit}s: the save path is \"$path\", not $folder)" >&2
+    return 1
+}
 
 STEP=0
 CHECKS=""
@@ -164,8 +204,9 @@ check() {
 }
 
 cleanup() {
+    chmod 755 "$WRITABLE" 2>/dev/null || true
     "$SWARM" fix >/dev/null 2>&1 || true
-    rm -rf -- "$WRITABLE"
+    rm -rf -- "$WRITABLE" "$MOVED"
     [ "$INTERACTIVE" = 1 ] || omabox down -b "$BOX" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
@@ -223,8 +264,34 @@ sleep 3
 step "Tried again" "$BROKEN downloads or seeds again from swarm-writable: no block in General, the status cell back to a plain state."
 check "trying again sent no second notice" still_one_notice
 
+# docs/32 (#55): a move that answers "OK" and fails. Once the fixture is whole, its folder
+# goes read-only and it is moved (through the API: nobody watched that one), then again from
+# the app with `m`, whose sheet holds the destination; then the folder is fixed and `m` moves it.
+wait_state "$BROKEN" "^(uploading|stalledUP|forcedUP)" 120 || true
+mkdir -p "$MOVED"
+MOVES_BEFORE=$(failed_moves)
+chmod 555 "$WRITABLE"
+curl -fs -X POST "$PLAY/torrents/setLocation" -d "hashes=$(hash_of "$BROKEN")" \
+    --data-urlencode "location=$MOVED" >/dev/null
+moves_failed 1 20 || true
+show "$BROKEN"
+# Nobody watched this move: the app finds it at its next look at the log, every 15 s.
+sleep 16
+step "Move failed" "General opens with a yellow-ruled block: ! The move to downloads/swarm-moved didn't happen; Permission denied, moving $BROKEN; Its files are still in …/swarm-writable; qBittorrent's log · today HH:MM; m set location · o open folder · x dismiss. The row still reads seeding (the table is unchanged)."
+check "the move failed, and qBittorrent said so in its log only" moves_failed 1 1
+move_from_app
+moves_failed 2 20 || true
+sleep 1.5
+step "Move failed again, from the app" "The footer's note, in yellow: \"$BROKEN didn't move: Permission denied\". The block now ends \"· 2 times\"."
+check "m, then enter, asked for the same destination again" moves_failed 2 1
+chmod 755 "$WRITABLE"
+move_from_app
+check "with the folder writable, the move landed" moved_to "$MOVED" 30
+sleep 2
+step "Moved" "$BROKEN is in swarm-moved: no block in General, its save path ends in swarm-moved."
+
 "$SWARM" fix >/dev/null
-rm -rf -- "$WRITABLE"
+rm -rf -- "$WRITABLE" "$MOVED"
 "$SWARM" break missing >/dev/null
 wait_state "$MISSING" "^missingFiles" 60 || true
 check "the app reconnects to the restarted playground by itself" app_back 40
