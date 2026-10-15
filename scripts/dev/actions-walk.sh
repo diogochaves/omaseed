@@ -3,8 +3,8 @@
 # automatic torrent management, set location (also onto another filesystem, a 2 GiB torrent),
 # recheck, the selection bar on two torrents, delete with and without files, and two torrents
 # that share one file (#27: the twin goes in through the add sheet's "save there"; #28: the
-# delete confirm and the location sheet ask). After each step it checks what qBittorrent says
-# and what is on disk, and stops at the first mismatch.
+# delete confirm, the location sheet and a category change ask). After each step it checks
+# what qBittorrent says and what is on disk, and stops at the first mismatch.
 # Run it again after any change to an action, a sheet, a palette or the selection bar.
 #
 #   scripts/dev/actions-walk.sh [OUT_DIR]        # agents: a headless box, a shot per step,
@@ -585,6 +585,29 @@ expect_size "the file is in /tmp/pair, whole" "/tmp/pair/$BIG" "$BIG_SIZE"
 expect_disk "…and gone from /tmp/elsewhere" ! "/tmp/elsewhere/$BIG"
 expect "both still seed it, complete" "$TWIN" "all(x['state'] in $SEEDING and x['progress'] == 1 for x in every if x['hash'] in ('$TWIN', '$BIGH'))" 30
 
+step "Move both by category" "Two categories with folders of their own: pair (/tmp/pair) and shelf (/tmp/shelf). The twin goes into pair with automatic management on, where it already is, so nothing moves; $BIG stays manual. The twin, C, \"shelf\", enter: \"Move to shelf?\" names $BIG and picks \"move both\"; enter gives $BIG the category and automatic management too, and the two move together."
+api torrents/createCategory -d category=pair --data-urlencode savePath=/tmp/pair >/dev/null
+api torrents/createCategory -d category=shelf --data-urlencode savePath=/tmp/shelf >/dev/null
+api torrents/setCategory -d "hashes=$TWIN" -d category=pair >/dev/null
+api torrents/setAutoManagement -d "hashes=$TWIN" -d enable=true >/dev/null
+expect "the twin is in pair, managed, still in /tmp/pair" "$TWIN" "t['category'] == 'pair' and t['auto_tmm'] and t['save_path'] == '/tmp/pair'"
+expect "$BIG has no category and is not managed" "$BIGH" "t['category'] == '' and not t['auto_tmm']"
+menu_on "twin"
+keys C
+keys -t shelf
+shot "The category palette for 1 torrent, shelf under the cursor, /tmp/shelf beside it." palette
+keys Return
+shot "Move to shelf? walk-2GiB twin · automatic management moves its files; the yellow line names $BIG; move both picked; the button reads move 2." dialog
+keys Return
+expect "both are in shelf" "$TWIN" "all(x['category'] == 'shelf' for x in every if x['hash'] in ('$TWIN', '$BIGH'))"
+expect "$BIG is managed now" "$BIGH" "t['auto_tmm']"
+expect "the twin is in /tmp/shelf" "$TWIN" "t['save_path'] == '/tmp/shelf' and t['state'] != 'moving'" 120
+expect "$BIG is in /tmp/shelf too" "$BIGH" "t['save_path'] == '/tmp/shelf' and t['state'] != 'moving'" 120
+expect_size "the file is in /tmp/shelf, whole" "/tmp/shelf/$BIG" "$BIG_SIZE"
+expect_disk "…and gone from /tmp/pair" ! "/tmp/pair/$BIG"
+expect "both still seed it, complete" "$TWIN" "all(x['state'] in $SEEDING and x['progress'] == 1 for x in every if x['hash'] in ('$TWIN', '$BIGH'))" 30
+shot "Both rows in shelf, seeding."
+
 step "A selection: one shares, one does not" "space on the twin and Public Domain Sampler, D: \"1 of them shares files with 1 torrent you're not deleting\"; esc."
 table_on "twin"
 keys space
@@ -614,7 +637,7 @@ shot "The second row picked; the button reads delete 2 with files." dialog
 keys l Return
 expect "the twin is gone" "$TWIN" 't is None'
 expect "$BIG is gone" "$BIGH" 't is None'
-expect_disk "the file is gone from /tmp/pair" ! "/tmp/pair/$BIG" 30
+expect_disk "the file is gone from /tmp/shelf" ! "/tmp/shelf/$BIG" 30
 expect_disk "Public Domain Sampler's files are still there" -f "$TORRENTS_DIR/Sampler (renamed)/sampler.mkv"
 
 echo
