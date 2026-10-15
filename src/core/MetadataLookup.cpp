@@ -102,7 +102,7 @@ bool MetadataLookup::isActive() const
 
 void MetadataLookup::start(const QString &key, const QString &source, const QString &kind)
 {
-    if (!key.isEmpty() && key == m_key && m_phase != Phase::Idle)
+    if (!key.isEmpty() && key == m_key && m_phase != Phase::Idle && m_phase != Phase::Private)
         return;
     ++m_generation;
     m_timer->stop();

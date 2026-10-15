@@ -470,6 +470,11 @@ void TestMetadataLookup::privateAsksNothing()
     at(m_now + 60000);
     QCOMPARE(m_server->polls(), 0);
     QVERIFY(!m_lookup->isActive());
+    // The same hash with trackers that are not private: now it is asked about.
+    m_lookup->start(
+        QStringLiteral("k"), QStringLiteral("magnet:?xt=k&tr=y"), QStringLiteral("magnet"));
+    QCOMPARE(m_lookup->phase(), Phase::Quiet);
+    QCOMPARE(m_server->polls(), 1);
 }
 
 // The walk's test-only clock: the board's minute in three real seconds.

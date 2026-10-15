@@ -105,6 +105,7 @@
 #include "core/FilterCounts.hpp"
 #include "core/GlobalState.hpp"
 #include "core/LogFilterModel.hpp"
+#include "core/MetadataLookup.hpp"
 #include "core/SeedConsole.hpp"
 #include "core/ServerLog.hpp"
 #include "core/ServerPreferences.hpp"
@@ -266,6 +267,16 @@ struct AddFilesModelForeign
     QML_FOREIGN(omaseed::core::AddFilesModel)
     QML_NAMED_ELEMENT(AddFilesModel)
     QML_UNCREATABLE("AddFilesModel is App.addFiles; it is not created from QML.")
+};
+
+/// docs/29 (#44): the lookup of the magnet or link the add sheet shows; `phase`, `seconds`,
+/// `kind`, `source`, `privateHost`.
+struct MetadataLookupForeign
+{
+    Q_GADGET
+    QML_FOREIGN(omaseed::core::MetadataLookup)
+    QML_NAMED_ELEMENT(MetadataLookup)
+    QML_UNCREATABLE("MetadataLookup is App.addLookup; it is not created from QML.")
 };
 
 struct TorrentTrackersModelForeign

@@ -31,6 +31,7 @@
 #include "core/FreeSpace.hpp"
 #include "core/GlobalState.hpp"
 #include "core/LogFilterModel.hpp"
+#include "core/MetadataLookup.hpp"
 #include "core/OmaseedBackup.hpp"
 #include "core/QbtClient.hpp"
 #include "core/RenameDisk.hpp"
@@ -885,9 +886,26 @@ private:
     /// The add sheet's file picker (docs/11 D1): the files of the `.torrent` the sheet shows,
     /// filled by `loadAddFiles(token)`.
     Q_PROPERTY(omaseed::core::AddFilesModel *addFiles READ addFiles CONSTANT)
+    /// docs/29 (#44): the lookup of the magnet or link the add sheet shows (its Files row).
+    Q_PROPERTY(omaseed::core::MetadataLookup *addLookup READ addLookup CONSTANT)
 
 public:
     omaseed::core::AddFilesModel *addFiles() const { return m_addFiles; }
+    omaseed::core::MetadataLookup *addLookup() const { return m_addLookup; }
+
+    /// docs/29 D1: asks the current server for the metadata of the magnet or link in
+    /// `addable` (parseAddable's map), on its own client so the session keeps the answer.
+    /// A magnet whose trackers the library's private torrents announce to is not asked
+    /// about (D7, F5). The same magnet again changes nothing. On the 200, `metadataFetched`.
+    Q_INVOKABLE void lookUpMetadata(const QVariantMap &addable);
+    /// The sheet let go of the source: polling stops, qBittorrent goes on (D6 a).
+    Q_INVOKABLE void stopMetadataLookup();
+    /// A test seam: `ms` >= 0 freezes the lookup's clock there (and lets it read it), < 0
+    /// gives it the real clock back. The QML tests walk the board's timings with it.
+    Q_INVOKABLE void setLookupTestClock(double ms);
+    /// `OMASEED_DEMO_ADD=magnet`: a magnet of the demo .torrent, which a demo lookup answers
+    /// with that torrent's files. Empty outside demo mode.
+    Q_INVOKABLE QString demoMagnet() const;
 
     /// Shows the files of the parsed `.torrent` behind `token` in `addFiles`, every one at
     /// "normal"; empties it when the token names nothing (a magnet, a URL, a stale parse).
@@ -1023,6 +1041,10 @@ Q_SIGNALS:
     /// `ok` false: `message` is what the sheet prints in red while staying open. `ok` true:
     /// `hash` is the new torrent's infohash, or empty when the source did not say.
     void addFinished(bool ok, QString message, QString hash);
+    /// docs/29 F2: the lookup's 200, as the addable it completes: `value` is the source the
+    /// sheet holds, now with `token` (its files, for loadAddFiles and findFilesMatch, as a
+    /// parsed .torrent's), `fileCount`, `totalSize`, `sizeText`, the info-hashes and `name`.
+    void metadataFetched(QVariantMap addable);
     void downloadsTorrentsChanged();
     void downloadsFolderChanged();
 
@@ -1108,6 +1130,34 @@ private:
                        const QString &root,
                        const QVariantList &priorities,
                        bool keepStopped);
+
+    /// Makes m_addLookup and wires it to the client, the server's state and the demo.
+    void setUpMetadataLookup();
+    /// The lookup's 200: its files kept like a parsed .torrent's, then `metadataFetched`.
+    void takeFetchedMetadata();
+    /// Tells the lookup whether the server is signed in and which Web API it speaks.
+    void updateLookupServer();
+    /// The library's private tracker hosts, read from the torrents and the tracker model.
+    QString privateTrackerOf(const QStringList &trackers) const;
+    /// #44: torrents/add answered 400 to `filePriorities`: the session that fetched the
+    /// metadata was replaced (a re-login). Asks for the metadata once more (quick: the peers
+    /// are known) and adds again; failing that, adds the magnet to stop once its metadata is in
+    /// and sets the priorities then, as for a .torrent (docs/29 §6, "Session swapped").
+    void retryUrlAdd(const QVariantMap &request,
+                     const omaseed::core::QbtClient::AddOptions &options,
+                     const QString &torrentId,
+                     int attempt = 0);
+    /// A magnet or link is in: its renames (M18) and then its start, or the priorities a
+    /// fallback add could not send (`laterPriorities`), then `addFinished`.
+    void afterUrlAdd(const QByteArray &body,
+                     const QVariantMap &request,
+                     const QString &torrentId,
+                     const QVariantList &laterPriorities);
+    omaseed::core::MetadataLookup *m_addLookup = nullptr;
+    /// The addable the lookup was started for, and the token its files were kept under.
+    QVariantMap m_lookupAddable;
+    QString m_lookupToken;
+    double m_lookupTestNow = -1;
 
     /// Builds the client's options from the sheet's payload.
     omaseed::core::QbtClient::AddOptions addOptionsFrom(const QVariantMap &request) const;

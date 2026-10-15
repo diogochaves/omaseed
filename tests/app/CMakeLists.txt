@@ -98,3 +98,9 @@ omaseed_add_test(tst_statusservice_live LIVE
     LIBRARIES omaseed::app omaseed::core omaseed::integration
     DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
 )
+
+# #44 (docs/29): a magnet's files before the add, against a small fake qBittorrent.
+omaseed_add_test(tst_app_magnet
+    SOURCES tst_app_magnet.cpp
+    LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::Network
+)

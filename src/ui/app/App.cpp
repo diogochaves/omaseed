@@ -4,8 +4,10 @@
 #include "core/Format.hpp"
 #include "core/LibraryMatch.hpp"
 #include "core/MagnetLink.hpp"
+#include "core/MetadataLookup.hpp"
 #include "core/PathMap.hpp"
 #include "core/PeerInput.hpp"
+#include "core/PrivateTrackers.hpp"
 #include "core/ProblemLog.hpp"
 #include "core/RenamePlan.hpp"
 #include "core/ServerLog.hpp"
@@ -49,6 +51,7 @@
 #include <QUrl>
 #include <QtGlobal>
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <utility>
@@ -108,6 +111,7 @@ App::App(QObject *parent)
 {
     m_engine->setClient(m_client);
     m_prefs = new ServerPreferences(m_client, this);
+    setUpMetadataLookup();
     m_altSpeed = new AltSpeed(this);
     m_altSpeed->setGlobalState(m_engine->globalState());
     m_altSpeed->setPreferences(m_prefs);
@@ -1884,9 +1888,14 @@ void App::addTorrent(const QVariantMap &request)
         return;
     }
 
+    // A parsed .torrent, or a magnet or link whose metadata the lookup brought (docs/29 F2):
+    // the sheet then has a file list, its choices and its renames.
+    const bool isFile = kind == QLatin1String("file");
+    const bool hasList = !token.isEmpty();
+
     // #67: the sheet refused such a name when it was typed, but Save to may have changed
     // since. qBittorrent would replace the file without a word (#64).
-    if (kind == QLatin1String("file")) {
+    if (hasList) {
         const QString taken = addRenameTaken(request);
         if (!taken.isEmpty()) {
             Q_EMIT addFinished(false, tr("%1 already exists on disk").arg(taken), QString());
@@ -1906,26 +1915,38 @@ void App::addTorrent(const QVariantMap &request)
 
     QbtClient::AddOptions options = addOptionsFrom(request);
 
-    // docs/11 D1: a file upload takes no file priorities ("Cannot specify filePriorities
-    // when uploading torrent files", 5.2), so the choices go on afterwards, while the
-    // torrent is still stopped and has not asked for a single piece.
     const QVariantList filePriorities =
-        kind == QLatin1String("file") ? request.value(QStringLiteral("filePriorities")).toList()
-                                      : QVariantList();
-    const bool withPriorities = !AddFilesModel::priorityGroups(filePriorities).isEmpty();
-    // M18: the Web API's add takes no per-file names either; they go on the same way.
-    const QVariantList renames = kind == QLatin1String("file")
-                                     ? request.value(QStringLiteral("fileRenames")).toList()
-                                     : QVariantList();
+        hasList ? request.value(QStringLiteral("filePriorities")).toList() : QVariantList();
+    const bool customised = !AddFilesModel::priorityGroups(filePriorities).isEmpty();
+    // M18: the Web API's add takes no per-file names; they go on afterwards, stopped.
+    const QVariantList renames =
+        hasList ? request.value(QStringLiteral("fileRenames")).toList() : QVariantList();
     const QVariantMap renameAnchor = request.value(QStringLiteral("renameAnchor")).toMap();
     const bool withRenames = !renames.isEmpty();
     const bool keepStopped = request.value(QStringLiteral("stopped")).toBool();
+    // docs/11 D1: a file upload takes no file priorities ("Cannot specify filePriorities
+    // when uploading torrent files", 5.2), so the choices go on afterwards, while the
+    // torrent is still stopped and has not asked for a single piece. A magnet or link takes
+    // them with the add itself, in the session that fetched its metadata (docs/29 §2).
+    const bool withPriorities = isFile && customised;
+    if (!isFile && customised) {
+        for (const QVariant &priority : filePriorities)
+            options.filePriorities.append(priority.toInt());
+    }
     if (withPriorities || withRenames)
         options.stopped = true;
+    // D5 a: "add stopped" before its list is in stops it as soon as the list arrives, so the
+    // files can be chosen in the Files tab before anything downloads. A plain stopped magnet
+    // never connects, so it would never get there (T3).
+    if (!isFile && !hasList && keepStopped &&
+        request.value(QStringLiteral("untilMetadata")).toBool()) {
+        options.stopped = false;
+        options.stopCondition = QStringLiteral("MetadataReceived");
+    }
 
     QbtReply<QByteArray> *reply = nullptr;
     QString torrentId = hash;
-    if (kind == QLatin1String("file")) {
+    if (isFile) {
         const PendingTorrentFile file = m_pendingTorrentFiles.value(token);
         if (torrentId.isEmpty())
             torrentId = file.torrentId;
@@ -1935,11 +1956,22 @@ void App::addTorrent(const QVariantMap &request)
         }
         reply = m_client->torrentsAddFile(file.fileName, file.bytes, options);
     } else {
+        if (torrentId.isEmpty() && hasList)
+            torrentId = m_pendingTorrentFiles.value(token).torrentId;
         reply = m_client->torrentsAddUrls(QStringList{value}, options);
     }
 
     reply->then(this, [=, this](const QbtResult<QByteArray> &result) {
         if (result.isError()) {
+            // #44: 400 to the priorities is a session that is not the one that fetched the
+            // metadata any more.
+            if (!isFile && customised && result.error().httpStatus() == 400) {
+                qInfo().noquote() << QStringLiteral("add: the file choices were refused (%1); "
+                                                    "asking for the metadata again")
+                                         .arg(result.error().toString());
+                retryUrlAdd(request, options, torrentId);
+                return;
+            }
             qWarning().noquote() << QStringLiteral("add failed: %1").arg(result.error().toString());
             Q_EMIT addFinished(false, result.error().message(), QString());
             return;
@@ -1949,6 +1981,10 @@ void App::addTorrent(const QVariantMap &request)
         const QString body = QString::fromUtf8(result.value()).trimmed();
         if (body.compare(QStringLiteral("Fails."), Qt::CaseInsensitive) == 0) {
             Q_EMIT addFinished(false, tr("the server refused this torrent"), QString());
+            return;
+        }
+        if (!isFile) {
+            afterUrlAdd(result.value(), request, torrentId, {});
             return;
         }
         if (!token.isEmpty())
@@ -2308,6 +2344,298 @@ void App::watchForAddedHash(const QString &hash)
     m_addWatchTimer->start();
 }
 
+// --- #44: a magnet's files before the add (docs/29) ---------------------------------------
+
+namespace {
+
+/// The demo .torrent's metadata as torrents/fetchMetadata answers it: paths under the
+/// torrent's folder, as qBittorrent sends them.
+QJsonObject demoMetadataBody(const TorrentFile &torrent)
+{
+    QJsonArray files;
+    for (const TorrentFileEntry &file : torrent.files) {
+        files.append(QJsonObject{
+            {QStringLiteral("length"), file.size},
+            {QStringLiteral("path"),
+             torrent.multiFile ? torrent.name + QLatin1Char('/') + file.path : file.path},
+        });
+    }
+    return QJsonObject{
+        {QStringLiteral("hash"), torrent.torrentId()},
+        {QStringLiteral("infohash_v1"), torrent.infoHashV1},
+        {QStringLiteral("infohash_v2"), torrent.infoHashV2},
+        {QStringLiteral("info"),
+         QJsonObject{{QStringLiteral("name"), torrent.name},
+                     {QStringLiteral("length"), torrent.totalSize},
+                     {QStringLiteral("piece_length"), torrent.pieceLength},
+                     {QStringLiteral("private"), torrent.isPrivate},
+                     {QStringLiteral("files"), files}}},
+        {QStringLiteral("trackers"), QJsonArray()},
+    };
+}
+
+} // namespace
+
+void App::setUpMetadataLookup()
+{
+    m_addLookup = new MetadataLookup(this);
+    m_addLookup->setFetch([this](const QString &source) -> QbtReply<QbtClient::FetchedMetadata> * {
+        if (!m_demoMode)
+            return m_client->torrentsFetchMetadata(source);
+        // Demo: the demo .torrent's magnet answers with its files, anything else looks for
+        // ever, as a dead magnet does. Nothing leaves the process.
+        auto *reply = new QbtReply<QbtClient::FetchedMetadata>(this);
+        QbtClient::FetchedMetadata answer;
+        const TorrentFile demo = TorrentFile::parse(DemoData::demoTorrentBytes());
+        if (demo.isValid() && source.contains(demo.infoHashV1, Qt::CaseInsensitive)) {
+            answer.ready = true;
+            answer.body = demoMetadataBody(demo);
+        }
+        QTimer::singleShot(0, reply, [reply, answer]() { reply->complete(answer); });
+        return reply;
+    });
+    // magnet-walk's test-only clock: F3 and F4 in seconds instead of a minute.
+    const double scale = env("OMASEED_LOOKUP_CLOCK_SCALE").toDouble();
+    if (scale > 0)
+        m_addLookup->setClockScale(scale);
+    connect(m_addLookup, &MetadataLookup::fetched, this, &App::takeFetchedMetadata);
+    connect(
+        m_engine->globalState(), &GlobalState::connectedChanged, this, &App::updateLookupServer);
+    connect(
+        m_engine->globalState(), &GlobalState::apiVersionChanged, this, &App::updateLookupServer);
+}
+
+void App::updateLookupServer()
+{
+    if (m_demoMode) {
+        m_addLookup->setServer(true, QStringLiteral("2.15.1"));
+        return;
+    }
+    // F7: the version (D11) and a signed-in session first; a lookup handed over before the
+    // first sync waits for both.
+    const GlobalState *state = m_engine->globalState();
+    const bool ready = m_hasServer && state->connected() && !state->apiVersion().isEmpty();
+    m_addLookup->setServer(ready, state->apiVersion());
+}
+
+QString App::privateTrackerOf(const QStringList &trackers) const
+{
+    if (trackers.isEmpty())
+        return {};
+    PrivateTrackers library;
+    TorrentModel *model = m_engine->torrents();
+    for (int row = 0; row < model->count(); ++row) {
+        const QString hash = model->data(model->index(row), TorrentModel::HashRole).toString();
+        const Torrent &torrent = model->torrent(hash);
+        if (torrent.isPrivate)
+            library.addTorrent(true, {torrent.tracker});
+    }
+    // Every announce URL of every private torrent, not only the one it uses right now.
+    const TrackerModel *groups = m_engine->trackers();
+    for (int row = 0; row < groups->rowCount(); ++row) {
+        const QModelIndex index = groups->index(row);
+        const QStringList hashes = groups->data(index, TrackerModel::HashesRole).toStringList();
+        const bool anyPrivate =
+            std::any_of(hashes.cbegin(), hashes.cend(), [model](const QString &hash) {
+                return model->indexOfHash(hash) >= 0 && model->torrent(hash).isPrivate;
+            });
+        if (anyPrivate)
+            library.addTorrent(true, groups->data(index, TrackerModel::UrlsRole).toStringList());
+    }
+    return library.match(trackers);
+}
+
+void App::lookUpMetadata(const QVariantMap &addable)
+{
+    const QString kind = addable.value(QStringLiteral("kind")).toString();
+    const bool lookable = addable.value(QStringLiteral("valid")).toBool() &&
+                          !addable.value(QStringLiteral("pending")).toBool() &&
+                          (kind == QLatin1String("magnet") || kind == QLatin1String("url"));
+    if (!lookable) {
+        stopMetadataLookup();
+        return;
+    }
+    // Its list is in already: nothing to ask.
+    if (!addable.value(QStringLiteral("token")).toString().isEmpty())
+        return;
+    const QString value = addable.value(QStringLiteral("value")).toString();
+    const QString key =
+        kind == QLatin1String("magnet")
+            ? TorrentFile::torrentIdFor(addable.value(QStringLiteral("infoHashV1")).toString(),
+                                        addable.value(QStringLiteral("infoHashV2")).toString())
+            : value;
+    m_lookupAddable = addable;
+    // The same magnet, its list already in (the field was read again, say, after a keystroke
+    // past the hash): the same files under the same token, so the choices made stay.
+    if (key == m_addLookup->key() && m_addLookup->phase() == MetadataLookup::Phase::Done &&
+        !m_lookupToken.isEmpty()) {
+        QMetaObject::invokeMethod(this, &App::takeFetchedMetadata, Qt::QueuedConnection);
+        return;
+    }
+    if (key != m_addLookup->key())
+        m_lookupToken.clear();
+    if (kind == QLatin1String("magnet")) {
+        const QString host =
+            privateTrackerOf(addable.value(QStringLiteral("trackers")).toStringList());
+        if (!host.isEmpty()) {
+            m_addLookup->startPrivate(key, value, host);
+            return;
+        }
+    }
+    m_addLookup->start(key, value, kind);
+    updateLookupServer();
+}
+
+void App::stopMetadataLookup()
+{
+    m_lookupToken.clear();
+    m_lookupAddable.clear();
+    m_addLookup->stop();
+}
+
+void App::setLookupTestClock(double ms)
+{
+    m_lookupTestNow = ms;
+    if (ms < 0) {
+        m_addLookup->setManualClock({});
+        return;
+    }
+    m_addLookup->setManualClock([this]() { return qint64(m_lookupTestNow); });
+    m_addLookup->wake();
+}
+
+QString App::demoMagnet() const
+{
+    if (!m_demoMode)
+        return {};
+    const TorrentFile demo = TorrentFile::parse(DemoData::demoTorrentBytes());
+    if (!demo.isValid())
+        return {};
+    // No trackers: the demo library's private ones would turn it into F5.
+    return QStringLiteral("magnet:?xt=urn:btih:%1&dn=%2")
+        .arg(demo.infoHashV1, QString::fromLatin1(QUrl::toPercentEncoding(demo.name)));
+}
+
+void App::takeFetchedMetadata()
+{
+    if (m_addLookup->phase() != MetadataLookup::Phase::Done || m_lookupAddable.isEmpty())
+        return;
+    const MetadataLookup::Metadata &metadata = m_addLookup->metadata();
+    if (m_lookupToken.isEmpty() || !m_pendingTorrentFiles.contains(m_lookupToken)) {
+        m_lookupToken =
+            QStringLiteral("meta-%1").arg(++m_nextAddableToken, 4, 10, QLatin1Char('0'));
+        PendingTorrentFile file;
+        file.fileName = metadata.name;
+        file.files = metadata.files;
+        file.torrentId = metadata.torrentId;
+        file.name = metadata.name;
+        file.multiFile = metadata.multiFile;
+        file.pieceLength = metadata.pieceLength;
+        rememberTorrentFile(m_lookupToken, file);
+    }
+    QVariantMap map = m_lookupAddable;
+    map[QStringLiteral("token")] = m_lookupToken;
+    map[QStringLiteral("valid")] = true;
+    map[QStringLiteral("pending")] = false;
+    map[QStringLiteral("name")] = metadata.name;
+    map[QStringLiteral("fileCount")] = int(metadata.files.size());
+    map[QStringLiteral("totalSize")] = metadata.totalSize;
+    map[QStringLiteral("sizeText")] = Format::size(metadata.totalSize);
+    map[QStringLiteral("isPrivate")] = metadata.isPrivate;
+    if (!metadata.infoHashV1.isEmpty())
+        map[QStringLiteral("infoHashV1")] = metadata.infoHashV1;
+    if (!metadata.infoHashV2.isEmpty())
+        map[QStringLiteral("infoHashV2")] = metadata.infoHashV2;
+    // A link names no tracker until its .torrent is read; a magnet keeps its own `tr=`.
+    if (map.value(QStringLiteral("trackers")).toStringList().isEmpty())
+        map[QStringLiteral("trackers")] = metadata.trackers;
+    Q_EMIT metadataFetched(map);
+}
+
+void App::afterUrlAdd(const QByteArray &body,
+                      const QVariantMap &request,
+                      const QString &torrentId,
+                      const QVariantList &laterPriorities)
+{
+    const QString token = request.value(QStringLiteral("token")).toString();
+    if (!token.isEmpty())
+        forgetTorrentFile(token);
+    if (token == m_lookupToken)
+        m_lookupToken.clear();
+    watchForAddedHash(torrentId);
+    const QJsonArray added =
+        QJsonDocument::fromJson(body).object().value(QStringLiteral("added_torrent_ids")).toArray();
+    const QString id = added.isEmpty() ? torrentId : added.first().toString();
+    const bool keepStopped = request.value(QStringLiteral("stopped")).toBool();
+    const QVariantList renames =
+        token.isEmpty() ? QVariantList() : request.value(QStringLiteral("fileRenames")).toList();
+    if (!renames.isEmpty()) {
+        applyAddRenames(id,
+                        renames,
+                        request.value(QStringLiteral("renameAnchor")).toMap(),
+                        laterPriorities,
+                        keepStopped);
+        return;
+    }
+    if (!AddFilesModel::priorityGroups(laterPriorities).isEmpty()) {
+        applyAddFilePriorities(id, laterPriorities, keepStopped);
+        return;
+    }
+    Q_EMIT addFinished(true, QString(), id);
+}
+
+void App::retryUrlAdd(const QVariantMap &request,
+                      const QbtClient::AddOptions &options,
+                      const QString &torrentId,
+                      int attempt)
+{
+    const QString value = request.value(QStringLiteral("value")).toString();
+    // The last way: added to stop once its metadata is in, the priorities set then.
+    const auto fallback = [=, this]() {
+        QbtClient::AddOptions untilMetadata = options;
+        untilMetadata.filePriorities.clear();
+        untilMetadata.stopped = false;
+        untilMetadata.stopCondition = QStringLiteral("MetadataReceived");
+        m_client->torrentsAddUrls(QStringList{value}, untilMetadata)
+            ->then(this, [=, this](const QbtResult<QByteArray> &result) {
+                if (result.isError()) {
+                    Q_EMIT addFinished(false, result.error().message(), QString());
+                    return;
+                }
+                afterUrlAdd(result.value(),
+                            request,
+                            torrentId,
+                            request.value(QStringLiteral("filePriorities")).toList());
+            });
+    };
+    m_client->torrentsFetchMetadata(value)->then(
+        this, [=, this](const QbtResult<QbtClient::FetchedMetadata> &fetched) {
+            if (fetched.isError()) {
+                fallback();
+                return;
+            }
+            if (!fetched.value().ready) {
+                // The swarm is known by now: a few seconds at most.
+                if (attempt < 20) {
+                    QTimer::singleShot(250, this, [=, this]() {
+                        retryUrlAdd(request, options, torrentId, attempt + 1);
+                    });
+                } else {
+                    fallback();
+                }
+                return;
+            }
+            m_client->torrentsAddUrls(QStringList{value}, options)
+                ->then(this, [=, this](const QbtResult<QByteArray> &result) {
+                    if (result.isError()) {
+                        fallback();
+                        return;
+                    }
+                    afterUrlAdd(result.value(), request, torrentId, {});
+                });
+        });
+}
+
 QString App::demoAddText() const
 {
     if (!m_demoMode)
@@ -2316,6 +2644,9 @@ QString App::demoAddText() const
     // `torrent`: a real `.torrent` with a folder tree, so the file picker can be shown.
     if (text == QLatin1String("torrent"))
         return demoTorrentPath();
+    // `magnet`: the same torrent as a magnet, which the demo lookup answers (docs/29 F2).
+    if (text == QLatin1String("magnet"))
+        return demoMagnet();
     return text;
 }
 
