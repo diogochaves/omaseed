@@ -1,11 +1,13 @@
 import QtQuick
 import QtTest
 import Omaseed
+import Omaseed.Kit
 import Omaseed.Views
 
 // #11 (docs/18): the rename-many-files sheet on the demo's Big Buck Bunny. The plan comes from
 // App.planFileRenames(), so this checks what the sheet does with it: the title, the button's
-// words and whether it runs, `ctrl+e`, the preview's rows, and the run.
+// words and whether it runs, `ctrl+e`, the preview's rows, a name already on disk (#64), and
+// the run.
 TestCase {
     id: testCase
 
@@ -53,6 +55,7 @@ TestCase {
     }
 
     function cleanup() {
+        App.setDemoDiskFolder("");
         sheet.close();
     }
 
@@ -106,6 +109,43 @@ TestCase {
         compare(sheet.primaryText, "fix the regex");
         verify(findChild(sheet, "regexError").visible);
         compare(sheet.preview.visible, false);
+    }
+
+    // #64: a new name that a file the torrent does not own already has on disk is marked and
+    // refused like a clash with the torrent's own files. The demo has no disk, so the test
+    // gives it one (App.setDemoDiskFolder) holding a stray subtitle beside the torrent's.
+    function test_a_name_already_on_disk_is_marked_and_refused() {
+        const folder = TestFiles.folder(); // qmllint disable unqualified
+        verify(TestFiles.write("Big Buck Bunny 4K/subs/film.en.srt", "keep me")); // qmllint disable unqualified
+        App.setDemoDiskFolder(folder);
+        const paths = ["Big Buck Bunny 4K/subs/bbb.en.srt", "Big Buck Bunny 4K/subs/bbb.pt.srt"];
+        sheet.openFor(testCase.hash, paths, true);
+        sheet.findField.text = "bbb";
+        sheet.replaceField.text = "film";
+        compare(sheet.plan.changed, 1);
+        compare(sheet.plan.collisions, 1);
+        compare(sheet.plan.rows[0].status, "collides");
+        compare(sheet.primaryText, "1 names collide");
+        compare(sheet.primaryButton().enabled, false);
+        waitForRendering(sheet.preview, 500);
+        const marked = findChild(sheet.preview.itemAtIndex(0), "newName");
+        compare(marked.text, "film.en.srt · collides");
+        verify(Qt.colorEqual(marked.color, Theme.red), "the row is not marked");
+        const free = findChild(sheet.preview.itemAtIndex(1), "newName");
+        verify(!Qt.colorEqual(free.color, Theme.red));
+        sheet.findField.focusInput();
+        keyClick(Qt.Key_Return);
+        compare(renamedSpy.count, 0);
+        compare(sheet.opened, true);
+
+        // Another name is free: the row clears and enter runs.
+        sheet.replaceField.text = "movie";
+        compare(sheet.plan.collisions, 0);
+        compare(sheet.primaryText, "rename 2");
+        // Without a disk to read, the stray is not seen: as before #64.
+        App.setDemoDiskFolder("");
+        sheet.replaceField.text = "film";
+        compare(sheet.plan.collisions, 0);
     }
 
     function test_enter_renames_and_closes() {
