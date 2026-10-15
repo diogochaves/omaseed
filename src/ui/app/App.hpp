@@ -34,6 +34,7 @@
 #include "core/MetadataLookup.hpp"
 #include "core/OmaseedBackup.hpp"
 #include "core/QbtClient.hpp"
+#include "core/QbtSettingsExport.hpp"
 #include "core/RenameDisk.hpp"
 #include "core/SecretStore.hpp"
 #include "core/SeedConsole.hpp"
@@ -1574,6 +1575,63 @@ private:
     std::optional<omaseed::core::OmaseedBackup::Contents> m_pendingRestore;
     QString m_pendingRestorePath;
     // --- end #31 --------------------------------------------------------------------------------
+
+    // --- #32: a qBittorrent's settings, exported and imported (docs/24 §4–§6) -----------------
+    // Settings › qBittorrent › Backup acts on the server the app is on. The file and the diff
+    // are QbtSettingsExport's and QbtSettingsImport's; App reads the server, keeps the last
+    // export of each server for omaseed's own backups (`qbittorrent/<server id>.json`, D3 a)
+    // and runs the import with its own ServerPreferences, so the panes show it at once.
+public:
+    /// "Preferences, 4 categories, 7 tags, 2 RSS feeds and 5 rules. Passwords are left out."
+    Q_PROPERTY(QString qbtExportSummary READ qbtExportSummary NOTIFY qbtBackupChanged)
+    QString qbtExportSummary() const;
+    /// An export, a read for the import sheet or an import is on its way.
+    Q_PROPERTY(bool qbtBackupBusy READ qbtBackupBusy NOTIFY qbtBackupChanged)
+    bool qbtBackupBusy() const { return m_qbtBusy > 0; }
+
+    /// Counts the server's RSS feeds and rules for the summary (the pane, when it shows).
+    Q_INVOKABLE void refreshQbtBackupInfo();
+    /// The portal's save dialog, proposing `~/qbittorrent-<server>-<date>.json`. Empty when
+    /// cancelled.
+    Q_INVOKABLE QString pickQbtExportPath() const;
+    /// Reads the server's settings and writes them to `path`; `qbtExportFinished` says how it
+    /// went.
+    Q_INVOKABLE void exportQbtSettings(const QString &path);
+    /// The portal's open dialog: a settings export, or an omaseed backup holding one.
+    Q_INVOKABLE QString pickQbtImportFile() const;
+    /// Reads `path` and the server, then hands the import sheet its rows through
+    /// `qbtImportRead`: `{ok, error, title, sub, rows: [{key, kind: "pref" | "categories" |
+    /// "tagsRss" | "folders", group, now, from, checked}], notes, secrets, changeCount}`.
+    /// Answers "" when the read is on its way, otherwise why the file is refused.
+    Q_INVOKABLE QString readQbtSettings(const QString &path);
+    /// Imports what readQbtSettings last read: `choice` = `{keys: [...], categories, tagsRss,
+    /// folders}`. `qbtImportFinished` says what it did.
+    Q_INVOKABLE void applyQbtImport(const QVariantMap &choice);
+
+Q_SIGNALS:
+    void qbtBackupChanged();
+    void qbtExportFinished(const QString &text, bool ok);
+    void qbtImportRead(const QVariantMap &info);
+    void qbtImportFinished(const QString &text, bool ok);
+
+private:
+    /// The server's settings, read afresh (in a demo: its offline preferences and models).
+    void collectQbtSettings(std::function<void(std::optional<omaseed::core::QbtSettingsSnapshot>,
+                                               const QString &)> done);
+    /// AutoBackup's check: the server's settings first, then the copy (D3 a).
+    void runAutoBackupIfDue();
+    /// Each server's latest settings for omaseed's backups: this session's exports over the
+    /// ones the newest automatic copy holds.
+    QList<omaseed::core::TarArchive::Entry> qbtBackupExtras() const;
+    QVariantMap qbtImportInfo(const QString &path);
+    QHash<QString, QByteArray> m_qbtSnapshots;
+    std::optional<omaseed::core::QbtSettingsSnapshot> m_importFile;
+    std::optional<omaseed::core::QbtSettingsSnapshot> m_importHere;
+    int m_qbtRssFeeds = -1;
+    int m_qbtRssRules = -1;
+    int m_qbtBusy = 0;
+    bool m_autoBackupReading = false;
+    // --- end #32 --------------------------------------------------------------------------------
 
     // --- #28: data shared between torrents --------------------------------------------------
     // docs/26: the delete confirm, the location sheet and a category change ask before they

@@ -104,3 +104,9 @@ omaseed_add_test(tst_app_magnet
     SOURCES tst_app_magnet.cpp
     LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::Network
 )
+
+# #32: export and import of a qBittorrent's settings, on the demo's offline server.
+omaseed_add_test(tst_app_qbtbackup
+    SOURCES tst_app_qbtbackup.cpp
+    LIBRARIES omaseed::app omaseed::core omaseed::integration
+)
