@@ -39,6 +39,9 @@ QtObject {
     property bool overlayOpen: false
     /// The details pane is folded (docs/17 M10): the table's line adds `i`, the way back.
     property bool detailsFolded: false
+    /// docs/32 §6, the log face: its marked lines, and whether it follows new ones.
+    property int logMarked: 0
+    property bool logFollowing: true
 
     // what the footer reads ---------------------------------------------------------
     /// The state the hints describe. A window-wide state (lost server, empty library,
@@ -49,6 +52,9 @@ QtObject {
             return "overlay";
         if (!root.connected)
             return "disconnected";
+        // The log is about the server, not the library: an empty one still has a log.
+        if (root.focusArea === "log")
+            return "log";
         if (root.torrentCount === 0)
             return "empty";
         if (root.filteredCount === 0)
@@ -92,6 +98,8 @@ QtObject {
         case "console": // #24, docs/22's footer
             return [root._hint("global", "`", qsTr("library")), root._hint("console", "[ ]"),
                     root._hint("console", "j k"), root._hint("console", "esc"), root._hint("global", "/")];
+        case "log":
+            return root._logHints();
         default:
             return root._tableHints();
         }
@@ -113,6 +121,21 @@ QtObject {
             "key": keys,
             "label": label
         };
+    }
+
+    /// docs/32 L1 and L2: the face's keys; with lines marked, what to do with them; while
+    /// paused, the way back to the newest line.
+    function _logHints() {
+        const newest = root._hint("log", "G", qsTr("newest, follow again"));
+        if (root.logMarked > 0) {
+            const hints = [root._hint("log", "y", root.logMarked === 1 ? qsTr("copy 1 marked line")
+                                                                                    : qsTr("copy %1 marked lines").arg(root.logMarked)),
+                           root._hint("log", "esc", qsTr("clear"))];
+            return root.logFollowing ? hints : hints.concat([newest]);
+        }
+        return [root._hint("log", "1–4"), root._hint("log", "/"), root._hint("log", "w"), root._hint("log", "y"),
+                root._hint("log", "enter"), root.logFollowing ? root._hint("log", "f") : newest,
+                root._hint("global", "~", qsTr("library"))];
     }
 
     function _tableHints() {

@@ -68,6 +68,7 @@ Item {
     readonly property alias sortPalette: sortPalette
     readonly property alias columnsPalette: columnsPalette
     readonly property alias commandPalette: commandPalette
+    readonly property alias logView: logView
 
     /// The `?` sheet.
     property bool helpOpen: false
@@ -151,12 +152,17 @@ Item {
     /// There are numbers worth printing in the hero.
     readonly property bool live: App.demoMode || App.globalState.connected
 
-    /// #24 (docs/22 D1 a): the window's face, "library" or "seed" (the seed console).
+    /// #24 (docs/22 D1 a): the window's face, "library" or "seed" (the seed console); docs/32
+    /// D9 (#56) adds "log", qBittorrent's log.
     property string view: "library"
     readonly property bool consoleShown: root.view === "seed" && !root.libraryEmpty && !root.firstSync
                                          && !root.firstRun
+    /// docs/32 D9: the log face. Any server has a log, an empty library's too.
+    readonly property bool logShown: root.view === "log" && App.hasServer && !root.firstRun
+    /// The face `~` and `esc` go back to from the log ("back to where you were").
+    property string _viewBeforeLog: "library"
 
-    /// `` ` `` and the hero's tabs. With a selection, the console opens on it (D2 a).
+    /// `` ` ``, `~` and the hero's tabs. With a selection, the console opens on it (D2 a).
     function setView(next: string): void {
         if (next === root.view)
             return;
@@ -164,11 +170,42 @@ Item {
             App.console.setScopeHashes(table.selectedCount > 0 ? table.selectedHashes() : []);
         else
             App.console.setScopeHashes([]);
+        if (next === "log")
+            root._viewBeforeLog = root.view;
+        // docs/32 §6: the lines are kept only while the log is open. A demo's stay: no server
+        // would read them again.
+        if (root.view === "log" && !App.demoMode)
+            App.serverLog.release();
         root.view = next;
         if (next === "seed")
             seedConsole.forceActiveFocus();
         else
             root.focusHome();
+        // D12: the log opens on its newest line, following.
+        if (next === "log")
+            logView.followNewest();
+    }
+
+    /// `~` (docs/32 D9): the log, or back to where the window was.
+    function toggleLog(): void {
+        root.setView(root.view === "log" ? root._viewBeforeLog : "log");
+    }
+
+    /// docs/32 D13: "its lines in the log" on a torrent's block: the log face, narrowed to it.
+    function showTorrentLog(hash: string): void {
+        if (hash.length === 0)
+            return;
+        root.setView("log");
+        logView.showTorrentLines(hash);
+    }
+
+    /// The log's `enter` (D13): the line's torrent in the library, its General tab open.
+    function showLogTorrent(hash: string): void {
+        root.setView("library");
+        if (table.revealHash(hash)) {
+            root.showDetailsTab(0);
+            root.focusHome();
+        }
     }
 
     /// The console's scope in words, from what the rail selects.
@@ -212,6 +249,13 @@ Item {
         table.revealHash(hash);
     }
 
+    // docs/32 §6: the log is read from the server only while its face is on screen.
+    Binding {
+        target: App.serverLog
+        property: "active"
+        value: root.logShown && root.visible && (root.Window.window?.visible ?? false)
+    }
+
     // Hidden to the tray, nobody sees the console: it stops refreshing until it is shown (#50).
     Binding {
         target: App.console
@@ -230,8 +274,10 @@ Item {
 
     /// Which view holds the focus, for `HintModel`.
     readonly property string focusArea: {
-        if (hero.searchField.editing || details.filterEditing)
+        if (hero.searchField.editing || details.filterEditing || logView.filterEditing)
             return "search";
+        if (root.logShown)
+            return "log";
         if (root.consoleShown && !rail.activeFocus)
             return "console";
         if (rail.activeFocus)
@@ -336,7 +382,9 @@ Item {
     function focusHome(): void {
         if (root.firstRun || root.overlayOpen)
             return;
-        if (root.serverLost)
+        if (root.logShown) // read-only already: the lines stay with the server lost
+            logView.focusLines();
+        else if (root.serverLost)
             dimmed.forceActiveFocus();
         else
             table.forceActiveFocus();
@@ -349,8 +397,9 @@ Item {
         if (root.firstRun || root.overlayOpen)
             return;
         const item = root.Window.activeFocusItem;
-        const wrong = root.serverLost ? !dimmed.activeFocus
-                                      : (dimmed.activeFocus || !item || !item.visible);
+        const wrong = root.logShown ? !logView.activeFocus
+                                    : root.serverLost ? !dimmed.activeFocus
+                                                      : (dimmed.activeFocus || !item || !item.visible);
         if (wrong)
             root.focusHome();
     }
@@ -695,6 +744,9 @@ Item {
                 root.quitRequested();
                 break;
             case Qt.Key_K:
+                // The jump palette moves the library's cursor: from the log, the library first.
+                if (root.logShown)
+                    root.setView("library");
                 jumpPalette.open();
                 break;
             case Qt.Key_P: // docs/30 D1: ctrl+shift+p, the editors' command palette key
@@ -715,7 +767,8 @@ Item {
                 root.openMoreMenu();
                 break;
             case Qt.Key_B:
-                root.toggleRail();
+                if (!root.logShown) // the log face has no rail (docs/32 L1)
+                    root.toggleRail();
                 break;
             default:
                 return;
@@ -762,9 +815,38 @@ Item {
             }
         }
 
+        // docs/32 §6: the log face takes its own keys (LogView). Of what it leaves, the keys
+        // about the library's table, rail and details do nothing there.
+        if (root.logShown) {
+            switch (event.key) {
+            case Qt.Key_I:
+            case Qt.Key_Less:
+            case Qt.Key_Greater:
+            case Qt.Key_S:
+            case Qt.Key_Bar:
+            case Qt.Key_Slash:
+            case Qt.Key_Escape:
+            case Qt.Key_0:
+            case Qt.Key_1:
+            case Qt.Key_2:
+            case Qt.Key_3:
+            case Qt.Key_4:
+            case Qt.Key_5:
+            case Qt.Key_6:
+            case Qt.Key_7:
+            case Qt.Key_8:
+            case Qt.Key_9:
+                event.accepted = true;
+                return;
+            }
+        }
+
         switch (event.key) {
         case Qt.Key_QuoteLeft: // #24: the seed console, a nod to a Quake console
             root.setView(root.view === "seed" ? "library" : "seed");
+            break;
+        case Qt.Key_AsciiTilde: // docs/32 D9: qBittorrent's log, beside the console's key
+            root.toggleLog();
             break;
         case Qt.Key_Question:
         case Qt.Key_F1: // the desktop's help key, same sheet (Keymap's "f1" entry)
@@ -921,6 +1003,7 @@ Item {
         "cycleDetailsPlacement": () => root.cycleDetailsPlacement(),
         "toggleRail": () => root.toggleRail(),
         "toggleConsole": () => root.setView(root.view === "seed" ? "library" : "seed"),
+        "toggleLog": () => root.toggleLog(),
         "detailsSmaller": () => {
             if (details.collapsed)
                 root.toggleDetails();
@@ -973,7 +1056,22 @@ Item {
         // the seed console (#24)
         "consoleShorter": () => App.console.stepRange(-1),
         "consoleLonger": () => App.console.stepRange(1),
-        "consoleEscape": () => root.consoleEscape()
+        "consoleEscape": () => root.consoleEscape(),
+        // the log face (docs/32 §6, #56)
+        "logFilter": () => logView.focusFilter(),
+        "logNewest": () => logView.followNewest(),
+        "logNextProblem": () => logView.nextProblem(1),
+        "logPreviousProblem": () => logView.nextProblem(-1),
+        "logFollow": () => logView.toggleFollow(),
+        "logMarkAll": () => App.logLines.markAll(),
+        "logCopy": () => logView.copyLines(),
+        "logShowTorrent": () => logView.showLineTorrent(),
+        "logTorrent": () => logView.narrowToLineTorrent(),
+        "logEscape": () => logView.stepBack(),
+        "logNormal": () => logView.toggleLevel(ServerLog.Normal),
+        "logInfo": () => logView.toggleLevel(ServerLog.Info),
+        "logWarning": () => logView.toggleLevel(ServerLog.Warning),
+        "logCritical": () => logView.toggleLevel(ServerLog.Critical)
     })
 
     /// `:` and `ctrl+shift+p` (docs/30, DECISIONS C1): the command palette, on what the
@@ -991,7 +1089,7 @@ Item {
     function commandContext(): var {
         let area = root.focusArea;
         if (area === "search")
-            area = details.filterEditing ? "files" : "table";
+            area = details.filterEditing ? "files" : logView.filterEditing ? "log" : "table";
         if (area === "details")
             area = ["general", "files", "trackers", "peers", "webseeds"][details.currentTab] || "general";
         const targets = root.actionHashes().map(hash => App.torrentRow(hash));
@@ -1014,6 +1112,9 @@ Item {
         } else if (area === "webseeds") {
             marked = details.webSeedsSelection.count;
             row = has ? App.details.webSeeds.urlAt(details.webSeedsCursor) : "";
+        } else if (area === "log") {
+            marked = App.logLines.markedCount;
+            row = logView.cursor >= 0 ? logView.cursorMessage : "";
         }
         return {
             "area": area,
@@ -1032,6 +1133,12 @@ Item {
                 "detailsShown": !details.collapsed,
                 "railShown": !App.railHidden,
                 "consoleShown": root.view === "seed",
+                "logShown": root.view === "log",
+                "logFollowing": logView.following,
+                "logNormal": (App.logLines.levels & ServerLog.Normal) !== 0,
+                "logInfo": (App.logLines.levels & ServerLog.Info) !== 0,
+                "logWarning": (App.logLines.levels & ServerLog.Warning) !== 0,
+                "logCritical": (App.logLines.levels & ServerLog.Critical) !== 0,
                 "consoleScoped": App.console.selectionScope || App.console.scoped,
                 "altSpeed": App.globalState.useAltSpeedLimits === true,
                 "placement": App.detailsPlacement,
@@ -1421,6 +1528,11 @@ Item {
                 "key": "seed",
                 "label": qsTr("seed"),
                 "hint": "`"
+            },
+            {
+                "key": "log",
+                "label": qsTr("log"),
+                "hint": "~"
             }
         ]
         currentView: root.view
@@ -1502,7 +1614,8 @@ Item {
             tags: App.tags
             trackers: App.trackers
             // docs/08 §5: `ctrl+b` hides it; the filters it holds show as chips in the hero.
-            visible: !root.libraryEmpty && !root.firstSync && !App.railHidden
+            // The log face has none: the rail is about torrents (docs/32 L1).
+            visible: !root.libraryEmpty && !root.firstSync && !App.railHidden && !root.logShown
 
             collapsedGroups: root.railFolded
             scrollHint: App.railScrollHint
@@ -1551,7 +1664,7 @@ Item {
             placement: App.detailsPlacement
             // docs/17 M10.1: folded at the bottom, the pane leaves this one line.
             foldedBar: detailsStrip
-            visible: !root.libraryEmpty && !root.firstSync && !root.consoleShown
+            visible: !root.libraryEmpty && !root.firstSync && !root.consoleShown && !root.logShown
 
             onFoldToggled: root.saveTableState()
             onFoldedChanged: root._detailsFoldChanged()
@@ -1587,6 +1700,26 @@ Item {
             onClearScope: root.consoleEscape()
             onScopeTracker: host => App.filtered.tracker = host
             onShowTorrent: hash => root.showInLibrary(hash)
+        }
+
+        // docs/32 D9 (#56): qBittorrent's log, the third face, over the body's whole width.
+        LogView {
+            id: logView
+
+            anchors.fill: parent
+            focus: root.logShown
+            lines: App.logLines
+            log: App.serverLog
+            // D15: named, never read. Only while qBittorrent writes one.
+            logFilePath: App.serverPrefs.values.file_log_enabled === false ? ""
+                                                                           : (App.serverPrefs.values.file_log_path ?? "")
+            serverLost: root.serverLost
+            visible: root.logShown
+
+            onCopyRequested: (text, note) => root.copyText(text, note)
+            onLeaveRequested: root.toggleLog()
+            onNoteRequested: text => root.flashFooterNote(text)
+            onShowTorrent: hash => root.showLogTorrent(hash)
         }
 
         DetailsStrip {
@@ -1803,7 +1936,7 @@ Item {
         // §7's whole-body states
         EmptyState {
             anchors.centerIn: parent
-            visible: root.libraryEmpty && !root.firstRun // T4.6: first run replaces this state
+            visible: root.libraryEmpty && !root.firstRun && !root.logShown // T4.6: first run replaces this state
 
             onAddRequested: App.addRequested()
             onHelpRequested: root.helpOpen = true
@@ -1819,7 +1952,7 @@ Item {
             anchors.topMargin: Theme.space(12)
             receivedText: App.sizeText(App.globalState.dlInfoData)
             torrentCount: App.torrents.count
-            visible: root.firstSync
+            visible: root.firstSync && !root.logShown
         }
     }
 
@@ -1833,6 +1966,8 @@ Item {
         filterText: App.filtered.text
         filteredCount: App.filtered.count
         focusArea: root.focusArea
+        logFollowing: logView.following
+        logMarked: App.logLines.markedCount
         // T4.8, batch-2 D3: while an overlay is up the footer keeps its facts and teaches
         // nothing; the overlay's own hint row is the only one.
         overlayOpen: root.overlayOpen || details.menuOpen
@@ -1966,6 +2101,16 @@ Item {
 
                     onClicked: root.toggleDetails()
                 }
+            }
+
+            // docs/32 D12 (L1, L2): whether the log follows new lines, on its face only.
+            Label {
+                Layout.alignment: Qt.AlignVCenter
+                color: logView.following ? Theme.green : Theme.dimForeground
+                objectName: "logFollowState"
+                size: "small"
+                text: logView.following ? qsTr("● following") : qsTr("○ paused")
+                visible: root.logShown && !root.overlayOpen
             }
 
             KeyHints {
@@ -2443,6 +2588,8 @@ Item {
     /// well name a row the filter of the moment hides (a finished download under the rail's
     /// "Downloading"): `revealHash` clears whatever hides it, as the jump palette does.
     function showTorrent(hash: string): void {
+        if (root.logShown) // a notice's click, the jump palette: the library has the torrent
+            root.setView("library");
         if (table.revealHash(hash))
             root.focusHome();
     }

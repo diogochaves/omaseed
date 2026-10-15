@@ -10,7 +10,8 @@ import QtQuick
 // Every entry is plain data:
 //   area      where the key applies: "global" (anywhere), "table", "rail", "details",
 //             "columns" (the columns palette), "search", "addFiles" (the add sheet's
-//             file tree), "addDownloads" (its "in Downloads" list). A key event reaches the focused view first (Qt propagates an
+//             file tree), "addDownloads" (its "in Downloads" list), "console" (the seed
+//             console's face), "log" (the log face, docs/32 §6). A key event reaches the focused view first (Qt propagates an
 //             unaccepted key up the parent chain), so an area entry always wins over the
 //             "global" entry for the same key — that is how `a` adds a tracker inside the
 //             details pane and a torrent everywhere else.
@@ -87,6 +88,22 @@ QtObject {
             "helpKeys": "`",
             "help": qsTr("seed console"),
             "about": qsTr("Flip between the library and the seed console; with a selection, the console counts only it")
+        },
+        // docs/32 D9 (#56): the window's third face, qBittorrent's log.
+        {
+            "area": "global",
+            "key": "~",
+            "action": "toggleLog",
+            "title": qsTr("qBittorrent's log"),
+            "titleOn": qsTr("back from the log"),
+            "state": "logShown",
+            "needs": "",
+            "label": qsTr("log"),
+            "column": "view",
+            "rank": 0,
+            "helpKeys": "~",
+            "help": qsTr("qBittorrent's log"),
+            "about": qsTr("Flip to qBittorrent's log and back; it is read from the server only while it shows")
         },
         // console: MainView routes these while the seed console is on show (#24)
         {
@@ -1628,6 +1645,248 @@ QtObject {
             "about": qsTr("In the Files tab: hide the files set to skip, or show them again")
         },
 
+        // the log face (docs/32 §6, D10–D13): LogView takes these while it is on show. The
+        // levels have one key each for the palette, and one row for the footer and the sheet.
+        {
+            "area": "log",
+            "key": "1–4",
+            "action": "logLevels",
+            "label": qsTr("levels"),
+            "column": "view",
+            "rank": 12,
+            "helpKeys": "1–4 / w f t",
+            "help": qsTr("in the log"),
+            "about": qsTr("In the log: levels on and off, filter (every word must match), the next warning, follow new lines, only the cursor line's torrent; enter shows that torrent in the library")
+        },
+        {
+            "area": "log",
+            "key": "1",
+            "action": "logNormal",
+            "title": qsTr("show normal lines"),
+            "titleOn": qsTr("hide normal lines"),
+            "state": "logNormal",
+            "needs": "",
+            "label": qsTr("normal"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "log",
+            "key": "2",
+            "action": "logInfo",
+            "title": qsTr("show info lines"),
+            "titleOn": qsTr("hide info lines"),
+            "state": "logInfo",
+            "needs": "",
+            "label": qsTr("info"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "log",
+            "key": "3",
+            "action": "logWarning",
+            "title": qsTr("show warnings"),
+            "titleOn": qsTr("hide warnings"),
+            "state": "logWarning",
+            "needs": "",
+            "label": qsTr("warning"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "log",
+            "key": "4",
+            "action": "logCritical",
+            "title": qsTr("show critical lines"),
+            "titleOn": qsTr("hide critical lines"),
+            "state": "logCritical",
+            "needs": "",
+            "label": qsTr("critical"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "log",
+            "key": "/",
+            "action": "logFilter",
+            "title": qsTr("filter the log"),
+            "needs": "",
+            "label": qsTr("filter"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "log",
+            "key": "j",
+            "action": "moveDown",
+            "label": qsTr("move"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "log",
+            "key": "k",
+            "action": "moveUp",
+            "label": qsTr("move"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "log",
+            "key": "g",
+            "action": "first",
+            "label": qsTr("oldest"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "log",
+            "key": "G",
+            "action": "logNewest",
+            "title": qsTr("newest line, and follow"),
+            "needs": "",
+            "label": qsTr("newest"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "log",
+            "key": "w",
+            "action": "logNextProblem",
+            "title": qsTr("next warning"),
+            "needs": "",
+            "label": qsTr("next warning"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "log",
+            "key": "W",
+            "action": "logPreviousProblem",
+            "title": qsTr("previous warning"),
+            "needs": "",
+            "label": qsTr("previous warning"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "log",
+            "key": "f",
+            "action": "logFollow",
+            "title": qsTr("follow new lines"),
+            "titleOn": qsTr("stop following"),
+            "state": "logFollowing",
+            "needs": "",
+            "label": qsTr("follow"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "log",
+            "key": "space",
+            "action": "toggleSelection",
+            "label": qsTr("mark"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "log",
+            "key": "v",
+            "action": "selectRange",
+            "label": qsTr("range"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "log",
+            "key": "ctrl+a",
+            "action": "logMarkAll",
+            "title": qsTr("mark every line shown"),
+            "needs": "rows",
+            "label": qsTr("mark all"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "log",
+            "key": "y",
+            "action": "logCopy",
+            "title": qsTr("copy lines"),
+            "needs": "marked",
+            "label": qsTr("copy"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "log",
+            "key": "enter",
+            "action": "logShowTorrent",
+            "title": qsTr("show the line's torrent"),
+            "needs": "row",
+            "label": qsTr("show torrent"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "log",
+            "key": "t",
+            "action": "logTorrent",
+            "title": qsTr("only this torrent's lines"),
+            "needs": "row",
+            "label": qsTr("its torrent"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "log",
+            "key": "esc",
+            "action": "logEscape",
+            "title": qsTr("clear, then back"),
+            "needs": "",
+            "label": qsTr("clear"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+
         // search field ---------------------------------------------------------------
         {
             "area": "search",
@@ -1652,7 +1911,7 @@ QtObject {
     ]
 
     readonly property var areas: ["global", "table", "rail", "details", "columns", "search", "addFiles", "addBatch",
-        "addDownloads", "console"]
+        "addDownloads", "console", "log"]
 
     /// Every entry of one area, in declaration order.
     function forArea(area) {
@@ -1673,7 +1932,7 @@ QtObject {
     // and of `commandRows()` and run its own switch on the same action ids.
 
     /// The palette's rows in the `?` sheet's order (docs/30 §5): torrents, selection,
-    /// library, view, speed, app, 43 in all. A group with an `area` is the focused area's own
+    /// library, view, speed, app, 44 in all. A group with an `area` is the focused area's own
     /// (D2): listed only when the palette was opened from that tab or face, and first.
     readonly property var commandGroups: [
         {
@@ -1698,7 +1957,7 @@ QtObject {
             "group": "view",
             "word": qsTr("view"),
             "actions": ["columns", "toggleDetails", "cycleDetailsPlacement", "toggleRail",
-                "toggleConsole", "detailsSmaller", "detailsLarger"]
+                "toggleConsole", "toggleLog", "detailsSmaller", "detailsLarger"]
         },
         {
             "group": "speed",
@@ -1741,6 +2000,14 @@ QtObject {
             "area": "console",
             "word": qsTr("console"),
             "actions": ["consoleShorter", "consoleLonger", "consoleEscape"]
+        },
+        {
+            "group": "log",
+            "area": "log",
+            "word": qsTr("log"),
+            "actions": ["logFilter", "logNormal", "logInfo", "logWarning", "logCritical", "logNewest",
+                "logNextProblem", "logPreviousProblem", "logFollow", "logMarkAll", "logCopy",
+                "logShowTorrent", "logTorrent", "logEscape"]
         }
     ]
 
@@ -1758,8 +2025,8 @@ QtObject {
             if (tab)
                 return entry.area === "details" && entry.titles !== undefined
                         && entry.titles[group] !== undefined;
-            if (group === "console")
-                return entry.area === "console" && entry.title !== undefined;
+            if (group === "console" || group === "log")
+                return entry.area === group && entry.title !== undefined;
             return (entry.area === "global" || entry.area === "table") && entry.title !== undefined;
         });
         return hit === undefined ? null : hit;
@@ -1875,12 +2142,14 @@ QtObject {
     /// (D7), the rest in the `?` sheet's order, then every row that can't run (D4).
     ///
     /// `context` is plain data: `{area: "table" | "rail" | "general" | "files" | "trackers" |
-    /// "peers" | "webseeds" | "console", selected: 2, cursor: "<the cursor torrent's name>",
+    /// "peers" | "webseeds" | "console" | "log", selected: 2, cursor: "<the cursor torrent's name>",
     /// stopped: 0, running: 2 (of the targets), firstStopped: false (`p` starts),
     /// marked: 3, row: "<the focused tab's cursor row>", rowIsFolder: false,
     /// serverLost: false, recent: ["stop", …], states: {detailsShown, railShown,
-    /// consoleShown, consoleScoped, altSpeed, placement, hideSkipped, seqDl, firstLast,
-    /// superSeeding, autoTmm}}`.
+    /// consoleShown, consoleScoped, logShown, logFollowing, logNormal, logInfo, logWarning,
+    /// logCritical, altSpeed, placement, hideSkipped, seqDl, firstLast, superSeeding,
+    /// autoTmm}}`. On the log face `area` is "log", `marked` its marked lines and `row` the
+    /// cursor's line.
     function commandRows(context: var): var {
         const ctx = context || {};
         const own = [];

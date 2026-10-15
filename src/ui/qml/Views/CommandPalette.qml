@@ -54,6 +54,11 @@ Palette {
         const ctx = root.context || {};
         if (ctx.serverLost === true)
             return qsTr("commands · the server is lost");
+        // docs/32 §6: the log face's commands act on its lines.
+        if (ctx.area === "log")
+            return (ctx.marked || 0) === 1 ? qsTr("commands for 1 marked line")
+                                           : (ctx.marked || 0) > 1 ? qsTr("commands for %1 marked lines").arg(ctx.marked)
+                                                                   : qsTr("commands for the log");
         if (ctx.area === "files" && (ctx.marked || 0) > 0)
             return qsTr("commands for %n marked files", "", ctx.marked);
         if (["trackers", "peers", "webseeds"].indexOf(ctx.area) >= 0 && (ctx.marked || 0) > 0)

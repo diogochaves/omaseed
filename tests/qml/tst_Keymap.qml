@@ -123,9 +123,10 @@ TestCase {
                                            "copy value · change option"]);
 
         const view = Keymap.helpRows("view");
-        // #24 puts the seed console's ` first.
-        compare(view.map(row => row.helpKeys), ["`", "i", "1–4", "s", "|", "alt+↑ alt+↓", "ctrl+b", "I",
-                                                "< >", "H L", "X"]);
+        // #24 puts the seed console's ` first, docs/32 the log's ~ after it, and the log
+        // face's own keys last.
+        compare(view.map(row => row.helpKeys), ["`", "~", "i", "1–4", "s", "|", "alt+↑ alt+↓", "ctrl+b", "I",
+                                                "< >", "H L", "X", "1–4 / w f t"]);
 
         const application = Keymap.helpRows("app");
         compare(application.map(row => row.helpKeys), [": ctrl+shift+p", "A", ", ctrl+,", "ctrl+shift+,", "ctrl+.",
@@ -199,28 +200,31 @@ TestCase {
         compare(row.helpKeys, ": ctrl+shift+p");
     }
 
-    // §5: 43 rows from the table, plus the focused area's own: Files 15, Trackers 4, Peers 3,
-    // HTTP sources 3, the seed console 3.
+    // §5: 44 rows from the table (docs/32 added `~`), plus the focused area's own: Files 15,
+    // Trackers 4, Peers 3, HTTP sources 3, the seed console 3, the log 14.
     function test_the_rows_from_each_area() {
-        compare(Keymap.commandRows(testCase._context({})).length, 43);
+        compare(Keymap.commandRows(testCase._context({})).length, 44);
         compare(Keymap.commandRows(testCase._context({
                                                          "area": "rail"
-                                                     })).length, 43);
+                                                     })).length, 44);
         compare(Keymap.commandRows(testCase._context({
                                                          "area": "files"
-                                                     })).length, 58);
+                                                     })).length, 59);
         compare(Keymap.commandRows(testCase._context({
                                                          "area": "trackers"
-                                                     })).length, 47);
+                                                     })).length, 48);
         compare(Keymap.commandRows(testCase._context({
                                                          "area": "peers"
-                                                     })).length, 46);
+                                                     })).length, 47);
         compare(Keymap.commandRows(testCase._context({
                                                          "area": "webseeds"
-                                                     })).length, 46);
+                                                     })).length, 47);
         compare(Keymap.commandRows(testCase._context({
                                                          "area": "console"
-                                                     })).length, 46);
+                                                     })).length, 47);
+        compare(Keymap.commandRows(testCase._context({
+                                                         "area": "log"
+                                                     })).length, 58);
         // Every action id is listed once, and movements never.
         const actions = Keymap.commandRows(testCase._context({})).map(row => row.action);
         for (const action of actions)
@@ -410,6 +414,36 @@ TestCase {
     }
 
     // Every command in the groups has an entry, and every entry with a title is in a group.
+    // docs/32 §6 (#56): `~` anywhere, and the log face's keys an area of their own, which the
+    // palette lists first on that face.
+    function test_the_log_face_has_its_own_area() {
+        compare(Keymap.find("global", "~").action, "toggleLog");
+        verify(Keymap.areas.indexOf("log") >= 0);
+        for (const key of ["1–4", "/", "j", "k", "g", "G", "w", "W", "f", "space", "v", "ctrl+a", "y", "enter",
+                           "t", "esc"])
+            verify(Keymap.find("log", key) !== null, "the log face does not bind " + key);
+        const rows = Keymap.commandRows(testCase._context({
+                                                              "area": "log",
+                                                              "row": "Added new torrent. Torrent: \"x\""
+                                                          }));
+        compare(rows[0].group, "log");
+        compare(rows[0].title, "filter the log");
+        const follow = rows.find(row => row.action === "logFollow");
+        compare(follow.title, "follow new lines");
+        const copy = rows.find(row => row.action === "logCopy");
+        compare(copy.meta, "y");
+        verify(!copy.disabled);
+        // With no line under the cursor, the line's commands can't run.
+        const empty = Keymap.commandRows(testCase._context({
+                                                               "area": "log"
+                                                           }));
+        verify(empty.find(row => row.action === "logShowTorrent").disabled);
+        // The face itself is a view command everywhere.
+        const toggle = Keymap.commandRows(testCase._context({})).find(row => row.action === "toggleLog");
+        compare(toggle.title, "qBittorrent's log");
+        compare(toggle.meta, "~");
+    }
+
     function test_the_groups_and_the_entries_agree() {
         for (const group of Keymap.commandGroups) {
             for (const action of group.actions)

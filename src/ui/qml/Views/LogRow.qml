@@ -1,0 +1,108 @@
+import QtQuick
+import Omaseed
+import Omaseed.Kit
+
+// One line of qBittorrent's log on the log face (docs/32 §6 L1): time, level and the whole
+// message, wrapped. The level's colour is its Theme role (warning yellow, critical red, info
+// accent, normal dim), and the quoted parts of the message, where qBittorrent puts a torrent's
+// name, are bright so the torrent stands out in a long line. The cursor's line has the hover
+// fill and a hairline edge; a marked line the selected fill.
+Item {
+    id: root
+
+    required property int index
+    required property int level
+    required property string levelName
+    required property string timeText
+    required property string message
+    required property bool marked
+    /// The view's cursor is on this line.
+    property bool current: false
+    /// The view's column widths, so every row lines up under the header.
+    property real timeWidth: Theme.space(118)
+    property real levelWidth: Theme.space(84)
+
+    signal clicked(int index, int modifiers)
+
+    /// A level's Theme role.
+    function levelColor(level: int): color {
+        switch (level) {
+        case ServerLog.Critical:
+            return Theme.red;
+        case ServerLog.Warning:
+            return Theme.yellow;
+        case ServerLog.Info:
+            return Theme.accent;
+        default:
+            return Theme.dimForeground;
+        }
+    }
+
+    /// The message as styled text: escaped, its "quoted" parts in `bright`.
+    function styled(message: string, bright: color): string {
+        const escaped = message.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        return escaped.replace(/"([^"]*)"/g, "<font color=\"" + bright + "\">\"$1\"</font>");
+    }
+
+    implicitHeight: Math.max(messageText.implicitHeight, timeLabel.implicitHeight) + Theme.space(6)
+
+    Rectangle {
+        anchors.fill: parent
+        border.color: Theme.fill(Theme.fillSelected)
+        border.width: root.current ? 1 : 0
+        color: root.marked ? Theme.fill(Theme.fillSelected) : root.current || mouse.containsMouse
+                                                              ? Theme.fill(Theme.fillHover) : "transparent"
+        objectName: "logRowFill"
+    }
+
+    Text {
+        id: timeLabel
+
+        color: Theme.dimForeground
+        font.family: Theme.fontFamily
+        font.features: {
+            "tnum": 1
+        }
+        font.pixelSize: Theme.font.small
+        objectName: "logTime"
+        text: root.timeText
+        width: root.timeWidth
+        x: Theme.space(16)
+        y: Theme.space(3)
+    }
+
+    Text {
+        color: root.levelColor(root.level)
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.font.small
+        objectName: "logLevel"
+        text: root.levelName
+        width: root.levelWidth
+        x: timeLabel.x + root.timeWidth + Theme.space(14)
+        y: Theme.space(3)
+    }
+
+    Text {
+        id: messageText
+
+        color: Theme.foreground
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.font.small
+        objectName: "logMessage"
+        text: root.styled(root.message, Theme.brightForeground)
+        textFormat: Text.StyledText
+        width: root.width - x - Theme.space(16)
+        wrapMode: Text.WrapAnywhere
+        x: timeLabel.x + root.timeWidth + root.levelWidth + 2 * Theme.space(14)
+        y: Theme.space(3)
+    }
+
+    MouseArea {
+        id: mouse
+
+        anchors.fill: parent
+        hoverEnabled: true
+
+        onClicked: event => root.clicked(root.index, event.modifiers)
+    }
+}

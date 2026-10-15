@@ -30,6 +30,30 @@ TestCase {
         model.focusArea = "table";
         model.renaming = false;
         model.torrentCount = 142;
+        model.logMarked = 0;
+        model.logFollowing = true;
+    }
+
+    // docs/32 L1 and L2 (#56): the log face's own line; marked lines put copying first, and a
+    // paused view names the way back to the newest line.
+    function test_the_log_face_teaches_its_keys() {
+        model.focusArea = "log";
+        compare(model.area, "log");
+        compare(testCase.line(model.hints),
+                "1–4 levels · / filter · w next warning · y copy · enter show torrent · f follow · ~ library");
+        verify(model.pinned !== null, "`? help` stays on the log face");
+        model.logFollowing = false;
+        compare(testCase.line(model.hints),
+                "1–4 levels · / filter · w next warning · y copy · enter show torrent · G newest, follow again · ~ library");
+        model.logMarked = 2;
+        compare(testCase.line(model.hints), "y copy 2 marked lines · esc clear · G newest, follow again");
+        model.logFollowing = true;
+        compare(testCase.line(model.hints), "y copy 2 marked lines · esc clear");
+        // The log is the server's: an empty library, or a filter with no torrent, still has it.
+        model.torrentCount = 0;
+        compare(model.area, "log");
+        model.connected = false;
+        compare(model.area, "disconnected");
     }
 
     // T4.8, batch-2 D3: an overlay owns the keyboard and teaches its keys in its own hint
