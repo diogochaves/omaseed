@@ -21,6 +21,7 @@ TestCase {
     property ListView rowsProbe: null
     property TorrentTable spare: null
     property MouseArea gripProbe: null
+    property Rectangle tickProbe: null
 
     readonly property list<string> allColumns: ["name", "size", "progress", "status", "seedsPeers",
         "dlspeed", "upspeed", "eta"]
@@ -1097,5 +1098,77 @@ TestCase {
         compare(actionsSpy.signalArguments[1][0], App.filtered.hashAt(6));
         verify(!table.contextClickAt(Theme.space(40), Theme.space(4)), "the header is no row");
         compare(actionsSpy.count, 2);
+    }
+
+    // ---- #24 T5 (docs/22 §6): rows that are sending pulse ----------------------------------
+    function tick(index: int): Rectangle {
+        testCase.tickProbe = findChild(table, "pulse_" + index);
+        verify(testCase.tickProbe, "no pulse tick on row " + index);
+        return testCase.tickProbe;
+    }
+
+    /// A row on screen that sends nothing, -1 if none.
+    function idleRow(): int {
+        for (let i = 0; i < 12; ++i) {
+            if (findChild(table, "upspeed_" + i) !== null && cellText("upspeed_" + i) === "0")
+                return i;
+        }
+        return -1;
+    }
+
+    function test_a_sending_row_has_a_tick_while_the_setting_is_on() {
+        compare(App.pulseRows, false); // off by default
+        verify(!tick(0).visible);
+        App.pulseRows = true;
+        compare(cellText("upspeed_0"), "112 KB/s");
+        verify(tick(0).visible);
+        compare(tick(0).x, 0); // the row's left edge
+        compare(tick(0).width, Math.max(1, Math.round(Theme.space(2))));
+        compare(tick(0).color, Theme.stateSeeding);
+        const idle = testCase.idleRow();
+        verify(idle >= 0, "the demo has a row that sends nothing");
+        verify(!tick(idle).visible); // idle rows stay still
+        App.pulseRows = false;
+        verify(!tick(0).visible);
+    }
+
+    function test_the_tick_breathes_on_the_tables_clock_while_it_may() {
+        App.pulseRows = true;
+        table.pulseWindowActive = true;
+        verify(App.globalState.upInfoSpeed > 0);
+        verify(table.pulseRunning);
+        const period = table.pulsePeriod(112 * 1024);
+        table.pulseClock = 0;
+        fuzzyCompare(tick(0).opacity, 0.25, 0.001);
+        table.pulseClock = period / 2;
+        fuzzyCompare(tick(0).opacity, 1, 0.001);
+        table.pulseClock = period / 4;
+        fuzzyCompare(tick(0).opacity, 0.625, 0.001);
+
+        // The desktop asks for less motion: the tick stays, still.
+        App.reducedMotion = true;
+        verify(!table.pulseRunning);
+        compare(tick(0).opacity, 1);
+        verify(tick(0).visible);
+        App.reducedMotion = false;
+        // Behind another window, or hidden to the tray: still too (#49's rule).
+        table.pulseWindowActive = false;
+        verify(!table.pulseRunning);
+        compare(tick(0).opacity, 1);
+
+        table.pulseWindowActive = Qt.binding(() => table.Window.active);
+        App.pulseRows = false;
+        verify(!table.pulseRunning);
+    }
+
+    function test_more_upload_breathes_faster() {
+        compare(table.pulsePeriod(96 * 1024), 2.6); // the board's Sintel row
+        compare(table.pulsePeriod(2.1 * 1024 * 1024), 1.1); // its ubuntu row
+        let last = 3;
+        for (const speed of [1024, 200 * 1024, 800 * 1024, 4 * 1024 * 1024]) {
+            const p = table.pulsePeriod(speed);
+            verify(p <= last, "slower breathing at " + speed);
+            last = p;
+        }
     }
 }

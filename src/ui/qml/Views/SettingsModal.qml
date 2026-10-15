@@ -135,8 +135,9 @@ Item {
         case 4:
             // theme, base size, transparency, tray icon, the bar widget (#17), speed alignment,
             // the speed trends (#24 T2), then the rail's scroll hint, surface tint and tracker
-            // hosts (docs/08 §5), then where Details sits (docs/10)
-            return 11;
+            // hosts (docs/08 §5), then where Details sits (docs/10), then the rows' pulse
+            // (#24 T5)
+            return 12;
         case 5:
             return 3; // back up, restore, automatic copies (#31)
         case 6:
@@ -401,6 +402,8 @@ Item {
                 App.trackerHostStyle = root._next(root.hostStyles, App.trackerHostStyle);
             else if (root.paneCursor === 10)
                 App.detailsPlacement = root._next(root.placements, App.detailsPlacement);
+            else if (root.paneCursor === 11)
+                App.pulseRows = !App.pulseRows;
             return;
         }
         if (root.paneIndex === 5) {
@@ -2202,6 +2205,30 @@ Item {
                                             onClicked: App.detailsPlacement = placementChip.modelData[0]
                                         }
                                     }
+                                }
+                            }
+
+                            // #24 T5 (docs/22 §6, DECISIONS C7): off by default.
+                            SettingsRow {
+                                id: pulseRow
+
+                                Layout.fillWidth: true
+                                description: qsTr("a green tick at the left of each row that is uploading, breathing faster the more it sends. Still when the desktop asks for less motion.")
+                                glyph: Glyphs.statusSeeding
+                                hasCursor: root.area === "pane" && root.paneCursor === 11
+                                objectName: "pulseRowsRow"
+                                title: qsTr("Pulse sending rows")
+
+                                onClicked: {
+                                    root.paneCursor = 11;
+                                    root.area = "pane";
+                                    App.pulseRows = !App.pulseRows;
+                                }
+
+                                Toggle {
+                                    checked: App.pulseRows
+
+                                    onToggled: App.pulseRows = checked
                                 }
                             }
 

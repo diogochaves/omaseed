@@ -265,6 +265,31 @@ What the board left open:
 
 The pure part is `core/WeeklyRecap`.
 
+## C7 — Rows that are sending pulse (board 22 T5)
+
+Board [22](22-seed-console.html) draws T5 as a 2 px green tick at a row's left edge,
+breathing (opacity .25 → 1) faster the more it uploads; idle rows stay still; off under
+reduced motion and only while the window is visible. The decision sheet lists it as "a setting,
+off by default". What the board left open:
+
+- **The setting** is the last row of Settings › Appearance, "Pulse sending rows", off.
+- **Sending** is what the ↑ column shows as more than 0. The beat comes in four steps, so a
+  speed that drifts every poll doesn't keep changing it: 2.6 s under 128 KiB/s (the board's
+  96 KB/s row), 2.1 s, 1.6 s from 512 KiB/s, 1.1 s from 1.5 MiB/s (its 2.1 MB/s row).
+- **Cost.** Every frame of an animation repaints the whole window (#49: the tide's halo at the
+  display's rate cost about a core in a software-rendered box). So the rows share one clock
+  that steps every 80 ms, about 12 times a second, instead of one animation each at 60 Hz;
+  it runs only while the table is on show, the window is the active one (#49's rule, stricter
+  than the board's "visible"), something uploads and the setting is on. A row reads the clock
+  only while it is inside the view, so the rows the list keeps built past its edges never
+  cause a repaint. When the clock stops, a sending row's tick stays, whole and still.
+  Measured on 3,500 torrents with 400 uploading, a Release build in a box with a GPU, % of one
+  core over 60 s: 1.6 with the setting off (1.3 before T5), 3.1 with every row on screen
+  sending, 2.3 sorted by name, 1.8 with the window not in use; the halo at 60 Hz costs 16.1.
+- **Reduced motion** is the settings portal's `org.freedesktop.appearance` `reduced-motion`
+  (`MotionPreference`). It also stills the tide's halo, which board 22's own page stills under
+  `prefers-reduced-motion`.
+
 ## M8 — A click leaves the keyboard focus where it was
 
 Buttons and toggles do not take the focus when clicked. Otherwise an overlay gives the focus

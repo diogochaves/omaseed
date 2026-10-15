@@ -539,6 +539,47 @@ Item {
     implicitHeight: Theme.rowHeight * 8
     implicitWidth: Theme.space(900)
 
+    // ---- #24 T5: rows that are sending pulse (docs/22 §6, docs/DECISIONS.md C7) -----------
+    // A 2 px tick at the left edge of a row that uploads, breathing faster the more it sends.
+    // Every frame of an animation repaints the whole window, so the rows share one clock that
+    // steps `pulseStepMs` (not one animation per row at the display's rate), it runs only
+    // while someone can see it, and a row's tick reads it only while the row is on screen.
+
+    /// Ticks show on rows that upload (Settings › Appearance, off by default).
+    readonly property bool pulseShown: App.pulseRows
+    /// The window is in use: not behind another one, not hidden to the tray (#49's rule).
+    property bool pulseWindowActive: root.Window.active
+    /// The clock runs: ticks shown, the table on show, the window in use, something uploading,
+    /// and the desktop not asking for less motion. Otherwise a tick is shown still.
+    readonly property bool pulseRunning: root.pulseShown && !App.reducedMotion && root.visible
+                                         && root.pulseWindowActive && App.globalState.upInfoSpeed > 0
+    /// Seconds on the rows' clock.
+    property real pulseClock: 0
+    /// About 12 steps a second: smooth enough for a 2 px line, a fifth of the repaints of
+    /// an animation at 60 Hz.
+    readonly property int pulseStepMs: 80
+
+    /// Seconds per breath for an upload speed, in four steps (the board's 2.1 MB/s row
+    /// breathes in 1.1 s, its 96 KB/s row in 2.6 s). Steps, so a speed that drifts every poll
+    /// does not keep changing the beat.
+    function pulsePeriod(speed: real): real {
+        if (speed >= 1.5 * 1024 * 1024)
+            return 1.1;
+        if (speed >= 512 * 1024)
+            return 1.6;
+        if (speed >= 128 * 1024)
+            return 2.1;
+        return 2.6;
+    }
+
+    Timer {
+        interval: root.pulseStepMs
+        repeat: true
+        running: root.pulseRunning
+
+        onTriggered: root.pulseClock += root.pulseStepMs / 1000
+    }
+
     // ---- public functions ----------------------------------------------------------------
     /// The Status column's word for a `stateText`. "missing files" does not fit the column,
     /// so the table says "missing" next to the red glyph; the details pane keeps both words.
@@ -1372,6 +1413,8 @@ Item {
             /// docs/28 R1: the short cause of an error from the server's log, or "".
             required property string statusCause
             required property string upspeedText
+            /// #24 T5: bytes per second, for the pulse.
+            required property real upspeed
 
             readonly property bool editing: root.renaming && row.index === internal.renameIndex
             readonly property bool isCursor: row.index === root.cursorIndex
@@ -1461,6 +1504,29 @@ Item {
                     anchors.fill: parent
                     color: Theme.fill(Theme.fillHover)
                     visible: pointer.containsMouse && !row.isSelected && !row.isCursor
+                }
+
+                // #24 T5 (docs/22 §6 `.pulse`): the row is sending. Opacity .25 → 1 → .25 over
+                // a breath, on the table's clock; still (and whole) when the clock is off or
+                // the row is out of view (the list keeps a few rows built past its edges).
+                Rectangle {
+                    id: pulseTick
+
+                    readonly property bool sending: root.pulseShown && row.upspeed > 0
+                    readonly property bool onScreen: row.y + row.height > list.contentY
+                                                     && row.y < list.contentY + list.height
+
+                    color: Theme.stateSeeding
+                    height: parent.height - 2 * pulseTick.y
+                    objectName: "pulse_" + row.index
+                    opacity: pulseTick.sending && root.pulseRunning && pulseTick.onScreen
+                             ? 0.625 - 0.375 * Math.cos(2 * Math.PI * root.pulseClock
+                                                        / root.pulsePeriod(row.upspeed))
+                             : 1
+                    visible: pulseTick.sending
+                    width: Math.max(1, Math.round(Theme.space(2)))
+                    x: 0
+                    y: Math.round(Theme.space(5))
                 }
 
                 // Name + dimmed category (`.tbl > div.nm`): the name elides, the category

@@ -10,6 +10,7 @@
 #include "integration/AppIdentity.hpp"
 #include "integration/BarWidget.hpp"
 #include "integration/BarWidgetInstaller.hpp"
+#include "integration/MotionPreference.hpp"
 #include "integration/Notifier.hpp"
 #include "integration/SingleInstance.hpp"
 #include "integration/StatusBus.hpp"
@@ -623,6 +624,14 @@ int main(int argc, char *argv[])
     omaseedApp.attachNotifier(&notifier);
     QObject::connect(&omaseedApp, &omaseed::app::App::showTorrentRequested, &app, showWindow);
     QObject::connect(&omaseedApp, &omaseed::app::App::showConsoleRequested, &app, showWindow);
+
+    // #24 T5: the desktop's reduced-motion setting (the settings portal) stills the rows'
+    // pulse and the tide's halo, and follows the setting when it changes.
+    omaseed::integration::MotionPreference motion;
+    QObject::connect(&motion,
+                     &omaseed::integration::MotionPreference::reducedChanged,
+                     &omaseedApp,
+                     [&]() { omaseedApp.setReducedMotion(motion.reduced()); });
 
     // The window's visibility drives the poll cadence (1.5 s shown, 5 s hidden). Main.qml
     // forwards its own `visible`; this catches the tray's hide/show of the same window, and

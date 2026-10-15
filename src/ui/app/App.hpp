@@ -501,6 +501,18 @@ public:
     bool downloadTrend() const;
     void setDownloadTrend(bool on);
 
+    /// #24 T5 (docs/22 §6): a row that is sending pulses, a 2 px tick at its left edge that
+    /// breathes faster the more it uploads. Off by default (docs/DECISIONS.md C7).
+    Q_PROPERTY(bool pulseRows READ pulseRows WRITE setPulseRows NOTIFY settingsChanged)
+    bool pulseRows() const;
+    void setPulseRows(bool on);
+    /// The desktop asks for less motion (the settings portal's `reduced-motion`, followed by
+    /// main.cpp through MotionPreference): the rows' pulse and the tide's halo hold still.
+    Q_PROPERTY(
+        bool reducedMotion READ reducedMotion WRITE setReducedMotion NOTIFY reducedMotionChanged)
+    bool reducedMotion() const { return m_reducedMotion; }
+    void setReducedMotion(bool reduced);
+
     // docs/08 §5 — the rail's look, under Settings -> Appearance.
     /// How the rail, and since N3 every palette, says there is more above or below:
     /// "chevrons" (a counted line at each end, the default), "fade" or "scrollbar". Anything
@@ -576,6 +588,7 @@ public:
 Q_SIGNALS:
     /// Any of the persisted settings above moved.
     void settingsChanged();
+    void reducedMotionChanged();
     /// One `testServer()` finished. `id` is the id the caller passed in `fields` (empty for a
     /// server that is not saved yet), so a sheet can tell its own answer from another's.
     /// When the server turned the credential down, `error` says so in words
@@ -617,6 +630,8 @@ private:
     QString m_speedsAlignment = QStringLiteral("left");
     bool m_uploadTrend = false;
     bool m_downloadTrend = false;
+    bool m_pulseRows = false;
+    bool m_reducedMotion = false;
     QString m_railScrollHint = QStringLiteral("chevrons");
     QString m_detailsPlacement = QStringLiteral("auto");
     int m_surfaceTint = 0;

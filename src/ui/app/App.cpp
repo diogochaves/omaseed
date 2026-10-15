@@ -4050,6 +4050,30 @@ void App::setDownloadTrend(bool on)
     Q_EMIT settingsChanged();
 }
 
+bool App::pulseRows() const
+{
+    const_cast<App *>(this)->loadSettings();
+    return m_pulseRows;
+}
+
+void App::setPulseRows(bool on)
+{
+    loadSettings();
+    if (m_pulseRows == on)
+        return;
+    m_pulseRows = on;
+    saveSettings();
+    Q_EMIT settingsChanged();
+}
+
+void App::setReducedMotion(bool reduced)
+{
+    if (m_reducedMotion == reduced)
+        return;
+    m_reducedMotion = reduced;
+    Q_EMIT reducedMotionChanged();
+}
+
 namespace {
 
 /// `value` when it is one of `allowed`, otherwise the first of them (the default).
@@ -4260,6 +4284,7 @@ void App::loadSettings()
             : QStringLiteral("left");
     m_uploadTrend = appearance.value(QStringLiteral("uploadTrend")).toBool(false);
     m_downloadTrend = appearance.value(QStringLiteral("downloadTrend")).toBool(false);
+    m_pulseRows = appearance.value(QStringLiteral("pulseRows")).toBool(false);
     m_railScrollHint =
         oneOf(appearance.value(QStringLiteral("railScrollHint")).toString(), kRailScrollHints);
     m_surfaceTint = tintStep(appearance.value(QStringLiteral("surfaceTint")).toInt(0));
@@ -4285,6 +4310,7 @@ void App::saveSettings()
     appearance[QStringLiteral("speedsAlignment")] = m_speedsAlignment;
     appearance[QStringLiteral("uploadTrend")] = m_uploadTrend;
     appearance[QStringLiteral("downloadTrend")] = m_downloadTrend;
+    appearance[QStringLiteral("pulseRows")] = m_pulseRows;
     appearance[QStringLiteral("railScrollHint")] = m_railScrollHint;
     appearance[QStringLiteral("surfaceTint")] = m_surfaceTint;
     appearance[QStringLiteral("trackerHostStyle")] = m_trackerHostStyle;

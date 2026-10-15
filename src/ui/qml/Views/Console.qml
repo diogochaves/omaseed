@@ -321,8 +321,9 @@ Flickable {
 
                     anchors.fill: parent
                     // The halo's pulse repaints the whole window every frame: only while the
-                    // window is in use, not behind another one or hidden to the tray (#49).
-                    animate: tide.Window.active
+                    // window is in use, not behind another one or hidden to the tray (#49),
+                    // and never when the desktop asks for less motion (docs/22 §6).
+                    animate: tide.Window.active && !App.reducedMotion
                     formatValue: v => App.sizeText(v)
                     gapCaption: (first, last) => {
                         const pts = root.seed.tide.points;

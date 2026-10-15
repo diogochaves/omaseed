@@ -792,7 +792,7 @@ TestCase {
 
         // Appearance: the tray-icon row cycles the three chips.
         keyClick(Qt.Key_5);
-        compare(modal.paneRowCount, 11);
+        compare(modal.paneRowCount, 12);
         const tray = App.trayIconMode;
         modal.paneCursor = 3;
         modal.area = "pane";
@@ -910,6 +910,25 @@ TestCase {
         compare(field.text, "1");
 
         App.lowDiskThresholdGiB = was;
+    }
+
+    // #24 T5: the rows' pulse is the Appearance pane's last row, off until turned on.
+    function test_the_appearance_pane_turns_the_rows_pulse_on() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        compare(App.pulseRows, false);
+        modal.open();
+        keyClick(Qt.Key_5);
+        compare(modal.paneIndex, 4);
+        const row = testCase.childNamed(modal, "pulseRowsRow");
+        verify(row, "the Appearance pane has no pulse row");
+        compare(row.title, "Pulse sending rows");
+        modal.paneCursor = 11;
+        modal.area = "pane";
+        compare(row.hasCursor, true);
+        modal.activateRow();
+        compare(App.pulseRows, true);
+        modal.activateRow();
+        compare(App.pulseRows, false);
     }
 
     // #24 T8: the weekly recap is the Notifications pane's last row, off until turned on.
