@@ -281,12 +281,23 @@ TestCase {
         compare(view.footerNote, "");
         verify(!mark.visible);
 
-        // With the schedule off there is nothing to add.
+        // With the schedule off there is nothing to add...
         prefs.apply({
                         "scheduler_enabled": false
                     });
         view._altFlipFrom = true;
         view._altFlipped();
+        compare(view.footerNote, "");
+        // ...until the preferences the flip re-reads (D13) say a schedule is on after all.
+        prefs.apply({
+                        "scheduler_enabled": true
+                    });
+        compare(view.footerNote.indexOf("turtle off by hand · back at "), 0);
+        compare(view._altFlipFrom, null);
+        // A note that no longer applies goes.
+        prefs.apply({
+                        "scheduler_enabled": false
+                    });
         compare(view.footerNote, "");
         prefs.apply(before);
     }

@@ -2236,17 +2236,26 @@ Item {
         App.toggleAltSpeed();
     }
 
+    /// App.altSpeed moved. Once the server has flipped, the note shows as soon as AltSpeed
+    /// has one: the flip itself re-reads the preferences (D13), so a schedule changed in the
+    /// Web UI can turn the first reading's "by the schedule" into "by hand" a moment later.
+    /// A note already up follows AltSpeed, and goes when it no longer applies (the schedule,
+    /// the bar or the tray flipped it back).
     function _altFlipped(): void {
-        if (root._altFlipFrom === null || App.altSpeed.on === root._altFlipFrom)
-            return;
-        root._altFlipFrom = null;
-        altFlipTimer.stop();
         const note = App.altSpeed.footerNote;
-        if (note.length === 0)
+        if (root._altFlipFrom !== null && App.altSpeed.on !== root._altFlipFrom) {
+            if (note.length === 0)
+                return; // still armed, until altFlipTimer
+            root._altFlipFrom = null;
+            altFlipTimer.stop();
+            root.flashFooterNote(note);
+            footerNoteTimer.stop();
+            root.footerNoteSticky = true;
+        } else if (root.footerNoteSticky && root.footerNote.length > 0) {
+            root.footerNote = note;
+        } else {
             return;
-        root.flashFooterNote(note);
-        footerNoteTimer.stop();
-        root.footerNoteSticky = true;
+        }
         root.footerNoteMark = App.altSpeed.kind === "burst" ? "▲" : App.altSpeed.kind === "turtle"
                                                                     ? "▼" : "";
     }
@@ -2254,10 +2263,6 @@ Item {
     Connections {
         function onChanged(): void {
             root._altFlipped();
-            // A flip from elsewhere (the schedule, the bar, the tray) makes the note stale.
-            if (root.footerNoteSticky && root._altFlipFrom === null
-                    && App.altSpeed.footerNote.length === 0)
-                root.footerNote = "";
         }
 
         target: App.altSpeed
