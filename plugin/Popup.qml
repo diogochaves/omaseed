@@ -42,6 +42,9 @@ Panel {
   readonly property bool running: state !== "notRunning"
   readonly property bool reachable: running && state !== "unreachable"
   readonly property bool altOn: service ? service.altOn : false
+  // docs/31: burst is green and holds nothing back; turtle and plain alt-speed are yellow.
+  readonly property string altKind: service ? service.altKind : "alt"
+  readonly property bool altSlows: altOn && altKind !== "burst"
   readonly property var mark: service ? service.markState : Status.markState(null, 0)
 
   readonly property color foreground: bar ? bar.foreground : Color.foreground
@@ -52,6 +55,7 @@ Panel {
   readonly property color blue: service ? service.blue : accent
   readonly property color green: service ? service.green : foreground
   readonly property color yellow: service ? service.yellow : urgent
+  readonly property color altInk: altKind === "burst" ? green : yellow
   readonly property color downInk: cfg.markColor === "single" ? accent : blue
   readonly property color upInk: cfg.markColor === "single" ? accent : green
 
@@ -637,8 +641,8 @@ Panel {
               downColor: root.downInk
               upColor: root.upInk
               offColor: root.mark.dim ? root.foreground : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.3)
-              squareOutline: root.mark.square === "alt" || root.mark.square === "unreachable"
-              squareColor: root.mark.square === "alt" ? root.yellow
+              squareOutline: root.mark.square === "alt" || root.mark.square === "burst" || root.mark.square === "unreachable"
+              squareColor: root.mark.square === "alt" ? root.yellow : root.mark.square === "burst" ? root.green
                 : (root.mark.square === "error" || root.mark.square === "unreachable" ? root.urgent : root.foreground)
             }
 
@@ -717,15 +721,15 @@ Panel {
                 visible: root.page === "main"
                 bordered: true
                 enabled: root.reachable
-                tooltipText: root.altOn ? "Alternative speed limits on (A)" : "Alternative speed limits (A)"
-                foreground: root.altOn ? root.yellow : root.dim
-                hoverColor: root.altOn ? root.yellow : root.foreground
+                tooltipText: Status.altButtonTip(root.status)
+                foreground: root.altOn ? root.altInk : root.dim
+                hoverColor: root.altOn ? root.altInk : root.foreground
                 fontFamily: root.fontFamily
                 onClicked: if (root.service) root.service.toggleAltSpeed()
                 LineIcon {
                   anchors.centerIn: parent
                   size: Style.font.icon
-                  name: "altSpeed"
+                  name: root.altKind === "burst" ? "burst" : "altSpeed"
                   color: parent.foreground
                   opacity: parent.enabled ? 1 : 0.5
                 }
@@ -834,9 +838,9 @@ Panel {
 
               Stat {
                 arrow: "↓"
-                arrowColor: root.altOn ? root.yellow : root.downInk
+                arrowColor: root.altSlows ? root.yellow : root.downInk
                 value: root.reachable ? Format.speed(root.speedNow.dl) : "—"
-                valueColor: root.altOn ? root.yellow : root.foreground
+                valueColor: root.altSlows ? root.yellow : root.foreground
                 caption: "Download"
                 foreground: root.foreground
                 fontFamily: root.fontFamily
@@ -844,9 +848,9 @@ Panel {
 
               Stat {
                 arrow: "↑"
-                arrowColor: root.altOn ? root.yellow : root.upInk
+                arrowColor: root.altSlows ? root.yellow : root.upInk
                 value: root.reachable ? Format.speed(root.speedNow.up) : "—"
-                valueColor: root.altOn ? root.yellow : root.foreground
+                valueColor: root.altSlows ? root.yellow : root.foreground
                 caption: "Upload"
                 foreground: root.foreground
                 fontFamily: root.fontFamily
@@ -859,15 +863,25 @@ Panel {
 
               LineIcon {
                 anchors.verticalCenter: parent.verticalCenter
-                name: "altSpeed"
+                name: root.altKind === "burst" ? "burst" : "altSpeed"
                 size: Style.font.body
-                color: root.yellow
+                color: root.altInk
               }
 
               Text {
                 textFormat: Text.PlainText
-                text: Status.altLine(root.status)
-                color: root.yellow
+                text: Status.altLine(root.status, false)
+                color: root.altInk
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.bodySmall
+              }
+
+              // docs/31 W2: the end, dimmer.
+              Text {
+                visible: text !== ""
+                textFormat: Text.PlainText
+                text: Status.altUntilText(root.status)
+                color: root.dim
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.bodySmall
               }
@@ -1378,7 +1392,7 @@ Panel {
           title: String(modelData.name || "")
           meta: Format.percent(modelData.progress) + " · " + Format.eta(modelData.eta)
           progress: Number(modelData.progress) || 0
-          progressColor: root.altOn ? root.yellow : root.downInk
+          progressColor: root.altSlows ? root.yellow : root.downInk
           readOnly: !root.reachable
           hasCursor: root.cursorKey === "flight:" + modelData.hash
           foreground: root.foreground

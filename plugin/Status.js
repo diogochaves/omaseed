@@ -64,11 +64,34 @@ function altOn(status) {
   return obj(status && status.alt).on === true
 }
 
+// docs/31 D12: which way the alternative set goes, as the app works it out: "burst" (faster
+// than the normal limits), "turtle" (slower), or "alt" (mixed, the same, not known, or an
+// app from before alt.kind, which then reads as today's yellow alt-speed).
+function altKind(status) {
+  var kind = obj(status && status.alt).kind
+  return kind === "burst" || kind === "turtle" ? kind : "alt"
+}
+
+// When the schedule ends the current state ("07:00", "Mon 07:00"), "" for none.
+function altUntil(status) {
+  var until = obj(status && status.alt).until
+  return typeof until === "string" ? until : ""
+}
+
+// The alt-speed button's tooltip: "Burst on (A)", "Turtle (A)", or today's words.
+function altButtonTip(status) {
+  var kind = altKind(status)
+  var on = altOn(status)
+  if (kind === "burst") return on ? "Burst on (A)" : "Burst (A)"
+  if (kind === "turtle") return on ? "Turtle on (A)" : "Turtle (A)"
+  return on ? "Alternative speed limits on (A)" : "Alternative speed limits (A)"
+}
+
 // The mark as the bar readout (contract §2): which arrows are lit and what the
 // square says.
 //   down, up   lit while that direction moves
-//   square     "plain" | "alt" (outline, alt-speed colour) | "error" (urgent)
-//              | "unreachable" (urgent outline)
+//   square     "plain" | "alt" (outline, alt-speed colour) | "burst" (outline, green,
+//              docs/31 W1) | "error" (urgent) | "unreachable" (urgent outline)
 //   dim        the app is not running: the whole mark at 45 %
 function markState(status, now) {
   var s = state(status, now)
@@ -78,7 +101,8 @@ function markState(status, now) {
   return {
     down: reachable && num(speed.dl) > 0,
     up: reachable && num(speed.up) > 0,
-    square: s === "unreachable" ? "unreachable" : (s === "error" ? "error" : (altOn(status) ? "alt" : "plain")),
+    square: s === "unreachable" ? "unreachable" : (s === "error" ? "error"
+      : (altOn(status) ? (altKind(status) === "burst" ? "burst" : "alt") : "plain")),
     dim: false
   }
 }
@@ -261,6 +285,13 @@ function settingsWith(current, key, value) {
 
 var CLICK_WORDS = { altSpeed: "alt-speed", openApp: "open omaseed", none: "" }
 
+// A click's words in the tooltip: the alt-speed click named by what it does now, "burst" or
+// "turtle" (docs/31 W3). Widget Settings keeps "alt-speed" as the option's name.
+function clickWord(action, status) {
+  if (action === "altSpeed" && altKind(status) !== "alt") return altKind(status)
+  return CLICK_WORDS[action] || ""
+}
+
 // Line 1 the numbers, line 2 the session's share, a news line only when there
 // is news, the click map last (contract §2 Tooltip).
 function tooltip(status, now, options) {
@@ -286,8 +317,9 @@ function tooltip(status, now, options) {
   }
   var clicks = ["L: panel"]
   var o = options || barOptions({})
-  if (CLICK_WORDS[o.middleClick]) clicks.push("M: " + CLICK_WORDS[o.middleClick])
-  if (CLICK_WORDS[o.rightClick]) clicks.push("R: " + CLICK_WORDS[o.rightClick])
+  var known = s === "notRunning" ? null : status
+  if (clickWord(o.middleClick, known)) clicks.push("M: " + clickWord(o.middleClick, known))
+  if (clickWord(o.rightClick, known)) clicks.push("R: " + clickWord(o.rightClick, known))
   lines.push(clicks.join("  "))
   return lines.join("\n")
 }
@@ -299,10 +331,23 @@ function unreachableLine(server) {
   return parts.join(" · ")
 }
 
-// "alternative limits · ↓ 1 MB/s · ↑ 200 KB/s"
-function altLine(status) {
+// "alternative limits · ↓ 1 MB/s · ↑ 200 KB/s"; for a set that goes one way, its word and
+// end: "burst · ↓ ∞ · ↑ ∞ · until 07:00" (docs/31 W2). `withUntil` false leaves the end off
+// (the popup draws it dimmer, `altUntilText`).
+function altLine(status, withUntil) {
   var alt = obj(status && status.alt)
-  return "alternative limits · ↓ " + Format.limit(num(alt.dlLimit)) + " · ↑ " + Format.limit(num(alt.upLimit))
+  var limits = "↓ " + Format.limit(num(alt.dlLimit)) + " · ↑ " + Format.limit(num(alt.upLimit))
+  var kind = altKind(status)
+  if (kind === "alt") return "alternative limits · " + limits
+  var line = kind + " · " + limits
+  if (withUntil !== false && altUntilText(status) !== "") line += " " + altUntilText(status)
+  return line
+}
+
+// "· until 07:00" for a burst or a turtle with an end, "" otherwise.
+function altUntilText(status) {
+  if (altKind(status) === "alt" || altUntil(status) === "") return ""
+  return "· until " + altUntil(status)
 }
 
 // "HOME · QBITTORRENT 5.2.3"

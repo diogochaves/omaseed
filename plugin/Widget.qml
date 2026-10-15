@@ -49,7 +49,8 @@ BarWidget {
   // A lit arrow: the theme's blue in and green out, or the accent for both.
   readonly property color downInk: cfg.markColor === "single" ? Color.accent : service.blue
   readonly property color upInk: cfg.markColor === "single" ? Color.accent : service.green
-  readonly property color speedInk: service.altOn ? service.yellow : foreground
+  // docs/31 W2: a burst holds nothing back, so the speeds keep their usual ink.
+  readonly property color speedInk: service.altSlows ? service.yellow : foreground
 
   readonly property bool showDown: cfg.showSpeed && cfg.speedMetric !== "up"
   readonly property bool showUp: cfg.showSpeed && cfg.speedMetric !== "down"
@@ -214,8 +215,8 @@ BarWidget {
         downColor: root.downInk
         upColor: root.upInk
         offColor: root.mark.dim ? root.foreground : root.offInk
-        squareOutline: root.mark.square === "alt" || root.mark.square === "unreachable"
-        squareColor: root.mark.square === "alt" ? service.yellow
+        squareOutline: root.mark.square === "alt" || root.mark.square === "burst" || root.mark.square === "unreachable"
+        squareColor: root.mark.square === "alt" ? service.yellow : root.mark.square === "burst" ? service.green
           : (root.mark.square === "error" || root.mark.square === "unreachable" ? root.urgent : root.foreground)
       }
 

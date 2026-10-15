@@ -4367,6 +4367,7 @@ void App::attachStatusWriter(omaseed::integration::StatusWriter *writer)
 
     writer->setEngine(m_engine);
     writer->setPreferences(m_prefs);
+    writer->setAltSpeed(m_altSpeed);
     writer->setLedger(m_ledger.get());
     writer->setPathMapper([this](const QString &path) { return mapContentPathToLocal(path); });
     writer->setLibraryCheck(

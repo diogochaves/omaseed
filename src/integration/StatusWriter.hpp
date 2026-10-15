@@ -42,6 +42,7 @@
 class QFileSystemWatcher;
 
 namespace omaseed::core {
+class AltSpeed;
 class SeedLedger;
 class ServerPreferences;
 class SyncEngine;
@@ -74,6 +75,9 @@ public:
     // --- sources ----------------------------------------------------------------------------
     void setEngine(omaseed::core::SyncEngine *engine);
     void setPreferences(omaseed::core::ServerPreferences *preferences);
+    /// docs/31 D12: what `alt` says beyond on and the limits (kind, until, byHand). Without
+    /// one the set reads as today's "alt", with no end.
+    void setAltSpeed(const omaseed::core::AltSpeed *alt);
     /// The seed ledger "today's top seeders" read their upload from (#47). The caller keeps it
     /// alive and fed for as long as the writer has it; without one the list is empty.
     void setLedger(const omaseed::core::SeedLedger *ledger);
@@ -156,6 +160,7 @@ private:
 
     QPointer<omaseed::core::SyncEngine> m_engine;
     QPointer<omaseed::core::ServerPreferences> m_preferences;
+    QPointer<const omaseed::core::AltSpeed> m_alt;
     QString m_serverId;
     QString m_serverName;
     QString m_serverHostPort;

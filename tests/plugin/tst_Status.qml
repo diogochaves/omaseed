@@ -242,6 +242,46 @@ TestCase {
         compare(lines[0], "omaseed is not running");
     }
 
+    // docs/31 D12 (W1–W3): the widget follows the word the app writes. A file from before
+    // alt.kind (or a mixed set, "alt") keeps today's yellow alternative limits.
+    function test_alt_follows_the_word() {
+        var s = sample();
+        s.alt.on = true;
+        compare(Status.altKind(s), "alt");
+        compare(Status.altLine(s), "alternative limits · ↓ 1 MB/s · ↑ 200 KB/s");
+        compare(Status.altButtonTip(s), "Alternative speed limits on (A)");
+        compare(Status.markState(s, now).square, "alt");
+
+        s.alt = { on: true, dlLimit: 0, upLimit: 0, kind: "burst", until: "07:00", byHand: false };
+        compare(Status.altKind(s), "burst");
+        compare(Status.altLine(s), "burst · ↓ ∞ · ↑ ∞ · until 07:00");
+        compare(Status.altLine(s, false), "burst · ↓ ∞ · ↑ ∞");
+        compare(Status.altUntilText(s), "· until 07:00");
+        compare(Status.altButtonTip(s), "Burst on (A)");
+        compare(Status.markState(s, now).square, "burst");
+        var lines = Status.tooltip(s, now, Status.barOptions({})).split("\n");
+        compare(lines[2], "burst · ↓ ∞ · ↑ ∞ · until 07:00");
+        compare(lines[3], "L: panel  M: burst  R: open omaseed");
+        // Off, the click is still named by what it does.
+        s.alt.on = false;
+        compare(Status.markState(s, now).square, "plain");
+        compare(Status.altButtonTip(s), "Burst (A)");
+        lines = Status.tooltip(s, now, Status.barOptions({ rightClick: "altSpeed", middleClick: "none" })).split("\n");
+        compare(lines[2], "L: panel  R: burst");
+
+        s.alt = { on: true, dlLimit: 10240, upLimit: 10240, kind: "turtle", until: "", byHand: false };
+        compare(Status.altLine(s), "turtle · ↓ 10 KB/s · ↑ 10 KB/s");
+        compare(Status.altUntilText(s), "");
+        compare(Status.altButtonTip(s), "Turtle on (A)");
+        compare(Status.markState(s, now).square, "alt");
+        // Not running: today's words in the click map.
+        lines = Status.tooltip(null, now, Status.barOptions({})).split("\n");
+        compare(lines[1], "L: panel  M: alt-speed  R: open omaseed");
+        // Settings keeps "alt-speed" as the option's name.
+        var middle = Status.settingRows().find(function(row) { return row.key === "middleClick" });
+        compare(middle.options[0][1], "alt-speed");
+    }
+
     function test_section_summaries() {
         var s = sample();
         compare(Status.serverLine(s), "HOME · QBITTORRENT 5.2.3");

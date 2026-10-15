@@ -15,6 +15,9 @@ a schema change is one commit touching both sides. Design: `docs/20-companion-wi
 - **No secret, ever**: no API key, password, cookie, or URL with a credential in it.
 - The widget treats the file as dead (the "not running" state) when it is missing, when
   `now - t > 30`, or when `v` is not `2` (Q12: no compatibility).
+- Fields may be added within v2 (`alt.kind`, `alt.until`, `alt.byHand`, docs/31): a reader
+  ignores what it does not know and reads a missing field as the default the schema names.
+  Changing or removing a field is a new `v`.
 
 ## Rules for values
 
@@ -50,7 +53,16 @@ a schema change is one commit touching both sides. Design: `docs/20-companion-wi
   "speed":  { "dl": 4415221, "up": 831488 },
   "alt": {
     "on": false,
-    "dlLimit": 0, "upLimit": 0        // the limits in force while on (bytes/s, 0 = none)
+    "dlLimit": 0, "upLimit": 0,       // the limits in force while on (bytes/s, 0 = none)
+    // docs/31 (added within v2; a reader that does not know them keeps today's yellow):
+    "kind": "burst",                  // which way the alternative set goes against the normal
+                                      // one: "burst" (faster), "turtle" (slower), "alt" (mixed,
+                                      // the same, or not read yet). Written on or off.
+    "until": "07:00",                 // when the schedule ends the current state, on or off:
+                                      // "07:00", "Mon 07:00" (more than a day away), "" with
+                                      // no schedule. The server's clock read as this computer's.
+    "byHand": false                   // the state goes against the schedule: a hand toggle,
+                                      // which lasts until the schedule next flips the other way
   },
   "counts": { "all": 142, "downloading": 6, "seeding": 118, "completed": 121,
               "stopped": 12, "stalled": 3, "checking": 1, "errored": 2 },

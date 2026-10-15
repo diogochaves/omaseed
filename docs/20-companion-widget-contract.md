@@ -46,7 +46,8 @@ How the documents relate:
 - **The square:**
   - foreground while the link is fine;
   - **an outline in the alt-speed colour** (the theme's yellow, the app's alt-speed chip)
-    while alternative limits are on;
+    while alternative limits are on; **in the theme's green** while they are a burst (faster
+    than the normal limits, board 31 W1, ruled 2026-10-15);
   - urgent with torrents in error;
   - an urgent outline when the server is unreachable.
 - **App not running:** the whole mark at 45 %.
@@ -58,7 +59,8 @@ How the documents relate:
   - In a horizontal bar, it's a five-character tabular field per direction, beside the mark.
   - A direction with nothing moving shows `0`. With nothing to report (unreachable, not
     running) there is no value at all.
-  - Under alt-speed the values take the alt-speed colour.
+  - Under alt-speed the values take the alt-speed colour; under a burst they keep their usual
+    ink (nothing is held back).
 - **Width:** fixed, measured once with `FontMetrics` (the omagauge idiom), so the bar never
   reflows. In Diogo's vertical bar (42 px at base 14) the widget stacks like omagauge.
 - **Open popup:** marked with the shell's own accent line along the bar.
@@ -66,11 +68,13 @@ How the documents relate:
   - Line 1: `home · ↓ … ↑ … · N downloading · N seeding`.
   - Line 2: what you gave this session and the ratio.
   - A news line only when there is news: alt-speed on, unreachable with the reason, or not
-    running.
+    running. A burst or a turtle names itself and its end: `burst · ↓ ∞ · ↑ ∞ · until 07:00`
+    (board 31 W3).
   - The click map last.
 - **Clicks:**
   - left toggles the popup;
-  - middle: `middleClick` altSpeed (default) · openApp · none;
+  - middle: `middleClick` altSpeed (default) · openApp · none; the tooltip names the alt-speed
+    click by what it does now ("M: burst", "M: turtle"), while the option keeps its name;
   - right: `rightClick` openApp (default) · altSpeed · none;
   - scroll does nothing.
 - **`hideWhenIdle`** (default off): the widget leaves the bar while nothing moves. An
@@ -85,14 +89,16 @@ the widget, like chaves.omagauge. Shell card style throughout (§1 N2).
 - the live mark, then the title "omaseed ↗", a button that opens the app;
 - the server line with its dot (`HOME · QBITTORRENT 5.2.3`);
 - three icon buttons:
-  - **alt-speed**: Kit/Icon's gauge, in the alt-speed colour while on;
+  - **alt-speed**: Kit/Icon's gauge, in the alt-speed colour while on; for a burst, the
+    needle up to the right and green, its tooltip "Burst on (A)" (board 31 W2);
   - **open omaseed**: the mark;
   - **settings**: the gear, which opens the widget's settings page (docs/21); omaseed's own settings are its last row.
 
 **Now** (never folds):
 - ↓ and ↑ as heading numbers over tracked captions, the arrows blue and green.
 - Under alt-speed, both numbers and arrows take the alt-speed colour and one line names the
-  limits.
+  limits. Under a burst the numbers keep their ink and the line is green: `burst · ↓ ∞ · ↑ ∞`,
+  then `· until 07:00` dimmer (board 31 W2).
 - An upload sparkline for the last hour: 60 one-minute points sampled by the app, with peak
   and current. It hides when nothing has been uploaded for an hour.
 
@@ -180,6 +186,10 @@ the app's own sampling. The widget computes none of it: the app writes it into t
 **Read:** `$XDG_RUNTIME_DIR/omaseed/status.json`, watched with `FileView { watchChanges: true }`.
 
 - Schema, cadence, atomicity and the rule against secrets are as in `plugin/STATUS.md`.
+- **Additions within v2 stay compatible** (board 31 D12, 2026-10-15): `alt.kind` ("burst" ·
+  "turtle" · "alt"), `alt.until` ("07:00", "Mon 07:00" or "") and `alt.byHand`. The app works
+  them out, since the widget never asks qBittorrent. A widget that does not know them, or an
+  app that does not write them, reads as today's yellow alt-speed: `v` stays 2.
 - Bump `v` to 2 for these additions:
   - `categories` (name, save path, auto-TMM);
   - `share` (session up/down/ratio, all-time up/down/ratio);

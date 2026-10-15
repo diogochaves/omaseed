@@ -1,6 +1,8 @@
+#include "core/AltSpeed.hpp"
 #include "core/GlobalState.hpp"
 #include "core/QbtClient.hpp"
 #include "core/SeedLedger.hpp"
+#include "core/ServerPreferences.hpp"
 #include "core/StateFile.hpp"
 #include "core/SyncEngine.hpp"
 #include "integration/StatusWriter.hpp"
@@ -140,6 +142,7 @@ private slots:
     void addCategoryFromState();
     void removedOnQuit();
     void neverStartedRemovesNothing();
+    void altNamesTheSet();
 
 private:
     void startWriter(StatusWriter &writer, SyncEngine &engine);
@@ -226,6 +229,10 @@ void TestStatusWriter::writesSchemaTwo()
     QCOMPARE(alt.value(QStringLiteral("on")).toBool(), true);
     QCOMPARE(alt.value(QStringLiteral("dlLimit")).toInteger(), qint64(1048576));
     QCOMPARE(alt.value(QStringLiteral("upLimit")).toInteger(), qint64(524288));
+    // docs/31 D12: with no AltSpeed, today's word and no end.
+    QCOMPARE(alt.value(QStringLiteral("kind")).toString(), QStringLiteral("alt"));
+    QCOMPARE(alt.value(QStringLiteral("until")).toString(), QString());
+    QCOMPARE(alt.value(QStringLiteral("byHand")).toBool(), false);
 
     const QJsonObject counts = status.value(QStringLiteral("counts")).toObject();
     for (const char *key : {"all",
@@ -814,6 +821,56 @@ void TestStatusWriter::neverStartedRemovesNothing()
     writer.setPath(statusPath());
     writer.removeFile();
     QVERIFY(QFile::exists(statusPath()));
+}
+
+// docs/31 D12: the widget never asks qBittorrent, so the app writes the word, the end and
+// whether a hand toggle set it: alt.kind, alt.until, alt.byHand.
+void TestStatusWriter::altNamesTheSet()
+{
+    SyncEngine engine;
+    engine.globalState()->setConnected(true);
+    engine.applyDemoData(fullUpdate()); // alternative limits on
+    omaseed::core::ServerPreferences preferences(nullptr);
+    omaseed::core::AltSpeed alt;
+    const QDate today = QDate::currentDate();
+    alt.setClock([today]() { return QDateTime(today, QTime(15, 0)); });
+    alt.setGlobalState(engine.globalState());
+    alt.setPreferences(&preferences);
+    preferences.setOffline({
+        {QStringLiteral("dl_limit"), 0},
+        {QStringLiteral("up_limit"), 1228800},
+        {QStringLiteral("alt_dl_limit"), 0},
+        {QStringLiteral("alt_up_limit"), 0},
+        {QStringLiteral("scheduler_enabled"), true},
+        {QStringLiteral("schedule_from_hour"), 23},
+        {QStringLiteral("schedule_from_min"), 0},
+        {QStringLiteral("schedule_to_hour"), 7},
+        {QStringLiteral("schedule_to_min"), 0},
+        {QStringLiteral("scheduler_days"), 0},
+    });
+    StatusWriter writer;
+    writer.setIntervals(0, 10000);
+    writer.setAltSpeed(&alt);
+    startWriter(writer, engine);
+
+    bool ok = false;
+    QJsonObject status = readStatus(statusPath(), &ok);
+    QVERIFY(ok);
+    QCOMPARE(status.value(QStringLiteral("v")).toInt(), 2); // additions, not a new schema
+    QJsonObject altJson = status.value(QStringLiteral("alt")).toObject();
+    QCOMPARE(altJson.value(QStringLiteral("on")).toBool(), true);
+    QCOMPARE(altJson.value(QStringLiteral("kind")).toString(), QStringLiteral("burst"));
+    // On at 15:00 against a 23:00–07:00 schedule: a hand toggle, ended tomorrow at 07:00.
+    QCOMPARE(altJson.value(QStringLiteral("until")).toString(), QStringLiteral("07:00"));
+    QCOMPARE(altJson.value(QStringLiteral("byHand")).toBool(), true);
+
+    // The set changes: the file follows.
+    QSignalSpy written(&writer, &StatusWriter::written);
+    preferences.apply({{QStringLiteral("alt_up_limit"), 10240}});
+    QVERIFY(written.wait(2000));
+    status = readStatus(statusPath(), &ok);
+    altJson = status.value(QStringLiteral("alt")).toObject();
+    QCOMPARE(altJson.value(QStringLiteral("kind")).toString(), QStringLiteral("turtle"));
 }
 
 QTEST_GUILESS_MAIN(TestStatusWriter)

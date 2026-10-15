@@ -1,5 +1,6 @@
 #include "integration/StatusWriter.hpp"
 
+#include "core/AltSpeed.hpp"
 #include "core/CategoryModel.hpp"
 #include "core/FilterCounts.hpp"
 #include "core/GlobalState.hpp"
@@ -131,6 +132,16 @@ void StatusWriter::setPreferences(ServerPreferences *preferences)
     m_preferences = preferences;
     if (preferences)
         connect(preferences, &ServerPreferences::valuesChanged, this, &StatusWriter::markDirty);
+}
+
+void StatusWriter::setAltSpeed(const omaseed::core::AltSpeed *alt)
+{
+    if (m_alt)
+        disconnect(m_alt, nullptr, this, nullptr);
+    m_alt = alt;
+    if (alt)
+        connect(alt, &omaseed::core::AltSpeed::changed, this, &StatusWriter::markDirty);
+    markDirty();
 }
 
 void StatusWriter::setLedger(const SeedLedger *ledger)
@@ -599,6 +610,10 @@ QJsonObject StatusWriter::content() const
                         {QStringLiteral("on"), altOn},
                         {QStringLiteral("dlLimit"), altOn ? state->dlRateLimit() : 0},
                         {QStringLiteral("upLimit"), altOn ? state->upRateLimit() : 0},
+                        // docs/31 D12: added within v2; an older widget ignores them.
+                        {QStringLiteral("kind"), m_alt ? m_alt->kind() : QStringLiteral("alt")},
+                        {QStringLiteral("until"), m_alt ? m_alt->stateUntilText() : QString()},
+                        {QStringLiteral("byHand"), m_alt && m_alt->isByHand()},
                     });
     document.insert(QStringLiteral("counts"),
                     QJsonObject{

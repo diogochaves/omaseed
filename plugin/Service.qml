@@ -42,6 +42,11 @@ Item {
   readonly property bool running: state !== "notRunning"
   readonly property bool reachable: running && state !== "unreachable"
   readonly property bool altOn: running && Status.altOn(status)
+  // docs/31 D12: "burst", "turtle" or "alt"; burst draws green, the others yellow, and only
+  // a set that holds back (not a burst) colours the speeds.
+  readonly property string altKind: running ? Status.altKind(status) : "alt"
+  readonly property color altInk: altKind === "burst" ? green : yellow
+  readonly property bool altSlows: altOn && altKind !== "burst"
   readonly property var markState: Status.markState(status, now)
 
   FileView {
