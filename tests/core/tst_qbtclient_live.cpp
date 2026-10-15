@@ -10,6 +10,7 @@
 #include "LiveServer.hpp"
 
 #include <QEventLoop>
+#include <QFile>
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QProcessEnvironment>
@@ -70,6 +71,7 @@ private slots:
     void torrentsInfoReturnsAnArray();
     void probeReportsServerInfo();
     void logMainProblemsOnBothServers();
+    void fetchMetadataOnBothServers();
 
 private:
     QUrl m_playground;
@@ -298,6 +300,82 @@ void TestQbtClientLive::probeReportsServerInfo()
     QCOMPARE(info.size(), 1);
     QCOMPARE(info.at(0).at(0).toString(), probed.value().version);
     QCOMPARE(info.at(0).at(1).toString(), probed.value().apiVersion);
+}
+
+// #44 (docs/29 §2): a torrent the library already holds answers 200 at once, with its whole
+// metadata; the paths carry the torrent's own folder. Only library torrents are asked, so no
+// lookup is left running on either server (there is no way to cancel one, upstream#87).
+void TestQbtClientLive::fetchMetadataOnBothServers()
+{
+    // `asked`: whether `client`'s library had a torrent to ask about.
+    const auto check = [this](QbtClient &client, const char *server, bool *asked) {
+        *asked = false;
+        const QbtResult<QJsonArray> all = await(this, client.torrentsInfo());
+        QVERIFY2(!all.isError(), qPrintable(all.error().toString()));
+        QJsonObject torrent;
+        for (const QJsonValue &value : all.value()) {
+            const QJsonObject candidate = value.toObject();
+            // A magnet still fetching has no metadata: its lookup would answer 202 forever.
+            if (candidate.value(QStringLiteral("has_metadata")).toBool(true) &&
+                candidate.value(QStringLiteral("state")).toString() != QStringLiteral("metaDL")) {
+                torrent = candidate;
+                break;
+            }
+        }
+        if (torrent.isEmpty()) {
+            qInfo("%s has no torrent with metadata", server);
+            return;
+        }
+        const QString hash = torrent.value(QStringLiteral("hash")).toString();
+        const QbtResult<QbtClient::FetchedMetadata> fetched =
+            await(this, client.torrentsFetchMetadata(hash));
+        QVERIFY2(!fetched.isError(), qPrintable(fetched.error().toString()));
+        QVERIFY2(fetched.value().ready, "a library torrent should answer 200 at once");
+        const QJsonObject body = fetched.value().body;
+        QCOMPARE(body.value(QStringLiteral("hash")).toString(), hash);
+        const QJsonObject info = body.value(QStringLiteral("info")).toObject();
+        const QString name = info.value(QStringLiteral("name")).toString();
+        QVERIFY(!name.isEmpty());
+        const QJsonArray files = info.value(QStringLiteral("files")).toArray();
+        QVERIFY(!files.isEmpty());
+        for (const QJsonValue &value : files) {
+            const QString path = value.toObject().value(QStringLiteral("path")).toString();
+            QVERIFY2(path == name || path.startsWith(name + QLatin1Char('/')), qPrintable(path));
+        }
+        *asked = true;
+    };
+
+    QbtClient playground;
+    playground.setBaseUrl(m_playground);
+    bool asked = false;
+    check(playground, "the playground", &asked);
+
+    if (m_apiKey.isEmpty())
+        QSKIP("QBT_STRICT_API_KEY is unset: the strict half needs dev.env loaded");
+    // The API key's session is keyed by the key and never ends, so a lookup's result stays
+    // with it between polls (upstream#86).
+    QbtClient strict;
+    strict.setBaseUrl(m_strict);
+    strict.setApiKey(m_apiKey);
+    check(strict, "the strict server", &asked);
+    if (asked)
+        return;
+    // An empty strict library: a fixture added stopped for the question, then taken off.
+    QFile file(QStringLiteral(OMASEED_FIXTURES_DIR "/single_file_v1.torrent"));
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    QbtClient::AddOptions options;
+    options.stopped = true;
+    const auto added = await(
+        this, strict.torrentsAddFile(QStringLiteral("single.torrent"), file.readAll(), options));
+    QVERIFY2(!added.isError(), qPrintable(added.error().toString()));
+    const QString hash = QStringLiteral("857ddb9df19f876e5a5e3f5b9c4f3991cbce1b04");
+    for (int attempt = 0; attempt < 20 && !asked; ++attempt) {
+        check(strict, "the strict server", &asked);
+        if (!asked)
+            QTest::qWait(250);
+    }
+    await(this, strict.torrentsDelete({hash}, true));
+    QVERIFY(asked);
 }
 
 QTEST_MAIN(TestQbtClientLive)

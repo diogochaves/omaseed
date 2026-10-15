@@ -144,6 +144,7 @@ omaseed_add_test(tst_serverpreferences
 omaseed_add_test(tst_qbtclient_live LIVE
     SOURCES tst_qbtclient_live.cpp
     LIBRARIES omaseed::core
+    DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
 )
 
 omaseed_add_test(tst_format

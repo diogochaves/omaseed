@@ -101,6 +101,8 @@
 //   POST torrents/add (urls=)           torrentsAddUrls(urls, options)
 //   POST torrents/add (multipart file)  torrentsAddFile(fileName, bytes, options)
 //   POST torrents/add (multipart, many) torrentsAddMany(files, urls, options)
+//   POST torrents/fetchMetadata         torrentsFetchMetadata(source)  -- 202 still looking,
+//                                          200 the metadata; kept per Web UI session (#44)
 // Anything else goes through the generic get() / post().
 
 #include "core/ApiError.hpp"
@@ -361,7 +363,35 @@ public:
         std::optional<bool> sequentialDownload;
         std::optional<bool> firstLastPiecePrio;
         std::optional<QString> cookie;
+        /// One per file, in file-id order (0 skip, 1 normal, 6 high, 7 maximal), sent as
+        /// `filePriorities=1,0,7`. Only for one magnet or link whose metadata this client's
+        /// session already fetched (torrentsFetchMetadata); qBittorrent answers 400 otherwise,
+        /// and with a file upload (docs/11 D1). Empty leaves it off.
+        QList<int> filePriorities;
+        /// qBittorrent's `stopCondition`: "MetadataReceived" stops the torrent as soon as its
+        /// metadata is in (docs/29 D5), "FilesChecked" after the check. Unset leaves it off.
+        std::optional<QString> stopCondition;
     };
+
+    /// What torrents/fetchMetadata answered: `ready` false is 202, the lookup still running
+    /// (`body` holds the hashes, or nothing for a link still downloading); true is 200, with
+    /// the torrent's metadata in `body` (`info.name`, `info.files[].path` and `.length`, …).
+    struct FetchedMetadata
+    {
+        bool ready = false;
+        QJsonObject body;
+    };
+
+    /// POST torrents/fetchMetadata (Web API 2.11.9, qBittorrent 5.2): asks qBittorrent for the
+    /// metadata of `source` (a magnet, a v1 or v2 hash, an http(s) link to a .torrent) without
+    /// adding it. It answers 202 while it looks and 200 once it has it; the caller asks again
+    /// (docs/29 §3). The result is kept in the Web UI session, so every poll and the add that
+    /// follows must go through this one client (diogochaves/upstream#86). A 404 is a server
+    /// without the endpoint.
+    QbtReply<FetchedMetadata> *torrentsFetchMetadata(const QString &source);
+    /// True when a server with this app/webapiVersion has torrents/fetchMetadata and takes
+    /// `filePriorities` on an add: 2.11.9 and later.
+    static bool supportsFetchMetadata(const QString &apiVersion);
 
     /// POST torrents/add with one or more magnet links or .torrent URLs (the server fetches
     /// them itself), newline-separated.

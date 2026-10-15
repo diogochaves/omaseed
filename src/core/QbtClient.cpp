@@ -19,6 +19,7 @@
 #include <QVersionNumber>
 
 #include <functional>
+#include <type_traits>
 #include <utility>
 
 namespace omaseed::core {
@@ -172,6 +173,15 @@ void applyAddOptions(QUrlQuery &form, const QbtClient::AddOptions &options)
         addBoolItem(form, QStringLiteral("firstLastPiecePrio"), *options.firstLastPiecePrio);
     if (options.cookie)
         addItem(form, QStringLiteral("cookie"), *options.cookie);
+    if (!options.filePriorities.isEmpty()) {
+        QStringList priorities;
+        priorities.reserve(options.filePriorities.size());
+        for (const int priority : options.filePriorities)
+            priorities.append(QString::number(priority));
+        addItem(form, QStringLiteral("filePriorities"), priorities.join(QLatin1Char(',')));
+    }
+    if (options.stopCondition)
+        addItem(form, QStringLiteral("stopCondition"), *options.stopCondition);
 }
 
 bool isNetworkFailure(QNetworkReply::NetworkError error)
@@ -208,7 +218,10 @@ struct QbtClient::Job
     /// The certificate TLS refused on the last attempt (CertificatePin form), or empty.
     QString refusedCertificate;
     QString refusedCertificateReason;
-    std::function<void(const QByteArray &, const ApiError &)> deliver;
+    /// The HTTP status of the last attempt (0 without one), for the calls whose 2xx statuses
+    /// mean different things (torrentsFetchMetadata: 202 still looking, 200 done).
+    int httpStatus = 0;
+    std::function<void(const QByteArray &, const ApiError &, int)> deliver;
 };
 
 QbtClient::QbtClient(QObject *parent)
@@ -371,11 +384,13 @@ QbtReply<T> *QbtClient::submit(RequestSpec spec, Fn parse)
     job->spec = std::move(spec);
 
     QPointer<QbtReply<T>> guard(reply);
-    job->deliver = [guard, parse](const QByteArray &body, const ApiError &error) {
+    job->deliver = [guard, parse](const QByteArray &body, const ApiError &error, int status) {
         if (guard.isNull())
             return;
         if (error.isError())
             guard->complete(QbtResult<T>(error));
+        else if constexpr (std::is_invocable_v<Fn, const QByteArray &, int>)
+            guard->complete(parse(body, status));
         else
             guard->complete(parse(body));
     };
@@ -485,6 +500,7 @@ void QbtClient::onJobReplyFinished(const JobPtr &job)
     m_active.removeOne(job);
 
     const int status = networkReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    job->httpStatus = status;
     // An aborted reply is closed already; reading it would only warn.
     const QByteArray body = networkReply->isReadable() ? networkReply->readAll() : QByteArray();
     job->networkError = networkReply->error();
@@ -613,7 +629,7 @@ void QbtClient::finishJob(const JobPtr &job, const QByteArray &body, const ApiEr
     if (error.isError())
         qCDebug(lcQbt) << "failed:" << error.toString();
     if (job->deliver)
-        job->deliver(body, error);
+        job->deliver(body, error, job->httpStatus);
 }
 
 void QbtClient::cancelJob(const JobPtr &job)
@@ -663,7 +679,9 @@ void QbtClient::startLogin()
 
     auto job = std::make_shared<Job>();
     job->spec = std::move(spec);
-    job->deliver = [this](const QByteArray &, const ApiError &error) { onLoginFinished(error); };
+    job->deliver = [this](const QByteArray &, const ApiError &error, int) {
+        onLoginFinished(error);
+    };
     m_queued.prepend(job);
     pump();
 }
@@ -1341,6 +1359,43 @@ QbtReply<QByteArray> *QbtClient::torrentsDelete(const QStringList &hashes, bool 
     QUrlQuery form = hashesForm(hashes);
     addBoolItem(form, QStringLiteral("deleteFiles"), deleteFiles);
     return post(QStringLiteral("torrents/delete"), form);
+}
+
+bool QbtClient::supportsFetchMetadata(const QString &apiVersion)
+{
+    const QVersionNumber version = QVersionNumber::fromString(apiVersion);
+    return !version.isNull() && version >= QVersionNumber(2, 11, 9);
+}
+
+QbtReply<QbtClient::FetchedMetadata> *QbtClient::torrentsFetchMetadata(const QString &source)
+{
+    RequestSpec spec;
+    spec.verb = QStringLiteral("POST");
+    spec.path = QStringLiteral("torrents/fetchMetadata");
+    addItem(spec.form, QStringLiteral("source"), source);
+    // Asking again is how this call is used, so a lost answer is simply the next poll's job.
+    spec.retryOnTransient = false;
+    return submit<FetchedMetadata>(
+        std::move(spec), [](const QByteArray &body, int status) -> QbtResult<FetchedMetadata> {
+            // 202 carries the hashes (or `{}` for a link still downloading); 200 the metadata.
+            FetchedMetadata fetched;
+            fetched.ready = status == 200;
+            if (!body.trimmed().isEmpty()) {
+                ApiError error;
+                const QJsonDocument document =
+                    parseJson(body, QStringLiteral("torrents/fetchMetadata"), &error);
+                if (error.isError())
+                    return error;
+                if (!document.isObject())
+                    return ApiError(ApiError::Kind::Parse,
+                                    QStringLiteral("torrents/fetchMetadata: not an object"));
+                fetched.body = document.object();
+            }
+            if (fetched.ready && !fetched.body.value(QStringLiteral("info")).isObject())
+                return ApiError(ApiError::Kind::Parse,
+                                QStringLiteral("torrents/fetchMetadata: 200 without info"));
+            return fetched;
+        });
 }
 
 QbtReply<QByteArray> *QbtClient::torrentsAddUrls(const QStringList &urls, const AddOptions &options)

@@ -161,7 +161,144 @@ private slots:
     void banPeersSendsPipedPeers();
     void setSpeedLimitsModeSendsTheMode();
     void webSeedWritesSendTheHashAndTheUrls();
+    void fetchMetadataTellsLookingFromDone();
+    void fetchMetadataOfALinkStillDownloading();
+    void fetchMetadataNotFoundIsAnError();
+    void fetchMetadataSupportFollowsTheApiVersion();
+    void addUrlsSendsFilePrioritiesAndStopCondition();
 };
+
+// #44 (docs/29 §2): 202 is "still looking" with the hashes, 200 the metadata. Bodies are the
+// research's, from qBittorrent 5.2.3.
+void TestQbtClientActionsFake::fetchMetadataTellsLookingFromDone()
+{
+    FakeServer server;
+    server.setHandler([](const Recorded &, int index) {
+        if (index == 0)
+            return httpResponse(202,
+                                "Accepted",
+                                R"({"hash":"1f85b9e8a0d259478ee98344b2b0816f899e59b8",)"
+                                R"("infohash_v1":"f43d3b0a927b9662dbb640d24793a1726aaa4c61",)"
+                                R"("infohash_v2":""})");
+        return httpResponse(
+            200,
+            "OK",
+            R"({"hash":"1f85b9e8a0d259478ee98344b2b0816f899e59b8",)"
+            R"("info":{"files":[{"length":812,"path":"Public Domain Sampler/README.txt"}],)"
+            R"("length":812,"name":"Public Domain Sampler","piece_length":65536,)"
+            R"("pieces_num":1,"private":false},"trackers":[],"webseeds":[]})");
+    });
+    QbtClient client;
+    client.setBaseUrl(server.url());
+
+    const QString magnet = QStringLiteral(
+        "magnet:?xt=urn:btih:f43d3b0a927b9662dbb640d24793a1726aaa4c61&dn=A%20B&tr=x");
+    const auto looking = await(this, client.torrentsFetchMetadata(magnet));
+    QVERIFY(!looking.isError());
+    QVERIFY(!looking.value().ready);
+    QCOMPARE(looking.value().body.value(QStringLiteral("infohash_v1")).toString(),
+             QStringLiteral("f43d3b0a927b9662dbb640d24793a1726aaa4c61"));
+
+    const auto done = await(this, client.torrentsFetchMetadata(magnet));
+    QVERIFY(!done.isError());
+    QVERIFY(done.value().ready);
+    QCOMPARE(done.value()
+                 .body.value(QStringLiteral("info"))
+                 .toObject()
+                 .value(QStringLiteral("name"))
+                 .toString(),
+             QStringLiteral("Public Domain Sampler"));
+
+    QCOMPARE(server.requests.size(), 2);
+    QCOMPARE(server.requests.at(0).method, QByteArrayLiteral("POST"));
+    QCOMPARE(server.requests.at(0).target, QByteArrayLiteral("/api/v2/torrents/fetchMetadata"));
+    // The magnet's own '&' and '=' stay inside `source`.
+    const QUrlQuery form(QString::fromUtf8(server.requests.at(0).body));
+    QCOMPARE(form.queryItemValue(QStringLiteral("source"), QUrl::FullyDecoded), magnet);
+}
+
+// A link qBittorrent is still downloading answers 202 `{}`, forever if the link is dead.
+void TestQbtClientActionsFake::fetchMetadataOfALinkStillDownloading()
+{
+    FakeServer server;
+    server.setHandler([](const Recorded &, int index) {
+        return index == 0 ? httpResponse(202, "Accepted", "{}") : httpResponse(202, "Accepted", "");
+    });
+    QbtClient client;
+    client.setBaseUrl(server.url());
+    const QString link = QStringLiteral("https://releases.example.org/distro.torrent");
+    const auto braces = await(this, client.torrentsFetchMetadata(link));
+    QVERIFY(!braces.isError());
+    QVERIFY(!braces.value().ready);
+    QVERIFY(braces.value().body.isEmpty());
+    const auto empty = await(this, client.torrentsFetchMetadata(link));
+    QVERIFY(!empty.isError());
+    QVERIFY(!empty.value().ready);
+}
+
+// D11: a server without the endpoint answers 404; it is an error the lookup reads as "not
+// here", and the client never sends it twice.
+void TestQbtClientActionsFake::fetchMetadataNotFoundIsAnError()
+{
+    FakeServer server;
+    server.setHandler([](const Recorded &, int) {
+        return httpResponse(404, "Not Found", "Endpoint does not exist");
+    });
+    QbtClient client;
+    client.setBaseUrl(server.url());
+    const auto result = await(this, client.torrentsFetchMetadata(QStringLiteral("magnet:?xt=x")));
+    QVERIFY(result.isError());
+    QCOMPARE(result.error().kind(), ApiError::Kind::NotFound);
+    QCOMPARE(server.requests.size(), 1);
+}
+
+void TestQbtClientActionsFake::fetchMetadataSupportFollowsTheApiVersion()
+{
+    QVERIFY(QbtClient::supportsFetchMetadata(QStringLiteral("2.15.1")));
+    QVERIFY(QbtClient::supportsFetchMetadata(QStringLiteral("2.11.9")));
+    QVERIFY(QbtClient::supportsFetchMetadata(QStringLiteral("2.12")));
+    QVERIFY(!QbtClient::supportsFetchMetadata(QStringLiteral("2.11.4"))); // qBittorrent 5.1.4
+    QVERIFY(!QbtClient::supportsFetchMetadata(QStringLiteral("2.9.3")));
+    QVERIFY(!QbtClient::supportsFetchMetadata(QString()));
+    QVERIFY(!QbtClient::supportsFetchMetadata(QStringLiteral("nonsense")));
+}
+
+// docs/29 §2 and D5: the chosen files travel with the magnet in one add, comma-separated in
+// file-id order; "add stopped" before the list is a started add with a stop condition.
+void TestQbtClientActionsFake::addUrlsSendsFilePrioritiesAndStopCondition()
+{
+    FakeServer server;
+    server.setHandler([](const Recorded &, int) { return httpResponse(200, "OK", "{}"); });
+    QbtClient client;
+    client.setBaseUrl(server.url());
+
+    QbtClient::AddOptions withFiles;
+    withFiles.filePriorities = {1, 0, 7};
+    QVERIFY(!await(this, client.torrentsAddUrls({QStringLiteral("magnet:?xt=a")}, withFiles))
+                 .isError());
+    QbtClient::AddOptions untilMetadata;
+    untilMetadata.stopped = false;
+    untilMetadata.stopCondition = QStringLiteral("MetadataReceived");
+    QVERIFY(!await(this, client.torrentsAddUrls({QStringLiteral("magnet:?xt=b")}, untilMetadata))
+                 .isError());
+    QVERIFY(!await(this, client.torrentsAddUrls({QStringLiteral("magnet:?xt=c")})).isError());
+    QCOMPARE(server.requests.size(), 3);
+
+    const QUrlQuery first(QString::fromUtf8(server.requests.at(0).body));
+    QCOMPARE(first.queryItemValue(QStringLiteral("filePriorities"), QUrl::FullyDecoded),
+             QStringLiteral("1,0,7"));
+    QVERIFY(!first.hasQueryItem(QStringLiteral("stopCondition")));
+
+    const QUrlQuery second(QString::fromUtf8(server.requests.at(1).body));
+    QCOMPARE(second.queryItemValue(QStringLiteral("stopCondition")),
+             QStringLiteral("MetadataReceived"));
+    QCOMPARE(second.queryItemValue(QStringLiteral("stopped")), QStringLiteral("false"));
+    QVERIFY(!second.hasQueryItem(QStringLiteral("filePriorities")));
+
+    const QUrlQuery third(QString::fromUtf8(server.requests.at(2).body));
+    QVERIFY(!third.hasQueryItem(QStringLiteral("filePriorities")));
+    QVERIFY(!third.hasQueryItem(QStringLiteral("stopCondition")));
+}
 
 // #10: the HTTP sources tab's add and remove, and the edit the client offers besides.
 void TestQbtClientActionsFake::webSeedWritesSendTheHashAndTheUrls()
