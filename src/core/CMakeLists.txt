@@ -97,6 +97,8 @@ qt_add_library(omaseed-core STATIC
     Torrent.hpp
     TorrentDetails.cpp
     TorrentDetails.hpp
+    TorrentExtras.cpp
+    TorrentExtras.hpp
     TorrentFile.cpp
     TorrentFile.hpp
     TorrentFilesModel.cpp

@@ -23,6 +23,11 @@ omaseed_add_test(tst_metadatalookup
     LIBRARIES omaseed::core
 )
 
+omaseed_add_test(tst_torrentextras
+    SOURCES tst_torrentextras.cpp
+    LIBRARIES omaseed::core
+)
+
 omaseed_add_test(tst_privatetrackers
     SOURCES tst_privatetrackers.cpp
     LIBRARIES omaseed::core
