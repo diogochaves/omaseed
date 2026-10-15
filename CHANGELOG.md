@@ -15,6 +15,13 @@ before it will tag a release.
   that is no command goes to the jump palette. The footer, the ⋯ menu and the `?` sheet point
   to it.
 
+### Fixed
+
+- Renaming a file or folder no longer replaces a file of that name the torrent doesn't own.
+  qBittorrent only checks the torrent's own files and lets the rename overwrite anything else,
+  so where omaseed can see the server's disk (a local server, or a mapped path) it refuses such
+  a name first: the rename sheet marks the row, `r` says the name already exists on disk.
+
 ## v0.2.0 — 2026-10-13
 
 ### Added
