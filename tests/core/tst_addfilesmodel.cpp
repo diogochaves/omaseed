@@ -5,8 +5,11 @@
 #include "core/AddFilesModel.hpp"
 #include "core/TorrentFile.hpp"
 
+#include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QSignalSpy>
+#include <QTemporaryDir>
 #include <QTest>
 
 #ifndef OMASEED_FIXTURES_DIR
@@ -34,6 +37,16 @@ QVariant roleAt(const AddFilesModel &model, int row, const char *role)
             return model.data(model.index(row, 0), it.key());
     }
     return {};
+}
+
+/// Writes a small file at `relative` under `dir`, making its folders.
+bool writeFile(const QTemporaryDir &dir, const QString &relative)
+{
+    const QString path = dir.filePath(relative);
+    if (!QDir().mkpath(QFileInfo(path).path()))
+        return false;
+    QFile file(path);
+    return file.open(QIODevice::WriteOnly) && file.write("stray") == 5;
 }
 
 /// The row whose `name` role is `name` ("Sintel/" for a folder), or -1.
@@ -65,6 +78,7 @@ private slots:
     void renamesAFile();
     void renamesAFolderAndEverythingUnderIt();
     void refusesNamesThatCannotBe();
+    void refusesANameAStrayFileHoldsOnDisk();
     void renamesKeepTheChoicesAndStartOverOnLoad();
     void groupsLeaveNormalOut();
     void foldingKeepsTheChoices();
@@ -401,6 +415,63 @@ void TestAddFilesModel::refusesNamesThatCannotBe()
     QVERIFY(!model.rename(sintel, QStringLiteral("a/b")));
     QCOMPARE(changed.count(), 0);
     QVERIFY(model.renameList().isEmpty());
+}
+
+// #67: where the add saves to holds a file the torrent will not own at the new path:
+// qBittorrent would replace it without a word (#64), so the name is refused as a sibling's is.
+void TestAddFilesModel::refusesANameAStrayFileHoldsOnDisk()
+{
+    const TorrentFile torrent = fixture("open_movies_v1.torrent");
+    QVERIFY(torrent.multiFile);
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString root = torrent.name; // the torrent's own folder in the save path
+    QVERIFY(writeFile(dir, root + QStringLiteral("/notes.txt")));
+    QVERIFY(writeFile(dir, root + QStringLiteral("/Extras/poster.png")));
+    QVERIFY(writeFile(dir, root + QStringLiteral("/README.txt"))); // its own, already there
+    QStringList own;
+    for (const TorrentFileEntry &file : torrent.files)
+        own.append(root + QLatin1Char('/') + file.path);
+
+    AddFilesModel model;
+    model.load(torrent.files);
+    const int readme = rowNamed(model, QStringLiteral("README.txt"));
+    const int sintel = rowNamed(model, QStringLiteral("Sintel/"));
+    // Without a disk to read, as before.
+    QVERIFY(model.renameError(readme, QStringLiteral("notes.txt")).isEmpty());
+
+    model.setRenameDisk(RenameDisk(dir.path(), own), root);
+    QCOMPARE(model.renameError(readme, QStringLiteral("notes.txt")),
+             QStringLiteral("already exists on disk"));
+    QVERIFY(!model.rename(readme, QStringLiteral("notes.txt")));
+    QVERIFY(model.renameList().isEmpty());
+    // A folder onto one holding a stray file; an empty name is free.
+    QCOMPARE(model.renameError(sintel, QStringLiteral("Extras")),
+             QStringLiteral("already exists on disk"));
+    QVERIFY(model.renameError(sintel, QStringLiteral("Sintel (2010)")).isEmpty());
+    // The torrent's own file on disk is no stray: it may go back to its name.
+    QVERIFY(model.rename(readme, QStringLiteral("read me.txt")));
+    QVERIFY(model
+                .renameError(rowNamed(model, QStringLiteral("read me.txt")),
+                             QStringLiteral("README.txt"))
+                .isEmpty());
+
+    // "No subfolder": the paths land straight in the save path, here the root folder itself.
+    QStringList ownFlat;
+    for (const TorrentFileEntry &file : torrent.files)
+        ownFlat.append(file.path);
+    model.setRenameDisk(RenameDisk(dir.filePath(root), ownFlat), QString());
+    QCOMPARE(model.renameError(rowNamed(model, QStringLiteral("read me.txt")),
+                               QStringLiteral("notes.txt")),
+             QStringLiteral("already exists on disk"));
+
+    // clear() forgets the disk.
+    model.clear();
+    model.load(torrent.files);
+    QVERIFY(
+        model
+            .renameError(rowNamed(model, QStringLiteral("README.txt")), QStringLiteral("notes.txt"))
+            .isEmpty());
 }
 
 void TestAddFilesModel::renamesKeepTheChoicesAndStartOverOnLoad()

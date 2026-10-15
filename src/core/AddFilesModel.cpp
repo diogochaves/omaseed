@@ -117,6 +117,8 @@ void AddFilesModel::load(const QList<TorrentFileEntry> &files)
 
 void AddFilesModel::clear()
 {
+    m_disk = RenameDisk();
+    m_diskRoot.clear();
     if (m_files.isEmpty())
         return;
     m_files.clear();
@@ -337,7 +339,18 @@ QString AddFilesModel::renameError(int row, const QString &name) const
         if (path == newPath || path.startsWith(asFolder))
             return tr("%1 is already there").arg(name);
     }
+    // #67: qBittorrent replaces a file it does not own at the new path without a word (#64).
+    // The field shows the name already, so the words leave it out and fit beside it.
+    const QString onDisk = m_diskRoot.isEmpty() ? newPath : m_diskRoot + QLatin1Char('/') + newPath;
+    if (isFolder(row) ? m_disk.folderTaken(onDisk) : m_disk.fileTaken(onDisk))
+        return tr("already exists on disk");
     return QString();
+}
+
+void AddFilesModel::setRenameDisk(const RenameDisk &disk, const QString &root)
+{
+    m_disk = disk;
+    m_diskRoot = root;
 }
 
 bool AddFilesModel::rename(int row, const QString &name)

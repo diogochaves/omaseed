@@ -12,6 +12,7 @@
 // files left out), so `priorityGroups()` can go straight to `torrents/filePrio` once the
 // torrent is on the server.
 
+#include "core/RenameDisk.hpp"
 #include "core/TorrentFile.hpp"
 
 #include <QIdentityProxyModel>
@@ -97,7 +98,8 @@ public:
 
     // --- renaming (manual box M18) -----------------------------------------------------
     /// Why `name` cannot be `row`'s new name ("" when it can): empty, ".", "..", a "/" or
-    /// "\", or a sibling already called that.
+    /// "\", a sibling already called that, or (#67) something the torrent will not own
+    /// already at that path on disk, where `setRenameDisk()` gave a disk to read.
     Q_INVOKABLE QString renameError(int row, const QString &name) const;
     /// Renames a file, or a folder (every path under it follows). False, and nothing
     /// changes, when `renameError()` says no. Renaming to the current name does nothing.
@@ -116,6 +118,11 @@ public:
     /// A file's id and metainfo path, for App to find the server's root folder in front of
     /// the paths (`{index, path}`, or empty with no files).
     Q_INVOKABLE QVariantMap renameAnchor() const;
+    /// #67: where the files will be: `disk` reads the folder the add saves to (RenameDisk's
+    /// own files are the metainfo's, root folder included), `root` is the torrent's folder in
+    /// it ("" when it has none) that the paths here sit under. A default RenameDisk sees
+    /// nothing, and so refuses nothing (clear() goes back to it).
+    void setRenameDisk(const RenameDisk &disk, const QString &root);
 
     /// One priority per file, in file-id order.
     QList<int> priorities() const { return m_priorities; }
@@ -153,6 +160,8 @@ private:
     /// Each file's path after the renames so far (m_files keeps the metainfo's).
     QList<QString> m_paths;
     QVariantList m_renames;
+    RenameDisk m_disk;
+    QString m_diskRoot;
 };
 
 } // namespace omaseed::core
