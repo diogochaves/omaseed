@@ -20,6 +20,7 @@
 #include <QEventLoop>
 #include <QFile>
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <QJsonObject>
 #include <QSignalSpy>
 #include <QTcpServer>
@@ -178,6 +179,8 @@ private slots:
     void lowDiskThresholdDefaultsToTwoGiBInTheEngine();
     void lowDiskThresholdPersistsReachesTheEngineAndClamps();
     void anOldStateFileWithTheTrackerKeyStillLoads();
+    void aFailureIsNeverANoticeButTheFooterHearsIt();
+    void aDismissedFailureStaysDismissedAfterARestart();
 
 private:
     FakeNotificationBus m_bus;
@@ -651,6 +654,96 @@ void TestAppNotifications::anOldStateFileWithTheTrackerKeyStillLoads()
         omaseed::core::StateFile::readSection(QStringLiteral("notifications"));
     QVERIFY(!section.contains(QStringLiteral("trackerError")));
     QCOMPARE(section.value(QStringLiteral("lowDiskThresholdGiB")).toInt(), 2);
+}
+
+namespace {
+
+const QString kMovedHash = QStringLiteral("37a783e4a8f6f3a92c4226d38ba1d69bdbfa6164");
+
+QByteArray movedMaindata()
+{
+    return QByteArrayLiteral(
+        "{\"full_update\":true,\"rid\":1,\"torrents\":{"
+        "\"37a783e4a8f6f3a92c4226d38ba1d69bdbfa6164\":"
+        "{\"name\":\"log55-move.bin\",\"state\":\"stalledUP\",\"save_path\":\"/d/src\","
+        "\"added_on\":1792075500}}}");
+}
+
+QJsonArray moveFailedLog()
+{
+    return {QJsonObject{
+        {QStringLiteral("id"), 220},
+        {QStringLiteral("timestamp"), 1792075569},
+        {QStringLiteral("type"), 4},
+        {QStringLiteral("message"),
+         QStringLiteral("Failed to move torrent. Torrent: \"log55-move.bin\". Source: \"/d/src\". "
+                        "Destination: \"/d/dest\". Reason: \"37a783 storage move failed. "
+                        "file_rename (/d/src/log55-move.bin): Permission denied\"")}}};
+}
+
+} // namespace
+
+// docs/32 D8 (#55): a move that failed is never a desktop notice. The one omaseed asked for
+// reaches the footer through loggedFailure (D2); the block stays on the torrent.
+void TestAppNotifications::aFailureIsNeverANoticeButTheFooterHearsIt()
+{
+    App app;
+    Notifier notifier(m_bus.connection());
+    app.attachNotifier(&notifier);
+    app.applyDemoData(QJsonDocument::fromJson(movedMaindata()).object());
+    QSignalSpy told(&app, &App::loggedFailure);
+
+    app.engine()->problems()->watchMove({kMovedHash}, QStringLiteral("/d/dest"));
+    app.engine()->problems()->applyEntries(moveFailedLog());
+    QCOMPARE(told.size(), 1);
+    QCOMPARE(told.at(0).at(0).toString(),
+             QStringLiteral("log55-move.bin didn't move: Permission denied"));
+    QCOMPARE(app.torrentRow(kMovedHash)
+                 .value(QStringLiteral("failure"))
+                 .toMap()
+                 .value(QStringLiteral("headline"))
+                 .toString(),
+             QStringLiteral("The move to d/dest didn't happen"));
+    QCOMPARE(m_bus.server()->calls.size(), 0);
+}
+
+// docs/32 D4: `x` on the block is kept in state.json under the server, and the next omaseed
+// reading the same log keeps it hidden.
+void TestAppNotifications::aDismissedFailureStaysDismissedAfterARestart()
+{
+    FakeQbtServer server;
+    QVERIFY(server.start());
+    server.setMainData({movedMaindata()});
+    qputenv("OMASEED_SERVER_URL", server.url().toString().toUtf8());
+    qputenv("OMASEED_SERVER_NAME", "fake");
+
+    const auto failureShown = [](App &app) {
+        return !app.torrentRow(kMovedHash).value(QStringLiteral("failure")).toMap().isEmpty();
+    };
+    {
+        App app;
+        app.start();
+        QVERIFY(waitFor([&] { return app.engine()->torrents()->count() == 1; }));
+        app.engine()->problems()->applyEntries(moveFailedLog());
+        QVERIFY(failureShown(app));
+        app.dismissFailure(kMovedHash);
+        QVERIFY(!failureShown(app));
+        app.engine()->stop();
+    }
+    const QJsonObject saved = omaseed::core::StateFile::readSection(QStringLiteral("failures"));
+    QCOMPARE(saved.value(QStringLiteral("environment"))
+                 .toObject()
+                 .value(QStringLiteral("dismissed"))
+                 .toArray()
+                 .size(),
+             1);
+
+    App next;
+    next.start();
+    QVERIFY(waitFor([&] { return next.engine()->torrents()->count() == 1; }));
+    next.engine()->problems()->applyEntries(moveFailedLog());
+    QVERIFY(!failureShown(next));
+    next.engine()->stop();
 }
 
 QTEST_GUILESS_MAIN(TestAppNotifications)

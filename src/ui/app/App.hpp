@@ -714,11 +714,32 @@ public:
     /// "local → remote, …". Without a map the pick is taken as it is.
     Q_INVOKABLE QVariantMap serverPathForPick(const QString &localPath) const;
 
+    /// docs/32 D3, D4 (#55): hides the move, rename or part file failure shown on `hash`'s
+    /// General tab for good. Kept in state.json (`"failures"`), per server.
+    Q_INVOKABLE void dismissFailure(const QString &hash);
+    /// docs/32 E1 (D6): the newest .torrent copy that couldn't be written: `folder` (the
+    /// export folder it tried), `text` ("The last copy failed: Permission denied, writing
+    /// x.torrent"), `loggedAtText`, `line`; empty when there is none. Settings → Downloads
+    /// shows it under the export folders while one of them is that folder.
+    Q_PROPERTY(QVariantMap exportFailure READ exportFailure NOTIFY exportFailureChanged)
+    QVariantMap exportFailure() const;
+
+private:
+    /// The live server's dismissed failures from state.json into ProblemLog, and back.
+    void loadDismissedFailures();
+    void saveDismissedFailures();
+
+public:
 Q_SIGNALS:
     void deleteFilesDefaultChanged();
     /// A server action from this block came back with an error. MainView shows it in the
     /// footer facts for a few seconds.
     void actionFailed(const QString &action, const QString &message);
+    /// docs/32 D2 (N1): a move, rename or delete omaseed asked for was answered "OK" and then
+    /// failed, says qBittorrent's log ("x.bin didn't move: Permission denied"). `hashes` are
+    /// the torrents it is about still in the list, empty after a delete.
+    void loggedFailure(const QString &text, const QStringList &hashes);
+    void exportFailureChanged();
     /// `loadDuplicateTrackers`' answer: `missing` (what a merge would add) and `existing`
     /// (the torrent's real trackers, without qBittorrent's DHT / PeX / LSD rows).
     void duplicateTrackersLoaded(const QString &hash,

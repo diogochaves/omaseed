@@ -564,6 +564,43 @@ QJsonArray problemLog(const QJsonObject &maindata)
             {QStringLiteral("message"), message},
         });
     }
+
+    // docs/32 (#55): one failure of each kind the demo can show. A move that didn't happen, a
+    // dead web seed (twice) and a .torrent copy that couldn't be written.
+    const auto add = [&entries, &id](const QString &message, qint64 ago) {
+        entries.append(QJsonObject{
+            {QStringLiteral("id"), ++id},
+            {QStringLiteral("timestamp"), QDateTime::currentSecsSinceEpoch() - ago},
+            {QStringLiteral("type"), 4},
+            {QStringLiteral("message"), message},
+        });
+    };
+    for (auto it = torrents.constBegin(); it != torrents.constEnd(); ++it) {
+        const QJsonObject torrent = it.value().toObject();
+        const QString name = torrent.value(QStringLiteral("name")).toString();
+        const QString savePath = torrent.value(QStringLiteral("save_path")).toString();
+        if (name == QLatin1String(kDemoMoveFailure)) {
+            add(QStringLiteral("Failed to move torrent. Torrent: \"%1\". Source: \"%2\". "
+                               "Destination: \"/mnt/archive/movies\". Reason: \"%1 storage move "
+                               "failed. file_rename (%2/%1/spring.mkv): Permission denied\"")
+                    .arg(name, savePath),
+                420);
+        } else if (name.startsWith(QLatin1String("archlinux-"))) {
+            const QString seed =
+                QStringLiteral("https://geo.mirror.example.org/archlinux/iso/2026.09.01/");
+            for (const qint64 ago : {3600, 300})
+                add(QStringLiteral("URL seed connection failed. Torrent: \"%1\". URL: \"%2\". "
+                                   "Error: \"%1 url seed (%2) failed: Host not found "
+                                   "(authoritative)\"")
+                        .arg(name, seed),
+                    ago);
+        } else if (name.startsWith(QLatin1String("omarchy-"))) {
+            add(QStringLiteral("Failed to export torrent. Torrent: \"%1\". Destination: "
+                               "\"%2/%1.torrent\". Reason: \"Read-only file system\"")
+                    .arg(name, QLatin1String(kDemoExportDir)),
+                900);
+        }
+    }
     return entries;
 }
 
@@ -1279,7 +1316,7 @@ QVariantMap preferences()
     "encryption":0,
     "excluded_file_names":"",
     "excluded_file_names_enabled":false,
-    "export_dir":"",
+    "export_dir":"/data/torrents/.torrent-copies",
     "export_dir_fin":"",
     "file_log_age":1,
     "file_log_age_type":1,

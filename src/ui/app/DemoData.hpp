@@ -36,9 +36,15 @@ QStringList specNames();
 /// so a screenshot meant for the figures is unaffected.
 QJsonObject maindata(int rows = 16);
 
+/// docs/32: the demo torrent whose move to /mnt/archive/movies failed, and the export folder
+/// (preferences()' `export_dir`) its .torrent copies failed to reach.
+inline constexpr char kDemoMoveFailure[] = "Spring (2019) 4K (CC-BY)";
+inline constexpr char kDemoExportDir[] = "/data/torrents/.torrent-copies";
+
 /// docs/28: what `log/main` would say about `maindata`'s errored torrents, for
 /// ProblemLog::applyEntries(): one "File error alert" each, the disk full, in libtorrent 2.0's
-/// form (the name where 2.1 puts a hash prefix: the demo's hashes are made up).
+/// form (the name where 2.1 puts a hash prefix: the demo's hashes are made up). docs/32 adds
+/// a failed move (kDemoMoveFailure), a dead web seed of Arch's and a failed .torrent copy.
 QJsonArray problemLog(const QJsonObject &maindata);
 
 /// The hero's numbers of spec §1 Fig. 1 as a `server_state` object: 4.21 MB/s down,

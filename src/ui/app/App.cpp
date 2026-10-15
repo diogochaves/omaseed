@@ -186,6 +186,19 @@ App::App(QObject *parent)
         updateTray();
     });
 
+    // docs/32 (#55): what qBittorrent's log says beyond errors. The footer hears about a
+    // failure omaseed asked for; the HTTP sources tab gets the lines about the torrent it
+    // shows; the export note follows the newest failed copy; dismissals go to state.json.
+    ProblemLog *problems = m_engine->problems();
+    connect(problems, &ProblemLog::watchedFailure, this, &App::loggedFailure);
+    const auto pushWebSeedLines = [this]() {
+        m_details->webSeeds()->setLogLines(m_engine->problems()->webSeedLines(m_details->hash()));
+    };
+    connect(m_details, &TorrentDetails::hashChanged, this, pushWebSeedLines);
+    connect(problems, &ProblemLog::logLinesChanged, this, pushWebSeedLines);
+    connect(problems, &ProblemLog::logLinesChanged, this, &App::exportFailureChanged);
+    connect(problems, &ProblemLog::dismissedChanged, this, &App::saveDismissedFailures);
+
     // #24: every poll goes into the ledger; the console reads it and the library.
     m_console->setSources(m_engine->torrents(),
                           m_filtered,
@@ -456,7 +469,54 @@ void App::startEngine()
     if (m_demoMode || !m_hasServer)
         return;
     openLedger();
+    loadDismissedFailures();
     m_engine->start();
+}
+
+// --- docs/32 (#55): failures only qBittorrent's log knows ---------------------------------------
+
+void App::loadDismissedFailures()
+{
+    const QJsonArray keys = stateSection(QStringLiteral("failures"))
+                                .value(m_server.id)
+                                .toObject()
+                                .value(QStringLiteral("dismissed"))
+                                .toArray();
+    QStringList list;
+    for (const QJsonValue &key : keys)
+        list << key.toString();
+    m_engine->problems()->setDismissed(list);
+}
+
+void App::saveDismissedFailures()
+{
+    if (!m_hasServer || m_server.id.isEmpty())
+        return;
+    QJsonObject section = stateSection(QStringLiteral("failures"));
+    const QStringList keys = m_engine->problems()->dismissed();
+    if (keys.isEmpty())
+        section.remove(m_server.id);
+    else
+        section.insert(
+            m_server.id,
+            QJsonObject{{QStringLiteral("dismissed"), QJsonArray::fromStringList(keys)}});
+    writeStateSection(QStringLiteral("failures"), section);
+}
+
+void App::dismissFailure(const QString &hash)
+{
+    m_engine->problems()->dismiss(hash);
+}
+
+QVariantMap App::exportFailure() const
+{
+    QVariantMap failure = m_engine->problems()->exportFailure();
+    if (failure.isEmpty())
+        return failure;
+    failure.insert(QStringLiteral("loggedAtText"),
+                   Format::relativeTime(failure.value(QStringLiteral("at")).toDateTime()));
+    failure.remove(QStringLiteral("at"));
+    return failure;
 }
 
 void App::startDemo(int rows, bool seedServer)
@@ -506,8 +566,11 @@ void App::applyDemoData(const QJsonObject &maindata)
 
     m_engine->applyDemoData(maindata);
     // The demo's log goes with its library, not with every fictional diff a test applies.
-    if (maindata.value(QStringLiteral("full_update")).toBool())
+    if (maindata.value(QStringLiteral("full_update")).toBool()) {
+        // A new demo is a new server's log: nothing dismissed yet (docs/32 D4).
+        m_engine->problems()->setDismissed({});
         m_engine->problems()->applyEntries(DemoData::problemLog(maindata));
+    }
 
     qInfo().noquote() << QStringLiteral("demo: %1 fictional torrents, no server")
                              .arg(m_engine->torrents()->count());
@@ -788,6 +851,8 @@ QVariantMap App::torrentRow(const QString &hash) const
     row.insert(QStringLiteral("hasTrackerError"), torrent.hasTrackerError);
     // docs/28: why it is in error, from the server's log (ProblemLog); empty otherwise.
     row.insert(QStringLiteral("problem"), m_engine->torrents()->problem(hash));
+    // docs/32: a move, rename or part file that failed while it kept working; empty otherwise.
+    row.insert(QStringLiteral("failure"), m_engine->torrents()->failure(hash));
     // T4.3: exactly the check `stopStart()` makes, so the actions menu's "start"/"stop" row
     // and the delete sheet agree with what a bulk stop/start would actually do.
     row.insert(QStringLiteral("stopped"), startsOnToggle(torrent.state));
@@ -2722,6 +2787,9 @@ void App::setLocation(const QStringList &hashes, const QString &path)
     if (hashes.isEmpty() || path.isEmpty() ||
         demoGuard(QStringLiteral("location"), hashes.size()) || !m_hasServer)
         return;
+    // docs/32 D2: "OK" only means the move was queued; a failure is in the log. Watched from
+    // before the request, so a read on its way meanwhile can't take the line first.
+    m_engine->problems()->watchMove(hashes, path);
     m_client->torrentsSetLocation(hashes, path)
         ->then(this, [this](const QbtResult<QByteArray> &result) {
             reportActionResult(QStringLiteral("location"), result);
@@ -3112,6 +3180,10 @@ void App::remove(const QStringList &hashes, bool deleteFiles)
 {
     if (hashes.isEmpty() || demoGuard(QStringLiteral("delete"), hashes.size()) || !m_hasServer)
         return;
+    // docs/32 D2: the names now, while the torrents are still in the list; the files'
+    // removal may fail after the answer, in the log only.
+    if (deleteFiles)
+        m_engine->problems()->watchDelete(hashes);
     m_client->torrentsDelete(hashes, deleteFiles)
         ->then(this, [this](const QbtResult<QByteArray> &result) {
             reportActionResult(QStringLiteral("delete"), result);
@@ -3952,6 +4024,8 @@ void App::renameTorrentFile(const QString &hash,
     if (!m_hasServer)
         return;
 
+    // docs/32 D2: the rename itself happens after the answer; a failure is in the log.
+    m_engine->problems()->watchRename(hash, 1);
     auto *reply = folder ? m_client->torrentsRenameFolder(hash, oldPath, newPath)
                          : m_client->torrentsRenameFile(hash, oldPath, newPath);
     reply->then(this, [this](const QbtResult<QByteArray> &result) {
@@ -4126,6 +4200,8 @@ void App::renameTorrentFiles(const QString &hash,
     }
     if (!m_hasServer)
         return;
+    // docs/32 D2: each file's rename happens after its answer; failures are in the log.
+    m_engine->problems()->watchRename(hash, int(moves.size()));
     sendFileRename(hash, moves, 0);
 }
 
