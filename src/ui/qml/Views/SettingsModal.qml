@@ -97,8 +97,18 @@ Item {
         }
     ]
 
-    /// docs/16: the qBittorrent group's sections.
-    readonly property var qbtSections: qbtSchema.sections
+    /// docs/16: the qBittorrent group's sections, closed by docs/24 §4's Backup (#32, D1 a),
+    /// which is drawn by `qbtBackupPane` rather than from rows.
+    readonly property var qbtSections: qbtSchema.sections.concat([{
+                                                                      "id": "backup",
+                                                                      "glyph": Glyphs.backup,
+                                                                      "name": qsTr("Backup"),
+                                                                      "shortName": qsTr("Backup"),
+                                                                      "sub": qsTr("export and import this server's settings"),
+                                                                      "rows": []
+                                                                  }])
+    /// The qBittorrent group's Backup pane is on show.
+    readonly property bool inQbtBackup: root.qbtSection !== null && root.qbtSection.id === "backup"
     /// Where the qBittorrent group starts in `paneIndex`.
     readonly property int qbtStart: root.navRows.length
     readonly property int paneCount: root.navRows.length + root.qbtSections.length
@@ -117,12 +127,20 @@ Item {
         const version = App.globalState.serverVersion.replace(/^v/, "");
         return App.serverName + (version.length > 0 ? " " + version : "");
     }
+    /// The Backup pane's head (docs/24 §4): "home · qBittorrent 5.2.3".
+    readonly property string qbtServerHead: {
+        const version = App.globalState.serverVersion.replace(/^v/, "");
+        return version.length > 0 ? qsTr("%1 · qBittorrent %2").arg(App.serverName).arg(version)
+                                  : App.serverName;
+    }
     /// A line for the pane's head after a change: why the server said no, or what it kept.
     property string qbtNote: ""
     property bool qbtNoteError: false
 
     /// How many cursor rows the pane on show has. Keybindings is a read-only list in v1.
     readonly property int paneRowCount: {
+        if (root.inQbtBackup)
+            return 2; // export, import (#32)
         if (root.inQbt)
             return qbtPane.cursorCount;
         switch (root.paneIndex) {
@@ -183,6 +201,8 @@ Item {
     function _readQbt(): void {
         if (!App.serverPrefs.loading)
             App.serverPrefs.reload();
+        if (root.inQbtBackup)
+            App.refreshQbtBackupInfo();
         if (root.qbtSection && root.qbtSection.id === "connection")
             App.serverPrefs.loadInterfaces(App.serverPrefs.values.current_network_interface ?? "");
     }
@@ -338,6 +358,13 @@ Item {
     /// `enter` / `space` on the cursor row of the pane on show. `how` is "enter" or "space":
     /// on a qBittorrent row with a switch and a field, space flips and enter edits.
     function activateRow(how = "enter"): void {
+        if (root.inQbtBackup) {
+            if (root.paneCursor === 0)
+                root.exportQbt();
+            else
+                root.chooseQbtImport();
+            return;
+        }
         if (root.inQbt) {
             qbtPane.activate(root.paneCursor, how);
             return;
@@ -451,6 +478,37 @@ Item {
         }
         root.backupNote = "";
         restoreSheet.openFor(info);
+    }
+
+    /// #32, docs/24 §4: "export…" in Settings › qBittorrent › Backup, and the import sheet's
+    /// "export current first" (`fromSheet`, whose note line says how it went).
+    function exportQbt(fromSheet = false): void {
+        if (!App.globalState.connected || App.qbtBackupBusy)
+            return;
+        const path = App.pickQbtExportPath();
+        if (path.length === 0)
+            return;
+        if (!fromSheet)
+            bodyItem.forceActiveFocus(); // back from the file dialog
+        root._qbtExportFromSheet = fromSheet;
+        root.backupNote = qsTr("exporting…");
+        root.backupNoteError = false;
+        App.exportQbtSettings(path);
+    }
+    property bool _qbtExportFromSheet: false
+
+    /// "import…": the portal's open dialog, then the server is read and the sheet opens on
+    /// `qbtImportRead`.
+    function chooseQbtImport(): void {
+        if (!App.globalState.connected || App.qbtBackupBusy)
+            return;
+        const path = App.pickQbtImportFile();
+        if (path.length === 0)
+            return;
+        bodyItem.forceActiveFocus(); // back from the file dialog
+        const error = App.readQbtSettings(path);
+        root.backupNote = error.length > 0 ? error : qsTr("reading %1…").arg(App.serverName);
+        root.backupNoteError = error.length > 0;
     }
 
     // docs/08 §5: the three scroll-hint looks, as [value, chip text]. Rail's first, and since
@@ -625,9 +683,12 @@ Item {
                                               - Math.ceil(captionMetrics.height))
 
     /// The pane on show, in `navRows` order; every qBittorrent section is the one pane.
-    readonly property Item _paneOnShow: root.inQbt ? qbtPane : [generalPane, serversPane,
-                                                                notificationsPane, keysPane,
-                                                                appearancePane, backupPane, aboutPane][root.paneIndex]
+    readonly property Item _paneOnShow: root.inQbtBackup ? qbtBackupPane
+                                                         : root.inQbt ? qbtPane
+                                                                      : [generalPane, serversPane,
+                                                                         notificationsPane, keysPane,
+                                                                         appearancePane, backupPane,
+                                                                         aboutPane][root.paneIndex]
 
     /// Scrolls the pane just enough to show the row with the cursor, so `j`/`k` never move
     /// it out of sight on a pane taller than the modal.
@@ -717,12 +778,12 @@ Item {
             event.accepted = true;
             return;
         }
-        // The digits pick a section of the group on show: 1–6 in omaseed's, 1–9 in the
-        // qBittorrent group's.
-        if (event.key >= Qt.Key_1 && event.key <= Qt.Key_9) {
+        // The digits pick a section of the group on show: 1–7 in omaseed's, 1–9 and 0 for the
+        // tenth (Backup, #32) in the qBittorrent group's.
+        if ((event.key >= Qt.Key_1 && event.key <= Qt.Key_9) || event.key === Qt.Key_0) {
             const base = root.inQbt ? root.qbtStart : 0;
             const count = root.inQbt ? root.qbtSections.length : root.navRows.length;
-            const at = event.key - Qt.Key_1;
+            const at = event.key === Qt.Key_0 ? 9 : event.key - Qt.Key_1;
             if (at < count)
                 root.showPane(base + at);
             event.accepted = true;
@@ -936,7 +997,7 @@ Item {
                                                 "key": "tab",
                                                 "label": qsTr("pane")
                                             }];
-            if (!root.inQbt)
+            if (!root.inQbt || root.inQbtBackup)
                 return hints.concat([{
                                          "key": "enter",
                                          "label": qsTr("act")
@@ -1242,8 +1303,10 @@ Item {
                             elide: Text.ElideRight
                             objectName: "qbtHeadNote"
                             size: "caption"
-                            text: root.qbtNote.length > 0 ? root.qbtNote : qsTr("%1 · saved as you change it").arg(
-                                                                               App.serverName)
+                            text: root.qbtNote.length > 0 ? root.qbtNote
+                                                          : root.inQbtBackup ? root.qbtServerHead
+                                                                             : qsTr("%1 · saved as you change it").arg(
+                                                                                   App.serverName)
                             visible: root.inQbt
                         }
 
@@ -2250,7 +2313,7 @@ Item {
                             prefs: App.serverPrefs
                             section: root.qbtSection
                             serverName: App.serverName
-                            visible: root.inQbt
+                            visible: root.inQbt && !root.inQbtBackup
 
                             onActionRequested: action => root.qbtAction(action)
                             onChangeRequested: (changes, confirmKind, what) => root.qbtRequest(changes,
@@ -2272,6 +2335,97 @@ Item {
                                 if (index >= 0)
                                     root.paneCursor = index;
                                 root.area = "pane";
+                            }
+                        }
+
+                        // ---- qBittorrent › Backup (#32, docs/24 §4) -------------------------
+                        // The server's settings, as a file and back. Torrents (#33) will be
+                        // a second group under this one. Both rows need the server: they dim
+                        // and say so while it is not connected.
+                        ColumnLayout {
+                            id: qbtBackupPane
+
+                            readonly property bool ready: App.globalState.connected && !App.qbtBackupBusy
+
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.top: parent.top
+                            objectName: "qbtBackupPane"
+                            spacing: Theme.space(8)
+                            visible: root.inQbtBackup
+
+                            Label {
+                                leftPadding: Theme.space(4)
+                                text: qsTr("settings")
+                                tracked: true
+                            }
+
+                            SettingsRow {
+                                Layout.fillWidth: true
+                                description: App.globalState.connected ? App.qbtExportSummary
+                                                                       : qsTr("Connect to %1 to export.").arg(App.serverName)
+                                glyph: Glyphs.arrowDown
+                                hasCursor: root.area === "pane" && root.paneCursor === 0
+                                objectName: "qbtExportRow"
+                                opacity: qbtBackupPane.ready ? 1 : 0.55
+                                title: qsTr("Export settings")
+
+                                onClicked: {
+                                    root.paneCursor = 0;
+                                    root.area = "pane";
+                                    root.exportQbt();
+                                }
+
+                                Button {
+                                    bordered: true
+                                    enabled: qbtBackupPane.ready
+                                    primary: true
+                                    text: qsTr("export…")
+
+                                    onClicked: {
+                                        root.paneCursor = 0;
+                                        root.exportQbt();
+                                    }
+                                }
+                            }
+
+                            SettingsRow {
+                                Layout.fillWidth: true
+                                description: App.globalState.connected
+                                             ? qsTr("From a qBittorrent export, or an omaseed backup. Every change is shown first; paths, ports and the Web UI login stay as they are unless you tick them.")
+                                             : qsTr("Connect to %1 to import: the changes are read against it.").arg(App.serverName)
+                                glyph: Glyphs.arrowUp
+                                hasCursor: root.area === "pane" && root.paneCursor === 1
+                                objectName: "qbtImportRow"
+                                opacity: qbtBackupPane.ready ? 1 : 0.55
+                                title: qsTr("Import settings")
+
+                                onClicked: {
+                                    root.paneCursor = 1;
+                                    root.area = "pane";
+                                    root.chooseQbtImport();
+                                }
+
+                                Button {
+                                    bordered: true
+                                    enabled: qbtBackupPane.ready
+                                    text: qsTr("import…")
+
+                                    onClicked: {
+                                        root.paneCursor = 1;
+                                        root.chooseQbtImport();
+                                    }
+                                }
+                            }
+
+                            Label {
+                                Layout.fillWidth: true
+                                color: root.backupNoteError ? Theme.yellow : Theme.green
+                                objectName: "qbtBackupNote"
+                                size: "small"
+                                text: root.backupNote
+                                visible: root.backupNote.length > 0
+                                wrapMode: Text.WordWrap
                             }
                         }
 
@@ -2337,7 +2491,8 @@ Item {
                             SettingsRow {
                                 Layout.fillWidth: true
                                 description: {
-                                    const where = qsTr("Into %1, the last 4 kept.").arg(App.backupsDirText);
+                                    // D3 a (#32): each server's qBittorrent settings go with them.
+                                    const where = qsTr("Into %1, the last 4 kept, each server's qBittorrent settings with them.").arg(App.backupsDirText);
                                     if (App.autoBackupMode === "off")
                                         return qsTr("Off: backups are made by hand only. On, they go into %1, the last 4 kept.").arg(App.backupsDirText);
                                     return App.lastBackupText.length > 0 ? where + " " + qsTr("Last one: %1.").arg(App.lastBackupText)
@@ -2479,6 +2634,54 @@ Item {
             bodyItem.forceActiveFocus();
         }
         onRejected: bodyItem.forceActiveFocus()
+    }
+
+    // #32, docs/24 §5: the import sheet, over the modal like the restore sheet.
+    QbtImportSheet {
+        id: qbtImportSheet
+
+        anchors.fill: parent
+        objectName: "qbtImportSheet"
+        schema: qbtSchema
+        z: 1
+
+        onApplied: {
+            root.backupNote = qsTr("importing into %1…").arg(App.serverName);
+            root.backupNoteError = false;
+            bodyItem.forceActiveFocus();
+        }
+        onExportRequested: root.exportQbt(true)
+        onRejected: bodyItem.forceActiveFocus()
+    }
+
+    Connections {
+        function onQbtExportFinished(text: string, ok: bool): void {
+            if (root._qbtExportFromSheet && qbtImportSheet.opened) {
+                qbtImportSheet.note = text;
+                qbtImportSheet.noteError = !ok;
+                root.backupNote = "";
+                return;
+            }
+            root.backupNote = text;
+            root.backupNoteError = !ok;
+        }
+
+        function onQbtImportRead(info: var): void {
+            if (info.ok !== true) {
+                root.backupNote = info.error;
+                root.backupNoteError = true;
+                return;
+            }
+            root.backupNote = "";
+            qbtImportSheet.openFor(info);
+        }
+
+        function onQbtImportFinished(text: string, ok: bool): void {
+            root.backupNote = text;
+            root.backupNoteError = !ok;
+        }
+
+        target: App
     }
 
     // The server sheet of Fig. 9, over the modal: it takes the keyboard, so `esc` closes it

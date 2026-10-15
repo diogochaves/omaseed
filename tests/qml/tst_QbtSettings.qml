@@ -54,13 +54,15 @@ TestCase {
         return modal;
     }
 
-    function test_the_nav_has_a_qbittorrent_group_of_nine() {
+    // Nine sections of settings, then Backup (#32, docs/24 §4 D1 a) closing the group.
+    function test_the_nav_has_a_qbittorrent_group_of_ten() {
         const modal = createTemporaryObject(modalComponent, testCase);
-        compare(modal.qbtSections.length, 9);
+        compare(modal.qbtSections.length, 10);
         compare(modal.qbtSections.map(section => section.id), ["speed", "discovery", "connection",
                                                                "proxy", "seeding", "queue",
-                                                               "downloads", "webui", "advanced"]);
-        for (let i = 0; i < 9; ++i)
+                                                               "downloads", "webui", "advanced",
+                                                               "backup"]);
+        for (let i = 0; i < 10; ++i)
             verify(testCase.childNamed(modal, "qbtNavRow" + i) !== null);
         compare(testCase.childNamed(modal, "qbtNavHead").text, "qbittorrent");
         const server = testCase.childNamed(modal, "qbtNavServer");
@@ -84,6 +86,37 @@ TestCase {
         compare(modal.paneIndex, modal.qbtStart - 1);
         keyClick(Qt.Key_1);
         compare(modal.paneIndex, 0);
+    }
+
+    // #32, docs/24 §4: the group's Backup pane, on the server the group is about: export and
+    // import rows, the server and its version in the head, `0` to reach it.
+    function test_the_backup_pane_closes_the_group() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.openQbt();
+        keyClick(Qt.Key_0);
+        compare(modal.qbtSection.id, "backup");
+        verify(modal.inQbtBackup);
+        const pane = testCase.childNamed(modal, "qbtBackupPane");
+        verify(pane.visible);
+        verify(!testCase.childNamed(modal, "qbtPane").visible);
+        const exportRow = testCase.childNamed(modal, "qbtExportRow");
+        compare(exportRow.title, "Export settings");
+        compare(exportRow.description, App.qbtExportSummary);
+        verify(exportRow.description.indexOf("Passwords are left out.") > 0, exportRow.description);
+        compare(exportRow.opacity, 1);
+        compare(testCase.childNamed(modal, "qbtImportRow").title, "Import settings");
+        compare(testCase.childNamed(modal, "qbtHeadNote").text, "home · qBittorrent 5.2.3");
+        compare(modal.paneRowCount, 2);
+        keyClick(Qt.Key_Tab);
+        compare(modal.area, "pane");
+        verify(exportRow.hasCursor);
+        keyClick(Qt.Key_J);
+        verify(testCase.childNamed(modal, "qbtImportRow").hasCursor);
+        keyClick(Qt.Key_J);
+        verify(exportRow.hasCursor);
+        // The footer: rows to act on, nothing to toggle or edit.
+        verify(modal.sheet.hints.some(hint => hint.key === "enter" && hint.label === "act"));
+        verify(!modal.sheet.hints.some(hint => hint.key === "space"));
     }
 
     // A long value reads from its start at rest, and editing starts at its end.
@@ -442,10 +475,10 @@ TestCase {
         const groups = testCase.childNamed(modal, "settingsGroupTabs");
         const sections = testCase.childNamed(modal, "settingsTabs");
         compare(groups.currentIndex, 1);
-        compare(sections.model.length, 9);
-        keyClick(Qt.Key_9);
-        compare(sections.currentIndex, 8);
-        verify(sections._shift > 0, "the Advanced tab is out of view");
+        compare(sections.model.length, 10);
+        keyClick(Qt.Key_0);
+        compare(sections.currentIndex, 9);
+        verify(sections._shift > 0, "the Backup tab is out of view");
         keyClick(Qt.Key_L); // wraps to omaseed's General
         compare(modal.paneIndex, 0);
         compare(groups.currentIndex, 0);

@@ -67,6 +67,7 @@ qt_add_qml_module(omaseed-views
         LogView.qml
         MainView.qml
         MoreMenu.qml
+        QbtImportSheet.qml
         QbtListSheet.qml
         QbtSettingRow.qml
         QbtSettingsPane.qml
