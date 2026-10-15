@@ -61,6 +61,9 @@ namespace {
 
 App *s_defaultInstance = nullptr;
 
+/// docs/30 D7: how many commands the command palette lists first with nothing typed.
+constexpr qsizetype kRecentCommands = 5;
+
 /// The portal places a chooser as a dialog of the window that asked only when it is told
 /// which window that is; without it Hyprland tiles the chooser beside us (Strata's does).
 /// Qt's static pickers take a QWidget parent, which a Quick window is not, so the dialog's
@@ -1373,6 +1376,32 @@ QVariantMap App::tableState(const QString &key) const
         return {};
     const QJsonObject section = stateSection(QStringLiteral("tables"));
     return section.value(key).toObject().toVariantMap();
+}
+
+QStringList App::recentCommands() const
+{
+    const QJsonArray ids =
+        stateSection(QStringLiteral("commands")).value(QStringLiteral("recent")).toArray();
+    QStringList recent;
+    for (const QJsonValue &id : ids) {
+        if (id.isString() && !id.toString().isEmpty() && recent.size() < kRecentCommands)
+            recent.append(id.toString());
+    }
+    return recent;
+}
+
+void App::noteCommandRun(const QString &id)
+{
+    if (id.isEmpty())
+        return;
+    QStringList recent = recentCommands();
+    recent.removeAll(id);
+    recent.prepend(id);
+    while (recent.size() > kRecentCommands)
+        recent.removeLast();
+    QJsonObject section = stateSection(QStringLiteral("commands"));
+    section.insert(QStringLiteral("recent"), QJsonArray::fromStringList(recent));
+    writeStateSection(QStringLiteral("commands"), section);
 }
 
 // --- end T4.4 --------------------------------------------------------------------------------

@@ -816,6 +816,12 @@ public:
     /// The map `saveTableState()` wrote for `key`, or an empty map.
     Q_INVOKABLE QVariantMap tableState(const QString &key) const;
 
+    /// docs/30 D7 (#61): the action ids of the last five commands run from the command
+    /// palette, newest first, from `"commands"."recent"` of `state.json`.
+    Q_INVOKABLE QStringList recentCommands() const;
+    /// Puts `id` at the front of `recentCommands()`, dropping an older copy and the sixth.
+    Q_INVOKABLE void noteCommandRun(const QString &id);
+
 Q_SIGNALS:
     /// The jump palette's `tab` (Fig. 12's "tab actions"): jump to `hash`, then open the
     /// actions menu on it. `MainView`'s `Connections` block answers it.

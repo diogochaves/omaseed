@@ -35,6 +35,7 @@ private slots:
     void tagsOfSplitsTheJoinedText();
     void demoModeCategoryAndTagCallsDoNotCrash();
     void restoringSettingsAppliesTheLayoutsAtOnce();
+    void recentCommandsKeepTheLastFiveNewestFirst();
 
 private:
     QTemporaryDir m_dir;
@@ -95,6 +96,44 @@ void TestAppTableState::saveThenLoadRoundTrips()
     app.setRailHidden(!app.railHidden());
     app.setDeleteFilesDefault(!app.deleteFilesDefault());
     QVERIFY(!QFile::exists(m_dir.path() + QStringLiteral("/omaseed/state.json")));
+}
+
+// docs/30 D7 (#61): the command palette's last five commands, by action id, in state.json
+// beside the table states. A command run again moves to the front instead of repeating.
+void TestAppTableState::recentCommandsKeepTheLastFiveNewestFirst()
+{
+    {
+        App app;
+        QCOMPARE(app.recentCommands(), QStringList());
+        for (const char *id : {"stop", "location", "copyMagnet", "delete", "recheck", "sort"})
+            app.noteCommandRun(QString::fromLatin1(id));
+        QCOMPARE(app.recentCommands(),
+                 (QStringList{QStringLiteral("sort"),
+                              QStringLiteral("recheck"),
+                              QStringLiteral("delete"),
+                              QStringLiteral("copyMagnet"),
+                              QStringLiteral("location")}));
+        app.noteCommandRun(QStringLiteral("delete"));
+        QCOMPARE(app.recentCommands().first(), QStringLiteral("delete"));
+        QCOMPARE(app.recentCommands().count(QStringLiteral("delete")), 1);
+        QCOMPARE(app.recentCommands().size(), 5);
+        // An empty id is no command.
+        app.noteCommandRun(QString());
+        QCOMPARE(app.recentCommands().first(), QStringLiteral("delete"));
+    }
+    // Kept across a restart, under its own key of state.json.
+    App again;
+    QCOMPARE(again.recentCommands().first(), QStringLiteral("delete"));
+    QVERIFY(omaseed::core::StateFile::readSection(QStringLiteral("commands"))
+                .contains(QStringLiteral("recent")));
+
+    // A demo remembers in memory only (APP-16).
+    App demo;
+    demo.startDemo(16);
+    demo.noteCommandRun(QStringLiteral("quit"));
+    QCOMPARE(demo.recentCommands().first(), QStringLiteral("quit"));
+    App after;
+    QCOMPARE(after.recentCommands().first(), QStringLiteral("delete"));
 }
 
 void TestAppTableState::unknownKeyGivesEmptyMap()
