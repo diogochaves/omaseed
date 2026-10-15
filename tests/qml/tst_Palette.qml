@@ -804,7 +804,7 @@ TestCase {
                                               });
         palette.open();
         waitForRendering(palette.listView);
-        const faint = Theme.fill(Theme.borderIdle);
+        const faint = Theme.fill(Theme.faintAlpha);
 
         const runs = palette.listView.itemAtIndex(0);
         compare(findChild(runs, "paletteRowTitle").color, Theme.brightForeground);

@@ -118,6 +118,9 @@ Item {
     }
 
     property bool _opened: false
+    /// The query changed and the cursor has not moved since: a new list starts at its top.
+    property bool _fromTop: false
+    property bool _placing: false
     /// The row being dragged, or -1; and the pointer's y over the list while it is.
     property int _dragFrom: -1
     property real _dragY: 0
@@ -213,12 +216,19 @@ Item {
     /// next one up; -1 when no row can run.
     function _settleCursor(): void {
         if (root.items.length === 0) {
-            root.cursorIndex = 0;
+            root._placeCursor(0);
             return;
         }
         const at = Math.max(0, Math.min(root.cursorIndex, root.items.length - 1));
         const down = root._landing(at, 1);
-        root.cursorIndex = down >= 0 ? down : root._landing(at, -1);
+        root._placeCursor(down >= 0 ? down : root._landing(at, -1));
+    }
+
+    /// The cursor moved by the palette itself, which leaves `_fromTop` as it is.
+    function _placeCursor(index: int): void {
+        root._placing = true;
+        root.cursorIndex = index;
+        root._placing = false;
     }
 
     /// Scroll row `index` into view and clear of the hint's bands or fades.
@@ -490,10 +500,24 @@ Item {
         if (root.modal && root._opened && !event.accepted)
             event.accepted = !root._passesThrough(event);
     }
-    onItemsChanged: root._settleCursor()
+    // Anything else that moves the cursor (keys, the pointer, a click, a caller) ends the
+    // "from the top" of a new query.
+    onCursorIndexChanged: {
+        if (!root._placing)
+            root._fromTop = false;
+    }
+    onItemsChanged: {
+        if (root._fromTop)
+            root._placeCursor(0);
+        root._settleCursor();
+    }
 
+    // A new query puts the cursor on the first row that can run, of whichever list it brings:
+    // a caller's items binding may answer the query before or after this handler runs, so the
+    // next list starts from the top too, until the cursor is moved.
     onQueryChanged: {
-        root.cursorIndex = 0;
+        root._fromTop = true;
+        root._placeCursor(0);
         root._settleCursor();
     }
 
@@ -673,9 +697,9 @@ Item {
                     readonly property bool current: row.index === root.cursorIndex
                     /// docs/30 D4: this row can't run now.
                     readonly property bool disabled: row.modelData.disabled === true
-                    /// The faint step (the board's 40 %), for a dim row's meta and second line
-                    /// and the "via" before a path.
-                    readonly property color faint: Theme.fill(Theme.borderIdle)
+                    /// The faint step (docs/30's 40 %), for a dim row's meta and second line and
+                    /// the "via" before a path.
+                    readonly property color faint: Theme.fill(Theme.faintAlpha)
                     /// This row is the one being dragged: it keeps the selected fill until
                     /// it lands.
                     readonly property bool lifted: row.index === root._dragFrom

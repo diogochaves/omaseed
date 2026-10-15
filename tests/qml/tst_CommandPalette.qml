@@ -200,6 +200,24 @@ TestCase {
         compare(jumps.signalArguments[0][0], "ubuntu");
     }
 
+    // Found in the box: after a run from a query, the next opening put the cursor where that
+    // row had been, not on the first row.
+    function test_every_opening_starts_on_the_first_row() {
+        const palette = testCase._open({});
+        testCase._type("start");
+        compare(palette.currentItem.action, "forceStart");
+        verify(palette.cursorIndex > 0);
+        keyClick(Qt.Key_Return);
+        palette.context = testCase._context({
+                                                "recent": ["forceStart"]
+                                            });
+        palette.open();
+        compare(palette.query, "");
+        compare(palette.cursorIndex, 0);
+        compare(palette.currentItem.action, "forceStart");
+        palette.close();
+    }
+
     // The escape ladder: clear, then close; every opening starts empty.
     function test_escape_clears_then_closes() {
         const palette = testCase._open({});

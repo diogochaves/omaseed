@@ -81,6 +81,7 @@ TestCase {
         fuzzyCompare(Theme.rowRuleAlpha, 0.05, 0.0001);
         fuzzyCompare(Theme.fillSelectedCursor, 0.24, 0.0001);
         fuzzyCompare(Theme.keyValueRuleAlpha, 0.06, 0.0001);
+        fuzzyCompare(Theme.faintAlpha, 0.40, 0.0001);
     }
 
     function test_window_alpha_starts_at_the_shells_default_and_is_writable() {
