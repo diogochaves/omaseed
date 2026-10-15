@@ -206,6 +206,20 @@ void Tray::setAltSpeedChecked(bool checked)
     m_altSpeedAction->setChecked(checked);
 }
 
+void Tray::setAltSpeedLabel(const QString &label)
+{
+    m_altSpeedAction->setText(label);
+}
+
+void Tray::setAltKind(const QString &kind)
+{
+    if (m_altKind == kind)
+        return;
+    m_altKind = kind;
+    if (m_state == AltSpeed)
+        refreshIcon();
+}
+
 void Tray::setPalette(const QHash<QString, QColor> &palette)
 {
     for (auto it = palette.constBegin(); it != palette.constEnd(); ++it)
@@ -229,6 +243,8 @@ void Tray::applyFromReader()
         colorOf(raw, QStringLiteral("red"), m_palette.value(QStringLiteral("red")));
     m_palette[QStringLiteral("yellow")] =
         colorOf(raw, QStringLiteral("yellow"), m_palette.value(QStringLiteral("yellow")));
+    m_palette[QStringLiteral("green")] =
+        colorOf(raw, QStringLiteral("green"), m_palette.value(QStringLiteral("green")));
     m_palette[QStringLiteral("background")] =
         colorOf(raw, QStringLiteral("background"), m_palette.value(QStringLiteral("background")));
 
@@ -265,6 +281,7 @@ QHash<QString, QColor> Tray::defaultPalette()
         {QStringLiteral("dim"), QColor(QStringLiteral("#565f89"))},
         {QStringLiteral("red"), QColor(QStringLiteral("#f7768e"))},
         {QStringLiteral("yellow"), QColor(QStringLiteral("#e0af68"))},
+        {QStringLiteral("green"), QColor(QStringLiteral("#9ece6a"))},
         {QStringLiteral("background"), QColor(QStringLiteral("#1a1b26"))},
     };
 }
@@ -331,15 +348,18 @@ void Tray::paintAltSpeedMark(QPainter *painter, int size) const
     const qreal markSize = size * 0.5;
     const QRectF rect(size - markSize, size - markSize, markSize, markSize);
 
+    // docs/31 T1: a burst set is a green disc with ⏶ (up, faster); a turtle or plain
+    // alt-speed keeps the yellow ⏷.
+    const bool burst = m_altKind == QLatin1String("burst");
     painter->setPen(Qt::NoPen);
-    painter->setBrush(m_palette.value(QStringLiteral("yellow")));
+    painter->setBrush(m_palette.value(burst ? QStringLiteral("green") : QStringLiteral("yellow")));
     painter->drawEllipse(rect);
 
     QFont font = painter->font();
     font.setPixelSize(qMax(6, static_cast<int>(markSize * 0.68)));
     painter->setFont(font);
     painter->setPen(m_palette.value(QStringLiteral("background")));
-    painter->drawText(rect, Qt::AlignCenter, QStringLiteral("⏷"));
+    painter->drawText(rect, Qt::AlignCenter, burst ? QStringLiteral("⏶") : QStringLiteral("⏷"));
 }
 
 // The error state must differ from idle by shape, not only by colour: some themes' "red"

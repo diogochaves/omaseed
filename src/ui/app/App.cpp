@@ -145,6 +145,7 @@ App::App(QObject *parent)
     connect(m_prefs, &ServerPreferences::apiKeyRotated, this, &App::followRotatedApiKey);
     connect(
         m_engine->globalState(), &GlobalState::useAltSpeedLimitsChanged, this, &App::updateTray);
+    connect(m_altSpeed, &AltSpeed::changed, this, &App::updateTray);
     connect(m_engine->globalState(), &GlobalState::dlInfoSpeedChanged, this, &App::updateTray);
     connect(m_engine->globalState(), &GlobalState::upInfoSpeedChanged, this, &App::updateTray);
     connect(m_engine->globalState(), &GlobalState::freeSpaceOnDiskChanged, this, &App::updateTray);
@@ -744,6 +745,9 @@ void App::updateTray()
                                   filterCounts->downloading(),
                                   state->useAltSpeedLimits()));
     m_tray->setAltSpeedChecked(state->useAltSpeedLimits());
+    // docs/31 T1 (D14): the checkbox and the icon's mark follow the word.
+    m_tray->setAltKind(m_altSpeed->kind());
+    m_tray->setAltSpeedLabel(m_altSpeed->trayLabel());
     updateTrayNumbers();
 }
 

@@ -61,6 +61,7 @@ private slots:
     void errorDiffersFromIdleByShapeWhenRedIsNotRed();
     void settingAltSpeedCheckedDoesNotEmit();
     void constructionUnderNoTrayDoesNotCrash();
+    void burstFollowsTheWord();
 };
 
 void TestTray::tooltipMatchesSpec()
@@ -234,6 +235,44 @@ void TestTray::constructionUnderNoTrayDoesNotCrash()
     tray.setState(Tray::Idle);
     tray.setState(Tray::Error);
     QVERIFY(!tray.iconForState(Tray::Error).isNull());
+}
+
+// docs/31 T1 (D14): the checkbox takes the word and the end; the icon's mark is a green disc
+// with ⏶ for burst, and turtle keeps today's yellow ⏷.
+void TestTray::burstFollowsTheWord()
+{
+    Tray tray;
+    tray.setPalette({
+        {QStringLiteral("yellow"), QColor(QStringLiteral("#eecc00"))},
+        {QStringLiteral("green"), QColor(QStringLiteral("#22dd44"))},
+    });
+    QAction *altSpeed = tray.menu()->actions().at(6);
+    tray.setAltSpeedLabel(QStringLiteral("burst · until 07:00"));
+    QCOMPARE(altSpeed->text(), QStringLiteral("burst · until 07:00"));
+    QVERIFY(altSpeed->isCheckable());
+
+    const QImage turtle = tray.iconForState(Tray::AltSpeed).pixmap(32).toImage();
+    tray.setAltKind(QStringLiteral("burst"));
+    QCOMPARE(tray.altKind(), QStringLiteral("burst"));
+    const QImage burst = tray.iconForState(Tray::AltSpeed).pixmap(32).toImage();
+    QVERIFY(turtle != burst);
+    const auto has = [](const QImage &image, const QColor &colour) {
+        for (int y = 0; y < image.height(); ++y) {
+            for (int x = 0; x < image.width(); ++x) {
+                if (qAlpha(image.pixel(x, y)) > 200 &&
+                    closeEnough(image.pixelColor(x, y), colour, 8))
+                    return true;
+            }
+        }
+        return false;
+    };
+    QVERIFY(has(burst, QColor(QStringLiteral("#22dd44"))));
+    QVERIFY(!has(burst, QColor(QStringLiteral("#eecc00"))));
+    QVERIFY(has(turtle, QColor(QStringLiteral("#eecc00"))));
+    // Idle is not touched by the word.
+    const QImage idle = tray.iconForState(Tray::Idle).pixmap(32).toImage();
+    tray.setAltKind(QStringLiteral("turtle"));
+    QCOMPARE(tray.iconForState(Tray::Idle).pixmap(32).toImage(), idle);
 }
 
 QTEST_MAIN(TestTray)

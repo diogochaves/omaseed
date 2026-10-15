@@ -73,8 +73,16 @@ public:
     bool altSpeedChecked() const;
     void setAltSpeedChecked(bool checked);
 
+    /// docs/31 T1 (D14): the checkbox's words, "burst · until 07:00", "turtle" or today's
+    /// "alternative speed limits".
+    void setAltSpeedLabel(const QString &label);
+    /// docs/31 T1: which way the alternative set goes ("burst", "turtle", "alt"). Under burst
+    /// the AltSpeed icon's mark is a green disc with ⏶; otherwise today's yellow ⏷.
+    QString altKind() const { return m_altKind; }
+    void setAltKind(const QString &kind);
+
     /// Test hook: push palette entries directly, bypassing ThemeReader entirely. Recognised
-    /// keys: accent, foreground, dim, red, yellow, background. Unknown keys are ignored;
+    /// keys: accent, foreground, dim, red, yellow, green, background. Unknown keys are ignored;
     /// missing keys keep their previous value.
     void setPalette(const QHash<QString, QColor> &palette);
 
@@ -138,6 +146,7 @@ private:
 
     State m_state = Disconnected;
     int m_downloadingCount = 0;
+    QString m_altKind = QStringLiteral("alt");
     QString m_tooltip;
     QHash<QString, QColor> m_palette;
     bool m_loggedUnavailable = false;
