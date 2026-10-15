@@ -251,6 +251,8 @@ App::App(QObject *parent)
     // #32: the export summary counts the server's categories and tags.
     connect(m_engine->categories(), &CategoryModel::countChanged, this, &App::qbtBackupChanged);
     connect(m_engine->tags(), &TagModel::countChanged, this, &App::qbtBackupChanged);
+    // #33: the torrents export summary counts the library.
+    connect(m_engine->torrents(), &TorrentModel::countChanged, this, &App::torrentsBackupChanged);
     connect(this, &App::serverChanged, this, [this] {
         m_qbtRssFeeds = m_qbtRssRules = -1;
         Q_EMIT qbtBackupChanged();

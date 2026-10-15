@@ -110,3 +110,10 @@ omaseed_add_test(tst_app_qbtbackup
     SOURCES tst_app_qbtbackup.cpp
     LIBRARIES omaseed::app omaseed::core omaseed::integration
 )
+
+# #33 (docs/24 §4–§5): torrents exported and imported through App, between two throwaway
+# qBittorrents.
+omaseed_add_test(tst_app_torrentsbackup_live LIVE
+    SOURCES tst_app_torrentsbackup_live.cpp
+    LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::Network
+)

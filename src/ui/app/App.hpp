@@ -50,6 +50,9 @@
 #include "core/TorrentFile.hpp"
 #include "core/TorrentFilterModel.hpp"
 #include "core/TorrentModel.hpp"
+#include "core/TorrentsBackup.hpp"
+#include "core/TorrentsExport.hpp"
+#include "core/TorrentsImport.hpp"
 #include "core/TrackerModel.hpp"
 #include "integration/BarWidget.hpp"
 #include "integration/Tray.hpp"
@@ -1632,6 +1635,66 @@ private:
     int m_qbtBusy = 0;
     bool m_autoBackupReading = false;
     // --- end #32 --------------------------------------------------------------------------------
+
+    // --- #33: a qBittorrent's torrents, exported and imported (docs/24 §4, §5, §7) -----------
+    // Settings › qBittorrent › Backup's second group, on the server the app is on. The file,
+    // the plan and the runs are core's TorrentsBackup, TorrentsExport and TorrentsImport; App
+    // reads the server, hands the import sheet its rows, keeps one run at a time and says how
+    // far it got. The methods live in AppTorrentsBackup.cpp.
+public:
+    /// "312 torrents with their save paths, categories, tags and limits. The 2.4 TB of files
+    /// stay where they are. 3 magnets without metadata go in as links."
+    Q_PROPERTY(
+        QString torrentsExportSummary READ torrentsExportSummary NOTIFY torrentsBackupChanged)
+    QString torrentsExportSummary() const;
+    /// What runs: "export", "read" (the import sheet's), "import", or "".
+    Q_PROPERTY(
+        QString torrentsBackupRunning READ torrentsBackupRunning NOTIFY torrentsBackupChanged)
+    QString torrentsBackupRunning() const { return m_torrentsRunning; }
+    /// How far it got: "exporting 120 of 312…", "adding 40 of 299…", "checking files: 12 of
+    /// 296…"; "" when nothing runs.
+    Q_PROPERTY(
+        QString torrentsBackupProgress READ torrentsBackupProgress NOTIFY torrentsBackupChanged)
+    QString torrentsBackupProgress() const { return m_torrentsProgress; }
+
+    /// The portal's save dialog, proposing `~/torrents-<server>-<date>.omaseed-torrents`.
+    Q_INVOKABLE QString pickTorrentsExportPath() const;
+    /// Writes every torrent of the server to `path`; `torrentsExportFinished` says how it went.
+    Q_INVOKABLE void exportTorrents(const QString &path);
+    /// The portal's open dialog for a torrents export.
+    Q_INVOKABLE QString pickTorrentsImportFile() const;
+    /// Reads `path` and what the server has, then hands the sheet its rows through
+    /// `torrentsImportRead`: `{ok, error, title, sub, plan: [{key, label, verb, count,
+    /// sizeText, dim}], paths: [{from, to, source}], created, importCount, check}`. "" when
+    /// the read is on its way, otherwise why the file is refused.
+    Q_INVOKABLE QString readTorrentsImport(const QString &path);
+    /// The "!" line for `rows` ([{from, to}]): how many save paths none of them covers.
+    Q_INVOKABLE QString torrentsImportPathsNote(const QVariantList &rows) const;
+    /// Imports what readTorrentsImport last read: `choice` = `{rows: [{from, to}], check}`.
+    /// `torrentsImportFinished` says what it did.
+    Q_INVOKABLE void applyTorrentsImport(const QVariantMap &choice);
+    /// Stops the export or import on its way. What an import added stays; running the same
+    /// file again finishes it.
+    Q_INVOKABLE void cancelTorrentsBackup();
+
+Q_SIGNALS:
+    void torrentsBackupChanged();
+    void torrentsExportFinished(const QString &text, bool ok);
+    void torrentsImportRead(const QVariantMap &info);
+    void torrentsImportFinished(const QString &text, bool ok);
+
+private:
+    void setTorrentsRunning(const QString &what, const QString &progress = QString());
+    QList<omaseed::core::TorrentsImport::PathRow> torrentsRows(const QVariantList &rows) const;
+    QVariantMap torrentsImportInfo();
+    QPointer<omaseed::core::TorrentsExport> m_torrentsExport;
+    QPointer<omaseed::core::TorrentsImport> m_torrentsImport;
+    std::optional<omaseed::core::TorrentsBackup::Contents> m_torrentsFile;
+    omaseed::core::TorrentsImport::Plan m_torrentsPlan;
+    QString m_torrentsRunning;
+    QString m_torrentsProgress;
+    int m_torrentsRead = 0; ///< which read is the latest, so a slow one never opens the sheet
+    // --- end #33 --------------------------------------------------------------------------------
 
     // --- #28: data shared between torrents --------------------------------------------------
     // docs/26: the delete confirm, the location sheet and a category change ask before they
