@@ -18,6 +18,16 @@ omaseed_add_test(tst_librarymatch
     LIBRARIES omaseed::core
 )
 
+omaseed_add_test(tst_metadatalookup
+    SOURCES tst_metadatalookup.cpp
+    LIBRARIES omaseed::core
+)
+
+omaseed_add_test(tst_privatetrackers
+    SOURCES tst_privatetrackers.cpp
+    LIBRARIES omaseed::core
+)
+
 omaseed_add_test(tst_magnetlink
     SOURCES tst_magnetlink.cpp
     LIBRARIES omaseed::core

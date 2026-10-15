@@ -37,6 +37,8 @@ qt_add_library(omaseed-core STATIC
     LogFilterModel.hpp
     MagnetLink.cpp
     MagnetLink.hpp
+    MetadataLookup.cpp
+    MetadataLookup.hpp
     OmaseedBackup.cpp
     OmaseedBackup.hpp
     PathMap.cpp
@@ -47,6 +49,8 @@ qt_add_library(omaseed-core STATIC
     Paths.hpp
     PieceStates.cpp
     PieceStates.hpp
+    PrivateTrackers.cpp
+    PrivateTrackers.hpp
     ProblemLog.cpp
     ProblemLog.hpp
     QbtClient.cpp
