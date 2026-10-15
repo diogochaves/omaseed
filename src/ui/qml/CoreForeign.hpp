@@ -100,6 +100,7 @@
 // ---------------------------------------------------------------------------------------
 
 #include "core/AddFilesModel.hpp"
+#include "core/AltSpeed.hpp"
 #include "core/CategoryModel.hpp"
 #include "core/FilterCounts.hpp"
 #include "core/GlobalState.hpp"
@@ -205,6 +206,14 @@ struct LogFilterModelForeign
     QML_FOREIGN(omaseed::core::LogFilterModel)
     QML_NAMED_ELEMENT(LogFilterModel)
     QML_UNCREATABLE("LogFilterModel is App.logLines; it is not created from QML.")
+};
+
+struct AltSpeedForeign
+{
+    Q_GADGET
+    QML_FOREIGN(omaseed::core::AltSpeed)
+    QML_NAMED_ELEMENT(AltSpeed)
+    QML_UNCREATABLE("AltSpeed is App.altSpeed; it is not created from QML.")
 };
 
 struct ServerPreferencesForeign

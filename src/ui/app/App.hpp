@@ -24,6 +24,7 @@
 // App owns no view state (cursor, selection, open sheets): that belongs to the QML side.
 
 #include "core/AddFilesModel.hpp"
+#include "core/AltSpeed.hpp"
 #include "core/AutoBackup.hpp"
 #include "core/CategoryModel.hpp"
 #include "core/FilterCounts.hpp"
@@ -1241,6 +1242,11 @@ public:
     /// read when the server connects and whenever Settings asks.
     Q_PROPERTY(omaseed::core::ServerPreferences *serverPrefs READ serverPrefs CONSTANT)
     omaseed::core::ServerPreferences *serverPrefs() const { return m_prefs; }
+    /// docs/31 (DECISIONS.md C4): the alternative limits named from the two sets (burst,
+    /// turtle, alt-speed), until when they last and whether a hand toggle set them, for the
+    /// server the app is on. The preferences are read again whenever they flip (D13).
+    Q_PROPERTY(omaseed::core::AltSpeed *altSpeed READ altSpeed CONSTANT)
+    omaseed::core::AltSpeed *altSpeed() const { return m_altSpeed; }
 
 private:
     /// A change the server took may move omaseed's own way in (docs/16 §3): the Web UI's
@@ -1254,6 +1260,7 @@ private:
     /// qBittorrent restarts its Web UI; `done(false)` when it never did.
     void probeWebUi(const QUrl &base, std::function<void(bool)> done, int attempts);
     omaseed::core::ServerPreferences *m_prefs = nullptr;
+    omaseed::core::AltSpeed *m_altSpeed = nullptr;
     QNetworkAccessManager *m_probeNam = nullptr;
 
 public:

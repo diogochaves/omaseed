@@ -6,6 +6,8 @@ qt_add_library(omaseed-core STATIC
     AddFilesModel.hpp
     AltSchedule.cpp
     AltSchedule.hpp
+    AltSpeed.cpp
+    AltSpeed.hpp
     AutoBackup.cpp
     AutoBackup.hpp
     ApiError.cpp

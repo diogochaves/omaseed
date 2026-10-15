@@ -12,6 +12,7 @@
 // tst_app_servers does: XDG_CONFIG_HOME in a temporary directory and a keychain service of
 // its own, emptied before and after.
 
+#include "core/AltSpeed.hpp"
 #include "core/CertificatePin.hpp"
 #include "core/GlobalState.hpp"
 #include "core/QbtClient.hpp"
@@ -371,6 +372,7 @@ private Q_SLOTS:
     void localAuthTurnedOnShutsANoLoginServerOut();
     void rotatedApiKeyReplacesTheSavedOne();
     void resumeDataStorageSurvivesARestart();
+    void altSetIsReadAgainWhenItFlips();
 
 private:
     /// App on `qbt`, signed in the way `authMode` says, synced once; the server's id.
@@ -912,6 +914,33 @@ void TestQbtSettingsLive::resumeDataStorageSurvivesARestart()
         QTRY_COMPARE_WITH_TIMEOUT(
             prefs.value(QStringLiteral("resume_data_storage_type")).toString(), type, 15000);
     }
+}
+
+void TestQbtSettingsLive::altSetIsReadAgainWhenItFlips()
+{
+    // docs/31 D13: the other set lives only in app/preferences. A set changed in qBittorrent's
+    // Web UI (here another client) shows the next time the alternative limits flip.
+    ThrowawayQbt qbt;
+    START_OR_SKIP(qbt);
+    App app;
+    QVERIFY(!connectApp(app, qbt, QStringLiteral("cookie"), qbt.password()).isEmpty());
+    // qBittorrent's defaults: alternative 10 KiB/s both ways, no normal limits.
+    QCOMPARE(app.altSpeed()->kind(), QStringLiteral("turtle"));
+
+    QbtClient webUi;
+    webUi.setBaseUrl(qbt.url());
+    webUi.setCredentials(qbt.username(), qbt.password());
+    QVERIFY(!await(this,
+                   webUi.appSetPreferences(QJsonObject{{QStringLiteral("up_limit"), 1228800},
+                                                       {QStringLiteral("alt_dl_limit"), 0},
+                                                       {QStringLiteral("alt_up_limit"), 0}}))
+                 .isError());
+    QCOMPARE(app.altSpeed()->kind(), QStringLiteral("turtle")); // not read on every poll
+
+    QVERIFY(!await(this, webUi.transferToggleSpeedLimitsMode()).isError());
+    QTRY_VERIFY_WITH_TIMEOUT(app.altSpeed()->isOn(), 20000);
+    QTRY_COMPARE_WITH_TIMEOUT(app.altSpeed()->kind(), QStringLiteral("burst"), 15000);
+    QCOMPARE(app.altSpeed()->chipTooltip(), QStringLiteral("burst on · A"));
 }
 
 QTEST_MAIN(TestQbtSettingsLive)

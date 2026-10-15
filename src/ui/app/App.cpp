@@ -108,6 +108,9 @@ App::App(QObject *parent)
 {
     m_engine->setClient(m_client);
     m_prefs = new ServerPreferences(m_client, this);
+    m_altSpeed = new AltSpeed(this);
+    m_altSpeed->setGlobalState(m_engine->globalState());
+    m_altSpeed->setPreferences(m_prefs);
     m_filtered->setSourceModel(m_engine->torrents());
     // A tracker row lists what the rail counts for it: every torrent on that host.
     m_filtered->setTrackerModel(m_engine->trackers());
@@ -128,6 +131,13 @@ App::App(QObject *parent)
     // docs/16: the hero reads the listening port and anonymous mode, so the preferences are
     // read as soon as a server answers, and again whenever it comes back.
     connect(m_engine->globalState(), &GlobalState::connectedChanged, this, [this]() {
+        if (!m_demoMode && m_hasServer && m_engine->globalState()->connected())
+            m_prefs->reload();
+    });
+    // docs/31 D13: the other set and the schedule live only in the preferences, so they are
+    // read again each time the alternative limits flip (a few times a day): a set or a schedule
+    // changed in qBittorrent's Web UI shows the next time it switches.
+    connect(m_engine->globalState(), &GlobalState::useAltSpeedLimitsChanged, this, [this]() {
         if (!m_demoMode && m_hasServer && m_engine->globalState()->connected())
             m_prefs->reload();
     });
@@ -2878,6 +2888,9 @@ void App::setGlobalLimits(qint64 dl, qint64 up, qint64 altDl, qint64 altUp)
         return;
     m_client->appSetPreferences(changes)->then(this, [this](const QbtResult<QByteArray> &result) {
         reportActionResult(QStringLiteral("limits"), result);
+        // The word follows the sets (docs/31 §3): read them back.
+        if (!result.isError())
+            m_prefs->reload();
     });
 }
 

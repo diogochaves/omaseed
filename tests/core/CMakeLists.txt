@@ -301,6 +301,11 @@ omaseed_add_test(tst_altschedule
     LIBRARIES omaseed::core
 )
 
+omaseed_add_test(tst_altspeed
+    SOURCES tst_altspeed.cpp
+    LIBRARIES omaseed::core
+)
+
 omaseed_add_test(tst_statusdigest
     SOURCES tst_statusdigest.cpp
     LIBRARIES omaseed::core
