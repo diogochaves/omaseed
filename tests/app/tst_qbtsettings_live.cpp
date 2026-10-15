@@ -278,6 +278,11 @@ QList<Change> changesFor(const QVariantList &sections,
                 const QString key = row.value(QStringLiteral("toggle")).toString();
                 add(name, title, flipChanges(row, prefs, !prefs.value(key).toBool()));
             }
+            // docs/31 D8: a preset's keys all land together (qBittorrent drops an hour sent
+            // without its minutes).
+            const QVariantMap preset = row.value(QStringLiteral("preset")).toMap();
+            if (!preset.isEmpty())
+                add(name, title, preset.value(QStringLiteral("changes")).toMap());
             for (const char *kind : {"choice", "pick"}) {
                 const QVariantMap choice = row.value(QLatin1String(kind)).toMap();
                 if (choice.isEmpty())

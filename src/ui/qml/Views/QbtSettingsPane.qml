@@ -93,6 +93,27 @@ ColumnLayout {
             item.resetDefaults();
     }
 
+    /// docs/31 D8: a row's preset by its key ("n"), from anywhere in the section. False when
+    /// no row here has one under that key.
+    function preset(key: string): bool {
+        for (let i = 0; i < rowRepeater.count; ++i) {
+            const holder = rowRepeater.itemAt(i);
+            const spec = root.rows[i];
+            if (holder && holder.item && spec.preset && spec.preset.key === key) {
+                holder.item.applyPreset();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// The section's preset keys and words, for the footer's hints: [{key, label}].
+    readonly property var presets: root.rows.filter(spec => spec.preset !== undefined).map(
+                                       spec => ({
+                                                    "key": spec.preset.key,
+                                                    "label": spec.preset.text
+                                                }))
+
     /// Every field back to the server's value, after a change was cancelled.
     function syncFields(): void {
         for (let i = 0; i < rowRepeater.count; ++i) {
@@ -148,7 +169,9 @@ ColumnLayout {
                                                                                        : 0
             sourceComponent: holder.modelData.group !== undefined ? groupComponent
                                                                   : holder.modelData.note !== undefined
-                                                                    ? noteComponent : rowComponent
+                                                                    ? noteComponent
+                                                                    : holder.modelData.line !== undefined
+                                                                      ? lineComponent : rowComponent
 
             Component {
                 id: groupComponent
@@ -189,6 +212,90 @@ ColumnLayout {
                         size: "small"
                         text: holder.modelData.note
                         wrapMode: Text.Wrap
+                    }
+                }
+            }
+
+            Component {
+                id: lineComponent
+
+                // docs/31 P1–P3: a line from App.altSpeed, drawn as the board's `.line`: a 1 px
+                // rule in its tone (green for burst, yellow for turtle and for a warning, the
+                // hairline otherwise), a glyph, the sentence, and a dim second line.
+                Rectangle {
+                    id: line
+
+                    readonly property bool isSet: holder.modelData.line === "set"
+                    readonly property string text: line.isSet ? App.altSpeed.setLine
+                                                              : App.altSpeed.scheduleSummary
+                    readonly property string note: line.isSet ? "" : App.altSpeed.scheduleNote
+                    readonly property bool warn: !line.isSet && App.altSpeed.scheduleWarn
+                    readonly property color tone: {
+                        if (line.warn)
+                            return Theme.yellow;
+                        if (line.isSet && App.altSpeed.setKind === "burst")
+                            return Theme.green;
+                        if (line.isSet && App.altSpeed.setKind === "turtle")
+                            return Theme.yellow;
+                        return Theme.fill(Theme.hairlineAlpha);
+                    }
+                    readonly property bool plain: line.tone !== Theme.green && line.tone !== Theme.yellow
+
+                    color: Theme.fill(Theme.fillIdle)
+                    implicitHeight: lineText.implicitHeight + Theme.space(12)
+                    objectName: "qbtLine-" + holder.modelData.line
+                    // The schedule's line reads dim while the schedule is off, as its rows do.
+                    opacity: !line.isSet && root.prefs && !root.prefs.values.scheduler_enabled ? 0.6 : 1
+                    radius: Theme.cornerRadius
+                    visible: root.loaded && line.text.length > 0
+
+                    Rectangle {
+                        anchors.bottom: parent.bottom
+                        anchors.left: parent.left
+                        anchors.top: parent.top
+                        color: line.tone
+                        width: 1
+                    }
+
+                    Label {
+                        id: lineGlyph
+
+                        anchors.left: parent.left
+                        anchors.leftMargin: Theme.space(12)
+                        anchors.top: lineText.top
+                        color: line.plain ? Theme.dimForeground : line.tone
+                        objectName: "qbtLineGlyph"
+                        size: "small"
+                        text: line.isSet ? App.altSpeed.setGlyph : line.warn ? "!" : "◷"
+                    }
+
+                    Column {
+                        id: lineText
+
+                        anchors.left: parent.left
+                        anchors.leftMargin: Theme.space(34)
+                        anchors.right: parent.right
+                        anchors.rightMargin: Theme.space(12)
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: Theme.space(2)
+
+                        Label {
+                            objectName: "qbtLineText"
+                            size: "small"
+                            text: line.text
+                            width: parent.width
+                            wrapMode: Text.Wrap
+                        }
+
+                        Label {
+                            dim: true
+                            objectName: "qbtLineNote"
+                            size: "caption"
+                            text: line.note
+                            visible: line.note.length > 0
+                            width: parent.width
+                            wrapMode: Text.Wrap
+                        }
                     }
                 }
             }

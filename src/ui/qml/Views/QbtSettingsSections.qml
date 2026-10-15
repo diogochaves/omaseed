@@ -35,7 +35,15 @@ import QtQuick
 //   defaults               {key: qBittorrent's default}: a "default" button while it differs
 //   failure                "export": a yellow line under the row when qBittorrent's log says
 //                          the last .torrent copy into one of its folders failed (docs/32 E1)
-// and two kinds that are not rows: {group: "…"} (a small heading) and {note: "…", warn}.
+//   titleFor, descFor      {burst, turtle, alt}: the title or description for the way the
+//                          alternative set goes (docs/31 §5, App.altSpeed.kind); a kind left
+//                          out takes `title` / `desc`
+//   altGlyph               the alt-speed gauge, its needle up for a burst set (docs/31 D4)
+//   preset                 {key, text, about, changes}: a chip before the fields that writes
+//                          `changes` at once; `key` presses it from anywhere in the section
+// and three kinds that are not rows: {group: "…"} (a small heading), {note: "…", warn}, and
+// {line: "set" | "schedule"}, docs/31's lines from App.altSpeed: which way the set goes, and
+// what the schedule really does.
 //
 // Do NOT run `qmlformat` on this file: with the project's 100-column wrap it re-indents the
 // typed functions further on every pass (the defect Menu.qml notes). It is hand-formatted.
@@ -206,26 +214,55 @@ QtObject {
                     "fields": [root.speed("up_limit")]
                 },
                 {
-                    "glyph": "◔",
+                    "altGlyph": true,
                     "title": qsTr("Alt-speed download"),
                     "desc": qsTr("In force while alt-speed is on: A, the hero's chip, or the schedule below."),
+                    "descFor": {
+                        "burst": qsTr("In force while burst is on: A, the hero's chip, or the schedule below."),
+                        "turtle": qsTr("In force while turtle is on: A, the hero's chip, or the schedule below.")
+                    },
                     "fields": [root.speed("alt_dl_limit")]
                 },
                 {
-                    "glyph": "◔",
+                    "altGlyph": true,
                     "title": qsTr("Alt-speed upload"),
                     "fields": [root.speed("alt_up_limit")]
                 },
                 {
+                    "line": "set"
+                },
+                {
                     "glyph": "◷",
                     "title": qsTr("Schedule alt-speed"),
+                    "titleFor": {
+                        "burst": qsTr("Schedule burst"),
+                        "turtle": qsTr("Schedule turtle")
+                    },
                     "desc": qsTr("Turns alt-speed on by itself between two times, and off again after."),
+                    "descFor": {
+                        "burst": qsTr("qBittorrent switches to burst by itself between two times, and back after."),
+                        "turtle": qsTr("qBittorrent switches to turtle by itself between two times, and back after.")
+                    },
                     "toggle": "scheduler_enabled"
                 },
                 {
                     "title": qsTr("From, to"),
                     "sub": true,
                     "dep": "scheduler_enabled",
+                    // docs/31 D8: nights, every day, in one press. All four time keys go:
+                    // qBittorrent ignores an hour sent without its minutes.
+                    "preset": {
+                        "key": "n",
+                        "text": qsTr("nights"),
+                        "about": qsTr("23:00 to 07:00, every day"),
+                        "changes": {
+                            "schedule_from_hour": 23,
+                            "schedule_from_min": 0,
+                            "schedule_to_hour": 7,
+                            "schedule_to_min": 0,
+                            "scheduler_days": 0
+                        }
+                    },
                     "fields": [{
                             "key": "schedule_from_hour",
                             "minKey": "schedule_from_min",
@@ -247,6 +284,9 @@ QtObject {
                         "key": "scheduler_days",
                         "options": [[0, qsTr("every day")], [1, qsTr("weekdays")], [2, qsTr("weekends")], [3, qsTr("Monday")], [4, qsTr("Tuesday")], [5, qsTr("Wednesday")], [6, qsTr("Thursday")], [7, qsTr("Friday")], [8, qsTr("Saturday")], [9, qsTr("Sunday")]]
                     }
+                },
+                {
+                    "line": "schedule"
                 },
                 {
                     "glyph": "⇄",

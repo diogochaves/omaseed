@@ -791,6 +791,10 @@ Item {
             else if (root.inQbt)
                 qbtPane.resetDefaults(root.paneCursor);
             break;
+        case Qt.Key_N: // docs/31 D8: Speed's "nights"
+            if (root.inQbt)
+                qbtPane.preset("n");
+            break;
         default:
             break;
         }
@@ -942,6 +946,8 @@ Item {
                                "key": "d",
                                "label": qsTr("default")
                            });
+            for (const preset of qbtPane.presets)
+                hints.push(preset);
             if (App.serverList.count > 1)
                 hints.push({
                                "key": "s",

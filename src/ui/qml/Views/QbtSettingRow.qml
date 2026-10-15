@@ -38,6 +38,8 @@ SettingsRow {
     signal fieldDone
 
     readonly property var values: row.prefs ? row.prefs.values : ({})
+    /// docs/31: "burst", "turtle" or "alt", for `titleFor`, `descFor` and `altGlyph`.
+    readonly property string altKind: App.altSpeed.kind
     readonly property bool loaded: row.prefs !== null && row.prefs.loaded
     readonly property string confirmKind: row.sectionConfirm.length > 0 ? row.sectionConfirm
                                                                           : (row.spec.confirm ?? "")
@@ -101,11 +103,12 @@ SettingsRow {
 
     Layout.fillWidth: true
     Layout.leftMargin: row.spec.sub ? Theme.space(22) : 0
-    description: row.spec.desc ?? ""
+    description: (row.spec.descFor ? row.spec.descFor[row.altKind] : undefined) ?? row.spec.desc ?? ""
     enabled: row.loaded && row.depOk
-    glyph: row.spec.glyph ?? ""
+    glyph: row.spec.altGlyph ? (row.altKind === "burst" ? Glyphs.burst : Glyphs.altSpeed)
+                             : row.spec.glyph ?? ""
     opacity: row.enabled ? 1 : 0.45
-    title: row.spec.title ?? ""
+    title: (row.spec.titleFor ? row.spec.titleFor[row.altKind] : undefined) ?? row.spec.title ?? ""
     warning: row.failureText
 
     onClicked: row.activate("click")
@@ -143,6 +146,12 @@ SettingsRow {
         }
         if (row.spec.button)
             row.actionRequested(row.spec.button.action);
+    }
+
+    /// `spec.preset`'s key, or a click on its chip: its keys, all at once (docs/31 D8).
+    function applyPreset(): void {
+        if (row.enabled && row.spec.preset)
+            row.changeRequested(row.spec.preset.changes, row.confirmKind, row.spec.title);
     }
 
     /// `d`: back to qBittorrent's defaults.
@@ -363,6 +372,17 @@ SettingsRow {
                 toggle.checked = Qt.binding(() => !!row.values[row.spec.toggle]);
                 row.flip();
             }
+        }
+
+        // docs/31 P1: "nights" before From and To, its key drawn faint before it.
+        Chip {
+            keyText: row.spec.preset ? row.spec.preset.key : ""
+            objectName: "presetChip"
+            text: row.spec.preset ? row.spec.preset.text : ""
+            tooltip: row.spec.preset ? row.spec.preset.about + " · " + row.spec.preset.key : ""
+            visible: !!row.spec.preset
+
+            onClicked: row.applyPreset()
         }
 
         Repeater {

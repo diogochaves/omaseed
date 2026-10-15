@@ -137,6 +137,97 @@ TestCase {
         compare(testCase.childNamed(modal, "field-alt_dl_limit").text, "10");
     }
 
+    // docs/31 §5 P1, P3: a line under the four limits says which way the set goes, and the rows
+    // follow the word. The demo's set is qBittorrent's default turtle (10 KB/s, no normal
+    // limits); someone who uses it that way keeps today's rows, named "turtle".
+    function test_the_speed_page_names_the_set() {
+        const modal = openOn(0);
+        const setLine = testCase.childNamed(modal, "qbtLine-set");
+        verify(setLine.visible);
+        compare(testCase.childNamed(setLine, "qbtLineText").text,
+                "Slower than your limits above, so omaseed calls this set turtle.");
+        compare(testCase.childNamed(setLine, "qbtLineGlyph").text, "▼");
+        const schedule = testCase.childNamed(modal, "qbtRow-scheduler_enabled");
+        compare(schedule.title, "Schedule turtle");
+        compare(testCase.childNamed(modal, "qbtRow-alt_dl_limit").description,
+                "In force while turtle is on: A, the hero's chip, or the schedule below.");
+        compare(testCase.childNamed(modal, "qbtRow-alt_dl_limit").glyph, Glyphs.altSpeed);
+
+        // A daytime upload cap with the alternative set open: burst, as it is typed.
+        App.serverPrefs.apply({
+                                  "up_limit": 1200 * 1024,
+                                  "alt_dl_limit": 0,
+                                  "alt_up_limit": 0
+                              });
+        compare(testCase.childNamed(setLine, "qbtLineText").text,
+                "Faster than your limits above, so omaseed calls this set burst.");
+        compare(testCase.childNamed(setLine, "qbtLineGlyph").text, "▲");
+        compare(schedule.title, "Schedule burst");
+        compare(schedule.description,
+                "qBittorrent switches to burst by itself between two times, and back after.");
+        compare(testCase.childNamed(modal, "qbtRow-alt_up_limit").glyph, Glyphs.burst);
+
+        // The same both ways: switching changes nothing; the words go back to alt-speed.
+        App.serverPrefs.apply({
+                                  "alt_up_limit": 1200 * 1024
+                              });
+        compare(testCase.childNamed(setLine, "qbtLineText").text,
+                "The same as your limits above: switching changes nothing.");
+        compare(schedule.title, "Schedule alt-speed");
+    }
+
+    // docs/31 D8, D9 (P1, P2): `n` fills the schedule with nights in one press, every key at
+    // once, and the summary under Days says what qBittorrent will do, warning when the days
+    // run backwards past midnight.
+    function test_nights_and_the_summary_under_days() {
+        const modal = openOn(0);
+        const summary = testCase.childNamed(modal, "qbtLine-schedule");
+        verify(summary.visible); // what it would do, dimmed while the schedule is off
+        verify(summary.opacity < 1);
+        // While the schedule is off its rows (and the preset) do nothing.
+        keyClick(Qt.Key_N);
+        compare(App.serverPrefs.values.schedule_from_hour, 8);
+        testCase.childNamed(modal, "qbtRow-scheduler_enabled").activate("space");
+        compare(App.serverPrefs.values.scheduler_enabled, true);
+        compare(summary.opacity, 1);
+        const preset = testCase.childNamed(testCase.childNamed(modal, "qbtRow-schedule_from_hour"),
+                                           "presetChip");
+        verify(preset.visible);
+        compare(preset.text, "nights");
+        compare(preset.keyText, "n");
+        App.serverPrefs.apply({
+                                  "scheduler_days": 2
+                              });
+        keyClick(Qt.Key_N);
+        compare(App.serverPrefs.values.schedule_from_hour, 23);
+        compare(App.serverPrefs.values.schedule_from_min, 0);
+        compare(App.serverPrefs.values.schedule_to_hour, 7);
+        compare(App.serverPrefs.values.schedule_to_min, 0);
+        compare(App.serverPrefs.values.scheduler_days, 0);
+        compare(testCase.childNamed(modal, "field-schedule_from_hour").text, "23:00");
+        const text = testCase.childNamed(summary, "qbtLineText");
+        verify(text.text.indexOf("Turtle every night from 23:00 to 07:00, by the server's clock.") === 0,
+               text.text);
+        compare(testCase.childNamed(summary, "qbtLineNote").text,
+                "A switches it by hand. The schedule takes over at its next change.");
+        compare(testCase.childNamed(summary, "qbtLineGlyph").text, "◷");
+
+        // P2: weekends past midnight read backwards: the line says so, in yellow.
+        App.serverPrefs.apply({
+                                  "scheduler_days": 2
+                              });
+        compare(text.text, "Turtle all day Monday to Friday, and Saturday and Sunday nights.");
+        compare(testCase.childNamed(summary, "qbtLineGlyph").text, "!");
+        compare(testCase.childNamed(summary, "qbtLineGlyph").color, Theme.yellow);
+        verify(testCase.childNamed(summary, "qbtLineNote").text.indexOf("the other way round") > 0);
+
+        // P3: from and to the same never fires.
+        App.serverPrefs.apply({
+                                  "schedule_to_hour": 23
+                              });
+        compare(text.text, "Never on: from and to are the same time.");
+    }
+
     // qBittorrent 5 ignores a share limit's switch sent alone while its value is ∞ (-1), and
     // turns random_port off only with a port to go back to (tst_qbtsettings_live).
     function test_a_switch_sends_what_qbittorrent_needs_with_it() {
