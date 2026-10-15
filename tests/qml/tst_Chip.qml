@@ -137,4 +137,63 @@ TestCase {
         wait(450);
         compare(chip.tooltipItem.shown, false);
     }
+
+    // docs/32 L1: the log face's level chips, a key before the word and a count after it.
+    function test_a_level_chip_draws_its_key_and_count() {
+        const chip = createTemporaryObject(chipComponent, testCase, {
+                                               "text": "warning",
+                                               "keyText": "3",
+                                               "count": "10",
+                                               "toggle": true,
+                                               "selected": true,
+                                               "tone": Theme.yellow
+                                           });
+        const key = findChild(chip, "chipKey");
+        const count = findChild(chip, "chipCount");
+        verify(key.visible);
+        compare(key.text, "3");
+        verify(count.visible);
+        compare(count.text, "10");
+        compare(count.color, Theme.dimForeground);
+        // On, the word takes the level's colour.
+        compare(findChild(chip, "chipLabel").color, Theme.yellow);
+        // Wider than the word alone.
+        const plain = createTemporaryObject(chipComponent, testCase, {
+                                                "text": "warning"
+                                            });
+        verify(chip.implicitWidth > plain.implicitWidth);
+        verify(!findChild(plain, "chipKey").visible);
+        verify(!findChild(plain, "chipCount").visible);
+    }
+
+    function test_a_toggle_off_reads_dim_and_a_selected_one_without_tone_bright() {
+        const off = createTemporaryObject(chipComponent, testCase, {
+                                              "text": "normal",
+                                              "toggle": true
+                                          });
+        compare(findChild(off, "chipLabel").color, Theme.dimForeground);
+        const on = createTemporaryObject(chipComponent, testCase, {
+                                             "text": "normal",
+                                             "toggle": true,
+                                             "selected": true
+                                         });
+        compare(findChild(on, "chipLabel").color, Theme.brightForeground);
+        // A label chip, not a switch, keeps the foreground when off.
+        const label = createTemporaryObject(chipComponent, testCase, {
+                                                "text": "linux"
+                                            });
+        compare(findChild(label, "chipLabel").color, Theme.foreground);
+    }
+
+    // docs/32 L2: the torrent chip, an accent edge, selected or not.
+    function test_an_accent_chip_keeps_an_accent_edge() {
+        const chip = createTemporaryObject(chipComponent, testCase, {
+                                               "text": "torrent: log55-move.bin",
+                                               "accent": true
+                                           });
+        compare(chip.border.width, 1);
+        compare(chip.border.color, Theme.accent);
+        chip.selected = true;
+        compare(chip.border.width, 1);
+    }
 }

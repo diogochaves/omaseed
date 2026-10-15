@@ -15,6 +15,17 @@ Rectangle {
     property bool warn: false
     property bool selected: false
     property bool hasCursor: false
+    /// A switch rather than a label (docs/32 L1's level chips): off, its text reads dim.
+    property bool toggle: false
+    /// A key drawn faint before the text (the level chips' `1`–`4`); "" draws none.
+    property string keyText: ""
+    /// A number drawn dim after the text (a level's lines); "" draws none.
+    property string count: ""
+    /// The text's colour while selected, a Theme role (a level's: warning `Theme.yellow`).
+    /// Left transparent, a selected chip's text is the bright foreground.
+    property color tone: "transparent"
+    /// An accent edge, for a filter that narrows what is shown (the log's torrent chip).
+    property bool accent: false
     /// Opt into the keyboard: the chip joins the tab order and `space`/`enter` picks it
     /// (spec §3 Fig. 9's auth row, where the three chips are the only way to choose). Off by
     /// default, so a chip that is only ever clicked stays out of everyone's tab order.
@@ -33,9 +44,10 @@ Rectangle {
     Accessible.role: Accessible.Button
 
     activeFocusOnTab: root.focusable && root.enabled
-    border.color: root.warn ? Theme.yellow : root.hot ? Theme.fill(Theme.borderHover) : Theme.fill(
-                                                            Theme.borderIdle)
-    border.width: root.selected ? 0 : 1
+    border.color: root.warn ? Theme.yellow : root.accent ? Theme.accent : root.hot ? Theme.fill(
+                                                                                          Theme.borderHover)
+                                                                                    : Theme.fill(Theme.borderIdle)
+    border.width: root.selected && !root.accent ? 0 : 1
     color: root.selected ? Theme.fill(Theme.fillSelected) : root.hot ? Theme.fill(Theme.fillHover) :
                                                                        Theme.fill(Theme.fillIdle)
     height: Theme.space(22)
@@ -65,15 +77,45 @@ Rectangle {
         }
 
         Text {
+            anchors.verticalCenter: parent.verticalCenter
+            color: Theme.dimForeground
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.font.caption
+            objectName: "chipKey"
+            opacity: 0.8
+            text: root.keyText
+            visible: root.keyText.length > 0
+        }
+
+        Text {
             id: label
 
             anchors.verticalCenter: parent.verticalCenter
-            color: root.warn ? Theme.yellow : root.selected ? Theme.brightForeground :
-                                                              Theme.foreground
+            color: {
+                if (root.warn)
+                    return Theme.yellow;
+                if (root.selected)
+                    return root.tone.a > 0 ? root.tone : Theme.brightForeground;
+                return root.toggle ? Theme.dimForeground : Theme.foreground;
+            }
 
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.small
+            objectName: "chipLabel"
             text: root.text
+        }
+
+        Text {
+            anchors.verticalCenter: parent.verticalCenter
+            color: Theme.dimForeground
+            font.family: Theme.fontFamily
+            font.features: {
+                "tnum": 1
+            }
+            font.pixelSize: Theme.font.small
+            objectName: "chipCount"
+            text: root.count
+            visible: root.count.length > 0
         }
     }
 
