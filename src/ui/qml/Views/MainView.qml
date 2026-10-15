@@ -1221,6 +1221,11 @@ Item {
             root.restoreTableState();
         }
 
+        /// #34: a restore wrote the settings; the layout shows now, not at the next start.
+        function onTableStatesRestored(): void {
+            root.reloadTableState();
+        }
+
         target: App
     }
 
@@ -2097,6 +2102,13 @@ Item {
         root._applyTableState(App.tableState(key));
         root._stateKey = key;
         root._restoringState = false;
+    }
+
+    /// Read the chosen server's layout again even when it is the one shown: after a restore
+    /// (#34) state.json holds another layout for the same server.
+    function reloadTableState(): void {
+        root._stateKey = "";
+        root.restoreTableState();
     }
 
     function _applyTableState(state: var): void {

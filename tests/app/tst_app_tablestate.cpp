@@ -4,9 +4,14 @@
 // `createCategory()`/`applyCategory()`/`createTag()`/`applyTags()` (they must not crash or
 // reach a client with no server configured).
 
+#include "core/OmaseedBackup.hpp"
+#include "core/StateFile.hpp"
 #include "ui/app/App.hpp"
 
+#include <QDateTime>
 #include <QFile>
+#include <QJsonObject>
+#include <QScopeGuard>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
@@ -29,6 +34,7 @@ private slots:
     void errorReasonTextKeepsOnlyTheReason();
     void tagsOfSplitsTheJoinedText();
     void demoModeCategoryAndTagCallsDoNotCrash();
+    void restoringSettingsAppliesTheLayoutsAtOnce();
 
 private:
     QTemporaryDir m_dir;
@@ -197,6 +203,49 @@ void TestAppTableState::demoModeCategoryAndTagCallsDoNotCrash()
     app.applyTags(hashes, {}, {QStringLiteral("omaseed-test-tag")});
     // No server is configured in demo mode, so every call above is a log line, not a
     // network request; reaching this point without a crash is the assertion.
+}
+
+void TestAppTableState::restoringSettingsAppliesTheLayoutsAtOnce()
+{
+    // #34: a restore that brings the settings tells the window, which reads the table layout
+    // again (MainView's onTableStatesRestored; tst_TableState.qml covers that half). One
+    // without the settings changes no layout and says nothing.
+    using omaseed::core::OmaseedBackup;
+    using omaseed::core::StateFile;
+    QTemporaryDir home;
+    QVERIFY(home.isValid());
+    const QByteArray previousData = qgetenv("XDG_DATA_HOME");
+    qputenv("XDG_CONFIG_HOME", home.filePath(QStringLiteral("config")).toUtf8());
+    qputenv("XDG_DATA_HOME", home.filePath(QStringLiteral("data")).toUtf8());
+    const auto restoreData = qScopeGuard([&] {
+        if (previousData.isNull())
+            qunsetenv("XDG_DATA_HOME");
+        else
+            qputenv("XDG_DATA_HOME", previousData);
+    });
+
+    // A backup with settings in it (no server: which layout lands where is tst_omaseedbackup's).
+    StateFile::writeSection(
+        QStringLiteral("appearance"),
+        QJsonObject{{QStringLiteral("speedsAlignment"), QStringLiteral("right")}});
+    const QString path = home.filePath(QStringLiteral("layouts.omaseed"));
+    QString error;
+    QVERIFY2(OmaseedBackup::createFile(
+                 OmaseedBackup::defaultSources(), path, QDateTime::currentSecsSinceEpoch(), &error),
+             qPrintable(error));
+
+    App app;
+    QSignalSpy restored(&app, &App::tableStatesRestored);
+    QVERIFY(app.readBackup(path).value(QStringLiteral("ok")).toBool());
+    QVariantMap result = app.restoreBackup({{QStringLiteral("settings"), false}});
+    QVERIFY(result.value(QStringLiteral("ok")).toBool());
+    QCOMPARE(restored.count(), 0);
+
+    QVERIFY(app.readBackup(path).value(QStringLiteral("ok")).toBool());
+    result = app.restoreBackup({{QStringLiteral("settings"), true}});
+    QVERIFY2(result.value(QStringLiteral("ok")).toBool(),
+             qPrintable(result.value(QStringLiteral("text")).toString()));
+    QCOMPARE(restored.count(), 1);
 }
 
 QTEST_MAIN(TestAppTableState)

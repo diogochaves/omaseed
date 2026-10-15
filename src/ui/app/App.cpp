@@ -4509,7 +4509,8 @@ QVariantMap App::restoreBackup(const QVariantMap &choice)
         return {{QStringLiteral("ok"), false},
                 {QStringLiteral("text"), tr("Choose a backup first.")}};
     OmaseedBackup::Plan plan;
-    plan.settings = choice.value(QStringLiteral("settings")).toBool();
+    plan.settings =
+        choice.value(QStringLiteral("settings")).toBool() && m_pendingRestore->hasSettings;
     plan.servers = choice.value(QStringLiteral("servers")).toBool();
     plan.history = choice.value(QStringLiteral("history")).toStringList();
 
@@ -4545,6 +4546,8 @@ QVariantMap App::restoreBackup(const QVariantMap &choice)
         text += QLatin1Char(' ') + tr("Sign in to new servers once, in Servers.");
     qInfo().noquote() << QStringLiteral("restore: %1").arg(text);
     Q_EMIT backupChanged();
+    if (plan.settings)
+        Q_EMIT tableStatesRestored();
     return {{QStringLiteral("ok"), true}, {QStringLiteral("text"), text}};
 }
 

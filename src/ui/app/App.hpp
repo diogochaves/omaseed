@@ -1405,6 +1405,9 @@ public:
 
 Q_SIGNALS:
     void backupChanged();
+    /// A restore replaced the settings, the table layouts among them (#34): the window shows
+    /// the restored layout now, not at the next start. MainView answers it.
+    void tableStatesRestored();
 
 private:
     omaseed::core::OmaseedBackup::Sources backupSources() const;

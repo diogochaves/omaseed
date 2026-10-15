@@ -81,6 +81,44 @@ TestCase {
         App.saveTableState("demo", original);
     }
 
+    // #34: after a restore writes the settings, the open window shows the restored columns,
+    // order and sort at once, for the server it already shows, and keeps them.
+    function test_a_restore_shows_the_restored_layout_at_once() {
+        const original = App.tableState("demo");
+        App.saveTableState("demo", {
+                               "columns": ["name", "size", "progress", "status"],
+                               "sortRole": "name",
+                               "sortOrder": Qt.DescendingOrder
+                           });
+        const view = createTemporaryObject(viewComponent, testCase);
+        tryCompare(view, "_stateKey", "demo");
+        compare(App.filtered.sortRoleName, "name");
+
+        // What a restore leaves in state.json for this server.
+        const columns = ["name", "size", "progress", "addedOn"];
+        const order = ["name", "addedOn", "size", "progress"];
+        App.saveTableState("demo", {
+                               "columns": columns,
+                               "columnOrder": order,
+                               "sortRole": "size",
+                               "sortOrder": Qt.AscendingOrder
+                           });
+        compare(App.filtered.sortRoleName, "name", "the layout changed before the restore said so");
+        App.tableStatesRestored();
+
+        compare(view.table.visibleColumns.join(","), columns.join(","));
+        compare(view.table.columnOrder.join(","), view.table.normalizedColumnOrder(order).join(","));
+        compare(App.filtered.sortRoleName, "size");
+        compare(App.filtered.sortOrder, Qt.AscendingOrder);
+        compare(view._stateKey, "demo");
+        // Applying it saved nothing over it.
+        const after = App.tableState("demo");
+        compare(JSON.stringify(after.columns), JSON.stringify(columns));
+        compare(after.sortRole, "size");
+
+        App.saveTableState("demo", original);
+    }
+
     // A state file from before docs/17 has no `detailsFolded`: the pane opens, as it always did.
     function test_an_older_state_file_opens_the_details() {
         const original = App.tableState("demo");
