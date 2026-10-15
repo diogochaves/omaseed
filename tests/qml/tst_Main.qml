@@ -1072,9 +1072,58 @@ TestCase {
     }
 
     function test_a_movement_row_runs_nothing_and_says_so() {
-        compare(view.runKeymapAction("moveDown"), false);
-        compare(view.runKeymapAction("columns"), true);
+        compare(view.runAction("moveDown"), false);
+        compare(view.runAction("columns"), true);
         view.columnsPalette.close();
+    }
+
+    // ---- one runner for the `?` sheet and the palette (docs/30 D9, DECISIONS C1) ----------
+    function test_every_command_runs_and_every_runner_is_listed() {
+        const known = Object.keys(view._runners);
+        for (const group of Keymap.commandGroups) {
+            for (const action of group.actions)
+                verify(known.indexOf(action) >= 0, "runAction does not know " + action);
+        }
+        const leaders = Keymap.columns.reduce((all, column) => all.concat(Keymap.helpRows(column).map(
+                                                                                  row => row.action)), []);
+        for (const action of known) {
+            const listed = leaders.indexOf(action) >= 0 || Keymap.commandGroups.some(
+                             group => group.actions.indexOf(action) >= 0);
+            verify(listed, "runAction runs what neither the palette nor the ? sheet lists: " + action);
+        }
+    }
+
+    function test_run_action_does_what_the_key_does() {
+        compare(view.runAction("location"), true);
+        compare(view.locationSheetPanel.opened, true, "set location did not open its sheet");
+        view.locationSheetPanel.close();
+        compare(view.runAction("globalLimits"), true);
+        compare(view.globalLimitsSheet.opened, true, "the menu-only limits sheet did not open");
+        view.globalLimitsSheet.close();
+        compare(view.runAction("add"), true);
+        compare(addSpy.count, 1);
+        view.addSheet.dismiss();
+        view.details.activateTab(1);
+        compare(view.runAction("sortFiles"), true);
+        compare(view.details.menuOpen, true, "the Files tab's sort menu did not open");
+        keyClick(Qt.Key_Escape);
+        compare(view.details.menuOpen, false);
+        compare(view.details.activeFocus, true, "a Files command left the keyboard elsewhere");
+        view.details.activateTab(0);
+    }
+
+    // P6, Fig. 23: only settings, shortcuts, hide and quit get through a lost server.
+    function test_a_lost_server_runs_only_what_its_guard_lets_through() {
+        view._testServerLost = true;
+        compare(view.runAction("add"), false);
+        compare(addSpy.count, 0);
+        compare(view.runAction("settings"), true);
+        compare(settingsSpy.count, 1);
+        view.settingsModal.close();
+        compare(view.runAction("help"), true);
+        compare(view.helpOpen, true);
+        view.helpOpen = false;
+        view._testServerLost = false;
     }
 
     // ---- ctrl chords from the rail (review VIEW-10) -------------------------------------

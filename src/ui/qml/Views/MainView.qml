@@ -511,6 +511,13 @@ Item {
         case "stopStart":
             App.stopStart(hashes);
             break;
+        // docs/30 D5: start and stop on the whole selection, as the selection bar's buttons.
+        case "start":
+            App.startTorrents(hashes);
+            break;
+        case "stop":
+            App.stopTorrents(hashes);
+            break;
         case "forceStart":
             App.forceStart(hashes);
             break;
@@ -579,13 +586,7 @@ Item {
     /// and stop as two buttons, since a selection can hold both kinds and `stopStart`
     /// follows the cursor torrent alone.
     function selectionBarAction(action: string): void {
-        const hashes = root.actionHashes();
-        if (action === "start")
-            App.startTorrents(hashes);
-        else if (action === "stop")
-            App.stopTorrents(hashes);
-        else
-            root.torrentAction(action);
+        root.torrentAction(action);
     }
 
     /// The selection bar's ⋯: the full actions menu hung over the button, right edges flush,
@@ -806,112 +807,149 @@ Item {
         event.accepted = true;
     }
 
-    /// Runs a Keymap row's action from the help sheet's `enter` (docs/08 §4). Rows that name a
-    /// movement rather than a command (j k, g G, h l, 0–8, 1–4, space, v, esc) do nothing and
-    /// say so in the footer. False when nothing ran.
-    function runKeymapAction(action: string): bool {
-        // Fig. 23's read-only guard: from the `?` sheet of a lost server, only what the
-        // guard itself still lets through runs.
-        if (root.serverLost && ["settings", "hide", "quit"].indexOf(action) < 0)
+    /// docs/30 D9 (DECISIONS C1): the one runner behind the `?` sheet's `enter` and the
+    /// command palette, so the two can never disagree. Each id does what its key does, through
+    /// the same functions the keys call; keys keep their own routing. Rows of the sheet that
+    /// name a movement rather than a command (j k, g G, h l, 0–8, 1–4, space, v, esc) are not
+    /// here: false, and nothing ran.
+    function runAction(action: string): bool {
+        // Fig. 23's read-only guard: with the server lost, only what the guard itself still
+        // lets through runs.
+        if (root.serverLost && Keymap.offlineActions.indexOf(action) < 0)
             return false;
-        switch (action) {
-        case "cycleDetailsPlacement":
-            root.cycleDetailsPlacement();
-            return true;
-        case "detailsSmaller":
-            if (details.collapsed)
-                root.toggleDetails();
-            split.resizeBy(-Theme.space(40));
-            return true;
-        // The Files tab's commands run on the file under its cursor, as the keys would.
-        case "priorityMenu":
-        case "openFile":
-        case "collapseAll":
-        case "hideSkipped":
-            root._runInFiles(action === "priorityMenu" ? "priority" : action);
-            return true;
-        case "copy":
-            if (details.collapsed)
-                root.toggleDetails();
-            details.forceActiveFocus();
-            details.copyCurrent();
-            return true;
-        case "moveColumnUp": // the columns palette is where the columns move
-            columnsPalette.open();
-            return true;
-        case "filter":
-            root.focusSearch();
-            return true;
-        case "jump":
-            jumpPalette.open();
-            return true;
-        case "selectAll":
-            table.forceActiveFocus();
-            table.selectAll();
-            return true;
-        case "add":
-            App.addRequested();
-            return true;
-        case "actions":
-            table.forceActiveFocus();
-            table.requestActions();
-            return true;
-        case "toggleDetails":
-            root.toggleDetails();
-            return true;
-        case "toggleConsole":
-            root.setView(root.view === "seed" ? "library" : "seed");
-            return true;
-        case "sort":
-            sortPalette.openOnCurrent();
-            return true;
-        case "columns":
-            columnsPalette.open();
-            return true;
-        case "altSpeed":
-            App.toggleAltSpeed();
-            return true;
-        case "settings":
-            App.openSettings();
-            return true;
-        case "qbtSettings":
-            root.openQbtSettings();
-            return true;
-        case "more":
-            root.openMoreMenu();
-            return true;
-        case "toggleRail":
-            root.toggleRail();
-            return true;
-        case "hide":
-            root.hideRequested();
-            return true;
-        case "quit":
-            root.quitRequested();
-            return true;
-        case "stopStart":
-        case "delete":
-        case "recheck":
-        case "category":
-        case "queueUp":
-        case "openFolder":
-        case "copyMagnet":
-            table.forceActiveFocus();
-            root.torrentAction(action);
-            return true;
-        default:
+        const run = root._runners[action];
+        if (run === undefined)
             return false;
-        }
+        run();
+        return true;
     }
 
-    /// A Files tab command from the help sheet: the pane shows, on Files, with the keyboard.
-    function _runInFiles(action: string): void {
+    /// A torrent command from the sheet or the palette: on the table's selection or cursor
+    /// row, with the keyboard on the table, as its key there would.
+    function _runOnTorrents(action: string): void {
+        table.forceActiveFocus();
+        root.torrentAction(action);
+    }
+
+    /// A Files tab command: the pane shows, on Files, with the keyboard, then `run`.
+    function _runInFiles(run: var): void {
         if (details.collapsed)
             root.toggleDetails();
         details.activateTab(1);
         details.forceActiveFocus();
-        details.fileAction(action);
+        run();
     }
+
+    /// A command of the details tab on show (Trackers, Peers, HTTP sources): the keyboard on
+    /// the pane, then that tab's row menu does what its key does.
+    function _runInTab(rowAction: string): void {
+        details.forceActiveFocus();
+        details.rowMenuAction(rowAction);
+    }
+
+    /// What `runAction` runs, by action id: every command `Keymap.commandRows()` lists, and
+    /// the `?` sheet's rows that lead no palette command (stopStart, actions, more, copy,
+    /// moveColumnUp). tst_Main checks both lists against the Keymap.
+    readonly property var _runners: ({
+        // torrents
+        "start": () => root._runOnTorrents("start"),
+        "stop": () => root._runOnTorrents("stop"),
+        "stopStart": () => root._runOnTorrents("stopStart"),
+        "forceStart": () => root._runOnTorrents("forceStart"),
+        "recheck": () => root._runOnTorrents("recheck"),
+        "reannounce": () => root._runOnTorrents("reannounce"),
+        "delete": () => root._runOnTorrents("delete"),
+        "deleteWithFiles": () => root._runOnTorrents("deleteWithFiles"),
+        "category": () => root._runOnTorrents("category"),
+        "tags": () => root._runOnTorrents("tags"),
+        "location": () => root._runOnTorrents("location"),
+        "limits": () => root._runOnTorrents("limits"),
+        "rename": () => root._runOnTorrents("rename"),
+        "openFolder": () => root._runOnTorrents("openFolder"),
+        "queueUp": () => root._runOnTorrents("queueUp"),
+        "queueDown": () => root._runOnTorrents("queueDown"),
+        "copyMagnet": () => root._runOnTorrents("copyMagnet"),
+        "copyHash": () => root._runOnTorrents("copyHash"),
+        "copyName": () => root._runOnTorrents("copyName"),
+        "sequential": () => root._runOnTorrents("sequential"),
+        "firstLast": () => root._runOnTorrents("firstLast"),
+        "superSeeding": () => root._runOnTorrents("superSeeding"),
+        "autoManagement": () => root._runOnTorrents("autoManagement"),
+        "actions": () => {
+            table.forceActiveFocus();
+            table.requestActions();
+        },
+        // selection
+        "selectAll": () => {
+            table.forceActiveFocus();
+            table.selectAll();
+        },
+        "clearSelection": () => table.clearSelection(),
+        // library
+        "add": () => App.addRequested(),
+        "filter": () => root.focusSearch(),
+        "jump": () => jumpPalette.open(),
+        "sort": () => sortPalette.openOnCurrent(),
+        // view
+        "columns": () => columnsPalette.open(),
+        "moveColumnUp": () => columnsPalette.open(), // the columns palette is where they move
+        "toggleDetails": () => root.toggleDetails(),
+        "cycleDetailsPlacement": () => root.cycleDetailsPlacement(),
+        "toggleRail": () => root.toggleRail(),
+        "toggleConsole": () => root.setView(root.view === "seed" ? "library" : "seed"),
+        "detailsSmaller": () => {
+            if (details.collapsed)
+                root.toggleDetails();
+            split.resizeBy(-Theme.space(40));
+        },
+        "detailsLarger": () => {
+            if (details.collapsed)
+                root.toggleDetails();
+            split.resizeBy(Theme.space(40));
+        },
+        // speed
+        "altSpeed": () => App.toggleAltSpeed(),
+        "globalLimits": () => globalLimitsSheet.openFor(false),
+        "altLimits": () => globalLimitsSheet.openFor(true),
+        // app
+        "settings": () => App.openSettings(),
+        "qbtSettings": () => root.openQbtSettings(),
+        "help": () => root.helpOpen = true,
+        "more": () => root.openMoreMenu(),
+        "hide": () => root.hideRequested(),
+        "quit": () => root.quitRequested(),
+        // the Files tab
+        "priorityMenu": () => root._runInFiles(() => details.openPriorityMenu()),
+        "raisePriority": () => root._runInFiles(() => details.setPriority("raise")),
+        "lowerPriority": () => root._runInFiles(() => details.setPriority("lower")),
+        "skipFile": () => root._runInFiles(() => details.toggleSkip()),
+        "openFile": () => root._runInFiles(() => details.fileAction("openFile")),
+        "revealFile": () => root._runInFiles(() => details.fileAction("reveal")),
+        "renameFile": () => root._runInFiles(() => details.startRename()),
+        "copyLocalPath": () => root._runInFiles(() => details.copyLocalPath()),
+        "copyFileName": () => root._runInFiles(() => details.copyName()),
+        "sortFiles": () => root._runInFiles(() => details.openSortMenu()),
+        "filterFiles": () => root._runInFiles(() => details.focusFileFilter()),
+        "selectAllFiles": () => root._runInFiles(() => details.selectAllFiles()),
+        "collapseAll": () => root._runInFiles(() => details.fileAction("collapseAll")),
+        "expandAll": () => root._runInFiles(() => details.fileAction("expandAll")),
+        "hideSkipped": () => root._runInFiles(() => details.fileAction("hideSkipped")),
+        // Trackers, Peers, HTTP sources, and the pane's `y` everywhere (docs/12 G5)
+        "addRow": () => root._runInTab("add"),
+        "removeRow": () => root._runInTab("remove"),
+        "trackersReannounce": () => root._runInTab("reannounce"),
+        "ban": () => root._runInTab("ban"),
+        "copy": () => {
+            if (details.collapsed)
+                root.toggleDetails();
+            details.forceActiveFocus();
+            details.copyCurrent();
+        },
+        // the seed console (#24)
+        "consoleShorter": () => App.console.stepRange(-1),
+        "consoleLonger": () => App.console.stepRange(1),
+        "consoleEscape": () => root.consoleEscape()
+    })
 
     /// `ctrl+b` (docs/08 §5): hide or show the rail. Hiding it never hides a filter: while it
     /// is gone, each active filter shows as a chip in the hero.
@@ -1006,33 +1044,11 @@ Item {
         settingsModal.openQbt();
     }
 
-    /// Runs a row of the ⋯ menu (docs/08 §3). The menu has closed and given the focus back.
+    /// Runs a row of the ⋯ menu (docs/08 §3) through the one runner. The menu has closed and
+    /// given the focus back.
     function moreAction(action: string): void {
         moreMenu.close();
-        switch (action) {
-        case "settings":
-            App.openSettings();
-            break;
-        case "help":
-            root.helpOpen = true;
-            break;
-        case "globalLimits":
-            globalLimitsSheet.openFor(false);
-            break;
-        case "altLimits":
-            globalLimitsSheet.openFor(true);
-            break;
-        case "columns":
-            columnsPalette.open();
-            break;
-        case "selectAll":
-            table.forceActiveFocus();
-            table.selectAll();
-            break;
-        case "toggleRail":
-            root.toggleRail();
-            break;
-        }
+        root.runAction(action);
     }
 
     /// Fig. 26's "act" column, for the table only: each key goes through `torrentAction()`,
@@ -1829,7 +1845,7 @@ Item {
             onCloseRequested: root.helpOpen = false
             onRunRequested: action => {
                 root.helpOpen = false;
-                if (!root.runKeymapAction(action))
+                if (!root.runAction(action))
                     root.flashFooterNote(qsTr("a key to press where it applies, not a command"));
             }
         }
