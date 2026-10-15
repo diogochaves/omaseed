@@ -2,6 +2,8 @@
 
 #include "core/TorrentWebSeedsModel.hpp"
 
+#include "core/Format.hpp"
+
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QSignalSpy>
@@ -31,6 +33,8 @@ private Q_SLOTS:
     void urlAtIsEmptyOutOfRange();
     void displayText_data();
     void displayText();
+    void eachUrlSaysWhatTheLogSays();
+    void logLinesOutliveARowChange();
 };
 
 void TestTorrentWebSeedsModel::rowsKeepTheServersOrderAndDropTheScheme()
@@ -138,6 +142,65 @@ void TestTorrentWebSeedsModel::displayText()
     QFETCH(QString, url);
     QFETCH(QString, text);
     QCOMPARE(TorrentWebSeedsModel::displayText(url), text);
+}
+
+// docs/32 W1 (#55): the playground's 404 (a file's URL under a folder seed) and dead mirror,
+// once and ten times, and a seed nothing was logged about.
+void TestTorrentWebSeedsModel::eachUrlSaysWhatTheLogSays()
+{
+    using omaseed::core::WebSeedLogLine;
+    TorrentWebSeedsModel model;
+    model.applyWebSeeds(seeds(R"([{"url":"http://127.0.0.1:26955/pub/"},
+                                  {"url":"https://mirror.invalid/omaseed-webseed-live/"},
+                                  {"url":"https://archive.example.org/pub/"}])"));
+    const QModelIndex first = model.index(0);
+    QCOMPARE(first.data(TorrentWebSeedsModel::StatusErrorRole).toString(), QString());
+    QCOMPARE(first.data(TorrentWebSeedsModel::StatusMetaRole).toString(),
+             QStringLiteral("no errors logged"));
+
+    const QDateTime at = QDateTime::currentDateTime().addSecs(-60);
+    QList<WebSeedLogLine> lines{{QStringLiteral("http://127.0.0.1:26955/pub/log55-webseed.bin"),
+                                 QStringLiteral("404 File not found"),
+                                 at}};
+    for (int i = 0; i < 10; ++i)
+        lines.append({QStringLiteral("https://mirror.invalid/omaseed-webseed-live/"),
+                      QStringLiteral("host not found"),
+                      at.addSecs(i)});
+    QSignalSpy changed(&model, &TorrentWebSeedsModel::dataChanged);
+    model.setLogLines(lines);
+    QCOMPARE(changed.count(), 2); // the third row says what it said
+
+    QCOMPARE(first.data(TorrentWebSeedsModel::StatusErrorRole).toString(),
+             QStringLiteral("404 File not found"));
+    QCOMPARE(first.data(TorrentWebSeedsModel::StatusMetaRole).toString(),
+             omaseed::core::Format::relativeTime(at));
+    QCOMPARE(model.index(1).data(TorrentWebSeedsModel::StatusErrorRole).toString(),
+             QStringLiteral("host not found"));
+    QCOMPARE(model.index(1).data(TorrentWebSeedsModel::StatusMetaRole).toString(),
+             QStringLiteral("10 times, last %1")
+                 .arg(omaseed::core::Format::relativeTime(at.addSecs(9))));
+    QCOMPARE(model.index(2).data(TorrentWebSeedsModel::StatusMetaRole).toString(),
+             QStringLiteral("no errors logged"));
+    QCOMPARE(model.roleNames().value(TorrentWebSeedsModel::StatusErrorRole),
+             QByteArray("statusError"));
+
+    // The same lines again: nothing to repaint.
+    model.setLogLines(lines);
+    QCOMPARE(changed.count(), 2);
+}
+
+// The pane clears the rows on every selection change; the lines, handed over per torrent,
+// apply to the rows that come next.
+void TestTorrentWebSeedsModel::logLinesOutliveARowChange()
+{
+    TorrentWebSeedsModel model;
+    model.setLogLines({{QStringLiteral("https://m.example/a.iso"),
+                        QStringLiteral("timed out"),
+                        QDateTime::currentDateTime()}});
+    model.clear();
+    model.applyWebSeeds(seeds(R"([{"url":"https://m.example/a.iso"}])"));
+    QCOMPARE(model.index(0).data(TorrentWebSeedsModel::StatusErrorRole).toString(),
+             QStringLiteral("timed out"));
 }
 
 QTEST_GUILESS_MAIN(TestTorrentWebSeedsModel)
