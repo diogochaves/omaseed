@@ -781,10 +781,11 @@ TestCase {
         compare(App.pathMapEnabled, !mapping);
 
         // Notifications: four toggle rows (Q16 dropped the tracker one, docs/28 added the
-        // errored one) bound to App.notificationsEnabled, then the low-disk threshold field.
-        // The keyboard is already in the pane — a digit moves the nav without taking it back.
+        // errored one) bound to App.notificationsEnabled, the low-disk threshold field, then
+        // the weekly recap (#24 T8). The keyboard is already in the pane — a digit moves the
+        // nav without taking it back.
         keyClick(Qt.Key_3);
-        compare(modal.paneRowCount, 5);
+        compare(modal.paneRowCount, 6);
         compare(modal.area, "pane");
         keyClick(Qt.Key_Return);
         compare(App.notificationsEnabled["completed"] === true, !completed);
@@ -909,6 +910,28 @@ TestCase {
         compare(field.text, "1");
 
         App.lowDiskThresholdGiB = was;
+    }
+
+    // #24 T8: the weekly recap is the Notifications pane's last row, off until turned on.
+    function test_the_notifications_pane_turns_the_weekly_recap_on() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        compare(App.notificationsEnabled.weekly, false);
+        modal.open();
+        keyClick(Qt.Key_3);
+        compare(modal.paneIndex, 2);
+        const row = testCase.childNamed(modal, "notifyRow-weekly");
+        verify(row, "the Notifications pane has no weekly recap row");
+        compare(row.title, "Weekly recap");
+
+        keyClick(Qt.Key_Tab);
+        for (let i = 0; i < 5; ++i)
+            keyClick(Qt.Key_J);
+        compare(modal.paneCursor, 5);
+        compare(row.hasCursor, true);
+        keyClick(Qt.Key_Return);
+        compare(App.notificationsEnabled.weekly, true);
+        keyClick(Qt.Key_Return);
+        compare(App.notificationsEnabled.weekly, false);
     }
 
     // T4.8: T4.5 could not wire this row, because T4.3 (which owns the flag) had not landed.

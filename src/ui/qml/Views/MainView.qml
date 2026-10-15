@@ -1423,6 +1423,12 @@ Item {
             root.showTorrent(hash);
         }
 
+        /// #24 T8: the weekly recap's "open the console": the seed console on its week.
+        function onShowConsoleRequested(range: string): void {
+            App.console.range = range;
+            root.setView("seed");
+        }
+
         /// docs/25 D3 a: Fig. 10's merge went through. The cursor goes to the torrent, its
         /// details open on Trackers, and the footer says how many were added.
         function onTrackersMerged(hash: string, count: int): void {

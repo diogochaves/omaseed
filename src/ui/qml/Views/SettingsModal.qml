@@ -131,7 +131,7 @@ Item {
         case 1:
             return App.serverList.count + 1; // the servers, then "+ add a server"
         case 2:
-            return 5; // four toggles, then the low-disk threshold field
+            return 6; // four toggles, the low-disk threshold field, the weekly recap (#24 T8)
         case 4:
             // theme, base size, transparency, tray icon, the bar widget (#17), speed alignment,
             // the speed trends (#24 T2), then the rail's scroll hint, surface tint and tracker
@@ -366,6 +366,10 @@ Item {
         }
         if (root.paneIndex === 2) {
             const keys = ["completed", "errored", "serverLost", "diskFull"];
+            if (root.paneCursor === keys.length + 1) { // #24 T8: the weekly recap
+                App.setNotificationEnabled("weekly", !App.notificationsEnabled.weekly);
+                return;
+            }
             if (root.paneCursor >= keys.length) {
                 thresholdField.focusInput();
                 return;
@@ -1695,6 +1699,31 @@ Item {
                                         if (!thresholdField.editing)
                                             root._applyThreshold();
                                     }
+                                }
+                            }
+
+                            // #24 T8 (docs/22 §6, DECISIONS C6): one notice on Sunday evening,
+                            // off by default; its button opens the seed console on 7d.
+                            SettingsRow {
+                                id: weeklyRow
+
+                                Layout.fillWidth: true
+                                description: qsTr("On Sunday evening: what the week gave, its best day, the rare torrents you kept alive. It opens the seed console on the week.")
+                                glyph: Glyphs.statusSeeding
+                                hasCursor: root.area === "pane" && root.paneCursor === 5
+                                objectName: "notifyRow-weekly"
+                                title: qsTr("Weekly recap")
+
+                                onClicked: {
+                                    root.paneCursor = 5;
+                                    root.area = "pane";
+                                    App.setNotificationEnabled("weekly", !App.notificationsEnabled.weekly);
+                                }
+
+                                Toggle {
+                                    checked: App.notificationsEnabled.weekly === true
+
+                                    onToggled: App.setNotificationEnabled("weekly", checked)
                                 }
                             }
 

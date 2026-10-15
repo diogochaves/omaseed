@@ -56,10 +56,15 @@ public:
     /// "<freeText> free". Action "settings". Event class "disk", subject the server id.
     quint32 notifyDiskAlmostFull(const QString &serverId, const QString &freeText);
 
+    /// #24 T8: the weekly recap, `summary` / `body` as WeeklyRecap words them. Action
+    /// "console" ("open the console"), also the click. Event class "recap", subject the
+    /// server id.
+    quint32 notifyWeeklyRecap(const QString &serverId, const QString &summary, const QString &body);
+
 signals:
     /// Fired when the shell reports ActionInvoked for a notice this Notifier sent.
     /// eventClass/subjectId are the values the corresponding notify*() call was made with;
-    /// actionKey is one of open-folder, show, settings.
+    /// actionKey is one of open-folder, show, settings, console.
     void
     actionInvoked(const QString &eventClass, const QString &subjectId, const QString &actionKey);
 

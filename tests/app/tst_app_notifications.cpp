@@ -8,6 +8,7 @@
 #include "core/Format.hpp"
 #include "core/LogFilterModel.hpp"
 #include "core/ProblemLog.hpp"
+#include "core/SeedLedger.hpp"
 #include "core/ServerLog.hpp"
 #include "core/StateFile.hpp"
 #include "core/SyncEngine.hpp"
@@ -185,6 +186,8 @@ private slots:
     void aDismissedFailureStaysDismissedAfterARestart();
     void theLogFaceKeepsItsLevelsPerServer();
     void theDemoHasAWholeLog();
+    void theWeeklyRecapIsOffByDefault();
+    void theWeeklyRecapComesOnceASundayEveningAndOpensTheConsole();
 
 private:
     FakeNotificationBus m_bus;
@@ -800,6 +803,79 @@ void TestAppNotifications::theDemoHasAWholeLog()
     app.logLines()->toggleLevel(ServerLog::Info);
     QVERIFY(omaseed::core::StateFile::readSection(QStringLiteral("log")).isEmpty());
     app.logLines()->toggleLevel(ServerLog::Info);
+}
+
+// #24 T8 (docs/DECISIONS.md C6): a setting, off by default, kept with the other switches.
+void TestAppNotifications::theWeeklyRecapIsOffByDefault()
+{
+    App app;
+    QCOMPARE(app.notificationsEnabled().value(QStringLiteral("weekly")).toBool(), false);
+    app.setNotificationEnabled(QStringLiteral("weekly"), true);
+    QCOMPARE(omaseed::core::StateFile::readSection(QStringLiteral("notifications"))
+                 .value(QStringLiteral("weekly"))
+                 .toBool(),
+             true);
+    App second;
+    QCOMPARE(second.notificationsEnabled().value(QStringLiteral("weekly")).toBool(), true);
+}
+
+void TestAppNotifications::theWeeklyRecapComesOnceASundayEveningAndOpensTheConsole()
+{
+    using omaseed::core::SeedLedger;
+    App app;
+    Notifier notifier(m_bus.connection());
+    app.attachNotifier(&notifier);
+    QDateTime now(QDate(2026, 10, 18), QTime(19, 0)); // a Sunday evening
+    app.setRecapClock([&now]() { return now; });
+
+    // Thursday, 5 GiB given; the poll before it a few seconds earlier, so it is no gap.
+    const qint64 thursday = QDateTime(QDate(2026, 10, 15), QTime(12, 0)).toSecsSinceEpoch();
+    const QString hash = QStringLiteral("a");
+    app.ledger()->observe(thursday - 2, 0, 0, {SeedLedger::TorrentTotals{hash, 0, 0, 1}});
+    app.ledger()->observe(thursday, 5 * kGiB, 0, {SeedLedger::TorrentTotals{hash, 5 * kGiB, 0, 1}});
+
+    app.checkWeeklyRecap();
+    QCOMPARE(m_bus.server()->calls.size(), 0); // off by default
+
+    app.setNotificationEnabled(QStringLiteral("weekly"), true);
+    now = QDateTime(QDate(2026, 10, 17), QTime(20, 0)); // Saturday: not yet
+    app.checkWeeklyRecap();
+    QCOMPARE(m_bus.server()->calls.size(), 0);
+
+    now = QDateTime(QDate(2026, 10, 18), QTime(19, 0));
+    app.checkWeeklyRecap();
+    QCOMPARE(m_bus.server()->calls.size(), 1);
+    const auto &call = m_bus.server()->calls.first();
+    QCOMPARE(call.summary, QStringLiteral("Your week"));
+    // The server's counters were never polled here, so there is no ratio to print.
+    QCOMPARE(call.body,
+             QStringLiteral("%1 given this week\nbest day Thursday")
+                 .arg(omaseed::core::Format::size(5 * kGiB)));
+    QCOMPARE(call.actions,
+             QStringList({QStringLiteral("console"),
+                          QStringLiteral("open the console"),
+                          QStringLiteral("default"),
+                          QStringLiteral("open the console")}));
+
+    // Once a Sunday, and the day it went is kept.
+    now = now.addSecs(3600);
+    app.checkWeeklyRecap();
+    QCOMPARE(m_bus.server()->calls.size(), 1);
+    QCOMPARE(omaseed::core::StateFile::readSection(QStringLiteral("notifications"))
+                 .value(QStringLiteral("weeklyRecapSent"))
+                 .toString(),
+             QStringLiteral("2026-10-18"));
+
+    // Its button (or a click on it) shows the console on 7d.
+    QSignalSpy shown(&app, &App::showConsoleRequested);
+    Q_EMIT notifier.actionInvoked(QStringLiteral("recap"), QString(), QStringLiteral("console"));
+    QCOMPARE(shown.size(), 1);
+    QCOMPARE(shown.first().first().toString(), QStringLiteral("7d"));
+
+    // A week that gave nothing sends nothing.
+    now = now.addDays(7);
+    app.checkWeeklyRecap();
+    QCOMPARE(m_bus.server()->calls.size(), 1);
 }
 
 QTEST_GUILESS_MAIN(TestAppNotifications)

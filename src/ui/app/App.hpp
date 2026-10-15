@@ -53,6 +53,8 @@
 #include "integration/BarWidget.hpp"
 #include "integration/Tray.hpp"
 
+#include <QDate>
+#include <QDateTime>
 #include <QHash>
 #include <QJsonObject>
 #include <QObject>
@@ -331,15 +333,21 @@ public:
     /// `xdg` reveals a completed torrent's folder ("open folder"). Not owned.
     void attachXdg(omaseed::integration::Xdg *xdg);
 
-    /// Three booleans QML can read as `enabled.completed`, `.serverLost`, `.diskFull`;
-    /// `serverLost` covers both the lost and the back notice. Persisted under
-    /// `"notifications"` in `~/.config/omaseed/state.json`, default true. An older file's
-    /// `trackerError` key is ignored.
+    /// Booleans QML can read as `enabled.completed`, `.errored`, `.serverLost`, `.diskFull`
+    /// and `.weekly`; `serverLost` covers both the lost and the back notice. Persisted under
+    /// `"notifications"` in `~/.config/omaseed/state.json`, default true, but the weekly
+    /// recap's (#24 T8), off. An older file's `trackerError` key is ignored.
     Q_PROPERTY(QVariantMap notificationsEnabled READ notificationsEnabled NOTIFY
                    notificationsEnabledChanged)
     QVariantMap notificationsEnabled() const;
-    /// `key` is one of "completed", "serverLost", "diskFull".
+    /// `key` is one of "completed", "errored", "serverLost", "diskFull", "weekly".
     Q_INVOKABLE void setNotificationEnabled(const QString &key, bool enabled);
+
+    /// #24 T8 (docs/DECISIONS.md C6): sends the weekly recap when it is due (Sunday evening,
+    /// once) and switched on. Every sync asks; tests call it with their own clock.
+    void checkWeeklyRecap();
+    /// The time checkWeeklyRecap() reads; the system clock until set (tests).
+    void setRecapClock(std::function<QDateTime()> clock) { m_recapClock = std::move(clock); }
 
     /// Where "disk almost full" fires, in GiB: default 2, never below 1 (the `diskFull`
     /// toggle is the off switch). Persisted next to the toggles as `lowDiskThresholdGiB` and
@@ -357,6 +365,9 @@ Q_SIGNALS:
     /// "show": raise the window and move the table cursor to this hash. MainView's
     /// `Connections { target: App }` block, when it has one, is where this lands.
     void showTorrentRequested(const QString &hash);
+    /// #24 T8: "open the console" on the weekly recap: raise the window and show the seed
+    /// console on `range`.
+    void showConsoleRequested(const QString &range);
 
 private:
     void loadNotificationToggles();
@@ -399,6 +410,10 @@ private:
     std::optional<std::pair<omaseed::core::ApiError, int>> m_heldLoss;
     bool m_notifyDiskFullEnabled = true;
     bool m_notifyErroredEnabled = true; ///< docs/28 D4 a
+    bool m_notifyWeeklyEnabled = false; ///< #24 T8, off by default
+    QDate m_weeklyRecapSent;            ///< the Sunday the last recap went out
+    bool m_recapForced = false;         ///< OMASEED_RECAP_DUE has had its one recap
+    std::function<QDateTime()> m_recapClock;
     int m_lowDiskThresholdGiB = 2;
     bool m_notificationTogglesLoaded = false;
 

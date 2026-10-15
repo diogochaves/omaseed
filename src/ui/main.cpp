@@ -622,6 +622,7 @@ int main(int argc, char *argv[])
     omaseedApp.attachXdg(&xdg);
     omaseedApp.attachNotifier(&notifier);
     QObject::connect(&omaseedApp, &omaseed::app::App::showTorrentRequested, &app, showWindow);
+    QObject::connect(&omaseedApp, &omaseed::app::App::showConsoleRequested, &app, showWindow);
 
     // The window's visibility drives the poll cadence (1.5 s shown, 5 s hidden). Main.qml
     // forwards its own `visible`; this catches the tray's hide/show of the same window, and

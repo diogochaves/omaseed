@@ -16,6 +16,7 @@
 #include "core/TorrentFolderScan.hpp"
 #include "core/TrackerMerge.hpp"
 #include "core/Version.hpp"
+#include "core/WeeklyRecap.hpp"
 #include "integration/Autostart.hpp"
 #include "integration/Notifier.hpp"
 #include "integration/StatusWriter.hpp"
@@ -1048,6 +1049,10 @@ void App::attachNotifier(omaseed::integration::Notifier *notifier)
                                      retrySeconds);
     });
 
+    // #24 T8: every sync asks whether the weekly recap is due; most answers are one date
+    // compare.
+    connect(m_engine, &SyncEngine::synced, this, &App::checkWeeklyRecap);
+
     connect(notifier,
             &omaseed::integration::Notifier::actionInvoked,
             this,
@@ -1078,6 +1083,7 @@ QVariantMap App::notificationsEnabled() const
     map.insert(QStringLiteral("serverLost"), m_notifyServerLostEnabled);
     map.insert(QStringLiteral("diskFull"), m_notifyDiskFullEnabled);
     map.insert(QStringLiteral("errored"), m_notifyErroredEnabled);
+    map.insert(QStringLiteral("weekly"), m_notifyWeeklyEnabled);
     return map;
 }
 
@@ -1093,6 +1099,8 @@ void App::setNotificationEnabled(const QString &key, bool enabled)
         flag = &m_notifyDiskFullEnabled;
     else if (key == QStringLiteral("errored"))
         flag = &m_notifyErroredEnabled;
+    else if (key == QStringLiteral("weekly"))
+        flag = &m_notifyWeeklyEnabled;
     else
         return;
 
@@ -1132,6 +1140,9 @@ void App::loadNotificationToggles()
     m_notifyServerLostEnabled = section.value(QStringLiteral("serverLost")).toBool(true);
     m_notifyDiskFullEnabled = section.value(QStringLiteral("diskFull")).toBool(true);
     m_notifyErroredEnabled = section.value(QStringLiteral("errored")).toBool(true);
+    m_notifyWeeklyEnabled = section.value(QStringLiteral("weekly")).toBool(false);
+    m_weeklyRecapSent =
+        QDate::fromString(section.value(QStringLiteral("weeklyRecapSent")).toString(), Qt::ISODate);
     m_lowDiskThresholdGiB = qMax(1, section.value(QStringLiteral("lowDiskThresholdGiB")).toInt(2));
     applyLowDiskThreshold();
 }
@@ -1143,6 +1154,9 @@ void App::saveNotificationToggles()
     section.insert(QStringLiteral("serverLost"), m_notifyServerLostEnabled);
     section.insert(QStringLiteral("diskFull"), m_notifyDiskFullEnabled);
     section.insert(QStringLiteral("errored"), m_notifyErroredEnabled);
+    section.insert(QStringLiteral("weekly"), m_notifyWeeklyEnabled);
+    if (m_weeklyRecapSent.isValid())
+        section.insert(QStringLiteral("weeklyRecapSent"), m_weeklyRecapSent.toString(Qt::ISODate));
     section.insert(QStringLiteral("lowDiskThresholdGiB"), m_lowDiskThresholdGiB);
     writeStateSection(QStringLiteral("notifications"), section);
 }
@@ -1261,7 +1275,51 @@ void App::onNotifierActionInvoked(const QString &eventClass,
     if (eventClass == QStringLiteral("server") || eventClass == QStringLiteral("disk")) {
         if (actionKey == QStringLiteral("settings"))
             Q_EMIT openSettings();
+        return;
     }
+
+    // #24 T8: the weekly recap opens the console on the week it told.
+    if (eventClass == QStringLiteral("recap") && actionKey == QStringLiteral("console"))
+        Q_EMIT showConsoleRequested(QStringLiteral("7d"));
+}
+
+void App::checkWeeklyRecap()
+{
+    if (m_notifier.isNull() || m_demoMode)
+        return;
+    loadNotificationToggles();
+    if (!m_notifyWeeklyEnabled)
+        return;
+    const QDateTime now = m_recapClock ? m_recapClock() : QDateTime::currentDateTime();
+    // Dev only: one recap as soon as there is something to tell, whatever the day.
+    const bool forced = !m_recapForced && !env("OMASEED_RECAP_DUE").isEmpty();
+    if (!forced && !WeeklyRecap::due(now, m_weeklyRecapSent))
+        return;
+    if (m_ledger->start() == 0)
+        return; // nothing polled yet in this run or any before it
+
+    const TorrentModel *torrents = m_engine->torrents();
+    QList<const Torrent *> library;
+    library.reserve(torrents->count());
+    for (int i = 0; i < torrents->count(); ++i)
+        library.append(&torrents->torrentAt(i));
+    const GlobalState *state = m_engine->globalState();
+    // What is still buffered counts too: the ledger's queries add it.
+    const WeeklyRecap recap = WeeklyRecap::compute(*m_ledger,
+                                                   library,
+                                                   now.date(),
+                                                   state->allTimeUpload(),
+                                                   state->allTimeDownload(),
+                                                   m_console->rareSeeds());
+    if (forced) {
+        m_recapForced = true;
+    } else {
+        // Asked once a Sunday: a week that gave nothing is not asked again until the next.
+        m_weeklyRecapSent = now.date();
+        saveNotificationToggles();
+    }
+    if (recap.worthSending())
+        m_notifier->notifyWeeklyRecap(m_server.id, recap.summary(), recap.body());
 }
 
 // --- end T4.7 ----------------------------------------------------------------------------------

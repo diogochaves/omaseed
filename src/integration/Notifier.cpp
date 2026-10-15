@@ -259,4 +259,19 @@ void Notifier::onNotificationClosed(uint id, uint /*reason*/)
     emit noticeClosed(eventClass, subjectId);
 }
 
+quint32
+Notifier::notifyWeeklyRecap(const QString &serverId, const QString &summary, const QString &body)
+{
+    const QStringList actions{QStringLiteral("console"), QStringLiteral("open the console")};
+    return sendNotice(QStringLiteral("recap|%1").arg(serverId),
+                      QStringLiteral("recap"),
+                      serverId,
+                      summary,
+                      body,
+                      actions,
+                      kUrgencyLow,
+                      QString(),
+                      QStringLiteral("console"));
+}
+
 } // namespace omaseed::integration
