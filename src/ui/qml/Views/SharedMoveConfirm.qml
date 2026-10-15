@@ -210,8 +210,8 @@ SharedChoice {
                                                                         "move all %1").arg(
                                                                         root.hashes.length + others),
                 "detail": root.autoManagement ? (others === 1 ? qsTr(
-                                                                    "the other torrent gets the same category and management, and moves with it") :
-                                                                qsTr("the other %1 get the same category and management, and move with it").arg(
+                                                                    "the other torrent gets the same category and moves with it") :
+                                                                qsTr("the other %1 get the same category and move with it").arg(
                                                                     others)) : others === 1 ? qsTr(
                                                                                                   "the other torrent gets this category too and moves with it") :
                                                                                               qsTr("the other %1 get this category too and move with it").arg(
