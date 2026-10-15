@@ -2403,6 +2403,7 @@ void App::setUpMetadataLookup()
         m_engine->globalState(), &GlobalState::connectedChanged, this, &App::updateLookupServer);
     connect(
         m_engine->globalState(), &GlobalState::apiVersionChanged, this, &App::updateLookupServer);
+    connect(m_engine, &SyncEngine::firstSyncFinished, this, &App::updateLookupServer);
 }
 
 void App::updateLookupServer()
@@ -2411,10 +2412,21 @@ void App::updateLookupServer()
         m_addLookup->setServer(true, QStringLiteral("2.15.1"));
         return;
     }
-    // F7: the version (D11) and a signed-in session first; a lookup handed over before the
-    // first sync waits for both.
+    // F7: the version (D11), a signed-in session and the library first: a magnet handed over
+    // before the first sync waits for all three, and is checked against the library's private
+    // trackers (D7) only once that is known.
     const GlobalState *state = m_engine->globalState();
-    const bool ready = m_hasServer && state->connected() && !state->apiVersion().isEmpty();
+    const bool ready =
+        m_hasServer && state->connected() && !state->apiVersion().isEmpty() && m_engine->rid() > 0;
+    if (ready && m_addLookup->phase() == MetadataLookup::Phase::Waiting &&
+        m_addLookup->kind() == QLatin1String("magnet")) {
+        const QString host =
+            privateTrackerOf(m_lookupAddable.value(QStringLiteral("trackers")).toStringList());
+        if (!host.isEmpty()) {
+            m_addLookup->startPrivate(m_addLookup->key(), m_addLookup->source(), host);
+            return;
+        }
+    }
     m_addLookup->setServer(ready, state->apiVersion());
 }
 

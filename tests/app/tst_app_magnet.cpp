@@ -184,6 +184,7 @@ private slots:
     void anUntouchedListIsAPlainAdd();
     void renamesAreReplayedAfterTheAdd();
     void aPrivateTrackersMagnetIsNotLookedUp();
+    void aMagnetHandedOverBeforeTheFirstSyncWaitsForTheLibrary();
     void anOldServerKeepsTodaysSheet();
     void aReplacedSessionIsAskedAgain();
 
@@ -398,6 +399,26 @@ void TestAppMagnet::aPrivateTrackersMagnetIsNotLookedUp()
     QTRY_VERIFY_WITH_TIMEOUT(server.count("torrents/fetchMetadata") > 0, 3000);
     app.stopMetadataLookup();
     QCOMPARE(app.addLookup()->phase(), MetadataLookup::Phase::Idle);
+    app.engine()->stop();
+}
+
+// F7: handed over with the app closed, the sheet has the magnet before the server answered
+// and before the library is known; the private trackers are checked once it is.
+void TestAppMagnet::aMagnetHandedOverBeforeTheFirstSyncWaitsForTheLibrary()
+{
+    MagnetServer server;
+    server.withPrivateTorrent = true;
+    App app;
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    qputenv("OMASEED_SERVER_URL",
+            QStringLiteral("http://127.0.0.1:%1").arg(server.serverPort()).toUtf8());
+    app.lookUpMetadata(app.parseAddable(samplerMagnet()));
+    QCOMPARE(app.addLookup()->phase(), MetadataLookup::Phase::Waiting);
+    using namespace std::chrono_literals;
+    app.engine()->setIntervals(100ms, 100ms, 100ms, 100ms);
+    app.start();
+    QTRY_COMPARE_WITH_TIMEOUT(app.addLookup()->phase(), MetadataLookup::Phase::Private, 5000);
+    QCOMPARE(server.count("torrents/fetchMetadata"), 0);
     app.engine()->stop();
 }
 
