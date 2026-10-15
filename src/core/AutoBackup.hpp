@@ -8,8 +8,9 @@
 // say) is reported once through `failed`, then not again until a copy succeeds. Safety copies
 // made before a restore (`before-restore-…`) are never counted or removed here.
 //
-// #32 hook: everything a copy holds comes from `OmaseedBackup::Sources`, whose `extras` the
-// app fills; each server's qBittorrent settings join the copies by adding them there.
+// #32: everything a copy holds comes from `OmaseedBackup::Sources`, whose `extras` App fills
+// with each server's qBittorrent settings (D3 a). Reading those takes the network, so App asks
+// `isDue` first, reads the connected server's, then calls `runNow`.
 
 #include "core/OmaseedBackup.hpp"
 
@@ -49,6 +50,9 @@ public:
     /// When the newest automatic copy was made; invalid when there is none.
     QDateTime lastCopyTime() const;
 
+    /// A copy is due at `now`: the mode is on and the newest copy is that old (or there is
+    /// none, or it is "from the future" after the clock stepped back).
+    bool isDue(qint64 now) const;
     /// Writes a copy when one is due at `now`. True when it wrote one.
     bool runIfDue(qint64 now);
     /// Writes a copy now, whatever the mode. True on success.

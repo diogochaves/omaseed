@@ -371,3 +371,16 @@ omaseed_add_test(tst_serverlog_live LIVE
     SOURCES tst_serverlog_live.cpp
     LIBRARIES omaseed::core
 )
+
+# #32, docs/24 §5–§6: a qBittorrent's settings as a file, and the import's preview.
+omaseed_add_test(tst_qbtsettingsbackup
+    SOURCES tst_qbtsettingsbackup.cpp
+    LIBRARIES omaseed::core
+    DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
+)
+
+# #32: export from the :8081 playground; a round trip between two throwaway qBittorrents.
+omaseed_add_test(tst_qbtsettingsbackup_live LIVE
+    SOURCES tst_qbtsettingsbackup_live.cpp
+    LIBRARIES omaseed::core Qt6::Network
+)

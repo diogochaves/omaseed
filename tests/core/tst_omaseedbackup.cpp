@@ -487,6 +487,37 @@ private slots:
         QCOMPARE(copies.mode(), QStringLiteral("weekly"));
     }
 
+    // #32, D3 a: each server's qBittorrent settings ride along in the copies, through
+    // `extras`; App asks `isDue` before it reads them from the server.
+    void copiesCarryEachServersQbittorrentSettings()
+    {
+        freshHome(QStringLiteral("autoqbt"));
+        backupOfALibrary(kNow - 30 * kDay);
+        OmaseedBackup::Sources sources = m_sources;
+        sources.extras = [] {
+            return QList<TarArchive::Entry>{
+                {QStringLiteral("qbittorrent/abc.json"), QByteArray(R"({"format":1})"), kNow},
+                {QStringLiteral("state.json"), QByteArray("{}"), kNow}}; // never over omaseed's
+        };
+        AutoBackup copies;
+        copies.setSources(sources);
+        QVERIFY(copies.isDue(kNow));
+        QVERIFY(copies.runIfDue(kNow));
+        QVERIFY(!copies.isDue(kNow + kDay));
+        QVERIFY(copies.isDue(kNow + 7 * kDay));
+        QVERIFY(copies.isDue(kNow - kDay)); // the clock stepped back
+        copies.setMode(QStringLiteral("off"));
+        QVERIFY(!copies.isDue(kNow + 70 * kDay));
+
+        const std::optional<OmaseedBackup::Contents> contents =
+            OmaseedBackup::parseFile(copies.copies().constFirst());
+        QVERIFY(contents.has_value());
+        QCOMPARE(contents->extras.size(), 1);
+        QCOMPARE(contents->extras.constFirst().name, QStringLiteral("qbittorrent/abc.json"));
+        QCOMPARE(contents->extras.constFirst().data, QByteArray(R"({"format":1})"));
+        QVERIFY(contents->hasSettings);
+    }
+
     void aFailedCopyIsReportedOnceAndCostsNothing()
     {
         freshHome(QStringLiteral("autofail"));

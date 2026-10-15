@@ -61,16 +61,20 @@ QDateTime AutoBackup::lastCopyTime() const
     return QDateTime::fromString(m.captured(1), QStringLiteral("yyyy-MM-dd-HHmmss"));
 }
 
-bool AutoBackup::runIfDue(qint64 now)
+bool AutoBackup::isDue(qint64 now) const
 {
     const qint64 every = interval();
     if (every <= 0)
         return false;
     const QDateTime last = lastCopyTime();
     // A copy "from the future" (the clock stepped back) counts as due, so copies never stop.
-    if (last.isValid() && last.toSecsSinceEpoch() <= now && now - last.toSecsSinceEpoch() < every)
-        return false;
-    return runNow(now);
+    return !(last.isValid() && last.toSecsSinceEpoch() <= now &&
+             now - last.toSecsSinceEpoch() < every);
+}
+
+bool AutoBackup::runIfDue(qint64 now)
+{
+    return isDue(now) && runNow(now);
 }
 
 bool AutoBackup::runNow(qint64 now)
