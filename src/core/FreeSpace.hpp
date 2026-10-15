@@ -64,6 +64,11 @@ public:
 
     Answer answer(const QString &savePath) const;
 
+    /// The folder on this machine for `serverPath`, when local readings are trusted
+    /// (seesServerDisks()) and the path map, if it has mappings, covers it; "" otherwise.
+    /// The rename guard (#64) reads the server's files through it.
+    QString localPathFor(const QString &serverPath) const;
+
     /// QStorageInfo on `localPath`, or on its nearest existing parent.
     static StorageReading readLocal(const QString &localPath);
 

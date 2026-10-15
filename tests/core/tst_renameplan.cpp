@@ -67,6 +67,7 @@ private slots:
     void landingOnAFileThatStaysCollides();
     void chasingRenamesAreOrdered();
     void aSwapIsACycleAndCollides();
+    void aTargetTakenOnDiskCollides();
 };
 
 void TestRenamePlan::regexGroupsRewriteTheName()
@@ -250,6 +251,27 @@ void TestRenamePlan::aSwapIsACycleAndCollides()
     QCOMPARE(plan.collisions(), 2);
     QVERIFY(!plan.canRun());
     QVERIFY(plan.executionOrder().isEmpty());
+}
+
+void TestRenamePlan::aTargetTakenOnDiskCollides()
+{
+    // #64: the caller says which new paths something else holds on disk; it is asked only
+    // about changed files, and those rows collide as a clash with the torrent's own would.
+    QStringList asked;
+    const auto taken = [&asked](const QString &path) {
+        asked.append(path);
+        return path.endsWith(QStringLiteral("02. Rain on Tin.flac"));
+    };
+    const auto plan = RenamePlan::make(
+        tracks(), {}, regex(QStringLiteral("^(0[12]) - "), QStringLiteral("$1. ")), taken);
+    QCOMPARE(asked,
+             QStringList({album + QStringLiteral("01. Harbour at Dawn.flac"),
+                          album + QStringLiteral("02. Rain on Tin.flac")}));
+    QCOMPARE(plan.rows().at(0).status, RenameRow::Status::Changed);
+    QCOMPARE(plan.rows().at(1).status, RenameRow::Status::Collides);
+    QCOMPARE(plan.rows().at(2).status, RenameRow::Status::Unchanged);
+    QCOMPARE(plan.collisions(), 1);
+    QVERIFY(!plan.canRun());
 }
 
 QTEST_GUILESS_MAIN(TestRenamePlan)

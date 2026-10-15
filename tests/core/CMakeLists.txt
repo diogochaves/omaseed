@@ -43,6 +43,11 @@ omaseed_add_test(tst_renameplan
     LIBRARIES omaseed::core
 )
 
+omaseed_add_test(tst_renamedisk
+    SOURCES tst_renamedisk.cpp
+    LIBRARIES omaseed::core
+)
+
 omaseed_add_test(tst_peerinput
     SOURCES tst_peerinput.cpp
     LIBRARIES omaseed::core

@@ -17,6 +17,8 @@
 //   Linux filesystems tell case apart). Renames that chase each other (a→b while b→c) are
 //   ordered so each target is free when its turn comes (executionOrder()); a cycle (a→b,
 //   b→a) cannot be ordered and collides.
+// - A new path that something else already holds on disk collides too (#64), when the caller
+//   can tell: `takenOnDisk` (RenameDisk::fileTaken) answers for each changed file's new path.
 //
 // The API renames one file per request, so a plan runs as many requests in executionOrder().
 
@@ -24,6 +26,7 @@
 #include <QString>
 #include <QStringList>
 
+#include <functional>
 #include <utility>
 
 namespace omaseed::core {
@@ -54,8 +57,10 @@ struct RenameRow
 class RenamePlan
 {
 public:
-    static RenamePlan
-    make(const QStringList &paths, const QStringList &otherPaths, const RenameOptions &options);
+    static RenamePlan make(const QStringList &paths,
+                           const QStringList &otherPaths,
+                           const RenameOptions &options,
+                           const std::function<bool(const QString &)> &takenOnDisk = {});
 
     QList<RenameRow> rows() const { return m_rows; }
     /// The regex's own complaint when it does not compile; empty otherwise.

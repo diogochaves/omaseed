@@ -72,6 +72,7 @@ private slots:
     void remoteFolderUnderTheDefaultUsesItsFigure();
     void remoteOtherFolderIsUnknown();
     void readsARealFolder();
+    void localPathsOnlyWhereTheDisksAreSeen();
 };
 
 void TestFreeSpace::defaultFolderUsesTheServersFigure()
@@ -230,6 +231,31 @@ void TestFreeSpace::readsARealFolder()
 
     QVERIFY(!FreeSpaceProbe::readLocal(QStringLiteral("relative/path")).valid);
     QVERIFY(!FreeSpaceProbe::readLocal(QString()).valid);
+}
+
+void TestFreeSpace::localPathsOnlyWhereTheDisksAreSeen()
+{
+    // #64's rename guard reads the server's files through this: only where #29 trusts them.
+    FakeDisks disks;
+    disks.add(QStringLiteral("/home/d/Downloads"), QStringLiteral("/home"), 1500 * kGiB);
+    FreeSpaceProbe probe(disks.reader());
+    probe.setServer(QStringLiteral("/home/d/Downloads"), 1500 * kGiB, PathMap(), false);
+    QCOMPARE(probe.localPathFor(QStringLiteral("/home/d/Downloads/album/")),
+             QStringLiteral("/home/d/Downloads/album"));
+
+    // Mapped: through the map, and nothing for a path it does not cover.
+    disks.add(QStringLiteral("/mnt/nas/torrents"), QStringLiteral("/mnt/nas"), 900 * kGiB);
+    PathMap map;
+    map.addMapping(QStringLiteral("/data"), QStringLiteral("/mnt/nas"));
+    probe.setServer(QStringLiteral("/data/torrents"), 900 * kGiB, map, true);
+    QCOMPARE(probe.localPathFor(QStringLiteral("/data/torrents/album")),
+             QStringLiteral("/mnt/nas/torrents/album"));
+    QVERIFY(probe.localPathFor(QStringLiteral("/config/album")).isEmpty());
+
+    // Docker on loopback, or a remote server: not seen, so nothing.
+    probe.setServer(QStringLiteral("/downloads"), 1500 * kGiB, PathMap(), false);
+    QVERIFY(!probe.seesServerDisks());
+    QVERIFY(probe.localPathFor(QStringLiteral("/downloads/album")).isEmpty());
 }
 
 QTEST_APPLESS_MAIN(TestFreeSpace)

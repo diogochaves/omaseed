@@ -98,6 +98,14 @@ QString FreeSpaceProbe::localFor(const QString &serverPath) const
     return serverPath;
 }
 
+QString FreeSpaceProbe::localPathFor(const QString &serverPath) const
+{
+    const QString path = normalize(serverPath);
+    if (!m_seesServerDisks || path.isEmpty())
+        return QString();
+    return localFor(path);
+}
+
 FreeSpaceProbe::Answer FreeSpaceProbe::answer(const QString &savePath) const
 {
     const QString path = normalize(savePath);

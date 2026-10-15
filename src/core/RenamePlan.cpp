@@ -49,7 +49,8 @@ bool validName(const QString &name, bool stemEmpty)
 
 RenamePlan RenamePlan::make(const QStringList &paths,
                             const QStringList &otherPaths,
-                            const RenameOptions &options)
+                            const RenameOptions &options,
+                            const std::function<bool(const QString &)> &takenOnDisk)
 {
     RenamePlan plan;
     QRegularExpression pattern;
@@ -117,6 +118,15 @@ RenamePlan RenamePlan::make(const QStringList &paths,
         else
             row.status = RenameRow::Status::Changed;
         plan.m_rows.append(row);
+    }
+
+    // #64: a new path held on disk by a file the torrent does not own; qBittorrent would let
+    // the rename replace it. Checked first, so such a file counts below as staying put.
+    if (takenOnDisk) {
+        for (RenameRow &row : plan.m_rows) {
+            if (row.status == RenameRow::Status::Changed && takenOnDisk(row.newPath))
+                row.status = RenameRow::Status::Collides;
+        }
     }
 
     // Where every file ends up: the others and the unchanged ones where they are, the

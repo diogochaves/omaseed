@@ -47,6 +47,8 @@ qt_add_library(omaseed-core STATIC
     QbtClient.hpp
     QbtReply.cpp
     QbtReply.hpp
+    RenameDisk.cpp
+    RenameDisk.hpp
     RenamePlan.cpp
     RenamePlan.hpp
     SecretStore.cpp
