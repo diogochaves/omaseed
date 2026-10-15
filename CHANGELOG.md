@@ -9,6 +9,13 @@ before it will tag a release.
 
 ### Added
 
+- Rows that are uploading can pulse: a thin green tick at the left of each one, breathing
+  faster the more it sends (Settings › Appearance › Pulse sending rows, off by default). It
+  moves only while omaseed's window is the one in use and holds still when the desktop asks
+  for less motion, which also stills the seed console's halo.
+- A weekly recap: one notice on Sunday evening with what the week gave, the ratio, your
+  streak, the rare torrents you kept alive, what paid back and the best day; it opens the seed
+  console on the week (Settings › Notifications › Weekly recap, off by default).
 - The table's columns resize: drag the right edge of a header cell (the pointer turns into a
   resize arrow), or double-click it to fit the widest cell on screen. Widths are kept per
   server with the rest of the table's layout and grow with the base size; the columns
