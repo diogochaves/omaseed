@@ -347,6 +347,76 @@ private slots:
         QVERIFY(!QFileInfo::exists(m_sources.ledgerPath(QStringLiteral("home-id"))));
     }
 
+    void tableLayoutsFollowTheirServers_data()
+    {
+        QTest::addColumn<bool>("servers");
+        QTest::newRow("servers restored") << true;
+        QTest::newRow("settings only") << false;
+    }
+
+    void tableLayoutsFollowTheirServers()
+    {
+        // #34: state.json's `tables` is keyed by server id, and ids differ between machines.
+        // Each layout goes to its server here; a server here the backup has none for keeps its.
+        QFETCH(bool, servers);
+        const auto layout = [](const QString &sortRole) {
+            return QJsonObject{{QStringLiteral("sortRole"), sortRole}};
+        };
+        const auto sortOf = [](const QJsonObject &tables, const QString &id) {
+            return tables.value(id).toObject().value(QStringLiteral("sortRole")).toString();
+        };
+        freshHome(QStringLiteral("tables-from-") + QString::number(servers));
+        StateFile::writeSection(QStringLiteral("tables"),
+                                QJsonObject{{QStringLiteral("home-id"), layout("size")},
+                                            {QStringLiteral("box-id"), layout("ratio")},
+                                            {QStringLiteral("gone-id"), layout("eta")}});
+        const auto contents = OmaseedBackup::parse(backupOfALibrary(kNow - 50 * kDay));
+        QVERIFY(contents.has_value());
+
+        freshHome(QStringLiteral("tables-to-") + QString::number(servers));
+        ServerStore store;
+        // home under another id; another server under the id seedbox had; one of its own.
+        store.add(server(QStringLiteral("laptop-home"),
+                         QStringLiteral("home"),
+                         QStringLiteral("http://192.168.1.10:8080")));
+        store.add(server(QStringLiteral("box-id"),
+                         QStringLiteral("other"),
+                         QStringLiteral("http://elsewhere:9090")));
+        store.add(server(
+            QStringLiteral("keep-id"), QStringLiteral("kept"), QStringLiteral("http://kept:1")));
+        StateFile::writeSection(QStringLiteral("tables"),
+                                QJsonObject{{QStringLiteral("laptop-home"), layout("name")},
+                                            {QStringLiteral("box-id"), layout("hash")},
+                                            {QStringLiteral("keep-id"), layout("tracker")}});
+
+        OmaseedBackup::Plan plan;
+        plan.servers = servers;
+        const auto outcome = OmaseedBackup::restore(*contents, plan, store, m_sources, kNow);
+        QVERIFY(outcome.has_value());
+
+        const QJsonObject tables = StateFile::readSection(QStringLiteral("tables"));
+        QCOMPARE(sortOf(tables, QStringLiteral("laptop-home")), QStringLiteral("size"));
+        QCOMPARE(sortOf(tables, QStringLiteral("box-id")), QStringLiteral("hash"));
+        QCOMPARE(sortOf(tables, QStringLiteral("keep-id")), QStringLiteral("tracker"));
+        QVERIFY(!tables.contains(QStringLiteral("gone-id")));
+        if (servers) {
+            QCOMPARE(outcome->addedServers.size(), 1);
+            const QString newBox = outcome->addedServers.constFirst();
+            QVERIFY(newBox != QStringLiteral("box-id"));
+            QCOMPARE(store.byId(newBox)->name, QStringLiteral("seedbox"));
+            QCOMPARE(sortOf(tables, newBox), QStringLiteral("ratio"));
+            QCOMPARE(tables.size(), 4);
+        } else {
+            QVERIFY(outcome->addedServers.isEmpty());
+            QCOMPARE(tables.size(), 3);
+        }
+        // The rest of the settings came whole.
+        QCOMPARE(StateFile::readSection(QStringLiteral("appearance"))
+                     .value(QStringLiteral("speedsAlignment"))
+                     .toString(),
+                 QStringLiteral("right"));
+    }
+
     void nothingChangesWhenTheSafetyCopyFails()
     {
         freshHome(QStringLiteral("nosafety-from"));

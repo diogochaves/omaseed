@@ -18,7 +18,9 @@
 // another machine finds the same server: a match keeps its local entry and takes the
 // backup's path maps, the rest are added (and need their login typed once). For history, the
 // longer one wins: the backup's replaces this machine's only when it began earlier, and
-// what it replaces is in the safety copy. Settings replace state.json whole.
+// what it replaces is in the safety copy. Settings replace state.json whole, but for the
+// table layouts (`tables`, keyed by server id): each goes under its server's id here, and a
+// server here that the backup brings no layout for keeps its own (#34).
 //
 // Everything reads and writes the paths in `Sources`, so tests run on temporary directories.
 // The caller (App) flushes and closes the open ledger before restore() and reopens it after.

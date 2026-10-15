@@ -129,6 +129,28 @@ QJsonObject parseObject(const QByteArray &bytes, bool *ok)
     return doc.object();
 }
 
+/// The table layouts a restore writes (`tables` in state.json, keyed by server id, #34): each
+/// of the backup's under the id its server has here, and this machine's own for the servers
+/// here that the backup brings none for. A layout whose server is neither here nor restored
+/// goes: its id could be another server's here.
+QJsonObject restoredTables(const QJsonObject &backup,
+                           const QJsonObject &here,
+                           const QHash<QString, QString> &localIdOf,
+                           const QList<Server> &local)
+{
+    QJsonObject out;
+    for (auto it = backup.constBegin(); it != backup.constEnd(); ++it) {
+        const QString id = localIdOf.value(it.key());
+        if (!id.isEmpty())
+            out.insert(id, it.value());
+    }
+    for (const Server &server : local) {
+        if (!out.contains(server.id) && here.contains(server.id))
+            out.insert(server.id, here.value(server.id));
+    }
+    return out;
+}
+
 } // namespace
 
 int OmaseedBackup::History::days(qint64 now) const
@@ -403,18 +425,39 @@ std::optional<OmaseedBackup::Outcome> OmaseedBackup::restore(const Contents &con
         return std::nullopt;
     }
 
+    // Servers: by address. The backup's id stays when it is free here. Each backup server's
+    // id here is settled first, since the settings' table layouts are keyed by it.
+    const QList<Match> matches = match(contents, store.servers(), sources);
+    QHash<QString, QString> localIdOf;
+    for (const Match &m : matches) {
+        if (!m.localId.isEmpty())
+            localIdOf.insert(m.part.server.id, m.localId);
+        else if (plan.servers)
+            localIdOf.insert(m.part.server.id,
+                             store.byId(m.part.server.id) ? Server::newId() : m.part.server.id);
+    }
+
     if (plan.settings && contents.hasSettings) {
-        const QByteArray bytes = QJsonDocument(contents.state).toJson(QJsonDocument::Indented);
+        const QString tablesKey = QStringLiteral("tables");
+        bool hereOk = false;
+        const QJsonObject here =
+            parseObject(readAll(sources.statePath).value_or(QByteArray()), &hereOk)
+                .value(tablesKey)
+                .toObject();
+        QJsonObject state = contents.state;
+        const QJsonObject tables =
+            restoredTables(state.value(tablesKey).toObject(), here, localIdOf, store.servers());
+        if (tables.isEmpty())
+            state.remove(tablesKey);
+        else
+            state.insert(tablesKey, tables);
+        const QByteArray bytes = QJsonDocument(state).toJson(QJsonDocument::Indented);
         if (!writeAtomically(sources.statePath, bytes, error))
             return std::nullopt;
     }
 
-    // Servers: by address. The backup's id stays when it is free here.
-    const QList<Match> matches = match(contents, store.servers(), sources);
-    QHash<QString, QString> localIdOf;
     for (const Match &m : matches) {
         if (!m.localId.isEmpty()) {
-            localIdOf.insert(m.part.server.id, m.localId);
             if (plan.servers) {
                 if (std::optional<Server> here = store.byId(m.localId)) {
                     here->pathMap = m.part.server.pathMap;
@@ -427,12 +470,12 @@ std::optional<OmaseedBackup::Outcome> OmaseedBackup::restore(const Contents &con
         if (!plan.servers)
             continue;
         Server added = m.part.server;
-        if (store.byId(added.id))
-            added.id = Server::newId();
+        added.id = localIdOf.value(m.part.server.id);
         added.isDefault = false;
-        if (!store.add(added))
+        if (!store.add(added)) {
+            localIdOf.remove(m.part.server.id);
             continue;
-        localIdOf.insert(m.part.server.id, added.id);
+        }
         outcome.addedServers.append(added.id);
     }
     if (plan.servers && store.defaultId().isEmpty() && localIdOf.contains(contents.defaultId))
