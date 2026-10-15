@@ -244,14 +244,16 @@ TestCase {
         compare(App.logLines.markedCount, 0);
     }
 
-    // D13 (L2): from a torrent, its lines; `enter` on a line shows its torrent in the library
-    // with General open; `t` narrows to the cursor line's torrent, `esc` widens.
-    function test_a_torrents_lines_and_enter_goes_back() {
+    // D13 (F1, L2): a torrent's block opens its lines; `enter` on a line shows its torrent in
+    // the library with General open; `t` narrows to the cursor line's torrent, `esc` widens.
+    function test_a_block_opens_its_lines_and_enter_goes_back() {
         const row = testCase.rowOf("Spring (2019) 4K (CC-BY)");
         verify(row >= 0);
         view.table.moveCursorTo(row);
         const hash = view.cursorHash;
-        view.showTorrentLog(hash);
+        const block = findChild(view.details, "failureBlock");
+        verify(block.visible);
+        block.actionTriggered("log");
 
         compare(view.view, "log");
         compare(App.logLines.torrentHash, hash);
@@ -298,6 +300,29 @@ TestCase {
         compare(view.footerNote, "this line names no torrent in the library");
         keyClick(Qt.Key_Return);
         compare(view.view, "log");
+    }
+
+    // An errored torrent's red block has the same link.
+    function test_an_errored_torrents_block_has_the_link_too() {
+        let row = -1;
+        for (let r = 0; r < App.filtered.count && row < 0; ++r) {
+            if ((App.torrentRow(App.filtered.hashAt(r)).problem || {}).found === true)
+                row = r;
+        }
+        verify(row >= 0, "the demo has no errored torrent with a line");
+        view.table.moveCursorTo(row);
+        const hash = view.cursorHash;
+        const block = findChild(view.details, "errorBlock");
+        verify(block.hints.some(hint => hint.action === "log" && hint.label === "its lines in the log"));
+        // Every action shows, on a second line what the first has no room for.
+        const first = findChild(block, "errorActions");
+        const more = findChild(block, "errorActionsMore");
+        tryVerify(() => first.shownCount + (more.visible ? more.model.length : 0) === block.hints.length, 2000,
+                  "an action of the block shows nowhere");
+        block.actionTriggered("log");
+        compare(view.view, "log");
+        compare(App.logLines.torrentHash, hash);
+        verify(App.logLines.count >= 1);
     }
 
     // `w` and `W`: the next and previous warning or critical line.

@@ -83,7 +83,8 @@ TestCase {
         compare(findChild(view, "errorHeadline").text, "The disk is full");
         verify(findChild(view, "errorDetail").text.startsWith("No space left on device, writing "));
         verify(findChild(view, "errorMeta").text.startsWith("qBittorrent's log · "));
-        compare(block.hints.map(hint => hint.action), ["location", "start", "copy"]);
+        // docs/32 D13: and its lines in the log, last.
+        compare(block.hints.map(hint => hint.action), ["location", "start", "copy", "log"]);
         compare(findChild(view, "generalTail").text, "· disk full");
 
         const healthy = testCase.select(testCase.archName);
@@ -111,7 +112,7 @@ TestCase {
         compare(findChild(block, "errorFolder").text, "Its files are still in /data/torrents/movies");
         verify(findChild(block, "errorMeta").text.startsWith("qBittorrent's log · "));
         compare(block.hints.map(hint => (hint.key + " " + hint.label).trim()),
-                ["m set location", "o open folder", "copy the line", "x dismiss"]);
+                ["m set location", "o open folder", "copy the line", "its lines in the log", "x dismiss"]);
 
         // `x` on General asks for the dismissal; on Files it would skip a file instead.
         failureSpy.target = view;
@@ -120,6 +121,11 @@ TestCase {
         keyClick("x");
         compare(failureSpy.count, 1);
         compare(failureSpy.signalArguments[0][0], "dismiss");
+
+        // docs/32 D13: "its lines in the log" goes up to the window, which opens the log face.
+        block.actionTriggered("log");
+        compare(failureSpy.count, 2);
+        compare(failureSpy.signalArguments[1][0], "log");
 
         // Dismissed, it is gone from the row for good (docs/32 D3).
         App.dismissFailure(App.details.hash);

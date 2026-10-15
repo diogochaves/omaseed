@@ -19,7 +19,8 @@ Rectangle {
     property string freeText: ""
 
     /// One of the problem's actions: "location", "start", "recheck", "rename"; or "copy". A
-    /// failure's: "location", "folder", "rename", "copy", "dismiss".
+    /// failure's: "location", "folder", "rename", "copy", "dismiss". Either's "log": its lines
+    /// in the log (docs/32 D13).
     signal actionTriggered(string action)
 
     readonly property bool found: root.problem.found === true
@@ -51,6 +52,14 @@ Rectangle {
                           "key": "",
                           "label": qsTr("copy the line"),
                           "action": "copy",
+                          "clickable": true
+                      });
+        // docs/32 D13 (F1, L2): the log face, narrowed to this torrent's lines.
+        if (root.found || root.failure)
+            list.push({
+                          "key": "",
+                          "label": qsTr("its lines in the log"),
+                          "action": "log",
                           "clickable": true
                       });
         // D3, D4: the last, and kept when the pane is too narrow for every hint.
@@ -170,9 +179,24 @@ Rectangle {
         }
 
         KeyHints {
+            id: actions
+
             model: root.hints
             objectName: "errorActions"
             size: "small"
+            width: parent.width
+
+            onHintClicked: (index, hint) => root.actionTriggered(hint.action)
+        }
+
+        // What the first line had no room for, on a second: in the pane's default width the
+        // keyless "copy the line" and "its lines in the log" (docs/32 D13) would otherwise be
+        // dropped, and the log link has no key to stand in for it.
+        KeyHints {
+            model: root.hints.filter((hint, index) => actions._shown[index] !== true)
+            objectName: "errorActionsMore"
+            size: "small"
+            visible: actions.shownCount < root.hints.length
             width: parent.width
 
             onHintClicked: (index, hint) => root.actionTriggered(hint.action)

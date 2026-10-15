@@ -1899,7 +1899,9 @@ Item {
                 const hashes = root.cursorHash.length > 0 ? [root.cursorHash] : [];
                 if (hashes.length === 0)
                     return;
-                if (action === "location")
+                if (action === "log")
+                    root.showTorrentLog(hashes[0]);
+                else if (action === "location")
                     locationSheetPanel.openFor(hashes, "");
                 else if (action === "start")
                     App.startTorrents(hashes);
@@ -1912,7 +1914,9 @@ Item {
                 const hash = root.cursorHash;
                 if (hash.length === 0)
                     return;
-                if (action === "location")
+                if (action === "log")
+                    root.showTorrentLog(hash);
+                else if (action === "location")
                     locationSheetPanel.openFor([hash], (App.torrentRow(hash).failure || {}).destination || "");
                 else if (action === "folder")
                     App.openFolder(hash);
