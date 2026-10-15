@@ -7,6 +7,10 @@ import Omaseed.Kit
 // yellow for missing files, as the Status row), the kind glyph, a headline in the bright
 // foreground, qBittorrent's own words under it, the folder, when the log said so, and the
 // actions that fit the cause as clickable key hints. `problem` is TorrentProblem::toMap().
+//
+// docs/32 F1–F3 (#55): the same block for a move, rename or part file that failed while the
+// torrent kept working (`problem` is then TorrentFailure::toMap(), which has a `kind`): always
+// yellow with "!", since nothing is broken, its own actions, and `x dismiss` last.
 Rectangle {
     id: root
 
@@ -14,18 +18,22 @@ Rectangle {
     /// "1.2 GB free" under the folder when the disk is full; empty leaves it out.
     property string freeText: ""
 
-    /// One of the problem's actions: "location", "start", "recheck", "rename"; or "copy".
+    /// One of the problem's actions: "location", "start", "recheck", "rename"; or "copy". A
+    /// failure's: "location", "folder", "rename", "copy", "dismiss".
     signal actionTriggered(string action)
 
     readonly property bool found: root.problem.found === true
+    /// docs/32: a failure rather than an error.
+    readonly property bool failure: (root.problem.kind || "").length > 0
     readonly property bool missingFiles: root.problem.missingFiles === true
-    readonly property color kindColor: root.missingFiles ? Theme.yellow : Theme.red
+    readonly property color kindColor: root.missingFiles || root.failure ? Theme.yellow : Theme.red
     readonly property var hints: {
         const keys = {
             "location": ["m", qsTr("set location")],
             "start": ["p", qsTr("try again")],
             "recheck": ["c", qsTr("recheck")],
-            "rename": ["2", qsTr("rename in Files")]
+            "rename": ["2", qsTr("rename in Files")],
+            "folder": ["o", qsTr("open folder")]
         };
         const list = [];
         for (const action of root.problem.actions || []) {
@@ -44,6 +52,15 @@ Rectangle {
                           "label": qsTr("copy the line"),
                           "action": "copy",
                           "clickable": true
+                      });
+        // D3, D4: the last, and kept when the pane is too narrow for every hint.
+        if (root.failure)
+            list.push({
+                          "key": "x",
+                          "label": qsTr("dismiss"),
+                          "action": "dismiss",
+                          "clickable": true,
+                          "keep": true
                       });
         return list;
     }
@@ -86,7 +103,7 @@ Rectangle {
         color: root.kindColor
         font.family: Theme.fontFamily
         font.pixelSize: Theme.font.body
-        text: root.missingFiles ? Glyphs.statusErrored : Glyphs.close
+        text: root.missingFiles || root.failure ? Glyphs.statusErrored : Glyphs.close
     }
 
     Column {

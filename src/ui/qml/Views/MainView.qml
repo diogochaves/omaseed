@@ -537,9 +537,12 @@ Item {
         case "deleteWithFiles":
             deleteConfirmPanel.openFor(hashes, true);
             break;
-        case "location":
-            locationSheetPanel.openFor(hashes);
+        case "location": {
+            // docs/32 F1: `m` on the one torrent whose move didn't happen tries it again.
+            const failure = hashes.length === 1 ? (App.torrentRow(hashes[0]).failure || {}) : {};
+            locationSheetPanel.openFor(hashes, failure.destination || "");
             break;
+        }
         case "limits":
             limitsSheetPanel.openFor(hashes);
             break;
@@ -1187,6 +1190,13 @@ Item {
         case Qt.Key_N:
             root.torrentAction("copyName");
             return true;
+        case Qt.Key_X:
+            // docs/32 D3: the failure block's `x`, only while the pane shows it on General.
+            if (details.collapsed || details.currentTab !== 0 || root.cursorHash.length === 0
+                    || (App.torrentRow(root.cursorHash).failure || {}).kind === undefined)
+                return false;
+            App.dismissFailure(root.cursorHash);
+            return true;
         default:
             return false;
         }
@@ -1283,6 +1293,11 @@ Item {
         /// T4.3's seam: an action the server refused, on the footer for a few seconds.
         function onActionFailed(action: string, message: string): void {
             root.flashFooterNote(qsTr("%1 failed: %2").arg(action).arg(message));
+        }
+
+        /// docs/32 N1: answered "OK", then failed, says the log.
+        function onLoggedFailure(text: string, hashes: var): void {
+            root.flashFailureNote(text, hashes);
         }
 
         /// #11: a rename-many-files run ended; the footer says how it went.
@@ -1752,11 +1767,24 @@ Item {
                 if (hashes.length === 0)
                     return;
                 if (action === "location")
-                    locationSheetPanel.openFor(hashes);
+                    locationSheetPanel.openFor(hashes, "");
                 else if (action === "start")
                     App.startTorrents(hashes);
                 else if (action === "recheck")
                     App.recheck(hashes);
+            }
+            // docs/32 F1–F3: the failure block, on the torrent it is about. `m` tries the
+            // move again with the destination already in the sheet.
+            onFailureActionRequested: action => {
+                const hash = root.cursorHash;
+                if (hash.length === 0)
+                    return;
+                if (action === "location")
+                    locationSheetPanel.openFor([hash], (App.torrentRow(hash).failure || {}).destination || "");
+                else if (action === "folder")
+                    App.openFolder(hash);
+                else if (action === "dismiss")
+                    App.dismissFailure(hash);
             }
 
             Rectangle {
@@ -1889,11 +1917,55 @@ Item {
                 id: footerNoteText
 
                 Layout.alignment: Qt.AlignVCenter
-                color: Theme.accent
+                // docs/32 N1: a failure the log told of is yellow, as its block is.
+                color: root.footerNoteWarn ? Theme.yellow : Theme.accent
                 objectName: "footerNote"
                 size: "small"
                 text: root.footerNote
                 visible: root.footerNote.length > 0
+            }
+
+            // docs/32 N1: "· i details", while the pane that holds the block is hidden.
+            Item {
+                Layout.alignment: Qt.AlignVCenter
+                implicitHeight: noteHintRow.implicitHeight
+                implicitWidth: noteHintRow.implicitWidth
+                objectName: "footerNoteHint"
+                visible: root.footerNote.length > 0 && root.footerNoteHint && details.collapsed
+
+                Row {
+                    id: noteHintRow
+
+                    spacing: Theme.space(6)
+
+                    Label {
+                        dim: true
+                        size: "small"
+                        text: "·"
+                    }
+
+                    Label {
+                        color: noteHintMouse.containsMouse ? Theme.accent : Theme.foreground
+                        size: "small"
+                        text: "i"
+                    }
+
+                    Label {
+                        color: noteHintMouse.containsMouse ? Theme.accent : Theme.dimForeground
+                        size: "small"
+                        text: qsTr("details")
+                    }
+                }
+
+                MouseArea {
+                    id: noteHintMouse
+
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    hoverEnabled: true
+
+                    onClicked: root.toggleDetails()
+                }
             }
 
             KeyHints {
@@ -1960,12 +2032,26 @@ Item {
 
     /// A few words shown next to the footer's facts for `_footerNoteSeconds`, then cleared.
     property string footerNote: ""
+    /// docs/32 N1: the note is a failure qBittorrent's log told of (yellow), and one about a
+    /// torrent still in the list, whose block `i` shows.
+    property bool footerNoteWarn: false
+    property bool footerNoteHint: false
     readonly property int _footerNoteSeconds: 5
 
     /// `y`/`Y`'s "copied", and (through `Connections` below) `App.actionFailed`.
     function flashFooterNote(text: string): void {
+        root.footerNoteWarn = false;
+        root.footerNoteHint = false;
         root.footerNote = text;
         footerNoteTimer.restart();
+    }
+
+    /// docs/32 N1 (`App.loggedFailure`): a move, rename or delete omaseed asked for didn't
+    /// happen. `hashes` are the torrents it is about that are still there.
+    function flashFailureNote(text: string, hashes: var): void {
+        root.flashFooterNote(text);
+        root.footerNoteWarn = true;
+        root.footerNoteHint = hashes.length > 0;
     }
 
     Timer {

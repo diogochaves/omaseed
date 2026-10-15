@@ -243,6 +243,68 @@ TestCase {
         view.footerNote = "";
     }
 
+    // docs/32 N1 (#55): a move, rename or delete answered "OK" that the log then says failed
+    // is a yellow note, and "· i details" says where its block is while the pane is hidden.
+    function test_a_logged_failure_is_a_yellow_note() {
+        const note = findChild(view, "footerNote");
+        const hint = findChild(view, "footerNoteHint");
+        App.loggedFailure("log55-move.bin didn't move: Permission denied", [App.filtered.hashAt(0)]);
+        compare(view.footerNote, "log55-move.bin didn't move: Permission denied");
+        compare(note.color, Theme.yellow);
+        verify(!hint.visible); // the pane is on show
+        view.toggleDetails();
+        verify(view.details.collapsed);
+        verify(hint.visible);
+        view.toggleDetails();
+
+        // After a delete there is no torrent to show: no hint.
+        App.loggedFailure("x was removed, its files weren't: Permission denied", []);
+        view.toggleDetails();
+        verify(!hint.visible);
+        view.toggleDetails();
+
+        // Any other note is the accent again.
+        view.flashFooterNote("copied");
+        compare(note.color, Theme.accent);
+        view.footerNote = "";
+    }
+
+    function rowOf(name) {
+        for (let row = 0; row < App.filtered.count; ++row) {
+            if (App.torrentRow(App.filtered.hashAt(row)).name === name)
+                return row;
+        }
+        return -1;
+    }
+
+    // docs/32 F1, D3: from the table, `m` on the torrent whose move didn't happen opens the
+    // location sheet on its destination; `x` dismisses the block, but only while General
+    // shows it.
+    function test_m_tries_the_move_again_and_x_dismisses_on_general() {
+        App.loadDemo(16);
+        const row = testCase.rowOf("Spring (2019) 4K (CC-BY)");
+        verify(row >= 0);
+        view.table.moveCursorTo(row);
+        const hash = view.cursorHash;
+        compare(App.torrentRow(hash).failure.kind, "move");
+
+        keyClick("m");
+        verify(view.locationSheetPanel.opened);
+        compare(view.locationSheetPanel.focusables()[0].text, "/mnt/archive/movies");
+        keyClick(Qt.Key_Escape);
+        keyClick(Qt.Key_Escape);
+        verify(!view.locationSheetPanel.opened);
+        view.table.forceActiveFocus();
+
+        view.details.activateTab(1);
+        keyClick("x");
+        compare(App.torrentRow(hash).failure.kind, "move");
+        view.details.activateTab(0);
+        keyClick("x");
+        verify(App.torrentRow(hash).failure.kind === undefined);
+        App.loadDemo(16);
+    }
+
     // ---- `h` / `l` --------------------------------------------------------------------------
     function test_h_and_l_hand_the_focus_across_the_window() {
         verify(view.table.activeFocus);

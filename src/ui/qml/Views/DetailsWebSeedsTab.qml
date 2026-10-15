@@ -9,6 +9,10 @@ import Omaseed.Kit
 // its scheme); the whole URL shows on hover and travels in `y` and `d`. URLs elide in the
 // middle, so the host and the file or folder at the end both survive (docs/11 J1). The pane
 // only shows this tab when the torrent has web seeds.
+//
+// docs/32 W1 (#55): each URL has a second line, what qBittorrent's log says about it: the
+// error's own words in red and when, or "no errors logged" (never "working", which the log
+// can't say). A dot in front is red while there is an error, as the Trackers tab's is.
 Item {
     id: root
 
@@ -29,6 +33,10 @@ Item {
     signal rowMenuRequested(int row, real x, real y)
 
     readonly property int count: root.model ? root.model.count : 0
+    /// The dot's column, as the Trackers tab's.
+    readonly property int dotWidth: Theme.space(10)
+    /// Two lines: the URL and, under it, its status.
+    readonly property int rowHeight: Theme.railRowHeight + Theme.font.small + Theme.space(2)
 
     function ensureVisible() {
         list.positionViewAtIndex(root.cursorIndex, ListView.Contain);
@@ -48,9 +56,15 @@ Item {
         spacing: Theme.space(8)
 
         DetailsHeader {
+            Layout.preferredWidth: root.dotWidth
+            clickable: false
+            text: ""
+        }
+
+        DetailsHeader {
             Layout.fillWidth: true
             clickable: false
-            text: qsTr("URL")
+            text: qsTr("URL · what qBittorrent's log says")
         }
     }
 
@@ -71,9 +85,11 @@ Item {
             required property int index
             required property string text
             required property string url
+            required property string statusError
+            required property string statusMeta
 
             hasCursor: row.index === root.cursorIndex
-            height: Theme.railRowHeight
+            height: root.rowHeight
             objectName: "webSeedRow_" + row.index
             selected: root.selectedKeys.indexOf(row.url) >= 0
             width: ListView.view.width
@@ -93,12 +109,25 @@ Item {
                 onClicked: root.rowMiddleClicked(row.index)
             }
 
-            DetailsCell {
+            Rectangle {
                 anchors.left: parent.left
                 anchors.leftMargin: Theme.space(8)
+                anchors.verticalCenter: urlCell.verticalCenter
+                color: row.statusError.length > 0 ? Theme.red : Theme.muted
+                height: Theme.space(6)
+                objectName: "webSeedDot_" + row.index
+                radius: width / 2
+                width: Theme.space(6)
+            }
+
+            DetailsCell {
+                id: urlCell
+
+                anchors.bottom: parent.verticalCenter
+                anchors.left: parent.left
+                anchors.leftMargin: Theme.space(16) + root.dotWidth
                 anchors.right: parent.right
                 anchors.rightMargin: Theme.space(8)
-                anchors.verticalCenter: parent.verticalCenter
                 alwaysTip: true
                 color: row.textColor
                 elide: Text.ElideMiddle
@@ -106,6 +135,34 @@ Item {
                 text: row.text
                 tip: tip
                 tipText: row.url
+            }
+
+            Row {
+                anchors.left: urlCell.left
+                anchors.right: urlCell.right
+                anchors.top: urlCell.bottom
+                anchors.topMargin: Theme.space(1)
+
+                Text {
+                    id: errorText
+
+                    color: Theme.red
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.font.small
+                    objectName: "webSeedError_" + row.index
+                    text: row.statusError
+                    visible: text.length > 0
+                }
+
+                Text {
+                    color: Theme.dimForeground
+                    elide: Text.ElideRight
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.font.small
+                    objectName: "webSeedStatus_" + row.index
+                    text: row.statusError.length > 0 ? " · " + row.statusMeta : row.statusMeta
+                    width: Math.max(0, urlCell.width - (errorText.visible ? errorText.implicitWidth : 0))
+                }
             }
         }
     }
@@ -141,7 +198,7 @@ Item {
     WheelScroll {
         anchors.fill: list
         flickable: list
-        rowHeight: Theme.railRowHeight
+        rowHeight: root.rowHeight
         z: 2
     }
 

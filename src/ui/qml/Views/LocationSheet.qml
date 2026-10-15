@@ -76,9 +76,10 @@ Sheet {
         root._pick = answer;
     }
 
-    /// Opens on `hashes`, prefilling the field with the cursor torrent's (the first hash's)
-    /// save path.
-    function openFor(hashes: var): void {
+    /// Opens on `hashes`, prefilling the field with `path` when given (docs/32 F1: the
+    /// destination of a move that didn't happen, to try again), else with the cursor
+    /// torrent's (the first hash's) save path.
+    function openFor(hashes: var, path: var): void {
         root.hashes = hashes;
         root._totalSize = 0;
         let prefill = "";
@@ -90,7 +91,7 @@ Sheet {
             if (i === 0)
                 prefill = row.savePath;
         }
-        pathField.text = prefill;
+        pathField.text = typeof path === "string" && path.length > 0 ? path : prefill;
         root._pick = ({});
         root._shared = App.sharedData(hashes, true);
         // "Move both" is picked every time.

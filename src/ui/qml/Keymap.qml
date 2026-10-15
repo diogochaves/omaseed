@@ -881,6 +881,18 @@ QtObject {
             "help": qsTr("open folder"),
             "about": qsTr("Open the cursor row's folder in the file manager")
         },
+        // docs/32 D3 (#55): the failure block's `x`, while the pane shows it on General. A
+        // gesture on that block rather than a command: no title, no palette row.
+        {
+            "area": "table",
+            "key": "x",
+            "action": "dismissFailure",
+            "label": qsTr("dismiss"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
         {
             "area": "table",
             "key": "y",

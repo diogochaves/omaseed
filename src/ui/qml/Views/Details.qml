@@ -111,6 +111,10 @@ Item {
     /// docs/28: an action of General's error block on this torrent: "location", "start",
     /// "recheck" (MainView runs them); "rename" and "copy" are handled here.
     signal problemActionRequested(string action)
+    /// docs/32 (#55): an action of General's failure block on this torrent: "location",
+    /// "folder", "dismiss" (MainView runs them); "rename" and "copy" are handled here. `x` on
+    /// General sends "dismiss" too.
+    signal failureActionRequested(string action)
     /// A few words for the window's footer note ("one file, nothing to filter").
     signal noteRequested(string text)
 
@@ -175,6 +179,27 @@ Item {
         // Tabs writes its own currentIndex on a click, so the binding is set from here
         // rather than declared, and the keys and the mouse cannot drift apart.
         tabs.currentIndex = index;
+    }
+
+    /// docs/32 F2: the Files tab, with the cursor on `path` (a path inside the torrent). The
+    /// list may still be on its way: the cursor's path is set either way, and the rows find
+    /// it when they come (the Files model's reset follows `filesCursorPath`).
+    function showFile(path: string): void {
+        root.activateTab(1);
+        if (path.length === 0)
+            return;
+        root.filesCursorPath = path;
+        const row = root.details.files.rowOfPath(path);
+        if (row >= 0)
+            root.filesCursor = row;
+    }
+
+    /// docs/32 D3: `x` on General, or the block's "dismiss": the failure goes for good.
+    function dismissFailure(): bool {
+        if (root.currentTab !== 0 || !generalTab._hasFailure)
+            return false;
+        root.failureActionRequested("dismiss");
+        return true;
     }
 
     /// `l` on a folder row of the Files tab.
@@ -870,7 +895,9 @@ Item {
             root.setPriority("lower");
             break;
         case Qt.Key_X:
-            root.toggleSkip();
+            // docs/32: on General, `x` dismisses the failure; on Files it still skips a file.
+            if (!root.dismissFailure())
+                root.toggleSkip();
             break;
         case Qt.Key_Y:
             root.copyCurrent();
@@ -1195,6 +1222,16 @@ Item {
                     root.valueCopyRequested(generalTab.problem.line || "", qsTr("the log line"));
                 } else {
                     root.problemActionRequested(action);
+                }
+            }
+            // docs/32 F2: `2` opens Files with the cursor on the file that kept its name.
+            onFailureAction: action => {
+                if (action === "rename") {
+                    root.showFile(generalTab.failure.torrentFile || "");
+                } else if (action === "copy") {
+                    root.valueCopyRequested(generalTab.failure.line || "", qsTr("the log line"));
+                } else {
+                    root.failureActionRequested(action);
                 }
             }
 

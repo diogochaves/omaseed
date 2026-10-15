@@ -88,6 +88,72 @@ TestCase {
 
         const healthy = testCase.select(testCase.archName);
         verify(!findChild(healthy, "errorBlock").visible);
+        verify(!findChild(healthy, "failureBlock").visible);
+    }
+
+    SignalSpy {
+        id: failureSpy
+
+        signalName: "failureActionRequested"
+    }
+
+    // docs/32 F1 (#55): the demo's move of Spring to /mnt/archive/movies didn't happen. General
+    // opens with #54's block in yellow: what didn't happen, why, where the files still are,
+    // and set location, open folder, copy the line, dismiss. No red block: it isn't an error.
+    function test_a_move_that_did_not_happen_says_so_in_yellow() {
+        const view = testCase.select("Spring (2019) 4K (CC-BY)");
+        verify(!findChild(view, "errorBlock").visible);
+        const block = findChild(view, "failureBlock");
+        verify(block.visible);
+        compare(block.kindColor, Theme.yellow);
+        compare(findChild(block, "errorHeadline").text, "The move to archive/movies didn't happen");
+        compare(findChild(block, "errorDetail").text, "Permission denied, moving spring.mkv");
+        compare(findChild(block, "errorFolder").text, "Its files are still in /data/torrents/movies");
+        verify(findChild(block, "errorMeta").text.startsWith("qBittorrent's log · "));
+        compare(block.hints.map(hint => (hint.key + " " + hint.label).trim()),
+                ["m set location", "o open folder", "copy the line", "x dismiss"]);
+
+        // `x` on General asks for the dismissal; on Files it would skip a file instead.
+        failureSpy.target = view;
+        failureSpy.clear();
+        view.forceActiveFocus();
+        keyClick("x");
+        compare(failureSpy.count, 1);
+        compare(failureSpy.signalArguments[0][0], "dismiss");
+
+        // Dismissed, it is gone from the row for good (docs/32 D3).
+        App.dismissFailure(App.details.hash);
+        view.torrent = App.torrentRow(App.details.hash);
+        verify(!findChild(view, "failureBlock").visible);
+    }
+
+    // docs/32 F2: a rename's `2` opens Files with the cursor on the file that kept its name.
+    function test_show_file_puts_the_files_cursor_on_it() {
+        const view = testCase.select(testCase.bbbName);
+        const files = App.details.files;
+        verify(files.count > 2);
+        const path = files.pathAt(2);
+        view.showFile(path);
+        compare(view.currentTab, 1);
+        compare(view.filesCursor, 2);
+        compare(view.filesCursorPath, path);
+        view.activateTab(0);
+    }
+
+    // docs/32 W1: under each URL, what the log says: the demo's geo mirror doesn't resolve,
+    // twice; nothing was logged about the others.
+    function test_each_http_source_says_what_the_log_says() {
+        const view = testCase.select(testCase.archName);
+        view.activateTab(4);
+        waitForRendering(view, 500);
+        compare(findChild(view, "webSeedError_1").text, "host not found");
+        verify(findChild(view, "webSeedStatus_1").text.startsWith(" · 2 times, last "),
+               findChild(view, "webSeedStatus_1").text);
+        compare(findChild(view, "webSeedDot_1").color, Theme.red);
+        verify(!findChild(view, "webSeedError_0").visible);
+        compare(findChild(view, "webSeedStatus_0").text, "no errors logged");
+        compare(findChild(view, "webSeedDot_0").color, Theme.muted);
+        view.activateTab(0);
     }
 
     function test_the_tracker_badge_follows_the_torrent() {

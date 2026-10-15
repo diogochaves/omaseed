@@ -34,9 +34,17 @@ Flickable {
     /// "recheck", "rename", "copy").
     signal problemAction(string action)
 
+    /// docs/32: an action of the failure block ("location", "folder", "rename", "copy",
+    /// "dismiss").
+    signal failureAction(string action)
+
     /// docs/28: why the torrent is in error (TorrentProblem::toMap()), or an empty map.
     readonly property var problem: root.torrent && root.torrent.problem ? root.torrent.problem : ({})
     readonly property bool _hasProblem: (root.problem.headline || "").length > 0
+    /// docs/32 (#55): a move, rename or part file that failed (TorrentFailure::toMap()), or an
+    /// empty map. It comes under the error, in yellow, when there is both.
+    readonly property var failure: root.torrent && root.torrent.failure ? root.torrent.failure : ({})
+    readonly property bool _hasFailure: (root.failure.headline || "").length > 0
 
     /// Every row in reading order (Transfer, Information, Options), each carrying its
     /// `index` there: the list the cursor walks.
@@ -203,6 +211,28 @@ Flickable {
                 problem: root.problem
 
                 onActionTriggered: action => root.problemAction(action)
+            }
+        }
+
+        // docs/32 F1–F3: what didn't happen, under the error when there is one.
+        Item {
+            height: root._hasFailure ? failureBlock.implicitHeight + Theme.space(12) : 0
+            visible: root._hasFailure
+            width: parent.width
+
+            DetailsErrorBlock {
+                id: failureBlock
+
+                anchors.left: parent.left
+                anchors.leftMargin: Theme.space(16)
+                anchors.right: parent.right
+                anchors.rightMargin: Theme.space(16)
+                anchors.top: parent.top
+                anchors.topMargin: Theme.space(12)
+                objectName: "failureBlock"
+                problem: root.failure
+
+                onActionTriggered: action => root.failureAction(action)
             }
         }
 
