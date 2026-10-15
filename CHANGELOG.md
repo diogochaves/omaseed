@@ -17,6 +17,9 @@ before it will tag a release.
 
 ### Fixed
 
+- Turning automatic management on for a torrent whose files another torrent also seeds asks
+  first, as a category change does: "move both" gives the other one the same category and
+  management so the two move together. Before, the other torrent lost its files without a word.
 - Renaming a file or folder no longer replaces a file of that name the torrent doesn't own.
   qBittorrent only checks the torrent's own files and lets the rename overwrite anything else,
   so where omaseed can see the server's disk (a local server, or a mapped path) it refuses such
