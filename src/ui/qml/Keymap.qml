@@ -1732,8 +1732,9 @@ QtObject {
         }
     ]
 
-    /// Fig. 23's read-only guard: all that runs while the server is lost (docs/30 P6).
-    readonly property var offlineActions: ["settings", "help", "hide", "quit"]
+    /// Fig. 23's read-only guard: all that runs while the server is lost (docs/30 P6), and
+    /// the palette itself, which shows the rest dim.
+    readonly property var offlineActions: ["settings", "help", "hide", "quit", "commands"]
 
     /// The entry that is command `action` of `group`, or null: a details tab's from the pane's
     /// shared keys (`titles`), the console's from its face, the rest from the window and table.
@@ -1820,7 +1821,7 @@ QtObject {
     }
 
     /// One palette row for `entry` of `group`: `{action, key, title, meta, via, detail,
-    /// disabled, group, recent}`.
+    /// disabled, group, word, recent}`.
     function _commandRow(entry: var, group: var, ctx: var): var {
         const states = ctx.states || {};
         const state = entry.state !== undefined ? states[entry.state] : undefined;
@@ -1852,6 +1853,7 @@ QtObject {
             "detail": parts.filter(part => part.length > 0).join(" · "),
             "disabled": reason.length > 0,
             "group": group.group,
+            "word": group.word,
             "recent": (ctx.recent || []).indexOf(entry.action)
         };
     }

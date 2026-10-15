@@ -78,6 +78,7 @@ TestCase {
         view.tagPalette.close();
         view.sortPalette.close();
         view.columnsPalette.close();
+        view.commandPalette.close();
         view.moreMenu.close();
         view.filterMenu.close();
         view.globalLimitsSheet.close();
@@ -1110,6 +1111,86 @@ TestCase {
         compare(view.details.menuOpen, false);
         compare(view.details.activeFocus, true, "a Files command left the keyboard elsewhere");
         view.details.activateTab(0);
+    }
+
+    // ---- the command palette's keys (docs/30 D1) -------------------------------------------
+    function test_colon_opens_the_command_palette_from_the_table() {
+        view.table.toggleCursorSelection();
+        keyClick(":");
+        compare(view.commandPalette.opened, true, ": did not open the command palette");
+        compare(view.activeOverlay, view.commandPalette);
+        compare(view.commandPalette.context.area, "table");
+        compare(view.commandPalette.title, "commands for 1 selected");
+        compare(view.commandPalette.query, "", "the : was typed into the query");
+        keyClick(Qt.Key_Escape);
+        compare(view.commandPalette.opened, false);
+        verify(view.table.activeFocus, "the keyboard did not come back to the table");
+    }
+
+    // ctrl+shift+p works from a field too, and from the details pane's Files tab its own
+    // commands lead.
+    function test_ctrl_shift_p_opens_it_from_a_field_and_from_files() {
+        keyClick("/");
+        verify(view.hero.searchField.editing);
+        keyClick(Qt.Key_P, Qt.ControlModifier | Qt.ShiftModifier);
+        compare(view.commandPalette.opened, true, "ctrl+shift+p did not open it from the field");
+        view.commandPalette.close();
+        view.focusHome();
+
+        testCase._cursorOn("Big Buck Bunny 4K (CC-BY)");
+        view.details.activateTab(1);
+        view.details.forceActiveFocus();
+        keyClick(":");
+        compare(view.commandPalette.opened, true);
+        compare(view.commandPalette.context.area, "files");
+        compare(view.commandPalette.items[0].action, "priorityMenu");
+        view.commandPalette.close();
+        view.details.activateTab(0);
+    }
+
+    // enter runs the row as its key would, and it comes first next time (D7).
+    function test_a_command_runs_and_is_remembered() {
+        keyClick(":");
+        testCase._type("set location");
+        compare(view.commandPalette.currentItem.action, "location");
+        keyClick(Qt.Key_Return);
+        compare(view.commandPalette.opened, false);
+        compare(view.locationSheetPanel.opened, true, "set location did not run");
+        view.locationSheetPanel.close();
+        compare(App.recentCommands()[0], "location");
+        keyClick(":");
+        compare(view.commandPalette.items[0].action, "location");
+        view.commandPalette.close();
+    }
+
+    // P4: no match, and enter opens the jump palette with the text.
+    function test_no_match_opens_the_jump_palette_with_the_text() {
+        keyClick(":");
+        testCase._type("bunny");
+        keyClick(Qt.Key_Return);
+        compare(view.commandPalette.opened, false);
+        compare(view.jumpPalette.opened, true);
+        compare(view.jumpPalette.query, "bunny");
+        view.jumpPalette.close();
+    }
+
+    // P6: the lost server's guard lets : through, and the palette shows the rest dim.
+    function test_colon_gets_through_a_lost_server() {
+        view._testServerLost = true;
+        view.focusHome();
+        keyClick(":");
+        compare(view.commandPalette.opened, true, ": did not get through the read-only guard");
+        compare(view.commandPalette.items[0].action, "settings");
+        compare(view.commandPalette.items.filter(row => !row.disabled).length, 4);
+        view.commandPalette.close();
+        view._testServerLost = false;
+    }
+
+    // D9: the ? sheet's row for the palette runs it.
+    function test_the_help_sheet_row_opens_the_palette() {
+        compare(view.runAction("commands"), true);
+        compare(view.commandPalette.opened, true);
+        view.commandPalette.close();
     }
 
     // P6, Fig. 23: only settings, shortcuts, hide and quit get through a lost server.

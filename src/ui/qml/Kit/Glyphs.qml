@@ -26,6 +26,7 @@ QtObject {
     readonly property string altSpeed: "icon:altSpeed" // spec §1 `.btn.icon` alt-speed
     readonly property string settings: "icon:gear"
     readonly property string help: "?"
+    readonly property string commands: ":" // docs/30: the command palette's query row and ⋯ row
     readonly property string search: "/" // spec §1 `.field.search .dim`
     readonly property string jump: "icon:jump" // ⌕, spec §4 Fig. 12 `.palette .q .g`
     readonly property string folder: "icon:folder" // spec Fig. 13 category glyph

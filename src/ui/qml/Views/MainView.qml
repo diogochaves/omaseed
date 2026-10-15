@@ -66,6 +66,7 @@ Item {
     readonly property alias tagPalette: tagPalette
     readonly property alias sortPalette: sortPalette
     readonly property alias columnsPalette: columnsPalette
+    readonly property alias commandPalette: commandPalette
 
     /// The `?` sheet.
     property bool helpOpen: false
@@ -77,6 +78,8 @@ Item {
     // further down, so the one the user is actually looking at is the one that answers.
     /// The overlay on top, or null.
     readonly property var activeOverlay: {
+        if (commandPalette.opened)
+            return commandPalette;
         if (categoryPalette.opened)
             return categoryPalette;
         if (tagPalette.opened)
@@ -681,6 +684,11 @@ Item {
             case Qt.Key_K:
                 jumpPalette.open();
                 break;
+            case Qt.Key_P: // docs/30 D1: ctrl+shift+p, the editors' command palette key
+                if (!shift)
+                    return;
+                root.openCommandPalette();
+                break;
             case Qt.Key_Comma: // the desktop's settings key, beside bare `,` (Keymap "ctrl+,")
                 if (shift)
                     root.openQbtSettings();
@@ -748,6 +756,9 @@ Item {
         case Qt.Key_Question:
         case Qt.Key_F1: // the desktop's help key, same sheet (Keymap's "f1" entry)
             root.helpOpen = true;
+            break;
+        case Qt.Key_Colon: // docs/30 D1: the command palette, vim's command line
+            root.openCommandPalette();
             break;
         case Qt.Key_Slash:
             root.focusSearch();
@@ -915,6 +926,7 @@ Item {
         "settings": () => App.openSettings(),
         "qbtSettings": () => root.openQbtSettings(),
         "help": () => root.helpOpen = true,
+        "commands": () => root.openCommandPalette(),
         "more": () => root.openMoreMenu(),
         "hide": () => root.hideRequested(),
         "quit": () => root.quitRequested(),
@@ -950,6 +962,80 @@ Item {
         "consoleLonger": () => App.console.stepRange(1),
         "consoleEscape": () => root.consoleEscape()
     })
+
+    /// `:` and `ctrl+shift+p` (docs/30, DECISIONS C1): the command palette, on what the
+    /// window shows as it opens.
+    function openCommandPalette(): void {
+        if (root.firstRun)
+            return;
+        commandPalette.context = root.commandContext();
+        commandPalette.open();
+    }
+
+    /// `Keymap.commandRows()`'s context: where the keyboard is, what the torrent commands act
+    /// on (the selection, or the cursor row), the focused tab's marked rows and cursor row, and
+    /// the states the rows read. Plain data only.
+    function commandContext(): var {
+        let area = root.focusArea;
+        if (area === "search")
+            area = details.filterEditing ? "files" : "table";
+        if (area === "details")
+            area = ["general", "files", "trackers", "peers", "webseeds"][details.currentTab] || "general";
+        const targets = root.actionHashes().map(hash => App.torrentRow(hash));
+        const stopped = targets.filter(row => row.stopped === true).length;
+        const cursor = root.cursorHash.length > 0 ? App.torrentRow(root.cursorHash) : ({});
+        let marked = 0;
+        let row = "";
+        let rowIsFolder = false;
+        const has = details.rowCount > 0;
+        if (area === "files") {
+            marked = App.details.files.selectedCount;
+            row = has ? App.details.files.nameAt(details.filesCursor) : "";
+            rowIsFolder = has && App.details.files.isFolder(details.filesCursor);
+        } else if (area === "trackers") {
+            marked = details.trackersSelection.count;
+            row = has ? App.details.trackers.urlAt(details.trackersCursor) : "";
+        } else if (area === "peers") {
+            marked = details.peersSelection.count;
+            row = has ? App.details.peers.addressAt(details.peersCursor) : "";
+        } else if (area === "webseeds") {
+            marked = details.webSeedsSelection.count;
+            row = has ? App.details.webSeeds.urlAt(details.webSeedsCursor) : "";
+        }
+        return {
+            "area": area,
+            "selected": table.selectedCount,
+            "cursor": cursor.name || "",
+            "stopped": stopped,
+            "running": targets.length - stopped,
+            // App.stopStart follows the first hash: `p` starts when that one is stopped.
+            "firstStopped": targets.length > 0 && targets[0].stopped === true,
+            "marked": marked,
+            "row": row,
+            "rowIsFolder": rowIsFolder,
+            "serverLost": root.serverLost,
+            "recent": App.recentCommands(),
+            "states": {
+                "detailsShown": !details.collapsed,
+                "railShown": !App.railHidden,
+                "consoleShown": root.view === "seed",
+                "consoleScoped": App.console.selectionScope || App.console.scoped,
+                "altSpeed": App.globalState.useAltSpeedLimits === true,
+                "placement": App.detailsPlacement,
+                "hideSkipped": App.details.files.hideSkipped === true,
+                "seqDl": cursor.seqDl === true,
+                "firstLast": cursor.firstLastPiecePrio === true,
+                "superSeeding": cursor.superSeeding === true,
+                "autoTmm": cursor.autoTmm === true
+            }
+        };
+    }
+
+    /// The palette's `enter`. Its last five run come first next time (D7).
+    function runCommand(action: string): void {
+        if (root.runAction(action))
+            App.noteCommandRun(action);
+    }
 
     /// `ctrl+b` (docs/08 §5): hide or show the rail. Hiding it never hides a filter: while it
     /// is gone, each active filter shows as a chip in the hero.
@@ -1617,6 +1703,7 @@ Item {
 
                 visible: root.serverLost
 
+                onCommandsRequested: root.openCommandPalette()
                 onHelpRequested: root.helpOpen = true
                 onHideRequested: root.hideRequested()
                 onQuitRequested: root.quitRequested()
@@ -2041,6 +2128,21 @@ Item {
         z: 14
     }
 
+    // docs/30: `:` and `ctrl+shift+p`.
+    CommandPalette {
+        id: commandPalette
+
+        anchors.fill: parent
+        scrollHint: App.railScrollHint
+        z: 14
+
+        onJumpRequested: text => {
+            jumpPalette.open();
+            jumpPalette.query = text;
+        }
+        onRunRequested: action => root.runCommand(action)
+    }
+
     Connections {
         function onSortOrderChanged() {
             root.saveTableState();
@@ -2148,7 +2250,7 @@ Item {
         }
     }
 
-    /// `OMASEED_DEMO_PALETTE=jump|category|tags|sort|columns` opens one palette on top of
+    /// `OMASEED_DEMO_PALETTE=jump|category|tags|sort|columns|commands` opens one palette on top of
     /// `--demo table` for the phase's screenshot procedure; no production path reads it.
     function _openDemoPalette(): void {
         switch (DemoEnv.value("OMASEED_DEMO_PALETTE")) {
@@ -2166,6 +2268,9 @@ Item {
             break;
         case "columns":
             columnsPalette.open();
+            break;
+        case "commands":
+            root.openCommandPalette();
             break;
         default:
             break;

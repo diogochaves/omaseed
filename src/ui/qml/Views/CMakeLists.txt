@@ -22,6 +22,7 @@ qt_add_qml_module(omaseed-views
         CertificateTrust.qml
         ChipSelect.qml
         ColumnsPalette.qml
+        CommandPalette.qml
         Console.qml
         ConsoleHead.qml
         ConsoleRow.qml
