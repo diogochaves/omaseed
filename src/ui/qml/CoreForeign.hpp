@@ -91,13 +91,21 @@
 // TorrentWebSeedsModel (#10):
 //   url string (the whole URL)   text string ("mirror.example/pub/": https:// dropped,
 //   http:// kept)   host string
+//
+// The log face (docs/32 §6, #56): `App.serverLog` is a ServerLog, `App.logLines` the
+// LogFilterModel over it that the face lists:
+//   lineId int   level int (ServerLog.Normal/Info/Warning/Critical)   levelName string
+//   timestamp qint64 (seconds)   timeText string ("09:41:36", "13 Oct 19:52:44")
+//   message string   marked bool (LogFilterModel only)
 // ---------------------------------------------------------------------------------------
 
 #include "core/AddFilesModel.hpp"
 #include "core/CategoryModel.hpp"
 #include "core/FilterCounts.hpp"
 #include "core/GlobalState.hpp"
+#include "core/LogFilterModel.hpp"
 #include "core/SeedConsole.hpp"
+#include "core/ServerLog.hpp"
 #include "core/ServerPreferences.hpp"
 #include "core/ServerStore.hpp"
 #include "core/SyncEngine.hpp"
@@ -179,6 +187,24 @@ struct SeedConsoleForeign
     QML_FOREIGN(omaseed::core::SeedConsole)
     QML_NAMED_ELEMENT(SeedConsole)
     QML_UNCREATABLE("SeedConsole is App.console; it is not created from QML.")
+};
+
+/// docs/32 §6 (#56): the log face's levels are `ServerLog.Normal`, `.Info`, `.Warning` and
+/// `.Critical`.
+struct ServerLogForeign
+{
+    Q_GADGET
+    QML_FOREIGN(omaseed::core::ServerLog)
+    QML_NAMED_ELEMENT(ServerLog)
+    QML_UNCREATABLE("ServerLog is App.serverLog; it is not created from QML.")
+};
+
+struct LogFilterModelForeign
+{
+    Q_GADGET
+    QML_FOREIGN(omaseed::core::LogFilterModel)
+    QML_NAMED_ELEMENT(LogFilterModel)
+    QML_UNCREATABLE("LogFilterModel is App.logLines; it is not created from QML.")
 };
 
 struct ServerPreferencesForeign

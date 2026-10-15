@@ -31,6 +31,19 @@ void LogFilterModel::setLog(ServerLog *log)
         connect(log, &ServerLog::countsChanged, this, &LogFilterModel::countChanged);
         // The ids start again: a mark would land on another line.
         connect(log, &ServerLog::restarted, this, &LogFilterModel::clearMarks);
+        // After the proxy's own handling of the same signal, which was connected first.
+        connect(log,
+                &QAbstractItemModel::rowsInserted,
+                this,
+                [this](const QModelIndex &, int first, int last) {
+                    int shown = 0;
+                    for (int row = first; row <= last; ++row) {
+                        if (filterAcceptsRow(row, {}))
+                            ++shown;
+                    }
+                    if (shown > 0)
+                        Q_EMIT linesArrived(shown);
+                });
     }
     Q_EMIT logChanged();
     Q_EMIT countChanged();
@@ -161,6 +174,13 @@ int LogFilterModel::idAt(int row) const
     if (m_log.isNull() || row < 0 || row >= rowCount())
         return -1;
     return m_log->lineAt(mapToSource(index(row, 0)).row()).id;
+}
+
+QString LogFilterModel::messageAt(int row) const
+{
+    if (m_log.isNull() || row < 0 || row >= rowCount())
+        return {};
+    return m_log->lineAt(mapToSource(index(row, 0)).row()).message;
 }
 
 int LogFilterModel::rowOfId(int id) const

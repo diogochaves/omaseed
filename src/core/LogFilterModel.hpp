@@ -69,6 +69,8 @@ public:
     /// The row of the line with log id `id`, -1 when it isn't shown.
     Q_INVOKABLE int rowOfId(int id) const;
     Q_INVOKABLE int idAt(int row) const;
+    /// The message of line `row`, "" out of range.
+    Q_INVOKABLE QString messageAt(int row) const;
 
     // ---- marks (the click and key rules every list follows) --------------------------------
     int markedCount() const { return int(m_marked.size()); }
@@ -97,6 +99,9 @@ Q_SIGNALS:
     void countChanged();
     void narrowedChanged();
     void marksChanged();
+    /// New lines came in from the server and `count` of them are shown: the face follows
+    /// them, or counts them while paused (D12). A change of filter is never this.
+    void linesArrived(int count);
 
 protected:
     bool filterAcceptsRow(int sourceRow, const QModelIndex &sourceParent) const override;

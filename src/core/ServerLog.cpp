@@ -94,9 +94,6 @@ void ServerLog::onSynced(bool fullUpdate, bool mayRead)
 
 void ServerLog::release()
 {
-    // With no server (a demo) nothing could read them again.
-    if (m_client.isNull())
-        return;
     startOver();
 }
 

@@ -8,6 +8,7 @@
 #include "core/PeerInput.hpp"
 #include "core/ProblemLog.hpp"
 #include "core/RenamePlan.hpp"
+#include "core/ServerLog.hpp"
 #include "core/StateFile.hpp"
 #include "core/TorrentFile.hpp"
 #include "core/TorrentFolderScan.hpp"
@@ -198,6 +199,12 @@ App::App(QObject *parent)
     connect(problems, &ProblemLog::logLinesChanged, this, pushWebSeedLines);
     connect(problems, &ProblemLog::logLinesChanged, this, &App::exportFailureChanged);
     connect(problems, &ProblemLog::dismissedChanged, this, &App::saveDismissedFailures);
+
+    // docs/32 §6 (#56): the log face lists the server's log through its own filter, whose
+    // levels each server keeps.
+    m_logLines = new LogFilterModel(this);
+    m_logLines->setLog(m_engine->serverLog());
+    connect(m_logLines, &LogFilterModel::levelsChanged, this, &App::saveLogLevels);
 
     // #24: every poll goes into the ledger; the console reads it and the library.
     m_console->setSources(m_engine->torrents(),
@@ -470,6 +477,7 @@ void App::startEngine()
         return;
     openLedger();
     loadDismissedFailures();
+    loadLogLevels();
     m_engine->start();
 }
 
@@ -501,6 +509,36 @@ void App::saveDismissedFailures()
             m_server.id,
             QJsonObject{{QStringLiteral("dismissed"), QJsonArray::fromStringList(keys)}});
     writeStateSection(QStringLiteral("failures"), section);
+}
+
+// --- docs/32 §6 (#56): the log face ---------------------------------------------------------
+
+ServerLog *App::serverLog() const
+{
+    return m_engine->serverLog();
+}
+
+void App::loadLogLevels()
+{
+    const QJsonValue levels = stateSection(QStringLiteral("log"))
+                                  .value(m_server.id)
+                                  .toObject()
+                                  .value(QStringLiteral("levels"));
+    m_loadingLogLevels = true;
+    m_logLines->setLevels(levels.isDouble() ? levels.toInt() : 15);
+    m_loadingLogLevels = false;
+}
+
+void App::saveLogLevels()
+{
+    if (m_loadingLogLevels || m_demoMode || !m_hasServer || m_server.id.isEmpty())
+        return;
+    QJsonObject section = stateSection(QStringLiteral("log"));
+    if (m_logLines->levels() == 15)
+        section.remove(m_server.id);
+    else
+        section.insert(m_server.id, QJsonObject{{QStringLiteral("levels"), m_logLines->levels()}});
+    writeStateSection(QStringLiteral("log"), section);
 }
 
 void App::dismissFailure(const QString &hash)
@@ -570,6 +608,8 @@ void App::applyDemoData(const QJsonObject &maindata)
         // A new demo is a new server's log: nothing dismissed yet (docs/32 D4).
         m_engine->problems()->setDismissed({});
         m_engine->problems()->applyEntries(DemoData::problemLog(maindata));
+        // docs/32 §6 (#56): the log face's lines, as if read from the top.
+        m_engine->serverLog()->applyEntries(DemoData::serverLog(maindata));
     }
 
     qInfo().noquote() << QStringLiteral("demo: %1 fictional torrents, no server")

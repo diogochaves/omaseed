@@ -47,6 +47,11 @@ inline constexpr char kDemoExportDir[] = "/data/torrents/.torrent-copies";
 /// a failed move (kDemoMoveFailure), a dead web seed of Arch's and a failed .torrent copy.
 QJsonArray problemLog(const QJsonObject &maindata);
 
+/// docs/32 §6 (#56): the whole `log/main` for the log face, from id 0: qBittorrent starting
+/// two hours ago, every torrent restored, a few info lines, then problemLog()'s warnings and
+/// one critical line, oldest first.
+QJsonArray serverLog(const QJsonObject &maindata);
+
 /// The hero's numbers of spec §1 Fig. 1 as a `server_state` object: 4.21 MB/s down,
 /// 812 KB/s up, 1.8 TB free, connected.
 QJsonObject serverState();

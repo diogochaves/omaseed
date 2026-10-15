@@ -604,6 +604,58 @@ QJsonArray problemLog(const QJsonObject &maindata)
     return entries;
 }
 
+QJsonArray serverLog(const QJsonObject &maindata)
+{
+    const qint64 now = QDateTime::currentSecsSinceEpoch();
+    const qint64 started = now - 2 * 3600;
+    QList<QJsonObject> lines;
+    const auto add = [&lines](int type, qint64 at, const QString &message) {
+        lines.append(QJsonObject{
+            {QStringLiteral("timestamp"), at},
+            {QStringLiteral("type"), type},
+            {QStringLiteral("message"), message},
+        });
+    };
+    add(1, started, QStringLiteral("qBittorrent v5.2.3 started. Process ID: 4127"));
+    add(1, started, QStringLiteral("Using config directory: /home/you/.config/qBittorrent/"));
+    add(2,
+        started + 1,
+        QStringLiteral("Successfully listening on IP. IP: \"0.0.0.0\". Port: \"TCP/6881\""));
+    add(2,
+        started + 1,
+        QStringLiteral("Successfully listening on IP. IP: \"0.0.0.0\". Port: \"UTP/6881\""));
+    add(1, started + 2, QStringLiteral("Web UI: Now listening on IP: *, port: 8080"));
+    const QJsonObject torrents = maindata.value(QStringLiteral("torrents")).toObject();
+    for (auto it = torrents.constBegin(); it != torrents.constEnd(); ++it) {
+        add(1,
+            started + 3,
+            QStringLiteral("Restored torrent. Torrent: \"%1\"")
+                .arg(it.value().toObject().value(QStringLiteral("name")).toString()));
+    }
+    add(2, started + 5, QStringLiteral("Detected external IP. IP: \"203.0.113.24\""));
+    add(8,
+        now - 1800,
+        QStringLiteral("Failed to listen on IP. IP: \"::\". Port: \"TCP/6881\". Reason: "
+                       "\"Address already in use\""));
+    for (const QJsonValue &value : problemLog(maindata)) {
+        const QJsonObject line = value.toObject();
+        add(line.value(QStringLiteral("type")).toInt(),
+            qint64(line.value(QStringLiteral("timestamp")).toDouble()),
+            line.value(QStringLiteral("message")).toString());
+    }
+    std::stable_sort(lines.begin(), lines.end(), [](const QJsonObject &a, const QJsonObject &b) {
+        return a.value(QStringLiteral("timestamp")).toDouble() <
+               b.value(QStringLiteral("timestamp")).toDouble();
+    });
+    QJsonArray entries;
+    int id = 0;
+    for (QJsonObject &line : lines) {
+        line.insert(QStringLiteral("id"), id++);
+        entries.append(line);
+    }
+    return entries;
+}
+
 QJsonObject maindata(int rows)
 {
     const int count = std::max(1, rows);

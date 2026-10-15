@@ -497,6 +497,15 @@ void TestServerLog::newLinesAreFilteredAsTheyCome()
     QCOMPARE(m_lines->count(), 2);
     QCOMPARE(inserted.count(), 1);
     QCOMPARE(reset.count(), 0);
+    QSignalSpy arrived(m_lines, &LogFilterModel::linesArrived);
+    m_log->applyEntries({entry(8, 4, kFileError), entry(9, 1, kAdded)});
+    QCOMPARE(arrived.count(), 1);
+    QCOMPARE(arrived.first().at(0).toInt(), 1); // one of the two is about other.bin
+    // A change of filter adds rows, but no line arrived.
+    m_lines->clearTorrent();
+    QCOMPARE(arrived.count(), 1);
+    m_log->applyEntries({entry(10, 1, kRenamed)});
+    QCOMPARE(arrived.count(), 2);
 }
 
 void TestServerLog::nextProblemSkipsTheRest()

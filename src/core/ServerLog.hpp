@@ -80,9 +80,9 @@ public:
 
     /// What `log/main` returned, straight in, as a read that started at lastId(): the demo
     /// and the tests feed lines through this.
-    void applyEntries(const QJsonArray &entries);
+    Q_INVOKABLE void applyEntries(const QJsonArray &entries);
     /// The last id read; -1 before the first read, and after a start over.
-    int lastId() const { return m_lastId; }
+    Q_INVOKABLE int lastId() const { return m_lastId; }
 
     int total() const { return int(m_lines.size()); }
     QList<int> levelCounts() const;
@@ -119,8 +119,7 @@ public Q_SLOTS:
     /// One poll was applied: SyncEngine::synced. A full update starts over; while active the
     /// lines after lastId() are read (never when `mayRead` is false: a demo).
     void onSynced(bool fullUpdate, bool mayRead = true);
-    /// The face closed: the lines go, and the next opening reads from the top. Without a
-    /// server (a demo) they stay, since nothing would read them again.
+    /// The face closed: the lines go, and the next opening reads from the top.
     void release();
 
 Q_SIGNALS:

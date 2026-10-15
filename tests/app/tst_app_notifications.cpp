@@ -6,7 +6,9 @@
 // file only checks what App does with those events once they arrive.
 
 #include "core/Format.hpp"
+#include "core/LogFilterModel.hpp"
 #include "core/ProblemLog.hpp"
+#include "core/ServerLog.hpp"
 #include "core/StateFile.hpp"
 #include "core/SyncEngine.hpp"
 #include "core/TorrentModel.hpp"
@@ -181,6 +183,8 @@ private slots:
     void anOldStateFileWithTheTrackerKeyStillLoads();
     void aFailureIsNeverANoticeButTheFooterHearsIt();
     void aDismissedFailureStaysDismissedAfterARestart();
+    void theLogFaceKeepsItsLevelsPerServer();
+    void theDemoHasAWholeLog();
 
 private:
     FakeNotificationBus m_bus;
@@ -744,6 +748,58 @@ void TestAppNotifications::aDismissedFailureStaysDismissedAfterARestart()
     next.engine()->problems()->applyEntries(moveFailedLog());
     QVERIFY(!failureShown(next));
     next.engine()->stop();
+}
+
+// docs/32 D10 (#56): the log face's levels are remembered per server, in state.json's "log".
+void TestAppNotifications::theLogFaceKeepsItsLevelsPerServer()
+{
+    using omaseed::core::ServerLog;
+    FakeQbtServer server;
+    QVERIFY(server.start());
+    server.setMainData({movedMaindata()});
+    qputenv("OMASEED_SERVER_URL", server.url().toString().toUtf8());
+    qputenv("OMASEED_SERVER_NAME", "fake");
+    const auto savedLevels = []() {
+        return omaseed::core::StateFile::readSection(QStringLiteral("log"))
+            .value(QStringLiteral("environment"))
+            .toObject()
+            .value(QStringLiteral("levels"));
+    };
+    {
+        App app;
+        app.start();
+        QVERIFY(waitFor([&] { return app.engine()->torrents()->count() == 1; }));
+        QCOMPARE(app.logLines()->levels(), 15);
+        app.logLines()->toggleLevel(ServerLog::Normal);
+        app.engine()->stop();
+    }
+    QCOMPARE(savedLevels().toInt(), 14);
+
+    App next;
+    next.start();
+    QVERIFY(waitFor([&] { return next.engine()->torrents()->count() == 1; }));
+    QCOMPARE(next.logLines()->levels(), 14);
+    // All four again is the default: nothing kept.
+    next.logLines()->toggleLevel(ServerLog::Normal);
+    QVERIFY(savedLevels().isUndefined());
+    next.engine()->stop();
+}
+
+// docs/32 §6: the demo's log face has lines from qBittorrent's start, its failures among them.
+void TestAppNotifications::theDemoHasAWholeLog()
+{
+    using omaseed::core::ServerLog;
+    App app;
+    app.loadDemo(16);
+    ServerLog *log = app.serverLog();
+    QVERIFY(log->total() > 3);
+    QVERIFY(log->fromStart());
+    QVERIFY(log->levelCounts().at(0) > 0); // normal
+    QVERIFY(log->levelCounts().at(3) > 0); // critical
+    // Not a level the demo turns off: a demo never writes state.json.
+    app.logLines()->toggleLevel(ServerLog::Info);
+    QVERIFY(omaseed::core::StateFile::readSection(QStringLiteral("log")).isEmpty());
+    app.logLines()->toggleLevel(ServerLog::Info);
 }
 
 QTEST_GUILESS_MAIN(TestAppNotifications)

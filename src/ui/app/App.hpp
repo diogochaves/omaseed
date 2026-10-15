@@ -29,6 +29,7 @@
 #include "core/FilterCounts.hpp"
 #include "core/FreeSpace.hpp"
 #include "core/GlobalState.hpp"
+#include "core/LogFilterModel.hpp"
 #include "core/OmaseedBackup.hpp"
 #include "core/QbtClient.hpp"
 #include "core/RenameDisk.hpp"
@@ -728,6 +729,22 @@ private:
     /// The live server's dismissed failures from state.json into ProblemLog, and back.
     void loadDismissedFailures();
     void saveDismissedFailures();
+
+    // --- docs/32 §6 (#56): the log face ------------------------------------------------------
+public:
+    /// qBittorrent's whole log, read while the face shows (QML sets its `active`).
+    Q_PROPERTY(omaseed::core::ServerLog *serverLog READ serverLog CONSTANT)
+    omaseed::core::ServerLog *serverLog() const;
+    /// The lines the face lists. Its levels (D10) are kept in state.json (`"log"`), per server.
+    Q_PROPERTY(omaseed::core::LogFilterModel *logLines READ logLines CONSTANT)
+    omaseed::core::LogFilterModel *logLines() const { return m_logLines; }
+
+private:
+    void loadLogLevels();
+    void saveLogLevels();
+    omaseed::core::LogFilterModel *m_logLines = nullptr;
+    bool m_loadingLogLevels = false;
+    // --- end #56 -----------------------------------------------------------------------------
 
 public:
 Q_SIGNALS:
