@@ -137,6 +137,8 @@ TestCase {
     // The harness's own Downloads is empty (tests/qml/CMakeLists.txt): no list, and nothing
     // of the next test's is left behind.
     function cleanup() {
+        App.setLookupTestClock(-1);
+        App.stopMetadataLookup();
         App.setDemoDiskFolder("");
         App.downloadsFolder = "";
         App.scanDownloads();
@@ -858,6 +860,148 @@ TestCase {
         sheet.openWith(testCase.freshMagnet, "clipboard");
         compare(sheet.showFiles, false);
         compare(sheet.filesTree.visible, false);
+    }
+
+    // ---- a magnet's files before the add (docs/29, #44) ---------------------------------
+    // The demo lookup answers the demo .torrent's magnet with its files and looks for ever for
+    // anything else; App.setLookupTestClock walks the board's timings.
+
+    /// The board's minute, frozen at `ms` after the lookup started at 0.
+    function lookupAt(ms) {
+        App.setLookupTestClock(ms);
+    }
+
+    // D1 a, F2: the magnet's list comes in and the tree is a .torrent's: the head's size, the
+    // free line's need, the Name placeholder. The keyboard stays in the field.
+    function test_a_magnets_files_show_once_its_metadata_is_in() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        sheet.openWith(App.demoMagnet(), "handoff");
+        sheet.sourceField.focusInput();
+        tryVerify(() => sheet.showFiles, 3000, "the demo lookup did not answer");
+        compare(App.addLookup.phase, "done");
+        compare(App.addFiles.fileCount, 8);
+        compare(sheet.filesTree.visible, true);
+        compare(sheet.fetchLine.visible, false);
+        compare(sheet.addable.kind, "magnet");
+        verify(sheet.addable.token.indexOf("meta-") === 0, sheet.addable.token);
+        compare(sheet.subtitle.indexOf("Blender Open Movies · "), 0);
+        verify(sheet.subtitle.indexOf("from magnet link") > 0, sheet.subtitle);
+        compare(sheet.freeLine.needsText.indexOf("needs "), 0);
+        compare(sheet.renameField.placeholder, "Blender Open Movies");
+        compare(sheet.filesTree.activeFocus, false); // the tree does not take the keyboard
+    }
+
+    // F2: the choices made in a magnet's tree travel with the add, as a .torrent's do.
+    function test_a_magnets_file_choices_travel_with_the_add() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        const added = createTemporaryObject(addSpy, testCase, {
+                                                "target": sheet
+                                            });
+        sheet.openWith(App.demoMagnet(), "handoff");
+        tryVerify(() => sheet.showFiles, 3000);
+        App.addFiles.toggleWanted(testCase.rowNamed(sheet, "Sintel/"));
+        sheet.submit(false);
+        compare(added.count, 1);
+        const request = added.signalArguments[0][0];
+        compare(request.kind, "magnet");
+        compare(request.value, App.demoMagnet());
+        compare(request.filePriorities, [1, 1, 1, 0, 0, 1, 1, 1]);
+        compare(request.untilMetadata, false);
+    }
+
+    // D2 a, D3 a: nothing under 0.5 s, then fetching, still looking at 10 s, may never come at
+    // 60 s (yellow), the seconds in the Files head. The rest of the form works throughout.
+    function test_the_wait_goes_through_the_boards_states() {
+        testCase.lookupAt(0);
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        sheet.openWith(testCase.freshMagnet, "clipboard");
+        compare(App.addLookup.phase, "quiet");
+        compare(App.addLookup.source, testCase.freshMagnet);
+        compare(sheet.fetchLine.visible, false);
+
+        testCase.lookupAt(3200);
+        compare(App.addLookup.phase, "fetching");
+        compare(sheet.fetchLine.visible, true);
+        compare(sheet.fetchLine.summaryText, "fetching · 3 s");
+        compare(sheet.fetchLine.headline, "Asking qBittorrent for the file list");
+        compare(sheet.showFiles, false);
+
+        testCase.lookupAt(24000);
+        compare(sheet.fetchLine.summaryText, "still looking · 24 s");
+        compare(sheet.fetchLine.headline, "No peer has sent the file list yet");
+        compare(sheet.fetchLine.glyph, Glyphs.lookupSlow);
+
+        testCase.lookupAt(72000);
+        compare(sheet.fetchLine.summaryText, "no list after 1 min 12 s");
+        compare(sheet.fetchLine.summaryWarn, true);
+        compare(sheet.fetchLine.lines.length, 2);
+        verify(sheet.fetchLine.lines[1].indexOf("even after you close this sheet") > 0);
+        // The free line still waits for the size.
+        compare(sheet.freeLine.needsText, "needs 2.34 GB");
+    }
+
+    // D4 a and D5 a: before the list, add takes every file; add stopped stops it once its list
+    // arrives.
+    function test_add_before_the_list_is_today_s_add() {
+        testCase.lookupAt(0);
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        const added = createTemporaryObject(addSpy, testCase, {
+                                                "target": sheet
+                                            });
+        sheet.openWith(testCase.freshMagnet, "clipboard");
+        testCase.lookupAt(15000);
+        sheet.submit(true);
+        compare(added.count, 1);
+        let request = added.signalArguments[0][0];
+        compare(request.stopped, true);
+        compare(request.untilMetadata, true);
+        compare(request.filePriorities, []);
+        sheet.submit(false);
+        request = added.signalArguments[1][0];
+        compare(request.stopped, false);
+        compare(request.untilMetadata, false);
+    }
+
+    // D6 a: closing lets the lookup go; only the polling stops.
+    function test_closing_lets_the_lookup_go() {
+        testCase.lookupAt(0);
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        sheet.openWith(testCase.freshMagnet, "clipboard");
+        compare(App.addLookup.phase, "quiet");
+        sheet.dismiss();
+        compare(App.addLookup.phase, "idle");
+    }
+
+    // D7 a, F5: the demo library's films come from tracker.example.org, a private tracker: its
+    // magnet is not looked up, and add stopped is a plain stopped add.
+    function test_a_private_trackers_magnet_is_not_looked_up() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        const added = createTemporaryObject(addSpy, testCase, {
+                                                "target": sheet
+                                            });
+        sheet.openWith(testCase.freshMagnet + "&tr=udp%3A%2F%2Ftracker.example.org%3A1337%2Fannounce",
+                       "clipboard");
+        compare(App.addLookup.phase, "private");
+        compare(sheet.fetchLine.visible, true);
+        compare(sheet.fetchLine.summaryText, "private tracker");
+        verify(sheet.fetchLine.lines[0].indexOf("tracker.example.org") > 0, sheet.fetchLine.lines[0]);
+        sheet.submit(true);
+        compare(added.signalArguments[0][0].untilMetadata, false);
+    }
+
+    // D10 a: no lookups in a batch; docs/25 D1 a: a duplicate goes to Fig. 10 before any.
+    function test_a_batch_or_a_duplicate_is_not_looked_up() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        sheet.openWith(testCase.freshMagnet, "clipboard");
+        compare(App.addLookup.phase === "idle", false);
+        sheet.openList(["magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567&dn=b"], "handoff");
+        compare(sheet.batchMode, true);
+        compare(App.addLookup.phase, "idle");
+        compare(sheet.fetchLine.visible, false);
+
+        const other = createTemporaryObject(addSheetComponent, testCase);
+        other.openWith("magnet:?xt=urn:btih:" + testCase.knownHash(), "clipboard");
+        compare(App.addLookup.phase, "idle");
     }
 
     function test_a_torrent_file_shows_its_tree() {

@@ -66,6 +66,11 @@ QtObject {
     readonly property string close: "✕"
     readonly property string rename: "✎" // the add sheet's file tree (manual box M18)
     readonly property string dot: "●"
+    // docs/29 (#44): the add sheet's Files row while a magnet's list is looked up
+    readonly property string lookup: "⋯" // F1 fetching, F7 waiting for the server, F8 a link
+    readonly property string lookupSlow: "◷" // F3 still looking
+    readonly property string lookupNever: "!" // F4 may never come
+    readonly property string privateTracker: "◆" // F5 a private tracker's magnet
 
     // ---- settings rows, batch-2 J8: the rows that had only a typographic dot -----------
     readonly property string scrollHint: "icon:scroll" // Appearance › scroll hint

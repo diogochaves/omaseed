@@ -11,6 +11,7 @@ qt_add_qml_module(omaseed-views
         ActionsMenu.qml
         AddBatchList.qml
         AddDownloadsList.qml
+        AddFetchLine.qml
         AddFilesTree.qml
         FileTick.qml
         AddFreeLine.qml

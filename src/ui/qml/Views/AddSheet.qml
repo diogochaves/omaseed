@@ -22,7 +22,11 @@ import Omaseed.Kit
 // A `.torrent` of more than one file also gets the file picker (docs/11 D1): its tree, read
 // from the metainfo (`App.addFiles`), with a check mark and a priority per file and folder.
 // It is the last row, and it takes the height the window has left, scrolling past that.
-// Magnets have no file list until their metadata arrives, so they get no picker (v2).
+// A magnet, or a link to a `.torrent`, has no file list until qBittorrent fetches its
+// metadata: the sheet asks for it as soon as one is in the field (docs/29 D1, `App.addLookup`),
+// the Files row says how the wait goes (`AddFetchLine`, F1-F8), and the 200 brings the same
+// tree, choices and renames as a `.torrent` (D9 a). `add` never waits for it (D4 a). No
+// lookups in a batch (D10 a).
 //
 // The sheet never talks to the server itself: it emits `addRequested(request)` with the map
 // `App.addTorrent` takes, and listens for `App.addFinished` to close, to move on to the next
@@ -94,6 +98,7 @@ Sheet {
     readonly property alias skipCheckToggle: skipCheckToggle
     readonly property alias freeLine: freeLine
     readonly property alias matchLine: matchLine
+    readonly property alias fetchLine: fetchLine
 
     /// The names in `App.categories` / `App.tags`, as plain string lists for the chip rows.
     /// Both models notify on `count` alone, so it is read first to make this re-evaluate
@@ -187,7 +192,18 @@ Sheet {
     }
 
     readonly property bool showFiles: sheet.addable !== null && sheet.addable.valid === true
-                                      && sheet.addable.kind === "file" && App.addFiles.fileCount > 1
+                                      && (sheet.addable.kind === "file" || (sheet.addable.token || "").length > 0)
+                                      && App.addFiles.fileCount > 1
+    /// docs/29: a magnet or a link whose file list is not in yet, which the lookup is for.
+    readonly property bool _lookable: sheet.addable !== null && sheet.addable.valid === true
+                                      && (sheet.addable.kind === "magnet" || sheet.addable.kind === "url")
+                                      && (sheet.addable.token || "").length === 0
+    /// The Files row holds the lookup's line instead of a tree (F1, F3-F5, F7, F8).
+    readonly property bool _showFetch: !sheet.batchMode && sheet._lookable && !sheet.showFiles && fetchLine.shown
+    /// D5 a: "add stopped" before the list stops it once the list arrives, while the server
+    /// can fetch one (not for a private tracker's magnet, nor below Web API 2.11.9).
+    readonly property bool _untilMetadata: sheet._lookable
+                                           && ["waiting", "quiet", "fetching", "slow", "never"].indexOf(App.addLookup.phase) >= 0
     /// Bytes the add writes (docs/25 §4): the ticked files of a picked `.torrent`, the whole
     /// size of one file or of a magnet that says (`xl=`), and -1 while nobody knows.
     readonly property real neededBytes: {
@@ -689,6 +705,7 @@ Sheet {
     map["sequentialDownload"] = sequentialToggle.checked;
     map["skipChecking"] = skipCheckToggle.checked;
     map["stopped"] = stopped;
+    map["untilMetadata"] = stopped && sheet._untilMetadata;
     return map;
 }
 
@@ -920,8 +937,9 @@ Sheet {
                 /// docs/25 §3: ask the library for this `.torrent`'s files, once per parse.
                 function _findMatches() {
                     const addable = sheet.addable;
-                    const token = addable && addable.valid === true && addable.kind === "file"
-                            && addable.pending !== true ? addable.token : "";
+                    // A `.torrent`'s parse, or a magnet's files once its metadata is in (D9 a).
+                    const token = addable && addable.valid === true && addable.pending !== true
+                            ? (addable.token || "") : "";
                     if (token.length > 0 && sheet._matchToken === token)
                         return;
                     sheet._matchToken = token;
@@ -986,14 +1004,29 @@ Sheet {
                 /// is read, empty it for anything else.
                 function _syncFiles(): void {
                 const addable = sheet.addable;
-                const token = addable && addable.valid === true && addable.kind === "file"
-                && (addable.fileCount || 0) > 1 ? addable.token : "";
+                const token = addable && addable.valid === true
+                && (addable.fileCount || 0) > 1 ? (addable.token || "") : "";
                 if (token === sheet._filesToken)
                 return;
                 sheet._filesToken = token;
                 App.loadAddFiles(token);
                 filesTree.cursorIndex = 0;
             }
+
+                /// docs/29 D1: the magnet or link on show is looked up (once: App keys it by hash),
+                /// unless it is a duplicate, which Fig. 10 takes before any lookup; anything else
+                /// lets the lookup go (D6 a: qBittorrent goes on by itself).
+                function _lookUp(): void {
+                    if (!sheet.opened)
+                        return;
+                    const addable = sheet.addable;
+                    if (sheet.batchMode || !addable || addable.valid !== true || addable.pending === true
+                            || (addable.kind !== "magnet" && addable.kind !== "url") || sheet._duplicateOf(addable)) {
+                        App.stopMetadataLookup();
+                        return;
+                    }
+                    App.lookUpMetadata(addable);
+                }
 
                 /// The category's own save path, so `Save to` follows the chips until it is typed into.
                 function _applyCategorySavePath(): void {
@@ -1075,6 +1108,7 @@ Sheet {
                     if (sheet.opened && !sheet._typing && sheet._checkDuplicate())
                         return;
                     sheet._findMatches();
+                    sheet._lookUp();
                 }
                 // docs/25 §3: `alt+s` is `save there` while a files match is offered. A field
                 // would type the "s", so the fields hand it on (`_fieldShortcuts`); anything
@@ -1085,8 +1119,14 @@ Sheet {
                 }
                 // Each opening looks at Downloads again: the browser may have saved one since.
                 onOpenedChanged: {
-                    if (sheet.opened)
+                    if (sheet.opened) {
                         App.scanDownloads();
+                        sheet._lookUp();
+                    } else {
+                        // D6 a: closing leaves a lookup that has not answered running on the
+                        // server (F4 says so); only the polling stops.
+                        App.stopMetadataLookup();
+                    }
                 }
                 onRejected: sheet.dismiss()
                 onActionTriggered: text => {
@@ -1114,6 +1154,14 @@ Sheet {
                     return;
                     sheet.filesMatches = matches;
                     sheet.matchIndex = 0;
+                }
+
+                    // docs/29 F2: the magnet's (or link's) metadata is in. The keyboard stays where
+                    // it is; the tree, the size and the files match follow from the new map.
+                    function onMetadataFetched(result: var): void {
+                    if (!sheet.opened || sheet.batchMode || !sheet.addable || sheet.addable.value !== result.value)
+                    return;
+                    sheet.addable = result;
                 }
 
                     // The second half of a `.torrent` parse, and the whole answer of the file picker.
@@ -1594,13 +1642,14 @@ Sheet {
                     }
 
                     // Files (docs/11 D1): the `.torrent`'s tree, last so it can take what the
-                    // window leaves; past that it scrolls.
+                    // window leaves; past that it scrolls. A magnet's waits here for its list
+                    // (docs/29 §4).
                     ColumnLayout {
                         id: filesSection
 
                         Layout.fillWidth: true
                         spacing: Theme.space(4)
-                        visible: sheet.showFiles
+                        visible: sheet.showFiles || sheet._showFetch
 
                         RowLayout {
                             id: filesHead
@@ -1616,16 +1665,32 @@ Sheet {
                             }
 
                             Label {
-                                dim: true
+                                color: !sheet.showFiles && fetchLine.summaryWarn ? Theme.yellow : Theme.dimForeground
+                                objectName: "addFilesSummary"
                                 size: "caption"
-                                text: App.addFiles.summaryText
+                                text: sheet.showFiles ? App.addFiles.summaryText : fetchLine.summaryText
                             }
+                        }
+
+                        // docs/29 F1, F3-F5, F7, F8: the lookup's wait, where the tree will be.
+                        AddFetchLine {
+                            id: fetchLine
+
+                            Layout.fillWidth: true
+                            kind: sheet.addable ? sheet.addable.kind : "magnet"
+                            objectName: "addFetchLine"
+                            phase: App.addLookup.phase
+                            privateHost: App.addLookup.privateHost
+                            seconds: App.addLookup.seconds
+                            serverName: App.serverName
+                            visible: sheet._showFetch
                         }
 
                         AddFilesTree {
                             id: filesTree
 
                             Layout.fillWidth: true
+                            visible: sheet.showFiles
                             Layout.preferredHeight: implicitHeight
                             // The header and four rows at least: below that the whole body scrolls.
                             maximumHeight: Math.max(5 * Theme.railRowHeight + 2, sheet._treeRoom)
