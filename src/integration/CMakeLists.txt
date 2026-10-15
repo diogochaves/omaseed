@@ -10,6 +10,8 @@ qt_add_library(omaseed-integration STATIC
     BarWidgetInstaller.hpp
     HyprlandEvents.cpp
     HyprlandEvents.hpp
+    MotionPreference.cpp
+    MotionPreference.hpp
     Notifier.cpp
     Notifier.hpp
     SingleInstance.cpp
