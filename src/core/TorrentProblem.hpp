@@ -137,6 +137,14 @@ struct WebSeedLogLine
 /// Ties log lines to torrents and words them.
 namespace ProblemMatch {
 
+/// Every "…" segment of a log message, in order; a quote left open runs to the end. What
+/// qBittorrent fills in, a torrent's name among it, is always quoted (docs/32 §2).
+QStringList quotedSegments(const QString &message);
+
+/// The 6 lowercase hex characters libtorrent 2.1 starts its text with for `torrent`: of its
+/// v2 hash when it has one, otherwise v1.
+QString hashPrefix(const Torrent &torrent);
+
 /// The torrents among `candidates` that `line` is about. The hash prefix decides first, then
 /// the name, then the file's path under a save, download or content path. When the line
 /// still fits more than one torrent, all of them come back and `ambiguous` is set (D6 a).

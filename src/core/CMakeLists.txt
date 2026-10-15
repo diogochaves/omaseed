@@ -29,6 +29,8 @@ qt_add_library(omaseed-core STATIC
     HomeGuard.hpp
     LibraryMatch.cpp
     LibraryMatch.hpp
+    LogFilterModel.cpp
+    LogFilterModel.hpp
     MagnetLink.cpp
     MagnetLink.hpp
     OmaseedBackup.cpp
@@ -57,6 +59,8 @@ qt_add_library(omaseed-core STATIC
     Server.hpp
     ServerDetector.cpp
     ServerDetector.hpp
+    ServerLog.cpp
+    ServerLog.hpp
     ServerListModel.cpp
     ServerListModel.hpp
     ServerPreferences.cpp

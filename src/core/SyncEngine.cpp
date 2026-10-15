@@ -5,6 +5,7 @@
 #include "core/GlobalState.hpp"
 #include "core/ProblemLog.hpp"
 #include "core/QbtClient.hpp"
+#include "core/ServerLog.hpp"
 #include "core/TagModel.hpp"
 #include "core/TorrentModel.hpp"
 #include "core/TrackerModel.hpp"
@@ -40,11 +41,13 @@ SyncEngine::SyncEngine(QObject *parent)
     , m_globalState(new GlobalState(this))
     , m_counts(new FilterCounts(this))
     , m_problemLog(new ProblemLog(this))
+    , m_serverLog(new ServerLog(this))
     , m_pollTimer(new QTimer(this))
     , m_countdownTimer(new QTimer(this))
 {
     m_counts->setModel(m_torrents);
     m_problemLog->setTorrents(m_torrents);
+    m_serverLog->setTorrents(m_torrents);
 
     m_pollTimer->setSingleShot(true);
     connect(m_pollTimer, &QTimer::timeout, this, &SyncEngine::poll);
@@ -76,6 +79,7 @@ void SyncEngine::setClient(QbtClient *client)
     m_trackers->clear();
     m_globalState->reset();
     m_problemLog->setClient(client);
+    m_serverLog->setClient(client);
 }
 
 void SyncEngine::setVisible(bool visible)
@@ -408,6 +412,7 @@ void SyncEngine::applyData(const QJsonObject &data)
     }
 
     m_problemLog->onSynced(fullUpdate, m_running);
+    m_serverLog->onSynced(fullUpdate, m_running);
     Q_EMIT synced(fullUpdate);
 }
 

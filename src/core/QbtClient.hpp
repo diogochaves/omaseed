@@ -234,6 +234,9 @@ public:
     /// all the server keeps). qBittorrent keeps them in memory: they start again from id 0
     /// when it restarts (docs/28 §2).
     QbtReply<QJsonArray> *logMainProblems(int lastKnownId);
+    /// GET log/main with all four levels, the lines after `lastKnownId` (-1 for all the
+    /// server keeps): the log face (docs/32 §6, #56).
+    QbtReply<QJsonArray> *logMain(int lastKnownId);
     /// GET transfer/speedLimitsMode — true when the alternative limits are on.
     QbtReply<bool> *transferSpeedLimitsMode();
     QbtReply<QByteArray> *transferToggleSpeedLimitsMode(); ///< POST transfer/toggleSpeedLimitsMode

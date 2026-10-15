@@ -336,6 +336,19 @@ QVariantMap TorrentFailure::toMap() const
 
 namespace ProblemMatch {
 
+QStringList quotedSegments(const QString &message)
+{
+    return ::omaseed::core::quotedSegments(message);
+}
+
+QString hashPrefix(const Torrent &torrent)
+{
+    const QString &hash = !torrent.infohashV2.isEmpty()   ? torrent.infohashV2
+                          : !torrent.infohashV1.isEmpty() ? torrent.infohashV1
+                                                          : torrent.hash;
+    return hash.left(6).toLower();
+}
+
 QString lastTwoFolders(const QString &path)
 {
     const QStringList parts =

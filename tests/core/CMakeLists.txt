@@ -325,3 +325,13 @@ omaseed_add_test(tst_problemlog_failures
     SOURCES tst_problemlog_failures.cpp
     LIBRARIES omaseed::core
 )
+
+omaseed_add_test(tst_serverlog
+    SOURCES tst_serverlog.cpp
+    LIBRARIES omaseed::core
+)
+
+omaseed_add_test(tst_serverlog_live LIVE
+    SOURCES tst_serverlog_live.cpp
+    LIBRARIES omaseed::core
+)
