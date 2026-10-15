@@ -50,6 +50,10 @@ Item {
     /// The head's title (`.hd .t b`) and the dim line under it (`.hd .t .m`).
     property string title: ""
     property string subtitle: ""
+    /// The subtitle takes a second line when it needs one, as ConfirmDialog's does, instead
+    /// of being cut at the panel's edge (#66: the `?` sheet's). Off, it stays one line and
+    /// elides (a torrent's name in the add sheet).
+    property bool subtitleWraps: false
     /// The `esc` chip at the right of the head (`.hd .x`).
     property string escText: qsTr("esc")
     /// The panel's maximum width; it shrinks when the window is narrower. Fig. 5 is 600,
@@ -461,9 +465,12 @@ Item {
                         Layout.fillWidth: true
                         dim: true
                         elide: Text.ElideRight
+                        maximumLineCount: root.subtitleWraps ? 2 : 1
+                        objectName: "sheetSubtitle"
                         size: "small"
                         text: root.subtitle
                         visible: root.subtitle.length > 0
+                        wrapMode: root.subtitleWraps ? Text.WordWrap : Text.NoWrap
                     }
                 }
 

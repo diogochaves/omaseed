@@ -194,6 +194,25 @@ TestCase {
         compare(sheet.panel.width, testCase.width - 2 * testCase.padding);
     }
 
+    // #66: a subtitle longer than Fig. 26's 760 head is cut with an ellipsis, or, with
+    // subtitleWraps, takes a second line.
+    function test_a_long_subtitle_elides_or_wraps_onto_a_second_line() {
+        const long = "single letters act on the table \u00b7 capitals are the stronger variant \u00b7 ctrl is app-level \u00b7 : runs any of them by name";
+        const cut = createTemporaryObject(plainSheetComponent, testCase, {
+                                              "subtitle": long
+                                          });
+        const cutLine = findChild(cut, "sheetSubtitle");
+        tryVerify(() => cutLine.truncated, 1000);
+        compare(cutLine.lineCount, 1);
+        const wrapped = createTemporaryObject(plainSheetComponent, testCase, {
+                                                  "subtitle": long,
+                                                  "subtitleWraps": true
+                                              });
+        const line = findChild(wrapped, "sheetSubtitle");
+        tryVerify(() => line.lineCount === 2, 1000);
+        verify(!line.truncated);
+    }
+
     function test_the_padding_is_sixteen() {
         const sheet = createTemporaryObject(plainSheetComponent, testCase);
         compare(sheet.panel.padding, Theme.space(16));
