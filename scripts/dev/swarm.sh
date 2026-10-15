@@ -114,9 +114,30 @@ reannounce() {
     curl -fs -X POST "$PLAY/torrents/reannounce" -d hashes=all >/dev/null || true
 }
 
+# need_play: stop here, with one line, when the playground isn't answering (#53).
+need_play() {
+    curl -fs "$PLAY/app/version" >/dev/null || {
+        echo "the playground (127.0.0.1:$PLAY_PORT) isn't answering: start it with scripts/dev/test-server.sh start" >&2
+        exit 1
+    }
+}
+
+# play_json PATH PYTHON [ARG...]: run PYTHON with the playground's JSON answer to PATH on its
+# stdin. When the playground doesn't answer, one line on stderr and status 1: piping curl
+# straight into python3 handed it an empty string and ended in a traceback (#53).
+play_json() {
+    local path="$1" body
+    shift
+    body="$(curl -fs "$PLAY/$path")" || {
+        echo "the playground (127.0.0.1:$PLAY_PORT) did not answer ${path%%\?*}" >&2
+        return 1
+    }
+    printf '%s' "$body" | python3 -c "$@"
+}
+
 # find NAME [FIELD]: the playground's swarm torrent whose name contains NAME (first match).
 find_torrent() {
-    curl -fs "$PLAY/torrents/info?category=$CATEGORY" | python3 -c '
+    play_json "torrents/info?category=$CATEGORY" '
 import json, sys
 needle, field = sys.argv[1].lower(), sys.argv[2]
 for t in sorted(json.load(sys.stdin), key=lambda t: t["name"]):
@@ -131,7 +152,7 @@ else:
 # would show nothing; force-start it past the playground's two-download queue (fix undoes it).
 wake() {
     local state
-    state="$(curl -fs "$PLAY/torrents/info?hashes=$1" | python3 -c 'import json,sys; print(json.load(sys.stdin)[0]["state"])')"
+    state="$(play_json "torrents/info?hashes=$1" 'import json,sys; print(json.load(sys.stdin)[0]["state"])')"
     case "$state" in
     queued*) curl -fs -X POST "$PLAY/torrents/setForceStart" -d "hashes=$1" -d value=true >/dev/null ;;
     esac
@@ -291,6 +312,7 @@ add_torrent() {
 
 cmd_seed() {
     tracker_running || cmd_start
+    need_play
     mkdir -p "$CONTENT" "$TORRENTS" # reset removed them, and the tracker may still be up
     generate_content
     local unicode="Ünïcødé ✓ Spaces & Symbols (100%) [v2] {test} — a deliberately long torrent name to test eliding everywhere"
@@ -316,8 +338,11 @@ cmd_seed() {
 }
 
 cmd_status() {
-    echo "tracker $(tracker_running && echo up || echo down) · seeder $(curl -fs "$SEEDER/app/version" 2>/dev/null || echo 'not answering')"
-    curl -fs "$PLAY/torrents/info?category=$CATEGORY" | python3 -c '
+    local play
+    play="$(curl -fs "$PLAY/app/version" 2>/dev/null)" || play=down
+    echo "tracker $(tracker_running && echo up || echo down) · seeder $(curl -fs "$SEEDER/app/version" 2>/dev/null || echo 'not answering') · playground $play"
+    [ "$play" != down ] || return 0
+    play_json "torrents/info?category=$CATEGORY" '
 import json, sys
 rows = sorted(json.load(sys.stdin), key=lambda t: t["name"])
 for t in rows:
@@ -334,6 +359,7 @@ cmd_rate() {
 
 cmd_break() {
     local case="${1:-}" name="${2:-}" hash v1 v2
+    case "$case" in tracker | dead | missing | error | checking) need_play ;; esac
     case "$case" in
     stall)
         curl -fs -X POST "$SEEDER/torrents/stop" -d hashes=all >/dev/null
@@ -394,10 +420,11 @@ PY
 }
 
 cmd_fix() {
+    need_play
     control fail null && control extraSeeds null && control extraLeechers null
     curl -fs -X POST "$SEEDER/torrents/start" -d hashes=all >/dev/null
     local hashes
-    hashes="$(curl -fs "$PLAY/torrents/info?category=$CATEGORY" | python3 -c '
+    hashes="$(play_json "torrents/info?category=$CATEGORY" '
 import json, sys
 print("|".join(t["hash"] for t in json.load(sys.stdin)))')"
     if [ -n "$hashes" ]; then
@@ -408,8 +435,8 @@ print("|".join(t["hash"] for t in json.load(sys.stdin)))')"
         local unwritable
         unwritable="$(find_torrent unwritable-fixture hash 2>/dev/null || true)"
         [ -n "$unwritable" ] && curl -fs -X POST "$PLAY/torrents/delete" -d "hashes=$unwritable" -d deleteFiles=false >/dev/null
-        curl -fs -X POST "$PLAY/torrents/recheck" -d "hashes=$(curl -fs "$PLAY/torrents/info?category=$CATEGORY&filter=errored" |
-            python3 -c 'import json,sys; print("|".join(t["hash"] for t in json.load(sys.stdin)))')" >/dev/null || true
+        curl -fs -X POST "$PLAY/torrents/recheck" -d "hashes=$(play_json "torrents/info?category=$CATEGORY&filter=errored" \
+            'import json,sys; print("|".join(t["hash"] for t in json.load(sys.stdin)))')" >/dev/null || true
         curl -fs -X POST "$PLAY/torrents/setForceStart" -d "hashes=$hashes" -d value=false >/dev/null
         curl -fs -X POST "$PLAY/torrents/start" -d "hashes=$hashes" >/dev/null
     fi
@@ -423,7 +450,7 @@ cmd_reset() {
     local hashes
     cmd_leech_stop
     # The playground may be down: the seeder's torrents and the files still go.
-    hashes="$(curl -fs "$PLAY/torrents/info?category=$CATEGORY" | python3 -c '
+    hashes="$(play_json "torrents/info?category=$CATEGORY" '
 import json, sys
 print("|".join(t["hash"] for t in json.load(sys.stdin)))')" || hashes=""
     if [ -n "$hashes" ]; then
@@ -478,14 +505,15 @@ cmd_leech_start() {
     [[ "$rate" =~ ^[0-9]+$ ]] && [ "$rate" -gt 0 ] || { echo "leech start: --rate takes KiB/s, more than 0" >&2; exit 2; }
     tracker_running || cmd_start
     curl -fs "$SEEDER/app/version" >/dev/null || { echo "the seeder on :$SEEDER_PORT does not answer: swarm.sh start" >&2; exit 1; }
-    if ! curl -fs "$PLAY/torrents/info?category=$CATEGORY&filter=completed" |
-        python3 -c 'import json,sys; sys.exit(0 if json.load(sys.stdin) else 1)'; then
+    need_play
+    if ! play_json "torrents/info?category=$CATEGORY&filter=completed" \
+        'import json,sys; sys.exit(0 if json.load(sys.stdin) else 1)'; then
         echo "the playground has no finished swarm torrent to share: swarm.sh seed, and let it download" >&2
         exit 1
     fi
     refresh_tracker
     # The leecher meets only the playground's port; the seeder never hears of it.
-    play_bt="$(curl -fs "$PLAY/app/preferences" | python3 -c 'import json,sys; print(json.load(sys.stdin)["listen_port"])')"
+    play_bt="$(play_json app/preferences 'import json,sys; print(json.load(sys.stdin)["listen_port"])')"
     control isolate "{\"$LEECH_BT_PORT\":[$play_bt]}"
     leecher_server start | sed 's/^/leecher:    /'
     # No queue (the loop decides what runs), several peers from 127.0.0.1, the download cap.
@@ -524,7 +552,7 @@ control_has_isolate() { [ -f "$CONTROL" ] && grep -q '"isolate"' "$CONTROL"; }
 cmd_leech_status() {
     local up mine
     mine="$(curl -fs "$LEECHER/torrents/info" 2>/dev/null)" || mine=""
-    up="$(curl -fs "$PLAY/transfer/info" | python3 -c 'import json,sys; t=json.load(sys.stdin); print(t["up_info_data"], t["up_info_speed"])')" ||
+    up="$(play_json transfer/info 'import json,sys; t=json.load(sys.stdin); print(t["up_info_data"], t["up_info_speed"])' 2>/dev/null)" ||
         up=""
     {
         if leech_running; then echo "leech running (pid $(cat "$LEECH_PID"))"; else echo "leech not running"; fi
