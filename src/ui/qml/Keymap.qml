@@ -25,6 +25,29 @@ import QtQuick
 //   help      the row's short gloss ("stop/start · force"); "" when it leads no row.
 //   about     on a row's entry only: the sentence the sheet prints beside the keys
 //             (docs/08 §4, layout A, after Strata's shape).
+//
+// The command palette (`:`, docs/30, ruled in docs/DECISIONS.md C1) lists the entries that
+// are commands, from `commandRows()`. Those entries carry more fields:
+//   title     what `enter` does, as the palette's row prints it ("force start"); the
+//             footer's `label` is too short out of context (D6). An entry with no title (or
+//             `titles`) is a movement or a gesture, never a palette row.
+//   titleOn   the title while `state` is on ("hide details" rather than "show details").
+//   titles    for the details pane's shared keys: a title per tab ("files", "trackers",
+//             "peers", "webseeds"); the entry is a command in those tabs only. `titlesOn`
+//             likewise.
+//   state     the context's `states` key the row reads: on/off picks the title; a word
+//             ("right") is added to the second line as "now right".
+//   needs     what the row needs to run; `whyNot()` is the rule (docs/30 §5): "" always,
+//             "torrents" a selection or a cursor row, "cursor" a cursor row, "stopped" /
+//             "running" one target to start / stop, "selection" one torrent selected,
+//             "details" the pane on show, and in a details tab "marked" (marked rows or the
+//             cursor's), "row" (the cursor's row), "rows" (any row), "file" (a file, not a
+//             folder, under the cursor).
+//   via       a menu-only action has no key ("key": ""): the path to it ("enter s",
+//             "ctrl+."), printed in the key's place (D3). Key routing, the footer and the `?`
+//             sheet never see an entry with no key.
+//   sharesKey start and stop have no key of their own: `p` runs one or the other (D5), and
+//             the palette prints it on the one it would run now.
 QtObject {
     id: root
 
@@ -54,6 +77,10 @@ QtObject {
             "area": "global",
             "key": "`",
             "action": "toggleConsole",
+            "title": qsTr("seed console"),
+            "titleOn": qsTr("back to the library"),
+            "state": "consoleShown",
+            "needs": "",
             "label": qsTr("seed console"),
             "column": "view",
             "rank": 0,
@@ -65,7 +92,9 @@ QtObject {
         {
             "area": "console",
             "key": "[",
-            "action": "consoleRange",
+            "action": "consoleShorter",
+            "title": qsTr("shorter range"),
+            "needs": "",
             "label": qsTr("range"),
             "column": "",
             "rank": 0,
@@ -76,7 +105,9 @@ QtObject {
         {
             "area": "console",
             "key": "]",
-            "action": "consoleRange",
+            "action": "consoleLonger",
+            "title": qsTr("longer range"),
+            "needs": "",
             "label": qsTr("range"),
             "column": "",
             "rank": 0,
@@ -99,6 +130,10 @@ QtObject {
             "area": "console",
             "key": "esc",
             "action": "consoleEscape",
+            "title": qsTr("back to the library"),
+            "titleOn": qsTr("clear the scope"),
+            "state": "consoleScoped",
+            "needs": "",
             "label": qsTr("clear scope"),
             "column": "",
             "rank": 0,
@@ -110,6 +145,8 @@ QtObject {
             "area": "global",
             "key": "/",
             "action": "filter",
+            "title": qsTr("filter the table"),
+            "needs": "",
             "label": qsTr("filter"),
             "column": "navigate",
             "rank": 4,
@@ -121,6 +158,10 @@ QtObject {
             "area": "global",
             "key": "i",
             "action": "toggleDetails",
+            "title": qsTr("show details"),
+            "titleOn": qsTr("hide details"),
+            "state": "detailsShown",
+            "needs": "",
             "label": qsTr("details"),
             "column": "view",
             "rank": 1,
@@ -133,6 +174,9 @@ QtObject {
             "area": "global",
             "key": "I",
             "action": "cycleDetailsPlacement",
+            "title": qsTr("place details: right · bottom · auto"),
+            "state": "placement",
+            "needs": "",
             "label": qsTr("place"),
             "column": "view",
             "rank": 6,
@@ -144,6 +188,8 @@ QtObject {
             "area": "global",
             "key": "<",
             "action": "detailsSmaller",
+            "title": qsTr("details smaller"),
+            "needs": "details",
             "label": qsTr("smaller"),
             "column": "view",
             "rank": 7,
@@ -155,6 +201,8 @@ QtObject {
             "area": "global",
             "key": ">",
             "action": "detailsLarger",
+            "title": qsTr("details larger"),
+            "needs": "details",
             "label": qsTr("larger"),
             "column": "",
             "rank": 0,
@@ -165,6 +213,8 @@ QtObject {
             "area": "global",
             "key": "ctrl+k",
             "action": "jump",
+            "title": qsTr("jump to a torrent"),
+            "needs": "",
             "label": qsTr("jump"),
             "column": "navigate",
             "rank": 6,
@@ -187,6 +237,8 @@ QtObject {
             "area": "global",
             "key": "a",
             "action": "add",
+            "title": qsTr("add a torrent"),
+            "needs": "",
             "label": qsTr("add"),
             "column": "act",
             "rank": 1,
@@ -198,6 +250,8 @@ QtObject {
             "area": "global",
             "key": "s",
             "action": "sort",
+            "title": qsTr("sort"),
+            "needs": "",
             "label": qsTr("sort"),
             "column": "view",
             "rank": 3,
@@ -209,6 +263,10 @@ QtObject {
             "area": "global",
             "key": "A",
             "action": "altSpeed",
+            "title": qsTr("alt-speed on"),
+            "titleOn": qsTr("alt-speed off"),
+            "state": "altSpeed",
+            "needs": "",
             "label": qsTr("alt-speed"),
             "column": "app",
             "rank": 1,
@@ -220,6 +278,8 @@ QtObject {
             "area": "global",
             "key": ",",
             "action": "settings",
+            "title": qsTr("settings"),
+            "needs": "",
             "label": qsTr("settings"),
             "column": "app",
             "rank": 2,
@@ -245,6 +305,8 @@ QtObject {
             "area": "global",
             "key": "ctrl+shift+,",
             "action": "qbtSettings",
+            "title": qsTr("qBittorrent settings"),
+            "needs": "",
             "label": qsTr("qBittorrent settings"),
             "column": "app",
             "rank": 2,
@@ -257,6 +319,10 @@ QtObject {
             "area": "global",
             "key": "ctrl+b",
             "action": "toggleRail",
+            "title": qsTr("show the rail"),
+            "titleOn": qsTr("hide the rail"),
+            "state": "railShown",
+            "needs": "",
             "label": qsTr("rail"),
             "column": "view",
             "rank": 5,
@@ -280,6 +346,8 @@ QtObject {
             "area": "global",
             "key": "|",
             "action": "columns",
+            "title": qsTr("columns"),
+            "needs": "",
             "label": qsTr("columns"),
             "column": "view",
             "rank": 4,
@@ -291,6 +359,8 @@ QtObject {
             "area": "global",
             "key": "q",
             "action": "hide",
+            "title": qsTr("hide the window"),
+            "needs": "",
             "label": qsTr("hide"),
             "column": "app",
             "rank": 4,
@@ -302,6 +372,8 @@ QtObject {
             "area": "global",
             "key": "ctrl+q",
             "action": "quit",
+            "title": qsTr("quit"),
+            "needs": "",
             "label": qsTr("quit"),
             "column": "app",
             "rank": 5,
@@ -327,6 +399,8 @@ QtObject {
             "area": "global",
             "key": "?",
             "action": "help",
+            "title": qsTr("shortcuts"),
+            "needs": "",
             "label": qsTr("help"),
             "column": "",
             "rank": 0,
@@ -343,6 +417,58 @@ QtObject {
             "key": "f1",
             "action": "help",
             "label": qsTr("help"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        // docs/30 D1 a (DECISIONS C1): the command palette. `:` is vim's command line, one
+        // symbol key like `/`, `?` and `` ` ``; `ctrl+shift+p` is what editor users try first,
+        // and works from a field too. It is no row of itself.
+        {
+            "area": "global",
+            "key": ":",
+            "action": "commands",
+            "label": qsTr("commands"),
+            "column": "app",
+            "rank": 0.5,
+            "helpKeys": ": ctrl+shift+p",
+            "help": qsTr("commands"),
+            "about": qsTr("Find any command by name and run it; each row teaches its key")
+        },
+        {
+            "area": "global",
+            "key": "ctrl+shift+p",
+            "action": "commands",
+            "label": qsTr("commands"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        // docs/30 D3: the ⋯ menu's two limit sheets have no key; the palette lists them with
+        // the path to them.
+        {
+            "area": "global",
+            "key": "",
+            "via": "ctrl+.",
+            "action": "globalLimits",
+            "title": qsTr("speed limits…"),
+            "needs": "",
+            "label": qsTr("speed limits"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "global",
+            "key": "",
+            "via": "ctrl+.",
+            "action": "altLimits",
+            "title": qsTr("alt-speed limits…"),
+            "needs": "",
+            "label": qsTr("alt-speed limits"),
             "column": "",
             "rank": 0,
             "helpKeys": "",
@@ -461,6 +587,8 @@ QtObject {
             "area": "table",
             "key": "ctrl+a",
             "action": "selectAll",
+            "title": qsTr("select all visible"),
+            "needs": "",
             "label": qsTr("all"),
             "column": "select",
             "rank": 3,
@@ -472,6 +600,8 @@ QtObject {
             "area": "table",
             "key": "esc",
             "action": "clearSelection",
+            "title": qsTr("clear the selection"),
+            "needs": "selection",
             "label": qsTr("clear"),
             "column": "",
             "rank": 0,
@@ -500,10 +630,102 @@ QtObject {
             "help": qsTr("stop/start · force"),
             "about": qsTr("Stop or start · force start, skipping the queue")
         },
+        // docs/30 D5: start and stop as two commands on the whole selection, as the selection
+        // bar's two buttons; `p` runs one of them, the one the first target calls for.
+        {
+            "area": "table",
+            "key": "",
+            "sharesKey": "p",
+            "action": "start",
+            "title": qsTr("start"),
+            "needs": "stopped",
+            "label": qsTr("start"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "table",
+            "key": "",
+            "sharesKey": "p",
+            "action": "stop",
+            "title": qsTr("stop"),
+            "needs": "running",
+            "label": qsTr("stop"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        // docs/30 D3: the actions menu's option rows (docs/12 G4), whose letters are the menu's
+        // own: no window key, the path to them instead. On or off follows the cursor torrent.
+        {
+            "area": "table",
+            "key": "",
+            "via": "enter s",
+            "action": "sequential",
+            "title": qsTr("sequential download on"),
+            "titleOn": qsTr("sequential download off"),
+            "state": "seqDl",
+            "needs": "torrents",
+            "label": qsTr("sequential"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "table",
+            "key": "",
+            "via": "enter f",
+            "action": "firstLast",
+            "title": qsTr("first / last pieces first on"),
+            "titleOn": qsTr("first / last pieces first off"),
+            "state": "firstLast",
+            "needs": "torrents",
+            "label": qsTr("first / last"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "table",
+            "key": "",
+            "via": "enter S",
+            "action": "superSeeding",
+            "title": qsTr("super seeding on"),
+            "titleOn": qsTr("super seeding off"),
+            "state": "superSeeding",
+            "needs": "torrents",
+            "label": qsTr("super seeding"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "table",
+            "key": "",
+            "via": "enter a",
+            "action": "autoManagement",
+            "title": qsTr("automatic management on"),
+            "titleOn": qsTr("automatic management off"),
+            "state": "autoTmm",
+            "needs": "torrents",
+            "label": qsTr("automatic management"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
         {
             "area": "table",
             "key": "P",
             "action": "forceStart",
+            "title": qsTr("force start"),
+            "needs": "torrents",
             "label": qsTr("force"),
             "column": "",
             "rank": 0,
@@ -514,6 +736,8 @@ QtObject {
             "area": "table",
             "key": "d",
             "action": "delete",
+            "title": qsTr("delete"),
+            "needs": "torrents",
             "label": qsTr("delete"),
             "column": "act",
             "rank": 4,
@@ -525,6 +749,8 @@ QtObject {
             "area": "table",
             "key": "D",
             "action": "deleteWithFiles",
+            "title": qsTr("delete with files"),
+            "needs": "torrents",
             "label": qsTr("delete with files"),
             "column": "",
             "rank": 0,
@@ -535,6 +761,8 @@ QtObject {
             "area": "table",
             "key": "c",
             "action": "recheck",
+            "title": qsTr("recheck"),
+            "needs": "torrents",
             "label": qsTr("recheck"),
             "column": "act",
             "rank": 5,
@@ -546,6 +774,8 @@ QtObject {
             "area": "table",
             "key": "R",
             "action": "reannounce",
+            "title": qsTr("reannounce"),
+            "needs": "torrents",
             "label": qsTr("reannounce"),
             "column": "",
             "rank": 0,
@@ -556,6 +786,8 @@ QtObject {
             "area": "table",
             "key": "C",
             "action": "category",
+            "title": qsTr("set category"),
+            "needs": "torrents",
             "label": qsTr("category"),
             "column": "act",
             "rank": 6,
@@ -567,6 +799,8 @@ QtObject {
             "area": "table",
             "key": "t",
             "action": "tags",
+            "title": qsTr("set tags"),
+            "needs": "torrents",
             "label": qsTr("tags"),
             "column": "",
             "rank": 0,
@@ -577,6 +811,8 @@ QtObject {
             "area": "table",
             "key": "m",
             "action": "location",
+            "title": qsTr("set location"),
+            "needs": "torrents",
             "label": qsTr("location"),
             "column": "",
             "rank": 0,
@@ -587,6 +823,8 @@ QtObject {
             "area": "table",
             "key": "L",
             "action": "limits",
+            "title": qsTr("limits"),
+            "needs": "torrents",
             "label": qsTr("limits"),
             "column": "",
             "rank": 0,
@@ -597,6 +835,8 @@ QtObject {
             "area": "table",
             "key": "r",
             "action": "rename",
+            "title": qsTr("rename"),
+            "needs": "cursor",
             "label": qsTr("rename"),
             "column": "",
             "rank": 0,
@@ -607,6 +847,8 @@ QtObject {
             "area": "table",
             "key": "[",
             "action": "queueUp",
+            "title": qsTr("queue up"),
+            "needs": "torrents",
             "label": qsTr("queue up"),
             "column": "act",
             "rank": 7,
@@ -618,6 +860,8 @@ QtObject {
             "area": "table",
             "key": "]",
             "action": "queueDown",
+            "title": qsTr("queue down"),
+            "needs": "torrents",
             "label": qsTr("queue down"),
             "column": "",
             "rank": 0,
@@ -628,6 +872,8 @@ QtObject {
             "area": "table",
             "key": "o",
             "action": "openFolder",
+            "title": qsTr("open folder"),
+            "needs": "cursor",
             "label": qsTr("folder"),
             "column": "act",
             "rank": 8,
@@ -639,6 +885,8 @@ QtObject {
             "area": "table",
             "key": "y",
             "action": "copyMagnet",
+            "title": qsTr("copy magnet"),
+            "needs": "torrents",
             "label": qsTr("copy magnet"),
             "column": "act",
             "rank": 9,
@@ -650,6 +898,8 @@ QtObject {
             "area": "table",
             "key": "Y",
             "action": "copyHash",
+            "title": qsTr("copy hash"),
+            "needs": "torrents",
             "label": qsTr("copy hash"),
             "column": "",
             "rank": 0,
@@ -663,6 +913,8 @@ QtObject {
             "area": "table",
             "key": "n",
             "action": "copyName",
+            "title": qsTr("copy name"),
+            "needs": "torrents",
             "label": qsTr("copy name"),
             "column": "",
             "rank": 0,
@@ -822,6 +1074,8 @@ QtObject {
             "area": "details",
             "key": "+",
             "action": "raisePriority",
+            "titles": {"files": qsTr("raise priority")},
+            "needs": "marked",
             "label": qsTr("priority"),
             "column": "",
             "rank": 0,
@@ -832,6 +1086,8 @@ QtObject {
             "area": "details",
             "key": "-",
             "action": "lowerPriority",
+            "titles": {"files": qsTr("lower priority")},
+            "needs": "marked",
             "label": qsTr("priority"),
             "column": "",
             "rank": 0,
@@ -842,6 +1098,8 @@ QtObject {
             "area": "details",
             "key": "x",
             "action": "skipFile",
+            "titles": {"files": qsTr("skip or keep")},
+            "needs": "marked",
             "label": qsTr("skip / keep"),
             "column": "",
             "rank": 0,
@@ -852,6 +1110,8 @@ QtObject {
             "area": "details",
             "key": "o",
             "action": "revealFile",
+            "titles": {"files": qsTr("show in folder")},
+            "needs": "row",
             "label": qsTr("folder"),
             "column": "",
             "rank": 0,
@@ -864,6 +1124,8 @@ QtObject {
             "area": "details",
             "key": "y",
             "action": "copy",
+            "titles": {"trackers": qsTr("copy tracker URLs"), "peers": qsTr("copy peer addresses"), "webseeds": qsTr("copy URLs")},
+            "needs": "marked",
             "label": qsTr("copy"),
             "column": "act",
             "rank": 12,
@@ -875,6 +1137,8 @@ QtObject {
             "area": "details",
             "key": "a",
             "action": "addRow",
+            "titles": {"trackers": qsTr("add trackers"), "peers": qsTr("add peers"), "webseeds": qsTr("add HTTP sources")},
+            "needs": "",
             "label": qsTr("add"),
             "column": "",
             "rank": 0,
@@ -885,6 +1149,8 @@ QtObject {
             "area": "details",
             "key": "d",
             "action": "removeRow",
+            "titles": {"trackers": qsTr("remove trackers"), "webseeds": qsTr("remove HTTP sources")},
+            "needs": "marked",
             "label": qsTr("remove"),
             "column": "",
             "rank": 0,
@@ -894,7 +1160,9 @@ QtObject {
         {
             "area": "details",
             "key": "R",
-            "action": "reannounce",
+            "action": "trackersReannounce",
+            "titles": {"trackers": qsTr("reannounce to every tracker")},
+            "needs": "",
             "label": qsTr("reannounce"),
             "column": "",
             "rank": 0,
@@ -905,6 +1173,8 @@ QtObject {
             "area": "details",
             "key": "b",
             "action": "ban",
+            "titles": {"peers": qsTr("ban peers")},
+            "needs": "marked",
             "label": qsTr("ban"),
             "column": "",
             "rank": 0,
@@ -1191,6 +1461,8 @@ QtObject {
             "area": "details",
             "key": "ctrl+a",
             "action": "selectAllFiles",
+            "titles": {"files": qsTr("mark all")},
+            "needs": "rows",
             "label": qsTr("mark all"),
             "column": "",
             "rank": 0,
@@ -1221,6 +1493,8 @@ QtObject {
             "area": "details",
             "key": "p",
             "action": "priorityMenu",
+            "titles": {"files": qsTr("file priority…")},
+            "needs": "marked",
             "label": qsTr("priority"),
             "column": "act",
             "rank": 10,
@@ -1232,6 +1506,8 @@ QtObject {
             "area": "details",
             "key": "O",
             "action": "openFile",
+            "titles": {"files": qsTr("open file")},
+            "needs": "file",
             "label": qsTr("open"),
             "column": "act",
             "rank": 11,
@@ -1243,6 +1519,8 @@ QtObject {
             "area": "details",
             "key": "r",
             "action": "renameFile",
+            "titles": {"files": qsTr("rename files")},
+            "needs": "marked",
             "label": qsTr("rename"),
             "column": "",
             "rank": 0,
@@ -1253,6 +1531,8 @@ QtObject {
             "area": "details",
             "key": "Y",
             "action": "copyLocalPath",
+            "titles": {"files": qsTr("copy local path")},
+            "needs": "row",
             "label": qsTr("copy local path"),
             "column": "",
             "rank": 0,
@@ -1262,7 +1542,9 @@ QtObject {
         {
             "area": "details",
             "key": "n",
-            "action": "copyName",
+            "action": "copyFileName",
+            "titles": {"files": qsTr("copy name")},
+            "needs": "row",
             "label": qsTr("copy name"),
             "column": "",
             "rank": 0,
@@ -1273,6 +1555,8 @@ QtObject {
             "area": "details",
             "key": "s",
             "action": "sortFiles",
+            "titles": {"files": qsTr("sort files")},
+            "needs": "",
             "label": qsTr("sort"),
             "column": "",
             "rank": 0,
@@ -1283,6 +1567,8 @@ QtObject {
             "area": "details",
             "key": "/",
             "action": "filterFiles",
+            "titles": {"files": qsTr("filter files")},
+            "needs": "",
             "label": qsTr("filter"),
             "column": "",
             "rank": 0,
@@ -1293,6 +1579,8 @@ QtObject {
             "area": "details",
             "key": "H",
             "action": "collapseAll",
+            "titles": {"files": qsTr("collapse all")},
+            "needs": "rows",
             "label": qsTr("collapse all"),
             "column": "view",
             "rank": 10,
@@ -1304,6 +1592,8 @@ QtObject {
             "area": "details",
             "key": "L",
             "action": "expandAll",
+            "titles": {"files": qsTr("expand all")},
+            "needs": "rows",
             "label": qsTr("expand all"),
             "column": "",
             "rank": 0,
@@ -1314,6 +1604,10 @@ QtObject {
             "area": "details",
             "key": "X",
             "action": "hideSkipped",
+            "titles": {"files": qsTr("hide skipped files")},
+            "titlesOn": {"files": qsTr("show skipped files")},
+            "state": "hideSkipped",
+            "needs": "",
             "label": qsTr("hide skipped"),
             "column": "view",
             "rank": 11,
@@ -1353,10 +1647,252 @@ QtObject {
         return root.entries.filter(entry => entry.area === area);
     }
 
-    /// The entry for `key` in `area`, or null. Keys are unique inside an area.
+    /// The entry for `key` in `area`, or null. Keys are unique inside an area. An entry with
+    /// no key (a menu-only action, docs/30 D3) is never found by its key.
     function find(area, key) {
+        if (key.length === 0)
+            return null;
         const hit = root.entries.find(entry => entry.area === area && entry.key === key);
         return hit === undefined ? null : hit;
+    }
+
+    // ---- the command palette (docs/30, DECISIONS C1) -------------------------------------
+    // Plain data in, plain data out, so the omaseed site's demo can keep a copy of the table
+    // and of `commandRows()` and run its own switch on the same action ids.
+
+    /// The palette's rows in the `?` sheet's order (docs/30 §5): torrents, selection,
+    /// library, view, speed, app, 43 in all. A group with an `area` is the focused area's own
+    /// (D2): listed only when the palette was opened from that tab or face, and first.
+    readonly property var commandGroups: [
+        {
+            "group": "torrents",
+            "word": qsTr("torrents"),
+            "actions": ["start", "stop", "forceStart", "recheck", "reannounce", "delete",
+                "deleteWithFiles", "category", "tags", "location", "limits", "rename", "openFolder",
+                "queueUp", "queueDown", "copyMagnet", "copyHash", "copyName", "sequential", "firstLast",
+                "superSeeding", "autoManagement"]
+        },
+        {
+            "group": "selection",
+            "word": qsTr("selection"),
+            "actions": ["selectAll", "clearSelection"]
+        },
+        {
+            "group": "library",
+            "word": qsTr("library"),
+            "actions": ["add", "filter", "jump", "sort"]
+        },
+        {
+            "group": "view",
+            "word": qsTr("view"),
+            "actions": ["columns", "toggleDetails", "cycleDetailsPlacement", "toggleRail",
+                "toggleConsole", "detailsSmaller", "detailsLarger"]
+        },
+        {
+            "group": "speed",
+            "word": qsTr("speed"),
+            "actions": ["altSpeed", "globalLimits", "altLimits"]
+        },
+        {
+            "group": "app",
+            "word": qsTr("app"),
+            "actions": ["settings", "qbtSettings", "help", "hide", "quit"]
+        },
+        {
+            "group": "files",
+            "area": "files",
+            "word": qsTr("files"),
+            "actions": ["priorityMenu", "raisePriority", "lowerPriority", "skipFile", "openFile",
+                "revealFile", "renameFile", "copyLocalPath", "copyFileName", "sortFiles", "filterFiles",
+                "selectAllFiles", "collapseAll", "expandAll", "hideSkipped"]
+        },
+        {
+            "group": "trackers",
+            "area": "trackers",
+            "word": qsTr("trackers"),
+            "actions": ["addRow", "removeRow", "trackersReannounce", "copy"]
+        },
+        {
+            "group": "peers",
+            "area": "peers",
+            "word": qsTr("peers"),
+            "actions": ["addRow", "ban", "copy"]
+        },
+        {
+            "group": "webseeds",
+            "area": "webseeds",
+            "word": qsTr("HTTP sources"),
+            "actions": ["addRow", "removeRow", "copy"]
+        },
+        {
+            "group": "console",
+            "area": "console",
+            "word": qsTr("console"),
+            "actions": ["consoleShorter", "consoleLonger", "consoleEscape"]
+        }
+    ]
+
+    /// Fig. 23's read-only guard: all that runs while the server is lost (docs/30 P6).
+    readonly property var offlineActions: ["settings", "help", "hide", "quit"]
+
+    /// The entry that is command `action` of `group`, or null: a details tab's from the pane's
+    /// shared keys (`titles`), the console's from its face, the rest from the window and table.
+    function commandEntry(group: string, action: string): var {
+        const tab = ["files", "trackers", "peers", "webseeds"].indexOf(group) >= 0;
+        const hit = root.entries.find(entry => {
+            if (entry.action !== action)
+                return false;
+            if (tab)
+                return entry.area === "details" && entry.titles !== undefined
+                        && entry.titles[group] !== undefined;
+            if (group === "console")
+                return entry.area === "console" && entry.title !== undefined;
+            return (entry.area === "global" || entry.area === "table") && entry.title !== undefined;
+        });
+        return hit === undefined ? null : hit;
+    }
+
+    /// The `needs` rule (docs/30 §5): why `entry` can't run in `context`, or "" when it can.
+    /// It follows what the actions menu and `torrentAction()` do: act on the selection, or on
+    /// the cursor row when nothing is selected. `context` is `commandRows()`'s.
+    function whyNot(entry: var, context: var): string {
+        const ctx = context || {};
+        const states = ctx.states || {};
+        if (ctx.serverLost === true && root.offlineActions.indexOf(entry.action) < 0)
+            return qsTr("read-only until the server is back");
+        const selected = ctx.selected || 0;
+        const cursor = ctx.cursor || "";
+        const targets = selected > 0 ? selected : cursor.length > 0 ? 1 : 0;
+        const already = word => targets === 1 ? qsTr("already %1").arg(word) : targets === 2
+                                                ? qsTr("both already %1").arg(word)
+                                                : qsTr("all %1 already %2").arg(targets).arg(word);
+        switch (entry.needs) {
+        case "torrents":
+        case "stopped":
+        case "running":
+            if (targets === 0)
+                return qsTr("nothing selected, no torrent under the cursor");
+            if (entry.needs === "stopped" && (ctx.stopped || 0) === 0)
+                return already(qsTr("running"));
+            if (entry.needs === "running" && (ctx.running || 0) === 0)
+                return already(qsTr("stopped"));
+            return "";
+        case "cursor":
+            return cursor.length > 0 ? "" : qsTr("no torrent under the cursor");
+        case "selection":
+            return selected > 0 ? "" : qsTr("nothing selected");
+        case "details":
+            return states.detailsShown === true ? "" : qsTr("details hidden · i shows them");
+        case "marked":
+        case "row":
+        case "rows":
+        case "file":
+            if ((ctx.row || "").length === 0)
+                return qsTr("nothing under the cursor");
+            if (entry.needs === "file" && ctx.rowIsFolder === true)
+                return qsTr("a folder · o shows it");
+            return "";
+        default:
+            return "";
+        }
+    }
+
+    /// What a row acts on, for its second line: "2 selected", the cursor torrent's name,
+    /// "3 marked" or the cursor's row; "" for a command that takes nothing.
+    function _commandTarget(needs: string, ctx: var): string {
+        switch (needs) {
+        case "torrents":
+        case "stopped":
+        case "running":
+            return (ctx.selected || 0) > 0 ? qsTr("%n selected", "", ctx.selected) : (ctx.cursor || "");
+        case "cursor":
+            return ctx.cursor || "";
+        case "selection":
+            return qsTr("%n selected", "", ctx.selected || 0);
+        case "marked":
+            return (ctx.marked || 0) > 0 ? qsTr("%n marked", "", ctx.marked) : (ctx.row || "");
+        case "row":
+        case "file":
+            return ctx.row || "";
+        default:
+            return "";
+        }
+    }
+
+    /// One palette row for `entry` of `group`: `{action, key, title, meta, via, detail,
+    /// disabled, group, recent}`.
+    function _commandRow(entry: var, group: var, ctx: var): var {
+        const states = ctx.states || {};
+        const state = entry.state !== undefined ? states[entry.state] : undefined;
+        const title = entry.titles !== undefined ? entry.titles[group.group] : entry.title;
+        const titleOn = entry.titlesOn !== undefined ? entry.titlesOn[group.group] : entry.titleOn;
+        const reason = root.whyNot(entry, ctx);
+        let meta = entry.key;
+        // D5: `p` shows on the one of start and stop that it would run now.
+        if (entry.sharesKey !== undefined)
+            meta = (entry.needs === "stopped") === (ctx.firstStopped === true) ? entry.sharesKey : "";
+        const parts = [group.word];
+        if (reason.length > 0) {
+            parts.push(reason);
+        } else {
+            parts.push(root._commandTarget(entry.needs, ctx));
+            if (typeof state === "string" && state.length > 0)
+                parts.push(qsTr("now %1").arg(state));
+            else if (typeof state === "boolean" && entry.needs === "torrents") // an option row
+                parts.push((ctx.selected || 0) > 0 && (ctx.cursor || "").length > 0
+                           ? qsTr("now %1 on %2").arg(state ? qsTr("on") : qsTr("off")).arg(ctx.cursor)
+                           : qsTr("now %1").arg(state ? qsTr("on") : qsTr("off")));
+        }
+        return {
+            "action": entry.action,
+            "key": entry.action,
+            "title": state === true && titleOn !== undefined ? titleOn : title,
+            "meta": meta,
+            "via": entry.via !== undefined ? entry.via : "",
+            "detail": parts.filter(part => part.length > 0).join(" · "),
+            "disabled": reason.length > 0,
+            "group": group.group,
+            "recent": (ctx.recent || []).indexOf(entry.action)
+        };
+    }
+
+    /// The command palette's rows for `context` (docs/30 §5), with nothing typed, in order:
+    /// the focused area's own commands when it is not the table (P5), the last ones run
+    /// (D7), the rest in the `?` sheet's order, then every row that can't run (D4).
+    ///
+    /// `context` is plain data: `{area: "table" | "rail" | "general" | "files" | "trackers" |
+    /// "peers" | "webseeds" | "console", selected: 2, cursor: "<the cursor torrent's name>",
+    /// stopped: 0, running: 2 (of the targets), firstStopped: false (`p` starts),
+    /// marked: 3, row: "<the focused tab's cursor row>", rowIsFolder: false,
+    /// serverLost: false, recent: ["stop", …], states: {detailsShown, railShown,
+    /// consoleShown, consoleScoped, altSpeed, placement, hideSkipped, seqDl, firstLast,
+    /// superSeeding, autoTmm}}`.
+    function commandRows(context: var): var {
+        const ctx = context || {};
+        const own = [];
+        const recent = [];
+        const rest = [];
+        const off = [];
+        for (const group of root.commandGroups) {
+            if (group.area !== undefined && group.area !== ctx.area)
+                continue;
+            for (const action of group.actions) {
+                const entry = root.commandEntry(group.group, action);
+                if (entry === null)
+                    continue;
+                const row = root._commandRow(entry, group, ctx);
+                if (row.disabled)
+                    off.push(row);
+                else if (group.area !== undefined)
+                    own.push(row);
+                else if (row.recent >= 0)
+                    recent.push(row);
+                else
+                    rest.push(row);
+            }
+        }
+        recent.sort((a, b) => a.recent - b.recent);
+        return own.concat(recent, rest, off);
     }
 
     /// `label` of (area, key), falling back to the global entry and then to the key itself,

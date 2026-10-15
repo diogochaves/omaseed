@@ -2,7 +2,7 @@
 
 Rulings the code cites by number, kept here so the comments lead somewhere. `Q` numbers were
 design questions; `N` and `S` came from a visual pass over the app, `M` from a manual pass over
-the running app. Each is settled and built. Bigger designs live in the numbered boards (see
+the running app, and `C` records a board's whole ruling that the code leans on. Each is settled and built. Bigger designs live in the numbered boards (see
 [ARCHITECTURE.md](ARCHITECTURE.md)).
 
 ## Q1 — The window's alpha
@@ -48,6 +48,37 @@ On a server's first TLS error, the server sheet (and first run) shows the certif
 fingerprint and offers "trust this certificate". The fingerprint is saved with the server in
 `servers.json` (it is not a secret) and only that exact certificate is accepted afterwards.
 Turning on the Web UI's HTTPS in qBittorrent's settings warns about this first.
+
+## C1 — The command palette (board 30, ruled 2026-10-15)
+
+Board [30](30-command-palette.html) (#61), all ten decisions as recommended:
+
+- **D1** `:` opens it, and `ctrl+shift+p` too (it also works from a field). Both are in the
+  Keymap's "global" area and share one row of the `?` sheet's "app" section. Inside any
+  palette `ctrl+shift+p` is not "up".
+- **D2** It lists the global and torrent commands always, plus the focused area's own: the
+  Files, Trackers, Peers and HTTP sources tabs and the seed console. Movements, gestures and
+  the two menus themselves are left out.
+- **D3** Menu-only actions (the actions menu's four option rows, the ⋯ menu's two limit sheets)
+  are Keymap entries with no key and a `via` path ("enter s", "ctrl+."). Key routing, the
+  footer and the `?` sheet skip entries with no key.
+- **D4** A row that can't run is listed dim with the reason on its second line, after the rows
+  that can, and the cursor skips it. The rule is the entry's `needs` and `Keymap.whyNot()`:
+  act on the selection, or on the cursor row when nothing is selected, as the actions menu
+  does; while the server is lost only settings, shortcuts, hide and quit run (Fig. 23).
+- **D5** Start and stop are two rows on the whole selection, each dim when it would change
+  nothing; `p` shows on the one it would run now.
+- **D6** Each command has a `title` ("force start"); the footer keeps its short `label`.
+- **D7** The last five commands run from the palette come first with nothing typed and break
+  ties in a search. Their action ids are kept in `state.json` (`"commands"."recent"`).
+- **D8** No match: a dim line says so, and one row hands the text to the jump palette.
+- **D9** The `?` sheet stays, with its filter and `enter`. Both run through one
+  `MainView.runAction(id)`.
+- **D10** Found through `: commands` beside `? help` in the footer, a "commands…" row at the
+  top of the ⋯ menu, and a line in the `?` sheet's subtitle.
+
+The rows come from one pure `Keymap.commandRows(context)` over plain data, so the site's demo
+can reuse it.
 
 ## M8 — A click leaves the keyboard focus where it was
 
