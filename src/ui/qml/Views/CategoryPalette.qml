@@ -28,6 +28,12 @@ Palette {
     /// caller asks (SharedMoveConfirm) and applies.
     signal sharedMoveFound(var hashes, string name, bool create, var moved)
 
+    /// #35: category changes waiting for the file lists the shared-data check needs (a
+    /// torrent saved without a folder of its own: `App.sharedData`'s `pending`), in the order
+    /// they were picked: `[{hashes, name, create, moved}]`. The palette has closed; each is
+    /// applied, or asked about, once its lists are in.
+    property var _held: []
+
     footerRight: qsTr("new name creates it")
     glyph: Glyphs.category
     hints: [
@@ -107,40 +113,75 @@ Palette {
         root.open();
     }
 
-    /// True when `name` moves files another torrent uses: then `sharedMoveFound` is raised
-    /// instead of applying.
-    function _asksAboutSharedData(name: string, create: bool): bool {
-        const moved = App.movedByCategory(root.hashes, name);
-        if (moved.length === 0)
-            return false;
-        if ((App.sharedData(moved, true).outside ?? []).length === 0)
-            return false;
-        const hashes = root.hashes;
-        root.close();
-        root.sharedMoveFound(hashes, name, create, moved);
-        return true;
+    /// Sets the category as picked. On torrents, a new category is set only once the server
+    /// has created it (`App.createAndApplyCategory`).
+    function _apply(change: var): void {
+        if (change.create)
+            App.createAndApplyCategory(change.hashes, change.name);
+        else
+            App.applyCategory(change.hashes, change.name);
+    }
+
+    /// A change whose shared-data check has its answer: applied, or, when it would move files
+    /// from under torrents outside it, handed on through `sharedMoveFound`.
+    function _settle(change: var, shared: var): void {
+        if ((shared.outside ?? []).length > 0)
+            root.sharedMoveFound(change.hashes, change.name, change.create, change.moved);
+        else
+            root._apply(change);
     }
 
     onActivated: (index, item) => {
-        if (!root.choiceMode && root._asksAboutSharedData(item.key, item.isCreate === true))
-            return;
-        // On torrents, a new category is set only once the server has created it.
-        if (item.isCreate === true && !root.choiceMode) {
-            App.createAndApplyCategory(root.hashes, item.key);
-            root.close();
-            return;
-        }
-        if (item.isCreate === true)
-            App.createCategory(item.key);
         if (root.choiceMode) {
+            if (item.isCreate === true)
+                App.createCategory(item.key);
             // close() first: it gives the keyboard back to the caller before the caller
             // hears the answer, so a sheet underneath keeps its own focus order.
             root.close();
             root.chosen(item.key);
             return;
         }
-        App.applyCategory(root.hashes, item.key);
+        const change = {
+            "hashes": root.hashes,
+            "name": item.key,
+            "create": item.isCreate === true,
+            "moved": App.movedByCategory(root.hashes, item.key)
+        };
         root.close();
+        if (change.moved.length === 0) {
+            root._apply(change);
+            return;
+        }
+        // #28 (docs/26 §4): a move that takes files from under another torrent asks first.
+        // #35: a torrent saved without a folder of its own is found to share only once the
+        // file lists are in, so the change waits for them rather than missing it.
+        const shared = App.sharedData(change.moved, true);
+        if (shared.pending === true)
+            root._held = root._held.concat([change]);
+        else
+            root._settle(change, shared);
     }
     onRejected: root.close()
+
+    Connections {
+        function onServerChanged(): void {
+            // The held hashes were the last server's.
+            root._held = [];
+        }
+
+        function onSharedFilesLoaded(): void {
+            // In the order they were picked: one still waiting holds back the ones after it.
+            const still = [];
+            for (const change of root._held) {
+                const shared = still.length > 0 ? null : App.sharedData(change.moved);
+                if (shared === null || shared.pending === true)
+                    still.push(change);
+                else
+                    root._settle(change, shared);
+            }
+            root._held = still;
+        }
+
+        target: App
+    }
 }

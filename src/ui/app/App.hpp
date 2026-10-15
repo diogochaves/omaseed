@@ -1438,6 +1438,10 @@ public:
     /// Demo mode only (the QML tests, screenshots): merges `torrents` (hash → maindata keys)
     /// into the fictional library.
     Q_INVOKABLE void patchDemoTorrents(const QVariantMap &torrents);
+    /// Demo mode only (the QML tests): the file lists (hash → torrents/files names) a no-root
+    /// torrent's check "fetches", answered on a later turn of the event loop as a server's
+    /// reply would be. An empty list takes a hash's away.
+    Q_INVOKABLE void patchDemoFiles(const QVariantMap &files);
 
 Q_SIGNALS:
     void sharedFilesLoaded();
@@ -1445,6 +1449,7 @@ Q_SIGNALS:
 private:
     QHash<QString, QStringList> m_sharedFiles;
     QSet<QString> m_sharedFilesInFlight;
+    QHash<QString, QStringList> m_demoSharedFiles;
     // --- end #28 ----------------------------------------------------------------------------
 };
 

@@ -8,6 +8,7 @@
 
 #include <QJsonArray>
 #include <QJsonObject>
+#include <QTimer>
 #include <QUrl>
 
 namespace omaseed::app {
@@ -45,8 +46,25 @@ QVariantMap App::sharedData(const QStringList &hashes, bool fresh)
     // The no-root case: fetch what is missing, once, and say when it is in.
     bool pending = false;
     for (const QString &hash : found.needFiles) {
+        if (m_demoMode) {
+            // Demo rows have no server to ask. A list a test gave (`patchDemoFiles`) comes in
+            // on a later turn of the event loop, as a reply would; without one, what cannot be
+            // settled shares nothing.
+            if (!m_demoSharedFiles.contains(hash))
+                continue;
+            pending = true;
+            if (m_sharedFilesInFlight.contains(hash))
+                continue;
+            m_sharedFilesInFlight.insert(hash);
+            QTimer::singleShot(0, this, [this, hash] {
+                m_sharedFilesInFlight.remove(hash);
+                m_sharedFiles.insert(hash, m_demoSharedFiles.value(hash));
+                Q_EMIT sharedFilesLoaded();
+            });
+            continue;
+        }
         pending = true;
-        if (m_demoMode || !m_hasServer || m_sharedFilesInFlight.contains(hash))
+        if (!m_hasServer || m_sharedFilesInFlight.contains(hash))
             continue;
         m_sharedFilesInFlight.insert(hash);
         m_client->torrentsFiles(hash)->then(
@@ -63,10 +81,6 @@ QVariantMap App::sharedData(const QStringList &hashes, bool fresh)
                 Q_EMIT sharedFilesLoaded();
             });
     }
-    // Demo rows have no file lists to fetch: what cannot be settled shares nothing.
-    if (m_demoMode)
-        pending = false;
-
     const auto sharerMap = [&](const QString &hash) {
         const Torrent &torrent = model->torrent(hash);
         return QVariantMap{
@@ -117,6 +131,19 @@ QStringList App::movedByCategory(const QStringList &hashes, const QString &categ
             moved.append(hash);
     }
     return moved;
+}
+
+void App::patchDemoFiles(const QVariantMap &files)
+{
+    if (!m_demoMode)
+        return;
+    for (auto it = files.cbegin(); it != files.cend(); ++it) {
+        const QStringList names = it.value().toStringList();
+        if (names.isEmpty())
+            m_demoSharedFiles.remove(it.key());
+        else
+            m_demoSharedFiles.insert(it.key(), names);
+    }
 }
 
 void App::patchDemoTorrents(const QVariantMap &torrents)

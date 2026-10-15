@@ -81,6 +81,39 @@ TestCase {
         if (Object.keys(testCase._unshare).length > 0)
             App.patchDemoTorrents(testCase._unshare);
         testCase._unshare = {};
+        const files = {};
+        for (const hash of testCase._unfiles)
+            files[hash] = [];
+        App.patchDemoFiles(files);
+        testCase._unfiles = [];
+    }
+
+    /// #35: the file lists patchDemoFiles() gave, to take back.
+    property var _unfiles: []
+
+    /// Saves `b` into `a`'s save path without a folder of its own ("No subfolder": its content
+    /// path is the save path), so only the two file lists can tell whether they share; `a`'s
+    /// list is `aFiles`, `b`'s `bFiles`, "fetched" a turn of the event loop after they are asked.
+    function shareWithoutRoot(a, b, aFiles, bFiles) {
+        const rowA = App.torrentRow(a);
+        const rowB = App.torrentRow(b);
+        const back = testCase._unshare;
+        back[b] = {
+            "save_path": rowB.savePath,
+            "content_path": rowB.savePath + "/" + rowB.name
+        };
+        testCase._unshare = back;
+        const patch = {};
+        patch[b] = {
+            "save_path": rowA.savePath,
+            "content_path": rowA.savePath
+        };
+        App.patchDemoTorrents(patch);
+        const files = {};
+        files[a] = aFiles;
+        files[b] = bFiles;
+        App.patchDemoFiles(files);
+        testCase._unfiles = [a, b];
     }
 
     /// The demo library has no name-to-hash lookup of its own; this walks the filtered model.
@@ -439,6 +472,45 @@ TestCase {
         keyClick("j");
         compare(view.sharedMoveConfirm.applyHashes(), [sintel]);
         view.sharedMoveConfirm.close();
+    }
+
+    function test_a_category_change_waits_for_a_no_root_sharers_files() {
+        const sintel = hashByName("Sintel 1080p (CC-BY)");
+        const tears = hashByName("Tears of Steel 4K (CC-BY)");
+        const name = App.torrentRow(sintel).name;
+        shareWithoutRoot(sintel, tears, [name + "/movie.mkv", name + "/subs.srt"], [name + "/movie.mkv"]);
+        verify(App.sharedData([sintel], true).pending, "the no-root pair did not need its file lists");
+        const other = App.torrentRow(sintel).category === "music" ? "tv" : "music";
+        view.categoryPalette.openFor([sintel]);
+        view.categoryPalette.activated(0, {
+                                           "key": other,
+                                           "title": other
+                                       });
+        // Nothing known yet: the change waits rather than going ahead without the sharer.
+        compare(view.categoryPalette.opened, false);
+        compare(view.sharedMoveConfirm.opened, false);
+        compare(view.categoryPalette._held.length, 1);
+        tryCompare(view.sharedMoveConfirm, "opened", true, 1000);
+        compare(view.categoryPalette._held.length, 0);
+        compare(view.sharedMoveConfirm.applyHashes(), [sintel, tears]);
+        compare(view.sharedMoveConfirm.confirmText, "move 2");
+        view.sharedMoveConfirm.close();
+    }
+
+    function test_a_category_change_beside_a_no_root_stranger_goes_ahead() {
+        const sintel = hashByName("Sintel 1080p (CC-BY)");
+        const tears = hashByName("Tears of Steel 4K (CC-BY)");
+        const name = App.torrentRow(sintel).name;
+        shareWithoutRoot(sintel, tears, [name + "/movie.mkv"], ["other.mkv"]);
+        const other = App.torrentRow(sintel).category === "music" ? "tv" : "music";
+        view.categoryPalette.openFor([sintel]);
+        view.categoryPalette.activated(0, {
+                                           "key": other,
+                                           "title": other
+                                       });
+        compare(view.categoryPalette._held.length, 1);
+        tryVerify(() => view.categoryPalette._held.length === 0, 1000);
+        compare(view.sharedMoveConfirm.opened, false);
     }
 
     function test_a_category_change_on_unshared_data_asks_nothing() {

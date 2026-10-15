@@ -20,7 +20,8 @@ ConfirmDialog {
     /// The category ("" is none) and whether the palette's `create` row made it.
     property string category: ""
     property bool create: false
-    /// `App.sharedData()` of the torrents the change would move.
+    /// The torrents the change would move, and their `App.sharedData()`.
+    property var _moved: []
     property var _shared: ({})
 
     readonly property var _outside: root._shared.outside ?? []
@@ -37,7 +38,9 @@ function openFor(hashes: var, category: string, create: bool, moved: var): void 
     root.hashes = hashes;
     root.category = category;
     root.create = create;
-    root._shared = App.sharedData(moved, true);
+    root._moved = moved;
+    // Not fresh: the palette has just fetched the file lists this check needs (#35).
+    root._shared = App.sharedData(moved);
     sharedChoice.choice = 0;
     root.open();
 }
@@ -79,6 +82,15 @@ onAccepted: {
     const manual = root._outside.filter(hash => App.torrentRow(hash).autoTmm !== true);
     if (manual.length > 0)
         App.setAutoManagement(manual, true);
+}
+
+Connections {
+    function onSharedFilesLoaded(): void {
+        if (root.opened)
+            root._shared = App.sharedData(root._moved);
+    }
+
+    target: App
 }
 
 SharedDataLine {
