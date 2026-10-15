@@ -85,6 +85,20 @@ SettingsRow {
         return any ? changed : null;
     }
 
+    /// docs/32 E1 (D6, #55): `failure: "export"` rows say when the last .torrent copy failed,
+    /// while one of their folders is still the one it tried.
+    readonly property string failureText: {
+        if (row.spec.failure !== "export")
+            return "";
+        const failure = App.exportFailure;
+        const folder = failure.folder || "";
+        const trim = path => String(path || "").replace(/\/+$/, "");
+        if (folder.length === 0 || (trim(row.values.export_dir) !== trim(folder)
+                                    && trim(row.values.export_dir_fin) !== trim(folder)))
+            return "";
+        return failure.loggedAtText ? failure.text + " · " + failure.loggedAtText : failure.text;
+    }
+
     Layout.fillWidth: true
     Layout.leftMargin: row.spec.sub ? Theme.space(22) : 0
     description: row.spec.desc ?? ""
@@ -92,6 +106,7 @@ SettingsRow {
     glyph: row.spec.glyph ?? ""
     opacity: row.enabled ? 1 : 0.45
     title: row.spec.title ?? ""
+    warning: row.failureText
 
     onClicked: row.activate("click")
 

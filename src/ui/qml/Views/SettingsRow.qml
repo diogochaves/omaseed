@@ -14,12 +14,16 @@ import Omaseed.Kit
 //         glyph: Glyphs.mark; title: "…"; description: "…"
 //         Toggle { checked: … }
 //     }
+//
+// `warning` (docs/32 E1, #55) is a fault in what the row sets, found elsewhere (qBittorrent's
+// log): a yellow line under the text and the control, behind a 1 px yellow rule.
 Rectangle {
     id: root
 
     property string glyph: ""
     property string title: ""
     property string description: ""
+    property string warning: ""
     property bool hasCursor: false
 
     /// The control at the right of the row.
@@ -136,6 +140,36 @@ Rectangle {
             objectName: "settingsRowControl"
             Layout.preferredHeight: childrenRect.height
             Layout.preferredWidth: childrenRect.width
+        }
+
+        Item {
+            Layout.column: 1
+            Layout.columnSpan: 2
+            Layout.fillWidth: true
+            Layout.preferredHeight: warningText.implicitHeight
+            Layout.row: 2
+            objectName: "settingsRowWarning"
+            visible: root.warning.length > 0
+
+            Rectangle {
+                anchors.bottom: parent.bottom
+                anchors.left: parent.left
+                anchors.top: parent.top
+                color: Theme.yellow
+                width: 1
+            }
+
+            Label {
+                id: warningText
+
+                anchors.left: parent.left
+                anchors.leftMargin: Theme.space(8)
+                anchors.right: parent.right
+                color: Theme.yellow
+                size: "small"
+                text: root.warning
+                wrapMode: Text.Wrap
+            }
         }
     }
 }

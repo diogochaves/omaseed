@@ -33,6 +33,8 @@ import QtQuick
 //   reach                  shows qBittorrent's own reachability beside the port
 //   confirm                "port" | "anon" | "iface" | "ipfilter" | "webui": asks first
 //   defaults               {key: qBittorrent's default}: a "default" button while it differs
+//   failure                "export": a yellow line under the row when qBittorrent's log says
+//                          the last .torrent copy into one of its folders failed (docs/32 E1)
 // and two kinds that are not rows: {group: "…"} (a small heading) and {note: "…", warn}.
 //
 // Do NOT run `qmlformat` on this file: with the project's 100-column wrap it re-indents the
@@ -820,6 +822,7 @@ QtObject {
                     "glyph": "⎘",
                     "title": qsTr("Copy .torrent files to"),
                     "desc": qsTr("All of them · finished ones only. Empty copies none."),
+                    "failure": "export",
                     "fields": [root.text("export_dir", 120, "—"), {
                             "key": "export_dir_fin",
                             "kind": "text",

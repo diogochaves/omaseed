@@ -226,6 +226,28 @@ TestCase {
                                                                                 }));
     }
 
+    // docs/32 E1 (#55): the demo's last .torrent copy into its export folder failed. The note
+    // sits under the row while one of its two folders is that folder.
+    function test_a_failed_export_shows_under_its_folder() {
+        const modal = openOn(6); // Downloads and files
+        const row = testCase.childNamed(modal, "qbtRow-export_dir");
+        const note = testCase.childNamed(row, "settingsRowWarning");
+        verify(note.visible);
+        verify(row.warning.indexOf("The last copy failed: Read-only file system, writing "
+                                   + "omarchy-4.0.4-x86_64.iso.torrent · ") === 0, row.warning);
+
+        App.serverPrefs.apply({
+                                  "export_dir": "/data/torrents/elsewhere"
+                              });
+        compare(row.warning, "");
+        verify(!note.visible);
+        // The finished-only folder set to it (with a trailing slash) shows it again.
+        App.serverPrefs.apply({
+                                  "export_dir_fin": "/data/torrents/.torrent-copies/"
+                              });
+        verify(row.warning.length > 0);
+    }
+
     function test_an_advanced_row_goes_back_to_its_default() {
         const modal = openOn(8); // Advanced
         const row = testCase.childNamed(modal, "qbtRow-disk_cache");
