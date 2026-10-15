@@ -25,6 +25,15 @@ before it will tag a release.
   found · today 09:40", "host not found · 10 times"), or that nothing was logged.
 - Settings › qBittorrent › Downloads says under "Copy .torrent files to" when the last copy
   into that folder failed, and why.
+- qBittorrent's log, as the window's third face beside library and seed: `~` opens it from
+  anywhere and goes back. Its lines read like a terminal, newest at the bottom, followed while
+  you're there; scroll up and it pauses and counts what's new, `G` catches up. `1`–`4` turn the
+  normal, info, warning and critical lines on and off (remembered per server), `/` keeps the
+  lines with every word you type, `w` jumps to the next warning, `y` copies the marked lines
+  or the cursor's. `enter` shows a line's torrent in the library and `t` keeps only that
+  torrent's lines; a torrent's error or failure block has "its lines in the log". The face says
+  where qBittorrent's memory of its log begins and where its log file is. It is read from the
+  server only while it is on screen.
 
 ### Fixed
 

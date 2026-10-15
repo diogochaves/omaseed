@@ -26,6 +26,8 @@ Three static libraries and the executable. Each layer only depends on the ones a
   add sheet and duplicate detection. `TorrentProblem` and `ProblemLog` explain an errored
   torrent from qBittorrent's own log, and the failures only that log knows: a move, rename,
   web seed or .torrent copy that didn't happen ([DECISIONS.md](DECISIONS.md) C2).
+  `ServerLog` reads the whole log for the log face while it shows, and `LogFilterModel` narrows
+  it by level, words and torrent (C3).
 - Servers and settings: `Server`, `ServerStore` (`servers.json`), `SecretStore` (the keyring
   through qtkeychain, a 0600 file under `secrets/` when there is none), `StateFile`,
   `ServerPreferences` (qBittorrent's own settings), `CertificatePin` (trust on first use).
@@ -55,7 +57,8 @@ sync engine and the models, and turns key presses and clicks into API calls.
 
 - `qml/Kit/`: the component kit (buttons, fields, sheets, the table's pieces). Kit components
   take only `Theme` tokens and each has a `tests/qml/tst_<Name>.qml`.
-- `qml/Views/`: the screens, built from the kit; views take models.
+- `qml/Views/`: the screens, built from the kit; views take models. The window has three
+  faces: the library, the seed console (`Console`) and qBittorrent's log (`LogView`).
 - `Keymap.qml` maps keys to actions per focus area and feeds the key hints.
 
 **`plugin/`** is the bar widget itself, a Quickshell plugin (`chaves.omaseed`). It never talks

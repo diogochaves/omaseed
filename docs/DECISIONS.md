@@ -85,7 +85,7 @@ can reuse it.
 Board [32](32-log-and-failures.html) (#55), D1–D8 as recommended. qBittorrent answers "OK" to
 a move or rename that then fails, and a dead web seed or a .torrent copy it can't write leaves
 the torrent looking fine: the reason is in `log/main` only. D9–D15 (the log as a face of its
-own) are #56.
+own) are #56, ruled as C3.
 
 - **D1** A move, rename or part file that failed gets #54's block at the top of General, in
   yellow (the torrent still works), under the red one when it is also errored. Two failures on
@@ -111,6 +111,39 @@ change's automatic move, show within that). Lines are told apart as #54's are: t
 segments and libtorrent's untranslated text; a URL seed message and an export by their shape; a
 rename by a file path under the torrent's name; the part file and content lines in English only.
 A line older than a torrent's `added_on` is never about it.
+
+## C3 — qBittorrent's log as a face (board 32, ruled 2026-10-15)
+
+Board [32](32-log-and-failures.html) (#56), D9–D15 as recommended:
+
+- **D9** The log is the window's third face beside library and seed, opened with `~` from
+  anywhere; `~` again, or `esc` with nothing left to clear, goes back to the face it came from.
+  It takes the body's whole width: the rail and the details are about torrents. `log/main` is
+  read (all four levels, `last_known_id`) after each poll only while the face is on screen and
+  the window shows, and its lines are dropped when it closes (`ServerLog`).
+- **D10** Four level chips with their counts, `1`–`4`, kept per server in `state.json`
+  (`"log"`); a `/` filter where every word must be in the line, case ignored; the bar says
+  "N of M lines", M being the lines at the levels that are on.
+- **D11** `y` copies the marked lines, or the cursor's, one per line as
+  `yyyy-MM-dd HH:mm:ss level message`. No clear: the API has none.
+- **D12** Oldest at the top, newest at the bottom. New lines pull the view down while it is at
+  the bottom; a scroll or a key that leaves it pauses, and new lines are counted in a pill
+  instead. `G` goes to the newest line and follows again; `f` turns following off and on. The
+  footer says "● following" or "○ paused". The face opens on its newest line, following.
+- **D13** "its lines in the log" on #54's red block and #55's yellow one opens the face narrowed
+  to that torrent (a chip, `esc` clears it); `t` does the same for the cursor line's torrent and
+  `enter` shows it in the library with General open. A line is about a torrent when a quoted
+  part is its name, or starts with libtorrent's hash prefix (or its name, on libtorrent 2.0) and
+  a space. In a narrow pane the block's actions that don't fit go to a second line, so the
+  keyless link is never dropped.
+- **D14** No blocked-peers log (`log/peers`) for now.
+- **D15** Over the first line the face says where qBittorrent's memory of its log begins (its
+  start, or the oldest of the 20 000 lines it keeps) and where its log file is
+  (`file_log_path`), or that it writes none. The file is never read.
+
+The face's keys are the Keymap's "log" area, so the `?` sheet and the command palette list them.
+qBittorrent numbers its log from 0 again after a restart: a full update, or ids that go
+backwards, start the face over, as `ProblemLog` does.
 
 ## M8 — A click leaves the keyboard focus where it was
 
