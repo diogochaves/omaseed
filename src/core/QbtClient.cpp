@@ -141,6 +141,10 @@ void applyAddOptions(QUrlQuery &form, const QbtClient::AddOptions &options)
 {
     if (options.savepath)
         addItem(form, QStringLiteral("savepath"), *options.savepath);
+    if (options.downloadPath)
+        addItem(form, QStringLiteral("downloadPath"), *options.downloadPath);
+    if (options.useDownloadPath)
+        addBoolItem(form, QStringLiteral("useDownloadPath"), *options.useDownloadPath);
     if (options.category)
         addItem(form, QStringLiteral("category"), *options.category);
     if (!options.tags.isEmpty())

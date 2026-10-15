@@ -347,6 +347,11 @@ public:
     struct AddOptions
     {
         std::optional<QString> savepath;
+        /// The incomplete folder (`downloadPath`) and whether to use one (`useDownloadPath`,
+        /// Web API 2.8.4): a torrents import (#33) says both, so the server's own setting can't
+        /// send a half-done torrent's check to a folder its files were never in.
+        std::optional<QString> downloadPath;
+        std::optional<bool> useDownloadPath;
         std::optional<QString> category;
         QStringList tags;
         /// Sent as `stopped` (5.x). `paused` (the pre-5.0 name) is sent alongside it too;

@@ -337,6 +337,17 @@ omaseed_add_test(tst_tararchive
     LIBRARIES omaseed::core
 )
 
+omaseed_add_test(tst_torrentsbackup
+    SOURCES tst_torrentsbackup.cpp
+    LIBRARIES omaseed::core
+    DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
+)
+
+omaseed_add_test(tst_torrentsbackup_live LIVE
+    SOURCES tst_torrentsbackup_live.cpp
+    LIBRARIES omaseed::core
+)
+
 omaseed_add_test(tst_omaseedbackup
     SOURCES tst_omaseedbackup.cpp
     LIBRARIES omaseed::core Qt6::Sql
