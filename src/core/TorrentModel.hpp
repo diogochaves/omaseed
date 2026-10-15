@@ -113,6 +113,9 @@ public:
         // maindata: ProblemLog sets them with setProblem().
         ProblemRole,     ///< TorrentProblem::toMap(), or an empty map
         StatusCauseRole, ///< the Status column's short cause ("no access"), or empty
+        // docs/32 (#55): a move, rename or part file that failed while the torrent kept
+        // working. ProblemLog sets it with setFailure().
+        FailureRole, ///< TorrentFailure::toMap(), or an empty map
     };
     Q_ENUM(Role)
 
@@ -144,6 +147,10 @@ public:
     /// update and clear() drop every problem with the rows.
     void setProblem(const QString &hash, const QVariantMap &problem);
     QVariantMap problem(const QString &hash) const { return m_problems.value(hash); }
+    /// docs/32: the failure ProblemLog shows for `hash` (TorrentFailure::toMap()), the same
+    /// way: dataChanged() for FailureRole, then problemsChanged(); dropped with the row.
+    void setFailure(const QString &hash, const QVariantMap &failure);
+    QVariantMap failure(const QString &hash) const { return m_failures.value(hash); }
 
     /// What the last applyFullUpdate(), applyPartial() or clear() did (#36), so code that keeps
     /// its own state per torrent can follow the rows a poll touched instead of walking the
@@ -201,6 +208,7 @@ private:
     QList<Torrent> m_rows;
     QHash<QString, int> m_indexByHash;
     QHash<QString, QVariantMap> m_problems; ///< docs/28: by hash, only errored torrents
+    QHash<QString, QVariantMap> m_failures; ///< docs/32: by hash, only those with a failure
     Change m_lastChange;
     quint64 m_revision = 0;
     QTimer *m_midnight = nullptr; ///< fires once a day, just after local midnight

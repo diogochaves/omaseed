@@ -124,6 +124,16 @@ struct TorrentFailure
     bool operator==(const TorrentFailure &other) const = default;
 };
 
+/// docs/32 W1: one URL seed line about a torrent, for its HTTP sources tab.
+struct WebSeedLogLine
+{
+    QString url;    ///< the line's URL: the seed's own, or a file's under it
+    QString status; ///< ProblemMatch::webSeedStatusText()
+    QDateTime at;
+
+    bool operator==(const WebSeedLogLine &other) const = default;
+};
+
 /// Ties log lines to torrents and words them.
 namespace ProblemMatch {
 

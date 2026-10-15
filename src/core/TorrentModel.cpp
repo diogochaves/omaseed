@@ -299,6 +299,8 @@ QVariant TorrentModel::data(const QModelIndex &index, int role) const
         return m_problems.value(t.hash);
     case StatusCauseRole:
         return m_problems.value(t.hash).value(QStringLiteral("cause")).toString();
+    case FailureRole:
+        return m_failures.value(t.hash);
     default:
         return {};
     }
@@ -384,6 +386,7 @@ QHash<int, QByteArray> TorrentModel::roleNames() const
         {TorrentRole, "torrent"},
         {ProblemRole, "problem"},
         {StatusCauseRole, "statusCause"},
+        {FailureRole, "failure"},
     };
     return names;
 }
@@ -425,6 +428,7 @@ void TorrentModel::applyFullUpdate(const QJsonObject &torrents)
     m_rows.clear();
     m_indexByHash.clear();
     m_problems.clear();
+    m_failures.clear();
     m_rows.reserve(torrents.size());
     for (auto it = torrents.constBegin(); it != torrents.constEnd(); ++it) {
         Torrent t;
@@ -540,6 +544,7 @@ void TorrentModel::removeRun(int first, int last)
     for (int row = first; row <= last; ++row) {
         m_indexByHash.remove(m_rows.at(row).hash);
         m_problems.remove(m_rows.at(row).hash);
+        m_failures.remove(m_rows.at(row).hash);
     }
     m_rows.remove(first, last - first + 1);
     for (int row = first; row < m_rows.size(); ++row)
@@ -605,6 +610,24 @@ void TorrentModel::setProblem(const QString &hash, const QVariantMap &problem)
     Q_EMIT problemsChanged();
 }
 
+void TorrentModel::setFailure(const QString &hash, const QVariantMap &failure)
+{
+    const int row = indexOfHash(hash);
+    if (row < 0)
+        return;
+    if (failure.isEmpty()) {
+        if (m_failures.remove(hash) == 0)
+            return;
+    } else {
+        auto it = m_failures.find(hash);
+        if (it != m_failures.end() && it.value() == failure)
+            return;
+        m_failures.insert(hash, failure);
+    }
+    Q_EMIT dataChanged(index(row), index(row), {FailureRole});
+    Q_EMIT problemsChanged();
+}
+
 void TorrentModel::clear()
 {
     m_lastChange = Change{true, {}, {}, m_revision};
@@ -614,6 +637,7 @@ void TorrentModel::clear()
     m_rows.clear();
     m_indexByHash.clear();
     m_problems.clear();
+    m_failures.clear();
     endResetModel();
     ++m_revision;
     Q_EMIT countChanged();

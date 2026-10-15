@@ -185,11 +185,13 @@ void TestTorrentModel::rolesCoverTheTableAndTheDetails()
     QVERIFY(model.data(first, TorrentModel::LastActivityRole).toDateTime().isValid());
     QVERIFY(!model.data(first, TorrentModel::LastActivityTextRole).toString().isEmpty());
 
-    QCOMPARE(model.roleNames().size(), 77);
+    QCOMPARE(model.roleNames().size(), 78);
     QCOMPARE(roleOf(model, "problem"), int(TorrentModel::ProblemRole));
     QCOMPARE(roleOf(model, "statusCause"), int(TorrentModel::StatusCauseRole));
-    // Nothing in maindata sets them: ProblemLog does (docs/28).
+    QCOMPARE(roleOf(model, "failure"), int(TorrentModel::FailureRole));
+    // Nothing in maindata sets them: ProblemLog does (docs/28, docs/32).
     QVERIFY(model.data(first, TorrentModel::ProblemRole).toMap().isEmpty());
+    QVERIFY(model.data(first, TorrentModel::FailureRole).toMap().isEmpty());
     QCOMPARE(roleOf(model, "stateText"), int(TorrentModel::StateTextRole));
     QCOMPARE(roleOf(model, "stateRole"), int(TorrentModel::StateColorRoleRole));
     QCOMPARE(roleOf(model, "seedsPeersText"), int(TorrentModel::SeedsPeersTextRole));

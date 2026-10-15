@@ -320,3 +320,8 @@ omaseed_add_test(tst_failurelines
     SOURCES tst_failurelines.cpp
     LIBRARIES omaseed::core
 )
+
+omaseed_add_test(tst_problemlog_failures
+    SOURCES tst_problemlog_failures.cpp
+    LIBRARIES omaseed::core
+)

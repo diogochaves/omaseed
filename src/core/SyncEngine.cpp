@@ -83,6 +83,8 @@ void SyncEngine::setVisible(bool visible)
     if (m_visible == visible)
         return;
     m_visible = visible;
+    // docs/32: failures are looked for every 15 s while the window shows, not while hidden.
+    m_problemLog->setVisible(visible);
     Q_EMIT visibleChanged();
 
     // A window that comes back wants fresh numbers now, not in five seconds.
