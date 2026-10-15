@@ -4,6 +4,8 @@ configure_file(BuildConfig.hpp.in "${CMAKE_CURRENT_BINARY_DIR}/omaseed/core/Buil
 qt_add_library(omaseed-core STATIC
     AddFilesModel.cpp
     AddFilesModel.hpp
+    AltSchedule.cpp
+    AltSchedule.hpp
     AutoBackup.cpp
     AutoBackup.hpp
     ApiError.cpp
@@ -71,6 +73,8 @@ qt_add_library(omaseed-core STATIC
     SeedConsole.hpp
     SeedLedger.cpp
     SeedLedger.hpp
+    SpeedSets.cpp
+    SpeedSets.hpp
     SharedData.cpp
     SharedData.hpp
     StateFile.cpp
