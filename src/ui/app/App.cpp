@@ -1,5 +1,6 @@
 #include "ui/app/App.hpp"
 
+#include "core/BackupFormat.hpp"
 #include "core/CertificatePin.hpp"
 #include "core/Format.hpp"
 #include "core/LibraryMatch.hpp"
@@ -57,6 +58,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <numeric>
 #include <utility>
 
 using namespace omaseed::core;
@@ -256,6 +258,8 @@ App::App(QObject *parent)
     connect(this, &App::serverChanged, this, [this] {
         m_qbtRssFeeds = m_qbtRssRules = -1;
         Q_EMIT qbtBackupChanged();
+        // docs/34 D2 a: the torrents rows name the server, and so does the file they propose.
+        Q_EMIT torrentsBackupChanged();
     });
 }
 
@@ -3861,7 +3865,7 @@ void App::testServer(const QVariantMap &fields, const QString &secret)
             });
 }
 
-void App::runServerTest(const Server &server, const QString &secret)
+void App::runServerTest(const Server &server, const QString &secret, bool announce)
 {
     auto *client = new QbtClient(this);
     client->setPinnedCertificate(server.certificateSha256);
@@ -3886,20 +3890,26 @@ void App::runServerTest(const Server &server, const QString &secret)
     const AuthMode mode = server.authMode;
     const QString pinned = server.certificateSha256;
     client->probe()->then(
-        this, [this, client, elapsed, id, mode, pinned](const QbtResult<ServerInfo> &result) {
+        this,
+        [this, client, elapsed, id, mode, pinned, announce](const QbtResult<ServerInfo> &result) {
             const int latency = int(elapsed.elapsed());
             if (result.isError()) {
                 const QString raw = result.error().toString();
                 QString refused = credentialRefusedText(result.error(), mode);
                 if (result.error().kind() == ApiError::Kind::Certificate) {
                     refused = certificateRefusedText(pinned);
-                    Q_EMIT serverCertificateRefused(id, result.error().certificateSha256(), pinned);
+                    if (announce)
+                        Q_EMIT serverCertificateRefused(
+                            id, result.error().certificateSha256(), pinned);
                 }
                 const QString error = refused.isEmpty() ? raw : refused;
                 const QString detail = refused.isEmpty() ? QString() : raw;
                 client->deleteLater();
+                m_probing.remove(id);
                 m_serverList->setProbeResult(id, false, QString(), QString(), -1, latency, error);
-                Q_EMIT serverTested(id, false, QString(), QString(), -1, latency, error, detail);
+                if (announce)
+                    Q_EMIT serverTested(
+                        id, false, QString(), QString(), -1, latency, error, detail);
                 return;
             }
 
@@ -3907,15 +3917,19 @@ void App::runServerTest(const Server &server, const QString &secret)
             // sync/maindata would do this too, but it also allocates a rid on the server; a
             // plain torrents/info is the cheaper way to count what is there.
             client->torrentsInfo()->then(
-                this, [this, client, id, info, latency](const QbtResult<QJsonArray> &listResult) {
+                this,
+                [this, client, id, info, latency, announce](
+                    const QbtResult<QJsonArray> &listResult) {
                     const int count = listResult.isError() ? -1 : int(listResult.value().size());
                     const QString version = info.version;
                     const QString apiVersion = info.apiVersion;
                     client->deleteLater();
+                    m_probing.remove(id);
                     m_serverList->setProbeResult(
                         id, true, version, apiVersion, count, latency, QString());
-                    Q_EMIT serverTested(
-                        id, true, version, apiVersion, count, latency, QString(), QString());
+                    if (announce)
+                        Q_EMIT serverTested(
+                            id, true, version, apiVersion, count, latency, QString(), QString());
                 });
         });
 }
@@ -4966,6 +4980,9 @@ void App::checkLastSeed(const Torrent &t, int before, bool announce)
 
 namespace {
 
+/// Where an omaseed backup keeps each server's qBittorrent settings (#32 D3 a).
+const QString kQbtEntryPrefix = QStringLiteral("qbittorrent/");
+
 /// `path` with the home folder written as `~`.
 QString tildePath(const QString &path)
 {
@@ -5049,13 +5066,46 @@ QString App::backupSummary() const
     }
     const QString serverText =
         servers.size() == 1 ? tr("1 server") : tr("%1 servers").arg(servers.size());
+    // docs/34 D1 a: whose qBittorrent settings go with it, "with public's and private's
+    // qBittorrent settings" (what qbtBackupExtras would put in the file now).
+    QStringList owners;
+    const QList<TarArchive::Entry> extras = qbtBackupExtras();
+    for (const Server &server : servers) {
+        const QString entry = kQbtEntryPrefix + server.id + QStringLiteral(".json");
+        if (std::any_of(extras.cbegin(), extras.cend(), [&entry](const TarArchive::Entry &e) {
+                return e.name == entry;
+            })) {
+            owners.append(tr("%1's").arg(server.name));
+            bytes += std::accumulate(extras.cbegin(),
+                                     extras.cend(),
+                                     qint64(0),
+                                     [&entry](qint64 sum, const TarArchive::Entry &e) {
+                                         return e.name == entry ? sum + e.data.size() : sum;
+                                     });
+        }
+    }
+    const QString with =
+        owners.isEmpty()
+            ? QString()
+            : tr(", with %1 qBittorrent settings").arg(QLocale::c().createSeparatedList(owners));
     const QString size = Format::size(std::max<qint64>(bytes, 1));
     if (earliest > 0)
-        return tr("Settings, %1 and the seed history since %2: about %3. Passwords and API keys "
-                  "stay in the keyring.")
-            .arg(serverText, dayText(earliest), size);
-    return tr("Settings and %1: about %2. Passwords and API keys stay in the keyring.")
-        .arg(serverText, size);
+        return tr("Settings, %1 and the seed history since %2%3: about %4. Passwords and API "
+                  "keys stay in the keyring.")
+            .arg(serverText, dayText(earliest), with, size);
+    return tr("Settings and %1%2: about %3. Passwords and API keys stay in the keyring.")
+        .arg(serverText, with, size);
+}
+
+void App::refreshBackupInfo()
+{
+    Q_EMIT backupChanged();
+    // docs/34 D1 a: a backup made now carries the connected server's settings as they are;
+    // read them, and the summary names that server.
+    if (m_demoMode || !m_hasServer || !m_engine->globalState()->connected() || m_qbtBusy > 0)
+        return;
+    collectQbtSettings(
+        [this](std::optional<QbtSettingsSnapshot>, const QString &) { Q_EMIT backupChanged(); });
 }
 
 QString App::backupsDirText() const
@@ -5296,8 +5346,6 @@ void App::openBackupsFolder() const
 
 namespace {
 
-const QString kQbtEntryPrefix = QStringLiteral("qbittorrent/");
-
 QString countText(int n, const QString &one, const QString &many)
 {
     return n == 1 ? one : many.arg(n);
@@ -5328,6 +5376,13 @@ QString fileStem(const QString &name)
     return out.isEmpty() ? QStringLiteral("server") : out;
 }
 
+/// "qbittorrent-public-2026-10-16.json": what the export proposes for `server`.
+QString qbtExportName(const QString &server)
+{
+    return QStringLiteral("qbittorrent-") + fileStem(server) + QLatin1Char('-') +
+           QDate::currentDate().toString(Qt::ISODate) + QbtSettingsExport::kSuffix;
+}
+
 } // namespace
 
 QString App::qbtExportSummary() const
@@ -5344,7 +5399,9 @@ QString App::qbtExportSummary() const
         parts.append(tr("RSS feeds and rules"));
     }
     const QString last = parts.takeLast();
-    return tr("%1 and %2. Passwords are left out.").arg(parts.join(QStringLiteral(", ")), last);
+    // docs/34 D2 a: the file it would be, with the server in its name.
+    return tr("%1 and %2. Passwords are left out. Saved as %3.")
+        .arg(parts.join(QStringLiteral(", ")), last, qbtExportName(m_server.name));
 }
 
 void App::refreshQbtBackupInfo()
@@ -5377,9 +5434,7 @@ void App::refreshQbtBackupInfo()
 
 QString App::pickQbtExportPath() const
 {
-    const QString suggested =
-        QDir::homePath() + QStringLiteral("/qbittorrent-") + fileStem(m_server.name) +
-        QLatin1Char('-') + QDate::currentDate().toString(Qt::ISODate) + QbtSettingsExport::kSuffix;
+    const QString suggested = QDir::homePath() + QLatin1Char('/') + qbtExportName(m_server.name);
     QFileDialog dialog(nullptr,
                        tr("Export qBittorrent's settings"),
                        suggested,
@@ -5443,7 +5498,9 @@ void App::exportQbtSettings(const QString &path)
         return;
     ++m_qbtBusy;
     Q_EMIT qbtBackupChanged();
-    collectQbtSettings([this, path](std::optional<QbtSettingsSnapshot> s, const QString &why) {
+    const QString name = m_server.name;
+    collectQbtSettings([this, path, name](std::optional<QbtSettingsSnapshot> s,
+                                          const QString &why) {
         --m_qbtBusy;
         Q_EMIT qbtBackupChanged();
         QString error = why;
@@ -5452,7 +5509,9 @@ void App::exportQbtSettings(const QString &path)
             m_qbtRssRules = int(s->rssRules.size());
             qInfo().noquote() << QStringLiteral("qBittorrent settings: exported to %1").arg(path);
             Q_EMIT qbtBackupChanged();
-            Q_EMIT qbtExportFinished(tr("Exported to %1.").arg(tildePath(path)), true);
+            // docs/34 D2 a: the result names the server too.
+            Q_EMIT qbtExportFinished(tr("Exported %1's settings to %2.").arg(name, tildePath(path)),
+                                     true);
             return;
         }
         Q_EMIT qbtExportFinished(tr("Not exported: %1").arg(error), false);
@@ -5461,11 +5520,14 @@ void App::exportQbtSettings(const QString &path)
 
 QString App::pickQbtImportFile() const
 {
-    QFileDialog dialog(
-        nullptr,
-        tr("Import qBittorrent's settings"),
-        QDir::homePath(),
-        tr("qBittorrent settings (*.json);;omaseed backups (*.omaseed);;All files (*)"));
+    // docs/34 D8 a: the row offers both, so the first filter shows both. What a file is read
+    // as is up to its contents (BackupFormat), whatever it is called.
+    QFileDialog dialog(nullptr,
+                       tr("Import qBittorrent's settings"),
+                       QDir::homePath(),
+                       tr("qBittorrent settings or omaseed backup (*.json *.omaseed);;"
+                          "qBittorrent settings (*.json);;omaseed backups (*.omaseed);;"
+                          "All files (*)"));
     dialog.setFileMode(QFileDialog::ExistingFile);
     return runPicker(dialog, m_dialogParent).value(0);
 }
@@ -5476,12 +5538,18 @@ QString App::readQbtSettings(const QString &path)
     m_importHere.reset();
     if (path.isEmpty())
         return tr("No file was chosen.");
+    if (!QFileInfo(path).isReadable())
+        return tr("Cannot read %1.").arg(path);
     QString error;
     std::optional<QbtSettingsSnapshot> file;
-    if (path.endsWith(OmaseedBackup::kSuffix)) {
+    QbtImportSource source;
+    source.path = path;
+    switch (BackupFormat::detectFile(path)) {
+    case BackupFormat::Kind::OmaseedBackup: {
         // An omaseed backup (an automatic copy among them) holds each server's settings as
         // `qbittorrent/<id>.json`, under the ids of the machine that made it: this server's
         // is found by its address, then by its id, then as the only one (#34's lesson).
+        source.fromBackup = true;
         const std::optional<OmaseedBackup::Contents> backup =
             OmaseedBackup::parseFile(path, &error);
         if (!backup)
@@ -5511,18 +5579,32 @@ QString App::readQbtSettings(const QString &path)
             return found.isEmpty()
                        ? tr("This backup holds no qBittorrent settings.")
                        : tr("This backup holds no qBittorrent settings for %1.").arg(m_server.name);
-    } else {
+        break;
+    }
+    case BackupFormat::Kind::QbtSettings:
         file = QbtSettingsExport::parseFile(path, &error);
         if (!file)
             return error;
+        break;
+    case BackupFormat::Kind::OmaseedTorrents:
+        return tr("This is a torrents export: import it with Import torrents.");
+    case BackupFormat::Kind::Unknown:
+        return tr("This file is neither a qBittorrent settings export nor an omaseed backup.");
     }
     m_importFile = file;
+    readQbtImportHere(source);
+    return QString();
+}
+
+void App::readQbtImportHere(const QbtImportSource &source)
+{
     ++m_qbtBusy;
     Q_EMIT qbtBackupChanged();
-    collectQbtSettings([this, path](std::optional<QbtSettingsSnapshot> s, const QString &why) {
+    collectQbtSettings([this, source](std::optional<QbtSettingsSnapshot> s, const QString &why) {
         --m_qbtBusy;
         Q_EMIT qbtBackupChanged();
-        if (!s) {
+        if (!s || !m_importFile) {
+            m_importFile.reset();
             Q_EMIT qbtImportRead(
                 {{QStringLiteral("ok"), false},
                  {QStringLiteral("error"),
@@ -5530,12 +5612,132 @@ QString App::readQbtSettings(const QString &path)
             return;
         }
         m_importHere = s;
-        Q_EMIT qbtImportRead(qbtImportInfo(path));
+        Q_EMIT qbtImportRead(qbtImportInfo(source));
+    });
+}
+
+void App::withStoredSecret(const Server &server, std::function<void(const QString &)> run)
+{
+    if (server.authMode == AuthMode::None || server.id.isEmpty()) {
+        run(QString());
+        return;
+    }
+    const SecretStore::Kind kind = server.authMode == AuthMode::Cookie ? SecretStore::Kind::Password
+                                                                       : SecretStore::Kind::ApiKey;
+    auto *job = m_secrets->secret(server.id, kind, this);
+    connect(job,
+            &SecretStoreJob::finished,
+            this,
+            [run](bool ok, const QString &value, const QString &) { run(ok ? value : QString()); });
+}
+
+QString App::copyQbtSettingsFrom(const QString &id)
+{
+    if (m_qbtBusy > 0)
+        return tr("Another export, import or copy is running.");
+    if (!m_demoMode && (!m_hasServer || !m_engine->globalState()->connected()))
+        return tr("Connect to %1 to copy into it.").arg(m_server.name);
+    const std::optional<Server> source = m_servers->byId(id);
+    if (!source)
+        return tr("That server is no longer in the list.");
+    if (source->id == m_server.id)
+        return tr("omaseed is on %1: copy from another server.").arg(source->name);
+    m_importFile.reset();
+    m_importHere.reset();
+    QbtImportSource from;
+    from.kind = QbtImportSource::Kind::Server;
+    from.server = source->name;
+
+    if (m_demoMode) {
+        // The demo's servers are fiction, with nothing to reach: the one "read" is the demo
+        // server's own settings under the other name, with one queue limit moved.
+        ++m_qbtBusy;
+        Q_EMIT qbtBackupChanged();
+        collectQbtSettings([this, from](std::optional<QbtSettingsSnapshot> s, const QString &why) {
+            --m_qbtBusy;
+            Q_EMIT qbtBackupChanged();
+            if (!s) {
+                Q_EMIT qbtImportRead(
+                    {{QStringLiteral("ok"), false}, {QStringLiteral("error"), why}});
+                return;
+            }
+            QbtSettingsSnapshot other = *s;
+            other.serverName = from.server;
+            const QString key = QStringLiteral("max_active_downloads");
+            other.preferences.insert(key, other.preferences.value(key).toInt() + 2);
+            m_importFile = other;
+            m_importHere = s;
+            Q_EMIT qbtImportRead(qbtImportInfo(from));
+        });
+        return QString();
+    }
+
+    ++m_qbtBusy;
+    Q_EMIT qbtBackupChanged();
+    const Server server = *source;
+    withStoredSecret(server, [this, server, from](const QString &secret) {
+        auto *fetch = new QbtSettingsFetch(this);
+        m_qbtFetch = fetch;
+        connect(fetch,
+                &QbtSettingsFetch::fetched,
+                this,
+                [this, fetch, server, from](const QbtSettingsSnapshot &s) {
+                    fetch->deleteLater();
+                    --m_qbtBusy;
+                    // What was just read is the newest omaseed has of that server: its next
+                    // backup carries it (#32 D3 a).
+                    m_qbtSnapshots.insert(server.id, QbtSettingsExport::toJson(s));
+                    m_importFile = s;
+                    qInfo().noquote()
+                        << QStringLiteral("qBittorrent settings: read %1 to copy").arg(server.name);
+                    readQbtImportHere(from);
+                });
+        connect(fetch,
+                &QbtSettingsFetch::failed,
+                this,
+                [this, fetch, server, from](const QString &why) {
+                    fetch->deleteLater();
+                    --m_qbtBusy;
+                    Q_EMIT qbtBackupChanged();
+                    qInfo().noquote() << QStringLiteral("qBittorrent settings: %1 not read: %2")
+                                             .arg(server.name, why);
+                    const std::optional<QbtSettingsSnapshot> saved = QbtSettingsFetch::newestSaved(
+                        server, m_qbtSnapshots, m_autoBackup->copies());
+                    if (!saved) {
+                        Q_EMIT qbtImportRead(
+                            {{QStringLiteral("ok"), false},
+                             {QStringLiteral("error"),
+                              tr("%1 didn't answer (%2), and omaseed has kept none of its "
+                                 "settings.")
+                                  .arg(server.name, why)}});
+                        return;
+                    }
+                    QbtImportSource kept = from;
+                    kept.kind = QbtImportSource::Kind::Saved;
+                    kept.why = why;
+                    m_importFile = saved;
+                    readQbtImportHere(kept);
+                });
+        fetch->fetch(server, secret, omaseed::core::version());
     });
     return QString();
 }
 
-QVariantMap App::qbtImportInfo(const QString &path)
+void App::probeOtherServers()
+{
+    if (m_demoMode)
+        return;
+    for (const Server &server : m_servers->servers()) {
+        if (server.id == m_server.id || m_probing.contains(server.id))
+            continue;
+        m_probing.insert(server.id);
+        withStoredSecret(server, [this, server](const QString &secret) {
+            runServerTest(server, secret, false);
+        });
+    }
+}
+
+QVariantMap App::qbtImportInfo(const QbtImportSource &source)
 {
     const QbtSettingsSnapshot &file = *m_importFile;
     const QbtSettingsSnapshot &here = *m_importHere;
@@ -5619,7 +5821,39 @@ QVariantMap App::qbtImportInfo(const QString &path)
     if (version.startsWith(QLatin1Char('v')))
         version.remove(0, 1);
     const int differ = int(d.changes.size());
-    QString sub = tr("From %1 (qBittorrent %2).").arg(QFileInfo(path).fileName(), version);
+    // docs/34 D2 a: whose settings these are, taken from the file (or the read), and when.
+    const QString from = file.serverName;
+    const QString when =
+        file.created.isValid()
+            ? QLocale::c().toString(file.created.toLocalTime(), QStringLiteral("d MMM yyyy HH:mm"))
+            : QString();
+    const bool copy = source.kind != QbtImportSource::Kind::File;
+    QString sub;
+    switch (source.kind) {
+    case QbtImportSource::Kind::File: {
+        const QString fileName = QFileInfo(source.path).fileName();
+        if (from.isEmpty() || when.isEmpty())
+            sub = tr("From %1 (qBittorrent %2).").arg(fileName, version);
+        else if (source.fromBackup)
+            sub = tr("From %1's settings in %2, read %3 (qBittorrent %4).")
+                      .arg(from, fileName, when, version);
+        else
+            sub = tr("From %1's export of %2 (qBittorrent %3), %4.")
+                      .arg(from, when, version, fileName);
+        break;
+    }
+    case QbtImportSource::Kind::Server:
+        sub = tr("Read from %1 just now (qBittorrent %2).").arg(source.server, version);
+        break;
+    case QbtImportSource::Kind::Saved:
+        sub = tr("%1 didn't answer (%2). These are its settings as omaseed last kept them, on %3 "
+                 "(qBittorrent %4).")
+                  .arg(source.server,
+                       source.why,
+                       when.isEmpty() ? tr("an unknown date") : when,
+                       version);
+        break;
+    }
     sub += QLatin1Char(' ');
     if (differ == 0)
         sub +=
@@ -5632,9 +5866,21 @@ QVariantMap App::qbtImportInfo(const QString &path)
                             "not listed."))
                    .arg(name)
                    .arg(d.same);
+    if (copy)
+        sub += QLatin1Char(' ') + tr("%1 is not changed.").arg(source.server);
     return {{QStringLiteral("ok"), true},
-            {QStringLiteral("title"), tr("Import settings into %1").arg(name)},
+            {QStringLiteral("copy"), copy},
+            {QStringLiteral("saved"), source.kind == QbtImportSource::Kind::Saved},
+            {QStringLiteral("title"),
+             copy ? tr("Copy settings from %1 into %2").arg(source.server, name)
+                  : tr("Import settings into %1").arg(name)},
             {QStringLiteral("sub"), sub},
+            {QStringLiteral("nowHead"), tr("%1 now").arg(name)},
+            {QStringLiteral("fromHead"),
+             copy             ? source.server
+             : from.isEmpty() ? tr("from the file")
+                              : tr("from %1").arg(from)},
+            {QStringLiteral("exportText"), tr("export %1 first").arg(name)},
             {QStringLiteral("rows"), rows},
             {QStringLiteral("notes"), notes},
             {QStringLiteral("secrets"),

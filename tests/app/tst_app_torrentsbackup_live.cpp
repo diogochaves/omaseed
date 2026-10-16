@@ -117,13 +117,19 @@ private Q_SLOTS:
             QVERIFY2(app.torrentsExportSummary().startsWith(
                          QStringLiteral("1 torrent with its save path")),
                      qPrintable(app.torrentsExportSummary()));
+            // docs/34 D2 a: the file it proposes names the server.
+            QVERIFY2(app.torrentsExportSummary().endsWith(
+                         QStringLiteral("Saved as torrents-box-%1.omaseed-torrents.")
+                             .arg(QDate::currentDate().toString(Qt::ISODate))),
+                     qPrintable(app.torrentsExportSummary()));
             QSignalSpy exported(&app, &App::torrentsExportFinished);
             app.exportTorrents(file);
             QCOMPARE(app.torrentsBackupRunning(), QStringLiteral("export"));
             QVERIFY(exported.wait(20000));
             QVERIFY2(exported.at(0).at(1).toBool(), qPrintable(exported.at(0).at(0).toString()));
-            QVERIFY(
-                exported.at(0).at(0).toString().startsWith(QStringLiteral("Exported 1 torrent")));
+            QVERIFY2(exported.at(0).at(0).toString().startsWith(
+                         QStringLiteral("Exported box's 1 torrent to ")),
+                     qPrintable(exported.at(0).at(0).toString()));
             QVERIFY(app.torrentsBackupRunning().isEmpty());
         }
 
@@ -144,6 +150,11 @@ private Q_SLOTS:
                  qPrintable(info.value(QStringLiteral("error")).toString()));
         QCOMPARE(info.value(QStringLiteral("title")).toString(),
                  QStringLiteral("Import 1 torrent into box"));
+        // docs/34 D2 a: whose export it is, from the file.
+        const QString sub = info.value(QStringLiteral("sub")).toString();
+        QVERIFY2(sub.startsWith(QStringLiteral("From box's export of ")) &&
+                     sub.endsWith(QStringLiteral(", box.omaseed-torrents.")),
+                 qPrintable(sub));
         QCOMPARE(planRow(info, QStringLiteral("new")).value(QStringLiteral("count")).toInt(), 1);
         QCOMPARE(planRow(info, QStringLiteral("present")).value(QStringLiteral("count")).toInt(),
                  0);

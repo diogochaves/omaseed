@@ -35,6 +35,7 @@
 #include "core/OmaseedBackup.hpp"
 #include "core/QbtClient.hpp"
 #include "core/QbtSettingsExport.hpp"
+#include "core/QbtSettingsFetch.hpp"
 #include "core/RenameDisk.hpp"
 #include "core/SecretStore.hpp"
 #include "core/SeedConsole.hpp"
@@ -618,7 +619,11 @@ private:
     void writeStateSection(const QString &key, const QJsonObject &value);
     QJsonObject m_demoState;
     /// The shared tail of `testServer()`: run the probe with the secret already resolved.
-    void runServerTest(const omaseed::core::Server &server, const QString &secret);
+    /// `announce` false (probeOtherServers) only updates the server list: no `serverTested`.
+    void
+    runServerTest(const omaseed::core::Server &server, const QString &secret, bool announce = true);
+    /// Servers probeOtherServers() is waiting on.
+    QSet<QString> m_probing;
 
     omaseed::core::ServerListModel *m_serverList =
         new omaseed::core::ServerListModel(m_servers, m_secrets, this);
@@ -1561,8 +1566,9 @@ public:
     /// [ids]}`. Answers `{ok, text}`.
     Q_INVOKABLE QVariantMap restoreBackup(const QVariantMap &choice);
     Q_INVOKABLE void openBackupsFolder() const;
-    /// Re-reads what the Backup pane prints (the summary, the last copy) when it is shown.
-    Q_INVOKABLE void refreshBackupInfo() { Q_EMIT backupChanged(); }
+    /// Re-reads what the Backup pane prints (the summary, the last copy) when it is shown, and
+    /// the connected server's qBittorrent settings, which a backup made now would carry.
+    Q_INVOKABLE void refreshBackupInfo();
 
 Q_SIGNALS:
     void backupChanged();
@@ -1610,6 +1616,15 @@ public:
     /// Imports what readQbtSettings last read: `choice` = `{keys: [...], categories, tagsRss,
     /// folders}`. `qbtImportFinished` says what it did.
     Q_INVOKABLE void applyQbtImport(const QVariantMap &choice);
+    /// docs/34 D6 a: server `id`'s settings, read through a client of their own (the app stays
+    /// on the server it is on), then the server the app is on, and the import sheet's rows
+    /// through `qbtImportRead`, as a file's would be. When `id` can't be read, its settings as
+    /// omaseed last kept them (QbtSettingsFetch::newestSaved), and the sheet says so. Answers ""
+    /// when the read is on its way, otherwise why it can't start.
+    Q_INVOKABLE QString copyQbtSettingsFrom(const QString &id);
+    /// docs/34 D3 a: each server other than the one the app is on, probed quietly (no
+    /// `serverTested`) so the server list's dots and counts are fresh.
+    Q_INVOKABLE void probeOtherServers();
 
 Q_SIGNALS:
     void qbtBackupChanged();
@@ -1618,6 +1633,21 @@ Q_SIGNALS:
     void qbtImportFinished(const QString &text, bool ok);
 
 private:
+    /// Where the import sheet's settings came from (docs/34 D2 a, D6 a): a file, or another
+    /// server read just now, or omaseed's last copy of it when it could not be read.
+    struct QbtImportSource
+    {
+        enum class Kind { File, Server, Saved } kind = Kind::File;
+        QString path;            ///< Kind::File: the file
+        bool fromBackup = false; ///< Kind::File: an omaseed backup holding the settings
+        QString server;          ///< Kind::Server, Saved: the other server's name
+        QString why;             ///< Kind::Saved: why it could not be read
+    };
+    /// The secret `server` signs in with, read from the keyring, then `run(secret)`.
+    void withStoredSecret(const omaseed::core::Server &server,
+                          std::function<void(const QString &)> run);
+    /// Reads the server the app is on and opens the import sheet on `m_importFile`.
+    void readQbtImportHere(const QbtImportSource &source);
     /// The server's settings, read afresh (in a demo: its offline preferences and models).
     void collectQbtSettings(std::function<void(std::optional<omaseed::core::QbtSettingsSnapshot>,
                                                const QString &)> done);
@@ -1626,7 +1656,8 @@ private:
     /// Each server's latest settings for omaseed's backups: this session's exports over the
     /// ones the newest automatic copy holds.
     QList<omaseed::core::TarArchive::Entry> qbtBackupExtras() const;
-    QVariantMap qbtImportInfo(const QString &path);
+    QVariantMap qbtImportInfo(const QbtImportSource &source);
+    QPointer<omaseed::core::QbtSettingsFetch> m_qbtFetch;
     QHash<QString, QByteArray> m_qbtSnapshots;
     std::optional<omaseed::core::QbtSettingsSnapshot> m_importFile;
     std::optional<omaseed::core::QbtSettingsSnapshot> m_importHere;

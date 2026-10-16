@@ -13,6 +13,7 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QJsonArray>
+#include <QLocale>
 #include <QRegularExpression>
 #include <QTimer>
 #include <QUrl>
@@ -49,6 +50,13 @@ QString stem(const QString &name)
     out.replace(QRegularExpression(QStringLiteral("[^a-z0-9]+")), QStringLiteral("-"));
     out.remove(QRegularExpression(QStringLiteral("^-+|-+$")));
     return out.isEmpty() ? QStringLiteral("server") : out;
+}
+
+/// "torrents-public-2026-10-16.omaseed-torrents": what the export proposes for `server`.
+QString exportName(const QString &server)
+{
+    return QStringLiteral("torrents-") + stem(server) + QLatin1Char('-') +
+           QDate::currentDate().toString(Qt::ISODate) + TorrentsBackup::kSuffix;
 }
 
 /// The portal's chooser, as a dialog of our window (App.cpp's runPicker, see there).
@@ -92,14 +100,14 @@ QString App::torrentsExportSummary() const
         text += QLatin1Char(' ') + count(magnets,
                                          "1 magnet without metadata goes in as a link.",
                                          "%1 magnets without metadata go in as links.");
+    // docs/34 D2 a: the file it would be, with the server in its name.
+    text += QLatin1Char(' ') + tr("Saved as %1.").arg(exportName(m_server.name));
     return text;
 }
 
 QString App::pickTorrentsExportPath() const
 {
-    const QString suggested = QDir::homePath() + QStringLiteral("/torrents-") +
-                              stem(m_server.name) + QLatin1Char('-') +
-                              QDate::currentDate().toString(Qt::ISODate) + TorrentsBackup::kSuffix;
+    const QString suggested = QDir::homePath() + QLatin1Char('/') + exportName(m_server.name);
     QFileDialog dialog(nullptr,
                        tr("Export qBittorrent's torrents"),
                        suggested,
@@ -136,7 +144,7 @@ void App::exportTorrents(const QString &path)
         exporter,
         &TorrentsExport::finished,
         this,
-        [this, exporter](const TorrentsExport::Outcome &outcome) {
+        [this, exporter, name = m_server.name](const TorrentsExport::Outcome &outcome) {
             exporter->deleteLater();
             setTorrentsRunning(QString());
             if (outcome.cancelled) {
@@ -147,9 +155,11 @@ void App::exportTorrents(const QString &path)
                 Q_EMIT torrentsExportFinished(tr("Not exported: %1").arg(outcome.error), false);
                 return;
             }
+            // docs/34 D2 a: the result names the server.
             QString text = outcome.torrents == 1
-                               ? tr("Exported 1 torrent to %1.").arg(tilde(outcome.path))
-                               : tr("Exported %1 torrents to %2.")
+                               ? tr("Exported %1's 1 torrent to %2.").arg(name, tilde(outcome.path))
+                               : tr("Exported %1's %2 torrents to %3.")
+                                     .arg(name)
                                      .arg(outcome.torrents)
                                      .arg(tilde(outcome.path));
             if (outcome.magnets > 0)
@@ -345,12 +355,23 @@ QVariantMap App::torrentsImportInfo()
     if (version.startsWith(QLatin1Char('v')))
         version.remove(0, 1);
     const int n = int(file.records.size());
+    // docs/34 D2 a: whose torrents these are, from the file's manifest, and when.
+    const QString fileName = QFileInfo(file.path).fileName();
+    const QString from = file.manifest.serverName;
+    const QString fromText =
+        from.isEmpty() || !file.manifest.created.isValid()
+            ? tr("From %1 (qBittorrent %2).").arg(fileName, version)
+            : tr("From %1's export of %2 (qBittorrent %3), %4.")
+                  .arg(from,
+                       QLocale::c().toString(file.manifest.created.toLocalTime(),
+                                             QStringLiteral("d MMM yyyy HH:mm")),
+                       version,
+                       fileName);
     return {{QStringLiteral("ok"), true},
             {QStringLiteral("title"),
              n == 1 ? tr("Import 1 torrent into %1").arg(name)
                     : tr("Import %1 torrents into %2").arg(n).arg(name)},
-            {QStringLiteral("sub"),
-             tr("From %1 (qBittorrent %2).").arg(QFileInfo(file.path).fileName(), version)},
+            {QStringLiteral("sub"), fromText},
             {QStringLiteral("plan"), rows},
             {QStringLiteral("paths"), paths},
             {QStringLiteral("created"), created},
