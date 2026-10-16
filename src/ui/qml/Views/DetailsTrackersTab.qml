@@ -92,6 +92,9 @@ Item {
     ListView {
         id: list
 
+        // #77: the trackers' list, for a screen reader; each row is a list item.
+        Accessible.name: qsTr("trackers")
+        Accessible.role: Accessible.List
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.right: parent.right
@@ -117,6 +120,10 @@ Item {
             readonly property color statusColor: row.isPseudo ? Theme.dimForeground : row.status
                                                                 === 4 ? Theme.yellow : row.textColor
 
+            // #77: a screen reader finds a tracker by its URL (DHT, PeX and LSD, which have
+            // none, by their word), and only a real tracker can be selected.
+            Accessible.name: row.isPseudo ? row.host : row.url
+            Accessible.selectable: !row.isPseudo
             hasCursor: row.index === root.cursorIndex
             height: Theme.railRowHeight
             objectName: "trackerRow_" + row.index
@@ -199,6 +206,7 @@ Item {
 
     // The list's empty space, under its last row: a click there lets the selection go, as
     // in the table.
+    // a11y-ignore A2: empty space, not a control; esc lets the selection go too (#77)
     MouseArea {
         id: emptySpace
 

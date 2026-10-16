@@ -2049,4 +2049,126 @@ TestCase {
         view.activateTab(4);
         compare(view.currentTab, 4);
     }
+
+    // #77: each tab's rows are list items named by what identifies them: a tracker's URL (or
+    // DHT's word, not selectable), a peer's address, a web seed's URL, a file's name.
+    function test_the_tabs_rows_publish_list_items_named_by_what_they_are() {
+        let view = testCase.listView(2);
+        const trackers = App.details.trackers;
+        let row = findChild(view, "trackerRow_0");
+        compare(row.Accessible.role, Accessible.ListItem);
+        compare(row.Accessible.name, trackers.urlAt(0));
+        verify(row.Accessible.selectable);
+        compare(trackers.urlAt(3), "** [DHT] **");
+        row = findChild(view, "trackerRow_3");
+        compare(row.Accessible.name, findChild(view, "trackerHost_3").text);
+        verify(!row.Accessible.selectable, "DHT can be selected");
+
+        view = testCase.listView(3);
+        row = findChild(view, "peerRow_0");
+        compare(row.Accessible.role, Accessible.ListItem);
+        compare(row.Accessible.name, App.details.peers.addressAt(0));
+
+        view = testCase.listView(4);
+        row = findChild(view, "webSeedRow_0");
+        compare(row.Accessible.role, Accessible.ListItem);
+        compare(row.Accessible.name, App.details.webSeeds.urlAt(0));
+
+        view = testCase.filesView();
+        waitForRendering(view);
+        row = findChild(view, "fileRow_3");
+        compare(row.Accessible.role, Accessible.ListItem);
+        compare(row.Accessible.name, "subs/");
+        compare(row.Accessible.name, findChild(view, "fileName_3").text);
+    }
+
+    // #77: a screen reader's press on a tab's row is a plain click: the cursor goes there
+    // and the selection becomes that row (the Files tab lets it go, as its click does).
+    function test_the_accessible_press_on_a_tabs_row_is_a_plain_click() {
+        let view = testCase.listView(3);
+        const peers = App.details.peers;
+        mouseClick(findChild(view, "peerRow_0"), 120, 4, Qt.LeftButton, Qt.ControlModifier);
+        mouseClick(findChild(view, "peerRow_2"), 120, 4, Qt.LeftButton, Qt.ControlModifier);
+        compare(view.peersSelection.count, 2);
+        findChild(view, "peerRow_1").Accessible.pressAction();
+        compare(view.peersSelection.keys, [peers.addressAt(1)]);
+
+        view = testCase.listView(2);
+        findChild(view, "trackerRow_1").Accessible.pressAction();
+        compare(view.trackersSelection.keys, [App.details.trackers.urlAt(1)]);
+        compare(view.trackersCursor, 1);
+
+        view = testCase.filesView();
+        waitForRendering(view);
+        const files = App.details.files;
+        mouseClick(findChild(view, "fileRow_1"), 120, 4, Qt.LeftButton, Qt.ControlModifier);
+        mouseClick(findChild(view, "fileRow_2"), 120, 4, Qt.LeftButton, Qt.ControlModifier);
+        compare(files.selectedCount, 2);
+        findChild(view, "fileRow_4").Accessible.pressAction();
+        compare(files.selectedCount, 0);
+        compare(view.cursorIndex, 4);
+    }
+
+    // #77: a folder's arrow is a button named for what its press does, and the press folds;
+    // a file's arrow is out of the tree.
+    function test_the_accessible_press_on_a_fold_arrow_folds() {
+        const view = testCase.filesView();
+        const files = App.details.files;
+        waitForRendering(view);
+        verify(files.isFolder(3) && files.isExpanded(3));
+        const arrow = findChild(view, "fileFold_3");
+        compare(arrow.Accessible.role, Accessible.Button);
+        compare(arrow.Accessible.name, "fold");
+        verify(!arrow.Accessible.ignored);
+        arrow.Accessible.pressAction();
+        verify(!files.isExpanded(3), "the press did not fold");
+        compare(findChild(view, "fileFold_3").Accessible.name, "unfold");
+        findChild(view, "fileFold_3").Accessible.pressAction();
+        verify(files.isExpanded(3), "the press did not open it again");
+        verify(findChild(view, "fileFold_1").Accessible.ignored, "a file has a fold button");
+    }
+
+    // #77: the summary line's "N skipped" is a check box that hides them, and the line is a
+    // button that opens the filter.
+    function test_the_summary_line_publishes_its_switch_and_the_filter() {
+        const view = testCase.filesView();
+        const files = App.details.files;
+        wait(0);
+        const skipped = findChild(view, "filesSkippedArea");
+        compare(skipped.Accessible.role, Accessible.CheckBox);
+        compare(skipped.Accessible.name, "hide skipped files");
+        compare(skipped.Accessible.description, "2 skipped");
+        verify(!skipped.Accessible.checked);
+        skipped.Accessible.toggleAction();
+        verify(files.hideSkipped, "the toggle did not hide them");
+        verify(skipped.Accessible.checked);
+        skipped.Accessible.pressAction();
+        verify(!files.hideSkipped, "the press did not show them again");
+
+        const filter = findChild(view, "filesFilterArea");
+        compare(filter.Accessible.role, Accessible.Button);
+        compare(filter.Accessible.name, "filter files");
+        filter.Accessible.pressAction();
+        verify(view.filterEditing, "the press did not open the filter");
+        keyClick(Qt.Key_Escape);
+    }
+
+    // #77: a row's tick is a "download" check box, mixed on a folder with some skipped; its
+    // toggle is the click: it skips the file.
+    function test_a_files_tick_is_a_check_box() {
+        const view = testCase.filesView();
+        const files = App.details.files;
+        waitForRendering(view);
+        view.filesCursor = files.rowOfPath("Big Buck Bunny 4K/LICENSE.txt");
+        const at = view.filesCursor;
+        const tick = findChild(view, "fileTick_" + at);
+        compare(tick.Accessible.role, Accessible.CheckBox);
+        compare(tick.Accessible.name, "download");
+        verify(tick.Accessible.checked);
+        verify(!tick.Accessible.checkStateMixed);
+        tick.Accessible.toggleAction();
+        verify(!findChild(view, "fileTick_" + at).Accessible.checked, "the toggle did not skip it");
+        findChild(view, "fileTick_" + at).Accessible.pressAction();
+        verify(findChild(view, "fileTick_" + at).Accessible.checked, "the press did not tick it");
+    }
 }

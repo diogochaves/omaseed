@@ -1171,4 +1171,38 @@ TestCase {
             last = p;
         }
     }
+
+    // #77: the rows are list items in the "torrents" list, named by the torrent alone (no
+    // speed, ETA or progress) and selected as the table has them.
+    function test_rows_publish_list_items_named_by_the_torrent() {
+        testCase.rowsProbe = findChild(table, "rows");
+        compare(testCase.rowsProbe.Accessible.role, Accessible.List);
+        compare(testCase.rowsProbe.Accessible.name, "torrents");
+        const row = findChild(table, "row_1");
+        compare(row.Accessible.role, Accessible.ListItem);
+        compare(row.Accessible.name, cellText("name_1"));
+        verify(!row.Accessible.selected);
+        table.selectAll();
+        verify(row.Accessible.selected);
+    }
+
+    // #77: a screen reader's press on a row is a plain click: the cursor goes there and only
+    // that row is selected.
+    function test_the_accessible_press_selects_only_that_row() {
+        table.selectAll();
+        findChild(table, "row_2").Accessible.pressAction();
+        compare(table.cursorIndex, 2);
+        compare(table.selectedCount, 1);
+        compare(table.selectedHashes()[0], App.filtered.hashAt(2));
+    }
+
+    // #77: a row being renamed ignores the press, as it ignores the pointer.
+    function test_a_row_being_renamed_ignores_the_accessible_press() {
+        table.startRename();
+        verify(table.renaming);
+        findChild(table, "row_" + table.cursorIndex).Accessible.pressAction();
+        verify(table.renaming, "the press ended the rename");
+        compare(table.selectedCount, 0);
+        table.cancelRename();
+    }
 }

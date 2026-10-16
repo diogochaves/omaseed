@@ -87,4 +87,29 @@ TestCase {
         row.doubleClicked();
         compare(doubleClicks, 1);
     }
+
+    // #77: a screen reader finds a list item, selected as the row is, named by the caller.
+    function test_it_publishes_a_selectable_list_item() {
+        const row = createTemporaryObject(rowComponent, testCase);
+        row.Accessible.name = "debian.iso";
+        compare(row.Accessible.role, Accessible.ListItem);
+        compare(row.Accessible.name, "debian.iso");
+        verify(row.Accessible.selectable);
+        verify(!row.Accessible.selected);
+        row.selected = true;
+        verify(row.Accessible.selected);
+    }
+
+    // #77: its press is a plain click, once; disabled, it does nothing, as the pointer.
+    function test_the_accessible_press_is_a_plain_click() {
+        const row = createTemporaryObject(rowComponent, testCase);
+        const seen = [];
+        row.clicked.connect(modifiers => seen.push(modifiers));
+        row.Accessible.pressAction();
+        compare(seen.length, 1);
+        compare(seen[0], Qt.NoModifier);
+        row.enabled = false;
+        row.Accessible.pressAction();
+        compare(seen.length, 1, "a disabled row took the press");
+    }
 }

@@ -22,6 +22,21 @@ Item {
 
     readonly property bool hovered: mouse.containsMouse
 
+    // #77: a screen reader finds a check box, "download", checked when nothing under it is
+    // skipped and mixed when some is; the tip (what a click does, and its key) is the
+    // description. Its toggle and its press are both the click; disabled, neither does
+    // anything, as the pointer.
+    Accessible.checkStateMixed: root.wanted === 1
+    Accessible.checkable: true
+    Accessible.checked: root.wanted === 2
+    Accessible.description: root.tip
+    Accessible.name: qsTr("download")
+    Accessible.role: Accessible.CheckBox
+    Accessible.onPressAction: if (root.enabled)
+                                  root.clicked()
+    Accessible.onToggleAction: if (root.enabled)
+                                   root.clicked()
+
     implicitHeight: Theme.railRowHeight
     implicitWidth: Theme.space(14)
 

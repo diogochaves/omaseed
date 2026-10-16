@@ -1386,6 +1386,10 @@ Item {
         objectName: "rows"
         reuseItems: true
 
+        // #77: the rows' list, for a screen reader; each row is the `TableRow` band in it.
+        Accessible.name: qsTr("torrents")
+        Accessible.role: Accessible.List
+
         // #51 D9 (see `orderHeld`): an ancestor of the rows, it hears the hover they take.
         HoverHandler {
             id: rowsHover
@@ -1423,6 +1427,23 @@ Item {
             readonly property string statusGlyph: {
                 const glyph = root.statusGlyphs[row.stateText];
                 return glyph !== undefined ? glyph : Glyphs.dot;
+            }
+
+            /// A left click on the row with `modifiers`: the pointer's, and a screen reader's
+            /// press (#77), which is a plain one.
+            function click(modifiers: int): void {
+                root.forceActiveFocus();
+                if (modifiers & Qt.ShiftModifier) {
+                    root.selectRangeTo(row.index, (modifiers & Qt.ControlModifier) !== 0);
+                    return;
+                }
+                if (modifiers & Qt.ControlModifier) {
+                    root.cursorIndex = row.index;
+                    root.toggleSelection(row.index);
+                    return;
+                }
+                root.cursorIndex = row.index;
+                root.selectOnly(row.index);
             }
 
             /// The whole text of the cell at `x` when the cell had to elide it, else "": what
@@ -1486,6 +1507,14 @@ Item {
                 return cell.implicitWidth + tracks;
             }
 
+            // #77: a screen reader finds the row by the torrent's name; the speeds, ETA and
+            // progress change too often to be in it. Its press is a plain click.
+            Accessible.name: row.name
+            Accessible.role: Accessible.ListItem
+            Accessible.selectable: true
+            Accessible.selected: row.isSelected
+            Accessible.onPressAction: if (!row.editing)
+                                          row.click(Qt.NoModifier)
             height: Theme.rowHeight
             objectName: "row_" + row.index
             width: root.rowWidth
@@ -1493,6 +1522,9 @@ Item {
             TableRow {
                 id: band
 
+                // #77: the row a screen reader finds is the delegate (a list view publishes its
+                // delegates whatever they are), so the band, a row of its own, stays out of it.
+                Accessible.ignored: true
                 anchors.fill: parent
                 hasCursor: row.isCursor
                 selected: row.isSelected
@@ -1905,29 +1937,20 @@ Item {
                 hoverEnabled: true
 
                 onClicked: mouse => {
-                    root.forceActiveFocus();
                     if (mouse.button === Qt.RightButton) {
+                        root.forceActiveFocus();
                         const point = pointer.mapToItem(root, mouse.x, mouse.y);
                         root.contextClick(row.index, point.x, point.y);
                         return;
                     }
                     // #51 D8: a middle-click toggles the row, as ctrl+click does.
                     if (mouse.button === Qt.MiddleButton) {
+                        root.forceActiveFocus();
                         root.cursorIndex = row.index;
                         root.toggleSelection(row.index);
                         return;
                     }
-                    if (mouse.modifiers & Qt.ShiftModifier) {
-                        root.selectRangeTo(row.index, (mouse.modifiers & Qt.ControlModifier) !== 0);
-                        return;
-                    }
-                    if (mouse.modifiers & Qt.ControlModifier) {
-                        root.cursorIndex = row.index;
-                        root.toggleSelection(row.index);
-                        return;
-                    }
-                    root.cursorIndex = row.index;
-                    root.selectOnly(row.index);
+                    row.click(mouse.modifiers);
                 }
                 // The press before it already put the cursor and the selection on the row.
                 onDoubleClicked: mouse => {

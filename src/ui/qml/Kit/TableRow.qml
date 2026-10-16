@@ -9,6 +9,10 @@ import Omaseed.Kit
 // 1 px inset border at `Theme.borderHover` on every side, since this row is one band rather
 // than the spec's per-`div` box-shadow trick (`.tbl .r.cur > div`); both together use a single
 // 24 % fill (`.tbl .r.sel.cur > div`) instead of stacking the two.
+//
+// A screen reader finds it as a row (#77): the caller names it with the row's identifying text
+// (a torrent's name, a peer's address) through `Accessible.name`, never a live value; its
+// state is `selected`, and its press is a plain left click, the same `clicked` signal.
 Rectangle {
     id: root
 
@@ -23,6 +27,13 @@ Rectangle {
 
     readonly property bool both: root.selected && root.hasCursor
     readonly property color textColor: root.selected ? Theme.brightForeground : Theme.foreground
+
+    Accessible.role: Accessible.ListItem
+    Accessible.selectable: true
+    Accessible.selected: root.selected
+    // A screen reader's press is a plain click (#77); disabled, it does nothing, as the pointer.
+    Accessible.onPressAction: if (root.enabled)
+                                  root.clicked(Qt.NoModifier)
 
     border.color: root.hasCursor && !root.both ? Theme.fill(Theme.borderHover) : "transparent"
     border.width: root.hasCursor && !root.both ? 1 : 0

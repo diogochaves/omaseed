@@ -71,6 +71,9 @@ Item {
     ListView {
         id: list
 
+        // #77: the web seeds' list, for a screen reader; each row is a list item.
+        Accessible.name: qsTr("HTTP sources")
+        Accessible.role: Accessible.List
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.right: parent.right
@@ -88,6 +91,8 @@ Item {
             required property string statusError
             required property string statusMeta
 
+            // #77: a screen reader finds the web seed by its URL.
+            Accessible.name: row.url
             hasCursor: row.index === root.cursorIndex
             height: root.rowHeight
             objectName: "webSeedRow_" + row.index
@@ -169,6 +174,7 @@ Item {
 
     // The list's empty space, under its last row: a click there lets the selection go, as
     // in the table.
+    // a11y-ignore A2: empty space, not a control; esc lets the selection go too (#77)
     MouseArea {
         id: emptySpace
 

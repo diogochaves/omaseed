@@ -251,6 +251,8 @@ Rectangle {
             FileTick {
                 Layout.preferredHeight: Theme.railRowHeight
                 Layout.preferredWidth: root.checkWidth
+                // #77: the head's tick stands for every file.
+                Accessible.name: qsTr("download every file")
                 objectName: "addFilesHeadTick"
                 tip: root.headWanted === 2 ? qsTr("skip every file · ctrl+a")
                                            : qsTr("tick every file · ctrl+a")

@@ -109,6 +109,9 @@ Item {
     ListView {
         id: list
 
+        // #77: the peers' list, for a screen reader; each row is a list item.
+        Accessible.name: qsTr("peers")
+        Accessible.role: Accessible.List
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.right: parent.right
@@ -131,6 +134,9 @@ Item {
             required property string upSpeedText
             required property string progressText
 
+            // #77: a screen reader finds the peer by its address; the speeds and progress
+            // change too often to be in the name.
+            Accessible.name: row.address
             hasCursor: row.index === root.cursorIndex
             height: Theme.railRowHeight
             objectName: "peerRow_" + row.index
@@ -218,6 +224,7 @@ Item {
 
     // The list's empty space, under its last row: a click there lets the selection go, as
     // in the table.
+    // a11y-ignore A2: empty space, not a control; esc lets the selection go too (#77)
     MouseArea {
         id: emptySpace
 

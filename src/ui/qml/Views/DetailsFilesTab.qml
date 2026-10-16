@@ -350,15 +350,42 @@ Item {
             }
 
             MouseArea {
+                // #77: the line is a button that opens the filter; its press is the click.
+                // A MouseArea's `enabled` is its own flag alone, so the line's says whether
+                // the tab is disabled.
+                Accessible.description: "/"
+                Accessible.ignored: !root.canFilter
+                Accessible.name: qsTr("filter files")
+                Accessible.role: Accessible.Button
+                Accessible.onPressAction: if (summary.enabled && root.canFilter)
+                                              root.focusFilter()
                 anchors.fill: parent
                 cursorShape: Qt.PointingHandCursor
                 enabled: root.canFilter
+                objectName: "filesFilterArea"
 
                 onClicked: root.focusFilter()
             }
 
             // Above the line's own area: a click on "N skipped" hides them, not the filter.
             MouseArea {
+                id: skippedArea
+
+                // #77: a check box for hiding the skipped files, the count as its
+                // description. Its toggle and its press are both the click.
+                Accessible.checkable: true
+                Accessible.checked: root.model !== null && root.model.hideSkipped
+                Accessible.description: root.skippedText
+                Accessible.name: qsTr("hide skipped files")
+                Accessible.role: Accessible.CheckBox
+                Accessible.onPressAction: skippedArea.toggle()
+                Accessible.onToggleAction: skippedArea.toggle()
+
+                function toggle(): void {
+                    if (summary.enabled && skippedArea.visible)
+                        root.hideSkippedRequested();
+                }
+
                 cursorShape: Qt.PointingHandCursor
                 height: summary.height
                 objectName: "filesSkippedArea"
@@ -456,6 +483,8 @@ Item {
         FileTick {
             Layout.preferredHeight: Theme.railRowHeight
             Layout.preferredWidth: root.tickWidth
+            // #77: the head's tick stands for every file.
+            Accessible.name: qsTr("download every file")
             objectName: "filesHeadTick"
             tip: {
                 const verb = root.model !== null && root.model.headWanted === 2 ? qsTr("skip")
@@ -553,6 +582,9 @@ Item {
     ListView {
         id: list
 
+        // #77: the files' list, for a screen reader; each row is a list item.
+        Accessible.name: qsTr("files")
+        Accessible.role: Accessible.List
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.right: parent.right
@@ -588,6 +620,8 @@ Item {
             // first test it would open the editor, which takes the keyboard as it is built.
             readonly property bool editing: root.renamingRow >= 0 && root.renamingRow === row.index
 
+            // #77: a screen reader finds the file or folder by its name.
+            Accessible.name: row.name
             hasCursor: row.index === root.cursorIndex
             height: Theme.railRowHeight
             objectName: "fileRow_" + row.index
@@ -673,6 +707,15 @@ Item {
                     MouseArea {
                         id: foldMouse
 
+                        // #77: a folder's arrow is a button, named for what a press does (Qt
+                        // 6.11 has no `Accessible.expanded`); its press is the click. A
+                        // MouseArea's `enabled` is its own flag alone, so the row's says
+                        // whether the tab is disabled.
+                        Accessible.ignored: !row.isFolder
+                        Accessible.name: row.expanded ? qsTr("fold") : qsTr("unfold")
+                        Accessible.role: Accessible.Button
+                        Accessible.onPressAction: if (row.enabled && foldMouse.enabled)
+                                                      root.foldClicked(row.index)
                         anchors.horizontalCenter: glyph.horizontalCenter
                         anchors.verticalCenter: parent.verticalCenter
                         cursorShape: Qt.PointingHandCursor
@@ -796,6 +839,7 @@ Item {
 
     // The list's empty space, under its last row: a click there lets the selection go, as
     // in the table and the other tabs.
+    // a11y-ignore A2: empty space, not a control; esc lets the selection go too (#77)
     MouseArea {
         id: emptySpace
 
