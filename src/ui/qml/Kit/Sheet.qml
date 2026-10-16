@@ -520,7 +520,9 @@ Item {
                     MouseArea {
                         id: escArea
 
-                        Accessible.name: root.escText
+                        // #78: named by what it does, not by its key, which is the description.
+                        Accessible.description: qsTr("shortcut %1").arg(root.escText)
+                        Accessible.name: qsTr("close")
                         Accessible.role: Accessible.Button
                         // A screen reader's press is the click (#75); disabled, it does
                         // nothing, as the pointer. A MouseArea's own `enabled` is its flag

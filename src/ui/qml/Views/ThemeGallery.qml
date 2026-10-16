@@ -538,6 +538,7 @@ Window {
                             caption: qsTr("idle")
 
                             IconButton {
+                                Accessible.name: qsTr("add")
                                 glyph: Glyphs.add
                             }
                         }
@@ -546,6 +547,7 @@ Window {
                             caption: qsTr("bordered")
 
                             IconButton {
+                                Accessible.name: qsTr("add")
                                 bordered: true
                                 glyph: Glyphs.add
                             }
@@ -555,6 +557,7 @@ Window {
                             caption: qsTr("hover / cursor")
 
                             IconButton {
+                                Accessible.name: qsTr("add")
                                 glyph: Glyphs.add
                                 hasCursor: true
                             }
@@ -564,6 +567,7 @@ Window {
                             caption: qsTr("selected")
 
                             IconButton {
+                                Accessible.name: qsTr("settings")
                                 glyph: Glyphs.settings
                                 selected: true
                             }
@@ -573,6 +577,7 @@ Window {
                             caption: qsTr("pressed")
 
                             IconButton {
+                                Accessible.name: qsTr("settings")
                                 glyph: Glyphs.settings
                                 pressed: true
                             }
@@ -582,6 +587,7 @@ Window {
                             caption: qsTr("primary")
 
                             IconButton {
+                                Accessible.name: qsTr("add")
                                 glyph: Glyphs.add
                                 primary: true
                             }
@@ -591,6 +597,7 @@ Window {
                             caption: qsTr("danger")
 
                             IconButton {
+                                Accessible.name: qsTr("close")
                                 danger: true
                                 glyph: Glyphs.close
                             }
@@ -600,6 +607,7 @@ Window {
                             caption: qsTr("disabled")
 
                             IconButton {
+                                Accessible.name: qsTr("settings")
                                 enabled: false
                                 glyph: Glyphs.settings
                             }

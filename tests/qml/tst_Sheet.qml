@@ -862,6 +862,14 @@ TestCase {
         compare(rejected.count, 1);
     }
 
+    // #78: the head's `esc` is named by what it does; the key is its description.
+    function test_the_esc_chip_is_named_close_with_its_key_as_the_description() {
+        const sheet = createTemporaryObject(keySheetComponent, testCase);
+        const esc = findChild(sheet, "sheetEsc");
+        compare(esc.Accessible.name, "close");
+        compare(esc.Accessible.description, "shortcut esc");
+    }
+
     // #75: disabled, the sheet ignores a screen reader's press, as it ignores the pointer.
     function test_a_disabled_sheet_ignores_the_accessible_press() {
         const sheet = createTemporaryObject(keySheetComponent, testCase);

@@ -33,6 +33,21 @@ TestCase {
         compare(button.width, Theme.controlHeight);
     }
 
+    // #78: named by its tooltip, then by nothing; never by its glyph, which a screen reader
+    // reads as noise or nothing.
+    function test_the_accessible_name_is_the_tooltip_never_the_glyph() {
+        const button = createTemporaryObject(iconButtonComponent, testCase, {
+                                                 "glyph": "+"
+                                             });
+        compare(button.Accessible.name, "");
+        button.tooltip = "add";
+        compare(button.Accessible.name, "add");
+        const svg = createTemporaryObject(iconButtonComponent, testCase, {
+                                              "glyph": "icon:gear"
+                                          });
+        compare(svg.Accessible.name, "");
+    }
+
     function test_hover_or_cursor_fills_at_the_hover_alpha() {
         const button = createTemporaryObject(iconButtonComponent, testCase, {
                                                  "glyph": "+",

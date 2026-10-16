@@ -79,7 +79,14 @@ Item {
                     Text {
                         id: valueText
 
+                        // #78: named by its key ("version"), the value its description, so an
+                        // empty value is no empty label and a link says what it opens.
+                        Accessible.description: rowItem.modelData.value ?? ""
+                        Accessible.name: rowItem.modelData.key ?? ""
                         Accessible.role: rowItem.isLink ? Accessible.Link : Accessible.StaticText
+                        // A screen reader's press on a link is its click (#75).
+                        Accessible.onPressAction: if (rowItem.isLink)
+                                                      root.linkActivated(rowItem.modelData.url)
                         Layout.fillWidth: true
                         // A link ends where its text does, so the empty end of the row is no
                         // click target.

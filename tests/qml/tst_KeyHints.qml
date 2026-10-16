@@ -324,4 +324,58 @@ TestCase {
         compare(hintClicked.count, 1, "a disabled row ran a hint");
         compare(pinnedClicked.count, 1, "a disabled row ran the pinned hint");
     }
+
+    // #78: a screen reader finds a hint named by what it does, the key its description: a
+    // button when it is clickable, a label when not. One whose action is a button on screen
+    // (`onScreen`) is left out, and so is the pinned place while there is no pinned hint.
+    function test_a_hint_is_named_by_its_action_and_the_key_is_its_description() {
+        const hints = createTemporaryObject(keyHintsComponent, testCase, {
+                                                "model": [
+                                                    {
+                                                        "key": "space",
+                                                        "label": "toggle"
+                                                    },
+                                                    {
+                                                        "key": "enter",
+                                                        "label": "apply",
+                                                        "clickable": true
+                                                    },
+                                                    {
+                                                        "key": "a",
+                                                        "label": "add",
+                                                        "onScreen": true
+                                                    }
+                                                ]
+                                            });
+        const plain = findChild(findChild(hints, "keyHint_space"), "keyHintArea");
+        const apply = findChild(findChild(hints, "keyHint_enter"), "keyHintArea");
+        const twin = findChild(findChild(hints, "keyHint_a"), "keyHintArea");
+        const pinned = findChild(hints, "keyHintPinnedArea");
+        compare(plain.Accessible.name, "toggle");
+        compare(plain.Accessible.description, "shortcut space");
+        compare(plain.Accessible.role, Accessible.StaticText);
+        compare(apply.Accessible.name, "apply");
+        compare(apply.Accessible.description, "shortcut enter");
+        compare(apply.Accessible.role, Accessible.Button);
+        compare(apply.Accessible.ignored, false);
+        compare(twin.Accessible.ignored, true);
+        compare(pinned.Accessible.ignored, true, "an empty pinned place is in the tree");
+
+        hints.pinned = {
+            "key": "esc",
+            "label": "quit",
+            "clickable": true
+        };
+        compare(pinned.Accessible.ignored, false);
+        compare(pinned.Accessible.name, "quit");
+        compare(pinned.Accessible.description, "shortcut esc");
+        compare(pinned.Accessible.role, Accessible.Button);
+        hints.pinned = {
+            "key": "esc",
+            "label": "quit",
+            "clickable": true,
+            "onScreen": true
+        };
+        compare(pinned.Accessible.ignored, true);
+    }
 }
