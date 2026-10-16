@@ -2,8 +2,6 @@
 
 #include "core/Format.hpp"
 
-#include <QJsonValue>
-
 namespace omaseed::core {
 
 namespace {
@@ -19,19 +17,12 @@ void assign(T &field, const T &value, Owner *owner, Signal signal)
     Q_EMIT(owner->*signal)();
 }
 
-/// Same, but only for keys the server actually sent.
-template<class T, class Owner, class Signal, class Convert>
-void takeFrom(const QJsonObject &json,
-              QLatin1StringView key,
-              T &field,
-              Owner *owner,
-              Signal signal,
-              Convert convert)
+/// Same, but only for figures the poll carried.
+template<class T, class Owner, class Signal>
+void take(const std::optional<T> &value, T &field, Owner *owner, Signal signal)
 {
-    const auto it = json.constFind(key);
-    if (it == json.constEnd())
-        return;
-    assign(field, T(convert(it.value())), owner, signal);
+    if (value)
+        assign(field, *value, owner, signal);
 }
 
 } // namespace
@@ -70,111 +61,25 @@ QString GlobalState::lastSyncText() const
     return m_lastSyncTime.isValid() ? m_lastSyncTime.toString(QStringLiteral("HH:mm")) : QString();
 }
 
-void GlobalState::applyServerState(const QJsonObject &s)
+void GlobalState::applyServerState(const ServerStatePatch &s)
 {
-    const auto integer = [](const QJsonValue &v) { return v.toInteger(0); };
-    const auto boolean = [](const QJsonValue &v) { return v.toBool(false); };
-    const auto text = [](const QJsonValue &v) { return v.toString(); };
-
-    takeFrom(s,
-             QLatin1StringView("dl_info_speed"),
-             m_dlInfoSpeed,
-             this,
-             &GlobalState::dlInfoSpeedChanged,
-             integer);
-    takeFrom(s,
-             QLatin1StringView("up_info_speed"),
-             m_upInfoSpeed,
-             this,
-             &GlobalState::upInfoSpeedChanged,
-             integer);
-    takeFrom(s,
-             QLatin1StringView("dl_info_data"),
-             m_dlInfoData,
-             this,
-             &GlobalState::dlInfoDataChanged,
-             integer);
-    takeFrom(s,
-             QLatin1StringView("up_info_data"),
-             m_upInfoData,
-             this,
-             &GlobalState::upInfoDataChanged,
-             integer);
-    takeFrom(s,
-             QLatin1StringView("free_space_on_disk"),
-             m_freeSpaceOnDisk,
-             this,
-             &GlobalState::freeSpaceOnDiskChanged,
-             integer);
-    takeFrom(s,
-             QLatin1StringView("use_alt_speed_limits"),
-             m_useAltSpeedLimits,
-             this,
-             &GlobalState::useAltSpeedLimitsChanged,
-             boolean);
-    takeFrom(s,
-             QLatin1StringView("connection_status"),
-             m_connectionStatus,
-             this,
-             &GlobalState::connectionStatusChanged,
-             text);
-    takeFrom(s,
-             QLatin1StringView("dht_nodes"),
-             m_dhtNodes,
-             this,
-             &GlobalState::dhtNodesChanged,
-             integer);
-    takeFrom(s,
-             QLatin1StringView("total_peer_connections"),
-             m_totalPeerConnections,
-             this,
-             &GlobalState::totalPeerConnectionsChanged,
-             integer);
-    takeFrom(s,
-             QLatin1StringView("dl_rate_limit"),
-             m_dlRateLimit,
-             this,
-             &GlobalState::dlRateLimitChanged,
-             integer);
-    takeFrom(s,
-             QLatin1StringView("up_rate_limit"),
-             m_upRateLimit,
-             this,
-             &GlobalState::upRateLimitChanged,
-             integer);
-    takeFrom(
-        s, QLatin1StringView("queueing"), m_queueing, this, &GlobalState::queueingChanged, boolean);
-    takeFrom(s,
-             QLatin1StringView("refresh_interval"),
-             m_refreshInterval,
-             this,
-             &GlobalState::refreshIntervalChanged,
-             integer);
-    takeFrom(s,
-             QLatin1StringView("alltime_ul"),
-             m_allTimeUpload,
-             this,
-             &GlobalState::allTimeChanged,
-             integer);
-    takeFrom(s,
-             QLatin1StringView("alltime_dl"),
-             m_allTimeDownload,
-             this,
-             &GlobalState::allTimeChanged,
-             integer);
-    // "2.16" in qBittorrent 5.x; a number is taken too, anything else is "unknown".
-    takeFrom(s,
-             QLatin1StringView("global_ratio"),
-             m_globalRatio,
-             this,
-             &GlobalState::allTimeChanged,
-             [](const QJsonValue &v) {
-                 if (v.isDouble())
-                     return v.toDouble();
-                 bool ok = false;
-                 const double ratio = v.toString().toDouble(&ok);
-                 return ok ? ratio : -1.0;
-             });
+    take(s.dlSpeed, m_dlInfoSpeed, this, &GlobalState::dlInfoSpeedChanged);
+    take(s.upSpeed, m_upInfoSpeed, this, &GlobalState::upInfoSpeedChanged);
+    take(s.dlSession, m_dlInfoData, this, &GlobalState::dlInfoDataChanged);
+    take(s.upSession, m_upInfoData, this, &GlobalState::upInfoDataChanged);
+    take(s.freeSpaceOnDisk, m_freeSpaceOnDisk, this, &GlobalState::freeSpaceOnDiskChanged);
+    take(s.altSpeedLimits, m_useAltSpeedLimits, this, &GlobalState::useAltSpeedLimitsChanged);
+    take(s.connectionStatus, m_connectionStatus, this, &GlobalState::connectionStatusChanged);
+    take(s.dhtNodes, m_dhtNodes, this, &GlobalState::dhtNodesChanged);
+    take(
+        s.peerConnections, m_totalPeerConnections, this, &GlobalState::totalPeerConnectionsChanged);
+    take(s.dlRateLimit, m_dlRateLimit, this, &GlobalState::dlRateLimitChanged);
+    take(s.upRateLimit, m_upRateLimit, this, &GlobalState::upRateLimitChanged);
+    take(s.queueing, m_queueing, this, &GlobalState::queueingChanged);
+    take(s.refreshInterval, m_refreshInterval, this, &GlobalState::refreshIntervalChanged);
+    take(s.allTimeUpload, m_allTimeUpload, this, &GlobalState::allTimeChanged);
+    take(s.allTimeDownload, m_allTimeDownload, this, &GlobalState::allTimeChanged);
+    take(s.globalRatio, m_globalRatio, this, &GlobalState::allTimeChanged);
 }
 
 void GlobalState::setConnected(bool connected)
@@ -218,24 +123,24 @@ void GlobalState::setRetryInSeconds(int seconds)
 
 void GlobalState::reset()
 {
-    applyServerState(QJsonObject{
-        {QStringLiteral("dl_info_speed"), 0},
-        {QStringLiteral("up_info_speed"), 0},
-        {QStringLiteral("dl_info_data"), 0},
-        {QStringLiteral("up_info_data"), 0},
-        {QStringLiteral("free_space_on_disk"), 0},
-        {QStringLiteral("use_alt_speed_limits"), false},
-        {QStringLiteral("connection_status"), QStringLiteral("disconnected")},
-        {QStringLiteral("dht_nodes"), 0},
-        {QStringLiteral("total_peer_connections"), 0},
-        {QStringLiteral("dl_rate_limit"), 0},
-        {QStringLiteral("up_rate_limit"), 0},
-        {QStringLiteral("queueing"), false},
-        {QStringLiteral("refresh_interval"), 1500},
-        {QStringLiteral("alltime_ul"), 0},
-        {QStringLiteral("alltime_dl"), 0},
-        {QStringLiteral("global_ratio"), QString()},
-    });
+    ServerStatePatch defaults;
+    defaults.dlSpeed = 0;
+    defaults.upSpeed = 0;
+    defaults.dlSession = 0;
+    defaults.upSession = 0;
+    defaults.freeSpaceOnDisk = 0;
+    defaults.altSpeedLimits = false;
+    defaults.connectionStatus = QStringLiteral("disconnected");
+    defaults.dhtNodes = 0;
+    defaults.peerConnections = 0;
+    defaults.dlRateLimit = 0;
+    defaults.upRateLimit = 0;
+    defaults.queueing = false;
+    defaults.refreshInterval = 1500;
+    defaults.allTimeUpload = 0;
+    defaults.allTimeDownload = 0;
+    defaults.globalRatio = -1.0;
+    applyServerState(defaults);
     setConnected(false);
     setSyncing(false);
     setLastError(ApiError());

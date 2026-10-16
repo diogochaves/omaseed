@@ -1,3 +1,4 @@
+#include "QbtFeed.hpp"
 #include "core/AltSpeed.hpp"
 
 #include "core/GlobalState.hpp"
@@ -61,7 +62,7 @@ struct Rig
 
     void setOn(bool on)
     {
-        state.applyServerState(QJsonObject{{QStringLiteral("use_alt_speed_limits"), on}});
+        qbtfeed::serverState(state, QJsonObject{{QStringLiteral("use_alt_speed_limits"), on}});
     }
 };
 

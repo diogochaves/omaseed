@@ -1,132 +1,32 @@
 #include "core/Torrent.hpp"
 
-#include <QHash>
-#include <QJsonValue>
+#include "core/engines/TorrentPatch.hpp"
+
 #include <QUrl>
 
 namespace omaseed::core {
 
 namespace {
 
-/// Copies one JSON key into `field` when it is present and different, and records the key.
-/// Absent keys are left alone: that is what makes a partial diff a merge.
-template<class T, class Convert>
-void take(
-    const QJsonObject &json, QLatin1StringView key, T &field, Convert convert, QStringList &changed)
+/// Copies one field from the patch when the patch carries it and it differs, and records it.
+/// Absent fields are left alone: that is what makes a partial patch a merge.
+template<class T>
+void take(const TorrentPatch &patch,
+          TorrentField field,
+          T Torrent::*member,
+          Torrent &torrent,
+          TorrentFields &changed)
 {
-    const auto it = json.constFind(key);
-    if (it == json.constEnd())
+    if (!patch.has(field))
         return;
-    T next = convert(it.value());
-    if (next == field)
+    const T &next = patch.values.*member;
+    if (torrent.*member == next)
         return;
-    field = std::move(next);
-    changed.append(QString(key));
-}
-
-qint64 asInteger(const QJsonValue &value)
-{
-    return value.toInteger(0);
-}
-
-int asInt(const QJsonValue &value)
-{
-    return int(value.toInteger(0));
-}
-
-double asDouble(const QJsonValue &value)
-{
-    return value.toDouble(0.0);
-}
-
-bool asBool(const QJsonValue &value)
-{
-    return value.toBool(false);
-}
-
-QString asString(const QJsonValue &value)
-{
-    return value.toString();
-}
-
-QStringList asTags(const QJsonValue &value)
-{
-    const QString raw = value.toString();
-    if (raw.isEmpty())
-        return {};
-    QStringList tags = raw.split(QLatin1Char(','), Qt::SkipEmptyParts);
-    for (QString &tag : tags)
-        tag = tag.trimmed();
-    tags.removeAll(QString());
-    return tags;
-}
-
-QDateTime asTimestamp(const QJsonValue &value)
-{
-    const qint64 seconds = value.toInteger(0);
-    return seconds > 0 ? QDateTime::fromSecsSinceEpoch(seconds) : QDateTime();
-}
-
-struct StateName
-{
-    TorrentState state;
-    QLatin1StringView key;
-};
-
-/// The full list of `state` strings of WebUI API 2.x, newest spellings first.
-const StateName *stateTable(int &count)
-{
-    static const StateName table[] = {
-        {TorrentState::Downloading, QLatin1StringView("downloading")},
-        {TorrentState::StalledDownload, QLatin1StringView("stalledDL")},
-        {TorrentState::MetaDownload, QLatin1StringView("metaDL")},
-        {TorrentState::ForcedMetaDownload, QLatin1StringView("forcedMetaDL")},
-        {TorrentState::ForcedDownload, QLatin1StringView("forcedDL")},
-        {TorrentState::QueuedDownload, QLatin1StringView("queuedDL")},
-        {TorrentState::CheckingDownload, QLatin1StringView("checkingDL")},
-        {TorrentState::Uploading, QLatin1StringView("uploading")},
-        {TorrentState::StalledUpload, QLatin1StringView("stalledUP")},
-        {TorrentState::ForcedUpload, QLatin1StringView("forcedUP")},
-        {TorrentState::QueuedUpload, QLatin1StringView("queuedUP")},
-        {TorrentState::CheckingUpload, QLatin1StringView("checkingUP")},
-        {TorrentState::StoppedDownload, QLatin1StringView("stoppedDL")},
-        {TorrentState::StoppedUpload, QLatin1StringView("stoppedUP")},
-        {TorrentState::PausedDownload, QLatin1StringView("pausedDL")},
-        {TorrentState::PausedUpload, QLatin1StringView("pausedUP")},
-        {TorrentState::Error, QLatin1StringView("error")},
-        {TorrentState::MissingFiles, QLatin1StringView("missingFiles")},
-        {TorrentState::CheckingResumeData, QLatin1StringView("checkingResumeData")},
-        {TorrentState::Moving, QLatin1StringView("moving")},
-        {TorrentState::Allocating, QLatin1StringView("allocating")},
-        {TorrentState::Unknown, QLatin1StringView("unknown")},
-    };
-    count = int(std::size(table));
-    return table;
+    torrent.*member = next;
+    changed.set(field);
 }
 
 } // namespace
-
-QString torrentStateKey(TorrentState state)
-{
-    int count = 0;
-    const StateName *table = stateTable(count);
-    for (int i = 0; i < count; ++i) {
-        if (table[i].state == state)
-            return QString(table[i].key);
-    }
-    return QStringLiteral("unknown");
-}
-
-TorrentState torrentStateFromKey(QStringView key)
-{
-    int count = 0;
-    const StateName *table = stateTable(count);
-    for (int i = 0; i < count; ++i) {
-        if (key == table[i].key)
-            return table[i].state;
-    }
-    return TorrentState::Unknown;
-}
 
 QString trackerlessKey()
 {
@@ -152,149 +52,118 @@ QString trackerHost(const QString &trackerUrl)
     return host.isEmpty() ? url : host;
 }
 
-QStringList Torrent::applyJson(const QJsonObject &json)
+TorrentFields Torrent::apply(const TorrentPatch &patch)
 {
-    QStringList changed;
-    changed.reserve(8);
-
-    take(json, QLatin1StringView("name"), name, asString, changed);
-    take(json, QLatin1StringView("size"), size, asInteger, changed);
-    take(json, QLatin1StringView("total_size"), totalSize, asInteger, changed);
-    take(json, QLatin1StringView("progress"), progress, asDouble, changed);
-    take(
-        json,
-        QLatin1StringView("state"),
-        state,
-        [](const QJsonValue &value) { return torrentStateFromKey(value.toString()); },
-        changed);
-
-    take(json, QLatin1StringView("dlspeed"), dlspeed, asInteger, changed);
-    take(json, QLatin1StringView("upspeed"), upspeed, asInteger, changed);
-    take(json, QLatin1StringView("eta"), eta, asInteger, changed);
-
-    take(json, QLatin1StringView("num_seeds"), numSeeds, asInt, changed);
-    take(json, QLatin1StringView("num_complete"), numComplete, asInt, changed);
-    take(json, QLatin1StringView("num_leechs"), numLeechs, asInt, changed);
-    take(json, QLatin1StringView("num_incomplete"), numIncomplete, asInt, changed);
-    take(json, QLatin1StringView("ratio"), ratio, asDouble, changed);
-
-    take(json, QLatin1StringView("category"), category, asString, changed);
-    take(json, QLatin1StringView("tags"), tags, asTags, changed);
-    take(json, QLatin1StringView("save_path"), savePath, asString, changed);
-    take(json, QLatin1StringView("content_path"), contentPath, asString, changed);
-    take(json, QLatin1StringView("download_path"), downloadPath, asString, changed);
-
-    take(json, QLatin1StringView("added_on"), addedOn, asTimestamp, changed);
-    take(json, QLatin1StringView("completion_on"), completionOn, asTimestamp, changed);
-    take(json, QLatin1StringView("last_activity"), lastActivity, asTimestamp, changed);
-
-    take(json, QLatin1StringView("tracker"), tracker, asString, changed);
-    take(json, QLatin1StringView("trackers_count"), trackersCount, asInt, changed);
-    take(json, QLatin1StringView("has_tracker_error"), hasTrackerError, asBool, changed);
-
-    take(json, QLatin1StringView("priority"), priority, asInt, changed);
-    take(json, QLatin1StringView("seq_dl"), seqDl, asBool, changed);
-    take(json, QLatin1StringView("f_l_piece_prio"), firstLastPiecePrio, asBool, changed);
-    take(json, QLatin1StringView("super_seeding"), superSeeding, asBool, changed);
-    take(json, QLatin1StringView("auto_tmm"), autoTmm, asBool, changed);
-    take(json, QLatin1StringView("private"), isPrivate, asBool, changed);
-    take(json, QLatin1StringView("dl_limit"), dlLimit, asInteger, changed);
-    take(json, QLatin1StringView("up_limit"), upLimit, asInteger, changed);
-    take(json, QLatin1StringView("ratio_limit"), ratioLimit, asDouble, changed);
-    take(json, QLatin1StringView("seeding_time_limit"), seedingTimeLimit, asInteger, changed);
-    take(json,
-         QLatin1StringView("inactive_seeding_time_limit"),
-         inactiveSeedingTimeLimit,
-         asInteger,
+    TorrentFields changed;
+    take(patch, TorrentField::Name, &Torrent::name, *this, changed);
+    take(patch, TorrentField::Size, &Torrent::size, *this, changed);
+    take(patch, TorrentField::TotalSize, &Torrent::totalSize, *this, changed);
+    take(patch, TorrentField::Progress, &Torrent::progress, *this, changed);
+    take(patch, TorrentField::Status, &Torrent::status, *this, changed);
+    take(patch, TorrentField::DlSpeed, &Torrent::dlspeed, *this, changed);
+    take(patch, TorrentField::UpSpeed, &Torrent::upspeed, *this, changed);
+    take(patch, TorrentField::Eta, &Torrent::eta, *this, changed);
+    take(patch, TorrentField::NumSeeds, &Torrent::numSeeds, *this, changed);
+    take(patch, TorrentField::NumComplete, &Torrent::numComplete, *this, changed);
+    take(patch, TorrentField::NumLeechs, &Torrent::numLeechs, *this, changed);
+    take(patch, TorrentField::NumIncomplete, &Torrent::numIncomplete, *this, changed);
+    take(patch, TorrentField::Ratio, &Torrent::ratio, *this, changed);
+    take(patch, TorrentField::Category, &Torrent::category, *this, changed);
+    take(patch, TorrentField::Tags, &Torrent::tags, *this, changed);
+    take(patch, TorrentField::SavePath, &Torrent::savePath, *this, changed);
+    take(patch, TorrentField::ContentPath, &Torrent::contentPath, *this, changed);
+    take(patch, TorrentField::DownloadPath, &Torrent::downloadPath, *this, changed);
+    take(patch, TorrentField::AddedOn, &Torrent::addedOn, *this, changed);
+    take(patch, TorrentField::CompletionOn, &Torrent::completionOn, *this, changed);
+    take(patch, TorrentField::LastActivity, &Torrent::lastActivity, *this, changed);
+    take(patch, TorrentField::Tracker, &Torrent::tracker, *this, changed);
+    take(patch, TorrentField::TrackersCount, &Torrent::trackersCount, *this, changed);
+    take(patch, TorrentField::HasTrackerError, &Torrent::hasTrackerError, *this, changed);
+    take(patch, TorrentField::QueuePosition, &Torrent::priority, *this, changed);
+    take(patch, TorrentField::SeqDl, &Torrent::seqDl, *this, changed);
+    take(patch, TorrentField::FirstLastPiecePrio, &Torrent::firstLastPiecePrio, *this, changed);
+    take(patch, TorrentField::SuperSeeding, &Torrent::superSeeding, *this, changed);
+    take(patch, TorrentField::AutoTmm, &Torrent::autoTmm, *this, changed);
+    take(patch, TorrentField::IsPrivate, &Torrent::isPrivate, *this, changed);
+    take(patch, TorrentField::DlLimit, &Torrent::dlLimit, *this, changed);
+    take(patch, TorrentField::UpLimit, &Torrent::upLimit, *this, changed);
+    take(patch, TorrentField::RatioLimit, &Torrent::ratioLimit, *this, changed);
+    take(patch, TorrentField::SeedingTimeLimit, &Torrent::seedingTimeLimit, *this, changed);
+    take(patch,
+         TorrentField::InactiveSeedingTimeLimit,
+         &Torrent::inactiveSeedingTimeLimit,
+         *this,
          changed);
-    take(json, QLatin1StringView("share_limit_action"), shareLimitAction, asString, changed);
-
-    take(json, QLatin1StringView("availability"), availability, asDouble, changed);
-    take(json, QLatin1StringView("amount_left"), amountLeft, asInteger, changed);
-    take(json, QLatin1StringView("completed"), completed, asInteger, changed);
-    take(json, QLatin1StringView("downloaded"), downloaded, asInteger, changed);
-    take(json, QLatin1StringView("uploaded"), uploaded, asInteger, changed);
-    take(json, QLatin1StringView("uploaded_session"), uploadedSession, asInteger, changed);
-    take(json, QLatin1StringView("time_active"), timeActive, asInteger, changed);
-    take(json, QLatin1StringView("seeding_time"), seedingTime, asInteger, changed);
-
-    take(json, QLatin1StringView("infohash_v1"), infohashV1, asString, changed);
-    take(json, QLatin1StringView("infohash_v2"), infohashV2, asString, changed);
-    take(json, QLatin1StringView("magnet_uri"), magnetUri, asString, changed);
-
+    take(patch, TorrentField::ShareLimitAction, &Torrent::shareLimitAction, *this, changed);
+    take(patch, TorrentField::Availability, &Torrent::availability, *this, changed);
+    take(patch, TorrentField::AmountLeft, &Torrent::amountLeft, *this, changed);
+    take(patch, TorrentField::Completed, &Torrent::completed, *this, changed);
+    take(patch, TorrentField::Downloaded, &Torrent::downloaded, *this, changed);
+    take(patch, TorrentField::Uploaded, &Torrent::uploaded, *this, changed);
+    take(patch, TorrentField::UploadedSession, &Torrent::uploadedSession, *this, changed);
+    take(patch, TorrentField::TimeActive, &Torrent::timeActive, *this, changed);
+    take(patch, TorrentField::SeedingTime, &Torrent::seedingTime, *this, changed);
+    take(patch, TorrentField::InfohashV1, &Torrent::infohashV1, *this, changed);
+    take(patch, TorrentField::InfohashV2, &Torrent::infohashV2, *this, changed);
+    take(patch, TorrentField::MagnetUri, &Torrent::magnetUri, *this, changed);
     return changed;
 }
+
+TorrentPatch TorrentPatch::of(const Torrent &torrent, TorrentField field)
+{
+    TorrentPatch patch(torrent.hash);
+    patch.values = torrent;
+    patch.fields.set(field);
+    return patch;
+}
+
+// The rules below are the one place a state turns into what the views show (docs/36 §4.1).
+// For qBittorrent they give exactly Q16's results for each of its states; QbtTranslate maps
+// the states to phases and flags.
 
 StatusGroups Torrent::statusGroups() const
 {
     StatusGroups groups;
+    const TorrentPhase phase = status.phase;
+    const bool finished = status.has(TorrentFlag::Finished);
 
-    const bool isUpState =
-        state == TorrentState::Uploading || state == TorrentState::StalledUpload ||
-        state == TorrentState::ForcedUpload || state == TorrentState::QueuedUpload ||
-        state == TorrentState::CheckingUpload || state == TorrentState::StoppedUpload ||
-        state == TorrentState::PausedUpload;
-
-    switch (state) {
-    case TorrentState::Downloading:
-    case TorrentState::StalledDownload:
-    case TorrentState::MetaDownload:
-    case TorrentState::ForcedMetaDownload:
-    case TorrentState::ForcedDownload:
-    case TorrentState::QueuedDownload:
-    case TorrentState::CheckingDownload:
-    case TorrentState::StoppedDownload:
-    case TorrentState::PausedDownload:
+    // Wanting data, or stopped or checking before it had it all.
+    if (phase == TorrentPhase::Downloading || phase == TorrentPhase::Metadata ||
+        ((phase == TorrentPhase::Checking || phase == TorrentPhase::Stopped) && !finished))
         groups |= StatusGroup::Downloading;
-        break;
-    default:
-        break;
-    }
 
-    switch (state) {
-    case TorrentState::Uploading:
-    case TorrentState::StalledUpload:
-    case TorrentState::ForcedUpload:
-    case TorrentState::QueuedUpload:
-    case TorrentState::CheckingUpload:
+    if (phase == TorrentPhase::Seeding || (phase == TorrentPhase::Checking && finished))
         groups |= StatusGroup::Seeding;
-        break;
-    default:
-        break;
-    }
 
-    if (isUpState || progress >= 1.0)
+    if (finished || progress >= 1.0)
         groups |= StatusGroup::Completed;
 
-    switch (state) {
-    case TorrentState::StoppedDownload:
-    case TorrentState::StoppedUpload:
-    case TorrentState::PausedDownload:
-    case TorrentState::PausedUpload:
+    switch (phase) {
+    case TorrentPhase::Stopped:
         groups |= StatusGroup::Stopped;
         break;
-    case TorrentState::StalledDownload:
-    case TorrentState::StalledUpload:
-        groups |= StatusGroup::Stalled;
-        break;
-    case TorrentState::CheckingDownload:
-    case TorrentState::CheckingUpload:
-    case TorrentState::CheckingResumeData:
+    case TorrentPhase::Checking:
+    case TorrentPhase::Loading:
         groups |= StatusGroup::Checking;
         break;
-    case TorrentState::Error:
-    case TorrentState::MissingFiles:
+    case TorrentPhase::Errored:
+    case TorrentPhase::Missing:
         groups |= StatusGroup::Errored;
+        break;
+    case TorrentPhase::Downloading:
+    case TorrentPhase::Seeding:
+        if (status.has(TorrentFlag::Stalled))
+            groups |= StatusGroup::Stalled;
         break;
     default:
         break;
     }
 
-    const bool forcedOrMoving =
-        state == TorrentState::Downloading || state == TorrentState::Uploading ||
-        state == TorrentState::ForcedDownload || state == TorrentState::ForcedMetaDownload ||
-        state == TorrentState::ForcedUpload;
-    if (dlspeed > 0 || upspeed > 0 || forcedOrMoving)
+    // Moving data, or allowed to: running and not waiting for peers or a queue slot, or
+    // forced past the queue.
+    const bool running = (phase == TorrentPhase::Downloading || phase == TorrentPhase::Seeding) &&
+                         !status.has(TorrentFlag::Stalled) && !status.has(TorrentFlag::Queued);
+    if (dlspeed > 0 || upspeed > 0 || running || status.has(TorrentFlag::Forced))
         groups |= StatusGroup::Active;
 
     return groups;
@@ -307,44 +176,36 @@ bool Torrent::inGroup(StatusGroup group) const
 
 QString Torrent::stateText() const
 {
-    switch (state) {
-    case TorrentState::Downloading:
-    case TorrentState::ForcedDownload:
+    switch (status.phase) {
+    case TorrentPhase::Downloading:
+        if (status.has(TorrentFlag::Queued))
+            return QStringLiteral("queued");
+        if (status.has(TorrentFlag::Stalled))
+            return QStringLiteral("stalled");
         return QStringLiteral("downloading");
-    case TorrentState::MetaDownload:
-    case TorrentState::ForcedMetaDownload:
+    case TorrentPhase::Metadata:
         return QStringLiteral("metadata");
-    case TorrentState::StalledDownload:
-        return QStringLiteral("stalled");
-    case TorrentState::QueuedDownload:
-    case TorrentState::QueuedUpload:
-        return QStringLiteral("queued");
-    case TorrentState::CheckingDownload:
-    case TorrentState::CheckingUpload:
-    case TorrentState::CheckingResumeData:
-    case TorrentState::Allocating:
-        return QStringLiteral("checking");
     // A finished torrent with nobody to upload to is normal, not stuck: "stalled" is kept
     // for downloads that are.
-    case TorrentState::Uploading:
-    case TorrentState::ForcedUpload:
-    case TorrentState::StalledUpload:
-        return QStringLiteral("seeding");
-    case TorrentState::StoppedDownload:
-    case TorrentState::PausedDownload:
-        return QStringLiteral("stopped");
-    case TorrentState::StoppedUpload:
-    case TorrentState::PausedUpload:
-        return QStringLiteral("completed");
-    case TorrentState::Error:
+    case TorrentPhase::Seeding:
+        return status.has(TorrentFlag::Queued) ? QStringLiteral("queued")
+                                               : QStringLiteral("seeding");
+    case TorrentPhase::Checking:
+    case TorrentPhase::Loading:
+    case TorrentPhase::Allocating:
+        return QStringLiteral("checking");
+    case TorrentPhase::Stopped:
+        return status.has(TorrentFlag::Finished) ? QStringLiteral("completed")
+                                                 : QStringLiteral("stopped");
+    case TorrentPhase::Errored:
         return QStringLiteral("error");
     // Fixed differently from an error (move the files back, or recheck), so it says so; the
     // rail still counts it under errored.
-    case TorrentState::MissingFiles:
+    case TorrentPhase::Missing:
         return QStringLiteral("missing files");
-    case TorrentState::Moving:
+    case TorrentPhase::Moving:
         return QStringLiteral("moving");
-    case TorrentState::Unknown:
+    case TorrentPhase::Unknown:
         break;
     }
     return QStringLiteral("unknown");
@@ -392,16 +253,8 @@ bool Torrent::hasEta() const
 {
     if (isComplete())
         return false;
-    switch (state) {
-    case TorrentState::Downloading:
-    case TorrentState::ForcedDownload:
-    case TorrentState::MetaDownload:
-    case TorrentState::ForcedMetaDownload:
-    case TorrentState::StalledDownload:
-        return true;
-    default:
-        return false;
-    }
+    return (status.phase == TorrentPhase::Downloading && !status.has(TorrentFlag::Queued)) ||
+           status.phase == TorrentPhase::Metadata;
 }
 
 } // namespace omaseed::core

@@ -421,3 +421,14 @@ omaseed_add_test(tst_qbt_golden
     LIBRARIES omaseed::core
     DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
 )
+
+# #81: the engine-neutral layer, and the one translator from qBittorrent into it.
+omaseed_add_test(tst_torrentpatch
+    SOURCES tst_torrentpatch.cpp
+    LIBRARIES omaseed::core
+)
+
+omaseed_add_test(tst_qbttranslate
+    SOURCES tst_qbttranslate.cpp
+    LIBRARIES omaseed::core
+)

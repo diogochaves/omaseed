@@ -1,5 +1,7 @@
 #pragma once
 
+#include "core/engines/LogEntry.hpp"
+
 #include <QAbstractListModel>
 #include <QDateTime>
 #include <QJsonArray>
@@ -133,7 +135,7 @@ Q_SIGNALS:
 private:
     void read();
     void startOver();
-    void applyRead(const QJsonArray &entries);
+    void applyRead(const QList<LogEntry> &entries);
 
     QPointer<QbtClient> m_client;
     QPointer<TorrentModel> m_torrents;

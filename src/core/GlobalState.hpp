@@ -1,16 +1,16 @@
 #pragma once
 
-// GlobalState — everything the hero, the footer and the tray read: sync/maindata's
-// `server_state` plus what only the engine knows (are we connected, when did the last poll
-// land, which server is this, how long until the next retry).
+// GlobalState — everything the hero, the footer and the tray read: the server's own figures
+// (SyncDelta's server state) plus what only the engine knows (are we connected, when did the last
+// poll land, which server is this, how long until the next retry).
 //
 // It is a plain QObject with properties so QML can bind to it directly in phase 3; the
 // formatted twins (dlSpeedText, freeSpaceText, …) exist so no view has to know Format.
 
 #include "core/ApiError.hpp"
+#include "core/engines/SyncDelta.hpp"
 
 #include <QDateTime>
-#include <QJsonObject>
 #include <QObject>
 #include <QString>
 
@@ -97,8 +97,8 @@ public:
     QString freeSpaceText() const;
     QString lastSyncText() const;
 
-    /// Merges the keys present in `serverState`; absent keys keep their value.
-    void applyServerState(const QJsonObject &serverState);
+    /// Merges the figures present in `serverState`; absent ones keep their value.
+    void applyServerState(const ServerStatePatch &serverState);
 
     // Set by SyncEngine.
     void setConnected(bool connected);

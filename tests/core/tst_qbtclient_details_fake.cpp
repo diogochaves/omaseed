@@ -3,6 +3,7 @@
 // is the one that matters most here, because the playground never has a peer to answer with
 // (tst_qbtclient_live only proves it answers at all).
 
+#include "QbtFeed.hpp"
 #include "core/QbtClient.hpp"
 #include "core/TorrentDetails.hpp"
 #include "core/TorrentModel.hpp"
@@ -281,7 +282,7 @@ void TestQbtClientDetailsFake::aHashTheModelNoLongerHoldsIsNotAsked()
     TorrentModel torrents;
     QJsonObject map;
     map.insert(QStringLiteral("kept"), QJsonObject{{QStringLiteral("name"), QStringLiteral("k")}});
-    torrents.applyFullUpdate(map);
+    qbtfeed::full(torrents, map);
 
     TorrentDetails details;
     details.setPollInterval(30);

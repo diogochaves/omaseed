@@ -22,7 +22,7 @@
 //   progress        double    0…1
 //   progressText    string    "48.9%" (Progress column)
 //   progressPercent double    0…100, for a bar's width
-//   state           enum      omaseed::core::TorrentState
+//   state           string    the engine's own state word, e.g. "stalledUP"
 //   stateText       string    "downloading" (Status column)
 //   stateRole       string    the Theme colour role, e.g. "stateDownloading"
 //   statusGroups    int       omaseed::core::StatusGroups flags
@@ -303,13 +303,11 @@ struct TorrentPeersModelForeign
     QML_UNCREATABLE("TorrentPeersModel is App.details.peers; it is not created from QML.")
 };
 
-/// The `omaseed::core` namespace enums, as the QML namespace `Torrent`. Both enums are
-/// scoped and both have a `Downloading`, so QML spells the enum out:
-///   `Torrent.TorrentState.StalledUpload` — the `state` role's value
-///   `Torrent.StatusGroups.Errored`       — a flag of the `statusGroups` role
+/// The `omaseed::core` namespace enums, as the QML namespace `Torrent`:
+///   `Torrent.StatusGroups.Errored` — a flag of the `statusGroups` role
 /// (the flag enum answers to its Q_DECLARE_FLAGS name, `StatusGroups`, not `StatusGroup`).
-/// The flattened spellings `Torrent.StalledUpload` and `Torrent.Errored` work too, but the
-/// qualified ones say which enum they mean, so views use those.
+/// The flattened spelling `Torrent.Errored` works too, but the qualified one says which
+/// enum it means, so views use that.
 namespace TorrentEnumsForeign {
 Q_NAMESPACE
 QML_FOREIGN_NAMESPACE(omaseed::core)

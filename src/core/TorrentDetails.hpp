@@ -25,8 +25,8 @@
 // gone (deleted under the pane), so polling stops quietly until another hash is set, and a
 // hash the synced TorrentModel no longer holds is not asked about at all.
 //
-// applyDemo() is the door for `--demo details` and for the QML tests: it fills the same
-// models and the same `properties` from a JSON object, with no client and no timers.
+// applyDemo() is the door for `--demo details` and for the tests: it fills the same models
+// and the same `properties` from a TorrentDetailsData, with no client and no timers.
 //
 // With `rememberViewState` on (App turns it on for a real run; demos and tests leave it off,
 // so they never write state.json), the Files tab keeps what #9 asks for through
@@ -38,9 +38,8 @@
 #include "core/TorrentPeersModel.hpp"
 #include "core/TorrentTrackersModel.hpp"
 #include "core/TorrentWebSeedsModel.hpp"
+#include "core/engines/DetailsData.hpp"
 
-#include <QJsonArray>
-#include <QJsonObject>
 #include <QObject>
 #include <QPointer>
 #include <QString>
@@ -133,11 +132,9 @@ public:
     /// Polls now instead of on the next tick.
     void refreshNow();
 
-    /// Fills the models with `{hash, properties, files, trackers, peers, pieceStates,
-    /// webSeeds}` (webSeeds as `torrents/webseeds` answers) and
-    /// stops polling.
-    /// `--demo details` and the QML tests use this; nothing here touches a network.
-    void applyDemo(const QJsonObject &details);
+    /// Fills the models with `details` and stops polling. `--demo details` and the tests use
+    /// this (QbtTranslate::details() reads the demo's JSON); nothing here touches a network.
+    void applyDemo(const TorrentDetailsData &details);
 
     /// The poll cadence, 2000 ms by default. Only the tests move it.
     int pollInterval() const;
@@ -163,7 +160,7 @@ private:
     void pollPieceStates();
     void pollWebSeeds();
     void updateTimers();
-    void applyProperties(const QJsonObject &json);
+    void applyProperties(const TorrentProperties &properties);
     void setPieceStates(const QByteArray &states);
     void noteError(const QString &what, const ApiError &error);
     /// False once the torrent is known to be gone (a 404, or no longer in the synced
@@ -188,7 +185,6 @@ private:
     QString m_filterHash;
 
     QString m_hash;
-    QJsonObject m_rawProperties;
     QVariantMap m_properties;
     QString m_lastError;
     QByteArray m_pieceStates; ///< one PieceStates::State per piece

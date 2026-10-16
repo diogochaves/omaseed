@@ -2,12 +2,14 @@
 // as many buckets as the bar has pixels.
 
 #include "core/PieceStates.hpp"
+#include "core/engines/qbt/QbtTranslate.hpp"
 
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QTest>
 
 namespace PieceStates = omaseed::core::PieceStates;
+namespace QbtTranslate = omaseed::core::QbtTranslate;
 
 namespace {
 
@@ -40,14 +42,14 @@ void TestPieceStates::parses_the_api_array()
 {
     // The shape qBittorrent 5.2 answers: one number per piece.
     const QJsonArray array = QJsonDocument::fromJson("[2,2,1,0,0,2]").array();
-    QCOMPARE(PieceStates::fromJson(array), states({2, 2, 1, 0, 0, 2}));
-    QCOMPARE(PieceStates::fromJson(QJsonArray()), QByteArray());
+    QCOMPARE(QbtTranslate::pieceStates(array), states({2, 2, 1, 0, 0, 2}));
+    QCOMPARE(QbtTranslate::pieceStates(QJsonArray()), QByteArray());
 }
 
 void TestPieceStates::unknown_values_read_as_missing()
 {
     const QJsonArray array = QJsonDocument::fromJson(R"([2,7,-1,"x",null,1])").array();
-    QCOMPARE(PieceStates::fromJson(array), states({2, 0, 0, 0, 0, 1}));
+    QCOMPARE(QbtTranslate::pieceStates(array), states({2, 0, 0, 0, 0, 1}));
 }
 
 void TestPieceStates::fewer_pieces_than_pixels_is_one_cell_each()

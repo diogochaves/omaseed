@@ -2,12 +2,13 @@
 
 #include "core/Format.hpp"
 
-#include <QJsonValue>
 #include <QSet>
 #include <QTimeZone>
 #include <QVariant>
 
 #include <algorithm>
+#include <array>
+#include <limits>
 
 namespace omaseed::core {
 
@@ -23,68 +24,77 @@ const Torrent &emptyTorrent()
     return value;
 }
 
-const QHash<QString, QList<int>> &keyToRoles()
+/// The roles each field feeds, derived roles included.
+const std::array<QList<int>, std::size_t(TorrentField::Count)> &fieldRoles()
 {
     using M = TorrentModel;
-    static const QHash<QString, QList<int>> map{
-        {QStringLiteral("name"), {M::NameRole}},
-        {QStringLiteral("size"), {M::SizeRole, M::SizeTextRole}},
-        {QStringLiteral("total_size"), {M::TotalSizeRole, M::TotalSizeTextRole}},
-        {QStringLiteral("progress"),
-         {M::ProgressRole,
-          M::ProgressTextRole,
-          M::ProgressPercentRole,
-          M::StatusGroupsRole,
-          M::EtaTextRole,
-          M::EtaLongTextRole}},
-        // The ETA texts follow the state too (Torrent::hasEta), not only the `eta` key.
-        {QStringLiteral("state"),
-         {M::StateRole,
-          M::StateTextRole,
-          M::StateColorRoleRole,
-          M::StatusGroupsRole,
-          M::EtaTextRole,
-          M::EtaLongTextRole}},
-        {QStringLiteral("dlspeed"), {M::DlspeedRole, M::DlspeedTextRole, M::StatusGroupsRole}},
-        {QStringLiteral("upspeed"), {M::UpspeedRole, M::UpspeedTextRole, M::StatusGroupsRole}},
-        {QStringLiteral("eta"), {M::EtaRole, M::EtaTextRole, M::EtaLongTextRole}},
-        {QStringLiteral("num_seeds"), {M::NumSeedsRole, M::SeedsPeersTextRole, M::SeedsTextRole}},
-        {QStringLiteral("num_leechs"), {M::NumLeechsRole, M::SeedsPeersTextRole, M::PeersTextRole}},
-        {QStringLiteral("num_complete"), {M::NumCompleteRole, M::SeedsTextRole}},
-        {QStringLiteral("num_incomplete"), {M::NumIncompleteRole, M::PeersTextRole}},
-        {QStringLiteral("ratio"), {M::RatioRole, M::RatioTextRole}},
-        {QStringLiteral("category"), {M::CategoryRole}},
-        {QStringLiteral("tags"), {M::TagsRole, M::TagsTextRole}},
-        {QStringLiteral("save_path"), {M::SavePathRole}},
-        {QStringLiteral("content_path"), {M::ContentPathRole}},
-        {QStringLiteral("added_on"), {M::AddedOnRole, M::AddedOnTextRole, M::AddedOnShortTextRole}},
-        {QStringLiteral("completion_on"), {M::CompletionOnRole, M::CompletionOnTextRole}},
-        {QStringLiteral("last_activity"), {M::LastActivityRole, M::LastActivityTextRole}},
-        {QStringLiteral("tracker"), {M::TrackerRole, M::TrackerHostRole}},
-        {QStringLiteral("trackers_count"), {M::TrackersCountRole}},
-        {QStringLiteral("has_tracker_error"), {M::HasTrackerErrorRole}},
-        {QStringLiteral("priority"), {M::PriorityRole, M::PriorityTextRole}},
-        {QStringLiteral("private"), {M::IsPrivateRole}},
-        {QStringLiteral("seq_dl"), {M::SeqDlRole}},
-        {QStringLiteral("f_l_piece_prio"), {M::FirstLastPiecePrioRole}},
-        {QStringLiteral("dl_limit"), {M::DlLimitRole, M::DlLimitTextRole}},
-        {QStringLiteral("up_limit"), {M::UpLimitRole, M::UpLimitTextRole}},
-        {QStringLiteral("ratio_limit"), {M::RatioLimitRole}},
-        {QStringLiteral("seeding_time_limit"), {M::SeedingTimeLimitRole}},
-        {QStringLiteral("inactive_seeding_time_limit"), {M::InactiveSeedingTimeLimitRole}},
-        {QStringLiteral("share_limit_action"), {M::ShareLimitActionRole}},
-        {QStringLiteral("availability"), {M::AvailabilityRole, M::AvailabilityTextRole}},
-        {QStringLiteral("amount_left"), {M::AmountLeftRole, M::AmountLeftTextRole}},
-        {QStringLiteral("completed"), {M::CompletedRole}},
-        {QStringLiteral("downloaded"), {M::DownloadedRole, M::DownloadedTextRole}},
-        {QStringLiteral("uploaded"), {M::UploadedRole, M::UploadedTextRole}},
-        {QStringLiteral("time_active"), {M::TimeActiveRole, M::TimeActiveTextRole}},
-        {QStringLiteral("seeding_time"), {M::SeedingTimeRole, M::SeedingTimeTextRole}},
-        {QStringLiteral("infohash_v1"), {M::InfohashV1Role}},
-        {QStringLiteral("infohash_v2"), {M::InfohashV2Role}},
-        {QStringLiteral("magnet_uri"), {M::MagnetUriRole}},
-    };
-    return map;
+    using F = TorrentField;
+    static const auto table = [] {
+        std::array<QList<int>, std::size_t(F::Count)> t;
+        const auto put = [&t](F field, QList<int> roles) {
+            t[std::size_t(field)] = std::move(roles);
+        };
+        put(F::Name, {M::NameRole});
+        put(F::Size, {M::SizeRole, M::SizeTextRole});
+        put(F::TotalSize, {M::TotalSizeRole, M::TotalSizeTextRole});
+        put(F::Progress,
+            {M::ProgressRole,
+             M::ProgressTextRole,
+             M::ProgressPercentRole,
+             M::StatusGroupsRole,
+             M::EtaTextRole,
+             M::EtaLongTextRole});
+        // The ETA texts follow the state too (Torrent::hasEta), not only the eta.
+        put(F::Status,
+            {M::StateRole,
+             M::StateTextRole,
+             M::StateColorRoleRole,
+             M::StatusGroupsRole,
+             M::EtaTextRole,
+             M::EtaLongTextRole});
+        put(F::DlSpeed, {M::DlspeedRole, M::DlspeedTextRole, M::StatusGroupsRole});
+        put(F::UpSpeed, {M::UpspeedRole, M::UpspeedTextRole, M::StatusGroupsRole});
+        put(F::Eta, {M::EtaRole, M::EtaTextRole, M::EtaLongTextRole});
+        put(F::NumSeeds, {M::NumSeedsRole, M::SeedsPeersTextRole, M::SeedsTextRole});
+        put(F::NumLeechs, {M::NumLeechsRole, M::SeedsPeersTextRole, M::PeersTextRole});
+        put(F::NumComplete, {M::NumCompleteRole, M::SeedsTextRole});
+        put(F::NumIncomplete, {M::NumIncompleteRole, M::PeersTextRole});
+        put(F::Ratio, {M::RatioRole, M::RatioTextRole});
+        put(F::Category, {M::CategoryRole});
+        put(F::Tags, {M::TagsRole, M::TagsTextRole});
+        put(F::SavePath, {M::SavePathRole});
+        put(F::ContentPath, {M::ContentPathRole});
+        put(F::AddedOn, {M::AddedOnRole, M::AddedOnTextRole, M::AddedOnShortTextRole});
+        put(F::CompletionOn, {M::CompletionOnRole, M::CompletionOnTextRole});
+        put(F::LastActivity, {M::LastActivityRole, M::LastActivityTextRole});
+        put(F::Tracker, {M::TrackerRole, M::TrackerHostRole});
+        put(F::TrackersCount, {M::TrackersCountRole});
+        put(F::HasTrackerError, {M::HasTrackerErrorRole});
+        put(F::QueuePosition, {M::PriorityRole, M::PriorityTextRole});
+        put(F::IsPrivate, {M::IsPrivateRole});
+        put(F::SeqDl, {M::SeqDlRole});
+        put(F::FirstLastPiecePrio, {M::FirstLastPiecePrioRole});
+        put(F::DlLimit, {M::DlLimitRole, M::DlLimitTextRole});
+        put(F::UpLimit, {M::UpLimitRole, M::UpLimitTextRole});
+        put(F::RatioLimit, {M::RatioLimitRole});
+        put(F::SeedingTimeLimit, {M::SeedingTimeLimitRole});
+        put(F::InactiveSeedingTimeLimit, {M::InactiveSeedingTimeLimitRole});
+        put(F::ShareLimitAction, {M::ShareLimitActionRole});
+        put(F::Availability, {M::AvailabilityRole, M::AvailabilityTextRole});
+        put(F::AmountLeft, {M::AmountLeftRole, M::AmountLeftTextRole});
+        put(F::Completed, {M::CompletedRole});
+        put(F::Downloaded, {M::DownloadedRole, M::DownloadedTextRole});
+        put(F::Uploaded, {M::UploadedRole, M::UploadedTextRole});
+        put(F::TimeActive, {M::TimeActiveRole, M::TimeActiveTextRole});
+        put(F::SeedingTime, {M::SeedingTimeRole, M::SeedingTimeTextRole});
+        put(F::InfohashV1, {M::InfohashV1Role});
+        put(F::InfohashV2, {M::InfohashV2Role});
+        put(F::MagnetUri, {M::MagnetUriRole});
+        // Fields no role shows on its own (only TorrentRole, which every change carries):
+        // DownloadPath, SuperSeeding, AutoTmm, UploadedSession.
+        return t;
+    }();
+    return table;
 }
 
 } // namespace
@@ -164,7 +174,7 @@ QVariant TorrentModel::data(const QModelIndex &index, int role) const
     case ProgressPercentRole:
         return Format::percent(t.progress);
     case StateRole:
-        return int(t.state);
+        return t.status.word;
     case StateTextRole:
         return t.stateText();
     case StateColorRoleRole:
@@ -180,7 +190,7 @@ QVariant TorrentModel::data(const QModelIndex &index, int role) const
     case UpspeedTextRole:
         return Format::speed(t.upspeed);
     case EtaRole:
-        return t.eta;
+        return t.eta.value_or(kNoEstimateSortKey);
     case EtaTextRole:
         return t.hasEta() ? Format::etaShort(t.eta) : QStringLiteral("—");
     case EtaLongTextRole:
@@ -232,11 +242,11 @@ QVariant TorrentModel::data(const QModelIndex &index, int role) const
     case UpLimitRole:
         return t.upLimit;
     case RatioLimitRole:
-        return t.ratioLimit;
+        return t.ratioLimit.code();
     case SeedingTimeLimitRole:
-        return t.seedingTimeLimit;
+        return t.seedingTimeLimit.code();
     case InactiveSeedingTimeLimitRole:
-        return t.inactiveSeedingTimeLimit;
+        return t.inactiveSeedingTimeLimit.code();
     case ShareLimitActionRole:
         return t.shareLimitAction;
     case AvailabilityRole:
@@ -391,9 +401,9 @@ QHash<int, QByteArray> TorrentModel::roleNames() const
     return names;
 }
 
-QList<int> TorrentModel::rolesForJsonKey(const QString &key)
+QList<int> TorrentModel::rolesForField(TorrentField field)
 {
-    return keyToRoles().value(key);
+    return fieldRoles().at(std::size_t(field));
 }
 
 int TorrentModel::indexOfHash(const QString &hash) const
@@ -421,7 +431,7 @@ QStringList TorrentModel::hashes() const
     return list;
 }
 
-void TorrentModel::applyFullUpdate(const QJsonObject &torrents)
+void TorrentModel::applyFullUpdate(const QList<TorrentPatch> &torrents)
 {
     m_lastChange = Change{true, {}, {}, m_revision};
     beginResetModel();
@@ -430,10 +440,10 @@ void TorrentModel::applyFullUpdate(const QJsonObject &torrents)
     m_problems.clear();
     m_failures.clear();
     m_rows.reserve(torrents.size());
-    for (auto it = torrents.constBegin(); it != torrents.constEnd(); ++it) {
+    for (const TorrentPatch &patch : torrents) {
         Torrent t;
-        t.hash = it.key();
-        t.applyJson(it.value().toObject());
+        t.hash = patch.hash;
+        t.apply(patch);
         m_indexByHash.insert(t.hash, int(m_rows.size()));
         m_rows.append(std::move(t));
     }
@@ -443,7 +453,7 @@ void TorrentModel::applyFullUpdate(const QJsonObject &torrents)
     Q_EMIT updated();
 }
 
-void TorrentModel::applyPartial(const QJsonObject &torrents, const QJsonArray &removed)
+void TorrentModel::applyPartial(const QList<TorrentPatch> &torrents, const QStringList &removed)
 {
     bool touchedAnything = false;
     m_lastChange = Change{false, {}, {}, m_revision};
@@ -453,8 +463,7 @@ void TorrentModel::applyPartial(const QJsonObject &torrents, const QJsonArray &r
         QList<int> rows;
         rows.reserve(removed.size());
         QSet<QString> named;
-        for (const QJsonValue &value : removed) {
-            const QString hash = value.toString();
+        for (const QString &hash : removed) {
             const int row = indexOfHash(hash);
             if (row >= 0 && !named.contains(hash)) {
                 named.insert(hash);
@@ -486,24 +495,29 @@ void TorrentModel::applyPartial(const QJsonObject &torrents, const QJsonArray &r
 
     // 2. Merges into existing rows, collected so the signals can be batched.
     QList<QPair<int, QList<int>>> touched;
-    QJsonObject additions;
-    for (auto it = torrents.constBegin(); it != torrents.constEnd(); ++it) {
-        const int row = indexOfHash(it.key());
+    QList<const TorrentPatch *> additions;
+    QSet<QString> added;
+    for (const TorrentPatch &patch : torrents) {
+        const int row = indexOfHash(patch.hash);
         if (row < 0) {
-            additions.insert(it.key(), it.value());
+            // Named twice in one delta: one new row, from the first.
+            if (!added.contains(patch.hash)) {
+                added.insert(patch.hash);
+                additions.append(&patch);
+            }
             continue;
         }
-        const QStringList changedKeys = m_rows[row].applyJson(it.value().toObject());
-        if (changedKeys.isEmpty())
+        const TorrentFields changedFields = m_rows[row].apply(patch);
+        if (changedFields.isEmpty())
             continue;
-        m_lastChange.changed.append(it.key());
+        m_lastChange.changed.append(patch.hash);
         QList<int> roles{TorrentRole};
-        for (const QString &key : changedKeys) {
-            for (const int role : rolesForJsonKey(key)) {
+        changedFields.forEach([&roles](TorrentField field) {
+            for (const int role : rolesForField(field)) {
                 if (!roles.contains(role))
                     roles.append(role);
             }
-        }
+        });
         touched.append({row, roles});
     }
     if (!touched.isEmpty()) {
@@ -515,10 +529,10 @@ void TorrentModel::applyPartial(const QJsonObject &torrents, const QJsonArray &r
     if (!additions.isEmpty()) {
         const int first = int(m_rows.size());
         beginInsertRows(QModelIndex(), first, first + additions.size() - 1);
-        for (auto it = additions.constBegin(); it != additions.constEnd(); ++it) {
+        for (const TorrentPatch *patch : std::as_const(additions)) {
             Torrent t;
-            t.hash = it.key();
-            t.applyJson(it.value().toObject());
+            t.hash = patch->hash;
+            t.apply(*patch);
             m_indexByHash.insert(t.hash, int(m_rows.size()));
             m_lastChange.changed.append(t.hash);
             m_rows.append(std::move(t));

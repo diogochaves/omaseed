@@ -2,26 +2,28 @@
 
 // TorrentModel — one row per torrent, keyed by hash, in arrival order.
 //
-// sync/maindata sends a full map once and then only the torrents (and inside them only the
-// keys) that moved. applyPartial() therefore never resets: it merges, emits one dataChanged()
-// per contiguous run of touched rows, and only removes what `torrents_removed` names.
+// An engine's sync sends every torrent once and then only the torrents (and inside them only
+// the fields) that moved, as TorrentPatches (SyncDelta). applyPartial() therefore never
+// resets: it merges, emits one dataChanged() per contiguous run of touched rows, and only
+// removes what the delta names.
 //
-// Rows are appended in the order they arrive and never reordered — a full update comes out
-// of a JSON object, which iterates by key, so its rows are in hash order; sorting belongs to
-// TorrentFilterModel, so a sort change costs nothing here and row indices stay stable for the
-// views that remember a cursor.
+// Rows are appended in the order they arrive and never reordered — qBittorrent's full update
+// comes out of a JSON object, which iterates by key, so its rows are in hash order; sorting
+// belongs to TorrentFilterModel, so a sort change costs nothing here and row indices stay
+// stable for the views that remember a cursor.
 
 #include "core/Torrent.hpp"
+#include "core/engines/TorrentPatch.hpp"
 
 #include <QAbstractListModel>
 #include <QDateTime>
 #include <QHash>
-#include <QJsonArray>
-#include <QJsonObject>
 #include <QList>
 #include <QStringList>
 #include <QTimer>
 #include <QVariantMap>
+
+#include <limits>
 
 namespace omaseed::core {
 
@@ -134,11 +136,11 @@ public:
     const Torrent &torrentAt(int row) const;
     QStringList hashes() const;
 
-    /// Replaces everything with `torrents` (the `torrents` map of a full_update).
-    void applyFullUpdate(const QJsonObject &torrents);
-    /// Merges a diff: new hashes are appended, known ones merged key by key, and the hashes
-    /// in `removed` dropped.
-    void applyPartial(const QJsonObject &torrents, const QJsonArray &removed);
+    /// Replaces everything with `torrents` (a full delta's).
+    void applyFullUpdate(const QList<TorrentPatch> &torrents);
+    /// Merges a partial delta: new hashes are appended, known ones merged field by field, and
+    /// the hashes in `removed` dropped.
+    void applyPartial(const QList<TorrentPatch> &torrents, const QStringList &removed = {});
     void clear();
 
     /// docs/28: what ProblemLog worked out for `hash` from the server's log (TorrentProblem::
@@ -158,8 +160,8 @@ public:
     struct Change
     {
         bool full = false;   ///< every row was replaced (a full update, or clear())
-        QStringList changed; ///< merged with a changed key, or added; empty when `full`
-        QStringList removed; ///< dropped by `torrents_removed`
+        QStringList changed; ///< merged with a changed field, or added; empty when `full`
+        QStringList removed; ///< dropped by the delta
         quint64 since = 0;   ///< revision() before it
     };
     const Change &lastChange() const { return m_lastChange; }
@@ -173,8 +175,10 @@ public:
         return !m_lastChange.full && m_lastChange.since == revision;
     }
 
-    /// The roles that change when the named JSON key changes, derived roles included.
-    static QList<int> rolesForJsonKey(const QString &key);
+    /// The roles that change when `field` changes, derived roles included.
+    static QList<int> rolesForField(TorrentField field);
+    /// What EtaRole gives for "no estimate": past every real one, so it sorts last.
+    static constexpr qint64 kNoEstimateSortKey = std::numeric_limits<qint64>::max();
 
     /// The texts that say "today" or "yesterday", which a new day changes with no poll.
     static QList<int> dayRelativeRoles();

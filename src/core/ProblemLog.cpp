@@ -3,9 +3,9 @@
 #include "core/QbtClient.hpp"
 #include "core/SharedData.hpp"
 #include "core/TorrentModel.hpp"
+#include "core/engines/qbt/QbtTranslate.hpp"
 
 #include <QCryptographicHash>
-#include <QJsonObject>
 
 #include <algorithm>
 #include <optional>
@@ -18,9 +18,9 @@ namespace {
 /// torrent per error, not one per piece.
 constexpr qsizetype kMaxLines = 2000;
 
-bool isErroredState(TorrentState state)
+bool isErroredState(TorrentPhase phase)
 {
-    return state == TorrentState::Error || state == TorrentState::MissingFiles;
+    return phase == TorrentPhase::Errored || phase == TorrentPhase::Missing;
 }
 
 /// The hash libtorrent prints the prefix of: v2 when there is one, otherwise v1.
@@ -153,15 +153,16 @@ void ProblemLog::updateErrored(bool fullUpdate)
     bool changed = false;
     for (const QString &hash : std::as_const(look)) {
         const bool known = m_torrents->indexOfHash(hash) >= 0;
-        const TorrentState state = known ? m_torrents->torrent(hash).state : TorrentState::Unknown;
-        const bool errored = known && isErroredState(state);
+        const TorrentPhase phase =
+            known ? m_torrents->torrent(hash).status.phase : TorrentPhase::Unknown;
+        const bool errored = known && isErroredState(phase);
         if (errored && !m_errored.contains(hash)) {
             m_errored.insert(hash);
             changed = true;
             // A notice only for an error that happened while watching (D4 a), never for the
             // library as the first sync finds it, and not for missing files, which the start
             // of a server finds by the dozen.
-            if (m_seenFirstSync && !fullUpdate && state == TorrentState::Error)
+            if (m_seenFirstSync && !fullUpdate && phase == TorrentPhase::Errored)
                 m_newlyErrored.insert(hash);
         } else if (!errored && m_errored.remove(hash)) {
             changed = true;
@@ -191,12 +192,12 @@ void ProblemLog::read()
             m_sinceRead.start();
             if (result.isError())
                 return;
-            applyRead(result.value(), serial, fromStart);
+            applyRead(QbtTranslate::log(result.value()), serial, fromStart);
             checkFiles();
         });
 }
 
-void ProblemLog::applyEntries(const QJsonArray &entries)
+void ProblemLog::applyEntries(const QList<LogEntry> &entries)
 {
     applyRead(entries, ++m_issued, m_lastId < 0);
 }
@@ -208,20 +209,19 @@ QString ProblemLog::lineKey(int id, qint64 timestamp, const QString &message)
     return QStringLiteral("%1:%2:%3").arg(id).arg(timestamp).arg(QString::fromLatin1(digest));
 }
 
-void ProblemLog::applyRead(const QJsonArray &entries, quint64 serial, bool fromStart)
+void ProblemLog::applyRead(const QList<LogEntry> &entries, quint64 serial, bool fromStart)
 {
     QSet<QString> failureKeys;
     bool added = false;
-    for (const QJsonValue &value : entries) {
-        const QJsonObject entry = value.toObject();
-        const int id = entry.value(QStringLiteral("id")).toInt(-1);
+    for (const LogEntry &entry : entries) {
+        const int id = entry.id;
         if (id > m_lastId)
             m_lastId = id;
-        const QString message = entry.value(QStringLiteral("message")).toString();
+        const QString &message = entry.message;
         ProblemLine parsed = ProblemLine::parse(message);
         if (parsed.kind == ProblemLine::Kind::Unknown)
             continue;
-        const qint64 seconds = qint64(entry.value(QStringLiteral("timestamp")).toDouble());
+        const qint64 seconds = entry.timestamp;
         Line line;
         line.id = id;
         line.at = QDateTime::fromSecsSinceEpoch(seconds);
@@ -293,7 +293,7 @@ void ProblemLog::rematch()
     for (const Torrent &torrent : std::as_const(candidates)) {
         TorrentProblem problem = found.value(torrent.hash);
         if (!problem.found)
-            problem = ProblemMatch::notLogged(torrent.state == TorrentState::MissingFiles);
+            problem = ProblemMatch::notLogged(torrent.status.phase == TorrentPhase::Missing);
         publish(torrent.hash, problem);
     }
 
@@ -602,8 +602,8 @@ void ProblemLog::checkFiles()
                 if (generation != m_generation || result.isError())
                     return;
                 QStringList paths;
-                for (const QJsonValue &value : result.value())
-                    paths << value.toObject().value(QStringLiteral("name")).toString();
+                for (const ContentFile &file : QbtTranslate::files(result.value()))
+                    paths << file.path;
                 applyFiles(hash, paths);
             });
     }

@@ -4,6 +4,7 @@
 //
 // Polls are played with applyDemoData(), which counts as a poll sent and applied at once.
 
+#include "QbtFeed.hpp"
 #include "core/SyncEngine.hpp"
 #include "core/Torrent.hpp"
 #include "core/TorrentModel.hpp"
@@ -46,6 +47,21 @@ bool seqDl(const SyncEngine &engine)
     return engine.torrents()->torrent(kHash).seqDl;
 }
 
+/// What the menu asks for: sequential download `on` for `hash`.
+TorrentPatch seq(const QString &hash, bool on)
+{
+    return TorrentPatch(hash).set(&Torrent::seqDl, TorrentField::SeqDl, on);
+}
+
+std::optional<bool> pendingSeq(const SyncEngine &engine)
+{
+    const std::optional<TorrentPatch> pending =
+        engine.pendingTorrentValue(kHash, TorrentField::SeqDl);
+    if (!pending)
+        return std::nullopt;
+    return pending->values.seqDl;
+}
+
 } // namespace
 
 class TestSyncEnginePending : public QObject
@@ -66,21 +82,21 @@ private Q_SLOTS:
 void TestSyncEnginePending::theModelShowsTheChangeAtOnce()
 {
     SyncEngine engine;
-    engine.applyDemoData(full(false));
+    qbtfeed::demo(engine, full(false));
     QVERIFY(!seqDl(engine));
 
-    engine.setPendingTorrentValue(kHash, kSeq, true, false);
+    engine.setPendingTorrentValue(seq(kHash, true));
     QVERIFY(seqDl(engine));
-    QCOMPARE(engine.pendingTorrentValue(kHash, kSeq), std::optional<QJsonValue>(true));
+    QCOMPARE(pendingSeq(engine), std::optional<bool>(true));
 }
 
 void TestSyncEnginePending::aRefusalPutsTheOldValueBack()
 {
     SyncEngine engine;
-    engine.applyDemoData(full(false));
-    engine.setPendingTorrentValue(kHash, kSeq, true, false);
+    qbtfeed::demo(engine, full(false));
+    engine.setPendingTorrentValue(seq(kHash, true));
 
-    engine.settlePendingTorrentValue(kHash, kSeq, /*refused=*/true);
+    engine.settlePendingTorrentValue(kHash, TorrentField::SeqDl, /*refused=*/true);
     QVERIFY(!seqDl(engine));
     QCOMPARE(engine.pendingTorrentValueCount(), 0);
 }
@@ -90,12 +106,12 @@ void TestSyncEnginePending::aPollAnsweredBeforeTheRequestDoesNotFlipItBack()
     // Sent before the request, answered after it: a full update (every field) carrying the
     // old value, then a partial one that also does.
     SyncEngine engine;
-    engine.applyDemoData(full(false));
-    engine.setPendingTorrentValue(kHash, kSeq, true, false);
+    qbtfeed::demo(engine, full(false));
+    engine.setPendingTorrentValue(seq(kHash, true));
 
-    engine.applyDemoData(full(false));
+    qbtfeed::demo(engine, full(false));
     QVERIFY(seqDl(engine));
-    engine.applyDemoData(partial({{kSeq, false}}));
+    qbtfeed::demo(engine, partial({{kSeq, false}}));
     QVERIFY(seqDl(engine));
 
     // Still unanswered, so still pending, however many polls go by.
@@ -105,18 +121,18 @@ void TestSyncEnginePending::aPollAnsweredBeforeTheRequestDoesNotFlipItBack()
 void TestSyncEnginePending::theFirstPollAfterTheAnswerSettlesIt()
 {
     SyncEngine engine;
-    engine.applyDemoData(full(false));
-    engine.setPendingTorrentValue(kHash, kSeq, true, false);
-    engine.applyDemoData(partial({{kSeq, true}})); // the server took it early
-    engine.settlePendingTorrentValue(kHash, kSeq, false);
+    qbtfeed::demo(engine, full(false));
+    engine.setPendingTorrentValue(seq(kHash, true));
+    qbtfeed::demo(engine, partial({{kSeq, true}})); // the server took it early
+    engine.settlePendingTorrentValue(kHash, TorrentField::SeqDl, false);
     QCOMPARE(engine.pendingTorrentValueCount(), 1);
 
-    engine.applyDemoData(partial());
+    qbtfeed::demo(engine, partial());
     QCOMPARE(engine.pendingTorrentValueCount(), 0);
     QVERIFY(seqDl(engine));
 
     // Authoritative again: the server turning it off shows.
-    engine.applyDemoData(partial({{kSeq, false}}));
+    qbtfeed::demo(engine, partial({{kSeq, false}}));
     QVERIFY(!seqDl(engine));
 }
 
@@ -125,12 +141,12 @@ void TestSyncEnginePending::aServerThatIgnoredTheRequestEndsUpShowingItsValue()
     // Accepted but never applied (super seeding on a torrent still downloading, say): the
     // incremental polls never mention the field, so settling puts back what the server held.
     SyncEngine engine;
-    engine.applyDemoData(full(false));
-    engine.setPendingTorrentValue(kHash, kSeq, true, false);
-    engine.settlePendingTorrentValue(kHash, kSeq, false);
+    qbtfeed::demo(engine, full(false));
+    engine.setPendingTorrentValue(seq(kHash, true));
+    engine.settlePendingTorrentValue(kHash, TorrentField::SeqDl, false);
     QVERIFY(seqDl(engine));
 
-    engine.applyDemoData(partial());
+    qbtfeed::demo(engine, partial());
     QVERIFY(!seqDl(engine));
     QCOMPARE(engine.pendingTorrentValueCount(), 0);
 }
@@ -140,19 +156,19 @@ void TestSyncEnginePending::aStackedRequestWaitsForBothAnswers()
     // On, then off again before the first answer: the model follows the last press, and the
     // first answer alone settles nothing.
     SyncEngine engine;
-    engine.applyDemoData(full(false));
-    engine.setPendingTorrentValue(kHash, kSeq, true, false);
-    engine.setPendingTorrentValue(kHash, kSeq, false, true);
+    qbtfeed::demo(engine, full(false));
+    engine.setPendingTorrentValue(seq(kHash, true));
+    engine.setPendingTorrentValue(seq(kHash, false));
     QVERIFY(!seqDl(engine));
-    QCOMPARE(engine.pendingTorrentValue(kHash, kSeq), std::optional<QJsonValue>(false));
+    QCOMPARE(pendingSeq(engine), std::optional<bool>(false));
 
-    engine.settlePendingTorrentValue(kHash, kSeq, false);
-    engine.applyDemoData(partial({{kSeq, true}})); // between the two requests
+    engine.settlePendingTorrentValue(kHash, TorrentField::SeqDl, false);
+    qbtfeed::demo(engine, partial({{kSeq, true}})); // between the two requests
     QVERIFY(!seqDl(engine));
     QCOMPARE(engine.pendingTorrentValueCount(), 1);
 
-    engine.settlePendingTorrentValue(kHash, kSeq, false);
-    engine.applyDemoData(partial({{kSeq, false}}));
+    engine.settlePendingTorrentValue(kHash, TorrentField::SeqDl, false);
+    qbtfeed::demo(engine, partial({{kSeq, false}}));
     QCOMPARE(engine.pendingTorrentValueCount(), 0);
     QVERIFY(!seqDl(engine));
 }
@@ -160,26 +176,26 @@ void TestSyncEnginePending::aStackedRequestWaitsForBothAnswers()
 void TestSyncEnginePending::aRemovedTorrentForgetsItsPendingValues()
 {
     SyncEngine engine;
-    engine.applyDemoData(full(false));
-    engine.setPendingTorrentValue(kHash, kSeq, true, false);
+    qbtfeed::demo(engine, full(false));
+    engine.setPendingTorrentValue(seq(kHash, true));
 
     QJsonObject gone = partial();
     gone.insert(QStringLiteral("torrents_removed"), QJsonArray{kHash});
-    engine.applyDemoData(gone);
+    qbtfeed::demo(engine, gone);
     QCOMPARE(engine.pendingTorrentValueCount(), 0);
     QCOMPARE(engine.torrents()->indexOfHash(kHash), -1);
 
     // A late answer for it changes nothing, and adds no row.
-    engine.settlePendingTorrentValue(kHash, kSeq, true);
+    engine.settlePendingTorrentValue(kHash, TorrentField::SeqDl, true);
     QCOMPARE(engine.torrents()->count(), 0);
 }
 
 void TestSyncEnginePending::anUnknownTorrentIsNeverAdded()
 {
     SyncEngine engine;
-    engine.applyDemoData(full(false));
+    qbtfeed::demo(engine, full(false));
     const QString other = QStringLiteral("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
-    engine.setPendingTorrentValue(other, kSeq, true, false);
+    engine.setPendingTorrentValue(seq(other, true));
     QCOMPARE(engine.torrents()->count(), 1);
     QCOMPARE(engine.pendingTorrentValueCount(), 0);
 }

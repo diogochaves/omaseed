@@ -2,6 +2,7 @@
 // slash-separated names, the aggregates a folder shows, the fold state, and the in-place
 // update that keeps the rows (and the cursor) while the numbers move.
 
+#include "QbtFeed.hpp"
 #include "core/TorrentFilesModel.hpp"
 
 #include <QAbstractItemModelTester>
@@ -77,7 +78,7 @@ private Q_SLOTS:
 void TestTorrentFilesModel::builds_the_tree_from_slash_separated_names()
 {
     TorrentFilesModel model;
-    model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
+    qbtfeed::files(model, fixture(QStringLiteral("files-fig2.json")));
 
     // Spec §2 Fig. 2, row for row.
     QCOMPARE(model.count(), 7);
@@ -107,7 +108,7 @@ void TestTorrentFilesModel::builds_the_tree_from_slash_separated_names()
 void TestTorrentFilesModel::folders_aggregate_size_progress_and_priority()
 {
     TorrentFilesModel model;
-    model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
+    qbtfeed::files(model, fixture(QStringLiteral("files-fig2.json")));
 
     // subs/ holds two skipped files of 9 KB each, neither downloaded.
     QCOMPARE(at(model, 3, TorrentFilesModel::SizeTextRole).toString(), QStringLiteral("18 KB"));
@@ -146,7 +147,7 @@ void TestTorrentFilesModel::priority_text_covers_every_value()
 void TestTorrentFilesModel::folding_hides_the_subtree_and_survives_a_refresh()
 {
     TorrentFilesModel model;
-    model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
+    qbtfeed::files(model, fixture(QStringLiteral("files-fig2.json")));
     QCOMPARE(model.count(), 7);
     QVERIFY(model.isExpanded(0));
     QVERIFY(!model.isFolder(1));
@@ -160,7 +161,7 @@ void TestTorrentFilesModel::folding_hides_the_subtree_and_survives_a_refresh()
     QCOMPARE(at(model, 4, TorrentFilesModel::NameRole).toString(), QStringLiteral("LICENSE.txt"));
 
     // A refresh with the same shape must not reopen it.
-    model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
+    qbtfeed::files(model, fixture(QStringLiteral("files-fig2.json")));
     QCOMPARE(model.count(), 5);
 
     // `l` opens it again; folding the root hides everything but the root.
@@ -177,14 +178,14 @@ void TestTorrentFilesModel::folding_hides_the_subtree_and_survives_a_refresh()
 void TestTorrentFilesModel::updates_in_place_when_the_shape_is_unchanged()
 {
     TorrentFilesModel model;
-    model.applyFiles(fixture(QStringLiteral("files-unicode-pack.json")));
+    qbtfeed::files(model, fixture(QStringLiteral("files-unicode-pack.json")));
     QCOMPARE(model.count(), 7);
     QCOMPARE(at(model, 0, TorrentFilesModel::ProgressTextRole).toString(), QStringLiteral("0 %"));
 
     QSignalSpy reset(&model, &QAbstractItemModel::modelReset);
     QSignalSpy changed(&model, &QAbstractItemModel::dataChanged);
 
-    model.applyFiles(fixture(QStringLiteral("files-unicode-pack-progress.json")));
+    qbtfeed::files(model, fixture(QStringLiteral("files-unicode-pack-progress.json")));
 
     QCOMPARE(reset.count(), 0); // the cursor survives a poll
     QCOMPARE(changed.count(), 1);
@@ -205,11 +206,11 @@ void TestTorrentFilesModel::updates_in_place_when_the_shape_is_unchanged()
 void TestTorrentFilesModel::a_new_shape_resets_the_model()
 {
     TorrentFilesModel model;
-    model.applyFiles(fixture(QStringLiteral("files-unicode-pack.json")));
+    qbtfeed::files(model, fixture(QStringLiteral("files-unicode-pack.json")));
     QSignalSpy reset(&model, &QAbstractItemModel::modelReset);
     QSignalSpy counted(&model, &TorrentFilesModel::countChanged);
 
-    model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
+    qbtfeed::files(model, fixture(QStringLiteral("files-fig2.json")));
 
     QCOMPARE(reset.count(), 1);
     QCOMPARE(counted.count(), 1);
@@ -220,7 +221,7 @@ void TestTorrentFilesModel::unicode_paths_from_the_playground()
 {
     // Recorded from :8081 after adding tests/fixtures/multi_file_v1_unicode.torrent stopped.
     TorrentFilesModel model;
-    model.applyFiles(fixture(QStringLiteral("files-unicode-pack.json")));
+    qbtfeed::files(model, fixture(QStringLiteral("files-unicode-pack.json")));
 
     QCOMPARE(model.count(), 7);
     QCOMPARE(model.fileCount(), 3);
@@ -252,10 +253,10 @@ void TestTorrentFilesModel::raise_and_lower_walk_the_ladder()
 void TestTorrentFilesModel::empty_input_clears()
 {
     TorrentFilesModel model;
-    model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
+    qbtfeed::files(model, fixture(QStringLiteral("files-fig2.json")));
     QCOMPARE(model.count(), 7);
 
-    model.applyFiles(QJsonArray());
+    qbtfeed::files(model, QJsonArray());
     QCOMPARE(model.count(), 0);
     QCOMPARE(model.fileCount(), 0);
     QVERIFY(!model.isFolder(0));
@@ -277,7 +278,7 @@ QStringList names(const TorrentFilesModel &model)
 void TestTorrentFilesModel::sorting_by_name_keeps_the_tree_and_puts_folders_first()
 {
     TorrentFilesModel model;
-    model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
+    qbtfeed::files(model, fixture(QStringLiteral("files-fig2.json")));
     QSignalSpy sorted(&model, &TorrentFilesModel::sortChanged);
 
     model.setSortKey(QStringLiteral("name"));
@@ -314,7 +315,7 @@ void TestTorrentFilesModel::sorting_by_name_keeps_the_tree_and_puts_folders_firs
 void TestTorrentFilesModel::sorting_by_a_number_mixes_folders_and_files()
 {
     TorrentFilesModel model;
-    model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
+    qbtfeed::files(model, fixture(QStringLiteral("files-fig2.json")));
     model.setSortKey(QStringLiteral("size"));
     model.setSortDescending(false);
     // Smallest first: the 1 KB licence, then the 18 KB subs folder, then the two videos.
@@ -328,7 +329,7 @@ void TestTorrentFilesModel::sorting_by_a_number_mixes_folders_and_files()
                           QStringLiteral("bbb_sunflower_2160p_60fps.mp4")}));
 
     // A poll that changes nothing keeps the order; equal sizes keep the torrent's order.
-    model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
+    qbtfeed::files(model, fixture(QStringLiteral("files-fig2.json")));
     QCOMPARE(at(model, 3, TorrentFilesModel::NameRole).toString(), QStringLiteral("bbb.en.srt"));
 }
 
@@ -337,7 +338,7 @@ void TestTorrentFilesModel::a_poll_that_reorders_moves_rows_instead_of_resetting
     TorrentFilesModel model;
     QAbstractItemModelTester tester(&model, QAbstractItemModelTester::FailureReportingMode::QtTest);
     const QJsonArray files = fixture(QStringLiteral("files-fig2.json"));
-    model.applyFiles(files);
+    qbtfeed::files(model, files);
     model.setSortKey(QStringLiteral("progress"));
     model.setSortDescending(true);
 
@@ -368,7 +369,7 @@ void TestTorrentFilesModel::a_poll_that_reorders_moves_rows_instead_of_resetting
     QSignalSpy reset(&model, &QAbstractItemModel::modelReset);
     QSignalSpy moved(&model, &QAbstractItemModel::rowsMoved);
     QSignalSpy reordered(&model, &TorrentFilesModel::reordered);
-    model.applyFiles(next);
+    qbtfeed::files(model, next);
 
     QCOMPARE(reset.count(), 0); // the delegates, the scroll and the cursor survive
     QVERIFY(moved.count() > 0);
@@ -407,7 +408,7 @@ void TestTorrentFilesModel::a_long_list_reorders_in_one_layout_change()
 
     TorrentFilesModel model;
     QAbstractItemModelTester tester(&model, QAbstractItemModelTester::FailureReportingMode::QtTest);
-    model.applyFiles(build(10));
+    qbtfeed::files(model, build(10));
     model.setSortKey(QStringLiteral("progress"));
     model.setSortDescending(true);
     QCOMPARE(model.rowOfPath(QStringLiteral("f00010.bin")), 0);
@@ -417,7 +418,7 @@ void TestTorrentFilesModel::a_long_list_reorders_in_one_layout_change()
     QSignalSpy layout(&model, &QAbstractItemModel::layoutChanged);
     QSignalSpy reordered(&model, &TorrentFilesModel::reordered);
 
-    model.applyFiles(build(20));
+    qbtfeed::files(model, build(20));
     QCOMPARE(reset.count(), 0);
     QCOMPARE(layout.count(), 1);
     QCOMPARE(reordered.count(), 1);
@@ -442,7 +443,7 @@ void TestTorrentFilesModel::a_priority_on_every_file_of_a_huge_torrent_is_linear
         ids.append(i);
     }
     TorrentFilesModel model;
-    model.applyFiles(files);
+    qbtfeed::files(model, files);
 
     QElapsedTimer timer;
     timer.start();
@@ -474,7 +475,7 @@ void TestTorrentFilesModel::sort_by_flips_the_current_key_and_picks_a_direction_
 void TestTorrentFilesModel::a_header_cycle_goes_back_to_the_torrent_order()
 {
     TorrentFilesModel model;
-    model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
+    qbtfeed::files(model, fixture(QStringLiteral("files-fig2.json")));
     const QString first = model.pathAt(1);
 
     model.cycleSort(QStringLiteral("size"));
@@ -510,7 +511,7 @@ void TestTorrentFilesModel::a_header_cycle_goes_back_to_the_torrent_order()
 void TestTorrentFilesModel::the_filter_keeps_the_folders_of_a_match()
 {
     TorrentFilesModel model;
-    model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
+    qbtfeed::files(model, fixture(QStringLiteral("files-fig2.json")));
     QCOMPARE(model.matchCount(), 5);
 
     // Fold the root first: a filter opens every folder, and clearing it restores the fold.
@@ -552,7 +553,7 @@ void TestTorrentFilesModel::the_filter_keeps_the_folders_of_a_match()
 void TestTorrentFilesModel::a_folder_acts_on_the_files_the_filter_shows()
 {
     TorrentFilesModel model;
-    model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
+    qbtfeed::files(model, fixture(QStringLiteral("files-fig2.json")));
     model.setFilterText(QStringLiteral("en.srt"));
     QCOMPARE(model.fileIndexes(0), (QVariantList{2}));
     QCOMPARE(model.targetFileIndexes(0), (QVariantList{2}));
@@ -564,7 +565,7 @@ void TestTorrentFilesModel::a_folder_acts_on_the_files_the_filter_shows()
 void TestTorrentFilesModel::remaining_availability_and_pieces_add_up()
 {
     TorrentFilesModel model;
-    model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
+    qbtfeed::files(model, fixture(QStringLiteral("files-fig2.json")));
 
     // Everything wanted is complete, and a skipped file has nothing left to fetch.
     QCOMPARE(at(model, 0, TorrentFilesModel::RemainingRole).toLongLong(), 0LL);
@@ -586,7 +587,7 @@ void TestTorrentFilesModel::remaining_availability_and_pieces_add_up()
 void TestTorrentFilesModel::a_local_priority_reaggregates_the_folders()
 {
     TorrentFilesModel model;
-    model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
+    qbtfeed::files(model, fixture(QStringLiteral("files-fig2.json")));
     QSignalSpy changed(&model, &QAbstractItemModel::dataChanged);
 
     model.setLocalPriority({2}, int(FilePriority::Normal));
@@ -607,7 +608,7 @@ void TestTorrentFilesModel::a_local_priority_reaggregates_the_folders()
 void TestTorrentFilesModel::selection_targets_its_files_and_survives_a_refresh()
 {
     TorrentFilesModel model;
-    model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
+    qbtfeed::files(model, fixture(QStringLiteral("files-fig2.json")));
     QSignalSpy selection(&model, &TorrentFilesModel::selectionChanged);
 
     // Nothing selected: the cursor row is the target.
@@ -628,7 +629,7 @@ void TestTorrentFilesModel::selection_targets_its_files_and_survives_a_refresh()
     QCOMPARE(model.selectedCount(), 4);
     QCOMPARE(model.targetFileIndexes(0), (QVariantList{0, 2, 3, 4}));
 
-    model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
+    qbtfeed::files(model, fixture(QStringLiteral("files-fig2.json")));
     QVERIFY(model.isSelected(1));
     QCOMPARE(model.selectedCount(), 4);
 
@@ -643,7 +644,7 @@ void TestTorrentFilesModel::selection_targets_its_files_and_survives_a_refresh()
 void TestTorrentFilesModel::shown_order_splits_the_files_in_thirds()
 {
     TorrentFilesModel model;
-    model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
+    qbtfeed::files(model, fixture(QStringLiteral("files-fig2.json")));
 
     // Five files: groups of one, so the first is maximal, the second high, the rest normal.
     const QVariantList groups = model.shownOrderGroups(0);
@@ -668,7 +669,7 @@ void TestTorrentFilesModel::shown_order_splits_the_files_in_thirds()
 void TestTorrentFilesModel::a_local_rename_moves_the_subtree()
 {
     TorrentFilesModel model;
-    model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
+    qbtfeed::files(model, fixture(QStringLiteral("files-fig2.json")));
     model.setExpanded(3, false); // fold subs/
     model.setSelected(3, true);
     QCOMPARE(model.count(), 5);
@@ -722,7 +723,7 @@ void TestTorrentFilesModel::the_summary_counts_files_folders_size_and_skips()
 {
     TorrentFilesModel model;
     QSignalSpy summary(&model, &TorrentFilesModel::summaryChanged);
-    model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
+    qbtfeed::files(model, fixture(QStringLiteral("files-fig2.json")));
     QCOMPARE(summary.count(), 1);
     QCOMPARE(model.fileCount(), 5);
     QCOMPARE(model.folderCount(), 2);
@@ -742,7 +743,7 @@ void TestTorrentFilesModel::the_summary_counts_files_folders_size_and_skips()
     QCOMPARE(summary.count(), 1);
     model.setLocalPriority({2}, int(FilePriority::Skip));
     summary.clear();
-    model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
+    qbtfeed::files(model, fixture(QStringLiteral("files-fig2.json")));
     QCOMPARE(summary.count(), 0);
 
     model.clear();
@@ -756,7 +757,7 @@ void TestTorrentFilesModel::the_summary_counts_files_folders_size_and_skips()
 void TestTorrentFilesModel::select_all_files_takes_what_the_filter_shows()
 {
     TorrentFilesModel model;
-    model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
+    qbtfeed::files(model, fixture(QStringLiteral("files-fig2.json")));
     QSignalSpy selection(&model, &TorrentFilesModel::selectionChanged);
 
     model.setFilterText(QStringLiteral("srt"));
@@ -832,7 +833,7 @@ void TestTorrentFilesModel::the_filter_takes_wildcards_and_alternatives()
 void TestTorrentFilesModel::a_wildcard_filter_keeps_the_folders_of_a_match()
 {
     TorrentFilesModel model;
-    model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
+    qbtfeed::files(model, fixture(QStringLiteral("files-fig2.json")));
 
     model.setFilterText(QStringLiteral("*.srt"));
     QCOMPARE(model.matchCount(), 2);
@@ -861,7 +862,7 @@ void TestTorrentFilesModel::hiding_skipped_files_drops_them_and_their_empty_fold
 {
     TorrentFilesModel model;
     QAbstractItemModelTester tester(&model, QAbstractItemModelTester::FailureReportingMode::QtTest);
-    model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
+    qbtfeed::files(model, fixture(QStringLiteral("files-fig2.json")));
     QCOMPARE(model.count(), 7);
     QSignalSpy hide(&model, &TorrentFilesModel::hideSkippedChanged);
     QSignalSpy count(&model, &TorrentFilesModel::countChanged);
@@ -905,7 +906,7 @@ void TestTorrentFilesModel::a_priority_change_hides_or_shows_a_file_at_once()
     TorrentFilesModel model;
     QAbstractItemModelTester tester(&model, QAbstractItemModelTester::FailureReportingMode::QtTest);
     const QJsonArray files = fixture(QStringLiteral("files-fig2.json"));
-    model.applyFiles(files);
+    qbtfeed::files(model, files);
     model.setHideSkipped(true);
     QCOMPARE(model.count(), 4);
 
@@ -928,7 +929,7 @@ void TestTorrentFilesModel::a_priority_change_hides_or_shows_a_file_at_once()
     license.insert(QStringLiteral("priority"), 0);
     polled.replace(4, license);
     count.clear();
-    model.applyFiles(polled);
+    qbtfeed::files(model, polled);
     QCOMPARE(model.rowOfPath(QStringLiteral("Big Buck Bunny 4K/LICENSE.txt")), -1);
     QCOMPARE(model.rowOfPath(QStringLiteral("Big Buck Bunny 4K/subs")), -1);
     QCOMPARE(model.count(), 3); // the root and the two films
@@ -940,7 +941,7 @@ void TestTorrentFilesModel::a_priority_change_hides_or_shows_a_file_at_once()
 void TestTorrentFilesModel::hiding_skipped_files_is_a_preference_not_the_torrents()
 {
     TorrentFilesModel model;
-    model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
+    qbtfeed::files(model, fixture(QStringLiteral("files-fig2.json")));
     model.setHideSkipped(true);
     QSignalSpy hide(&model, &TorrentFilesModel::hideSkippedChanged);
     model.setHideSkipped(true);
@@ -948,7 +949,7 @@ void TestTorrentFilesModel::hiding_skipped_files_is_a_preference_not_the_torrent
 
     model.clear();
     QVERIFY(model.hideSkipped());
-    model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
+    qbtfeed::files(model, fixture(QStringLiteral("files-fig2.json")));
     QCOMPARE(model.count(), 4);
     QCOMPARE(hide.count(), 0);
 }
@@ -958,7 +959,7 @@ void TestTorrentFilesModel::hiding_skipped_files_is_a_preference_not_the_torrent
 void TestTorrentFilesModel::rename_targets_are_the_selected_files_else_every_shown_one()
 {
     TorrentFilesModel model;
-    model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
+    qbtfeed::files(model, fixture(QStringLiteral("files-fig2.json")));
     const QString root = QStringLiteral("Big Buck Bunny 4K/");
     model.sortBy(QStringLiteral("name"));
     model.setExpanded(model.rowOfPath(root + QStringLiteral("subs")), false);
@@ -987,7 +988,7 @@ void TestTorrentFilesModel::rename_targets_are_the_selected_files_else_every_sho
 void TestTorrentFilesModel::the_tick_reads_wanted_over_each_subtree()
 {
     TorrentFilesModel model;
-    model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
+    qbtfeed::files(model, fixture(QStringLiteral("files-fig2.json")));
     QAbstractItemModelTester tester(&model);
 
     const int root = model.rowOfPath(QStringLiteral("Big Buck Bunny 4K"));
@@ -1024,7 +1025,7 @@ void TestTorrentFilesModel::the_tick_reads_wanted_over_each_subtree()
 void TestTorrentFilesModel::the_head_tick_covers_what_the_filter_shows()
 {
     TorrentFilesModel model;
-    model.applyFiles(fixture(QStringLiteral("files-fig2.json")));
+    qbtfeed::files(model, fixture(QStringLiteral("files-fig2.json")));
     QSignalSpy head(&model, &TorrentFilesModel::headWantedChanged);
 
     model.setFilterText(QStringLiteral("*.srt"));

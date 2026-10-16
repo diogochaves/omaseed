@@ -1,6 +1,7 @@
 // Regression tests for App glue that needs no server: the install runner's failure paths,
 // and the other small App behaviours the 2026-09 review found broken.
 
+#include "QbtFeed.hpp"
 #include "core/Server.hpp"
 #include "core/ServerStore.hpp"
 #include "core/SyncEngine.hpp"
@@ -672,7 +673,8 @@ void TestAppGlue::theDownloadsListMarksWhatTheLibraryHolds()
     app.startDemo(4);
     // single_file_v1.torrent's infohash, put into the library as a sync would.
     const QString held = QStringLiteral("857ddb9df19f876e5a5e3f5b9c4f3991cbce1b04");
-    app.torrents()->applyPartial(
+    qbtfeed::partial(
+        *app.torrents(),
         QJsonObject{{held, QJsonObject{{QStringLiteral("name"), QStringLiteral("Single.bin")}}}},
         QJsonArray());
     QVERIFY(!app.findDuplicate(held, QString()).isEmpty());
@@ -707,13 +709,14 @@ void TestAppGlue::theDownloadsListMarksWhatTheLibraryHolds()
     // brings it, and goes when it is deleted, with no new scan (#20).
     const QString added = older.value(QStringLiteral("infoHashV1")).toString();
     changed.clear();
-    app.torrents()->applyPartial(
+    qbtfeed::partial(
+        *app.torrents(),
         QJsonObject{{added, QJsonObject{{QStringLiteral("name"), QStringLiteral("Blender")}}}},
         QJsonArray());
     QCOMPARE(changed.count(), 1);
     QCOMPARE(app.downloadsTorrents()[1].toMap().value(QStringLiteral("inLibrary")).toBool(), true);
     QCOMPARE(app.downloadsTorrents()[0].toMap().value(QStringLiteral("inLibrary")).toBool(), true);
-    app.torrents()->applyPartial(QJsonObject(), QJsonArray{added});
+    qbtfeed::partial(*app.torrents(), QJsonObject(), QJsonArray{added});
     QCOMPARE(changed.count(), 2);
     QCOMPARE(app.downloadsTorrents()[1].toMap().value(QStringLiteral("inLibrary")).toBool(), false);
 }

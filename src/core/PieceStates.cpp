@@ -4,17 +4,6 @@
 
 namespace omaseed::core::PieceStates {
 
-QByteArray fromJson(const QJsonArray &array)
-{
-    QByteArray states(array.size(), char(Missing));
-    for (qsizetype i = 0; i < array.size(); ++i) {
-        const int value = array.at(i).toInt(Missing);
-        if (value == Downloading || value == Have)
-            states[i] = char(value);
-    }
-    return states;
-}
-
 QList<int> bucket(const QByteArray &states, int buckets)
 {
     const qsizetype pieces = states.size();

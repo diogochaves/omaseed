@@ -5,6 +5,7 @@
 #include "core/SeedLedger.hpp"
 #include "core/Torrent.hpp"
 #include "core/WeeklyRecap.hpp"
+#include "core/engines/qbt/QbtTranslate.hpp"
 
 #include <QDateTime>
 #include <QTest>
@@ -12,7 +13,6 @@
 namespace Format = omaseed::core::Format;
 using omaseed::core::SeedLedger;
 using omaseed::core::Torrent;
-using omaseed::core::TorrentState;
 using omaseed::core::WeeklyRecap;
 
 namespace {
@@ -35,7 +35,7 @@ Torrent seeding(const char *hash, qint64 uploaded, double ratio, int seedsInSwar
     t.name = t.hash;
     t.size = 10 * kGB;
     t.progress = 1.0;
-    t.state = TorrentState::StalledUpload;
+    t.status = omaseed::core::QbtTranslate::status(u"stalledUP");
     t.uploaded = uploaded;
     t.downloaded = 10 * kGB;
     t.ratio = ratio;
@@ -147,12 +147,12 @@ private Q_SLOTS:
         const Torrent many = seeding("many", 0, 0.1, 40);
         const Torrent unknown = seeding("unknown", 0, 0.1, 0); // no count from the tracker
         Torrent stopped = seeding("stopped", 0, 0.1, 1);       // not seeding: not keeping alive
-        stopped.state = TorrentState::StoppedUpload;
+        stopped.status = omaseed::core::QbtTranslate::status(u"stoppedUP");
         Torrent broken = seeding("broken", 0, 0.1, 1); // a tracker error: its count is not trusted
         broken.hasTrackerError = true;
         Torrent fetching = seeding("fetching", 0, 0.1, 1); // incomplete
         fetching.progress = 0.5;
-        fetching.state = TorrentState::Downloading;
+        fetching.status = omaseed::core::QbtTranslate::status(u"downloading");
 
         const QList<const Torrent *> lib{
             &only, &two, &many, &unknown, &stopped, &broken, &fetching};

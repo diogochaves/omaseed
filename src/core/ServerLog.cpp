@@ -3,8 +3,8 @@
 #include "core/QbtClient.hpp"
 #include "core/TorrentModel.hpp"
 #include "core/TorrentProblem.hpp"
+#include "core/engines/qbt/QbtTranslate.hpp"
 
-#include <QJsonObject>
 #include <QLocale>
 
 namespace omaseed::core {
@@ -131,23 +131,22 @@ void ServerLog::read()
         m_reading = false;
         if (result.isError())
             return;
-        applyRead(result.value());
+        applyRead(QbtTranslate::log(result.value()));
     });
 }
 
 void ServerLog::applyEntries(const QJsonArray &entries)
 {
-    applyRead(entries);
+    applyRead(QbtTranslate::log(entries));
 }
 
-void ServerLog::applyRead(const QJsonArray &entries)
+void ServerLog::applyRead(const QList<LogEntry> &entries)
 {
     QList<Line> fresh;
     fresh.reserve(entries.size());
-    for (const QJsonValue &value : entries) {
-        const QJsonObject entry = value.toObject();
+    for (const LogEntry &entry : entries) {
         Line line;
-        line.id = entry.value(QStringLiteral("id")).toInt(-1);
+        line.id = entry.id;
         if (line.id < 0)
             continue;
         // qBittorrent only sends lines after last_known_id: one at or below it is from a log
@@ -159,9 +158,9 @@ void ServerLog::applyRead(const QJsonArray &entries)
             return;
         }
         m_lastId = line.id;
-        line.at = qint64(entry.value(QStringLiteral("timestamp")).toDouble());
-        line.level = levelOf(entry.value(QStringLiteral("type")).toInt());
-        line.message = entry.value(QStringLiteral("message")).toString();
+        line.at = entry.timestamp;
+        line.level = levelOf(entry.type);
+        line.message = entry.message;
         fresh.append(std::move(line));
     }
 

@@ -5,7 +5,6 @@
 // in `tags_removed`.
 
 #include <QAbstractListModel>
-#include <QJsonArray>
 #include <QStringList>
 
 namespace omaseed::core {
@@ -31,8 +30,8 @@ public:
     Q_INVOKABLE QStringList tags() const { return m_tags; }
     Q_INVOKABLE bool contains(const QString &tag) const { return m_tags.contains(tag); }
 
-    void applyFullUpdate(const QJsonArray &tags);
-    void applyPartial(const QJsonArray &added, const QJsonArray &removed);
+    void applyFullUpdate(const QStringList &tags);
+    void applyPartial(const QStringList &added, const QStringList &removed = {});
     void clear();
 
 Q_SIGNALS:

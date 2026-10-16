@@ -1,6 +1,7 @@
 // FilterCounts: the rail's numbers, checked against the recorded playground fixture, and the
 // cost of a poll at 10 000 torrents — the plan's budget is 20 ms per pass in Release.
 
+#include "QbtFeed.hpp"
 #include "core/FilterCounts.hpp"
 #include "core/Torrent.hpp"
 #include "core/TorrentModel.hpp"
@@ -83,7 +84,7 @@ void TestFilterCounts::countsTheRecordedFixture()
     TorrentModel model;
     FilterCounts counts;
     counts.setModel(&model);
-    model.applyFullUpdate(full.value(QStringLiteral("torrents")).toObject());
+    qbtfeed::full(model, full.value(QStringLiteral("torrents")).toObject());
 
     // The playground holds four stopped, metadata-less torrents: three in "fixtures", one in
     // "linux" with two announce URLs.
@@ -111,27 +112,28 @@ void TestFilterCounts::countsEveryStatusGroup()
     FilterCounts counts;
     counts.setModel(&model);
 
-    model.applyFullUpdate(QJsonObject{
-        {QStringLiteral("a"),
-         QJsonObject{{QStringLiteral("state"), QStringLiteral("downloading")},
-                     {QStringLiteral("dlspeed"), 1024},
-                     {QStringLiteral("progress"), 0.5}}},
-        {QStringLiteral("b"),
-         QJsonObject{{QStringLiteral("state"), QStringLiteral("uploading")},
-                     {QStringLiteral("progress"), 1.0}}},
-        {QStringLiteral("c"),
-         QJsonObject{{QStringLiteral("state"), QStringLiteral("stalledDL")},
-                     {QStringLiteral("progress"), 0.1}}},
-        {QStringLiteral("d"),
-         QJsonObject{{QStringLiteral("state"), QStringLiteral("stoppedUP")},
-                     {QStringLiteral("progress"), 1.0}}},
-        {QStringLiteral("e"),
-         QJsonObject{{QStringLiteral("state"), QStringLiteral("error")},
-                     {QStringLiteral("progress"), 0.0}}},
-        {QStringLiteral("f"),
-         QJsonObject{{QStringLiteral("state"), QStringLiteral("checkingUP")},
-                     {QStringLiteral("progress"), 1.0}}},
-    });
+    qbtfeed::full(model,
+                  QJsonObject{
+                      {QStringLiteral("a"),
+                       QJsonObject{{QStringLiteral("state"), QStringLiteral("downloading")},
+                                   {QStringLiteral("dlspeed"), 1024},
+                                   {QStringLiteral("progress"), 0.5}}},
+                      {QStringLiteral("b"),
+                       QJsonObject{{QStringLiteral("state"), QStringLiteral("uploading")},
+                                   {QStringLiteral("progress"), 1.0}}},
+                      {QStringLiteral("c"),
+                       QJsonObject{{QStringLiteral("state"), QStringLiteral("stalledDL")},
+                                   {QStringLiteral("progress"), 0.1}}},
+                      {QStringLiteral("d"),
+                       QJsonObject{{QStringLiteral("state"), QStringLiteral("stoppedUP")},
+                                   {QStringLiteral("progress"), 1.0}}},
+                      {QStringLiteral("e"),
+                       QJsonObject{{QStringLiteral("state"), QStringLiteral("error")},
+                                   {QStringLiteral("progress"), 0.0}}},
+                      {QStringLiteral("f"),
+                       QJsonObject{{QStringLiteral("state"), QStringLiteral("checkingUP")},
+                                   {QStringLiteral("progress"), 1.0}}},
+                  });
 
     QCOMPARE(counts.total(), 6);
     QCOMPARE(counts.downloading(), 2); // a, c
@@ -153,30 +155,32 @@ void TestFilterCounts::countsCategoriesTagsAndTrackers()
     FilterCounts counts;
     counts.setModel(&model);
 
-    model.applyFullUpdate(QJsonObject{
-        {QStringLiteral("a"),
-         QJsonObject{{QStringLiteral("category"), QStringLiteral("linux")},
-                     {QStringLiteral("tags"), QStringLiteral("keep,private")},
-                     {QStringLiteral("tracker"),
-                      QStringLiteral("udp://tracker.opentrackr.org:1337/announce")}}},
-        {QStringLiteral("b"),
-         QJsonObject{{QStringLiteral("category"), QStringLiteral("linux")},
-                     {QStringLiteral("tags"), QStringLiteral("keep")},
-                     {QStringLiteral("tracker"),
-                      QStringLiteral("https://tracker.opentrackr.org:443/announce")}}},
-        {QStringLiteral("c"),
-         QJsonObject{{QStringLiteral("category"), QString()},
-                     {QStringLiteral("tags"), QString()},
-                     {QStringLiteral("tracker"), QString()},
-                     {QStringLiteral("trackers_count"), 0}}},
-        // Review Q11: stopped, or every tracker failing: no current tracker, but it has two.
-        // Not trackerless (qBittorrent 5: trackers_count == 0), and no current host either.
-        {QStringLiteral("d"),
-         QJsonObject{{QStringLiteral("category"), QStringLiteral("linux")},
-                     {QStringLiteral("tags"), QStringLiteral("keep")},
-                     {QStringLiteral("tracker"), QString()},
-                     {QStringLiteral("trackers_count"), 2}}},
-    });
+    qbtfeed::full(
+        model,
+        QJsonObject{
+            {QStringLiteral("a"),
+             QJsonObject{{QStringLiteral("category"), QStringLiteral("linux")},
+                         {QStringLiteral("tags"), QStringLiteral("keep,private")},
+                         {QStringLiteral("tracker"),
+                          QStringLiteral("udp://tracker.opentrackr.org:1337/announce")}}},
+            {QStringLiteral("b"),
+             QJsonObject{{QStringLiteral("category"), QStringLiteral("linux")},
+                         {QStringLiteral("tags"), QStringLiteral("keep")},
+                         {QStringLiteral("tracker"),
+                          QStringLiteral("https://tracker.opentrackr.org:443/announce")}}},
+            {QStringLiteral("c"),
+             QJsonObject{{QStringLiteral("category"), QString()},
+                         {QStringLiteral("tags"), QString()},
+                         {QStringLiteral("tracker"), QString()},
+                         {QStringLiteral("trackers_count"), 0}}},
+            // Review Q11: stopped, or every tracker failing: no current tracker, but it has two.
+            // Not trackerless (qBittorrent 5: trackers_count == 0), and no current host either.
+            {QStringLiteral("d"),
+             QJsonObject{{QStringLiteral("category"), QStringLiteral("linux")},
+                         {QStringLiteral("tags"), QStringLiteral("keep")},
+                         {QStringLiteral("tracker"), QString()},
+                         {QStringLiteral("trackers_count"), 2}}},
+        });
 
     QCOMPARE(counts.categoryCount(QStringLiteral("linux")), 3);
     QCOMPARE(counts.uncategorised(), 1);
@@ -195,13 +199,15 @@ void TestFilterCounts::recomputesWhenTheModelChanges()
     TorrentModel model;
     FilterCounts counts;
     counts.setModel(&model);
-    model.applyFullUpdate(
+    qbtfeed::full(
+        model,
         QJsonObject{{QStringLiteral("a"),
                      QJsonObject{{QStringLiteral("state"), QStringLiteral("stoppedDL")}}}});
     QCOMPARE(counts.stopped(), 1);
 
     QSignalSpy spy(&counts, &FilterCounts::changed);
-    model.applyPartial(
+    qbtfeed::partial(
+        model,
         QJsonObject{{QStringLiteral("a"),
                      QJsonObject{{QStringLiteral("state"), QStringLiteral("downloading")},
                                  {QStringLiteral("dlspeed"), 1024}}}},
@@ -212,20 +218,22 @@ void TestFilterCounts::recomputesWhenTheModelChanges()
 
     // A poll that changes nothing must not wake the rail up.
     spy.clear();
-    model.applyPartial(
+    qbtfeed::partial(
+        model,
         QJsonObject{{QStringLiteral("a"), QJsonObject{{QStringLiteral("dlspeed"), 1024}}}},
         QJsonArray());
     QCOMPARE(spy.count(), 0);
 
     // docs/16 §5: the private count, for the hero's anonymous-mode warning.
     QCOMPARE(counts.privateCount(), 0);
-    model.applyPartial(
+    qbtfeed::partial(
+        model,
         QJsonObject{{QStringLiteral("a"), QJsonObject{{QStringLiteral("private"), true}}}},
         QJsonArray());
     QCOMPARE(counts.privateCount(), 1);
     QCOMPARE(spy.count(), 1);
 
-    model.applyPartial(QJsonObject(), QJsonArray({QStringLiteral("a")}));
+    qbtfeed::partial(model, QJsonObject(), QJsonArray({QStringLiteral("a")}));
     QCOMPARE(counts.total(), 0);
 }
 
@@ -237,14 +245,16 @@ void TestFilterCounts::revisionMovesWhenOnlyACategoryCountDoes()
     TorrentModel model;
     FilterCounts counts;
     counts.setModel(&model);
-    model.applyFullUpdate(
+    qbtfeed::full(
+        model,
         QJsonObject{{QStringLiteral("a"),
                      QJsonObject{{QStringLiteral("state"), QStringLiteral("stoppedDL")},
                                  {QStringLiteral("category"), QStringLiteral("linux")}}}});
     QCOMPARE(counts.categoryCount(QStringLiteral("swarm")), 0);
     const int before = counts.revision();
 
-    model.applyPartial(
+    qbtfeed::partial(
+        model,
         QJsonObject{{QStringLiteral("a"),
                      QJsonObject{{QStringLiteral("category"), QStringLiteral("swarm")}}}},
         QJsonArray());
@@ -252,7 +262,8 @@ void TestFilterCounts::revisionMovesWhenOnlyACategoryCountDoes()
     QVERIFY(counts.revision() != before);
 
     const int after = counts.revision();
-    model.applyPartial(
+    qbtfeed::partial(
+        model,
         QJsonObject{{QStringLiteral("a"), QJsonObject{{QStringLiteral("dlspeed"), 0}}}},
         QJsonArray());
     QCOMPARE(counts.revision(), after);
@@ -263,7 +274,7 @@ void TestFilterCounts::tenThousandTorrentsStayUnderTwentyMilliseconds()
     TorrentModel model;
     FilterCounts counts;
     counts.setModel(&model);
-    model.applyFullUpdate(syntheticLibrary(10000));
+    qbtfeed::full(model, syntheticLibrary(10000));
     QCOMPARE(counts.total(), 10000);
 
     // Warm the host cache the way a running engine would have.
@@ -295,7 +306,7 @@ void TestFilterCounts::benchmarkRecompute()
     TorrentModel model;
     FilterCounts counts;
     counts.setModel(&model);
-    model.applyFullUpdate(syntheticLibrary(10000));
+    qbtfeed::full(model, syntheticLibrary(10000));
     counts.recompute();
 
     QBENCHMARK

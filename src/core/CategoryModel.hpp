@@ -1,11 +1,11 @@
 #pragma once
 
-// CategoryModel — sync/maindata's `categories` map, sorted by name for the rail.
+// CategoryModel — the server's categories (SyncDelta), sorted by name for the rail.
 // Each row carries the name and the category's save path (spec §4 Fig. 13 shows both).
 
+#include "core/engines/SyncDelta.hpp"
+
 #include <QAbstractListModel>
-#include <QJsonArray>
-#include <QJsonObject>
 #include <QList>
 #include <QString>
 
@@ -41,8 +41,8 @@ public:
     Q_INVOKABLE QStringList names() const;
     Q_INVOKABLE QString savePathOf(const QString &name) const;
 
-    void applyFullUpdate(const QJsonObject &categories);
-    void applyPartial(const QJsonObject &changed, const QJsonArray &removed);
+    void applyFullUpdate(const QList<CategoryPatch> &categories);
+    void applyPartial(const QList<CategoryPatch> &changed, const QStringList &removed = {});
     void clear();
 
 Q_SIGNALS:

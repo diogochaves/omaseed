@@ -5,6 +5,7 @@
 
 #include "core/Format.hpp"
 #include "core/SharedData.hpp"
+#include "core/engines/qbt/QbtTranslate.hpp"
 
 #include <QDir>
 #include <QJsonArray>
@@ -99,7 +100,7 @@ QVariantMap App::sharedData(const QStringList &hashes, bool fresh)
             {QStringLiteral("tracker"), trackerHost(torrent.tracker)},
             {QStringLiteral("stateText"), torrent.stateText()},
             {QStringLiteral("ratioText"), Format::ratio(torrent.ratio)},
-            {QStringLiteral("missingFiles"), torrent.state == TorrentState::MissingFiles},
+            {QStringLiteral("missingFiles"), torrent.status.phase == TorrentPhase::Missing},
         };
     };
 
@@ -231,8 +232,8 @@ void App::patchDemoTorrents(const QVariantMap &torrents)
 {
     if (!m_demoMode)
         return;
-    m_engine->applyDemoData(
-        QJsonObject{{QStringLiteral("torrents"), QJsonObject::fromVariantMap(torrents)}});
+    m_engine->applyDemoData(QbtTranslate::syncDelta(
+        QJsonObject{{QStringLiteral("torrents"), QJsonObject::fromVariantMap(torrents)}}));
 }
 
 } // namespace omaseed::app

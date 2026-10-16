@@ -3,6 +3,7 @@
 // models at once, and the share limit it has to fetch from the torrent row because
 // torrents/properties does not carry it.
 
+#include "QbtFeed.hpp"
 #include "core/FilesViewState.hpp"
 #include "core/Format.hpp"
 #include "core/StateFile.hpp"
@@ -76,7 +77,7 @@ void TestTorrentDetails::general_tab_strings_from_a_recorded_properties()
     demo.insert(QStringLiteral("hash"), QStringLiteral("6f04b6c7642d15dc5cfa6cd2478e7f128a0e556f"));
     demo.insert(QStringLiteral("properties"),
                 fixture(QStringLiteral("properties-unicode-pack.json")).object());
-    details.applyDemo(demo);
+    qbtfeed::details(details, demo);
 
     const QVariantMap properties = details.properties();
     QCOMPARE(properties.value(QStringLiteral("name")).toString(), QStringLiteral("Unicode Pack"));
@@ -107,7 +108,7 @@ void TestTorrentDetails::general_tab_strings_from_a_recorded_properties()
     seeding.insert(QStringLiteral("availability"), -1);
     QJsonObject seedingDemo = demo;
     seedingDemo.insert(QStringLiteral("properties"), seeding);
-    details.applyDemo(seedingDemo);
+    qbtfeed::details(details, seedingDemo);
     QCOMPARE(details.properties().value(QStringLiteral("availability")).toString(), QString());
     QCOMPARE(properties.value(QStringLiteral("seeds")).toString(),
              QStringLiteral("0 connected · 0 total"));
@@ -128,7 +129,7 @@ void TestTorrentDetails::the_figure_ones_general_rows()
     demo.insert(QStringLiteral("hash"), QStringLiteral("0000a8b4"));
     demo.insert(QStringLiteral("properties"),
                 fixture(QStringLiteral("properties-fig1.json")).object());
-    details.applyDemo(demo);
+    qbtfeed::details(details, demo);
 
     const QVariantMap properties = details.properties();
     // Spec §2 Fig. 1's General tab, row by row. Byte counts print to three significant
@@ -169,7 +170,7 @@ void TestTorrentDetails::share_limit_comes_from_the_torrent_row()
     row.insert(QStringLiteral("seeding_time_limit"), -1);
     QJsonObject map;
     map.insert(QStringLiteral("abc123"), row);
-    torrents.applyFullUpdate(map);
+    qbtfeed::full(torrents, map);
 
     TorrentDetails details;
     details.setTorrentModel(&torrents);
@@ -178,7 +179,7 @@ void TestTorrentDetails::share_limit_comes_from_the_torrent_row()
     demo.insert(QStringLiteral("hash"), QStringLiteral("abc123"));
     demo.insert(QStringLiteral("properties"),
                 fixture(QStringLiteral("properties-fig1.json")).object());
-    details.applyDemo(demo);
+    qbtfeed::details(details, demo);
 
     QCOMPARE(details.properties().value(QStringLiteral("shareLimit")).toString(),
              QStringLiteral("ratio 2.0"));
@@ -194,7 +195,7 @@ void TestTorrentDetails::the_docs12_rows()
                               "&dn=archlinux&tr=https%3A%2F%2Ftracker.example.org%2Fannounce"));
     QJsonObject map;
     map.insert(QStringLiteral("0000a8b4"), row);
-    torrents.applyFullUpdate(map);
+    qbtfeed::full(torrents, map);
 
     TorrentDetails details;
     details.setTorrentModel(&torrents);
@@ -203,7 +204,7 @@ void TestTorrentDetails::the_docs12_rows()
     QJsonObject demo;
     demo.insert(QStringLiteral("hash"), QStringLiteral("0000a8b4"));
     demo.insert(QStringLiteral("properties"), properties);
-    details.applyDemo(demo);
+    qbtfeed::details(details, demo);
 
     QVariantMap general = details.properties();
     QCOMPARE(general.value(QStringLiteral("connections")).toString(), QStringLiteral("63 of 100"));
@@ -228,7 +229,7 @@ void TestTorrentDetails::the_docs12_rows()
     properties.insert(QStringLiteral("private"), true);
     properties.insert(QStringLiteral("nb_connections_limit"), -1);
     demo.insert(QStringLiteral("properties"), properties);
-    details.applyDemo(demo);
+    qbtfeed::details(details, demo);
     general = details.properties();
     QCOMPARE(general.value(QStringLiteral("seedingTime")).toString(), QStringLiteral("2h 1m"));
     QVERIFY(!general.value(QStringLiteral("completedOn")).toString().isEmpty());
@@ -245,7 +246,7 @@ void TestTorrentDetails::the_docs12_rows()
     magnetOnly.insert(QStringLiteral("dl_speed_avg"), -1);
     magnetOnly.insert(QStringLiteral("up_speed_avg"), -1);
     demo.insert(QStringLiteral("properties"), magnetOnly);
-    details.applyDemo(demo);
+    qbtfeed::details(details, demo);
     general = details.properties();
     QCOMPARE(general.value(QStringLiteral("private")).toString(), QString());
     QCOMPARE(general.value(QStringLiteral("lastSeen")).toString(), QString());
@@ -266,7 +267,7 @@ void TestTorrentDetails::piece_states_feed_the_bar()
     demo.insert(QStringLiteral("properties"),
                 fixture(QStringLiteral("properties-fig1.json")).object());
     demo.insert(QStringLiteral("pieceStates"), QJsonArray{2, 2, 2, 2, 1, 0, 0, 2});
-    details.applyDemo(demo);
+    qbtfeed::details(details, demo);
 
     QCOMPARE(changed.count(), 1);
     QCOMPARE(details.pieceCount(), 8);
@@ -277,7 +278,7 @@ void TestTorrentDetails::piece_states_feed_the_bar()
     // Another torrent with no metadata: no bar at all.
     demo.insert(QStringLiteral("hash"), QStringLiteral("cafebabe"));
     demo.remove(QStringLiteral("pieceStates"));
-    details.applyDemo(demo);
+    qbtfeed::details(details, demo);
     QCOMPARE(details.pieceCount(), 0);
     QCOMPARE(changed.count(), 2);
 }
@@ -288,11 +289,12 @@ void TestTorrentDetails::apply_demo_fills_every_model()
     QSignalSpy refreshed(&details, &TorrentDetails::refreshed);
     QSignalSpy badge(&details, &TorrentDetails::hasTrackerErrorChanged);
 
-    details.applyDemo(demoFor(QStringLiteral("deadbeef"),
-                              QStringLiteral("properties-fig1.json"),
-                              QStringLiteral("files-fig2.json"),
-                              QStringLiteral("trackers-fig3.json"),
-                              QStringLiteral("peers-full.json")));
+    qbtfeed::details(details,
+                     demoFor(QStringLiteral("deadbeef"),
+                             QStringLiteral("properties-fig1.json"),
+                             QStringLiteral("files-fig2.json"),
+                             QStringLiteral("trackers-fig3.json"),
+                             QStringLiteral("peers-full.json")));
 
     QCOMPARE(details.hash(), QStringLiteral("deadbeef"));
     QCOMPARE(details.files()->count(), 7);
@@ -316,7 +318,7 @@ void TestTorrentDetails::apply_demo_fills_every_model()
     withSeeds.insert(QStringLiteral("webSeeds"),
                      QJsonArray{QJsonObject{
                          {QStringLiteral("url"), QStringLiteral("https://mirror.example/pub/")}}});
-    details.applyDemo(withSeeds);
+    qbtfeed::details(details, withSeeds);
     QCOMPARE(details.webSeeds()->count(), 1);
     QCOMPARE(details.webSeeds()->urlAt(0), QStringLiteral("https://mirror.example/pub/"));
 }
@@ -324,18 +326,20 @@ void TestTorrentDetails::apply_demo_fills_every_model()
 void TestTorrentDetails::selecting_another_torrent_clears_everything()
 {
     TorrentDetails details;
-    details.applyDemo(demoFor(QStringLiteral("deadbeef"),
-                              QStringLiteral("properties-fig1.json"),
-                              QStringLiteral("files-fig2.json"),
-                              QStringLiteral("trackers-fig3.json"),
-                              QStringLiteral("peers-full.json")));
+    qbtfeed::details(details,
+                     demoFor(QStringLiteral("deadbeef"),
+                             QStringLiteral("properties-fig1.json"),
+                             QStringLiteral("files-fig2.json"),
+                             QStringLiteral("trackers-fig3.json"),
+                             QStringLiteral("peers-full.json")));
 
     QSignalSpy hashChanged(&details, &TorrentDetails::hashChanged);
-    details.applyDemo(demoFor(QStringLiteral("cafebabe"),
-                              QStringLiteral("properties-unicode-pack.json"),
-                              QStringLiteral("files-unicode-pack.json"),
-                              QStringLiteral("trackers-private.json"),
-                              QStringLiteral("peers-diff.json")));
+    qbtfeed::details(details,
+                     demoFor(QStringLiteral("cafebabe"),
+                             QStringLiteral("properties-unicode-pack.json"),
+                             QStringLiteral("files-unicode-pack.json"),
+                             QStringLiteral("trackers-private.json"),
+                             QStringLiteral("peers-diff.json")));
 
     QCOMPARE(hashChanged.count(), 1);
     QCOMPARE(details.files()->count(), 7);
@@ -410,19 +414,19 @@ void TestTorrentDetails::each_torrent_gets_its_files_filter_back()
 
     {
         TorrentDetails details;
-        details.applyDemo(fig(QStringLiteral("deadbeef")));
+        qbtfeed::details(details, fig(QStringLiteral("deadbeef")));
         details.setRememberViewState(true);
         QVERIFY(details.files()->hideSkipped());
         details.files()->setFilterText(QStringLiteral("mp4"));
 
         // Another torrent: its own filter (none yet), and the first one is kept.
-        details.applyDemo(fig(QStringLiteral("cafebabe")));
+        qbtfeed::details(details, fig(QStringLiteral("cafebabe")));
         QCOMPARE(details.files()->filterText(), QString());
         QCOMPARE(FilesViewState::filterFor(QStringLiteral("deadbeef")), QStringLiteral("mp4"));
         details.files()->setFilterText(QStringLiteral("srt"));
 
         // Back: "mp4" again, already applied to the rows (hidden skipped files too).
-        details.applyDemo(fig(QStringLiteral("deadbeef")));
+        qbtfeed::details(details, fig(QStringLiteral("deadbeef")));
         QCOMPARE(details.files()->filterText(), QStringLiteral("mp4"));
         QCOMPARE(details.files()->matchCount(), 2);
         QCOMPARE(FilesViewState::filterFor(QStringLiteral("cafebabe")), QStringLiteral("srt"));
@@ -445,11 +449,12 @@ void TestTorrentDetails::without_remembering_nothing_is_written()
     const ConfigHome home;
     TorrentDetails details;
     QVERIFY(!details.rememberViewState());
-    details.applyDemo(demoFor(QStringLiteral("deadbeef"),
-                              QStringLiteral("properties-fig1.json"),
-                              QStringLiteral("files-fig2.json"),
-                              QStringLiteral("trackers-fig3.json"),
-                              QStringLiteral("peers-full.json")));
+    qbtfeed::details(details,
+                     demoFor(QStringLiteral("deadbeef"),
+                             QStringLiteral("properties-fig1.json"),
+                             QStringLiteral("files-fig2.json"),
+                             QStringLiteral("trackers-fig3.json"),
+                             QStringLiteral("peers-full.json")));
     details.files()->setFilterText(QStringLiteral("mp4"));
     details.files()->setHideSkipped(true);
     details.setHash(QStringLiteral("cafebabe"));

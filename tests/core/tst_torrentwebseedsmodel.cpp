@@ -1,5 +1,6 @@
 // TorrentWebSeedsModel: the HTTP sources tab's rows (#10), from `torrents/webseeds`.
 
+#include "QbtFeed.hpp"
 #include "core/TorrentWebSeedsModel.hpp"
 
 #include "core/Format.hpp"
@@ -40,7 +41,7 @@ private Q_SLOTS:
 void TestTorrentWebSeedsModel::rowsKeepTheServersOrderAndDropTheScheme()
 {
     TorrentWebSeedsModel model;
-    model.applyWebSeeds(seeds(R"([{"url":"https://mirror.example/pub/"},
+    qbtfeed::webSeeds(model, seeds(R"([{"url":"https://mirror.example/pub/"},
                                   {"url":"http://archive.example/download/item/a.iso"}])"));
     QCOMPARE(model.count(), 2);
     QCOMPARE(model.rowCount(), 2);
@@ -59,7 +60,7 @@ void TestTorrentWebSeedsModel::rowsKeepTheServersOrderAndDropTheScheme()
 void TestTorrentWebSeedsModel::plainHttpKeepsItsScheme()
 {
     TorrentWebSeedsModel model;
-    model.applyWebSeeds(seeds(R"([{"url":"https://a.example/"},{"url":"HTTPS://b.example/"},
+    qbtfeed::webSeeds(model, seeds(R"([{"url":"https://a.example/"},{"url":"HTTPS://b.example/"},
                                   {"url":"http://c.example/"}])"));
     QCOMPARE(model.index(0).data(TorrentWebSeedsModel::TextRole).toString(),
              QStringLiteral("a.example/"));
@@ -72,7 +73,7 @@ void TestTorrentWebSeedsModel::plainHttpKeepsItsScheme()
 void TestTorrentWebSeedsModel::entriesWithoutAUrlAreSkipped()
 {
     TorrentWebSeedsModel model;
-    model.applyWebSeeds(seeds(R"([{"url":""},{},{"url":"https://a.example/"}])"));
+    qbtfeed::webSeeds(model, seeds(R"([{"url":""},{},{"url":"https://a.example/"}])"));
     QCOMPARE(model.count(), 1);
     QCOMPARE(model.urlAt(0), QStringLiteral("https://a.example/"));
 }
@@ -84,11 +85,11 @@ void TestTorrentWebSeedsModel::loadedFollowsTheAnswerNotTheCount()
     TorrentWebSeedsModel model;
     QSignalSpy loaded(&model, &TorrentWebSeedsModel::loadedChanged);
     QCOMPARE(model.loaded(), false);
-    model.applyWebSeeds(QJsonArray());
+    qbtfeed::webSeeds(model, QJsonArray());
     QCOMPARE(model.loaded(), true);
     QCOMPARE(model.count(), 0);
     QCOMPARE(loaded.count(), 1);
-    model.applyWebSeeds(QJsonArray());
+    qbtfeed::webSeeds(model, QJsonArray());
     QCOMPARE(loaded.count(), 1);
     model.clear();
     QCOMPARE(model.loaded(), false);
@@ -100,15 +101,15 @@ void TestTorrentWebSeedsModel::countChangesOnlyWhenTheCountDoes()
     TorrentWebSeedsModel model;
     QSignalSpy count(&model, &TorrentWebSeedsModel::countChanged);
     QSignalSpy reset(&model, &QAbstractItemModel::modelReset);
-    model.applyWebSeeds(seeds(R"([{"url":"https://a.example/"}])"));
+    qbtfeed::webSeeds(model, seeds(R"([{"url":"https://a.example/"}])"));
     QCOMPARE(count.count(), 1);
     QCOMPARE(reset.count(), 1);
     // The same answer again (every tick while the tab is on show): nothing moves.
-    model.applyWebSeeds(seeds(R"([{"url":"https://a.example/"}])"));
+    qbtfeed::webSeeds(model, seeds(R"([{"url":"https://a.example/"}])"));
     QCOMPARE(count.count(), 1);
     QCOMPARE(reset.count(), 1);
     // An edit: the rows change, the count does not.
-    model.applyWebSeeds(seeds(R"([{"url":"https://b.example/"}])"));
+    qbtfeed::webSeeds(model, seeds(R"([{"url":"https://b.example/"}])"));
     QCOMPARE(count.count(), 1);
     QCOMPARE(reset.count(), 2);
     model.clear();
@@ -119,7 +120,7 @@ void TestTorrentWebSeedsModel::urlAtIsEmptyOutOfRange()
 {
     TorrentWebSeedsModel model;
     QCOMPARE(model.urlAt(0), QString());
-    model.applyWebSeeds(seeds(R"([{"url":"https://a.example/"}])"));
+    qbtfeed::webSeeds(model, seeds(R"([{"url":"https://a.example/"}])"));
     QCOMPARE(model.urlAt(-1), QString());
     QCOMPARE(model.urlAt(1), QString());
 }
@@ -150,7 +151,7 @@ void TestTorrentWebSeedsModel::eachUrlSaysWhatTheLogSays()
 {
     using omaseed::core::WebSeedLogLine;
     TorrentWebSeedsModel model;
-    model.applyWebSeeds(seeds(R"([{"url":"http://127.0.0.1:26955/pub/"},
+    qbtfeed::webSeeds(model, seeds(R"([{"url":"http://127.0.0.1:26955/pub/"},
                                   {"url":"https://mirror.invalid/omaseed-webseed-live/"},
                                   {"url":"https://archive.example.org/pub/"}])"));
     const QModelIndex first = model.index(0);
@@ -198,7 +199,7 @@ void TestTorrentWebSeedsModel::logLinesOutliveARowChange()
                         QStringLiteral("timed out"),
                         QDateTime::currentDateTime()}});
     model.clear();
-    model.applyWebSeeds(seeds(R"([{"url":"https://m.example/a.iso"}])"));
+    qbtfeed::webSeeds(model, seeds(R"([{"url":"https://m.example/a.iso"}])"));
     QCOMPARE(model.index(0).data(TorrentWebSeedsModel::StatusErrorRole).toString(),
              QStringLiteral("timed out"));
 }

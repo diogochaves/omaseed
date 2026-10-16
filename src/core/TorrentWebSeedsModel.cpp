@@ -2,7 +2,6 @@
 
 #include "core/Format.hpp"
 
-#include <QJsonObject>
 #include <QUrl>
 
 namespace omaseed::core {
@@ -49,12 +48,11 @@ QHash<int, QByteArray> TorrentWebSeedsModel::roleNames() const
     };
 }
 
-void TorrentWebSeedsModel::applyWebSeeds(const QJsonArray &webSeeds)
+void TorrentWebSeedsModel::applyWebSeeds(const QStringList &webSeeds)
 {
     QList<QString> urls;
     urls.reserve(webSeeds.size());
-    for (const QJsonValue &value : webSeeds) {
-        const QString url = value.toObject().value(QLatin1StringView("url")).toString();
+    for (const QString &url : webSeeds) {
         if (!url.isEmpty())
             urls.append(url);
     }

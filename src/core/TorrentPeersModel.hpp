@@ -16,9 +16,10 @@
 // Format::speed ("1.02 MB/s"), the units the main table prints (docs/11 J2; Fig. 4 drew
 // "1.02 M", which read as a different unit beside the table).
 
+#include "core/engines/DetailsData.hpp"
+
 #include <QAbstractListModel>
 #include <QHash>
-#include <QJsonObject>
 #include <QList>
 #include <QString>
 
@@ -84,9 +85,9 @@ public:
     /// The rid to send with the next sync/torrentPeers call; 0 until the first answer.
     int rid() const { return m_rid; }
 
-    /// Applies one `sync/torrentPeers` answer: `full_update` replaces everything, otherwise
-    /// `peers` is merged key by key and `peers_removed` dropped.
-    void applyPeers(const QJsonObject &answer);
+    /// Applies one answer about the peers: a full one replaces everything, otherwise each
+    /// peer is merged field by field and the removed ones dropped.
+    void applyPeers(const PeersDelta &delta);
     /// Forgets the peers and the rid, so the next poll asks for a full update.
     void clear();
 

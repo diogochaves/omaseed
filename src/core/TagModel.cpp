@@ -1,7 +1,6 @@
 #include "core/TagModel.hpp"
 
 #include <QCollator>
-#include <QJsonValue>
 
 #include <algorithm>
 
@@ -47,28 +46,26 @@ QHash<int, QByteArray> TagModel::roleNames() const
     return {{NameRole, "name"}};
 }
 
-void TagModel::applyFullUpdate(const QJsonArray &tags)
+void TagModel::applyFullUpdate(const QStringList &tags)
 {
     QStringList next;
     next.reserve(tags.size());
-    for (const QJsonValue &value : tags) {
-        const QString tag = value.toString();
+    for (const QString &tag : tags) {
         if (!tag.isEmpty() && !next.contains(tag))
             next.append(tag);
     }
     setTags(std::move(next));
 }
 
-void TagModel::applyPartial(const QJsonArray &added, const QJsonArray &removed)
+void TagModel::applyPartial(const QStringList &added, const QStringList &removed)
 {
     if (added.isEmpty() && removed.isEmpty())
         return;
 
     QStringList next = m_tags;
-    for (const QJsonValue &value : removed)
-        next.removeAll(value.toString());
-    for (const QJsonValue &value : added) {
-        const QString tag = value.toString();
+    for (const QString &tag : removed)
+        next.removeAll(tag);
+    for (const QString &tag : added) {
         if (!tag.isEmpty() && !next.contains(tag))
             next.append(tag);
     }

@@ -22,6 +22,15 @@ qt_add_library(omaseed-core STATIC
     CategoryModel.hpp
     CertificatePin.cpp
     CertificatePin.hpp
+    engines/DetailsData.hpp
+    engines/LogEntry.hpp
+    engines/ShareLimits.hpp
+    engines/SyncDelta.hpp
+    engines/TorrentFields.hpp
+    engines/TorrentPatch.hpp
+    engines/TorrentStatus.hpp
+    engines/qbt/QbtTranslate.cpp
+    engines/qbt/QbtTranslate.hpp
     ErrorWords.cpp
     ErrorWords.hpp
     FilesViewState.cpp

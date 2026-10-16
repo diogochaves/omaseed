@@ -2,6 +2,7 @@
 // the log lines go in through applyEntries(), and what comes out is read off the model's
 // `problem` and `statusCause` roles.
 
+#include "QbtFeed.hpp"
 #include "core/ProblemLog.hpp"
 #include "core/TorrentModel.hpp"
 
@@ -81,8 +82,9 @@ void TestProblemLog::init()
     m_model = new TorrentModel;
     m_log = new ProblemLog;
     m_log->setTorrents(m_model);
-    m_model->applyFullUpdate({{kA, torrent(QStringLiteral("a.bin"), QStringLiteral("error"))},
-                              {kB, torrent(QStringLiteral("b.txt"), QStringLiteral("stalledUP"))}});
+    qbtfeed::full(*m_model,
+                  {{kA, torrent(QStringLiteral("a.bin"), QStringLiteral("error"))},
+                   {kB, torrent(QStringLiteral("b.txt"), QStringLiteral("stalledUP"))}});
     m_log->onSynced(true);
 }
 
@@ -95,10 +97,11 @@ void TestProblemLog::cleanup()
 void TestProblemLog::anErroredTorrentGetsItsLine()
 {
     QSignalSpy changed(m_model, &TorrentModel::problemsChanged);
-    m_log->applyEntries({entry(30,
-                               fileError(QStringLiteral("ad91d5"),
-                                         QStringLiteral("a.bin"),
-                                         QStringLiteral("Permission denied")))});
+    qbtfeed::entries(*m_log,
+                     {entry(30,
+                            fileError(QStringLiteral("ad91d5"),
+                                      QStringLiteral("a.bin"),
+                                      QStringLiteral("Permission denied")))});
     QCOMPARE(m_log->lastId(), 30);
     QCOMPARE(changed.count(), 1);
 
@@ -114,13 +117,13 @@ void TestProblemLog::anErroredTorrentGetsItsLine()
     QCOMPARE(causeOf(*m_model, kA), QStringLiteral("no access"));
 
     // The same read again changes nothing.
-    m_log->applyEntries({});
+    qbtfeed::entries(*m_log, {});
     QCOMPARE(changed.count(), 1);
 }
 
 void TestProblemLog::noLineSaysNotLogged()
 {
-    m_log->applyEntries({entry(3, QStringLiteral("WebUI: Now listening on IP: 127.0.0.1"))});
+    qbtfeed::entries(*m_log, {entry(3, QStringLiteral("WebUI: Now listening on IP: 127.0.0.1"))});
     QCOMPARE(m_log->lineCount(), 0);
     const QVariantMap problem = problemOf(*m_model, kA);
     QCOMPARE(problem.value(QStringLiteral("found")).toBool(), false);
@@ -131,14 +134,16 @@ void TestProblemLog::noLineSaysNotLogged()
 
 void TestProblemLog::leavingErrorDropsTheProblem()
 {
-    m_log->applyEntries({entry(1,
-                               fileError(QStringLiteral("ad91d5"),
-                                         QStringLiteral("a.bin"),
-                                         QStringLiteral("No space left on device")))});
+    qbtfeed::entries(*m_log,
+                     {entry(1,
+                            fileError(QStringLiteral("ad91d5"),
+                                      QStringLiteral("a.bin"),
+                                      QStringLiteral("No space left on device")))});
     QCOMPARE(causeOf(*m_model, kA), QStringLiteral("disk full"));
 
-    m_model->applyPartial(
-        {{kA, QJsonObject{{QStringLiteral("state"), QStringLiteral("downloading")}}}}, {});
+    qbtfeed::partial(*m_model,
+                     {{kA, QJsonObject{{QStringLiteral("state"), QStringLiteral("downloading")}}}},
+                     {});
     m_log->onSynced(false);
     QVERIFY(problemOf(*m_model, kA).isEmpty());
     QVERIFY(causeOf(*m_model, kA).isEmpty());
@@ -148,21 +153,23 @@ void TestProblemLog::repeatedLinesAreCounted()
 {
     const QString line = fileError(
         QStringLiteral("ad91d5"), QStringLiteral("a.bin"), QStringLiteral("Permission denied"));
-    m_log->applyEntries({entry(1, line), entry(2, line)});
+    qbtfeed::entries(*m_log, {entry(1, line), entry(2, line)});
     QCOMPARE(problemOf(*m_model, kA).value(QStringLiteral("count")).toInt(), 2);
 }
 
 void TestProblemLog::missingFilesGetsTheRestoreLine()
 {
-    m_model->applyPartial(
-        {{kB, QJsonObject{{QStringLiteral("state"), QStringLiteral("missingFiles")}}}}, {});
+    qbtfeed::partial(*m_model,
+                     {{kB, QJsonObject{{QStringLiteral("state"), QStringLiteral("missingFiles")}}}},
+                     {});
     m_log->onSynced(false);
-    m_log->applyEntries({entry(28,
-                               QStringLiteral("Failed to restore torrent. Files were probably "
-                                              "moved or storage isn't accessible. Torrent: "
-                                              "\"b.txt\". Reason: \"81f2da fast resume "
-                                              "rejected. file_stat(/d/b.txt): mismatching file "
-                                              "size\""))});
+    qbtfeed::entries(*m_log,
+                     {entry(28,
+                            QStringLiteral("Failed to restore torrent. Files were probably "
+                                           "moved or storage isn't accessible. Torrent: "
+                                           "\"b.txt\". Reason: \"81f2da fast resume "
+                                           "rejected. file_stat(/d/b.txt): mismatching file "
+                                           "size\""))});
     const QVariantMap problem = problemOf(*m_model, kB);
     QCOMPARE(problem.value(QStringLiteral("missingFiles")).toBool(), true);
     QCOMPARE(problem.value(QStringLiteral("actions")).toStringList(),
@@ -174,48 +181,51 @@ void TestProblemLog::noticeOnlyForErrorsWhileWatching()
 {
     QSignalSpy errored(m_log, &ProblemLog::torrentErrored);
     // kA was already errored at the first sync: no notice for it.
-    m_log->applyEntries({});
+    qbtfeed::entries(*m_log, {});
     QCOMPARE(errored.count(), 0);
 
-    m_model->applyPartial({{kB, QJsonObject{{QStringLiteral("state"), QStringLiteral("error")}}}},
-                          {});
+    qbtfeed::partial(
+        *m_model, {{kB, QJsonObject{{QStringLiteral("state"), QStringLiteral("error")}}}}, {});
     m_log->onSynced(false);
     QCOMPARE(errored.count(), 0); // waits for the log to say why
-    m_log->applyEntries({entry(40,
-                               fileError(QStringLiteral("81f2da"),
-                                         QStringLiteral("b.txt"),
-                                         QStringLiteral("Read-only file system")))});
+    qbtfeed::entries(*m_log,
+                     {entry(40,
+                            fileError(QStringLiteral("81f2da"),
+                                      QStringLiteral("b.txt"),
+                                      QStringLiteral("Read-only file system")))});
     QCOMPARE(errored.count(), 1);
     QCOMPARE(errored.at(0).at(0).toString(), kB);
     QCOMPARE(errored.at(0).at(1).toString(), QStringLiteral("b.txt"));
     QCOMPARE(errored.at(0).at(2).value<TorrentProblem>().cause, QStringLiteral("read-only"));
 
     // Once per entry into error, not once per read.
-    m_log->applyEntries({});
+    qbtfeed::entries(*m_log, {});
     QCOMPARE(errored.count(), 1);
 }
 
 void TestProblemLog::aFullUpdateReadsTheLogAgain()
 {
-    m_log->applyEntries({entry(33, QStringLiteral("x"))});
+    qbtfeed::entries(*m_log, {entry(33, QStringLiteral("x"))});
     QCOMPARE(m_log->lastId(), 33);
-    m_model->applyFullUpdate({{kA, torrent(QStringLiteral("a.bin"), QStringLiteral("error"))}});
+    qbtfeed::full(*m_model, {{kA, torrent(QStringLiteral("a.bin"), QStringLiteral("error"))}});
     m_log->onSynced(true);
     QCOMPARE(m_log->lastId(), -1);
     QVERIFY(problemOf(*m_model, kA).isEmpty()); // until the log has been read again
-    m_log->applyEntries({entry(28,
-                               fileError(QStringLiteral("ad91d5"),
-                                         QStringLiteral("a.bin"),
-                                         QStringLiteral("Permission denied")))});
+    qbtfeed::entries(*m_log,
+                     {entry(28,
+                            fileError(QStringLiteral("ad91d5"),
+                                      QStringLiteral("a.bin"),
+                                      QStringLiteral("Permission denied")))});
     QCOMPARE(causeOf(*m_model, kA), QStringLiteral("no access"));
 }
 
 void TestProblemLog::healthyTorrentsAreLeftAlone()
 {
-    m_log->applyEntries({entry(1,
-                               fileError(QStringLiteral("81f2da"),
-                                         QStringLiteral("b.txt"),
-                                         QStringLiteral("Permission denied")))});
+    qbtfeed::entries(*m_log,
+                     {entry(1,
+                            fileError(QStringLiteral("81f2da"),
+                                      QStringLiteral("b.txt"),
+                                      QStringLiteral("Permission denied")))});
     QVERIFY(problemOf(*m_model, kB).isEmpty());
     QVERIFY(causeOf(*m_model, kB).isEmpty());
 }

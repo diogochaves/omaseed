@@ -2,11 +2,9 @@
 
 #include "core/Format.hpp"
 
-#include <QJsonArray>
 #include <QSet>
 
 #include <algorithm>
-#include <type_traits>
 
 namespace omaseed::core {
 
@@ -14,37 +12,26 @@ namespace {
 
 /// Merges one peer object into `peer`; a partial update only carries the keys that moved,
 /// so every field is left alone unless the answer actually names it.
-void merge(TorrentPeer &peer, const QJsonObject &json)
+void merge(TorrentPeer &peer, const PeerPatch &patch)
 {
-    const auto take = [&json](const char *key, auto &field) {
-        const auto value = json.constFind(QLatin1StringView(key));
-        if (value == json.constEnd())
-            return;
-        using Field = std::decay_t<decltype(field)>;
-        if constexpr (std::is_same_v<Field, QString>)
-            field = value->toString();
-        else if constexpr (std::is_same_v<Field, double>)
-            field = value->toDouble();
-        else if constexpr (std::is_same_v<Field, int>)
-            field = value->toInt();
-        else
-            field = qint64(value->toDouble());
+    const auto take = [](const auto &value, auto &field) {
+        if (value)
+            field = *value;
     };
-
-    take("ip", peer.ip);
-    take("port", peer.port);
-    take("country", peer.country);
-    take("country_code", peer.countryCode);
-    take("client", peer.client);
-    take("connection", peer.connection);
-    take("flags", peer.flags);
-    take("flags_desc", peer.flagsDesc);
-    take("dl_speed", peer.dlSpeed);
-    take("up_speed", peer.upSpeed);
-    take("downloaded", peer.downloaded);
-    take("uploaded", peer.uploaded);
-    take("progress", peer.progress);
-    take("relevance", peer.relevance);
+    take(patch.ip, peer.ip);
+    take(patch.port, peer.port);
+    take(patch.country, peer.country);
+    take(patch.countryCode, peer.countryCode);
+    take(patch.client, peer.client);
+    take(patch.connection, peer.connection);
+    take(patch.flags, peer.flags);
+    take(patch.flagsDesc, peer.flagsDesc);
+    take(patch.dlSpeed, peer.dlSpeed);
+    take(patch.upSpeed, peer.upSpeed);
+    take(patch.downloaded, peer.downloaded);
+    take(patch.uploaded, peer.uploaded);
+    take(patch.progress, peer.progress);
+    take(patch.relevance, peer.relevance);
 }
 
 } // namespace
@@ -146,17 +133,16 @@ int TorrentPeersModel::rowOfAddress(const QString &address) const
     return -1;
 }
 
-void TorrentPeersModel::applyPeers(const QJsonObject &answer)
+void TorrentPeersModel::applyPeers(const PeersDelta &delta)
 {
-    const int rid = answer.value(QStringLiteral("rid")).toInt(m_rid);
-    if (answer.value(QStringLiteral("full_update")).toBool())
+    const int rid = delta.cursor.value_or(m_rid);
+    if (delta.full)
         m_peers.clear();
 
-    const QJsonObject peers = answer.value(QStringLiteral("peers")).toObject();
-    for (auto it = peers.constBegin(); it != peers.constEnd(); ++it) {
-        TorrentPeer &peer = m_peers[it.key()];
-        peer.address = it.key();
-        merge(peer, it->toObject());
+    for (const PeerPatch &patch : delta.peers) {
+        TorrentPeer &peer = m_peers[patch.address];
+        peer.address = patch.address;
+        merge(peer, patch);
         if (peer.ip.isEmpty()) {
             // A partial update may leave `ip` out; the key is "ip:port", so the address's
             // last colon separates them (an IPv6 address has colons of its own).
@@ -165,9 +151,8 @@ void TorrentPeersModel::applyPeers(const QJsonObject &answer)
         }
     }
 
-    const QJsonArray removed = answer.value(QStringLiteral("peers_removed")).toArray();
-    for (const QJsonValue &value : removed)
-        m_peers.remove(value.toString());
+    for (const QString &address : delta.removed)
+        m_peers.remove(address);
 
     QList<TorrentPeer> next = m_peers.values();
     std::sort(next.begin(), next.end(), [](const TorrentPeer &a, const TorrentPeer &b) {

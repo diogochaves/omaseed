@@ -1,6 +1,7 @@
 // TrackerModel: the `{trackerUrl: [hashes]}` map of sync/maindata grouped into the rail's
 // rows — one per host, DHT/PeX/LSD named, trackerless last (spec §1).
 
+#include "QbtFeed.hpp"
 #include "core/Torrent.hpp"
 #include "core/TrackerModel.hpp"
 
@@ -53,15 +54,16 @@ void TestTrackerModel::hostFromUrl()
 void TestTrackerModel::fullUpdateGroupsUrlsByHost()
 {
     TrackerModel model;
-    model.applyFullUpdate(QJsonObject{
-        {QStringLiteral("udp://tracker.opentrackr.org:1337/announce"),
-         QJsonArray({QStringLiteral("aaaa"), QStringLiteral("bbbb")})},
-        {QStringLiteral("https://tracker.opentrackr.org:443/announce"),
-         QJsonArray({QStringLiteral("bbbb"), QStringLiteral("cccc")})},
-        {QStringLiteral("http://tracker.archlinux.org:6969/announce"),
-         QJsonArray({QStringLiteral("aaaa")})},
-        {QStringLiteral("** [DHT] **"), QJsonArray({QStringLiteral("dddd")})},
-    });
+    qbtfeed::full(model,
+                  QJsonObject{
+                      {QStringLiteral("udp://tracker.opentrackr.org:1337/announce"),
+                       QJsonArray({QStringLiteral("aaaa"), QStringLiteral("bbbb")})},
+                      {QStringLiteral("https://tracker.opentrackr.org:443/announce"),
+                       QJsonArray({QStringLiteral("bbbb"), QStringLiteral("cccc")})},
+                      {QStringLiteral("http://tracker.archlinux.org:6969/announce"),
+                       QJsonArray({QStringLiteral("aaaa")})},
+                      {QStringLiteral("** [DHT] **"), QJsonArray({QStringLiteral("dddd")})},
+                  });
 
     QCOMPARE(model.hosts(),
              QStringList({QStringLiteral("DHT"),
@@ -76,8 +78,9 @@ void TestTrackerModel::fullUpdateGroupsUrlsByHost()
 void TestTrackerModel::rolesCarryHostUrlsAndHashes()
 {
     TrackerModel model;
-    model.applyFullUpdate(QJsonObject{{QStringLiteral("udp://tracker.opentrackr.org:1337/announce"),
-                                       QJsonArray({QStringLiteral("aaaa")})}});
+    qbtfeed::full(model,
+                  QJsonObject{{QStringLiteral("udp://tracker.opentrackr.org:1337/announce"),
+                               QJsonArray({QStringLiteral("aaaa")})}});
 
     const QModelIndex first = model.index(0);
     QCOMPARE(model.data(first, TrackerModel::HostRole).toString(),
@@ -94,24 +97,28 @@ void TestTrackerModel::rolesCarryHostUrlsAndHashes()
 void TestTrackerModel::partialMergesAndRemovals()
 {
     TrackerModel model;
-    model.applyFullUpdate(QJsonObject{{QStringLiteral("udp://tracker.opentrackr.org:1337/announce"),
-                                       QJsonArray({QStringLiteral("aaaa")})},
-                                      {QStringLiteral("http://tracker.archlinux.org:6969/announce"),
-                                       QJsonArray({QStringLiteral("bbbb")})}});
+    qbtfeed::full(model,
+                  QJsonObject{{QStringLiteral("udp://tracker.opentrackr.org:1337/announce"),
+                               QJsonArray({QStringLiteral("aaaa")})},
+                              {QStringLiteral("http://tracker.archlinux.org:6969/announce"),
+                               QJsonArray({QStringLiteral("bbbb")})}});
 
     // A changed hash list replaces, it does not append.
-    model.applyPartial(QJsonObject{{QStringLiteral("udp://tracker.opentrackr.org:1337/announce"),
-                                    QJsonArray({QStringLiteral("cccc")})}},
-                       QJsonArray());
+    qbtfeed::partial(model,
+                     QJsonObject{{QStringLiteral("udp://tracker.opentrackr.org:1337/announce"),
+                                  QJsonArray({QStringLiteral("cccc")})}},
+                     QJsonArray());
     QCOMPARE(model.hashesFor(QStringLiteral("tracker.opentrackr.org")),
              QStringList({QStringLiteral("cccc")}));
 
-    model.applyPartial(QJsonObject(),
-                       QJsonArray({QStringLiteral("http://tracker.archlinux.org:6969/announce")}));
+    qbtfeed::partial(model,
+                     QJsonObject(),
+                     QJsonArray({QStringLiteral("http://tracker.archlinux.org:6969/announce")}));
     QCOMPARE(model.hosts(), QStringList({QStringLiteral("tracker.opentrackr.org")}));
 
     // An empty hash list means the server dropped that announce URL too.
-    model.applyPartial(
+    qbtfeed::partial(
+        model,
         QJsonObject{{QStringLiteral("udp://tracker.opentrackr.org:1337/announce"), QJsonArray()}},
         QJsonArray());
     QCOMPARE(model.count(), 0);
@@ -120,8 +127,9 @@ void TestTrackerModel::partialMergesAndRemovals()
 void TestTrackerModel::trackerlessRowIsLastAndOptional()
 {
     TrackerModel model;
-    model.applyFullUpdate(QJsonObject{{QStringLiteral("udp://zzz.example.org:1337/announce"),
-                                       QJsonArray({QStringLiteral("aaaa")})}});
+    qbtfeed::full(model,
+                  QJsonObject{{QStringLiteral("udp://zzz.example.org:1337/announce"),
+                               QJsonArray({QStringLiteral("aaaa")})}});
     QCOMPARE(model.count(), 1);
 
     model.setTrackerlessHashes(QStringList({QStringLiteral("bbbb"), QStringLiteral("cccc")}));
@@ -137,8 +145,9 @@ void TestTrackerModel::trackerlessRowIsLastAndOptional()
 void TestTrackerModel::clearEmptiesIt()
 {
     TrackerModel model;
-    model.applyFullUpdate(QJsonObject{{QStringLiteral("udp://tracker.opentrackr.org:1337/announce"),
-                                       QJsonArray({QStringLiteral("aaaa")})}});
+    qbtfeed::full(model,
+                  QJsonObject{{QStringLiteral("udp://tracker.opentrackr.org:1337/announce"),
+                               QJsonArray({QStringLiteral("aaaa")})}});
     model.setTrackerlessHashes(QStringList({QStringLiteral("bbbb")}));
     model.clear();
     QCOMPARE(model.count(), 0);
@@ -160,7 +169,7 @@ void TestTrackerModel::aBigHostRebuildsInLinearTime()
     TrackerModel model;
     QElapsedTimer timer;
     timer.start();
-    model.applyFullUpdate(map);
+    qbtfeed::full(model, map);
     const double ms = double(timer.nsecsElapsed()) / 1e6;
     qInfo("TrackerModel rebuild, 2 URLs x %d torrents: %.1f ms", kTorrents, ms);
 

@@ -10,8 +10,6 @@
 
 #include <QAbstractListModel>
 #include <QHash>
-#include <QJsonArray>
-#include <QJsonObject>
 #include <QList>
 #include <QString>
 #include <QStringList>
@@ -52,10 +50,11 @@ public:
     QStringList hosts() const;
     Q_INVOKABLE QStringList hashesFor(const QString &host) const;
 
-    void applyFullUpdate(const QJsonObject &trackers);
-    /// `changed` holds only the announce URLs whose hash list moved; `removed` the URLs the
-    /// server dropped (qBittorrent sends them as `trackers_removed`).
-    void applyPartial(const QJsonObject &changed, const QJsonArray &removed);
+    /// Announce URL → the torrents announcing to it.
+    void applyFullUpdate(const QHash<QString, QStringList> &trackers);
+    /// `changed` holds only the announce URLs whose hash list moved (an empty list drops the
+    /// URL); `removed` the URLs the server dropped.
+    void applyPartial(const QHash<QString, QStringList> &changed, const QStringList &removed = {});
     /// The torrents with no tracker at all; an empty list removes the trackerless row.
     void setTrackerlessHashes(const QStringList &hashes);
     void clear();
@@ -66,7 +65,7 @@ Q_SIGNALS:
 private:
     void rebuild();
 
-    QHash<QString, QStringList> m_byUrl; ///< announce URL → hashes, straight from the API
+    QHash<QString, QStringList> m_byUrl; ///< announce URL → hashes, as the engine sent them
     QStringList m_trackerless;
     QHash<QString, QString> m_hostCache; ///< announce URL → host, so QUrl parses once
     QList<TrackerGroup> m_groups;

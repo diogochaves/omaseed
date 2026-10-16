@@ -1,3 +1,4 @@
+#include "QbtFeed.hpp"
 #include "core/AltSpeed.hpp"
 #include "core/GlobalState.hpp"
 #include "core/QbtClient.hpp"
@@ -192,7 +193,7 @@ void TestStatusWriter::writesSchemaTwo()
     SyncEngine engine;
     engine.globalState()->setConnected(true);
     engine.globalState()->setServerVersions(QStringLiteral("v5.2.3"), QStringLiteral("2.15.1"));
-    engine.applyDemoData(fullUpdate());
+    qbtfeed::demo(engine, fullUpdate());
     // Today's top seeders come from the seed ledger (#47): both gave something today.
     SeedLedger ledger;
     const qint64 at = QDateTime::currentSecsSinceEpoch();
@@ -324,7 +325,7 @@ void TestStatusWriter::neverWritesASecret()
     SyncEngine engine;
     engine.setClient(&client);
     engine.globalState()->setConnected(true);
-    engine.applyDemoData(fullUpdate());
+    qbtfeed::demo(engine, fullUpdate());
 
     StatusWriter writer;
     writer.setIntervals(0, 10000);
@@ -356,7 +357,7 @@ void TestStatusWriter::readerNeverSeesAPartialFile()
                                        QStringLiteral("/srv/a/rather/long/path/") + name}});
     }
     data.insert(QStringLiteral("categories"), categories);
-    engine.applyDemoData(data);
+    qbtfeed::demo(engine, data);
 
     StatusWriter writer;
     writer.setIntervals(0, 10000);
@@ -451,7 +452,7 @@ void TestStatusWriter::idleWritesAHeartbeat()
 void TestStatusWriter::unreachableServer()
 {
     SyncEngine engine;
-    engine.applyDemoData(fullUpdate());
+    qbtfeed::demo(engine, fullUpdate());
     engine.globalState()->setConnected(false);
     engine.globalState()->setRetryInSeconds(7);
     StatusWriter writer;
@@ -486,11 +487,12 @@ void TestStatusWriter::sessionShareAndWeek()
     writer.setIntervals(0, 10000);
     startWriter(writer, engine);
 
-    engine.applyDemoData(fullUpdate(1000));
-    engine.applyDemoData(partial(QJsonObject{{QStringLiteral("up_info_data"), 5000},
-                                             {QStringLiteral("dl_info_data"), 2500}}));
+    qbtfeed::demo(engine, fullUpdate(1000));
+    qbtfeed::demo(engine,
+                  partial(QJsonObject{{QStringLiteral("up_info_data"), 5000},
+                                      {QStringLiteral("dl_info_data"), 2500}}));
     current = fixed.addSecs(60); // past midnight
-    engine.applyDemoData(partial(QJsonObject{{QStringLiteral("up_info_data"), 6000}}));
+    qbtfeed::demo(engine, partial(QJsonObject{{QStringLiteral("up_info_data"), 6000}}));
 
     const QJsonObject status = writer.snapshot();
     const QJsonObject share = status.value(QStringLiteral("share")).toObject();
@@ -504,7 +506,7 @@ void TestStatusWriter::sessionShareAndWeek()
     QCOMPARE(week.at(6).toObject().value(QStringLiteral("up")).toInteger(), qint64(1000));
 
     // A restart of qBittorrent: its counter starts over, nothing is lost.
-    engine.applyDemoData(partial(QJsonObject{{QStringLiteral("up_info_data"), 300}}));
+    qbtfeed::demo(engine, partial(QJsonObject{{QStringLiteral("up_info_data"), 300}}));
     QCOMPARE(writer.snapshot()
                  .value(QStringLiteral("share"))
                  .toObject()
@@ -575,11 +577,13 @@ void TestStatusWriter::milestonesFromTheSync()
     startWriter(writer, engine);
 
     // The first full update sets the starting point: debian is at 0.8.
-    engine.applyDemoData(fullUpdate());
+    qbtfeed::demo(engine, fullUpdate());
     QCOMPARE(writer.snapshot().value(QStringLiteral("recent")).toArray().size(), 0);
 
-    engine.applyDemoData(partial(
-        {}, QJsonObject{{QStringLiteral("bbbb"), QJsonObject{{QStringLiteral("ratio"), 2.05}}}}));
+    qbtfeed::demo(engine,
+                  partial({},
+                          QJsonObject{{QStringLiteral("bbbb"),
+                                       QJsonObject{{QStringLiteral("ratio"), 2.05}}}}));
     const QJsonArray recent = writer.snapshot().value(QStringLiteral("recent")).toArray();
     QCOMPARE(recent.size(), 2);
     const QJsonObject newest = recent.first().toObject();
@@ -604,13 +608,13 @@ void TestStatusWriter::idlePollsLeaveTheLibraryAlone()
     writer.setClock([&current]() { return current; });
     startWriter(writer, engine);
 
-    engine.applyDemoData(fullUpdate());
+    qbtfeed::demo(engine, fullUpdate());
     const QJsonObject first = writer.snapshot();
     const int builds = writer.torrentPartsBuilds();
 
     // Idle polls (the server's counters move, no torrent does) and a minute of writes.
     for (int i = 0; i < 20; ++i) {
-        engine.applyDemoData(partial(QJsonObject{{QStringLiteral("up_info_data"), 2000 + i}}));
+        qbtfeed::demo(engine, partial(QJsonObject{{QStringLiteral("up_info_data"), 2000 + i}}));
         current = current.addSecs(3);
         writer.snapshot();
     }
@@ -622,10 +626,10 @@ void TestStatusWriter::idlePollsLeaveTheLibraryAlone()
              first.value(QStringLiteral("share")).toObject().value(QStringLiteral("onOffer")));
 
     // A torrent moves: worked out once more, and the file shows it.
-    engine.applyDemoData(
-        partial({},
-                QJsonObject{{QStringLiteral("bbbb"),
-                             QJsonObject{{QStringLiteral("dlspeed"), 1'000'000}}}}));
+    qbtfeed::demo(engine,
+                  partial({},
+                          QJsonObject{{QStringLiteral("bbbb"),
+                                       QJsonObject{{QStringLiteral("dlspeed"), 1'000'000}}}}));
     writer.snapshot();
     QCOMPARE(writer.torrentPartsBuilds(), builds + 1);
     writer.snapshot();
@@ -634,10 +638,10 @@ void TestStatusWriter::idlePollsLeaveTheLibraryAlone()
     // debian (complete, one seed) was last active 30 days ago less 2 s: still counted as
     // awake; kept until the second it turns quiet, then worked out again.
     const qint64 last = current.toSecsSinceEpoch() - 30 * 24 * 3600 + 2;
-    engine.applyDemoData(
-        partial({},
-                QJsonObject{{QStringLiteral("bbbb"),
-                             QJsonObject{{QStringLiteral("last_activity"), last}}}}));
+    qbtfeed::demo(engine,
+                  partial({},
+                          QJsonObject{{QStringLiteral("bbbb"),
+                                       QJsonObject{{QStringLiteral("last_activity"), last}}}}));
     const auto quiet = [&writer]() {
         int count = 0;
         const QJsonArray buckets = writer.snapshot()
@@ -672,7 +676,7 @@ void TestStatusWriter::topSeedersFromTheLedger()
     writer.setClock([&current]() { return current; });
     writer.setLedger(&ledger);
     startWriter(writer, engine);
-    engine.applyDemoData(fullUpdate());
+    qbtfeed::demo(engine, fullUpdate());
 
     const auto top = [&writer]() {
         QStringList rows;
@@ -714,7 +718,8 @@ void TestStatusWriter::topSeedersFromTheLedger()
     QCOMPARE(top(), QStringList({"arch.iso 100"}));
 
     // A torrent that left the library is not listed, whatever it gave.
-    engine.applyDemoData(
+    qbtfeed::demo(
+        engine,
         QJsonObject{{QStringLiteral("rid"), 3},
                     {QStringLiteral("torrents_removed"), QJsonArray{QStringLiteral("aaaa")}}});
     QCOMPARE(top(), QStringList());
@@ -831,7 +836,7 @@ void TestStatusWriter::altNamesTheSet()
 {
     SyncEngine engine;
     engine.globalState()->setConnected(true);
-    engine.applyDemoData(fullUpdate()); // alternative limits on
+    qbtfeed::demo(engine, fullUpdate()); // alternative limits on
     omaseed::core::ServerPreferences preferences(nullptr);
     omaseed::core::AltSpeed alt;
     const QDate today = QDate::currentDate();
@@ -881,7 +886,7 @@ void TestStatusWriter::serversAndTheSharedMenu()
 {
     SyncEngine engine;
     engine.globalState()->setConnected(true);
-    engine.applyDemoData(fullUpdate());
+    qbtfeed::demo(engine, fullUpdate());
     StatusWriter writer;
     writer.setIntervals(0, 10000);
     startWriter(writer, engine);

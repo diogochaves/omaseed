@@ -1,4 +1,5 @@
 #include "core/StatusDigest.hpp"
+#include "core/engines/qbt/QbtTranslate.hpp"
 
 #include "core/SeedConsole.hpp"
 
@@ -17,7 +18,7 @@ Torrent seeding(const QString &hash, int swarmSeeds, int waiting = 0)
     Torrent t;
     t.hash = hash;
     t.name = hash.toUpper();
-    t.state = TorrentState::StalledUpload;
+    t.status = omaseed::core::QbtTranslate::status(u"stalledUP");
     t.progress = 1.0;
     t.size = 1000;
     t.numComplete = swarmSeeds;
@@ -30,7 +31,7 @@ Torrent downloading(const QString &hash, qint64 speed, double progress)
     Torrent t;
     t.hash = hash;
     t.name = hash.toUpper();
-    t.state = TorrentState::Downloading;
+    t.status = omaseed::core::QbtTranslate::status(u"downloading");
     t.progress = progress;
     t.dlspeed = speed;
     t.eta = 120;
@@ -274,7 +275,7 @@ void TestStatusDigest::milestonesFromADiffMatchTheWholeList()
 void TestStatusDigest::aliveBucketsBySwarmSeeds()
 {
     Torrent stopped = seeding(QStringLiteral("stopped"), 1);
-    stopped.state = TorrentState::StoppedUpload;
+    stopped.status = omaseed::core::QbtTranslate::status(u"stoppedUP");
     Torrent failing = seeding(QStringLiteral("failing"), 1, 4);
     failing.hasTrackerError = true;
     const QList<Torrent> torrents{
@@ -443,7 +444,7 @@ void TestStatusDigest::topSeedersByTodaysUpload()
 void TestStatusDigest::activeFastestFirst()
 {
     Torrent stalled = downloading(QStringLiteral("stalled"), 0, 0.9);
-    stalled.state = TorrentState::StalledDownload;
+    stalled.status = omaseed::core::QbtTranslate::status(u"stalledDL");
     const QJsonArray rows = digest::active({
         downloading(QStringLiteral("slow"), 10, 0.2),
         downloading(QStringLiteral("fast"), 123456, 0.4891),
@@ -461,10 +462,10 @@ void TestStatusDigest::activeFastestFirst()
              QStringLiteral("slow"));
     // A queued download has no estimate, nor one qBittorrent cannot estimate.
     Torrent queued = downloading(QStringLiteral("queued"), 0, 0.3);
-    queued.state = TorrentState::QueuedDownload;
+    queued.status = omaseed::core::QbtTranslate::status(u"queuedDL");
     QCOMPARE(digest::active({queued}).first().toObject().value(QStringLiteral("eta")).toInteger(),
              qint64(-1));
-    stalled.eta = 8640000;
+    stalled.eta = std::nullopt;
     QCOMPARE(digest::active({stalled}).first().toObject().value(QStringLiteral("eta")).toInteger(),
              qint64(-1));
 }

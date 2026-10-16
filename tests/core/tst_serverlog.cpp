@@ -2,6 +2,7 @@
 // face. The model is fed log/main-shaped entries through applyEntries(); the reads themselves
 // go to a small HTTP server of our own, which answers log/main and records what was asked.
 
+#include "QbtFeed.hpp"
 #include "core/LogFilterModel.hpp"
 #include "core/QbtClient.hpp"
 #include "core/ServerLog.hpp"
@@ -180,8 +181,9 @@ private:
 void TestServerLog::init()
 {
     m_torrents = new TorrentModel;
-    m_torrents->applyFullUpdate({{kMove, torrent(QStringLiteral("log55-move.bin"))},
-                                 {kOther, torrent(QStringLiteral("other.bin"))}});
+    qbtfeed::full(*m_torrents,
+                  QJsonObject{{kMove, torrent(QStringLiteral("log55-move.bin"))},
+                              {kOther, torrent(QStringLiteral("other.bin"))}});
     m_log = new ServerLog;
     m_log->setTorrents(m_torrents);
     m_lines = new LogFilterModel;

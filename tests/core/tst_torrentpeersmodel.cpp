@@ -3,6 +3,7 @@
 // from the WebUI API docs, because the :8081 playground never has a peer: nothing it holds
 // is seeded by anyone.
 
+#include "QbtFeed.hpp"
 #include "core/TorrentPeersModel.hpp"
 
 #include <QAbstractItemModelTester>
@@ -47,7 +48,7 @@ void TestTorrentPeersModel::the_figure_row_by_row()
     TorrentPeersModel model;
     QCOMPARE(model.rid(), 0);
 
-    model.applyPeers(fixture(QStringLiteral("peers-full.json")));
+    qbtfeed::peers(model, fixture(QStringLiteral("peers-full.json")));
     QCOMPARE(model.count(), 4);
     QCOMPARE(model.rid(), 1);
 
@@ -94,10 +95,10 @@ void TestTorrentPeersModel::the_figure_row_by_row()
 void TestTorrentPeersModel::a_partial_update_merges_and_removes()
 {
     TorrentPeersModel model;
-    model.applyPeers(fixture(QStringLiteral("peers-full.json")));
+    qbtfeed::peers(model, fixture(QStringLiteral("peers-full.json")));
     QSignalSpy counted(&model, &TorrentPeersModel::countChanged);
 
-    model.applyPeers(fixture(QStringLiteral("peers-diff.json")));
+    qbtfeed::peers(model, fixture(QStringLiteral("peers-diff.json")));
 
     QCOMPARE(model.rid(), 2);
     QCOMPARE(model.count(), 4); // one gone, one new
@@ -134,7 +135,7 @@ void TestTorrentPeersModel::a_partial_update_merges_and_removes()
 void TestTorrentPeersModel::clearing_forgets_the_rid()
 {
     TorrentPeersModel model;
-    model.applyPeers(fixture(QStringLiteral("peers-full.json")));
+    qbtfeed::peers(model, fixture(QStringLiteral("peers-full.json")));
     QCOMPARE(model.rid(), 1);
 
     model.clear();
@@ -142,7 +143,7 @@ void TestTorrentPeersModel::clearing_forgets_the_rid()
     QCOMPARE(model.rid(), 0); // the next poll asks for a full update
 
     // A full update after a clear starts from nothing, not from the old four.
-    model.applyPeers(fixture(QStringLiteral("peers-full.json")));
+    qbtfeed::peers(model, fixture(QStringLiteral("peers-full.json")));
     QCOMPARE(model.count(), 4);
 }
 
@@ -157,7 +158,7 @@ void TestTorrentPeersModel::an_ip_is_recovered_from_the_key()
     peers.insert(QStringLiteral("198.51.100.4:6881"), peer);
     answer.insert(QStringLiteral("peers"), peers);
     answer.insert(QStringLiteral("rid"), 7);
-    model.applyPeers(answer);
+    qbtfeed::peers(model, answer);
 
     QCOMPARE(model.count(), 1);
     QCOMPARE(at(model, 0, TorrentPeersModel::IpRole).toString(), QStringLiteral("198.51.100.4"));
@@ -168,7 +169,7 @@ void TestTorrentPeersModel::a_poll_moves_rows_and_never_resets()
 {
     TorrentPeersModel model;
     QAbstractItemModelTester tester(&model, QAbstractItemModelTester::FailureReportingMode::QtTest);
-    model.applyPeers(fixture(QStringLiteral("peers-full.json")));
+    qbtfeed::peers(model, fixture(QStringLiteral("peers-full.json")));
 
     // The cursor sits on the peer in the last row; the diff re-sorts, drops one and adds one.
     const QString held = model.addressAt(model.count() - 1);
@@ -176,7 +177,7 @@ void TestTorrentPeersModel::a_poll_moves_rows_and_never_resets()
     QSignalSpy moved(&model, &QAbstractItemModel::rowsMoved);
     QSignalSpy applied(&model, &TorrentPeersModel::applied);
 
-    model.applyPeers(fixture(QStringLiteral("peers-diff.json")));
+    qbtfeed::peers(model, fixture(QStringLiteral("peers-diff.json")));
     QCOMPARE(reset.count(), 0);
     QCOMPARE(applied.count(), 1);
 
@@ -195,7 +196,7 @@ void TestTorrentPeersModel::a_poll_moves_rows_and_never_resets()
                       QJsonObject{{first, QJsonObject{{QStringLiteral("dl_speed"), 1}}},
                                   {second, QJsonObject{{QStringLiteral("dl_speed"), 99999999}}}}}};
     moved.clear();
-    model.applyPeers(swap);
+    qbtfeed::peers(model, swap);
     QCOMPARE(reset.count(), 0);
     QVERIFY(moved.count() > 0);
     QCOMPARE(model.addressAt(0), second);

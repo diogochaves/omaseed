@@ -820,23 +820,27 @@ Q_SIGNALS:
 private:
     /// True (and logged) in demo mode, where none of these actions may touch a network.
     bool demoGuard(const QString &action, int count);
-    /// G4: the hashes whose `field` is not `on` yet (what an endpoint must change). A change
-    /// still pending in the engine (`key` is its maindata name) counts as done, so a second
-    /// press before the server has answered does not flip the same torrents back.
+    /// G4: the hashes whose `member` (the torrent's `field`) is not `on` yet (what an
+    /// endpoint must change). A change still pending in the engine counts as done, so a
+    /// second press before the server has answered does not flip the same torrents back.
     QStringList hashesNotAt(const QStringList &hashes,
                             bool on,
-                            bool omaseed::core::Torrent::*field,
-                            const QString &key) const;
-    /// G4 / M12: shows `key` = `on` on `hashes` at once (SyncEngine's pending values) and
+                            bool omaseed::core::Torrent::*member,
+                            omaseed::core::TorrentField field) const;
+    /// G4 / M12: shows `field` = `on` on `hashes` at once (SyncEngine's pending values) and
     /// sends `reply`'s request; its answer settles them, a refusal puts the old value back.
     void sendOption(const QStringList &hashes,
                     bool on,
-                    bool omaseed::core::Torrent::*field,
-                    const QString &key,
+                    bool omaseed::core::Torrent::*member,
+                    omaseed::core::TorrentField field,
                     omaseed::core::Reply<QByteArray> *reply,
                     const QString &action);
-    /// G4 in demo mode: sets `key` to `on` on the fictional rows and returns true.
-    bool applyDemoOption(const QStringList &hashes, const QString &key, bool on);
+    /// G4 in demo mode: sets `field` to `on` on the fictional rows and returns true.
+    bool applyDemoOption(const QStringList &hashes,
+                         bool omaseed::core::Torrent::*member,
+                         omaseed::core::TorrentField field,
+                         bool on,
+                         const QString &action);
     /// A refused action, in the footer's words (docs/33 D23): `hashes` and `folder` name
     /// what it was about when the request does not.
     void reportActionResult(const QString &action,
@@ -844,12 +848,10 @@ private:
                             const QStringList &hashes = {},
                             const QString &folder = {});
     void loadDeleteFilesDefault();
-    /// StoppedDownload/StoppedUpload/PausedDownload/PausedUpload: what `stopStart()` and
-    /// `torrentRow()`'s `stopped` field both call "stopped".
-    static bool isStoppedState(omaseed::core::TorrentState state);
-    /// What `p` (stopStart) does to a torrent in `state`: start it when stopped, or in error
-    /// ("try again", docs/28), stop it otherwise.
-    static bool startsOnToggle(omaseed::core::TorrentState state);
+    /// What `p` (stopStart) does to a torrent in `status`: start it when stopped, or in
+    /// error ("try again", docs/28), stop it otherwise. `torrentRow()`'s `stopped` field says
+    /// the same.
+    static bool startsOnToggle(const omaseed::core::TorrentStatus &status);
 
     bool m_deleteFilesDefault = false;
     bool m_deleteFilesDefaultLoaded = false;

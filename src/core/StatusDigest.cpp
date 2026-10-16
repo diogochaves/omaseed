@@ -192,9 +192,8 @@ QJsonArray active(const QList<Torrent> &torrents)
             {QStringLiteral("name"), torrent->name},
             {QStringLiteral("progress"), std::round(torrent->progress * 1000.0) / 1000.0},
             {QStringLiteral("dl"), roundSignificant(torrent->dlspeed)},
-            // 8640000 is qBittorrent's "no estimate".
-            {QStringLiteral("eta"),
-             torrent->hasEta() && torrent->eta < 8640000 ? torrent->eta : qint64(-1)},
+            // -1: no estimate (STATUS.md).
+            {QStringLiteral("eta"), torrent->hasEta() && torrent->eta ? *torrent->eta : qint64(-1)},
         });
     }
     return rows;

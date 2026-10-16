@@ -2,6 +2,7 @@
 // derived roles the table binds to. The JSON here has the same shape as the recorded
 // fixtures in tests/fixtures/maindata/.
 
+#include "QbtFeed.hpp"
 #include "core/Format.hpp"
 #include "core/Torrent.hpp"
 #include "core/TorrentFilterModel.hpp"
@@ -20,6 +21,12 @@
 using namespace omaseed::core;
 
 namespace {
+
+/// One object of maindata's `torrents` map, through the translator, into `t`.
+TorrentFields applyJson(Torrent &t, const QJsonObject &json)
+{
+    return t.apply(QbtTranslate::torrent(t.hash, json));
+}
 
 QJsonObject
 torrentJson(const QString &name, const QString &state, double progress, qint64 dlspeed = 0)
@@ -111,7 +118,7 @@ void TestTorrentModel::fullUpdateFillsRowsAndIndex()
     QSignalSpy countSpy(&model, &TorrentModel::countChanged);
     QSignalSpy updatedSpy(&model, &TorrentModel::updated);
 
-    model.applyFullUpdate(threeTorrents());
+    qbtfeed::full(model, threeTorrents());
 
     QCOMPARE(model.count(), 3);
     QCOMPARE(model.rowCount(), 3);
@@ -125,7 +132,8 @@ void TestTorrentModel::fullUpdateFillsRowsAndIndex()
     QVERIFY(model.torrent(QStringLiteral("nope")).hash.isEmpty());
 
     // A second full update replaces, it does not append.
-    model.applyFullUpdate(
+    qbtfeed::full(
+        model,
         QJsonObject{{QStringLiteral("dddd"),
                      torrentJson(QStringLiteral("delta"), QStringLiteral("stalledUP"), 1.0)}});
     QCOMPARE(model.count(), 1);
@@ -135,7 +143,7 @@ void TestTorrentModel::fullUpdateFillsRowsAndIndex()
 void TestTorrentModel::rolesCoverTheTableAndTheDetails()
 {
     TorrentModel model;
-    model.applyFullUpdate(threeTorrents());
+    qbtfeed::full(model, threeTorrents());
     const QModelIndex first = model.index(0);
 
     // Spec §1 Fig. 1 columns: Name (+ dim category), Size, Progress, Status, S/P, ↓, ↑, ETA.
@@ -200,9 +208,10 @@ void TestTorrentModel::rolesCoverTheTableAndTheDetails()
 void TestTorrentModel::partialMergesOnlyThePresentKeys()
 {
     TorrentModel model;
-    model.applyFullUpdate(threeTorrents());
+    qbtfeed::full(model, threeTorrents());
 
-    model.applyPartial(
+    qbtfeed::partial(
+        model,
         QJsonObject{{QStringLiteral("aaaa"), QJsonObject{{QStringLiteral("dlspeed"), 4414997}}}},
         QJsonArray());
 
@@ -219,17 +228,18 @@ void TestTorrentModel::shareLimitActionParsesAndDefaults()
     // T5.5 Q14: `share_limit_action` (API 2.15.1) rides along as a plain string. A server
     // that never sends the key (pre-2.15.1, and the JSON above) leaves it at "Default".
     TorrentModel model;
-    model.applyFullUpdate(threeTorrents());
+    qbtfeed::full(model, threeTorrents());
     const int role = roleOf(model, "shareLimitAction");
     QCOMPARE(role, int(TorrentModel::ShareLimitActionRole));
     QCOMPARE(model.torrent(QStringLiteral("aaaa")).shareLimitAction, QStringLiteral("Default"));
     QCOMPARE(model.data(model.index(0), role).toString(), QStringLiteral("Default"));
 
     QSignalSpy changed(&model, &QAbstractItemModel::dataChanged);
-    model.applyPartial(QJsonObject{{QStringLiteral("aaaa"),
-                                    QJsonObject{{QStringLiteral("share_limit_action"),
-                                                 QStringLiteral("RemoveWithContent")}}}},
-                       QJsonArray());
+    qbtfeed::partial(model,
+                     QJsonObject{{QStringLiteral("aaaa"),
+                                  QJsonObject{{QStringLiteral("share_limit_action"),
+                                               QStringLiteral("RemoveWithContent")}}}},
+                     QJsonArray());
     QCOMPARE(model.torrent(QStringLiteral("aaaa")).shareLimitAction,
              QStringLiteral("RemoveWithContent"));
     QCOMPARE(model.data(model.index(0), role).toString(), QStringLiteral("RemoveWithContent"));
@@ -243,18 +253,19 @@ void TestTorrentModel::perTorrentOptionsParse()
 {
     // docs/12 G4: the four options General's Options group shows, straight off the row.
     TorrentModel model;
-    model.applyFullUpdate(threeTorrents());
+    qbtfeed::full(model, threeTorrents());
     const auto &before = model.torrent(QStringLiteral("aaaa"));
     QCOMPARE(before.superSeeding, false);
     QCOMPARE(before.autoTmm, false);
 
     QSignalSpy updated(&model, &TorrentModel::updated);
-    model.applyPartial(QJsonObject{{QStringLiteral("aaaa"),
-                                    QJsonObject{{QStringLiteral("seq_dl"), true},
-                                                {QStringLiteral("f_l_piece_prio"), true},
-                                                {QStringLiteral("super_seeding"), true},
-                                                {QStringLiteral("auto_tmm"), true}}}},
-                       QJsonArray());
+    qbtfeed::partial(model,
+                     QJsonObject{{QStringLiteral("aaaa"),
+                                  QJsonObject{{QStringLiteral("seq_dl"), true},
+                                              {QStringLiteral("f_l_piece_prio"), true},
+                                              {QStringLiteral("super_seeding"), true},
+                                              {QStringLiteral("auto_tmm"), true}}}},
+                     QJsonArray());
     const auto &after = model.torrent(QStringLiteral("aaaa"));
     QVERIFY(after.seqDl);
     QVERIFY(after.firstLastPiecePrio);
@@ -265,7 +276,8 @@ void TestTorrentModel::perTorrentOptionsParse()
 
     // docs/16 §5: the private flag, for the table's marker.
     QVERIFY(!after.isPrivate);
-    model.applyPartial(
+    qbtfeed::partial(
+        model,
         QJsonObject{{QStringLiteral("aaaa"), QJsonObject{{QStringLiteral("private"), true}}}},
         QJsonArray());
     QVERIFY(model.torrent(QStringLiteral("aaaa")).isPrivate);
@@ -277,17 +289,20 @@ void TestTorrentModel::inactiveSeedingTimeLimitParsesAndDefaults()
     // qBittorrent 4.6 (API 2.9.x) sends `inactive_seeding_time_limit`; a server that does
     // not leaves it on the global sentinel, -2, which is what the Limits sheet sends back.
     TorrentModel model;
-    model.applyFullUpdate(threeTorrents());
+    qbtfeed::full(model, threeTorrents());
     const int role = roleOf(model, "inactiveSeedingTimeLimit");
     QCOMPARE(role, int(TorrentModel::InactiveSeedingTimeLimitRole));
-    QCOMPARE(model.torrent(QStringLiteral("aaaa")).inactiveSeedingTimeLimit, qint64(-2));
+    QCOMPARE(model.torrent(QStringLiteral("aaaa")).inactiveSeedingTimeLimit,
+             MinutesLimit::global());
+    QCOMPARE(model.data(model.index(0), role).toLongLong(), qint64(-2));
 
     QSignalSpy changed(&model, &QAbstractItemModel::dataChanged);
-    model.applyPartial(
+    qbtfeed::partial(
+        model,
         QJsonObject{{QStringLiteral("aaaa"),
                      QJsonObject{{QStringLiteral("inactive_seeding_time_limit"), 30}}}},
         QJsonArray());
-    QCOMPARE(model.torrent(QStringLiteral("aaaa")).inactiveSeedingTimeLimit, qint64(30));
+    QCOMPARE(model.torrent(QStringLiteral("aaaa")).inactiveSeedingTimeLimit, MinutesLimit::of(30));
     QCOMPARE(model.data(model.index(0), role).toLongLong(), qint64(30));
     QCOMPARE(changed.count(), 1);
     QVERIFY(changed.first().at(2).value<QList<int>>().contains(role));
@@ -296,10 +311,11 @@ void TestTorrentModel::inactiveSeedingTimeLimitParsesAndDefaults()
 void TestTorrentModel::partialAppendsUnknownHashes()
 {
     TorrentModel model;
-    model.applyFullUpdate(threeTorrents());
+    qbtfeed::full(model, threeTorrents());
     QSignalSpy inserted(&model, &QAbstractItemModel::rowsInserted);
 
-    model.applyPartial(
+    qbtfeed::partial(
+        model,
         QJsonObject{{QStringLiteral("dddd"),
                      torrentJson(QStringLiteral("delta"), QStringLiteral("metaDL"), 0.0)}},
         QJsonArray());
@@ -319,11 +335,12 @@ void TestTorrentModel::partialRemovesInContiguousRuns()
                 torrentJson(QStringLiteral("delta"), QStringLiteral("uploading"), 1.0));
     five.insert(QStringLiteral("eeee"),
                 torrentJson(QStringLiteral("echo"), QStringLiteral("uploading"), 1.0));
-    model.applyFullUpdate(five);
+    qbtfeed::full(model, five);
     QCOMPARE(model.count(), 5);
 
     QSignalSpy removed(&model, &QAbstractItemModel::rowsRemoved);
-    model.applyPartial(
+    qbtfeed::partial(
+        model,
         QJsonObject(),
         QJsonArray({QStringLiteral("bbbb"), QStringLiteral("cccc"), QStringLiteral("eeee")}));
 
@@ -336,8 +353,9 @@ void TestTorrentModel::partialRemovesInContiguousRuns()
 void TestTorrentModel::aHashRemovedTwiceRemovesOneRow()
 {
     TorrentModel model;
-    model.applyFullUpdate(threeTorrents());
-    model.applyPartial(QJsonObject(), QJsonArray({QStringLiteral("bbbb"), QStringLiteral("bbbb")}));
+    qbtfeed::full(model, threeTorrents());
+    qbtfeed::partial(
+        model, QJsonObject(), QJsonArray({QStringLiteral("bbbb"), QStringLiteral("bbbb")}));
     QCOMPARE(model.hashes(), QStringList({QStringLiteral("aaaa"), QStringLiteral("cccc")}));
 }
 
@@ -359,7 +377,7 @@ void TestTorrentModel::aScatteredRemovalKeepsLookupsTrueAtEverySignal()
                                1.0));
     }
     TorrentModel model;
-    model.applyFullUpdate(all);
+    qbtfeed::full(model, all);
     QCOMPARE(model.count(), kRows);
 
     TorrentFilterModel proxy;
@@ -421,7 +439,7 @@ void TestTorrentModel::aScatteredRemovalKeepsLookupsTrueAtEverySignal()
     connect(&model, &QAbstractItemModel::rowsRemoved, this, [&] { check("source removed"); });
     connect(&proxy, &QAbstractItemModel::rowsRemoved, this, [&] { check("proxy removed"); });
 
-    model.applyPartial(QJsonObject(), removed);
+    qbtfeed::partial(model, QJsonObject(), removed);
 
     QVERIFY2(firstFault.isEmpty(), qPrintable(firstFault));
     QVERIFY(checks > 1000); // the runs really were signalled one by one
@@ -447,14 +465,14 @@ void TestTorrentModel::lastChangeNamesWhatAPollTouched()
 {
     TorrentModel model;
     const quint64 start = model.revision();
-    model.applyFullUpdate(threeTorrents());
+    qbtfeed::full(model, threeTorrents());
     QVERIFY(model.lastChange().full);
     QCOMPARE(model.revision(), start + 1);
     QVERIFY(!model.lastChangeFollows(start)); // a full update is walked whole
 
     // An idle poll: nothing changed, the revision stays, and it follows on.
     quint64 seen = model.revision();
-    model.applyPartial(QJsonObject(), QJsonArray());
+    qbtfeed::partial(model, QJsonObject(), QJsonArray());
     QVERIFY(!model.lastChange().full);
     QVERIFY(model.lastChange().changed.isEmpty());
     QVERIFY(model.lastChange().removed.isEmpty());
@@ -462,7 +480,8 @@ void TestTorrentModel::lastChangeNamesWhatAPollTouched()
     QVERIFY(model.lastChangeFollows(seen));
 
     // A key that holds its value is not a change; one that moves is. New rows count too.
-    model.applyPartial(
+    qbtfeed::partial(
+        model,
         QJsonObject{{QStringLiteral("aaaa"), QJsonObject{{QStringLiteral("ratio"), 0.15}}},
                     {QStringLiteral("bbbb"), QJsonObject{{QStringLiteral("ratio"), 2.5}}},
                     {QStringLiteral("dddd"),
@@ -476,16 +495,17 @@ void TestTorrentModel::lastChangeNamesWhatAPollTouched()
 
     // A caller that missed a poll walks again.
     seen = model.revision();
-    model.applyPartial(
+    qbtfeed::partial(
+        model,
         QJsonObject{{QStringLiteral("aaaa"), QJsonObject{{QStringLiteral("ratio"), 0.5}}}},
         QJsonArray());
-    model.applyPartial(QJsonObject(), QJsonArray());
+    qbtfeed::partial(model, QJsonObject(), QJsonArray());
     QVERIFY(!model.lastChangeFollows(seen));
 
     // clear() then an idle poll: the clear is not lost.
     seen = model.revision();
     model.clear();
-    model.applyPartial(QJsonObject(), QJsonArray());
+    qbtfeed::partial(model, QJsonObject(), QJsonArray());
     QVERIFY(!model.lastChangeFollows(seen));
 }
 
@@ -498,7 +518,7 @@ void TestTorrentModel::aNewDayRefreshesTheRelativeTexts()
     QCOMPARE(TorrentModel::msecsToNextMidnight(morning), qint64(86400000 - 30000 + 1000));
 
     TorrentModel model;
-    model.applyFullUpdate(threeTorrents());
+    qbtfeed::full(model, threeTorrents());
     QSignalSpy changed(&model, &QAbstractItemModel::dataChanged);
     model.refreshDayRelativeTexts();
     QCOMPARE(changed.count(), 1);
@@ -512,11 +532,12 @@ void TestTorrentModel::aNewDayRefreshesTheRelativeTexts()
 void TestTorrentModel::dataChangedIsBatchedPerRun()
 {
     TorrentModel model;
-    model.applyFullUpdate(threeTorrents());
+    qbtfeed::full(model, threeTorrents());
     QSignalSpy changed(&model, &QAbstractItemModel::dataChanged);
 
     // Rows 0 and 1 are contiguous, row 2 is untouched: one signal covering 0..1.
-    model.applyPartial(
+    qbtfeed::partial(
+        model,
         QJsonObject{{QStringLiteral("aaaa"), QJsonObject{{QStringLiteral("dlspeed"), 10}}},
                     {QStringLiteral("bbbb"), QJsonObject{{QStringLiteral("upspeed"), 20}}}},
         QJsonArray());
@@ -527,7 +548,8 @@ void TestTorrentModel::dataChangedIsBatchedPerRun()
 
     // Rows 0 and 2 are not contiguous: two signals.
     changed.clear();
-    model.applyPartial(
+    qbtfeed::partial(
+        model,
         QJsonObject{{QStringLiteral("aaaa"), QJsonObject{{QStringLiteral("dlspeed"), 11}}},
                     {QStringLiteral("cccc"), QJsonObject{{QStringLiteral("dlspeed"), 12}}}},
         QJsonArray());
@@ -535,7 +557,8 @@ void TestTorrentModel::dataChangedIsBatchedPerRun()
 
     // A key that did not move emits nothing at all.
     changed.clear();
-    model.applyPartial(
+    qbtfeed::partial(
+        model,
         QJsonObject{{QStringLiteral("aaaa"), QJsonObject{{QStringLiteral("dlspeed"), 11}}}},
         QJsonArray());
     QCOMPARE(changed.count(), 0);
@@ -544,10 +567,11 @@ void TestTorrentModel::dataChangedIsBatchedPerRun()
 void TestTorrentModel::dataChangedNamesOnlyTheChangedRoles()
 {
     TorrentModel model;
-    model.applyFullUpdate(threeTorrents());
+    qbtfeed::full(model, threeTorrents());
     QSignalSpy changed(&model, &QAbstractItemModel::dataChanged);
 
-    model.applyPartial(
+    qbtfeed::partial(
+        model,
         QJsonObject{{QStringLiteral("aaaa"), QJsonObject{{QStringLiteral("dlspeed"), 4414997}}}},
         QJsonArray());
 
@@ -567,7 +591,7 @@ void TestTorrentModel::dataChangedNamesOnlyTheChangedRoles()
     everything.insert(QStringLiteral("uploaded"), 4096);
     everything.insert(QStringLiteral("downloaded"), 8192);
     everything.insert(QStringLiteral("time_active"), 862);
-    model.applyPartial(QJsonObject{{QStringLiteral("aaaa"), everything}}, QJsonArray());
+    qbtfeed::partial(model, QJsonObject{{QStringLiteral("aaaa"), everything}}, QJsonArray());
     QCOMPARE(changed.count(), 1);
     QVERIFY(changed.first().at(2).value<QList<int>>().isEmpty());
 }
@@ -575,57 +599,58 @@ void TestTorrentModel::dataChangedNamesOnlyTheChangedRoles()
 void TestTorrentModel::statusGroupsFollowTheRail()
 {
     Torrent downloading;
-    downloading.applyJson(
-        torrentJson(QStringLiteral("d"), QStringLiteral("downloading"), 0.5, 100));
+    applyJson(downloading,
+              torrentJson(QStringLiteral("d"), QStringLiteral("downloading"), 0.5, 100));
     QVERIFY(downloading.inGroup(StatusGroup::Downloading));
     QVERIFY(downloading.inGroup(StatusGroup::Active));
     QVERIFY(!downloading.inGroup(StatusGroup::Completed));
     QVERIFY(!downloading.inGroup(StatusGroup::Seeding));
 
     Torrent stalled;
-    stalled.applyJson(torrentJson(QStringLiteral("s"), QStringLiteral("stalledDL"), 0.227));
+    applyJson(stalled, torrentJson(QStringLiteral("s"), QStringLiteral("stalledDL"), 0.227));
     QVERIFY(stalled.inGroup(StatusGroup::Downloading));
     QVERIFY(stalled.inGroup(StatusGroup::Stalled));
     QVERIFY(!stalled.inGroup(StatusGroup::Active));
 
     Torrent seeding;
-    seeding.applyJson(torrentJson(QStringLiteral("u"), QStringLiteral("uploading"), 1.0));
+    applyJson(seeding, torrentJson(QStringLiteral("u"), QStringLiteral("uploading"), 1.0));
     QVERIFY(seeding.inGroup(StatusGroup::Seeding));
     QVERIFY(seeding.inGroup(StatusGroup::Completed));
     QVERIFY(seeding.inGroup(StatusGroup::Active)); // uploading counts as active
 
     Torrent stoppedComplete;
-    stoppedComplete.applyJson(torrentJson(QStringLiteral("p"), QStringLiteral("stoppedUP"), 1.0));
+    applyJson(stoppedComplete, torrentJson(QStringLiteral("p"), QStringLiteral("stoppedUP"), 1.0));
     QVERIFY(stoppedComplete.inGroup(StatusGroup::Stopped));
     QVERIFY(stoppedComplete.inGroup(StatusGroup::Completed));
     QVERIFY(!stoppedComplete.inGroup(StatusGroup::Seeding));
     QVERIFY(!stoppedComplete.inGroup(StatusGroup::Downloading));
 
     Torrent stoppedIncomplete;
-    stoppedIncomplete.applyJson(torrentJson(QStringLiteral("q"), QStringLiteral("stoppedDL"), 0.0));
+    applyJson(stoppedIncomplete,
+              torrentJson(QStringLiteral("q"), QStringLiteral("stoppedDL"), 0.0));
     QVERIFY(stoppedIncomplete.inGroup(StatusGroup::Stopped));
     QVERIFY(stoppedIncomplete.inGroup(StatusGroup::Downloading));
     QVERIFY(!stoppedIncomplete.inGroup(StatusGroup::Completed));
 
     // A force-started magnet still fetching metadata (qBittorrent 4.6+).
     Torrent forcedMeta;
-    forcedMeta.applyJson(torrentJson(QStringLiteral("m"), QStringLiteral("forcedMetaDL"), 0.0));
+    applyJson(forcedMeta, torrentJson(QStringLiteral("m"), QStringLiteral("forcedMetaDL"), 0.0));
     QVERIFY(forcedMeta.inGroup(StatusGroup::Downloading));
     QVERIFY(forcedMeta.inGroup(StatusGroup::Active));
     QVERIFY(!forcedMeta.inGroup(StatusGroup::Stopped));
 
     Torrent checking;
-    checking.applyJson(torrentJson(QStringLiteral("c"), QStringLiteral("checkingUP"), 1.0));
+    applyJson(checking, torrentJson(QStringLiteral("c"), QStringLiteral("checkingUP"), 1.0));
     QVERIFY(checking.inGroup(StatusGroup::Checking));
     QVERIFY(checking.inGroup(StatusGroup::Seeding));
 
     Torrent broken;
-    broken.applyJson(torrentJson(QStringLiteral("e"), QStringLiteral("missingFiles"), 0.0));
+    applyJson(broken, torrentJson(QStringLiteral("e"), QStringLiteral("missingFiles"), 0.0));
     QVERIFY(broken.inGroup(StatusGroup::Errored));
 
     // The pre-5.0 spellings behave exactly like the new ones.
     Torrent paused;
-    paused.applyJson(torrentJson(QStringLiteral("x"), QStringLiteral("pausedUP"), 1.0));
+    applyJson(paused, torrentJson(QStringLiteral("x"), QStringLiteral("pausedUP"), 1.0));
     QCOMPARE(paused.statusGroups(), stoppedComplete.statusGroups());
 }
 
@@ -679,11 +704,11 @@ void TestTorrentModel::stateTextAndColourRole()
     QFETCH(QString, colourRole);
 
     Torrent t;
-    t.applyJson(QJsonObject{{QStringLiteral("state"), state}});
+    applyJson(t, QJsonObject{{QStringLiteral("state"), state}});
     QCOMPARE(t.stateText(), text);
     QCOMPARE(t.stateRole(), colourRole);
     if (state != QStringLiteral("wat"))
-        QCOMPARE(torrentStateKey(t.state), state);
+        QCOMPARE(t.status.word, state);
 }
 
 void TestTorrentModel::etaTextFollowsTheState_data()
@@ -722,7 +747,7 @@ void TestTorrentModel::etaTextFollowsTheState()
     QJsonObject json = torrentJson(QStringLiteral("t"), state, progress);
     json.insert(QStringLiteral("eta"), eta);
     TorrentModel model;
-    model.applyFullUpdate(QJsonObject{{QStringLiteral("aaaa"), json}});
+    qbtfeed::full(model, QJsonObject{{QStringLiteral("aaaa"), json}});
     const QModelIndex index = model.index(0, 0);
     QCOMPARE(index.data(TorrentModel::EtaTextRole).toString(), text);
     if (text == QStringLiteral("—"))
@@ -732,16 +757,17 @@ void TestTorrentModel::etaTextFollowsTheState()
 void TestTorrentModel::stateChangeRefreshesTheEtaText()
 {
     TorrentModel model;
-    model.applyFullUpdate(
+    qbtfeed::full(
+        model,
         QJsonObject{{QStringLiteral("aaaa"),
                      torrentJson(QStringLiteral("a"), QStringLiteral("downloading"), 0.5)}});
     QSignalSpy changed(&model, &QAbstractItemModel::dataChanged);
 
     // Only the state moves: the ETA text must still be re-read.
-    model.applyPartial(
-        QJsonObject{{QStringLiteral("aaaa"),
-                     QJsonObject{{QStringLiteral("state"), QStringLiteral("error")}}}},
-        QJsonArray());
+    qbtfeed::partial(model,
+                     QJsonObject{{QStringLiteral("aaaa"),
+                                  QJsonObject{{QStringLiteral("state"), QStringLiteral("error")}}}},
+                     QJsonArray());
 
     QCOMPARE(changed.count(), 1);
     const QList<int> roles = changed.first().at(2).value<QList<int>>();

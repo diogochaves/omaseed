@@ -1,7 +1,6 @@
 #include "core/CategoryModel.hpp"
 
 #include <QCollator>
-#include <QJsonValue>
 
 #include <algorithm>
 
@@ -21,15 +20,9 @@ bool nameLessThan(const Category &a, const Category &b)
     return compared != 0 ? compared < 0 : a.name < b.name;
 }
 
-Category categoryFrom(const QString &key, const QJsonValue &value)
+Category categoryFrom(const CategoryPatch &patch)
 {
-    const QJsonObject object = value.toObject();
-    Category category;
-    category.name = object.value(QStringLiteral("name")).toString(key);
-    if (category.name.isEmpty())
-        category.name = key;
-    category.savePath = object.value(QStringLiteral("savePath")).toString();
-    return category;
+    return Category{patch.name, patch.savePath.value_or(QString())};
 }
 
 } // namespace
@@ -82,27 +75,26 @@ QString CategoryModel::savePathOf(const QString &name) const
     return {};
 }
 
-void CategoryModel::applyFullUpdate(const QJsonObject &categories)
+void CategoryModel::applyFullUpdate(const QList<CategoryPatch> &categories)
 {
     QList<Category> next;
     next.reserve(categories.size());
-    for (auto it = categories.constBegin(); it != categories.constEnd(); ++it)
-        next.append(categoryFrom(it.key(), it.value()));
+    for (const CategoryPatch &patch : categories)
+        next.append(categoryFrom(patch));
     setCategories(std::move(next));
 }
 
-void CategoryModel::applyPartial(const QJsonObject &changed, const QJsonArray &removed)
+void CategoryModel::applyPartial(const QList<CategoryPatch> &changed, const QStringList &removed)
 {
     if (changed.isEmpty() && removed.isEmpty())
         return;
 
     QList<Category> next = m_categories;
-    for (const QJsonValue &value : removed) {
-        const QString name = value.toString();
+    for (const QString &name : removed) {
         next.removeIf([&name](const Category &c) { return c.name == name; });
     }
-    for (auto it = changed.constBegin(); it != changed.constEnd(); ++it) {
-        const Category category = categoryFrom(it.key(), it.value());
+    for (const CategoryPatch &patch : changed) {
+        const Category category = categoryFrom(patch);
         const auto found = std::find_if(next.begin(), next.end(), [&category](const Category &c) {
             return c.name == category.name;
         });
@@ -110,11 +102,10 @@ void CategoryModel::applyPartial(const QJsonObject &changed, const QJsonArray &r
             next.append(category);
             continue;
         }
-        // A partial update carries only the keys that changed (e.g. just `download_path`):
-        // a field it leaves out keeps its old value rather than falling back to empty.
-        const QJsonObject object = it.value().toObject();
-        if (object.contains(QStringLiteral("savePath")))
-            found->savePath = category.savePath;
+        // A partial update carries only what changed: a field it leaves out keeps its old
+        // value rather than falling back to empty.
+        if (patch.savePath)
+            found->savePath = *patch.savePath;
     }
     setCategories(std::move(next));
 }

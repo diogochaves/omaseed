@@ -9,9 +9,8 @@
 #include "core/TagModel.hpp"
 #include "core/TorrentModel.hpp"
 #include "core/TrackerModel.hpp"
+#include "core/engines/qbt/QbtTranslate.hpp"
 
-#include <QJsonArray>
-#include <QJsonValue>
 #include <QTimer>
 
 #include <algorithm>
@@ -20,11 +19,6 @@
 namespace omaseed::core {
 
 namespace {
-
-QLatin1StringView key(const char *name)
-{
-    return QLatin1StringView(name);
-}
 
 /// How long a pending torrent value may wait for its answer and a poll that shows it (a lost
 /// server answers neither): after that, what the server last said wins.
@@ -236,12 +230,12 @@ void SyncEngine::poll()
                 onPollError(result.error());
             } else {
                 m_appliedPoll = serial;
-                onPollResult(result.value());
+                onPollResult(QbtTranslate::syncDelta(result.value()));
             }
         });
 }
 
-void SyncEngine::onPollResult(const QJsonObject &data)
+void SyncEngine::onPollResult(const SyncDelta &data)
 {
     const bool wasLost = m_lost;
     m_lost = false;
@@ -316,28 +310,26 @@ void SyncEngine::tickCountdown()
         m_countdownTimer->stop();
 }
 
-void SyncEngine::applyDemoData(const QJsonObject &data)
+void SyncEngine::applyDemoData(const SyncDelta &data)
 {
     // Sent and applied at once, as far as pending values are concerned.
     m_appliedPoll = ++m_pollsSent;
     applyData(data);
 }
 
-void SyncEngine::applyData(const QJsonObject &data)
+void SyncEngine::applyData(const SyncDelta &data)
 {
-    const bool fullUpdate = data.value(key("full_update")).toBool(false);
-    const QJsonArray removedTorrents = data.value(key("torrents_removed")).toArray();
-    const QJsonObject torrents =
-        withPendingValues(data.value(key("torrents")).toObject(), removedTorrents, fullUpdate);
+    const bool fullUpdate = data.full;
+    const QList<TorrentPatch> torrents =
+        withPendingValues(data.torrents, data.removedTorrents, fullUpdate);
 
     // What to announce afterwards, decided against the state before the merge. Only the
     // first full update is silent (there is no "before" yet); a later one (after a lost
     // server, or a server that forgot our rid) still compares against the rows we hold.
     QStringList completed;
     if (!fullUpdate || m_hadFullUpdate) {
-        for (auto it = torrents.constBegin(); it != torrents.constEnd(); ++it) {
-            const int row = m_torrents->indexOfHash(it.key());
-            const QJsonObject diff = it.value().toObject();
+        for (const TorrentPatch &diff : torrents) {
+            const int row = m_torrents->indexOfHash(diff.hash);
             if (row < 0) {
                 // A full update lists everything: an unknown row there says nothing about
                 // when it finished.
@@ -347,44 +339,47 @@ void SyncEngine::applyData(const QJsonObject &data)
                 // finished between two polls (a small torrent does, in one 1.5 s interval).
                 // Complete with nothing downloaded: added over data already on disk, which
                 // is not a finished download.
-                if (diff.value(key("progress")).toDouble() >= 1.0 &&
-                    diff.value(key("downloaded")).toInteger() > 0)
-                    completed.append(it.key());
+                const double progress =
+                    diff.has(TorrentField::Progress) ? diff.values.progress : 0.0;
+                const qint64 downloaded =
+                    diff.has(TorrentField::Downloaded) ? diff.values.downloaded : 0;
+                if (progress >= 1.0 && downloaded > 0)
+                    completed.append(diff.hash);
                 continue;
             }
             const Torrent &before = m_torrents->torrentAt(row);
 
-            const bool nowComplete = diff.value(key("progress")).toDouble(before.progress) >= 1.0;
-            const bool hasCompletionOn = diff.value(key("completion_on")).toInteger(0) > 0;
-            if ((nowComplete || hasCompletionOn) && !before.isComplete() &&
+            const double progress =
+                diff.has(TorrentField::Progress) ? diff.values.progress : before.progress;
+            const bool hasCompletionOn =
+                diff.has(TorrentField::CompletionOn) && diff.values.completionOn.isValid();
+            if ((progress >= 1.0 || hasCompletionOn) && !before.isComplete() &&
                 !before.completionOn.isValid())
-                completed.append(it.key());
+                completed.append(diff.hash);
         }
     }
 
     if (fullUpdate) {
         m_torrents->applyFullUpdate(torrents);
-        m_categories->applyFullUpdate(data.value(key("categories")).toObject());
-        m_tags->applyFullUpdate(data.value(key("tags")).toArray());
-        m_trackers->applyFullUpdate(data.value(key("trackers")).toObject());
+        m_categories->applyFullUpdate(data.categories);
+        m_tags->applyFullUpdate(data.tags);
+        m_trackers->applyFullUpdate(data.trackers);
     } else {
-        m_torrents->applyPartial(torrents, removedTorrents);
-        m_categories->applyPartial(data.value(key("categories")).toObject(),
-                                   data.value(key("categories_removed")).toArray());
-        m_tags->applyPartial(data.value(key("tags")).toArray(),
-                             data.value(key("tags_removed")).toArray());
-        m_trackers->applyPartial(data.value(key("trackers")).toObject(),
-                                 data.value(key("trackers_removed")).toArray());
+        m_torrents->applyPartial(torrents, data.removedTorrents);
+        m_categories->applyPartial(data.categories, data.removedCategories);
+        m_tags->applyPartial(data.tags, data.removedTags);
+        m_trackers->applyPartial(data.trackers, data.removedTrackers);
     }
 
     // FilterCounts has already recomputed (TorrentModel::updated fires synchronously), so
     // the trackerless bucket is one lookup away.
     m_trackers->setTrackerlessHashes(m_counts->trackerlessHashes());
 
-    m_globalState->applyServerState(data.value(key("server_state")).toObject());
+    if (data.serverState)
+        m_globalState->applyServerState(*data.serverState);
 
-    const int nextRid = data.value(key("rid")).toInt(m_rid);
-    m_rid = nextRid > 0 ? nextRid : m_rid;
+    if (data.cursor && *data.cursor > 0)
+        m_rid = *data.cursor;
 
     settleAnsweredValues();
 
@@ -418,31 +413,32 @@ void SyncEngine::applyData(const QJsonObject &data)
 
 // ---- pending torrent values (M12) ------------------------------------------------------------
 
-void SyncEngine::setPendingTorrentValue(const QString &hash,
-                                        const QString &key,
-                                        const QJsonValue &value,
-                                        const QJsonValue &current)
+void SyncEngine::setPendingTorrentValue(const TorrentPatch &value)
 {
-    if (m_torrents->indexOfHash(hash) < 0)
+    const int row = m_torrents->indexOfHash(value.hash);
+    if (row < 0 || value.isEmpty())
         return;
-    auto &fields = m_pending[hash];
-    const auto it = fields.find(key);
-    PendingValue &pending = it != fields.end() ? *it : fields[key];
-    if (it == fields.end())
-        pending.serverValue = current; // a stacked request keeps what the server said
-    pending.target = value;
-    ++pending.unanswered;
-    pending.answered = false;
-    pending.expiry = QDeadlineTimer(kPendingLifetime);
-    patchTorrents(QJsonObject{{hash, QJsonObject{{key, value}}}});
+    const Torrent &current = m_torrents->torrentAt(row);
+    auto &fields = m_pending[value.hash];
+    value.fields.forEach([&](TorrentField field) {
+        const auto it = fields.find(field);
+        PendingValue &pending = it != fields.end() ? *it : fields[field];
+        if (it == fields.end())
+            pending.server = current; // a stacked request keeps what the server said
+        pending.target = value.values;
+        ++pending.unanswered;
+        pending.answered = false;
+        pending.expiry = QDeadlineTimer(kPendingLifetime);
+    });
+    patchTorrents({value});
 }
 
-void SyncEngine::settlePendingTorrentValue(const QString &hash, const QString &key, bool refused)
+void SyncEngine::settlePendingTorrentValue(const QString &hash, TorrentField field, bool refused)
 {
     const auto fields = m_pending.find(hash);
     if (fields == m_pending.end())
         return;
-    const auto it = fields->find(key);
+    const auto it = fields->find(field);
     if (it == fields->end())
         return;
     it->unanswered = std::max(0, it->unanswered - 1);
@@ -450,27 +446,30 @@ void SyncEngine::settlePendingTorrentValue(const QString &hash, const QString &k
         return;
     if (refused) {
         // Nothing changed on the server: what it holds is what the polls last said.
-        const QJsonValue serverValue = it->serverValue;
+        TorrentPatch serverValue = TorrentPatch::of(it->server, field);
+        serverValue.hash = hash;
         fields->erase(it);
         if (fields->isEmpty())
             m_pending.erase(fields);
-        patchTorrents(QJsonObject{{hash, QJsonObject{{key, serverValue}}}});
+        patchTorrents({serverValue});
         return;
     }
     it->answered = true;
     it->settleAfterPoll = m_pollsSent;
 }
 
-std::optional<QJsonValue> SyncEngine::pendingTorrentValue(const QString &hash,
-                                                          const QString &key) const
+std::optional<TorrentPatch> SyncEngine::pendingTorrentValue(const QString &hash,
+                                                            TorrentField field) const
 {
     const auto fields = m_pending.constFind(hash);
     if (fields == m_pending.constEnd())
         return std::nullopt;
-    const auto it = fields->constFind(key);
+    const auto it = fields->constFind(field);
     if (it == fields->constEnd())
         return std::nullopt;
-    return it->target;
+    TorrentPatch target = TorrentPatch::of(it->target, field);
+    target.hash = hash;
+    return target;
 }
 
 int SyncEngine::pendingTorrentValueCount() const
@@ -481,33 +480,32 @@ int SyncEngine::pendingTorrentValueCount() const
     return count;
 }
 
-QJsonObject
-SyncEngine::withPendingValues(QJsonObject torrents, const QJsonArray &removed, bool full)
+QList<TorrentPatch>
+SyncEngine::withPendingValues(QList<TorrentPatch> torrents, const QStringList &removed, bool full)
 {
     if (m_pending.isEmpty())
         return torrents;
-    for (const QJsonValue &gone : removed)
-        m_pending.remove(gone.toString());
+    for (const QString &gone : removed)
+        m_pending.remove(gone);
+    QHash<QString, qsizetype> rowOf;
+    for (qsizetype i = 0; i < torrents.size(); ++i)
+        rowOf.insert(torrents.at(i).hash, i);
     for (auto fields = m_pending.begin(); fields != m_pending.end();) {
-        const auto row = torrents.find(fields.key());
-        if (row == torrents.end()) {
+        const auto row = rowOf.constFind(fields.key());
+        if (row == rowOf.constEnd()) {
             // A full update lists every torrent: one it leaves out is gone.
             fields = full ? m_pending.erase(fields) : std::next(fields);
             continue;
         }
-        QJsonObject diff = row->toObject();
-        bool changed = false;
+        TorrentPatch &diff = torrents[*row];
         for (auto it = fields->begin(); it != fields->end(); ++it) {
-            if (!diff.contains(it.key()))
+            if (!diff.has(it.key()))
                 continue;
             // What the server holds now; the model keeps showing the change asked for, so a
             // poll the server answered before it took the request cannot flip it back.
-            it->serverValue = diff.value(it.key());
-            diff.insert(it.key(), it->target);
-            changed = true;
+            it->server.apply(TorrentPatch::of(diff.values, it.key()));
+            diff.values.apply(TorrentPatch::of(it->target, it.key()));
         }
-        if (changed)
-            *row = diff;
         ++fields;
     }
     return torrents;
@@ -515,33 +513,34 @@ SyncEngine::withPendingValues(QJsonObject torrents, const QJsonArray &removed, b
 
 void SyncEngine::settleAnsweredValues()
 {
-    QJsonObject released;
+    QList<TorrentPatch> released;
     for (auto fields = m_pending.begin(); fields != m_pending.end();) {
-        QJsonObject values;
+        TorrentPatch values(fields.key());
         for (auto it = fields->begin(); it != fields->end();) {
             const bool shown = it->answered && m_appliedPoll > it->settleAfterPoll;
             if (shown || it->expiry.hasExpired()) {
-                values.insert(it.key(), it->serverValue);
+                values.values.apply(TorrentPatch::of(it->server, it.key()));
+                values.fields.set(it.key());
                 it = fields->erase(it);
             } else {
                 ++it;
             }
         }
         if (!values.isEmpty())
-            released.insert(fields.key(), values);
+            released.append(values);
         fields = fields->isEmpty() ? m_pending.erase(fields) : std::next(fields);
     }
     if (!released.isEmpty())
         patchTorrents(released);
 }
 
-void SyncEngine::patchTorrents(const QJsonObject &values)
+void SyncEngine::patchTorrents(const QList<TorrentPatch> &values)
 {
     // Only rows the model has: applyPartial() would add an unknown hash as a new torrent.
-    QJsonObject known;
-    for (auto it = values.constBegin(); it != values.constEnd(); ++it) {
-        if (m_torrents->indexOfHash(it.key()) >= 0)
-            known.insert(it.key(), it.value());
+    QList<TorrentPatch> known;
+    for (const TorrentPatch &patch : values) {
+        if (m_torrents->indexOfHash(patch.hash) >= 0)
+            known.append(patch);
     }
     if (!known.isEmpty())
         m_torrents->applyPartial(known, {});

@@ -4,7 +4,6 @@
 
 #include <QDateTime>
 #include <QHash>
-#include <QJsonObject>
 #include <QUrl>
 
 #include <algorithm>
@@ -20,27 +19,25 @@ QString countOrDash(int value)
     return value < 0 ? QStringLiteral("—") : Format::count(value);
 }
 
-/// The three names qBittorrent wraps in `** [...] **`.
-QString pseudoName(const QString &url)
-{
-    if (!url.startsWith(QLatin1String("** [")) || !url.endsWith(QLatin1String("] **")))
-        return {};
-    return url.mid(4, url.size() - 8);
-}
-
 } // namespace
 
-bool TorrentTrackersModel::isPseudoTracker(const QString &url)
+QString TorrentTrackersModel::sourceName(TrackerSource source)
 {
-    return !pseudoName(url).isEmpty();
+    switch (source) {
+    case TrackerSource::Dht:
+        return QStringLiteral("DHT");
+    case TrackerSource::Pex:
+        return QStringLiteral("PeX");
+    case TrackerSource::Lsd:
+        return QStringLiteral("LSD");
+    case TrackerSource::Announce:
+        break;
+    }
+    return {};
 }
 
 QString TorrentTrackersModel::hostOf(const QString &url)
 {
-    const QString pseudo = pseudoName(url);
-    if (!pseudo.isEmpty())
-        return pseudo;
-
     const QUrl parsed(url);
     const QString host = parsed.host();
     return host.isEmpty() ? url : host;
@@ -79,14 +76,12 @@ QString TorrentTrackersModel::statusText(int status, const QString &msg, qint64 
     }
 }
 
-qint64 TorrentTrackersModel::secondsUntilAnnounce(qint64 nextAnnounce, qint64 nowSecs)
+qint64 TorrentTrackersModel::secondsUntilAnnounce(std::optional<qint64> nextAnnounce,
+                                                  qint64 nowSecs)
 {
-    constexpr qint64 kEpochThreshold = 1'000'000'000;
-    if (nextAnnounce <= 0)
+    if (!nextAnnounce)
         return 0;
-    if (nextAnnounce < kEpochThreshold)
-        return nextAnnounce;
-    return std::max<qint64>(0, nextAnnounce - nowSecs);
+    return std::max<qint64>(0, *nextAnnounce - nowSecs);
 }
 
 TorrentTrackersModel::TorrentTrackersModel(QObject *parent)
@@ -183,34 +178,32 @@ QString TorrentTrackersModel::urlAt(int row) const
     return row >= 0 && row < int(m_rows.size()) ? m_rows.at(row).url : QString();
 }
 
-void TorrentTrackersModel::applyTrackers(const QJsonArray &trackers)
+void TorrentTrackersModel::applyTrackers(const QList<TrackerEntry> &trackers)
 {
     applyTrackers(trackers, QDateTime::currentSecsSinceEpoch());
 }
 
-void TorrentTrackersModel::applyTrackers(const QJsonArray &trackers, qint64 nowSecs)
+void TorrentTrackersModel::applyTrackers(const QList<TrackerEntry> &trackers, qint64 nowSecs)
 {
     QList<TorrentTracker> rows;
     rows.reserve(trackers.size());
 
-    for (const QJsonValue &value : trackers) {
-        const QJsonObject entry = value.toObject();
+    for (const TrackerEntry &entry : trackers) {
         TorrentTracker row;
-        row.url = entry.value(QStringLiteral("url")).toString();
+        row.url = entry.url;
         if (row.url.isEmpty())
             continue;
-        row.host = hostOf(row.url);
-        row.isPseudo = isPseudoTracker(row.url);
-        row.tier = entry.value(QStringLiteral("tier")).toInt(-1);
-        row.status = entry.value(QStringLiteral("status")).toInt(int(TrackerStatus::NotContacted));
-        row.seeds = entry.value(QStringLiteral("num_seeds")).toInt(-1);
-        row.peers = entry.value(QStringLiteral("num_peers")).toInt(-1);
-        row.leeches = entry.value(QStringLiteral("num_leeches")).toInt(-1);
-        row.downloaded = entry.value(QStringLiteral("num_downloaded")).toInt(-1);
+        row.isPseudo = entry.source != TrackerSource::Announce;
+        row.host = row.isPseudo ? sourceName(entry.source) : hostOf(row.url);
+        row.tier = entry.tier;
+        row.status = entry.status;
+        row.seeds = entry.seeds.value_or(-1);
+        row.peers = entry.peers.value_or(-1);
+        row.leeches = entry.leeches.value_or(-1);
+        row.downloaded = entry.downloaded.value_or(-1);
         // Kept as seconds left, worked out now: each poll then moves the figure along.
-        row.nextAnnounce = secondsUntilAnnounce(
-            qint64(entry.value(QStringLiteral("next_announce")).toDouble()), nowSecs);
-        row.msg = entry.value(QStringLiteral("msg")).toString();
+        row.nextAnnounce = secondsUntilAnnounce(entry.nextAnnounce, nowSecs);
+        row.msg = entry.message;
         rows.append(row);
     }
 

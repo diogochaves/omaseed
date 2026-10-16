@@ -1,6 +1,7 @@
 // GlobalState: server_state merged key by key, the engine's own fields, and the formatted
 // twins the hero binds to (spec §1: "↓ 4.21 MB/s", "1.8 TB free").
 
+#include "QbtFeed.hpp"
 #include "core/ApiError.hpp"
 #include "core/GlobalState.hpp"
 
@@ -43,7 +44,7 @@ void TestGlobalState::appliesTheRecordedServerState()
     const QJsonObject full = QJsonDocument::fromJson(file.readAll()).object();
 
     GlobalState state;
-    state.applyServerState(full.value(QStringLiteral("server_state")).toObject());
+    qbtfeed::serverState(state, full.value(QStringLiteral("server_state")).toObject());
 
     QCOMPARE(state.connectionStatus(), QStringLiteral("firewalled"));
     QCOMPARE(state.queueing(), true);
@@ -56,7 +57,8 @@ void TestGlobalState::appliesTheRecordedServerState()
 void TestGlobalState::mergesOnlyThePresentKeys()
 {
     GlobalState state;
-    state.applyServerState(
+    qbtfeed::serverState(
+        state,
         QJsonObject{{QStringLiteral("dl_info_speed"), 4414997},
                     {QStringLiteral("up_info_speed"), 831488},
                     {QStringLiteral("free_space_on_disk"), 1979120929996LL},
@@ -71,7 +73,7 @@ void TestGlobalState::mergesOnlyThePresentKeys()
     QCOMPARE(state.dhtNodes(), 312);
 
     // A later poll that only carries the speeds must not wipe the rest.
-    state.applyServerState(QJsonObject{{QStringLiteral("dl_info_speed"), 0}});
+    qbtfeed::serverState(state, QJsonObject{{QStringLiteral("dl_info_speed"), 0}});
     QCOMPARE(state.dlInfoSpeed(), 0);
     QCOMPARE(state.connectionStatus(), QStringLiteral("connected"));
     QCOMPARE(state.dhtNodes(), 312);
@@ -83,11 +85,11 @@ void TestGlobalState::notifiesOnlyOnRealChanges()
     GlobalState state;
     QSignalSpy spy(&state, &GlobalState::dlInfoSpeedChanged);
 
-    state.applyServerState(QJsonObject{{QStringLiteral("dl_info_speed"), 1024}});
+    qbtfeed::serverState(state, QJsonObject{{QStringLiteral("dl_info_speed"), 1024}});
     QCOMPARE(spy.count(), 1);
-    state.applyServerState(QJsonObject{{QStringLiteral("dl_info_speed"), 1024}});
+    qbtfeed::serverState(state, QJsonObject{{QStringLiteral("dl_info_speed"), 1024}});
     QCOMPARE(spy.count(), 1);
-    state.applyServerState(QJsonObject{{QStringLiteral("dl_info_speed"), 2048}});
+    qbtfeed::serverState(state, QJsonObject{{QStringLiteral("dl_info_speed"), 2048}});
     QCOMPARE(spy.count(), 2);
 }
 
@@ -122,7 +124,8 @@ void TestGlobalState::resetClearsEverythingButTheName()
     GlobalState state;
     state.setServerName(QStringLiteral("seedbox"));
     state.setConnected(true);
-    state.applyServerState(
+    qbtfeed::serverState(
+        state,
         QJsonObject{{QStringLiteral("dl_info_speed"), 4414997},
                     {QStringLiteral("connection_status"), QStringLiteral("connected")}});
 

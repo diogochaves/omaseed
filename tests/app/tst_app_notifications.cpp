@@ -5,6 +5,7 @@
 // SyncEngine itself (when to fire) is covered by tests/core/tst_syncengine_fixtures.cpp; this
 // file only checks what App does with those events once they arrive.
 
+#include "QbtFeed.hpp"
 #include "core/Format.hpp"
 #include "core/LogFilterModel.hpp"
 #include "core/ProblemLog.hpp"
@@ -384,7 +385,7 @@ void TestAppNotifications::anErrorSendsOneNoticeWithItsReason()
          QStringLiteral(
              "File error alert. Torrent: \"fixture-one\". File: \"/d/fixture-one\". "
              "Reason: \"4a4e3b file_open (/d/fixture-one) error: Permission denied\"")}}};
-    app.engine()->problems()->applyEntries(log);
+    qbtfeed::entries(*app.engine()->problems(), log);
     QCOMPARE(m_bus.server()->calls.size(), 1);
     const auto &call = m_bus.server()->calls.first();
     QCOMPARE(call.summary, QStringLiteral("fixture-one stopped with an error"));
@@ -398,7 +399,7 @@ void TestAppNotifications::anErrorSendsOneNoticeWithItsReason()
                           QStringLiteral("show")}));
 
     // Another read is not another notice.
-    app.engine()->problems()->applyEntries(log);
+    qbtfeed::entries(*app.engine()->problems(), log);
     QCOMPARE(m_bus.server()->calls.size(), 1);
 
     // Off: back to work, then into error again, and nothing is sent.
@@ -409,7 +410,7 @@ void TestAppNotifications::anErrorSendsOneNoticeWithItsReason()
          QJsonObject{{kCompletedHash,
                       QJsonObject{{QStringLiteral("state"), QStringLiteral("downloading")}}}}}});
     app.applyDemoData(errored);
-    app.engine()->problems()->applyEntries({});
+    qbtfeed::entries(*app.engine()->problems(), {});
     QCOMPARE(m_bus.server()->calls.size(), 1);
     app.setNotificationEnabled(QStringLiteral("errored"), true);
 }
@@ -710,7 +711,7 @@ void TestAppNotifications::aFailureIsNeverANoticeButTheFooterHearsIt()
     QSignalSpy told(&app, &App::loggedFailure);
 
     app.engine()->problems()->watchMove({kMovedHash}, QStringLiteral("/d/dest"));
-    app.engine()->problems()->applyEntries(moveFailedLog());
+    qbtfeed::entries(*app.engine()->problems(), moveFailedLog());
     QCOMPARE(told.size(), 1);
     QCOMPARE(told.at(0).at(0).toString(),
              QStringLiteral("log55-move.bin didn't move: Permission denied"));
@@ -740,7 +741,7 @@ void TestAppNotifications::aDismissedFailureStaysDismissedAfterARestart()
         App app;
         app.start();
         QVERIFY(waitFor([&] { return app.engine()->torrents()->count() == 1; }));
-        app.engine()->problems()->applyEntries(moveFailedLog());
+        qbtfeed::entries(*app.engine()->problems(), moveFailedLog());
         QVERIFY(failureShown(app));
         app.dismissFailure(kMovedHash);
         QVERIFY(!failureShown(app));
@@ -757,7 +758,7 @@ void TestAppNotifications::aDismissedFailureStaysDismissedAfterARestart()
     App next;
     next.start();
     QVERIFY(waitFor([&] { return next.engine()->torrents()->count() == 1; }));
-    next.engine()->problems()->applyEntries(moveFailedLog());
+    qbtfeed::entries(*next.engine()->problems(), moveFailedLog());
     QVERIFY(!failureShown(next));
     next.engine()->stop();
 }

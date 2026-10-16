@@ -13,6 +13,7 @@
 // is intended and reviewed. Texts that depend on today's date (Format::relativeTime) are left
 // out; every one of them is computed from a raw value that is in the snapshot.
 
+#include "QbtFeed.hpp"
 #include "core/CategoryModel.hpp"
 #include "core/FilterCounts.hpp"
 #include "core/GlobalState.hpp"
@@ -111,10 +112,10 @@ QJsonValue toJson(const QVariant &value)
     return value.toString();
 }
 
-/// The native state word of the `state` role.
+/// The native state word of the `state` role (main's int enum became the word itself).
 QJsonValue stateWord(const QVariant &value)
 {
-    return torrentStateKey(TorrentState(value.toInt()));
+    return value.toString();
 }
 
 QJsonArray rowsOf(const QAbstractItemModel &model, const QSet<QByteArray> &skip = {})
@@ -321,9 +322,10 @@ void TestQbtGolden::matchesGolden()
     QJsonObject previousRows;
     QJsonObject previousRest;
     for (const QString &step : std::as_const(steps)) {
-        engine.applyDemoData(readJson(step).toObject());
+        qbtfeed::demo(engine, readJson(step).toObject());
         if (step.contains(QLatin1String("-error.json")))
-            engine.problems()->applyEntries(readJson(QStringLiteral("log-main.json")).toArray());
+            qbtfeed::entries(*engine.problems(),
+                             readJson(QStringLiteral("log-main.json")).toArray());
 
         QJsonObject snapshot{{QStringLiteral("step"), step}};
         const QJsonObject rows = rowsByHash(rowsOf(*torrents, skip));
@@ -380,16 +382,18 @@ void TestQbtGolden::matchesGolden()
     TorrentDetails details;
     details.setTorrentModel(torrents);
     const QJsonArray trackers = readJson(QStringLiteral("trackers.json")).toArray();
-    details.applyDemo(QJsonObject{
-        {QStringLiteral("hash"), hash},
-        {QStringLiteral("properties"), properties},
-        {QStringLiteral("files"), readJson(QStringLiteral("files.json"))},
-        {QStringLiteral("trackers"), trackers},
-        {QStringLiteral("peers"), readJson(QStringLiteral("peers-01-full.json"))},
-        {QStringLiteral("webSeeds"), readJson(QStringLiteral("webseeds.json"))},
-        {QStringLiteral("pieceStates"), readJson(QStringLiteral("piecestates.json"))},
-    });
-    details.trackers()->applyTrackers(trackers, kNow);
+    qbtfeed::details(
+        details,
+        QJsonObject{
+            {QStringLiteral("hash"), hash},
+            {QStringLiteral("properties"), properties},
+            {QStringLiteral("files"), readJson(QStringLiteral("files.json"))},
+            {QStringLiteral("trackers"), trackers},
+            {QStringLiteral("peers"), readJson(QStringLiteral("peers-01-full.json"))},
+            {QStringLiteral("webSeeds"), readJson(QStringLiteral("webseeds.json"))},
+            {QStringLiteral("pieceStates"), readJson(QStringLiteral("piecestates.json"))},
+        });
+    qbtfeed::trackers(*details.trackers(), trackers, kNow);
 
     const QSet<QByteArray> dayRelativeProperties{"createdOn", "lastSeen", "completedOn"};
     const auto detailsSnapshot = [&]() {
@@ -416,16 +420,18 @@ void TestQbtGolden::matchesGolden()
 
     // The partial peers answer, and files with every priority and the seeding
     // properties, on top.
-    details.applyDemo(QJsonObject{
-        {QStringLiteral("hash"), hash},
-        {QStringLiteral("properties"), readJson(QStringLiteral("properties-seeding.json"))},
-        {QStringLiteral("files"), readJson(QStringLiteral("files-priorities.json"))},
-        {QStringLiteral("trackers"), trackers},
-        {QStringLiteral("peers"), readJson(QStringLiteral("peers-02-partial.json"))},
-        {QStringLiteral("webSeeds"), readJson(QStringLiteral("webseeds.json"))},
-        {QStringLiteral("pieceStates"), readJson(QStringLiteral("piecestates.json"))},
-    });
-    details.trackers()->applyTrackers(trackers, kNow);
+    qbtfeed::details(
+        details,
+        QJsonObject{
+            {QStringLiteral("hash"), hash},
+            {QStringLiteral("properties"), readJson(QStringLiteral("properties-seeding.json"))},
+            {QStringLiteral("files"), readJson(QStringLiteral("files-priorities.json"))},
+            {QStringLiteral("trackers"), trackers},
+            {QStringLiteral("peers"), readJson(QStringLiteral("peers-02-partial.json"))},
+            {QStringLiteral("webSeeds"), readJson(QStringLiteral("webseeds.json"))},
+            {QStringLiteral("pieceStates"), readJson(QStringLiteral("piecestates.json"))},
+        });
+    qbtfeed::trackers(*details.trackers(), trackers, kNow);
     const QJsonObject detailsAfter = detailsSnapshot();
 
     // The log face.

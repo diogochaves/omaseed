@@ -5,6 +5,7 @@
 // HTTP server of our own that answers log/main and torrents/files and records what it was
 // asked. The lines are the playground's (tst_failurelines).
 
+#include "QbtFeed.hpp"
 #include "core/ProblemLog.hpp"
 #include "core/QbtClient.hpp"
 #include "core/TorrentModel.hpp"
@@ -178,7 +179,8 @@ void TestProblemLogFailures::init()
     m_model = new TorrentModel;
     m_log = new ProblemLog;
     m_log->setTorrents(m_model);
-    m_model->applyFullUpdate(
+    qbtfeed::full(
+        *m_model,
         {{kMoveHash,
           torrent(QStringLiteral("log55-move.bin"), kRoot + QStringLiteral("/src"), kMoveHash)},
          {kRenameHash,
@@ -199,7 +201,7 @@ void TestProblemLogFailures::cleanup()
 void TestProblemLogFailures::aFailedMoveShowsOnItsTorrent()
 {
     QSignalSpy changed(m_model, &TorrentModel::problemsChanged);
-    m_log->applyEntries({entry(220, moveLine())});
+    qbtfeed::entries(*m_log, {entry(220, moveLine())});
     QCOMPARE(changed.count(), 1);
 
     const QVariantMap failure = failureOf(*m_model, kMoveHash);
@@ -216,23 +218,25 @@ void TestProblemLogFailures::aFailedMoveShowsOnItsTorrent()
     QVERIFY(failureOf(*m_model, kRenameHash).isEmpty());
 
     // Tried again, failed again: one block, "2 times".
-    m_log->applyEntries({entry(230, moveLine())});
+    qbtfeed::entries(*m_log, {entry(230, moveLine())});
     QCOMPARE(failureOf(*m_model, kMoveHash).value(QStringLiteral("count")).toInt(), 2);
 }
 
 void TestProblemLogFailures::aMoveFailureGoesWhenTheSavePathChanges()
 {
-    m_log->applyEntries({entry(220, moveLine())});
+    qbtfeed::entries(*m_log, {entry(220, moveLine())});
     QVERIFY(!failureOf(*m_model, kMoveHash).isEmpty());
 
-    m_model->applyPartial(
+    qbtfeed::partial(
+        *m_model,
         {{kMoveHash, QJsonObject{{QStringLiteral("save_path"), kRoot + QStringLiteral("/dest")}}}},
         {});
     sync();
     QVERIFY(failureOf(*m_model, kMoveHash).isEmpty());
 
     // Moved back to where it was: the old failure is history, it does not come back.
-    m_model->applyPartial(
+    qbtfeed::partial(
+        *m_model,
         {{kMoveHash, QJsonObject{{QStringLiteral("save_path"), kRoot + QStringLiteral("/src")}}}},
         {});
     sync();
@@ -242,10 +246,11 @@ void TestProblemLogFailures::aMoveFailureGoesWhenTheSavePathChanges()
 void TestProblemLogFailures::aRenameFailureGoesWhenTheFileIsRenamed()
 {
     // The playground's own lines: b.txt alone, then the whole folder.
-    m_log->applyEntries({entry(221, renameLine(QStringLiteral("log55-rename/b.txt"))),
-                         entry(222, renameLine(QStringLiteral("log55-rename/a.txt"))),
-                         entry(223, renameLine(QStringLiteral("log55-rename/b.txt"))),
-                         entry(224, renameLine(QStringLiteral("log55-rename/c.txt")))});
+    qbtfeed::entries(*m_log,
+                     {entry(221, renameLine(QStringLiteral("log55-rename/b.txt"))),
+                      entry(222, renameLine(QStringLiteral("log55-rename/a.txt"))),
+                      entry(223, renameLine(QStringLiteral("log55-rename/b.txt"))),
+                      entry(224, renameLine(QStringLiteral("log55-rename/c.txt")))});
     QVariantMap failure = failureOf(*m_model, kRenameHash);
     QCOMPARE(failure.value(QStringLiteral("headline")).toString(),
              QStringLiteral("3 files kept their old names"));
@@ -283,18 +288,20 @@ void TestProblemLogFailures::aRenameFailureGoesWhenTheFileIsRenamed()
 
 void TestProblemLogFailures::twinsOfOneNameAreToldApartByTheRenameAsked()
 {
-    m_model->applyPartial(
-        {{kTwinHash, torrent(QStringLiteral("log55-rename"), QStringLiteral("/elsewhere"))}}, {});
+    qbtfeed::partial(
+        *m_model,
+        {{kTwinHash, torrent(QStringLiteral("log55-rename"), QStringLiteral("/elsewhere"))}},
+        {});
     sync();
 
     // Nothing says which of the two the line is about: both show it, and say so.
-    m_log->applyEntries({entry(221, renameLine(QStringLiteral("log55-rename/b.txt")))});
+    qbtfeed::entries(*m_log, {entry(221, renameLine(QStringLiteral("log55-rename/b.txt")))});
     QCOMPARE(failureOf(*m_model, kRenameHash).value(QStringLiteral("ambiguous")).toBool(), true);
     QCOMPARE(failureOf(*m_model, kTwinHash).value(QStringLiteral("ambiguous")).toBool(), true);
 
     // omaseed asked to rename in one of them: that one.
     m_log->watchRename(kRenameHash, 1);
-    m_log->applyEntries({entry(225, renameLine(QStringLiteral("log55-rename/c.txt")))});
+    qbtfeed::entries(*m_log, {entry(225, renameLine(QStringLiteral("log55-rename/c.txt")))});
     QCOMPARE(failureOf(*m_model, kRenameHash).value(QStringLiteral("ambiguous")).toBool(), false);
     QCOMPARE(failureOf(*m_model, kRenameHash).value(QStringLiteral("detail")).toString(),
              QStringLiteral("Permission denied, renaming log55-rename/b.txt and 1 more"));
@@ -308,10 +315,10 @@ void TestProblemLogFailures::theNewestFailureIsShown()
 {
     const QString partfile = QStringLiteral(
         "Failed to remove partfile. Torrent: \"log55-move.bin\". Reason: \"Directory not empty\".");
-    m_log->applyEntries({entry(220, moveLine()), entry(240, partfile)});
+    qbtfeed::entries(*m_log, {entry(220, moveLine()), entry(240, partfile)});
     QCOMPARE(failureOf(*m_model, kMoveHash).value(QStringLiteral("kind")).toString(),
              QStringLiteral("partfile"));
-    m_log->applyEntries({entry(250, moveLine())});
+    qbtfeed::entries(*m_log, {entry(250, moveLine())});
     QCOMPARE(failureOf(*m_model, kMoveHash).value(QStringLiteral("kind")).toString(),
              QStringLiteral("move"));
     // Dismissing the newest shows the one under it.
@@ -322,10 +329,11 @@ void TestProblemLogFailures::theNewestFailureIsShown()
 
 void TestProblemLogFailures::anErrorKeepsItsProblemAndTheFailureComesToo()
 {
-    m_model->applyPartial(
-        {{kMoveHash, QJsonObject{{QStringLiteral("state"), QStringLiteral("error")}}}}, {});
+    qbtfeed::partial(*m_model,
+                     {{kMoveHash, QJsonObject{{QStringLiteral("state"), QStringLiteral("error")}}}},
+                     {});
     sync();
-    m_log->applyEntries({entry(220, moveLine())});
+    qbtfeed::entries(*m_log, {entry(220, moveLine())});
     // #54's problem says it didn't log a reason (the move line is not one); the failure is
     // there beside it.
     QCOMPARE(m_model->problem(kMoveHash).value(QStringLiteral("causeKey")).toString(),
@@ -337,7 +345,7 @@ void TestProblemLogFailures::anErrorKeepsItsProblemAndTheFailureComesToo()
 void TestProblemLogFailures::aDismissalHidesItForGood()
 {
     QSignalSpy dismissed(m_log, &ProblemLog::dismissedChanged);
-    m_log->applyEntries({entry(220, moveLine())});
+    qbtfeed::entries(*m_log, {entry(220, moveLine())});
     m_log->dismiss(kMoveHash);
     QCOMPARE(dismissed.count(), 1);
     QVERIFY(failureOf(*m_model, kMoveHash).isEmpty());
@@ -347,31 +355,32 @@ void TestProblemLogFailures::aDismissalHidesItForGood()
     sync();
     QVERIFY(failureOf(*m_model, kMoveHash).isEmpty());
     sync(true);
-    m_log->applyEntries({entry(220, moveLine())});
+    qbtfeed::entries(*m_log, {entry(220, moveLine())});
     QVERIFY(failureOf(*m_model, kMoveHash).isEmpty());
     QCOMPARE(m_log->dismissed().size(), 1);
 
     // A new failure is a new line: it shows.
-    m_log->applyEntries({entry(260, moveLine())});
+    qbtfeed::entries(*m_log, {entry(260, moveLine())});
     QVERIFY(!failureOf(*m_model, kMoveHash).isEmpty());
 }
 
 // D4: what dismissed() said, handed to the next omaseed (App keeps it in state.json).
 void TestProblemLogFailures::dismissalsSurviveARestartOfOmaseed()
 {
-    m_log->applyEntries({entry(220, moveLine())});
+    qbtfeed::entries(*m_log, {entry(220, moveLine())});
     m_log->dismiss(kMoveHash);
     const QStringList kept = m_log->dismissed();
 
     TorrentModel model;
     ProblemLog next;
     next.setTorrents(&model);
-    model.applyFullUpdate(
+    qbtfeed::full(
+        model,
         {{kMoveHash,
           torrent(QStringLiteral("log55-move.bin"), kRoot + QStringLiteral("/src"), kMoveHash)}});
     next.onSynced(true);
     next.setDismissed(kept);
-    next.applyEntries({entry(220, moveLine())});
+    qbtfeed::entries(next, {entry(220, moveLine())});
     QVERIFY(failureOf(model, kMoveHash).isEmpty());
     QCOMPARE(next.dismissed(), kept);
 }
@@ -381,7 +390,8 @@ void TestProblemLogFailures::dismissalsSurviveARestartOfOmaseed()
 // more, so the failure goes, and its dismissal is forgotten.
 void TestProblemLogFailures::aRestartOfQbittorrentForgetsTheFailures()
 {
-    m_log->applyEntries(
+    qbtfeed::entries(
+        *m_log,
         {entry(220, moveLine()), entry(221, renameLine(QStringLiteral("log55-rename/b.txt")))});
     m_log->dismiss(kRenameHash);
     QVERIFY(!failureOf(*m_model, kMoveHash).isEmpty());
@@ -392,7 +402,8 @@ void TestProblemLogFailures::aRestartOfQbittorrentForgetsTheFailures()
     QCOMPARE(m_log->lastId(), -1);
     QVERIFY(failureOf(*m_model, kMoveHash).isEmpty());
     // The new log: a few lines, ids from 0, none of them the old ones.
-    m_log->applyEntries(
+    qbtfeed::entries(
+        *m_log,
         {entry(3, QStringLiteral("Detected inconsistent data. Torrent: \"x\""), kLoggedAt + 600)});
     QVERIFY(failureOf(*m_model, kMoveHash).isEmpty());
     QCOMPARE(dismissed.count(), 1);
@@ -401,7 +412,7 @@ void TestProblemLogFailures::aRestartOfQbittorrentForgetsTheFailures()
 
 void TestProblemLogFailures::aLineFromBeforeATorrentWasAddedIsNotAboutIt()
 {
-    m_log->applyEntries({entry(220, moveLine(), kAddedAt - 60)});
+    qbtfeed::entries(*m_log, {entry(220, moveLine(), kAddedAt - 60)});
     QVERIFY(failureOf(*m_model, kMoveHash).isEmpty());
 }
 
@@ -415,7 +426,7 @@ void TestProblemLogFailures::webSeedLinesGoToTheirTorrent()
         "URL seed connection failed. Torrent: \"log55-webseed.bin\". URL: "
         "\"http://127.0.0.1:26956/dead/\". Error: \"014396 url seed (http://127.0.0.1:26956/dead/) "
         "failed: Connection refused\"");
-    m_log->applyEntries({entry(227, notFound), entry(232, refused, kLoggedAt + 60)});
+    qbtfeed::entries(*m_log, {entry(227, notFound), entry(232, refused, kLoggedAt + 60)});
     QCOMPARE(changed.count(), 1);
     const QList<WebSeedLogLine> lines = m_log->webSeedLines(kSeedHash);
     QCOMPARE(lines.size(), 2);
@@ -435,7 +446,7 @@ void TestProblemLogFailures::theNewestExportFailureIsKept()
                        "\"%1/ro-export/log55-webseed.bin.torrent\". Reason: \"Permission denied\"")
             .arg(kRoot);
     QSignalSpy changed(m_log, &ProblemLog::logLinesChanged);
-    m_log->applyEntries({entry(226, line)});
+    qbtfeed::entries(*m_log, {entry(226, line)});
     QCOMPARE(changed.count(), 1);
     const QVariantMap failure = m_log->exportFailure();
     QCOMPARE(failure.value(QStringLiteral("folder")).toString(), kRoot + u"/ro-export");
@@ -447,7 +458,7 @@ void TestProblemLogFailures::theNewestExportFailureIsKept()
 
     // A restart of qBittorrent: gone with its log.
     sync(true);
-    m_log->applyEntries({});
+    qbtfeed::entries(*m_log, {});
     QVERIFY(m_log->exportFailure().isEmpty());
 }
 
@@ -456,7 +467,7 @@ void TestProblemLogFailures::aWatchedMoveTellsAtOnce()
     QSignalSpy told(m_log, &ProblemLog::watchedFailure);
     m_log->watchMove({kMoveHash}, kRoot + QStringLiteral("/dest"));
     QVERIFY(m_log->isWatching());
-    m_log->applyEntries({entry(220, moveLine())});
+    qbtfeed::entries(*m_log, {entry(220, moveLine())});
     QCOMPARE(told.count(), 1);
     QCOMPARE(told.at(0).at(0).toString(),
              QStringLiteral("log55-move.bin didn't move: Permission denied"));
@@ -470,21 +481,21 @@ void TestProblemLogFailures::aBatchMoveTellsOnce()
 {
     QSignalSpy told(m_log, &ProblemLog::watchedFailure);
     m_log->watchMove({kMoveHash, kRenameHash, kSeedHash}, kRoot + QStringLiteral("/dest"));
-    m_log->applyEntries({entry(220, moveLine())});
+    qbtfeed::entries(*m_log, {entry(220, moveLine())});
     QCOMPARE(told.count(), 1);
     QCOMPARE(told.at(0).at(0).toString(), QStringLiteral("1 of 3 didn't move"));
     QVERIFY(m_log->isWatching());
     // A read with nothing new says nothing.
-    m_log->applyEntries({});
+    qbtfeed::entries(*m_log, {});
     QCOMPARE(told.count(), 1);
 }
 
 void TestProblemLogFailures::aLineFromBeforeTheWatchIsNotTold()
 {
     QSignalSpy told(m_log, &ProblemLog::watchedFailure);
-    m_log->applyEntries({entry(220, moveLine())});
+    qbtfeed::entries(*m_log, {entry(220, moveLine())});
     m_log->watchMove({kMoveHash}, kRoot + QStringLiteral("/dest"));
-    m_log->applyEntries({});
+    qbtfeed::entries(*m_log, {});
     QCOMPARE(told.count(), 0);
 }
 
@@ -492,7 +503,7 @@ void TestProblemLogFailures::aWatchedRenameAndDeleteTell()
 {
     QSignalSpy told(m_log, &ProblemLog::watchedFailure);
     m_log->watchRename(kRenameHash, 1);
-    m_log->applyEntries({entry(221, renameLine(QStringLiteral("log55-rename/b.txt")))});
+    qbtfeed::entries(*m_log, {entry(221, renameLine(QStringLiteral("log55-rename/b.txt")))});
     QCOMPARE(told.count(), 1);
     QCOMPARE(told.at(0).at(0).toString(),
              QStringLiteral("b.txt kept its old name: Permission denied"));
@@ -500,12 +511,12 @@ void TestProblemLogFailures::aWatchedRenameAndDeleteTell()
 
     // The delete's names are taken before the torrent leaves the list.
     m_log->watchDelete({kDeleteHash});
-    m_model->applyPartial({}, QJsonArray{kDeleteHash});
+    qbtfeed::partial(*m_model, {}, QJsonArray{kDeleteHash});
     sync();
-    m_log->applyEntries(
-        {entry(231,
-               QStringLiteral("Failed to remove torrent content. Torrent: "
-                              "\"log55-delete.bin\". Error: \"Permission denied\""))});
+    qbtfeed::entries(*m_log,
+                     {entry(231,
+                            QStringLiteral("Failed to remove torrent content. Torrent: "
+                                           "\"log55-delete.bin\". Error: \"Permission denied\""))});
     QCOMPARE(told.count(), 2);
     QCOMPARE(told.at(1).at(0).toString(),
              QStringLiteral("log55-delete.bin was removed, its files weren't: Permission denied"));
@@ -523,7 +534,8 @@ void TestProblemLogFailures::aWatchEndsAfterItsTimeOrWhenTheMoveLanded()
     m_log->watchMove({kMoveHash}, kRoot + QStringLiteral("/dest/"));
     sync();
     QVERIFY(m_log->isWatching());
-    m_model->applyPartial(
+    qbtfeed::partial(
+        *m_model,
         {{kMoveHash, QJsonObject{{QStringLiteral("save_path"), kRoot + QStringLiteral("/dest")}}}},
         {});
     sync();
@@ -603,7 +615,8 @@ void TestProblemLogFailures::aFullUpdateReadsFromTheTopAgain()
     // qBittorrent restarted: a short new log, ids from 0. Asked from 220, it would answer []
     // until its new ids passed 220; the full update makes the read start at the top.
     server.log = {entry(2, QStringLiteral("Detected inconsistent data. Torrent: \"x\""))};
-    m_model->applyFullUpdate(
+    qbtfeed::full(
+        *m_model,
         {{kMoveHash,
           torrent(QStringLiteral("log55-move.bin"), kRoot + QStringLiteral("/src"), kMoveHash)}});
     sync(true);

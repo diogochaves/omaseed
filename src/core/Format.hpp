@@ -9,6 +9,8 @@
 #include <QDateTime>
 #include <QString>
 
+#include <optional>
+
 namespace omaseed::core::Format {
 
 /// "4.21 MB/s", "812 KB/s", "0" for nothing moving (spec §1 hero and table).
@@ -27,6 +29,10 @@ QString eta(qint64 seconds);
 /// The table column's short form: "2m 40s", "7m 05s", "19m", "2h 41m", "∞", "—"
 /// (spec §1 Fig. 1 ETA column).
 QString etaShort(qint64 seconds);
+
+/// The same two for an estimate that may be missing (Torrent::eta): "∞" when there is none.
+QString eta(std::optional<qint64> seconds);
+QString etaShort(std::optional<qint64> seconds);
 
 /// "0.15" — two decimals; a negative (qBittorrent's "no ratio yet") gives "0.00" and
 /// anything at or above 9999 (qBittorrent's MAX_RATIO) gives "∞" the way the WebUI does.

@@ -279,7 +279,6 @@ QtObject {
     property int seedingFilter: TorrentFilterModel.Seeding
     property int seedingGroup: Torrent.StatusGroups.Seeding
     property int erroredGroup: Torrent.StatusGroups.Errored
-    property int stalledUpload: Torrent.TorrentState.StalledUpload
 }
 )",
                       QUrl(QStringLiteral("qrc:/tst_app/Probe.qml")));
@@ -296,7 +295,6 @@ QtObject {
     QCOMPARE(probe->property("seedingFilter").toInt(), int(TorrentFilterModel::Seeding));
     QCOMPARE(probe->property("seedingGroup").toInt(), int(StatusGroup::Seeding));
     QCOMPARE(probe->property("erroredGroup").toInt(), int(StatusGroup::Errored));
-    QCOMPARE(probe->property("stalledUpload").toInt(), int(TorrentState::StalledUpload));
 
     App::setDefaultInstance(nullptr);
 }

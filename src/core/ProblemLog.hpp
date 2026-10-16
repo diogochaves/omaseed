@@ -1,11 +1,11 @@
 #pragma once
 
 #include "core/TorrentProblem.hpp"
+#include "core/engines/LogEntry.hpp"
 
 #include <QDateTime>
 #include <QElapsedTimer>
 #include <QHash>
-#include <QJsonArray>
 #include <QList>
 #include <QObject>
 #include <QPointer>
@@ -66,7 +66,7 @@ public:
 
     /// What `log/main` returned, straight in, as a read that started at lastId(): the tests
     /// feed lines through this.
-    void applyEntries(const QJsonArray &entries);
+    void applyEntries(const QList<LogEntry> &entries);
     /// The last log id read; -1 before the first read, and after reset().
     int lastId() const { return m_lastId; }
     /// Lines kept that are about a torrent's files.
@@ -160,7 +160,7 @@ private:
 
     void updateErrored(bool fullUpdate);
     void read();
-    void applyRead(const QJsonArray &entries, quint64 serial, bool fromStart);
+    void applyRead(const QList<LogEntry> &entries, quint64 serial, bool fromStart);
     void rematch();
     void publish(const QString &hash, const TorrentProblem &problem);
 

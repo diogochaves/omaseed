@@ -1,5 +1,6 @@
 // TagModel: the `tags` array of sync/maindata, its partial merges and `tags_removed`.
 
+#include "QbtFeed.hpp"
 #include "core/TagModel.hpp"
 
 #include <QJsonArray>
@@ -23,11 +24,12 @@ private slots:
 void TestTagModel::fullUpdateSortsAndDeduplicates()
 {
     TagModel model;
-    model.applyFullUpdate(QJsonArray({QStringLiteral("private"),
-                                      QStringLiteral("keep"),
-                                      QStringLiteral("4k"),
-                                      QStringLiteral("keep"),
-                                      QString()}));
+    qbtfeed::full(model,
+                  QJsonArray({QStringLiteral("private"),
+                              QStringLiteral("keep"),
+                              QStringLiteral("4k"),
+                              QStringLiteral("keep"),
+                              QString()}));
 
     QCOMPARE(
         model.tags(),
@@ -40,7 +42,7 @@ void TestTagModel::fullUpdateSortsAndDeduplicates()
 void TestTagModel::roleIsTheName()
 {
     TagModel model;
-    model.applyFullUpdate(QJsonArray({QStringLiteral("keep")}));
+    qbtfeed::full(model, QJsonArray({QStringLiteral("keep")}));
     QCOMPARE(model.data(model.index(0), TagModel::NameRole).toString(), QStringLiteral("keep"));
     QCOMPARE(model.roleNames().value(TagModel::NameRole), QByteArray("name"));
 }
@@ -48,32 +50,32 @@ void TestTagModel::roleIsTheName()
 void TestTagModel::partialAddsAndRemoves()
 {
     TagModel model;
-    model.applyFullUpdate(QJsonArray({QStringLiteral("keep"), QStringLiteral("private")}));
+    qbtfeed::full(model, QJsonArray({QStringLiteral("keep"), QStringLiteral("private")}));
 
-    model.applyPartial(QJsonArray({QStringLiteral("4k")}), QJsonArray());
+    qbtfeed::partial(model, QJsonArray({QStringLiteral("4k")}), QJsonArray());
     QCOMPARE(
         model.tags(),
         QStringList({QStringLiteral("4k"), QStringLiteral("keep"), QStringLiteral("private")}));
 
-    model.applyPartial(QJsonArray(), QJsonArray({QStringLiteral("4k")}));
+    qbtfeed::partial(model, QJsonArray(), QJsonArray({QStringLiteral("4k")}));
     QCOMPARE(model.tags(), QStringList({QStringLiteral("keep"), QStringLiteral("private")}));
 }
 
 void TestTagModel::unchangedPartialIsSilent()
 {
     TagModel model;
-    model.applyFullUpdate(QJsonArray({QStringLiteral("keep")}));
+    qbtfeed::full(model, QJsonArray({QStringLiteral("keep")}));
 
     QSignalSpy countSpy(&model, &TagModel::countChanged);
-    model.applyPartial(QJsonArray(), QJsonArray());
-    model.applyPartial(QJsonArray({QStringLiteral("keep")}), QJsonArray());
+    qbtfeed::partial(model, QJsonArray(), QJsonArray());
+    qbtfeed::partial(model, QJsonArray({QStringLiteral("keep")}), QJsonArray());
     QCOMPARE(countSpy.count(), 0);
 }
 
 void TestTagModel::clearEmptiesIt()
 {
     TagModel model;
-    model.applyFullUpdate(QJsonArray({QStringLiteral("keep")}));
+    qbtfeed::full(model, QJsonArray({QStringLiteral("keep")}));
     model.clear();
     QCOMPARE(model.count(), 0);
 }

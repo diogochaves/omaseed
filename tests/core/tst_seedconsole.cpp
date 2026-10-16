@@ -1,3 +1,4 @@
+#include "QbtFeed.hpp"
 #include "core/Format.hpp"
 #include "core/GlobalState.hpp"
 #include "core/SeedConsole.hpp"
@@ -63,28 +64,37 @@ struct Fixture
 
     Fixture()
     {
-        model.applyFullUpdate(QJsonObject{
-            {QStringLiteral("aaa"),
-             row(QStringLiteral("Nosferatu"), 4000, 0.4, 1, 3, QStringLiteral("films"))},
-            {QStringLiteral("bbb"),
-             row(QStringLiteral("Chopin"), 1000, 6.8, 2, 0, QStringLiteral("audio"))},
-            {QStringLiteral("ccc"),
-             row(QStringLiteral("debian.iso"), 700, 12.0, 2400, 31, QStringLiteral("linux"), 1000)},
-            {QStringLiteral("ddd"),
-             row(QStringLiteral("dataset"),
-                 90000,
-                 1.5,
-                 40,
-                 0,
-                 QStringLiteral("data"),
-                 0,
-                 false,
-                 94)},
-            {QStringLiteral("eee"),
-             row(QStringLiteral("krita"), 400, 2.0, 1, 0, QStringLiteral("linux"), 0, true)},
-        });
+        qbtfeed::full(
+            model,
+            QJsonObject{
+                {QStringLiteral("aaa"),
+                 row(QStringLiteral("Nosferatu"), 4000, 0.4, 1, 3, QStringLiteral("films"))},
+                {QStringLiteral("bbb"),
+                 row(QStringLiteral("Chopin"), 1000, 6.8, 2, 0, QStringLiteral("audio"))},
+                {QStringLiteral("ccc"),
+                 row(QStringLiteral("debian.iso"),
+                     700,
+                     12.0,
+                     2400,
+                     31,
+                     QStringLiteral("linux"),
+                     1000)},
+                {QStringLiteral("ddd"),
+                 row(QStringLiteral("dataset"),
+                     90000,
+                     1.5,
+                     40,
+                     0,
+                     QStringLiteral("data"),
+                     0,
+                     false,
+                     94)},
+                {QStringLiteral("eee"),
+                 row(QStringLiteral("krita"), 400, 2.0, 1, 0, QStringLiteral("linux"), 0, true)},
+            });
         filter.setSourceModel(&model);
-        state.applyServerState(
+        qbtfeed::serverState(
+            state,
             QJsonObject{{QStringLiteral("alltime_ul"), 1000000},
                         {QStringLiteral("alltime_dl"), 250000},
                         {QStringLiteral("global_ratio"), QStringLiteral("4.00")},
@@ -250,7 +260,7 @@ private Q_SLOTS:
                             3,
                             0,
                             QStringLiteral("c%1").arg(i % 3)));
-        model.applyFullUpdate(rows);
+        qbtfeed::full(model, rows);
         filter.setSourceModel(&model);
         console.setClock([] { return kNow; });
         console.setIntervals(3600000, 3600000); // no ticks: only the scope's signals refresh
@@ -272,7 +282,7 @@ private Q_SLOTS:
                 leftInC1 += i % 3 == 1 ? 1 : 0;
             }
         }
-        model.applyPartial(QJsonObject(), gone);
+        qbtfeed::partial(model, QJsonObject(), gone);
         QVERIFY2(count.size() > 1, qPrintable(QString::number(count.size())));
         QCOMPARE(fast.size(), 0); // not on the spot
         QTRY_COMPARE(fast.size(), 1);
@@ -319,7 +329,8 @@ private Q_SLOTS:
         QCOMPARE(points.size(), 1);
 
         // A ratio that moves less than 0.1 % and prints the same keeps its dot.
-        f.model.applyPartial(
+        qbtfeed::partial(
+            f.model,
             QJsonObject{{QStringLiteral("bbb"), QJsonObject{{QStringLiteral("ratio"), 6.8004}}}},
             QJsonArray());
         f.console.refresh();
@@ -327,7 +338,8 @@ private Q_SLOTS:
         QCOMPARE(f.console.ladderPoints(), first);
 
         // Further, it moves: the dot is drawn at its new place.
-        f.model.applyPartial(
+        qbtfeed::partial(
+            f.model,
             QJsonObject{{QStringLiteral("bbb"), QJsonObject{{QStringLiteral("ratio"), 6.9}}}},
             QJsonArray());
         f.console.refresh();
@@ -344,20 +356,22 @@ private Q_SLOTS:
         QVERIFY(found);
 
         // A move within 0.1 % that prints differently counts too: the readout must not lag.
-        f.model.applyPartial(
+        qbtfeed::partial(
+            f.model,
             QJsonObject{{QStringLiteral("aaa"), QJsonObject{{QStringLiteral("ratio"), 0.4049}}}},
             QJsonArray());
         f.console.refresh();
         QCOMPARE(points.size(), 3);
         QVERIFY(Format::ratio(0.4049) != Format::ratio(0.4051));
-        f.model.applyPartial(
+        qbtfeed::partial(
+            f.model,
             QJsonObject{{QStringLiteral("aaa"), QJsonObject{{QStringLiteral("ratio"), 0.4051}}}},
             QJsonArray());
         f.console.refresh();
         QCOMPARE(points.size(), 4);
 
         // A torrent leaving takes its dot.
-        f.model.applyPartial(QJsonObject(), QJsonArray{QStringLiteral("eee")});
+        qbtfeed::partial(f.model, QJsonObject(), QJsonArray{QStringLiteral("eee")});
         f.console.refresh();
         QCOMPARE(points.size(), 5);
         QCOMPARE(f.console.ladderPoints().size(), 4);
@@ -405,13 +419,14 @@ private Q_SLOTS:
         spies.fired();
 
         // Chopin uploads: 1000 bytes more, at 500 B/s; the server counts them too.
-        f.model.applyPartial(QJsonObject{{QStringLiteral("bbb"),
-                                          QJsonObject{{QStringLiteral("uploaded"), 7800},
-                                                      {QStringLiteral("ratio"), 7.8},
-                                                      {QStringLiteral("upspeed"), 500},
-                                                      {QStringLiteral("num_leechs"), 1}}}},
-                             QJsonArray());
-        f.state.applyServerState(QJsonObject{{QStringLiteral("alltime_ul"), 1001000}});
+        qbtfeed::partial(f.model,
+                         QJsonObject{{QStringLiteral("bbb"),
+                                      QJsonObject{{QStringLiteral("uploaded"), 7800},
+                                                  {QStringLiteral("ratio"), 7.8},
+                                                  {QStringLiteral("upspeed"), 500},
+                                                  {QStringLiteral("num_leechs"), 1}}}},
+                         QJsonArray());
+        qbtfeed::serverState(f.state, QJsonObject{{QStringLiteral("alltime_ul"), 1001000}});
         f.console.refresh();
         // The year too: a new ledger's line quotes the server's all-time count.
         QCOMPARE(spies.fired(), QStringLiteral("ladderPoints onAir totals trackers year"));
@@ -419,10 +434,10 @@ private Q_SLOTS:
 
         // Its tracker fails: the warning, the trackers' status, and keeping alive (its swarm
         // count is no longer trusted), nothing else.
-        f.model.applyPartial(
-            QJsonObject{
-                {QStringLiteral("bbb"), QJsonObject{{QStringLiteral("has_tracker_error"), true}}}},
-            QJsonArray());
+        qbtfeed::partial(f.model,
+                         QJsonObject{{QStringLiteral("bbb"),
+                                      QJsonObject{{QStringLiteral("has_tracker_error"), true}}}},
+                         QJsonArray());
         f.console.refresh();
         QCOMPARE(spies.fired(), QStringLiteral("alive attention trackers"));
         QCOMPARE(f.console.attention().value(QStringLiteral("errors")).toInt(), 2);
@@ -494,9 +509,10 @@ private Q_SLOTS:
         f.console.refresh();
         const QString offerBefore =
             f.console.totals().value(QStringLiteral("offerText")).toString();
-        f.model.applyPartial(QJsonObject{{QStringLiteral("fff"),
-                                          crossSeedOf(QStringLiteral("Nosferatu"), 4000, 1200)}},
-                             QJsonArray());
+        qbtfeed::partial(f.model,
+                         QJsonObject{{QStringLiteral("fff"),
+                                      crossSeedOf(QStringLiteral("Nosferatu"), 4000, 1200)}},
+                         QJsonArray());
         f.console.refresh();
         // The disk holds the files once: what you offer does not grow.
         QCOMPARE(f.console.totals().value(QStringLiteral("offerText")).toString(), offerBefore);
@@ -520,9 +536,10 @@ private Q_SLOTS:
     void quietCrossSeedsHoldTheirFilesOnce()
     {
         Fixture f;
-        f.model.applyPartial(QJsonObject{{QStringLiteral("ggg"),
-                                          crossSeedOf(QStringLiteral("dataset"), 90000, 0, 94)}},
-                             QJsonArray());
+        qbtfeed::partial(f.model,
+                         QJsonObject{{QStringLiteral("ggg"),
+                                      crossSeedOf(QStringLiteral("dataset"), 90000, 0, 94)}},
+                         QJsonArray());
         f.console.refresh();
         const QVariantMap holding = f.console.holding();
         QCOMPARE(holding.value(QStringLiteral("rows")).toList().size(), 2);

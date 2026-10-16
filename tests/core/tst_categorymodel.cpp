@@ -1,6 +1,7 @@
 // CategoryModel: the `categories` map of sync/maindata, its partial merges and
 // `categories_removed`, kept sorted for the rail (spec §1) and the picker (spec §4 Fig. 13).
 
+#include "QbtFeed.hpp"
 #include "core/CategoryModel.hpp"
 
 #include <QJsonArray>
@@ -37,12 +38,15 @@ void TestCategoryModel::fullUpdateSortsByName()
     CategoryModel model;
     QSignalSpy countSpy(&model, &CategoryModel::countChanged);
 
-    model.applyFullUpdate(QJsonObject{
-        {QStringLiteral("tv"), category(QStringLiteral("tv"), QStringLiteral("/data/tv"))},
-        {QStringLiteral("Linux"), category(QStringLiteral("Linux"), QStringLiteral("/data/linux"))},
-        {QStringLiteral("movies"),
-         category(QStringLiteral("movies"), QStringLiteral("/data/movies"))},
-    });
+    qbtfeed::full(
+        model,
+        QJsonObject{
+            {QStringLiteral("tv"), category(QStringLiteral("tv"), QStringLiteral("/data/tv"))},
+            {QStringLiteral("Linux"),
+             category(QStringLiteral("Linux"), QStringLiteral("/data/linux"))},
+            {QStringLiteral("movies"),
+             category(QStringLiteral("movies"), QStringLiteral("/data/movies"))},
+        });
 
     QCOMPARE(model.count(), 3);
     QCOMPARE(model.names(),
@@ -55,9 +59,9 @@ void TestCategoryModel::fullUpdateSortsByName()
 void TestCategoryModel::rolesCarryNameAndSavePath()
 {
     CategoryModel model;
-    model.applyFullUpdate(
-        QJsonObject{{QStringLiteral("linux"),
-                     category(QStringLiteral("linux"), QStringLiteral("/data/linux"))}});
+    qbtfeed::full(model,
+                  QJsonObject{{QStringLiteral("linux"),
+                               category(QStringLiteral("linux"), QStringLiteral("/data/linux"))}});
 
     const QModelIndex first = model.index(0);
     QCOMPARE(model.data(first, CategoryModel::NameRole).toString(), QStringLiteral("linux"));
@@ -72,20 +76,22 @@ void TestCategoryModel::rolesCarryNameAndSavePath()
 void TestCategoryModel::partialAddsAndRemoves()
 {
     CategoryModel model;
-    model.applyFullUpdate(
+    qbtfeed::full(
+        model,
         QJsonObject{{QStringLiteral("fixtures"), category(QStringLiteral("fixtures"), QString())},
                     {QStringLiteral("linux"),
                      category(QStringLiteral("linux"), QStringLiteral("/tmp/linux"))}});
 
-    model.applyPartial(QJsonObject{{QStringLiteral("music"),
-                                    category(QStringLiteral("music"), QStringLiteral("/data/m"))}},
-                       QJsonArray({QStringLiteral("linux")}));
+    qbtfeed::partial(model,
+                     QJsonObject{{QStringLiteral("music"),
+                                  category(QStringLiteral("music"), QStringLiteral("/data/m"))}},
+                     QJsonArray({QStringLiteral("linux")}));
 
     QCOMPARE(model.names(), QStringList({QStringLiteral("fixtures"), QStringLiteral("music")}));
 
     // An empty diff must not disturb anything.
     QSignalSpy countSpy(&model, &CategoryModel::countChanged);
-    model.applyPartial(QJsonObject(), QJsonArray());
+    qbtfeed::partial(model, QJsonObject(), QJsonArray());
     QCOMPARE(countSpy.count(), 0);
     QCOMPARE(model.count(), 2);
 }
@@ -93,14 +99,16 @@ void TestCategoryModel::partialAddsAndRemoves()
 void TestCategoryModel::partialSavePathChangeKeepsTheRows()
 {
     CategoryModel model;
-    model.applyFullUpdate(QJsonObject{
-        {QStringLiteral("linux"), category(QStringLiteral("linux"), QStringLiteral("/old"))}});
+    qbtfeed::full(model,
+                  QJsonObject{{QStringLiteral("linux"),
+                               category(QStringLiteral("linux"), QStringLiteral("/old"))}});
 
     QSignalSpy changed(&model, &QAbstractItemModel::dataChanged);
     QSignalSpy reset(&model, &QAbstractItemModel::modelReset);
-    model.applyPartial(QJsonObject{{QStringLiteral("linux"),
-                                    category(QStringLiteral("linux"), QStringLiteral("/new"))}},
-                       QJsonArray());
+    qbtfeed::partial(model,
+                     QJsonObject{{QStringLiteral("linux"),
+                                  category(QStringLiteral("linux"), QStringLiteral("/new"))}},
+                     QJsonArray());
 
     QCOMPARE(model.savePathOf(QStringLiteral("linux")), QStringLiteral("/new"));
     QCOMPARE(changed.count(), 1);
@@ -114,12 +122,14 @@ void TestCategoryModel::partialSavePathChangeKeepsTheRows()
 void TestCategoryModel::partialWithoutSavePathKeepsIt()
 {
     CategoryModel model;
-    model.applyFullUpdate(QJsonObject{
-        {QStringLiteral("movies"), category(QStringLiteral("movies"), QStringLiteral("/data/m"))}});
+    qbtfeed::full(model,
+                  QJsonObject{{QStringLiteral("movies"),
+                               category(QStringLiteral("movies"), QStringLiteral("/data/m"))}});
 
     QSignalSpy changed(&model, &QAbstractItemModel::dataChanged);
     QSignalSpy reset(&model, &QAbstractItemModel::modelReset);
-    model.applyPartial(
+    qbtfeed::partial(
+        model,
         QJsonObject{{QStringLiteral("movies"),
                      QJsonObject{{QStringLiteral("download_path"), QStringLiteral("/x")}}}},
         QJsonArray());
@@ -133,7 +143,8 @@ void TestCategoryModel::partialWithoutSavePathKeepsIt()
 void TestCategoryModel::clearEmptiesIt()
 {
     CategoryModel model;
-    model.applyFullUpdate(
+    qbtfeed::full(
+        model,
         QJsonObject{{QStringLiteral("linux"), category(QStringLiteral("linux"), QString())}});
     model.clear();
     QCOMPARE(model.count(), 0);

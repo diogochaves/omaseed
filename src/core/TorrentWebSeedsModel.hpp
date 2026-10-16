@@ -24,9 +24,9 @@
 #include "core/TorrentProblem.hpp"
 
 #include <QAbstractListModel>
-#include <QJsonArray>
 #include <QList>
 #include <QString>
+#include <QStringList>
 
 namespace omaseed::core {
 
@@ -55,8 +55,8 @@ public:
     int count() const { return int(m_urls.size()); }
     bool loaded() const { return m_loaded; }
 
-    /// The answer of `torrents/webseeds`; entries without a `url` are skipped. Sets `loaded`.
-    void applyWebSeeds(const QJsonArray &webSeeds);
+    /// The torrent's web seed URLs; empty ones are skipped. Sets `loaded`.
+    void applyWebSeeds(const QStringList &webSeeds);
     /// No torrent, or another one on its way: no rows, not loaded. The log lines stay: the
     /// caller hands over the next torrent's with setLogLines().
     void clear();

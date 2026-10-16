@@ -3,9 +3,6 @@
 #include "core/Format.hpp"
 #include "core/TorrentFilesModel.hpp"
 
-#include <QJsonArray>
-#include <QJsonObject>
-
 namespace omaseed::core {
 
 namespace {
@@ -132,15 +129,14 @@ void AddFilesModel::clear()
 
 void AddFilesModel::applyToTree()
 {
-    QJsonArray rows;
+    QList<ContentFile> rows;
+    rows.reserve(m_files.size());
     for (int id = 0; id < int(m_files.size()); ++id) {
-        QJsonObject row;
-        row.insert(QStringLiteral("name"), m_paths.value(id, m_files.at(id).path));
-        row.insert(QStringLiteral("size"), double(m_files.at(id).size));
-        row.insert(QStringLiteral("progress"), 0.0);
-        row.insert(QStringLiteral("priority"), m_priorities.at(id));
-        row.insert(QStringLiteral("index"), id);
-        row.insert(QStringLiteral("availability"), -1.0);
+        ContentFile row;
+        row.path = m_paths.value(id, m_files.at(id).path);
+        row.size = m_files.at(id).size;
+        row.priority = m_priorities.at(id);
+        row.index = id;
         rows.append(row);
     }
     m_tree->applyFiles(rows);

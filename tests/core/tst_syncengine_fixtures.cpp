@@ -5,6 +5,7 @@
 // tests/fixtures/maindata/*.json in order, one file per poll, and records the rid it was
 // asked for.
 
+#include "QbtFeed.hpp"
 #include "core/ApiError.hpp"
 #include "core/CategoryModel.hpp"
 #include "core/FilterCounts.hpp"
@@ -714,7 +715,7 @@ void TestSyncEngineFixtures::applyDemoDataFillsTheModelsWithNoClient()
     QSignalSpy firstSync(&engine, &SyncEngine::firstSyncFinished);
     QSignalSpy synced(&engine, &SyncEngine::synced);
 
-    engine.applyDemoData(QJsonDocument::fromJson(m_full).object());
+    qbtfeed::demo(engine, QJsonDocument::fromJson(m_full).object());
 
     QVERIFY(!engine.isRunning());
     QCOMPARE(engine.client(), nullptr);

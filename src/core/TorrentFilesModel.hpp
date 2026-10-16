@@ -39,9 +39,10 @@
 // changed and emits dataChanged() for the rows whose numbers moved; only a different shape
 // resets the model. That is what lets the 2 s poll run without dropping the cursor.
 
+#include "core/engines/DetailsData.hpp"
 #include <QAbstractListModel>
 #include <QHash>
-#include <QJsonArray>
+
 #include <QList>
 #include <QRegularExpression>
 #include <QSet>
@@ -53,13 +54,6 @@ namespace omaseed::core {
 
 /// qBittorrent's file priorities, plus the synthetic one a folder shows when its files
 /// disagree. The numbers are the API's own (`torrents/filePrio`).
-enum class FilePriority {
-    Mixed = -1,
-    Skip = 0,
-    Normal = 1,
-    High = 6,
-    Maximal = 7,
-};
 
 /// "skip", "normal", "high", "maximal", "mixed" (spec §2 Fig. 2's Priority column).
 QString filePriorityText(int priority);
@@ -142,9 +136,10 @@ public:
     qint64 totalSize() const { return m_totalSize; }
     QString totalSizeText() const;
 
-    /// Applies a `torrents/files` array. Same shape as last time -> rows update in place;
+    /// Applies the content files (QbtTranslate::files() for qBittorrent). Same shape as last
+    /// time -> rows update in place;
     /// anything else -> a reset.
-    void applyFiles(const QJsonArray &files);
+    void applyFiles(const QList<ContentFile> &files);
     /// Empties the model for another torrent: the filter goes too, the sort and hideSkipped
     /// stay.
     void clear();
@@ -301,11 +296,11 @@ private:
 
     /// The paths, in order, that a given `torrents/files` array would build. Two arrays with
     /// the same shape can be merged in place.
-    static QStringList shapeOf(const QJsonArray &files);
-    static void readFile(Node &node, const QJsonObject &file);
+    static QStringList shapeOf(const QList<ContentFile> &files);
+    static void readFile(Node &node, const ContentFile &file);
 
-    void rebuild(const QJsonArray &files);
-    void updateInPlace(const QJsonArray &files);
+    void rebuild(const QList<ContentFile> &files);
+    void updateInPlace(const QList<ContentFile> &files);
     void aggregate(int node);
     void applyFilter();
     bool matchFilter(int node, const Filter &filter);
@@ -335,8 +330,8 @@ private:
     QList<int> m_roots;
     QList<int> m_visible; ///< node indexes, in draw order
     QStringList m_shape;
-    QJsonArray m_files;     ///< the last array, for renameLocal()
-    QSet<QString> m_folded; ///< folder paths the user closed
+    QList<ContentFile> m_files; ///< the last list, for renameLocal()
+    QSet<QString> m_folded;     ///< folder paths the user closed
     QSet<QString> m_selected;
     int m_fileCount = 0;
     int m_matchCount = 0;

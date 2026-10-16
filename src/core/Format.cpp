@@ -135,6 +135,16 @@ QString etaShort(qint64 seconds)
     return QStringLiteral("%1d %2h").arg(days).arg(hours);
 }
 
+QString eta(std::optional<qint64> seconds)
+{
+    return seconds ? eta(*seconds) : infinity();
+}
+
+QString etaShort(std::optional<qint64> seconds)
+{
+    return seconds ? etaShort(*seconds) : infinity();
+}
+
 QString ratio(double value)
 {
     if (value < 0.0 || std::isnan(value))

@@ -4,7 +4,6 @@
 
 #include <QCollator>
 #include <QHash>
-#include <QJsonObject>
 #include <QStringList>
 
 #include <algorithm>
@@ -173,33 +172,32 @@ QVariant TorrentFilesModel::data(const QModelIndex &index, int role) const
 
 // --- building ----------------------------------------------------------------------------
 
-QStringList TorrentFilesModel::shapeOf(const QJsonArray &files)
+QStringList TorrentFilesModel::shapeOf(const QList<ContentFile> &files)
 {
     QStringList shape;
     shape.reserve(files.size());
-    for (const QJsonValue &value : files)
-        shape.append(value.toObject().value(QStringLiteral("name")).toString());
+    for (const ContentFile &file : files)
+        shape.append(file.path);
     return shape;
 }
 
-void TorrentFilesModel::readFile(Node &node, const QJsonObject &file)
+void TorrentFilesModel::readFile(Node &node, const ContentFile &file)
 {
-    node.fileIndex = file.value(QStringLiteral("index")).toInt(node.fileIndex);
+    node.fileIndex = file.index.value_or(node.fileIndex);
     node.fileIndexes = {node.fileIndex};
-    node.size = qint64(file.value(QStringLiteral("size")).toDouble());
-    node.progress = file.value(QStringLiteral("progress")).toDouble();
-    node.priority = file.value(QStringLiteral("priority")).toInt(node.priority);
-    node.availability = file.value(QStringLiteral("availability")).toDouble(-1.0);
-    const QJsonArray range = file.value(QStringLiteral("piece_range")).toArray();
-    node.pieceFirst = range.size() == 2 ? range.at(0).toInt(-1) : -1;
-    node.pieceLast = range.size() == 2 ? range.at(1).toInt(-1) : -1;
+    node.size = file.size;
+    node.progress = file.progress;
+    node.priority = file.priority.value_or(node.priority);
+    node.availability = file.availability.value_or(-1.0);
+    node.pieceFirst = file.pieces ? file.pieces->first : -1;
+    node.pieceLast = file.pieces ? file.pieces->second : -1;
     // qBittorrent's own content view counts nothing left to fetch on a skipped file.
     node.remaining = node.priority == int(FilePriority::Skip)
                          ? 0
                          : qint64(double(node.size) * (1.0 - node.progress));
 }
 
-void TorrentFilesModel::applyFiles(const QJsonArray &files)
+void TorrentFilesModel::applyFiles(const QList<ContentFile> &files)
 {
     if (files.isEmpty()) {
         clear();
@@ -245,7 +243,7 @@ void TorrentFilesModel::clear()
     updateSummary();
 }
 
-void TorrentFilesModel::rebuild(const QJsonArray &files)
+void TorrentFilesModel::rebuild(const QList<ContentFile> &files)
 {
     m_nodes.clear();
     m_roots.clear();
@@ -273,9 +271,8 @@ void TorrentFilesModel::rebuild(const QJsonArray &files)
         return at;
     };
 
-    for (const QJsonValue &value : files) {
-        const QJsonObject file = value.toObject();
-        const QString path = file.value(QStringLiteral("name")).toString();
+    for (const ContentFile &file : files) {
+        const QString &path = file.path;
         if (path.isEmpty())
             continue;
 
@@ -328,7 +325,7 @@ void TorrentFilesModel::rebuild(const QJsonArray &files)
     rebuildVisible();
 }
 
-void TorrentFilesModel::updateInPlace(const QJsonArray &files)
+void TorrentFilesModel::updateInPlace(const QList<ContentFile> &files)
 {
     // The shape matched, so the n-th file of the array is the n-th leaf of the tree, in the
     // order rebuild() appended them.
@@ -349,7 +346,7 @@ void TorrentFilesModel::updateInPlace(const QJsonArray &files)
     m_files = files;
     const int matchesBefore = m_matchCount;
     for (int at = 0; at < files.size(); ++at)
-        readFile(m_nodes[leaves.at(at)], files.at(at).toObject());
+        readFile(m_nodes[leaves.at(at)], files.at(at));
     for (int root : std::as_const(m_roots))
         aggregate(root);
     applyFilter();
@@ -1141,8 +1138,8 @@ QStringList TorrentFilesModel::filePaths() const
 {
     QStringList paths;
     paths.reserve(m_files.size());
-    for (const QJsonValue &value : std::as_const(m_files))
-        paths.append(value.toObject().value(QStringLiteral("name")).toString());
+    for (const ContentFile &file : std::as_const(m_files))
+        paths.append(file.path);
     return paths;
 }
 
@@ -1193,12 +1190,9 @@ void TorrentFilesModel::renameLocal(const QString &oldPath, const QString &newPa
         return path;
     };
 
-    QJsonArray files;
-    for (const QJsonValue &value : std::as_const(m_files)) {
-        QJsonObject file = value.toObject();
-        file.insert(QStringLiteral("name"), moved(file.value(QStringLiteral("name")).toString()));
-        files.append(file);
-    }
+    QList<ContentFile> files = m_files;
+    for (ContentFile &file : files)
+        file.path = moved(file.path);
     QSet<QString> folded;
     for (const QString &path : std::as_const(m_folded))
         folded.insert(moved(path));

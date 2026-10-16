@@ -19,6 +19,7 @@
 #include "core/TrackerMerge.hpp"
 #include "core/Version.hpp"
 #include "core/WeeklyRecap.hpp"
+#include "core/engines/qbt/QbtTranslate.hpp"
 #include "integration/Autostart.hpp"
 #include "integration/Notifier.hpp"
 #include "integration/StatusWriter.hpp"
@@ -634,12 +635,12 @@ void App::applyDemoData(const QJsonObject &maindata)
     state->setConnected(true);
     state->setLastSyncTime(QDateTime::currentDateTime());
 
-    m_engine->applyDemoData(maindata);
+    m_engine->applyDemoData(QbtTranslate::syncDelta(maindata));
     // The demo's log goes with its library, not with every fictional diff a test applies.
     if (maindata.value(QStringLiteral("full_update")).toBool()) {
         // A new demo is a new server's log: nothing dismissed yet (docs/32 D4).
         m_engine->problems()->setDismissed({});
-        m_engine->problems()->applyEntries(DemoData::problemLog(maindata));
+        m_engine->problems()->applyEntries(QbtTranslate::log(DemoData::problemLog(maindata)));
         // docs/32 §6 (#56): the log face's lines, as if read from the top.
         m_engine->serverLog()->applyEntries(DemoData::serverLog(maindata));
     }
@@ -805,7 +806,8 @@ void App::selectTorrent(const QString &hash)
         // No server: the pane is filled from the same fictional library the table draws.
         // The torrent row still carries what torrents/properties lacks (limits, magnet).
         m_details->setTorrentModel(m_engine->torrents());
-        m_details->applyDemo(DemoData::details(m_engine->torrents()->torrent(hash)));
+        m_details->applyDemo(
+            QbtTranslate::details(DemoData::details(m_engine->torrents()->torrent(hash))));
         return;
     }
 
@@ -901,13 +903,13 @@ QVariantMap App::torrentRow(const QString &hash) const
     // docs/25 §2: before its metadata arrives a torrent reads as public whatever it is, so
     // Fig. 10 offers no merge until it is known.
     row.insert(QStringLiteral("hasMetadata"),
-               torrent.totalSize >= 0 && torrent.state != TorrentState::MetaDownload &&
-                   torrent.state != TorrentState::ForcedMetaDownload);
+               torrent.totalSize >= 0 && torrent.status.phase != TorrentPhase::Metadata);
     row.insert(QStringLiteral("dlLimit"), torrent.dlLimit);
     row.insert(QStringLiteral("upLimit"), torrent.upLimit);
-    row.insert(QStringLiteral("ratioLimit"), torrent.ratioLimit);
-    row.insert(QStringLiteral("seedingTimeLimit"), torrent.seedingTimeLimit);
-    row.insert(QStringLiteral("inactiveSeedingTimeLimit"), torrent.inactiveSeedingTimeLimit);
+    // The Limits sheet's encoding: -2 the server's default, -1 none.
+    row.insert(QStringLiteral("ratioLimit"), torrent.ratioLimit.code());
+    row.insert(QStringLiteral("seedingTimeLimit"), torrent.seedingTimeLimit.code());
+    row.insert(QStringLiteral("inactiveSeedingTimeLimit"), torrent.inactiveSeedingTimeLimit.code());
     row.insert(QStringLiteral("shareLimitAction"), torrent.shareLimitAction);
     row.insert(QStringLiteral("sizeText"), Format::size(torrent.size));
     row.insert(QStringLiteral("progressText"), Format::percent(torrent.progress));
@@ -928,7 +930,7 @@ QVariantMap App::torrentRow(const QString &hash) const
     row.insert(QStringLiteral("failure"), m_engine->torrents()->failure(hash));
     // T4.3: exactly the check `stopStart()` makes, so the actions menu's "start"/"stop" row
     // and the delete sheet agree with what a bulk stop/start would actually do.
-    row.insert(QStringLiteral("stopped"), startsOnToggle(torrent.state));
+    row.insert(QStringLiteral("stopped"), startsOnToggle(torrent.status));
     // docs/12 G4: General's Options group and the actions menu's four option rows.
     row.insert(QStringLiteral("seqDl"), torrent.seqDl);
     row.insert(QStringLiteral("firstLastPiecePrio"), torrent.firstLastPiecePrio);
@@ -2865,18 +2867,12 @@ void App::loadDeleteFilesDefault()
     m_deleteFilesDefault = section.value(QStringLiteral("value")).toBool(false);
 }
 
-bool App::isStoppedState(TorrentState state)
-{
-    return state == TorrentState::StoppedDownload || state == TorrentState::StoppedUpload ||
-           state == TorrentState::PausedDownload || state == TorrentState::PausedUpload;
-}
-
-bool App::startsOnToggle(TorrentState state)
+bool App::startsOnToggle(const TorrentStatus &status)
 {
     // docs/28: starting an errored torrent clears the error in qBittorrent and makes it try
     // again (TorrentImpl::start), which is what `p` offers on the error block; stopping it
     // would only hide the error.
-    return isStoppedState(state) || state == TorrentState::Error;
+    return status.isStopped() || status.phase == TorrentPhase::Errored;
 }
 
 bool App::demoGuard(const QString &action, int count)
@@ -2912,7 +2908,7 @@ void App::stopStart(const QStringList &hashes)
 
     const int index = m_engine->torrents()->indexOfHash(hashes.constFirst());
     const bool stopped =
-        index >= 0 && startsOnToggle(m_engine->torrents()->torrent(hashes.constFirst()).state);
+        index >= 0 && startsOnToggle(m_engine->torrents()->torrent(hashes.constFirst()).status);
 
     auto *reply = stopped ? m_client->torrentsStart(hashes) : m_client->torrentsStop(hashes);
     reply->then(this, [this](const Result<QByteArray> &result) {
@@ -3089,8 +3085,9 @@ void App::findFilesMatch(const QString &token)
         const Torrent &torrent = model->torrent(hash);
         if (hash == pending->torrentId || torrent.totalSize < total ||
             torrent.totalSize > total + padding || torrent.progress < 1.0 ||
-            torrent.state == TorrentState::MissingFiles || torrent.state == TorrentState::Error ||
-            torrent.state == TorrentState::Moving)
+            torrent.status.phase == TorrentPhase::Missing ||
+            torrent.status.phase == TorrentPhase::Errored ||
+            torrent.status.phase == TorrentPhase::Moving)
             continue;
         candidates.append(hash);
     }
@@ -3124,7 +3121,7 @@ void App::findFilesMatch(const QString &token)
                 const LibraryMatch::Result found =
                     LibraryMatch::match(name, multiFile, files, candidate);
                 if (found.exact) {
-                    const bool seeding = !isStoppedState(torrent.state);
+                    const bool seeding = !torrent.status.isStopped();
                     const QVariantMap match{
                         {QStringLiteral("hash"), hash},
                         {QStringLiteral("name"), torrent.name},
@@ -3546,16 +3543,18 @@ void App::queueDown(const QStringList &hashes)
 // diff takes, so the pane and the menu show the change. Against a server the change shows at
 // once too (M12), as a pending value in the engine that the server's answer settles.
 
-QStringList
-App::hashesNotAt(const QStringList &hashes, bool on, bool Torrent::*field, const QString &key) const
+QStringList App::hashesNotAt(const QStringList &hashes,
+                             bool on,
+                             bool Torrent::*member,
+                             TorrentField field) const
 {
     QStringList wrong;
     const TorrentModel *torrents = m_engine->torrents();
     for (const QString &hash : hashes) {
         if (torrents->indexOfHash(hash) < 0)
             continue;
-        const std::optional<QJsonValue> pending = m_engine->pendingTorrentValue(hash, key);
-        const bool current = pending ? pending->toBool() : torrents->torrent(hash).*field;
+        const std::optional<TorrentPatch> pending = m_engine->pendingTorrentValue(hash, field);
+        const bool current = pending ? pending->values.*member : torrents->torrent(hash).*member;
         if (current != on)
             wrong.append(hash);
     }
@@ -3564,19 +3563,18 @@ App::hashesNotAt(const QStringList &hashes, bool on, bool Torrent::*field, const
 
 void App::sendOption(const QStringList &hashes,
                      bool on,
-                     bool Torrent::*field,
-                     const QString &key,
+                     bool Torrent::*member,
+                     TorrentField field,
                      Reply<QByteArray> *reply,
                      const QString &action)
 {
-    const TorrentModel *torrents = m_engine->torrents();
     for (const QString &hash : hashes)
-        m_engine->setPendingTorrentValue(hash, key, on, torrents->torrent(hash).*field);
+        m_engine->setPendingTorrentValue(TorrentPatch(hash).set(member, field, on));
     const QPointer<SyncEngine> engine(m_engine);
-    reply->then(this, [this, engine, hashes, key, action](const Result<QByteArray> &result) {
+    reply->then(this, [this, engine, hashes, field, action](const Result<QByteArray> &result) {
         if (engine) {
             for (const QString &hash : hashes)
-                engine->settlePendingTorrentValue(hash, key, result.isError());
+                engine->settlePendingTorrentValue(hash, field, result.isError());
         }
         reportActionResult(action, result);
     });
@@ -3584,69 +3582,61 @@ void App::sendOption(const QStringList &hashes,
 
 void App::setSequentialDownload(const QStringList &hashes, bool on)
 {
-    const QString key = QStringLiteral("seq_dl");
-    const QStringList flip = hashesNotAt(hashes, on, &Torrent::seqDl, key);
-    if (flip.isEmpty() || applyDemoOption(flip, key, on) || !m_hasServer)
+    const auto member = &Torrent::seqDl;
+    const TorrentField field = TorrentField::SeqDl;
+    const QString action = QStringLiteral("sequential");
+    const QStringList flip = hashesNotAt(hashes, on, member, field);
+    if (flip.isEmpty() || applyDemoOption(flip, member, field, on, action) || !m_hasServer)
         return;
-    sendOption(flip,
-               on,
-               &Torrent::seqDl,
-               key,
-               m_client->torrentsToggleSequentialDownload(flip),
-               QStringLiteral("sequential"));
+    sendOption(flip, on, member, field, m_client->torrentsToggleSequentialDownload(flip), action);
 }
 
 void App::setFirstLastPiecePrio(const QStringList &hashes, bool on)
 {
-    const QString key = QStringLiteral("f_l_piece_prio");
-    const QStringList flip = hashesNotAt(hashes, on, &Torrent::firstLastPiecePrio, key);
-    if (flip.isEmpty() || applyDemoOption(flip, key, on) || !m_hasServer)
+    const auto member = &Torrent::firstLastPiecePrio;
+    const TorrentField field = TorrentField::FirstLastPiecePrio;
+    const QString action = QStringLiteral("firstLast");
+    const QStringList flip = hashesNotAt(hashes, on, member, field);
+    if (flip.isEmpty() || applyDemoOption(flip, member, field, on, action) || !m_hasServer)
         return;
-    sendOption(flip,
-               on,
-               &Torrent::firstLastPiecePrio,
-               key,
-               m_client->torrentsToggleFirstLastPiecePrio(flip),
-               QStringLiteral("firstLast"));
+    sendOption(flip, on, member, field, m_client->torrentsToggleFirstLastPiecePrio(flip), action);
 }
 
 void App::setSuperSeeding(const QStringList &hashes, bool on)
 {
-    const QString key = QStringLiteral("super_seeding");
-    const QStringList change = hashesNotAt(hashes, on, &Torrent::superSeeding, key);
-    if (change.isEmpty() || applyDemoOption(change, key, on) || !m_hasServer)
+    const auto member = &Torrent::superSeeding;
+    const TorrentField field = TorrentField::SuperSeeding;
+    const QString action = QStringLiteral("superSeeding");
+    const QStringList change = hashesNotAt(hashes, on, member, field);
+    if (change.isEmpty() || applyDemoOption(change, member, field, on, action) || !m_hasServer)
         return;
-    sendOption(change,
-               on,
-               &Torrent::superSeeding,
-               key,
-               m_client->torrentsSetSuperSeeding(change, on),
-               QStringLiteral("superSeeding"));
+    sendOption(change, on, member, field, m_client->torrentsSetSuperSeeding(change, on), action);
 }
 
 void App::setAutoManagement(const QStringList &hashes, bool on)
 {
-    const QString key = QStringLiteral("auto_tmm");
-    const QStringList change = hashesNotAt(hashes, on, &Torrent::autoTmm, key);
-    if (change.isEmpty() || applyDemoOption(change, key, on) || !m_hasServer)
+    const auto member = &Torrent::autoTmm;
+    const TorrentField field = TorrentField::AutoTmm;
+    const QString action = QStringLiteral("autoManagement");
+    const QStringList change = hashesNotAt(hashes, on, member, field);
+    if (change.isEmpty() || applyDemoOption(change, member, field, on, action) || !m_hasServer)
         return;
-    sendOption(change,
-               on,
-               &Torrent::autoTmm,
-               key,
-               m_client->torrentsSetAutoManagement(change, on),
-               QStringLiteral("autoManagement"));
+    sendOption(change, on, member, field, m_client->torrentsSetAutoManagement(change, on), action);
 }
 
-bool App::applyDemoOption(const QStringList &hashes, const QString &key, bool on)
+bool App::applyDemoOption(const QStringList &hashes,
+                          bool Torrent::*member,
+                          TorrentField field,
+                          bool on,
+                          const QString &action)
 {
     if (!m_demoMode)
         return false;
-    QJsonObject torrents;
+    SyncDelta delta;
     for (const QString &hash : hashes)
-        torrents.insert(hash, QJsonObject{{key, on}});
-    m_engine->applyDemoData(QJsonObject{{QStringLiteral("torrents"), torrents}});
-    qInfo().noquote() << QStringLiteral("demo: %1 %2 on %3").arg(key).arg(on).arg(hashes.size());
+        delta.torrents.append(TorrentPatch(hash).set(member, field, on));
+    m_engine->applyDemoData(delta);
+    qInfo().noquote() << QStringLiteral("demo: %1 %2 on %3").arg(action).arg(on).arg(hashes.size());
     return true;
 }
 

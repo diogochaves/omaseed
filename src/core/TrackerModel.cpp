@@ -3,7 +3,6 @@
 #include "core/Torrent.hpp"
 
 #include <QCollator>
-#include <QJsonValue>
 #include <QSet>
 
 #include <algorithm>
@@ -28,16 +27,6 @@ bool hostLessThan(const TrackerGroup &a, const TrackerGroup &b)
     }();
     const int compared = collator.compare(a.host, b.host);
     return compared != 0 ? compared < 0 : a.host < b.host;
-}
-
-QStringList toStringList(const QJsonValue &value)
-{
-    QStringList list;
-    const QJsonArray array = value.toArray();
-    list.reserve(array.size());
-    for (const QJsonValue &item : array)
-        list.append(item.toString());
-    return list;
 }
 
 } // namespace
@@ -100,23 +89,22 @@ QStringList TrackerModel::hashesFor(const QString &host) const
     return {};
 }
 
-void TrackerModel::applyFullUpdate(const QJsonObject &trackers)
+void TrackerModel::applyFullUpdate(const QHash<QString, QStringList> &trackers)
 {
-    m_byUrl.clear();
-    for (auto it = trackers.constBegin(); it != trackers.constEnd(); ++it)
-        m_byUrl.insert(it.key(), toStringList(it.value()));
+    m_byUrl = trackers;
     rebuild();
 }
 
-void TrackerModel::applyPartial(const QJsonObject &changed, const QJsonArray &removed)
+void TrackerModel::applyPartial(const QHash<QString, QStringList> &changed,
+                                const QStringList &removed)
 {
     if (changed.isEmpty() && removed.isEmpty())
         return;
 
-    for (const QJsonValue &value : removed)
-        m_byUrl.remove(value.toString());
+    for (const QString &url : removed)
+        m_byUrl.remove(url);
     for (auto it = changed.constBegin(); it != changed.constEnd(); ++it) {
-        const QStringList hashes = toStringList(it.value());
+        const QStringList &hashes = it.value();
         if (hashes.isEmpty())
             m_byUrl.remove(it.key());
         else
