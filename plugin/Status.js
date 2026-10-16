@@ -78,13 +78,18 @@ function altUntil(status) {
   return typeof until === "string" ? until : ""
 }
 
+// What the alt-speed button does, in words: "Burst", "Turtle", or today's words. Also its
+// accessible name (#80); whether it is on, and its key, go in the description.
+function altButtonName(status) {
+  var kind = altKind(status)
+  if (kind === "burst") return "Burst"
+  if (kind === "turtle") return "Turtle"
+  return "Alternative speed limits"
+}
+
 // The alt-speed button's tooltip: "Burst on (A)", "Turtle (A)", or today's words.
 function altButtonTip(status) {
-  var kind = altKind(status)
-  var on = altOn(status)
-  if (kind === "burst") return on ? "Burst on (A)" : "Burst (A)"
-  if (kind === "turtle") return on ? "Turtle on (A)" : "Turtle (A)"
-  return on ? "Alternative speed limits on (A)" : "Alternative speed limits (A)"
+  return altButtonName(status) + (altOn(status) ? " on" : "") + " (A)"
 }
 
 // The mark as the bar readout (contract §2): which arrows are lit and what the
@@ -324,6 +329,39 @@ function tooltip(status, now, options) {
   return lines.join("\n")
 }
 
+// The bar button's accessible description (#80): what the tooltip says, coarse, so a
+// screen reader is not told it again as the speeds change. "home: downloading, uploading",
+// "home: idle, burst on", "home: unreachable", "not running".
+function barDescription(status, now) {
+  var s = state(status, now)
+  if (s === "notRunning") return "not running"
+  var parts = []
+  if (s === "unreachable") {
+    parts.push("unreachable")
+  } else {
+    var speed = obj(status.speed)
+    if (s === "error") parts.push("torrents in error")
+    if (num(speed.dl) > 0) parts.push("downloading")
+    if (num(speed.up) > 0) parts.push("uploading")
+    if (s === "idle") parts.push("idle")
+    if (altOn(status)) parts.push(altButtonName(status).toLowerCase() + " on")
+  }
+  return String(obj(status.server).name || "omaseed") + ": " + parts.join(", ")
+}
+
+// A line the popup draws with arrows and dots, as a screen reader should hear it (#80):
+// "burst · ↓ ∞ · ↑ ∞" → "burst, down unlimited, up unlimited".
+function spoken(text) {
+  return String(text || "")
+    .replace(/\s*·\s*/g, ", ")
+    .replace(/↓/g, "down")
+    .replace(/↑/g, "up")
+    .replace(/∞/g, "unlimited")
+    .replace(/→\s*/g, "to ")
+    .replace(/^,\s*|,\s*$/g, "")
+    .trim()
+}
+
 function unreachableLine(server) {
   var parts = ["unreachable"]
   if (server.error) parts.push(String(server.error))
@@ -352,10 +390,16 @@ function altUntilText(status) {
 
 // "HOME · QBITTORRENT 5.2.3"
 function serverLine(status) {
+  return serverWords(status).toUpperCase()
+}
+
+// The server line as written, not as drawn: "home · qBittorrent 5.2.3" (in capitals a
+// screen reader may spell it out, #80).
+function serverWords(status) {
   var server = obj(status && status.server)
   var parts = [String(server.name || "omaseed")]
   if (server.version) parts.push("qBittorrent " + server.version)
-  return parts.join(" · ").toUpperCase()
+  return parts.join(" · ")
 }
 
 // ------------------------------------------------------------------ the shared menu

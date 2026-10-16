@@ -242,6 +242,48 @@ TestCase {
         compare(lines[0], "omaseed is not running");
     }
 
+    // #80: the bar button's accessible description says the state in words that change only
+    // when the state does, never the speeds the tooltip carries.
+    function test_bar_description_is_coarse() {
+        var s = sample();
+        compare(Status.barDescription(s, now), "home: downloading, uploading");
+        s.speed = { dl: 1, up: 0 };
+        compare(Status.barDescription(s, now), "home: downloading");
+        s.speed = { dl: 0, up: 0 };
+        compare(Status.barDescription(s, now), "home: idle");
+        s.alt = { on: true, kind: "burst" };
+        compare(Status.barDescription(s, now), "home: idle, burst on");
+        s.alt = { on: true };
+        compare(Status.barDescription(s, now), "home: idle, alternative speed limits on");
+        s.counts.errored = 1;
+        compare(Status.barDescription(s, now), "home: torrents in error, alternative speed limits on");
+        s.server.reachable = false;
+        compare(Status.barDescription(s, now), "home: unreachable");
+        compare(Status.barDescription(null, now), "not running");
+    }
+
+    function test_alt_button_name_has_no_key() {
+        var s = sample();
+        compare(Status.altButtonName(s), "Alternative speed limits");
+        s.alt = { on: true, kind: "turtle" };
+        compare(Status.altButtonName(s), "Turtle");
+        compare(Status.altButtonTip(s), "Turtle on (A)");
+    }
+
+    function test_spoken_lines_have_words_for_arrows() {
+        compare(Status.spoken("burst · ↓ ∞ · ↑ ∞ · until 07:00"), "burst, down unlimited, up unlimited, until 07:00");
+        compare(Status.spoken("· until 07:00"), "until 07:00");
+        compare(Status.spoken("→ /data · automatic management"), "to /data, automatic management");
+        compare(Status.spoken(""), "");
+    }
+
+    function test_server_words_are_not_capitals() {
+        var s = sample();
+        compare(Status.serverWords(s), "home · qBittorrent 5.2.3");
+        compare(Status.serverLine(s), "HOME · QBITTORRENT 5.2.3");
+        compare(Status.serverWords(null), "omaseed");
+    }
+
     // docs/31 D12 (W1–W3): the widget follows the word the app writes. A file from before
     // alt.kind (or a mixed set, "alt") keeps today's yellow alternative limits.
     function test_alt_follows_the_word() {
