@@ -205,6 +205,7 @@ Sheet {
     ]
     sheetWidth: Theme.space(680)
     subtitle: sheet.info.sub ?? ""
+    subtitleLines: 3
     subtitleWraps: true
     title: sheet.info.title ?? ""
 

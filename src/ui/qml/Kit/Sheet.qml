@@ -54,6 +54,9 @@ Item {
     /// of being cut at the panel's edge (#66: the `?` sheet's). Off, it stays one line and
     /// elides (a torrent's name in the add sheet).
     property bool subtitleWraps: false
+    /// How many lines a wrapping subtitle may take before it elides (docs/34 D6 a: the import
+    /// sheet's "from" line names a server, a date, a file and the counts).
+    property int subtitleLines: 2
     /// The `esc` chip at the right of the head (`.hd .x`).
     property string escText: qsTr("esc")
     /// The panel's maximum width; it shrinks when the window is narrower. Fig. 5 is 600,
@@ -466,7 +469,7 @@ Item {
                         Layout.fillWidth: true
                         dim: true
                         elide: Text.ElideRight
-                        maximumLineCount: root.subtitleWraps ? 2 : 1
+                        maximumLineCount: root.subtitleWraps ? root.subtitleLines : 1
                         objectName: "sheetSubtitle"
                         size: "small"
                         text: root.subtitle

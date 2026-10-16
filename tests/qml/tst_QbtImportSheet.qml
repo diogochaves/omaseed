@@ -203,6 +203,8 @@ TestCase {
         compare(sheet.exportText, "export home first");
         compare(sheet.actions[1].text, "export home first");
         compare(sheet.glyph, "⇣");
+        // Its line names a server, a date, a file and the counts: three lines before it cuts.
+        compare(sheet.subtitleLines, 3);
         const exported = createTemporaryObject(spyComponent, testCase, {
                                                    "target": sheet,
                                                    "signalName": "exportRequested"

@@ -211,6 +211,15 @@ TestCase {
         const line = findChild(wrapped, "sheetSubtitle");
         tryVerify(() => line.lineCount === 2, 1000);
         verify(!line.truncated);
+        // Two lines at most, unless the sheet allows more (docs/34: the import sheet's three).
+        compare(wrapped.subtitleLines, 2);
+        wrapped.subtitle = long + " · " + long + " · " + long;
+        tryVerify(() => line.truncated, 1000);
+        compare(line.lineCount, 2);
+        wrapped.subtitle = long + " · " + long;
+        wrapped.subtitleLines = 3;
+        tryVerify(() => line.lineCount === 3, 1000);
+        verify(!line.truncated);
     }
 
     function test_the_padding_is_sixteen() {
