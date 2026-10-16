@@ -3,6 +3,7 @@
 #include "core/Bencode.hpp"
 
 #include <QCryptographicHash>
+#include <QHash>
 #include <QSet>
 #include <QUrl>
 
@@ -203,6 +204,71 @@ QStringList TorrentFile::trackers() const
         }
     }
     return list;
+}
+
+namespace {
+
+/// Every file's "pieces root" in a BEP-52 "file tree", with the file's length.
+void rootsOf(const Value &node, QHash<QByteArray, qint64> &roots)
+{
+    for (const auto &entry : node.toDict()) {
+        const Value leaf = entry.second.value(QByteArray());
+        if (leaf.isDict()) {
+            const QByteArray root = leaf.value("pieces root").toString();
+            if (!root.isEmpty())
+                roots.insert(root, leaf.value("length").toInteger());
+        } else if (entry.second.isDict()) {
+            rootsOf(entry.second, roots);
+        }
+    }
+}
+
+} // namespace
+
+QByteArray TorrentFile::repairPieceLayers(const QByteArray &data, int *repaired)
+{
+    if (repaired)
+        *repaired = 0;
+    // Only a v2 or hybrid .torrent has piece layers: the rest is not decoded at all.
+    if (!data.contains("12:piece layers"))
+        return data;
+    bencode::SpanMap spans;
+    const Value root = bencode::decode(data, nullptr, &spans);
+    const Value layers = root.value("piece layers");
+    const auto span = spans.constFind("piece layers");
+    if (!layers.isDict() || span == spans.constEnd())
+        return data;
+    const Value info = root.value("info");
+    const qint64 pieceLength = info.value("piece length").toInteger();
+    if (pieceLength <= 0)
+        return data;
+    QHash<QByteArray, qint64> roots;
+    rootsOf(info.value("file tree"), roots);
+
+    int cut = 0;
+    Dict fixed;
+    for (const auto &[key, value] : layers.toDict()) {
+        const QByteArray layer = value.toString();
+        const qint64 length = roots.value(key, -1);
+        const qint64 want = length > 0 ? (length + pieceLength - 1) / pieceLength * 32 : 0;
+        bool copies = want > 0 && layer.size() > want && layer.size() % want == 0;
+        for (qsizetype at = want; copies && at < layer.size(); at += want)
+            copies = layer.mid(at, want) == layer.first(want);
+        if (copies) {
+            fixed.append({key, Value(layer.first(want))});
+            ++cut;
+        } else {
+            fixed.append({key, value});
+        }
+    }
+    if (cut == 0)
+        return data;
+    if (repaired)
+        *repaired = cut;
+    // Only the layers' own bytes are replaced: every other byte, "info" first, is as it was.
+    QByteArray out = data;
+    out.replace(span->first, span->second, bencode::encode(Value(fixed)));
+    return out;
 }
 
 } // namespace omaseed::core

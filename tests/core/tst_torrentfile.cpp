@@ -1,5 +1,7 @@
 #include "core/TorrentFile.hpp"
 
+#include "core/Bencode.hpp"
+
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -11,8 +13,42 @@
 #endif
 
 using omaseed::core::TorrentFile;
+namespace bencode = omaseed::core::bencode;
 
 namespace {
+
+/// A v2 .torrent whose two 48 KiB files have the same content, so one "pieces root" and one
+/// layer of three hashes (piece length 16 KiB), and a 100-byte file too small for a layer.
+/// `layer` is what its "piece layers" holds under that root: qBittorrent's torrents/export
+/// writes the layer once per file that shares it (#71).
+QByteArray duplicateFilesTorrent(const QByteArray &layer)
+{
+    const QByteArray root(32, 'R');
+    const auto leaf = [](qint64 length, const QByteArray &pieces) {
+        return bencode::Value(bencode::Dict{
+            {QByteArray(),
+             bencode::Value(bencode::Dict{{"length", bencode::Value(length)},
+                                          {"pieces root", bencode::Value(pieces)}})}});
+    };
+    const bencode::Value info(
+        bencode::Dict{{"file tree",
+                       bencode::Value(bencode::Dict{{"a.bin", leaf(3 * 16384, root)},
+                                                    {"b.bin", leaf(3 * 16384, root)},
+                                                    {"c.txt", leaf(100, QByteArray(32, 'c'))}})},
+                      {"meta version", bencode::Value(qint64(2))},
+                      {"name", bencode::Value(QByteArray("dups"))},
+                      {"piece length", bencode::Value(qint64(16384))}});
+    return bencode::encode(bencode::Value(bencode::Dict{
+        {"announce", bencode::Value(QByteArray("http://127.0.0.1:26996/announce"))},
+        {"info", info},
+        {"piece layers", bencode::Value(bencode::Dict{{root, bencode::Value(layer)}})}}));
+}
+
+/// The layer of three piece hashes the two files share.
+QByteArray threeHashes()
+{
+    return QByteArray(32, '1') + QByteArray(32, '2') + QByteArray(32, '3');
+}
 
 QByteArray readFile(const QString &path)
 {
@@ -38,6 +74,8 @@ private slots:
     void filesKeepTheirMetainfoOrder();
     void torrentIdIsV1WhenPresentAndTruncatedV2Otherwise();
     void torrentIdOfAHybridIsItsTruncatedV2Hash();
+    void repairsALayerRepeatedPerDuplicateFile();
+    void leavesSoundLayersAndOtherTorrentsAlone();
     void rejectsGarbage();
 };
 
@@ -229,6 +267,50 @@ void TestTorrentFile::torrentIdOfAHybridIsItsTruncatedV2Hash()
     QCOMPARE(TorrentFile::torrentIdFor(v1, v2.toUpper()), v2.left(40));
     QCOMPARE(TorrentFile::torrentIdFor(QStringLiteral(" ") + v1.toUpper(), QString()), v1);
     QCOMPARE(TorrentFile::torrentIdFor(QString(), QString()), QString());
+}
+
+// #71: the export's layer, repeated once per file sharing its root, cut back to one; the info
+// bytes, so the hashes, as they were.
+void TestTorrentFile::repairsALayerRepeatedPerDuplicateFile()
+{
+    const QByteArray sound = duplicateFilesTorrent(threeHashes());
+    const QByteArray exported = duplicateFilesTorrent(threeHashes().repeated(2));
+    int repaired = -1;
+    const QByteArray fixed = TorrentFile::repairPieceLayers(exported, &repaired);
+    QCOMPARE(repaired, 1);
+    QCOMPARE(fixed, sound);
+    const TorrentFile before = TorrentFile::parse(exported);
+    const TorrentFile after = TorrentFile::parse(fixed);
+    QVERIFY(after.isValid());
+    QCOMPARE(after.infoHashV2, before.infoHashV2);
+    QCOMPARE(after.infoHashV1, before.infoHashV1);
+    QCOMPARE(bencode::decode(fixed).value("piece layers").value(QByteArray(32, 'R')).toString(),
+             threeHashes());
+
+    // Three files sharing it: three copies, the same cut.
+    QCOMPARE(TorrentFile::repairPieceLayers(duplicateFilesTorrent(threeHashes().repeated(3))),
+             sound);
+}
+
+void TestTorrentFile::leavesSoundLayersAndOtherTorrentsAlone()
+{
+    int repaired = -1;
+    const QByteArray sound = duplicateFilesTorrent(threeHashes());
+    QCOMPARE(TorrentFile::repairPieceLayers(sound, &repaired), sound);
+    QCOMPARE(repaired, 0);
+    // Too long, but not copies of itself: not ours to guess, left for qBittorrent to refuse.
+    const QByteArray odd = duplicateFilesTorrent(threeHashes() + QByteArray(96, 'x'));
+    QCOMPARE(TorrentFile::repairPieceLayers(odd, &repaired), odd);
+    QCOMPARE(repaired, 0);
+    // Too short, too.
+    const QByteArray cut = duplicateFilesTorrent(threeHashes().left(64));
+    QCOMPARE(TorrentFile::repairPieceLayers(cut), cut);
+    // v1, and not a torrent at all.
+    const QByteArray v1 = readFile(QStringLiteral(OMASEED_FIXTURES_DIR "/single_file_v1.torrent"));
+    QVERIFY(!v1.isEmpty());
+    QCOMPARE(TorrentFile::repairPieceLayers(v1), v1);
+    const QByteArray garbage("12:piece layers, and nothing a torrent has");
+    QCOMPARE(TorrentFile::repairPieceLayers(garbage), garbage);
 }
 
 void TestTorrentFile::rejectsGarbage()
