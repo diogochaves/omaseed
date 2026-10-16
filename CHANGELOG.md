@@ -9,6 +9,12 @@ before it will tag a release.
 
 ### Added
 
+- Copy settings from another server (Settings › qBittorrent › Backup): omaseed reads the
+  other qBittorrent just now, without leaving the one it is on, and shows what would change
+  as an import, so you pick what to take. Nothing changes on the other server. When it can't
+  be reached, its settings as omaseed last kept them stand in, and the sheet says so.
+- The file manager names omaseed's backups "omaseed backup" and "omaseed torrents", with
+  omaseed's icon, instead of "Tar archive". They are still plain tars that archive tools open.
 - Export and import a qBittorrent's torrents (Settings › qBittorrent › Backup): every
   `.torrent` with its save path, category, tags, limits, started or stopped, queue position,
   renamed files and file priorities, in one plain tar file that stays private (announce URLs
@@ -93,6 +99,20 @@ before it will tag a release.
   do, warning when a time past midnight makes qBittorrent read the days the other way round.
   omaseed reads the sets and the schedule again whenever the alternative limits switch, so a
   change made in qBittorrent's Web UI shows the next time they flip.
+
+### Changed
+
+- Settings says whose settings each part is. omaseed's Backup starts by saying what it holds
+  (its settings, the servers without their passwords, the seed history, each server's
+  qBittorrent settings) and that torrents are in qBittorrent › Backup, one `t` away.
+  qBittorrent › Backup names its server in every row ("Export public's settings", "Import
+  torrents into public"), and the import sheet says which server and day the file came from.
+- The qBittorrent group's server name is now a select: a click (or `enter` on it in the nav)
+  lists your servers with their state, and picking one moves omaseed there. `s` still goes
+  straight to the next server, from every qBittorrent pane, Backup included, and the footer
+  says so; after a switch it says the library moved too.
+- Import settings opens on qBittorrent exports and omaseed backups together, and a file is
+  read by what is inside it, so a renamed one still imports.
 
 ### Fixed
 

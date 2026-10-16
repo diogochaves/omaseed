@@ -425,6 +425,69 @@ test has said something about it.
 - `Kit/Sheet` keeps its buttons when only their labels or states change, so the keyboard
   stays on `test` while `save` changes under it.
 
+## C11 — Whose settings, which backup (board 34, ruled 2026-10-15)
+
+Board [34](34-settings-scope.html), D1–D9, each the recommended option (#70). What the board
+left open, or what building it decided:
+
+- **The scope lines** (D1 a, D2 a) are `Views/ScopeLine`: the Kit banner's look (an accent rule
+  and the `i` glyph) on the idle fill, wrapped, the link in accent with its key dim before it.
+  `Kit/Banner` is one line high and could not hold them. qBittorrent's line names the other
+  server when there is one ("private has its own: s switch server"), says "the other servers"
+  when there are more, and has no link with one server.
+- **`t`** (D1 a) works in omaseed's Backup only, from the nav or the pane, and lands on
+  qBittorrent › Backup with the keyboard on Export torrents. The help sheet has no Settings
+  section, so the footer is where `t` is listed — *assumed, confirm.*
+- **omaseed's Backup** names whose qBittorrent settings a backup holds ("with public's and
+  private's qBittorrent settings") and reads the connected server's settings when it opens, so
+  a backup made by hand carries them as they are (before, only after an export or a weekly
+  copy). The automatic copies' row no longer repeats that, since the scope line says it.
+- **The rows and results** (D2 a) name the server; the export rows' captions end with the file
+  they propose ("Saved as qbittorrent-public-2026-10-16.json"). The settings import sheet's
+  columns are "public now" and "from private" (the file's server; "from the file" when it has
+  none), its button "export public first"; the torrents sheet's "from" line names its file's
+  server the same way. A file read from an omaseed backup says "From private's settings in
+  omaseed-….omaseed, read …".
+- **The select** (D3 a) is `Views/ServerSelect`, taking the server list as its model and
+  knowing nothing of App, so board 33's palette, if ruled, can share the model. Its list is the
+  Kit menu, which gained a footer, a per-row note (not a key) and coloured glyphs for it. The
+  dots are the Servers pane's: the server omaseed is on is green when it answers, red when not;
+  another is green with its torrents counted when its last test answered, dim and "offline"
+  when it failed, dim with no note when nothing is known. Opening the list probes the other
+  servers quietly (App::probeOtherServers: the list updates, no server sheet hears it). An
+  offline server can still be picked. The list opens with its cursor on the next server, where
+  `s` would go.
+- **The keys** (D4 a): the select is a nav stop between About and Speed; on it the pane on show
+  stays as it was, and `enter`, `space` or `l` open the list. `s` works from every qBittorrent
+  pane and from the select; every one of their footers, Backup's too, says "s next server".
+  Below 700 px the nav folds into tabs and there is no select; `s` still switches —
+  *assumed, confirm.*
+- **After a switch** (D5 a) from the select or `s`, the footer's right end says "omaseed is on
+  private now · the library too" for 8 s; Settings › Servers' `d` doesn't add it.
+- **Copy from another server** (D6 a) is a row of its own between Import settings and the
+  torrents, with a select of the other servers (`space` on the row opens it) and `copy…`. The
+  other server is read by `QbtSettingsFetch`: a client of its own with the stored login, no
+  retries, 8 s per request, a probe, the export's five reads, a sign-out after a password
+  login. What it read is kept as that server's newest settings for omaseed's next backup.
+  **The fallback** is the newest of what this run read of that server and what the newest
+  automatic copy holding it has, by the settings' own date, so a server read earlier in the
+  session needn't wait for a weekly copy — *assumed, confirm* (the board says "the newest
+  omaseed copy"). The sheet's line says why it couldn't read ("no answer in time",
+  "connection refused", "wrong username or password") and the date of what it shows. With no
+  other server the row is dimmed and says to add one. A demo's "other server" is the demo
+  server's own settings with one queue limit moved.
+- **The MIME types** (D7 a) are `data/io.github.diogochaves.omaseed.xml`, installed to
+  `share/mime/packages` in the `mime` component. A `cmake --install` outside `DESTDIR` runs
+  `update-mime-database` on its prefix; a package (the PKGBUILD's `DESTDIR` install) leaves it
+  to shared-mime-info's pacman hook, so the PKGBUILD needed no change. The settings export
+  stays `application/json`, with no magic rule (the board's reason: key order).
+- **The pickers** (D8 a): Import settings opens on "qBittorrent settings or omaseed backup
+  (*.json *.omaseed)", then each alone, then All files. `BackupFormat` reads a tar's manifest or
+  a JSON file's "format": a torrents export chosen there is sent to its own row, anything else
+  is "neither a qBittorrent settings export nor an omaseed backup". Restore's picker keeps its
+  name filters; the MIME type adds nothing a name filter doesn't there.
+- **D9 a:** the .desktop entry's MimeType is unchanged, and `tst_mimetypes` checks it.
+
 ## M8 — A click leaves the keyboard focus where it was
 
 Buttons and toggles do not take the focus when clicked. Otherwise an overlay gives the focus
