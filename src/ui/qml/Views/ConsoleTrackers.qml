@@ -67,7 +67,15 @@ Column {
             required property int index
             readonly property var modelData: root.rows[row.index] ?? ({})
 
+            // #77: a list item named by the tracker, its status the description; its press is
+            // the click, and does nothing while disabled.
+            Accessible.description: row.modelData.status ?? ""
+            Accessible.name: row.modelData.host ?? ""
+            Accessible.role: Accessible.ListItem
+            Accessible.onPressAction: if (row.enabled)
+                                          root.activated(row.modelData.host)
             height: Theme.space(30)
+            objectName: "consoleTracker_" + row.index
             width: root.width
 
             Rectangle {

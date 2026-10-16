@@ -26,6 +26,15 @@ Item {
 
     signal clicked
 
+    // #77: a row that shows its torrent is a list item named by it, its notes the
+    // description, and its press is the click; a row that takes no click (the empty line) is
+    // text.
+    Accessible.description: [root.note, root.trailing].filter(part => part.length > 0).join(" · ")
+    Accessible.name: root.name
+    Accessible.role: root.clickable ? Accessible.ListItem : Accessible.StaticText
+    Accessible.onPressAction: if (root.enabled && root.clickable)
+                                  root.clicked()
+
     implicitHeight: Theme.space(30)
 
     Rectangle {

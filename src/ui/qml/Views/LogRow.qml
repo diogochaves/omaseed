@@ -24,6 +24,16 @@ Item {
 
     signal clicked(int index, int modifiers)
 
+    // #77: a list item named by its message, its level and time the description, selected
+    // while marked; its press is a plain click, and does nothing while disabled.
+    Accessible.description: root.levelName + " · " + root.timeText
+    Accessible.name: root.message
+    Accessible.role: Accessible.ListItem
+    Accessible.selectable: true
+    Accessible.selected: root.marked
+    Accessible.onPressAction: if (root.enabled)
+                                  root.clicked(root.index, Qt.NoModifier)
+
     /// A level's Theme role.
     function levelColor(level: int): color {
         switch (level) {

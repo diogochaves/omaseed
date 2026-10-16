@@ -468,6 +468,9 @@ FocusScope {
     ListView {
         id: list
 
+        // #77: the log's lines, for a screen reader; each is a list item.
+        Accessible.name: qsTr("log")
+        Accessible.role: Accessible.List
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.right: parent.right
@@ -481,6 +484,7 @@ FocusScope {
         opacity: root.serverLost ? 0.45 : 1.0
         reuseItems: true
 
+        // a11y-ignore A1: named by `message`, a required property the model fills (#77)
         delegate: LogRow {
             current: index === root.cursor
             levelWidth: root.levelWidth
@@ -575,6 +579,15 @@ FocusScope {
 
     // D12 (L2): new lines below while paused; a click is `G`.
     Rectangle {
+        id: newerPill
+
+        // #77: a button that follows the newest lines, how many its description; its press
+        // is the click.
+        Accessible.description: newerText.text
+        Accessible.name: qsTr("follow new lines")
+        Accessible.role: Accessible.Button
+        Accessible.onPressAction: if (newerPill.enabled)
+                                      root.followNewest()
         anchors.bottom: list.bottom
         anchors.bottomMargin: Theme.space(10)
         anchors.horizontalCenter: list.horizontalCenter
@@ -601,6 +614,8 @@ FocusScope {
             }
 
             Text {
+                id: newerText
+
                 color: Theme.foreground
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.font.small

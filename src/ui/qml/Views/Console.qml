@@ -95,6 +95,14 @@ Flickable {
             }
 
             Text {
+                id: clearScopeLink
+
+                // #77: a "clear scope" button, its key the description; its press is the click.
+                Accessible.description: "esc"
+                Accessible.name: qsTr("clear scope")
+                Accessible.role: Accessible.Button
+                Accessible.onPressAction: if (clearScopeLink.enabled)
+                                              root.clearScope()
                 Layout.alignment: Qt.AlignBaseline
                 color: clearHover.hovered ? Theme.accent : Theme.dimForeground
                 font.family: Theme.fontFamily
@@ -127,7 +135,19 @@ Flickable {
 
         // --- attention -----------------------------------------------------------------------
         Rectangle {
+            id: attentionBand
+
+            readonly property bool showsThem: (root.seed.attention.errors ?? 0) > 0
+
+            // #77: an alert, its detail the description; with errored torrents to show, a
+            // button whose press is the click ("show them").
+            Accessible.description: root.seed.attention.detail ?? ""
+            Accessible.name: root.seed.attention.title ?? ""
+            Accessible.role: attentionBand.showsThem ? Accessible.Button : Accessible.AlertMessage
+            Accessible.onPressAction: if (attentionBand.enabled && attentionBand.showsThem)
+                                          root.attentionRequested(root.seed.attention.host ?? "")
             color: Qt.alpha(Theme.stateError, 0.07)
+            objectName: "consoleAttention"
             height: attentionRow.implicitHeight + Theme.space(14)
             visible: root.seed.attention.visible === true
             width: parent.width
@@ -280,6 +300,21 @@ Flickable {
                         required property string modelData
                         readonly property bool on: rangeChip.modelData === root.seed.range
 
+                        /// Show this range: a click, or a screen reader's press or toggle.
+                        function pick(): void {
+                            if (rangeChip.enabled)
+                                root.seed.range = rangeChip.modelData;
+                        }
+
+                        // #77: the ranges are radio buttons, the one shown checked.
+                        Accessible.checkable: true
+                        Accessible.checked: rangeChip.on
+                        Accessible.name: rangeChip.modelData
+                        Accessible.role: Accessible.RadioButton
+                        Accessible.onPressAction: rangeChip.pick()
+                        Accessible.onToggleAction: rangeChip.pick()
+                        objectName: "rangeChip_" + rangeChip.modelData
+
                         border.color: rangeChip.on ? "transparent" : rangeHover.hovered ? Theme.fill(Theme.borderHover)
                                                                                         : Theme.fill(Theme.hairlineAlpha)
                         border.width: 1
@@ -306,7 +341,7 @@ Flickable {
                         }
 
                         TapHandler {
-                            onTapped: root.seed.range = rangeChip.modelData
+                            onTapped: rangeChip.pick()
                         }
                     }
                 }

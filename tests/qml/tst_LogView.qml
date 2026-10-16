@@ -199,6 +199,18 @@ TestCase {
         tryVerify(() => list.atYEnd, 2000);
         verify(!findChild(testCase.logView, "newerPill").visible);
 
+        // #77: the pill is a "follow new lines" button a screen reader presses, as `G`.
+        keyClick("g");
+        testCase.addLines(2, 4, "Failed to export torrent. Torrent: \"y\"");
+        const pill = findChild(testCase.logView, "newerPill");
+        compare(pill.Accessible.role, Accessible.Button);
+        compare(pill.Accessible.name, "follow new lines");
+        compare(pill.Accessible.description, "2 new lines below · follow is paused");
+        pill.Accessible.pressAction();
+        verify(testCase.logView.following);
+        compare(testCase.logView.newLines, 0);
+        tryVerify(() => list.atYEnd, 2000);
+
         keyClick("f");
         verify(!testCase.logView.following);
         keyClick("f");
@@ -367,6 +379,70 @@ TestCase {
         compare(testCase.logView.cursor, App.logLines.count - 1);
         verify(view.runAction("toggleLog"));
         compare(view.view, "library");
+    }
+
+    // #77: the lines are list items named by their message, marked ones selected; a screen
+    // reader's press is a plain click: the cursor goes there and the marks go.
+    function test_a_line_takes_the_accessible_press() {
+        testCase.openLog();
+        testCase.addLines(5, 1, "Added new torrent. Torrent: \"a11y\"");
+        const list = testCase.logView.list;
+        compare(list.Accessible.role, Accessible.List);
+        compare(list.Accessible.name, "log");
+        testCase.logView.moveCursor(0);
+        waitForRendering(list);
+        const row = list.itemAtIndex(1);
+        compare(row.Accessible.role, Accessible.ListItem);
+        compare(row.Accessible.name, row.message);
+        testCase.logView.lines.toggleMark(2);
+        verify(list.itemAtIndex(2).Accessible.selected);
+        row.Accessible.pressAction();
+        compare(testCase.logView.cursor, 1);
+        verify(!list.itemAtIndex(2).Accessible.selected, "a plain press kept the marks");
+    }
+
+    // #77: on the seed console the ranges are radio buttons, and pressing one shows it.
+    function test_the_console_ranges_take_the_accessible_press() {
+        view.setView("seed");
+        const week = findChild(view, "rangeChip_7d");
+        const month = findChild(view, "rangeChip_30d");
+        compare(week.Accessible.role, Accessible.RadioButton);
+        compare(week.Accessible.name, "7d");
+        const before = App.console.range;
+        month.Accessible.toggleAction();
+        compare(App.console.range, "30d");
+        verify(month.Accessible.checked);
+        week.Accessible.pressAction();
+        compare(App.console.range, "7d");
+        App.console.range = before;
+        view.setView("library");
+    }
+
+    Component {
+        id: consoleRowComponent
+
+        ConsoleRow {
+            name: "debian.iso"
+            note: "2 seeds"
+            trailing: "3 waiting"
+        }
+    }
+
+    // #77: a console row is a list item named by its torrent, its notes the description, and
+    // a screen reader's press is its click; one that takes no click is text, and ignores it.
+    function test_a_console_row_takes_the_accessible_press() {
+        const row = createTemporaryObject(consoleRowComponent, testCase);
+        compare(row.Accessible.role, Accessible.ListItem);
+        compare(row.Accessible.name, "debian.iso");
+        compare(row.Accessible.description, "2 seeds · 3 waiting");
+        let clicks = 0;
+        row.clicked.connect(() => clicks++);
+        row.Accessible.pressAction();
+        compare(clicks, 1);
+        row.clickable = false;
+        compare(row.Accessible.role, Accessible.StaticText);
+        row.Accessible.pressAction();
+        compare(clicks, 1, "a row that takes no click ran");
     }
 
     // The library's own keys do nothing on the log.
