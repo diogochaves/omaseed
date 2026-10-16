@@ -1,6 +1,7 @@
 import QtQuick
 import qs.Commons
 import qs.Ui
+import "Status.js" as Status
 
 // One row of the widget's settings page (docs/21): the setting's name and a line under
 // it, the shell's own switch or chips on the right. The page owns the cursor and the
@@ -35,8 +36,31 @@ CursorSurface {
     return []
   }
 
+  // A click and a screen reader's press both step the setting (the page saves it, or says
+  // why it can't change).
+  function step() {
+    stepped(1)
+  }
+
   width: parent ? parent.width : implicitWidth
   implicitHeight: Math.max(Style.spacing.popupRowHeight, Math.max(text.implicitHeight, control.height) + Style.space(10))
+
+  // A screen reader (#80): a switch row is a check box with its state, a pick or a number a
+  // list item whose description says the value; the line under the name follows. Not
+  // `accessibleName` (an Omarchy without PR #13212 would fail to load the widget);
+  // `ignored`: with #13212 the kit leaves an unnamed CursorSurface out. The kit presses no
+  // CursorSurface, so no guard. The switch inside is not interactive and #13212 hides it.
+  // Each group repeats every row and shows its own: the others stay out.
+  Accessible.role: root.isSwitch ? Accessible.CheckBox : Accessible.ListItem
+  Accessible.name: root.row.title || ""
+  Accessible.description: (root.isSwitch ? [] : [Status.settingValueText(root.row, root.value)]).concat(root.detail !== "" ? [root.detail] : []).join(", ")
+  Accessible.checkable: root.isSwitch
+  Accessible.checked: root.isSwitch && root.value === true
+  Accessible.ignored: !root.visible
+  // a11y-ignore A9: a CursorSurface; #13212's kit presses no row, so there is no second press
+  Accessible.onPressAction: root.step()
+  // a11y-ignore A9: as the press: the kit has no toggle for a row
+  Accessible.onToggleAction: root.step()
 
   Column {
     id: text
@@ -114,6 +138,6 @@ CursorSurface {
     hoverEnabled: true
     cursorShape: Qt.PointingHandCursor
     onEntered: root.hovered()
-    onClicked: root.stepped(1)
+    onClicked: root.step()
   }
 }

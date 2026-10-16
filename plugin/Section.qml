@@ -1,6 +1,7 @@
 import QtQuick
 import qs.Commons
 import qs.Ui
+import "Status.js" as Status
 
 // A section of the popup that folds (contract §3): its header is a cursor target, a
 // click or `space` folds it, and while folded it keeps one line, the fact worth
@@ -29,6 +30,18 @@ Column {
     height: Math.max(Style.spacing.popupRowHeight, headerRow.implicitHeight)
     hasCursor: root.hasCursor
     foreground: root.foreground
+
+    // A screen reader (#80): a heading that folds is a button; its description says whether
+    // it is folded, with the line it keeps then (Qt Quick has no `Accessible.expanded`). Not
+    // `accessibleName` (an Omarchy without PR #13212 would fail to load the widget);
+    // `ignored`: with #13212 the kit leaves an unnamed CursorSurface out. The kit presses no
+    // CursorSurface, so no guard.
+    Accessible.role: Accessible.Button
+    Accessible.name: root.title
+    Accessible.description: root.folded ? (root.summary !== "" ? "folded: " + Status.spoken(root.summary) : "folded") : "unfolded"
+    Accessible.ignored: false
+    // a11y-ignore A9: a CursorSurface; #13212's kit presses no row, so there is no second press
+    Accessible.onPressAction: root.toggled()
 
     Row {
       id: headerRow

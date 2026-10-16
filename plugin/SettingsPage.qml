@@ -51,6 +51,9 @@ Column {
         foreground: root.foreground
         fontFamily: root.fontFamily
         font.letterSpacing: Style.space(1)
+        // As written, not in the capitals it is drawn in (#80).
+        Accessible.role: Accessible.Heading
+        Accessible.name: groupBlock.modelData
       }
 
       Repeater {
@@ -92,6 +95,9 @@ Column {
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
         wrapMode: Text.WordWrap
+        Accessible.role: Accessible.StaticText
+        Accessible.name: groupNote
+        Accessible.ignored: groupNote === ""
       }
     }
   }
@@ -106,6 +112,11 @@ Column {
     font.family: root.fontFamily
     font.pixelSize: Style.font.caption
     elide: Text.ElideRight
+    // "saved · …": what the last change did.
+    Accessible.role: Accessible.StaticText
+    // a11y-ignore A6: a label, not a control; a screen reader reads it when it gets there, and its changes are not announced
+    Accessible.name: Status.spoken(root.note)
+    Accessible.ignored: root.note === ""
   }
 
   PanelSeparator { width: parent.width; foreground: root.foreground }
@@ -117,6 +128,16 @@ Column {
     hasCursor: root.cursorIndex === root.rows.length
     foreground: root.foreground
     onHasCursorChanged: if (hasCursor) root.cursorItem(appRow)
+
+    // A screen reader (#80), as the rows above. Not `accessibleName` (an Omarchy without PR
+    // #13212 would fail to load the widget); `ignored`: with #13212 the kit leaves an unnamed
+    // CursorSurface out. The kit presses no CursorSurface, so no guard.
+    Accessible.role: Accessible.ListItem
+    Accessible.name: "omaseed settings"
+    Accessible.description: "servers and more, in omaseed"
+    Accessible.ignored: false
+    // a11y-ignore A9: a CursorSurface; #13212's kit presses no row, so there is no second press
+    Accessible.onPressAction: root.appSettings()
 
     Row {
       id: appRowContent

@@ -1,6 +1,7 @@
 import QtQuick
 import qs.Commons
 import qs.Ui
+import "Status.js" as Status
 
 // One row of the popup: a cursor target with a name, a right-hand fact, and as needed a
 // tick box (Add), a leading icon (Lately), a second line, a badge, and a 2 px progress
@@ -27,9 +28,30 @@ CursorSurface {
   signal clicked()
   signal hovered()
 
+  // A click and a screen reader's press both come here; a read-only row takes neither.
+  function activate() {
+    if (!readOnly) clicked()
+  }
+
   width: parent ? parent.width : implicitWidth
   implicitHeight: Math.max(Style.spacing.popupRowHeight, body.implicitHeight + Style.space(8))
   opacity: readOnly ? 0.45 : 1
+
+  // A screen reader (#80): a list item named by its title, the right-hand fact, second line
+  // and badge as its description, an Add row's tick as its checked state. Not
+  // `accessibleName` (an Omarchy without PR #13212 would fail to load the widget); with
+  // #13212 the kit leaves a row it has no name for out of the tree, hence `ignored`. The kit
+  // never presses a row (its owner does), so the press needs no guard.
+  Accessible.role: Accessible.ListItem
+  Accessible.name: root.title
+  Accessible.description: Status.spoken([root.meta, root.subline, root.badge].filter(function(s) { return s !== "" }).join(" · "))
+  Accessible.checkable: root.leading === "tick"
+  Accessible.checked: root.ticked
+  Accessible.ignored: false
+  // a11y-ignore A9: a CursorSurface; #13212's kit presses no row, so there is no second press
+  Accessible.onPressAction: root.activate()
+  // a11y-ignore A9: as the press: the kit has no toggle for a row
+  Accessible.onToggleAction: root.activate()
 
   Row {
     id: body
@@ -159,6 +181,6 @@ CursorSurface {
     enabled: !root.readOnly
     cursorShape: Qt.PointingHandCursor
     onEntered: root.hovered()
-    onClicked: root.clicked()
+    onClicked: root.activate()
   }
 }

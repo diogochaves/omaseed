@@ -44,6 +44,11 @@ Column {
       readonly property string aside: String(modelData.detail || "") !== "" ? String(modelData.detail)
                                       : Status.menuKey(modelData.id)
 
+      // A click and a screen reader's press both come here; a row that can't run takes neither.
+      function pick() {
+        if (entry.live) root.picked(entry.modelData)
+      }
+
       width: root.width
       height: kind === "separator" ? Style.space(9)
               : (kind === "caption" ? captionText.implicitHeight + Style.space(8) : Style.spacing.popupRowHeight)
@@ -70,6 +75,9 @@ Column {
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
         font.letterSpacing: Style.space(1)
+        // As written, not in the capitals it is drawn in (#80).
+        Accessible.role: Accessible.StaticText
+        Accessible.name: String(entry.modelData.label || "")
       }
 
       CursorSurface {
@@ -80,6 +88,23 @@ Column {
         foreground: root.foreground
         opacity: entry.live ? 1 : 0.45
         onHasCursorChanged: if (hasCursor) root.cursorItem(entry)
+
+        // A screen reader (#80): a menu item named by its label, a server or a check with its
+        // state, what the app wrote at its right (or the popup's key) as the description. Not
+        // `accessibleName` (an Omarchy without PR #13212 would fail to load the widget);
+        // `ignored`: with #13212 the kit leaves an unnamed CursorSurface out. The kit presses
+        // no CursorSurface, so no guard.
+        Accessible.role: Accessible.MenuItem
+        Accessible.name: String(entry.modelData.label || "")
+        Accessible.description: String(entry.modelData.detail || "") !== "" ? String(entry.modelData.detail)
+                                : (entry.aside !== "" ? "shortcut " + entry.aside : "")
+        Accessible.checkable: entry.kind === "radio" || entry.kind === "check"
+        Accessible.checked: entry.modelData.checked === true
+        Accessible.ignored: false
+        // a11y-ignore A9: a CursorSurface; #13212's kit presses no row, so there is no second press
+        Accessible.onPressAction: entry.pick()
+        // a11y-ignore A9: as the press: the kit has no toggle for a row
+        Accessible.onToggleAction: entry.pick()
 
         Item {
           id: lead
@@ -147,7 +172,7 @@ Column {
           enabled: entry.live
           cursorShape: Qt.PointingHandCursor
           onEntered: root.hoveredRow(entry.index)
-          onClicked: root.picked(entry.modelData)
+          onClicked: entry.pick()
         }
       }
     }
