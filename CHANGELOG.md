@@ -9,6 +9,18 @@ before it will tag a release.
 
 ### Added
 
+- With two servers or more, the other ones are always one step away: the rail keeps them in a
+  block pinned to its bottom, with what omaseed saw last on each (its torrents, or why it
+  didn't answer), even while the library is empty or the server is down; `ctrl+s`, a click on
+  the hero's server name and `:` "switch server…" open a server palette, and `:` has a "switch
+  to NAME" row for each. The block folds to one line with `z`. With one server none of this
+  shows.
+- The add sheet says which server a torrent goes to ("Add torrent to private") and can change
+  it: the server chip or `ctrl+s` switches omaseed there and the sheet stays open with what you
+  typed, its save path, free space and library check read from the new server. While the
+  server is down the sheet still opens, and "add when back" sends the torrent as soon as it
+  answers.
+
 - Copy settings from another server (Settings › qBittorrent › Backup): omaseed reads the
   other qBittorrent just now, without leaving the one it is on, and shows what would change
   as an import, so you pick what to take. Nothing changes on the other server. When it can't
@@ -102,6 +114,18 @@ before it will tag a release.
 
 ### Changed
 
+- When the server stops answering, a band across the window says so in plain words, naming it
+  ("private didn't answer", "seedbox refused the sign-in") with what omaseed does next, "retry
+  now" or "edit login", "switch server", and the technical text under "details". Yellow while
+  omaseed retries by itself, red when it needs you. A refused sign-in is no longer called
+  "unreachable" and no longer retried by itself, and the footer says "not synced yet" before a
+  first sync. The desktop notice says the same words.
+- A failed action says what didn't happen in one sentence that stays in the footer until the
+  next key ("Field Recordings wasn't moved: qBittorrent can't create or write /proc/omaseed"),
+  with the request and qBittorrent's own text under "details"; a key the read-only state stops
+  says why.
+- Settings › Servers says "in use" and "switch to it" instead of "default" and "make default",
+  and keeps what was last seen on the servers omaseed isn't on.
 - Settings says whose settings each part is. omaseed's Backup starts by saying what it holds
   (its settings, the servers without their passwords, the seed history, each server's
   qBittorrent settings) and that torrents are in qBittorrent › Backup, one `t` away.

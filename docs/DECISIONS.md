@@ -488,6 +488,84 @@ left open, or what building it decided:
   name filters; the MIME type adds nothing a name filter doesn't there.
 - **D9 a:** the .desktop entry's MimeType is unchanged, and `tst_mimetypes` checks it.
 
+## C12 — Servers in any state, and the error notice (boards 33 and 35, ruled 2026-10-16)
+
+Board [33](33-servers-any-state.html) (#69, #72), D1–D9 and D11–D23 as recommended, built; D10,
+D24 and D25 (the tray and the widget's shared menu, docs/20's changes, "In the bar") are a later
+build. Board 33's notice look (D21, D22) was ruled on its own board,
+[35](35-error-notice.html), N1–N8 as recommended, and is built with it. With two servers or
+more a way to the others is always on screen; with one, nothing offers to switch (D19).
+
+- **Last seen (D5 a)** is `ServerListModel`'s: per server the torrent count and when, or why the
+  last try failed ("sign-in refused", "didn't answer") and when, in state.json's `servers`
+  section (`<id>.lastSeen = {torrents, at, error, detail}`). It is written as the app syncs, at
+  most once a minute while the count does not move, on a failure, and on a switch away. No
+  request goes to a server the app is not on. The list's `serverState` and `countLabel` roles
+  give the current server's live state (live, syncing, down, refused, certificate) and the
+  others' remembered one. Board 34's `ServerSelect` (C11) still probes the other servers when
+  its list opens; the palette and the rail don't (D5 a's "no requests").
+- **The rail (D1 a, D7 a, D12 a, D16 a–D18 a):** the servers are a block pinned under the
+  scroll, the idle fill under a hairline, "servers · N" with a fold chevron, each row a dot and
+  its count ("down", "!" after a failed try). Folded (`z`, the heading, `enter` on the line) it
+  is "● NAME ▴ · N servers", app-wide in state.json's `general.serversFolded`, open the first
+  time. The short-window rule leaves the filters at least 5 rows (and their heading); below
+  that the block shows folded without saving it, and a hand unfold opens it over the filters,
+  opaque with an accent edge, until `esc` or a pick. 5 rows at most, then "… N more · ctrl+s".
+  With two servers the rail shows in every state but the log face; while there is no list
+  (empty, first sync, lost or refused before a list) it is the block alone, `serversOnly`.
+- **The colours follow docs/35 N3, not board 33's mocks:** a server omaseed retries on its own
+  (didn't answer, can't be found, too slow) is yellow everywhere: the notice, the hero's dot,
+  the rail's "down", the add sheet's chip. Red is for a server that needs you (sign-in refused,
+  403, certificate, an unreadable answer) and for a failed action.
+- **The switch (D2 a–D4 a, D14 a)** is one `App.switchServer`, which makes the server the
+  default as `setDefaultServer` did. `ctrl+s` (app-level) opens `Views/ServerPalette`; the
+  current server first ("on it now", live figures), the cursor on the next, `,` to Settings ›
+  Servers on the cursor's row. The hero's server line takes a ▾, a hover fill and a click (the
+  lone dot at step 4); its tooltip adds "switch server · ctrl+s". `:` lists "switch server…" and
+  one "switch to NAME" per other server (`switchTo:<id>`), and both run while the server is lost
+  (`Keymap.isOffline`). The read-only guard lets `ctrl+s` through.
+- **One server (D19 a):** no block, no ▾, no `:` rows, no hint; `ctrl+s` answers in the footer
+  "one server · add another in Settings › Servers"; the `?` sheet lists it dim as "Switch
+  server, with two servers or more".
+- **Words (D6 a, D9 a, D11 a, D23 a):** `core/ErrorWords` is the one table (a QtTest row per
+  line of board 33's): the window's notice, the add sheet, the footer's failed actions and the
+  desktop notice all read it. The desktop notice's summary is the window's headline and its body
+  the window's line, with the retry figure the engine counts down (Q16): "private didn't answer"
+  / "Nothing is listening at 127.0.0.1:8091. omaseed tries again in 10 s." The hero says "NAME ·
+  sign-in refused"; a refused sign-in is not retried until `R`, a new login or a switch; the
+  footer says "not synced yet" where it said "last sync" and nothing. A key the guard stops
+  says "private is unreachable: p waits until it answers". Settings › Servers says "in use" and
+  "switch to it" (the server sheet's button too), its footer names `d` (with two servers) and
+  `a`, and its other rows keep what was seen last ("4 torrents last time", "sign-in refused
+  today 23:28"). A 403 to a cookie login reads as a ban ("NAME refused omaseed"); to a key or
+  to no login, as a refused sign-in.
+- **The notice (docs/35 N1–N8)** is `Kit/Notice`: under the hero, the window's width, the body
+  starting under its line; in a sheet (`Kit/Sheet.headBand`) under the head, edge to edge;
+  from the footer, docked above it, opaque, over the table. It grows in over 120 ms (at once
+  with reduced motion) once the server is declared lost. The line keeps the retry countdown in
+  a slot of fixed width; under about 600 px the actions go under the line. The lost server's
+  line adds "The list below is from HH:MM." before the retry, where board 33 put it after —
+  *assumed, confirm.* Actions: "retry now", "edit login" (the server sheet, editing, the
+  keyboard on the password) or "review certificate", then "switch server" with two servers.
+- **The footer's failure (docs/35 N8):** a refused action is one sentence with a red ✕
+  ("Field Recordings wasn't moved: qBittorrent can't create or write /proc/omaseed") that stays
+  until the next key, with "details" opening the band above the footer. The next key (`esc`
+  included) closes it and clears the sentence — *assumed, confirm* (the board names esc, a
+  click outside and "details" again).
+- **The add sheet (#72, D13 a–D15 a, D20 a):** with two servers its title is "Add torrent to"
+  and a chip (the server's dot, its name, ▾) that opens the palette, as `ctrl+s` does; the foot
+  never says "server: NAME" (one server: "Add torrent", nothing). A switch from the sheet keeps
+  it open with what was typed, category and tags kept by name; once the new server's first
+  sync is in, the default save path (unless one was typed), free space, the library check and
+  the files match are read again and one yellow line says what moved, a category or tag the
+  new server lacks named "new there and will be created" — *assumed, confirm* (the board marks
+  the chip "new"). While the server is down the band is yellow ("NAME isn't answering"), free
+  space says it is unknown, and `add when back` holds the add (as stopped or not) and sends it,
+  built from the fields as they are then, when the server answers or the app is on another one
+  that does. A refused add is the red band in ErrorWords' words.
+- **Not built:** the server sheet's failed test as a notice (board 33's N5) keeps today's line;
+  it is first run's and Settings' wording, not a state this board changed.
+
 ## M8 — A click leaves the keyboard focus where it was
 
 Buttons and toggles do not take the focus when clicked. Otherwise an overlay gives the focus

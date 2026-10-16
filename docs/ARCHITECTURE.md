@@ -30,6 +30,9 @@ Three static libraries and the executable. Each layer only depends on the ones a
   web seed or .torrent copy that didn't happen ([DECISIONS.md](DECISIONS.md) C2).
   `ServerLog` reads the whole log for the log face while it shows, and `LogFilterModel` narrows
   it by level, words and torrent (C3).
+- `ErrorWords` is the one table of plain words for what went wrong: an `ApiError` and what it
+  was about become a headline naming the server or torrent, a line on what happens next, and
+  the technical text for "details" ([DECISIONS.md](DECISIONS.md) C12).
 - Servers and settings: `Server`, `ServerStore` (`servers.json`), `SecretStore` (the keyring
   through qtkeychain, a 0600 file under `secrets/` when there is none), `StateFile`,
   `ServerPreferences` (qBittorrent's own settings), `CertificatePin` (trust on first use).
