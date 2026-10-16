@@ -130,6 +130,61 @@ TestCase {
         compare(menu.opened, false);
     }
 
+    // docs/34 D3 a, D5 a: a footer is a dim, wrapped caption under the rows, never a row; a
+    // row's note sits where a key would, and no key press runs it; a row's glyph can take a
+    // colour (the server list's dots), and its text can be dim and still be picked.
+    function test_a_footer_notes_and_coloured_glyphs() {
+        const menu = createTemporaryObject(menuComponent, testCase, {
+                                               "items": [{
+                                                       "text": "public",
+                                                       "glyph": "●",
+                                                       "glyphColor": Theme.green,
+                                                       "note": "on it ✓",
+                                                       "action": "a"
+                                                   }, {
+                                                       "text": "seedbox",
+                                                       "glyph": "●",
+                                                       "note": "o",
+                                                       "dim": true,
+                                                       "action": "b"
+                                                   }]
+                                           });
+        const footer = findChild(menu, "menuFooter");
+        verify(footer);
+        menu.open();
+        compare(footer.visible, false);
+        compare(footer.height, 0);
+        const plain = menu.panel.height;
+        menu.footer = "The library and the tray follow, and it becomes the default.";
+        compare(footer.visible, true);
+        verify(menu.panel.height > plain);
+        verify(footer.y >= menu.rowsScroller.y + menu.rowsScroller.height);
+
+        const rows = menu.rowsLayout.children;
+        compare(findChild(rows[0], "menuRowGlyph").color, Theme.green);
+        compare(findChild(rows[0], "menuRowNote").text, "on it ✓");
+        compare(findChild(rows[1], "menuRowGlyph").color, Theme.dimForeground);
+        compare(findChild(rows[1], "menuRowText").color, Theme.dimForeground);
+        // A note is not a key: "o" picks nothing.
+        keyClick("o");
+        verify(menu.opened);
+        keyClick(Qt.Key_J);
+        compare(menu.cursorIndex, 1);
+        const spy = createTemporaryObject(spyComponent, testCase, {
+                                              "target": menu,
+                                              "signalName": "activated"
+                                          });
+        keyClick(Qt.Key_Return);
+        compare(spy.count, 1);
+        compare(spy.signalArguments[0][0], "b");
+    }
+
+    Component {
+        id: spyComponent
+
+        SignalSpy {}
+    }
+
     function test_it_opens_where_the_caller_anchors_it() {
         const menu = createTemporaryObject(menuComponent, testCase);
         menu.openAt(120, 200);

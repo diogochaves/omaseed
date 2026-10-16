@@ -14,7 +14,11 @@ import Omaseed.Kit
 //
 // `items` is `[{text, glyph, key, action, disabled, danger}]`, or `{separator: true}` for a
 // rule. `activated` carries `action` when the row has one and the text otherwise. `heading`,
-// when set, is a dim line above the rows, never a row itself (Q24: "2 selected").
+// when set, is a dim line above the rows, never a row itself (Q24: "2 selected"); `footer` a
+// dim caption under them, wrapped, under a hairline. A row may also carry `glyphColor` (its
+// glyph's colour: the server list's state dots, docs/34 D3 a), `note` (a dim word at the
+// right, where a key would be, that no key press matches) and `dim` (its text dim, though it
+// can still be picked).
 //
 // Keys: `j`/`k` and up/down move over the rows (separators and disabled rows are skipped),
 // `enter` runs the row under the cursor, a row's own key letter runs it straight away
@@ -35,6 +39,8 @@ Item {
     property int menuWidth: Theme.space(280)
     /// A dim line above the rows saying what they act on; empty draws none.
     property string heading: ""
+    /// A dim caption under the rows, wrapped (docs/34 D5 a); empty draws none.
+    property string footer: ""
     property int cursorIndex: 0
     /// Draw the panel alone, at 0,0, with no scrim (the gallery).
     property bool inline: false
@@ -270,7 +276,8 @@ Item {
         border.color: Theme.accent
         border.width: 1
         color: Theme.background
-        implicitHeight: heading.height + rows.implicitHeight + 2 * panel.padding
+        implicitHeight: heading.height + rows.implicitHeight + footerItem.height
+                        + 2 * panel.padding
         // Never taller than the item it clamps itself in: the rows scroll instead.
         height: root.inline ? implicitHeight
                 : Math.min(implicitHeight, Math.max(0, root.height - 2 * root._edge))
@@ -286,8 +293,7 @@ Item {
         Flickable {
             id: rowScroller
 
-            anchors.bottom: parent.bottom
-            anchors.bottomMargin: panel.padding
+            anchors.bottom: footerItem.top
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: heading.bottom
@@ -352,7 +358,8 @@ Item {
                             Glyph {
                                 Layout.preferredHeight: Theme.font.body
                                 Layout.preferredWidth: Theme.space(14)
-                                color: Theme.dimForeground
+                                color: menuRow.modelData.glyphColor ?? Theme.dimForeground
+                                objectName: "menuRowGlyph"
                                 text: menuRow.modelData.glyph ?? ""
                                 visible: text.length > 0
                             }
@@ -361,17 +368,21 @@ Item {
                                 Layout.fillWidth: true
                                 color: menuRow.disabled ? Theme.dimForeground
                                         : menuRow.modelData.danger === true ? Theme.red
-                                        : menuRow.current ? Theme.accent : Theme.foreground
+                                        : menuRow.current ? Theme.accent
+                                        : menuRow.modelData.dim === true ? Theme.dimForeground
+                                        : Theme.foreground
                                 elide: Text.ElideRight
+                                objectName: "menuRowText"
                                 text: menuRow.modelData.text !== undefined
                                       ? menuRow.modelData.text : ""
                             }
 
                             Label {
                                 dim: true
+                                objectName: "menuRowNote"
                                 size: "caption"
                                 text: menuRow.modelData.key !== undefined
-                                      ? menuRow.modelData.key : ""
+                                      ? menuRow.modelData.key : (menuRow.modelData.note ?? "")
                                 visible: text.length > 0
                             }
                         }
@@ -442,6 +453,41 @@ Item {
                 anchors.right: parent.right
                 anchors.rightMargin: Theme.space(14)
                 y: Theme.railRowHeight + Theme.space(4)
+            }
+        }
+
+        // Under the rows: a hairline, then the caption, wrapped to the panel's width.
+        Item {
+            id: footerItem
+
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: panel.padding
+            anchors.left: parent.left
+            anchors.right: parent.right
+            height: root.footer.length > 0 ? footerText.implicitHeight + 2 * Theme.space(6) + 1 : 0
+            objectName: "menuFooter"
+            visible: root.footer.length > 0
+
+            Hairline {
+                anchors.left: parent.left
+                anchors.leftMargin: Theme.space(14)
+                anchors.right: parent.right
+                anchors.rightMargin: Theme.space(14)
+                y: Theme.space(4)
+            }
+
+            Label {
+                id: footerText
+
+                anchors.left: parent.left
+                anchors.leftMargin: Theme.space(14)
+                anchors.right: parent.right
+                anchors.rightMargin: Theme.space(14)
+                dim: true
+                size: "small"
+                text: root.footer
+                wrapMode: Text.WordWrap
+                y: Theme.space(6) + 1
             }
         }
 
