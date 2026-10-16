@@ -14,7 +14,7 @@ using omaseed::integration::ThemeReader;
 
 namespace {
 
-/// Tokyo Night's colours, with its dark_foreground under 3:1 so the role is a lifted one.
+/// Tokyo Night's colours, with its dark_foreground under the floor so the role is a lifted one.
 const char *kColors = R"(accent = "#7aa2f7"
 background = "#1a1b26"
 foreground = "#a9b1d6"
@@ -130,7 +130,7 @@ void TestThemeRoles::rolesAreThoseThemeResolved()
     QCOMPARE(colors.value(QStringLiteral("stateError")).toString(), QStringLiteral("#f7768e"));
     QCOMPARE(colors.value(QStringLiteral("stateSeeding")).toString(), QStringLiteral("#9ece6a"));
 
-    // The dim foreground is the one Theme lifted to 3:1 (Q19), not the theme's #565f89.
+    // The dim foreground is the one Theme lifted to 4.5:1 (Q19), not the theme's #565f89.
     const QString dim = colors.value(QStringLiteral("dimForeground")).toString();
     QCOMPARE(dim, theme.dimForeground().name());
     QVERIFY(dim != QStringLiteral("#565f89"));

@@ -30,6 +30,76 @@ foreground = "#212121"
 dark_foreground = "#757575"
 )";
 
+/// A light palette whose every text colour is under 4.5:1 against its white ground.
+const char *kFaintText = R"(mode = "light"
+background = "#ffffff"
+foreground = "#202020"
+dark_foreground = "#a0a0a0"
+accent = "#7fb2ff"
+red = "#ff8080"
+yellow = "#e0c040"
+orange = "#ffa060"
+green = "#70d070"
+cyan = "#60d0e0"
+blue = "#80a0ff"
+magenta = "#e080e0"
+)";
+
+/// A dark palette whose every text colour already reads at 4.5:1 or more.
+const char *kReadableText = R"(mode = "dark"
+background = "#101010"
+foreground = "#e0e0e0"
+dark_foreground = "#8a8a8a"
+accent = "#6fa8ff"
+red = "#ff6b6b"
+yellow = "#e8c547"
+orange = "#f59a52"
+green = "#5fd068"
+cyan = "#4fc8d8"
+blue = "#7a9cff"
+magenta = "#d77ee0"
+)";
+
+/// The roles Q19 puts a floor under, as `Theme` names them and as colors.toml does.
+const QList<QPair<const char *, const char *>> kTextRoles{
+    {"dimForeground", "dark_foreground"},
+    {"accent", "accent"},
+    {"red", "red"},
+    {"yellow", "yellow"},
+    {"orange", "orange"},
+    {"green", "green"},
+    {"cyan", "cyan"},
+    {"blue", "blue"},
+    {"magenta", "magenta"},
+};
+
+/// Each state role and the palette role it reads.
+const QList<QPair<const char *, const char *>> kStateRoles{
+    {"stateDownloading", "blue"},
+    {"stateSeeding", "green"},
+    {"stateStopped", "dimForeground"},
+    {"stateError", "red"},
+    {"stateChecking", "yellow"},
+    {"stateQueued", "magenta"},
+    {"stateStalled", "orange"},
+};
+
+QColor role(const Theme &theme, const char *name)
+{
+    return theme.property(name).value<QColor>();
+}
+
+/// The colour a colors.toml line gives `key`.
+QColor paletteColour(const char *colors, const char *key)
+{
+    const QString prefix = QString::fromLatin1(key) + QStringLiteral(" = \"");
+    for (const QString &line : QString::fromUtf8(colors).split(QLatin1Char('\n'))) {
+        if (line.startsWith(prefix))
+            return QColor::fromString(line.mid(prefix.size(), 7));
+    }
+    return {};
+}
+
 } // namespace
 
 /// The reader's job away from the resolver: find the right file, notice a theme change once,
@@ -51,6 +121,8 @@ private slots:
     void spacingAndTypeFollowTheBaseSize();
     void windowAlphaFollowsTheLaunchersBackgroundAlpha();
     void dimForegroundIsLiftedToTheContrastFloor();
+    void textColoursUnderTheFloorAreLifted();
+    void textColoursAtTheFloorAreUntouched();
 
 private:
     ThemeReader::Paths paths() const;
@@ -298,8 +370,9 @@ void TestThemeReader::windowAlphaFollowsTheLaunchersBackgroundAlpha()
     QCOMPARE(theme.defaultWindowAlpha(), 0.95);
 }
 
-/// docs/DECISIONS.md Q19: a theme whose dark_foreground is under 3:1 against its background
-/// gets the role lifted towards the foreground; one already there keeps it byte for byte.
+/// docs/DECISIONS.md Q19: a theme whose dark_foreground is under the floor (4.5:1 since #89)
+/// against its background gets the role lifted towards the foreground; one already there
+/// keeps it byte for byte.
 void TestThemeReader::dimForegroundIsLiftedToTheContrastFloor()
 {
     // Tokyo Night's #565f89 reads at 2.76 on #1a1b26: lifted, and to the same colour the
@@ -308,15 +381,67 @@ void TestThemeReader::dimForegroundIsLiftedToTheContrastFloor()
     ThemeReader reader(paths());
     Theme theme(&reader);
     QVERIFY(theme.dimForeground() != QColor(QStringLiteral("#565f89")));
-    QVERIFY(Theme::contrastRatio(theme.dimForeground(), theme.background()) >= 3.0);
+    QVERIFY(Theme::contrastRatio(theme.dimForeground(), theme.background()) >=
+            Theme::kTextContrastFloor);
     QCOMPARE(theme.dimForeground(),
-             Theme::liftToContrast(
-                 QColor(QStringLiteral("#565f89")), theme.foreground(), theme.background(), 3.0));
+             Theme::liftToContrast(QColor(QStringLiteral("#565f89")),
+                                   theme.foreground(),
+                                   theme.background(),
+                                   Theme::kTextContrastFloor));
 
-    // Lupine's #757575 reads at 4.41 on #fafafa: untouched.
+    // Lupine's #757575 reads at 4.41 on #fafafa: over the old 3:1, under 4.5, so lifted now.
     installTheme(kLupine, QStringLiteral("lupine"));
     reader.reload();
-    QCOMPARE(theme.dimForeground().name(), QStringLiteral("#757575"));
+    QVERIFY(theme.dimForeground() != QColor(QStringLiteral("#757575")));
+    QVERIFY(Theme::contrastRatio(theme.dimForeground(), theme.background()) >=
+            Theme::kTextContrastFloor);
+}
+
+/// Q19 amended (#89): every colour omaseed paints text with gets the floor, by the same lift,
+/// and the state roles, which read them, follow.
+void TestThemeReader::textColoursUnderTheFloorAreLifted()
+{
+    installTheme(kFaintText, QStringLiteral("faint-text"));
+    ThemeReader reader(paths());
+    Theme theme(&reader);
+    const QColor background(QStringLiteral("#ffffff"));
+    const QColor foreground(QStringLiteral("#202020"));
+    QCOMPARE(theme.background(), background);
+    QCOMPARE(theme.foreground(), foreground);
+
+    for (const auto &[name, key] : kTextRoles) {
+        const QColor own = paletteColour(kFaintText, key);
+        QVERIFY2(own.isValid(), key);
+        QVERIFY2(Theme::contrastRatio(own, background) < Theme::kTextContrastFloor, key);
+        const QColor shown = role(theme, name);
+        QVERIFY2(Theme::contrastRatio(shown, background) >= Theme::kTextContrastFloor,
+                 qPrintable(QStringLiteral("%1 %2 reads at %3")
+                                .arg(QLatin1String(name), shown.name())
+                                .arg(Theme::contrastRatio(shown, background))));
+        QCOMPARE(shown,
+                 Theme::liftToContrast(own, foreground, background, Theme::kTextContrastFloor));
+    }
+    for (const auto &[state, base] : kStateRoles)
+        QCOMPARE(role(theme, state), role(theme, base));
+
+    // A role that is never text keeps the theme's colour: the bright foreground falls back
+    // to the foreground in the cascade, and is not lifted (nor need it be).
+    QCOMPARE(theme.brightForeground(), foreground);
+}
+
+void TestThemeReader::textColoursAtTheFloorAreUntouched()
+{
+    installTheme(kReadableText, QStringLiteral("readable-text"));
+    ThemeReader reader(paths());
+    Theme theme(&reader);
+    for (const auto &[name, key] : kTextRoles) {
+        const QColor own = paletteColour(kReadableText, key);
+        QVERIFY2(own.isValid(), key);
+        QVERIFY2(Theme::contrastRatio(own, theme.background()) >= Theme::kTextContrastFloor, key);
+        QCOMPARE(role(theme, name).rgba(), own.rgba()); // byte for byte
+    }
+    for (const auto &[state, base] : kStateRoles)
+        QCOMPARE(role(theme, state).rgba(), role(theme, base).rgba());
 }
 
 QTEST_MAIN(TestThemeReader)

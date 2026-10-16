@@ -55,10 +55,6 @@ int roundPositive(double value)
     return std::max(1, static_cast<int>(std::lround(value)));
 }
 
-/// The contrast every tracked caption and column header must reach against the window
-/// background (docs/DECISIONS.md Q19, Diogo's ruling of 2026-09-19).
-constexpr qreal kMinimumDimContrast = 3.0;
-
 /// WCAG relative luminance of an opaque colour: each sRGB channel linearised, then weighted.
 qreal relativeLuminance(const QColor &colour)
 {
@@ -206,12 +202,6 @@ void Theme::adopt()
     m_background = colorOf(palette, QStringLiteral("background"), m_background);
     m_foreground = colorOf(palette, QStringLiteral("foreground"), m_foreground);
     m_dimForeground = colorOf(palette, QStringLiteral("dark_foreground"), m_dimForeground);
-    // Twelve of the bundled themes put dark_foreground under 3:1 against their own
-    // background, and the spec draws every caption in it. Lift it towards the foreground
-    // until it reads (Q19); the opaque theme colour is the reference, not the alpha-blended
-    // ground, which moves with the wallpaper.
-    m_dimForeground =
-        liftToContrast(m_dimForeground, m_foreground, m_background, kMinimumDimContrast);
     m_brightForeground = colorOf(palette, QStringLiteral("bright_foreground"), m_brightForeground);
     m_accent = colorOf(palette, QStringLiteral("accent"), m_accent);
     m_muted = colorOf(palette, QStringLiteral("muted"), m_muted);
@@ -228,6 +218,21 @@ void Theme::adopt()
     m_darkerBackground = colorOf(palette, QStringLiteral("darker_background"), m_darkerBackground);
     m_lighterBackground =
         colorOf(palette, QStringLiteral("lighter_background"), m_lighterBackground);
+    // Most themes put dark_foreground under 4.5:1 against their own background, and a few
+    // (the light ones, miasma) do the same with a palette colour; the spec paints captions,
+    // states, links and glyphs in them. Each is lifted towards the foreground until it reads
+    // (Q19, amended in #89); the opaque theme colour is the reference, not the alpha-blended
+    // ground, which moves with the wallpaper. The state roles read these, so they follow.
+    for (QColor *text : {&m_dimForeground,
+                         &m_accent,
+                         &m_red,
+                         &m_yellow,
+                         &m_orange,
+                         &m_green,
+                         &m_cyan,
+                         &m_blue,
+                         &m_magenta})
+        *text = liftToContrast(*text, m_foreground, m_background, kTextContrastFloor);
 
     m_mode = palette.value(QStringLiteral("mode"), QStringLiteral("dark"));
     m_themeName = m_reader->themeName();

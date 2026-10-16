@@ -78,10 +78,13 @@ class Theme : public QObject
     // ---- colour roles ------------------------------------------------------------------
     Q_PROPERTY(QColor background READ background NOTIFY changed FINAL)
     Q_PROPERTY(QColor foreground READ foreground NOTIFY changed FINAL)
-    /// `dark_foreground`, lifted towards `foreground` until it reads at 3:1 against
-    /// `background` (docs/DECISIONS.md Q19). A theme already at 3:1 keeps its colour.
+    /// `dark_foreground`, lifted towards `foreground` until it reads at kTextContrastFloor
+    /// against `background` (docs/DECISIONS.md Q19). A theme already there keeps its colour.
     Q_PROPERTY(QColor dimForeground READ dimForeground NOTIFY changed FINAL)
     Q_PROPERTY(QColor brightForeground READ brightForeground NOTIFY changed FINAL)
+    /// accent, red, yellow, orange, green, cyan, blue and magenta paint text and glyphs, so
+    /// they get the same floor as dimForeground, by the same lift (Q19 amended, #89). muted,
+    /// selection, brown and the grounds are never text and stay as the theme has them.
     Q_PROPERTY(QColor accent READ accent NOTIFY changed FINAL)
     Q_PROPERTY(QColor muted READ muted NOTIFY changed FINAL)
     Q_PROPERTY(QColor selection READ selection NOTIFY changed FINAL)
@@ -223,12 +226,18 @@ public:
     /// The foreground at an alpha: 0.04 idle, 0.08 hover, 0.18 selected, 0.22 pressed.
     Q_INVOKABLE QColor fill(qreal alpha) const;
 
+    /// The contrast every colour omaseed paints text with reaches against the window
+    /// background: WCAG 2.2 AA for normal-size text, 4.5:1 (docs/DECISIONS.md Q19, amended
+    /// 2026-10-16 in #89; it was 3:1, on dimForeground only). Measured against `background`
+    /// alone, not the row fills: lifting against those too flattens captions into body text.
+    static constexpr qreal kTextContrastFloor = 4.5;
+
     /// WCAG 2 contrast ratio of two opaque colours, 1 to 21: relative luminance from the
     /// sRGB-linearised channels, then (lighter + 0.05) / (darker + 0.05).
     static qreal contrastRatio(const QColor &a, const QColor &b);
     /// `dim` itself when it already reads at `minimum` against `against`; otherwise the first
     /// colour on the line from `dim` towards `toward`, walked in 1/256 steps, that does, or
-    /// `toward` when even that falls short (docs/DECISIONS.md Q19, the floor on dimForeground).
+    /// `toward` when even that falls short (docs/DECISIONS.md Q19, the floor on text colours).
     static QColor
     liftToContrast(const QColor &dim, const QColor &toward, const QColor &against, qreal minimum);
 

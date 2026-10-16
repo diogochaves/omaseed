@@ -100,8 +100,9 @@ TestCase {
         verify(Theme.cornerRadius >= 0);
     }
 
-    // docs/DECISIONS.md Q19: the dim role reads at 3:1 against the window background. Tokyo
-    // Night's own dark_foreground is at 2.76, so this only passes because the floor lifts it.
+    // docs/DECISIONS.md Q19 (amended in #89): every text colour reads at 4.5:1 against the
+    // window background. Tokyo Night's own dark_foreground is at 2.76, so the dim role only
+    // passes because the floor lifts it.
     function luminance(c) {
         function linear(v) {
             return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
@@ -114,10 +115,18 @@ TestCase {
         return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
     }
 
-    function test_dim_foreground_reads_at_three_to_one() {
-        verify(contrast(Theme.foreground, Theme.background) >= 3);
-        verify(contrast(Theme.dimForeground, Theme.background) >= 3);
-        verify(contrast(Theme.dimForeground, Theme.background) < 3.1); // the smallest lift
+    function test_dim_foreground_reads_at_four_and_a_half_to_one() {
+        verify(contrast(Theme.foreground, Theme.background) >= 4.5);
+        verify(contrast(Theme.dimForeground, Theme.background) >= 4.5);
+        verify(contrast(Theme.dimForeground, Theme.background) < 4.6); // the smallest lift
         compare(Theme.stateStopped, Theme.dimForeground);
+    }
+
+    function test_text_colours_read_at_four_and_a_half_to_one() {
+        const roles = ["accent", "red", "yellow", "orange", "green", "cyan", "blue", "magenta",
+                       "stateDownloading", "stateSeeding", "stateError", "stateChecking",
+                       "stateQueued", "stateStalled"];
+        for (const name of roles)
+            verify(contrast(Theme[name], Theme.background) >= 4.5, name);
     }
 }
