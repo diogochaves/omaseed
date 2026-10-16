@@ -100,6 +100,12 @@ before it will tag a release.
   setup: `save` waits, dimmed with "test first", until a test has run; a failed test offers
   "save anyway" for a server that is down on purpose. Editing a server asks for a new test only
   when its address or login changed; a rename saves at once.
+- Importing exported torrents no longer stops at once with "unknown (415)". qBittorrent's own
+  export breaks the `.torrent` of a v2 or hybrid torrent whose files share content (it repeats
+  their piece layers), and then refuses to add it, with the rest of its batch. omaseed now puts
+  those piece layers right when it exports and again when it imports (so files exported before
+  this fix import too), and a torrent the server still can't read is named ("qBittorrent
+  couldn't read the .torrent of …") while the others go in.
 - Turning automatic management on for a torrent whose files another torrent also seeds asks
   first, as a category change does: "move both" gives the other one the same category and
   management so the two move together. Before, the other torrent lost its files without a word.

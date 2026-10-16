@@ -394,6 +394,15 @@ board left open, or what the API decided:
   last time, not finished" and finishes them instead of skipping them.
 - **Which server**, as C8: the one the app is on, connected; one export or import at a time,
   its row saying how far it got, its button "stop". Not in the demo.
+- **A .torrent the server can't read** (#71). qBittorrent 5.2.3's `torrents/export` repeats a
+  v2 or hybrid torrent's piece layer once per file sharing its "pieces root" (files of the same
+  content), and libtorrent then refuses that .torrent: `torrents/add` answers 415 for the whole
+  request (upstream#97). `TorrentFile::repairPieceLayers` cuts such a layer back to one copy
+  (only whole copies of it; the info bytes, so the hashes, untouched), on export and again on
+  import, for files exported before. A 415 that is left is about one torrent, not the server:
+  the batch goes again one torrent at a time (a 409 then means the batch had added it), the
+  one refused is named ("qBittorrent couldn't read the .torrent of …") and the import goes on.
+  Board 24 §7's stop is for a server gone or a disk full, so this keeps to it (assumed, confirm).
 
 ## C10 — A server is tested before it is saved (#68, ruled 2026-10-15)
 
