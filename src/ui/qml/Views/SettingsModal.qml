@@ -527,9 +527,9 @@ Item {
             else if (root.paneCursor === 2)
                 alphaField.focusInput();
             else if (root.paneCursor === 3)
-                App.trayIconMode = root._nextTrayMode();
+                App.inTheBar = root._nextInTheBar();
             else if (root.paneCursor === 4)
-                root.toggleBarWidget();
+                root.customizeBarWidget();
             else if (root.paneCursor === 5)
                 App.speedsAlignment = App.speedsAlignment === "left" ? "right" : "left";
             else if (root.paneCursor === 6)
@@ -791,30 +791,61 @@ Item {
             alphaField.text = App.windowAlphaOverride > 0 ? String(App.windowAlphaOverride) : "";
     }
 
-    /// #17: in the bar or out of it; nothing while the widget cannot be had or is busy.
-    function toggleBarWidget(): void {
-        if (!App.barWidget.available || App.barWidget.busy)
-            return;
-        if (App.barWidget.inBar)
-            App.barWidget.remove();
-        else
-            App.barWidget.install();
+    /// docs/33 D25 (DECISIONS C13): the tray icon and the bar widget as one choice. The ones the
+    /// widget needs are skipped while it cannot be had.
+    readonly property var inTheBarChoices: [
+        {
+            "key": "widget",
+            "text": qsTr("widget"),
+            "needsWidget": true
+        },
+        {
+            "key": "tray",
+            "text": qsTr("tray icon"),
+            "needsWidget": false
+        },
+        {
+            "key": "both",
+            "text": qsTr("both"),
+            "needsWidget": true
+        },
+        {
+            "key": "none",
+            "text": qsTr("none"),
+            "needsWidget": false
+        }
+    ]
+
+    function _inTheBarOffered(choice: var): bool {
+        return !choice.needsWidget || App.barWidget.available || App.barWidget.inBar;
     }
 
-    function _barWidgetText(): string {
-        if (!App.barWidget.available)
-            return qsTr("needs the Omarchy shell and omaseed's installed widget.");
+    function _nextInTheBar(): string {
+        const keys = root.inTheBarChoices.map(c => c.key);
+        let at = keys.indexOf(App.inTheBar);
+        for (let step = 0; step < keys.length; ++step) {
+            at = (at + 1) % keys.length;
+            if (root._inTheBarOffered(root.inTheBarChoices[at]))
+                return keys[at];
+        }
+        return App.inTheBar;
+    }
+
+    /// docs/21: the widget's own settings live in its popup; this opens it there.
+    function customizeBarWidget(): void {
+        if (App.barWidget.inBar && !App.barWidget.busy)
+            App.barWidget.openSettings();
+    }
+
+    function _inTheBarText(): string {
         if (App.barWidget.busy)
-            return App.barWidget.inBar ? qsTr("taking it out of the bar…") : qsTr("putting it in the bar…");
+            return App.barWidget.inBar ? qsTr("taking the widget out of the bar…") : qsTr("putting the widget in the bar…");
         if (App.barWidget.message.length > 0 && !App.barWidget.lastOk)
             return App.barWidget.message;
-        return qsTr("the omaseed mark in the Omarchy bar: speeds, alt-speed and adds without the window.") + "\n"
-                + qsTr("What it shows and what its clicks do: the gear in its popup.");
-    }
-
-    function _nextTrayMode(): string {
-        const modes = ["auto", "always", "never"];
-        return modes[(modes.indexOf(App.trayIconMode) + 1) % modes.length];
+        const words = qsTr("widget: the tray icon hides while the widget runs. Both carry the same menu: servers, alternative limits, stop and start all, settings, quit.");
+        if (!App.barWidget.available && !App.barWidget.inBar)
+            return words + "\n" + qsTr("The widget needs the Omarchy shell and omaseed's installed widget.");
+        return words;
     }
 
     /// The tallest pane's own height. Keybindings is left out: it is a list with a scroller of
@@ -2234,82 +2265,67 @@ Item {
                                 }
                             }
 
+                            // docs/33 D25 (W3): the tray icon and the bar widget as one
+                            // choice, since both carry the same menu (D24). Replaces the
+                            // "Tray icon" and "Bar widget" rows.
                             SettingsRow {
                                 Layout.fillWidth: true
-                                description: qsTr("auto hides the icon while the omaseed bar widget runs, and shows it again within 90 s of the widget going.")
-                                glyph: Glyphs.trayIdle
+                                description: root._inTheBarText()
+                                glyph: Glyphs.mark
                                 hasCursor: root.area === "pane" && root.paneCursor === 3
-                                title: qsTr("Tray icon")
+                                objectName: "inTheBarRow"
+                                title: qsTr("In the bar")
 
                                 onClicked: {
                                     root.paneCursor = 3;
                                     root.area = "pane";
-                                    App.trayIconMode = root._nextTrayMode();
+                                    App.inTheBar = root._nextInTheBar();
                                 }
 
                                 RowLayout {
                                     spacing: Theme.space(6)
 
                                     Repeater {
-                                        model: ["auto", "always", "never"]
+                                        model: root.inTheBarChoices
 
                                         Chip {
-                                            id: trayChip
+                                            id: barChip
 
-                                            required property string modelData
+                                            required property var modelData
 
-                                            selected: App.trayIconMode === trayChip.modelData
-                                            text: trayChip.modelData
+                                            enabled: root._inTheBarOffered(barChip.modelData) && !App.barWidget.busy
+                                            objectName: "inTheBar_" + barChip.modelData.key
+                                            opacity: enabled ? 1 : 0.45
+                                            selected: App.inTheBar === barChip.modelData.key
+                                            text: barChip.modelData.text
 
-                                            onClicked: App.trayIconMode = trayChip.modelData
+                                            onClicked: App.inTheBar = barChip.modelData.key
                                         }
                                     }
                                 }
                             }
 
-                            // #17: the bar widget is part of the install; this puts it in the
-                            // Omarchy bar and takes it out (App.barWidget).
                             SettingsRow {
                                 Layout.fillWidth: true
-                                description: root._barWidgetText()
-                                glyph: Glyphs.mark
+                                description: App.barWidget.inBar ? qsTr("what it shows and what its clicks do: the gear in its popup.") : qsTr("in the bar with widget or both.")
+                                glyph: Glyphs.settings
                                 hasCursor: root.area === "pane" && root.paneCursor === 4
                                 objectName: "barWidgetRow"
-                                title: qsTr("Bar widget")
+                                title: qsTr("Widget")
 
                                 onClicked: {
                                     root.paneCursor = 4;
                                     root.area = "pane";
-                                    root.toggleBarWidget();
+                                    root.customizeBarWidget();
                                 }
 
-                                RowLayout {
-                                    spacing: Theme.space(6)
+                                Chip {
+                                    enabled: App.barWidget.inBar && !App.barWidget.busy
+                                    objectName: "barWidgetCustomize"
+                                    opacity: enabled ? 1 : 0.45
+                                    text: qsTr("customize")
 
-                                    // docs/21: the widget's own settings live in its popup; this
-                                    // opens it there.
-                                    Chip {
-                                        objectName: "barWidgetCustomize"
-                                        text: qsTr("customize")
-                                        visible: App.barWidget.inBar && !App.barWidget.busy
-
-                                        onClicked: App.barWidget.openSettings()
-                                    }
-
-                                    Toggle {
-                                        id: barWidgetToggle
-
-                                        checked: App.barWidget.inBar
-                                        enabled: App.barWidget.available && !App.barWidget.busy
-                                        objectName: "barWidgetToggle"
-                                        opacity: enabled ? 1 : 0.45
-
-                                        onToggled: {
-                                            // The switch shows what the shell says, not the click.
-                                            barWidgetToggle.checked = Qt.binding(() => App.barWidget.inBar);
-                                            root.toggleBarWidget();
-                                        }
-                                    }
+                                    onClicked: root.customizeBarWidget()
                                 }
                             }
 

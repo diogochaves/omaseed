@@ -959,14 +959,21 @@ TestCase {
         keyClick(Qt.Key_Return);
         compare(App.notificationsEnabled["completed"] === true, !completed);
 
-        // Appearance: the tray-icon row cycles the three chips.
+        // Appearance: "In the bar" (docs/33 D25) steps through the choices it can have:
+        // without the shell, tray icon and none.
         keyClick(Qt.Key_5);
         compare(modal.paneRowCount, 12);
         const tray = App.trayIconMode;
+        App.trayIconMode = "auto";
+        compare(App.inTheBar, "tray");
         modal.paneCursor = 3;
         modal.area = "pane";
         modal.activateRow();
-        verify(App.trayIconMode !== tray);
+        compare(App.inTheBar, "none");
+        compare(App.trayIconMode, "never");
+        modal.activateRow();
+        compare(App.inTheBar, "tray");
+        compare(App.trayIconMode, "auto");
 
         // ...and the sixth row swaps the side the hero's speed pair sits on.
         const speeds = App.speedsAlignment;
@@ -1315,49 +1322,62 @@ TestCase {
         App.lowDiskThresholdGiB = 2;
     }
 
-    // #17: the bar widget row. The tests have no `omarchy` (tests/qml/CMakeLists.txt), so it
-    // starts unavailable; pointed at `true`, the switch links the widget into the tests' own
-    // config folder and takes it out again.
-    function test_the_bar_widget_row_puts_the_widget_in_and_out() {
+    // docs/33 D25 (#73): "In the bar" puts the widget in and out (#17) and sets the tray icon
+    // mode, as one choice. The tests have no `omarchy` (tests/qml/CMakeLists.txt), so it starts
+    // unavailable; pointed at `true`, "widget" links the widget into the tests' own config
+    // folder.
+    function test_in_the_bar_is_one_choice_for_the_tray_and_the_widget() {
         const modal = createTemporaryObject(modalComponent, testCase);
         modal.open();
         keyClick(Qt.Key_5);
         compare(modal.paneIndex, 4);
-        const toggle = testCase.childNamed(modal, "barWidgetToggle");
-        verify(toggle !== null);
-        // docs/21: customize opens the widget's own settings, so it shows only while the
-        // widget is in the bar.
+        const mode = App.trayIconMode;
+        App.trayIconMode = "auto";
+        const row = testCase.childNamed(modal, "inTheBarRow");
+        verify(row !== null);
+        verify(row.description.indexOf("Both carry the same menu") >= 0, row.description);
+        const widget = testCase.childNamed(modal, "inTheBar_widget");
+        const both = testCase.childNamed(modal, "inTheBar_both");
+        const trayChip = testCase.childNamed(modal, "inTheBar_tray");
+        const none = testCase.childNamed(modal, "inTheBar_none");
+        verify(widget !== null && both !== null && trayChip !== null && none !== null);
+        verify(trayChip.selected);
+        // docs/21: customize opens the widget's own settings, so it is on only while the widget
+        // is in the bar.
         const customize = testCase.childNamed(modal, "barWidgetCustomize");
         verify(customize !== null);
-        verify(!customize.visible);
+        verify(!customize.enabled);
+
+        // Without the shell the widget cannot be had.
         verify(!App.barWidget.available);
-        verify(!toggle.enabled);
-        modal.paneCursor = 4;
-        modal.area = "pane";
-        modal.activateRow(); // unavailable: nothing happens
-        verify(!App.barWidget.busy);
+        verify(!widget.enabled);
+        verify(!both.enabled);
+        verify(none.enabled);
+        mouseClick(none);
+        compare(App.inTheBar, "none");
+        compare(App.trayIconMode, "never");
+        verify(none.selected);
+        mouseClick(trayChip);
+        compare(App.inTheBar, "tray");
 
         App.barWidget.setPrograms("true", "true");
         verify(App.barWidget.available);
-        verify(toggle.enabled);
-        modal.activateRow();
+        verify(widget.enabled);
+        mouseClick(widget);
         tryVerify(() => !App.barWidget.busy, 5000);
         verify(App.barWidget.lastOk, App.barWidget.message);
         verify(App.barWidget.installed);
-        // `true` writes no shell.json, so the shell never says it is in the bar: the switch
+        compare(App.trayIconMode, "auto");
+        // `true` writes no shell.json, so the shell never says it is in the bar: the choice
         // shows the shell's answer, not the click.
-        verify(!toggle.checked);
-        verify(!customize.visible);
-        const row = testCase.childNamed(modal, "barWidgetRow");
-        verify(row.description.indexOf("the gear in its popup") >= 0, row.description);
+        compare(App.inTheBar, "tray");
+        verify(!customize.enabled);
 
-        // Off only disables: the link stays, since the shell reloads every plugin whenever the
-        // plugins folder changes.
         App.barWidget.remove();
         tryVerify(() => !App.barWidget.busy, 5000);
-        verify(App.barWidget.installed);
         App.barWidget.setPrograms("omaseed-tests-have-no-omarchy", "omaseed-tests-have-no-omarchy");
         verify(!App.barWidget.available);
+        App.trayIconMode = mode;
     }
 
     function test_the_about_pane_prints_the_version_and_the_install_line() {
