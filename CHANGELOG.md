@@ -177,6 +177,15 @@ before it will tag a release.
   in Settings is named by its row, and the alt-speed chip is named by its set instead of
   re-reading its limits each time they change. First run's `enter set up` and `esc quit`
   are no longer found twice beside the buttons that do the same.
+- A screen reader now reads what a sighted user reads first, not only the controls: first
+  run's "Torrents for Omarchy, powered by qBittorrent." and "no qBittorrent on this machine
+  yet", each step's question and a test's answer; "No torrents yet" and the other empty
+  states; the server line, the footer's "16 torrents, 7 downloading, 1.80 TB free" and its
+  notes; the details pane's torrent name, figures and headings; a row's status and progress;
+  the seed console's figures and sections; the log's state; and the sheets' titles, captions,
+  results and warnings. Titles are headings, and a failure or warning that comes on its own
+  is an alert. A figure that changes every second is said by what it is ("download", "eta"),
+  with the value after it, so it is not read out again each time it ticks.
 - A server added in Settings › Servers is tested before it is saved, as in the first-run
   setup: `save` waits, dimmed with "test first", until a test has run; a failed test offers
   "save anyway" for a server that is down on purpose. Editing a server asks for a new test only
