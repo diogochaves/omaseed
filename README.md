@@ -127,10 +127,12 @@ The widget, *Omaseed*, mirrors omaseed in the Omarchy bar: its arrows light whil
 downloads or uploads, and a click opens a popup with the speeds, an hour of upload, a list of
 `.torrent` files to add, today's share, the torrents you keep alive, and what is downloading
 and what finished. It never talks to qBittorrent itself; it reads what omaseed writes and
-asks omaseed to act. While it runs, the tray icon steps aside.
+asks omaseed to act. While it runs, the tray icon steps aside, and nothing goes with it: the
+popup's ⋯ is the tray's menu (the servers, alternative limits, stop and start all, settings,
+quit).
 
-First run offers it, Settings › Appearance › Bar widget turns it on and off, and from a
-terminal:
+First run offers it, Settings › Appearance › In the bar chooses the widget, the tray icon,
+both or neither, and from a terminal:
 
 ```
 omaseed --install-bar-widget

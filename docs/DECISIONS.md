@@ -491,8 +491,8 @@ left open, or what building it decided:
 ## C12 — Servers in any state, and the error notice (boards 33 and 35, ruled 2026-10-16)
 
 Board [33](33-servers-any-state.html) (#69, #72), D1–D9 and D11–D23 as recommended, built; D10,
-D24 and D25 (the tray and the widget's shared menu, docs/20's changes, "In the bar") are a later
-build. Board 33's notice look (D21, D22) was ruled on its own board,
+D24 and D25 (the tray and the widget's shared menu, docs/20's changes, "In the bar") are C13.
+Board 33's notice look (D21, D22) was ruled on its own board,
 [35](35-error-notice.html), N1–N8 as recommended, and is built with it. With two servers or
 more a way to the others is always on screen; with one, nothing offers to switch (D19).
 
@@ -565,6 +565,74 @@ more a way to the others is always on screen; with one, nothing offers to switch
   that does. A refused add is the red band in ErrorWords' words.
 - **Not built:** the server sheet's failed test as a notice (board 33's N5) keeps today's line;
   it is first run's and Settings' wording, not a state this board changed.
+
+## C13 — The tray and the widget share one menu, and one setting (board 33 §11, ruled 2026-10-16)
+
+Board [33](33-servers-any-state.html) D10, D24 and D25 as recommended (#73). Choosing the widget
+loses nothing the tray had: the tray and the widget popup's ⋯ show one menu, built once in the
+app, and Settings offers the two as one choice.
+
+**This entry supersedes**, as board 33 §11 lists, the lines of the widget's ruled boards it
+contradicts; the boards themselves stay as ruled: [docs/20](20-companion-widget-contract.md)
+§1 (Round 4 "No start/stop buttons", Q7), §3 (the head's three buttons, the keys), §5 (read
+and act) and §8, and docs/07 §1 ("No quit"). [`plugin/STATUS.md`](../plugin/STATUS.md) is the
+status file's contract as built.
+
+- **One menu (D24 a):** `integration/BarMenu` holds the rows and answers `invoke(id)`. App
+  feeds it (`AppBarMenu.cpp`): the servers from `ServerListModel` (C12's last-seen figures), the
+  alternative limits' check and word (docs/31: burst, turtle) and whether the server answers.
+  Rows: with two servers or more a "servers" caption, one radio row per server (the current
+  one checked, its figure at the right: "4 torrents", "sign-in refused", "first sync") and a
+  separator (D19: none with one); then alternative limits, stop all, start all; a separator;
+  add torrent…, settings…; a separator; quit, the last row. Alternative limits, stop all and
+  start all are off while the server does not answer (docs/20 §3: disabled, not hidden). A
+  server row switches through `App::switchServer`; add brings the window up on the add sheet,
+  settings on Settings, quit is a real quit (queued, so a D-Bus caller still gets its answer).
+- **The order is one for both**, the order the issue gives and W1 draws (servers, limits, stop
+  all, start all, add, settings, quit). Board 33's T0 kept the tray's "add torrent…" second,
+  under "show omaseed"; it now sits with settings, after start all — *assumed, confirm.*
+- **The tray (D10 a):** "show omaseed", the two figure rows (Fig. 18), then the shared rows. A
+  server row is a radio (the shell draws ✓); DBusMenu has no column on the right, so its figure
+  follows the name: "private · 4 torrents" — *assumed, confirm* (T1 puts the count at the right).
+  The row's check follows the app, not the click: a refused switch leaves it where the app is.
+  A middle click is the menu's alt-speed.
+- **The widget (§11 changes 3 and 4, W1, W2):** a fourth head button, ⋯ (`ctrl+.`), draws the
+  status file's `menu` under the head, in the card style (Title Case labels from the app,
+  UPPERCASE caption), with the popup's own key at the right of alt-speed (A) and add (m). With
+  two servers or more the server line ends in ▾ (▴ while open) and a click on it, or `ctrl+s`,
+  opens just the server rows. In the menu `j` `k` move, `↵`/`space` pick, `esc` closes it; the
+  sections' cursor is hidden meanwhile. A server pick switches and the popup stays to refill;
+  alternative limits, stop all and start all close the menu; add, settings and quit close the
+  popup. A server row's right-hand words are "N torrents" in ⋯ as in ▾, where W1 printed the
+  bare count — *assumed, confirm.* With four buttons the server line elides sooner
+  ("PRIVATE · QBITTORRENT 5.…"); it was not shortened.
+- **Round 4 and docs/07 §1 (§11 changes 1, 2):** still no start or stop buttons and no
+  per-torrent start or stop (`p`/`P` unbound); stop all and start all are menu rows. Quit is
+  the menu's last row, after a separator, in both.
+- **The status file (§11 change 5):** within v2 (board 31 D12's rule; `v` stays 2), `servers`
+  `[{id, name, current, state, count, seen, reason}]` (state ok · down · refused · first-sync ·
+  unknown; a certificate refusal is "refused") and `menu` `[{id, label, kind, checked, enabled,
+  detail, urgent}]`. `detail` and `urgent` are added to §11's row fields so a row says its
+  figure without the widget joining it to `servers` — *assumed, confirm.* `label` is the card
+  style; the tray keeps its lower-case words. Captions and separators have ids of their own
+  (`servers`, `separator:…`) that do nothing. A widget that does not know them, or an app that
+  does not write them, shows the popup as before (no ⋯, no ▾).
+- **The bus (§11 change 6):** `SwitchServer(s id) → b` and `Invoke(s id) → b` on
+  `io.github.diogochaves.omaseed.Status`. Ids: add, alt-speed, stop-all, start-all, settings,
+  quit, `server:<id>`. Unknown or disabled: false.
+- **"In the bar" (D25 a, §11 change 7):** Settings › Appearance has one row, "In the bar:
+  widget · tray icon · both · none", in place of the Tray icon and Bar widget rows, and a
+  "Widget" row with customize. The heartbeat and `trayIconMode` are unchanged; the row is read
+  from the widget being in the bar and the mode, and writing it sets both: widget = in the bar
+  + auto; tray icon = out + auto; both = in + always; none = out + never. Nothing stored is
+  migrated: the old settings read as one choice — in the bar with "never" reads as widget (auto
+  hides the icon while the widget runs anyway), out of the bar with "always" as tray icon —
+  and the first pick writes the mode it stands for. Without the shell or the packaged widget,
+  widget and both are off; while the widget goes in or out the row shows the choice asked for.
+- **The tray heartbeat note (§11 change 7):** unchanged; `plugin/STATUS.md` says the two are
+  one choice in Settings.
+- **The manifest version** stays: the contract changes within v2 and the widget ships with the
+  app.
 
 ## M8 — A click leaves the keyboard focus where it was
 

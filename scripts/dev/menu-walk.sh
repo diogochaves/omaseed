@@ -144,6 +144,7 @@ check() {
 
 cleanup() {
     [ "$INTERACTIVE" = 1 ] || omabox down -b "$BOX" >/dev/null 2>&1 || true
+    [ -z "${OUT_ROWS:-}" ] || rm -rf "$(dirname "$OUT_ROWS")"
 }
 trap cleanup EXIT
 

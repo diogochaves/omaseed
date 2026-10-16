@@ -56,7 +56,9 @@ Three static libraries and the executable. Each layer only depends on the ones a
   (file manager, MIME handlers, clipboard), `Autostart`, `HyprlandEvents`.
 - The companion bar widget's side: `StatusWriter` writes the status file it reads, `StatusBus`
   takes its commands, `WidgetHeartbeat` tells the tray when the widget is there, and
-  `BarWidget` / `BarWidgetInstaller` put it in the shell. The file's format is in
+  `BarWidget` / `BarWidgetInstaller` put it in the shell. `BarMenu` is the one menu the tray
+  and the widget's ⋯ both show, built once and answered by App
+  ([DECISIONS.md](DECISIONS.md) C13). The file's format is in
   [`plugin/STATUS.md`](../plugin/STATUS.md).
 
 **`omaseed-app`** (`src/ui/app/`): `App`, the one object QML talks to. It owns the servers, the

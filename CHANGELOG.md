@@ -9,6 +9,12 @@ before it will tag a release.
 
 ### Added
 
+- The bar widget's popup has a ⋯ (`ctrl+.`) with omaseed's own menu, the one its tray icon
+  shows: the servers (with two or more), alternative limits, stop all, start all, add, settings
+  and quit. With two servers or more the popup's server line ends in ▾ (`ctrl+s`) and switches
+  omaseed from the bar; the popup stays open with the new server's figures.
+- The tray's menu lists the servers, with two or more, each with what omaseed saw on it last,
+  and switches between them without opening the window.
 - With two servers or more, the other ones are always one step away: the rail keeps them in a
   block pinned to its bottom, with what omaseed saw last on each (its torrents, or why it
   didn't answer), even while the library is empty or the server is down; `ctrl+s`, a click on
@@ -114,6 +120,11 @@ before it will tag a release.
 
 ### Changed
 
+- Settings › Appearance has one row for omaseed in the bar, "In the bar: widget · tray icon ·
+  both · none", in place of the separate Tray icon and Bar widget rows; your current settings
+  read as one of the four. The widget's own settings stay a row of their own (customize).
+- The tray's menu puts "add torrent…" with settings, after start all, and quit after a line of
+  its own, as in the widget's menu.
 - When the server stops answering, a band across the window says so in plain words, naming it
   ("private didn't answer", "seedbox refused the sign-in") with what omaseed does next, "retry
   now" or "edit login", "switch server", and the technical text under "details". Yellow while
