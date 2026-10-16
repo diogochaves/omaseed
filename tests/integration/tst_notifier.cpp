@@ -105,17 +105,17 @@ void TestNotifier::completedWithoutFolderOmitsOpenFolderAction()
 
 void TestNotifier::serverLostBodyAndActionsMatchSpec()
 {
-    m_notifier->notifyServerLost(QStringLiteral("home"),
-                                 QStringLiteral("home"),
-                                 QStringLiteral("nas.local:9090"),
-                                 QStringLiteral("connection refused"),
-                                 10);
+    m_notifier->notifyServerLost(
+        QStringLiteral("home"),
+        QStringLiteral("home didn't answer"),
+        QStringLiteral("Nothing is listening at nas.local:9090. omaseed tries again in 10 s."));
     QCOMPARE(m_server->calls.size(), 1);
 
     const auto &call = m_server->calls.first();
-    QCOMPARE(call.summary, QStringLiteral("home is unreachable"));
-    QCOMPARE(call.body,
-             QStringLiteral("nas.local:9090 · connection refused · retrying every 10 s"));
+    QCOMPARE(call.summary, QStringLiteral("home didn't answer"));
+    QCOMPARE(
+        call.body,
+        QStringLiteral("Nothing is listening at nas.local:9090. omaseed tries again in 10 s."));
     QCOMPARE(call.actions,
              QStringList({QStringLiteral("settings"),
                           QStringLiteral("settings"),
@@ -128,10 +128,8 @@ void TestNotifier::serverLostBodyAndActionsMatchSpec()
 void TestNotifier::serverBackReplacesTheServerLostNotice()
 {
     const quint32 lostId = m_notifier->notifyServerLost(QStringLiteral("home"),
-                                                        QStringLiteral("home"),
-                                                        QStringLiteral("nas.local:9090"),
-                                                        QStringLiteral("connection refused"),
-                                                        10);
+                                                        QStringLiteral("home didn't answer"),
+                                                        QStringLiteral("Nothing is listening."));
     QVERIFY(lostId != 0);
 
     m_notifier->notifyServerBack(QStringLiteral("home"), QStringLiteral("home"));

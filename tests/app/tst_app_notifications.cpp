@@ -473,11 +473,12 @@ void TestAppNotifications::flappingServerFiresOneLostAndOneBack()
     QVERIFY(waitFor([&] { return m_bus.server()->calls.size() >= 1; }));
     QCOMPARE(m_bus.server()->calls.size(), 1);
     const auto &lostCall = m_bus.server()->calls.first();
-    QCOMPARE(lostCall.summary, QStringLiteral("fake is unreachable"));
-    QVERIFY(lostCall.body.startsWith(QStringLiteral("127.0.0.1:%1 · ").arg(port)));
-    QVERIFY(lostCall.body.contains(QStringLiteral("retrying every")));
-    // The reason is the underlying network error, not the request that carried it (spec §6
-    // Fig. 21: "connection refused", not "GET sync/maindata: Connection refused").
+    // docs/33 D23: the window's words, the server named, one retry figure.
+    QCOMPARE(lostCall.summary, QStringLiteral("fake didn't answer"));
+    QVERIFY(lostCall.body.startsWith(
+        QStringLiteral("Nothing is listening at 127.0.0.1:%1.").arg(port)));
+    QVERIFY(lostCall.body.contains(QStringLiteral("omaseed tries again")));
+    // Plain words: neither the request that carried it nor Qt's text.
     QVERIFY(!lostCall.body.contains(QStringLiteral("GET")));
     QVERIFY(!lostCall.body.contains(QStringLiteral("sync/maindata")));
 
@@ -569,8 +570,8 @@ void TestAppNotifications::aHiddenStartSaysSoWhenTheServerStaysAway()
     app.setQuietStartGrace(std::chrono::milliseconds(10));
     app.setLaunchHidden(true);
     QVERIFY(waitFor([&] { return m_bus.server()->calls.size() >= 1; }));
-    QCOMPARE(m_bus.server()->calls.first().summary, QStringLiteral("fake is unreachable"));
-    QVERIFY(m_bus.server()->calls.first().body.contains(QStringLiteral("retrying every")));
+    QCOMPARE(m_bus.server()->calls.first().summary, QStringLiteral("fake didn't answer"));
+    QVERIFY(m_bus.server()->calls.first().body.contains(QStringLiteral("omaseed tries again")));
 
     FakeQbtServer server;
     QVERIFY(server.start(port));

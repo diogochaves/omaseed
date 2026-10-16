@@ -178,16 +178,11 @@ quint32 Notifier::notifyErrored(const QString &hash,
                       QStringLiteral("show"));
 }
 
-quint32 Notifier::notifyServerLost(const QString &serverId,
-                                   const QString &serverName,
-                                   const QString &hostText,
-                                   const QString &reasonText,
-                                   int retrySeconds)
+quint32
+Notifier::notifyServerLost(const QString &serverId, const QString &headline, const QString &body)
 {
     const QString key = QStringLiteral("server|%1").arg(serverId);
-    const QString summary = QStringLiteral("%1 is unreachable").arg(serverName);
-    const QString body =
-        QStringLiteral("%1 · %2 · retrying every %3 s").arg(hostText, reasonText).arg(retrySeconds);
+    const QString summary = headline;
 
     const QStringList actions{QStringLiteral("settings"), QStringLiteral("settings")};
 

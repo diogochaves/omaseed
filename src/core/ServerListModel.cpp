@@ -5,6 +5,7 @@
 #include "core/ServerStore.hpp"
 
 #include <QCoreApplication>
+#include <QLocale>
 #include <QUrl>
 
 namespace omaseed::core {
@@ -87,6 +88,41 @@ QVariant ServerListModel::data(const QModelIndex &index, int role) const
         return probe.version.isEmpty() ? QString() : QStringLiteral("v%1").arg(probe.version);
     case CertificateRole:
         return server.certificateSha256;
+    case IsCurrentRole:
+        return !server.id.isEmpty() && server.id == m_currentId;
+    case StateRole: {
+        if (!server.id.isEmpty() && server.id == m_currentId)
+            return m_currentState.isEmpty() ? QStringLiteral("live") : m_currentState;
+        const Seen seen = m_seen.value(server.id);
+        if (!seen.error.isEmpty())
+            return QStringLiteral("failed");
+        return seen.at.isValid() ? QStringLiteral("seen") : QStringLiteral("unknown");
+    }
+    case LastCountRole:
+        return m_seen.value(server.id).torrents;
+    case LastSeenRole:
+        return whenText(m_seen.value(server.id).at, QDateTime::currentDateTime());
+    case LastFailedRole:
+        return !m_seen.value(server.id).error.isEmpty();
+    case LastReasonRole:
+        return m_seen.value(server.id).error;
+    case LastDetailRole:
+        return m_seen.value(server.id).detail;
+    case CountTextRole: {
+        if (!server.id.isEmpty() && server.id == m_currentId) {
+            if (m_currentState == QLatin1String("down"))
+                return QCoreApplication::translate("ServerListModel", "down");
+            if (m_currentState == QLatin1String("refused") ||
+                m_currentState == QLatin1String("certificate"))
+                return QStringLiteral("!");
+            if (m_currentCount >= 0)
+                return QString::number(m_currentCount);
+        }
+        const Seen seen = m_seen.value(server.id);
+        if (!seen.error.isEmpty())
+            return QStringLiteral("!");
+        return seen.torrents >= 0 ? QString::number(seen.torrents) : QString();
+    }
     default:
         break;
     }
@@ -113,12 +149,157 @@ QHash<int, QByteArray> ServerListModel::roleNames() const
         {ApiVersionRole, "apiVersion"},
         {VersionTextRole, "versionText"},
         {CertificateRole, "certificateSha256"},
+        {IsCurrentRole, "isCurrent"},
+        {StateRole, "state"},
+        {LastCountRole, "lastCount"},
+        {LastSeenRole, "lastSeen"},
+        {LastFailedRole, "lastFailed"},
+        {LastReasonRole, "lastReason"},
+        {LastDetailRole, "lastDetail"},
+        {CountTextRole, "countText"},
     };
 }
 
 QString ServerListModel::defaultId() const
 {
     return m_store != nullptr ? m_store->defaultId() : QString();
+}
+
+void ServerListModel::setCurrent(const QString &id, const QString &state, int count)
+{
+    if (id == m_currentId && state == m_currentState && count == m_currentCount)
+        return;
+    const QString before = m_currentId;
+    m_currentId = id;
+    m_currentState = state;
+    m_currentCount = count;
+    const QList<int> roles{IsCurrentRole, StateRole, CountTextRole};
+    if (before != id)
+        emitRow(before, roles);
+    emitRow(id, roles);
+}
+
+void ServerListModel::setLastSeen(const QString &id, int count, const QDateTime &at)
+{
+    if (id.isEmpty())
+        return;
+    Seen &seen = m_seen[id];
+    seen.torrents = count;
+    seen.at = at;
+    seen.error.clear();
+    seen.detail.clear();
+    emitRow(id,
+            {StateRole,
+             LastCountRole,
+             LastSeenRole,
+             LastFailedRole,
+             LastReasonRole,
+             LastDetailRole,
+             CountTextRole});
+    Q_EMIT lastSeenChanged();
+}
+
+void ServerListModel::setLastFailure(const QString &id,
+                                     const QString &reason,
+                                     const QString &detail,
+                                     const QDateTime &at)
+{
+    if (id.isEmpty())
+        return;
+    Seen &seen = m_seen[id];
+    seen.at = at;
+    seen.error =
+        reason.isEmpty() ? QCoreApplication::translate("ServerListModel", "error") : reason;
+    seen.detail = detail;
+    emitRow(
+        id,
+        {StateRole, LastSeenRole, LastFailedRole, LastReasonRole, LastDetailRole, CountTextRole});
+    Q_EMIT lastSeenChanged();
+}
+
+QJsonObject ServerListModel::lastSeenJson() const
+{
+    QJsonObject servers;
+    for (auto it = m_seen.cbegin(); it != m_seen.cend(); ++it) {
+        if (!it.value().at.isValid())
+            continue;
+        QJsonObject seen;
+        seen[QStringLiteral("torrents")] = it.value().torrents;
+        seen[QStringLiteral("at")] = it.value().at.toUTC().toString(Qt::ISODate);
+        seen[QStringLiteral("error")] = it.value().error;
+        seen[QStringLiteral("detail")] = it.value().detail;
+        QJsonObject server;
+        server[QStringLiteral("lastSeen")] = seen;
+        servers[it.key()] = server;
+    }
+    return servers;
+}
+
+void ServerListModel::loadLastSeen(const QJsonObject &servers)
+{
+    m_seen.clear();
+    for (auto it = servers.constBegin(); it != servers.constEnd(); ++it) {
+        const QJsonObject seen = it.value().toObject().value(QStringLiteral("lastSeen")).toObject();
+        const QDateTime at =
+            QDateTime::fromString(seen.value(QStringLiteral("at")).toString(), Qt::ISODate);
+        if (!at.isValid())
+            continue;
+        Seen &entry = m_seen[it.key()];
+        entry.torrents = seen.value(QStringLiteral("torrents")).toInt(-1);
+        entry.at = at.toLocalTime();
+        entry.error = seen.value(QStringLiteral("error")).toString();
+        entry.detail = seen.value(QStringLiteral("detail")).toString();
+    }
+    if (!m_rows.isEmpty())
+        Q_EMIT dataChanged(index(0, 0),
+                           index(int(m_rows.size()) - 1, 0),
+                           {StateRole,
+                            LastCountRole,
+                            LastSeenRole,
+                            LastFailedRole,
+                            LastReasonRole,
+                            LastDetailRole,
+                            CountTextRole});
+}
+
+QString ServerListModel::busiestOther() const
+{
+    QString best;
+    int most = -1;
+    for (const Server &server : m_rows) {
+        if (server.id == m_currentId)
+            continue;
+        const Seen seen = m_seen.value(server.id);
+        if (seen.error.isEmpty() && seen.torrents > most) {
+            most = seen.torrents;
+            best = server.id;
+        }
+    }
+    return best;
+}
+
+QString ServerListModel::whenText(const QDateTime &at, const QDateTime &now)
+{
+    if (!at.isValid())
+        return {};
+    const QDateTime local = at.toLocalTime();
+    const QString time = local.toString(QStringLiteral("HH:mm"));
+    const qint64 days = local.date().daysTo(now.toLocalTime().date());
+    if (days == 0)
+        return QCoreApplication::translate("ServerListModel", "today %1").arg(time);
+    if (days == 1)
+        return QCoreApplication::translate("ServerListModel", "yesterday %1").arg(time);
+    return QStringLiteral("%1 %2").arg(QLocale::c().toString(local.date(), QStringLiteral("d MMM")),
+                                       time);
+}
+
+void ServerListModel::emitRow(const QString &id, const QList<int> &roles)
+{
+    const int row = id.isEmpty() ? -1 : indexOfId(id);
+    if (row < 0)
+        return;
+    const QModelIndex at = index(row, 0);
+    Q_EMIT dataChanged(at, at, roles);
 }
 
 int ServerListModel::indexOfId(const QString &id) const
@@ -220,6 +401,8 @@ bool ServerListModel::remove(const QString &id)
         m_secrets->removeSecret(id, SecretStore::Kind::Password);
     }
     m_probes.remove(id);
+    if (m_seen.remove(id) > 0)
+        Q_EMIT lastSeenChanged();
     return m_store->remove(id);
 }
 

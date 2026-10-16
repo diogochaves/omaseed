@@ -48,6 +48,9 @@ public:
 
     /// A one-line form for logs and banners, e.g. "unauthorized (401): bad credential".
     QString toString() const;
+    /// toString() read back (GlobalState keeps only the text): the kind, the status and the
+    /// message. A certificate's fingerprint does not survive the trip.
+    static ApiError fromString(const QString &text);
     static QString kindName(Kind kind);
 
     bool operator==(const ApiError &other) const = default;

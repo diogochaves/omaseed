@@ -16,6 +16,7 @@ private slots:
     void describesItselfInOneLine();
     void comparesByValue();
     void certificateCarriesTheFingerprint();
+    void readsItsOwnLineBack();
 };
 
 void TestApiError::defaultIsNotAnError()
@@ -94,6 +95,19 @@ void TestApiError::certificateCarriesTheFingerprint()
     QCOMPARE(error.toString(), QStringLiteral("certificate: GET app/version: self-signed"));
     QVERIFY(ApiError(ApiError::Kind::Network, QString()).certificateSha256().isEmpty());
     QVERIFY(error != ApiError::certificate(error.message(), QString(64, QLatin1Char('b'))));
+}
+
+void TestApiError::readsItsOwnLineBack()
+{
+    const ApiError conflict = ApiError::fromHttpStatus(
+        409, QStringLiteral("POST torrents/setLocation: server replied: Conflict"));
+    QCOMPARE(ApiError::fromString(conflict.toString()), conflict);
+    const ApiError refused(ApiError::Kind::Network,
+                           QStringLiteral("GET sync/maindata: Connection refused"));
+    QCOMPARE(ApiError::fromString(refused.toString()), refused);
+    QCOMPARE(ApiError::fromString(QStringLiteral("timeout")).kind(), ApiError::Kind::Timeout);
+    QVERIFY(!ApiError::fromString(QString()).isError());
+    QCOMPARE(ApiError::fromString(QStringLiteral("odd words")).kind(), ApiError::Kind::Unknown);
 }
 
 QTEST_APPLESS_MAIN(TestApiError)

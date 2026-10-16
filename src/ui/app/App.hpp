@@ -27,6 +27,7 @@
 #include "core/AltSpeed.hpp"
 #include "core/AutoBackup.hpp"
 #include "core/CategoryModel.hpp"
+#include "core/ErrorWords.hpp"
 #include "core/FilterCounts.hpp"
 #include "core/FreeSpace.hpp"
 #include "core/GlobalState.hpp"
@@ -835,8 +836,12 @@ private:
                     const QString &action);
     /// G4 in demo mode: sets `key` to `on` on the fictional rows and returns true.
     bool applyDemoOption(const QStringList &hashes, const QString &key, bool on);
+    /// A refused action, in the footer's words (docs/33 D23): `hashes` and `folder` name
+    /// what it was about when the request does not.
     void reportActionResult(const QString &action,
-                            const omaseed::core::QbtResult<QByteArray> &result);
+                            const omaseed::core::QbtResult<QByteArray> &result,
+                            const QStringList &hashes = {},
+                            const QString &folder = {});
     void loadDeleteFilesDefault();
     /// StoppedDownload/StoppedUpload/PausedDownload/PausedUpload: what `stopStart()` and
     /// `torrentRow()`'s `stopped` field both call "stopped".
@@ -1772,6 +1777,77 @@ private:
     QSet<QString> m_sharedFilesInFlight;
     QHash<QString, QStringList> m_demoSharedFiles;
     // --- end #28 ----------------------------------------------------------------------------
+
+    // --- #69, #72: servers in any state ------------------------------------------------------
+    // docs/33 (DECISIONS C12): with two servers or more a way to the others is always on
+    // screen, whatever state the current one is in. What omaseed saw last on each server
+    // (D5), the one switch everything calls (D2–D4, D14), the refused sign-in as its own state
+    // (D9) and ErrorWords' words for the window (D23). The methods live in AppServers.cpp.
+public:
+    /// The one switch: the rail, the server palette, `:`, the add sheet and Settings all
+    /// call it. Moves the app onto `id` (setDefaultServer under it); never switches by
+    /// itself (D8). True when it moved, or was already there.
+    Q_INVOKABLE bool switchServer(const QString &id);
+    /// D9: the server refused the sign-in. No automatic retry until the login changes or
+    /// someone asks for one; the hero says "sign-in refused", not "unreachable".
+    Q_PROPERTY(bool serverRefused READ serverRefused NOTIFY serverStateChanged)
+    bool serverRefused() const { return m_serverRefused; }
+    /// D8, D9 (ErrorWords, D23): the current server's problem as `{headline, line, details,
+    /// kind, sentence}`, empty while it answers. It takes GlobalState's `lastError` and
+    /// `retryInSeconds` so a binding follows both: one retry figure for the window and the
+    /// desktop notice.
+    Q_INVOKABLE QVariantMap serverProblem(const QString &lastError, int retryInSeconds) const;
+    /// D23: what the read-only guard says when it stops `key`: "private is unreachable: p
+    /// waits until it answers".
+    Q_INVOKABLE QString guardNote(const QString &key) const;
+    /// S1, the server palette: one row per server in Settings' order, the current one first
+    /// with "on it now" and its live figures, the others with what was seen last (D5):
+    /// `[{key: id, title, meta, detail, current, state}]`.
+    Q_PROPERTY(QVariantList serverRows READ serverRows NOTIFY serverRowsChanged)
+    QVariantList serverRows() const;
+    /// D6: the other server with the most torrents last seen: `{id, name, count}`, empty
+    /// when none has a count.
+    Q_PROPERTY(QVariantMap busiestOtherServer READ busiestOtherServer NOTIFY serverRowsChanged)
+    QVariantMap busiestOtherServer() const;
+    /// D17: the rail's servers block folded to one line, app-wide (not per server, as the
+    /// filter groups are). Open the first time.
+    Q_PROPERTY(bool serversFolded READ serversFolded WRITE setServersFolded NOTIFY settingsChanged)
+    bool serversFolded() const;
+    void setServersFolded(bool folded);
+
+Q_SIGNALS:
+    void serverStateChanged();
+    void serverRowsChanged();
+
+private:
+    /// Reads state.json's `servers` section into the list (D5).
+    void loadLastSeen();
+    /// The current server answered: its count and the time, at most once a minute unless
+    /// the count moved.
+    void rememberSeen();
+    /// The current server's last try failed.
+    void rememberFailure(const omaseed::core::ApiError &error);
+    /// The list's `state` and live count for the server the app is on.
+    void updateServerState();
+    /// Connects what the block follows; the constructor calls it once.
+    void setUpServers();
+    /// The desktop notice for a lost server, in the window's words (D22, D23).
+    void notifyServerLost(const omaseed::core::ApiError &error, int retrySeconds);
+    /// The words a subject needs: the server's name, address, auth mode and certificate.
+    omaseed::core::ErrorWords::Subject errorSubject() const;
+    /// D23: an action's failure as one plain sentence for the footer; `torrent` and `folder`
+    /// say what it was about when the request does not.
+    QString actionFailureText(const omaseed::core::ApiError &error,
+                              const QString &torrent = QString(),
+                              const QString &folder = QString()) const;
+
+    bool m_serverRefused = false;
+    bool m_serversFolded = false;
+    omaseed::core::ApiError m_serverError;
+    QDateTime m_seenAt;
+    int m_seenCount = -1;
+    QTimer *m_seenSave = nullptr;
+    // --- end #69, #72 -----------------------------------------------------------------------
 };
 
 } // namespace omaseed::app

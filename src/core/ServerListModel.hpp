@@ -16,7 +16,14 @@
 //     torrent count, last error. `setProbeResult()` writes those; they are cleared when the
 //     server is removed. Its argument order is `App::serverTested()`'s, so a sheet that
 //     tested a server before it had an id can hand the answer straight on once it does
-//     (docs/DECISIONS.md Q23).
+//     (docs/DECISIONS.md Q23);
+//   - what omaseed saw last time it was on a server (docs/33 D5, DECISIONS C12): the torrent
+//     count and when, or why the last try failed and when. `setLastSeen()`/`setLastFailure()`
+//     write it as the app syncs; App keeps it in state.json (`lastSeenJson()`/
+//     `loadLastSeen()`). No request ever goes to a server the app is not on;
+//   - the server the app is on and how it is doing (`setCurrent()`): "live", "syncing",
+//     "down", "refused" or "certificate", with its live count. The rail, the server palette
+//     and Settings read the `state` and `countText` roles from it.
 //
 // Secrets never travel through `Server` or `servers.json`. `add()`/`update()` take the secret
 // separately and hand it to `SecretStore` (asynchronously, keyed by the server's id);
@@ -26,7 +33,9 @@
 #include "core/Server.hpp"
 
 #include <QAbstractListModel>
+#include <QDateTime>
 #include <QHash>
+#include <QJsonObject>
 #include <QString>
 #include <QVariantMap>
 
@@ -60,6 +69,18 @@ public:
         ApiVersionRole,  ///< "2.15.1"; empty until a probe ran
         VersionTextRole, ///< "v5.2.3" for the dim line; empty until a probe ran
         CertificateRole, ///< the trusted certificate's SHA-256 (CertificatePin), or empty
+        IsCurrentRole,   ///< the server the app is on
+        /// The current one: "live", "syncing", "down", "refused", "certificate". Another:
+        /// "seen" (fine last time), "failed" (its last try failed), "unknown" (never seen).
+        StateRole,
+        LastCountRole,  ///< the count last seen on it, -1 when never
+        LastSeenRole,   ///< when it was last seen or tried: "today 23:26", "" when never
+        LastFailedRole, ///< its last try failed
+        LastReasonRole, ///< why, short: "sign-in refused", "didn't answer"
+        LastDetailRole, ///< why, in words: "wrong username or password"
+        /// What a row prints at its right: the current one's live count, "down" or "!"; for
+        /// another, "!" after a failed try, its last count, or "".
+        CountTextRole,
     };
     Q_ENUM(Role)
 
@@ -74,6 +95,27 @@ public:
 
     int count() const { return int(m_rows.size()); }
     QString defaultId() const;
+
+    /// The server the app is on, how it is doing (StateRole's words) and its live torrent
+    /// count (-1 unknown). An empty id: none.
+    Q_INVOKABLE void setCurrent(const QString &id, const QString &state, int count);
+    QString currentId() const { return m_currentId; }
+    /// docs/33 D5: `id` answered with `count` torrents at `at`; clears a failure.
+    void setLastSeen(const QString &id, int count, const QDateTime &at);
+    /// docs/33 D5: the last try on `id` failed at `at`, for `reason` ("sign-in refused") in
+    /// `detail`'s words. The last count stays.
+    void setLastFailure(const QString &id,
+                        const QString &reason,
+                        const QString &detail,
+                        const QDateTime &at);
+    /// state.json's `servers` section: `{<id>: {"lastSeen": {torrents, at, error, detail}}}`.
+    QJsonObject lastSeenJson() const;
+    void loadLastSeen(const QJsonObject &servers);
+    /// The id of the other server with the most torrents last seen ("" when none has a
+    /// count), for the empty state's "private has 4" (D6).
+    Q_INVOKABLE QString busiestOther() const;
+    /// "today 23:26", "yesterday 08:10" or "12 Oct 23:26" for `at`, against `now`.
+    static QString whenText(const QDateTime &at, const QDateTime &now);
 
     /// Row index of `id`, or -1.
     Q_INVOKABLE int indexOfId(const QString &id) const;
@@ -130,6 +172,8 @@ public:
 Q_SIGNALS:
     void countChanged();
     void changed();
+    /// The last-seen figures moved: App writes them to state.json.
+    void lastSeenChanged();
 
 private:
     struct Probe
@@ -143,13 +187,26 @@ private:
         QString error;
     };
 
+    struct Seen
+    {
+        int torrents = -1;
+        QDateTime at;
+        QString error;  ///< short reason; empty when the last try answered
+        QString detail; ///< the reason in words
+    };
+
     void reload();
+    void emitRow(const QString &id, const QList<int> &roles);
     void writeSecret(const Server &server, const QString &secret);
 
     ServerStore *m_store = nullptr;
     SecretStore *m_secrets = nullptr;
     QList<Server> m_rows;
     QHash<QString, Probe> m_probes;
+    QHash<QString, Seen> m_seen;
+    QString m_currentId;
+    QString m_currentState;
+    int m_currentCount = -1;
 };
 
 } // namespace omaseed::core

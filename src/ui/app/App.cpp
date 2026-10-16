@@ -261,6 +261,9 @@ App::App(QObject *parent)
         // docs/34 D2 a: the torrents rows name the server, and so does the file they propose.
         Q_EMIT torrentsBackupChanged();
     });
+
+    // docs/33 (#69, #72): last seen per server, the refused sign-in, the palette's rows.
+    setUpServers();
 }
 
 App::~App()
@@ -868,7 +871,7 @@ void App::setFilePriority(const QString &hash, const QVariantList &fileIndexes, 
             if (result.isError()) {
                 qWarning().noquote() << QStringLiteral("set file priority failed: %1")
                                             .arg(result.error().toString());
-                Q_EMIT actionFailed(QStringLiteral("priority"), result.error().toString());
+                Q_EMIT actionFailed(QString(), actionFailureText(result.error()));
             }
             // The file list is polled every 2 s anyway, but the pane should not look stuck
             // for a whole tick after a key press, nor keep a local change the server refused.
@@ -1024,11 +1027,7 @@ void App::attachNotifier(omaseed::integration::Notifier *notifier)
         }
         if (m_notifier.isNull() || !m_notifyServerLostEnabled)
             return;
-        m_notifier->notifyServerLost(m_server.id,
-                                     m_server.name,
-                                     serverHostPortText(),
-                                     serverLostReasonText(error),
-                                     retrySeconds);
+        notifyServerLost(error, retrySeconds);
     });
 
     connect(m_engine, &SyncEngine::serverBack, this, [this]() {
@@ -1053,11 +1052,7 @@ void App::attachNotifier(omaseed::integration::Notifier *notifier)
         m_heldLoss.reset();
         if (m_notifier.isNull() || !m_notifyServerLostEnabled)
             return;
-        m_notifier->notifyServerLost(m_server.id,
-                                     m_server.name,
-                                     serverHostPortText(),
-                                     serverLostReasonText(error),
-                                     retrySeconds);
+        notifyServerLost(error, retrySeconds);
     });
 
     // #24 T8: every sync asks whether the weekly recap is due; most answers are one date
@@ -2893,10 +2888,22 @@ bool App::demoGuard(const QString &action, int count)
     return true;
 }
 
-void App::reportActionResult(const QString &action, const QbtResult<QByteArray> &result)
+void App::reportActionResult(const QString &action,
+                             const QbtResult<QByteArray> &result,
+                             const QStringList &hashes,
+                             const QString &folder)
 {
-    if (result.isError())
-        Q_EMIT actionFailed(action, result.error().toString());
+    if (!result.isError())
+        return;
+    // docs/33 D23: the footer says it in plain words (ErrorWords); the request and the API's
+    // own text go to the log, the details' stand-in until board 35 draws them.
+    qWarning().noquote() << QStringLiteral("%1 failed: %2").arg(action, result.error().toString());
+    QString torrent;
+    if (hashes.size() == 1)
+        torrent = m_engine->torrents()->torrent(hashes.constFirst()).name;
+    else if (hashes.size() > 1)
+        torrent = tr("%n torrents", "", int(hashes.size()));
+    Q_EMIT actionFailed(QString(), actionFailureText(result.error(), torrent, folder));
 }
 
 void App::stopStart(const QStringList &hashes)
@@ -2998,7 +3005,7 @@ void App::loadDuplicateTrackers(const QString &hash, const QStringList &urls)
     m_client->torrentsTrackers(hash)->then(
         this, [this, hash, urls](const QbtResult<QJsonArray> &result) {
             if (result.isError()) {
-                Q_EMIT actionFailed(QStringLiteral("trackers"), result.error().toString());
+                Q_EMIT actionFailed(QString(), actionFailureText(result.error()));
                 return;
             }
             QStringList existing;
@@ -3024,7 +3031,7 @@ void App::mergeTrackers(const QString &hash, const QStringList &urls)
     m_client->torrentsAddTrackers(hash, urls)
         ->then(this, [this, hash, urls](const QbtResult<QByteArray> &result) {
             if (result.isError()) {
-                Q_EMIT actionFailed(QStringLiteral("merge trackers"), result.error().toString());
+                Q_EMIT actionFailed(QString(), actionFailureText(result.error()));
                 return;
             }
             if (m_details->hash() == hash)
@@ -3257,8 +3264,8 @@ void App::setLocation(const QStringList &hashes, const QString &path)
     // before the request, so a read on its way meanwhile can't take the line first.
     m_engine->problems()->watchMove(hashes, path);
     m_client->torrentsSetLocation(hashes, path)
-        ->then(this, [this](const QbtResult<QByteArray> &result) {
-            reportActionResult(QStringLiteral("location"), result);
+        ->then(this, [this, hashes, path](const QbtResult<QByteArray> &result) {
+            reportActionResult(QStringLiteral("location"), result, hashes, path);
         });
 }
 
@@ -3273,7 +3280,7 @@ void App::requestGlobalLimits()
         return;
     m_client->appPreferences()->then(this, [this](const QbtResult<QJsonObject> &result) {
         if (result.isError()) {
-            Q_EMIT actionFailed(QStringLiteral("limits"), result.error().toString());
+            Q_EMIT actionFailed(QString(), actionFailureText(result.error()));
             return;
         }
         // app/preferences carries these in bytes/s on 5.x (checked live on :8081).
@@ -4291,6 +4298,8 @@ void App::loadSettings()
     const QJsonObject general = stateSection(QStringLiteral("general"));
     m_showServersGroup = general.value(QStringLiteral("showServersGroup")).toBool(true);
     m_pathMapEnabled = general.value(QStringLiteral("pathMapEnabled")).toBool(true);
+    // docs/33 D17: the rail's servers block, open the first time.
+    m_serversFolded = general.value(QStringLiteral("serversFolded")).toBool(false);
 
     const QJsonObject appearance = stateSection(QStringLiteral("appearance"));
     m_followOmarchyTheme = appearance.value(QStringLiteral("followOmarchyTheme")).toBool(true);
@@ -4321,6 +4330,7 @@ void App::saveSettings()
     QJsonObject general;
     general[QStringLiteral("showServersGroup")] = m_showServersGroup;
     general[QStringLiteral("pathMapEnabled")] = m_pathMapEnabled;
+    general[QStringLiteral("serversFolded")] = m_serversFolded;
     writeStateSection(QStringLiteral("general"), general);
 
     QJsonObject appearance;
@@ -4535,7 +4545,7 @@ void App::renameTorrentFile(const QString &hash,
                          : m_client->torrentsRenameFile(hash, oldPath, newPath);
     reply->then(this, [this](const QbtResult<QByteArray> &result) {
         if (result.isError()) {
-            Q_EMIT actionFailed(QStringLiteral("rename"), result.error().toString());
+            Q_EMIT actionFailed(QString(), actionFailureText(result.error()));
             return;
         }
         m_details->refreshNow();

@@ -97,4 +97,25 @@ QString ApiError::toString() const
     return text;
 }
 
+ApiError ApiError::fromString(const QString &text)
+{
+    if (text.isEmpty() || text == QLatin1String("none"))
+        return {};
+    // "kind (status): message", each part but the kind optional.
+    const qsizetype end = text.indexOf(QStringLiteral(": "));
+    QString head = end >= 0 ? text.left(end) : text;
+    const QString message = end >= 0 ? text.mid(end + 2) : QString();
+    int status = 0;
+    const qsizetype paren = head.indexOf(QStringLiteral(" ("));
+    if (paren >= 0 && head.endsWith(QLatin1Char(')'))) {
+        status = head.mid(paren + 2, head.size() - paren - 3).toInt();
+        head = head.left(paren);
+    }
+    for (int k = int(Kind::Network); k <= int(Kind::Unknown); ++k) {
+        if (kindName(Kind(k)) == head)
+            return ApiError(Kind(k), message, status);
+    }
+    return ApiError(Kind::Unknown, text, status);
+}
+
 } // namespace omaseed::core

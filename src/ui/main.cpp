@@ -114,11 +114,10 @@ int runNotifyDemo()
     const quint32 diskId = notifier.notifyDiskAlmostFull(serverId, QStringLiteral("1.8 GB"));
     qInfo().noquote() << QStringLiteral("notified disk id=%1").arg(diskId);
 
-    const quint32 serverLostId = notifier.notifyServerLost(serverId,
-                                                           QStringLiteral("home"),
-                                                           QStringLiteral("nas.local:9090"),
-                                                           QStringLiteral("connection refused"),
-                                                           10);
+    const quint32 serverLostId = notifier.notifyServerLost(
+        serverId,
+        QStringLiteral("home didn't answer"),
+        QStringLiteral("Nothing is listening at nas.local:9090. omaseed tries again in 10 s."));
     qInfo().noquote() << QStringLiteral("notified server id=%1").arg(serverLostId);
 
     QTimer::singleShot(30000, &notifier, []() { QCoreApplication::quit(); });

@@ -42,13 +42,11 @@ public:
                           const QString &headline,
                           const QString &detail);
 
-    /// "<serverName> is unreachable" / "<hostText> · <reasonText> · retrying every N s".
+    /// docs/33 D22, D23: the window's headline and line, in ErrorWords' words ("private
+    /// didn't answer" / "Nothing is listening at 127.0.0.1:8091. omaseed tries again in
+    /// 10 s."), so the notice and the window say the same with the same retry figure.
     /// Action "settings". Event class "server", subject the server id.
-    quint32 notifyServerLost(const QString &serverId,
-                             const QString &serverName,
-                             const QString &hostText,
-                             const QString &reasonText,
-                             int retrySeconds);
+    quint32 notifyServerLost(const QString &serverId, const QString &headline, const QString &body);
 
     /// The matching "back" toast: replaces the server-lost notice for the same server id.
     quint32 notifyServerBack(const QString &serverId, const QString &serverName);

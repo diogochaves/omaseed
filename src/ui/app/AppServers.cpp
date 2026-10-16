@@ -1,0 +1,307 @@
+// App's #69/#72 block (docs/33, DECISIONS C12): servers in any state. What omaseed saw last
+// on each server (D5), the one switch the rail, the server palette, `:`, the add sheet and
+// Settings call (D2–D4, D14), a refused sign-in as a state of its own (D9), and ErrorWords'
+// words for the window, the footer and the desktop notice (D23). Kept out of App.cpp so it
+// reads as one piece; the declarations sit at the end of App.hpp.
+#include "ui/app/App.hpp"
+
+#include "core/ErrorWords.hpp"
+#include "core/Format.hpp"
+#include "integration/Notifier.hpp"
+
+#include <QDebug>
+#include <QJsonObject>
+#include <QTimer>
+
+namespace omaseed::app {
+
+using namespace omaseed::core;
+
+namespace {
+
+/// The last-seen figures are written at most this often while the count does not move.
+constexpr int kSeenEverySeconds = 60;
+
+} // namespace
+
+void App::setUpServers()
+{
+    m_seenSave = new QTimer(this);
+    m_seenSave->setSingleShot(true);
+    m_seenSave->setInterval(1000);
+    connect(m_seenSave, &QTimer::timeout, this, [this]() {
+        writeStateSection(QStringLiteral("servers"), m_serverList->lastSeenJson());
+    });
+    connect(
+        m_serverList, &ServerListModel::lastSeenChanged, m_seenSave, qOverload<>(&QTimer::start));
+    loadLastSeen();
+
+    // The palette's rows follow the list, the live figures and the switch.
+    connect(m_serverList, &QAbstractItemModel::dataChanged, this, &App::serverRowsChanged);
+    connect(m_serverList, &QAbstractItemModel::modelReset, this, &App::serverRowsChanged);
+    connect(this, &App::serverChanged, this, &App::serverRowsChanged);
+    connect(
+        m_engine->globalState(), &GlobalState::serverVersionChanged, this, &App::serverRowsChanged);
+
+    connect(this, &App::serverChanged, this, &App::updateServerState);
+    connect(m_engine->globalState(), &GlobalState::connectedChanged, this, &App::updateServerState);
+    connect(m_engine->globalState(), &GlobalState::syncingChanged, this, &App::updateServerState);
+    connect(m_engine, &SyncEngine::synced, this, [this]() {
+        if (m_serverRefused) {
+            m_serverRefused = false;
+            Q_EMIT serverStateChanged();
+        }
+        rememberSeen();
+        updateServerState();
+    });
+    connect(m_engine, &SyncEngine::serverLost, this, [this](const ApiError &error) {
+        rememberFailure(error);
+        updateServerState();
+    });
+    connect(m_engine, &SyncEngine::authRequired, this, [this](const ApiError &error) {
+        // D9: polling has stopped (SyncEngine), and the window says why in its own words.
+        m_serverRefused = true;
+        rememberFailure(error);
+        Q_EMIT serverStateChanged();
+        updateServerState();
+    });
+    // A new start (a switch, "retry now", an edited login) is a new attempt.
+    connect(m_engine, &SyncEngine::runningChanged, this, [this]() {
+        if (m_engine->isRunning() && m_serverRefused) {
+            m_serverRefused = false;
+            Q_EMIT serverStateChanged();
+            updateServerState();
+        }
+    });
+    connect(m_engine->counts(), &FilterCounts::changed, this, &App::updateServerState);
+}
+
+void App::loadLastSeen()
+{
+    m_serverList->loadLastSeen(stateSection(QStringLiteral("servers")));
+}
+
+void App::rememberSeen()
+{
+    if (m_demoMode || !m_hasServer || m_server.id.isEmpty())
+        return;
+    const int count = m_engine->torrents()->count();
+    const QDateTime now = QDateTime::currentDateTime();
+    // Each poll would rewrite state.json every 1.5 s: once a minute is "last seen" enough,
+    // and a count that moves is written straight away.
+    if (count == m_seenCount && m_seenAt.isValid() && m_seenAt.secsTo(now) < kSeenEverySeconds)
+        return;
+    m_seenCount = count;
+    m_seenAt = now;
+    m_serverList->setLastSeen(m_server.id, count, now);
+}
+
+void App::rememberFailure(const ApiError &error)
+{
+    m_serverError = error;
+    if (m_demoMode || !m_hasServer || m_server.id.isEmpty())
+        return;
+    const bool refused = ErrorWords::isRefusedSignIn(error, m_server.authMode);
+    QString reason = ErrorWords::shortReason(error);
+    if (!refused && error.kind() == ApiError::Kind::Forbidden)
+        reason = tr("refused omaseed");
+    QString detail = credentialRefusedText(error, m_server.authMode);
+    if (error.kind() == ApiError::Kind::Certificate)
+        detail = certificateRefusedText(m_server.certificateSha256);
+    if (detail.isEmpty())
+        detail = serverLostReasonText(error);
+    m_serverList->setLastFailure(m_server.id, reason, detail, QDateTime::currentDateTime());
+    // The next answer is written again, whatever its count.
+    m_seenAt = QDateTime();
+}
+
+void App::updateServerState()
+{
+    if (!m_hasServer) {
+        m_serverList->setCurrent(QString(), QString(), -1);
+        return;
+    }
+    const GlobalState *state = m_engine->globalState();
+    const int count = m_engine->torrents()->count();
+    QString word = QStringLiteral("live");
+    if (!m_demoMode) {
+        if (m_serverRefused)
+            word = QStringLiteral("refused");
+        else if (m_serverLost && m_serverError.kind() == ApiError::Kind::Certificate)
+            word = QStringLiteral("certificate");
+        else if (m_serverLost || (!state->connected() && !state->syncing()))
+            word = QStringLiteral("down");
+        else if (!state->connected())
+            word = QStringLiteral("syncing");
+    }
+    const bool counted = m_demoMode || state->connected();
+    m_serverList->setCurrent(m_server.id, word, counted ? count : -1);
+}
+
+bool App::switchServer(const QString &id)
+{
+    if (id.isEmpty())
+        return false;
+    if (m_hasServer && m_server.id == id)
+        return true;
+    // Leaving a server: what it showed last is written now, not a minute later.
+    if (m_hasServer && !m_demoMode && !m_server.id.isEmpty() &&
+        m_engine->globalState()->connected()) {
+        m_seenAt = QDateTime();
+        rememberSeen();
+    }
+    m_seenCount = -1;
+    m_seenAt = QDateTime();
+    m_serverError = ApiError();
+    if (m_serverRefused) {
+        m_serverRefused = false;
+        Q_EMIT serverStateChanged();
+    }
+    return setDefaultServer(id);
+}
+
+ErrorWords::Subject App::errorSubject() const
+{
+    ErrorWords::Subject subject;
+    subject.server = m_server.name;
+    subject.address = serverHostPortText();
+    subject.authMode = m_server.authMode;
+    subject.pinnedCertificate = m_server.certificateSha256;
+    return subject;
+}
+
+QVariantMap App::serverProblem(const QString &lastError, int retryInSeconds) const
+{
+    if (lastError.isEmpty() && !m_serverRefused)
+        return {};
+    ApiError error = m_serverError;
+    if (error.toString() != lastError && !lastError.isEmpty())
+        error = ApiError::fromString(lastError);
+    if (!error.isError())
+        return {};
+    ErrorWords::Subject subject = errorSubject();
+    // Q16: the engine's retry, counted down; none after a refused sign-in (D9).
+    const bool refused = m_serverRefused || ErrorWords::isRefusedSignIn(error, m_server.authMode);
+    subject.retrySeconds = refused ? -1 : retryInSeconds;
+    return ErrorWords::forServer(error, subject).toMap();
+}
+
+QString App::guardNote(const QString &key) const
+{
+    return ErrorWords::guard(m_server.name, key, m_serverRefused);
+}
+
+void App::notifyServerLost(const ApiError &error, int retrySeconds)
+{
+    ErrorWords::Subject subject = errorSubject();
+    subject.retrySeconds = retrySeconds;
+    const ErrorWords::Text text = ErrorWords::forServer(error, subject);
+    m_notifier->notifyServerLost(m_server.id, text.headline, text.line);
+}
+
+QString
+App::actionFailureText(const ApiError &error, const QString &torrent, const QString &folder) const
+{
+    ErrorWords::Subject subject = errorSubject();
+    subject.torrent = torrent;
+    subject.folder = folder;
+    const QString sentence = ErrorWords::forRequest(error, subject).sentence();
+    return sentence.isEmpty() ? error.toString() : sentence;
+}
+
+QVariantList App::serverRows() const
+{
+    QVariantList current;
+    QVariantList others;
+    const auto torrentsText = [](int count) {
+        return count == 1 ? tr("1 torrent") : tr("%1 torrents").arg(count);
+    };
+    for (int row = 0; row < m_serverList->count(); ++row) {
+        const QModelIndex at = m_serverList->index(row, 0);
+        const auto role = [&](ServerListModel::Role r) { return m_serverList->data(at, r); };
+        const QString id = role(ServerListModel::IdRole).toString();
+        const QString address = role(ServerListModel::UrlTextRole).toString();
+        const QString state = role(ServerListModel::StateRole).toString();
+        const bool isCurrent = role(ServerListModel::IsCurrentRole).toBool();
+        QStringList detail{address};
+        QString meta;
+        if (isCurrent) {
+            meta = tr("on it now");
+            if (state == QLatin1String("down"))
+                detail << tr("not answering");
+            else if (state == QLatin1String("refused"))
+                detail << tr("sign-in refused");
+            else if (state == QLatin1String("certificate"))
+                detail << tr("certificate refused");
+            else if (state == QLatin1String("syncing"))
+                detail << tr("first sync");
+            else
+                detail << torrentsText(m_engine->torrents()->count());
+            const QString version = m_engine->globalState()->serverVersion();
+            if (!version.isEmpty() && state != QLatin1String("down") &&
+                state != QLatin1String("refused"))
+                detail << tr("qBittorrent %1")
+                              .arg(version.startsWith(QLatin1Char('v')) ? version.mid(1) : version);
+        } else if (state == QLatin1String("failed")) {
+            meta = role(ServerListModel::LastReasonRole).toString();
+            detail << tr("last try %1").arg(role(ServerListModel::LastSeenRole).toString());
+            const QString why = role(ServerListModel::LastDetailRole).toString();
+            if (!why.isEmpty())
+                detail << why;
+        } else if (state == QLatin1String("seen")) {
+            const int count = role(ServerListModel::LastCountRole).toInt();
+            if (count >= 0)
+                meta = torrentsText(count);
+            detail << tr("last seen %1").arg(role(ServerListModel::LastSeenRole).toString());
+        } else {
+            detail << tr("not seen yet");
+        }
+        detail.removeAll(QString());
+        const QVariantMap item{
+            {QStringLiteral("key"), id},
+            {QStringLiteral("title"), role(ServerListModel::NameRole)},
+            {QStringLiteral("meta"), meta},
+            {QStringLiteral("detail"), detail.join(QStringLiteral(" · "))},
+            {QStringLiteral("current"), isCurrent},
+            {QStringLiteral("state"), state},
+            {QStringLiteral("address"), address},
+            {QStringLiteral("countText"), role(ServerListModel::CountTextRole)},
+            {QStringLiteral("lastReason"), role(ServerListModel::LastReasonRole)},
+            {QStringLiteral("lastCount"), role(ServerListModel::LastCountRole)},
+        };
+        (isCurrent ? current : others).append(item);
+    }
+    return current + others;
+}
+
+QVariantMap App::busiestOtherServer() const
+{
+    const QString id = m_serverList->busiestOther();
+    const int row = m_serverList->indexOfId(id);
+    if (row < 0)
+        return {};
+    const QModelIndex at = m_serverList->index(row, 0);
+    return {
+        {QStringLiteral("id"), id},
+        {QStringLiteral("name"), m_serverList->data(at, ServerListModel::NameRole)},
+        {QStringLiteral("count"), m_serverList->data(at, ServerListModel::LastCountRole)},
+    };
+}
+
+bool App::serversFolded() const
+{
+    const_cast<App *>(this)->loadSettings();
+    return m_serversFolded;
+}
+
+void App::setServersFolded(bool folded)
+{
+    loadSettings();
+    if (m_serversFolded == folded)
+        return;
+    m_serversFolded = folded;
+    saveSettings();
+    Q_EMIT settingsChanged();
+}
+
+} // namespace omaseed::app

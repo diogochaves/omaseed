@@ -10,6 +10,7 @@
 #include "core/ServerStore.hpp"
 
 #include <QFile>
+#include <QJsonObject>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
@@ -55,6 +56,9 @@ private Q_SLOTS:
     void credentialsInTheUrlNeverReachTheFile();  // INT-11
     void changingTheAuthModeDropsTheOldSecret();  // INT-12
     void trustedCertificateIsKeptUntilReplaced(); // #2
+    void lastSeenPerServer();                     // docs/33 D5
+    void currentServerState();                    // docs/33 D5, D8, D9
+    void whenText();
 
 private:
     QTemporaryDir m_config;
@@ -452,6 +456,103 @@ void TestServerListModel::changingTheAuthModeDropsTheOldSecret()
     QVERIFY(!found);
     readSecret(secrets, id, SecretStore::Kind::ApiKey, &found);
     QVERIFY(!found);
+}
+
+void TestServerListModel::lastSeenPerServer()
+{
+    ServerStore store;
+    ServerListModel model(&store);
+    const QString home = model.add(homeFields());
+    QVariantMap second = homeFields();
+    second[QStringLiteral("name")] = QStringLiteral("seedbox");
+    const QString seedbox = model.add(second);
+    QSignalSpy seenSpy(&model, &ServerListModel::lastSeenChanged);
+
+    // Never seen: nothing to print, "unknown".
+    QCOMPARE(roleOf(model, 1, ServerListModel::LastCountRole).toInt(), -1);
+    QCOMPARE(roleOf(model, 1, ServerListModel::StateRole).toString(), QStringLiteral("unknown"));
+    QCOMPARE(roleOf(model, 1, ServerListModel::CountTextRole).toString(), QString());
+    QCOMPARE(model.busiestOther(), QString());
+
+    const QDateTime now = QDateTime::currentDateTime();
+    model.setLastSeen(seedbox, 4, now);
+    QCOMPARE(seenSpy.count(), 1);
+    QCOMPARE(roleOf(model, 1, ServerListModel::LastCountRole).toInt(), 4);
+    QCOMPARE(roleOf(model, 1, ServerListModel::StateRole).toString(), QStringLiteral("seen"));
+    QCOMPARE(roleOf(model, 1, ServerListModel::CountTextRole).toString(), QStringLiteral("4"));
+    QVERIFY(roleOf(model, 1, ServerListModel::LastSeenRole)
+                .toString()
+                .startsWith(QStringLiteral("today ")));
+    model.setCurrent(home, QStringLiteral("live"), 0);
+    QCOMPARE(model.busiestOther(), seedbox);
+
+    // A failed try keeps the count, and says why.
+    model.setLastFailure(seedbox,
+                         QStringLiteral("sign-in refused"),
+                         QStringLiteral("wrong username or password"),
+                         now);
+    QCOMPARE(roleOf(model, 1, ServerListModel::LastCountRole).toInt(), 4);
+    QVERIFY(roleOf(model, 1, ServerListModel::LastFailedRole).toBool());
+    QCOMPARE(roleOf(model, 1, ServerListModel::LastReasonRole).toString(),
+             QStringLiteral("sign-in refused"));
+    QCOMPARE(roleOf(model, 1, ServerListModel::StateRole).toString(), QStringLiteral("failed"));
+    QCOMPARE(roleOf(model, 1, ServerListModel::CountTextRole).toString(), QStringLiteral("!"));
+    // A server that failed is not the one the empty state points at.
+    QCOMPARE(model.busiestOther(), QString());
+
+    // Round trip through state.json's shape.
+    const QJsonObject json = model.lastSeenJson();
+    QVERIFY(json.contains(seedbox));
+    QCOMPARE(json.value(seedbox)
+                 .toObject()
+                 .value(QStringLiteral("lastSeen"))
+                 .toObject()
+                 .value(QStringLiteral("torrents")),
+             QJsonValue(4));
+    ServerListModel again(&store);
+    again.loadLastSeen(json);
+    QCOMPARE(roleOf(again, 1, ServerListModel::LastCountRole).toInt(), 4);
+    QCOMPARE(roleOf(again, 1, ServerListModel::LastDetailRole).toString(),
+             QStringLiteral("wrong username or password"));
+
+    // Removing the server forgets what was seen on it.
+    QVERIFY(model.remove(seedbox));
+    QVERIFY(!model.lastSeenJson().contains(seedbox));
+}
+
+void TestServerListModel::currentServerState()
+{
+    ServerStore store;
+    ServerListModel model(&store);
+    const QString home = model.add(homeFields());
+    model.setLastSeen(home, 2, QDateTime::currentDateTime());
+
+    model.setCurrent(home, QStringLiteral("live"), 3);
+    QVERIFY(roleOf(model, 0, ServerListModel::IsCurrentRole).toBool());
+    QCOMPARE(roleOf(model, 0, ServerListModel::StateRole).toString(), QStringLiteral("live"));
+    // The live count, not the remembered one.
+    QCOMPARE(roleOf(model, 0, ServerListModel::CountTextRole).toString(), QStringLiteral("3"));
+
+    model.setCurrent(home, QStringLiteral("down"), -1);
+    QCOMPARE(roleOf(model, 0, ServerListModel::CountTextRole).toString(), QStringLiteral("down"));
+    model.setCurrent(home, QStringLiteral("refused"), -1);
+    QCOMPARE(roleOf(model, 0, ServerListModel::CountTextRole).toString(), QStringLiteral("!"));
+
+    model.setCurrent(QString(), QString(), -1);
+    QVERIFY(!roleOf(model, 0, ServerListModel::IsCurrentRole).toBool());
+    QCOMPARE(roleOf(model, 0, ServerListModel::StateRole).toString(), QStringLiteral("seen"));
+}
+
+void TestServerListModel::whenText()
+{
+    const QDateTime now(QDate(2026, 10, 16), QTime(12, 0));
+    QCOMPARE(ServerListModel::whenText(QDateTime(QDate(2026, 10, 16), QTime(9, 5)), now),
+             QStringLiteral("today 09:05"));
+    QCOMPARE(ServerListModel::whenText(QDateTime(QDate(2026, 10, 15), QTime(23, 26)), now),
+             QStringLiteral("yesterday 23:26"));
+    QCOMPARE(ServerListModel::whenText(QDateTime(QDate(2026, 10, 2), QTime(8, 0)), now),
+             QStringLiteral("2 Oct 08:00"));
+    QCOMPARE(ServerListModel::whenText(QDateTime(), now), QString());
 }
 
 QTEST_MAIN(TestServerListModel)
