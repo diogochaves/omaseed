@@ -139,8 +139,10 @@ Item {
 
     // the window's state (spec §7)
     /// A configured, non-demo server that stopped answering: Fig. 23.
+    /// docs/35 N6: only once the engine declared it lost, so a switch waiting for the keychain
+    /// shows no loss.
     readonly property bool serverLost: root._testServerLost
-                                       || (App.hasServer && !App.demoMode
+                                       || (App.hasServer && !App.demoMode && App.serverLost
                                            && !App.globalState.connected && !root.firstSync)
     /// A test seam: the QML tests run on the demo library, which never loses its server.
     property bool _testServerLost: false
@@ -1721,7 +1723,11 @@ Item {
                                                                             [group]);
                 root.saveTableState();
             }
-            onServerActivated: id => App.switchServer(id)
+            // The rail hands the keyboard back to the table once it has switched, as it did.
+            onServerActivated: id => {
+                table.forceActiveFocus();
+                App.switchServer(id);
+            }
             onMoreServersRequested: root.openServerPalette()
         }
 

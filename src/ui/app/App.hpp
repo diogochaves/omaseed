@@ -1792,6 +1792,9 @@ public:
     /// someone asks for one; the hero says "sign-in refused", not "unreachable".
     Q_PROPERTY(bool serverRefused READ serverRefused NOTIFY serverStateChanged)
     bool serverRefused() const { return m_serverRefused; }
+    /// docs/35 N6: the engine declared the server lost (or refused), and it hasn't answered
+    /// since. Not while a switch waits for the keychain: the window shows no loss for that.
+    Q_PROPERTY(bool serverLost READ isServerLost NOTIFY serverStateChanged)
     /// D8, D9 (ErrorWords, D23): the current server's problem as `{headline, line, details,
     /// kind, sentence}`, empty while it answers. It takes GlobalState's `lastError` and
     /// `retryInSeconds` so a binding follows both: one retry figure for the window and the
@@ -1859,6 +1862,8 @@ private:
     QVariantMap m_actionFailure;
 
     bool m_serverRefused = false;
+    /// What `serverLost` last said, so it notifies only when it moves.
+    bool m_lostShown = false;
     bool m_serversFolded = false;
     omaseed::core::ApiError m_serverError;
     QDateTime m_seenAt;

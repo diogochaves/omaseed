@@ -457,6 +457,9 @@ Item {
                     MouseArea {
                         id: serverMouse
 
+                        Accessible.ignored: !root.serverSwitchable
+                        Accessible.name: qsTr("switch server")
+                        Accessible.role: Accessible.Button
                         cursorShape: Qt.PointingHandCursor
                         enabled: root.serverSwitchable
                         height: serverLabel.height

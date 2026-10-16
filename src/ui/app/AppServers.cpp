@@ -45,6 +45,18 @@ void App::setUpServers()
         m_engine->globalState(), &GlobalState::serverVersionChanged, this, &App::serverRowsChanged);
 
     connect(this, &App::serverChanged, this, &App::updateServerState);
+    // `serverLost` follows m_serverLost, which App.cpp's own handlers set first.
+    const auto noteLost = [this]() {
+        if (m_lostShown == m_serverLost)
+            return;
+        m_lostShown = m_serverLost;
+        Q_EMIT serverStateChanged();
+    };
+    connect(this, &App::serverChanged, this, noteLost);
+    connect(m_engine, &SyncEngine::serverLost, this, noteLost);
+    connect(m_engine, &SyncEngine::authRequired, this, noteLost);
+    connect(m_engine, &SyncEngine::serverBack, this, noteLost);
+    connect(m_engine, &SyncEngine::synced, this, noteLost);
     connect(m_engine->globalState(), &GlobalState::connectedChanged, this, &App::updateServerState);
     connect(m_engine->globalState(), &GlobalState::syncingChanged, this, &App::updateServerState);
     connect(m_engine, &SyncEngine::synced, this, [this]() {

@@ -481,6 +481,13 @@ void TestAppNotifications::flappingServerFiresOneLostAndOneBack()
     // Plain words: neither the request that carried it nor Qt's text.
     QVERIFY(!lostCall.body.contains(QStringLiteral("GET")));
     QVERIFY(!lostCall.body.contains(QStringLiteral("sync/maindata")));
+    // docs/35 N6: the window shows the loss once the engine declared it, in the same words.
+    QVERIFY(app.property("serverLost").toBool());
+    const QVariantMap problem =
+        app.serverProblem(app.globalState()->lastError(), app.globalState()->retryInSeconds());
+    QCOMPARE(problem.value(QStringLiteral("headline")).toString(),
+             QStringLiteral("fake didn't answer"));
+    QCOMPARE(problem.value(QStringLiteral("kind")).toString(), QStringLiteral("down"));
 
     // Several failed retries must not spam a second "lost" notice.
     QTest::qWait(100);
@@ -494,6 +501,7 @@ void TestAppNotifications::flappingServerFiresOneLostAndOneBack()
     QCOMPARE(m_bus.server()->calls.size(), 2);
     QCOMPARE(m_bus.server()->calls.at(1).summary, QStringLiteral("fake is back"));
     QCOMPARE(m_bus.server()->calls.at(1).body, QStringLiteral("connected again"));
+    QVERIFY(waitFor([&] { return !app.property("serverLost").toBool(); }));
 
     app.engine()->stop();
 }

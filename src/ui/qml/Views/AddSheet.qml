@@ -98,8 +98,8 @@ Sheet {
     readonly property bool multiServer: App.serverCount > 1
     /// D15: the app's server is down (or refused the sign-in), not merely syncing.
     readonly property bool serverDown: sheet._testServerDown
-                                       || (App.hasServer && !App.demoMode && !App.globalState.connected
-                                           && !(App.globalState.syncing && App.torrents.count === 0))
+                                       || (App.hasServer && !App.demoMode && App.serverLost
+                                           && !App.globalState.connected)
     /// Why the field's text is not addable, as `App.parseAddable` put it ("" when it gave no
     /// reason); shown when `enter` is pressed on it (review RUN-8).
     property string _parseError: ""
