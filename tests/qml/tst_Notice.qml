@@ -39,6 +39,14 @@ TestCase {
         }
     }
 
+    Component {
+        id: triggeredSpy
+
+        SignalSpy {
+            signalName: "actionTriggered"
+        }
+    }
+
     function test_kinds_take_their_glyph_and_colour() {
         const notice = createTemporaryObject(noticeComponent, testCase);
         compare(findChild(notice, "noticeGlyph").text, "!");
@@ -123,5 +131,33 @@ TestCase {
         notice.shown = true;
         verify(notice.height < notice.fullHeight);
         tryCompare(notice, "height", notice.fullHeight, 1000);
+    }
+
+    // #75: a screen reader's press on an action is its click (the action's key, once), and
+    // on "details" it unfolds them, as a click does.
+    function test_the_accessible_press_on_a_link_is_the_click() {
+        const notice = createTemporaryObject(noticeComponent, testCase);
+        const triggered = createTemporaryObject(triggeredSpy, testCase, {
+                                                    "target": notice
+                                                });
+        findChild(notice, "noticeAction-switch").Accessible.pressAction();
+        compare(triggered.count, 1);
+        compare(triggered.signalArguments[0][0], "switch");
+        findChild(notice, "noticeDetailsToggle").Accessible.pressAction();
+        verify(notice.detailsOpen);
+    }
+
+    // #75: disabled, the notice ignores a screen reader's press, as it ignores the pointer.
+    function test_a_disabled_notice_ignores_the_accessible_press() {
+        const notice = createTemporaryObject(noticeComponent, testCase, {
+                                                 "enabled": false
+                                             });
+        const triggered = createTemporaryObject(triggeredSpy, testCase, {
+                                                    "target": notice
+                                                });
+        findChild(notice, "noticeAction-switch").Accessible.pressAction();
+        findChild(notice, "noticeDetailsToggle").Accessible.pressAction();
+        compare(triggered.count, 0);
+        verify(!notice.detailsOpen);
     }
 }

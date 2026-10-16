@@ -13,6 +13,14 @@ TestCase {
         RailRow {}
     }
 
+    Component {
+        id: clickedSpy
+
+        SignalSpy {
+            signalName: "clicked"
+        }
+    }
+
     function test_height_is_the_rail_row_height() {
         const row = createTemporaryObject(railRowComponent, testCase, {
                                               "text": "downloading"
@@ -89,5 +97,30 @@ TestCase {
         row.clicked.connect(() => clicks++);
         row.clicked();
         compare(clicks, 1);
+    }
+
+    // #75: a screen reader's press runs the click, once.
+    function test_the_accessible_press_is_the_click() {
+        const row = createTemporaryObject(railRowComponent, testCase, {
+                                              "text": "downloading"
+                                          });
+        const clicked = createTemporaryObject(clickedSpy, testCase, {
+                                                  "target": row
+                                              });
+        row.Accessible.pressAction();
+        compare(clicked.count, 1);
+    }
+
+    // #75: disabled, the row ignores a screen reader's press, as it ignores the pointer.
+    function test_a_disabled_row_ignores_the_accessible_press() {
+        const row = createTemporaryObject(railRowComponent, testCase, {
+                                              "text": "downloading",
+                                              "enabled": false
+                                          });
+        const clicked = createTemporaryObject(clickedSpy, testCase, {
+                                                  "target": row
+                                              });
+        row.Accessible.pressAction();
+        compare(clicked.count, 0);
     }
 }

@@ -204,6 +204,11 @@ Rectangle {
 
         Accessible.name: root.trailing
         Accessible.role: Accessible.Button
+        // A screen reader's press is the click (#75): only on a clickable trailing, and not
+        // while the field is disabled. A MouseArea's own `enabled` is its flag alone, so the
+        // field's says whether the field, or something above it, is disabled.
+        Accessible.onPressAction: if (root.enabled && trailingButton.enabled)
+                                      root.trailingClicked()
         anchors.bottom: parent.bottom
         anchors.left: trailingText.visible ? trailingText.left : trailingCap.left
         anchors.leftMargin: -Theme.space(4)

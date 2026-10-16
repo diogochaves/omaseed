@@ -19,6 +19,22 @@ TestCase {
         }
     }
 
+    Component {
+        id: hintClickedSpy
+
+        SignalSpy {
+            signalName: "hintClicked"
+        }
+    }
+
+    Component {
+        id: pinnedClickedSpy
+
+        SignalSpy {
+            signalName: "pinnedClicked"
+        }
+    }
+
     function test_renders_one_row_per_model_pair() {
         const model = [
                   {
@@ -260,5 +276,52 @@ TestCase {
         compare(lead.children[0].children[1].text, "commands");
         hints.pinnedLead = null;
         compare(lead.visible, false);
+    }
+
+    // #75: a screen reader's press on a clickable hint, or the pinned one, is its click; on a
+    // plain hint, or with the row disabled, it does nothing, as the pointer.
+    function test_the_accessible_press_on_a_hint_is_the_click() {
+        const hints = createTemporaryObject(keyHintsComponent, testCase, {
+                                                "model": [
+                                                    {
+                                                        "key": "space",
+                                                        "label": "toggle"
+                                                    },
+                                                    {
+                                                        "key": "enter",
+                                                        "label": "apply",
+                                                        "clickable": true
+                                                    }
+                                                ],
+                                                "pinned": {
+                                                    "key": "esc",
+                                                    "label": "back",
+                                                    "clickable": true
+                                                }
+                                            });
+        const hintClicked = createTemporaryObject(hintClickedSpy, testCase, {
+                                                      "target": hints
+                                                  });
+        const pinnedClicked = createTemporaryObject(pinnedClickedSpy, testCase, {
+                                                        "target": hints
+                                                    });
+        const plain = findChild(findChild(hints, "keyHint_space"), "keyHintArea");
+        const apply = findChild(findChild(hints, "keyHint_enter"), "keyHintArea");
+        const pinned = findChild(hints, "keyHintPinnedArea");
+        plain.Accessible.pressAction();
+        compare(hintClicked.count, 0, "a plain hint ran");
+        apply.Accessible.pressAction();
+        compare(hintClicked.count, 1);
+        compare(hintClicked.signalArguments[0][0], 1);
+        compare(hintClicked.signalArguments[0][1].key, "enter");
+        pinned.Accessible.pressAction();
+        compare(pinnedClicked.count, 1);
+        compare(pinnedClicked.signalArguments[0][0].label, "back");
+
+        hints.enabled = false;
+        apply.Accessible.pressAction();
+        pinned.Accessible.pressAction();
+        compare(hintClicked.count, 1, "a disabled row ran a hint");
+        compare(pinnedClicked.count, 1, "a disabled row ran the pinned hint");
     }
 }

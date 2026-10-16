@@ -509,6 +509,8 @@ Item {
 
                 // It looks like a close control, so it is one: what `esc` does, by click.
                 Label {
+                    id: escLabel
+
                     Layout.alignment: Qt.AlignTop
                     color: escArea.containsMouse ? Theme.accent : Theme.dimForeground
                     size: "caption"
@@ -520,6 +522,11 @@ Item {
 
                         Accessible.name: root.escText
                         Accessible.role: Accessible.Button
+                        // A screen reader's press is the click (#75); disabled, it does
+                        // nothing, as the pointer. A MouseArea's own `enabled` is its flag
+                        // alone, so the label's says whether the sheet is disabled.
+                        Accessible.onPressAction: if (escLabel.enabled)
+                                                      root.pressEscape()
                         anchors.fill: parent
                         anchors.margins: -Theme.space(4)
                         cursorShape: Qt.PointingHandCursor

@@ -127,6 +127,11 @@ RowLayout {
 
                     Accessible.name: hintRow.modelData.key + " " + hintRow.modelData.label
                     Accessible.role: Accessible.Button
+                    // A screen reader's press is the click (#75): only on a clickable hint,
+                    // and not while disabled. A MouseArea's own `enabled` is its flag alone,
+                    // so the row's says whether something above it is disabled.
+                    Accessible.onPressAction: if (hintRow.enabled && hintArea.enabled)
+                                                  root.hintClicked(hintRow.index, hintRow.modelData)
                     anchors.fill: parent
                     cursorShape: Qt.PointingHandCursor
                     enabled: hintRow.modelData.clickable === true
@@ -201,6 +206,9 @@ RowLayout {
 
             Accessible.name: root.pinned ? root.pinned.key + " " + root.pinned.label : ""
             Accessible.role: Accessible.Button
+            // As a hint's (#75).
+            Accessible.onPressAction: if (pinnedRow.enabled && pinnedArea.enabled)
+                                          root.pinnedClicked(root.pinned)
             anchors.fill: parent
             cursorShape: Qt.PointingHandCursor
             enabled: root.hasPinned && root.pinned.clickable === true

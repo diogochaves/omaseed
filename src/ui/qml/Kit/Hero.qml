@@ -460,6 +460,11 @@ Item {
                         Accessible.ignored: !root.serverSwitchable
                         Accessible.name: qsTr("switch server")
                         Accessible.role: Accessible.Button
+                        // A screen reader's press is the click (#75): only while the server
+                        // can switch, and not while disabled. A MouseArea's own `enabled` is
+                        // its flag alone, so the label's says whether the hero is disabled.
+                        Accessible.onPressAction: if (serverLabel.enabled && serverMouse.enabled)
+                                                      root.serverClicked()
                         cursorShape: Qt.PointingHandCursor
                         enabled: root.serverSwitchable
                         height: serverLabel.height
@@ -697,6 +702,10 @@ Item {
 
             Accessible.name: qsTr("%n filter(s) · /", "", root.filterCount)
             Accessible.role: Accessible.Button
+            // A screen reader's press is the click (#75); disabled, it does nothing, as the
+            // pointer.
+            Accessible.onPressAction: if (filterButton.enabled)
+                                          root.filtersClicked()
             Layout.alignment: Qt.AlignVCenter
             activeFocusOnTab: true
             border.color: Theme.accent

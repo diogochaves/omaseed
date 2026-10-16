@@ -45,6 +45,10 @@ Rectangle {
     Accessible.name: root.text
     Accessible.role: Accessible.ListItem
 
+    // A screen reader's press is the click (#75); disabled, it does nothing, as the pointer.
+    Accessible.onPressAction: if (root.enabled)
+                                  root.clicked()
+
     color: root.selected ? Theme.fill(Theme.fillSelected) : root.hot ? Theme.fill(Theme.fillHover) :
                                                                        "transparent"
     height: Theme.railRowHeight

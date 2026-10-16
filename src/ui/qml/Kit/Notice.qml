@@ -287,6 +287,10 @@ Item {
 
                 Accessible.name: link.modelData.label
                 Accessible.role: Accessible.Link
+                // A screen reader's press is the click (#75); disabled, it does nothing, as
+                // the pointer.
+                Accessible.onPressAction: if (link.enabled)
+                                              root.actionTriggered(link.modelData.key)
                 color: linkMouse.containsMouse ? Theme.brightForeground : Theme.accent
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.font.small
@@ -307,8 +311,13 @@ Item {
         }
 
         Text {
+            id: detailsLink
+
             Accessible.name: text
             Accessible.role: Accessible.Link
+            // As an action's (#75).
+            Accessible.onPressAction: if (detailsLink.enabled)
+                                          root.toggleDetails()
             color: detailsMouse.containsMouse ? Theme.foreground : Theme.dimForeground
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.small

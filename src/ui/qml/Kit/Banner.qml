@@ -58,10 +58,15 @@ Row {
 
             Accessible.name: actionText.modelData.label
             Accessible.role: Accessible.Link
+            // A screen reader's press is the click (#75); disabled, it does nothing, as the
+            // pointer.
+            Accessible.onPressAction: if (actionText.enabled)
+                                          root.actionTriggered(actionText.modelData.key)
             anchors.verticalCenter: parent.verticalCenter
             color: Theme.accent
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.body
+            objectName: "bannerAction-" + actionText.modelData.key
             text: actionText.modelData.label
 
             MouseArea {

@@ -22,6 +22,22 @@ TestCase {
         }
     }
 
+    Component {
+        id: serverClickedSpy
+
+        SignalSpy {
+            signalName: "serverClicked"
+        }
+    }
+
+    Component {
+        id: filtersClickedSpy
+
+        SignalSpy {
+            signalName: "filtersClicked"
+        }
+    }
+
     function test_emits_search_changed_when_the_field_text_changes() {
         const hero = createTemporaryObject(heroComponent, testCase);
         let lastText = "";
@@ -669,5 +685,47 @@ TestCase {
         verify(hero.downStat.visible);
         verify(hero.addButton.visible);
         verify(hero.moreButton.visible);
+    }
+
+    // #75: a screen reader's press on the server line (when it switches) and on the filters
+    // button is their click, once each.
+    function test_the_accessible_press_is_the_click() {
+        const hero = createTemporaryObject(heroComponent, testCase, {
+                                               "serverLine": "private · qBittorrent 5.2.3",
+                                               "serverSwitchable": true
+                                           });
+        const server = createTemporaryObject(serverClickedSpy, testCase, {
+                                                 "target": hero
+                                             });
+        const filters = createTemporaryObject(filtersClickedSpy, testCase, {
+                                                  "target": hero
+                                              });
+        findChild(hero, "serverLineMouse").Accessible.pressAction();
+        compare(server.count, 1);
+        findChild(hero, "filterButton").Accessible.pressAction();
+        compare(filters.count, 1);
+    }
+
+    // #75: a server line that can't switch, and a disabled hero, ignore a screen reader's
+    // press, as they ignore the pointer.
+    function test_what_takes_no_click_ignores_the_accessible_press() {
+        const hero = createTemporaryObject(heroComponent, testCase, {
+                                               "serverLine": "private · qBittorrent 5.2.3"
+                                           });
+        const server = createTemporaryObject(serverClickedSpy, testCase, {
+                                                 "target": hero
+                                             });
+        const filters = createTemporaryObject(filtersClickedSpy, testCase, {
+                                                  "target": hero
+                                              });
+        const line = findChild(hero, "serverLineMouse");
+        line.Accessible.pressAction();
+        compare(server.count, 0, "a server line that can't switch ran");
+        hero.serverSwitchable = true;
+        hero.enabled = false;
+        line.Accessible.pressAction();
+        findChild(hero, "filterButton").Accessible.pressAction();
+        compare(server.count, 0, "a disabled hero's server line ran");
+        compare(filters.count, 0, "a disabled hero's filters button ran");
     }
 }

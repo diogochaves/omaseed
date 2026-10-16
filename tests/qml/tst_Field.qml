@@ -17,6 +17,14 @@ TestCase {
         Field {}
     }
 
+    Component {
+        id: trailingClickedSpy
+
+        SignalSpy {
+            signalName: "trailingClicked"
+        }
+    }
+
     // A numeric field in a pane taller than its view: what the wheel scrolls when the field
     // does not take it.
     Component {
@@ -345,5 +353,39 @@ TestCase {
         field.numeric = false;
         field.stepBy(1);
         compare(field.text, "15", "a plain field stepped");
+    }
+
+    // #75: a screen reader's press on a clickable trailing is its click, once.
+    function test_the_accessible_press_on_the_trailing_is_the_click() {
+        const field = createTemporaryObject(fieldComponent, testCase, {
+                                                "width": 300,
+                                                "trailing": "browse",
+                                                "trailingKey": "ctrl+o",
+                                                "trailingClickable": true
+                                            });
+        const clicked = createTemporaryObject(trailingClickedSpy, testCase, {
+                                                  "target": field
+                                              });
+        findChild(field, "fieldTrailingButton").Accessible.pressAction();
+        compare(clicked.count, 1);
+    }
+
+    // #75: a plain trailing, and a disabled field's, ignore a screen reader's press, as they
+    // ignore the pointer.
+    function test_what_takes_no_click_ignores_the_accessible_press() {
+        const field = createTemporaryObject(fieldComponent, testCase, {
+                                                "width": 300,
+                                                "trailing": "2 of 5 files"
+                                            });
+        const clicked = createTemporaryObject(trailingClickedSpy, testCase, {
+                                                  "target": field
+                                              });
+        const button = findChild(field, "fieldTrailingButton");
+        button.Accessible.pressAction();
+        compare(clicked.count, 0, "a plain trailing ran");
+        field.trailingClickable = true;
+        field.enabled = false;
+        button.Accessible.pressAction();
+        compare(clicked.count, 0, "a disabled field's trailing ran");
     }
 }

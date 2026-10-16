@@ -849,4 +849,31 @@ TestCase {
         const title = findChild(sheet, "sheetTitle");
         tryVerify(() => loader.x >= title.x + title.width, 1000);
     }
+
+    // #75: a screen reader's press on the head's `esc` is its click: what `esc` does.
+    function test_the_accessible_press_on_esc_is_the_click() {
+        const sheet = createTemporaryObject(keySheetComponent, testCase);
+        const rejected = createTemporaryObject(rejectedSpy, testCase, {
+                                                   "target": sheet
+                                               });
+        sheet.open();
+        findChild(sheet, "sheetEsc").Accessible.pressAction();
+        compare(sheet.opened, false);
+        compare(rejected.count, 1);
+    }
+
+    // #75: disabled, the sheet ignores a screen reader's press, as it ignores the pointer.
+    function test_a_disabled_sheet_ignores_the_accessible_press() {
+        const sheet = createTemporaryObject(keySheetComponent, testCase);
+        const rejected = createTemporaryObject(rejectedSpy, testCase, {
+                                                   "target": sheet
+                                               });
+        sheet.open();
+        sheet.enabled = false;
+        findChild(sheet, "sheetEsc").Accessible.pressAction();
+        compare(sheet.opened, true);
+        compare(rejected.count, 0);
+        sheet.enabled = true;
+        sheet.close();
+    }
 }
