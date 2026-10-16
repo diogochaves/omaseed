@@ -1,0 +1,18 @@
+{
+ "rid": 12,
+ "server_state": {
+  "free_space_on_disk": 1475078025216
+ },
+ "tags_removed": [
+  "e1-tag"
+ ],
+ "torrents": {
+  "81f2da56846c076e2cd5d5d1290d1f2f7a2d9631": {
+   "popularity": 24.99568473880313,
+   "reannounce": 24,
+   "seeding_time": 105208,
+   "tags": "",
+   "time_active": 105208
+  }
+ }
+}

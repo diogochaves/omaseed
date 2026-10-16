@@ -1,0 +1,14 @@
+{
+ "rid": 7,
+ "torrents": {
+  "545c344b755ccbd9ef775a427daa923f463f3570": {
+   "downloaded_session": 0,
+   "eta": 66,
+   "num_incomplete": 1,
+   "reannounce": 299,
+   "state": "stalledDL",
+   "time_active": 6,
+   "total_wasted": 0
+  }
+ }
+}

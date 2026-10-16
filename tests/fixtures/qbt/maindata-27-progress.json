@@ -1,0 +1,15 @@
+{
+ "rid": 27,
+ "torrents": {
+  "1f85b9e8a0d259478ee98344b2b0816f899e59b8": {
+   "reannounce": 2,
+   "seeding_time": 122134,
+   "time_active": 122134
+  },
+  "545c344b755ccbd9ef775a427daa923f463f3570": {
+   "eta": 100,
+   "reannounce": 270,
+   "time_active": 35
+  }
+ }
+}

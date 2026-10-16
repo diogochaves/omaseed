@@ -1,0 +1,458 @@
+[
+ {
+  "id": 0,
+  "message": "qBittorrent v5.2.3 started. Process ID: 832573",
+  "timestamp": 1792078579,
+  "type": 1
+ },
+ {
+  "id": 1,
+  "message": "Using config directory: /home/user/.local/share/omaseed-test/qBittorrent/config",
+  "timestamp": 1792078579,
+  "type": 1
+ },
+ {
+  "id": 2,
+  "message": "Trying to listen on the following list of IP addresses: \"127.0.0.1:26999\"",
+  "timestamp": 1792078579,
+  "type": 1
+ },
+ {
+  "id": 3,
+  "message": "Peer ID: \"-qB5230-\"",
+  "timestamp": 1792078579,
+  "type": 2
+ },
+ {
+  "id": 4,
+  "message": "HTTP User-Agent: \"qBittorrent/5.2.3\"",
+  "timestamp": 1792078579,
+  "type": 2
+ },
+ {
+  "id": 5,
+  "message": "Distributed Hash Table (DHT) support: OFF",
+  "timestamp": 1792078579,
+  "type": 2
+ },
+ {
+  "id": 6,
+  "message": "Local Peer Discovery support: OFF",
+  "timestamp": 1792078579,
+  "type": 2
+ },
+ {
+  "id": 7,
+  "message": "Peer Exchange (PeX) support: OFF",
+  "timestamp": 1792078579,
+  "type": 2
+ },
+ {
+  "id": 8,
+  "message": "Anonymous mode: OFF",
+  "timestamp": 1792078579,
+  "type": 2
+ },
+ {
+  "id": 9,
+  "message": "Encryption support: ON",
+  "timestamp": 1792078579,
+  "type": 2
+ },
+ {
+  "id": 10,
+  "message": "Successfully listening on IP. IP: \"127.0.0.1\". Port: \"TCP/26999\"",
+  "timestamp": 1792078579,
+  "type": 2
+ },
+ {
+  "id": 11,
+  "message": "Successfully listening on IP. IP: \"127.0.0.1\". Port: \"UTP/26999\"",
+  "timestamp": 1792078579,
+  "type": 2
+ },
+ {
+  "id": 12,
+  "message": "Restored torrent. Torrent: \"fixture-one\"",
+  "timestamp": 1792078579,
+  "type": 1
+ },
+ {
+  "id": 13,
+  "message": "Restored torrent. Torrent: \"fixture-two\"",
+  "timestamp": 1792078579,
+  "type": 1
+ },
+ {
+  "id": 14,
+  "message": "Restored torrent. Torrent: \"fixture-three\"",
+  "timestamp": 1792078579,
+  "type": 1
+ },
+ {
+  "id": 18,
+  "message": "Failed to restore torrent. Files were probably moved or storage isn't accessible. Torrent: \"tiny-notes.txt\". Reason: \"81f2da fast resume rejected. file_stat(/home/user/.local/share/omaseed-test/downloads/swarm/tiny-notes.txt): mismatching file size\"",
+  "timestamp": 1792078579,
+  "type": 4
+ },
+ {
+  "id": 24,
+  "message": "IP geolocation database loaded. Type: DBIP-Country-Lite. Build time: Wed Sep 30 22:36:12 2026.",
+  "timestamp": 1792078579,
+  "type": 2
+ },
+ {
+  "id": 25,
+  "message": "Using built-in WebUI.",
+  "timestamp": 1792078579,
+  "type": 1
+ },
+ {
+  "id": 26,
+  "message": "WebUI translation for selected locale (en) has been successfully loaded.",
+  "timestamp": 1792078579,
+  "type": 1
+ },
+ {
+  "id": 27,
+  "message": "WebUI: Now listening on IP: 127.0.0.1, port: 8081",
+  "timestamp": 1792078579,
+  "type": 1
+ },
+ {
+  "id": 28,
+  "message": "Torrent download finished. Torrent: \"tiny-notes.txt\"",
+  "timestamp": 1792078596,
+  "type": 1
+ },
+ {
+  "id": 29,
+  "message": "Added new torrent. Torrent: \"Single.bin\"",
+  "timestamp": 1792078753,
+  "type": 1
+ },
+ {
+  "id": 30,
+  "message": "Torrent removed. Torrent: \"Single.bin\"",
+  "timestamp": 1792078755,
+  "type": 1
+ },
+ {
+  "id": 31,
+  "message": "Torrent content removed. Torrent: \"Single.bin\"",
+  "timestamp": 1792078755,
+  "type": 1
+ },
+ {
+  "id": 32,
+  "message": "Added new torrent. Torrent: \"omaseed-t42-magnet\"",
+  "timestamp": 1792078755,
+  "type": 1
+ },
+ {
+  "id": 33,
+  "message": "Torrent removed. Torrent: \"omaseed-t42-magnet\"",
+  "timestamp": 1792078755,
+  "type": 1
+ },
+ {
+  "id": 34,
+  "message": "Added new torrent. Torrent: \"omaseed-d1 renamed\"",
+  "timestamp": 1792078755,
+  "type": 1
+ },
+ {
+  "id": 35,
+  "message": "Torrent resumed. Torrent: \"omaseed-d1 renamed\"",
+  "timestamp": 1792078755,
+  "type": 1
+ },
+ {
+  "id": 36,
+  "message": "Torrent removed. Torrent: \"omaseed-d1 renamed\"",
+  "timestamp": 1792078755,
+  "type": 1
+ },
+ {
+  "id": 37,
+  "message": "Torrent content removed. Torrent: \"omaseed-d1 renamed\"",
+  "timestamp": 1792078755,
+  "type": 1
+ },
+ {
+  "id": 42,
+  "message": "Torrent content removed. Torrent: \"Single.bin\"",
+  "timestamp": 1792078756,
+  "type": 1
+ },
+ {
+  "id": 43,
+  "message": "Torrent resumed. Torrent: \"fixture-one\"",
+  "timestamp": 1792078756,
+  "type": 1
+ },
+ {
+  "id": 44,
+  "message": "Torrent stopped. Torrent: \"fixture-one\"",
+  "timestamp": 1792078758,
+  "type": 1
+ },
+ {
+  "id": 45,
+  "message": "Torrent resumed. Torrent: \"fixture-one\"",
+  "timestamp": 1792078761,
+  "type": 1
+ },
+ {
+  "id": 46,
+  "message": "Torrent stopped. Torrent: \"fixture-one\"",
+  "timestamp": 1792078764,
+  "type": 1
+ },
+ {
+  "id": 47,
+  "message": "WebUI Set location: moving \"fixture-one\", from \"/home/user/.local/share/omaseed-test/downloads\" to \"/home/user/.local/share/omaseed-test/downloads\"",
+  "timestamp": 1792078766,
+  "type": 1
+ },
+ {
+  "id": 50,
+  "message": "Download first and last piece first: On, torrent: 'fixture-two'",
+  "timestamp": 1792078768,
+  "type": 1
+ },
+ {
+  "id": 51,
+  "message": "Download first and last piece first: Off, torrent: 'fixture-two'",
+  "timestamp": 1792078768,
+  "type": 1
+ },
+ {
+  "id": 52,
+  "message": "Added tracker to torrent. Torrent: \"fixture-one\". Tracker: \"udp://q4-tracker.invalid:1337/announce\"",
+  "timestamp": 1792078770,
+  "type": 1
+ },
+ {
+  "id": 53,
+  "message": "Removed tracker from torrent. Torrent: \"fixture-one\". Tracker: \"udp://q4-tracker.invalid:1337/announce\"",
+  "timestamp": 1792078770,
+  "type": 1
+ },
+ {
+  "id": 54,
+  "message": "Peer \"192.0.2.77:6881\" is added to torrent \"fixture-one\"",
+  "timestamp": 1792078770,
+  "type": 1
+ },
+ {
+  "id": 55,
+  "message": "WebUI Set location: moving \"fixture-one\", from \"/home/user/.local/share/omaseed-test/downloads\" to \"/home/user/.local/share/omaseed-test/downloads/fixtures\"",
+  "timestamp": 1792078770,
+  "type": 1
+ },
+ {
+  "id": 61,
+  "message": "Detected an attempt to add a duplicate torrent. Existing torrent: \"Single.bin\". Torrent infohash: 857ddb9df19f876e5a5e3f5b9c4f3991cbce1b04. Result: Merging of trackers is disabled",
+  "timestamp": 1792078816,
+  "type": 1
+ },
+ {
+  "id": 70,
+  "message": "Torrent stopped. Torrent: \"t25-probe\"",
+  "timestamp": 1792078822,
+  "type": 1
+ },
+ {
+  "id": 73,
+  "message": "WebUI Set location: moving \"t25-probe\", from \"/home/user/.local/share/omaseed-test/downloads/t25\" to \"/home/user/.local/share/omaseed-test/downloads/t25-moved\"",
+  "timestamp": 1792078824,
+  "type": 1
+ },
+ {
+  "id": 74,
+  "message": "Download first and last piece first: On, torrent: 't25-renamed'",
+  "timestamp": 1792078824,
+  "type": 1
+ },
+ {
+  "id": 97,
+  "message": "URL seed connection failed. Torrent: \"omaseed-webseed-live.txt\". URL: \"https://mirror.invalid/omaseed-webseed-live/\". Error: \"a67c70 url seed (https://mirror.invalid/omaseed-webseed-live/) failed: Host not found (authoritative)\"",
+  "timestamp": 1792078829,
+  "type": 4
+ },
+ {
+  "id": 98,
+  "message": "Added URL seed to torrent. Torrent: \"omaseed-webseed-live.txt\". URL: \"https://other.invalid/pub/\"",
+  "timestamp": 1792078829,
+  "type": 1
+ },
+ {
+  "id": 99,
+  "message": "Removed URL seed from torrent. Torrent: \"omaseed-webseed-live.txt\". URL: \"https://other.invalid/pub/\"",
+  "timestamp": 1792078829,
+  "type": 1
+ },
+ {
+  "id": 100,
+  "message": "Added URL seed to torrent. Torrent: \"omaseed-webseed-live.txt\". URL: \"https://edited.invalid/pub/\"",
+  "timestamp": 1792078829,
+  "type": 1
+ },
+ {
+  "id": 101,
+  "message": "Removed URL seed from torrent. Torrent: \"omaseed-webseed-live.txt\". URL: \"https://edited.invalid/pub/\"",
+  "timestamp": 1792078829,
+  "type": 1
+ },
+ {
+  "id": 127,
+  "message": "Download first and last piece first: On, torrent: 'fixture-two'",
+  "timestamp": 1792081295,
+  "type": 1
+ },
+ {
+  "id": 128,
+  "message": "Download first and last piece first: Off, torrent: 'fixture-two'",
+  "timestamp": 1792081295,
+  "type": 1
+ },
+ {
+  "id": 129,
+  "message": "Added tracker to torrent. Torrent: \"fixture-one\". Tracker: \"udp://q4-tracker.invalid:1337/announce\"",
+  "timestamp": 1792081299,
+  "type": 1
+ },
+ {
+  "id": 130,
+  "message": "Removed tracker from torrent. Torrent: \"fixture-one\". Tracker: \"udp://q4-tracker.invalid:1337/announce\"",
+  "timestamp": 1792081299,
+  "type": 1
+ },
+ {
+  "id": 131,
+  "message": "Peer \"192.0.2.77:6881\" is added to torrent \"fixture-one\"",
+  "timestamp": 1792081299,
+  "type": 1
+ },
+ {
+  "id": 138,
+  "message": "Detected an attempt to add a duplicate torrent. Existing torrent: \"Single.bin\". Torrent infohash: 857ddb9df19f876e5a5e3f5b9c4f3991cbce1b04. Result: Merging of trackers is disabled",
+  "timestamp": 1792081338,
+  "type": 1
+ },
+ {
+  "id": 174,
+  "message": "Added URL seed to torrent. Torrent: \"omaseed-webseed-live.txt\". URL: \"https://other.invalid/pub/\"",
+  "timestamp": 1792081349,
+  "type": 1
+ },
+ {
+  "id": 175,
+  "message": "Removed URL seed from torrent. Torrent: \"omaseed-webseed-live.txt\". URL: \"https://other.invalid/pub/\"",
+  "timestamp": 1792081349,
+  "type": 1
+ },
+ {
+  "id": 202,
+  "message": "Download first and last piece first: Off, torrent: 'fixture-two'",
+  "timestamp": 1792083988,
+  "type": 1
+ },
+ {
+  "id": 203,
+  "message": "Added tracker to torrent. Torrent: \"fixture-one\". Tracker: \"udp://q4-tracker.invalid:1337/announce\"",
+  "timestamp": 1792083991,
+  "type": 1
+ },
+ {
+  "id": 204,
+  "message": "Removed tracker from torrent. Torrent: \"fixture-one\". Tracker: \"udp://q4-tracker.invalid:1337/announce\"",
+  "timestamp": 1792083991,
+  "type": 1
+ },
+ {
+  "id": 205,
+  "message": "Peer \"192.0.2.77:6881\" is added to torrent \"fixture-one\"",
+  "timestamp": 1792083991,
+  "type": 1
+ },
+ {
+  "id": 212,
+  "message": "Detected an attempt to add a duplicate torrent. Existing torrent: \"Single.bin\". Torrent infohash: 857ddb9df19f876e5a5e3f5b9c4f3991cbce1b04. Result: Merging of trackers is disabled",
+  "timestamp": 1792084041,
+  "type": 1
+ },
+ {
+  "id": 248,
+  "message": "URL seed connection failed. Torrent: \"omaseed-webseed-live.txt\". URL: \"https://mirror.invalid/omaseed-webseed-live/\". Error: \"a67c70 url seed (https://mirror.invalid/omaseed-webseed-live/) failed: Host not found (authoritative)\"",
+  "timestamp": 1792084052,
+  "type": 4
+ },
+ {
+  "id": 276,
+  "message": "Torrent download finished. Torrent: \"Ünïcødé ✓ Spaces & Symbols (100%) [v2] {test} — a deliberately long torrent name to test eliding everywhere\"",
+  "timestamp": 1792086117,
+  "type": 1
+ },
+ {
+  "id": 284,
+  "message": "Enqueued torrent move. Torrent: \"Ünïcødé ✓ Spaces & Symbols (100%) [v2] {test} — a deliberately long torrent name to test eliding everywhere\". Source: \"/home/user/.local/share/omaseed-test/downloads\". Destination: \"/home/user/.local/share/omaseed-test/downloads/swarm\"",
+  "timestamp": 1792086169,
+  "type": 1
+ },
+ {
+  "id": 285,
+  "message": "Start moving torrent. Torrent: \"Ünïcødé ✓ Spaces & Symbols (100%) [v2] {test} — a deliberately long torrent name to test eliding everywhere\". Destination: \"/home/user/.local/share/omaseed-test/downloads/swarm\"",
+  "timestamp": 1792086169,
+  "type": 1
+ },
+ {
+  "id": 286,
+  "message": "Moved torrent successfully. Torrent: \"Ünïcødé ✓ Spaces & Symbols (100%) [v2] {test} — a deliberately long torrent name to test eliding everywhere\". Destination: \"/home/user/.local/share/omaseed-test/downloads/swarm\"",
+  "timestamp": 1792086169,
+  "type": 1
+ },
+ {
+  "id": 294,
+  "message": "Torrent download finished. Torrent: \"tiny-notes.txt\"",
+  "timestamp": 1792086193,
+  "type": 1
+ },
+ {
+  "id": 310,
+  "message": "Enqueued torrent move. Torrent: \"Ünïcødé ✓ Spaces & Symbols (100%) [v2] {test} — a deliberately long torrent name to test eliding everywhere\". Source: \"/home/user/.local/share/omaseed-test/downloads\". Destination: \"/home/user/.local/share/omaseed-test/downloads/swarm\"",
+  "timestamp": 1792086335,
+  "type": 1
+ },
+ {
+  "id": 311,
+  "message": "Start moving torrent. Torrent: \"Ünïcødé ✓ Spaces & Symbols (100%) [v2] {test} — a deliberately long torrent name to test eliding everywhere\". Destination: \"/home/user/.local/share/omaseed-test/downloads/swarm\"",
+  "timestamp": 1792086335,
+  "type": 1
+ },
+ {
+  "id": 312,
+  "message": "Moved torrent successfully. Torrent: \"Ünïcødé ✓ Spaces & Symbols (100%) [v2] {test} — a deliberately long torrent name to test eliding everywhere\". Destination: \"/home/user/.local/share/omaseed-test/downloads/swarm\"",
+  "timestamp": 1792086335,
+  "type": 1
+ },
+ {
+  "id": 388,
+  "message": "URL seed connection failed. Torrent: \"omaseed-webseed-live.txt\". URL: \"https://mirror.invalid/omaseed-webseed-live/\". Error: \"a67c70 url seed (https://mirror.invalid/omaseed-webseed-live/) failed: Host not found (authoritative)\"",
+  "timestamp": 1792086601,
+  "type": 4
+ },
+ {
+  "id": 934,
+  "message": "File error alert. Torrent: \"unwritable-fixture.bin\". File: \"/home/user/.local/share/omaseed-test/downloads/swarm-readonly/unwritable-fixture.bin\". Reason: \"ad91d5 file_open (/home/user/.local/share/omaseed-test/downloads/swarm-readonly/unwritable-fixture.bin) error: Permission denied\"",
+  "timestamp": 1792191520,
+  "type": 4
+ },
+ {
+  "id": 944,
+  "message": "File error alert. Torrent: \"unwritable-fixture.bin\". File: \"/home/user/.local/share/omaseed-test/downloads/swarm-readonly/unwritable-fixture.bin\". Reason: \"ad91d5 file_open (/home/user/.local/share/omaseed-test/downloads/swarm-readonly/unwritable-fixture.bin) error: Permission denied\"",
+  "timestamp": 1792191626,
+  "type": 4
+ }
+]

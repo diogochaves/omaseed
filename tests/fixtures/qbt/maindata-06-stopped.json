@@ -1,0 +1,21 @@
+{
+ "rid": 6,
+ "server_state": {
+  "total_buffers_size": 0,
+  "total_peer_connections": 0,
+  "total_wasted_session": 14877
+ },
+ "torrents": {
+  "545c344b755ccbd9ef775a427daa923f463f3570": {
+   "availability": 0.257999986410141,
+   "connections_count": 0,
+   "dlspeed": 0,
+   "eta": 8640000,
+   "num_incomplete": 0,
+   "num_seeds": 0,
+   "reannounce": 0,
+   "state": "stoppedDL",
+   "total_wasted": 9886
+  }
+ }
+}

@@ -1,0 +1,38 @@
+{
+ "rid": 55,
+ "torrents": {
+  "545c344b755ccbd9ef775a427daa923f463f3570": {
+   "dlspeed": 767820,
+   "reannounce": 291,
+   "seeding_time": 9,
+   "time_active": 77
+  },
+  "81f2da56846c076e2cd5d5d1290d1f2f7a2d9631": {
+   "dl_limit": 102400,
+   "force_start": true,
+   "max_ratio": 1.5,
+   "popularity": 24.980251346499102,
+   "ratio_limit": 1.5,
+   "reannounce": 259,
+   "seeding_time": 105273,
+   "seeding_time_limit": -1,
+   "share_limit_action": "Stop",
+   "state": "forcedUP",
+   "super_seeding": true,
+   "time_active": 105273
+  },
+  "ad91d5c42f9226cb974654df73a5d45858cb945a": {
+   "dlspeed": 3563,
+   "eta": 781,
+   "reannounce": 295,
+   "time_active": 5
+  },
+  "d8923c94d0ac6dce115c88923f17429218e4f5ef": {
+   "num_complete": 2,
+   "popularity": 334.2232384009481,
+   "reannounce": 298,
+   "seeding_time": 657951,
+   "time_active": 658105
+  }
+ }
+}

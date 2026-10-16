@@ -1,0 +1,23 @@
+{
+ "categories": {
+  "e1-cat": {
+   "download_path": null,
+   "inactive_seeding_time_limit": -2,
+   "name": "e1-cat",
+   "ratio_limit": -2,
+   "savePath": "/home/user/.local/share/omaseed-test/downloads/e1-cat",
+   "seeding_time_limit": -2,
+   "share_limit_action": "Default"
+  }
+ },
+ "rid": 8,
+ "torrents": {
+  "81f2da56846c076e2cd5d5d1290d1f2f7a2d9631": {
+   "category": "e1-cat",
+   "popularity": 24.996635108931223,
+   "reannounce": 28,
+   "seeding_time": 105204,
+   "time_active": 105204
+  }
+ }
+}

@@ -1,0 +1,12 @@
+{
+ "rid": 9,
+ "tags": [
+  "e1-tag",
+  "e1-other"
+ ],
+ "torrents": {
+  "81f2da56846c076e2cd5d5d1290d1f2f7a2d9631": {
+   "tags": "e1-other, e1-tag"
+  }
+ }
+}

@@ -414,3 +414,10 @@ omaseed_add_test(tst_qbtsettingsbackup_live LIVE
     SOURCES tst_qbtsettingsbackup_live.cpp
     LIBRARIES omaseed::core Qt6::Network
 )
+
+# #81: recorded qBittorrent replies give the same rows, roles and counts as before E1.
+omaseed_add_test(tst_qbt_golden
+    SOURCES tst_qbt_golden.cpp
+    LIBRARIES omaseed::core
+    DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
+)

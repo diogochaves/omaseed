@@ -1,0 +1,18 @@
+{
+ "rid": 5,
+ "server_state": {
+  "alltime_ul": 64249528740,
+  "dl_info_speed": 0
+ },
+ "torrents": {
+  "545c344b755ccbd9ef775a427daa923f463f3570": {
+   "dlspeed": 1332665,
+   "downloaded": 12805790,
+   "eta": 21,
+   "magnet_uri": "magnet:?xt=urn:btih:f29f689eca6933e26256b94f1ca8f7072cfca349&xt=urn:btmh:1220545c344b755ccbd9ef775a427daa923f463f3570a184856a1e66d0869db2990c&dn=photo-archive-2019-2025&xl=79167488&tr=http%3A%2F%2F127.0.0.1%3A26996%2Fannounce&ws=http%3A%2F%2F127.0.0.1%3A9%2Fphoto-archive-2019-2025",
+   "reannounce": 295,
+   "seen_complete": 1792191554,
+   "time_active": 5
+  }
+ }
+}

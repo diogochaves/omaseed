@@ -1,0 +1,35 @@
+{
+ "rid": 53,
+ "server_state": {
+  "dl_info_speed": 0
+ },
+ "torrents": {
+  "545c344b755ccbd9ef775a427daa923f463f3570": {
+   "dlspeed": 1499651,
+   "reannounce": 294,
+   "seeding_time": 6,
+   "time_active": 74
+  },
+  "ad91d5c42f9226cb974654df73a5d45858cb945a": {
+   "dlspeed": 6960,
+   "downloaded": 43501,
+   "eta": 903,
+   "reannounce": 298,
+   "seen_complete": 1792191626,
+   "time_active": 2
+  },
+  "d8923c94d0ac6dce115c88923f17429218e4f5ef": {
+   "amount_left": 107618420,
+   "completed": 0,
+   "num_complete": 1,
+   "pieces_have": 0,
+   "popularity": 334.2242541180575,
+   "priority": 5,
+   "progress": 0,
+   "reannounce": 0,
+   "seeding_time": 657949,
+   "state": "checkingUP",
+   "time_active": 658103
+  }
+ }
+}

@@ -1,0 +1,35 @@
+{
+ "rid": 4,
+ "server_state": {
+  "alltime_dl": 8739254498,
+  "alltime_ul": 64249528700,
+  "average_time_queue": 185,
+  "dl_info_data": 72122765,
+  "dl_info_speed": 689825,
+  "global_ratio": "7.35",
+  "total_buffers_size": 32768,
+  "total_peer_connections": 1
+ },
+ "torrents": {
+  "545c344b755ccbd9ef775a427daa923f463f3570": {
+   "amount_left": 28520448,
+   "availability": 1.2580000162124634,
+   "completed": 10347520,
+   "connections_count": 1,
+   "dlspeed": 2394327,
+   "downloaded": 11971639,
+   "downloaded_session": 12805790,
+   "eta": 23,
+   "last_activity": 1792191554,
+   "num_complete": 1,
+   "num_incomplete": 1,
+   "num_seeds": 1,
+   "pieces_have": 312,
+   "progress": 0.2662223041863161,
+   "reannounce": 298,
+   "seen_complete": 1792191553,
+   "state": "downloading",
+   "time_active": 2
+  }
+ }
+}

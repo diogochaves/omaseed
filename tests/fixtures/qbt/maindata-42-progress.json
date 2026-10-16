@@ -1,0 +1,11 @@
+{
+ "rid": 42,
+ "torrents": {
+  "d8923c94d0ac6dce115c88923f17429218e4f5ef": {
+   "popularity": 334.2323800771873,
+   "reannounce": 212,
+   "seeding_time": 657933,
+   "time_active": 658087
+  }
+ }
+}

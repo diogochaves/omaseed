@@ -1,0 +1,32 @@
+{
+ "rid": 56,
+ "torrents": {
+  "545c344b755ccbd9ef775a427daa923f463f3570": {
+   "dlspeed": 614256,
+   "reannounce": 290,
+   "seeding_time": 10,
+   "time_active": 78
+  },
+  "81f2da56846c076e2cd5d5d1290d1f2f7a2d9631": {
+   "popularity": 24.98001405855197,
+   "reannounce": 258,
+   "seeding_time": 105274,
+   "time_active": 105274
+  }
+ },
+ "torrents_removed": [
+  "ad91d5c42f9226cb974654df73a5d45858cb945a"
+ ],
+ "trackers": {
+  "http://127.0.0.1:26996/announce": [
+   "d8923c94d0ac6dce115c88923f17429218e4f5ef",
+   "545c344b755ccbd9ef775a427daa923f463f3570",
+   "a8a7e1b4fa3f182e9ba797d67b821339a335f30e",
+   "e4297160f2f3d85ccf5cc5e320a045ec9bf7b3b4",
+   "4b966e33b2257ed2c1614149bcb462ded88e5c9d",
+   "bb94b8b57e0cd235ea0a7432e3a9945f63ee417e",
+   "1f85b9e8a0d259478ee98344b2b0816f899e59b8",
+   "81f2da56846c076e2cd5d5d1290d1f2f7a2d9631"
+  ]
+ }
+}

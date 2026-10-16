@@ -1,0 +1,10 @@
+{
+ "peers": {
+  "127.0.0.1:26997": {
+   "dl_speed": 1066132,
+   "flags": "D S P",
+   "flags_desc": "D = Interested (local) and unchoked (peer)\nS = Peer snubbed\nP = μTP"
+  }
+ },
+ "rid": 2
+}

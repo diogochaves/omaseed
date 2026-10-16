@@ -1,0 +1,28 @@
+{
+ "rid": 54,
+ "server_state": {
+  "average_time_queue": 170
+ },
+ "torrents": {
+  "545c344b755ccbd9ef775a427daa923f463f3570": {
+   "dlspeed": 1199720,
+   "reannounce": 293,
+   "seeding_time": 7,
+   "time_active": 75
+  },
+  "ad91d5c42f9226cb974654df73a5d45858cb945a": {
+   "dlspeed": 5568,
+   "eta": 753,
+   "reannounce": 297,
+   "time_active": 3
+  },
+  "d8923c94d0ac6dce115c88923f17429218e4f5ef": {
+   "amount_left": 0,
+   "completed": 107618420,
+   "pieces_have": 832,
+   "priority": 0,
+   "progress": 1,
+   "state": "stalledUP"
+  }
+ }
+}

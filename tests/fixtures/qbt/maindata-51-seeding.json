@@ -1,0 +1,15 @@
+{
+ "rid": 51,
+ "server_state": {
+  "dl_info_speed": 0,
+  "free_space_on_disk": 1475132456960
+ },
+ "torrents": {
+  "545c344b755ccbd9ef775a427daa923f463f3570": {
+   "dlspeed": 2929008,
+   "reannounce": 297,
+   "seeding_time": 3,
+   "time_active": 71
+  }
+ }
+}

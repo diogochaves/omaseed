@@ -1,0 +1,26 @@
+{
+ "full_update": true,
+ "peers": {
+  "127.0.0.1:26997": {
+   "client": "qBittorrent/5.2.3",
+   "connection": "μTP",
+   "country": "N/A",
+   "country_code": "",
+   "dl_speed": 1665832,
+   "downloaded": 12805790,
+   "files": "photo-archive-2019-2025/2025/04/IMG_202504003.jpg",
+   "flags": "D P",
+   "flags_desc": "D = Interested (local) and unchoked (peer)\nP = μTP",
+   "host_name": "",
+   "ip": "127.0.0.1",
+   "peer_id_client": "-qB5230-",
+   "port": 26997,
+   "progress": 1,
+   "relevance": 1.0033482142857142,
+   "up_speed": 0,
+   "uploaded": 0
+  }
+ },
+ "rid": 1,
+ "show_flags": true
+}

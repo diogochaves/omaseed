@@ -1,0 +1,14 @@
+{
+ "rid": 32,
+ "server_state": {
+  "alltime_ul": 64249530734,
+  "free_space_on_disk": 1475074461696
+ },
+ "torrents": {
+  "1f85b9e8a0d259478ee98344b2b0816f899e59b8": {
+   "reannounce": 295,
+   "seeding_time": 122141,
+   "time_active": 122141
+  }
+ }
+}

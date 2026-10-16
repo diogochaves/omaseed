@@ -1,0 +1,73 @@
+[
+ {
+  "msg": "This torrent is private",
+  "num_downloaded": 0,
+  "num_leeches": 0,
+  "num_peers": 0,
+  "num_seeds": 0,
+  "status": 0,
+  "tier": -1,
+  "url": "** [DHT] **"
+ },
+ {
+  "msg": "This torrent is private",
+  "num_downloaded": 0,
+  "num_leeches": 0,
+  "num_peers": 0,
+  "num_seeds": 0,
+  "status": 0,
+  "tier": -1,
+  "url": "** [PeX] **"
+ },
+ {
+  "msg": "This torrent is private",
+  "num_downloaded": 0,
+  "num_leeches": 0,
+  "num_peers": 0,
+  "num_seeds": 0,
+  "status": 0,
+  "tier": -1,
+  "url": "** [LSD] **"
+ },
+ {
+  "endpoints": [
+   {
+    "bt_version": 1,
+    "min_announce": 1792191561,
+    "msg": "",
+    "name": "127.0.0.1:26999",
+    "next_announce": 1792191851,
+    "num_downloaded": -1,
+    "num_leeches": 1,
+    "num_peers": 1,
+    "num_seeds": 1,
+    "status": 2,
+    "updating": false
+   },
+   {
+    "bt_version": 2,
+    "min_announce": 1792191561,
+    "msg": "",
+    "name": "127.0.0.1:26999",
+    "next_announce": 1792191851,
+    "num_downloaded": -1,
+    "num_leeches": 1,
+    "num_peers": 1,
+    "num_seeds": 1,
+    "status": 2,
+    "updating": false
+   }
+  ],
+  "min_announce": 1792191561,
+  "msg": "",
+  "next_announce": 1792191851,
+  "num_downloaded": -1,
+  "num_leeches": 1,
+  "num_peers": 1,
+  "num_seeds": 1,
+  "status": 2,
+  "tier": 0,
+  "updating": false,
+  "url": "http://127.0.0.1:26996/announce"
+ }
+]

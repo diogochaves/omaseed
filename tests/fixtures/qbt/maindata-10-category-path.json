@@ -1,0 +1,16 @@
+{
+ "categories": {
+  "e1-cat": {
+   "savePath": "/home/user/.local/share/omaseed-test/downloads/e1-cat-moved"
+  }
+ },
+ "rid": 10,
+ "torrents": {
+  "81f2da56846c076e2cd5d5d1290d1f2f7a2d9631": {
+   "popularity": 24.996397509624067,
+   "reannounce": 27,
+   "seeding_time": 105205,
+   "time_active": 105205
+  }
+ }
+}
