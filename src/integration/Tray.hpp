@@ -1,15 +1,21 @@
 #pragma once
 
+#include "integration/BarMenu.hpp"
+
 #include <QColor>
 #include <QHash>
 #include <QIcon>
+#include <QList>
 #include <QObject>
+#include <QPair>
+#include <QPointer>
 #include <QString>
 #include <QSystemTrayIcon>
 
 QT_BEGIN_NAMESPACE
 class QMenu;
 class QAction;
+class QActionGroup;
 class QPainter;
 class QDBusServiceWatcher;
 QT_END_NAMESPACE
@@ -20,8 +26,11 @@ class ThemeReader;
 
 /// The bar-resident tray icon: `QSystemTrayIcon`, which Qt speaks as a StatusNotifierItem
 /// under Wayland so the Omarchy shell draws both the icon and (through DBusMenu) the menu.
-/// Five discrete icon states (spec v2 §6 Fig. 17), a menu matching Fig. 18 exactly, and a
-/// tooltip built from live numbers. Icons are SVG templates in
+/// Five discrete icon states (spec v2 §6 Fig. 17), a menu, and a tooltip built from live
+/// numbers. The menu is "show omaseed" and the two figure rows (Fig. 18), then the shared
+/// BarMenu's rows, the same ones the bar widget's ⋯ shows (docs/33 §11, D10, D24; DECISIONS
+/// C13): the servers with two or more, alternative limits, stop all, start all, add, settings,
+/// quit. Icons are SVG templates in
 /// `src/integration/resources/tray/` with placeholder fills (`#ACCENT`, `#FG`, `#RED`,
 /// `#DIM`) substituted for the live theme palette and rendered to a multi-size `QIcon`; the
 /// downloading count and the alt-speed mark are painted on top.
@@ -68,14 +77,14 @@ public:
                   int seeding,
                   const QString &freeText);
 
-    /// External truth for the "alternative speed limits" checkbox. Never emits
-    /// altSpeedToggled(): that signal is only for the user's own click or middle-click.
-    bool altSpeedChecked() const;
-    void setAltSpeedChecked(bool checked);
+    /// The shared menu the tray shows under its own rows (App's). Until one is set the tray
+    /// shows a menu of its own with the same rows and nobody answering them. Not owned.
+    void setMenuModel(BarMenu *model);
+    BarMenu *menuModel() const { return m_model; }
 
-    /// docs/31 T1 (D14): the checkbox's words, "burst · until 07:00", "turtle" or today's
-    /// "alternative speed limits".
-    void setAltSpeedLabel(const QString &label);
+    /// The "alternative speed limits" row's check, as the menu model says.
+    bool altSpeedChecked() const;
+
     /// docs/31 T1: which way the alternative set goes ("burst", "turtle", "alt"). Under burst
     /// the AltSpeed icon's mark is a green disc with ⏶; otherwise today's yellow ⏷.
     QString altKind() const { return m_altKind; }
@@ -99,27 +108,17 @@ public:
     QMenu *menu() const { return m_menu; }
 
 Q_SIGNALS:
-    /// Menu: "show omaseed". Always shows and raises, never toggles.
+    /// Menu: "show omaseed". Always shows and raises, never toggles. Every other row goes to
+    /// the menu model (BarMenu::invoke), and a middle click is its "alt-speed".
     void showRequested();
-    /// Menu: "add torrent…".
-    void addRequested();
-    /// Menu checkbox toggled by the user, or a middle click on the icon (which requests the
-    /// opposite of the current checked state). The caller applies the new state and reports
-    /// it back with setAltSpeedChecked().
-    void altSpeedToggled(bool checked);
-    /// Menu: "stop all".
-    void stopAllRequested();
-    /// Menu: "start all".
-    void startAllRequested();
-    /// Menu: "settings…".
-    void settingsRequested();
-    /// Menu: "quit". A real quit, not a hide.
-    void quitRequested();
     /// Left click (QSystemTrayIcon::Trigger): toggle the main window's visibility.
     void toggleWindowRequested();
 
 private:
     void buildMenu();
+    /// The model's rows under the tray's own: rebuilt when their ids or kinds change, and
+    /// updated in place otherwise (an open menu keeps its rows).
+    void syncSharedRows();
     void refreshIcon();
     void applyFromReader();
     void onActivated(QSystemTrayIcon::ActivationReason reason);
@@ -138,11 +137,11 @@ private:
     QAction *m_addAction = nullptr;
     QAction *m_speedsInfoAction = nullptr;
     QAction *m_statsInfoAction = nullptr;
-    QAction *m_altSpeedAction = nullptr;
-    QAction *m_stopAllAction = nullptr;
-    QAction *m_startAllAction = nullptr;
-    QAction *m_settingsAction = nullptr;
-    QAction *m_quitAction = nullptr;
+    QPointer<BarMenu> m_model;
+    BarMenu *m_ownModel = nullptr;
+    /// The shared rows' actions, by row id, in order.
+    QList<QPair<QString, QAction *>> m_sharedActions;
+    QActionGroup *m_serverGroup = nullptr;
 
     State m_state = Disconnected;
     int m_downloadingCount = 0;

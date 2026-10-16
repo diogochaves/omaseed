@@ -40,6 +40,8 @@ public:
     void openAddSheet(const QStringList &sources) override;
     void showTorrent(const QString &hash) override;
     void openFolder(const QString &hash) override;
+    bool switchServer(const QString &id) override;
+    bool invoke(const QString &id) override;
 
     /// One source as read for the widget. Thread-safe: parseSource runs on the pool.
     struct Source

@@ -54,6 +54,10 @@ public Q_SLOTS:
 
     void OpenFolder(const QString &hash) { m_handler->openFolder(hash); }
 
+    bool SwitchServer(const QString &id) { return m_handler->switchServer(id); }
+
+    bool Invoke(const QString &id) { return m_handler->invoke(id); }
+
 private:
     StatusHandler::Reply delayedReply(const QDBusMessage &message)
     {

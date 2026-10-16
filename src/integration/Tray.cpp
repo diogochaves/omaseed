@@ -1,8 +1,10 @@
 #include "integration/Tray.hpp"
 
+#include "integration/BarMenu.hpp"
 #include "integration/ThemeReader.hpp"
 
 #include <QAction>
+#include <QActionGroup>
 #include <QDBusConnection>
 #include <QDBusServiceWatcher>
 #include <QFile>
@@ -101,9 +103,6 @@ void Tray::buildMenu()
     m_showAction = m_menu->addAction(QStringLiteral("show omaseed"));
     connect(m_showAction, &QAction::triggered, this, &Tray::showRequested);
 
-    m_addAction = m_menu->addAction(QStringLiteral("add torrent…"));
-    connect(m_addAction, &QAction::triggered, this, &Tray::addRequested);
-
     m_menu->addSeparator();
 
     m_speedsInfoAction = m_menu->addAction(QString());
@@ -114,34 +113,101 @@ void Tray::buildMenu()
 
     m_menu->addSeparator();
 
-    m_altSpeedAction = m_menu->addAction(QStringLiteral("alternative speed limits"));
-    m_altSpeedAction->setCheckable(true);
-    connect(m_altSpeedAction, &QAction::triggered, this, &Tray::altSpeedToggled);
-
-    m_stopAllAction = m_menu->addAction(QStringLiteral("stop all"));
-    connect(m_stopAllAction, &QAction::triggered, this, &Tray::stopAllRequested);
-
-    m_startAllAction = m_menu->addAction(QStringLiteral("start all"));
-    connect(m_startAllAction, &QAction::triggered, this, &Tray::startAllRequested);
-
-    m_menu->addSeparator();
-
-    m_settingsAction = m_menu->addAction(QStringLiteral("settings…"));
-    connect(m_settingsAction, &QAction::triggered, this, &Tray::settingsRequested);
-
-    m_quitAction = m_menu->addAction(QStringLiteral("quit"));
-    connect(m_quitAction, &QAction::triggered, this, &Tray::quitRequested);
-
     // Sensible defaults so the two info lines are never blank before the first setStats().
     setStats(QStringLiteral("0 B/s"), QStringLiteral("0 B/s"), 0, 0, QString());
+
+    // A menu of its own until App gives it the shared one: the same rows, nobody answering.
+    m_ownModel = new BarMenu(this);
+    setMenuModel(m_ownModel);
+}
+
+void Tray::setMenuModel(BarMenu *model)
+{
+    if (!model)
+        model = m_ownModel;
+    if (m_model == model)
+        return;
+    if (m_model)
+        disconnect(m_model, nullptr, this, nullptr);
+    m_model = model;
+    connect(m_model, &BarMenu::changed, this, &Tray::syncSharedRows);
+    syncSharedRows();
+}
+
+void Tray::syncSharedRows()
+{
+    if (!m_model)
+        return;
+    const QList<BarMenu::Row> rows = m_model->rows();
+
+    bool sameShape = rows.size() == m_sharedActions.size();
+    for (int i = 0; sameShape && i < rows.size(); ++i)
+        sameShape = rows.at(i).id == m_sharedActions.at(i).first;
+
+    if (!sameShape) {
+        for (const auto &entry : std::as_const(m_sharedActions)) {
+            m_menu->removeAction(entry.second);
+            entry.second->deleteLater();
+        }
+        m_sharedActions.clear();
+        delete m_serverGroup;
+        m_serverGroup = nullptr;
+
+        for (const BarMenu::Row &row : rows) {
+            QAction *action = new QAction(m_menu);
+            if (row.kind == BarMenu::Kind::Separator) {
+                action->setSeparator(true);
+            } else if (row.kind == BarMenu::Kind::Radio) {
+                if (!m_serverGroup) {
+                    m_serverGroup = new QActionGroup(this);
+                    m_serverGroup->setExclusive(true);
+                }
+                action->setCheckable(true);
+                m_serverGroup->addAction(action);
+            } else if (row.kind == BarMenu::Kind::Check) {
+                action->setCheckable(true);
+            }
+            if (row.kind != BarMenu::Kind::Separator && row.kind != BarMenu::Kind::Caption) {
+                const QString id = row.id;
+                connect(action, &QAction::triggered, this, [this, id]() {
+                    if (m_model)
+                        m_model->invoke(id);
+                    // The row follows the app, not the click: a refused switch or a server
+                    // that does not answer leaves the check where the app is.
+                    syncSharedRows();
+                });
+            }
+            m_menu->addAction(action);
+            m_sharedActions.append({row.id, action});
+        }
+    }
+
+    for (int i = 0; i < rows.size(); ++i) {
+        const BarMenu::Row &row = rows.at(i);
+        QAction *action = m_sharedActions.at(i).second;
+        if (row.kind == BarMenu::Kind::Separator)
+            continue;
+        // DBusMenu has no column on the right: a server's figure follows its name (T1).
+        const QString text =
+            row.detail.isEmpty() ? row.label : QStringLiteral("%1 · %2").arg(row.label, row.detail);
+        if (action->text() != text)
+            action->setText(text);
+        const bool enabled = row.kind != BarMenu::Kind::Caption && row.enabled;
+        if (action->isEnabled() != enabled)
+            action->setEnabled(enabled);
+        if (action->isCheckable() && action->isChecked() != row.checked) {
+            const QSignalBlocker blocker(action);
+            action->setChecked(row.checked);
+        }
+    }
 }
 
 void Tray::onActivated(QSystemTrayIcon::ActivationReason reason)
 {
     if (reason == QSystemTrayIcon::Trigger)
         emit toggleWindowRequested();
-    else if (reason == QSystemTrayIcon::MiddleClick)
-        emit altSpeedToggled(!m_altSpeedAction->isChecked());
+    else if (reason == QSystemTrayIcon::MiddleClick && m_model)
+        m_model->invoke(QStringLiteral("alt-speed"));
 }
 
 void Tray::setState(State state)
@@ -195,20 +261,11 @@ void Tray::setStats(const QString &downloadSpeedText,
 
 bool Tray::altSpeedChecked() const
 {
-    return m_altSpeedAction->isChecked();
-}
-
-void Tray::setAltSpeedChecked(bool checked)
-{
-    if (m_altSpeedAction->isChecked() == checked)
-        return;
-    const QSignalBlocker blocker(m_altSpeedAction);
-    m_altSpeedAction->setChecked(checked);
-}
-
-void Tray::setAltSpeedLabel(const QString &label)
-{
-    m_altSpeedAction->setText(label);
+    for (const auto &entry : m_sharedActions) {
+        if (entry.first == QLatin1String("alt-speed"))
+            return entry.second->isChecked();
+    }
+    return false;
 }
 
 void Tray::setAltKind(const QString &kind)

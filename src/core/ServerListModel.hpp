@@ -81,6 +81,9 @@ public:
         /// What a row prints at its right: the current one's live count, "down" or "!"; for
         /// another, "!" after a failed try, its last count, or "".
         CountTextRole,
+        /// When it was last seen or tried, as a QDateTime (invalid when never): the status
+        /// file's `servers[].seen` (docs/33 §11).
+        LastSeenAtRole,
     };
     Q_ENUM(Role)
 

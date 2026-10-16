@@ -12,6 +12,10 @@
 //   OpenAddSheet(as sources)                     the app's own add sheet with these sources
 //   ShowTorrent(s hash)                          raise the window on that torrent
 //   OpenFolder(s hash)                           show its content in the file manager
+//   SwitchServer(s id) → b                       the app moves onto that server (docs/33 D24)
+//   Invoke(s id) → b                             a row of the shared menu (BarMenu): add,
+//                                                alt-speed, stop-all, start-all, settings,
+//                                                quit, server:<id>
 //
 // It lives on the app's object path, `/io/github/diogochaves/omaseed`, beside
 // `org.freedesktop.Application`: the adaptor is added to the object SingleInstance exported
@@ -52,6 +56,11 @@ public:
     virtual void openAddSheet(const QStringList &sources) = 0;
     virtual void showTorrent(const QString &hash) = 0;
     virtual void openFolder(const QString &hash) = 0;
+    /// docs/33 §11 change 6: moves the app onto server `id`; true when it moved or was there.
+    virtual bool switchServer(const QString &id) = 0;
+    /// A row of the shared menu by its id (BarMenu::invoke); false for an unknown or disabled
+    /// one.
+    virtual bool invoke(const QString &id) = 0;
 };
 
 namespace StatusBus {

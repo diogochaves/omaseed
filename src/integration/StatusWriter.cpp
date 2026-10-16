@@ -11,6 +11,7 @@
 #include "core/TorrentFolderScan.hpp"
 #include "core/TorrentModel.hpp"
 #include "core/Version.hpp"
+#include "integration/BarMenu.hpp"
 
 #include <QCoreApplication>
 #include <QDir>
@@ -148,6 +149,16 @@ void StatusWriter::setLedger(const SeedLedger *ledger)
 {
     m_ledger = ledger;
     m_topValid = false;
+    markDirty();
+}
+
+void StatusWriter::setMenu(const BarMenu *menu)
+{
+    if (m_menu)
+        disconnect(m_menu, nullptr, this, nullptr);
+    m_menu = menu;
+    if (menu)
+        connect(menu, &BarMenu::changed, this, &StatusWriter::markDirty);
     markDirty();
 }
 
@@ -699,6 +710,11 @@ QJsonObject StatusWriter::content() const
         });
     }
     document.insert(QStringLiteral("downloads"), downloads);
+
+    // docs/33 §11 (D24): the servers and the shared menu, added within v2 (board 31 D12's
+    // rule): a widget that does not know them shows its popup as before.
+    document.insert(QStringLiteral("servers"), m_menu ? m_menu->serversJson() : QJsonArray());
+    document.insert(QStringLiteral("menu"), m_menu ? m_menu->menuJson() : QJsonArray());
     return document;
 }
 

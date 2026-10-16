@@ -604,13 +604,18 @@ int main(int argc, char *argv[])
         rootWindow->requestActivate();
     };
     QObject::connect(&tray, &omaseed::integration::Tray::showRequested, &app, showWindow);
-    QObject::connect(
-        &tray, &omaseed::integration::Tray::quitRequested, &app, &QCoreApplication::quit);
 
-    // Everything else in the menu is an App action now: alt-speed, stop all and start all go
-    // out as real requests, the icon state, tooltip and stats follow GlobalState and
-    // FilterCounts, and the alt-speed checkbox follows the server rather than the last click.
+    // Everything else in the menu is the shared menu (docs/33 §11, D10, D24), App's: the
+    // servers, alt-speed, stop all and start all go out as real requests, add and settings
+    // bring the window up, and quit is a real quit. The bar widget's ⋯ shows the same rows.
+    // The quit is queued, so a widget's Invoke("quit") still gets its answer.
     omaseedApp.attachTray(&tray);
+    QObject::connect(&omaseedApp,
+                     &omaseed::app::App::quitRequested,
+                     &app,
+                     &QCoreApplication::quit,
+                     Qt::QueuedConnection);
+    QObject::connect(&omaseedApp, &omaseed::app::App::raiseRequested, &app, showWindow);
     // MainView answers both signals (the cursor moves, the settings modal opens); this only
     // brings the window up for them.
     QObject::connect(&omaseedApp, &omaseed::app::App::openSettings, &app, showWindow);

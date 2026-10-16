@@ -1,3 +1,4 @@
+#include "integration/BarMenu.hpp"
 #include "integration/Tray.hpp"
 
 #include <QAction>
@@ -8,6 +9,7 @@
 #include <QSignalSpy>
 #include <QTest>
 
+using omaseed::integration::BarMenu;
 using omaseed::integration::Tray;
 
 namespace {
@@ -52,14 +54,15 @@ class TestTray : public QObject
 
 private slots:
     void tooltipMatchesSpec();
-    void menuMatchesFig18InOrder();
-    void altSpeedIsCheckableAndTogglingEmits();
-    void middleClickRequestsTheOppositeAltSpeedState();
+    void menuIsShowTheFiguresThenTheSharedMenu();
+    void altSpeedRowAsksTheModelAndFollowsIt();
+    void middleClickInvokesAltSpeed();
+    void serversBlockOnlyWithTwoServersOrMore();
     void leftClickRequestsToggleWindow();
     void statesProduceDifferentNonNullIcons();
     void iconDominantColourTracksAFakePalette();
     void errorDiffersFromIdleByShapeWhenRedIsNotRed();
-    void settingAltSpeedCheckedDoesNotEmit();
+    void theModelsAltSpeedDoesNotInvoke();
     void constructionUnderNoTrayDoesNotCrash();
     void burstFollowsTheWord();
 };
@@ -73,63 +76,154 @@ void TestTray::tooltipMatchesSpec()
              QStringLiteral("home · ↓ 4.21 MB/s ↑ 812 KB/s · 6 downloading · 118 seeding"));
 }
 
-void TestTray::menuMatchesFig18InOrder()
+// docs/33 §11 (D10, D24; DECISIONS C13): "show omaseed" and Fig. 18's two figure rows, then
+// the shared menu the bar widget's ⋯ shows too, quit last after a separator.
+void TestTray::menuIsShowTheFiguresThenTheSharedMenu()
 {
     Tray tray;
     tray.setStats(
         QStringLiteral("4.21 MB/s"), QStringLiteral("812 KB/s"), 6, 118, QStringLiteral("1.8 TB"));
 
     const QList<QAction *> actions = tray.menu()->actions();
-    QCOMPARE(actions.size(), 12);
+    QCOMPARE(actions.size(), 13);
 
     QCOMPARE(actions.at(0)->text(), QStringLiteral("show omaseed"));
-    QCOMPARE(actions.at(1)->text(), QStringLiteral("add torrent…"));
-    QVERIFY(actions.at(2)->isSeparator());
+    QVERIFY(actions.at(1)->isSeparator());
 
-    QCOMPARE(actions.at(3)->text(), QStringLiteral("↓ 4.21 MB/s · ↑ 812 KB/s"));
+    QCOMPARE(actions.at(2)->text(), QStringLiteral("↓ 4.21 MB/s · ↑ 812 KB/s"));
+    QVERIFY(!actions.at(2)->isEnabled());
+    QCOMPARE(actions.at(3)->text(), QStringLiteral("6 downloading · 118 seeding · 1.8 TB free"));
     QVERIFY(!actions.at(3)->isEnabled());
-    QCOMPARE(actions.at(4)->text(), QStringLiteral("6 downloading · 118 seeding · 1.8 TB free"));
-    QVERIFY(!actions.at(4)->isEnabled());
 
-    QVERIFY(actions.at(5)->isSeparator());
-    QCOMPARE(actions.at(6)->text(), QStringLiteral("alternative speed limits"));
-    QVERIFY(actions.at(6)->isCheckable());
-    QCOMPARE(actions.at(7)->text(), QStringLiteral("stop all"));
-    QCOMPARE(actions.at(8)->text(), QStringLiteral("start all"));
+    QVERIFY(actions.at(4)->isSeparator());
+    QCOMPARE(actions.at(5)->text(), QStringLiteral("alternative speed limits"));
+    QVERIFY(actions.at(5)->isCheckable());
+    QCOMPARE(actions.at(6)->text(), QStringLiteral("stop all"));
+    QCOMPARE(actions.at(7)->text(), QStringLiteral("start all"));
 
-    QVERIFY(actions.at(9)->isSeparator());
+    QVERIFY(actions.at(8)->isSeparator());
+    QCOMPARE(actions.at(9)->text(), QStringLiteral("add torrent…"));
     QCOMPARE(actions.at(10)->text(), QStringLiteral("settings…"));
-    QCOMPARE(actions.at(11)->text(), QStringLiteral("quit"));
+    QVERIFY(actions.at(11)->isSeparator());
+    QCOMPARE(actions.at(12)->text(), QStringLiteral("quit"));
+
+    // Before App gives it the shared menu, rows that need a server are off.
+    QVERIFY(!actions.at(5)->isEnabled());
+    QVERIFY(actions.at(9)->isEnabled());
+    QVERIFY(actions.at(12)->isEnabled());
 }
 
-void TestTray::altSpeedIsCheckableAndTogglingEmits()
+void TestTray::altSpeedRowAsksTheModelAndFollowsIt()
 {
     Tray tray;
-    QAction *altSpeed = tray.menu()->actions().at(6);
+    BarMenu model;
+    model.setServerAnswering(true);
+    tray.setMenuModel(&model);
+    QCOMPARE(tray.menuModel(), &model);
+
+    QAction *altSpeed = tray.menu()->actions().at(5);
     QVERIFY(altSpeed->isCheckable());
+    QVERIFY(altSpeed->isEnabled());
     QVERIFY(!altSpeed->isChecked());
 
-    QSignalSpy spy(&tray, &Tray::altSpeedToggled);
+    QSignalSpy spy(&model, &BarMenu::triggered);
     altSpeed->trigger();
     QCOMPARE(spy.size(), 1);
-    QCOMPARE(spy.first().at(0).toBool(), true);
-    QVERIFY(altSpeed->isChecked());
-    QVERIFY(tray.altSpeedChecked());
-
-    altSpeed->trigger();
-    QCOMPARE(spy.size(), 2);
-    QCOMPARE(spy.last().at(0).toBool(), false);
-}
-
-void TestTray::middleClickRequestsTheOppositeAltSpeedState()
-{
-    Tray tray;
+    QCOMPARE(spy.first().at(0).toString(), QStringLiteral("alt-speed"));
+    // The check follows the server, not the click.
+    QVERIFY(!altSpeed->isChecked());
     QVERIFY(!tray.altSpeedChecked());
 
-    QSignalSpy spy(&tray, &Tray::altSpeedToggled);
+    model.setAltSpeed(true, QStringLiteral("alternative speed limits"), QStringLiteral("A"));
+    QVERIFY(tray.altSpeedChecked());
+
+    // Each shared row goes to the model by its id.
+    const QList<QAction *> actions = tray.menu()->actions();
+    for (int at : {6, 7, 9, 10, 12})
+        actions.at(at)->trigger();
+    QCOMPARE(spy.size(), 6);
+    QCOMPARE(spy.at(1).at(0).toString(), QStringLiteral("stop-all"));
+    QCOMPARE(spy.at(2).at(0).toString(), QStringLiteral("start-all"));
+    QCOMPARE(spy.at(3).at(0).toString(), QStringLiteral("add"));
+    QCOMPARE(spy.at(4).at(0).toString(), QStringLiteral("settings"));
+    QCOMPARE(spy.at(5).at(0).toString(), QStringLiteral("quit"));
+
+    // A server that stops answering turns them off.
+    model.setServerAnswering(false);
+    QVERIFY(!altSpeed->isEnabled());
+    QVERIFY(!actions.at(6)->isEnabled());
+}
+
+void TestTray::middleClickInvokesAltSpeed()
+{
+    Tray tray;
+    BarMenu model;
+    model.setServerAnswering(true);
+    tray.setMenuModel(&model);
+
+    QSignalSpy spy(&model, &BarMenu::triggered);
     emit tray.systemTrayIcon()->activated(QSystemTrayIcon::MiddleClick);
     QCOMPARE(spy.size(), 1);
-    QCOMPARE(spy.last().at(0).toBool(), true);
+    QCOMPARE(spy.last().at(0).toString(), QStringLiteral("alt-speed"));
+}
+
+// D10 (T1): with two servers or more a "servers" block of radio rows, the current one
+// checked and its figure after the name (DBusMenu has no right-hand column). D19: one server,
+// none.
+void TestTray::serversBlockOnlyWithTwoServersOrMore()
+{
+    Tray tray;
+    BarMenu model;
+    tray.setMenuModel(&model);
+
+    BarMenu::Server home{
+        QStringLiteral("h"), QStringLiteral("home"), true, QStringLiteral("ok"), 4, 0, QString()};
+    model.setServers({home});
+    QCOMPARE(tray.menu()->actions().size(), 13);
+
+    BarMenu::Server box{QStringLiteral("b"),
+                        QStringLiteral("seedbox"),
+                        false,
+                        QStringLiteral("refused"),
+                        12,
+                        1789346626,
+                        QStringLiteral("sign-in refused")};
+    model.setServers({home, box});
+    QList<QAction *> actions = tray.menu()->actions();
+    QCOMPARE(actions.size(), 17);
+    QCOMPARE(actions.at(5)->text(), QStringLiteral("servers"));
+    QVERIFY(!actions.at(5)->isEnabled());
+    QCOMPARE(actions.at(6)->text(), QStringLiteral("home · 4 torrents"));
+    QVERIFY(actions.at(6)->isCheckable());
+    QVERIFY(actions.at(6)->isChecked());
+    QCOMPARE(actions.at(7)->text(), QStringLiteral("seedbox · sign-in refused"));
+    QVERIFY(!actions.at(7)->isChecked());
+    QVERIFY(actions.at(8)->isSeparator());
+    QCOMPARE(actions.at(9)->text(), QStringLiteral("alternative speed limits"));
+    QCOMPARE(actions.last()->text(), QStringLiteral("quit"));
+
+    // A pick asks the app to switch; the check stays on the server the app is on until it
+    // has moved.
+    QSignalSpy chosen(&model, &BarMenu::serverChosen);
+    actions.at(7)->trigger();
+    QCOMPARE(chosen.size(), 1);
+    QCOMPARE(chosen.first().at(0).toString(), QStringLiteral("b"));
+    QVERIFY(actions.at(6)->isChecked());
+    QVERIFY(!actions.at(7)->isChecked());
+
+    home.current = false;
+    box.current = true;
+    box.state = QStringLiteral("ok");
+    box.reason.clear();
+    model.setServers({home, box});
+    actions = tray.menu()->actions();
+    QVERIFY(!actions.at(6)->isChecked());
+    QVERIFY(actions.at(7)->isChecked());
+    QCOMPARE(actions.at(7)->text(), QStringLiteral("seedbox · 12 torrents"));
+
+    // Back to one: the block goes.
+    model.setServers({box});
+    QCOMPARE(tray.menu()->actions().size(), 13);
 }
 
 void TestTray::leftClickRequestsToggleWindow()
@@ -212,15 +306,15 @@ void TestTray::iconDominantColourTracksAFakePalette()
     QVERIFY(closeEnough(dominantColor(downloading), palette.value(QStringLiteral("accent"))));
 }
 
-void TestTray::settingAltSpeedCheckedDoesNotEmit()
+void TestTray::theModelsAltSpeedDoesNotInvoke()
 {
     Tray tray;
-    QSignalSpy spy(&tray, &Tray::altSpeedToggled);
-    tray.setAltSpeedChecked(true);
+    BarMenu model;
+    model.setServerAnswering(true);
+    tray.setMenuModel(&model);
+    QSignalSpy spy(&model, &BarMenu::triggered);
+    model.setAltSpeed(true, QStringLiteral("alternative speed limits"), QStringLiteral("A"));
     QVERIFY(tray.altSpeedChecked());
-    QCOMPARE(spy.size(), 0);
-
-    tray.setAltSpeedChecked(true);
     QCOMPARE(spy.size(), 0);
 }
 
@@ -246,8 +340,10 @@ void TestTray::burstFollowsTheWord()
         {QStringLiteral("yellow"), QColor(QStringLiteral("#eecc00"))},
         {QStringLiteral("green"), QColor(QStringLiteral("#22dd44"))},
     });
-    QAction *altSpeed = tray.menu()->actions().at(6);
-    tray.setAltSpeedLabel(QStringLiteral("burst · until 07:00"));
+    BarMenu model;
+    tray.setMenuModel(&model);
+    QAction *altSpeed = tray.menu()->actions().at(5);
+    model.setAltSpeed(false, QStringLiteral("burst · until 07:00"), QStringLiteral("Burst"));
     QCOMPARE(altSpeed->text(), QStringLiteral("burst · until 07:00"));
     QVERIFY(altSpeed->isCheckable());
 

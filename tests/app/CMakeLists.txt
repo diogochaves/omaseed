@@ -20,6 +20,12 @@ omaseed_add_test(tst_app_glue
     DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
 )
 
+# #73: the shared menu of the tray and the bar widget, and "In the bar" (docs/33 §11).
+omaseed_add_test(tst_app_barmenu
+    SOURCES tst_app_barmenu.cpp
+    LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::Widgets
+)
+
 # docs/DECISIONS.md M12: a torrent option shows at once, against a small fake server.
 omaseed_add_test(tst_app_options
     SOURCES tst_app_options.cpp

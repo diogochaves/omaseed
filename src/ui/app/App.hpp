@@ -56,6 +56,7 @@
 #include "core/TorrentsExport.hpp"
 #include "core/TorrentsImport.hpp"
 #include "core/TrackerModel.hpp"
+#include "integration/BarMenu.hpp"
 #include "integration/BarWidget.hpp"
 #include "integration/Tray.hpp"
 
@@ -1870,6 +1871,43 @@ private:
     int m_seenCount = -1;
     QTimer *m_seenSave = nullptr;
     // --- end #69, #72 -----------------------------------------------------------------------
+
+    // --- #73: one menu for the tray and the bar widget ----------------------------------------
+    // docs/33 §11 (D10, D24, D25; DECISIONS C13). The tray and the widget's ⋯ show one menu,
+    // built here once (integration::BarMenu): the servers with two or more, alternative
+    // limits, stop all, start all, add, settings, quit. Settings › Appearance offers the tray
+    // and the widget as one choice. The methods live in AppBarMenu.cpp.
+public:
+    /// The shared menu. The tray builds its QMenu from it, the status file writes it as
+    /// `servers` and `menu`, and the widget's Invoke and SwitchServer come back to it.
+    omaseed::integration::BarMenu *barMenu() const { return m_barMenu; }
+    /// D25: "In the bar": "widget" (the widget, the tray icon hidden while it runs), "tray"
+    /// (the tray icon only), "both" or "none". Read from whether the widget is in the bar and
+    /// from `trayIconMode`; writing it sets both. While the widget goes in or out, the choice
+    /// asked for.
+    Q_PROPERTY(QString inTheBar READ inTheBar WRITE setInTheBar NOTIFY inTheBarChanged)
+    QString inTheBar() const;
+    void setInTheBar(const QString &choice);
+    /// The choice a widget in the bar (or not) and a tray icon mode read as (DECISIONS C13).
+    static QString inTheBarFor(bool widgetInBar, const QString &trayIconMode);
+
+Q_SIGNALS:
+    void inTheBarChanged();
+    /// The menu's "add torrent…" from the tray or the widget: main.cpp brings the window up
+    /// (MainView opens the sheet on addRequested).
+    void raiseRequested();
+    /// The menu's "quit": main.cpp quits, queued, so a D-Bus caller still gets its answer.
+    void quitRequested();
+
+private:
+    /// Connects the menu to the app; the constructor calls it once.
+    void setUpBarMenu();
+    /// The servers, the alternative limits and whether the server answers, into the menu.
+    void updateBarMenu();
+    omaseed::integration::BarMenu *m_barMenu = new omaseed::integration::BarMenu(this);
+    /// While the widget goes in or out of the bar: the choice that asked for it.
+    QString m_inTheBarWanted;
+    // --- end #73 ------------------------------------------------------------------------------
 };
 
 } // namespace omaseed::app

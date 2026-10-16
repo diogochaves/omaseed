@@ -67,6 +67,16 @@ public:
     }
     void showTorrent(const QString &hash) override { calls << QStringLiteral("show ") + hash; }
     void openFolder(const QString &hash) override { calls << QStringLiteral("folder ") + hash; }
+    bool switchServer(const QString &id) override
+    {
+        calls << QStringLiteral("switch ") + id;
+        return id != QLatin1String("nowhere");
+    }
+    bool invoke(const QString &id) override
+    {
+        calls << QStringLiteral("invoke ") + id;
+        return id != QLatin1String("bogus");
+    }
 };
 
 } // namespace
@@ -85,6 +95,7 @@ private slots:
     void altSpeedAnswersAtOnce();
     void describeAndAddAnswerLater();
     void theWindowMethodsReachTheHandler();
+    void theSharedMenuAnswersAtOnce();
     void theWidgetsActionsAreSignals();
 
 private:
@@ -175,7 +186,8 @@ void TestStatusBus::introspectionShowsTheInterface()
     QVERIFY(
         xml.contains(QStringLiteral("interface name=\"io.github.diogochaves.omaseed.Status\"")));
 
-    // Exactly the methods of docs/20 §5, and nothing that pauses or reads the clipboard.
+    // Exactly the methods of docs/20 §5 and board 33 §11 change 6 (SwitchServer, Invoke), and
+    // nothing that pauses or reads the clipboard.
     const QString status = xml.mid(xml.indexOf(QStringLiteral("omaseed.Status")));
     const QString block = status.left(status.indexOf(QStringLiteral("</interface>")));
     for (const char *method : {"ToggleAltSpeed",
@@ -184,10 +196,12 @@ void TestStatusBus::introspectionShowsTheInterface()
                                "AddSources",
                                "OpenAddSheet",
                                "ShowTorrent",
-                               "OpenFolder"})
+                               "OpenFolder",
+                               "SwitchServer",
+                               "Invoke"})
         QVERIFY2(block.contains(QStringLiteral("method name=\"%1\"").arg(QLatin1String(method))),
                  method);
-    QCOMPARE(block.count(QStringLiteral("<method ")), 7);
+    QCOMPARE(block.count(QStringLiteral("<method ")), 9);
     QVERIFY(!block.contains(QStringLiteral("PauseAll")));
     QVERIFY(!block.contains(QStringLiteral("AddFromClipboard")));
     QVERIFY(!block.contains(QStringLiteral("<property")));
@@ -241,6 +255,29 @@ void TestStatusBus::theWindowMethodsReachTheHandler()
              QStringList({QStringLiteral("sheet magnet:?x"),
                           QStringLiteral("show abc"),
                           QStringLiteral("folder def")}));
+}
+
+// docs/33 §11 change 6: SwitchServer(s) → b and Invoke(s) → b, fire-and-forget like the
+// others; the answer says whether the app took it.
+void TestStatusBus::theSharedMenuAnswersAtOnce()
+{
+    QDBusMessage reply = call(QStringLiteral("SwitchServer"), {QStringLiteral("private")});
+    QCOMPARE(reply.type(), QDBusMessage::ReplyMessage);
+    QCOMPARE(reply.signature(), QStringLiteral("b"));
+    QCOMPARE(reply.arguments().value(0).toBool(), true);
+    reply = call(QStringLiteral("SwitchServer"), {QStringLiteral("nowhere")});
+    QCOMPARE(reply.arguments().value(0).toBool(), false);
+
+    reply = call(QStringLiteral("Invoke"), {QStringLiteral("stop-all")});
+    QCOMPARE(reply.type(), QDBusMessage::ReplyMessage);
+    QCOMPARE(reply.arguments().value(0).toBool(), true);
+    reply = call(QStringLiteral("Invoke"), {QStringLiteral("bogus")});
+    QCOMPARE(reply.arguments().value(0).toBool(), false);
+    QCOMPARE(m_handler.calls,
+             QStringList({QStringLiteral("switch private"),
+                          QStringLiteral("switch nowhere"),
+                          QStringLiteral("invoke stop-all"),
+                          QStringLiteral("invoke bogus")}));
 }
 
 void TestStatusBus::theWidgetsActionsAreSignals()

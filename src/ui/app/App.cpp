@@ -264,6 +264,8 @@ App::App(QObject *parent)
 
     // docs/33 (#69, #72): last seen per server, the refused sign-in, the palette's rows.
     setUpServers();
+    // docs/33 §11 (#73): the one menu of the tray and the bar widget.
+    setUpBarMenu();
 }
 
 App::~App()
@@ -736,11 +738,9 @@ void App::attachTray(Tray *tray)
     if (tray == nullptr)
         return;
 
-    connect(tray, &Tray::addRequested, this, &App::addRequested);
-    connect(tray, &Tray::settingsRequested, this, &App::openSettings);
-    connect(tray, &Tray::altSpeedToggled, this, [this](bool) { toggleAltSpeed(); });
-    connect(tray, &Tray::stopAllRequested, this, &App::stopAll);
-    connect(tray, &Tray::startAllRequested, this, &App::startAll);
+    // docs/33 §11 (D10): the tray's rows under "show omaseed" and the figures are the shared
+    // menu's, which App answers (AppBarMenu.cpp).
+    tray->setMenuModel(m_barMenu);
 
     // The Tray shows its icon when it is built; a saved "never" has to be applied here, not
     // only when the setting changes.
@@ -752,6 +752,7 @@ void App::attachTray(Tray *tray)
 
 void App::updateTray()
 {
+    updateBarMenu();
     if (m_tray.isNull())
         return;
 
@@ -763,10 +764,9 @@ void App::updateTray()
                                   filterCounts->errored(),
                                   filterCounts->downloading(),
                                   state->useAltSpeedLimits()));
-    m_tray->setAltSpeedChecked(state->useAltSpeedLimits());
-    // docs/31 T1 (D14): the checkbox and the icon's mark follow the word.
+    // docs/31 T1 (D14): the icon's mark follows the word; the menu's row is the shared
+    // menu's (updateBarMenu).
     m_tray->setAltKind(m_altSpeed->kind());
-    m_tray->setAltSpeedLabel(m_altSpeed->trayLabel());
     updateTrayNumbers();
 }
 
@@ -4826,6 +4826,8 @@ void App::attachStatusWriter(omaseed::integration::StatusWriter *writer)
     writer->setEngine(m_engine);
     writer->setPreferences(m_prefs);
     writer->setAltSpeed(m_altSpeed);
+    // docs/33 §11 (D24): `servers` and `menu`, the shared menu the widget draws.
+    writer->setMenu(m_barMenu);
     writer->setLedger(m_ledger.get());
     writer->setPathMapper([this](const QString &path) { return mapContentPathToLocal(path); });
     writer->setLibraryCheck(

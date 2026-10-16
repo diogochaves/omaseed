@@ -472,6 +472,7 @@ void TestServerListModel::lastSeenPerServer()
     QCOMPARE(roleOf(model, 1, ServerListModel::LastCountRole).toInt(), -1);
     QCOMPARE(roleOf(model, 1, ServerListModel::StateRole).toString(), QStringLiteral("unknown"));
     QCOMPARE(roleOf(model, 1, ServerListModel::CountTextRole).toString(), QString());
+    QVERIFY(!roleOf(model, 1, ServerListModel::LastSeenAtRole).toDateTime().isValid());
     QCOMPARE(model.busiestOther(), QString());
 
     const QDateTime now = QDateTime::currentDateTime();
@@ -483,6 +484,8 @@ void TestServerListModel::lastSeenPerServer()
     QVERIFY(roleOf(model, 1, ServerListModel::LastSeenRole)
                 .toString()
                 .startsWith(QStringLiteral("today ")));
+    // #73: the status file's `servers[].seen` reads the time itself.
+    QCOMPARE(roleOf(model, 1, ServerListModel::LastSeenAtRole).toDateTime(), now);
     model.setCurrent(home, QStringLiteral("live"), 0);
     QCOMPARE(model.busiestOther(), seedbox);
 

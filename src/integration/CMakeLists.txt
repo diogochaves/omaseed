@@ -4,6 +4,8 @@ qt_add_library(omaseed-integration STATIC
     AppIdentity.hpp
     Autostart.cpp
     Autostart.hpp
+    BarMenu.cpp
+    BarMenu.hpp
     BarWidget.cpp
     BarWidget.hpp
     BarWidgetInstaller.cpp

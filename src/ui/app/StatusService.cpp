@@ -360,4 +360,17 @@ void StatusService::openFolder(const QString &hash)
     m_app->openFolder(hash);
 }
 
+// --- the shared menu (docs/33 §11, D24) -----------------------------------------------------
+
+bool StatusService::switchServer(const QString &id)
+{
+    // The widget's popup stays open and refills from the next status write (W1).
+    return m_app->switchServer(id);
+}
+
+bool StatusService::invoke(const QString &id)
+{
+    return m_app->barMenu()->invoke(id);
+}
+
 } // namespace omaseed::app

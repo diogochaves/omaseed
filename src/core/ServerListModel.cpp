@@ -102,6 +102,8 @@ QVariant ServerListModel::data(const QModelIndex &index, int role) const
         return m_seen.value(server.id).torrents;
     case LastSeenRole:
         return whenText(m_seen.value(server.id).at, QDateTime::currentDateTime());
+    case LastSeenAtRole:
+        return m_seen.value(server.id).at;
     case LastFailedRole:
         return !m_seen.value(server.id).error.isEmpty();
     case LastReasonRole:
@@ -157,6 +159,7 @@ QHash<int, QByteArray> ServerListModel::roleNames() const
         {LastReasonRole, "lastReason"},
         {LastDetailRole, "lastDetail"},
         {CountTextRole, "countLabel"},
+        {LastSeenAtRole, "lastSeenAt"},
     };
 }
 
@@ -192,6 +195,7 @@ void ServerListModel::setLastSeen(const QString &id, int count, const QDateTime 
             {StateRole,
              LastCountRole,
              LastSeenRole,
+             LastSeenAtRole,
              LastFailedRole,
              LastReasonRole,
              LastDetailRole,
@@ -211,9 +215,14 @@ void ServerListModel::setLastFailure(const QString &id,
     seen.error =
         reason.isEmpty() ? QCoreApplication::translate("ServerListModel", "error") : reason;
     seen.detail = detail;
-    emitRow(
-        id,
-        {StateRole, LastSeenRole, LastFailedRole, LastReasonRole, LastDetailRole, CountTextRole});
+    emitRow(id,
+            {StateRole,
+             LastSeenRole,
+             LastSeenAtRole,
+             LastFailedRole,
+             LastReasonRole,
+             LastDetailRole,
+             CountTextRole});
     Q_EMIT lastSeenChanged();
 }
 
@@ -256,6 +265,7 @@ void ServerListModel::loadLastSeen(const QJsonObject &servers)
                            {StateRole,
                             LastCountRole,
                             LastSeenRole,
+                            LastSeenAtRole,
                             LastFailedRole,
                             LastReasonRole,
                             LastDetailRole,

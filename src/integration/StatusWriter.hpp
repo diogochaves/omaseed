@@ -50,6 +50,8 @@ class SyncEngine;
 
 namespace omaseed::integration {
 
+class BarMenu;
+
 class StatusWriter : public QObject
 {
     Q_OBJECT
@@ -81,6 +83,9 @@ public:
     /// The seed ledger "today's top seeders" read their upload from (#47). The caller keeps it
     /// alive and fed for as long as the writer has it; without one the list is empty.
     void setLedger(const omaseed::core::SeedLedger *ledger);
+    /// docs/33 §11 (D24, DECISIONS C13): the shared menu, written as `servers` and `menu`
+    /// (added within v2). Without one both lists are empty and the widget shows no ⋯.
+    void setMenu(const BarMenu *menu);
     /// The server the engine is on. A different `id` starts the session over (share, hour,
     /// milestones) and loads that server's week and recent list. `url` keeps only host:port.
     void setServer(const QString &id, const QString &name, const QUrl &url);
@@ -161,6 +166,7 @@ private:
     QPointer<omaseed::core::SyncEngine> m_engine;
     QPointer<omaseed::core::ServerPreferences> m_preferences;
     QPointer<const omaseed::core::AltSpeed> m_alt;
+    QPointer<const BarMenu> m_menu;
     QString m_serverId;
     QString m_serverName;
     QString m_serverHostPort;

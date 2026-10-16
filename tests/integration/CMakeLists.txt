@@ -62,6 +62,12 @@ omaseed_add_test(tst_widgetheartbeat
 )
 
 # #13: io.github.diogochaves.omaseed.Status on a private dbus-daemon.
+# #73: the shared menu of the tray and the bar widget (docs/33 §11).
+omaseed_add_test(tst_barmenu
+    SOURCES tst_barmenu.cpp
+    LIBRARIES omaseed::integration
+)
+
 omaseed_add_test(tst_statusbus
     SOURCES tst_statusbus.cpp
     LIBRARIES omaseed::integration Qt6::DBus

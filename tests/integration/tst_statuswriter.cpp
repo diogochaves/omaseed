@@ -5,6 +5,7 @@
 #include "core/ServerPreferences.hpp"
 #include "core/StateFile.hpp"
 #include "core/SyncEngine.hpp"
+#include "integration/BarMenu.hpp"
 #include "integration/StatusWriter.hpp"
 
 #include <QDir>
@@ -143,6 +144,7 @@ private slots:
     void removedOnQuit();
     void neverStartedRemovesNothing();
     void altNamesTheSet();
+    void serversAndTheSharedMenu();
 
 private:
     void startWriter(StatusWriter &writer, SyncEngine &engine);
@@ -871,6 +873,90 @@ void TestStatusWriter::altNamesTheSet()
     status = readStatus(statusPath(), &ok);
     altJson = status.value(QStringLiteral("alt")).toObject();
     QCOMPARE(altJson.value(QStringLiteral("kind")).toString(), QStringLiteral("turtle"));
+}
+
+// docs/33 §11 change 5 (D24, DECISIONS C13): `servers` and `menu`, added within v2. Without a
+// menu both lists are present and empty (lists are always present); with one they follow it.
+void TestStatusWriter::serversAndTheSharedMenu()
+{
+    SyncEngine engine;
+    engine.globalState()->setConnected(true);
+    engine.applyDemoData(fullUpdate());
+    StatusWriter writer;
+    writer.setIntervals(0, 10000);
+    startWriter(writer, engine);
+
+    bool ok = false;
+    QJsonObject status = readStatus(statusPath(), &ok);
+    QVERIFY(ok);
+    QCOMPARE(status.value(QStringLiteral("v")).toInt(), 2);
+    QVERIFY(status.value(QStringLiteral("servers")).isArray());
+    QVERIFY(status.value(QStringLiteral("menu")).isArray());
+    QVERIFY(status.value(QStringLiteral("menu")).toArray().isEmpty());
+
+    omaseed::integration::BarMenu menu;
+    menu.setServerAnswering(true);
+    menu.setServers({{QStringLiteral("a"),
+                      QStringLiteral("public"),
+                      false,
+                      QStringLiteral("ok"),
+                      0,
+                      1789346000,
+                      QString()},
+                     {QStringLiteral("b"),
+                      QStringLiteral("private"),
+                      true,
+                      QStringLiteral("ok"),
+                      4,
+                      1789346600,
+                      QString()}});
+    QSignalSpy written(&writer, &StatusWriter::written);
+    writer.setMenu(&menu);
+    QVERIFY(written.wait(2000));
+    status = readStatus(statusPath(), &ok);
+    const QJsonArray servers = status.value(QStringLiteral("servers")).toArray();
+    QCOMPARE(servers.size(), 2);
+    const QJsonObject priv = servers.at(1).toObject();
+    QCOMPARE(priv.value(QStringLiteral("id")).toString(), QStringLiteral("b"));
+    QCOMPARE(priv.value(QStringLiteral("name")).toString(), QStringLiteral("private"));
+    QCOMPARE(priv.value(QStringLiteral("current")).toBool(), true);
+    QCOMPARE(priv.value(QStringLiteral("state")).toString(), QStringLiteral("ok"));
+    QCOMPARE(priv.value(QStringLiteral("count")).toInt(), 4);
+    QCOMPARE(priv.value(QStringLiteral("seen")).toInteger(), 1789346600);
+    QCOMPARE(priv.value(QStringLiteral("reason")).toString(), QString());
+
+    const QJsonArray rows = status.value(QStringLiteral("menu")).toArray();
+    QStringList ids;
+    for (const QJsonValue &row : rows)
+        ids << row.toObject().value(QStringLiteral("id")).toString();
+    QCOMPARE(ids,
+             QStringList({QStringLiteral("servers"),
+                          QStringLiteral("server:a"),
+                          QStringLiteral("server:b"),
+                          QStringLiteral("separator:servers"),
+                          QStringLiteral("alt-speed"),
+                          QStringLiteral("stop-all"),
+                          QStringLiteral("start-all"),
+                          QStringLiteral("separator:actions"),
+                          QStringLiteral("add"),
+                          QStringLiteral("settings"),
+                          QStringLiteral("separator:quit"),
+                          QStringLiteral("quit")}));
+    const QJsonObject current = rows.at(2).toObject();
+    QCOMPARE(current.value(QStringLiteral("kind")).toString(), QStringLiteral("radio"));
+    QCOMPARE(current.value(QStringLiteral("checked")).toBool(), true);
+    QCOMPARE(current.value(QStringLiteral("detail")).toString(), QStringLiteral("4 torrents"));
+    // The widget's words: the shell's card style (docs/20 N2).
+    QCOMPARE(rows.last().toObject().value(QStringLiteral("label")).toString(),
+             QStringLiteral("Quit omaseed"));
+
+    // A change in the menu is a change in the file.
+    menu.setAltSpeed(true, QStringLiteral("alternative speed limits"), QStringLiteral("Alt"));
+    QVERIFY(written.wait(2000));
+    status = readStatus(statusPath(), &ok);
+    const QJsonObject alt = status.value(QStringLiteral("menu")).toArray().at(4).toObject();
+    QCOMPARE(alt.value(QStringLiteral("kind")).toString(), QStringLiteral("check"));
+    QCOMPARE(alt.value(QStringLiteral("checked")).toBool(), true);
 }
 
 QTEST_GUILESS_MAIN(TestStatusWriter)
