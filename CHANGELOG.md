@@ -117,6 +117,10 @@ before it will tag a release.
   do, warning when a time past midnight makes qBittorrent read the days the other way round.
   omaseed reads the sets and the schedule again whenever the alternative limits switch, so a
   change made in qBittorrent's Web UI shows the next time they flip.
+- `omaseed --theme-roles` prints the current theme's colours and alphas as omaseed resolves
+  them, as JSON (the theme, its mode and `colors.toml`, every colour role, the dim foreground
+  lifted to 3:1 among them, every alpha and the window's), and exits without a window. It is
+  for tools that check a theme's contrast the way omaseed will draw it.
 
 ### Changed
 

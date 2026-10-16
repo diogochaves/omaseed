@@ -31,6 +31,8 @@
 #include <QDBusConnectionInterface>
 #include <QElapsedTimer>
 #include <QGuiApplication>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QProcessEnvironment>
 #include <QQmlApplicationEngine>
 #include <QQmlComponent>
@@ -314,6 +316,22 @@ int runHeadlessTableDemo(int rows)
     return 0;
 }
 
+/// `--theme-roles` (#76): the colour and alpha roles as Theme resolves them for the current
+/// Omarchy theme, as JSON on stdout, for tools (a contrast check across themes) that must not
+/// re-implement the palette's cascade or the dim foreground's lift. The reader is the app's,
+/// on XDG_STATE_HOME and XDG_CONFIG_HOME; the Appearance pane's overrides are not applied.
+int runThemeRoles()
+{
+    using omaseed::integration::Theme;
+
+    omaseed::integration::ThemeReader reader;
+    // No Hyprland: an empty hyprctl fails to start on the spot (nothing is spawned) and no
+    // event socket is opened. Neither feeds a colour or an alpha.
+    const Theme theme(&reader, Theme::Hyprland{QString(), QString()});
+    QTextStream(stdout) << QJsonDocument(Theme::rolesJson(theme)).toJson(QJsonDocument::Indented);
+    return 0;
+}
+
 /// The source tree's plugin/ in a development build; empty in a release (the package).
 QString devPluginDir()
 {
@@ -407,6 +425,12 @@ int main(int argc, char *argv[])
                        "Launch omaseed again to open it."));
     parser.addOption(hiddenOption);
 
+    QCommandLineOption themeRolesOption(
+        QStringList{QStringLiteral("theme-roles")},
+        QStringLiteral("Print the current theme's colour and alpha roles, as omaseed resolves "
+                       "them, as JSON, and exit. Opens no window."));
+    parser.addOption(themeRolesOption);
+
     // Handled before the application starts (runInstallBarWidget); listed for --help.
     QCommandLineOption installBarWidgetOption(
         QStringList{QStringLiteral("install-bar-widget")},
@@ -420,6 +444,9 @@ int main(int argc, char *argv[])
                                  QStringLiteral("[uris...]"));
 
     parser.process(app);
+
+    if (parser.isSet(themeRolesOption))
+        return runThemeRoles();
 
     qInfo().noquote() << omaseed::core::versionLine() << QStringLiteral("as") << applicationId();
 
