@@ -21,6 +21,14 @@ import Omaseed.Kit
 // here ever reads a stored secret back: the `Key` row shows a fixed mask, and an empty key
 // field on save means "keep the stored one".
 //
+// `save` waits for a test, as first run's `continue` does (docs/14, M2; docs/DECISIONS.md
+// C10, #68): while the fields hold a server no test has answered for, `save` is dimmed, the
+// footer says "test first" and `test` is the primary action (`enter` in a field tests). A
+// passing test makes `save` the primary; a failing one turns it into `save anyway`, so a
+// server that is down right now can still be added on purpose. An existing server needs the
+// test only when its URL, auth mode or credentials changed: a rename, or a new path map,
+// saves straight away.
+//
 // A test that met a certificate the system does not trust (issue #2) shows `CertificateTrust`
 // under the rows: `trust this certificate` saves the fingerprint with a saved server straight
 // away (App.trustCertificate, which reconnects the live one), keeps it in the edit buffers
@@ -51,6 +59,10 @@ Sheet {
     property string certificateSha256: ""
     /// The certificate trusted for the server when that test ran.
     property string certificatePinned: ""
+    /// `_connectionKey` when the running test started, and when the last answer's test did:
+    /// a test answers for the address and login it was run with, not for the ones typed since.
+    property string _pendingKey: ""
+    property string _testedKey: ""
 
     // the edit buffers; `save` turns them back into a field map
     property string editName: ""
@@ -69,6 +81,42 @@ Sheet {
     readonly property bool isNew: root.serverId.length === 0
     /// The server the app starts on and syncs with; `make default` shows on the others.
     readonly property bool isDefault: root.server && root.server.isDefault === true
+
+    /// What a test checks: the address and the login. The name and the path map are not in
+    /// it, so changing them keeps a test's answer.
+    readonly property string _connectionKey: root._currentKey()
+    /// The fields hold another server than the saved one (a new server always does): `save`
+    /// needs a test. Assumed, confirm (#68): a rename alone does not.
+    readonly property bool _connectionChanged: {
+        if (root.isNew)
+            return true;
+        const map = root.server;
+        const mode = map.authMode ? String(map.authMode) : "none";
+        if (root.editAuthMode !== mode || root.editSecret.length > 0)
+            return true;
+        if (mode === "cookie" && root.editUsername !== (map.username ? String(map.username) : ""))
+            return true;
+        return root.editUrl.trim() !== (map.url ? String(map.url) : "");
+    }
+    /// The last answer is for what the fields hold now.
+    readonly property bool _testCurrent: root.tested && !root.testing
+                                         && root._testedKey === root._connectionKey
+    /// `save` (the fields can go), `wait` (dimmed: test first) or `anyway` (a test failed).
+    readonly property string saveState: {
+        if (!root.editing || !root._connectionChanged)
+            return "save";
+        if (!root._testCurrent)
+            return "wait";
+        return root.testOk ? "save" : "anyway";
+    }
+
+    // M2, as first run: a pass is for the address and login it tested, so changing either
+    // clears it (and a certificate trusted for one address says nothing of another). Only
+    // while editing: loading a server into the fields is not a change.
+    onEditUrlChanged: root._fieldsChanged()
+    onEditAuthModeChanged: root._fieldsChanged()
+    onEditUsernameChanged: root._fieldsChanged()
+    onEditSecretChanged: root._fieldsChanged()
 
     /// The caller saved the sheet; `id` is the server that now exists.
     signal saved(string id)
@@ -136,6 +184,20 @@ Sheet {
         root.testing = false;
         root.certificateSha256 = "";
         root.certificatePinned = "";
+        root._pendingKey = "";
+        root._testedKey = "";
+    }
+
+    function _currentKey(): string {
+        const username = root.editAuthMode === "cookie" ? root.editUsername : "";
+        return JSON.stringify([root.editUrl.trim(), root.editAuthMode, username, root.editSecret]);
+    }
+
+    // Read afresh, not through `_connectionKey`: a change handler can run before that binding
+    // has caught up with the field.
+    function _fieldsChanged(): void {
+        if (root.editing && root.tested && !root.testing && root._testedKey !== root._currentKey())
+            root._resetTest();
     }
 
     // The fields are written, not bound: a Kit `Field`'s `text` is a plain alias over its
@@ -160,6 +222,7 @@ Sheet {
         root.certificateSha256 = "";
         root.certificatePinned = "";
         root.testing = true;
+        root._pendingKey = root._connectionKey;
         App.testServer(root.editing ? root.fieldMap() : root.server, root.editSecret);
     }
 
@@ -177,7 +240,7 @@ Sheet {
 
     /// Q23: the result of a `test` pressed before `save` belongs to the row that now exists.
     function _carryTestResult(id: string): void {
-        if (!root.tested)
+        if (!root._testCurrent)
             return;
         App.serverList.setProbeResult(id, root.testOk, root.testVersion, root.testApiVersion,
                                       root.testCount, root.testLatency, root.testError);
@@ -189,6 +252,9 @@ Sheet {
             root.errorText = qsTr("name and URL are required");
             return;
         }
+        // The button is dimmed then; this is for a caller that asks anyway.
+        if (root.saveState === "wait")
+            return;
         root.errorText = "";
         if (root.isNew) {
             const id = App.addServer(map, root.editSecret);
@@ -261,18 +327,25 @@ Sheet {
         return ok ? Theme.green : Theme.red;
     }
 
+    // The third button is `save` (dimmed while it waits for a test) or `save anyway`; the
+    // primary is whatever comes next, test or save, as on first run. Three buttons either way,
+    // so the row keeps its buttons and the keyboard (Kit/Sheet).
     actions: root.editing ? [
         {
             "text": qsTr("cancel"),
             "cancel": true
         },
         {
-            "text": qsTr("test")
+            "text": qsTr("test"),
+            "primary": root.saveState !== "save"
         },
-        {
-            "text": qsTr("save"),
-            "primary": true
-        }
+        root.saveState === "anyway" ? {
+                                          "text": qsTr("save anyway")
+                                      } : {
+                                          "text": qsTr("save"),
+                                          "primary": root.saveState === "save",
+                                          "disabled": root.saveState === "wait"
+                                      }
     ] : (root.isNew || root.isDefault ? [] : [
                                                  {
                                                      "text": qsTr("make default")
@@ -290,6 +363,8 @@ Sheet {
                                                                "primary": true
                                                            }
                                                        ])
+    // M2: why `save` is dimmed, under it.
+    footerRight: root.saveState === "wait" ? qsTr("test first") : ""
     glyph: Glyphs.server
     hints: root.editing ? [
         {
@@ -314,7 +389,8 @@ Sheet {
         const item = root.opened ? root.Window.activeFocusItem as Button : null;
         if (item && root.actionButtons().indexOf(item) >= 0)
             return String(item.text);
-        return root.editing ? qsTr("save") : qsTr("edit");
+        const primary = root._actionFlagged("primary");
+        return primary ? String(primary.text) : "";
     }
     // Four equal buttons need more room than three: "make default" sat on its outline.
     sheetWidth: Theme.space(root.editing || root.isNew || root.isDefault ? 460 : 520)
@@ -349,7 +425,7 @@ Sheet {
             root.removeRequested(root.serverId);
             return;
         }
-        if (text === qsTr("save")) {
+        if (text === qsTr("save") || text === qsTr("save anyway")) {
             root._save();
             return;
         }
@@ -369,7 +445,14 @@ Sheet {
         function onServerTested(id: string, ok: bool, version: string, apiVersion: string, torrentCount: int, latencyMs: int, error: string, errorDetail: string): void {
             if (id !== root.serverId)
                 return;
+            const key = root.testing ? root._pendingKey : root._connectionKey;
             root.testing = false;
+            // An answer for an address or login the fields no longer hold is dropped.
+            if (root.editing && key !== root._connectionKey) {
+                root._resetTest();
+                return;
+            }
+            root._testedKey = key;
             root.tested = true;
             root.testOk = ok;
             root.testVersion = version;

@@ -433,8 +433,29 @@ TestCase {
         compare(modal.paneCursor, 0);
     }
 
-    // The other half of Q23: a save without a test carries nothing, and the row says so.
-    function test_saving_an_untested_server_leaves_the_row_untested() {
+    /// A test of the sheet's fields that answers `ok`, as `_runTest()` leaves the sheet and
+    /// App answers it (demo mode's own test always passes).
+    function answerTest(sheet, ok, error) {
+        sheet.testing = true;
+        sheet._pendingKey = sheet._connectionKey;
+        App.serverTested(sheet.serverId, ok, ok ? "5.2.3" : "", ok ? "2.15.1" : "", ok ? 7 : -1,
+                         ok ? 3 : -1, error, "");
+    }
+
+    /// The sheet's foot button with this text, or null.
+    function sheetButton(sheet, text) {
+        const row = sheet.actionsRow;
+        for (let i = 0; i < row.children.length; ++i) {
+            if (row.children[i].text === text)
+                return row.children[i];
+        }
+        return null;
+    }
+
+    // #68 (docs/DECISIONS.md C10): a new server's `save` waits for a test, as first run's
+    // `continue` does. Until then it is dimmed, the footer says "test first", and `test` is
+    // the primary (`enter` in a field tests).
+    function test_a_new_servers_save_waits_for_a_test() {
         const modal = createTemporaryObject(modalComponent, testCase);
         modal.open();
         modal.showPane(1);
@@ -442,14 +463,144 @@ TestCase {
         sheet.openNew();
         sheet.editName = "playground";
         sheet.editUrl = "http://127.0.0.1:8081";
+
+        compare(sheet.saveState, "wait");
+        compare(sheet.actions.map(action => action.text), ["cancel", "test", "save"]);
+        const save = testCase.sheetButton(sheet, "save");
+        verify(save);
+        compare(save.enabled, false);
+        compare(save.primary, false);
+        verify(testCase.sheetButton(sheet, "test").primary);
+        compare(sheet.footerRight, "test first");
+        compare(sheet.hints[1].label, "test");
+        verify(sheet.actionButtons().indexOf(save) < 0, "a dimmed save is in the tab cycle");
+
+        // Neither the button's signal nor `enter` saves it.
         sheet.actionTriggered("save");
+        compare(App.serverList.count, 0);
+        verify(sheet.opened);
+
+        // `enter` in a field runs the test; its pass makes `save` the primary.
+        sheet.triggerPrimary();
+        verify(sheet.testing);
+        compare(sheet.saveState, "wait");
+        tryVerify(() => sheet.tested, 2000);
+        compare(sheet.saveState, "save");
+        compare(testCase.sheetButton(sheet, "save"), save, "the buttons were built again");
+        verify(save.enabled);
+        verify(save.primary);
+        compare(testCase.sheetButton(sheet, "test").primary, false);
+        compare(sheet.footerRight, "");
+        compare(sheet.hints[1].label, "save");
+
+        // A pass is for the address it tested: another one waits for its own test.
+        sheet.editUrl = "http://127.0.0.1:8082";
+        compare(sheet.tested, false);
+        compare(sheet.saveState, "wait");
+        compare(save.enabled, false);
+        // The name is only a label: it keeps a pass.
+        testCase.answerTest(sheet, true, "");
+        compare(sheet.saveState, "save");
+        sheet.editName = "strict";
+        compare(sheet.saveState, "save");
+
+        sheet.triggerPrimary();
         compare(App.serverList.count, 1);
+        verify(!sheet.opened);
+    }
+
+    // #68: a failed test offers `save anyway`, so a server that is down now can still be
+    // added on purpose; the failure goes onto the new row (Q23).
+    function test_a_failed_test_offers_save_anyway() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        modal.showPane(1);
+        const sheet = modal.serverSheet;
+        sheet.openNew();
+        sheet.editName = "away";
+        sheet.editUrl = "http://127.0.0.1:9";
+        testCase.answerTest(sheet, false, "connection refused");
+
+        compare(sheet.saveState, "anyway");
+        compare(sheet.actions.map(action => action.text), ["cancel", "test", "save anyway"]);
+        const anyway = testCase.sheetButton(sheet, "save anyway");
+        verify(anyway.enabled);
+        compare(anyway.primary, false);
+        // `enter` tests again; the deliberate save is the button.
+        verify(testCase.sheetButton(sheet, "test").primary);
+        compare(sheet.footerRight, "");
+        verify(sheet.actionButtons().indexOf(anyway) >= 0);
+
+        anyway.clicked();
+        compare(App.serverList.count, 1);
+        verify(!sheet.opened);
         const map = App.serverList.serverMap(App.serverList.idAt(0));
-        compare(map.versionText, "");
+        compare(map.name, "away");
+        compare(map.reachableText, "no · connection refused");
         compare(map.torrentCount, -1);
-        compare(map.reachableText, "");
-        const row = testCase.childNamed(modal, "serverRow0");
-        compare(row.description, "http://127.0.0.1:8081 · none");
+    }
+
+    // #68, assumed (confirm): an existing server needs a new test only when its URL, auth
+    // mode or credentials changed. A rename, or a new path map, saves at once.
+    function test_an_edit_needs_a_test_only_for_a_new_address_or_login() {
+        const id = testCase.addTestServer("playground", "http://127.0.0.1:8081");
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        modal.showPane(1);
+        const sheet = modal.serverSheet;
+        sheet.openFor(App.serverList.serverMap(id));
+        sheet.actionTriggered("edit");
+        compare(sheet.saveState, "save");
+        compare(sheet.footerRight, "");
+
+        sheet.editUrl = "http://127.0.0.1:8082";
+        compare(sheet.saveState, "wait");
+        compare(testCase.sheetButton(sheet, "save").enabled, false);
+        compare(sheet.footerRight, "test first");
+        sheet.editUrl = "http://127.0.0.1:8081";
+        compare(sheet.saveState, "save");
+
+        sheet.editAuthMode = "none";
+        compare(sheet.saveState, "wait");
+        sheet.editAuthMode = "apiKey";
+        compare(sheet.saveState, "save");
+        sheet.editSecret = "a new key";
+        compare(sheet.saveState, "wait");
+        sheet.editSecret = "";
+
+        sheet.editName = "renamed";
+        sheet.editLocal = "/srv/torrents";
+        compare(sheet.saveState, "save");
+        sheet.triggerPrimary();
+        verify(!sheet.opened);
+        const map = App.serverList.serverMap(id);
+        compare(map.name, "renamed");
+        compare(map.url, "http://127.0.0.1:8081");
+        compare(map.pathMapLocal, "/srv/torrents");
+        // Q23's other half: nothing was tested, so nothing new is on the row.
+        compare(map.torrentCount, -1);
+    }
+
+    // #68: an edit to another address saves once a test has answered for it.
+    function test_an_edit_to_a_new_address_saves_after_its_test() {
+        const id = testCase.addTestServer("playground", "http://127.0.0.1:8081");
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        modal.showPane(1);
+        const sheet = modal.serverSheet;
+        sheet.openFor(App.serverList.serverMap(id));
+        sheet.actionTriggered("edit");
+        sheet.editUrl = "http://127.0.0.1:8082";
+        sheet.actionTriggered("save");
+        compare(App.serverList.serverMap(id).url, "http://127.0.0.1:8081");
+        verify(sheet.opened);
+
+        sheet.actionTriggered("test");
+        tryVerify(() => sheet.tested, 2000);
+        compare(sheet.saveState, "save");
+        sheet.actionTriggered("save");
+        verify(!sheet.opened);
+        compare(App.serverList.serverMap(id).url, "http://127.0.0.1:8082");
     }
 
     function test_a_opens_an_empty_server_sheet_and_enter_opens_the_row() {
@@ -619,7 +770,8 @@ TestCase {
         sheet.editName = "tls";
         sheet.editUrl = "https://127.0.0.1:9";
         sheet.editAuthMode = "none";
-        sheet.testing = true;
+        sheet.testing = true; // as _runTest() leaves it
+        sheet._pendingKey = sheet._connectionKey;
         App.serverCertificateRefused("", "9ce0618d3dba07b6abce06a4c4db2222f6929605a344b4f8ec21789f2761a2a2", "");
         App.serverTested("", false, "", "", -1, 4, "untrusted certificate", "certificate: …");
         testCase.childNamed(sheet, "certificateTrust").trustButton.clicked();
