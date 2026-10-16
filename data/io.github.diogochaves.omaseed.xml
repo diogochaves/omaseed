@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  omaseed's two archives (docs/34 D7 a, #70): plain tars under omaseed's own names, so a file
+  manager lists them as "omaseed backup" and "omaseed torrents", with omaseed's icon, instead
+  of "Tar archive". Each is a sub-class of application/x-tar, so archive tools still offer to
+  open them. The .desktop entry does not list them (D9 a): omaseed is not their opener.
+  The settings export stays application/json (a .json file; its "format" names it inside).
+  Installed to share/mime/packages; shared-mime-info's pacman hook, or update-mime-database,
+  builds the database from it.
+-->
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-omaseed-backup">
+    <comment>omaseed backup</comment>
+    <sub-class-of type="application/x-tar"/>
+    <icon name="io.github.diogochaves.omaseed"/>
+    <glob pattern="*.omaseed"/>
+  </mime-type>
+  <mime-type type="application/x-omaseed-torrents">
+    <comment>omaseed torrents</comment>
+    <sub-class-of type="application/x-tar"/>
+    <icon name="io.github.diogochaves.omaseed"/>
+    <glob pattern="*.omaseed-torrents"/>
+  </mime-type>
+</mime-info>

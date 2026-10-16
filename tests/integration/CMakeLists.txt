@@ -77,3 +77,12 @@ omaseed_add_test(tst_barwidgetinstaller
     SOURCES tst_barwidgetinstaller.cpp
     LIBRARIES omaseed::integration
 )
+
+# #70, docs/34 D7 a, D9 a: omaseed's two archives as MIME types, installed (the "mime"
+# component, into a temporary prefix) and read back; the .desktop entry does not open them.
+omaseed_add_test(tst_mimetypes
+    SOURCES tst_mimetypes.cpp
+    DEFINES
+        OMASEED_CMAKE_COMMAND="${CMAKE_COMMAND}"
+        OMASEED_DATA_DIR="${PROJECT_SOURCE_DIR}/data"
+)

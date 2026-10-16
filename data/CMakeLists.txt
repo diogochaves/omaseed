@@ -17,6 +17,24 @@ endfunction()
 omaseed_install_with_exec_path("${omaseed_app_id}.desktop" "${CMAKE_INSTALL_DATADIR}/applications")
 omaseed_install_with_exec_path("${omaseed_app_id}.service" "${CMAKE_INSTALL_DATADIR}/dbus-1/services")
 
+# docs/34 D7 a (#70): omaseed's two archives as MIME types, sub-classes of application/x-tar
+# with omaseed's icon. A package leaves the database to shared-mime-info's pacman hook; a
+# `cmake --install` of its own (into ~/.local, say) rebuilds the prefix's database here, as
+# the hook would. Never under DESTDIR: that tree is a package being staged. The component lets
+# tests/integration/tst_mimetypes install just this into a temporary prefix.
+install(FILES "${omaseed_app_id}.xml" DESTINATION "${CMAKE_INSTALL_DATADIR}/mime/packages"
+    COMPONENT mime)
+install(CODE "
+    set(mime_dir \"\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_DATADIR}/mime\")
+    find_program(update_mime update-mime-database)
+    if(\"\$ENV{DESTDIR}\" STREQUAL \"\" AND update_mime)
+        execute_process(COMMAND \"\${update_mime}\" \"\${mime_dir}\" RESULT_VARIABLE mime_result)
+        if(NOT mime_result EQUAL 0)
+            message(WARNING \"update-mime-database \${mime_dir} failed (\${mime_result})\")
+        endif()
+    endif()
+" COMPONENT mime)
+
 install(
     FILES "icons/hicolor/scalable/apps/${omaseed_app_id}.svg"
     DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps"
