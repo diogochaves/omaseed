@@ -87,6 +87,7 @@ Item {
         DetailsHeader {
             Layout.preferredWidth: root.speedWidth
             alignRight: true
+            accessibleName: qsTr("Download speed")
             clickable: false
             text: Glyphs.arrowDown
         }
@@ -94,6 +95,7 @@ Item {
         DetailsHeader {
             Layout.preferredWidth: root.speedWidth
             alignRight: true
+            accessibleName: qsTr("Upload speed")
             clickable: false
             text: Glyphs.arrowUp
         }

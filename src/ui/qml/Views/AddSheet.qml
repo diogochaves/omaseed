@@ -1814,6 +1814,8 @@ Sheet {
                                     id: dlLimitField
 
                                     Layout.fillWidth: true
+                                    // #78: named in words; `∞` (and a narrow row's ↓) is no name.
+                                    accessibleName: qsTr("Download limit")
                                     implicitWidth: Theme.space(80)
                                     numeric: true
                                     placeholder: qsTr("∞")
@@ -1835,6 +1837,8 @@ Sheet {
                                     id: upLimitField
 
                                     Layout.fillWidth: true
+                                    // #78: named in words; `∞` (and a narrow row's ↑) is no name.
+                                    accessibleName: qsTr("Upload limit")
                                     implicitWidth: Theme.space(80)
                                     numeric: true
                                     placeholder: qsTr("∞")

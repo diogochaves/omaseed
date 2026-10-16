@@ -812,6 +812,35 @@ TestCase {
         compare(footer.hasPinned, false);
     }
 
+    // #78: the footer's keys are named by their action, the key the description, and are left
+    // out where the same action is a button on the page: the welcome's "set up" and "quit".
+    function test_the_footer_keys_are_named_by_their_action() {
+        const page = createTemporaryObject(pageComponent, testCase, {
+                                               "candidates": [],
+                                               "height": testCase.height,
+                                               "width": testCase.width
+                                           });
+        const footer = findChild(page, "setupFooterHints");
+        const pinned = findChild(footer, "keyHintPinnedArea");
+        page.page = "welcome";
+        const setUp = findChild(findChild(footer, "keyHint_enter"), "keyHintArea");
+        compare(setUp.Accessible.name, "set up");
+        compare(setUp.Accessible.description, "shortcut enter");
+        verify(setUp.Accessible.ignored, "the welcome's enter hint doubles its set up button");
+        compare(pinned.Accessible.name, "quit");
+        verify(pinned.Accessible.ignored, "the welcome's esc hint doubles its quit button");
+
+        page.page = "choose";
+        verify(!pinned.Accessible.ignored, "quit is no button on the choose step");
+        compare(pinned.Accessible.name, "quit");
+        compare(pinned.Accessible.description, "shortcut esc");
+        compare(pinned.Accessible.role, Accessible.Button);
+        const cont = findChild(findChild(footer, "keyHint_enter"), "keyHintArea");
+        compare(cont.Accessible.name, "continue");
+        verify(!cont.Accessible.ignored);
+        compare(cont.Accessible.role, Accessible.StaticText);
+    }
+
     Component {
         id: signalSpyComponent
 

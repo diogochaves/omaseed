@@ -184,6 +184,18 @@ TestCase {
         compare(header("name").width, table.width - fixed);
     }
 
+    // #78: a screen reader hears a header in words, never the arrow it prints; a header with
+    // words is its title.
+    function test_arrow_headers_are_named_in_words() {
+        compare(header("dlspeed").Accessible.name, "Download speed");
+        compare(header("upspeed").Accessible.name, "Upload speed");
+        compare(header("seedsPeers").Accessible.name, "Seeds and peers");
+        compare(header("name").Accessible.name, "Name");
+        const limits = table.columns.filter(column => column.key === "dlLimit"
+                                            || column.key === "upLimit");
+        compare(limits.map(column => column.spoken), ["Download limit", "Upload limit"]);
+    }
+
     // docs/10 §4 (Diogo's ruling): a table too narrow for its columns keeps every one of them
     // and scrolls sideways; Name never goes under `minimumNameWidth`.
     function test_a_narrow_table_scrolls_instead_of_squeezing() {

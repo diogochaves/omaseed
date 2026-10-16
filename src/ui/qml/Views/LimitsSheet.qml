@@ -310,6 +310,8 @@ Sheet {
             Field {
                 id: dlField
 
+                // #78: named by its row's label; `∞` is no name.
+                accessibleName: qsTr("Download")
                 Layout.fillWidth: true
                 escClears: false
                 numeric: true
@@ -328,6 +330,8 @@ Sheet {
             Field {
                 id: ulField
 
+                // #78: named by its row's label; `∞` is no name.
+                accessibleName: qsTr("Upload")
                 Layout.fillWidth: true
                 escClears: false
                 numeric: true
@@ -357,6 +361,8 @@ Sheet {
                     Field {
                         id: ratioField
 
+                        // #78: named by its row's label; `∞` is no name.
+                        accessibleName: qsTr("Share ratio")
                         escClears: false
                         enabled: !root._ratioGlobal
                         numeric: true
@@ -385,6 +391,8 @@ Sheet {
                 Chip {
                     focusable: true
                     selected: root._ratioGlobal
+                    // #78: the ▾ is drawn only.
+                    Accessible.name: qsTr("global")
                     text: qsTr("global ▾")
 
                     onClicked: root._ratioGlobal = !root._ratioGlobal
@@ -411,6 +419,8 @@ Sheet {
                     Field {
                         id: seedingField
 
+                        // #78: named by its row's label; `∞` is no name.
+                        accessibleName: qsTr("Seeding time")
                         escClears: false
                         enabled: !root._seedingGlobal
                         numeric: true
@@ -437,6 +447,8 @@ Sheet {
 
                     focusable: true
                     selected: root._seedingGlobal
+                    // #78: the ▾ is drawn only.
+                    Accessible.name: qsTr("global")
                     text: qsTr("global ▾")
 
                     onClicked: root._seedingGlobal = !root._seedingGlobal

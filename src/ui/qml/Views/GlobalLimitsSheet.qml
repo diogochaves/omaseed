@@ -104,6 +104,8 @@ Sheet {
             Field {
                 id: dlField
 
+                // #78: named by its row's label; `∞` is no name.
+                accessibleName: qsTr("Download")
                 Layout.fillWidth: true
                 escClears: false
                 numeric: true
@@ -122,6 +124,8 @@ Sheet {
             Field {
                 id: ulField
 
+                // #78: named by its row's label; `∞` is no name.
+                accessibleName: qsTr("Upload")
                 Layout.fillWidth: true
                 escClears: false
                 numeric: true
@@ -140,6 +144,8 @@ Sheet {
             Field {
                 id: altDlField
 
+                // #78: named by its row's label; `∞` is no name.
+                accessibleName: qsTr("Alt-speed download")
                 Layout.fillWidth: true
                 escClears: false
                 numeric: true
@@ -158,6 +164,8 @@ Sheet {
             Field {
                 id: altUlField
 
+                // #78: named by its row's label; `∞` is no name.
+                accessibleName: qsTr("Alt-speed upload")
                 Layout.fillWidth: true
                 escClears: false
                 numeric: true

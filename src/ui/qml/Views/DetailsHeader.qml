@@ -19,6 +19,9 @@ Item {
     property bool descending: false
     /// False on a list that does not sort (Trackers, Peers, HTTP sources): no pointing hand.
     property bool clickable: true
+    /// What a screen reader calls the column when `text` is a glyph (the Peers tab's ↓ and
+    /// ↑): words, never the arrow (#78).
+    property string accessibleName: root.text
 
     /// A click on the caption: the Files tab sorts by the column.
     signal clicked
@@ -29,6 +32,7 @@ Item {
     TableHeader {
         id: header
 
+        Accessible.name: root.accessibleName
         alignRight: root.alignRight
         clickable: root.clickable
         descending: root.descending

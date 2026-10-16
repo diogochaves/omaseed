@@ -120,14 +120,18 @@ Item {
     })
     /// The footer's keys for this page; `esc` is pinned right, as in the library's footer, and
     /// takes a click too (#51 D3): the mouse's way back to step 1 and out, with no button added.
+    /// A screen reader finds each hint named by its action, the key its description (#78);
+    /// `onScreen` leaves one out where the same action is a button on the page (the welcome's
+    /// "set up" and "quit", done's "open the library"), so it is not found twice.
     readonly property var _footerHints: {
-        const hint = (key, label) => ({
-                                          "key": key,
-                                          "label": label
-                                      });
+        const hint = (key, label, onScreen) => ({
+                                                    "key": key,
+                                                    "label": label,
+                                                    "onScreen": onScreen === true
+                                                });
         switch (root.page) {
         case "welcome":
-            return [hint("enter", qsTr("set up"))];
+            return [hint("enter", qsTr("set up"), true)];
         case "choose":
             return [hint("j k", qsTr("choose")), hint("enter", qsTr("continue"))];
         case "apikey":
@@ -137,14 +141,15 @@ Item {
         case "bar":
             return [hint("tab", qsTr("switch")), hint("enter", qsTr("choose"))];
         case "done":
-            return [hint("enter", qsTr("open the library"))];
+            return [hint("enter", qsTr("open the library"), true)];
         }
         return [];
     }
     readonly property var _footerPinned: root.page === "welcome" || root.page === "choose" ? {
                                                                                                  "key": "esc",
                                                                                                  "label": qsTr("quit"),
-                                                                                                 "clickable": true
+                                                                                                 "clickable": true,
+                                                                                                 "onScreen": root.page === "welcome"
                                                                                              } : root.page === "install"
                                                                                                  || root.page === "apikey" ? {
                                                                                                                                  "key": "esc",
