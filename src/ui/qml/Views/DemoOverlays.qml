@@ -108,6 +108,7 @@ Window {
         counter: qsTr("2 of 142")
         footerRight: qsTr("also matches hash and tracker")
         glyph: Glyphs.search
+        metaSpoken: true // as JumpPalette's (#79)
         hints: [
             {
                 "key": "↑↓",

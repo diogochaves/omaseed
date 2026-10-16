@@ -45,6 +45,8 @@ Palette {
         void App.torrents.count;
         return App.jumpMatches(root.query, 50);
     }
+    // #79: a row's meta is the torrent's state.
+    metaSpoken: true
 
     /// Moves `table`'s cursor to `hash`, clearing every filter first when the row is not
     /// currently visible (the same helper MainView's `showTorrent` uses).

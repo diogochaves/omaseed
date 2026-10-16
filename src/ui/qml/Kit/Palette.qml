@@ -54,6 +54,9 @@ Item {
     property alias query: input.text
     /// `[{title, meta, via, detail, checked, key, pinned, disabled}]`.
     property var items: []
+    /// #79: the rows' `meta` is words a screen reader should hear (a torrent's state, a
+    /// count), not a key or a glyph as in the command palette: it leads the description.
+    property bool metaSpoken: false
     /// A dim line between the query row and the list; empty draws nothing.
     property string emptyText: ""
     /// Show the check column and let `space` toggle rows (the tags picker).
@@ -661,8 +664,12 @@ Item {
                         }
                     }
 
+                    // #79: how many match ("2 of 142"), after the query.
                     Label {
+                        Accessible.name: text
+                        Accessible.role: Accessible.StaticText
                         dim: true
+                        objectName: "paletteCounter"
                         size: "caption"
                         text: root.counter
                         visible: root.counter.length > 0
@@ -688,6 +695,9 @@ Item {
 
             // docs/30 P4: why the list is empty (`.pal .empty`) ----------------------------
             Label {
+                // #79: the palette's empty state, by its words.
+                Accessible.name: text
+                Accessible.role: Accessible.StaticText
                 Layout.bottomMargin: Theme.space(10)
                 Layout.fillWidth: true
                 // The rows' own inset, so the line starts where their titles do.
@@ -729,6 +739,10 @@ Item {
                     /// it lands.
                     readonly property bool lifted: row.index === root._dragFrom
 
+                    // #79: the row's second line ("linux · 2.34 GB · 12.4 %") is its
+                    // description, after its meta where that is words (`metaSpoken`).
+                    Accessible.description: [root.metaSpoken ? (row.modelData.meta ?? "") : "",
+                                             row.modelData.detail ?? ""].filter(part => part.length > 0).join(" · ")
                     Accessible.name: row.modelData.title ?? ""
                     Accessible.role: Accessible.ListItem
                     Accessible.selected: row.current

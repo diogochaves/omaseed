@@ -930,6 +930,27 @@ TestCase {
         compare(palette.cursorIndex, 1);
     }
 
+    // #79: a screen reader hears the count after the query, the empty line, and each row's
+    // second line as its description, its meta first only where the palette says it is words.
+    function test_a_screen_reader_hears_the_count_the_empty_line_and_the_rows() {
+        const palette = createTemporaryObject(paletteComponent, testCase);
+        palette.open();
+        waitForRendering(palette.listView);
+        const counter = findChild(palette, "paletteCounter");
+        compare(counter.Accessible.role, Accessible.StaticText);
+        compare(counter.Accessible.name, "2 of 142");
+        const row = palette.listView.itemAtIndex(0);
+        compare(row.Accessible.name, "Fedora-Workstation-Live-44-1.6.x86_64.iso");
+        compare(row.Accessible.description, "linux · 2.34 GB · 12.4 %");
+        palette.metaSpoken = true;
+        compare(row.Accessible.description, "downloading · linux · 2.34 GB · 12.4 %");
+        palette.emptyText = "No command matches “ubuntu”.";
+        const line = findChild(palette, "paletteEmptyText");
+        compare(line.Accessible.role, Accessible.StaticText);
+        compare(line.Accessible.name, "No command matches “ubuntu”.");
+        palette.close();
+    }
+
     // #75: a screen reader's press on a row is its click: in a single select it runs that
     // row, once; in a multi-select it toggles it, once, and runs nothing.
     function test_the_accessible_press_on_a_row_is_the_click() {

@@ -66,6 +66,8 @@ Palette {
         }
     ]
     items: root._rows
+    // #79: a row's meta is words ("4 torrents", why it didn't answer).
+    metaSpoken: true
     keyHandler: event => {
         if (event.key === Qt.Key_Comma && (event.modifiers & (Qt.ControlModifier | Qt.AltModifier)) === 0) {
             root._manage();
