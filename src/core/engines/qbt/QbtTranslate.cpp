@@ -4,6 +4,7 @@
 
 #include <QDateTime>
 #include <QJsonValue>
+#include <QVersionNumber>
 
 #include <limits>
 
@@ -566,6 +567,41 @@ TorrentDetailsData details(const QJsonObject &json)
     data.webSeeds = webSeeds(json.value(key("webSeeds")).toArray());
     data.pieceStates = pieceStates(json.value(key("pieceStates")).toArray());
     return data;
+}
+
+EngineFeatures features(const QString &apiVersion)
+{
+    const QVersionNumber version = QVersionNumber::fromString(apiVersion);
+    const auto atLeast = [&version](int major, int minor, int micro) {
+        return !version.isNull() && version >= QVersionNumber(major, minor, micro);
+    };
+
+    EngineFeatures f;
+    f.categories = true;
+    f.categorySavePaths = true;
+    f.tags = true;
+    f.filePriorities = {int(FilePriority::Skip),
+                        int(FilePriority::Normal),
+                        int(FilePriority::High),
+                        int(FilePriority::Maximal)};
+    f.queue = true;
+    f.forceStart = true;
+    f.sequentialDownload = true;
+    f.firstLastPiece = true;
+    f.superSeeding = true;
+    f.autoManagement = true;
+    f.engineLog = true;
+    // torrents/fetchMetadata, and file priorities on an add (C5).
+    f.fetchMetadata = atLeast(2, 11, 9);
+    // The shareLimitAction field: an older server rejects an unknown parameter.
+    if (atLeast(2, 15, 1)) {
+        f.shareLimitActions = {QStringLiteral("Default"),
+                               QStringLiteral("Stop"),
+                               QStringLiteral("Remove"),
+                               QStringLiteral("RemoveWithContent"),
+                               QStringLiteral("EnableSuperSeeding")};
+    }
+    return f;
 }
 
 } // namespace omaseed::core::QbtTranslate

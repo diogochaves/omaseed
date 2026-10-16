@@ -150,7 +150,6 @@ private slots:
     void shareLimitActionNames_data();
     void shareLimitActionNames();
     void shareLimitActionIsOmittedForAnOldApi();
-    void shareLimitActionSupportFollowsTheApiVersion();
     void addUrlsSendsStoppedAndPausedAndOptions();
     void a500OnActionIsNotRetried();
     void a409OnActionMapsToConflict();
@@ -164,7 +163,6 @@ private slots:
     void fetchMetadataTellsLookingFromDone();
     void fetchMetadataOfALinkStillDownloading();
     void fetchMetadataNotFoundIsAnError();
-    void fetchMetadataSupportFollowsTheApiVersion();
     void addUrlsSendsFilePrioritiesAndStopCondition();
 };
 
@@ -250,17 +248,6 @@ void TestQbtClientActionsFake::fetchMetadataNotFoundIsAnError()
     QVERIFY(result.isError());
     QCOMPARE(result.error().kind(), ApiError::Kind::NotFound);
     QCOMPARE(server.requests.size(), 1);
-}
-
-void TestQbtClientActionsFake::fetchMetadataSupportFollowsTheApiVersion()
-{
-    QVERIFY(QbtClient::supportsFetchMetadata(QStringLiteral("2.15.1")));
-    QVERIFY(QbtClient::supportsFetchMetadata(QStringLiteral("2.11.9")));
-    QVERIFY(QbtClient::supportsFetchMetadata(QStringLiteral("2.12")));
-    QVERIFY(!QbtClient::supportsFetchMetadata(QStringLiteral("2.11.4"))); // qBittorrent 5.1.4
-    QVERIFY(!QbtClient::supportsFetchMetadata(QStringLiteral("2.9.3")));
-    QVERIFY(!QbtClient::supportsFetchMetadata(QString()));
-    QVERIFY(!QbtClient::supportsFetchMetadata(QStringLiteral("nonsense")));
 }
 
 // docs/29 §2 and D5: the chosen files travel with the magnet in one add, comma-separated in
@@ -639,17 +626,6 @@ void TestQbtClientActionsFake::shareLimitActionIsOmittedForAnOldApi()
     QCOMPARE(QbtClient::shareLimitActionFromName(QString()), QbtClient::ShareLimitAction::Default);
     QCOMPARE(QbtClient::shareLimitActionFromName(QStringLiteral("DeleteFiles")),
              QbtClient::ShareLimitAction::Default);
-}
-
-void TestQbtClientActionsFake::shareLimitActionSupportFollowsTheApiVersion()
-{
-    QVERIFY(QbtClient::supportsShareLimitAction(QStringLiteral("2.15.1")));
-    QVERIFY(QbtClient::supportsShareLimitAction(QStringLiteral("2.16.0")));
-    QVERIFY(QbtClient::supportsShareLimitAction(QStringLiteral("3.0")));
-    QVERIFY(!QbtClient::supportsShareLimitAction(QStringLiteral("2.15.0")));
-    QVERIFY(!QbtClient::supportsShareLimitAction(QStringLiteral("2.11.4")));
-    QVERIFY(!QbtClient::supportsShareLimitAction(QString()));
-    QVERIFY(!QbtClient::supportsShareLimitAction(QStringLiteral("unknown")));
 }
 
 void TestQbtClientActionsFake::addUrlsSendsStoppedAndPausedAndOptions()

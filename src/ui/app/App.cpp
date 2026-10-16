@@ -3500,7 +3500,7 @@ void App::setLimits(const QStringList &hashes,
     // field too, since 5.2.3 (the server this ships against) refuses the call without it.
     const QString apiVersion = m_engine->globalState()->apiVersion();
     std::optional<QbtClient::ShareLimitAction> action;
-    if (apiVersion.isEmpty() || QbtClient::supportsShareLimitAction(apiVersion))
+    if (apiVersion.isEmpty() || QbtTranslate::features(apiVersion).shareLimitAction())
         action = QbtClient::shareLimitActionFromName(shareLimitAction);
     m_client->torrentsSetShareLimits(hashes, ratio, seedingMinutes, inactiveSeedingMinutes, action)
         ->then(this, [this](const Result<QByteArray> &result) {
@@ -4446,7 +4446,7 @@ void App::runInstall(const QString &program, const QStringList &arguments)
 
 bool App::supportsShareLimitAction() const
 {
-    return QbtClient::supportsShareLimitAction(m_engine->globalState()->apiVersion());
+    return QbtTranslate::features(m_engine->globalState()->apiVersion()).shareLimitAction();
 }
 
 // --- end T5.5 Q14 ----------------------------------------------------------------------------

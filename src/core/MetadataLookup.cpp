@@ -1,5 +1,7 @@
 #include "core/MetadataLookup.hpp"
 
+#include "core/engines/qbt/QbtTranslate.hpp"
+
 #include <QJsonArray>
 #include <QLoggingCategory>
 #include <QTimer>
@@ -115,7 +117,7 @@ void MetadataLookup::start(const QString &key, const QString &source, const QStr
     m_lastSeconds = 0;
     m_phase = Phase::Waiting;
     if (m_serverReady) {
-        if (QbtClient::supportsFetchMetadata(m_apiVersion)) {
+        if (QbtTranslate::features(m_apiVersion).fetchMetadata) {
             begin();
             return;
         }
@@ -147,7 +149,7 @@ void MetadataLookup::setServer(bool ready, const QString &apiVersion)
     m_apiVersion = apiVersion;
     if (m_phase != Phase::Waiting || !ready)
         return;
-    if (!QbtClient::supportsFetchMetadata(apiVersion)) {
+    if (!QbtTranslate::features(apiVersion).fetchMetadata) {
         setPhase(Phase::Unsupported);
         return;
     }

@@ -23,6 +23,7 @@ qt_add_library(omaseed-core STATIC
     CertificatePin.cpp
     CertificatePin.hpp
     engines/DetailsData.hpp
+    engines/EngineFeatures.hpp
     engines/LogEntry.hpp
     engines/ShareLimits.hpp
     engines/SyncDelta.hpp

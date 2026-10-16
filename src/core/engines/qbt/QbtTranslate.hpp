@@ -11,6 +11,7 @@
 // Trackers tab become peer sources. A key qBittorrent did not send stays absent.
 
 #include "core/engines/DetailsData.hpp"
+#include "core/engines/EngineFeatures.hpp"
 #include "core/engines/LogEntry.hpp"
 #include "core/engines/SyncDelta.hpp"
 #include "core/engines/TorrentPatch.hpp"
@@ -59,5 +60,8 @@ QList<LogEntry> log(const QJsonArray &array);
 /// `{hash, properties, files, trackers, peers, pieceStates, webSeeds}`, each as its endpoint
 /// answers: the demo's and the tests' details.
 TorrentDetailsData details(const QJsonObject &json);
+
+/// What a qBittorrent with this Web API version ("2.15.1") can do.
+EngineFeatures features(const QString &apiVersion);
 
 } // namespace omaseed::core::QbtTranslate

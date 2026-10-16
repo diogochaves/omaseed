@@ -838,7 +838,7 @@ void TorrentsImport::followUps(int at)
     if (shareLimits) {
         steps.append([this, id, generation, &r](std::function<void()> go) {
             std::optional<QbtClient::ShareLimitAction> action;
-            if (QbtClient::supportsShareLimitAction(m_apiVersion))
+            if (QbtTranslate::features(m_apiVersion).shareLimitAction())
                 action = QbtClient::shareLimitActionFromName(r.shareLimitAction);
             m_client
                 ->torrentsSetShareLimits(

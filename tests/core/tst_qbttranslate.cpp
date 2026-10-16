@@ -148,6 +148,7 @@ private Q_SLOTS:
     void peersArriveAsADelta();
     void pieceStatesAndLog();
     void propertiesSayWhatIsUnknown();
+    void featuresFollowTheApiVersion();
 };
 
 void TestQbtTranslate::everyStateKeepsQ16()
@@ -503,6 +504,37 @@ void TestQbtTranslate::propertiesSayWhatIsUnknown()
                                                   {QStringLiteral("pieces_num"), 4}})
                  .isPrivate,
              std::optional<bool>(true));
+}
+
+void TestQbtTranslate::featuresFollowTheApiVersion()
+{
+    const EngineFeatures current = QbtTranslate::features(QStringLiteral("2.15.1"));
+    QVERIFY(current.categories && current.categorySavePaths && current.tags);
+    QVERIFY(current.queue && current.forceStart && current.engineLog);
+    QCOMPARE(current.filePriorities,
+             QList<int>({int(FilePriority::Skip),
+                         int(FilePriority::Normal),
+                         int(FilePriority::High),
+                         int(FilePriority::Maximal)}));
+    QVERIFY(current.fetchMetadata);
+    QVERIFY(current.shareLimitAction());
+    QCOMPARE(current.shareLimitActions.size(), 5);
+
+    // fetchMetadata: Web API 2.11.9 (qBittorrent 5.2).
+    QVERIFY(QbtTranslate::features(QStringLiteral("2.11.9")).fetchMetadata);
+    QVERIFY(QbtTranslate::features(QStringLiteral("2.12")).fetchMetadata);
+    QVERIFY(!QbtTranslate::features(QStringLiteral("2.11.4")).fetchMetadata); // qBittorrent 5.1.4
+    QVERIFY(!QbtTranslate::features(QStringLiteral("2.9.3")).fetchMetadata);
+    QVERIFY(!QbtTranslate::features(QString()).fetchMetadata);
+    QVERIFY(!QbtTranslate::features(QStringLiteral("nonsense")).fetchMetadata);
+
+    // shareLimitAction: 2.15.1; an older server rejects an unknown parameter.
+    QVERIFY(QbtTranslate::features(QStringLiteral("2.16.0")).shareLimitAction());
+    QVERIFY(QbtTranslate::features(QStringLiteral("3.0")).shareLimitAction());
+    QVERIFY(!QbtTranslate::features(QStringLiteral("2.15.0")).shareLimitAction());
+    QVERIFY(!QbtTranslate::features(QStringLiteral("2.11.4")).shareLimitAction());
+    QVERIFY(!QbtTranslate::features(QString()).shareLimitAction());
+    QVERIFY(!QbtTranslate::features(QStringLiteral("unknown")).shareLimitAction());
 }
 
 QTEST_GUILESS_MAIN(TestQbtTranslate)

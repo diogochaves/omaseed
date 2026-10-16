@@ -302,9 +302,6 @@ public:
     static QString shareLimitActionName(ShareLimitAction action);
     /// The reverse; anything unknown (an empty string included) reads as Default.
     static ShareLimitAction shareLimitActionFromName(QStringView name);
-    /// True when a server with this app/webapiVersion (e.g. "2.15.1") knows the action:
-    /// the field was added in 2.15.1 and an older server rejects an unknown parameter.
-    static bool supportsShareLimitAction(const QString &apiVersion);
 
     /// ratioLimit/seedingTimeLimit/inactiveSeedingTimeLimit: -2 = global default, -1 = none,
     /// >=0 the limit itself. `shareLimitAction` engaged sends the field (5.2.3 answers 400
@@ -394,9 +391,6 @@ public:
     /// follows must go through this one client (diogochaves/upstream#86). A 404 is a server
     /// without the endpoint.
     Reply<FetchedMetadata> *torrentsFetchMetadata(const QString &source);
-    /// True when a server with this app/webapiVersion has torrents/fetchMetadata and takes
-    /// `filePriorities` on an add: 2.11.9 and later.
-    static bool supportsFetchMetadata(const QString &apiVersion);
 
     /// POST torrents/add with one or more magnet links or .torrent URLs (the server fetches
     /// them itself), newline-separated.

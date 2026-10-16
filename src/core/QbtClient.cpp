@@ -16,7 +16,6 @@
 #include <QSslConfiguration>
 #include <QSslError>
 #include <QTimer>
-#include <QVersionNumber>
 
 #include <functional>
 #include <type_traits>
@@ -1241,12 +1240,6 @@ QbtClient::ShareLimitAction QbtClient::shareLimitActionFromName(QStringView name
     return ShareLimitAction::Default;
 }
 
-bool QbtClient::supportsShareLimitAction(const QString &apiVersion)
-{
-    const QVersionNumber version = QVersionNumber::fromString(apiVersion);
-    return !version.isNull() && version >= QVersionNumber(2, 15, 1);
-}
-
 Reply<QByteArray> *
 QbtClient::torrentsSetShareLimits(const QStringList &hashes,
                                   double ratioLimit,
@@ -1357,12 +1350,6 @@ Reply<QByteArray> *QbtClient::torrentsDelete(const QStringList &hashes, bool del
     QUrlQuery form = hashesForm(hashes);
     addBoolItem(form, QStringLiteral("deleteFiles"), deleteFiles);
     return post(QStringLiteral("torrents/delete"), form);
-}
-
-bool QbtClient::supportsFetchMetadata(const QString &apiVersion)
-{
-    const QVersionNumber version = QVersionNumber::fromString(apiVersion);
-    return !version.isNull() && version >= QVersionNumber(2, 11, 9);
 }
 
 Reply<QbtClient::FetchedMetadata> *QbtClient::torrentsFetchMetadata(const QString &source)
