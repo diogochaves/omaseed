@@ -1521,6 +1521,10 @@ Item {
 
             // #77: a screen reader finds the row by the torrent's name; the speeds, ETA and
             // progress change too often to be in it. Its press is a plain click.
+            // #79: what the row says of the torrent (its status, progress, size, category) is
+            // the description, which is not read out again as it changes.
+            Accessible.description: [statusWord.text, row.progressText, row.sizeText, row.category].filter(
+                                        part => part.length > 0).join(" · ")
             Accessible.name: row.name
             Accessible.role: Accessible.ListItem
             Accessible.selectable: true

@@ -1193,6 +1193,9 @@ TestCase {
         const row = findChild(table, "row_1");
         compare(row.Accessible.role, Accessible.ListItem);
         compare(row.Accessible.name, cellText("name_1"));
+        // #79: its status, progress, size and category are the description.
+        verify(row.Accessible.description.startsWith(cellText("status_1") + " · " + cellText("progress_1")
+                                                     + " · " + cellText("size_1")), row.Accessible.description);
         verify(!row.Accessible.selected);
         table.selectAll();
         verify(row.Accessible.selected);

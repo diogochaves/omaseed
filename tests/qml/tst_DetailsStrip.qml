@@ -36,6 +36,10 @@ TestCase {
                                             });
         compare(findChild(strip, "stripName").text, "Cosmos Laundromat 2K (CC-BY)");
         compare(findChild(strip, "stripStats").text, "87.2 % · ↓ 940 KB/s · ↑ 220 KB/s · 7m 05s");
+        // #79: a screen reader hears the name, the figures as its description.
+        compare(findChild(strip, "stripName").Accessible.role, Accessible.StaticText);
+        compare(findChild(strip, "stripName").Accessible.name, "Cosmos Laundromat 2K (CC-BY)");
+        compare(findChild(strip, "stripName").Accessible.description, "87.2 % · ↓ 940 KB/s · ↑ 220 KB/s · 7m 05s");
         compare(strip.implicitHeight, Math.round(Theme.font.baseSize * 2.2));
     }
 

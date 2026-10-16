@@ -238,9 +238,13 @@ Item {
             objectName: "filesSummary"
             visible: !root.filterShown
 
+            // #79: the Files tab's summary: the count, the facts after it the description.
             Text {
                 id: summaryCount
 
+                Accessible.description: root.summaryFactsText
+                Accessible.name: text
+                Accessible.role: Accessible.StaticText
                 anchors.left: parent.left
                 anchors.verticalCenter: parent.verticalCenter
                 color: Theme.foreground
@@ -878,8 +882,12 @@ Item {
         z: 2
     }
 
-    // A filter that hides everything says so, rather than leaving an empty list.
+    // A filter that hides everything says so, rather than leaving an empty list. #79: by its
+    // words to a screen reader, the key in the description.
     Text {
+        Accessible.description: qsTr("shortcut %1").arg("esc")
+        Accessible.name: qsTr("no file matches")
+        Accessible.role: Accessible.StaticText
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: header.bottom
         anchors.topMargin: Theme.space(16)
@@ -892,6 +900,9 @@ Item {
 
     // #9: every file skipped, and the skipped hidden: say why the list is empty.
     Text {
+        Accessible.description: qsTr("shortcut %1").arg("X")
+        Accessible.name: qsTr("every file is skipped")
+        Accessible.role: Accessible.StaticText
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: header.bottom
         anchors.topMargin: Theme.space(16)
