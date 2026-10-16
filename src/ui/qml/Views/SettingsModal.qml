@@ -1214,6 +1214,9 @@ Item {
     Sheet {
         id: sheet
 
+        // #79: the dialog is "settings", as the nav's caption says; the panes' titles are
+        // headings inside it.
+        accessibleName: qsTr("settings")
         anchors.fill: parent
         // The head belongs to the pane in this figure, not to the sheet: no glyph, no title,
         // and no `esc` chip up there either.
@@ -1410,6 +1413,9 @@ Item {
                         // docs/16 §2: the group's head names the server it edits:
                         // "qbittorrent", then "playground 5.2.3" under it.
                         Label {
+                            // #79: the second group's heading, as the pane titles are.
+                            Accessible.name: qsTr("qBittorrent")
+                            Accessible.role: Accessible.Heading
                             Layout.fillWidth: true
                             Layout.leftMargin: Theme.space(4)
                             Layout.topMargin: Theme.space(14)
@@ -1544,18 +1550,26 @@ Item {
                         Layout.fillWidth: true
                         spacing: Theme.space(10)
 
+                        // #79: the pane's title is its heading.
                         Label {
+                            Accessible.name: text
+                            Accessible.role: Accessible.Heading
                             Layout.fillWidth: true
                             bright: true
                             elide: Text.ElideRight
                             font.weight: Font.DemiBold
+                            objectName: "paneTitle"
                             size: "subtitle"
                             text: root.allRows[root.paneIndex].text
                         }
 
                         // docs/16 §3: which server this is, and that a change is saved as it
                         // is made; after a change, what the server said about it.
+                        // #79: which server and how it saves, as text; what the server said
+                        // after a change comes on its own, as an alert.
                         Label {
+                            Accessible.name: text
+                            Accessible.role: root.qbtNote.length > 0 ? Accessible.AlertMessage : Accessible.StaticText
                             Layout.maximumWidth: Theme.space(320)
                             color: root.qbtNote.length > 0 ? (root.qbtNoteError ? Theme.yellow
                                                                                  : Theme.green)

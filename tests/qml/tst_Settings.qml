@@ -142,6 +142,25 @@ TestCase {
         compare(modal.area, "nav");
     }
 
+    // #79: the dialog is "settings", the pane's title its heading, and the line beside it
+    // (which server, how it saves) text.
+    function test_a_screen_reader_hears_the_dialog_and_the_pane_title() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        const title = testCase.childNamed(modal, "paneTitle");
+        compare(title.Accessible.role, Accessible.Heading);
+        compare(title.Accessible.name, "General");
+        let dialog = title.parent;
+        while (dialog !== null && dialog.Accessible.role !== Accessible.Dialog)
+            dialog = dialog.parent;
+        verify(dialog !== null, "no dialog above the pane");
+        compare(dialog.Accessible.name, "settings");
+        const head = testCase.childNamed(modal, "qbtNavHead");
+        compare(head.Accessible.role, Accessible.Heading);
+        compare(head.Accessible.name, "qBittorrent");
+        modal.close();
+    }
+
     function test_digits_switch_panes_and_tab_hands_over_the_keyboard() {
         const modal = createTemporaryObject(modalComponent, testCase);
         modal.open();

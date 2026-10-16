@@ -122,6 +122,9 @@ Item {
     Label {
         id: plain
 
+        // #79: which server the panes edit, as text.
+        Accessible.name: text
+        Accessible.role: Accessible.StaticText
         anchors.left: parent.left
         anchors.right: parent.right
         dim: true
