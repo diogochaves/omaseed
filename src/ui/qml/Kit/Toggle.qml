@@ -16,6 +16,13 @@ Item {
 
     signal toggled
 
+    /// Flip the switch and say so: what a click, `space` and a screen reader's press or
+    /// toggle all do (#75).
+    function toggle(): void {
+        root.checked = !root.checked;
+        root.toggled();
+    }
+
     readonly property bool hot: root.hasCursor || mouseArea.containsMouse
     readonly property int knobSize: root.trackHeight - Theme.space(4)
     readonly property int trackHeight: Theme.space(14)
@@ -25,6 +32,13 @@ Item {
     Accessible.checked: root.checked
     Accessible.name: root.text
     Accessible.role: Accessible.CheckBox
+
+    // A screen reader's press or toggle is the click (#75); disabled, it does nothing, as the
+    // pointer. Handled here, Qt does not flip `checked` behind the owner's back.
+    Accessible.onPressAction: if (root.enabled)
+                                  root.toggle()
+    Accessible.onToggleAction: if (root.enabled)
+                                   root.toggle()
 
     activeFocusOnTab: true
     height: implicitHeight
@@ -95,14 +109,8 @@ Item {
         cursorShape: Qt.PointingHandCursor
         hoverEnabled: true
 
-        onClicked: {
-            root.checked = !root.checked;
-            root.toggled();
-        }
+        onClicked: root.toggle()
     }
 
-    Keys.onSpacePressed: {
-        root.checked = !root.checked;
-        root.toggled();
-    }
+    Keys.onSpacePressed: root.toggle()
 }

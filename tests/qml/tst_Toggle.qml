@@ -17,6 +17,14 @@ TestCase {
         Toggle {}
     }
 
+    Component {
+        id: toggledSpy
+
+        SignalSpy {
+            signalName: "toggled"
+        }
+    }
+
     function test_track_is_the_spec_proportions() {
         const toggle = createTemporaryObject(toggleComponent, testCase);
         compare(toggle.trackWidth, Theme.space(28));
@@ -89,5 +97,37 @@ TestCase {
         verify(holder.activeFocus, "the click took the keyboard");
         compare(toggle.activeFocus, false);
         compare(findChild(toggle, "focusRing").shown, false);
+    }
+
+    // #75: a screen reader's press, and its toggle, each flip the switch once and say so, as
+    // a click does.
+    function test_the_accessible_press_and_toggle_are_the_click() {
+        const toggle = createTemporaryObject(toggleComponent, testCase, {
+                                                 "checked": false
+                                             });
+        const toggled = createTemporaryObject(toggledSpy, testCase, {
+                                                  "target": toggle
+                                              });
+        toggle.Accessible.pressAction();
+        compare(toggled.count, 1);
+        compare(toggle.checked, true);
+        toggle.Accessible.toggleAction();
+        compare(toggled.count, 2);
+        compare(toggle.checked, false);
+    }
+
+    // #75: disabled, the switch ignores a screen reader, as it ignores the pointer.
+    function test_a_disabled_toggle_ignores_the_accessible_actions() {
+        const toggle = createTemporaryObject(toggleComponent, testCase, {
+                                                 "checked": false,
+                                                 "enabled": false
+                                             });
+        const toggled = createTemporaryObject(toggledSpy, testCase, {
+                                                  "target": toggle
+                                              });
+        toggle.Accessible.pressAction();
+        toggle.Accessible.toggleAction();
+        compare(toggled.count, 0);
+        compare(toggle.checked, false);
     }
 }
