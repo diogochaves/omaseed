@@ -13,6 +13,14 @@ TestCase {
         Tabs {}
     }
 
+    Component {
+        id: activatedSpy
+
+        SignalSpy {
+            signalName: "activated"
+        }
+    }
+
     readonly property var sampleModel: [
         {
             "text": "General",
@@ -97,6 +105,36 @@ TestCase {
         compare(tabs.currentIndex, 1);
         compare(activated, [1, 2, 3, 2, 1]);
         tabs._wheel(0, 600);
+        compare(tabs.currentIndex, 0);
+    }
+
+    // #75: a screen reader's press on a tab is its click: that tab is current, said once.
+    function test_the_accessible_press_on_a_tab_is_the_click() {
+        const tabs = createTemporaryObject(tabsComponent, testCase, {
+                                               "model": testCase.sampleModel
+                                           });
+        const activated = createTemporaryObject(activatedSpy, testCase, {
+                                                    "target": tabs
+                                                });
+        const tab = findChild(tabs, "tab_2");
+        verify(tab);
+        tab.Accessible.pressAction();
+        compare(activated.count, 1);
+        compare(activated.signalArguments[0][0], 2);
+        compare(tabs.currentIndex, 2);
+    }
+
+    // #75: disabled, the strip ignores a screen reader's press, as it ignores the pointer.
+    function test_a_disabled_strip_ignores_the_accessible_press() {
+        const tabs = createTemporaryObject(tabsComponent, testCase, {
+                                               "model": testCase.sampleModel,
+                                               "enabled": false
+                                           });
+        const activated = createTemporaryObject(activatedSpy, testCase, {
+                                                    "target": tabs
+                                                });
+        findChild(tabs, "tab_2").Accessible.pressAction();
+        compare(activated.count, 0);
         compare(tabs.currentIndex, 0);
     }
 }

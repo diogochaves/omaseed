@@ -21,6 +21,13 @@ Item {
 
     signal activated(int index)
 
+    /// Make tab `index` the current one and say so: what a click and a screen reader's press
+    /// do (#75).
+    function select(index: int): void {
+        root.currentIndex = index;
+        root.activated(index);
+    }
+
     /// Move the current tab `delta` tabs, stopping at the ends, and say so as a click does.
     function step(delta: int): void {
         const to = Math.max(0, Math.min(tabRepeater.count - 1, root.currentIndex + delta));
@@ -96,8 +103,13 @@ Item {
                 Accessible.name: tab.modelData.text
                 Accessible.role: Accessible.PageTab
                 Accessible.selected: tab.current
+                // A screen reader's press is the click (#75); disabled, it does nothing, as
+                // the pointer.
+                Accessible.onPressAction: if (tab.enabled)
+                                              root.select(tab.index)
                 height: root._tabHeight
                 implicitWidth: content.implicitWidth + Theme.space(16)
+                objectName: "tab_" + tab.index
 
                 Row {
                     id: content
@@ -150,10 +162,7 @@ Item {
                     cursorShape: Qt.PointingHandCursor
                     hoverEnabled: true
 
-                    onClicked: {
-                        root.currentIndex = tab.index;
-                        root.activated(tab.index);
-                    }
+                    onClicked: root.select(tab.index)
                 }
             }
         }
