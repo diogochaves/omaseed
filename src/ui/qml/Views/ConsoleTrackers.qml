@@ -67,13 +67,18 @@ Column {
             required property int index
             readonly property var modelData: root.rows[row.index] ?? ({})
 
+            /// Ask for the tracker: a tap, or a screen reader's press.
+            function activate(): void {
+                if (row.enabled)
+                    root.activated(row.modelData.host);
+            }
+
             // #77: a list item named by the tracker, its status the description; its press is
             // the click, and does nothing while disabled.
             Accessible.description: row.modelData.status ?? ""
             Accessible.name: row.modelData.host ?? ""
             Accessible.role: Accessible.ListItem
-            Accessible.onPressAction: if (row.enabled)
-                                          root.activated(row.modelData.host)
+            Accessible.onPressAction: row.activate()
             height: Theme.space(30)
             objectName: "consoleTracker_" + row.index
             width: root.width
@@ -263,7 +268,7 @@ Column {
             }
 
             TapHandler {
-                onTapped: root.activated(row.modelData.host)
+                onTapped: row.activate()
             }
         }
     }

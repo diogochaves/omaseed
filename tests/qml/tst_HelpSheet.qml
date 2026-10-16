@@ -109,6 +109,33 @@ TestCase {
         compare(runs, [target.action]);
     }
 
+    // #77: a row is a list item named by what its key does, the key its description; while
+    // searching, a screen reader's press is the click: the cursor there, then it runs.
+    function test_a_row_takes_the_accessible_press() {
+        const sheet = init();
+        const first = Keymap.helpRows(Keymap.columns[0])[0];
+        let row = childNamed(sheet, "helpRow_" + first.action);
+        compare(row.Accessible.role, Accessible.ListItem);
+        compare(row.Accessible.description, first.helpKeys);
+        verify(row.Accessible.name.length > 0);
+        const runs = [];
+        sheet.runRequested.connect(action => runs.push(action));
+        row.Accessible.pressAction();
+        compare(runs, [], "a press without a filter ran");
+
+        const filter = childNamed(sheet, "helpFilter");
+        filter.focusInput();
+        keyClick("s");
+        tryCompare(sheet, "query", "s");
+        const target = sheet.cursorIndex === 0 ? sheet.matchedRows[1] : sheet.matchedRows[0];
+        row = childNamed(sheet, "helpRow_" + target.action);
+        row.Accessible.pressAction();
+        compare(sheet.cursorRow.action, target.action);
+        verify(row.Accessible.selected);
+        row.Accessible.pressAction();
+        compare(runs, [target.action]);
+    }
+
     // Without a filter there is no command list: a click runs nothing.
     function test_a_click_without_a_filter_does_nothing() {
         const sheet = init();

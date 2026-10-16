@@ -1314,6 +1314,7 @@ Item {
             // on editing end): a click on the pane's empty space or a switch would otherwise
             // leave the caret where it was. Over everything, and it lets every press go on
             // to what is under it.
+            // a11y-ignore A2: no control: it hears presses and passes every one on (#77)
             MouseArea {
                 acceptedButtons: Qt.AllButtons
                 anchors.fill: parent
@@ -1572,6 +1573,15 @@ Item {
 
                         // A click does what the key does: closes the modal.
                         Label {
+                            id: settingsEsc
+
+                            // #77: a "close" button, its key the description; its press is
+                            // the click.
+                            Accessible.description: "esc"
+                            Accessible.name: qsTr("close")
+                            Accessible.role: Accessible.Button
+                            Accessible.onPressAction: if (settingsEsc.enabled)
+                                                          root.dismiss()
                             color: escHover.hovered ? Theme.accent : Theme.dimForeground
                             objectName: "settingsEsc"
                             size: "caption"
@@ -2097,6 +2107,15 @@ Item {
                                 // `?` as a key, in the outline of the sheets' icon squares.
                                 // A click opens the help sheet, as the key does elsewhere.
                                 Rectangle {
+                                    id: keysHelpKey
+
+                                    // #77: a button to the `?` sheet, the key its
+                                    // description; its press is the click.
+                                    Accessible.description: "?"
+                                    Accessible.name: qsTr("every shortcut")
+                                    Accessible.role: Accessible.Button
+                                    Accessible.onPressAction: if (keysHelpKey.enabled)
+                                                                  root.helpRequested()
                                     anchors.verticalCenter: parent.verticalCenter
                                     border.color: helpKeyHover.hovered ? Theme.fill(Theme.borderHover)
                                                                        : Theme.fill(Theme.borderIdle)

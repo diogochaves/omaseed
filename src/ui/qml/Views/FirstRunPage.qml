@@ -710,6 +710,12 @@ Flickable {
                     readonly property int number: index + 1
                     readonly property bool goesBack: stepName.number === 1 && root.canGoBack
 
+                    // #77: a step that goes back is a link to it; its press is the click.
+                    Accessible.ignored: !stepName.goesBack
+                    Accessible.name: stepName.modelData
+                    Accessible.role: Accessible.Link
+                    Accessible.onPressAction: if (stepName.enabled && stepName.goesBack)
+                                                  root.goBack()
                     bright: number === root.stepNumber
                     color: stepName.goesBack && stepHover.hovered ? Theme.accent
                                                                    : number < root.stepNumber ? Theme.green
@@ -781,7 +787,21 @@ Flickable {
                     // hover, enter and click work as on the other rows.
                     readonly property bool dimmed: optionRow.modelData.dimmed
 
+                    /// Choose this row: a click, or a screen reader's press.
+                    function choose(): void {
+                        root.cursorIndex = optionRow.index;
+                        root.chooseCursor();
+                    }
+
+                    // #77: each way to start is a button named by its title, the detail its
+                    // description; its press is the click, and does nothing while disabled.
+                    Accessible.description: optionRow.modelData.detail
+                    Accessible.name: optionRow.modelData.title
+                    Accessible.role: Accessible.Button
+                    Accessible.onPressAction: if (optionRow.enabled)
+                                                  optionRow.choose()
                     Layout.fillWidth: true
+                    objectName: "setupOption" + optionRow.index
                     color: optionRow.hot ? Theme.fill(Theme.fillHover) : "transparent"
                     implicitHeight: rowLayout.implicitHeight + Theme.space(16)
                     radius: Theme.cornerRadius
@@ -793,10 +813,7 @@ Flickable {
                     }
 
                     TapHandler {
-                        onTapped: {
-                            root.cursorIndex = optionRow.index;
-                            root.chooseCursor();
-                        }
+                        onTapped: optionRow.choose()
                     }
 
                     RowLayout {

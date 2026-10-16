@@ -82,6 +82,7 @@ Sheet {
         radius: Theme.cornerRadius
 
         // The box's padding: a click there puts the caret at the end, as below the text does.
+        // a11y-ignore A2: the pointer's way into the editor, which a screen reader finds (#77)
         MouseArea {
             anchors.fill: parent
             cursorShape: Qt.IBeamCursor
@@ -103,6 +104,7 @@ Sheet {
             contentWidth: width
 
             // The editor is only as tall as its lines: the rest of the box focuses it too.
+            // a11y-ignore A2: the pointer's way into the editor, as above (#77)
             MouseArea {
                 cursorShape: Qt.IBeamCursor
                 height: scroller.contentHeight

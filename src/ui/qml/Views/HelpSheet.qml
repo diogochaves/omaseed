@@ -288,6 +288,16 @@ FocusScope {
                                                                         && root.cursorRow.action
                                                                         === keyRow.modelData.action
 
+                                        // #77: a list item named by what the key does, the
+                                        // keys its description, selected under the cursor.
+                                        // Its press is the click: while searching it moves
+                                        // the cursor there, or runs the row under it.
+                                        Accessible.description: keyRow.modelData.helpKeys
+                                        Accessible.name: aboutText.text
+                                        Accessible.role: Accessible.ListItem
+                                        Accessible.selected: keyRow.current
+                                        Accessible.onPressAction: if (keyRow.enabled)
+                                                                      root.clickRow(keyRow.modelData)
                                         Layout.fillWidth: true
                                         color: keyRow.current ? Theme.fill(Theme.fillHover) :
                                                                 "transparent"

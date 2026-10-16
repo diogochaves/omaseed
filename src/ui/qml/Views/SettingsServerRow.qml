@@ -32,6 +32,15 @@ Rectangle {
 
     readonly property bool hot: root.hasCursor || mouseArea.containsMouse
 
+    // #77: a button named by the server (or "add a server"), its line and status the
+    // description; its press is a left click, and does nothing while disabled.
+    Accessible.description: [root.description, root.dashed ? "" : root.status].filter(part => part.length
+                                                                                       > 0).join(" · ")
+    Accessible.name: root.title
+    Accessible.role: Accessible.Button
+    Accessible.onPressAction: if (root.enabled)
+                                  root.clicked()
+
     border.color: root.hasCursor ? Theme.accent : Theme.fill(Theme.hairlineAlpha)
     border.width: 1
     color: root.hot ? Theme.fill(Theme.fillHover) : "transparent"

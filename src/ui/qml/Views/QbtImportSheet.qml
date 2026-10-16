@@ -293,6 +293,19 @@ Sheet {
             required property var modelData
             readonly property bool ticked: sheet.checks[importRow.modelData.key] === true
 
+            // #77: a check box named by the setting, what the server has and what the file has
+            // its description; its toggle and its press are the click (and `space`).
+            Accessible.checkable: true
+            Accessible.checked: importRow.ticked
+            Accessible.description: qsTr("now %1 · from the file %2").arg(sheet.cellText(importRow.modelData, "now"))
+                                                                        .arg(sheet.cellText(importRow.modelData, "from"))
+            // a11y-ignore A6: the setting's words, fixed for the row
+            Accessible.name: sheet.labelFor(importRow.modelData)
+            Accessible.role: Accessible.CheckBox
+            Accessible.onPressAction: if (importRow.enabled)
+                                          sheet.toggle(importRow.modelData.key)
+            Accessible.onToggleAction: if (importRow.enabled)
+                                           sheet.toggle(importRow.modelData.key)
             Layout.fillWidth: true
             activeFocusOnTab: true
             implicitHeight: rowLayout.implicitHeight + Theme.space(6)

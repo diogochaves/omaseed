@@ -369,6 +369,7 @@ Sheet {
                         onAccepted: root.triggerPrimary()
                     }
 
+                    // a11y-ignore A2: the pointer's way off `global`; the chip does it too (#77)
                     MouseArea {
                         anchors.fill: parent
                         cursorShape: Qt.IBeamCursor
@@ -420,6 +421,7 @@ Sheet {
                         onAccepted: root.triggerPrimary()
                     }
 
+                    // a11y-ignore A2: the pointer's way off `global`; the chip does it too (#77)
                     MouseArea {
                         anchors.fill: parent
                         cursorShape: Qt.IBeamCursor

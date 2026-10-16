@@ -277,6 +277,96 @@ TestCase {
         compare(helpSpy.count, 1);
     }
 
+    Component {
+        id: settingsRowComponent
+
+        SettingsRow {
+            description: "Off keeps the bundled Tokyo Night."
+            title: "Follow the Omarchy theme"
+            width: 400
+        }
+    }
+
+    Component {
+        id: restoreComponent
+
+        Item {
+            property alias sheet: restore
+
+            anchors.fill: parent
+
+            RestoreSheet {
+                id: restore
+
+                anchors.fill: parent
+            }
+        }
+    }
+
+    // #77: a restore part is a check box named by the part; its toggle and press tick it,
+    // and a part the file lacks takes neither.
+    function test_a_restore_part_is_a_check_box() {
+        const host = createTemporaryObject(restoreComponent, testCase);
+        const sheet = host.sheet;
+        sheet.openFor({
+                          "title": "Restore",
+                          "parts": [{
+                                  "key": "servers",
+                                  "label": "servers",
+                                  "detail": "two servers",
+                                  "enabled": true,
+                                  "checked": true
+                              }, {
+                                  "key": "torrents",
+                                  "label": "torrents",
+                                  "enabled": false,
+                                  "checked": false
+                              }]
+                      });
+        const part = testCase.childNamed(sheet, "restorePart-servers");
+        compare(part.Accessible.role, Accessible.CheckBox);
+        compare(part.Accessible.name, "servers");
+        compare(part.Accessible.description, "two servers");
+        verify(part.Accessible.checked);
+        part.Accessible.toggleAction();
+        verify(!part.Accessible.checked);
+        part.Accessible.pressAction();
+        verify(part.Accessible.checked);
+        const missing = testCase.childNamed(sheet, "restorePart-torrents");
+        missing.Accessible.toggleAction();
+        verify(!missing.Accessible.checked, "a part the file lacks was ticked");
+        sheet.close();
+    }
+
+    // #77: the pane head's `esc` and the Keybindings pane's `?` are buttons whose press is
+    // their click; a behaviour row is a group named by its title around its control.
+    function test_the_heads_buttons_and_the_rows_for_a_screen_reader() {
+        const row = createTemporaryObject(settingsRowComponent, testCase);
+        compare(row.Accessible.role, Accessible.Grouping);
+        compare(row.Accessible.name, "Follow the Omarchy theme");
+        compare(row.Accessible.description, "Off keeps the bundled Tokyo Night.");
+
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        keyClick(Qt.Key_4);
+        helpSpy.clear();
+        helpSpy.target = modal;
+        const cap = testCase.childNamed(modal, "keysHelpKey");
+        compare(cap.Accessible.role, Accessible.Button);
+        compare(cap.Accessible.name, "every shortcut");
+        cap.Accessible.pressAction();
+        compare(helpSpy.count, 1);
+
+        closedSpy.clear();
+        closedSpy.target = modal;
+        const esc = testCase.childNamed(modal, "settingsEsc");
+        compare(esc.Accessible.role, Accessible.Button);
+        compare(esc.Accessible.name, "close");
+        esc.Accessible.pressAction();
+        verify(!modal.opened);
+        compare(closedSpy.count, 1);
+    }
+
     // docs/34 D3 a, D5 a: the qBittorrent group's server is a select once there are two
     // servers; a click opens its list on the next one, enter moves the app there, and the
     // footer says the library went too. With one, a label that does nothing.
@@ -381,6 +471,16 @@ TestCase {
         compare(addRow.title, "add a server");
         compare(addRow.status, "a");
         verify(addRow.dashed);
+
+        // #77: each row is a button named by its server, its line and status the description.
+        compare(row.Accessible.role, Accessible.Button);
+        compare(row.Accessible.name, "playground");
+        compare(row.Accessible.description, row.description + " · in use");
+        compare(addRow.Accessible.name, "add a server");
+        let clicks = 0;
+        row.clicked.connect(() => clicks++);
+        row.Accessible.pressAction();
+        compare(clicks, 1);
 
         // A failed test turns the row red and says "retrying".
         App.serverList.setProbeResult(id, false, "", "", -1, 12, "connection refused");

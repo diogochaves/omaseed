@@ -219,4 +219,22 @@ TestCase {
 
         SignalSpy {}
     }
+
+    // #77: a row is a check box named by its setting, the values its description; its toggle
+    // and its press tick and untick it, as a click.
+    function test_a_row_is_a_check_box_a_screen_reader_ticks() {
+        const sheet = createTemporaryObject(sheetComponent, testCase);
+        sheet.openFor(info());
+        const r = row(sheet, "max_uploads");
+        compare(r.Accessible.role, Accessible.CheckBox);
+        compare(r.Accessible.name, "upload slots");
+        compare(r.Accessible.description, "now 20 · from the file 40");
+        const was = r.ticked;
+        compare(r.Accessible.checked, was);
+        r.Accessible.toggleAction();
+        compare(r.ticked, !was);
+        compare(r.Accessible.checked, !was);
+        r.Accessible.pressAction();
+        compare(r.ticked, was);
+    }
 }

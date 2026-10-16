@@ -107,6 +107,7 @@ Item {
         y: Theme.space(3)
     }
 
+    // a11y-ignore A2: the line itself is the list item; the lint misreads `styled()`'s regex (#77)
     MouseArea {
         id: mouse
 

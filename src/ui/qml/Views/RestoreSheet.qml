@@ -120,6 +120,18 @@ Sheet {
             readonly property bool available: sheet.available(partRow.modelData)
             readonly property bool ticked: sheet.effective(partRow.modelData)
 
+            // #77: a check box named by the part, its detail the description; its toggle and
+            // its press are the click (and `space`), and do nothing on a part the file lacks.
+            Accessible.checkable: true
+            Accessible.checked: partRow.ticked
+            Accessible.description: [partRow.modelData.side ?? "", partRow.modelData.detail ?? ""]
+                                    .filter(part => part.length > 0).join(" · ")
+            Accessible.name: partRow.modelData.label
+            Accessible.role: Accessible.CheckBox
+            Accessible.onPressAction: if (partRow.enabled && partRow.available)
+                                          sheet.toggle(partRow.modelData.key)
+            Accessible.onToggleAction: if (partRow.enabled && partRow.available)
+                                           sheet.toggle(partRow.modelData.key)
             Layout.fillWidth: true
             activeFocusOnTab: partRow.available
             implicitHeight: partColumn.implicitHeight + Theme.space(8)

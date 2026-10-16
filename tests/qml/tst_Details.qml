@@ -338,6 +338,18 @@ TestCase {
 
         compare(view.cursorIndex, 0);
         verify(findChild(view, "generalRow_0").hasCursor);
+        // #77: a row is a list item named by its key, the value its description; a screen
+        // reader's press is the click: the cursor goes there and the value is copied.
+        const second = findChild(view, "generalRow_1");
+        compare(second.Accessible.role, Accessible.ListItem);
+        compare(second.Accessible.name, second.entry.key);
+        verify(second.Accessible.description.indexOf(second.entry.value) === 0);
+        second.Accessible.pressAction();
+        compare(view.cursorIndex, 1);
+        compare(valueSpy.count, 1);
+        valueSpy.clear();
+        keyClick("k");
+        compare(view.cursorIndex, 0);
         keyClick("j");
         compare(view.cursorIndex, 1);
         verify(findChild(view, "generalRow_1").hasCursor);

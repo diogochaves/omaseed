@@ -37,6 +37,13 @@ Rectangle {
     /// text instead, lined up with its left edge.
     readonly property bool stacked: root.width > 0 && root.width < Theme.space(326)
 
+    // #77: a group named by its title around its control, so the switch or field a screen
+    // reader lands on says what it is for. The row's click does what its control does, and
+    // the control takes the screen reader's press, so the row has no press of its own.
+    Accessible.description: root.description
+    Accessible.name: root.title
+    Accessible.role: Accessible.Grouping
+
     border.color: root.hasCursor ? Theme.accent : Theme.fill(Theme.hairlineAlpha)
     border.width: 1
     color: root.hot ? Theme.fill(Theme.fillHover) : "transparent"

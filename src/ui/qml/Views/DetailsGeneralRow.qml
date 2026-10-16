@@ -26,6 +26,14 @@ Rectangle {
                                                                                ? Theme.dimForeground :
                                                                                  Theme.foreground
 
+    // #77: a list item named by its key, the value (live, some of them) the description; its
+    // press is the click, and does nothing while disabled.
+    Accessible.description: root.entry.value + (root.hasTail ? " · " + root.entry.tail : "")
+    Accessible.name: root.entry.key
+    Accessible.role: Accessible.ListItem
+    Accessible.onPressAction: if (root.enabled)
+                                  root.clicked()
+
     border.color: root.hasCursor ? Theme.fill(Theme.borderHover) : "transparent"
     border.width: root.hasCursor ? 1 : 0
     color: root.hasCursor ? Theme.fill(Theme.fillHover) : mouse.containsMouse ? Theme.fill(

@@ -817,4 +817,28 @@ TestCase {
 
         SignalSpy {}
     }
+
+    // #77: each way to start is a button named by its title; its press chooses it, as a
+    // click does. Then "server", the step that goes back, is a link whose press goes back.
+    function test_the_choices_and_the_way_back_take_the_accessible_press() {
+        const page = createTemporaryObject(pageComponent, testCase, {
+                                               "candidates": []
+                                           });
+        compare(page.page, "choose");
+        const remote = findChild(page, "setupOption0");
+        compare(remote.Accessible.role, Accessible.Button);
+        compare(remote.Accessible.name, "Connect to a remote server");
+        compare(remote.Accessible.description, "A seedbox, a NAS, or qui's proxy.");
+        remote.Accessible.pressAction();
+        compare(page.page, "apikey");
+        compare(page.chosenKind, "remote");
+
+        const back = findChild(page, "setupStep1");
+        compare(back.Accessible.role, Accessible.Link);
+        compare(back.Accessible.name, "server");
+        verify(!back.Accessible.ignored);
+        verify(findChild(page, "setupStep2").Accessible.ignored, "a step that can't go back is a link");
+        back.Accessible.pressAction();
+        compare(page.page, "choose");
+    }
 }
