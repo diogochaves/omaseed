@@ -642,6 +642,26 @@ TestCase {
         compare(App.serverPrefs.values.use_https, true);
     }
 
+    // #78: a row's switch is named by the row's title, a sibling text; a pick is named by
+    // the setting, its value the description, and its ▾ in neither.
+    function test_a_switch_and_a_pick_are_named_by_their_row() {
+        let modal = openOn(1);
+        const dhtRow = testCase.childNamed(modal, "qbtRow-dht");
+        const toggle = testCase.childNamed(dhtRow, "rowToggle");
+        verify(dhtRow.title.length > 0);
+        compare(toggle.Accessible.name, dhtRow.title);
+        modal.destroy();
+
+        modal = openOn(0);
+        const daysRow = testCase.childNamed(modal, "qbtRow-scheduler_days");
+        const pick = testCase.childNamed(daysRow, "pickButton");
+        compare(pick.Accessible.name, "Days");
+        compare(pick.Accessible.description, pick.valueText);
+        verify(pick.valueText.length > 0);
+        verify(pick.valueText.indexOf("▾") < 0);
+        compare(pick.text, pick.valueText + "  ▾");
+    }
+
     function test_a_choice_row_cycles_with_enter() {
         const modal = openOn(1);
         const row = testCase.childNamed(modal, "qbtRow-encryption");

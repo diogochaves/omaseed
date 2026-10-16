@@ -1650,6 +1650,8 @@ Item {
                             visible: root.paneIndex === 0
 
                             SettingsRow {
+                                id: serversRailRow
+
                                 Layout.fillWidth: true
                                 // Batch-2 J8: plain words, and true to Rail.qml, which draws
                                 // the group only from two servers and never while this is off.
@@ -1665,6 +1667,8 @@ Item {
                                 }
 
                                 Toggle {
+                                    // #78: named by its row, whose title is a sibling text.
+                                    Accessible.name: serversRailRow.title
                                     checked: App.showServersGroup
 
                                     onToggled: App.showServersGroup = checked
@@ -1672,6 +1676,8 @@ Item {
                             }
 
                             SettingsRow {
+                                id: pathMapRow
+
                                 Layout.fillWidth: true
                                 description: qsTr("Rewrites remote paths to local mounts before asking the file manager.")
                                 glyph: Glyphs.home
@@ -1685,6 +1691,8 @@ Item {
                                 }
 
                                 Toggle {
+                                    // #78: named by its row, whose title is a sibling text.
+                                    Accessible.name: pathMapRow.title
                                     checked: App.pathMapEnabled
 
                                     onToggled: App.pathMapEnabled = checked
@@ -1695,6 +1703,8 @@ Item {
                             // was not merged yet. It is the delete confirm's remembered
                             // default (Fig. 8's "also delete the files" toggle).
                             SettingsRow {
+                                id: deleteFilesRow
+
                                 Layout.fillWidth: true
                                 description: qsTr("The delete confirm opens with \"also delete the files\" already on.")
                                 glyph: Glyphs.statusErrored
@@ -1709,6 +1719,8 @@ Item {
                                 }
 
                                 Toggle {
+                                    // #78: named by its row, whose title is a sibling text.
+                                    Accessible.name: deleteFilesRow.title
                                     checked: App.deleteFilesDefault
 
                                     onToggled: App.deleteFilesDefault = checked
@@ -2000,6 +2012,8 @@ Item {
                                     }
 
                                     Toggle {
+                                        // #78: named by its row, whose title is a sibling text.
+                                        Accessible.name: notifyRow.title
                                         checked: App.notificationsEnabled[notifyRow.modelData.key] === true
 
                                         onToggled: App.setNotificationEnabled(notifyRow.modelData.key, checked)
@@ -2069,6 +2083,8 @@ Item {
                                 }
 
                                 Toggle {
+                                    // #78: named by its row, whose title is a sibling text.
+                                    Accessible.name: weeklyRow.title
                                     checked: App.notificationsEnabled.weekly === true
 
                                     onToggled: App.setNotificationEnabled("weekly", checked)
@@ -2186,6 +2202,8 @@ Item {
                             visible: root.paneIndex === 4
 
                             SettingsRow {
+                                id: followThemeRow
+
                                 Layout.fillWidth: true
                                 description: qsTr("Off keeps the bundled Tokyo Night whatever the desktop does.")
                                 glyph: Glyphs.appearance
@@ -2199,6 +2217,8 @@ Item {
                                 }
 
                                 Toggle {
+                                    // #78: named by its row, whose title is a sibling text.
+                                    Accessible.name: followThemeRow.title
                                     checked: App.followOmarchyTheme
 
                                     onToggled: App.followOmarchyTheme = checked
@@ -2565,6 +2585,8 @@ Item {
                                 }
 
                                 Toggle {
+                                    // #78: named by its row, whose title is a sibling text.
+                                    Accessible.name: pulseRow.title
                                     checked: App.pulseRows
 
                                     onToggled: App.pulseRows = checked
@@ -2750,6 +2772,10 @@ Item {
                                     Button {
                                         id: copySourceButton
 
+                                        // #78: named by what it picks; the server it shows is
+                                        // the description, and the ▾ neither.
+                                        Accessible.description: root.copySourceName
+                                        Accessible.name: qsTr("copy from")
                                         bordered: true
                                         objectName: "copySourceButton"
                                         text: root.copySourceName + "  " + Glyphs.chevronDown

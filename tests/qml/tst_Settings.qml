@@ -105,6 +105,30 @@ TestCase {
             App.serverList.remove(App.serverList.idAt(0));
     }
 
+    /// Every `Toggle` under `item`: the kit's switch, known by its track.
+    function togglesUnder(item, found) {
+        if (item.trackWidth !== undefined && typeof item.toggle === "function")
+            found.push(item);
+        for (let i = 0; i < item.children.length; ++i)
+            testCase.togglesUnder(item.children[i], found);
+        return found;
+    }
+
+    // #78: every switch in the modal has a name, its row's title: the title is a sibling
+    // text, so without one a screen reader landed on a switch named nothing.
+    function test_every_switch_is_named_by_its_row() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        const toggles = testCase.togglesUnder(modal, []);
+        verify(toggles.length >= 10, "found " + toggles.length + " switches");
+        const names = toggles.map(toggle => toggle.Accessible.name);
+        for (let i = 0; i < names.length; ++i)
+            verify(names[i].length > 0, "switch " + i + " has no name");
+        verify(names.indexOf("Show the Servers group in the rail") >= 0);
+        verify(names.indexOf("Follow the Omarchy theme") >= 0);
+        verify(names.indexOf("Pulse sending rows") >= 0);
+        verify(names.indexOf("Weekly recap") >= 0);
+    }
+
     function test_the_nav_has_the_seven_rows() {
         // The figure's six, and Backup after Appearance (#31, docs/24 §3).
         const modal = createTemporaryObject(modalComponent, testCase);
