@@ -15,6 +15,7 @@ import Omaseed.Kit
 // back to the input.
 //
 // Hand-formatted; do NOT run `qmlformat` on it (typed functions, see Menu.qml).
+// a11y-ignore A2: the pointer's way into the field; a screen reader finds the input itself (#77)
 MouseArea {
     id: root
 

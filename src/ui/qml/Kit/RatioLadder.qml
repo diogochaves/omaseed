@@ -79,6 +79,7 @@ Item {
         cursorShape: root.hoveredIndex >= 0 ? Qt.PointingHandCursor : Qt.ArrowCursor
     }
 
+    // a11y-ignore A2: a chart's dots; a screen reader reaches each torrent in the library (#77)
     TapHandler {
         onTapped: eventPoint => {
             const index = root.indexAt(eventPoint.position.x, eventPoint.position.y);

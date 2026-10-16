@@ -25,6 +25,7 @@ Rectangle {
 
     color: Qt.rgba(Theme.background.r, Theme.background.g, Theme.background.b, root.scrimAlpha)
 
+    // a11y-ignore A2: a dismiss scrim, not a control; esc closes what it lies under too (#77)
     MouseArea {
         acceptedButtons: Qt.AllButtons
         anchors.fill: parent

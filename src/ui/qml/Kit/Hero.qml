@@ -317,6 +317,13 @@ Item {
         Rectangle {
             id: loneDot
 
+            // #77: at the narrowest step the dot is the server line's button, named as it
+            // is; only while the server can switch, and not while disabled.
+            Accessible.ignored: !root.serverSwitchable
+            Accessible.name: qsTr("switch server")
+            Accessible.role: Accessible.Button
+            Accessible.onPressAction: if (loneDot.enabled && root.serverSwitchable)
+                                          root.serverClicked()
             Layout.alignment: Qt.AlignVCenter
             color: statusDot.color
             implicitHeight: Theme.space(7)
@@ -546,7 +553,16 @@ Item {
         Item {
             id: upBox
 
+            // #77: with the views, the ↑ number is a button to the seed console (the "seed"
+            // tab does the same), its speed the description; without them it is no control.
+            Accessible.description: upStat.value
+            Accessible.ignored: root.views.length === 0
+            Accessible.name: qsTr("seed console")
+            Accessible.role: Accessible.Button
+            Accessible.onPressAction: if (upBox.enabled && root.views.length > 0)
+                                          root.upClicked()
             Layout.alignment: Qt.AlignVCenter
+            objectName: "upBox"
             implicitHeight: upStat.implicitHeight
             implicitWidth: upStat.implicitWidth
             visible: !(root.level >= 3 && root.searchOpen)
@@ -603,7 +619,17 @@ Item {
                     required property var modelData
                     readonly property bool current: viewTab.modelData.key === root.currentView
 
+                    // #77: a page tab, selected while its view shows; the key is the
+                    // description. Its press is the click.
+                    Accessible.description: viewTab.modelData.hint ?? ""
+                    Accessible.name: viewTab.modelData.label
+                    Accessible.role: Accessible.PageTab
+                    Accessible.selectable: true
+                    Accessible.selected: viewTab.current
+                    Accessible.onPressAction: if (viewTab.enabled)
+                                                  root.viewSelected(viewTab.modelData.key)
                     implicitHeight: Theme.space(34)
+                    objectName: "viewTab_" + viewTab.modelData.key
                     implicitWidth: tabRow.implicitWidth + Theme.space(20)
 
                     Row {

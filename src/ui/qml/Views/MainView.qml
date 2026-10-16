@@ -1754,6 +1754,8 @@ Item {
             placement: App.detailsPlacement
             // docs/17 M10.1: folded at the bottom, the pane leaves this one line.
             foldedBar: detailsStrip
+            // #77: what a screen reader calls the folded column on the right.
+            foldedName: qsTr("show details")
             visible: !root.libraryEmpty && !root.firstSync && !root.noList && !root.consoleShown
                      && !root.logShown
 

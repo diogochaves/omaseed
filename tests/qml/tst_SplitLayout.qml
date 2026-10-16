@@ -301,6 +301,33 @@ TestCase {
         compare(toggles, 1);
     }
 
+    // #77: the folded column is a button named by the caller; a screen reader's press
+    // unfolds, once; disabled, it does nothing.
+    function test_the_folded_column_is_a_button_that_unfolds() {
+        const split = createTemporaryObject(splitComponent, testCase, {
+                                                "width": 1400,
+                                                "height": 600,
+                                                "placement": "right",
+                                                "foldedName": "show details",
+                                                "main": createTemporaryObject(itemComponent, testCase),
+                                                "side": createTemporaryObject(itemComponent, testCase)
+                                            });
+        split.toggleFold();
+        compare(split.folded, true);
+        const column = findChild(split, "foldedColumn");
+        compare(column.Accessible.role, Accessible.Button);
+        compare(column.Accessible.name, "show details");
+        let toggles = 0;
+        split.foldToggled.connect(() => toggles++);
+        split.enabled = false;
+        column.Accessible.pressAction();
+        compare(split.folded, true, "a disabled split unfolded");
+        split.enabled = true;
+        column.Accessible.pressAction();
+        compare(split.folded, false);
+        compare(toggles, 1);
+    }
+
     // docs/17 M10.4: on the right the same rules; folded is a 12 u column, and a click on it
     // unfolds.
     function test_the_right_dock_folds_to_a_column() {

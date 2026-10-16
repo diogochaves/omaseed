@@ -39,6 +39,13 @@ Item {
     MouseArea {
         id: stripMouse
 
+        // #77: the line is a button that unfolds the pane, as ▴ does. A MouseArea's `enabled`
+        // is its own flag alone, so the strip's says whether it is disabled.
+        Accessible.name: qsTr("show details")
+        Accessible.role: Accessible.Button
+        Accessible.onPressAction: if (root.enabled)
+                                      root.unfoldRequested()
+
         /// The pointer is on ▴, give or take `Theme.space(6)`.
         readonly property bool overChevron: {
             const at = chevron.mapToItem(stripMouse, 0, 0);

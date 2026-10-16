@@ -79,6 +79,7 @@ Item {
         y: root.vertical ? root.thumbStart : 0
     }
 
+    // a11y-ignore A2: the keys and the wheel scroll the list too (#77)
     MouseArea {
         id: press
 

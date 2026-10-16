@@ -885,6 +885,7 @@ Item {
         // it started on scrolls out and its delegate goes. A press that never travels the
         // start-drag distance is the row's click, as the delegate's own MouseArea has it.
         // Wheel events are not taken, so they still reach the list.
+        // a11y-ignore A2: the pointer's layer over the rows, which a screen reader presses itself (#77)
         MouseArea {
             id: dragArea
 

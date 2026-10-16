@@ -248,6 +248,13 @@ Item {
                 }
 
                 Text {
+                    id: copyLink
+
+                    // #77: a link, as the notice's actions; its press is the click.
+                    Accessible.name: copyLink.text
+                    Accessible.role: Accessible.Link
+                    Accessible.onPressAction: if (copyLink.enabled)
+                                                  root.copyRequested(root.details)
                     Layout.alignment: Qt.AlignRight
                     color: copyMouse.containsMouse ? Theme.brightForeground : Theme.accent
                     font.family: Theme.fontFamily

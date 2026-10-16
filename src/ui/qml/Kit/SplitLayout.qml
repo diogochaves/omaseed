@@ -45,6 +45,8 @@ Item {
     property bool sideVisible: true
     /// The side is folded (docs/17 M10): `foldedBar` or the folded column instead of `side`.
     property bool folded: false
+    /// What a screen reader calls the folded column, a button that unfolds the side (#77).
+    property string foldedName: qsTr("unfold")
     /// "auto" docks on the right only when the window is wide in both senses (at least the
     /// breakpoint, and 16:10 or wider); "right" and "bottom" pin the side there.
     property string placement: "auto"
@@ -208,6 +210,12 @@ Item {
     Rectangle {
         id: foldedColumn
 
+        // #77: a button that unfolds the side, named by the caller; its press is the click.
+        Accessible.name: root.foldedName
+        Accessible.role: Accessible.Button
+        Accessible.onPressAction: if (foldedColumn.enabled)
+                                      root.toggleFold()
+
         color: foldedMouse.containsMouse ? Theme.fill(Theme.fillHover) : "transparent"
         height: root.docked ? root.height : root.foldedExtent
         objectName: "foldedColumn"
@@ -247,6 +255,7 @@ Item {
     }
 
     // The divider's handle: 6 u across the hairline, above both panes.
+    // a11y-ignore A2: a drag handle; `<` `>` size the side and the side's own key folds it (#77)
     MouseArea {
         id: grip
 

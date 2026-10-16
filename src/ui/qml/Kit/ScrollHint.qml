@@ -129,6 +129,7 @@ Item {
             anchors.right: parent.right
         }
 
+        // a11y-ignore A2: the keys and the wheel scroll the list too (#77)
         MouseArea {
             anchors.fill: parent
             cursorShape: Qt.PointingHandCursor
@@ -164,6 +165,7 @@ Item {
             anchors.top: parent.top
         }
 
+        // a11y-ignore A2: the keys and the wheel scroll the list too (#77)
         MouseArea {
             anchors.fill: parent
             cursorShape: Qt.PointingHandCursor

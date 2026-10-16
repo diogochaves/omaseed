@@ -101,4 +101,22 @@ TestCase {
         waitForRendering(strip, 500);
         verify(!name.truncated, "width " + name.width + " of " + name.implicitWidth);
     }
+
+    // #77: the line is a "show details" button; a screen reader's press asks to unfold,
+    // once; disabled, it does nothing.
+    function test_the_line_is_a_button_that_unfolds() {
+        const strip = createTemporaryObject(stripComponent, testCase, {
+                                                "torrent": testCase.row
+                                            });
+        const area = findChild(strip, "stripMouse");
+        compare(area.Accessible.role, Accessible.Button);
+        compare(area.Accessible.name, "show details");
+        let asked = 0;
+        strip.unfoldRequested.connect(() => asked++);
+        area.Accessible.pressAction();
+        compare(asked, 1);
+        strip.enabled = false;
+        area.Accessible.pressAction();
+        compare(asked, 1, "a disabled strip asked to unfold");
+    }
 }

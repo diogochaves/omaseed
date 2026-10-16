@@ -101,6 +101,22 @@ TestCase {
         tryCompare(notice, "height", folded, 1000);
     }
 
+    // #77: the details' "copy" is a link whose press is the click, once; disabled, nothing.
+    function test_the_details_copy_is_a_link_a_screen_reader_presses() {
+        const notice = createTemporaryObject(noticeComponent, testCase);
+        notice.toggleDetails();
+        const copy = findChild(notice, "noticeCopy");
+        compare(copy.Accessible.role, Accessible.Link);
+        compare(copy.Accessible.name, "copy");
+        const copied = [];
+        notice.copyRequested.connect(text => copied.push(text));
+        copy.Accessible.pressAction();
+        compare(copied, [notice.details]);
+        notice.enabled = false;
+        copy.Accessible.pressAction();
+        compare(copied.length, 1, "a disabled notice copied");
+    }
+
     function test_an_action_says_its_key() {
         const notice = createTemporaryObject(noticeComponent, testCase);
         let key = "";

@@ -728,4 +728,74 @@ TestCase {
         compare(server.count, 0, "a disabled hero's server line ran");
         compare(filters.count, 0, "a disabled hero's filters button ran");
     }
+
+    readonly property var twoViews: [{
+            "key": "library",
+            "label": "library"
+        }, {
+            "key": "seed",
+            "label": "seed",
+            "hint": "S"
+        }]
+
+    // #77: the views are page tabs, the current one selected, and the ↑ number a button to
+    // the seed console; a screen reader's press is their click, once each.
+    function test_the_view_tabs_and_the_up_number_take_the_accessible_press() {
+        const hero = createTemporaryObject(heroComponent, testCase, {
+                                               "views": testCase.twoViews,
+                                               "currentView": "library"
+                                           });
+        const library = findChild(hero, "viewTab_library");
+        const seed = findChild(hero, "viewTab_seed");
+        compare(seed.Accessible.role, Accessible.PageTab);
+        compare(seed.Accessible.name, "seed");
+        compare(seed.Accessible.description, "S");
+        verify(library.Accessible.selected);
+        verify(!seed.Accessible.selected);
+        const picked = [];
+        hero.viewSelected.connect(key => picked.push(key));
+        seed.Accessible.pressAction();
+        compare(picked, ["seed"]);
+
+        const up = findChild(hero, "upBox");
+        compare(up.Accessible.role, Accessible.Button);
+        compare(up.Accessible.name, "seed console");
+        verify(!up.Accessible.ignored);
+        let ups = 0;
+        hero.upClicked.connect(() => ups++);
+        up.Accessible.pressAction();
+        compare(ups, 1);
+
+        hero.enabled = false;
+        seed.Accessible.pressAction();
+        up.Accessible.pressAction();
+        compare(picked.length, 1, "a disabled hero's tab ran");
+        compare(ups, 1, "a disabled hero's ↑ ran");
+    }
+
+    // #77: without the views the ↑ number is no control; the lone dot is the server line's
+    // button only while the server can switch.
+    function test_the_up_number_and_the_lone_dot_without_a_click() {
+        const hero = createTemporaryObject(heroComponent, testCase);
+        const up = findChild(hero, "upBox");
+        verify(up.Accessible.ignored);
+        let ups = 0;
+        hero.upClicked.connect(() => ups++);
+        up.Accessible.pressAction();
+        compare(ups, 0);
+
+        const dot = findChild(hero, "loneDot");
+        compare(dot.Accessible.role, Accessible.Button);
+        compare(dot.Accessible.name, "switch server");
+        verify(dot.Accessible.ignored);
+        const server = createTemporaryObject(serverClickedSpy, testCase, {
+                                                 "target": hero
+                                             });
+        dot.Accessible.pressAction();
+        compare(server.count, 0, "a dot that can't switch ran");
+        hero.serverSwitchable = true;
+        verify(!dot.Accessible.ignored);
+        dot.Accessible.pressAction();
+        compare(server.count, 1);
+    }
 }
