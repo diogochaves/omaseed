@@ -62,6 +62,25 @@ TestCase {
         verify(row.countRight <= row.width);
     }
 
+    // docs/33 R2: a server row prints a word or a mark in the count's place, in its state's
+    // colour, and its dot takes the state's colour too.
+    function test_count_text_replaces_the_count() {
+        const row = createTemporaryObject(railRowComponent, testCase, {
+                                              "text": "private",
+                                              "count": -1,
+                                              "countText": "down",
+                                              "countColor": Theme.red,
+                                              "glyphColor": Theme.red
+                                          });
+        const count = findChild(row, "railRowCount");
+        compare(count.text, "down");
+        compare(count.color, Theme.red);
+        row.countText = "";
+        row.count = 4;
+        compare(count.text, "4");
+        compare(count.color, Theme.red);
+    }
+
     function test_click_emits_clicked() {
         const row = createTemporaryObject(railRowComponent, testCase, {
                                               "text": "downloading"

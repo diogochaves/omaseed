@@ -31,6 +31,32 @@ TestCase {
         compare(lastText, "fedora 45");
     }
 
+    // docs/33 D3: with two servers or more the server line takes a ▾ and a click; one server,
+    // nothing. docs/35 N3: a server omaseed retries on its own has a yellow dot, one that
+    // needs you a red one.
+    function test_the_server_line_switches_with_two_servers() {
+        const hero = createTemporaryObject(heroComponent, testCase, {
+                                               "serverLine": "private · qBittorrent 5.2.3"
+                                           });
+        const label = findChild(hero, "serverLine");
+        const mouse = findChild(hero, "serverLineMouse");
+        compare(label.text, "private · qBittorrent 5.2.3");
+        verify(!mouse.enabled);
+        hero.serverSwitchable = true;
+        compare(label.text, "private · qBittorrent 5.2.3 " + Glyphs.chevronDown);
+        verify(mouse.enabled);
+        let clicks = 0;
+        hero.serverClicked.connect(() => clicks++);
+        mouse.clicked(null);
+        compare(clicks, 1);
+        verify(findChild(hero, "loneDotMouse").enabled);
+
+        hero.connected = false;
+        compare(hero.statusDot.color, Theme.red);
+        hero.retrying = true;
+        compare(hero.statusDot.color, Theme.yellow);
+    }
+
     // docs/08 §3: the `+` carries the kit's primary outline so it reads as a button.
     function test_add_is_a_primary_outline() {
         const hero = createTemporaryObject(heroComponent, testCase);

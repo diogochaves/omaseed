@@ -1,0 +1,324 @@
+pragma ComponentBehavior: Bound
+import QtQuick
+import QtQuick.Layouts
+import Omaseed.Kit
+
+// The error notice (docs/33 §10 D21's content, in docs/35's look, ruled 2026-10-16): a band
+// the full width of what holds it, between that thing's head and its body. Its own 4 % fill,
+// a 2 px rule in the kind's colour on the left edge, and a 12 % hairline on the side that
+// meets the content (`edge`: "bottom" under the hero or a sheet's head, "top" docked above the
+// footer, "both" in a sheet, docs/35 N1, N2, N7, N8).
+//
+//   row 1   the kind's glyph, the headline (bright, demibold), the actions at the right
+//           (accent; "details ▸" dim, last)
+//   row 2   the line under it, aligned with the headline's first letter; it wraps, never
+//           elides
+//   details the technical text in a further 4 % block, `copy` at its bottom right (N4)
+//
+// Kinds (N3): "warning" is the yellow "!" while omaseed retries on its own, "error" the red
+// "✕" when it has stopped and needs you or an action failed, "info" the accent "·".
+//
+// Narrow (N5): under `stackWidth` the actions drop to a row under the line. `bodyTail` (the
+// retry's countdown) is padded to `bodyTailChars` characters in the monospace font, so the
+// countdown counting never changes how the line wraps.
+//
+// Coming and going (N6): `shown` grows the band from nothing to its height in 120 ms and back;
+// `animated: false` (reduced motion) does it at once. The caller decides when it is shown.
+//
+// Only Theme tokens. The caller does what an action's key says (`actionTriggered`) and copies
+// (`copyRequested`).
+Item {
+    id: root
+
+    /// "error" | "warning" | "info".
+    property string kind: "error"
+    property string title: ""
+    property string body: ""
+    /// Run on after `body` in a slot of `bodyTailChars` characters: "omaseed tries again in 7 s."
+    property string bodyTail: ""
+    property int bodyTailChars: 0
+    /// `[{label, key}]`, accent links at the right of the headline. At most two (D21).
+    property var actions: []
+    /// The technical text; "" leaves out "details".
+    property string details: ""
+    property bool detailsOpen: false
+    /// Where the hairline goes: "bottom", "top" or "both".
+    property string edge: "bottom"
+    /// N6: false folds the band away.
+    property bool shown: true
+    /// N6: false (reduced motion) comes and goes at once.
+    property bool animated: true
+    /// N5: below this width the actions move under the line.
+    property real stackWidth: Theme.space(600)
+
+    readonly property bool stacked: root.width < root.stackWidth
+    readonly property color kindColor: root.kind === "error" ? Theme.red : root.kind === "warning"
+                                                                ? Theme.yellow : Theme.accent
+    readonly property string kindGlyph: root.kind === "error" ? Glyphs.close : root.kind
+                                                                === "warning" ? "!" : Glyphs.middot
+    /// The line as drawn: `body`, then the tail in its fixed slot.
+    readonly property string lineText: {
+        if (root.bodyTail.length === 0)
+            return root.body;
+        let tail = root.bodyTail;
+        while (tail.length < root.bodyTailChars)
+            tail += " ";
+        return root.body.length > 0 ? root.body + " " + tail : tail;
+    }
+    /// The full height the band takes while shown.
+    readonly property real fullHeight: content.implicitHeight + Theme.space(9) + Theme.space(10)
+    readonly property alias detailsBlock: detailsBlock
+
+    signal actionTriggered(string key)
+    signal copyRequested(string text)
+
+    function toggleDetails(): void {
+        root.detailsOpen = !root.detailsOpen;
+    }
+
+    Accessible.name: root.title
+    Accessible.role: Accessible.AlertMessage
+    clip: true
+    height: root.shown ? root.fullHeight : 0
+    implicitHeight: root.shown ? root.fullHeight : 0
+    visible: root.height > 0
+
+    Behavior on height {
+        enabled: root.animated
+
+        NumberAnimation {
+            duration: 120
+            easing.type: Easing.OutCubic
+        }
+    }
+
+    Keys.onEscapePressed: event => {
+        if (root.detailsOpen) {
+            root.detailsOpen = false;
+            event.accepted = true;
+        } else {
+            event.accepted = false;
+        }
+    }
+
+    // The box: its own fill, the kind's rule, the hairline where it meets the content.
+    Rectangle {
+        anchors.fill: parent
+        color: Theme.fill(Theme.fillIdle)
+    }
+
+    Rectangle {
+        anchors.bottom: parent.bottom
+        anchors.left: parent.left
+        anchors.top: parent.top
+        color: root.kindColor
+        objectName: "noticeRule"
+        width: Theme.space(2)
+    }
+
+    Hairline {
+        anchors.bottom: parent.bottom
+        anchors.left: parent.left
+        anchors.right: parent.right
+        visible: root.edge !== "top"
+    }
+
+    Hairline {
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        visible: root.edge !== "bottom"
+    }
+
+    ColumnLayout {
+        id: content
+
+        anchors.left: parent.left
+        anchors.leftMargin: Theme.space(2) + Theme.space(16)
+        anchors.right: parent.right
+        anchors.rightMargin: Theme.space(16)
+        anchors.top: parent.top
+        anchors.topMargin: Theme.space(9)
+        spacing: Theme.space(3)
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Theme.space(8)
+
+            Text {
+                id: glyph
+
+                Layout.alignment: Qt.AlignTop
+                Layout.preferredWidth: Theme.space(12)
+                color: root.kindColor
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.font.body
+                font.weight: Font.DemiBold
+                horizontalAlignment: Text.AlignHCenter
+                objectName: "noticeGlyph"
+                text: root.kindGlyph
+            }
+
+            Text {
+                Layout.alignment: Qt.AlignTop
+                Layout.fillWidth: true
+                color: Theme.brightForeground
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.font.body
+                font.weight: Font.DemiBold
+                objectName: "noticeTitle"
+                text: root.title
+                textFormat: Text.PlainText
+                wrapMode: Text.Wrap
+            }
+
+            Item {
+                id: actionsBeside
+
+                Layout.alignment: Qt.AlignTop
+                implicitHeight: actionLinks.implicitHeight
+                implicitWidth: actionLinks.implicitWidth
+                objectName: "noticeActionsBeside"
+                visible: !root.stacked
+            }
+        }
+
+        Text {
+            Layout.fillWidth: true
+            Layout.leftMargin: glyph.Layout.preferredWidth + Theme.space(8)
+            color: Theme.foreground
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.font.small
+            objectName: "noticeLine"
+            text: root.lineText
+            textFormat: Text.PlainText
+            visible: text.length > 0
+            wrapMode: Text.Wrap
+        }
+
+        Item {
+            id: actionsUnder
+
+            Layout.leftMargin: glyph.Layout.preferredWidth + Theme.space(8)
+            Layout.topMargin: Theme.space(3)
+            implicitHeight: actionLinks.implicitHeight
+            implicitWidth: actionLinks.implicitWidth
+            objectName: "noticeActionsUnder"
+            visible: root.stacked
+        }
+
+        // N4: the details unfold inside the band.
+        Rectangle {
+            id: detailsBlock
+
+            Layout.fillWidth: true
+            Layout.leftMargin: glyph.Layout.preferredWidth + Theme.space(8)
+            Layout.topMargin: Theme.space(4)
+            color: Theme.fill(Theme.fillIdle)
+            implicitHeight: detailsColumn.implicitHeight + 2 * Theme.space(6)
+            objectName: "noticeDetails"
+            visible: root.detailsOpen && root.details.length > 0
+
+            ColumnLayout {
+                id: detailsColumn
+
+                anchors.left: parent.left
+                anchors.leftMargin: Theme.space(8)
+                anchors.right: parent.right
+                anchors.rightMargin: Theme.space(8)
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: Theme.space(2)
+
+                Text {
+                    Layout.fillWidth: true
+                    color: Theme.dimForeground
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.font.caption
+                    objectName: "noticeDetailsText"
+                    text: root.details
+                    textFormat: Text.PlainText
+                    wrapMode: Text.WrapAnywhere
+                }
+
+                Text {
+                    Layout.alignment: Qt.AlignRight
+                    color: copyMouse.containsMouse ? Theme.brightForeground : Theme.accent
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.font.caption
+                    objectName: "noticeCopy"
+                    text: qsTr("copy")
+
+                    MouseArea {
+                        id: copyMouse
+
+                        anchors.fill: parent
+                        anchors.margins: -Theme.space(4)
+                        cursorShape: Qt.PointingHandCursor
+                        hoverEnabled: true
+
+                        onClicked: root.copyRequested(root.details)
+                    }
+                }
+            }
+        }
+    }
+
+    // The actions: beside the headline, or under the line when the band is narrow (N5).
+    Row {
+        id: actionLinks
+
+        parent: root.stacked ? actionsUnder : actionsBeside
+        spacing: Theme.space(14)
+
+        Repeater {
+            model: root.actions
+
+            Text {
+                id: link
+
+                required property var modelData
+
+                Accessible.name: link.modelData.label
+                Accessible.role: Accessible.Link
+                color: linkMouse.containsMouse ? Theme.brightForeground : Theme.accent
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.font.small
+                objectName: "noticeAction-" + link.modelData.key
+                text: link.modelData.label
+
+                MouseArea {
+                    id: linkMouse
+
+                    anchors.fill: parent
+                    anchors.margins: -Theme.space(4)
+                    cursorShape: Qt.PointingHandCursor
+                    hoverEnabled: true
+
+                    onClicked: root.actionTriggered(link.modelData.key)
+                }
+            }
+        }
+
+        Text {
+            Accessible.name: text
+            Accessible.role: Accessible.Link
+            color: detailsMouse.containsMouse ? Theme.foreground : Theme.dimForeground
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.font.small
+            objectName: "noticeDetailsToggle"
+            text: qsTr("details") + " " + (root.detailsOpen ? Glyphs.chevronDown : Glyphs.chevronRight)
+            visible: root.details.length > 0
+
+            MouseArea {
+                id: detailsMouse
+
+                anchors.fill: parent
+                anchors.margins: -Theme.space(4)
+                cursorShape: Qt.PointingHandCursor
+                hoverEnabled: true
+
+                onClicked: root.toggleDetails()
+            }
+        }
+    }
+}

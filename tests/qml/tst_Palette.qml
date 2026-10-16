@@ -910,4 +910,23 @@ TestCase {
             signalName: "rejected"
         }
     }
+
+    // docs/33 S1: a caller's own key comes first (the server palette's `,`), and what it
+    // leaves goes on as before.
+    function test_a_key_handler_is_asked_first() {
+        const palette = createTemporaryObject(paletteComponent, testCase);
+        const taken = [];
+        palette.keyHandler = event => {
+            if (event.key === Qt.Key_Comma) {
+                taken.push(event.key);
+                event.accepted = true;
+            }
+        };
+        palette.open();
+        keyClick(Qt.Key_Comma);
+        compare(taken.length, 1);
+        compare(palette.query, "");
+        keyClick(Qt.Key_Down);
+        compare(palette.cursorIndex, 1);
+    }
 }

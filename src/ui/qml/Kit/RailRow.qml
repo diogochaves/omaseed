@@ -23,6 +23,11 @@ Rectangle {
     /// Cut the start of a name that does not fit rather than its end (a tracker host, whose
     /// end is the part that tells two hosts apart).
     property bool elideLeft: false
+    /// docs/33 R2: what the count column prints instead of `count` ("down", "!"); "" prints
+    /// `count`. Its colour, and the glyph's, can be a state's (a server's dot).
+    property string countText: ""
+    property color countColor: Theme.dimForeground
+    property color glyphColor: root.selected ? Theme.accent : Theme.dimForeground
 
     signal clicked
     /// The pointer came onto the row (true) or left it (false).
@@ -65,7 +70,7 @@ Rectangle {
             id: glyphText
 
             anchors.verticalCenter: parent.verticalCenter
-            color: root.selected ? Theme.accent : Theme.dimForeground
+            color: root.glyphColor
             height: Theme.font.small
             pixelSize: Theme.font.small
             text: root.glyph
@@ -91,11 +96,12 @@ Rectangle {
         anchors.right: parent.right
         anchors.rightMargin: Theme.space(16)
         anchors.verticalCenter: parent.verticalCenter
-        color: Theme.dimForeground
+        color: root.countColor
         font.family: Theme.fontFamily
         font.pixelSize: Theme.font.small
-        text: String(root.count)
-        visible: root.count >= 0
+        objectName: "railRowCount"
+        text: root.countText.length > 0 ? root.countText : String(root.count)
+        visible: root.countText.length > 0 || root.count >= 0
     }
 
     MouseArea {

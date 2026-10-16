@@ -825,4 +825,28 @@ TestCase {
         short.open();
         compare(short.bodyScrollBar.visible, false);
     }
+
+    // docs/33 A1: the add sheet's server chip sits on the title's line, right after it.
+    Component {
+        id: chipComponent
+
+        Rectangle {
+            objectName: "titleChip"
+            implicitHeight: 10
+            implicitWidth: 40
+        }
+    }
+
+    function test_a_title_trailer_follows_the_title() {
+        const sheet = createTemporaryObject(plainSheetComponent, testCase, {
+                                                "title": "Add torrent to"
+                                            });
+        sheet.open();
+        verify(!findChild(sheet, "sheetTitleTrailer").active);
+        sheet.titleTrailer = chipComponent;
+        const loader = findChild(sheet, "sheetTitleTrailer");
+        verify(loader.active);
+        const title = findChild(sheet, "sheetTitle");
+        tryVerify(() => loader.x >= title.x + title.width, 1000);
+    }
 }

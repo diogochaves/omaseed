@@ -28,6 +28,14 @@ Item {
     /// The first sync has not landed yet (spec §7 Fig. 25): the mark stays accent, the dot
     /// goes yellow and the caller writes "… · first sync" into `serverLine`.
     property bool syncing: false
+    /// docs/35 N3: the server is gone and omaseed retries on its own; the dot goes yellow,
+    /// not red (red is for a server that stopped and needs you).
+    property bool retrying: false
+    /// docs/33 D3: with two servers or more the server line takes a ▾, a hover fill and a
+    /// click (`serverClicked`), the lone dot on the narrowest step too. One server: as v2.
+    property bool serverSwitchable: false
+    /// " ▾" after the server line while it switches.
+    readonly property string _switchMark: root.serverSwitchable ? " " + Glyphs.chevronDown : ""
     /// qBittorrent's own view of its network: "connected", "firewalled" or "disconnected"
     /// (`server_state.connection_status`). Silent while connected; the other two are named in
     /// the server line in their colour (docs/08 §3). Only read while the API itself answers.
@@ -268,6 +276,9 @@ Item {
     signal searchAccepted(string text)
     signal searchCleared
     signal settingsClicked
+    /// docs/33 D3: the server line (or the lone dot) was clicked; the caller opens the
+    /// server palette under it.
+    signal serverClicked
 
     height: implicitHeight
     implicitHeight: heroRow.implicitHeight + Theme.space(24) + 1
@@ -316,6 +327,17 @@ Item {
 
             HoverHandler {
                 id: dotHover
+            }
+
+            // docs/33 D3: at the narrowest step the dot takes the server line's click.
+            MouseArea {
+                anchors.fill: parent
+                anchors.margins: -Theme.space(4)
+                cursorShape: Qt.PointingHandCursor
+                enabled: root.serverSwitchable
+                objectName: "loneDotMouse"
+
+                onClicked: root.serverClicked()
             }
         }
 
@@ -376,6 +398,7 @@ Item {
                 id: identityHover
             }
 
+
             Text {
                 id: appNameText
 
@@ -387,13 +410,15 @@ Item {
             }
 
             Row {
+                id: serverRow
+
                 spacing: Theme.space(6)
 
                 Rectangle {
                     id: statusDot
 
                     anchors.verticalCenter: parent.verticalCenter
-                    color: !root.serverConfigured ? Theme.dimForeground : root.syncing ? Theme.yellow : !root.connected ? Theme.red : root.networkWarning === "disconnected" ? Theme.red : root.networkWarning === "firewalled" || root.anonymousWarning ? Theme.yellow : Theme.green
+                    color: !root.serverConfigured ? Theme.dimForeground : root.syncing ? Theme.yellow : !root.connected ? (root.retrying ? Theme.yellow : Theme.red) : root.networkWarning === "disconnected" ? Theme.red : root.networkWarning === "firewalled" || root.anonymousWarning ? Theme.yellow : Theme.green
                     height: Theme.space(7)
                     radius: width / 2
                     width: Theme.space(7)
@@ -405,8 +430,9 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     elide: Text.ElideRight
                     objectName: "serverLine"
-                    text: root.level >= 1 && root.serverLineShort.length > 0 ? root.serverLineShort
-                                                                              : root.serverLine
+                    text: (root.level >= 1 && root.serverLineShort.length > 0 ? root.serverLineShort
+                                                                               : root.serverLine)
+                          + root._switchMark
                     tracked: true
                     // Squeezed with a warning to show, the warning wins over the server's name.
                     visible: !(identity.squeezed && networkLabel.visible)
@@ -414,6 +440,33 @@ Item {
                                     - Theme.space(6) - (networkLabel.visible
                                                         ? networkLabel.implicitWidth + Theme.space(
                                                               6) : 0)))
+
+                    // docs/33 D3: the line that names the server is the one that changes it:
+                    // a hover fill over the dot and the words, and a click opens the server
+                    // palette under it. Children of the label, so the row does not lay them out.
+                    Rectangle {
+                        color: serverMouse.containsMouse ? Theme.fill(Theme.fillHover) : "transparent"
+                        height: serverLabel.height + Theme.space(4)
+                        visible: root.serverSwitchable
+                        width: serverMouse.width + Theme.space(4)
+                        x: serverMouse.x - Theme.space(2)
+                        y: -Theme.space(2)
+                        z: -1
+                    }
+
+                    MouseArea {
+                        id: serverMouse
+
+                        cursorShape: Qt.PointingHandCursor
+                        enabled: root.serverSwitchable
+                        height: serverLabel.height
+                        hoverEnabled: true
+                        objectName: "serverLineMouse"
+                        width: serverLabel.width + statusDot.width + Theme.space(6)
+                        x: -(statusDot.width + Theme.space(6))
+
+                        onClicked: root.serverClicked()
+                    }
                 }
 
                 Label {
@@ -828,14 +881,14 @@ Item {
         Label {
             id: measureServerFull
 
-            text: root.serverLine
+            text: root.serverLine + root._switchMark
             tracked: true
         }
 
         Label {
             id: measureServerShort
 
-            text: root.serverLineShort
+            text: root.serverLineShort + root._switchMark
             tracked: true
         }
 
@@ -924,7 +977,8 @@ Item {
 
         readonly property bool wanted: (identityHover.hovered && (serverLabel.truncated
                                                                   || root.level >= 1
-                                                                  || networkHover.hovered))
+                                                                  || networkHover.hovered
+                                                                  || serverMouse.containsMouse))
                                        || dotHover.hovered || (markHover.hovered && root.level >= 4)
         // With a warning up, the tip also says what it means and where to change it.
         readonly property string fullLine: (root.networkText.length > 0
@@ -932,6 +986,7 @@ Item {
                                             : root.serverLine)
                                            + (root.networkAdvice.length > 0 ? "\n" + root.networkAdvice
                                                                             : "")
+                                           + (root.serverSwitchable ? "\n" + qsTr("switch server · ctrl+s") : "")
 
         objectName: "serverTip"
         // Over the whole window rather than the hero (KIT-8): clamped inside a hero one line

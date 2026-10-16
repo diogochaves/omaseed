@@ -67,6 +67,10 @@ Item {
     property bool draggable: false
     property var hints: []
     property string footerRight: ""
+    /// A caller's own keys, asked before the palette's (docs/33 S1: `,` in the server
+    /// palette): a function taking the key event, which sets `event.accepted` for a key it
+    /// took. Null asks nothing.
+    property var keyHandler: null
     property bool inline: false
     /// While open, keys the palette has no use for stop here instead of reaching the view
     /// behind the scrim (KIT-6); only `ctrl+q` goes on, since quitting is never modal.
@@ -420,6 +424,11 @@ Item {
     }
 
     function _onKey(event: var): void {
+        if (root.keyHandler !== null) {
+            root.keyHandler(event);
+            if (event.accepted)
+                return;
+        }
         const ctrl = (event.modifiers & Qt.ControlModifier) !== 0;
         const alt = (event.modifiers & Qt.AltModifier) !== 0;
         // `esc` mid-drag drops the drag, and only that: the query and the palette stay.

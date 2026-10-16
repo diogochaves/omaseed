@@ -43,6 +43,7 @@ qt_add_qml_module(omaseed-kit
         KeyValue.qml
         Label.qml
         Menu.qml
+        Notice.qml
         Palette.qml
         ProgressLine.qml
         RailRow.qml

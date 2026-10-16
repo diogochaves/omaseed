@@ -82,6 +82,9 @@ Item {
     /// A sheet's own keys, asked before the kit's (`esc`, `enter`, `tab`): a function taking
     /// the key event, which sets `event.accepted` for a key it took. Null asks nothing.
     property var keyHandler: null
+    /// Drawn right after the title on its line (docs/33 A1: the add sheet's server chip).
+    /// Null draws nothing.
+    property Component titleTrailer: null
 
     /// The caller's rows. They are a `ColumnLayout`'s children: use `Layout.fillWidth`.
     default property alias content: bodyColumn.data
@@ -457,12 +460,32 @@ Item {
                     Layout.fillWidth: true
                     spacing: Theme.space(1)
 
-                    Label {
+                    RowLayout {
                         Layout.fillWidth: true
-                        bright: true
-                        elide: Text.ElideRight
-                        font.weight: Font.DemiBold
-                        text: root.title
+                        spacing: Theme.space(6)
+
+                        Label {
+                            Layout.fillWidth: root.titleTrailer === null
+                            Layout.maximumWidth: implicitWidth
+                            Layout.minimumWidth: Math.min(implicitWidth, Theme.space(80))
+                            bright: true
+                            elide: Text.ElideRight
+                            font.weight: Font.DemiBold
+                            objectName: "sheetTitle"
+                            text: root.title
+                        }
+
+                        Loader {
+                            active: root.titleTrailer !== null
+                            objectName: "sheetTitleTrailer"
+                            sourceComponent: root.titleTrailer
+                            visible: active
+                        }
+
+                        Item {
+                            Layout.fillWidth: true
+                            visible: root.titleTrailer !== null
+                        }
                     }
 
                     Label {
