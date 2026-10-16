@@ -90,6 +90,13 @@ Panel {
     root.controller.hide()
   }
 
+  // Open (or start) omaseed and let the popup go: the open button, Start omaseed, `o`, the
+  // title, and ↵ while the app is not running.
+  function openApp() {
+    if (service) service.openApp()
+    close()
+  }
+
   function toggle() { root.opened ? root.close() : root.openPanel() }
 
   function switchPanel(direction) {
@@ -514,7 +521,7 @@ Panel {
   // ↵: Add on Add; open the folder on a Lately row; show the torrent on any other row;
   // fold on any other header.
   function activate(stopped) {
-    if (!running) { if (service) service.openApp(); close(); return }
+    if (!running) { openApp(); return }
     var t = targetAt(cursorKey)
     if (!t) return
     if (t.section === "add") { addTicked(stopped); return }
@@ -648,7 +655,7 @@ Panel {
         else if (event.text === "a") root.goToAdd()
         else if (event.text === "b") root.browse()
         else if (event.text === "m") root.openAddSheet()
-        else if (event.text === "o") { if (root.service) root.service.openApp(); root.close() }
+        else if (event.text === "o") root.openApp()
         else if (event.text === "A") { if (root.service && root.reachable) root.service.toggleAltSpeed() }
         else if (event.text === "z") root.toggleAllFolds()
         else if (event.text === ",") root.openSettingsPage()
@@ -691,6 +698,14 @@ Panel {
               hoverColor: root.foreground
               fontFamily: root.fontFamily
               onClicked: root.backToMain()
+              // A screen reader (#80): named without the key, which goes in the description.
+              // Not `accessibleName` (an Omarchy without PR #13212 would fail to load the
+              // widget); where the kit has it, the kit presses and this steps aside, so one
+              // press is one click. The same on every kit button below.
+              Accessible.role: Accessible.Button
+              Accessible.name: "Back"
+              Accessible.description: "shortcut esc"
+              Accessible.onPressAction: if (!("accessibleName" in backButton)) backButton.clicked()
               LineIcon {
                 anchors.centerIn: parent
                 size: Style.font.icon
@@ -738,6 +753,10 @@ Panel {
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.title
                   font.bold: true
+                  // Its click opens omaseed, as the open button does: a screen reader has that
+                  // button, so the title is the heading it reads.
+                  Accessible.role: Accessible.Heading
+                  Accessible.name: text
                 }
 
                 LineIcon {
@@ -753,6 +772,16 @@ Panel {
                 id: serverLine
                 width: parent.width
                 spacing: Style.space(6)
+
+                // A screen reader (#80): the line as written; with two servers or more it is
+                // the servers button its ▾ shows (ctrl+s), and says whether they are open.
+                Accessible.role: root.canSwitch ? Accessible.Button : Accessible.StaticText
+                // a11y-ignore A6: the server's name and version: it changes when the server does
+                Accessible.name: root.page === "settings" ? "omaseed in the bar"
+                                 : (root.running ? Status.serverWords(root.status) : "not running")
+                Accessible.description: !root.canSwitch ? ""
+                                        : (root.menuPart === "servers" ? "servers, open, shortcut ctrl+s" : "servers, shortcut ctrl+s")
+                Accessible.onPressAction: root.toggleMenu("servers")
 
                 Rectangle {
                   visible: root.page === "main"
@@ -791,6 +820,9 @@ Panel {
               }
             }
 
+            // Not a dismiss area: the title's and the server line's click. A screen reader has
+            // both without it: the open button opens omaseed, the server line is a button itself.
+            // a11y-ignore A2: its two targets are published (the open button, the server line)
             MouseArea {
               anchors.fill: headText
               enabled: root.page === "main"
@@ -798,8 +830,7 @@ Panel {
               onClicked: function(mouse) {
                 var p = mapToItem(serverLine, mouse.x, mouse.y)
                 if (root.canSwitch && p.y >= 0 && p.y <= serverLine.height) { root.toggleMenu("servers"); return }
-                if (root.service) root.service.openApp()
-                root.close()
+                root.openApp()
               }
             }
 
@@ -810,6 +841,7 @@ Panel {
               spacing: Style.space(6)
 
               PanelActionButton {
+                id: altButton
                 visible: root.page === "main"
                 bordered: true
                 enabled: root.reachable
@@ -818,6 +850,11 @@ Panel {
                 hoverColor: root.altOn ? root.altInk : root.foreground
                 fontFamily: root.fontFamily
                 onClicked: if (root.service) root.service.toggleAltSpeed()
+                Accessible.role: Accessible.Button
+                // a11y-ignore A6: one of three words, by the kind of set the app has; it changes when that does
+                Accessible.name: Status.altButtonName(root.status)
+                Accessible.description: (root.altOn ? "on, " : "") + "shortcut A"
+                Accessible.onPressAction: if (!("accessibleName" in altButton) && altButton.enabled) altButton.clicked()
                 LineIcon {
                   anchors.centerIn: parent
                   size: Style.font.icon
@@ -828,13 +865,18 @@ Panel {
               }
 
               PanelActionButton {
+                id: openButton
                 visible: root.page === "main"
                 bordered: true
                 tooltipText: root.running ? "Open omaseed (o)" : "Start omaseed"
                 foreground: root.dim
                 hoverColor: root.foreground
                 fontFamily: root.fontFamily
-                onClicked: { if (root.service) root.service.openApp(); root.close() }
+                onClicked: root.openApp()
+                Accessible.role: Accessible.Button
+                Accessible.name: root.running ? "Open omaseed" : "Start omaseed"
+                Accessible.description: root.running ? "shortcut o" : ""
+                Accessible.onPressAction: if (!("accessibleName" in openButton)) openButton.clicked()
                 LineIcon {
                   anchors.centerIn: parent
                   size: Style.font.icon
@@ -844,12 +886,17 @@ Panel {
               }
 
               PanelActionButton {
+                id: gearButton
                 bordered: true
                 tooltipText: root.page === "settings" ? "Back to the popup (esc)" : "Widget settings (,)"
                 foreground: root.page === "settings" ? root.accent : root.dim
                 hoverColor: root.page === "settings" ? root.accent : root.foreground
                 fontFamily: root.fontFamily
                 onClicked: root.page === "settings" ? root.backToMain() : root.openSettingsPage()
+                Accessible.role: Accessible.Button
+                Accessible.name: root.page === "settings" ? "Back to the popup" : "Widget settings"
+                Accessible.description: root.page === "settings" ? "shortcut esc" : "shortcut ,"
+                Accessible.onPressAction: if (!("accessibleName" in gearButton)) gearButton.clicked()
                 LineIcon {
                   anchors.centerIn: parent
                   size: Style.font.icon
@@ -861,6 +908,7 @@ Panel {
               // docs/33 §11 change 3 (W1): ⋯, the app's shared menu. Not there for an app that
               // writes no menu.
               PanelActionButton {
+                id: menuButton
                 visible: root.hasMenu
                 bordered: true
                 tooltipText: "Menu (ctrl+.)"
@@ -868,6 +916,11 @@ Panel {
                 hoverColor: root.menuPart === "menu" ? root.accent : root.foreground
                 fontFamily: root.fontFamily
                 onClicked: root.toggleMenu("menu")
+                Accessible.role: Accessible.Button
+                Accessible.name: "Menu"
+                Accessible.description: root.menuPart === "menu" ? "omaseed's menu, open, shortcut ctrl+."
+                                                                 : "omaseed's menu, shortcut ctrl+."
+                Accessible.onPressAction: if (!("accessibleName" in menuButton)) menuButton.clicked()
                 LineIcon {
                   anchors.centerIn: parent
                   size: Style.font.icon
@@ -932,6 +985,8 @@ Panel {
             Text {
               width: parent.width
               textFormat: Text.PlainText
+              Accessible.role: Accessible.StaticText
+              Accessible.name: text
               text: "omaseed is not running."
               color: root.foreground
               font.family: root.fontFamily
@@ -942,6 +997,8 @@ Panel {
             Text {
               width: parent.width
               textFormat: Text.PlainText
+              Accessible.role: Accessible.StaticText
+              Accessible.name: text
               text: "The widget shows what the app reports."
               color: root.dim
               font.family: root.fontFamily
@@ -950,12 +1007,17 @@ Panel {
             }
 
             Button {
+              id: startButton
               text: "Start omaseed"
               bordered: true
               hasCursor: true
               foreground: root.accent
               fontFamily: root.fontFamily
-              onClicked: { if (root.service) root.service.openApp(); root.close() }
+              onClicked: root.openApp()
+              Accessible.role: Accessible.Button
+              Accessible.name: "Start omaseed"
+              Accessible.description: "shortcut enter"
+              Accessible.onPressAction: if (!("accessibleName" in startButton)) startButton.clicked()
             }
           }
 
@@ -993,6 +1055,9 @@ Panel {
             Row {
               visible: root.reachable && root.altOn
               spacing: Style.space(6)
+              Accessible.role: Accessible.StaticText
+              // a11y-ignore A6: a label, not a control; a screen reader reads it when it gets there, and its changes are not announced
+              Accessible.name: Status.spoken(Status.altLine(root.status, true))
 
               LineIcon {
                 anchors.verticalCenter: parent.verticalCenter
@@ -1035,6 +1100,11 @@ Panel {
               Item {
                 width: parent.width
                 height: sparkCaption.implicitHeight
+                // The two lines under the sparkline, in words; the sparkline draws the same.
+                Accessible.role: Accessible.StaticText
+                // a11y-ignore A6: a label, not a control; a screen reader reads it when it gets there, and its changes are not announced
+                Accessible.name: "upload, last hour: now " + Format.speed(root.hour.length > 0 ? root.hour[root.hour.length - 1] : 0)
+                                 + ", peak " + Format.speed(Status.peak(root.hour))
 
                 Text {
                   id: sparkCaption
@@ -1075,6 +1145,7 @@ Panel {
             visible: root.page === "main" && root.running && !root.reachable
             width: parent.width
             title: Status.unreachableLine(root.server)
+            spokenTitle: root.server.error ? "unreachable, " + root.server.error : "unreachable"
             detail: "Showing the last known state. Press r to retry now."
             rule: root.urgent
             foreground: root.foreground
@@ -1176,6 +1247,7 @@ Panel {
           Repeater {
             model: [""].concat(root.categories.map(function(c) { return String(c.name) }))
             delegate: Button {
+              id: chip
               required property string modelData
               text: modelData === "" ? "none" : modelData
               bordered: true
@@ -1186,6 +1258,12 @@ Panel {
               fontSize: Style.font.bodySmall
               verticalPadding: Style.space(3)
               onClicked: root.pickedCategory = modelData
+              Accessible.role: Accessible.Button
+              Accessible.name: chip.modelData === "" ? "No category" : chip.modelData
+              Accessible.description: "category"
+              Accessible.selectable: true
+              Accessible.selected: chip.selected
+              Accessible.onPressAction: if (!("accessibleName" in chip) && chip.enabled) chip.clicked()
             }
           }
         }
@@ -1203,6 +1281,9 @@ Panel {
           font.family: root.fontFamily
           font.pixelSize: Style.font.bodySmall
           elide: Text.ElideMiddle
+          Accessible.role: Accessible.StaticText
+          // a11y-ignore A6: a label, not a control; a screen reader reads it when it gets there, and its changes are not announced
+          Accessible.name: "adds " + Status.spoken(text)
         }
       }
 
@@ -1211,6 +1292,7 @@ Panel {
         spacing: Style.space(8)
 
         Button {
+          id: addButton
           visible: root.addRows.length > 0
           text: root.service && root.service.adding ? "Adding…" : "Add " + root.tickedSources.length
           bordered: true
@@ -1220,6 +1302,10 @@ Panel {
           fontFamily: root.fontFamily
           tooltipText: "Add the ticked ones (↵) · stopped (⇧↵)"
           onClicked: root.addTicked(false)
+          Accessible.role: Accessible.Button
+          Accessible.name: addButton.text
+          Accessible.description: "add the ticked ones, shortcut enter; stopped, shift+enter"
+          Accessible.onPressAction: if (!("accessibleName" in addButton) && addButton.enabled) addButton.clicked()
         }
 
         Button {
@@ -1233,6 +1319,10 @@ Panel {
           fontFamily: root.fontFamily
           tooltipText: "Pick .torrent files (b)"
           onClicked: root.browse()
+          Accessible.role: Accessible.Button
+          Accessible.name: "Browse…"
+          Accessible.description: "pick .torrent files, shortcut b"
+          Accessible.onPressAction: if (!("accessibleName" in browseButton) && browseButton.enabled) browseButton.clicked()
         }
 
         Text {
@@ -1257,6 +1347,9 @@ Panel {
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
         wrapMode: Text.WordWrap
+        // What the last add did, or why it could not.
+        Accessible.role: root.addNoteUrgent ? Accessible.AlertMessage : Accessible.StaticText
+        Accessible.name: text
       }
     }
   }
@@ -1356,6 +1449,9 @@ Panel {
         font.pixelSize: Style.font.bodySmall
         wrapMode: Text.WordWrap
         opacity: root.reachable ? 1 : 0.45
+        Accessible.role: Accessible.StaticText
+        // a11y-ignore A6: a label, not a control; a screen reader reads it when it gets there, and its changes are not announced
+        Accessible.name: Status.spoken(text)
       }
 
       Text {
@@ -1366,6 +1462,8 @@ Panel {
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
         font.letterSpacing: Style.space(1)
+        Accessible.role: Accessible.Heading
+        Accessible.name: "Top seeders today"
       }
 
       Repeater {
@@ -1405,6 +1503,8 @@ Panel {
       Row {
         spacing: Style.space(8)
         opacity: root.reachable ? 1 : 0.45
+        Accessible.role: Accessible.StaticText
+        Accessible.name: String(root.aliveInfo.held) + " " + heldWords.text
 
         Text {
           anchors.baseline: heldWords.baseline
@@ -1441,6 +1541,8 @@ Panel {
           ]
           delegate: Rectangle {
             required property var modelData
+            Accessible.role: Accessible.StaticText
+            Accessible.name: String(modelData.n) + " " + modelData.words
             width: tallyRow.implicitWidth + Style.space(12)
             height: tallyRow.implicitHeight + Style.space(6)
             color: "transparent"
@@ -1516,6 +1618,8 @@ Panel {
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
         leftPadding: Style.space(8)
+        Accessible.role: Accessible.StaticText
+        Accessible.name: text
       }
 
       Repeater {
@@ -1562,6 +1666,8 @@ Panel {
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
         leftPadding: Style.space(8)
+        Accessible.role: Accessible.StaticText
+        Accessible.name: text
       }
 
       Repeater {

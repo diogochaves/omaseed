@@ -18,6 +18,11 @@ Column {
 
   spacing: Style.space(2)
 
+  // A screen reader (#80): one label, "Download 1.18 MB/s", in reading order; the arrow is
+  // the caption's picture and stays out.
+  Accessible.role: Accessible.StaticText
+  Accessible.name: root.caption + " " + root.value
+
   Row {
     spacing: Style.space(5)
 

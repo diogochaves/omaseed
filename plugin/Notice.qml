@@ -8,6 +8,9 @@ Item {
   id: root
 
   property string title: ""
+  // What a screen reader hears for the title, when the title changes faster than it should
+  // be read (a retry counting down).
+  property string spokenTitle: title
   property string detail: ""
   property string action: ""
   property color rule: Color.urgent
@@ -17,6 +20,12 @@ Item {
   signal actionClicked()
 
   implicitHeight: body.implicitHeight
+
+  // A screen reader (#80): a notice appears by itself, so it is an alert, its title the name
+  // and the line under it the description; its one action is a button inside it.
+  Accessible.role: Accessible.AlertMessage
+  Accessible.name: root.spokenTitle
+  Accessible.description: root.detail
 
   Rectangle {
     width: Style.space(2)
@@ -53,6 +62,7 @@ Item {
     }
 
     Button {
+      id: actionButton
       visible: root.action !== ""
       text: root.action
       bordered: true
@@ -61,6 +71,12 @@ Item {
       fontSize: Style.font.bodySmall
       verticalPadding: Style.space(3)
       onClicked: root.actionClicked()
+      // Not `accessibleName` (an Omarchy without PR #13212 would fail to load the widget);
+      // where the kit has it, the kit presses and this steps aside.
+      Accessible.role: Accessible.Button
+      Accessible.name: root.action
+      Accessible.ignored: root.action === ""
+      Accessible.onPressAction: if (!("accessibleName" in actionButton)) actionButton.clicked()
     }
   }
 }
