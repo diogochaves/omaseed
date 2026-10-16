@@ -255,4 +255,17 @@ TestCase {
         chip.Accessible.pressAction();
         compare(clicked.count, 0);
     }
+
+    // #79: the count a chip shows and its key are its description.
+    function test_the_count_and_the_key_are_the_description() {
+        const chip = createTemporaryObject(chipComponent, testCase, {
+                                               "text": "normal"
+                                           });
+        compare(chip.Accessible.description, "");
+        chip.count = "19";
+        compare(chip.Accessible.description, "19");
+        chip.keyText = "1";
+        compare(chip.Accessible.name, "normal");
+        compare(chip.Accessible.description, "19 · shortcut 1");
+    }
 }

@@ -365,6 +365,12 @@ TestCase {
         verify(start !== null);
         verify(start.text.indexOf("starts when it started") >= 0, start.text);
         verify(start.text.indexOf("/home/you/.local/share/qBittorrent/qBittorrent/data/logs") >= 0, start.text);
+        // #79: both lines are text a screen reader hears, before the log's lines.
+        const since = findChild(testCase.logView, "logSince");
+        compare(since.Accessible.role, Accessible.StaticText);
+        compare(since.Accessible.name, since.text);
+        compare(start.Accessible.role, Accessible.StaticText);
+        compare(start.Accessible.name, start.text);
     }
 
     // #61: the palette opened on the log lists the log's commands first; `~` is a view command.
@@ -418,6 +424,50 @@ TestCase {
         week.Accessible.pressAction();
         compare(App.console.range, "7d");
         App.console.range = before;
+        view.setView("library");
+    }
+
+    Component {
+        id: consoleHeadComponent
+
+        ConsoleHead {
+            summary: "nothing rare here"
+            title: "keeping alive"
+        }
+    }
+
+    Component {
+        id: consoleTotalComponent
+
+        ConsoleTotal {
+            caption: "given"
+            note: "+2.39 GB today"
+            unit: "MB"
+            value: "572"
+        }
+    }
+
+    // #79: on the seed console a section's title is a heading and its line text; a figure is
+    // text named by its caption, its value, unit and note the description; the scope line is
+    // one label.
+    function test_a_screen_reader_hears_the_console_text() {
+        const head = createTemporaryObject(consoleHeadComponent, testCase);
+        const title = findChild(head, "consoleHeadTitle");
+        compare(title.Accessible.role, Accessible.Heading);
+        compare(title.Accessible.name, "keeping alive");
+        const summary = findChild(head, "consoleHeadSummary");
+        compare(summary.Accessible.role, Accessible.StaticText);
+        compare(summary.Accessible.name, "nothing rare here");
+
+        const total = createTemporaryObject(consoleTotalComponent, testCase);
+        compare(total.Accessible.role, Accessible.StaticText);
+        compare(total.Accessible.name, "given");
+        compare(total.Accessible.description, "572 MB · +2.39 GB today");
+
+        view.setView("seed");
+        const scope = findChild(view, "consoleScope");
+        compare(scope.Accessible.role, Accessible.StaticText);
+        verify(scope.Accessible.name.startsWith("scope: "), scope.Accessible.name);
         view.setView("library");
     }
 

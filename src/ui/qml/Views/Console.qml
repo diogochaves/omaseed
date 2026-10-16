@@ -79,12 +79,18 @@ Flickable {
                 tracked: true
             }
 
+            // #79: the scope line as one label ("scope: the selection, 2 torrents"); the
+            // caption and count around it publish nothing themselves.
             Text {
+                Accessible.name: qsTr("scope: %1, %2").arg(text).arg(root.seed.scopeCount === 1 ? qsTr("1 torrent")
+                                                                                               : qsTr("%1 torrents").arg(root.seed.scopeCount))
+                Accessible.role: Accessible.StaticText
                 Layout.alignment: Qt.AlignBaseline
                 color: Theme.brightForeground
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.font.body
                 font.weight: Font.Medium
+                objectName: "consoleScope"
                 text: root.seed.selectionScope ? qsTr("the selection") : root.scopeName
             }
 
@@ -127,6 +133,8 @@ Flickable {
             }
 
             Label {
+                Accessible.name: text
+                Accessible.role: Accessible.StaticText
                 Layout.alignment: Qt.AlignBaseline
                 text: root.seed.ledgerSince
                 tracked: true
@@ -463,7 +471,12 @@ Flickable {
 
                         delegate: Text {
                             required property string modelData
+                            /// #79: the fact by its words, without its markup, its caption
+                            /// set off by a colon ("quiet days: 7").
+                            readonly property string spoken: modelData.replace(/<[^>]*>/g, "").replace(" · ", ": ")
 
+                            Accessible.name: spoken
+                            Accessible.role: Accessible.StaticText
                             color: Theme.dimForeground
                             font.family: Theme.fontFamily
                             font.pixelSize: Theme.font.small
@@ -515,6 +528,10 @@ Flickable {
                             required property int index
                             readonly property var modelData: aliveBlock.buckets[index] ?? ({})
 
+                            // #79: a bucket by its label ("2 seeds"), its count the description.
+                            Accessible.description: String(modelData.count ?? "")
+                            Accessible.name: modelData.label ?? ""
+                            Accessible.role: Accessible.StaticText
                             Layout.fillWidth: true
 
                             Text {
