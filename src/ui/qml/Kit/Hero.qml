@@ -711,6 +711,11 @@ Item {
         IconButton {
             id: searchButton
 
+            // #78: named by what it does; the filter's words and the key in the description.
+            Accessible.description: searchField.text.length > 0
+                                    ? qsTr("%1 · shortcut %2").arg(searchField.text).arg("/")
+                                    : qsTr("shortcut %1").arg("/")
+            Accessible.name: qsTr("filter")
             accent: searchField.text.length > 0
             glyph: Glyphs.search
             objectName: "searchButton"
@@ -726,7 +731,13 @@ Item {
         Rectangle {
             id: filterButton
 
-            Accessible.name: qsTr("%n filter(s) · /", "", root.filterCount)
+            /// What its tooltip says: how many filters are up, and the key.
+            readonly property string tip: qsTr("%n filter(s) · /", "", root.filterCount)
+
+            // #78: named by what it does; how many are up, and the key, in the description.
+            Accessible.description: qsTr("%n filter(s) up · shortcut %1", "",
+                                         root.filterCount).arg("/")
+            Accessible.name: qsTr("filters")
             Accessible.role: Accessible.Button
             // A screen reader's press is the click (#75); disabled, it does nothing, as the
             // pointer.
@@ -793,7 +804,7 @@ Item {
                 parent: filterButton.Window.window ? filterButton.Window.window.contentItem : filterButton
                 z: 1000
 
-                onWantedChanged: filterTip.wanted ? filterTip.showFor(filterButton, filterButton.Accessible.name, false)
+                onWantedChanged: filterTip.wanted ? filterTip.showFor(filterButton, filterButton.tip, false)
                                                   : filterTip.hide()
             }
 
@@ -821,6 +832,8 @@ Item {
             // does; the cap only where the field has room for it beside the count.
             trailingClickable: searchField.text.length > 0
             trailingKey: searchField.text.length > 0 && root.level < 2 ? "esc" : ""
+            // #78: the count is no name for what its click does.
+            trailingName: qsTr("clear the filter")
 
             onAccepted: {
                 root.searchChanged(searchField.text);
@@ -848,6 +861,14 @@ Item {
         Chip {
             id: altChip
 
+            // #78: named by the set it switches, which changes only when you pick another;
+            // off it had no name at all (its glyph alone), and on, its name was the limits and
+            // the time, read out again with every change. Those are its tooltip, and that is
+            // the description.
+            Accessible.description: altChip.tooltip
+            Accessible.name: root.altKind === "burst" ? qsTr("burst")
+                                                      : root.altKind === "turtle" ? qsTr("turtle")
+                                                                                  : qsTr("alt-speed")
             Layout.alignment: Qt.AlignVCenter
             glyph: root.altKind === "burst" ? Glyphs.burst : Glyphs.altSpeed
             suffix: root.altChipSuffix
@@ -866,9 +887,13 @@ Item {
             Layout.alignment: Qt.AlignVCenter
             spacing: Theme.space(2)
 
+            // #78: each one named by what it does, the key in the description; the tooltip
+            // keeps both, for the eye.
             IconButton {
                 id: addButton
 
+                Accessible.description: qsTr("shortcut %1").arg("a")
+                Accessible.name: qsTr("add torrent")
                 // Fig. 1 draws `.btn.icon.on`, the bare accent glyph; beside the other icons it
                 // did not read as a button. The kit's primary outline does (docs/08 §3, REVIEW §9).
                 glyph: Glyphs.add
@@ -880,6 +905,8 @@ Item {
 
 
             IconButton {
+                Accessible.description: qsTr("shortcut %1").arg(",")
+                Accessible.name: qsTr("settings")
                 glyph: Glyphs.settings
                 objectName: "settingsButton"
                 tooltip: qsTr("settings · ,")
@@ -892,6 +919,8 @@ Item {
             IconButton {
                 id: moreButton
 
+                Accessible.description: qsTr("shortcut %1").arg("ctrl+.")
+                Accessible.name: qsTr("more")
                 glyph: Glyphs.more
                 tooltip: qsTr("more · ctrl+.")
 
@@ -899,6 +928,8 @@ Item {
             }
 
             IconButton {
+                Accessible.description: qsTr("shortcut %1").arg("?")
+                Accessible.name: qsTr("help")
                 glyph: Glyphs.help
                 objectName: "helpButton"
                 tooltip: qsTr("help · ?")
@@ -914,6 +945,8 @@ Item {
     Item {
         id: ladderMeasure
 
+        // Measures, never seen: nothing in here is for a screen reader either (#78).
+        Accessible.ignored: true
         visible: false
 
         Label {
@@ -950,6 +983,7 @@ Item {
         Chip {
             id: measureAltFull
 
+            Accessible.ignored: true
             glyph: Glyphs.altSpeed
             suffix: root._altSuffix(0)
             text: root._altText(0)
@@ -958,6 +992,7 @@ Item {
         Chip {
             id: measureAltShort
 
+            Accessible.ignored: true
             glyph: Glyphs.altSpeed
             suffix: root._altSuffix(1)
             text: root._altText(1)
@@ -966,6 +1001,7 @@ Item {
         Chip {
             id: measureAltWord
 
+            Accessible.ignored: true
             glyph: Glyphs.altSpeed
             suffix: root._altSuffix(2)
             text: root._altText(2)
@@ -974,6 +1010,7 @@ Item {
         Chip {
             id: measureAltGlyph
 
+            Accessible.ignored: true
             glyph: Glyphs.altSpeed
             text: ""
         }
@@ -991,11 +1028,14 @@ Item {
 
             required property var modelData
 
+            // Measures, never seen: not for a screen reader either (#78).
+            Accessible.ignored: true
             visible: false
 
             Chip {
                 id: fullChip
 
+                Accessible.ignored: true
                 glyph: measured.modelData.glyph
                 text: measured.modelData.text + "  " + Glyphs.close
             }
@@ -1003,6 +1043,7 @@ Item {
             Chip {
                 id: foldedChip
 
+                Accessible.ignored: true
                 glyph: measured.modelData.glyph
                 text: Glyphs.close
             }
