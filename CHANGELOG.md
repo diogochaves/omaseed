@@ -155,6 +155,11 @@ before it will tag a release.
 
 ### Fixed
 
+- A screen reader can now use the controls it finds: pressing a button, a tab, a menu or
+  palette row, a rail row, a link or a key hint does what a click does, and a switch's toggle
+  flips it and saves the setting, as a click would. Before, the press did nothing, and a
+  toggle moved the switch without changing the setting behind it. Disabled controls still
+  ignore it.
 - A server added in Settings › Servers is tested before it is saved, as in the first-run
   setup: `save` waits, dimmed with "test first", until a test has run; a failed test offers
   "save anyway" for a server that is down on purpose. Editing a server asks for a new test only
