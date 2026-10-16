@@ -15,9 +15,10 @@ a schema change is one commit touching both sides. Design: `docs/20-companion-wi
 - **No secret, ever**: no API key, password, cookie, or URL with a credential in it.
 - The widget treats the file as dead (the "not running" state) when it is missing, when
   `now - t > 30`, or when `v` is not `2` (Q12: no compatibility).
-- Fields may be added within v2 (`alt.kind`, `alt.until`, `alt.byHand`, docs/31): a reader
-  ignores what it does not know and reads a missing field as the default the schema names.
-  Changing or removing a field is a new `v`.
+- Fields may be added within v2 (`alt.kind`, `alt.until`, `alt.byHand`, docs/31; `servers`
+  and `menu`, docs/33 §11 and docs/DECISIONS.md C13): a reader ignores what it does not know
+  and reads a missing field as the default the schema names. Changing or removing a field is a
+  new `v`.
 
 ## Rules for values
 
@@ -128,7 +129,30 @@ a schema change is one commit touching both sides. Design: `docs/20-companion-wi
 
   // Add: today's .torrent files in ~/Downloads, newest first, at most 5.
   "downloads": [ { "path": "/home/me/Downloads/x.torrent", "name": "x", "size": 1406000000,
-                   "at": 1789346021, "inLibrary": false } ]
+                   "at": 1789346021, "inLibrary": false } ],
+
+  // docs/33 §11 (added within v2; DECISIONS C13): every server the app knows, in its
+  // Settings' order. Nothing here asks a server the app is not on: another server's figures
+  // are what omaseed saw last time it was on it.
+  //   current  the server the app is on
+  //   state    "ok" · "down" · "refused" · "first-sync" · "unknown" (never seen)
+  //   count    the current one's live torrent count, another's last seen; -1 unknown
+  //   seen     unix seconds it was last seen or tried; 0 never
+  //   reason   why the last try failed, short ("sign-in refused"); "" when fine
+  "servers": [ { "id": "{0b9…}", "name": "home", "current": true, "state": "ok",
+                 "count": 142, "seen": 1789346626, "reason": "" } ],
+
+  // docs/33 §11: the app's shared menu, the rows its tray shows too, in order, to be drawn as
+  // they come (a row the app adds shows without the widget learning it). The servers part
+  // (a caption, a radio row per server, a separator) is there only with two servers or more.
+  //   kind     "action" · "check" · "radio" · "caption" · "separator"
+  //   label    the card-style words (docs/20 N2): "Stop All", "Quit omaseed"
+  //   detail   what the row shows at its right: a server's "4 torrents", "sign-in refused"
+  //   urgent   the detail is a failure
+  // Ids: "server:<id>" (SwitchServer), and add, alt-speed, stop-all, start-all, settings,
+  // quit (Invoke); captions and separators have ids of their own that do nothing.
+  "menu": [ { "id": "alt-speed", "label": "Alternative Speed Limits", "kind": "check",
+              "checked": false, "enabled": true, "detail": "", "urgent": false } ]
 }
 ```
 
@@ -158,6 +182,8 @@ busctl --user call io.github.diogochaves.omaseed /io/github/diogochaves/omaseed 
 | `OpenAddSheet` | `(as sources)` | raises omaseed on its own add sheet with these sources (`m`); none: the sheet as `a` opens it |
 | `ShowTorrent` | `(s hash)` | raises omaseed with the cursor on that torrent |
 | `OpenFolder` | `(s hash)` | shows the torrent's content in the file manager |
+| `SwitchServer` | `(s id) → b` | moves the app onto that server (docs/33 D24); false for an unknown id |
+| `Invoke` | `(s id) → b` | a row of `menu`, by its id; false for an unknown or disabled row. `quit` quits the app after answering |
 
 A source is a magnet link, an `http(s)` URL, or a `.torrent` path (or `file://` URI).
 
@@ -207,3 +233,7 @@ The widget touches `$XDG_RUNTIME_DIR/omaseed/widget.alive` every 30 s (creating 
 time). It does not remove it when it unloads: a bar has one widget per monitor, and one unloading
 must not bring the tray icon back while another runs. A file nobody touches goes stale. While that file is under 90 s old, omaseed's tray icon
 mode "auto" hides the tray icon (contract Q7); it is back within 90 s of the last touch.
+Settings › Appearance offers the two as one choice, "In the bar" (docs/33 D25): widget is the
+widget in the bar with "auto", tray icon no widget, both the widget with "always", none no
+widget with "never". Either way nothing is lost: the tray and the widget's ⋯ carry the same
+menu.

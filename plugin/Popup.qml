@@ -8,8 +8,9 @@ import "Status.js" as Status
 
 // The popup behind the mark (docs/20 §3): one view, in the shell's card style.
 //
-//   head      the live mark, "omaseed ↗", the server line, and three buttons:
-//             alt-speed, open omaseed, and the widget's own settings (docs/21)
+//   head      the live mark, "omaseed ↗", the server line (▾ with two servers or more:
+//             the servers), and four buttons: alt-speed, open omaseed, the widget's own
+//             settings (docs/21), and ⋯, the app's shared menu (docs/33 §11, D24)
 //   now       ↓ and ↑, the alternative limits while they are on, an hour of upload
 //   sections  Add, Your share, Keeping alive, In flight, Lately; each folds by its
 //             header or `space`, keeps one line while folded, and is remembered
@@ -70,6 +71,7 @@ Panel {
     // Each opening starts on the sections; `omarchy-shell chaves.omaseed settings` asks
     // for the page after this.
     page = "main"
+    menuPart = ""
     root.controller.show()
     // "Added 2" answers the last add; a later opening has nothing to answer.
     addNote = ""
@@ -103,6 +105,56 @@ Panel {
 
   onOpenedChanged: if (opened && flick) flick.contentY = 0
 
+  // ------------------------------------------------------------- the shared menu
+
+  // docs/33 §11 (D24, W1, W2; DECISIONS C13): ⋯ (ctrl+.) opens the app's menu, the one the
+  // tray shows; the server line's ▾ (ctrl+s) opens just its servers. "" while neither is.
+  property string menuPart: ""
+  property int menuCursor: -1
+  readonly property bool hasMenu: page === "main" && running && service !== null && service.menuRows.length > 0
+  readonly property bool canSwitch: page === "main" && service !== null && service.canSwitch
+  readonly property var menuShown: !service || menuPart === "" ? []
+    : (menuPart === "servers" ? service.serverRows : service.menuRows)
+
+  function toggleMenu(part) {
+    if (part === "menu" && !hasMenu) return
+    if (part === "servers" && !canSwitch) return
+    if (menuPart === part) { closeMenu(); return }
+    menuPart = part
+    // The cursor starts on the server the app is on, or on the first row.
+    var targets = Status.menuTargets(menuShown)
+    menuCursor = targets.length > 0 ? targets[0] : -1
+    for (var i = 0; i < targets.length; i++)
+      if (menuShown[targets[i]].kind === "radio" && menuShown[targets[i]].checked === true) { menuCursor = targets[i]; break }
+    if (flick) flick.contentY = 0
+    keys.forceActiveFocus()
+  }
+
+  function closeMenu() {
+    menuPart = ""
+    menuCursor = -1
+    keys.forceActiveFocus()
+  }
+
+  function moveMenuCursor(dy) {
+    var targets = Status.menuTargets(menuShown)
+    if (targets.length === 0) return
+    var at = targets.indexOf(menuCursor)
+    at = at < 0 ? 0 : Math.max(0, Math.min(targets.length - 1, at + dy))
+    menuCursor = targets[at]
+  }
+
+  // A server switches the app and the popup stays to refill (W1); alt-speed, stop and start
+  // all close the menu only; the rest bring the window up, or quit, and the popup goes.
+  function pickMenu(row) {
+    if (!row || !service || row.enabled === false) return
+    var effect = Status.menuEffect(row.id)
+    if (effect === "switch") service.switchServer(Status.menuServerId(row.id))
+    else service.invoke(row.id)
+    closeMenu()
+    if (effect === "close") close()
+  }
+
   // ------------------------------------------------------------- settings page
 
   // "main" (the sections) or "settings" (the widget's own settings page).
@@ -112,6 +164,7 @@ Panel {
   readonly property var settingRows: Status.settingRows()
 
   function openSettingsPage() {
+    menuPart = ""
     page = "settings"
     settingsCursor = 0
     settingsNote = ""
@@ -426,6 +479,8 @@ Panel {
   }
 
   property string cursorKey: ""
+  // While the shared menu is open its cursor is the only one drawn; the sections keep theirs.
+  readonly property string shownCursorKey: menuPart === "" ? cursorKey : ""
 
   function latelyKey(row) { return "lately:" + row.kind + ":" + row.hash }
 
@@ -501,6 +556,8 @@ Panel {
       list = [["j k", "move"], ["space ↵", "change"], ["h l", "step"], ["o", "omaseed settings"], ["esc", "back"]]
     } else if (!running) {
       list = [["↵", "start"], ["esc", "close"]]
+    } else if (menuPart !== "") {
+      list = [["j k", "move"], ["↵", "pick"], [menuPart === "servers" ? "ctrl+s" : "ctrl+.", "close"], ["esc", "back"]]
     } else {
       var t = targetAt(cursorKey)
       var enter = !t ? "" : (t.section === "add" ? "add" : (t.key.indexOf("h:") === 0 ? "fold"
@@ -513,6 +570,8 @@ Panel {
       }
       else if (t && t.hash) list.push(["s", "show"])
       if (!reachable) list.push(["r", "retry"])
+      if (hasMenu) list.push(["ctrl+.", "menu"])
+      if (canSwitch) list.push(["ctrl+s", "servers"])
       list.push(["esc", "close"])
     }
     var bright = foreground.toString()
@@ -562,6 +621,19 @@ Panel {
           else handled = false
           event.accepted = handled
           return
+        }
+        // docs/33 §11 change 4: ctrl+. the menu, ctrl+s the servers, the app's own keys.
+        if (ctrl && event.key === Qt.Key_Period) { root.toggleMenu("menu"); event.accepted = true; return }
+        if (ctrl && event.key === Qt.Key_S) { root.toggleMenu("servers"); event.accepted = true; return }
+        if (root.menuPart !== "") {
+          var menuKey = true
+          if (event.key === Qt.Key_Escape) root.closeMenu()
+          else if (event.key === Qt.Key_Down || event.text === "j") root.moveMenuCursor(1)
+          else if (event.key === Qt.Key_Up || event.text === "k") root.moveMenuCursor(-1)
+          else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space)
+            root.pickMenu(root.menuShown[root.menuCursor])
+          else menuKey = false
+          if (menuKey) { event.accepted = true; return }
         }
         if (event.key === Qt.Key_Escape) root.close()
         else if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab)
@@ -678,6 +750,7 @@ Panel {
               }
 
               Row {
+                id: serverLine
                 width: parent.width
                 spacing: Style.space(6)
 
@@ -691,15 +764,29 @@ Panel {
                 }
 
                 Text {
-                  width: parent.width - Style.space(12)
+                  id: serverText
+                  width: Math.min(implicitWidth, parent.width - Style.space(12) - (chevron.visible ? chevron.width + parent.spacing : 0))
                   textFormat: Text.PlainText
                   text: root.page === "settings" ? "OMASEED IN THE BAR"
                         : (root.running ? Status.serverLine(root.status) : "NOT RUNNING")
-                  color: root.dim
+                  color: root.menuPart === "servers" ? root.foreground : root.dim
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.caption
                   font.letterSpacing: Style.space(1)
                   elide: Text.ElideRight
+                }
+
+                // W2: with two servers or more the line takes a click (and ctrl+s) and opens
+                // the servers. One server: no ▾ (D19).
+                Text {
+                  id: chevron
+                  visible: root.canSwitch
+                  anchors.verticalCenter: parent.verticalCenter
+                  textFormat: Text.PlainText
+                  text: root.menuPart === "servers" ? "▴" : "▾"
+                  color: root.menuPart === "servers" ? root.accent : root.dim
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.caption
                 }
               }
             }
@@ -708,7 +795,12 @@ Panel {
               anchors.fill: headText
               enabled: root.page === "main"
               cursorShape: Qt.PointingHandCursor
-              onClicked: { if (root.service) root.service.openApp(); root.close() }
+              onClicked: function(mouse) {
+                var p = mapToItem(serverLine, mouse.x, mouse.y)
+                if (root.canSwitch && p.y >= 0 && p.y <= serverLine.height) { root.toggleMenu("servers"); return }
+                if (root.service) root.service.openApp()
+                root.close()
+              }
             }
 
             Row {
@@ -765,10 +857,51 @@ Panel {
                   color: parent.foreground
                 }
               }
+
+              // docs/33 §11 change 3 (W1): ⋯, the app's shared menu. Not there for an app that
+              // writes no menu.
+              PanelActionButton {
+                visible: root.hasMenu
+                bordered: true
+                tooltipText: "Menu (ctrl+.)"
+                foreground: root.menuPart === "menu" ? root.accent : root.dim
+                hoverColor: root.menuPart === "menu" ? root.accent : root.foreground
+                fontFamily: root.fontFamily
+                onClicked: root.toggleMenu("menu")
+                LineIcon {
+                  anchors.centerIn: parent
+                  size: Style.font.icon
+                  name: "more"
+                  color: parent.foreground
+                }
+              }
             }
           }
 
           PanelSeparator { width: parent.width; foreground: root.foreground }
+
+          // ====================================================== the shared menu
+
+          MenuList {
+            visible: root.page === "main" && root.menuPart !== ""
+            width: parent.width
+            rows: root.menuShown
+            cursorIndex: root.menuCursor
+            foreground: root.foreground
+            dim: root.dim
+            urgent: root.urgent
+            accent: root.accent
+            fontFamily: root.fontFamily
+            onPicked: function(row) { root.pickMenu(row) }
+            onHoveredRow: function(index) { root.menuCursor = index }
+            onCursorItem: function(item) { root.reveal(item) }
+          }
+
+          PanelSeparator {
+            visible: root.page === "main" && root.menuPart !== ""
+            width: parent.width
+            foreground: root.foreground
+          }
 
           // ====================================================== settings page
 
@@ -1001,7 +1134,7 @@ Panel {
       title: "Add"
       summary: root.addSummary()
       folded: root.folded("add")
-      hasCursor: root.cursorKey === "h:add"
+      hasCursor: root.shownCursorKey === "h:add"
       foreground: root.foreground
       fontFamily: root.fontFamily
       onToggled: root.toggleFold("add")
@@ -1020,7 +1153,7 @@ Panel {
           ticked: modelData.ticked
           leadingColor: root.accent
           readOnly: !root.reachable
-          hasCursor: root.cursorKey === modelData.key
+          hasCursor: root.shownCursorKey === modelData.key
           foreground: root.foreground
           fontFamily: root.fontFamily
           onHovered: root.cursorKey = modelData.key
@@ -1137,7 +1270,7 @@ Panel {
       title: "Your share"
       summary: Status.shareSummary(root.status)
       folded: root.folded("share")
-      hasCursor: root.cursorKey === "h:share"
+      hasCursor: root.shownCursorKey === "h:share"
       foreground: root.foreground
       fontFamily: root.fontFamily
       onToggled: root.toggleFold("share")
@@ -1242,7 +1375,7 @@ Panel {
           title: String(modelData.name || "")
           meta: Format.size(modelData.uploaded) + " · ratio " + Format.ratio(modelData.ratio)
           readOnly: !root.reachable
-          hasCursor: root.cursorKey === "top:" + modelData.hash
+          hasCursor: root.shownCursorKey === "top:" + modelData.hash
           foreground: root.foreground
           fontFamily: root.fontFamily
           onHovered: root.cursorKey = "top:" + modelData.hash
@@ -1262,7 +1395,7 @@ Panel {
       title: "Keeping alive"
       summary: Status.aliveSummary(root.aliveInfo)
       folded: root.folded("alive")
-      hasCursor: root.cursorKey === "h:alive"
+      hasCursor: root.shownCursorKey === "h:alive"
       foreground: root.foreground
       fontFamily: root.fontFamily
       onToggled: root.toggleFold("alive")
@@ -1348,7 +1481,7 @@ Panel {
           meta: Status.aliveRowText(modelData)
           metaColor: modelData.seeds <= 1 ? root.accent : root.dim
           readOnly: !root.reachable
-          hasCursor: root.cursorKey === "alive:" + modelData.hash
+          hasCursor: root.shownCursorKey === "alive:" + modelData.hash
           foreground: root.foreground
           fontFamily: root.fontFamily
           onHovered: root.cursorKey = "alive:" + modelData.hash
@@ -1368,7 +1501,7 @@ Panel {
       title: "In flight"
       summary: Status.activeSummary(root.status)
       folded: root.folded("flight")
-      hasCursor: root.cursorKey === "h:flight"
+      hasCursor: root.shownCursorKey === "h:flight"
       foreground: root.foreground
       fontFamily: root.fontFamily
       onToggled: root.toggleFold("flight")
@@ -1394,7 +1527,7 @@ Panel {
           progress: Number(modelData.progress) || 0
           progressColor: root.altSlows ? root.yellow : root.downInk
           readOnly: !root.reachable
-          hasCursor: root.cursorKey === "flight:" + modelData.hash
+          hasCursor: root.shownCursorKey === "flight:" + modelData.hash
           foreground: root.foreground
           fontFamily: root.fontFamily
           onHovered: root.cursorKey = "flight:" + modelData.hash
@@ -1414,7 +1547,7 @@ Panel {
       title: "Lately"
       summary: Status.recentSummary(root.status, root.cfg.recentCount, root.now)
       folded: root.folded("lately")
-      hasCursor: root.cursorKey === "h:lately"
+      hasCursor: root.shownCursorKey === "h:lately"
       foreground: root.foreground
       fontFamily: root.fontFamily
       onToggled: root.toggleFold("lately")
@@ -1443,7 +1576,7 @@ Panel {
           badge: modelData.kind === "milestone" ? Format.milestone(Number(modelData.ratio)) : ""
           badgeColor: root.accent
           readOnly: !root.reachable
-          hasCursor: root.cursorKey === key
+          hasCursor: root.shownCursorKey === key
           foreground: root.foreground
           fontFamily: root.fontFamily
           onHovered: root.cursorKey = key

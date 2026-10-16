@@ -440,4 +440,82 @@ TestCase {
         compare(Status.busString(reply)[0].name, "x");
         compare(Status.busString("garbage"), null);
     }
+
+    // docs/33 §11 (D24, #73): the servers and the shared menu the app writes within v2.
+    function menuSample() {
+        var status = sample();
+        status.servers = [
+            { id: "a", name: "public", current: false, state: "ok", count: 0, seen: now - 60, reason: "" },
+            { id: "b", name: "private", current: true, state: "ok", count: 4, seen: now, reason: "" },
+            { id: "c", name: "seedbox", current: false, state: "refused", count: -1, seen: now - 600, reason: "sign-in refused" }
+        ];
+        status.menu = [
+            { id: "servers", label: "servers", kind: "caption", checked: false, enabled: false, detail: "", urgent: false },
+            { id: "server:a", label: "public", kind: "radio", checked: false, enabled: true, detail: "0 torrents", urgent: false },
+            { id: "server:b", label: "private", kind: "radio", checked: true, enabled: true, detail: "4 torrents", urgent: false },
+            { id: "server:c", label: "seedbox", kind: "radio", checked: false, enabled: true, detail: "sign-in refused", urgent: true },
+            { id: "separator:servers", label: "", kind: "separator", checked: false, enabled: false, detail: "", urgent: false },
+            { id: "alt-speed", label: "Alternative Speed Limits", kind: "check", checked: false, enabled: true, detail: "", urgent: false },
+            { id: "stop-all", label: "Stop All", kind: "action", checked: false, enabled: false, detail: "", urgent: false },
+            { id: "start-all", label: "Start All", kind: "action", checked: false, enabled: true, detail: "", urgent: false },
+            { id: "separator:actions", label: "", kind: "separator", checked: false, enabled: false, detail: "", urgent: false },
+            { id: "add", label: "Add Torrent…", kind: "action", checked: false, enabled: true, detail: "", urgent: false },
+            { id: "future", label: "Something New", kind: "action", checked: false, enabled: true, detail: "", urgent: false },
+            { id: "odd", label: "?", kind: "slider", checked: false, enabled: true, detail: "", urgent: false },
+            { id: "separator:quit", label: "", kind: "separator", checked: false, enabled: false, detail: "", urgent: false },
+            { id: "quit", label: "Quit omaseed", kind: "action", checked: false, enabled: true, detail: "", urgent: false }
+        ];
+        return status;
+    }
+
+    function test_an_app_without_the_menu_shows_the_popup_as_before() {
+        var status = sample();
+        compare(Status.servers(status).length, 0);
+        verify(!Status.canSwitch(status));
+        compare(Status.menuRows(status).length, 0);
+        compare(Status.menuRows(null, "servers").length, 0);
+    }
+
+    function test_the_servers_and_the_switch() {
+        var status = menuSample();
+        compare(Status.servers(status).length, 3);
+        verify(Status.canSwitch(status));
+        status.servers = [status.servers[1]];
+        verify(!Status.canSwitch(status)); // D19: one server never offers to switch
+    }
+
+    function test_the_menu_is_drawn_as_written() {
+        var rows = Status.menuRows(menuSample());
+        var ids = rows.map(function(r) { return r.id; });
+        // A row the widget never heard of is drawn; a kind it cannot draw is left out.
+        compare(ids, ["servers", "server:a", "server:b", "server:c", "separator:servers", "alt-speed", "stop-all",
+                      "start-all", "separator:actions", "add", "future", "separator:quit", "quit"]);
+        // The cursor skips captions, separators and disabled rows.
+        compare(Status.menuTargets(rows), [1, 2, 3, 5, 7, 9, 10, 12]);
+        var servers = Status.menuRows(menuSample(), "servers");
+        compare(servers.map(function(r) { return r.id; }), ["server:a", "server:b", "server:c"]);
+        verify(servers[1].checked);
+        verify(servers[2].urgent);
+    }
+
+    function test_separators_never_lead_trail_or_double() {
+        var status = menuSample();
+        status.menu = [status.menu[4], status.menu[5], status.menu[8], status.menu[12], status.menu[13], status.menu[12]];
+        compare(Status.menuRows(status).map(function(r) { return r.kind; }), ["check", "separator", "action"]);
+    }
+
+    function test_what_a_pick_does() {
+        compare(Status.menuEffect("server:b"), "switch");
+        compare(Status.menuServerId("server:b"), "b");
+        compare(Status.menuServerId("add"), "");
+        compare(Status.menuEffect("alt-speed"), "stay");
+        compare(Status.menuEffect("stop-all"), "stay");
+        compare(Status.menuEffect("start-all"), "stay");
+        compare(Status.menuEffect("add"), "close");
+        compare(Status.menuEffect("settings"), "close");
+        compare(Status.menuEffect("quit"), "close");
+        compare(Status.menuKey("alt-speed"), "A");
+        compare(Status.menuKey("add"), "m");
+        compare(Status.menuKey("quit"), "");
+    }
 }

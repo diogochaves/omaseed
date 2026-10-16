@@ -18,7 +18,8 @@ Item {
     check: { stroke: "M5 12.5 L10 17.5 L19 7", fill: "" },
     mark: { stroke: "", fill: "M1 8 H6 V18 H16 V23 H1 Z M8 1 H23 V16 H18 V6 H8 Z M9 9 H15 V15 H9 Z" },
     open: { stroke: "M8 16 L17 7 M9.5 7 H17 V14.5", fill: "" },
-    back: { stroke: "M14.5 5.5 L8 12 L14.5 18.5", fill: "" }
+    back: { stroke: "M14.5 5.5 L8 12 L14.5 18.5", fill: "" },
+    more: { stroke: "", fill: "M3.5 10.5 H6.5 V13.5 H3.5 Z M10.5 10.5 H13.5 V13.5 H10.5 Z M17.5 10.5 H20.5 V13.5 H17.5 Z" }
   })
 
   readonly property var entry: paths[name] || { stroke: "", fill: "" }

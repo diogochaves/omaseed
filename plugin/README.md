@@ -13,8 +13,8 @@ running it says so and offers to start it.
 ## Install
 
 The widget comes with omaseed: the package installs it at `/usr/share/omaseed/plugin/`.
-omaseed's first run offers to put it in the bar, and Settings › Appearance › Bar widget
-switches it on and off. From a terminal:
+omaseed's first run offers to put it in the bar, and Settings › Appearance › In the bar
+switches it on and off (widget, tray icon, both or none). From a terminal:
 
 ```
 omaseed --install-bar-widget
@@ -26,8 +26,9 @@ upgrades the widget with it, so the two always agree on the status file. `omarch
 restarts the shell after the packages, which is when the bar picks up the new widget; after a
 bare `pacman -Syu`, run `omarchy restart shell` or log in again.
 
-While the widget runs, omaseed hides its own tray icon (Settings › Appearance › Tray icon:
-auto). Remove the widget and the icon is back within 90 s.
+While the widget runs, omaseed hides its own tray icon (Settings › Appearance › In the bar:
+widget). Remove the widget and the icon is back within 90 s. Nothing is lost either way: the
+popup's ⋯ is the tray's menu.
 
 ## In the bar
 
@@ -53,6 +54,12 @@ Scrolling does nothing, on purpose.
 
 ## The popup
 
+The head has four buttons: alternative speed limits, open omaseed, the widget's settings, and
+⋯, omaseed's own menu, the one its tray icon shows: the servers (with two or more),
+alternative limits, stop all, start all, add, omaseed's settings, and quit. With two servers
+or more the server line under the title ends in ▾ and opens just the servers; a pick switches
+omaseed, and the popup stays open with the new server's figures.
+
 Sections fold by their header or `space`, and stay the way you leave them. **Add** has no
 text field: it lists what is ready to add (what you paste with `ctrl+v` anywhere in the
 popup, a magnet on the clipboard when the popup opened, today's `.torrent` files in
@@ -76,8 +83,13 @@ duplicates and remembers the category.
 | `,` | the widget's settings (the gear) |
 | `s` | show the torrent in omaseed |
 | `r` | retry, while the server is unreachable |
+| `ctrl+.` | omaseed's menu (⋯); `j` `k` and `↵` in it, `esc` back |
+| `ctrl+s` | the servers, with two or more (the server line's ▾) |
 | `tab` | the next bar widget |
 | `esc` | close |
+
+`p` and `P` stay unbound: no per-torrent start or stop. Stop all and start all are rows of the
+menu, not buttons.
 
 `omarchy-shell chaves.omaseed toggle` opens it from a key binding.
 
@@ -88,7 +100,7 @@ the speed and which, the colours, hide while nothing moves, what middle and righ
 how few seeds counts as "keeping alive", how many rows Lately has, and what wakes
 omarchy-console's rail. Each change is saved
 at once in the widget's entry in `~/.config/omarchy/shell.json`, and the bar follows. The
-page's last row opens omaseed's own Settings; omaseed's Settings › Appearance › Bar widget
+page's last row opens omaseed's own Settings; omaseed's Settings › Appearance › Widget
 has a **customize** button that opens this page (`omarchy-shell chaves.omaseed settings`).
 
 From a terminal, the same settings: `omarchy bar set chaves.omaseed showSpeed true --json`.
@@ -126,8 +138,9 @@ Omarchy's bar reads none of this.
 
 `STATUS.md` is the contract with the app: the file, its schema and its rules. The widget
 watches `$XDG_RUNTIME_DIR/omaseed/status.json` (no polling), and treats a missing file, one
-older than 30 s, or another schema version as "not running". It acts through
-`io.github.diogochaves.omaseed.Status` and raises the app through
+older than 30 s, or another schema version as "not running". It draws omaseed's menu from
+the file's `menu` as it comes, and acts through `io.github.diogochaves.omaseed.Status`
+(`Invoke` for a row, `SwitchServer` for a server) and raises the app through
 `org.freedesktop.Application`. It touches `$XDG_RUNTIME_DIR/omaseed/widget.alive` every
 30 s so omaseed knows it is there.
 

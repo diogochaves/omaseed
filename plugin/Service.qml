@@ -48,6 +48,10 @@ Item {
   readonly property color altInk: altKind === "burst" ? green : yellow
   readonly property bool altSlows: altOn && altKind !== "burst"
   readonly property var markState: Status.markState(status, now)
+  // docs/33 §11 (D24): the app's servers and its menu; empty from an app that writes neither.
+  readonly property bool canSwitch: running && Status.canSwitch(status)
+  readonly property var menuRows: running ? Status.menuRows(status, "") : []
+  readonly property var serverRows: running ? Status.menuRows(status, "servers") : []
 
   FileView {
     id: statusFile
@@ -166,6 +170,10 @@ Item {
   function toggleAltSpeed() { call("ToggleAltSpeed") }
   function showTorrent(hash) { if (hash) call("ShowTorrent", "s", [String(hash)]) }
   function openFolder(hash) { if (hash) call("OpenFolder", "s", [String(hash)]) }
+  // docs/33 §11 (D24): the shared menu. A server row switches the app; any other row is the
+  // app's to do (add, alt-speed, stop-all, start-all, settings, quit), by its id.
+  function switchServer(id) { if (id) call("SwitchServer", "s", [String(id)]) }
+  function invoke(id) { if (id) call("Invoke", "s", [String(id)]) }
   function openAddSheet(sources) {
     var list = sources || []
     call("OpenAddSheet", "as", [String(list.length)].concat(list))

@@ -358,6 +358,76 @@ function serverLine(status) {
   return parts.join(" · ").toUpperCase()
 }
 
+// ------------------------------------------------------------------ the shared menu
+
+// docs/33 §11 (D24, DECISIONS C13): the app writes its servers and the menu the tray shows
+// too (`servers`, `menu`, added within v2). An app that does not write them leaves both
+// empty, and the popup is as it was: no ⋯, no ▾.
+
+// Every server the app knows, in its Settings' order.
+function servers(status) {
+  return list(status && status.servers).filter(function(s) { return s && typeof s.id === "string" && s.id !== "" })
+}
+
+// D19: one server never offers to switch.
+function canSwitch(status) {
+  return servers(status).length >= 2
+}
+
+// The menu's rows as written, minus anything the widget cannot draw. `part` "servers" keeps
+// the server rows only (the server line's ▾, W2); anything else is the whole menu (⋯, W1).
+// Separators never lead, trail or come twice.
+var MENU_KINDS = { action: true, check: true, radio: true, caption: true, separator: true }
+
+function menuRows(status, part) {
+  var rows = list(status && status.menu).filter(function(r) {
+    return r && typeof r.id === "string" && MENU_KINDS[r.kind] === true
+  })
+  if (part === "servers")
+    rows = rows.filter(function(r) { return r.kind === "radio" && r.id.indexOf("server:") === 0 })
+  var out = []
+  for (var i = 0; i < rows.length; i++) {
+    var r = rows[i]
+    if (r.kind === "separator" && (out.length === 0 || out[out.length - 1].kind === "separator")) continue
+    out.push(r)
+  }
+  while (out.length > 0 && out[out.length - 1].kind === "separator") out.pop()
+  return out
+}
+
+// The rows a cursor stops on: enabled actions, checks and radios.
+function menuTargets(rows) {
+  var out = []
+  for (var i = 0; i < rows.length; i++) {
+    var r = rows[i]
+    if ((r.kind === "action" || r.kind === "check" || r.kind === "radio") && r.enabled !== false) out.push(i)
+  }
+  return out
+}
+
+// The popup's own key for a row, shown at its right: A alt-speed, m the add sheet.
+function menuKey(id) {
+  if (id === "alt-speed") return "A"
+  if (id === "add") return "m"
+  return ""
+}
+
+// What picking a row does: "switch" (a server: the popup stays and refills, W1), "stay"
+// (alt-speed, stop and start all: the menu closes, the popup stays), "close" (anything that
+// brings the window up or quits: the popup closes too).
+function menuEffect(id) {
+  var key = String(id || "")
+  if (key.indexOf("server:") === 0) return "switch"
+  if (key === "alt-speed" || key === "stop-all" || key === "start-all") return "stay"
+  return "close"
+}
+
+// The id a server row stands for, "" for any other row.
+function menuServerId(id) {
+  var key = String(id || "")
+  return key.indexOf("server:") === 0 ? key.slice(7) : ""
+}
+
 // ------------------------------------------------------------------ sections
 
 // Your share, the folded line: "14.2 GB given this session · ratio 4.58".
