@@ -1,0 +1,407 @@
+<title>Engines beyond qBittorrent</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap">
+<style>
+/* ------------------------------------------------------------------
+   docs/36: other torrent engines behind omaseed, a plan (2026-10-16).
+   Issue #60. An architecture board: no window mocks. The parts of the
+   window that change (first run's engine choice, a server's engine,
+   the words per engine) get their own board before they are built.
+   Board chrome: board 33's (28–35), committed to the dark baseline.
+   Sources: the coupling audit of main at 8c97d45, and the two
+   research notes kept in .local/docs/engines/ (prior art, engine APIs).
+   ------------------------------------------------------------------ */
+:root {
+  --accent:#5492f8; --bg:#11111b; --bg-dark:#0d0d14;
+  --fg:#b9c5ef; --fg-dark:#8b94b3; --fg-bright:#cbd4f3;
+  --green:#7dd676; --red:#ee5681; --yellow:#f6d58c;
+  --fill-normal: color-mix(in srgb, var(--fg) 4%, transparent);
+  --fill-strong: color-mix(in srgb, var(--fg) 8%, transparent);
+  --hairline: color-mix(in srgb, var(--fg) 12%, transparent);
+  --mono: "JetBrains Mono", "JetBrainsMono Nerd Font", ui-monospace, monospace;
+  color-scheme: dark;
+}
+* { box-sizing:border-box; }
+[hidden] { display:none !important; }
+body { margin:0; background:var(--bg-dark); color:var(--fg); font:400 13px/1.6 var(--mono); -webkit-font-smoothing:antialiased; }
+main { max-width:1320px; margin:0 auto; padding-block:32px 72px; padding-left:max(16px, env(safe-area-inset-left, 0px)); padding-right:max(16px, env(safe-area-inset-right, 0px)); display:grid; gap:32px; }
+h1,h2,h3 { margin:0; font-weight:600; color:var(--fg-bright); text-wrap:balance; }
+h1 { font-size:26px; } h2 { font-size:17px; } h3 { font-size:13px; }
+p, li { max-width:84ch; }
+p { margin:0; }
+ul, ol { margin:0; padding-left:20px; display:grid; gap:4px; }
+code { color:var(--fg-bright); background:var(--fill-normal); padding:0 4px; overflow-wrap:anywhere; }
+b { color:var(--fg-bright); font-weight:600; }
+a { color:var(--accent); }
+a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+blockquote { margin:0; border-left:2px solid var(--yellow); padding:8px 14px; background:var(--fill-normal); max-width:96ch; color:var(--fg-bright); }
+.eyebrow { font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--fg-dark); }
+.dim { color:var(--fg-dark); }
+.lead { font-size:14px; color:var(--fg); max-width:86ch; }
+section { display:grid; gap:14px; border-top:1px solid var(--hairline); padding-top:22px; min-width:0; }
+.sec-head { display:grid; gap:4px; }
+.scroll { overflow-x:auto; }
+.cols { display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:20px; }
+.cols > * { min-width:0; display:grid; gap:8px; align-content:start; }
+table.t { border-collapse:collapse; width:100%; font-size:12px; font-variant-numeric:tabular-nums; }
+.t th, .t td { text-align:left; padding:6px 10px; border-bottom:1px solid var(--hairline); vertical-align:top; }
+.t th { font-weight:500; color:var(--fg-dark); font-size:10px; letter-spacing:.1em; text-transform:uppercase; }
+.t td:first-child { color:var(--fg-bright); }
+.t .y { color:var(--green); } .t .p { color:var(--yellow); } .t .n { color:var(--red); }
+.t .num { text-align:right; }
+.stats { display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:1px; background:var(--hairline); border:1px solid var(--hairline); }
+.stat { background:var(--bg-dark); padding:12px 14px; display:grid; gap:2px; }
+.stat .v { font-size:20px; color:var(--fg-bright); font-weight:600; font-variant-numeric:tabular-nums; }
+.stat .c { font-size:11px; color:var(--fg-dark); }
+.note { border-left:2px solid var(--accent); padding:8px 14px; background:var(--fill-normal); max-width:96ch; }
+.warn { border-left-color:var(--yellow); }
+
+/* ---------- the layer drawing ---------- */
+.layers { display:grid; gap:0; max-width:980px; }
+.lyr { display:grid; grid-template-columns:150px 1fr; gap:14px; align-items:center; }
+.lyr .lbl { font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--fg-dark); text-align:right; }
+.row { display:flex; flex-wrap:wrap; gap:8px; }
+.box { border:1px solid var(--hairline); background:var(--fill-normal); padding:6px 10px; font-size:12px; color:var(--fg-bright); }
+.box small { display:block; color:var(--fg-dark); font-size:10.5px; }
+.box.new { border-color:color-mix(in srgb, var(--accent) 55%, transparent); background:color-mix(in srgb, var(--accent) 8%, transparent); }
+.box.later { border-style:dashed; color:var(--fg); }
+.box.qbt { border-color:color-mix(in srgb, var(--yellow) 45%, transparent); }
+.arrow { grid-column:2; color:var(--fg-dark); font-size:11px; padding:4px 0 4px 12px; }
+.legend { display:flex; flex-wrap:wrap; gap:14px; font-size:11px; color:var(--fg-dark); }
+.legend span::before { content:""; display:inline-block; width:10px; height:10px; margin-right:6px; vertical-align:-1px; border:1px solid var(--hairline); background:var(--fill-normal); }
+.legend .ln::before { border-color:color-mix(in srgb, var(--accent) 55%, transparent); background:color-mix(in srgb, var(--accent) 8%, transparent); }
+.legend .ll::before { border-style:dashed; }
+.legend .lq::before { border-color:color-mix(in srgb, var(--yellow) 45%, transparent); }
+@media (max-width: 640px) { .lyr { grid-template-columns:1fr; gap:4px; } .lyr .lbl { text-align:left; } .arrow { grid-column:1; } }
+
+/* ---------- phases ---------- */
+.phases { display:grid; gap:10px; }
+.ph { display:grid; grid-template-columns:64px 1fr; gap:14px; border:1px solid var(--hairline); padding:12px 14px; }
+.ph .id { color:var(--accent); font-weight:600; font-size:15px; }
+.ph .id small { display:block; color:var(--fg-dark); font-weight:400; font-size:10px; letter-spacing:.1em; text-transform:uppercase; }
+.ph .body { display:grid; gap:6px; min-width:0; }
+.ph .exit { font-size:11.5px; color:var(--fg-dark); }
+.ph .exit b { color:var(--green); font-weight:500; }
+@media (max-width: 480px) { .ph { grid-template-columns:1fr; gap:6px; } }
+
+/* ---------- the decision sheet ---------- */
+.dec { display:grid; gap:18px; }
+.q { display:grid; gap:8px; border:1px solid var(--hairline); padding:14px; }
+.q fieldset { border:0; margin:0; padding:0; display:grid; gap:6px; min-width:0; }
+.q legend { padding:0; color:var(--fg-bright); font-weight:500; margin-bottom:4px; }
+.q .id { color:var(--accent); font-weight:600; }
+.q .why { font-size:11.5px; color:var(--fg-dark); margin:0 0 4px; max-width:96ch; }
+.q .flag { color:var(--yellow); }
+.opt { display:grid; grid-template-columns:18px 1fr; gap:8px; align-items:start; font-size:12.4px; cursor:pointer; }
+.opt input { margin:3px 0 0; accent-color:var(--accent); }
+.opt .rec { color:var(--green); font-size:10px; letter-spacing:.1em; text-transform:uppercase; margin-left:6px; }
+.out { display:grid; gap:8px; }
+.out textarea { width:100%; min-height:220px; font:inherit; font-size:12.4px; color:var(--fg); background:var(--bg); border:1px solid var(--hairline); padding:10px; resize:vertical; }
+.out button { font:inherit; justify-self:start; color:var(--bg); background:var(--accent); border:0; padding:6px 14px; cursor:pointer; }
+.out .ok { color:var(--green); font-size:12px; }
+@media (prefers-reduced-motion: reduce) { * { transition:none !important; } }
+</style>
+<main>
+  <header style="display:grid;gap:10px">
+    <div class="eyebrow">docs/36 · plan for Diogo · 2026-10-16 · issue #60 · reopens its "qBittorrent only for now" triage (2026-10-15) · no window mocks: those come in a later board</div>
+    <h1>Engines beyond qBittorrent</h1>
+    <p class="lead">omaseed today is a qBittorrent client all the way down. #60 asked about Deluge; a second comment asks for Transmission. This board proposes how omaseed becomes <b>the torrent frontend on Omarchy</b>, whatever engine sits behind it, <b>without qBittorrent losing anything</b>. It covers where the code stands, how other multi-engine clients are built, what each engine's API can do, the design that follows, the order of the work, and the calls that are yours.</p>
+    <p class="dim" style="font-size:12px">Facts come from an audit of main at 8c97d45 and two research notes (prior art and engine APIs, with source links) kept in <code>.local/docs/engines/</code>. Flood, Transdroid, Sonarr, Electorrent, qui and Tremotesf are GPL: read for design only, nothing copied.</p>
+  </header>
+
+  <!-- 1 -->
+  <section id="today">
+    <div class="sec-head"><div class="eyebrow">1 · where the code stands</div><h2>qBittorrent's JSON reaches the models directly</h2></div>
+    <div class="stats">
+      <div class="stat"><span class="v">72</span><span class="c">qBittorrent endpoints used (66 typed methods)</span></div>
+      <div class="stat"><span class="v">129</span><span class="c">API calls outside <code>QbtClient</code>, 63 of them in <code>App.cpp</code></span></div>
+      <div class="stat"><span class="v">10</span><span class="c">classes holding a <code>QbtClient*</code> directly</span></div>
+      <div class="stat"><span class="v">~50</span><span class="c">qBittorrent keys read by <code>Torrent::applyJson</code></span></div>
+      <div class="stat"><span class="v">22</span><span class="c">torrent states, one per qBittorrent state string</span></div>
+      <div class="stat"><span class="v">13</span><span class="c">rulings in DECISIONS.md that assume qBittorrent's behaviour</span></div>
+    </div>
+    <div class="cols">
+      <div>
+        <h3>Tied to qBittorrent</h3>
+        <ul>
+          <li><b>Sync is qBittorrent's delta protocol.</b> <code>SyncEngine::applyData</code> reads <code>rid</code>, <code>full_update</code>, <code>*_removed</code> and <code>server_state</code>, and finds completed torrents in the raw diff. Peers sync the same way.</li>
+          <li><b>Models take API JSON.</b> <code>Torrent::applyJson</code> returns changed <i>qBittorrent key names</i>, which <code>TorrentModel</code> turns into roles. M12's pending values are keyed by <code>seq_dl</code>, <code>auto_tmm</code> and the like. GlobalState, the category, tag and tracker models and every details model take the wire shape.</li>
+          <li><b>Wire sentinels inside typed fields:</b> ETA 8640000, limits −1/−2, file priorities 0/1/6/7, ratio 9999, the <code>** [DHT] **</code> pseudo-trackers.</li>
+          <li><b>Preference keys outside the settings pane:</b> AltSpeed, AltSchedule, StatusWriter, App and <code>MainView.qml</code> read <code>dl_limit</code>, <code>scheduler_*</code>, <code>save_path</code>, <code>web_ui_port</code>.</li>
+          <li><b>qBittorrent-only surfaces:</b> the settings pane (1,625 lines, 194 keys), settings export and import (C8), the log face (C3), the problem log (C2), metadata before the add (C5), the first-run detector.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Already engine-neutral</h3>
+        <ul>
+          <li><code>Torrent</code> is a typed struct, and the table filter, the rail counts, the seed console and ledger, the status digest and every QML view read its typed fields and roles, never JSON. No raw state string reaches QML.</li>
+          <li><code>Server</code>, <code>ServerStore</code>, <code>SecretStore</code>, <code>CertificatePin</code> and <code>PathMap</code> work for any engine. <code>Server</code> just has no field saying which engine.</li>
+          <li>Parsing (<code>Bencode</code>, <code>TorrentFile</code>, <code>MagnetLink</code>), renames, library match, shared data, free space, backups' tar, theme, tray, notifications, the bar widget.</li>
+          <li><code>QbtReply</code> and <code>ApiError</code> are a generic future and error value under a qBittorrent name.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2 -->
+  <section id="prior-art">
+    <div class="sec-head"><div class="eyebrow">2 · how others do it</div><h2>Four patterns, and why most multi-engine clients feel shallow</h2></div>
+    <div class="scroll">
+      <table class="t">
+        <thead><tr><th>Pattern</th><th>Who</th><th>What it gets right</th><th>What goes wrong</th></tr></thead>
+        <tbody>
+          <tr><td>Lowest common denominator: one interface, the UI never knows the engine</td><td>Flood, libtc, @ctrl/shared-torrent</td><td>Cheap to add an engine</td><td>qBittorrent gets flattened. Flood refused qBittorrent categories because "other clients don't support categories" (#81, re-asked in #686 since 2023). Missing features answer 500 (#799) or do nothing. A feature-list API was promised in 2021 (#221) and never built.</td></tr>
+          <tr><td>Shared core plus a feature record that the UI reads</td><td>Electorrent, Transdroid, Sonarr/Radarr</td><td>Degrades predictably: the UI hides what the engine lacks</td><td>Transdroid's ~25 <code>supportsX</code> checks are fixed per engine, so a feature an engine gains later stays hidden. Electorrent and Sonarr resolve them from the version at connect, which holds up.</td></tr>
+          <tr><td>Narrow, task-shaped interface</td><td>Sonarr/Radarr (~8 methods, 6 states), cross-seed</td><td>Very robust</td><td>Fits automation, not a full client</td></tr>
+          <tr><td>One engine, or one code path per engine</td><td>qui, Tremotesf, autobrr</td><td>Full depth</td><td>No second engine, or every screen built twice. qui's answer to other engines is <code>qui migrate</code>: import Deluge, rTorrent or Transmission state into qBittorrent.</td></tr>
+          <tr><td>A bridge that makes one engine speak another's API</td><td>Reflection (Transmission RPC on qBittorrent)</td><td>The client doesn't change</td><td>Missing fields come back as template values. Nothing serves qBittorrent's <code>/api/v2</code> on Transmission or Deluge, and writing it means pretending to be qBittorrent forever (#60's option 2).</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Two details carry over directly. <b>Electorrent</b> makes the deltas part of its interface (all, changed, deleted), so qBittorrent's <code>maindata</code> passes through untouched, and its feature record carries values, such as which file priorities an engine accepts. <b>Tremotesf</b>, a Qt Transmission client, polls a field list that depends on the version and runs a generic differ that hands Qt models removed and changed ranges. That is the piece omaseed needs for engines without real deltas.</p>
+  </section>
+
+  <!-- 3 -->
+  <section id="engines">
+    <div class="sec-head"><div class="eyebrow">3 · what each engine's API can do</div><h2>Transmission is the clear second engine; Deluge third; rTorrent only if asked</h2></div>
+    <div class="scroll">
+      <table class="t">
+        <thead><tr><th>Capability</th><th>qBittorrent 5.2 (API 2.15)</th><th>Transmission 4.1</th><th>Deluge 2.2 (deluge-web)</th><th>rTorrent 0.16</th></tr></thead>
+        <tbody>
+          <tr><td>Arch installs (pkgstats, 2026-09)</td><td>28.2 %</td><td>cli 9.4 · gtk 8.5 · qt 5.5 %</td><td>4.5 %</td><td>2.4 %</td></tr>
+          <tr><td>Protocol</td><td>REST, <code>/api/v2</code></td><td>JSON-RPC 2.0, snake_case (new in 4.1, Jan 2026; the old dialect is deprecated)</td><td>JSON-RPC v1 on <code>/json</code>, then <code>web.connect</code> to a daemon</td><td>XML-RPC or JSON-RPC over SCGI; no HTTP, no auth</td></tr>
+          <tr><td>Incremental list</td><td class="y">field deltas (<code>rid</code>)</td><td class="p">whole objects active in the last 60 s, plus removed ids</td><td class="p">diff mode exists, but deluge-web uses the session for itself: poll in full</td><td class="n">full poll</td></tr>
+          <tr><td>Error reason on the torrent</td><td class="n">no, only in <code>log/main</code></td><td class="y"><code>error_string</code></td><td class="y"><code>message</code></td><td class="p"><code>d.message</code></td></tr>
+          <tr><td>Categories with save paths</td><td class="y">yes</td><td class="n">no</td><td class="p">Label plugin: one per torrent, with a move-completed path</td><td class="n">a <code>custom1</code> convention</td></tr>
+          <tr><td>Many tags per torrent</td><td class="y">yes</td><td class="y">labels (many)</td><td class="n">no</td><td class="n">no</td></tr>
+          <tr><td>Queue</td><td class="y">yes</td><td class="y">yes</td><td class="y">yes</td><td class="n">no</td></tr>
+          <tr><td>Force start</td><td class="y">yes</td><td class="p"><code>torrent_start_now</code> skips the queue</td><td class="p">auto-managed off</td><td class="n">no</td></tr>
+          <tr><td>Sequential · first/last piece · super seeding</td><td class="y">all three</td><td class="p">sequential only (4.1)</td><td class="y">all three</td><td class="n">none in mainline</td></tr>
+          <tr><td>Rename file or folder · move data</td><td class="y">yes · yes</td><td class="y">yes · yes</td><td class="y">yes · yes</td><td class="n">shell workarounds</td></tr>
+          <tr><td>Trackers: edit · per-tracker status</td><td class="y">yes · yes</td><td class="y">yes · yes</td><td class="p">replace all · no</td><td class="p">partial</td></tr>
+          <tr><td>Web seeds · add/ban peers</td><td class="y">edit · both</td><td class="p">read only · neither</td><td class="p">none · add only</td><td class="p">none · ban only</td></tr>
+          <tr><td>Export .torrent · files before the add</td><td class="y">yes · yes (2.11.9)</td><td class="n">no · no</td><td class="p">no · yes</td><td class="n">no · no</td></tr>
+          <tr><td>Alternative speeds and schedule</td><td class="y">yes</td><td class="y">turtle mode and schedule</td><td class="p">Scheduler plugin</td><td class="n">no</td></tr>
+          <tr><td>Settings over the API</td><td class="y">~190 keys</td><td class="p">session keys (~60)</td><td class="y">the whole core config</td><td class="p">by command</td></tr>
+          <tr><td>Engine log</td><td class="y">yes</td><td class="n">no</td><td class="n">no</td><td class="n">no</td></tr>
+          <tr><td>Sign-in</td><td>API key, cookie, localhost bypass</td><td>Basic (optional) and an anti-CSRF session id</td><td>a password, then pick a daemon</td><td>none (needs a gateway)</td></tr>
+          <tr><td>Recognisable on its port with no credentials</td><td class="p">by path and answer</td><td class="y">409 with <code>X-Transmission-Session-Id</code></td><td class="y"><code>auth.check_session</code> answers false</td><td class="n">no</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="dim" style="font-size:12px">BiglyBT speaks Transmission's RPC, including 4.1's dialect, so a Transmission backend covers it at a basic level. aria2 is a downloader, not a torrent manager. Porla is clean but changing weekly and has few users. µTorrent, Vuze and Tixati aren't worth it on Linux. Only Deluge's daemon connection and aria2 push events; everything else is polled, as omaseed already does.</p>
+  </section>
+
+  <!-- 4 -->
+  <section id="design">
+    <div class="sec-head"><div class="eyebrow">4 · the proposal</div><h2>One model shaped like qBittorrent's, a feature record per server, deltas as the contract</h2></div>
+    <p>The second pattern from §2, built for depth. qBittorrent stays the reference: the internal model is its model, written in omaseed's own terms, and another engine fills what it can. The views read what the server can do, never which engine it is.</p>
+
+    <div class="layers" role="img" aria-label="Layers after the change: QML views and App read the feature record; neutral models are fed by SyncEngine from a SyncDelta; an EngineClient interface has a qBittorrent, a Transmission and later a Deluge implementation.">
+      <div class="lyr"><div class="lbl">views (QML)</div><div class="row"><div class="box">library · details · add sheet · actions · palette · ? sheet<small>gated on <code>features</code>, words from <code>vocabulary</code></small></div><div class="box qbt">Settings › qBittorrent · log face<small>shown only for a qBittorrent server</small></div><div class="box later">Settings › Transmission<small>its own pane, when it lands</small></div></div></div>
+      <div class="arrow">↑ roles and properties</div>
+      <div class="lyr"><div class="lbl">app</div><div class="row"><div class="box">App<small>calls go through <code>engine()</code>, not <code>m_client</code></small></div><div class="box new">EngineFeatures<small>what this server can do, from engine and version</small></div></div></div>
+      <div class="arrow">↑</div>
+      <div class="lyr"><div class="lbl">neutral core</div><div class="row"><div class="box">TorrentModel · CategoryModel · TagModel · TrackerModel · GlobalState · details models<small>take neutral types, not JSON</small></div><div class="box">SyncEngine<small>cadence, lost and back, completion: unchanged in behaviour</small></div></div></div>
+      <div class="arrow">↑ <code>SyncDelta</code>: full or partial, changed <code>TorrentPatch</code>es, removed ids, categories, tags, trackers, server state</div>
+      <div class="lyr"><div class="lbl">engine interface</div><div class="row"><div class="box new">EngineClient<small>sync, details, actions, add, delete, limits, labels, probe, sign-in</small></div><div class="box new">SnapshotDiffer<small>turns full polls into deltas (Tremotesf's idea)</small></div></div></div>
+      <div class="arrow">↑ each engine translates its wire format at this edge, and nowhere else</div>
+      <div class="lyr"><div class="lbl">engines</div><div class="row"><div class="box qbt">QbtEngine<small>wraps today's <code>QbtClient</code>; <code>maindata</code> maps 1:1</small></div><div class="box new">TransmissionEngine<small>JSON-RPC 2.0; recently-active plus removed</small></div><div class="box later">DelugeEngine<small>deluge-web <code>/json</code>; full poll through the differ</small></div><div class="box later">rTorrent<small>only if asked</small></div></div></div>
+    </div>
+    <div class="legend"><span class="ln">new</span><span class="lq">qBittorrent's own</span><span class="ll">later</span><span>exists, reshaped</span></div>
+
+    <div class="cols">
+      <div>
+        <h3>1 · The neutral model</h3>
+        <ul>
+          <li><code>Torrent::apply(const TorrentPatch&amp;)</code> replaces <code>applyJson</code>. A patch is typed fields plus a mask of the ones present; the change set is a field enum, not key names. M12's pending values use the same patch.</li>
+          <li>Sentinels go at the edge: "no estimate", "unlimited" and "global" become explicit values; a field an engine doesn't have is <i>absent</i>, so a view can hide it rather than print a zero.</li>
+          <li>A torrent's id is its info-hash everywhere. Transmission's integer ids stay inside its engine.</li>
+          <li>State becomes a phase (downloading, seeding, checking, moving, metadata, stopped, errored, missing) plus flags (stalled, queued, forced), and the engine's own state word is kept for details. The rail groups are derived in one place, so Q16's rules survive word for word for qBittorrent.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>2 · Sync</h3>
+        <ul>
+          <li>Every engine hands <code>SyncEngine</code> a <code>SyncDelta</code>. qBittorrent's <code>maindata</code> converts 1:1, so it keeps its deltas and its cost.</li>
+          <li>Transmission returns whole objects for torrents active in the last 60 s, plus removed ids. They go through <code>SnapshotDiffer</code>, so only real changes reach the roles. A gap longer than 50 s (hidden, asleep, lost) asks for a full list.</li>
+          <li>Deluge through deluge-web and any rTorrent use full polls and the same differ.</li>
+          <li>Completion, lost and back, and the cadence (1.5 s / 5 s / 15 s) stay in <code>SyncEngine</code>, computed from neutral fields.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>3 · The feature record</h3>
+        <ul>
+          <li><code>EngineFeatures</code> is resolved after the probe, from engine and version, as <code>supportsFetchMetadata</code> and <code>supportsShareLimitAction</code> already are. It is never a fixed list per engine.</li>
+          <li>It carries values, not only yes or no: how a server groups torrents (categories with paths, one label, many labels), which file priorities exist, which share-limit actions, queue or not, stop or pause.</li>
+          <li>Menus, the palette, the keymap, the ? sheet, the add sheet, the limits sheet and the details tabs read it. A missing feature is never a button that fails.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>4 · What stays qBittorrent's</h3>
+        <ul>
+          <li>The settings pane, settings export and import, the log face, the log-based problem log, RSS counts: kept as they are, behind the feature record, reached through the qBittorrent engine.</li>
+          <li>"Why it errored" (C2, docs/28) gets easier elsewhere: Transmission and Deluge put the reason on the torrent, so their engines fill it directly.</li>
+          <li>New features are designed against qBittorrent first and switched on per engine when it can. Another engine never holds a qBittorrent feature back.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="note"><b>Servers.</b> <code>Server</code> gains an <code>engine</code> field; <code>servers.json</code> goes to version 2 and every existing entry becomes qBittorrent. Sign-in modes become per engine: qBittorrent keeps API key, cookie and none; Transmission gets Basic or none, with its session-id header handled inside the client; Deluge gets a password. The status file the bar widget reads gains <code>server.engine</code> next to <code>server.version</code>, an addition to docs/20's contract.</div>
+  </section>
+
+  <!-- 5 -->
+  <section id="window">
+    <div class="sec-head"><div class="eyebrow">5 · what changes in the window</div><h2>For a qBittorrent server, nothing</h2></div>
+    <p>A later board draws these. This is what it would have to cover, for a Transmission server.</p>
+    <div class="scroll">
+      <table class="t">
+        <thead><tr><th>Part</th><th>On a Transmission server</th></tr></thead>
+        <tbody>
+          <tr><td>Rail</td><td>No categories section; its labels show in the tags section, called labels. A Deluge server shows its one label per torrent as categories, without paths unless the label has a move-completed path.</td></tr>
+          <tr><td>Actions, palette, keymap, ? sheet</td><td>No super seeding, first/last piece, auto management, export .torrent, add or ban peer. Force start is offered, as "start now".</td></tr>
+          <tr><td>Add sheet</td><td>No file list before a magnet's add, no content layout, no skip check, no rename. Labels instead of category and tags.</td></tr>
+          <tr><td>Details</td><td>Web seeds read only. The errored line comes from the engine's own error text. Total seed-time limit absent; ratio and idle limits stay.</td></tr>
+          <tr><td>Hero and footer</td><td>The server's line names the engine and its version: "home · Transmission 4.1.3".</td></tr>
+          <tr><td>Views</td><td>No log face. The seed console works as is: it needs only uploaded, downloaded, added on and all-time totals.</td></tr>
+          <tr><td>Settings</td><td>Settings › Transmission, a smaller pane of its own, after the rest works. Until then, the shared part (port, limits, default save path, alternative speeds) sits on the server's page.</td></tr>
+          <tr><td>First run and add server</td><td>The detector also looks for Transmission (9091) and deluge-web (8112); adding a server asks which engine, or recognises it when you test the address.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 6 -->
+  <section id="phases">
+    <div class="sec-head"><div class="eyebrow">6 · the order of the work</div><h2>Two steps that change nothing you can see, then Transmission</h2></div>
+    <p>Each step is its own issue, lands on main and ships. qBittorrent behaves the same after E1 and E2, and the walks prove it before any Transmission code is written.</p>
+    <div class="phases">
+      <div class="ph"><div class="id">E1<small>large</small></div><div class="body"><b>Neutral types, qBittorrent only.</b><span><code>TorrentPatch</code>, <code>SyncDelta</code>, <code>EngineFeatures</code>; <code>Torrent::apply</code> and the models off JSON; <code>QbtReply</code> renamed to a generic <code>Reply</code>; demo data through the same translator. <code>QbtEngine</code> holds the only qBittorrent-to-neutral translation.</span><span class="exit"><b>done when</b> ctest is green, recorded <code>maindata</code> fixtures from :8081 give the same rows, roles and rail counts as before, and swarm-walk and actions-walk shots match main.</span></div></div>
+      <div class="ph"><div class="id">E2<small>large</small></div><div class="body"><b>The interface.</b><span><code>EngineClient</code>; the 129 call sites through it; the ten holders of <code>QbtClient*</code> take the interface; qBittorrent-only surfaces reach the qBittorrent engine through the feature record; QML reads <code>App.features</code> (all on for qBittorrent).</span><span class="exit"><b>done when</b> every walk passes unchanged and nothing outside <code>src/core/engines/qbt/</code> includes <code>QbtClient.hpp</code>.</span></div></div>
+      <div class="ph"><div class="id">E3<small>medium</small></div><div class="body"><b>Servers know their engine.</b><span><code>Server.engine</code>, servers.json v2 with migration, per-engine sign-in, the detector for three engines, <code>server.engine</code> in the status file. First run and add server need their board first (board 37).</span><span class="exit"><b>done when</b> an old servers.json opens unchanged and servers-walk passes.</span></div></div>
+      <div class="ph"><div class="id">E4<small>large</small></div><div class="body"><b>Transmission 4.1 and later.</b><span>The client (JSON-RPC 2.0, session id, Basic), the translator, <code>SnapshotDiffer</code>, its feature record; library, details, add, delete, actions, labels, limits, alternative speeds. A Transmission playground in podman (an <code>archlinux</code> image with <code>transmission-cli</code>, no sudo on the host) on :8085, a <code>transmission-walk.sh</code>, and recorded fixtures for the unit tests.</span><span class="exit"><b>done when</b> the walk adds, renames, moves, labels and deletes on a live daemon, checked on the server and on disk.</span></div></div>
+      <div class="ph"><div class="id">E5<small>medium</small></div><div class="body"><b>Transmission settled.</b><span>Settings › Transmission; the words per engine in every sheet; backups and the weekly copies per engine; README, the package description and the docs say "qBittorrent and Transmission".</span><span class="exit"><b>done when</b> a release can ship with Transmission named as supported.</span></div></div>
+      <div class="ph"><div class="id">E6<small>large</small></div><div class="body"><b>Deluge</b>, through deluge-web's <code>/json</code>, the Label plugin found at connect. The daemon's own RPC (push events, safe diffs) only if polling proves too heavy.</div></div>
+      <div class="ph"><div class="id">later</div><div class="body"><b>Moving a library between engines</b> (Transmission to qBittorrent, on top of the torrents export and import of C9), and <b>rTorrent</b> if seedbox users ask.</div></div>
+    </div>
+  </section>
+
+  <!-- 7 -->
+  <section id="rulings">
+    <div class="sec-head"><div class="eyebrow">7 · rulings it touches</div><h2>None changes for qBittorrent; each gains a line about other engines</h2></div>
+    <div class="scroll">
+      <table class="t">
+        <thead><tr><th>Ruling</th><th>What it assumes</th><th>What the line would say</th></tr></thead>
+        <tbody>
+          <tr><td>Q16</td><td>qBittorrent's state names map to rail groups</td><td>The groups are read from the neutral phase; each engine maps its states to phases</td></tr>
+          <tr><td>Q27</td><td>Trust on first use, with a warning before qBittorrent's HTTPS</td><td>The same pin for every engine; the HTTPS warning is qBittorrent's only</td></tr>
+          <tr><td>C2, C3</td><td>Failures and the log face come from <code>log/main</code></td><td>qBittorrent only; elsewhere the reason comes from the torrent's own error text, and there is no log face</td></tr>
+          <tr><td>C4</td><td>Burst rides qBittorrent's alternative limits and scheduler</td><td>Any engine with a turtle mode (Transmission); off where there is none</td></tr>
+          <tr><td>C5</td><td>Files before the add through <code>fetchMetadata</code></td><td>qBittorrent and Deluge; elsewhere the add sheet shows the magnet without files, as for a private one</td></tr>
+          <tr><td>C8, C11</td><td>Settings export and import are qBittorrent's</td><td>qBittorrent only until another engine's pane exists</td></tr>
+          <tr><td>C9</td><td>Torrents export and import</td><td>The file stays engine-neutral; an import into another engine is the later "move a library" step</td></tr>
+          <tr><td>C12</td><td>Error words name qBittorrent</td><td>The words name the server's engine</td></tr>
+          <tr><td>M12, M18</td><td>Pending values and replayed renames use qBittorrent keys and calls</td><td>Neutral fields; the replay is per engine</td></tr>
+          <tr><td>N1</td><td>The Files tab matches qBittorrent's</td><td>The priorities offered come from the feature record</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 8 -->
+  <section id="risks">
+    <div class="sec-head"><div class="eyebrow">8 · risks</div><h2>What could go wrong, and what holds it</h2></div>
+    <ul>
+      <li><b>A qBittorrent regression during E1 and E2.</b> Recorded fixtures compared row for row, the walks before and after, no behaviour change allowed in those steps.</li>
+      <li><b>Testing twice from now on.</b> Live tests per engine run in their own ctest label; recorded fixtures keep unit tests offline. CI stays <code>-LE live</code>.</li>
+      <li><b>Transmission's protocol moves again</b> (4.1 renamed everything). One dialect only, 4.1 and later, checked against <code>rpc_version_semver</code>; older daemons are refused with words that say why.</li>
+      <li><b>Scope.</b> E1 and E2 together are the size of a release. They are worth doing even if Transmission waits: <code>App</code> stops talking to a wire format, and the models get easier to test.</li>
+      <li><b>The detector's contact rule.</b> Today the first-run detector only probes ports (the rule that keeps agents off a real library). Recognising an engine by its answer means an HTTP request: E8 below.</li>
+    </ul>
+  </section>
+
+  <!-- 9 -->
+  <section id="decisions">
+    <div class="sec-head"><div class="eyebrow">9 · your calls</div><h2>Decisions, and your answers in one paste</h2></div>
+    <p>Recommended options are marked and preselected. Change what you disagree with and paste the block back into a session.</p>
+    <div class="dec" id="dec"></div>
+    <div class="out">
+      <textarea id="answers" readonly aria-label="Your answers"></textarea>
+      <div style="display:flex;gap:12px;align-items:center"><button type="button" id="copy">Copy answers</button><span class="ok" id="copied" hidden>Copied</span></div>
+    </div>
+  </section>
+</main>
+
+<script>
+(() => {
+"use strict";
+const $ = (s, r = document) => r.querySelector(s);
+
+const DEC = [
+  { id:"E1", q:"Does omaseed become multi-engine?", flag:"Reopens #60's triage of 2026-10-15 (option 3, qBittorrent only).", why:"§1–§3. Two people asked within days of the launch; Transmission alone is about as common on Arch as qBittorrent.", opts:[
+    ["a","Yes: omaseed becomes the torrent frontend on Omarchy for any engine it can drive well; qBittorrent stays the reference and loses nothing", true],
+    ["b","Not yet: do E1 and E2 (they pay off on their own), decide on Transmission after"],
+    ["c","No: stay qBittorrent-only (#60's option 3)"]]},
+  { id:"E2", q:"The shape", why:"§2, §4.", opts:[
+    ["a","One model shaped like qBittorrent's, a feature record per server resolved from engine and version, deltas as the sync contract, a differ for engines without them; no bridge", true],
+    ["b","Lowest common denominator, as Flood: one interface, the UI ignores what only qBittorrent has"],
+    ["c","A bridge outside omaseed that serves qBittorrent's API on top of the other engine (#60's option 2)"]]},
+  { id:"E3", q:"Which engines, in which order", why:"§3.", opts:[
+    ["a","Transmission 4.1 and later (JSON-RPC 2.0 only), then Deluge through deluge-web, rTorrent only when someone asks", true],
+    ["b","The same, but Transmission's old dialect too, so 4.0 daemons work"],
+    ["c","Deluge first, as #60 first asked"]]},
+  { id:"E4", q:"What an engine can't do", why:"§4.3, §5. Flood's 500s and dead buttons are the thing to avoid.", opts:[
+    ["a","Hidden wherever it would be offered (menus, palette, keymap, ? sheet, add sheet, limits); a details tab the engine can't fill says so in one line instead of vanishing", true],
+    ["b","Shown disabled, with \"Transmission doesn't have this\""]]},
+  { id:"E5", q:"Words for grouping torrents", why:"§5. Transmission's labels are many per torrent with no path; Deluge's label is one per torrent with an optional path.", opts:[
+    ["a","By behaviour and in the engine's word: one-per-torrent groups use the categories section, many-per-torrent ones the tags section, and both are called what the engine calls them (labels)", true],
+    ["b","Always omaseed's words: category and tags, whatever the engine says"]]},
+  { id:"E6", q:"Settings for other engines", why:"§5.", opts:[
+    ["a","Settings › qBittorrent stays as it is; each engine gets its own pane after it works, smaller; until then the shared part (port, limits, default save path, alternative speeds) sits on the server's page", true],
+    ["b","One common pane for every engine, qBittorrent's extras under it"]]},
+  { id:"E7", q:"qBittorrent-only features", why:"§4.4, §7.", opts:[
+    ["a","Log face, log-based problems, settings export and import, metadata before the add stay, behind the feature record; other engines fill \"why it errored\" from their own error text", true],
+    ["b","The same, but put Transmission work on hold until each has an equivalent"]]},
+  { id:"E8", q:"First run: recognising an engine", flag:"Touches the detector's port-probe-only rule.", why:"§8. Transmission answers 409 with its header and deluge-web answers auth.check_session without a credential, but both are HTTP requests.", opts:[
+    ["a","The detector keeps to port probes plus local hints (running process, its config file's port) and names the likely engine; the HTTP check happens only when you pick or test that address", true],
+    ["b","The detector also sends the unauthenticated HTTP check to every open port it finds on this machine"]]},
+  { id:"E9", q:"How to start", why:"§6.", opts:[
+    ["a","E1 and E2 first, no visible change, proven with recorded fixtures and the walks; Transmission code only after", true],
+    ["b","Write Transmission alongside and pull the interface out as it grows"]]},
+  { id:"E10", q:"Moving a library between engines", why:"§6 later. qui's answer to other engines is a migrate command into qBittorrent.", opts:[
+    ["a","Yes, later, on top of C9's torrents export and import: an issue now, built after E5", true],
+    ["b","No"]]},
+  { id:"E11", q:"Playgrounds for other engines", why:"§6 E4. Agents can't install packages on the host.", opts:[
+    ["a","Podman containers from the archlinux image with the engine installed inside, started by test-server.sh (Transmission on :8085, deluge-web on :8086); nothing installed on the host", true],
+    ["b","You install transmission-cli (and later deluge) on the host and test-server.sh runs them as your user, like qbittorrent-nox"]]},
+];
+const dec = $("#dec");
+for (const d of DEC) {
+  const box = document.createElement("div"); box.className = "q";
+  const inputs = d.opts.map(([v, label, rec]) => {
+    const id = `${d.id}-${v}`;
+    return `<label class="opt" for="${id}"><input id="${id}" type="radio" name="${d.id}" value="${v}" ${rec ? "checked" : ""}><span><b>${v}</b> · ${label}${rec ? '<span class="rec">recommended</span>' : ""}</span></label>`;
+  }).join("");
+  const why = `<p class="why">${d.why || ""}${d.flag ? ` <span class="flag">${d.flag}</span>` : ""}</p>`;
+  box.innerHTML = `<fieldset><legend><span class="id">${d.id}</span> · ${d.q}</legend>${why}${inputs}</fieldset>`;
+  dec.append(box);
+}
+const notes = document.createElement("div"); notes.className = "q";
+notes.innerHTML = `<label for="free" style="color:var(--fg-bright);font-weight:500">Anything else (an engine I left out, a feature that must not be hidden)</label><textarea id="free" style="min-height:70px;font:inherit;font-size:12.4px;color:var(--fg);background:var(--bg);border:1px solid var(--hairline);padding:8px"></textarea>`;
+dec.append(notes);
+function answers() {
+  const lines = ["docs/36 engines beyond qBittorrent (2026-10-16):"];
+  for (const d of DEC) { const c = $(`input[name="${d.id}"]:checked`); lines.push(`${d.id} ${c ? c.value : "-"}`); }
+  const f = $("#free").value.trim(); if (f) lines.push("notes: " + f);
+  $("#answers").value = lines.join("\n");
+}
+dec.addEventListener("input", answers); answers();
+$("#copy").addEventListener("click", () => {
+  const ta = $("#answers");
+  const done = () => { $("#copied").hidden = false; setTimeout(() => $("#copied").hidden = true, 1600); };
+  if (navigator.clipboard?.writeText) navigator.clipboard.writeText(ta.value).then(done, () => { ta.select(); });
+  else ta.select();
+});
+})();
+</script>
