@@ -170,6 +170,13 @@ before it will tag a release.
   the settings' rows are named by what they are (a torrent's name, a peer's address), say
   whether they are selected, ticked or folded, and pressing one does what a click does.
   Before, these 72 places were not in its tree at all.
+- A screen reader now hears what a control does, not its key or its glyph: "add torrent",
+  "settings", "more", "help", "filter", "delete", "clear selection", with the shortcut said
+  after it ("shortcut a"), not "add · a". Icon-only buttons are named instead of reading out a
+  Nerd Font glyph, the table's ↓ and ↑ are "Download speed" and "Upload speed", every switch
+  in Settings is named by its row, and the alt-speed chip is named by its set instead of
+  re-reading its limits each time they change. First run's `enter set up` and `esc quit`
+  are no longer found twice beside the buttons that do the same.
 - A server added in Settings › Servers is tested before it is saved, as in the first-run
   setup: `save` waits, dimmed with "test first", until a test has run; a failed test offers
   "save anyway" for a server that is down on purpose. Editing a server asks for a new test only
