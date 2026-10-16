@@ -47,11 +47,15 @@ Item {
         anchors.centerIn: parent
         spacing: Theme.space(6)
 
+        // #79: the empty result's title, a heading; the links under it say the way out.
         Text {
+            Accessible.name: root.message
+            Accessible.role: Accessible.Heading
             anchors.horizontalCenter: parent.horizontalCenter
             color: Theme.brightForeground
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.body
+            objectName: "filteredMessage"
             text: root.message
         }
 

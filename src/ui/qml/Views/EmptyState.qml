@@ -95,7 +95,11 @@ Item {
         anchors.centerIn: parent
         spacing: Theme.space(10)
 
+        // #79: the headline is the place's heading, the lines under it text; a plain Text
+        // publishes nothing to a screen reader otherwise.
         Text {
+            Accessible.name: text
+            Accessible.role: Accessible.Heading
             anchors.horizontalCenter: parent.horizontalCenter
             color: Theme.brightForeground
             font.family: Theme.fontFamily
@@ -106,6 +110,8 @@ Item {
         }
 
         Text {
+            Accessible.name: text
+            Accessible.role: Accessible.StaticText
             anchors.horizontalCenter: parent.horizontalCenter
             color: Theme.dimForeground
             font.family: Theme.fontFamily
@@ -118,8 +124,12 @@ Item {
             wrapMode: Text.Wrap
         }
 
+        // Three texts for the key chip in the middle; one sentence to a screen reader.
         Row {
+            Accessible.name: qsTr("Press %1, drop a file here, or click a magnet link anywhere.").arg("a")
+            Accessible.role: Accessible.StaticText
             anchors.horizontalCenter: parent.horizontalCenter
+            objectName: "emptyTeach"
             spacing: Theme.space(4)
             visible: root.variant === "empty"
 
