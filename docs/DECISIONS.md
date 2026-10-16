@@ -634,6 +634,41 @@ status file's contract as built.
 - **The manifest version** stays: the contract changes within v2 and the widget ships with the
   app.
 
+## C14 — Engines beyond qBittorrent (board 36, ruled 2026-10-16)
+
+Board [36](36-engines.html) E1–E11 as recommended (#60). omaseed becomes the torrent frontend
+on Omarchy for any engine it can drive well; qBittorrent stays the reference and loses nothing.
+
+- **Shape (E2 a):** one internal model shaped like qBittorrent's, in omaseed's terms
+  (`TorrentPatch`, `SyncDelta`); an `EngineClient` per server, which translates its wire format
+  at that edge and nowhere else; `EngineFeatures` resolved after the probe from engine and
+  version, carrying values (how torrents are grouped, which file priorities, which share-limit
+  actions, queue or not). Deltas are the sync contract; engines without them go through a
+  shared differ. No bridge.
+- **Engines (E3 a):** Transmission 4.1 and later, JSON-RPC 2.0 only (older daemons refused, in
+  words that say why); then Deluge through deluge-web's `/json`; rTorrent only when asked.
+- **What an engine can't do (E4 a)** is hidden wherever it would be offered: menus, palette,
+  keymap, ? sheet, add sheet, limits. A details tab the engine can't fill says so in one line.
+- **Words (E5 a):** one-per-torrent groups use the categories section, many-per-torrent ones
+  the tags section, each called what the engine calls it (labels).
+- **Settings (E6 a):** Settings › qBittorrent stays as it is; each engine gets its own, smaller
+  pane after it works; until then the shared part sits on the server's page.
+- **qBittorrent-only features (E7 a):** the log face, the log-based problems, settings export
+  and import, files before the add stay, behind the feature record; other engines fill "why it
+  errored" from their own error text.
+- **First run (E8 a):** the detector keeps to port probes and local hints (process, config
+  file) and names the likely engine; the unauthenticated HTTP check happens only when the user
+  picks or tests that address.
+- **Order (E9 a):** E1 (neutral types) and E2 (the interface) first, with no visible change,
+  proven by recorded qBittorrent fixtures and the walks; Transmission code only after.
+- **Later (E10 a):** moving a library between engines, on top of C9's export and import.
+- **Playgrounds (E11 a):** other engines run in podman containers from the `archlinux` image,
+  started by `scripts/dev/test-server.sh` (Transmission on :8085, deluge-web on :8086); nothing
+  is installed on the host.
+
+The rulings board 36 §7 lists (Q16, Q27, C2–C5, C8, C9, C11, C12, M12, M18, N1) are unchanged
+for qBittorrent; each gains its line about other engines when the step that touches it lands.
+
 ## M8 — A click leaves the keyboard focus where it was
 
 Buttons and toggles do not take the focus when clicked. Otherwise an overlay gives the focus
