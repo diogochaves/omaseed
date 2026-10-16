@@ -15,8 +15,8 @@
 using omaseed::core::ApiError;
 using omaseed::core::MetadataLookup;
 using omaseed::core::QbtClient;
-using omaseed::core::QbtReply;
-using omaseed::core::QbtResult;
+using omaseed::core::Reply;
+using omaseed::core::Result;
 using omaseed::core::TorrentFileEntry;
 using Phase = MetadataLookup::Phase;
 using Fetched = QbtClient::FetchedMetadata;
@@ -49,21 +49,21 @@ QJsonObject json(const char *text)
 /// The server side of the test: every poll gets a reply the test answers.
 struct FakeServer
 {
-    QList<QPointer<QbtReply<Fetched>>> replies;
+    QList<QPointer<Reply<Fetched>>> replies;
     QStringList sources;
 
     MetadataLookup::Fetch fetch(QObject *owner)
     {
         return [this, owner](const QString &source) {
             sources.append(source);
-            auto *reply = new QbtReply<Fetched>(owner);
+            auto *reply = new Reply<Fetched>(owner);
             replies.append(reply);
             return reply;
         };
     }
     int polls() const { return int(sources.size()); }
     /// Answers the latest poll.
-    void answer(const QbtResult<Fetched> &result)
+    void answer(const Result<Fetched> &result)
     {
         QVERIFY(!replies.isEmpty() && !replies.last().isNull());
         replies.last()->complete(result);
@@ -72,7 +72,7 @@ struct FakeServer
     void done(const char *body = kSampler) { answer(Fetched{true, json(body)}); }
     void fail(ApiError::Kind kind, int status)
     {
-        answer(QbtResult<Fetched>(ApiError(kind, QStringLiteral("test"), status)));
+        answer(Result<Fetched>(ApiError(kind, QStringLiteral("test"), status)));
     }
 };
 
@@ -431,7 +431,7 @@ void TestMetadataLookup::theSameKeyStartsNothingNew()
 void TestMetadataLookup::anotherKeyDropsTheOldAnswer()
 {
     startReady(QStringLiteral("aaaa"));
-    QPointer<QbtReply<Fetched>> first = m_server->replies.last();
+    QPointer<Reply<Fetched>> first = m_server->replies.last();
     m_lookup->start(QStringLiteral("bbbb"),
                     QStringLiteral("magnet:?xt=urn:btih:bbbb"),
                     QStringLiteral("magnet"));

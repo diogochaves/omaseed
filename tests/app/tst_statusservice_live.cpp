@@ -47,11 +47,11 @@ const char *kMagnetHash = "0102030405060708090a0b0c0d0e0f1011121362";
 #define kSavePath "/tmp/omaseed-t62"
 
 template<class T>
-QbtResult<T> await(QObject *context, QbtReply<T> *reply, int timeoutMs = 20000)
+Result<T> await(QObject *context, Reply<T> *reply, int timeoutMs = 20000)
 {
-    QbtResult<T> result{ApiError(ApiError::Kind::Unknown, QStringLiteral("never finished"))};
+    Result<T> result{ApiError(ApiError::Kind::Unknown, QStringLiteral("never finished"))};
     QEventLoop loop;
-    reply->then(context, [&](const QbtResult<T> &finished) {
+    reply->then(context, [&](const Result<T> &finished) {
         result = finished;
         loop.quit();
     });
@@ -169,7 +169,7 @@ QJsonObject TestStatusServiceLive::infoFor(const QString &hash)
 {
     QUrlQuery query;
     query.addQueryItem(QStringLiteral("hashes"), hash);
-    const QbtResult<QByteArray> result =
+    const Result<QByteArray> result =
         await(this, m_probe.get(QStringLiteral("torrents/info"), query));
     if (result.isError())
         return QJsonObject();
@@ -179,7 +179,7 @@ QJsonObject TestStatusServiceLive::infoFor(const QString &hash)
 
 bool TestStatusServiceLive::altSpeedOnServer()
 {
-    const QbtResult<bool> result = await(this, m_probe.transferSpeedLimitsMode());
+    const Result<bool> result = await(this, m_probe.transferSpeedLimitsMode());
     return !result.isError() && result.value();
 }
 

@@ -84,11 +84,11 @@ bool waitFor(const std::function<bool()> &predicate, int timeoutMs)
 }
 
 template<class T>
-QbtResult<T> await(QObject *context, QbtReply<T> *reply, int timeoutMs = 20000)
+Result<T> await(QObject *context, Reply<T> *reply, int timeoutMs = 20000)
 {
-    QbtResult<T> result{ApiError(ApiError::Kind::Unknown, QStringLiteral("never finished"))};
+    Result<T> result{ApiError(ApiError::Kind::Unknown, QStringLiteral("never finished"))};
     QEventLoop loop;
-    reply->then(context, [&](const QbtResult<T> &finished) {
+    reply->then(context, [&](const Result<T> &finished) {
         result = finished;
         loop.quit();
     });
@@ -276,7 +276,7 @@ QJsonObject TestAppAdd::infoFor(QbtClient &client, const QString &hash)
 {
     QUrlQuery query;
     query.addQueryItem(QStringLiteral("hashes"), hash);
-    const QbtResult<QByteArray> result =
+    const Result<QByteArray> result =
         await(this, client.get(QStringLiteral("torrents/info"), query));
     if (result.isError())
         return QJsonObject();
@@ -654,7 +654,7 @@ void TestAppAdd::addsWithFileChoicesRenameAndLimits()
 
     QUrlQuery query;
     query.addQueryItem(QStringLiteral("hash"), QString::fromLatin1(kTreeHash));
-    const QbtResult<QByteArray> listed =
+    const Result<QByteArray> listed =
         await(this, probe.get(QStringLiteral("torrents/files"), query));
     QVERIFY(!listed.isError());
     const QJsonArray rows = QJsonDocument::fromJson(listed.value()).array();

@@ -20,10 +20,10 @@
 #include <QUrlQuery>
 
 using omaseed::core::QbtClient;
-using omaseed::core::QbtResult;
 using omaseed::core::QbtSettingsExport;
 using omaseed::core::QbtSettingsImport;
 using omaseed::core::QbtSettingsSnapshot;
+using omaseed::core::Result;
 
 namespace {
 
@@ -51,7 +51,7 @@ bool post(QbtClient &client, const QString &path, const QList<QPair<QString, QSt
         form.addQueryItem(key, QString::fromLatin1(QUrl::toPercentEncoding(value)));
     bool done = false;
     bool ok = false;
-    client.post(path, form)->then(&client, [&](const QbtResult<QByteArray> &r) {
+    client.post(path, form)->then(&client, [&](const Result<QByteArray> &r) {
         ok = r.isValid();
         done = true;
     });

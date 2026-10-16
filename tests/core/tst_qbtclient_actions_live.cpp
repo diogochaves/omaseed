@@ -33,8 +33,8 @@
 
 using omaseed::core::ApiError;
 using omaseed::core::QbtClient;
-using omaseed::core::QbtReply;
-using omaseed::core::QbtResult;
+using omaseed::core::Reply;
+using omaseed::core::Result;
 using omaseed::core::TorrentsInfoQuery;
 
 namespace {
@@ -60,11 +60,11 @@ QByteArray readFile(const QString &path)
 }
 
 template<class T>
-QbtResult<T> await(QObject *context, QbtReply<T> *reply, int timeoutMs = 20000)
+Result<T> await(QObject *context, Reply<T> *reply, int timeoutMs = 20000)
 {
-    QbtResult<T> result{ApiError(ApiError::Kind::Unknown, QStringLiteral("test never finished"))};
+    Result<T> result{ApiError(ApiError::Kind::Unknown, QStringLiteral("test never finished"))};
     QEventLoop loop;
-    reply->then(context, [&](const QbtResult<T> &finished) {
+    reply->then(context, [&](const Result<T> &finished) {
         result = finished;
         loop.quit();
     });
@@ -106,10 +106,10 @@ private:
     /// retrying the add a couple of times on a 409: this fixture's hash is fixed, so a
     /// leftover from a previous run — or another agent's own use of the same fixture on this
     /// shared playground — can otherwise still be settling when the add lands.
-    QbtResult<QByteArray> reAddFile(const QString &hash,
-                                    const QString &fileName,
-                                    const QByteArray &bytes,
-                                    const QbtClient::AddOptions &options);
+    Result<QByteArray> reAddFile(const QString &hash,
+                                 const QString &fileName,
+                                 const QByteArray &bytes,
+                                 const QbtClient::AddOptions &options);
 
     QUrl m_playground;
     std::unique_ptr<QbtClient> m_client;
@@ -125,7 +125,7 @@ QJsonObject TestQbtClientActionsLive::torrentInfo(const QString &hash)
 {
     TorrentsInfoQuery query;
     query.hashes = {hash};
-    const QbtResult<QJsonArray> result = await(this, m_client->torrentsInfo(query));
+    const Result<QJsonArray> result = await(this, m_client->torrentsInfo(query));
     if (result.isError() || result.value().isEmpty())
         return {};
     return result.value().at(0).toObject();
@@ -148,16 +148,16 @@ QJsonObject TestQbtClientActionsLive::pollUntil(
     return last;
 }
 
-QbtResult<QByteArray> TestQbtClientActionsLive::reAddFile(const QString &hash,
-                                                          const QString &fileName,
-                                                          const QByteArray &bytes,
-                                                          const QbtClient::AddOptions &options)
+Result<QByteArray> TestQbtClientActionsLive::reAddFile(const QString &hash,
+                                                       const QString &fileName,
+                                                       const QByteArray &bytes,
+                                                       const QbtClient::AddOptions &options)
 {
     for (int attempt = 0; attempt < 3; ++attempt) {
         await(this, m_client->torrentsDelete(QStringList{hash}, false));
         pollUntil(hash, [](const QJsonObject &t) { return t.isEmpty(); }, 2000);
 
-        const QbtResult<QByteArray> added =
+        const Result<QByteArray> added =
             await(this, m_client->torrentsAddFile(fileName, bytes, options));
         if (!added.isError() || added.error().kind() != ApiError::Kind::Conflict)
             return added;
@@ -181,7 +181,7 @@ void TestQbtClientActionsLive::initTestCase()
     // The server's default save path, not one built from this process's HOME: the server
     // creates these directories, and it need not share a HOME with the test (an omabox box,
     // another user, a remote playground). Only the fallback matches test-server.sh.
-    const QbtResult<QJsonObject> prefs = await(this, m_client->appPreferences());
+    const Result<QJsonObject> prefs = await(this, m_client->appPreferences());
     if (!prefs.isError())
         m_downloadsRoot = prefs.value().value(QStringLiteral("save_path")).toString();
     while (m_downloadsRoot.size() > 1 && m_downloadsRoot.endsWith(QLatin1Char('/')))
@@ -233,7 +233,7 @@ void TestQbtClientActionsLive::addUrlsHonoursOptions()
     options.sequentialDownload = true;
     options.rename = QStringLiteral("t25-probe");
 
-    const QbtResult<QByteArray> added =
+    const Result<QByteArray> added =
         await(this,
               m_client->torrentsAddUrls(
                   QStringList{QStringLiteral("magnet:?xt=urn:btih:%1&dn=t25-source").arg(hash)},
@@ -258,7 +258,7 @@ void TestQbtClientActionsLive::startStopForceRecheckReannounce()
     QVERIFY(!m_addedHashes.isEmpty());
     const QString hash = m_addedHashes.first();
 
-    const QbtResult<QByteArray> started = await(this, m_client->torrentsStart(QStringList{hash}));
+    const Result<QByteArray> started = await(this, m_client->torrentsStart(QStringList{hash}));
     QVERIFY2(!started.isError(), qPrintable(started.error().toString()));
     // No peers for a fake infohash, so it stalls rather than completing — the point is that
     // it left the stopped state, not that it finishes.
@@ -268,30 +268,29 @@ void TestQbtClientActionsLive::startStopForceRecheckReannounce()
     QVERIFY2(running.value(QStringLiteral("state")).toString() != QStringLiteral("stoppedDL"),
              qPrintable(running.value(QStringLiteral("state")).toString()));
 
-    const QbtResult<QByteArray> stopped = await(this, m_client->torrentsStop(QStringList{hash}));
+    const Result<QByteArray> stopped = await(this, m_client->torrentsStop(QStringList{hash}));
     QVERIFY2(!stopped.isError(), qPrintable(stopped.error().toString()));
     const QJsonObject stoppedInfo = pollUntil(hash, [](const QJsonObject &t) {
         return t.value(QStringLiteral("state")).toString() == QStringLiteral("stoppedDL");
     });
     QCOMPARE(stoppedInfo.value(QStringLiteral("state")).toString(), QStringLiteral("stoppedDL"));
 
-    const QbtResult<QByteArray> forced =
+    const Result<QByteArray> forced =
         await(this, m_client->torrentsSetForceStart(QStringList{hash}, true));
     QVERIFY2(!forced.isError(), qPrintable(forced.error().toString()));
     const QJsonObject forcedInfo = pollUntil(
         hash, [](const QJsonObject &t) { return t.value(QStringLiteral("force_start")).toBool(); });
     QCOMPARE(forcedInfo.value(QStringLiteral("force_start")).toBool(), true);
 
-    const QbtResult<QByteArray> unforced =
+    const Result<QByteArray> unforced =
         await(this, m_client->torrentsSetForceStart(QStringList{hash}, false));
     QVERIFY2(!unforced.isError(), qPrintable(unforced.error().toString()));
     await(this, m_client->torrentsStop(QStringList{hash}));
 
-    const QbtResult<QByteArray> rechecked =
-        await(this, m_client->torrentsRecheck(QStringList{hash}));
+    const Result<QByteArray> rechecked = await(this, m_client->torrentsRecheck(QStringList{hash}));
     QVERIFY2(!rechecked.isError(), qPrintable(rechecked.error().toString()));
 
-    const QbtResult<QByteArray> reannounced =
+    const Result<QByteArray> reannounced =
         await(this, m_client->torrentsReannounce(QStringList{hash}));
     QVERIFY2(!reannounced.isError(), qPrintable(reannounced.error().toString()));
 }
@@ -301,33 +300,33 @@ void TestQbtClientActionsLive::categoryAndTags()
     QVERIFY(!m_addedHashes.isEmpty());
     const QString hash = m_addedHashes.first();
 
-    const QbtResult<QByteArray> cleared =
+    const Result<QByteArray> cleared =
         await(this, m_client->torrentsSetCategory(QStringList{hash}, QString()));
     QVERIFY2(!cleared.isError(), qPrintable(cleared.error().toString()));
     QCOMPARE(torrentInfo(hash).value(QStringLiteral("category")).toString(), QString());
 
-    const QbtResult<QByteArray> restored =
+    const Result<QByteArray> restored =
         await(this, m_client->torrentsSetCategory(QStringList{hash}, QStringLiteral("t25")));
     QVERIFY2(!restored.isError(), qPrintable(restored.error().toString()));
     QCOMPARE(torrentInfo(hash).value(QStringLiteral("category")).toString(), QStringLiteral("t25"));
 
-    const QbtResult<QByteArray> removed = await(
+    const Result<QByteArray> removed = await(
         this, m_client->torrentsRemoveTags(QStringList{hash}, QStringList{QStringLiteral("a")}));
     QVERIFY2(!removed.isError(), qPrintable(removed.error().toString()));
     QVERIFY(
         !torrentInfo(hash).value(QStringLiteral("tags")).toString().contains(QStringLiteral("a")));
 
-    const QbtResult<QByteArray> readded =
+    const Result<QByteArray> readded =
         await(this, m_client->torrentsAddTags(QStringList{hash}, QStringList{QStringLiteral("a")}));
     QVERIFY2(!readded.isError(), qPrintable(readded.error().toString()));
     const QString tags = torrentInfo(hash).value(QStringLiteral("tags")).toString();
     QVERIFY2(tags.contains(QStringLiteral("a")), qPrintable(tags));
 
     m_addedTags.append(QStringLiteral("solo-tag"));
-    const QbtResult<QByteArray> created =
+    const Result<QByteArray> created =
         await(this, m_client->torrentsCreateTags(QStringList{QStringLiteral("solo-tag")}));
     QVERIFY2(!created.isError(), qPrintable(created.error().toString()));
-    const QbtResult<QJsonArray> allTags = await(this, m_client->torrentsTags());
+    const Result<QJsonArray> allTags = await(this, m_client->torrentsTags());
     QVERIFY2(!allTags.isError(), qPrintable(allTags.error().toString()));
     bool found = false;
     for (const QJsonValue &tag : allTags.value())
@@ -342,7 +341,7 @@ void TestQbtClientActionsLive::locationAndSpeedLimits()
 
     const QString newLocation = m_downloadsRoot + QStringLiteral("/t25-moved");
     m_addedDirs.append(newLocation);
-    const QbtResult<QByteArray> moved =
+    const Result<QByteArray> moved =
         await(this, m_client->torrentsSetLocation(QStringList{hash}, newLocation));
     QVERIFY2(!moved.isError(), qPrintable(moved.error().toString()));
     const QJsonObject movedInfo = pollUntil(hash, [&](const QJsonObject &t) {
@@ -350,10 +349,10 @@ void TestQbtClientActionsLive::locationAndSpeedLimits()
     });
     QCOMPARE(movedInfo.value(QStringLiteral("save_path")).toString(), newLocation);
 
-    const QbtResult<QByteArray> dl =
+    const Result<QByteArray> dl =
         await(this, m_client->torrentsSetDownloadLimit(QStringList{hash}, 4096));
     QVERIFY2(!dl.isError(), qPrintable(dl.error().toString()));
-    const QbtResult<QByteArray> up =
+    const Result<QByteArray> up =
         await(this, m_client->torrentsSetUploadLimit(QStringList{hash}, 8192));
     QVERIFY2(!up.isError(), qPrintable(up.error().toString()));
     const QJsonObject limited = torrentInfo(hash);
@@ -370,7 +369,7 @@ void TestQbtClientActionsLive::shareLimitsRoundTrip()
     QVERIFY(!m_addedHashes.isEmpty());
     const QString hash = m_addedHashes.first();
 
-    const QbtResult<QByteArray> set =
+    const Result<QByteArray> set =
         await(this, m_client->torrentsSetShareLimits(QStringList{hash}, 2.5, 100, 50));
     QVERIFY2(!set.isError(), qPrintable(set.error().toString()));
     const QJsonObject info = torrentInfo(hash);
@@ -379,7 +378,7 @@ void TestQbtClientActionsLive::shareLimitsRoundTrip()
     QCOMPARE(info.value(QStringLiteral("inactive_seeding_time_limit")).toInt(), 50);
 
     // Back to "use the global default" so cleanup leaves nothing configured.
-    const QbtResult<QByteArray> cleared =
+    const Result<QByteArray> cleared =
         await(this, m_client->torrentsSetShareLimits(QStringList{hash}, -2, -2, -2));
     QVERIFY2(!cleared.isError(), qPrintable(cleared.error().toString()));
 }
@@ -391,7 +390,7 @@ void TestQbtClientActionsLive::shareLimitActionRoundTrip()
 
     // T5.5 Q14: the playground (5.2.3, API 2.15.1) echoes the action back as
     // `share_limit_action` in torrents/info, which is what prefills the sheet's chip row.
-    const QbtResult<QByteArray> set =
+    const Result<QByteArray> set =
         await(this,
               m_client->torrentsSetShareLimits(
                   QStringList{hash}, -2, -2, -2, QbtClient::ShareLimitAction::Stop));
@@ -401,7 +400,7 @@ void TestQbtClientActionsLive::shareLimitActionRoundTrip()
     });
     // Restore before asserting: cleanupTestCase() deletes the torrent anyway, but a failed
     // compare must not leave a fixture the other live tests read in a non-default state.
-    const QbtResult<QByteArray> restored =
+    const Result<QByteArray> restored =
         await(this,
               m_client->torrentsSetShareLimits(
                   QStringList{hash}, -2, -2, -2, QbtClient::ShareLimitAction::Default));
@@ -416,7 +415,7 @@ void TestQbtClientActionsLive::shareLimitActionRoundTrip()
 
     // The fact behind the client's default argument: 5.2.3 refuses the call without the
     // field, so "omit when Default" is a UI notion, not a wire one.
-    const QbtResult<QByteArray> withoutField =
+    const Result<QByteArray> withoutField =
         await(this, m_client->torrentsSetShareLimits(QStringList{hash}, -2, -2, -2, std::nullopt));
     QVERIFY(withoutField.isError());
     QCOMPARE(withoutField.error().httpStatus(), 400);
@@ -427,7 +426,7 @@ void TestQbtClientActionsLive::renameAndToggles()
     QVERIFY(!m_addedHashes.isEmpty());
     const QString hash = m_addedHashes.first();
 
-    const QbtResult<QByteArray> renamed =
+    const Result<QByteArray> renamed =
         await(this, m_client->torrentsRename(hash, QStringLiteral("t25-renamed")));
     QVERIFY2(!renamed.isError(), qPrintable(renamed.error().toString()));
     QCOMPARE(torrentInfo(hash).value(QStringLiteral("name")).toString(),
@@ -436,17 +435,17 @@ void TestQbtClientActionsLive::renameAndToggles()
     const bool seqBefore = torrentInfo(hash).value(QStringLiteral("seq_dl")).toBool();
     const bool flpBefore = torrentInfo(hash).value(QStringLiteral("f_l_piece_prio")).toBool();
 
-    const QbtResult<QByteArray> seqToggled =
+    const Result<QByteArray> seqToggled =
         await(this, m_client->torrentsToggleSequentialDownload(QStringList{hash}));
     QVERIFY2(!seqToggled.isError(), qPrintable(seqToggled.error().toString()));
     QCOMPARE(torrentInfo(hash).value(QStringLiteral("seq_dl")).toBool(), !seqBefore);
 
-    const QbtResult<QByteArray> flpToggled =
+    const Result<QByteArray> flpToggled =
         await(this, m_client->torrentsToggleFirstLastPiecePrio(QStringList{hash}));
     QVERIFY2(!flpToggled.isError(), qPrintable(flpToggled.error().toString()));
     QCOMPARE(torrentInfo(hash).value(QStringLiteral("f_l_piece_prio")).toBool(), !flpBefore);
 
-    const QbtResult<QByteArray> autoOff =
+    const Result<QByteArray> autoOff =
         await(this, m_client->torrentsSetAutoManagement(QStringList{hash}, false));
     QVERIFY2(!autoOff.isError(), qPrintable(autoOff.error().toString()));
     QCOMPARE(torrentInfo(hash).value(QStringLiteral("auto_tmm")).toBool(), false);
@@ -459,7 +458,7 @@ void TestQbtClientActionsLive::queuePriorityMoves()
     QbtClient::AddOptions options;
     options.stopped = true;
 
-    const QbtResult<QByteArray> addedOne =
+    const Result<QByteArray> addedOne =
         await(this,
               m_client->torrentsAddUrls(
                   QStringList{QStringLiteral("magnet:?xt=urn:btih:%1&dn=queue-one").arg(hashOne)},
@@ -467,7 +466,7 @@ void TestQbtClientActionsLive::queuePriorityMoves()
     QVERIFY2(!addedOne.isError(), qPrintable(addedOne.error().toString()));
     m_addedHashes.append(hashOne);
 
-    const QbtResult<QByteArray> addedTwo =
+    const Result<QByteArray> addedTwo =
         await(this,
               m_client->torrentsAddUrls(
                   QStringList{QStringLiteral("magnet:?xt=urn:btih:%1&dn=queue-two").arg(hashTwo)},
@@ -480,8 +479,7 @@ void TestQbtClientActionsLive::queuePriorityMoves()
 
     const int priorityBefore = torrentInfo(hashTwo).value(QStringLiteral("priority")).toInt();
 
-    const QbtResult<QByteArray> topped =
-        await(this, m_client->torrentsTopPrio(QStringList{hashTwo}));
+    const Result<QByteArray> topped = await(this, m_client->torrentsTopPrio(QStringList{hashTwo}));
     QVERIFY2(!topped.isError(), qPrintable(topped.error().toString()));
     const QJsonObject afterTop = pollUntil(hashTwo, [&](const QJsonObject &t) {
         return t.value(QStringLiteral("priority")).toInt() < priorityBefore;
@@ -490,7 +488,7 @@ void TestQbtClientActionsLive::queuePriorityMoves()
              "topPrio did not move the torrent up the queue");
 
     const int priorityAfterTop = afterTop.value(QStringLiteral("priority")).toInt();
-    const QbtResult<QByteArray> bottomed =
+    const Result<QByteArray> bottomed =
         await(this, m_client->torrentsBottomPrio(QStringList{hashTwo}));
     QVERIFY2(!bottomed.isError(), qPrintable(bottomed.error().toString()));
     const QJsonObject afterBottom = pollUntil(hashTwo, [&](const QJsonObject &t) {
@@ -501,10 +499,10 @@ void TestQbtClientActionsLive::queuePriorityMoves()
 
     // increasePrio/decreasePrio: just assert they are accepted (order among two neighbours
     // may not change visibly depending on queue state).
-    const QbtResult<QByteArray> increased =
+    const Result<QByteArray> increased =
         await(this, m_client->torrentsIncreasePrio(QStringList{hashOne}));
     QVERIFY2(!increased.isError(), qPrintable(increased.error().toString()));
-    const QbtResult<QByteArray> decreased =
+    const Result<QByteArray> decreased =
         await(this, m_client->torrentsDecreasePrio(QStringList{hashOne}));
     QVERIFY2(!decreased.isError(), qPrintable(decreased.error().toString()));
 }
@@ -522,7 +520,7 @@ void TestQbtClientActionsLive::addFileFixtureAndDeleteWithFiles()
     options.stopped = true;
     options.savepath = savePath;
 
-    const QbtResult<QByteArray> added =
+    const Result<QByteArray> added =
         reAddFile(hash, QStringLiteral("single_file_v1.torrent"), bytes, options);
     QVERIFY2(!added.isError(), qPrintable(added.error().toString()));
 
@@ -534,7 +532,7 @@ void TestQbtClientActionsLive::addFileFixtureAndDeleteWithFiles()
     // stopped, peerless torrent may never do), so only assert its removal when it existed.
     const bool dirExistedBeforeDelete = QDir(savePath).exists();
 
-    const QbtResult<QByteArray> deleted =
+    const Result<QByteArray> deleted =
         await(this, m_client->torrentsDelete(QStringList{hash}, true));
     QVERIFY2(!deleted.isError(), qPrintable(deleted.error().toString()));
 
@@ -560,12 +558,12 @@ void TestQbtClientActionsLive::deleteWithoutFilesKeepsData()
     options.stopped = true;
     options.savepath = savePath;
 
-    const QbtResult<QByteArray> added =
+    const Result<QByteArray> added =
         reAddFile(hash, QStringLiteral("v2_stub.torrent"), bytes, options);
     QVERIFY2(!added.isError(), qPrintable(added.error().toString()));
     pollUntil(hash, [](const QJsonObject &t) { return !t.isEmpty(); });
 
-    const QbtResult<QByteArray> deleted =
+    const Result<QByteArray> deleted =
         await(this, m_client->torrentsDelete(QStringList{hash}, false));
     QVERIFY2(!deleted.isError(), qPrintable(deleted.error().toString()));
 

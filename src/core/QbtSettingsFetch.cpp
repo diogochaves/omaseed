@@ -2,7 +2,7 @@
 
 #include "core/ApiError.hpp"
 #include "core/QbtClient.hpp"
-#include "core/QbtReply.hpp"
+#include "core/Reply.hpp"
 
 #include <QFileInfo>
 
@@ -49,7 +49,7 @@ void QbtSettingsFetch::fetch(const Server &server, const QString &secret, const 
     const QString name = server.name;
     const QString url = server.url.toString(QUrl::RemoveUserInfo);
     client->probe()->then(
-        this, [this, client, name, url, appVersion](const QbtResult<ServerInfo> &result) {
+        this, [this, client, name, url, appVersion](const Result<ServerInfo> &result) {
             if (result.isError()) {
                 finish(std::nullopt, reasonText(result.error(), m_mode));
                 return;
@@ -83,7 +83,7 @@ void QbtSettingsFetch::finish(const std::optional<QbtSettingsSnapshot> &snapshot
         // API key (or no login) has none.
         if (m_mode == AuthMode::Cookie && client->authState() == QbtClient::AuthState::Ok)
             client->post(QStringLiteral("auth/logout"))
-                ->then(client, [client](const QbtResult<QByteArray> &) { client->deleteLater(); });
+                ->then(client, [client](const Result<QByteArray> &) { client->deleteLater(); });
         else
             client->deleteLater();
     }

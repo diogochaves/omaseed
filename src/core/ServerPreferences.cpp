@@ -79,7 +79,7 @@ void ServerPreferences::readBack(const QVariantMap &sent)
     ++m_reads;
     setLoading(true);
     m_client->appPreferences()->then(
-        this, [this, generation, sent](const QbtResult<QJsonObject> &result) {
+        this, [this, generation, sent](const Result<QJsonObject> &result) {
             if (generation != m_generation)
                 return; // another server took over meanwhile
             if (--m_reads == 0)
@@ -153,7 +153,7 @@ void ServerPreferences::apply(const QVariantMap &changes)
     Q_EMIT pendingChanged();
 
     m_client->appSetPreferences(QJsonObject::fromVariantMap(changes))
-        ->then(this, [this, generation, changes, before](const QbtResult<QByteArray> &result) {
+        ->then(this, [this, generation, changes, before](const Result<QByteArray> &result) {
             if (generation != m_generation)
                 return;
             for (auto it = changes.constBegin(); it != changes.constEnd(); ++it)
@@ -189,7 +189,7 @@ void ServerPreferences::loadInterfaces(const QString &iface)
         return;
     const quint64 generation = m_generation;
     m_client->get(QStringLiteral("app/networkInterfaceList"))
-        ->then(this, [this, generation](const QbtResult<QByteArray> &result) {
+        ->then(this, [this, generation](const Result<QByteArray> &result) {
             if (generation != m_generation || result.isError())
                 return;
             QVariantList list;
@@ -207,7 +207,7 @@ void ServerPreferences::loadInterfaces(const QString &iface)
     QUrlQuery query;
     query.addQueryItem(QStringLiteral("iface"), iface);
     m_client->get(QStringLiteral("app/networkInterfaceAddressList"), query)
-        ->then(this, [this, generation](const QbtResult<QByteArray> &result) {
+        ->then(this, [this, generation](const Result<QByteArray> &result) {
             if (generation != m_generation || result.isError())
                 return;
             QStringList addresses;
@@ -225,7 +225,7 @@ void ServerPreferences::rotateApiKey()
         return;
     const quint64 generation = m_generation;
     m_client->post(QStringLiteral("app/rotateAPIKey"))
-        ->then(this, [this, generation](const QbtResult<QByteArray> &result) {
+        ->then(this, [this, generation](const Result<QByteArray> &result) {
             if (generation != m_generation)
                 return;
             if (result.isError()) {

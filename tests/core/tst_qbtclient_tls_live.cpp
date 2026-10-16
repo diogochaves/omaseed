@@ -20,18 +20,18 @@
 
 using omaseed::core::ApiError;
 using omaseed::core::QbtClient;
-using omaseed::core::QbtReply;
-using omaseed::core::QbtResult;
+using omaseed::core::Reply;
+using omaseed::core::Result;
 namespace CertificatePin = omaseed::core::CertificatePin;
 
 namespace {
 
 template<class T>
-QbtResult<T> await(QObject *context, QbtReply<T> *reply, int timeoutMs = 20000)
+Result<T> await(QObject *context, Reply<T> *reply, int timeoutMs = 20000)
 {
-    QbtResult<T> result{ApiError(ApiError::Kind::Unknown, QStringLiteral("never finished"))};
+    Result<T> result{ApiError(ApiError::Kind::Unknown, QStringLiteral("never finished"))};
     QEventLoop loop;
-    reply->then(context, [&](const QbtResult<T> &value) {
+    reply->then(context, [&](const Result<T> &value) {
         result = value;
         loop.quit();
     });

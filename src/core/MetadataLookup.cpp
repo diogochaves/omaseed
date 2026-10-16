@@ -203,17 +203,17 @@ void MetadataLookup::poll()
 {
     if (!m_fetch || m_inFlight)
         return;
-    QbtReply<QbtClient::FetchedMetadata> *reply = m_fetch(m_source);
+    Reply<QbtClient::FetchedMetadata> *reply = m_fetch(m_source);
     if (reply == nullptr)
         return;
     m_inFlight = true;
     const int generation = m_generation;
-    reply->then(this, [this, generation](const QbtResult<QbtClient::FetchedMetadata> &result) {
+    reply->then(this, [this, generation](const Result<QbtClient::FetchedMetadata> &result) {
         onAnswer(generation, result);
     });
 }
 
-void MetadataLookup::onAnswer(int generation, const QbtResult<QbtClient::FetchedMetadata> &result)
+void MetadataLookup::onAnswer(int generation, const Result<QbtClient::FetchedMetadata> &result)
 {
     if (generation != m_generation || !isRunning(m_phase))
         return;

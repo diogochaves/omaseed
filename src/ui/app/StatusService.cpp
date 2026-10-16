@@ -85,7 +85,7 @@ bool StatusService::setAltSpeed(bool on)
         return now;
     QPointer<App> app(m_app);
     m_app->client()->transferSetSpeedLimitsMode(on)->then(
-        this, [app, on](const QbtResult<QByteArray> &result) {
+        this, [app, on](const Result<QByteArray> &result) {
             if (!result.isError() || app.isNull())
                 return;
             // A server without setSpeedLimitsMode: flip it when it is not where it should be.
@@ -284,12 +284,12 @@ void StatusService::addSources(const QStringList &sources,
                 run->added.append(entry(source));
                 continue;
             }
-            QbtReply<QByteArray> *request =
+            core::Reply<QByteArray> *request =
                 source.kind == QLatin1String("file")
                     ? m_app->client()->torrentsAddFile(source.fileName, source.bytes, options)
                     : m_app->client()->torrentsAddUrls(QStringList{source.value}, options);
             ++run->pending;
-            request->then(this, [run, source](const QbtResult<QByteArray> &result) {
+            request->then(this, [run, source](const Result<QByteArray> &result) {
                 if (result.isError()) {
                     // 5.x answers 409 for a torrent it already has.
                     if (result.error().kind() == ApiError::Kind::Conflict)

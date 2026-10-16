@@ -833,14 +833,14 @@ private:
                     bool on,
                     bool omaseed::core::Torrent::*field,
                     const QString &key,
-                    omaseed::core::QbtReply<QByteArray> *reply,
+                    omaseed::core::Reply<QByteArray> *reply,
                     const QString &action);
     /// G4 in demo mode: sets `key` to `on` on the fictional rows and returns true.
     bool applyDemoOption(const QStringList &hashes, const QString &key, bool on);
     /// A refused action, in the footer's words (docs/33 D23): `hashes` and `folder` name
     /// what it was about when the request does not.
     void reportActionResult(const QString &action,
-                            const omaseed::core::QbtResult<QByteArray> &result,
+                            const omaseed::core::Result<QByteArray> &result,
                             const QStringList &hashes = {},
                             const QString &folder = {});
     void loadDeleteFilesDefault();

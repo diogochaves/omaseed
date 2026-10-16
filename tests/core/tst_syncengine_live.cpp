@@ -54,11 +54,11 @@ bool waitFor(const std::function<bool()> &predicate, int timeoutMs)
 }
 
 template<class T>
-QbtResult<T> await(QObject *context, QbtReply<T> *reply, int timeoutMs = 20000)
+Result<T> await(QObject *context, Reply<T> *reply, int timeoutMs = 20000)
 {
-    QbtResult<T> result{ApiError(ApiError::Kind::Unknown, QStringLiteral("never finished"))};
+    Result<T> result{ApiError(ApiError::Kind::Unknown, QStringLiteral("never finished"))};
     QEventLoop loop;
-    reply->then(context, [&](const QbtResult<T> &finished) {
+    reply->then(context, [&](const Result<T> &finished) {
         result = finished;
         loop.quit();
     });
@@ -142,8 +142,7 @@ void TestSyncEngineLive::seesAnAddedTorrentAndThenItsRemoval()
                           .arg(QString::fromLatin1(kTestHash), QString::fromLatin1(kTestName)));
     form.addQueryItem(QStringLiteral("stopped"), QStringLiteral("true"));
     form.addQueryItem(QStringLiteral("category"), QStringLiteral("fixtures"));
-    const QbtResult<QByteArray> added =
-        await(this, adder.post(QStringLiteral("torrents/add"), form));
+    const Result<QByteArray> added = await(this, adder.post(QStringLiteral("torrents/add"), form));
     QVERIFY2(!added.isError(), qPrintable(added.error().toString()));
 
     QVERIFY2(

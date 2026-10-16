@@ -22,8 +22,8 @@
 
 using omaseed::core::ApiError;
 using omaseed::core::QbtClient;
-using omaseed::core::QbtReply;
-using omaseed::core::QbtResult;
+using omaseed::core::Reply;
+using omaseed::core::Result;
 using omaseed::core::ServerInfo;
 
 namespace {
@@ -41,11 +41,11 @@ bool answers(const QUrl &url)
 }
 
 template<class T>
-QbtResult<T> await(QObject *context, QbtReply<T> *reply, int timeoutMs = 20000)
+Result<T> await(QObject *context, Reply<T> *reply, int timeoutMs = 20000)
 {
-    QbtResult<T> result{ApiError(ApiError::Kind::Unknown, QStringLiteral("test never finished"))};
+    Result<T> result{ApiError(ApiError::Kind::Unknown, QStringLiteral("test never finished"))};
     QEventLoop loop;
-    reply->then(context, [&](const QbtResult<T> &finished) {
+    reply->then(context, [&](const Result<T> &finished) {
         result = finished;
         loop.quit();
     });
@@ -103,11 +103,11 @@ void TestQbtClientLive::bearerAgainstStrictServer()
     client.setBaseUrl(m_strict);
     client.setApiKey(m_apiKey);
 
-    const QbtResult<QString> version = await(this, client.appVersion());
+    const Result<QString> version = await(this, client.appVersion());
     QVERIFY2(!version.isError(), qPrintable(version.error().toString()));
     QVERIFY2(version.value().startsWith(QStringLiteral("v5")), qPrintable(version.value()));
 
-    const QbtResult<QString> api = await(this, client.webApiVersion());
+    const Result<QString> api = await(this, client.webApiVersion());
     QVERIFY2(!api.isError(), qPrintable(api.error().toString()));
     QVERIFY2(api.value().startsWith(QStringLiteral("2.15.")), qPrintable(api.value()));
 
@@ -124,7 +124,7 @@ void TestQbtClientLive::syncMainDataFirstCallIsFull()
     client.setBaseUrl(m_strict);
     client.setApiKey(m_apiKey);
 
-    const QbtResult<QJsonObject> main = await(this, client.syncMainData(0));
+    const Result<QJsonObject> main = await(this, client.syncMainData(0));
     QVERIFY2(!main.isError(), qPrintable(main.error().toString()));
     QCOMPARE(main.value().value(QStringLiteral("full_update")).toBool(), true);
     QVERIFY(main.value().contains(QStringLiteral("server_state")));
@@ -142,11 +142,11 @@ void TestQbtClientLive::cookieLoginAgainstStrictServer()
     client.setBaseUrl(m_strict);
     client.setCredentials(m_user, m_password);
 
-    const QbtResult<bool> loggedIn = await(this, client.login());
+    const Result<bool> loggedIn = await(this, client.login());
     QVERIFY2(!loggedIn.isError(), qPrintable(loggedIn.error().toString()));
     QVERIFY(loggedIn.value());
 
-    const QbtResult<QString> version = await(this, client.appVersion());
+    const Result<QString> version = await(this, client.appVersion());
     QVERIFY2(!version.isError(), qPrintable(version.error().toString()));
     QVERIFY(version.value().startsWith(QStringLiteral("v5")));
     QCOMPARE(client.authState(), QbtClient::AuthState::Ok);
@@ -155,7 +155,7 @@ void TestQbtClientLive::cookieLoginAgainstStrictServer()
     QbtClient lazy;
     lazy.setBaseUrl(m_strict);
     lazy.setCredentials(m_user, m_password);
-    const QbtResult<QJsonObject> transfer = await(this, lazy.transferInfo());
+    const Result<QJsonObject> transfer = await(this, lazy.transferInfo());
     QVERIFY2(!transfer.isError(), qPrintable(transfer.error().toString()));
     QVERIFY(transfer.value().contains(QStringLiteral("connection_status")));
 }
@@ -170,13 +170,13 @@ void TestQbtClientLive::wrongPasswordIsUnauthorized()
     client.setBaseUrl(m_strict);
     client.setCredentials(m_user, QStringLiteral("not-the-password"));
 
-    const QbtResult<bool> loggedIn = await(this, client.login());
+    const Result<bool> loggedIn = await(this, client.login());
     QVERIFY(loggedIn.isError());
     QCOMPARE(loggedIn.error().kind(), ApiError::Kind::Unauthorized);
     QCOMPARE(client.authState(), QbtClient::AuthState::NeedsCredential);
 
     // A normal call with the bad password fails the same way, through the login retry.
-    const QbtResult<QString> version = await(this, client.appVersion());
+    const Result<QString> version = await(this, client.appVersion());
     QVERIFY(version.isError());
     QCOMPARE(version.error().kind(), ApiError::Kind::Unauthorized);
 
@@ -185,7 +185,7 @@ void TestQbtClientLive::wrongPasswordIsUnauthorized()
         QSKIP("QBT_STRICT_PASS is unset: scripts/dev/test-server.sh start --strict "
               "saves it in ~/.config/omaseed/dev.env; load that (set -a; . dev.env)");
     client.setCredentials(m_user, m_password);
-    const QbtResult<QString> again = await(this, client.appVersion());
+    const Result<QString> again = await(this, client.appVersion());
     QVERIFY2(!again.isError(), qPrintable(again.error().toString()));
     QVERIFY(again.value().startsWith(QStringLiteral("v5")));
     QCOMPARE(client.authState(), QbtClient::AuthState::Ok);
@@ -196,7 +196,7 @@ void TestQbtClientLive::noCredentialIsForbiddenOnStrictServer()
     QbtClient client;
     client.setBaseUrl(m_strict);
 
-    const QbtResult<QString> version = await(this, client.appVersion());
+    const Result<QString> version = await(this, client.appVersion());
     QVERIFY(version.isError());
     QCOMPARE(version.error().kind(), ApiError::Kind::Forbidden);
     QCOMPARE(version.error().httpStatus(), 403);
@@ -208,15 +208,15 @@ void TestQbtClientLive::noCredentialWorksOnPlayground()
     QbtClient client;
     client.setBaseUrl(m_playground);
 
-    const QbtResult<QString> version = await(this, client.appVersion());
+    const Result<QString> version = await(this, client.appVersion());
     QVERIFY2(!version.isError(), qPrintable(version.error().toString()));
     QVERIFY(version.value().startsWith(QStringLiteral("v5")));
 
-    const QbtResult<QJsonObject> build = await(this, client.appBuildInfo());
+    const Result<QJsonObject> build = await(this, client.appBuildInfo());
     QVERIFY2(!build.isError(), qPrintable(build.error().toString()));
     QVERIFY(build.value().contains(QStringLiteral("libtorrent")));
 
-    const QbtResult<bool> limits = await(this, client.transferSpeedLimitsMode());
+    const Result<bool> limits = await(this, client.transferSpeedLimitsMode());
     QVERIFY2(!limits.isError(), qPrintable(limits.error().toString()));
 }
 
@@ -225,12 +225,12 @@ void TestQbtClientLive::torrentsInfoReturnsAnArray()
     QbtClient client;
     client.setBaseUrl(m_playground);
 
-    const QbtResult<QJsonArray> torrents = await(this, client.torrentsInfo());
+    const Result<QJsonArray> torrents = await(this, client.torrentsInfo());
     QVERIFY2(!torrents.isError(), qPrintable(torrents.error().toString()));
 
-    const QbtResult<QJsonObject> categories = await(this, client.torrentsCategories());
+    const Result<QJsonObject> categories = await(this, client.torrentsCategories());
     QVERIFY2(!categories.isError(), qPrintable(categories.error().toString()));
-    const QbtResult<QJsonArray> tags = await(this, client.torrentsTags());
+    const Result<QJsonArray> tags = await(this, client.torrentsTags());
     QVERIFY2(!tags.isError(), qPrintable(tags.error().toString()));
 
     if (torrents.value().isEmpty())
@@ -239,18 +239,18 @@ void TestQbtClientLive::torrentsInfoReturnsAnArray()
     const QString hash = torrents.value().at(0).toObject().value(QStringLiteral("hash")).toString();
     QVERIFY(!hash.isEmpty());
 
-    const QbtResult<QJsonObject> properties = await(this, client.torrentsProperties(hash));
+    const Result<QJsonObject> properties = await(this, client.torrentsProperties(hash));
     QVERIFY2(!properties.isError(), qPrintable(properties.error().toString()));
-    const QbtResult<QJsonArray> files = await(this, client.torrentsFiles(hash));
+    const Result<QJsonArray> files = await(this, client.torrentsFiles(hash));
     QVERIFY2(!files.isError(), qPrintable(files.error().toString()));
-    const QbtResult<QJsonArray> trackers = await(this, client.torrentsTrackers(hash));
+    const Result<QJsonArray> trackers = await(this, client.torrentsTrackers(hash));
     QVERIFY2(!trackers.isError(), qPrintable(trackers.error().toString()));
-    const QbtResult<QJsonObject> peers = await(this, client.torrentsPeers(hash, 0));
+    const Result<QJsonObject> peers = await(this, client.torrentsPeers(hash, 0));
     QVERIFY2(!peers.isError(), qPrintable(peers.error().toString()));
     QVERIFY(peers.value().contains(QStringLiteral("peers")));
 
     // A hash the server does not know is a clean 404.
-    const QbtResult<QJsonObject> missing = await(
+    const Result<QJsonObject> missing = await(
         this,
         client.torrentsProperties(QStringLiteral("0000000000000000000000000000000000000000")));
     QVERIFY(missing.isError());
@@ -262,7 +262,7 @@ void TestQbtClientLive::logMainProblemsOnBothServers()
 {
     QbtClient playground;
     playground.setBaseUrl(m_playground);
-    const QbtResult<QJsonArray> all = await(this, playground.logMainProblems(-1));
+    const Result<QJsonArray> all = await(this, playground.logMainProblems(-1));
     QVERIFY2(!all.isError(), qPrintable(all.error().toString()));
     int lastId = -1;
     for (const QJsonValue &value : all.value()) {
@@ -273,7 +273,7 @@ void TestQbtClientLive::logMainProblemsOnBothServers()
         QVERIFY2(type == 4 || type == 8, "log/main sent a normal or info line");
         lastId = entry.value(QStringLiteral("id")).toInt();
     }
-    const QbtResult<QJsonArray> after = await(this, playground.logMainProblems(lastId));
+    const Result<QJsonArray> after = await(this, playground.logMainProblems(lastId));
     QVERIFY2(!after.isError(), qPrintable(after.error().toString()));
     for (const QJsonValue &value : after.value())
         QVERIFY(value.toObject().value(QStringLiteral("id")).toInt() > lastId);
@@ -283,7 +283,7 @@ void TestQbtClientLive::logMainProblemsOnBothServers()
     QbtClient strict;
     strict.setBaseUrl(m_strict);
     strict.setApiKey(m_apiKey);
-    const QbtResult<QJsonArray> signedIn = await(this, strict.logMainProblems(-1));
+    const Result<QJsonArray> signedIn = await(this, strict.logMainProblems(-1));
     QVERIFY2(!signedIn.isError(), qPrintable(signedIn.error().toString()));
 }
 
@@ -293,7 +293,7 @@ void TestQbtClientLive::probeReportsServerInfo()
     client.setBaseUrl(m_playground);
     QSignalSpy info(&client, &QbtClient::serverInfoChanged);
 
-    const QbtResult<ServerInfo> probed = await(this, client.probe());
+    const Result<ServerInfo> probed = await(this, client.probe());
     QVERIFY2(!probed.isError(), qPrintable(probed.error().toString()));
     QVERIFY(probed.value().version.startsWith(QStringLiteral("v5")));
     QVERIFY(probed.value().apiVersion.startsWith(QStringLiteral("2.")));
@@ -310,7 +310,7 @@ void TestQbtClientLive::fetchMetadataOnBothServers()
     // `asked`: whether `client`'s library had a torrent to ask about.
     const auto check = [this](QbtClient &client, const char *server, bool *asked) {
         *asked = false;
-        const QbtResult<QJsonArray> all = await(this, client.torrentsInfo());
+        const Result<QJsonArray> all = await(this, client.torrentsInfo());
         QVERIFY2(!all.isError(), qPrintable(all.error().toString()));
         QJsonObject torrent;
         for (const QJsonValue &value : all.value()) {
@@ -327,7 +327,7 @@ void TestQbtClientLive::fetchMetadataOnBothServers()
             return;
         }
         const QString hash = torrent.value(QStringLiteral("hash")).toString();
-        const QbtResult<QbtClient::FetchedMetadata> fetched =
+        const Result<QbtClient::FetchedMetadata> fetched =
             await(this, client.torrentsFetchMetadata(hash));
         QVERIFY2(!fetched.isError(), qPrintable(fetched.error().toString()));
         QVERIFY2(fetched.value().ready, "a library torrent should answer 200 at once");

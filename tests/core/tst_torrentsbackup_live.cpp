@@ -27,8 +27,8 @@
 #include <QTest>
 
 using omaseed::core::QbtClient;
-using omaseed::core::QbtReply;
-using omaseed::core::QbtResult;
+using omaseed::core::Reply;
+using omaseed::core::Result;
 using omaseed::core::TorrentFile;
 using omaseed::core::TorrentRecord;
 using omaseed::core::TorrentsBackup;
@@ -39,13 +39,13 @@ using omaseed::core::TorrentsInfoQuery;
 namespace {
 
 template<class T>
-QbtResult<T> wait(QbtReply<T> *reply, QObject *context)
+Result<T> wait(Reply<T> *reply, QObject *context)
 {
-    std::optional<QbtResult<T>> got;
-    reply->then(context, [&got](const QbtResult<T> &r) { got = r; });
+    std::optional<Result<T>> got;
+    reply->then(context, [&got](const Result<T> &r) { got = r; });
     if (!QTest::qWaitFor([&got] { return got.has_value(); }, 20000))
-        return QbtResult<T>(omaseed::core::ApiError(omaseed::core::ApiError::Kind::Timeout,
-                                                    QStringLiteral("no answer")));
+        return Result<T>(omaseed::core::ApiError(omaseed::core::ApiError::Kind::Timeout,
+                                                 QStringLiteral("no answer")));
     return *got;
 }
 

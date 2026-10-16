@@ -91,7 +91,7 @@ void TorrentsExport::step()
     const auto live = [this, generation] { return m_busy && generation == m_generation; };
     switch (m_step++) {
     case 0:
-        m_client->appVersion()->then(this, [this, live](const QbtResult<QString> &r) {
+        m_client->appVersion()->then(this, [this, live](const Result<QString> &r) {
             if (!live())
                 return;
             if (r.isError())
@@ -101,7 +101,7 @@ void TorrentsExport::step()
         });
         return;
     case 1:
-        m_client->webApiVersion()->then(this, [this, live](const QbtResult<QString> &r) {
+        m_client->webApiVersion()->then(this, [this, live](const Result<QString> &r) {
             if (!live())
                 return;
             if (r.isError())
@@ -111,7 +111,7 @@ void TorrentsExport::step()
         });
         return;
     case 2:
-        m_client->appPreferences()->then(this, [this, live](const QbtResult<QJsonObject> &r) {
+        m_client->appPreferences()->then(this, [this, live](const Result<QJsonObject> &r) {
             if (!live())
                 return;
             if (r.isError())
@@ -123,7 +123,7 @@ void TorrentsExport::step()
         });
         return;
     case 3:
-        m_client->torrentsCategories()->then(this, [this, live](const QbtResult<QJsonObject> &r) {
+        m_client->torrentsCategories()->then(this, [this, live](const Result<QJsonObject> &r) {
             if (!live())
                 return;
             if (r.isError())
@@ -133,7 +133,7 @@ void TorrentsExport::step()
         });
         return;
     case 4:
-        m_client->torrentsTags()->then(this, [this, live](const QbtResult<QJsonArray> &r) {
+        m_client->torrentsTags()->then(this, [this, live](const Result<QJsonArray> &r) {
             if (!live())
                 return;
             if (r.isError())
@@ -144,7 +144,7 @@ void TorrentsExport::step()
         });
         return;
     case 5:
-        m_client->torrentsInfo()->then(this, [this, live](const QbtResult<QJsonArray> &r) {
+        m_client->torrentsInfo()->then(this, [this, live](const Result<QJsonArray> &r) {
             if (!live())
                 return;
             if (r.isError())
@@ -216,7 +216,7 @@ void TorrentsExport::nextBatch()
         if (hasMetadata) {
             ++m_waiting;
             m_client->get(QStringLiteral("torrents/export"), query)
-                ->then(this, [this, i, live, settle](const QbtResult<QByteArray> &r) {
+                ->then(this, [this, i, live, settle](const Result<QByteArray> &r) {
                     if (!live())
                         return;
                     if (r.isError()) {
@@ -233,7 +233,7 @@ void TorrentsExport::nextBatch()
                 });
             ++m_waiting;
             m_client->torrentsFiles(hash)->then(
-                this, [this, i, live, settle](const QbtResult<QJsonArray> &r) {
+                this, [this, i, live, settle](const Result<QJsonArray> &r) {
                     if (!live())
                         return;
                     if (r.isError()) {
@@ -247,7 +247,7 @@ void TorrentsExport::nextBatch()
         }
         ++m_waiting;
         m_client->torrentsTrackers(hash)->then(
-            this, [this, i, live, settle](const QbtResult<QJsonArray> &r) {
+            this, [this, i, live, settle](const Result<QJsonArray> &r) {
                 if (!live())
                     return;
                 if (r.isError()) {

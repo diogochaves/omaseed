@@ -379,7 +379,7 @@ void TorrentsImport::next()
     const int generation = m_generation;
     switch (m_step++) {
     case 0:
-        m_client->webApiVersion()->then(this, [this, generation](const QbtResult<QString> &r) {
+        m_client->webApiVersion()->then(this, [this, generation](const Result<QString> &r) {
             if (!live(generation))
                 return;
             if (r.isError())
@@ -402,7 +402,7 @@ void TorrentsImport::next()
                     savePath.isEmpty() ? QString() : mapPath(savePath, m_options.rows);
                 const int generation = m_generation;
                 m_client->torrentsCreateCategory(name, mapped)
-                    ->then(this, [this, generation, name, go](const QbtResult<QByteArray> &r) {
+                    ->then(this, [this, generation, name, go](const Result<QByteArray> &r) {
                         if (!live(generation))
                             return;
                         if (r.isError() && !fine(r.error()))
@@ -421,7 +421,7 @@ void TorrentsImport::next()
         if (m_plan.tags.isEmpty())
             return next();
         m_client->torrentsCreateTags(m_plan.tags)
-            ->then(this, [this, generation](const QbtResult<QByteArray> &r) {
+            ->then(this, [this, generation](const Result<QByteArray> &r) {
                 if (!live(generation))
                     return;
                 if (r.isError() && !fine(r.error()))
@@ -434,7 +434,7 @@ void TorrentsImport::next()
     case 3:
         // What automatic management would make of a torrent's folder here (step 2's last part).
         m_client->torrentsCategories()->then(this,
-                                             [this, generation](const QbtResult<QJsonObject> &r) {
+                                             [this, generation](const Result<QJsonObject> &r) {
                                                  if (!live(generation))
                                                      return;
                                                  if (r.isError())
@@ -444,7 +444,7 @@ void TorrentsImport::next()
                                              });
         return;
     case 4:
-        m_client->appPreferences()->then(this, [this, generation](const QbtResult<QJsonObject> &r) {
+        m_client->appPreferences()->then(this, [this, generation](const Result<QJsonObject> &r) {
             if (!live(generation))
                 return;
             if (r.isError())
@@ -599,7 +599,7 @@ void TorrentsImport::sendAdd(const std::shared_ptr<AddGroup> &group,
                              const std::shared_ptr<int> &waiting)
 {
     const int generation = m_generation;
-    const auto answer = [this, generation, group, waiting](const QbtResult<QByteArray> &r) {
+    const auto answer = [this, generation, group, waiting](const Result<QByteArray> &r) {
         if (!live(generation))
             return;
         if (r.isError()) {
@@ -636,9 +636,9 @@ void TorrentsImport::sendAdd(const std::shared_ptr<AddGroup> &group,
         acceptAdded(group->items, r.value());
         addAnswered(waiting);
     };
-    QbtReply<QByteArray> *reply = group->urls.isEmpty()
-                                      ? m_client->torrentsAddMany(group->files, {}, group->options)
-                                      : m_client->torrentsAddUrls(group->urls, group->options);
+    Reply<QByteArray> *reply = group->urls.isEmpty()
+                                   ? m_client->torrentsAddMany(group->files, {}, group->options)
+                                   : m_client->torrentsAddUrls(group->urls, group->options);
     reply->then(this, answer);
 }
 
@@ -699,7 +699,7 @@ void TorrentsImport::awaitAdded(int attempt)
     TorrentsInfoQuery query;
     query.hashes = ids;
     m_client->torrentsInfo(query)->then(
-        this, [this, generation, attempt, ids](const QbtResult<QJsonArray> &r) {
+        this, [this, generation, attempt, ids](const Result<QJsonArray> &r) {
             if (!live(generation))
                 return;
             if (r.isError())
@@ -747,7 +747,7 @@ void TorrentsImport::followUps(int at)
     if (!r.isMagnet() && (!r.renamed.isEmpty() || !r.priorities.isEmpty())) {
         steps.append([this, id, names, generation](std::function<void()> go) {
             m_client->torrentsFiles(id)->then(
-                this, [this, names, go, generation](const QbtResult<QJsonArray> &res) {
+                this, [this, names, go, generation](const Result<QJsonArray> &res) {
                     if (!live(generation))
                         return;
                     if (res.isError())
@@ -775,16 +775,14 @@ void TorrentsImport::followUps(int at)
                 }
                 renames.append([this, id, rename, generation](std::function<void()> on) {
                     m_client->torrentsRenameFile(id, rename.from, rename.to)
-                        ->then(this,
-                               [this, on, generation, rename](const QbtResult<QByteArray> &x) {
-                                   if (!live(generation))
-                                       return;
-                                   if (x.isError())
-                                       m_outcome.errors.append(
-                                           QStringLiteral("rename %1: %2")
-                                               .arg(rename.to, x.error().toString()));
-                                   on();
-                               });
+                        ->then(this, [this, on, generation, rename](const Result<QByteArray> &x) {
+                            if (!live(generation))
+                                return;
+                            if (x.isError())
+                                m_outcome.errors.append(QStringLiteral("rename %1: %2")
+                                                            .arg(rename.to, x.error().toString()));
+                            on();
+                        });
                 });
             }
             if (refused) {
@@ -806,7 +804,7 @@ void TorrentsImport::followUps(int at)
             const QList<int> files = it.value();
             steps.append([this, id, priority, files, generation](std::function<void()> go) {
                 m_client->torrentsSetFilePrio(id, files, priority)
-                    ->then(this, [this, go, generation](const QbtResult<QByteArray> &x) {
+                    ->then(this, [this, go, generation](const Result<QByteArray> &x) {
                         if (!live(generation))
                             return;
                         if (x.isError())
@@ -821,7 +819,7 @@ void TorrentsImport::followUps(int at)
         const QStringList urls = item.extraTrackers;
         steps.append([this, id, urls, generation](std::function<void()> go) {
             m_client->torrentsAddTrackers(id, urls)->then(
-                this, [this, go, generation](const QbtResult<QByteArray> &x) {
+                this, [this, go, generation](const Result<QByteArray> &x) {
                     if (!live(generation))
                         return;
                     if (x.isError())
@@ -842,7 +840,7 @@ void TorrentsImport::followUps(int at)
             m_client
                 ->torrentsSetShareLimits(
                     {id}, r.ratioLimit, r.seedingTimeLimit, r.inactiveSeedingTimeLimit, action)
-                ->then(this, [this, go, generation](const QbtResult<QByteArray> &x) {
+                ->then(this, [this, go, generation](const Result<QByteArray> &x) {
                     if (!live(generation))
                         return;
                     if (x.isError())
@@ -859,7 +857,7 @@ void TorrentsImport::followUps(int at)
             categoryPathHere(r.category) == QDir::cleanPath(item.savePath)) {
             steps.append([this, id, generation](std::function<void()> go) {
                 m_client->torrentsSetAutoManagement({id}, true)
-                    ->then(this, [this, go, generation](const QbtResult<QByteArray> &x) {
+                    ->then(this, [this, go, generation](const Result<QByteArray> &x) {
                         if (!live(generation))
                             return;
                         if (x.isError())
@@ -875,7 +873,7 @@ void TorrentsImport::followUps(int at)
     if (r.isMagnet() && r.state == QLatin1String("forced") && m_options.check) {
         steps.append([this, id, generation](std::function<void()> go) {
             m_client->torrentsSetForceStart({id}, true)
-                ->then(this, [this, go, generation](const QbtResult<QByteArray> &x) {
+                ->then(this, [this, go, generation](const Result<QByteArray> &x) {
                     if (!live(generation))
                         return;
                     if (x.isError())
@@ -918,7 +916,7 @@ void TorrentsImport::moveQueue(int at)
         return next();
     const int generation = m_generation;
     m_client->torrentsBottomPrio({record(m_queued.at(at)).id})
-        ->then(this, [this, at, generation](const QbtResult<QByteArray> &) {
+        ->then(this, [this, at, generation](const Result<QByteArray> &) {
             // 409: queueing is off on this server; the order then means nothing.
             if (live(generation))
                 moveQueue(at + 1);
@@ -935,7 +933,7 @@ void TorrentsImport::startCheck()
     for (int at = 0; at < m_checking.size(); at += kChunk) {
         ++*waiting;
         m_client->torrentsRecheck(m_checking.mid(at, kChunk))
-            ->then(this, [this, generation, waiting](const QbtResult<QByteArray> &r) {
+            ->then(this, [this, generation, waiting](const Result<QByteArray> &r) {
                 if (!live(generation))
                     return;
                 if (r.isError())
@@ -966,7 +964,7 @@ void TorrentsImport::poll()
             const QStringList chunk = toStart->mid(at, kChunk);
             steps.append([this, chunk, generation](std::function<void()> go) {
                 m_client->torrentsStart(chunk)->then(
-                    this, [this, go, generation](const QbtResult<QByteArray> &x) {
+                    this, [this, go, generation](const Result<QByteArray> &x) {
                         if (!live(generation))
                             return;
                         if (x.isError())
@@ -980,7 +978,7 @@ void TorrentsImport::poll()
             const QStringList forced = *toForce;
             steps.append([this, forced, generation](std::function<void()> go) {
                 m_client->torrentsSetForceStart(forced, true)
-                    ->then(this, [this, go, generation](const QbtResult<QByteArray> &x) {
+                    ->then(this, [this, go, generation](const Result<QByteArray> &x) {
                         if (!live(generation))
                             return;
                         if (x.isError())
@@ -1003,7 +1001,7 @@ void TorrentsImport::poll()
         m_client->torrentsInfo(query)->then(
             this,
             [this, generation, waiting, toStart, toForce, seen, settleAll](
-                const QbtResult<QJsonArray> &r) {
+                const Result<QJsonArray> &r) {
                 if (!live(generation))
                     return;
                 if (r.isError())

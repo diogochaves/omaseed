@@ -12,7 +12,7 @@ Three static libraries and the executable. Each layer only depends on the ones a
 
 - `QbtClient`, one per server: Bearer API key (qBittorrent 5.2 and later) with cookie login as
   the fallback, a request queue with retry and back-off, a typed method per endpoint.
-  **Errors are values, never exceptions** (`ApiError`, `QbtReply`): no call throws, and every
+  **Errors are values, never exceptions** (`ApiError`, `Reply`): no call throws, and every
   failure reaches the UI as data it can show.
 - `SyncEngine` polls `sync/maindata` with `rid` and applies full and partial updates to
   `TorrentModel`, `CategoryModel`, `TagModel`, `TrackerModel` and `GlobalState`. It polls every

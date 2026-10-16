@@ -12,14 +12,14 @@ namespace omaseed::core {
 /// The value half of an omaseed API call: either a T or an ApiError, never both.
 /// Errors are values here too (docs/ARCHITECTURE.md), so no call throws.
 template<class T>
-class QbtResult
+class Result
 {
 public:
-    QbtResult() = default;
-    QbtResult(T value) // NOLINT(google-explicit-constructor): reads better at call sites
+    Result() = default;
+    Result(T value) // NOLINT(google-explicit-constructor): reads better at call sites
         : m_value(std::move(value))
     {}
-    QbtResult(ApiError error) // NOLINT(google-explicit-constructor)
+    Result(ApiError error) // NOLINT(google-explicit-constructor)
         : m_error(std::move(error))
     {}
 
@@ -35,15 +35,15 @@ private:
     ApiError m_error;
 };
 
-/// Non-template base so the reply can carry signals. QbtClient hands out QbtReply<T>*
+/// Non-template base so the reply can carry signals. QbtClient hands out Reply<T>*
 /// pointers that delete themselves right after finished() is emitted, so callers connect
-/// immediately (or use QbtReply::then) and never own them.
-class QbtReplyBase : public QObject
+/// immediately (or use Reply::then) and never own them.
+class ReplyBase : public QObject
 {
     Q_OBJECT
 
 public:
-    explicit QbtReplyBase(QObject *parent = nullptr)
+    explicit ReplyBase(QObject *parent = nullptr)
         : QObject(parent)
     {}
 
@@ -69,37 +69,37 @@ private:
     ApiError m_error;
 };
 
-/// Typed reply. `reply->then(context, [](const QbtResult<T> &r) { ... })` is the normal way
+/// Typed reply. `reply->then(context, [](const Result<T> &r) { ... })` is the normal way
 /// to read one; the callback runs only while `context` is alive.
 template<class T>
-class QbtReply : public QbtReplyBase
+class Reply : public ReplyBase
 {
 public:
-    using QbtReplyBase::QbtReplyBase;
+    using ReplyBase::ReplyBase;
 
-    const QbtResult<T> &result() const { return m_result; }
+    const Result<T> &result() const { return m_result; }
     /// Shorthand for result().value().
     const T &value() const { return m_result.value(); }
 
     template<class Fn>
-    QbtReply<T> *then(QObject *context, Fn &&callback)
+    Reply<T> *then(QObject *context, Fn &&callback)
     {
         QObject::connect(this,
-                         &QbtReplyBase::finished,
+                         &ReplyBase::finished,
                          context != nullptr ? context : this,
                          [this, callback = std::forward<Fn>(callback)]() { callback(m_result); });
         return this;
     }
 
     /// Called by QbtClient when the request settles. Deletes the reply.
-    void complete(QbtResult<T> result)
+    void complete(Result<T> result)
     {
         m_result = std::move(result);
         markFinished(m_result.error());
     }
 
 private:
-    QbtResult<T> m_result;
+    Result<T> m_result;
 };
 
 } // namespace omaseed::core

@@ -230,7 +230,7 @@ QString App::readTorrentsImport(const QString &path)
             TorrentsImport::Journal::load(TorrentsImport::Journal::pathFor(m_server.id)));
         Q_EMIT torrentsImportRead(torrentsImportInfo());
     };
-    m_client->torrentsInfo()->then(this, [read, settle](const QbtResult<QJsonArray> &r) {
+    m_client->torrentsInfo()->then(this, [read, settle](const Result<QJsonArray> &r) {
         if (r.isError())
             read->error = r.error().toString();
         for (const QJsonValue &v : r.value()) {
@@ -245,13 +245,13 @@ QString App::readTorrentsImport(const QString &path)
         }
         settle();
     });
-    m_client->torrentsCategories()->then(this, [read, settle](const QbtResult<QJsonObject> &r) {
+    m_client->torrentsCategories()->then(this, [read, settle](const Result<QJsonObject> &r) {
         if (r.isError())
             read->error = r.error().toString();
         read->here.categories = r.value().keys();
         settle();
     });
-    m_client->torrentsTags()->then(this, [read, settle](const QbtResult<QJsonArray> &r) {
+    m_client->torrentsTags()->then(this, [read, settle](const Result<QJsonArray> &r) {
         if (r.isError())
             read->error = r.error().toString();
         for (const QJsonValue &tag : r.value())

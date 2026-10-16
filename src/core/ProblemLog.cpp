@@ -184,7 +184,7 @@ void ProblemLog::read()
     const quint64 generation = m_generation;
     const bool fromStart = m_lastId < 0;
     m_client->logMainProblems(m_lastId)->then(
-        this, [this, serial, generation, fromStart](const QbtResult<QJsonArray> &result) {
+        this, [this, serial, generation, fromStart](const Result<QJsonArray> &result) {
             if (generation != m_generation)
                 return;
             m_reading = false;
@@ -597,7 +597,7 @@ void ProblemLog::checkFiles()
         m_filesAsked.insert(hash);
         const quint64 generation = m_generation;
         m_client->torrentsFiles(hash)->then(
-            this, [this, hash, generation](const QbtResult<QJsonArray> &result) {
+            this, [this, hash, generation](const Result<QJsonArray> &result) {
                 m_filesAsked.remove(hash);
                 if (generation != m_generation || result.isError())
                     return;

@@ -125,15 +125,14 @@ void ServerLog::read()
         return;
     m_reading = true;
     const quint64 generation = m_generation;
-    m_client->logMain(m_lastId)->then(this,
-                                      [this, generation](const QbtResult<QJsonArray> &result) {
-                                          if (generation != m_generation)
-                                              return;
-                                          m_reading = false;
-                                          if (result.isError())
-                                              return;
-                                          applyRead(result.value());
-                                      });
+    m_client->logMain(m_lastId)->then(this, [this, generation](const Result<QJsonArray> &result) {
+        if (generation != m_generation)
+            return;
+        m_reading = false;
+        if (result.isError())
+            return;
+        applyRead(result.value());
+    });
 }
 
 void ServerLog::applyEntries(const QJsonArray &entries)

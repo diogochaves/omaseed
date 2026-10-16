@@ -155,7 +155,7 @@ void SyncEngine::stop()
     // the previous server): drop it, and make sure a late answer can never be applied.
     ++m_generation;
     m_pollInFlight = false;
-    if (QbtReplyBase *reply = m_pollReply.data()) {
+    if (ReplyBase *reply = m_pollReply.data()) {
         m_pollReply.clear();
         reply->abort();
     }
@@ -205,7 +205,7 @@ void SyncEngine::poll()
     // API version reach GlobalState once the server answers.
     if (!m_probed) {
         m_pollReply =
-            m_client->probe()->then(this, [this, generation](const QbtResult<ServerInfo> &result) {
+            m_client->probe()->then(this, [this, generation](const Result<ServerInfo> &result) {
                 if (generation != m_generation)
                     return; // stopped or switched meanwhile: not ours to apply
                 m_pollReply.clear();
@@ -225,7 +225,7 @@ void SyncEngine::poll()
 
     const quint64 serial = ++m_pollsSent;
     m_pollReply = m_client->syncMainData(m_rid)->then(
-        this, [this, generation, serial](const QbtResult<QJsonObject> &result) {
+        this, [this, generation, serial](const Result<QJsonObject> &result) {
             if (generation != m_generation)
                 return; // stopped or switched meanwhile: not ours to apply
             m_pollReply.clear();

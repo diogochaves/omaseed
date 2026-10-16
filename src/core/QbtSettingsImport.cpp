@@ -355,7 +355,7 @@ void QbtSettingsImport::apply(const QbtSettingsSnapshot &file,
             next();
             return;
         }
-        m_client->post(path, form)->then(this, [this, what, onOk](const QbtResult<QByteArray> &r) {
+        m_client->post(path, form)->then(this, [this, what, onOk](const Result<QByteArray> &r) {
             if (r.isError())
                 m_outcome.errors.append(QStringLiteral("%1: %2").arg(what, r.error().toString()));
             else if (onOk)
@@ -390,7 +390,7 @@ void QbtSettingsImport::apply(const QbtSettingsSnapshot &file,
                 return next();
             }
             m_client->torrentsCreateTags(m_diff.tags)
-                ->then(this, [this](const QbtResult<QByteArray> &r) {
+                ->then(this, [this](const Result<QByteArray> &r) {
                     if (r.isError())
                         m_outcome.errors.append(tr("tags: %1").arg(r.error().toString()));
                     else
@@ -409,7 +409,7 @@ void QbtSettingsImport::apply(const QbtSettingsSnapshot &file,
                                   QString::fromUtf8(QUrl::toPercentEncoding(folder)));
                 // A folder that is already there answers 409: that is fine.
                 m_client->post(QStringLiteral("rss/addFolder"), form)
-                    ->then(this, [this, folder](const QbtResult<QByteArray> &r) {
+                    ->then(this, [this, folder](const Result<QByteArray> &r) {
                         if (r.isError() && r.error().httpStatus() != 409)
                             m_outcome.errors.append(
                                 tr("RSS folder %1: %2").arg(folder, r.error().toString()));
@@ -494,7 +494,7 @@ void QbtSettingsImport::apply(const QbtSettingsSnapshot &file,
                 return next();
             }
             m_client->appSetPreferences(changes)->then(
-                this, [this, changes](const QbtResult<QByteArray> &r) {
+                this, [this, changes](const Result<QByteArray> &r) {
                     if (r.isError()) {
                         m_outcome.errors.append(tr("preferences: %1").arg(r.error().toString()));
                         return next();
@@ -502,7 +502,7 @@ void QbtSettingsImport::apply(const QbtSettingsSnapshot &file,
                     m_outcome.preferences = int(changes.size());
                     // Read back: qBittorrent often ignores a value it does not like.
                     m_client->appPreferences()->then(
-                        this, [this, changes](const QbtResult<QJsonObject> &back) {
+                        this, [this, changes](const Result<QJsonObject> &back) {
                             if (back.isValid()) {
                                 for (auto it = changes.constBegin(); it != changes.constEnd();
                                      ++it) {

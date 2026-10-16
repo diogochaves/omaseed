@@ -263,20 +263,19 @@ void TorrentDetails::poll()
 
     const QString hash = m_hash;
 
-    m_client->torrentsProperties(hash)->then(
-        this, [this, hash](const QbtResult<QJsonObject> &result) {
-            if (hash != m_hash)
-                return; // the selection moved on while this was in flight
-            if (result.isError()) {
-                noteError(QStringLiteral("properties"), result.error());
-                return;
-            }
-            noteSuccess();
-            applyProperties(result.value());
-            Q_EMIT refreshed();
-        });
+    m_client->torrentsProperties(hash)->then(this, [this, hash](const Result<QJsonObject> &result) {
+        if (hash != m_hash)
+            return; // the selection moved on while this was in flight
+        if (result.isError()) {
+            noteError(QStringLiteral("properties"), result.error());
+            return;
+        }
+        noteSuccess();
+        applyProperties(result.value());
+        Q_EMIT refreshed();
+    });
 
-    m_client->torrentsFiles(hash)->then(this, [this, hash](const QbtResult<QJsonArray> &result) {
+    m_client->torrentsFiles(hash)->then(this, [this, hash](const Result<QJsonArray> &result) {
         if (hash != m_hash)
             return;
         if (result.isError()) {
@@ -287,7 +286,7 @@ void TorrentDetails::poll()
         m_files->applyFiles(result.value());
     });
 
-    m_client->torrentsTrackers(hash)->then(this, [this, hash](const QbtResult<QJsonArray> &result) {
+    m_client->torrentsTrackers(hash)->then(this, [this, hash](const Result<QJsonArray> &result) {
         if (hash != m_hash)
             return;
         if (result.isError()) {
@@ -312,7 +311,7 @@ void TorrentDetails::pollWebSeeds()
         return;
 
     const QString hash = m_hash;
-    m_client->torrentsWebSeeds(hash)->then(this, [this, hash](const QbtResult<QJsonArray> &result) {
+    m_client->torrentsWebSeeds(hash)->then(this, [this, hash](const Result<QJsonArray> &result) {
         if (hash != m_hash)
             return;
         if (result.isError()) {
@@ -330,17 +329,16 @@ void TorrentDetails::pollPieceStates()
         return;
 
     const QString hash = m_hash;
-    m_client->torrentsPieceStates(hash)->then(
-        this, [this, hash](const QbtResult<QJsonArray> &result) {
-            if (hash != m_hash || !m_generalActive)
-                return;
-            if (result.isError()) {
-                noteError(QStringLiteral("pieceStates"), result.error());
-                return;
-            }
-            noteSuccess();
-            setPieceStates(PieceStates::fromJson(result.value()));
-        });
+    m_client->torrentsPieceStates(hash)->then(this, [this, hash](const Result<QJsonArray> &result) {
+        if (hash != m_hash || !m_generalActive)
+            return;
+        if (result.isError()) {
+            noteError(QStringLiteral("pieceStates"), result.error());
+            return;
+        }
+        noteSuccess();
+        setPieceStates(PieceStates::fromJson(result.value()));
+    });
 }
 
 void TorrentDetails::pollPeers()
@@ -350,7 +348,7 @@ void TorrentDetails::pollPeers()
 
     const QString hash = m_hash;
     m_client->torrentsPeers(hash, m_peers->rid())
-        ->then(this, [this, hash](const QbtResult<QJsonObject> &result) {
+        ->then(this, [this, hash](const Result<QJsonObject> &result) {
             if (hash != m_hash || !m_peersActive)
                 return;
             if (result.isError()) {

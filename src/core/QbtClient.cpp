@@ -48,7 +48,7 @@ QString firstLine(const QByteArray &body)
     return text;
 }
 
-QbtResult<QString> parseText(const QByteArray &body)
+Result<QString> parseText(const QByteArray &body)
 {
     return QString::fromUtf8(body).trimmed();
 }
@@ -64,7 +64,7 @@ QJsonDocument parseJson(const QByteArray &body, const QString &path, ApiError *e
     return document;
 }
 
-QbtResult<QJsonObject> parseObject(const QByteArray &body, const QString &path)
+Result<QJsonObject> parseObject(const QByteArray &body, const QString &path)
 {
     ApiError error;
     const QJsonDocument document = parseJson(body, path, &error);
@@ -76,7 +76,7 @@ QbtResult<QJsonObject> parseObject(const QByteArray &body, const QString &path)
     return document.object();
 }
 
-QbtResult<QJsonArray> parseArray(const QByteArray &body, const QString &path)
+Result<QJsonArray> parseArray(const QByteArray &body, const QString &path)
 {
     ApiError error;
     const QJsonDocument document = parseJson(body, path, &error);
@@ -381,25 +381,25 @@ QUrl QbtClient::endpointUrl(const QString &path, const QUrlQuery &query) const
 }
 
 template<class T, class Fn>
-QbtReply<T> *QbtClient::submit(RequestSpec spec, Fn parse)
+Reply<T> *QbtClient::submit(RequestSpec spec, Fn parse)
 {
-    auto *reply = new QbtReply<T>(this);
+    auto *reply = new Reply<T>(this);
     auto job = std::make_shared<Job>();
     job->spec = std::move(spec);
 
-    QPointer<QbtReply<T>> guard(reply);
+    QPointer<Reply<T>> guard(reply);
     job->deliver = [guard, parse](const QByteArray &body, const ApiError &error, int status) {
         if (guard.isNull())
             return;
         if (error.isError())
-            guard->complete(QbtResult<T>(error));
+            guard->complete(Result<T>(error));
         else if constexpr (std::is_invocable_v<Fn, const QByteArray &, int>)
             guard->complete(parse(body, status));
         else
             guard->complete(parse(body));
     };
 
-    connect(reply, &QbtReplyBase::abortRequested, this, [this, job]() { cancelJob(job); });
+    connect(reply, &ReplyBase::abortRequested, this, [this, job]() { cancelJob(job); });
     enqueue(job);
     return reply;
 }
@@ -730,16 +730,16 @@ void QbtClient::setAuthState(AuthState state)
 
 // --- generic calls ------------------------------------------------------------------------
 
-QbtReply<QByteArray> *QbtClient::get(const QString &path, const QUrlQuery &query)
+Reply<QByteArray> *QbtClient::get(const QString &path, const QUrlQuery &query)
 {
     RequestSpec spec;
     spec.path = path;
     spec.query = query;
     return submit<QByteArray>(std::move(spec),
-                              [](const QByteArray &body) { return QbtResult<QByteArray>(body); });
+                              [](const QByteArray &body) { return Result<QByteArray>(body); });
 }
 
-QbtReply<QByteArray> *QbtClient::post(const QString &path, const QUrlQuery &form)
+Reply<QByteArray> *QbtClient::post(const QString &path, const QUrlQuery &form)
 {
     RequestSpec spec;
     spec.verb = QStringLiteral("POST");
@@ -747,26 +747,26 @@ QbtReply<QByteArray> *QbtClient::post(const QString &path, const QUrlQuery &form
     spec.form = form;
     spec.retryOnTransient = false;
     return submit<QByteArray>(std::move(spec),
-                              [](const QByteArray &body) { return QbtResult<QByteArray>(body); });
+                              [](const QByteArray &body) { return Result<QByteArray>(body); });
 }
 
 // --- typed calls --------------------------------------------------------------------------
 
-QbtReply<QString> *QbtClient::appVersion()
+Reply<QString> *QbtClient::appVersion()
 {
     RequestSpec spec;
     spec.path = QStringLiteral("app/version");
     return submit<QString>(std::move(spec), parseText);
 }
 
-QbtReply<QString> *QbtClient::webApiVersion()
+Reply<QString> *QbtClient::webApiVersion()
 {
     RequestSpec spec;
     spec.path = QStringLiteral("app/webapiVersion");
     return submit<QString>(std::move(spec), parseText);
 }
 
-QbtReply<QJsonObject> *QbtClient::appPreferences()
+Reply<QJsonObject> *QbtClient::appPreferences()
 {
     RequestSpec spec;
     spec.path = QStringLiteral("app/preferences");
@@ -775,7 +775,7 @@ QbtReply<QJsonObject> *QbtClient::appPreferences()
                                [path](const QByteArray &body) { return parseObject(body, path); });
 }
 
-QbtReply<QByteArray> *QbtClient::appSetPreferences(const QJsonObject &changes)
+Reply<QByteArray> *QbtClient::appSetPreferences(const QJsonObject &changes)
 {
     QUrlQuery form;
     addItem(form,
@@ -784,7 +784,7 @@ QbtReply<QByteArray> *QbtClient::appSetPreferences(const QJsonObject &changes)
     return post(QStringLiteral("app/setPreferences"), form);
 }
 
-QbtReply<QJsonObject> *QbtClient::appBuildInfo()
+Reply<QJsonObject> *QbtClient::appBuildInfo()
 {
     RequestSpec spec;
     spec.path = QStringLiteral("app/buildInfo");
@@ -793,7 +793,7 @@ QbtReply<QJsonObject> *QbtClient::appBuildInfo()
                                [path](const QByteArray &body) { return parseObject(body, path); });
 }
 
-QbtReply<QJsonObject> *QbtClient::syncMainData(int rid)
+Reply<QJsonObject> *QbtClient::syncMainData(int rid)
 {
     RequestSpec spec;
     spec.path = QStringLiteral("sync/maindata");
@@ -803,7 +803,7 @@ QbtReply<QJsonObject> *QbtClient::syncMainData(int rid)
                                [path](const QByteArray &body) { return parseObject(body, path); });
 }
 
-QbtReply<QJsonArray> *QbtClient::torrentsInfo(const TorrentsInfoQuery &query)
+Reply<QJsonArray> *QbtClient::torrentsInfo(const TorrentsInfoQuery &query)
 {
     RequestSpec spec;
     spec.path = QStringLiteral("torrents/info");
@@ -830,7 +830,7 @@ QbtReply<QJsonArray> *QbtClient::torrentsInfo(const TorrentsInfoQuery &query)
                               [path](const QByteArray &body) { return parseArray(body, path); });
 }
 
-QbtReply<QJsonObject> *QbtClient::torrentsProperties(const QString &hash)
+Reply<QJsonObject> *QbtClient::torrentsProperties(const QString &hash)
 {
     RequestSpec spec;
     spec.path = QStringLiteral("torrents/properties");
@@ -840,7 +840,7 @@ QbtReply<QJsonObject> *QbtClient::torrentsProperties(const QString &hash)
                                [path](const QByteArray &body) { return parseObject(body, path); });
 }
 
-QbtReply<QJsonArray> *QbtClient::torrentsFiles(const QString &hash)
+Reply<QJsonArray> *QbtClient::torrentsFiles(const QString &hash)
 {
     RequestSpec spec;
     spec.path = QStringLiteral("torrents/files");
@@ -850,7 +850,7 @@ QbtReply<QJsonArray> *QbtClient::torrentsFiles(const QString &hash)
                               [path](const QByteArray &body) { return parseArray(body, path); });
 }
 
-QbtReply<QJsonArray> *QbtClient::torrentsTrackers(const QString &hash)
+Reply<QJsonArray> *QbtClient::torrentsTrackers(const QString &hash)
 {
     RequestSpec spec;
     spec.path = QStringLiteral("torrents/trackers");
@@ -860,7 +860,7 @@ QbtReply<QJsonArray> *QbtClient::torrentsTrackers(const QString &hash)
                               [path](const QByteArray &body) { return parseArray(body, path); });
 }
 
-QbtReply<QJsonArray> *QbtClient::torrentsPieceStates(const QString &hash)
+Reply<QJsonArray> *QbtClient::torrentsPieceStates(const QString &hash)
 {
     RequestSpec spec;
     spec.path = QStringLiteral("torrents/pieceStates");
@@ -870,7 +870,7 @@ QbtReply<QJsonArray> *QbtClient::torrentsPieceStates(const QString &hash)
                               [path](const QByteArray &body) { return parseArray(body, path); });
 }
 
-QbtReply<QJsonArray> *QbtClient::torrentsWebSeeds(const QString &hash)
+Reply<QJsonArray> *QbtClient::torrentsWebSeeds(const QString &hash)
 {
     RequestSpec spec;
     spec.path = QStringLiteral("torrents/webseeds");
@@ -880,7 +880,7 @@ QbtReply<QJsonArray> *QbtClient::torrentsWebSeeds(const QString &hash)
                               [path](const QByteArray &body) { return parseArray(body, path); });
 }
 
-QbtReply<QJsonArray> *QbtClient::logMainProblems(int lastKnownId)
+Reply<QJsonArray> *QbtClient::logMainProblems(int lastKnownId)
 {
     RequestSpec spec;
     spec.path = QStringLiteral("log/main");
@@ -894,7 +894,7 @@ QbtReply<QJsonArray> *QbtClient::logMainProblems(int lastKnownId)
                               [path](const QByteArray &body) { return parseArray(body, path); });
 }
 
-QbtReply<QJsonArray> *QbtClient::logMain(int lastKnownId)
+Reply<QJsonArray> *QbtClient::logMain(int lastKnownId)
 {
     RequestSpec spec;
     spec.path = QStringLiteral("log/main");
@@ -906,7 +906,7 @@ QbtReply<QJsonArray> *QbtClient::logMain(int lastKnownId)
                               [path](const QByteArray &body) { return parseArray(body, path); });
 }
 
-QbtReply<QJsonObject> *QbtClient::torrentsPeers(const QString &hash, int rid)
+Reply<QJsonObject> *QbtClient::torrentsPeers(const QString &hash, int rid)
 {
     RequestSpec spec;
     spec.path = QStringLiteral("sync/torrentPeers");
@@ -917,7 +917,7 @@ QbtReply<QJsonObject> *QbtClient::torrentsPeers(const QString &hash, int rid)
                                [path](const QByteArray &body) { return parseObject(body, path); });
 }
 
-QbtReply<QJsonObject> *QbtClient::torrentsCategories()
+Reply<QJsonObject> *QbtClient::torrentsCategories()
 {
     RequestSpec spec;
     spec.path = QStringLiteral("torrents/categories");
@@ -926,7 +926,7 @@ QbtReply<QJsonObject> *QbtClient::torrentsCategories()
                                [path](const QByteArray &body) { return parseObject(body, path); });
 }
 
-QbtReply<QJsonArray> *QbtClient::torrentsTags()
+Reply<QJsonArray> *QbtClient::torrentsTags()
 {
     RequestSpec spec;
     spec.path = QStringLiteral("torrents/tags");
@@ -935,7 +935,7 @@ QbtReply<QJsonArray> *QbtClient::torrentsTags()
                               [path](const QByteArray &body) { return parseArray(body, path); });
 }
 
-QbtReply<QJsonObject> *QbtClient::transferInfo()
+Reply<QJsonObject> *QbtClient::transferInfo()
 {
     RequestSpec spec;
     spec.path = QStringLiteral("transfer/info");
@@ -944,12 +944,12 @@ QbtReply<QJsonObject> *QbtClient::transferInfo()
                                [path](const QByteArray &body) { return parseObject(body, path); });
 }
 
-QbtReply<bool> *QbtClient::transferSpeedLimitsMode()
+Reply<bool> *QbtClient::transferSpeedLimitsMode()
 {
     RequestSpec spec;
     spec.path = QStringLiteral("transfer/speedLimitsMode");
     const QString path = spec.path;
-    return submit<bool>(std::move(spec), [path](const QByteArray &body) -> QbtResult<bool> {
+    return submit<bool>(std::move(spec), [path](const QByteArray &body) -> Result<bool> {
         const QByteArray trimmed = body.trimmed();
         if (trimmed == QByteArrayLiteral("0"))
             return false;
@@ -961,19 +961,19 @@ QbtReply<bool> *QbtClient::transferSpeedLimitsMode()
     });
 }
 
-QbtReply<QByteArray> *QbtClient::transferToggleSpeedLimitsMode()
+Reply<QByteArray> *QbtClient::transferToggleSpeedLimitsMode()
 {
     return post(QStringLiteral("transfer/toggleSpeedLimitsMode"));
 }
 
-QbtReply<QByteArray> *QbtClient::transferSetSpeedLimitsMode(bool on)
+Reply<QByteArray> *QbtClient::transferSetSpeedLimitsMode(bool on)
 {
     QUrlQuery form;
     addItem(form, QStringLiteral("mode"), on ? QStringLiteral("1") : QStringLiteral("0"));
     return post(QStringLiteral("transfer/setSpeedLimitsMode"), form);
 }
 
-QbtReply<bool> *QbtClient::login()
+Reply<bool> *QbtClient::login()
 {
     RequestSpec spec;
     spec.verb = QStringLiteral("POST");
@@ -982,13 +982,13 @@ QbtReply<bool> *QbtClient::login()
     addItem(spec.form, QStringLiteral("password"), m_password);
     spec.retryOnTransient = false;
     spec.isLogin = true;
-    return submit<bool>(std::move(spec), [](const QByteArray &) { return QbtResult<bool>(true); });
+    return submit<bool>(std::move(spec), [](const QByteArray &) { return Result<bool>(true); });
 }
 
-QbtReply<ServerInfo> *QbtClient::probe()
+Reply<ServerInfo> *QbtClient::probe()
 {
-    auto *reply = new QbtReply<ServerInfo>(this);
-    QPointer<QbtReply<ServerInfo>> guard(reply);
+    auto *reply = new Reply<ServerInfo>(this);
+    QPointer<Reply<ServerInfo>> guard(reply);
     auto info = std::make_shared<ServerInfo>();
     auto pending = std::make_shared<int>(2);
     auto failed = std::make_shared<bool>(false);
@@ -999,30 +999,30 @@ QbtReply<ServerInfo> *QbtClient::probe()
         if (error.isError()) {
             *failed = true;
             if (!guard.isNull())
-                guard->complete(QbtResult<ServerInfo>(error));
+                guard->complete(Result<ServerInfo>(error));
             return;
         }
         if (--(*pending) > 0)
             return;
         Q_EMIT serverInfoChanged(info->version, info->apiVersion);
         if (!guard.isNull())
-            guard->complete(QbtResult<ServerInfo>(*info));
+            guard->complete(Result<ServerInfo>(*info));
     };
 
-    QPointer<QbtReplyBase> versionReply =
-        appVersion()->then(this, [info, step](const QbtResult<QString> &result) {
+    QPointer<ReplyBase> versionReply =
+        appVersion()->then(this, [info, step](const Result<QString> &result) {
             if (result.isValid())
                 info->version = result.value();
             step(result.error());
         });
-    QPointer<QbtReplyBase> apiReply =
-        webApiVersion()->then(this, [info, step](const QbtResult<QString> &result) {
+    QPointer<ReplyBase> apiReply =
+        webApiVersion()->then(this, [info, step](const Result<QString> &result) {
             if (result.isValid())
                 info->apiVersion = result.value();
             step(result.error());
         });
     // abort() on the probe drops both halves; the first Cancelled finishes the probe.
-    connect(reply, &QbtReplyBase::abortRequested, this, [versionReply, apiReply]() {
+    connect(reply, &ReplyBase::abortRequested, this, [versionReply, apiReply]() {
         if (!versionReply.isNull())
             versionReply->abort();
         if (!apiReply.isNull())
@@ -1044,35 +1044,34 @@ QUrlQuery hashesForm(const QStringList &hashes)
 
 } // namespace
 
-QbtReply<QByteArray> *QbtClient::torrentsStart(const QStringList &hashes)
+Reply<QByteArray> *QbtClient::torrentsStart(const QStringList &hashes)
 {
     return post(QStringLiteral("torrents/start"), hashesForm(hashes));
 }
 
-QbtReply<QByteArray> *QbtClient::torrentsStop(const QStringList &hashes)
+Reply<QByteArray> *QbtClient::torrentsStop(const QStringList &hashes)
 {
     return post(QStringLiteral("torrents/stop"), hashesForm(hashes));
 }
 
-QbtReply<QByteArray> *QbtClient::torrentsSetForceStart(const QStringList &hashes, bool value)
+Reply<QByteArray> *QbtClient::torrentsSetForceStart(const QStringList &hashes, bool value)
 {
     QUrlQuery form = hashesForm(hashes);
     addBoolItem(form, QStringLiteral("value"), value);
     return post(QStringLiteral("torrents/setForceStart"), form);
 }
 
-QbtReply<QByteArray> *QbtClient::torrentsRecheck(const QStringList &hashes)
+Reply<QByteArray> *QbtClient::torrentsRecheck(const QStringList &hashes)
 {
     return post(QStringLiteral("torrents/recheck"), hashesForm(hashes));
 }
 
-QbtReply<QByteArray> *QbtClient::torrentsReannounce(const QStringList &hashes)
+Reply<QByteArray> *QbtClient::torrentsReannounce(const QStringList &hashes)
 {
     return post(QStringLiteral("torrents/reannounce"), hashesForm(hashes));
 }
 
-QbtReply<QByteArray> *QbtClient::torrentsRemoveTrackers(const QString &hash,
-                                                        const QStringList &urls)
+Reply<QByteArray> *QbtClient::torrentsRemoveTrackers(const QString &hash, const QStringList &urls)
 {
     QUrlQuery form;
     addItem(form, QStringLiteral("hash"), hash);
@@ -1080,7 +1079,7 @@ QbtReply<QByteArray> *QbtClient::torrentsRemoveTrackers(const QString &hash,
     return post(QStringLiteral("torrents/removeTrackers"), form);
 }
 
-QbtReply<QByteArray> *QbtClient::torrentsAddTrackers(const QString &hash, const QStringList &urls)
+Reply<QByteArray> *QbtClient::torrentsAddTrackers(const QString &hash, const QStringList &urls)
 {
     QUrlQuery form;
     addItem(form, QStringLiteral("hash"), hash);
@@ -1088,7 +1087,7 @@ QbtReply<QByteArray> *QbtClient::torrentsAddTrackers(const QString &hash, const 
     return post(QStringLiteral("torrents/addTrackers"), form);
 }
 
-QbtReply<QByteArray> *QbtClient::torrentsAddWebSeeds(const QString &hash, const QStringList &urls)
+Reply<QByteArray> *QbtClient::torrentsAddWebSeeds(const QString &hash, const QStringList &urls)
 {
     QUrlQuery form;
     addItem(form, QStringLiteral("hash"), hash);
@@ -1096,7 +1095,7 @@ QbtReply<QByteArray> *QbtClient::torrentsAddWebSeeds(const QString &hash, const 
     return post(QStringLiteral("torrents/addWebSeeds"), form);
 }
 
-QbtReply<QByteArray> *
+Reply<QByteArray> *
 QbtClient::torrentsEditWebSeed(const QString &hash, const QString &origUrl, const QString &newUrl)
 {
     QUrlQuery form;
@@ -1106,8 +1105,7 @@ QbtClient::torrentsEditWebSeed(const QString &hash, const QString &origUrl, cons
     return post(QStringLiteral("torrents/editWebSeed"), form);
 }
 
-QbtReply<QByteArray> *QbtClient::torrentsRemoveWebSeeds(const QString &hash,
-                                                        const QStringList &urls)
+Reply<QByteArray> *QbtClient::torrentsRemoveWebSeeds(const QString &hash, const QStringList &urls)
 {
     QUrlQuery form;
     addItem(form, QStringLiteral("hash"), hash);
@@ -1115,31 +1113,29 @@ QbtReply<QByteArray> *QbtClient::torrentsRemoveWebSeeds(const QString &hash,
     return post(QStringLiteral("torrents/removeWebSeeds"), form);
 }
 
-QbtReply<QByteArray> *QbtClient::torrentsAddPeers(const QStringList &hashes,
-                                                  const QStringList &peers)
+Reply<QByteArray> *QbtClient::torrentsAddPeers(const QStringList &hashes, const QStringList &peers)
 {
     QUrlQuery form = hashesForm(hashes);
     addItem(form, QStringLiteral("peers"), peers.join(QLatin1Char('|')));
     return post(QStringLiteral("torrents/addPeers"), form);
 }
 
-QbtReply<QByteArray> *QbtClient::transferBanPeers(const QStringList &peers)
+Reply<QByteArray> *QbtClient::transferBanPeers(const QStringList &peers)
 {
     QUrlQuery form;
     addItem(form, QStringLiteral("peers"), peers.join(QLatin1Char('|')));
     return post(QStringLiteral("transfer/banPeers"), form);
 }
 
-QbtReply<QByteArray> *QbtClient::torrentsSetCategory(const QStringList &hashes,
-                                                     const QString &category)
+Reply<QByteArray> *QbtClient::torrentsSetCategory(const QStringList &hashes,
+                                                  const QString &category)
 {
     QUrlQuery form = hashesForm(hashes);
     addItem(form, QStringLiteral("category"), category);
     return post(QStringLiteral("torrents/setCategory"), form);
 }
 
-QbtReply<QByteArray> *QbtClient::torrentsCreateCategory(const QString &name,
-                                                        const QString &savePath)
+Reply<QByteArray> *QbtClient::torrentsCreateCategory(const QString &name, const QString &savePath)
 {
     QUrlQuery form;
     addItem(form, QStringLiteral("category"), name);
@@ -1147,7 +1143,7 @@ QbtReply<QByteArray> *QbtClient::torrentsCreateCategory(const QString &name,
     return post(QStringLiteral("torrents/createCategory"), form);
 }
 
-QbtReply<QByteArray> *QbtClient::torrentsEditCategory(const QString &name, const QString &savePath)
+Reply<QByteArray> *QbtClient::torrentsEditCategory(const QString &name, const QString &savePath)
 {
     QUrlQuery form;
     addItem(form, QStringLiteral("category"), name);
@@ -1155,60 +1151,58 @@ QbtReply<QByteArray> *QbtClient::torrentsEditCategory(const QString &name, const
     return post(QStringLiteral("torrents/editCategory"), form);
 }
 
-QbtReply<QByteArray> *QbtClient::torrentsRemoveCategories(const QStringList &names)
+Reply<QByteArray> *QbtClient::torrentsRemoveCategories(const QStringList &names)
 {
     QUrlQuery form;
     addItem(form, QStringLiteral("categories"), names.join(QLatin1Char('\n')));
     return post(QStringLiteral("torrents/removeCategories"), form);
 }
 
-QbtReply<QByteArray> *QbtClient::torrentsAddTags(const QStringList &hashes, const QStringList &tags)
+Reply<QByteArray> *QbtClient::torrentsAddTags(const QStringList &hashes, const QStringList &tags)
 {
     QUrlQuery form = hashesForm(hashes);
     addItem(form, QStringLiteral("tags"), tags.join(QLatin1Char(',')));
     return post(QStringLiteral("torrents/addTags"), form);
 }
 
-QbtReply<QByteArray> *QbtClient::torrentsRemoveTags(const QStringList &hashes,
-                                                    const QStringList &tags)
+Reply<QByteArray> *QbtClient::torrentsRemoveTags(const QStringList &hashes, const QStringList &tags)
 {
     QUrlQuery form = hashesForm(hashes);
     addItem(form, QStringLiteral("tags"), tags.join(QLatin1Char(',')));
     return post(QStringLiteral("torrents/removeTags"), form);
 }
 
-QbtReply<QByteArray> *QbtClient::torrentsCreateTags(const QStringList &tags)
+Reply<QByteArray> *QbtClient::torrentsCreateTags(const QStringList &tags)
 {
     QUrlQuery form;
     addItem(form, QStringLiteral("tags"), tags.join(QLatin1Char(',')));
     return post(QStringLiteral("torrents/createTags"), form);
 }
 
-QbtReply<QByteArray> *QbtClient::torrentsDeleteTags(const QStringList &tags)
+Reply<QByteArray> *QbtClient::torrentsDeleteTags(const QStringList &tags)
 {
     QUrlQuery form;
     addItem(form, QStringLiteral("tags"), tags.join(QLatin1Char(',')));
     return post(QStringLiteral("torrents/deleteTags"), form);
 }
 
-QbtReply<QByteArray> *QbtClient::torrentsSetLocation(const QStringList &hashes,
-                                                     const QString &location)
+Reply<QByteArray> *QbtClient::torrentsSetLocation(const QStringList &hashes,
+                                                  const QString &location)
 {
     QUrlQuery form = hashesForm(hashes);
     addItem(form, QStringLiteral("location"), location);
     return post(QStringLiteral("torrents/setLocation"), form);
 }
 
-QbtReply<QByteArray> *QbtClient::torrentsSetDownloadLimit(const QStringList &hashes,
-                                                          qint64 bytesPerSec)
+Reply<QByteArray> *QbtClient::torrentsSetDownloadLimit(const QStringList &hashes,
+                                                       qint64 bytesPerSec)
 {
     QUrlQuery form = hashesForm(hashes);
     addItem(form, QStringLiteral("limit"), QString::number(bytesPerSec));
     return post(QStringLiteral("torrents/setDownloadLimit"), form);
 }
 
-QbtReply<QByteArray> *QbtClient::torrentsSetUploadLimit(const QStringList &hashes,
-                                                        qint64 bytesPerSec)
+Reply<QByteArray> *QbtClient::torrentsSetUploadLimit(const QStringList &hashes, qint64 bytesPerSec)
 {
     QUrlQuery form = hashesForm(hashes);
     addItem(form, QStringLiteral("limit"), QString::number(bytesPerSec));
@@ -1253,7 +1247,7 @@ bool QbtClient::supportsShareLimitAction(const QString &apiVersion)
     return !version.isNull() && version >= QVersionNumber(2, 15, 1);
 }
 
-QbtReply<QByteArray> *
+Reply<QByteArray> *
 QbtClient::torrentsSetShareLimits(const QStringList &hashes,
                                   double ratioLimit,
                                   qint64 seedingTimeLimit,
@@ -1271,7 +1265,7 @@ QbtClient::torrentsSetShareLimits(const QStringList &hashes,
     return post(QStringLiteral("torrents/setShareLimits"), form);
 }
 
-QbtReply<QByteArray> *QbtClient::torrentsRename(const QString &hash, const QString &name)
+Reply<QByteArray> *QbtClient::torrentsRename(const QString &hash, const QString &name)
 {
     QUrlQuery form;
     addItem(form, QStringLiteral("hash"), hash);
@@ -1279,7 +1273,7 @@ QbtReply<QByteArray> *QbtClient::torrentsRename(const QString &hash, const QStri
     return post(QStringLiteral("torrents/rename"), form);
 }
 
-QbtReply<QByteArray> *
+Reply<QByteArray> *
 QbtClient::torrentsRenameFile(const QString &hash, const QString &oldPath, const QString &newPath)
 {
     QUrlQuery form;
@@ -1289,7 +1283,7 @@ QbtClient::torrentsRenameFile(const QString &hash, const QString &oldPath, const
     return post(QStringLiteral("torrents/renameFile"), form);
 }
 
-QbtReply<QByteArray> *
+Reply<QByteArray> *
 QbtClient::torrentsRenameFolder(const QString &hash, const QString &oldPath, const QString &newPath)
 {
     QUrlQuery form;
@@ -1299,27 +1293,27 @@ QbtClient::torrentsRenameFolder(const QString &hash, const QString &oldPath, con
     return post(QStringLiteral("torrents/renameFolder"), form);
 }
 
-QbtReply<QByteArray> *QbtClient::torrentsIncreasePrio(const QStringList &hashes)
+Reply<QByteArray> *QbtClient::torrentsIncreasePrio(const QStringList &hashes)
 {
     return post(QStringLiteral("torrents/increasePrio"), hashesForm(hashes));
 }
 
-QbtReply<QByteArray> *QbtClient::torrentsDecreasePrio(const QStringList &hashes)
+Reply<QByteArray> *QbtClient::torrentsDecreasePrio(const QStringList &hashes)
 {
     return post(QStringLiteral("torrents/decreasePrio"), hashesForm(hashes));
 }
 
-QbtReply<QByteArray> *QbtClient::torrentsTopPrio(const QStringList &hashes)
+Reply<QByteArray> *QbtClient::torrentsTopPrio(const QStringList &hashes)
 {
     return post(QStringLiteral("torrents/topPrio"), hashesForm(hashes));
 }
 
-QbtReply<QByteArray> *QbtClient::torrentsBottomPrio(const QStringList &hashes)
+Reply<QByteArray> *QbtClient::torrentsBottomPrio(const QStringList &hashes)
 {
     return post(QStringLiteral("torrents/bottomPrio"), hashesForm(hashes));
 }
 
-QbtReply<QByteArray> *
+Reply<QByteArray> *
 QbtClient::torrentsSetFilePrio(const QString &hash, const QList<int> &fileIds, int priority)
 {
     QStringList ids;
@@ -1334,31 +1328,31 @@ QbtClient::torrentsSetFilePrio(const QString &hash, const QList<int> &fileIds, i
     return post(QStringLiteral("torrents/filePrio"), form);
 }
 
-QbtReply<QByteArray> *QbtClient::torrentsToggleSequentialDownload(const QStringList &hashes)
+Reply<QByteArray> *QbtClient::torrentsToggleSequentialDownload(const QStringList &hashes)
 {
     return post(QStringLiteral("torrents/toggleSequentialDownload"), hashesForm(hashes));
 }
 
-QbtReply<QByteArray> *QbtClient::torrentsToggleFirstLastPiecePrio(const QStringList &hashes)
+Reply<QByteArray> *QbtClient::torrentsToggleFirstLastPiecePrio(const QStringList &hashes)
 {
     return post(QStringLiteral("torrents/toggleFirstLastPiecePrio"), hashesForm(hashes));
 }
 
-QbtReply<QByteArray> *QbtClient::torrentsSetAutoManagement(const QStringList &hashes, bool enable)
+Reply<QByteArray> *QbtClient::torrentsSetAutoManagement(const QStringList &hashes, bool enable)
 {
     QUrlQuery form = hashesForm(hashes);
     addBoolItem(form, QStringLiteral("enable"), enable);
     return post(QStringLiteral("torrents/setAutoManagement"), form);
 }
 
-QbtReply<QByteArray> *QbtClient::torrentsSetSuperSeeding(const QStringList &hashes, bool value)
+Reply<QByteArray> *QbtClient::torrentsSetSuperSeeding(const QStringList &hashes, bool value)
 {
     QUrlQuery form = hashesForm(hashes);
     addBoolItem(form, QStringLiteral("value"), value);
     return post(QStringLiteral("torrents/setSuperSeeding"), form);
 }
 
-QbtReply<QByteArray> *QbtClient::torrentsDelete(const QStringList &hashes, bool deleteFiles)
+Reply<QByteArray> *QbtClient::torrentsDelete(const QStringList &hashes, bool deleteFiles)
 {
     QUrlQuery form = hashesForm(hashes);
     addBoolItem(form, QStringLiteral("deleteFiles"), deleteFiles);
@@ -1371,7 +1365,7 @@ bool QbtClient::supportsFetchMetadata(const QString &apiVersion)
     return !version.isNull() && version >= QVersionNumber(2, 11, 9);
 }
 
-QbtReply<QbtClient::FetchedMetadata> *QbtClient::torrentsFetchMetadata(const QString &source)
+Reply<QbtClient::FetchedMetadata> *QbtClient::torrentsFetchMetadata(const QString &source)
 {
     RequestSpec spec;
     spec.verb = QStringLiteral("POST");
@@ -1380,7 +1374,7 @@ QbtReply<QbtClient::FetchedMetadata> *QbtClient::torrentsFetchMetadata(const QSt
     // Asking again is how this call is used, so a lost answer is simply the next poll's job.
     spec.retryOnTransient = false;
     return submit<FetchedMetadata>(
-        std::move(spec), [](const QByteArray &body, int status) -> QbtResult<FetchedMetadata> {
+        std::move(spec), [](const QByteArray &body, int status) -> Result<FetchedMetadata> {
             // 202 carries the hashes (or `{}` for a link still downloading); 200 the metadata.
             FetchedMetadata fetched;
             fetched.ready = status == 200;
@@ -1402,7 +1396,7 @@ QbtReply<QbtClient::FetchedMetadata> *QbtClient::torrentsFetchMetadata(const QSt
         });
 }
 
-QbtReply<QByteArray> *QbtClient::torrentsAddUrls(const QStringList &urls, const AddOptions &options)
+Reply<QByteArray> *QbtClient::torrentsAddUrls(const QStringList &urls, const AddOptions &options)
 {
     QUrlQuery form;
     addItem(form, QStringLiteral("urls"), urls.join(QLatin1Char('\n')));
@@ -1410,16 +1404,16 @@ QbtReply<QByteArray> *QbtClient::torrentsAddUrls(const QStringList &urls, const 
     return post(QStringLiteral("torrents/add"), form);
 }
 
-QbtReply<QByteArray> *QbtClient::torrentsAddFile(const QString &fileName,
-                                                 const QByteArray &bytes,
-                                                 const AddOptions &options)
+Reply<QByteArray> *QbtClient::torrentsAddFile(const QString &fileName,
+                                              const QByteArray &bytes,
+                                              const AddOptions &options)
 {
     return torrentsAddMany({AddFile{fileName, bytes}}, {}, options);
 }
 
-QbtReply<QByteArray> *QbtClient::torrentsAddMany(const QList<AddFile> &files,
-                                                 const QStringList &urls,
-                                                 const AddOptions &options)
+Reply<QByteArray> *QbtClient::torrentsAddMany(const QList<AddFile> &files,
+                                              const QStringList &urls,
+                                              const AddOptions &options)
 {
     QUrlQuery optionsForm;
     applyAddOptions(optionsForm, options);
@@ -1466,22 +1460,22 @@ QbtReply<QByteArray> *QbtClient::torrentsAddMany(const QList<AddFile> &files,
     return postMultipart(QStringLiteral("torrents/add"), std::move(build));
 }
 
-QbtReply<QByteArray> *QbtClient::transferSetDownloadLimit(qint64 bytesPerSec)
+Reply<QByteArray> *QbtClient::transferSetDownloadLimit(qint64 bytesPerSec)
 {
     QUrlQuery form;
     addItem(form, QStringLiteral("limit"), QString::number(bytesPerSec));
     return post(QStringLiteral("transfer/setDownloadLimit"), form);
 }
 
-QbtReply<QByteArray> *QbtClient::transferSetUploadLimit(qint64 bytesPerSec)
+Reply<QByteArray> *QbtClient::transferSetUploadLimit(qint64 bytesPerSec)
 {
     QUrlQuery form;
     addItem(form, QStringLiteral("limit"), QString::number(bytesPerSec));
     return post(QStringLiteral("transfer/setUploadLimit"), form);
 }
 
-QbtReply<QByteArray> *QbtClient::postMultipart(const QString &path,
-                                               std::function<QHttpMultiPart *()> buildMultiPart)
+Reply<QByteArray> *QbtClient::postMultipart(const QString &path,
+                                            std::function<QHttpMultiPart *()> buildMultiPart)
 {
     RequestSpec spec;
     spec.verb = QStringLiteral("POST");
@@ -1489,7 +1483,7 @@ QbtReply<QByteArray> *QbtClient::postMultipart(const QString &path,
     spec.retryOnTransient = false;
     spec.buildMultiPart = std::move(buildMultiPart);
     return submit<QByteArray>(std::move(spec),
-                              [](const QByteArray &body) { return QbtResult<QByteArray>(body); });
+                              [](const QByteArray &body) { return Result<QByteArray>(body); });
 }
 
 } // namespace omaseed::core

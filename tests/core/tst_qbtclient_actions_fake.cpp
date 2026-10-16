@@ -21,8 +21,8 @@
 
 using omaseed::core::ApiError;
 using omaseed::core::QbtClient;
-using omaseed::core::QbtReply;
-using omaseed::core::QbtResult;
+using omaseed::core::Reply;
+using omaseed::core::Result;
 
 namespace {
 
@@ -122,11 +122,11 @@ private:
 };
 
 template<class T>
-QbtResult<T> await(QObject *context, QbtReply<T> *reply, int timeoutMs = 10000)
+Result<T> await(QObject *context, Reply<T> *reply, int timeoutMs = 10000)
 {
-    QbtResult<T> result{ApiError(ApiError::Kind::Unknown, QStringLiteral("test never finished"))};
+    Result<T> result{ApiError(ApiError::Kind::Unknown, QStringLiteral("test never finished"))};
     QEventLoop loop;
-    reply->then(context, [&](const QbtResult<T> &finished) {
+    reply->then(context, [&](const Result<T> &finished) {
         result = finished;
         loop.quit();
     });
@@ -345,7 +345,7 @@ void TestQbtClientActionsFake::addTrackersSendsOneUrlPerLine()
     QbtClient client;
     client.setBaseUrl(server.url());
 
-    const QbtResult<QByteArray> result = await(
+    const Result<QByteArray> result = await(
         this,
         client.torrentsAddTrackers(QStringLiteral("h1"),
                                    QStringList{QStringLiteral("udp://a.example:1337/announce"),
@@ -369,7 +369,7 @@ void TestQbtClientActionsFake::addPeersSendsPipedHashesAndPeers()
     QbtClient client;
     client.setBaseUrl(server.url());
 
-    const QbtResult<QByteArray> result =
+    const Result<QByteArray> result =
         await(this,
               client.torrentsAddPeers(QStringList{QStringLiteral("h1"), QStringLiteral("h2")},
                                       QStringList{QStringLiteral("10.0.0.2:6881"),
@@ -410,7 +410,7 @@ void TestQbtClientActionsFake::banPeersSendsPipedPeers()
     QbtClient client;
     client.setBaseUrl(server.url());
 
-    const QbtResult<QByteArray> result =
+    const Result<QByteArray> result =
         await(this, client.transferBanPeers(QStringList{QStringLiteral("10.0.0.2:6881")}));
     QVERIFY2(!result.isError(), qPrintable(result.error().toString()));
     QCOMPARE(server.requests.at(0).method, QByteArray("POST"));
@@ -428,7 +428,7 @@ void TestQbtClientActionsFake::removeTrackersSendsTheHashAndPipedUrls()
     QbtClient client;
     client.setBaseUrl(server.url());
 
-    const QbtResult<QByteArray> result = await(
+    const Result<QByteArray> result = await(
         this,
         client.torrentsRemoveTrackers(QStringLiteral("h1"),
                                       QStringList{QStringLiteral("udp://a.example:1337/announce"),
@@ -450,7 +450,7 @@ void TestQbtClientActionsFake::setPreferencesSendsOnlyTheChangedKeysAsJson()
     QbtClient client;
     client.setBaseUrl(server.url());
 
-    const QbtResult<QByteArray> result =
+    const Result<QByteArray> result =
         await(this,
               client.appSetPreferences(QJsonObject{{QStringLiteral("dl_limit"), 51200},
                                                    {QStringLiteral("alt_up_limit"), 0}}));
@@ -475,7 +475,7 @@ void TestQbtClientActionsFake::hashesAreJoinedWithPipe()
     QbtClient client;
     client.setBaseUrl(server.url());
 
-    const QbtResult<QByteArray> result =
+    const Result<QByteArray> result =
         await(this, client.torrentsStart(QStringList{QStringLiteral("a"), QStringLiteral("b")}));
     QVERIFY2(!result.isError(), qPrintable(result.error().toString()));
     QCOMPARE(server.requests.size(), 1);
@@ -493,7 +493,7 @@ void TestQbtClientActionsFake::tagsArePercentEncoded()
     QbtClient client;
     client.setBaseUrl(server.url());
 
-    const QbtResult<QByteArray> result =
+    const Result<QByteArray> result =
         await(this,
               client.torrentsAddTags(QStringList{QStringLiteral("h1")},
                                      QStringList{QStringLiteral("a"), QStringLiteral("b")}));
@@ -518,7 +518,7 @@ void TestQbtClientActionsFake::deleteFilesFlag()
     QbtClient client;
     client.setBaseUrl(server.url());
 
-    const QbtResult<QByteArray> result =
+    const Result<QByteArray> result =
         await(this, client.torrentsDelete(QStringList{QStringLiteral("h1")}, true));
     QVERIFY2(!result.isError(), qPrintable(result.error().toString()));
     QCOMPARE(server.requests.at(0).target, QByteArrayLiteral("/api/v2/torrents/delete"));
@@ -533,7 +533,7 @@ void TestQbtClientActionsFake::shareLimitsSendsAllFiveFields()
     QbtClient client;
     client.setBaseUrl(server.url());
 
-    const QbtResult<QByteArray> result =
+    const Result<QByteArray> result =
         await(this, client.torrentsSetShareLimits(QStringList{QStringLiteral("h1")}, -2, -2, -2));
     QVERIFY2(!result.isError(), qPrintable(result.error().toString()));
     const QUrlQuery body(QString::fromUtf8(server.requests.at(0).body));
@@ -602,7 +602,7 @@ void TestQbtClientActionsFake::shareLimitActionNames()
     QbtClient client;
     client.setBaseUrl(server.url());
 
-    const QbtResult<QByteArray> result = await(
+    const Result<QByteArray> result = await(
         this, client.torrentsSetShareLimits(QStringList{QStringLiteral("h1")}, 2, 60, -1, action));
     QVERIFY2(!result.isError(), qPrintable(result.error().toString()));
     const QUrlQuery body(QString::fromUtf8(server.requests.at(0).body));
@@ -624,7 +624,7 @@ void TestQbtClientActionsFake::shareLimitActionIsOmittedForAnOldApi()
 
     // A caller talking to a pre-2.15.1 server passes nullopt: the field is left off
     // entirely (not sent empty), the four limits still travel.
-    const QbtResult<QByteArray> result = await(
+    const Result<QByteArray> result = await(
         this,
         client.torrentsSetShareLimits(QStringList{QStringLiteral("h1")}, -2, -2, -2, std::nullopt));
     QVERIFY2(!result.isError(), qPrintable(result.error().toString()));
@@ -671,7 +671,7 @@ void TestQbtClientActionsFake::addUrlsSendsStoppedAndPausedAndOptions()
     options.rename = QStringLiteral("renamed");
     options.contentLayout = QbtClient::ContentLayout::Subfolder;
 
-    const QbtResult<QByteArray> result = await(
+    const Result<QByteArray> result = await(
         this,
         client.torrentsAddUrls(QStringList{QStringLiteral("magnet:?xt=urn:btih:abc")}, options));
     QVERIFY2(!result.isError(), qPrintable(result.error().toString()));
@@ -709,7 +709,7 @@ void TestQbtClientActionsFake::a500OnActionIsNotRetried()
     client.setBaseUrl(server.url());
     client.setRetryBackoff(std::chrono::milliseconds(20));
 
-    const QbtResult<QByteArray> result =
+    const Result<QByteArray> result =
         await(this, client.torrentsStop(QStringList{QStringLiteral("h1")}));
     QVERIFY(result.isError());
     QCOMPARE(result.error().kind(), ApiError::Kind::Server);
@@ -725,7 +725,7 @@ void TestQbtClientActionsFake::a409OnActionMapsToConflict()
     QbtClient client;
     client.setBaseUrl(server.url());
 
-    const QbtResult<QByteArray> result =
+    const Result<QByteArray> result =
         await(this, client.torrentsRecheck(QStringList{QStringLiteral("h1")}));
     QVERIFY(result.isError());
     QCOMPARE(result.error().kind(), ApiError::Kind::Conflict);

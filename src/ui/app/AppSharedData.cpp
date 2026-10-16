@@ -78,19 +78,18 @@ QVariantMap App::sharedData(const QStringList &hashes, bool fresh)
         if (!m_hasServer || m_sharedFilesInFlight.contains(hash))
             continue;
         m_sharedFilesInFlight.insert(hash);
-        m_client->torrentsFiles(hash)->then(
-            this, [this, hash](const QbtResult<QJsonArray> &result) {
-                m_sharedFilesInFlight.remove(hash);
-                QStringList names;
-                if (!result.isError()) {
-                    for (const QJsonValue &file : result.value())
-                        names.append(file.toObject().value(QStringLiteral("name")).toString());
-                }
-                // A refusal (the torrent went away meanwhile) is cached as "no files": it
-                // shares nothing, and asking again would only be refused again.
-                m_sharedFiles.insert(hash, names);
-                Q_EMIT sharedFilesLoaded();
-            });
+        m_client->torrentsFiles(hash)->then(this, [this, hash](const Result<QJsonArray> &result) {
+            m_sharedFilesInFlight.remove(hash);
+            QStringList names;
+            if (!result.isError()) {
+                for (const QJsonValue &file : result.value())
+                    names.append(file.toObject().value(QStringLiteral("name")).toString());
+            }
+            // A refusal (the torrent went away meanwhile) is cached as "no files": it
+            // shares nothing, and asking again would only be refused again.
+            m_sharedFiles.insert(hash, names);
+            Q_EMIT sharedFilesLoaded();
+        });
     }
     const auto sharerMap = [&](const QString &hash) {
         const Torrent &torrent = model->torrent(hash);
@@ -201,7 +200,7 @@ void App::setAutoManagementWithCategories(const QStringList &hashes, const QVari
         const QString name = it.key();
         m_client->torrentsSetCategory(it.value(), name)
             ->then(this,
-                   [this, hashes, name, remaining, refused](const QbtResult<QByteArray> &result) {
+                   [this, hashes, name, remaining, refused](const Result<QByteArray> &result) {
                        if (result.isError()) {
                            *refused = true;
                            qWarning().noquote()

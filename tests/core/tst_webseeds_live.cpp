@@ -52,11 +52,11 @@ bool waitFor(const std::function<bool()> &predicate, int timeoutMs)
 }
 
 template<class T>
-QbtResult<T> await(QObject *context, QbtReply<T> *reply, int timeoutMs = 20000)
+Result<T> await(QObject *context, Reply<T> *reply, int timeoutMs = 20000)
 {
-    QbtResult<T> result{ApiError(ApiError::Kind::Unknown, QStringLiteral("never finished"))};
+    Result<T> result{ApiError(ApiError::Kind::Unknown, QStringLiteral("never finished"))};
     QEventLoop loop;
-    reply->then(context, [&](const QbtResult<T> &value) {
+    reply->then(context, [&](const Result<T> &value) {
         result = value;
         loop.quit();
     });
@@ -139,7 +139,7 @@ void TestWebSeedsLive::initTestCase()
     QbtClient::AddOptions options;
     options.stopped = true; // never fetches from the made-up sources
     options.category = QString::fromLatin1(kCategory);
-    const QbtResult<QByteArray> added = await(
+    const Result<QByteArray> added = await(
         this,
         client.torrentsAddFile(QStringLiteral("omaseed-webseed-live.torrent"), bytes, options));
     QVERIFY2(!added.isError(), qPrintable(added.error().toString()));
@@ -159,7 +159,7 @@ void TestWebSeedsLive::cleanupTestCase()
 
 QStringList TestWebSeedsLive::webSeeds(QbtClient &client)
 {
-    const QbtResult<QJsonArray> seeds = await(this, client.torrentsWebSeeds(m_hash));
+    const Result<QJsonArray> seeds = await(this, client.torrentsWebSeeds(m_hash));
     return seeds.isError() ? QStringList() : urlsOf(seeds.value());
 }
 
@@ -205,20 +205,20 @@ void TestWebSeedsLive::theServerRefusesWhatItCannotUse()
     client.setBaseUrl(m_url);
 
     // Not one of the torrent's: 409.
-    const QbtResult<QByteArray> edit = await(
+    const Result<QByteArray> edit = await(
         this, client.torrentsEditWebSeed(m_hash, QStringLiteral("https://none.invalid/"), kThird));
     QVERIFY(edit.isError());
     QCOMPARE(edit.error().kind(), ApiError::Kind::Conflict);
 
     // Not a URL: 400, and nothing added.
-    const QbtResult<QByteArray> add =
+    const Result<QByteArray> add =
         await(this, client.torrentsAddWebSeeds(m_hash, {QStringLiteral("not a url")}));
     QVERIFY(add.isError());
     QCOMPARE(add.error().httpStatus(), 400);
     QCOMPARE(webSeeds(client), sorted({kFirst, kSecond}));
 
     // An unknown torrent: 404.
-    const QbtResult<QJsonArray> unknown = await(
+    const Result<QJsonArray> unknown = await(
         this, client.torrentsWebSeeds(QStringLiteral("0000000000000000000000000000000000000000")));
     QVERIFY(unknown.isError());
     QCOMPARE(unknown.error().kind(), ApiError::Kind::NotFound);

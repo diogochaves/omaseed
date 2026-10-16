@@ -22,7 +22,7 @@
 
 using omaseed::app::App;
 using omaseed::core::QbtClient;
-using omaseed::core::QbtResult;
+using omaseed::core::Result;
 using omaseed::core::SyncEngine;
 
 namespace {
@@ -30,13 +30,13 @@ namespace {
 const QString kTiny = QStringLiteral("tiny-notes.txt");
 
 template<class T>
-QbtResult<T> wait(omaseed::core::QbtReply<T> *reply, QObject *context)
+Result<T> wait(omaseed::core::Reply<T> *reply, QObject *context)
 {
-    std::optional<QbtResult<T>> got;
-    reply->then(context, [&got](const QbtResult<T> &r) { got = r; });
+    std::optional<Result<T>> got;
+    reply->then(context, [&got](const Result<T> &r) { got = r; });
     if (!QTest::qWaitFor([&got] { return got.has_value(); }, 20000))
-        return QbtResult<T>(T());
-    return got.value_or(QbtResult<T>(T()));
+        return Result<T>(T());
+    return got.value_or(Result<T>(T()));
 }
 
 bool connectApp(App &app, ThrowawayQbt &qbt)

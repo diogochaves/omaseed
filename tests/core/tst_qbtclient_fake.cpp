@@ -20,8 +20,8 @@
 
 using omaseed::core::ApiError;
 using omaseed::core::QbtClient;
-using omaseed::core::QbtReply;
-using omaseed::core::QbtResult;
+using omaseed::core::Reply;
+using omaseed::core::Result;
 
 namespace {
 
@@ -144,11 +144,11 @@ private:
 
 /// Runs the event loop until the reply finishes, then hands back its result.
 template<class T>
-QbtResult<T> await(QObject *context, QbtReply<T> *reply, int timeoutMs = 10000)
+Result<T> await(QObject *context, Reply<T> *reply, int timeoutMs = 10000)
 {
-    QbtResult<T> result{ApiError(ApiError::Kind::Unknown, QStringLiteral("test never finished"))};
+    Result<T> result{ApiError(ApiError::Kind::Unknown, QStringLiteral("test never finished"))};
     QEventLoop loop;
-    reply->then(context, [&](const QbtResult<T> &finished) {
+    reply->then(context, [&](const Result<T> &finished) {
         result = finished;
         loop.quit();
     });
@@ -200,7 +200,7 @@ void TestQbtClientFake::refusedConnectionIsNetwork()
     client.setBaseUrl(QUrl(QStringLiteral("http://127.0.0.1:%1").arg(port)));
     client.setMaxRetries(0);
 
-    const QbtResult<QString> result = await(this, client.appVersion());
+    const Result<QString> result = await(this, client.appVersion());
     QVERIFY(result.isError());
     QCOMPARE(result.error().kind(), ApiError::Kind::Network);
     QVERIFY(result.error().message().contains(QStringLiteral("app/version")));
@@ -216,7 +216,7 @@ void TestQbtClientFake::silentServerTimesOut()
     client.setTimeout(std::chrono::milliseconds(400));
     client.setMaxRetries(0);
 
-    const QbtResult<QString> result = await(this, client.appVersion());
+    const Result<QString> result = await(this, client.appVersion());
     QVERIFY(result.isError());
     QCOMPARE(result.error().kind(), ApiError::Kind::Timeout);
     QCOMPARE(server.requests.size(), 1);
@@ -236,7 +236,7 @@ void TestQbtClientFake::retriesGetWithBackoff()
     client.setRetryBackoff(std::chrono::milliseconds(60)); // 60 + 120 instead of 500 + 1000
     client.setMaxRetries(3);
 
-    const QbtResult<QString> result = await(this, client.appVersion());
+    const Result<QString> result = await(this, client.appVersion());
     QVERIFY(!result.isError());
     QCOMPARE(result.value(), QStringLiteral("v5.0.0"));
     QCOMPARE(server.requests.size(), 3);
@@ -258,8 +258,7 @@ void TestQbtClientFake::doesNotRetryPost()
     client.setBaseUrl(server.url());
     client.setRetryBackoff(std::chrono::milliseconds(20));
 
-    const QbtResult<QByteArray> result =
-        await(this, client.post(QStringLiteral("torrents/delete")));
+    const Result<QByteArray> result = await(this, client.post(QStringLiteral("torrents/delete")));
     QVERIFY(result.isError());
     QCOMPARE(result.error().kind(), ApiError::Kind::Server);
     QCOMPARE(server.requests.size(), 1); // a mutating POST is never sent twice
@@ -286,7 +285,7 @@ void TestQbtClientFake::logsInAndRetriesOnce()
     client.setCredentials(QStringLiteral("admin"), QStringLiteral("secret pass"));
     QSignalSpy authStates(&client, &QbtClient::authStateChanged);
 
-    const QbtResult<QString> result = await(this, client.appVersion());
+    const Result<QString> result = await(this, client.appVersion());
     QVERIFY2(!result.isError(), qPrintable(result.error().toString()));
     QCOMPARE(result.value(), QStringLiteral("v5.0.0"));
     QCOMPARE(server.requests.size(), 3);
@@ -299,7 +298,7 @@ void TestQbtClientFake::logsInAndRetriesOnce()
     QCOMPARE(authStates.size(), 1);
 
     // A second call reuses the cookie: no further login.
-    const QbtResult<QString> again = await(this, client.appVersion());
+    const Result<QString> again = await(this, client.appVersion());
     QVERIFY(!again.isError());
     QCOMPARE(server.requests.size(), 4);
 }
@@ -313,7 +312,7 @@ void TestQbtClientFake::sendsBearerAndCsrfHeaders()
     client.setBaseUrl(server.url());
     client.setApiKey(QStringLiteral("fake-key-for-tests"));
 
-    const QbtResult<QString> result = await(this, client.appVersion());
+    const Result<QString> result = await(this, client.appVersion());
     QVERIFY(!result.isError());
     QCOMPARE(server.requests.size(), 1);
     const Recorded &recorded = server.requests.at(0);
@@ -348,7 +347,7 @@ void TestQbtClientFake::mapsHttpStatus()
     client.setBaseUrl(server.url());
     client.setMaxRetries(0);
 
-    const QbtResult<QString> result = await(this, client.appVersion());
+    const Result<QString> result = await(this, client.appVersion());
     QVERIFY(result.isError());
     QCOMPARE(result.error().kind(), kind);
     QCOMPARE(result.error().httpStatus(), status);
@@ -366,7 +365,7 @@ void TestQbtClientFake::badJsonIsParse()
     QbtClient client;
     client.setBaseUrl(server.url());
 
-    const QbtResult<QJsonObject> result = await(this, client.syncMainData(0));
+    const Result<QJsonObject> result = await(this, client.syncMainData(0));
     QVERIFY(result.isError());
     QCOMPARE(result.error().kind(), ApiError::Kind::Parse);
     QVERIFY(result.error().message().contains(QStringLiteral("sync/maindata")));
@@ -385,7 +384,7 @@ void TestQbtClientFake::limitsConcurrencyToFour()
     int finished = 0;
     QEventLoop loop;
     for (int i = 0; i < total; ++i) {
-        client.appVersion()->then(this, [&](const QbtResult<QString> &result) {
+        client.appVersion()->then(this, [&](const Result<QString> &result) {
             QVERIFY(!result.isError());
             if (++finished == total)
                 loop.quit();
@@ -411,7 +410,7 @@ void TestQbtClientFake::cancelAllFinishesEveryReply()
     QList<ApiError> errors;
     for (int i = 0; i < 6; ++i) {
         client.appVersion()->then(
-            this, [&errors](const QbtResult<QString> &result) { errors.append(result.error()); });
+            this, [&errors](const Result<QString> &result) { errors.append(result.error()); });
     }
     QTest::qWait(100);
     client.cancelAll();
@@ -433,9 +432,8 @@ void TestQbtClientFake::abortDuringBackoffIsCancelledAndNeverResent()
 
     QList<ApiError> errors;
     auto *reply = client.appVersion();
-    QPointer<QbtReply<QString>> guard(reply);
-    reply->then(this,
-                [&errors](const QbtResult<QString> &result) { errors.append(result.error()); });
+    QPointer<Reply<QString>> guard(reply);
+    reply->then(this, [&errors](const Result<QString> &result) { errors.append(result.error()); });
     QTRY_COMPARE(server.requests.size(), 1);
     QTest::qWait(50); // the 500 is in; the job now waits out its back-off
     QVERIFY(errors.isEmpty());
@@ -515,7 +513,7 @@ void TestQbtClientFake::rejectedLoginIsNotRepeated()
     client.setCredentials(QStringLiteral("admin"), QStringLiteral("wrong"));
 
     for (int i = 0; i < 4; ++i) {
-        const QbtResult<QString> result = await(this, client.appVersion());
+        const Result<QString> result = await(this, client.appVersion());
         QVERIFY(result.isError());
         // VER-1: the 403s after the refused login report the login's verdict, not Forbidden.
         QCOMPARE(result.error().kind(), ApiError::Kind::Unauthorized);
@@ -525,7 +523,7 @@ void TestQbtClientFake::rejectedLoginIsNotRepeated()
 
     // New credentials lift the latch: one fresh login, which works.
     client.setCredentials(QStringLiteral("admin"), QStringLiteral("right"));
-    const QbtResult<QString> result = await(this, client.appVersion());
+    const Result<QString> result = await(this, client.appVersion());
     QVERIFY2(!result.isError(), qPrintable(result.error().toString()));
     QCOMPARE(logins(), 2);
     QCOMPARE(client.authState(), QbtClient::AuthState::Ok);
@@ -559,7 +557,7 @@ void TestQbtClientFake::allowLoginAgainTriesOneMoreLogin()
     client.setCredentials(QStringLiteral("admin"), QStringLiteral("secret"));
 
     QVERIFY(await(this, client.appVersion()).isError());
-    const QbtResult<QString> latched = await(this, client.appVersion());
+    const Result<QString> latched = await(this, client.appVersion());
     QVERIFY(latched.isError());
     // A banned login (403) stays Forbidden while latched.
     QCOMPARE(latched.error().kind(), ApiError::Kind::Forbidden);
@@ -575,7 +573,7 @@ void TestQbtClientFake::allowLoginAgainTriesOneMoreLogin()
     // The ban has expired: the next retry gets in.
     banned = false;
     client.allowLoginAgain();
-    const QbtResult<QString> result = await(this, client.appVersion());
+    const Result<QString> result = await(this, client.appVersion());
     QVERIFY2(!result.isError(), qPrintable(result.error().toString()));
     QCOMPARE(logins(), 3);
     QCOMPARE(client.authState(), QbtClient::AuthState::Ok);
@@ -597,7 +595,7 @@ void TestQbtClientFake::cancelledLoginLeavesTheAuthStateAlone()
 
     QList<ApiError> errors;
     client.appVersion()->then(
-        this, [&errors](const QbtResult<QString> &result) { errors.append(result.error()); });
+        this, [&errors](const Result<QString> &result) { errors.append(result.error()); });
     QTRY_COMPARE(server.requests.size(), 2); // the GET, then the login
     client.cancelAll();
     QTRY_COMPARE(errors.size(), 1);
@@ -627,7 +625,7 @@ void TestQbtClientFake::multipartAddLogsInAgainAfterAnExpiredSession()
     const QByteArray bytes = QByteArrayLiteral("d4:infod4:name4:demoee");
     QbtClient::AddOptions options;
     options.category = QStringLiteral("movies");
-    const QbtResult<QByteArray> result = await(
+    const Result<QByteArray> result = await(
         this, client.torrentsAddFile(QStringLiteral("we\"ird\r\nname é.torrent"), bytes, options));
     QVERIFY2(!result.isError(), qPrintable(result.error().toString()));
     QCOMPARE(server.requests.size(), 3);
@@ -658,7 +656,7 @@ void TestQbtClientFake::addManySendsEveryFileAndLinkInOneRequest()
     QbtClient::AddOptions options;
     options.category = QStringLiteral("movies");
     options.stopped = true;
-    const QbtResult<QByteArray> result = await(
+    const Result<QByteArray> result = await(
         this,
         client.torrentsAddMany(
             {{QStringLiteral("first.torrent"), first}, {QStringLiteral("second.torrent"), second}},

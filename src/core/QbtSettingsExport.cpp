@@ -246,7 +246,7 @@ void QbtSettingsExport::step()
     };
     switch (m_step++) {
     case 0:
-        m_client->appVersion()->then(this, [this](const QbtResult<QString> &r) {
+        m_client->appVersion()->then(this, [this](const Result<QString> &r) {
             if (r.isError())
                 return fail(r.error().toString());
             m_snapshot.version = r.value();
@@ -254,7 +254,7 @@ void QbtSettingsExport::step()
         });
         return;
     case 1:
-        m_client->webApiVersion()->then(this, [this](const QbtResult<QString> &r) {
+        m_client->webApiVersion()->then(this, [this](const Result<QString> &r) {
             if (r.isError())
                 return fail(r.error().toString());
             m_snapshot.apiVersion = r.value();
@@ -262,7 +262,7 @@ void QbtSettingsExport::step()
         });
         return;
     case 2:
-        m_client->appPreferences()->then(this, [this](const QbtResult<QJsonObject> &r) {
+        m_client->appPreferences()->then(this, [this](const Result<QJsonObject> &r) {
             if (r.isError())
                 return fail(r.error().toString());
             m_snapshot.preferences = withoutSecrets(r.value());
@@ -270,7 +270,7 @@ void QbtSettingsExport::step()
         });
         return;
     case 3:
-        m_client->torrentsCategories()->then(this, [this](const QbtResult<QJsonObject> &r) {
+        m_client->torrentsCategories()->then(this, [this](const Result<QJsonObject> &r) {
             if (r.isError())
                 return fail(r.error().toString());
             m_snapshot.categories = withoutSecrets(r.value());
@@ -278,7 +278,7 @@ void QbtSettingsExport::step()
         });
         return;
     case 4:
-        m_client->torrentsTags()->then(this, [this](const QbtResult<QJsonArray> &r) {
+        m_client->torrentsTags()->then(this, [this](const Result<QJsonArray> &r) {
             if (r.isError())
                 return fail(r.error().toString());
             for (const QJsonValue &tag : r.value())
@@ -290,7 +290,7 @@ void QbtSettingsExport::step()
         QUrlQuery query;
         query.addQueryItem(QStringLiteral("withData"), QStringLiteral("false"));
         m_client->get(QStringLiteral("rss/items"), query)
-            ->then(this, [this, objectFrom](const QbtResult<QByteArray> &r) {
+            ->then(this, [this, objectFrom](const Result<QByteArray> &r) {
                 if (r.isError())
                     return fail(r.error().toString());
                 bool ok = false;
@@ -303,7 +303,7 @@ void QbtSettingsExport::step()
     }
     case 6:
         m_client->get(QStringLiteral("rss/rules"))
-            ->then(this, [this, objectFrom](const QbtResult<QByteArray> &r) {
+            ->then(this, [this, objectFrom](const Result<QByteArray> &r) {
                 if (r.isError())
                     return fail(r.error().toString());
                 bool ok = false;

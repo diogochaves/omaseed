@@ -22,8 +22,8 @@
 
 using omaseed::core::ApiError;
 using omaseed::core::QbtClient;
-using omaseed::core::QbtReply;
-using omaseed::core::QbtResult;
+using omaseed::core::Reply;
+using omaseed::core::Result;
 using omaseed::core::TorrentDetails;
 using omaseed::core::TorrentModel;
 
@@ -91,11 +91,11 @@ private:
 };
 
 template<class T>
-QbtResult<T> await(QObject *context, QbtReply<T> *reply, int timeoutMs = 10000)
+Result<T> await(QObject *context, Reply<T> *reply, int timeoutMs = 10000)
 {
-    QbtResult<T> result{ApiError(ApiError::Kind::Unknown, QStringLiteral("test never finished"))};
+    Result<T> result{ApiError(ApiError::Kind::Unknown, QStringLiteral("test never finished"))};
     QEventLoop loop;
-    reply->then(context, [&](const QbtResult<T> &finished) {
+    reply->then(context, [&](const Result<T> &finished) {
         result = finished;
         loop.quit();
     });
@@ -131,7 +131,7 @@ void TestQbtClientDetailsFake::syncTorrentPeersSendsHashAndRid()
 
     QbtClient client;
     client.setBaseUrl(server.url());
-    const QbtResult<QJsonObject> result =
+    const Result<QJsonObject> result =
         await(this, client.torrentsPeers(QStringLiteral("abc123"), 12));
 
     QVERIFY2(!result.isError(), qPrintable(result.error().toString()));
@@ -154,7 +154,7 @@ void TestQbtClientDetailsFake::torrentPeersParsesTheDiffShape()
 
     QbtClient client;
     client.setBaseUrl(server.url());
-    const QbtResult<QJsonObject> result =
+    const Result<QJsonObject> result =
         await(this, client.torrentsPeers(QStringLiteral("abc123"), 3));
 
     QVERIFY2(!result.isError(), qPrintable(result.error().toString()));
@@ -184,17 +184,17 @@ void TestQbtClientDetailsFake::filesTrackersAndPropertiesSendTheHash()
     QbtClient client;
     client.setBaseUrl(server.url());
 
-    const QbtResult<QJsonObject> properties =
+    const Result<QJsonObject> properties =
         await(this, client.torrentsProperties(QStringLiteral("abc123")));
     QVERIFY2(!properties.isError(), qPrintable(properties.error().toString()));
     QCOMPARE(properties.value().value(QStringLiteral("name")).toString(),
              QStringLiteral("Fixture"));
 
-    const QbtResult<QJsonArray> files = await(this, client.torrentsFiles(QStringLiteral("abc123")));
+    const Result<QJsonArray> files = await(this, client.torrentsFiles(QStringLiteral("abc123")));
     QVERIFY2(!files.isError(), qPrintable(files.error().toString()));
     QCOMPARE(files.value().size(), 1);
 
-    const QbtResult<QJsonArray> trackers =
+    const Result<QJsonArray> trackers =
         await(this, client.torrentsTrackers(QStringLiteral("abc123")));
     QVERIFY2(!trackers.isError(), qPrintable(trackers.error().toString()));
     QCOMPARE(trackers.value().size(), 1);
@@ -215,7 +215,7 @@ void TestQbtClientDetailsFake::pieceStatesSendsTheHashAndParsesTheArray()
     QbtClient client;
     client.setBaseUrl(server.url());
 
-    const QbtResult<QJsonArray> states =
+    const Result<QJsonArray> states =
         await(this, client.torrentsPieceStates(QStringLiteral("abc123")));
     QVERIFY2(!states.isError(), qPrintable(states.error().toString()));
     QCOMPARE(states.value().size(), 4);
@@ -236,7 +236,7 @@ void TestQbtClientDetailsFake::filePrioPostsTheIdList()
 
     QbtClient client;
     client.setBaseUrl(server.url());
-    const QbtResult<QByteArray> result =
+    const Result<QByteArray> result =
         await(this, client.torrentsSetFilePrio(QStringLiteral("abc123"), {2, 3}, 0));
 
     QVERIFY2(!result.isError(), qPrintable(result.error().toString()));
@@ -306,8 +306,7 @@ void TestQbtClientDetailsFake::webSeedsSendsTheHashAndParsesTheList()
 
     QbtClient client;
     client.setBaseUrl(server.url());
-    const QbtResult<QJsonArray> seeds =
-        await(this, client.torrentsWebSeeds(QStringLiteral("abc123")));
+    const Result<QJsonArray> seeds = await(this, client.torrentsWebSeeds(QStringLiteral("abc123")));
     QVERIFY2(!seeds.isError(), qPrintable(seeds.error().toString()));
     QCOMPARE(seeds.value().size(), 2);
     QCOMPARE(seeds.value().at(1).toObject().value(QStringLiteral("url")).toString(),

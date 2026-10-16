@@ -88,7 +88,7 @@ public:
         QStringList trackers;
     };
 
-    using Fetch = std::function<QbtReply<QbtClient::FetchedMetadata> *(const QString &source)>;
+    using Fetch = std::function<Reply<QbtClient::FetchedMetadata> *(const QString &source)>;
     using Clock = std::function<qint64()>;
 
     explicit MetadataLookup(QObject *parent = nullptr);
@@ -148,7 +148,7 @@ private:
     qint64 elapsed() const;
     void begin();
     void poll();
-    void onAnswer(int generation, const QbtResult<QbtClient::FetchedMetadata> &result);
+    void onAnswer(int generation, const Result<QbtClient::FetchedMetadata> &result);
     void setPhase(Phase phase);
     void arm();
 

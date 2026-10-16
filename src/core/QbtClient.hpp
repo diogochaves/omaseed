@@ -106,7 +106,7 @@
 // Anything else goes through the generic get() / post().
 
 #include "core/ApiError.hpp"
-#include "core/QbtReply.hpp"
+#include "core/Reply.hpp"
 
 #include <QJsonArray>
 #include <QJsonObject>
@@ -207,90 +207,90 @@ public:
 
     // --- generic ------------------------------------------------------------------------
     /// `path` is relative to /api/v2, e.g. "torrents/info".
-    QbtReply<QByteArray> *get(const QString &path, const QUrlQuery &query = QUrlQuery());
+    Reply<QByteArray> *get(const QString &path, const QUrlQuery &query = QUrlQuery());
     /// Form-encoded POST. Never retried for transient failures: it may have mutated state.
-    QbtReply<QByteArray> *post(const QString &path, const QUrlQuery &form = QUrlQuery());
+    Reply<QByteArray> *post(const QString &path, const QUrlQuery &form = QUrlQuery());
 
     // --- typed calls --------------------------------------------------------------------
-    QbtReply<QString> *appVersion();         ///< GET app/version
-    QbtReply<QString> *webApiVersion();      ///< GET app/webapiVersion
-    QbtReply<QJsonObject> *appPreferences(); ///< GET app/preferences
+    Reply<QString> *appVersion();         ///< GET app/version
+    Reply<QString> *webApiVersion();      ///< GET app/webapiVersion
+    Reply<QJsonObject> *appPreferences(); ///< GET app/preferences
     /// POST app/setPreferences with `json=<changes>`; the server leaves every other key alone.
-    QbtReply<QByteArray> *appSetPreferences(const QJsonObject &changes);
-    QbtReply<QJsonObject> *appBuildInfo();        ///< GET app/buildInfo
-    QbtReply<QJsonObject> *syncMainData(int rid); ///< GET sync/maindata?rid=
-    QbtReply<QJsonArray> *torrentsInfo(const TorrentsInfoQuery &query = TorrentsInfoQuery());
-    QbtReply<QJsonObject> *torrentsProperties(const QString &hash); ///< GET torrents/properties
-    QbtReply<QJsonArray> *torrentsFiles(const QString &hash);       ///< GET torrents/files
-    QbtReply<QJsonArray> *torrentsTrackers(const QString &hash);    ///< GET torrents/trackers
+    Reply<QByteArray> *appSetPreferences(const QJsonObject &changes);
+    Reply<QJsonObject> *appBuildInfo();        ///< GET app/buildInfo
+    Reply<QJsonObject> *syncMainData(int rid); ///< GET sync/maindata?rid=
+    Reply<QJsonArray> *torrentsInfo(const TorrentsInfoQuery &query = TorrentsInfoQuery());
+    Reply<QJsonObject> *torrentsProperties(const QString &hash); ///< GET torrents/properties
+    Reply<QJsonArray> *torrentsFiles(const QString &hash);       ///< GET torrents/files
+    Reply<QJsonArray> *torrentsTrackers(const QString &hash);    ///< GET torrents/trackers
     /// GET torrents/pieceStates — one number per piece: 0 missing, 1 downloading, 2 had.
-    QbtReply<QJsonArray> *torrentsPieceStates(const QString &hash);
+    Reply<QJsonArray> *torrentsPieceStates(const QString &hash);
     /// GET torrents/webseeds — the torrent's HTTP sources, `[{"url": …}]`.
-    QbtReply<QJsonArray> *torrentsWebSeeds(const QString &hash);
+    Reply<QJsonArray> *torrentsWebSeeds(const QString &hash);
     /// GET sync/torrentPeers?hash=&rid= — the same rid protocol as sync/maindata.
-    QbtReply<QJsonObject> *torrentsPeers(const QString &hash, int rid);
-    QbtReply<QJsonObject> *torrentsCategories(); ///< GET torrents/categories
-    QbtReply<QJsonArray> *torrentsTags();        ///< GET torrents/tags
-    QbtReply<QJsonObject> *transferInfo();       ///< GET transfer/info
+    Reply<QJsonObject> *torrentsPeers(const QString &hash, int rid);
+    Reply<QJsonObject> *torrentsCategories(); ///< GET torrents/categories
+    Reply<QJsonArray> *torrentsTags();        ///< GET torrents/tags
+    Reply<QJsonObject> *transferInfo();       ///< GET transfer/info
     /// GET log/main: warnings and critical lines only, those after `lastKnownId` (-1 for
     /// all the server keeps). qBittorrent keeps them in memory: they start again from id 0
     /// when it restarts (docs/28 §2).
-    QbtReply<QJsonArray> *logMainProblems(int lastKnownId);
+    Reply<QJsonArray> *logMainProblems(int lastKnownId);
     /// GET log/main with all four levels, the lines after `lastKnownId` (-1 for all the
     /// server keeps): the log face (docs/32 §6, #56).
-    QbtReply<QJsonArray> *logMain(int lastKnownId);
+    Reply<QJsonArray> *logMain(int lastKnownId);
     /// GET transfer/speedLimitsMode — true when the alternative limits are on.
-    QbtReply<bool> *transferSpeedLimitsMode();
-    QbtReply<QByteArray> *transferToggleSpeedLimitsMode(); ///< POST transfer/toggleSpeedLimitsMode
+    Reply<bool> *transferSpeedLimitsMode();
+    Reply<QByteArray> *transferToggleSpeedLimitsMode(); ///< POST transfer/toggleSpeedLimitsMode
     /// POST transfer/setSpeedLimitsMode with `mode` 1 (alternative limits on) or 0. Unlike the
     /// toggle it says what it wants, so two quick calls cannot cancel each other out.
-    QbtReply<QByteArray> *transferSetSpeedLimitsMode(bool on);
+    Reply<QByteArray> *transferSetSpeedLimitsMode(bool on);
 
     /// POST auth/login with the credentials set earlier. Resolves to true on success;
     /// a rejected password is ApiError::Kind::Unauthorized.
-    QbtReply<bool> *login();
+    Reply<bool> *login();
 
     /// app/version + app/webapiVersion; emits serverInfoChanged() when both arrive.
-    QbtReply<ServerInfo> *probe();
+    Reply<ServerInfo> *probe();
 
     // --- torrent actions (T2.5) ----------------------------------------------------------
-    QbtReply<QByteArray> *torrentsStart(const QStringList &hashes);
-    QbtReply<QByteArray> *torrentsStop(const QStringList &hashes);
-    QbtReply<QByteArray> *torrentsSetForceStart(const QStringList &hashes, bool value);
-    QbtReply<QByteArray> *torrentsRecheck(const QStringList &hashes);
-    QbtReply<QByteArray> *torrentsReannounce(const QStringList &hashes);
+    Reply<QByteArray> *torrentsStart(const QStringList &hashes);
+    Reply<QByteArray> *torrentsStop(const QStringList &hashes);
+    Reply<QByteArray> *torrentsSetForceStart(const QStringList &hashes, bool value);
+    Reply<QByteArray> *torrentsRecheck(const QStringList &hashes);
+    Reply<QByteArray> *torrentsReannounce(const QStringList &hashes);
     /// POST torrents/removeTrackers: one torrent, `urls` joined with '|'.
-    QbtReply<QByteArray> *torrentsRemoveTrackers(const QString &hash, const QStringList &urls);
+    Reply<QByteArray> *torrentsRemoveTrackers(const QString &hash, const QStringList &urls);
     /// POST torrents/addTrackers: one torrent, `urls` joined with a newline (sent as %0A).
-    QbtReply<QByteArray> *torrentsAddTrackers(const QString &hash, const QStringList &urls);
+    Reply<QByteArray> *torrentsAddTrackers(const QString &hash, const QStringList &urls);
     /// POST torrents/addWebSeeds: one torrent, `urls` joined with '|'.
-    QbtReply<QByteArray> *torrentsAddWebSeeds(const QString &hash, const QStringList &urls);
+    Reply<QByteArray> *torrentsAddWebSeeds(const QString &hash, const QStringList &urls);
     /// POST torrents/editWebSeed: replaces `origUrl` with `newUrl` on one torrent.
-    QbtReply<QByteArray> *
+    Reply<QByteArray> *
     torrentsEditWebSeed(const QString &hash, const QString &origUrl, const QString &newUrl);
     /// POST torrents/removeWebSeeds: one torrent, `urls` joined with '|'.
-    QbtReply<QByteArray> *torrentsRemoveWebSeeds(const QString &hash, const QStringList &urls);
+    Reply<QByteArray> *torrentsRemoveWebSeeds(const QString &hash, const QStringList &urls);
     /// POST torrents/addPeers: `hashes` and `peers` (`host:port`, `[v6]:port`) each joined
     /// with '|'.
-    QbtReply<QByteArray> *torrentsAddPeers(const QStringList &hashes, const QStringList &peers);
+    Reply<QByteArray> *torrentsAddPeers(const QStringList &hashes, const QStringList &peers);
     /// POST transfer/banPeers: `peers` (`host:port`) joined with '|'. The ban is qBittorrent's
     /// global IP filter: every torrent, until removed in its settings.
-    QbtReply<QByteArray> *transferBanPeers(const QStringList &peers);
+    Reply<QByteArray> *transferBanPeers(const QStringList &peers);
 
-    QbtReply<QByteArray> *torrentsSetCategory(const QStringList &hashes, const QString &category);
-    QbtReply<QByteArray> *torrentsCreateCategory(const QString &name,
-                                                 const QString &savePath = QString());
-    QbtReply<QByteArray> *torrentsEditCategory(const QString &name, const QString &savePath);
-    QbtReply<QByteArray> *torrentsRemoveCategories(const QStringList &names);
+    Reply<QByteArray> *torrentsSetCategory(const QStringList &hashes, const QString &category);
+    Reply<QByteArray> *torrentsCreateCategory(const QString &name,
+                                              const QString &savePath = QString());
+    Reply<QByteArray> *torrentsEditCategory(const QString &name, const QString &savePath);
+    Reply<QByteArray> *torrentsRemoveCategories(const QStringList &names);
 
-    QbtReply<QByteArray> *torrentsAddTags(const QStringList &hashes, const QStringList &tags);
-    QbtReply<QByteArray> *torrentsRemoveTags(const QStringList &hashes, const QStringList &tags);
-    QbtReply<QByteArray> *torrentsCreateTags(const QStringList &tags);
-    QbtReply<QByteArray> *torrentsDeleteTags(const QStringList &tags);
+    Reply<QByteArray> *torrentsAddTags(const QStringList &hashes, const QStringList &tags);
+    Reply<QByteArray> *torrentsRemoveTags(const QStringList &hashes, const QStringList &tags);
+    Reply<QByteArray> *torrentsCreateTags(const QStringList &tags);
+    Reply<QByteArray> *torrentsDeleteTags(const QStringList &tags);
 
-    QbtReply<QByteArray> *torrentsSetLocation(const QStringList &hashes, const QString &location);
-    QbtReply<QByteArray> *torrentsSetDownloadLimit(const QStringList &hashes, qint64 bytesPerSec);
-    QbtReply<QByteArray> *torrentsSetUploadLimit(const QStringList &hashes, qint64 bytesPerSec);
+    Reply<QByteArray> *torrentsSetLocation(const QStringList &hashes, const QString &location);
+    Reply<QByteArray> *torrentsSetDownloadLimit(const QStringList &hashes, qint64 bytesPerSec);
+    Reply<QByteArray> *torrentsSetUploadLimit(const QStringList &hashes, qint64 bytesPerSec);
     /// What qBittorrent does to a torrent once one of its share limits is reached, as the
     /// `shareLimitAction` of torrents/setShareLimits and the `share_limit_action` of
     /// torrents/info spell it (API 2.15.1, qBittorrent 5.2). `Default` leaves the choice to
@@ -310,33 +310,33 @@ public:
     /// >=0 the limit itself. `shareLimitAction` engaged sends the field (5.2.3 answers 400
     /// without it, `Default` included, so a >= 2.15.1 caller always passes one); nullopt
     /// leaves it off for the pre-2.15.1 servers that do not know it.
-    QbtReply<QByteArray> *torrentsSetShareLimits(
+    Reply<QByteArray> *torrentsSetShareLimits(
         const QStringList &hashes,
         double ratioLimit,
         qint64 seedingTimeLimit,
         qint64 inactiveSeedingTimeLimit,
         std::optional<ShareLimitAction> shareLimitAction = ShareLimitAction::Default);
 
-    QbtReply<QByteArray> *torrentsRename(const QString &hash, const QString &name);
-    QbtReply<QByteArray> *
+    Reply<QByteArray> *torrentsRename(const QString &hash, const QString &name);
+    Reply<QByteArray> *
     torrentsRenameFile(const QString &hash, const QString &oldPath, const QString &newPath);
-    QbtReply<QByteArray> *
+    Reply<QByteArray> *
     torrentsRenameFolder(const QString &hash, const QString &oldPath, const QString &newPath);
 
-    QbtReply<QByteArray> *torrentsIncreasePrio(const QStringList &hashes);
-    QbtReply<QByteArray> *torrentsDecreasePrio(const QStringList &hashes);
-    QbtReply<QByteArray> *torrentsTopPrio(const QStringList &hashes);
-    QbtReply<QByteArray> *torrentsBottomPrio(const QStringList &hashes);
+    Reply<QByteArray> *torrentsIncreasePrio(const QStringList &hashes);
+    Reply<QByteArray> *torrentsDecreasePrio(const QStringList &hashes);
+    Reply<QByteArray> *torrentsTopPrio(const QStringList &hashes);
+    Reply<QByteArray> *torrentsBottomPrio(const QStringList &hashes);
     /// priority: 0 = do not download, 1 = normal, 6 = high, 7 = maximal.
-    QbtReply<QByteArray> *
+    Reply<QByteArray> *
     torrentsSetFilePrio(const QString &hash, const QList<int> &fileIds, int priority);
 
-    QbtReply<QByteArray> *torrentsToggleSequentialDownload(const QStringList &hashes);
-    QbtReply<QByteArray> *torrentsToggleFirstLastPiecePrio(const QStringList &hashes);
-    QbtReply<QByteArray> *torrentsSetAutoManagement(const QStringList &hashes, bool enable);
-    QbtReply<QByteArray> *torrentsSetSuperSeeding(const QStringList &hashes, bool value);
+    Reply<QByteArray> *torrentsToggleSequentialDownload(const QStringList &hashes);
+    Reply<QByteArray> *torrentsToggleFirstLastPiecePrio(const QStringList &hashes);
+    Reply<QByteArray> *torrentsSetAutoManagement(const QStringList &hashes, bool enable);
+    Reply<QByteArray> *torrentsSetSuperSeeding(const QStringList &hashes, bool value);
 
-    QbtReply<QByteArray> *torrentsDelete(const QStringList &hashes, bool deleteFiles);
+    Reply<QByteArray> *torrentsDelete(const QStringList &hashes, bool deleteFiles);
 
     /// Matches qBittorrent's `contentLayout` values for a newly added torrent.
     enum class ContentLayout { Original, Subfolder, NoSubfolder };
@@ -393,19 +393,19 @@ public:
     /// (docs/29 §3). The result is kept in the Web UI session, so every poll and the add that
     /// follows must go through this one client (diogochaves/upstream#86). A 404 is a server
     /// without the endpoint.
-    QbtReply<FetchedMetadata> *torrentsFetchMetadata(const QString &source);
+    Reply<FetchedMetadata> *torrentsFetchMetadata(const QString &source);
     /// True when a server with this app/webapiVersion has torrents/fetchMetadata and takes
     /// `filePriorities` on an add: 2.11.9 and later.
     static bool supportsFetchMetadata(const QString &apiVersion);
 
     /// POST torrents/add with one or more magnet links or .torrent URLs (the server fetches
     /// them itself), newline-separated.
-    QbtReply<QByteArray> *torrentsAddUrls(const QStringList &urls,
-                                          const AddOptions &options = AddOptions());
+    Reply<QByteArray> *torrentsAddUrls(const QStringList &urls,
+                                       const AddOptions &options = AddOptions());
     /// POST torrents/add, multipart, with the raw bytes of a .torrent file.
-    QbtReply<QByteArray> *torrentsAddFile(const QString &fileName,
-                                          const QByteArray &bytes,
-                                          const AddOptions &options = AddOptions());
+    Reply<QByteArray> *torrentsAddFile(const QString &fileName,
+                                       const QByteArray &bytes,
+                                       const AddOptions &options = AddOptions());
 
     /// One `.torrent` of a batch: the name it is uploaded under and its bytes.
     struct AddFile
@@ -416,19 +416,19 @@ public:
     /// POST torrents/add, multipart, with several `.torrent` files and several links at once,
     /// all under one set of options (#40, the add sheet's batch). qBittorrent takes a
     /// `torrents` part per file and the links newline-separated in one `urls` part.
-    QbtReply<QByteArray> *torrentsAddMany(const QList<AddFile> &files,
-                                          const QStringList &urls,
-                                          const AddOptions &options = AddOptions());
+    Reply<QByteArray> *torrentsAddMany(const QList<AddFile> &files,
+                                       const QStringList &urls,
+                                       const AddOptions &options = AddOptions());
 
-    QbtReply<QByteArray> *transferSetDownloadLimit(qint64 bytesPerSec);
-    QbtReply<QByteArray> *transferSetUploadLimit(qint64 bytesPerSec);
+    Reply<QByteArray> *transferSetDownloadLimit(qint64 bytesPerSec);
+    Reply<QByteArray> *transferSetUploadLimit(qint64 bytesPerSec);
 
     /// A POST whose body is a multipart form (e.g. torrentsAddFile). `buildMultiPart` makes
     /// a fresh, unparented QHttpMultiPart for every attempt (the client parents it to the
     /// QNetworkReply that sends it), so the one-shot re-login retry can resend the body
     /// after an expired session. Never retried for a transient failure.
-    QbtReply<QByteArray> *postMultipart(const QString &path,
-                                        std::function<QHttpMultiPart *()> buildMultiPart);
+    Reply<QByteArray> *postMultipart(const QString &path,
+                                     std::function<QHttpMultiPart *()> buildMultiPart);
 
     /// Drops every queued, backing-off, login-waiting and in-flight request; each reply
     /// finishes with Kind::Cancelled. setBaseUrl() (to a new URL) and clearAuth() do this
@@ -459,7 +459,7 @@ private:
     };
 
     template<class T, class Fn>
-    QbtReply<T> *submit(RequestSpec spec, Fn parse);
+    Reply<T> *submit(RequestSpec spec, Fn parse);
 
     void enqueue(const JobPtr &job);
     void pump();

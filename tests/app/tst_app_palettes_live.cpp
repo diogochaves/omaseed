@@ -40,11 +40,11 @@ bool answers(const QUrl &url)
 }
 
 template<class T>
-QbtResult<T> await(QObject *context, QbtReply<T> *reply, int timeoutMs = 20000)
+Result<T> await(QObject *context, Reply<T> *reply, int timeoutMs = 20000)
 {
-    QbtResult<T> result{ApiError(ApiError::Kind::Unknown, QStringLiteral("never finished"))};
+    Result<T> result{ApiError(ApiError::Kind::Unknown, QStringLiteral("never finished"))};
     QEventLoop loop;
-    reply->then(context, [&](const QbtResult<T> &value) {
+    reply->then(context, [&](const Result<T> &value) {
         result = value;
         loop.quit();
     });
@@ -92,11 +92,11 @@ void TestAppPalettesLive::createCategoryMakesItVisible()
     QbtClient client;
     client.setBaseUrl(m_url);
 
-    const QbtResult<QByteArray> created =
+    const Result<QByteArray> created =
         await(this, client.torrentsCreateCategory(QString::fromLatin1(kCategory)));
     QVERIFY2(!created.isError(), qPrintable(created.error().toString()));
 
-    const QbtResult<QJsonObject> categories = await(this, client.torrentsCategories());
+    const Result<QJsonObject> categories = await(this, client.torrentsCategories());
     QVERIFY2(!categories.isError(), qPrintable(categories.error().toString()));
     QVERIFY(categories.value().contains(QString::fromLatin1(kCategory)));
 }
@@ -106,11 +106,11 @@ void TestAppPalettesLive::createTagMakesItVisible()
     QbtClient client;
     client.setBaseUrl(m_url);
 
-    const QbtResult<QByteArray> created =
+    const Result<QByteArray> created =
         await(this, client.torrentsCreateTags({QString::fromLatin1(kTag)}));
     QVERIFY2(!created.isError(), qPrintable(created.error().toString()));
 
-    const QbtResult<QJsonArray> tags = await(this, client.torrentsTags());
+    const Result<QJsonArray> tags = await(this, client.torrentsTags());
     QVERIFY2(!tags.isError(), qPrintable(tags.error().toString()));
     bool found = false;
     for (const QJsonValue &value : tags.value()) {

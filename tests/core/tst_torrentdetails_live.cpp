@@ -57,11 +57,11 @@ bool waitFor(const std::function<bool()> &predicate, int timeoutMs)
 }
 
 template<class T>
-QbtResult<T> await(QObject *context, QbtReply<T> *reply, int timeoutMs = 20000)
+Result<T> await(QObject *context, Reply<T> *reply, int timeoutMs = 20000)
 {
-    QbtResult<T> result{ApiError(ApiError::Kind::Unknown, QStringLiteral("never finished"))};
+    Result<T> result{ApiError(ApiError::Kind::Unknown, QStringLiteral("never finished"))};
     QEventLoop loop;
-    reply->then(context, [&](const QbtResult<T> &value) {
+    reply->then(context, [&](const Result<T> &value) {
         result = value;
         loop.quit();
     });
@@ -105,7 +105,7 @@ void TestTorrentDetailsLive::addFixture(QbtClient &client)
     QbtClient::AddOptions options;
     options.stopped = true; // the test box never downloads anything
     options.category = QString::fromLatin1(kCategory);
-    const QbtResult<QByteArray> added =
+    const Result<QByteArray> added =
         await(this,
               client.torrentsAddFile(
                   QStringLiteral("multi_file_v1_unicode.torrent"), file.readAll(), options));
@@ -114,7 +114,7 @@ void TestTorrentDetailsLive::addFixture(QbtClient &client)
     // The server needs a moment to parse it before torrents/files answers.
     QVERIFY(waitFor(
         [&]() {
-            const QbtResult<QJsonArray> files =
+            const Result<QJsonArray> files =
                 await(this, client.torrentsFiles(QString::fromLatin1(kFixtureHash)));
             return !files.isError() && !files.value().isEmpty();
         },

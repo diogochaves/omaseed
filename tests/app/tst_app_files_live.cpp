@@ -66,11 +66,11 @@ bool waitFor(const std::function<bool()> &predicate, int timeoutMs)
 }
 
 template<class T>
-QbtResult<T> await(QObject *context, QbtReply<T> *reply, int timeoutMs = 20000)
+Result<T> await(QObject *context, Reply<T> *reply, int timeoutMs = 20000)
 {
-    QbtResult<T> result{ApiError(ApiError::Kind::Unknown, QStringLiteral("test never finished"))};
+    Result<T> result{ApiError(ApiError::Kind::Unknown, QStringLiteral("test never finished"))};
     QEventLoop loop;
-    reply->then(context, [&](const QbtResult<T> &finished) {
+    reply->then(context, [&](const Result<T> &finished) {
         result = finished;
         loop.quit();
     });
@@ -127,7 +127,7 @@ void TestAppFilesLive::initTestCase()
     QbtClient::AddOptions options;
     options.stopped = true; // the test box never downloads anything
     options.category = kCategory;
-    const QbtResult<QByteArray> added =
+    const Result<QByteArray> added =
         await(this,
               m_client->torrentsAddFile(
                   QStringLiteral("multi_file_v1_unicode.torrent"), file.readAll(), options));
@@ -147,14 +147,14 @@ void TestAppFilesLive::cleanupTestCase()
 
 void TestAppFilesLive::clearLeftovers()
 {
-    const QbtResult<QJsonObject> prefs = await(this, m_client->appPreferences());
+    const Result<QJsonObject> prefs = await(this, m_client->appPreferences());
     if (prefs.isError())
         return;
     const QString savePath = prefs.value().value(QStringLiteral("save_path")).toString();
     const QString folder = QDir::cleanPath(savePath + QStringLiteral("/Unicode Pack"));
     if (!QDir::isAbsolutePath(savePath) || !QFileInfo(folder).isDir())
         return;
-    const QbtResult<QJsonArray> torrents = await(this, m_client->torrentsInfo());
+    const Result<QJsonArray> torrents = await(this, m_client->torrentsInfo());
     if (torrents.isError())
         return;
     for (const QJsonValue &value : torrents.value()) {
@@ -169,7 +169,7 @@ void TestAppFilesLive::clearLeftovers()
 QHash<QString, int> TestAppFilesLive::serverFiles()
 {
     QHash<QString, int> out;
-    const QbtResult<QJsonArray> files = await(this, m_client->torrentsFiles(kHash));
+    const Result<QJsonArray> files = await(this, m_client->torrentsFiles(kHash));
     if (files.isError())
         return out;
     for (const QJsonValue &value : files.value()) {

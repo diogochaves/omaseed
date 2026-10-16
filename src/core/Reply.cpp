@@ -1,15 +1,15 @@
-#include "core/QbtReply.hpp"
+#include "core/Reply.hpp"
 
 namespace omaseed::core {
 
-void QbtReplyBase::abort()
+void ReplyBase::abort()
 {
     if (m_finished)
         return;
     Q_EMIT abortRequested();
 }
 
-void QbtReplyBase::markFinished(const ApiError &error)
+void ReplyBase::markFinished(const ApiError &error)
 {
     if (m_finished)
         return;

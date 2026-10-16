@@ -35,8 +35,8 @@
 using omaseed::app::App;
 using omaseed::core::ApiError;
 using omaseed::core::QbtClient;
-using omaseed::core::QbtReply;
-using omaseed::core::QbtResult;
+using omaseed::core::Reply;
+using omaseed::core::Result;
 using omaseed::core::TorrentsInfoQuery;
 
 namespace {
@@ -61,11 +61,11 @@ bool waitFor(const std::function<bool()> &predicate, int timeoutMs)
 }
 
 template<class T>
-QbtResult<T> await(QObject *context, QbtReply<T> *reply, int timeoutMs = 20000)
+Result<T> await(QObject *context, Reply<T> *reply, int timeoutMs = 20000)
 {
-    QbtResult<T> result{ApiError(ApiError::Kind::Unknown, QStringLiteral("test never finished"))};
+    Result<T> result{ApiError(ApiError::Kind::Unknown, QStringLiteral("test never finished"))};
     QEventLoop loop;
-    reply->then(context, [&](const QbtResult<T> &finished) {
+    reply->then(context, [&](const Result<T> &finished) {
         result = finished;
         loop.quit();
     });
@@ -112,7 +112,7 @@ QJsonObject TestAppActions::torrentInfo(const QString &hash)
 {
     TorrentsInfoQuery query;
     query.hashes = {hash};
-    const QbtResult<QJsonArray> result = await(this, m_app->client()->torrentsInfo(query));
+    const Result<QJsonArray> result = await(this, m_app->client()->torrentsInfo(query));
     if (result.isError() || result.value().isEmpty())
         return {};
     return result.value().at(0).toObject();
@@ -378,7 +378,7 @@ void TestAppActions::deleteRemovesOnlyWhatThisTestAdded()
     QbtClient::AddOptions options;
     options.category = QStringLiteral("fixtures");
     options.stopped = true;
-    const QbtResult<QByteArray> added =
+    const Result<QByteArray> added =
         await(this,
               m_app->client()->torrentsAddUrls(
                   {QStringLiteral("magnet:?xt=urn:btih:%1&dn=t43-delete-me").arg(hash)}, options));
@@ -464,7 +464,7 @@ void TestAppActions::trackersPeersAndBansReachTheServer()
     QSignalSpy failed(m_app.get(), &App::actionFailed);
 
     const auto hasTracker = [this, &url]() {
-        const QbtResult<QJsonArray> trackers =
+        const Result<QJsonArray> trackers =
             await(this, m_app->client()->torrentsTrackers(kFixtureOne));
         if (trackers.isError())
             return false;
@@ -482,14 +482,14 @@ void TestAppActions::trackersPeersAndBansReachTheServer()
              "the added tracker was never removed again");
 
     m_app->addPeers(kFixtureOne, {peer});
-    const QbtResult<QJsonObject> before = await(this, m_app->client()->appPreferences());
+    const Result<QJsonObject> before = await(this, m_app->client()->appPreferences());
     QVERIFY2(!before.isError(), qPrintable(before.error().toString()));
     const QString bannedBefore = before.value().value(QStringLiteral("banned_IPs")).toString();
 
     m_app->banPeers({peer});
     const bool banned = waitFor(
         [this]() {
-            const QbtResult<QJsonObject> prefs = await(this, m_app->client()->appPreferences());
+            const Result<QJsonObject> prefs = await(this, m_app->client()->appPreferences());
             return !prefs.isError() && prefs.value()
                                            .value(QStringLiteral("banned_IPs"))
                                            .toString()

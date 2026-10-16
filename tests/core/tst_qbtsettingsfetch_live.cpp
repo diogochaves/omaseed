@@ -5,8 +5,8 @@
 // when qbittorrent-nox is not installed.
 
 #include "core/QbtClient.hpp"
-#include "core/QbtReply.hpp"
 #include "core/QbtSettingsFetch.hpp"
+#include "core/Reply.hpp"
 #include "core/Server.hpp"
 
 #include "LiveServer.hpp"
@@ -17,9 +17,9 @@
 
 using omaseed::core::AuthMode;
 using omaseed::core::QbtClient;
-using omaseed::core::QbtResult;
 using omaseed::core::QbtSettingsFetch;
 using omaseed::core::QbtSettingsSnapshot;
+using omaseed::core::Result;
 using omaseed::core::Server;
 
 namespace {
@@ -50,7 +50,7 @@ bool answers(const QUrl &url)
     client.setMaxRetries(0);
     bool done = false;
     bool ok = false;
-    client.appVersion()->then(&client, [&](const QbtResult<QString> &r) {
+    client.appVersion()->then(&client, [&](const Result<QString> &r) {
         ok = r.isValid();
         done = true;
     });
