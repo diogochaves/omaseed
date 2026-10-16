@@ -579,6 +579,49 @@ TestCase {
 
     // docs/14 B1: the welcome comes first on a real first run; enter moves on to step 1 and
     // esc quits, as its footer says. The search's answer is listed as it arrives.
+    // #79: what a sighted user reads first is in a screen reader's tree: the welcome's heading,
+    // intro and what the search found (without its · or ✓), each step's question as a
+    // heading, a test's answer as an alert with the raw error under it as text.
+    function test_a_screen_reader_hears_the_welcome_and_the_answers() {
+        const page = createTemporaryObject(pageComponent, testCase, {
+                                               "candidates": [],
+                                               "page": "welcome"
+                                           });
+        const heading = findChild(page, "welcomeHeading");
+        compare(heading.Accessible.role, Accessible.Heading);
+        compare(heading.Accessible.name, "omaseed");
+        const intro = findChild(page, "welcomeIntro");
+        compare(intro.Accessible.role, Accessible.StaticText);
+        compare(intro.Accessible.name, "Torrents for Omarchy, powered by qBittorrent.");
+        const none = findChild(page, "detectNone");
+        verify(none.visible);
+        compare(none.Accessible.role, Accessible.StaticText);
+        compare(none.Accessible.name, "no qBittorrent on this machine yet");
+
+        const found = createTemporaryObject(pageComponent, testCase, {
+                                                "candidates": [localCandidate],
+                                                "page": "welcome"
+                                            });
+        compare(findChild(found, "detectFound").Accessible.name,
+                "found 127.0.0.1:8080 · Docker container qbittorrent");
+
+        page.page = "choose";
+        const question = findChild(page, "heading");
+        compare(question.Accessible.role, Accessible.Heading);
+        compare(question.Accessible.name, question.text);
+
+        page.chooseCursor();
+        page.testing = true;
+        App.serverTested("", false, "", "", -1, 4, "wrong username or password",
+                         "unauthorized (401): POST auth/login: Host requires authentication");
+        const answer = findChild(page, "testResultText");
+        compare(answer.Accessible.role, Accessible.AlertMessage);
+        compare(answer.Accessible.name, "wrong username or password");
+        const detail = findChild(page, "testErrorDetail");
+        compare(detail.Accessible.role, Accessible.StaticText);
+        compare(detail.Accessible.name, "unauthorized (401): POST auth/login: Host requires authentication");
+    }
+
     function test_welcome_enter_sets_up_and_esc_quits() {
         const page = createTemporaryObject(pageComponent, testCase, {
                                                "candidates": [],
