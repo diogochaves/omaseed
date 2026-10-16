@@ -741,6 +741,8 @@ Item {
                                                                                  + 1
                                                                                  + trackerDelegate.index
 
+                        // #78: the whole host, whichever form the row prints (a setting).
+                        Accessible.name: trackerDelegate.host
                         count: trackerDelegate.torrentCount
                         glyph: trackerDelegate.isTrackerless ? "·" : Glyphs.tracker
                         hasCursor: root.cursorIndex === trackerDelegate.globalIndex
@@ -910,6 +912,9 @@ Item {
             RailGroup {
                 id: serversHeading
 
+                // #78: "servers", the count in the description.
+                accessibleDetail: qsTr("%n server(s)", "", root.serversRowCount)
+                accessibleName: qsTr("servers")
                 collapsed: false
                 label: qsTr("servers · %1").arg(root.serversRowCount)
                 objectName: "serversHeading"
@@ -927,6 +932,12 @@ Item {
                                                    ? root.serversBase : -1
                 readonly property bool pinned: true
 
+                // #78: the folded group is "servers", as its heading; the server it is on, how
+                // many and the fold go in the description, and the ▴ in neither.
+                Accessible.description: [root._currentServer.name || "",
+                                         serversFoldedLine.countText, qsTr("folded")].filter(
+                                            part => part.length > 0).join(" · ")
+                Accessible.name: qsTr("servers")
                 countText: qsTr("%n servers", "", root.serversRowCount)
                 glyph: Glyphs.dot
                 glyphColor: root._serverDotColor(root._currentServer.serverState || "")
@@ -992,6 +1003,10 @@ Item {
                                                    ? root.serversBase + root.serversListed : -1
                 readonly property bool pinned: true
 
+                // #78: named by what it opens; how many more and the key in the description.
+                Accessible.description: qsTr("%1 more · shortcut %2").arg(
+                                            root.serversRowCount - root.serversListed).arg("ctrl+s")
+                Accessible.name: qsTr("more servers")
                 glyph: "…"
                 hasCursor: root.cursorIndex === serversMoreRow.globalIndex
                 objectName: "serversMoreRow"

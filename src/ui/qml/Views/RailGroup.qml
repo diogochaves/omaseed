@@ -18,6 +18,11 @@ Column {
     property int count: -1
     /// The rail's keyboard cursor is on this heading (only a folded group's heading is a stop).
     property bool hasCursor: false
+    /// What a screen reader calls the heading when `label` carries more than the group's
+    /// name (the servers' "servers · 3"); that more goes in `accessibleDetail` (#78).
+    property string accessibleName: root.label
+    /// Said before "folded"/"unfolded" in the heading's description; "" says nothing more.
+    property string accessibleDetail: ""
 
     readonly property alias header: header
 
@@ -32,8 +37,10 @@ Column {
         // #77: the heading is a button that folds the group, named by it; whether it is
         // folded is the description (Qt 6.11 has no `Accessible.expanded`). Its press is the
         // click, and does nothing while disabled.
-        Accessible.description: root.collapsed ? qsTr("folded") : qsTr("unfolded")
-        Accessible.name: root.label
+        Accessible.description: [root.accessibleDetail, root.collapsed ? qsTr("folded")
+                                                                       : qsTr("unfolded")].filter(
+                                    part => part.length > 0).join(" · ")
+        Accessible.name: root.accessibleName
         Accessible.role: Accessible.Button
         Accessible.onPressAction: if (header.enabled)
                                       root.toggled()

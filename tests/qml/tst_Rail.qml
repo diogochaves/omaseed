@@ -193,6 +193,10 @@ TestCase {
         compare(rail.trackerText("archlinux.org"), "archlinux.org");
         rail.trackerHostStyle = "left";
         compare(rail.trackerText("tracker.opentrackr.org"), "tracker.opentrackr.org");
+        // #78: a screen reader hears the whole host, whichever form the row prints.
+        const row = rail._rowMap[rail.trackersBase + 1].item;
+        verify(row.host.length > 0);
+        compare(row.Accessible.name, row.host);
     }
 
     function test_selecting_a_category_sets_filtered_category() {
@@ -390,6 +394,10 @@ TestCase {
         compare(block.y + block.height, rail.height);
         compare(rail._rowMap[rail.serversBase].item.pinned, true);
         compare(findChild(rail, "serversHeading").label, "servers · 2");
+        // #78: a screen reader hears "servers"; the count goes in the description.
+        const header = findChild(rail, "serversHeading").header;
+        compare(header.Accessible.name, "servers");
+        compare(header.Accessible.description, "2 server(s) · unfolded");
     }
 
     function test_the_servers_block_folds_to_one_line() {
@@ -401,6 +409,9 @@ TestCase {
         verify(line.visible);
         compare(line.text, "public " + Glyphs.chevronUp);
         compare(line.countText, "2 servers");
+        // #78: no ▴ in what a screen reader hears.
+        compare(line.Accessible.name, "servers");
+        compare(line.Accessible.description, "public · 2 servers · folded");
         verify(!findChild(rail, "serversHeading").visible);
         // z on it asks the host to unfold (app-wide, D17).
         const asked = [];
@@ -436,6 +447,9 @@ TestCase {
         compare(rail.serversSpan, 6);
         const more = findChild(rail, "serversMoreRow");
         compare(more.text, "2 more · ctrl+s");
+        // #78: named by what it opens; the count and the key are the description.
+        compare(more.Accessible.name, "more servers");
+        compare(more.Accessible.description, "2 more · shortcut ctrl+s");
         let opened = 0;
         rail.moreServersRequested.connect(() => opened++);
         rail.cursorIndex = rail.serversBase + 5;

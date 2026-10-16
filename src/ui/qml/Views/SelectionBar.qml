@@ -235,6 +235,9 @@ Rectangle {
                 IconButton {
                     id: clearButton
 
+                    // #78: the action is the name, the key the description.
+                    Accessible.description: qsTr("shortcut %1").arg("esc")
+                    Accessible.name: qsTr("clear selection")
                     accent: clearButton.hot
                     activeFocusOnTab: false
                     anchors.verticalCenter: parent.verticalCenter
@@ -364,6 +367,12 @@ Rectangle {
                 IconButton {
                     id: iconButton
 
+                    // #78: named by its action ("delete"), the key its description; a rule
+                    // between groups is no button.
+                    Accessible.description: slot.button ? qsTr("shortcut %1").arg(slot.button.key)
+                                                        : ""
+                    Accessible.ignored: slot.rule
+                    Accessible.name: slot.button ? slot.button.text : ""
                     activeFocusOnTab: false
                     anchors.fill: parent
                     danger: slot.modelData === "delete"
