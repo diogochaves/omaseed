@@ -255,6 +255,8 @@ Sheet {
     }
 
     Label {
+        Accessible.name: text
+        Accessible.role: Accessible.StaticText
         Layout.fillWidth: true
         dim: true
         objectName: "importNothing"
@@ -270,6 +272,8 @@ Sheet {
     }
 
     Label {
+        Accessible.name: text
+        Accessible.role: Accessible.StaticText
         Layout.fillWidth: true
         Layout.topMargin: Theme.space(6)
         objectName: "importMachineHead"
@@ -410,6 +414,8 @@ Sheet {
             spacing: Theme.space(2)
 
             Label {
+                Accessible.name: text
+                Accessible.role: Accessible.StaticText
                 Layout.fillWidth: true
                 dim: true
                 objectName: "importSecrets"
@@ -424,6 +430,8 @@ Sheet {
                 Label {
                     required property string modelData
 
+                    Accessible.name: text
+                    Accessible.role: Accessible.StaticText
                     Layout.fillWidth: true
                     dim: true
                     objectName: "importNote"
@@ -436,6 +444,8 @@ Sheet {
     }
 
     Label {
+        Accessible.name: text
+        Accessible.role: Accessible.StaticText
         Layout.fillWidth: true
         color: sheet.noteError ? Theme.yellow : Theme.green
         objectName: "importExportNote"

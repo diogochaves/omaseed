@@ -108,6 +108,9 @@ TestCase {
         verify(sheet.plan.error.length > 0);
         compare(sheet.primaryText, "fix the regex");
         verify(findChild(sheet, "regexError").visible);
+        // #79: the complaint comes on its own: an alert by its words.
+        compare(findChild(sheet, "regexError").Accessible.role, Accessible.AlertMessage);
+        compare(findChild(sheet, "regexError").Accessible.name, findChild(sheet, "regexError").text);
         compare(sheet.preview.visible, false);
     }
 

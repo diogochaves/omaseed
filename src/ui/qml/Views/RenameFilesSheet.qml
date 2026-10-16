@@ -271,6 +271,8 @@ Sheet {
     }
 
     Label {
+        Accessible.name: text
+        Accessible.role: Accessible.StaticText
         Layout.fillWidth: true
         dim: true
         objectName: "previewHead"
@@ -287,6 +289,8 @@ Sheet {
     }
 
     Label {
+        Accessible.name: text
+        Accessible.role: Accessible.AlertMessage
         Layout.fillWidth: true
         color: Theme.red
         objectName: "regexError"

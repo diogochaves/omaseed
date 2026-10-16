@@ -1952,6 +1952,8 @@ Item {
                                 }
 
                                 Label {
+                                    Accessible.name: text
+                                    Accessible.role: Accessible.StaticText
                                     Layout.fillWidth: true
                                     dim: true
                                     objectName: "plainSecretsText"
@@ -2896,6 +2898,8 @@ Item {
                             }
 
                             Label {
+                                Accessible.name: text
+                                Accessible.role: Accessible.StaticText
                                 Layout.fillWidth: true
                                 color: root.backupNoteError ? Theme.yellow : Theme.green
                                 objectName: "qbtBackupNote"
@@ -3028,6 +3032,8 @@ Item {
                             }
 
                             Label {
+                                Accessible.name: text
+                                Accessible.role: Accessible.StaticText
                                 Layout.fillWidth: true
                                 color: root.backupNoteError ? Theme.yellow : Theme.green
                                 objectName: "backupNote"

@@ -1475,6 +1475,8 @@ Sheet {
                             visible: sheet.batchMode
 
                             Label {
+                                Accessible.name: text
+                                Accessible.role: Accessible.StaticText
                                 Layout.fillWidth: true
                                 elide: Text.ElideRight
                                 objectName: "batchHead"
@@ -1631,6 +1633,8 @@ Sheet {
 
                             // #40 (docs/27 B3): what `enter` does with ticks.
                             Label {
+                                Accessible.name: text
+                                Accessible.role: Accessible.StaticText
                                 dim: true
                                 objectName: "downloadsTicked"
                                 size: "caption"
@@ -1937,6 +1941,8 @@ Sheet {
                             }
 
                             Label {
+                                Accessible.name: text
+                                Accessible.role: Accessible.StaticText
                                 color: !sheet.showFiles && fetchLine.summaryWarn ? Theme.yellow : Theme.dimForeground
                                 objectName: "addFilesSummary"
                                 size: "caption"
@@ -1973,6 +1979,8 @@ Sheet {
                         Label {
                             id: nothingTickedLine
 
+                            Accessible.name: text
+                            Accessible.role: Accessible.StaticText
                             Layout.fillWidth: true
                             dim: true
                             elide: Text.ElideRight

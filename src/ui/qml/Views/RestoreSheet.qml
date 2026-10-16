@@ -226,6 +226,8 @@ Sheet {
         }
 
         Label {
+            Accessible.name: text
+            Accessible.role: Accessible.StaticText
             Layout.fillWidth: true
             dim: true
             objectName: "restoreSafety"

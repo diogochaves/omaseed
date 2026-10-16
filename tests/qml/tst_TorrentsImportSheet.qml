@@ -86,6 +86,9 @@ TestCase {
         compare(sheet.rows[0].from, "/data");
         compare(findChild(sheet, "pathsNote").text, "21 save paths don't start with /data and are kept as they are");
         tryVerify(() => findChild(sheet, "pathsNote").visible);
+        // #79: the note is text a screen reader hears.
+        compare(findChild(sheet, "pathsNote").Accessible.role, Accessible.StaticText);
+        compare(findChild(sheet, "pathsNote").Accessible.name, findChild(sheet, "pathsNote").text);
         to.text = "";
         compare(findChild(sheet, "pathsNote").text, "save paths are kept as they are in the file");
         // Half a row sends nothing.
