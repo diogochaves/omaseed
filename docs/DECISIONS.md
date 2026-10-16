@@ -395,6 +395,27 @@ board left open, or what the API decided:
 - **Which server**, as C8: the one the app is on, connected; one export or import at a time,
   its row saying how far it got, its button "stop". Not in the demo.
 
+## C10 — A server is tested before it is saved (#68, ruled 2026-10-15)
+
+Settings › Servers' sheet works like first run (docs/14, M2): a server is not saved until a
+test has said something about it.
+
+- **A new server:** `save` is dimmed, out of the `tab` cycle, with "test first" at the right
+  of the sheet's footer, and `test` is the primary action (`enter` in a field tests). A passing
+  test makes `save` the primary. A failing one turns the third button into `save anyway`
+  (not the primary: `enter` tests again), so a server that is down right now can still be
+  added on purpose.
+- **A test answers for the address and login it ran with** (URL, auth mode, username,
+  secret). Changing any of them clears the answer and `save` waits again; the name and the
+  path map are not part of it. An answer that comes back after the fields changed is dropped.
+- **Editing an existing server** — *assumed, confirm:* it needs a new test only when its URL,
+  auth mode or credentials (username, a newly typed key or password) changed. A rename, or a
+  new path map, saves straight away; putting the old address back saves straight away too.
+- **Q23 still holds:** the test that let the server be saved, passed or failed, is carried
+  onto the new row; one for other fields is not.
+- `Kit/Sheet` keeps its buttons when only their labels or states change, so the keyboard
+  stays on `test` while `save` changes under it.
+
 ## M8 — A click leaves the keyboard focus where it was
 
 Buttons and toggles do not take the focus when clicked. Otherwise an overlay gives the focus

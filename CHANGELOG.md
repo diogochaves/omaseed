@@ -96,6 +96,10 @@ before it will tag a release.
 
 ### Fixed
 
+- A server added in Settings › Servers is tested before it is saved, as in the first-run
+  setup: `save` waits, dimmed with "test first", until a test has run; a failed test offers
+  "save anyway" for a server that is down on purpose. Editing a server asks for a new test only
+  when its address or login changed; a rename saves at once.
 - Turning automatic management on for a torrent whose files another torrent also seeds asks
   first, as a category change does: "move both" gives the other one the same category and
   management so the two move together. Before, the other torrent lost its files without a word.
