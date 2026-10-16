@@ -61,7 +61,8 @@ Item {
     property int sheetWidth: Theme.space(520)
     /// `[{text, primary, secondary, danger, disabled, key}]`, drawn as equal-width buttons. A
     /// `disabled` one is dimmed, skipped by `tab`, and `enter` does not run it (#11: the
-    /// rename sheet's button while names collide).
+    /// rename sheet's button while names collide). A new list of the same length relabels the
+    /// buttons in place, so the one holding the keyboard keeps it.
     property var actions: []
     /// `[{key, label}]` for the footer hint line, plus one dim string pushed to the right.
     property var hints: []
@@ -556,13 +557,18 @@ Item {
                 spacing: Theme.space(8)
                 visible: root.actions.length > 0
 
+                // One button per place, not per action: a sheet that relabels or dims its
+                // actions (the server sheet's `save` → `save anyway`, #68) keeps the same
+                // buttons, so the keyboard stays on the one it was on. Only a change in the
+                // number of actions builds the row again.
                 Repeater {
-                    model: root.actions
+                    model: root.actions.length
 
                     Button {
                         id: actionButton
 
-                        required property var modelData
+                        required property int index
+                        readonly property var modelData: root.actions[actionButton.index] ?? ({})
 
                         Layout.fillWidth: true
                         Layout.preferredWidth: 1

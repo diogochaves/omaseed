@@ -598,6 +598,56 @@ TestCase {
         compare(triggered.count, 1);
     }
 
+    // #68: a sheet that relabels its actions (the server sheet's `save` turning into `save
+    // anyway` after a failed test) keeps its buttons, so the keyboard stays where it was.
+    function test_relabelled_actions_keep_the_focused_button() {
+        const sheet = createTemporaryObject(formSheetComponent, testCase);
+        const triggered = createTemporaryObject(triggeredSpy, testCase, {
+                                                    "target": sheet
+                                                });
+        sheet.actions = [
+            {
+                "text": "cancel",
+                "cancel": true
+            },
+            {
+                "text": "test",
+                "primary": true
+            },
+            {
+                "text": "save",
+                "disabled": true
+            }
+        ];
+        sheet.open();
+        const buttons = sheet.actionButtons();
+        compare(buttons.length, 2);
+        buttons[1].forceActiveFocus();
+        verify(buttons[1].activeFocus);
+        sheet.actions = [
+            {
+                "text": "cancel",
+                "cancel": true
+            },
+            {
+                "text": "test",
+                "primary": true
+            },
+            {
+                "text": "save anyway"
+            }
+        ];
+        verify(buttons[1].activeFocus, "the relabel took the keyboard off `test`");
+        const after = sheet.actionButtons();
+        compare(after.length, 3);
+        compare(after[1], buttons[1]);
+        compare(after[2].text, "save anyway");
+        compare(after[2].primary, false);
+        verify(after[2].enabled);
+        after[2].clicked();
+        compare(triggered.signalArguments[0][0], "save anyway");
+    }
+
     function test_a_body_with_a_field_still_wins_over_the_primary_action() {
         const sheet = createTemporaryObject(formSheetComponent, testCase);
         sheet.open();
