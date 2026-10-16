@@ -238,8 +238,15 @@ Window {
                     Layout.leftMargin: Theme.space(16)
                     Layout.rightMargin: Theme.space(16)
                     Layout.topMargin: Theme.space(10)
-                    errorText: qsTr("connection refused")
-                    retryInSeconds: 7
+                    // The words App.serverProblem (core/ErrorWords) gives a refused connection.
+                    problem: ({
+                                  "headline": qsTr("home didn't answer"),
+                                  "lineBase": qsTr("Nothing is listening at 127.0.0.1:8080."),
+                                  "retry": qsTr("omaseed tries again in 7 s."),
+                                  "retryChars": 28,
+                                  "details": "network error · GET sync/maindata · Connection refused",
+                                  "kind": "down"
+                              })
                 }
 
                 // The dimmed, read-only list behind the banner (Fig. 23): two lines standing
