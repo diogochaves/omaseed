@@ -12,12 +12,33 @@ Three static libraries and the executable. Each layer only depends on the ones a
 
 - `QbtClient`, one per server: Bearer API key (qBittorrent 5.2 and later) with cookie login as
   the fallback, a request queue with retry and back-off, a typed method per endpoint.
-  **Errors are values, never exceptions** (`ApiError`, `Reply`): no call throws, and every
-  failure reaches the UI as data it can show.
-- `SyncEngine` polls `sync/maindata` with `rid` and applies full and partial updates to
+  **Errors are values, never exceptions** (`ApiError`, and `Reply` / `Result`, the generic
+  future and value every call hands back): no call throws, and every failure reaches the UI
+  as data it can show.
+- The engine-neutral layer (`src/core/engines/`, [DECISIONS.md](DECISIONS.md) C14): the
+  models never read an engine's wire format. `Torrent` holds typed fields, its state as a
+  `TorrentStatus` (a phase such as downloading, seeding, checking or stopped, flags for
+  stalled, queued, forced and finished, and the engine's own word kept for details), and
+  explicit values where engines use sentinels (no estimate, an infinite ratio, a share limit
+  that follows the server's default). A `TorrentPatch` is some of those fields with the set of
+  the ones it carries; `Torrent::apply()` merges one and reports the `TorrentField`s that
+  moved, which `TorrentModel` maps to roles. A `SyncDelta` is one poll's change (full or
+  partial: torrent patches, removed ids, categories, tags, trackers, server state); the
+  details models take `TorrentProperties`, `ContentFile`s, `TrackerEntry`s (DHT, PeX and LSD
+  as peer sources), a `PeersDelta`, web seed URLs and piece states; the log models a typed
+  `LogEntry`. The rail's groups, the Status column's word and whether an ETA means anything
+  are derived from phase and flags in one place (`Torrent.cpp`), so Q16 holds for any
+  engine that maps its states. `EngineFeatures` says what a server can do, resolved from its
+  engine and version (for qBittorrent, files before the add from Web API 2.11.9 and a
+  share-limit action from 2.15.1).
+- `QbtTranslate` (`src/core/engines/qbt/`) is the only code that turns qBittorrent's JSON into
+  those types, the demo data's included; the wire's sentinels end there.
+- `SyncEngine` polls `sync/maindata` with `rid` and applies each answer, as a `SyncDelta`, to
   `TorrentModel`, `CategoryModel`, `TagModel`, `TrackerModel` and `GlobalState`. It polls every
   1.5 s while the window shows, 5 s while hidden and 15 s after an error. It raises the events
-  that notifications are built from: a torrent completed, a server lost or back.
+  that notifications are built from: a torrent completed, a server lost or back. A torrent
+  option asked of the server shows at once as a pending patch until the polls confirm it
+  (M12).
 - `TorrentFilterModel` sorts and filters the table (status, category, tag, tracker, text);
   `FilterCounts` derives the rail's counts.
 - The details tabs have their own models (`TorrentDetails`, `TorrentFilesModel`,
