@@ -12,6 +12,8 @@ qt_add_library(omaseed-core STATIC
     AutoBackup.hpp
     ApiError.cpp
     ApiError.hpp
+    BackupFormat.cpp
+    BackupFormat.hpp
     Beeswarm.cpp
     Beeswarm.hpp
     Bencode.cpp
@@ -59,6 +61,8 @@ qt_add_library(omaseed-core STATIC
     QbtReply.hpp
     QbtSettingsExport.cpp
     QbtSettingsExport.hpp
+    QbtSettingsFetch.cpp
+    QbtSettingsFetch.hpp
     QbtSettingsImport.cpp
     QbtSettingsImport.hpp
     RenameDisk.cpp

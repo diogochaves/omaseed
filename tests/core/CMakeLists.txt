@@ -390,6 +390,20 @@ omaseed_add_test(tst_qbtsettingsbackup
     DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
 )
 
+# #70, docs/34 D8 a and D6 a: a file known by its contents; another server's settings from
+# omaseed's copies when it can't be read.
+omaseed_add_test(tst_backupformat
+    SOURCES tst_backupformat.cpp
+    LIBRARIES omaseed::core Qt6::Network
+)
+
+# #70, docs/34 D6 a: another server's settings through a client of its own, from the :8081
+# playground and a throwaway qBittorrent with a password login.
+omaseed_add_test(tst_qbtsettingsfetch_live LIVE
+    SOURCES tst_qbtsettingsfetch_live.cpp
+    LIBRARIES omaseed::core Qt6::Network
+)
+
 # #32: export from the :8081 playground; a round trip between two throwaway qBittorrents.
 omaseed_add_test(tst_qbtsettingsbackup_live LIVE
     SOURCES tst_qbtsettingsbackup_live.cpp
