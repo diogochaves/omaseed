@@ -530,4 +530,34 @@ TestCase {
             signalName: "rejected"
         }
     }
+
+    // #75: a screen reader's press on a row is its click: the menu closes and says which.
+    function test_the_accessible_press_on_a_row_is_the_click() {
+        const menu = createTemporaryObject(menuComponent, testCase);
+        const activated = createTemporaryObject(activatedSpy, testCase, {
+                                                    "target": menu
+                                                });
+        menu.open();
+        menu.rowsLayout.children[3].Accessible.pressAction();
+        compare(activated.count, 1);
+        compare(activated.signalArguments[0][0], "recheck");
+        compare(menu.opened, false, "the menu stayed open after an action");
+    }
+
+    // #75: a disabled row, a separator and a disabled menu ignore a screen reader's press, as
+    // they ignore the pointer.
+    function test_what_takes_no_click_ignores_the_accessible_press() {
+        const menu = createTemporaryObject(menuComponent, testCase);
+        const activated = createTemporaryObject(activatedSpy, testCase, {
+                                                    "target": menu
+                                                });
+        menu.open();
+        menu.rowsLayout.children[1].Accessible.pressAction();
+        menu.rowsLayout.children[2].Accessible.pressAction();
+        menu.enabled = false;
+        menu.rowsLayout.children[0].Accessible.pressAction();
+        compare(activated.count, 0);
+        compare(menu.opened, true);
+        menu.close();
+    }
 }

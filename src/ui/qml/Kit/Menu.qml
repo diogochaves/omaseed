@@ -329,6 +329,12 @@ Item {
                         Accessible.name: menuRow.modelData.text ?? ""
                         Accessible.role: menuRow.separator ? Accessible.Separator
                                                            : Accessible.MenuItem
+                        // A screen reader's press is the click (#75): not on a separator, a
+                        // disabled row or a disabled menu, which take no click either. A
+                        // MouseArea's own `enabled` is its flag alone, so the row's says
+                        // whether something above it is disabled.
+                        Accessible.onPressAction: if (menuRow.enabled && rowArea.enabled)
+                                                      root.activate(menuRow.index)
                         Layout.fillWidth: true
                         Layout.preferredHeight: menuRow.separator ? 2 * Theme.space(4) + 1
                                 : Theme.railRowHeight

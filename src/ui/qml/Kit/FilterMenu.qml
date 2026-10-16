@@ -292,6 +292,10 @@ Item {
 
                                     Accessible.name: filterRow.modelData.text
                                     Accessible.role: Accessible.MenuItem
+                                    // A screen reader's press is the click (#75); disabled,
+                                    // it does nothing, as the pointer.
+                                    Accessible.onPressAction: if (filterRow.enabled)
+                                                                  root.activate(filterRow.index)
                                     Layout.fillWidth: true
                                     Layout.preferredHeight: Theme.railRowHeight
                                     objectName: "filterMenuRow_" + filterRow.modelData.key
@@ -362,6 +366,9 @@ Item {
 
                                 Accessible.name: clearAllText.text
                                 Accessible.role: Accessible.MenuItem
+                                // As a filter row's (#75).
+                                Accessible.onPressAction: if (clearAllRow.enabled)
+                                                              root.activate(root._clearAllIndex)
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: Theme.railRowHeight
                                 objectName: "filterMenuClearAll"

@@ -186,4 +186,25 @@ TestCase {
         mouseClick(clearAll);
         compare(menu.clearedAll, 1);
     }
+
+    // #75: a screen reader's press on a row is its click: that filter goes; on "clear all
+    // filters", all of them, and the menu closes.
+    function test_the_accessible_press_on_a_row_is_the_click() {
+        const menu = makeMenu();
+        findChild(menu, "filterMenuRow_category").Accessible.pressAction();
+        compare(menu.cleared, ["category"]);
+        findChild(menu, "filterMenuClearAll").Accessible.pressAction();
+        compare(menu.clearedAll, 1);
+        verify(!menu.opened);
+    }
+
+    // #75: disabled, the menu ignores a screen reader's press, as it ignores the pointer.
+    function test_a_disabled_menu_ignores_the_accessible_press() {
+        const menu = makeMenu();
+        menu.enabled = false;
+        findChild(menu, "filterMenuRow_category").Accessible.pressAction();
+        findChild(menu, "filterMenuClearAll").Accessible.pressAction();
+        compare(menu.cleared, []);
+        compare(menu.clearedAll, 0);
+    }
 }
