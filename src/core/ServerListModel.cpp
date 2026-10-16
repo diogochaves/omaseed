@@ -150,13 +150,13 @@ QHash<int, QByteArray> ServerListModel::roleNames() const
         {VersionTextRole, "versionText"},
         {CertificateRole, "certificateSha256"},
         {IsCurrentRole, "isCurrent"},
-        {StateRole, "state"},
+        {StateRole, "serverState"},
         {LastCountRole, "lastCount"},
         {LastSeenRole, "lastSeen"},
         {LastFailedRole, "lastFailed"},
         {LastReasonRole, "lastReason"},
         {LastDetailRole, "lastDetail"},
-        {CountTextRole, "countText"},
+        {CountTextRole, "countLabel"},
     };
 }
 

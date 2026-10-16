@@ -23,7 +23,7 @@
 //     `loadLastSeen()`). No request ever goes to a server the app is not on;
 //   - the server the app is on and how it is doing (`setCurrent()`): "live", "syncing",
 //     "down", "refused" or "certificate", with its live count. The rail, the server palette
-//     and Settings read the `state` and `countText` roles from it.
+//     and Settings read the `serverState` and `countLabel` roles from it.
 //
 // Secrets never travel through `Server` or `servers.json`. `add()`/`update()` take the secret
 // separately and hand it to `SecretStore` (asynchronously, keyed by the server's id);

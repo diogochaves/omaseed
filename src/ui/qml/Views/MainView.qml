@@ -68,6 +68,8 @@ Item {
     readonly property alias sortPalette: sortPalette
     readonly property alias columnsPalette: columnsPalette
     readonly property alias commandPalette: commandPalette
+    readonly property alias serverPalette: serverPalette
+    readonly property alias serverNotice: banner
     readonly property alias logView: logView
 
     /// The `?` sheet.
@@ -80,6 +82,8 @@ Item {
     // further down, so the one the user is actually looking at is the one that answers.
     /// The overlay on top, or null.
     readonly property var activeOverlay: {
+        if (serverPalette.opened)
+            return serverPalette;
         if (commandPalette.opened)
             return commandPalette;
         if (categoryPalette.opened)
@@ -146,6 +150,18 @@ Item {
     /// Nothing to show at all: Fig. 22, which doubles as the first-run screen.
     readonly property bool libraryEmpty: App.torrents.count === 0 && !root.firstSync
                                          && !root.serverLost
+    /// docs/33 D7: lost (or refused) before it ever gave a list: the empty library's layout,
+    /// with a line saying so, instead of an empty table.
+    readonly property bool noList: root.serverLost && App.torrents.count === 0
+    /// docs/33: every switch starts at two servers (D19).
+    readonly property bool multiServer: App.serverCount > 1
+    /// D1, D12: the rail's servers block shows (General may hide it).
+    readonly property bool railServers: App.showServersGroup && root.multiServer
+    /// D8, D9, D23: the lost server's words; docs/35 N3: yellow while omaseed retries.
+    readonly property var serverProblem: App.serverProblem(App.globalState.lastError,
+                                                           App.globalState.retryInSeconds)
+    readonly property bool serverRetrying: root.serverLost && !App.serverRefused
+                                           && (root.serverProblem.kind || "down") === "down"
 
     /// A filter that matches nothing: Fig. 24.
     readonly property bool filterEmpty: App.torrents.count > 0 && App.filtered.count === 0
@@ -297,7 +313,10 @@ Item {
             return [
                 {
                     "value": "",
-                    "label": qsTr("last sync %1").arg(App.globalState.lastSyncText)
+                    // docs/33 D9: never "last sync" with nothing after it.
+                    "label": App.globalState.lastSyncText.length > 0 ? qsTr("last sync %1").arg(
+                                                                           App.globalState.lastSyncText)
+                                                                     : qsTr("not synced yet")
                 }
             ]; // Fig. 23
         if (root.firstSync)
@@ -770,6 +789,9 @@ Item {
                 if (!root.logShown) // the log face has no rail (docs/32 L1)
                     root.toggleRail();
                 break;
+            case Qt.Key_S: // docs/33 D2: the server palette, app-level like ctrl+k
+                root.openServerPalette();
+                break;
             default:
                 return;
             }
@@ -921,8 +943,11 @@ Item {
     function runAction(action: string): bool {
         // Fig. 23's read-only guard: with the server lost, only what the guard itself still
         // lets through runs.
-        if (root.serverLost && Keymap.offlineActions.indexOf(action) < 0)
+        if (root.serverLost && !Keymap.isOffline(action))
             return false;
+        // docs/33 D4: "switch to NAME", straight there.
+        if (action.startsWith(Keymap.switchToPrefix))
+            return App.switchServer(action.slice(Keymap.switchToPrefix.length));
         const run = root._runners[action];
         if (run === undefined)
             return false;
@@ -1020,6 +1045,7 @@ Item {
         "altLimits": () => globalLimitsSheet.openFor(true),
         // app
         "settings": () => App.openSettings(),
+        "switchServer": () => root.openServerPalette(),
         "qbtSettings": () => root.openQbtSettings(),
         "help": () => root.helpOpen = true,
         "commands": () => root.openCommandPalette(),
@@ -1128,6 +1154,14 @@ Item {
             "row": row,
             "rowIsFolder": rowIsFolder,
             "serverLost": root.serverLost,
+            // docs/33 D4: the servers, for "switch server…" and one "switch to NAME" each.
+            "servers": App.serverRows.map(row => ({
+                                                      "id": row.key,
+                                                      "name": row.title,
+                                                      "current": row.current,
+                                                      "last": row.state === "failed" ? row.lastReason
+                                                                                     : row.lastCount >= 0 ? (row.lastCount === 1 ? qsTr("1 torrent") : qsTr("%1 torrents").arg(row.lastCount)) : ""
+                                                  })),
             "altKind": App.altSpeed.kind,
             "recent": App.recentCommands(),
             "states": {
@@ -1400,7 +1434,9 @@ Item {
 
         /// T4.3's seam: an action the server refused, on the footer for a few seconds.
         function onActionFailed(action: string, message: string): void {
-            root.flashFooterNote(qsTr("%1 failed: %2").arg(action).arg(message));
+            // docs/33 D23: a refusal comes worded already (ErrorWords), the subject named.
+            root.flashFooterNote(action.length > 0 ? qsTr("%1 failed: %2").arg(action).arg(message)
+                                                   : message);
         }
 
         /// docs/32 N1: answered "OK", then failed, says the log.
@@ -1508,6 +1544,9 @@ Item {
         serverLine: {
             if (!App.hasServer)
                 return qsTr("no server");
+            // docs/33 D9: a server that answered and said no is not "unreachable".
+            if (root.serverLost && App.serverRefused)
+                return qsTr("%1 · sign-in refused").arg(App.serverName);
             if (root.serverLost)
                 return qsTr("%1 · unreachable").arg(App.serverName);
             if (root.firstSync)
@@ -1526,6 +1565,9 @@ Item {
         }
         speedsAlignment: App.speedsAlignment
         syncing: root.firstSync
+        // docs/33 D3: with two servers the server line switches; docs/35 N3: its dot.
+        serverSwitchable: root.multiServer
+        retrying: root.serverRetrying
         upSpeed: root.live ? App.globalState.upSpeedText : "—"
         upSpeedShort: root.live ? App.speedShortText(App.globalState.upInfoSpeed) : "—"
 
@@ -1572,28 +1614,31 @@ Item {
         onSearchAccepted: root.focusHome()
         onSearchCleared: root.clearFilter()
         onSettingsClicked: App.openSettings()
+        onServerClicked: root.openServerPalette()
     }
 
-    // the lost-server banner (spec §7 Fig. 23, margins are the caller's)
+    // The lost server's notice (spec §7 Fig. 23; docs/33 D8, D9 in docs/35's look): a band
+    // the full width of the window under the hero, and the body starts under its line
+    // (docs/35 N1, N2). It grows in once the server is declared lost (N6).
     DisconnectedBanner {
         id: banner
 
         anchors.left: parent.left
-        anchors.leftMargin: Theme.space(16)
         anchors.right: parent.right
-        anchors.rightMargin: Theme.space(16)
         anchors.top: hero.bottom
-        anchors.topMargin: Theme.space(10)
-        errorText: App.globalState.lastError.length > 0 ? App.lostReasonText(
-                                                              App.globalState.lastError) : qsTr(
-                                                              "connection refused")
-        certificate: App.isCertificateError(App.globalState.lastError)
-        retryInSeconds: App.globalState.retryInSeconds
-        visible: root.serverLost
+        animated: !App.reducedMotion
+        listTime: App.torrents.count > 0 ? App.globalState.lastSyncText : ""
+        multiServer: root.multiServer
+        objectName: "serverNotice"
+        problem: root.serverProblem
+        shown: root.serverLost && !root.firstRun
+        z: 1
 
         onCertificateRequested: settingsModal.reviewServer(App.serverId)
+        onCopyRequested: text => App.copyToClipboard(text)
+        onLoginRequested: settingsModal.editServerLogin(App.serverId)
         onRetryRequested: App.retryNow()
-        onSettingsRequested: App.openSettings()
+        onSwitchRequested: root.openServerPalette()
     }
 
     // body: rail | table | details
@@ -1605,8 +1650,7 @@ Item {
         anchors.bottom: footer.top
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.top: banner.visible ? banner.bottom : hero.bottom
-        anchors.topMargin: banner.visible ? Theme.space(10) : 0
+        anchors.top: banner.bottom
 
         Rail {
             id: rail
@@ -1625,8 +1669,14 @@ Item {
             tags: App.tags
             trackers: App.trackers
             // docs/08 §5: `ctrl+b` hides it; the filters it holds show as chips in the hero.
-            // The log face has none: the rail is about torrents (docs/32 L1).
-            visible: !root.libraryEmpty && !root.firstSync && !App.railHidden && !root.logShown
+            // The log face has none: the rail is about torrents (docs/32 L1). docs/33 D1, D7:
+            // with two servers it shows in every state, only its servers block while there is
+            // no list; with one, not without a list, as v2.
+            visible: !App.railHidden && !root.logShown
+                     && (root.railServers || (!root.libraryEmpty && !root.firstSync && !root.noList))
+            serversOnly: root.libraryEmpty || root.firstSync || root.noList
+            serversFolded: App.serversFolded
+            serverRetrying: root.serverRetrying
 
             collapsedGroups: root.railFolded
             scrollHint: App.railScrollHint
@@ -1643,13 +1693,19 @@ Item {
 
             onFocusTable: table.forceActiveFocus()
             onGroupToggled: group => {
+                // docs/33 D17: the servers block folds app-wide, not per server.
+                if (group === "servers") {
+                    App.serversFolded = !App.serversFolded;
+                    return;
+                }
                 root.railFolded = root.railFolded.indexOf(group) >= 0 ? root.railFolded.filter(
                                                                             g => g !== group) :
                                                                         root.railFolded.concat(
                                                                             [group]);
                 root.saveTableState();
             }
-            onServerActivated: id => App.setDefaultServer(id)
+            onServerActivated: id => App.switchServer(id)
+            onMoreServersRequested: root.openServerPalette()
         }
 
         SplitLayout {
@@ -1675,7 +1731,8 @@ Item {
             placement: App.detailsPlacement
             // docs/17 M10.1: folded at the bottom, the pane leaves this one line.
             foldedBar: detailsStrip
-            visible: !root.libraryEmpty && !root.firstSync && !root.consoleShown && !root.logShown
+            visible: !root.libraryEmpty && !root.firstSync && !root.noList && !root.consoleShown
+                     && !root.logShown
 
             onFoldToggled: root.saveTableState()
             onFoldedChanged: root._detailsFoldChanged()
@@ -1878,6 +1935,9 @@ Item {
                 onQuitRequested: root.quitRequested()
                 onRetryRequested: App.retryNow()
                 onSettingsRequested: App.openSettings()
+                onServersRequested: root.openServerPalette()
+                // docs/33 D23: a key it stops says so.
+                onBlocked: key => root.flashFooterNote(App.guardNote(key))
                 // Not under an open overlay or the first-run page: `focusHome` knows.
                 onVisibleChanged: root.focusHome()
             }
@@ -1950,16 +2010,31 @@ Item {
 
         // §7's whole-body states
         EmptyState {
+            id: emptyState
+
+            readonly property var other: App.busiestOtherServer
+
             anchors.centerIn: parent
-            visible: root.libraryEmpty && !root.firstRun && !root.logShown // T4.6: first run replaces this state
+            // In the room the rail leaves (docs/33 E1).
+            anchors.horizontalCenterOffset: rail.visible ? rail.width / 2 : 0
+            multiServer: root.multiServer
+            objectName: "emptyState"
+            otherCount: emptyState.other.count !== undefined ? emptyState.other.count : -1
+            otherName: emptyState.other.name || ""
+            serverName: App.serverName
+            // docs/33 D7: the same place for a server lost (or refused) before it gave a list.
+            variant: !root.noList ? "empty" : App.serverRefused ? "refused" : "noList"
+            visible: (root.libraryEmpty || root.noList) && !root.firstRun && !root.logShown // T4.6: first run replaces this state
+            width: Math.min(parent.width, Theme.space(520))
 
             onAddRequested: App.addRequested()
             onHelpRequested: root.helpOpen = true
             onSettingsRequested: App.openSettings()
+            onSwitchRequested: root.openServerPalette()
         }
 
         LoadingState {
-            anchors.left: parent.left
+            anchors.left: rail.visible ? rail.right : parent.left
             anchors.leftMargin: Theme.space(16)
             anchors.right: parent.right
             anchors.rightMargin: Theme.space(16)
@@ -1976,6 +2051,8 @@ Item {
         id: hintModel
 
         connected: !root.serverLost
+        refused: App.serverRefused
+        serverCount: App.serverCount
         detailsFolded: split.folded
         detailsTab: details.currentTab
         filterText: App.filtered.text
@@ -2479,6 +2556,29 @@ Item {
     }
 
     // docs/30: `:` and `ctrl+shift+p`.
+    // docs/33 S1 (D2–D4, D14): the server palette. Above the add sheet, which opens it too.
+    ServerPalette {
+        id: serverPalette
+
+        anchors.fill: parent
+        scrollHint: App.railScrollHint
+        z: 15
+
+        onManageRequested: id => settingsModal.showServer(id)
+    }
+
+    /// `ctrl+s`, the hero's server line, "switch server…", the rail's "… N more", the add
+    /// sheet's chip. With one server there is nothing to switch to: the footer says so (D19).
+    function openServerPalette(): void {
+        if (root.firstRun)
+            return;
+        if (!root.multiServer) {
+            root.flashFooterNote(qsTr("one server · add another in Settings › Servers"));
+            return;
+        }
+        serverPalette.openOnNext();
+    }
+
     CommandPalette {
         id: commandPalette
 
@@ -2663,6 +2763,8 @@ Item {
         // The `…` chips: T4.4's palettes, asked to answer instead of to act.
         onCategoryPaletteRequested: categoryPalette.openForChoice()
         onTagPaletteRequested: tagPalette.openForChoice(addSheet.tagChips.selected)
+        // docs/33 D14: the head's chip or ctrl+s in the sheet.
+        onServerPaletteRequested: root.openServerPalette()
     }
 
     DuplicateSheet {

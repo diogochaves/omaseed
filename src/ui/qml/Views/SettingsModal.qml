@@ -231,6 +231,25 @@ Item {
         serverSheet.reviewFor(map);
     }
 
+    /// docs/33 S1: `,` in the server palette: Settings › Servers, its cursor on `id`.
+    function showServer(id: string): void {
+        root.showPane(1);
+        root.paneCursor = Math.max(0, App.serverList.indexOfId(id));
+        root.area = "pane";
+        if (!root.opened)
+            root.open();
+    }
+
+    /// docs/33 D9 (N2): the notice's "edit login": server `id`'s sheet, editing, the keyboard
+    /// on the password.
+    function editServerLogin(id: string): void {
+        const map = App.serverList.serverMap(id);
+        if (map.id === undefined)
+            return;
+        root.showServer(id);
+        serverSheet.editLogin(map);
+    }
+
     /// ctrl+shift+, (docs/16 §2): Settings, on the qBittorrent group.
     function openQbt(): void {
         if (!root.inQbt)

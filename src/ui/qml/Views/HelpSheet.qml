@@ -282,6 +282,8 @@ FocusScope {
 
                                         required property var modelData
 
+                                        readonly property bool waiting: keyRow.modelData.aboutOne !== undefined
+                                                                        && App.serverCount < 2
                                         readonly property bool current: root.cursorRow !== null
                                                                         && root.cursorRow.action
                                                                         === keyRow.modelData.action
@@ -318,7 +320,7 @@ FocusScope {
                                             anchors.leftMargin: Theme.space(6)
                                             anchors.top: parent.top
                                             anchors.topMargin: Theme.space(4)
-                                            color: Theme.brightForeground
+                                            color: keyRow.waiting ? Theme.dimForeground : Theme.brightForeground
                                             font.family: Theme.fontFamily
                                             font.pixelSize: Theme.font.small
                                             font.weight: Font.Medium
@@ -334,10 +336,12 @@ FocusScope {
                                             anchors.right: parent.right
                                             anchors.top: parent.top
                                             anchors.topMargin: Theme.space(4)
-                                            color: Theme.foreground
+                                            // docs/33 D19: a key that needs two servers is
+                                            // listed dim, saying so, while there is one.
+                                            color: keyRow.waiting ? Theme.dimForeground : Theme.foreground
                                             font.family: Theme.fontFamily
                                             font.pixelSize: Theme.font.small
-                                            text: keyRow.modelData.about
+                                            text: keyRow.waiting ? keyRow.modelData.aboutOne : keyRow.modelData.about
                                             wrapMode: Text.WordWrap
                                         }
 

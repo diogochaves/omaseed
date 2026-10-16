@@ -304,6 +304,23 @@ QtObject {
             "help": qsTr("settings"),
             "about": qsTr("Settings")
         },
+        // docs/33 D2 (DECISIONS C12): the server palette, app-level like ctrl+k. With one
+        // server it answers in the footer, and the `?` sheet lists it dim (D19); `needs`
+        // "servers" keeps its palette rows away until there are two (D4).
+        {
+            "area": "global",
+            "key": "ctrl+s",
+            "action": "switchServer",
+            "title": qsTr("switch server…"),
+            "needs": "servers",
+            "label": qsTr("server"),
+            "column": "app",
+            "rank": 2.5,
+            "helpKeys": "ctrl+s",
+            "help": qsTr("switch server"),
+            "about": qsTr("Switch to another server; the hero's server line and the rail's servers do too"),
+            "aboutOne": qsTr("Switch server, with two servers or more")
+        },
         // `ctrl+,` is where the rest of the desktop keeps settings (GTK, macOS, VS Code,
         // Strata), so it opens them here too; bare `,` stays the keyboard-first key. Fig. 26
         // gave `ctrl+,` to Columns, which moved to `|` (docs/08 §4, REVIEW §9).
@@ -1967,7 +1984,7 @@ QtObject {
         {
             "group": "app",
             "word": qsTr("app"),
-            "actions": ["settings", "qbtSettings", "help", "hide", "quit"]
+            "actions": ["switchServer", "settings", "qbtSettings", "help", "hide", "quit"]
         },
         {
             "group": "files",
@@ -2012,8 +2029,18 @@ QtObject {
     ]
 
     /// Fig. 23's read-only guard: all that runs while the server is lost (docs/30 P6), and
-    /// the palette itself, which shows the rest dim.
-    readonly property var offlineActions: ["settings", "help", "hide", "quit", "commands"]
+    /// the palette itself, which shows the rest dim. docs/33 D4: switching away is exactly
+    /// what the guard should let through, so the server palette and its "switch to NAME" rows
+    /// run too (`isOffline()`).
+    readonly property var offlineActions: ["settings", "help", "hide", "quit", "commands", "switchServer"]
+
+    /// docs/33 D4: one "switch to NAME" row per other server, its action "switchTo:<id>".
+    readonly property string switchToPrefix: "switchTo:"
+
+    /// Whether `action` runs while the server is lost.
+    function isOffline(action: string): bool {
+        return root.offlineActions.indexOf(action) >= 0 || action.startsWith(root.switchToPrefix);
+    }
 
     /// The entry that is command `action` of `group`, or null: a details tab's from the pane's
     /// shared keys (`titles`), the console's from its face, the rest from the window and table.
@@ -2038,7 +2065,7 @@ QtObject {
     function whyNot(entry: var, context: var): string {
         const ctx = context || {};
         const states = ctx.states || {};
-        if (ctx.serverLost === true && root.offlineActions.indexOf(entry.action) < 0)
+        if (ctx.serverLost === true && !root.isOffline(entry.action))
             return qsTr("read-only until the server is back");
         const selected = ctx.selected || 0;
         const cursor = ctx.cursor || "";
@@ -2089,6 +2116,8 @@ QtObject {
             return ctx.cursor || "";
         case "selection":
             return qsTr("%n selected", "", ctx.selected || 0);
+        case "servers":
+            return qsTr("%n servers", "", (ctx.servers || []).length);
         case "marked":
             return (ctx.marked || 0) > 0 ? qsTr("%n marked", "", ctx.marked) : (ctx.row || "");
         case "row":
@@ -2164,6 +2193,11 @@ QtObject {
                 const found = root.commandEntry(group.group, action);
                 if (found === null)
                     continue;
+                // D19: with one server nothing offers to switch.
+                if (found.needs === "servers" && (ctx.servers || []).length < 2)
+                    continue;
+                // D4: the per-server rows follow "switch server…".
+                const servers = found.action === "switchServer" ? root.serverRows(ctx, group) : [];
                 const entry = root.worded(found, ctx.altKind);
                 const row = root._commandRow(entry, group, ctx);
                 if (row.disabled)
@@ -2174,10 +2208,44 @@ QtObject {
                     recent.push(row);
                 else
                     rest.push(row);
+                for (const server of servers) {
+                    if (server.recent >= 0)
+                        recent.push(server);
+                    else
+                        rest.push(server);
+                }
             }
         }
         recent.sort((a, b) => a.recent - b.recent);
         return own.concat(recent, rest, off);
+    }
+
+    /// docs/33 D4: "switch server…" (opens the server palette) and one "switch to NAME" per
+    /// other server, which goes straight there; both run while the server is lost.
+    /// `ctx.servers` is `[{id, name, current, last}]` (`last`: "4 torrents" or "sign-in
+    /// refused"), in Settings' order. Returns the per-server rows; "switch server…" itself is
+    /// the Keymap entry's ordinary row.
+    function serverRows(context: var, group: var): var {
+        const ctx = context || {};
+        const rows = [];
+        for (const server of ctx.servers || []) {
+            if (server.current === true)
+                continue;
+            const action = root.switchToPrefix + server.id;
+            rows.push({
+                          "action": action,
+                          "key": action,
+                          "title": qsTr("switch to %1").arg(server.name),
+                          "meta": "",
+                          "via": "",
+                          "detail": [group.word, (server.last || "").length > 0 ? qsTr("%1 last time").arg(server.last) : ""].filter(part => part.length > 0).join(" · "),
+                          "disabled": false,
+                          "group": group.group,
+                          "word": group.word,
+                          "recent": (ctx.recent || []).indexOf(action)
+                      });
+        }
+        return rows;
     }
 
     /// `label` of (area, key), falling back to the global entry and then to the key itself,

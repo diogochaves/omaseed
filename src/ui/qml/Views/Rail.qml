@@ -22,6 +22,16 @@ import Omaseed.Kit
 // `groupToggled`. A folded group leaves one cursor stop, its heading, where `enter`/`space`
 // unfolds it. While the rail is scrolled, the heading of the group the top row belongs to
 // sticks to the top edge, so a scrolled row always says which group it is in.
+//
+// docs/33 §9 (D12, D16–D18, DECISIONS C12): the servers are not a group of the scroll but a
+// block pinned to the rail's bottom, outside it, on a band of their own (the idle fill under a
+// hairline). Each row is a state dot, the name and what omaseed saw last (D5); the current
+// one is selected. It folds to one line ("● private ▴ 3 servers"), app-wide (`serversFolded`,
+// the host keeps it). Open, it lists 5 servers at most, then "… N more · ctrl+s"
+// (`moreServersRequested`). When open it would leave the filters fewer than 5 rows, it shows
+// folded by itself (not remembered); unfolded by hand then, it opens upwards over the filters,
+// opaque with an accent edge, and folds again on esc or a pick. `serversOnly` (D1, D7) leaves
+// the block alone: the empty library's rail, and a server lost before it gave a list.
 Item {
     id: root
 
@@ -32,9 +42,19 @@ Item {
     required property TrackerModel trackers
     property int serverCount: 1
     property ServerStore servers: null
-    /// The rows of the SERVERS group (roles `name`, `isDefault`). The host gates the group
-    /// with `serverCount`, which it sets to 0 when the General pane hides it.
+    /// The rows of the servers block (roles `name`, `isDefault`, `serverState`, `countLabel`). The
+    /// host gates the block with `serverCount`, which it sets to 0 when the General pane hides
+    /// it.
     property ServerListModel serverList: null
+    /// docs/33 D17: the servers block folded to one line (the host keeps it, app-wide).
+    property bool serversFolded: false
+    /// docs/33 D1, D7: only the servers block; the filter groups wait for a list.
+    property bool serversOnly: false
+    /// docs/35 N3: the current server is gone and omaseed retries on its own (its count is
+    /// yellow, not red).
+    property bool serverRetrying: false
+    /// docs/33 D18: at most this many servers open, then "… N more".
+    readonly property int serversShownMax: 5
 
     property int cursorIndex: 0
     /// The folded groups: any of "status", "categories", "tags", "trackers", "servers".
@@ -79,7 +99,7 @@ Item {
         let n = 0;
         for (const entry of root._rows) {
             const item = entry.item;
-            if (item.globalIndex < 0 || !item.visible)
+            if (item.globalIndex < 0 || !item.visible || item.pinned === true)
                 continue;
             const y = item.mapToItem(content, 0, 0).y;
             if (above ? y + item.height <= top + 1 : y >= bottom - 1)
@@ -94,6 +114,8 @@ Item {
     /// `enter` or a click on a server row: that server should become the default one. The
     /// rail never switches servers itself — the host calls `App.setDefaultServer(id)`.
     signal serverActivated(string id)
+    /// docs/33 D18: "… N more · ctrl+s": the host opens the server palette.
+    signal moreServersRequested
 
     // ---- row bookkeeping -----------------------------------------------------------
     // Every row (and every group heading) registers itself with a function that selects it;
@@ -109,7 +131,8 @@ Item {
         const map = {};
         for (const entry of root._rows) {
             const index = entry.item.globalIndex;
-            if (index >= 0)
+            // serversOnly (D1, D7): the filter rows are hidden and take no stop.
+            if (index >= 0 && (!root.serversOnly || entry.item.pinned === true))
                 map[index] = entry;
         }
         return map;
@@ -132,7 +155,16 @@ Item {
     readonly property bool categoriesFolded: root.collapsedGroups.indexOf("categories") >= 0
     readonly property bool tagsFolded: root.collapsedGroups.indexOf("tags") >= 0
     readonly property bool trackersFolded: root.collapsedGroups.indexOf("trackers") >= 0
-    readonly property bool serversFolded: root.collapsedGroups.indexOf("servers") >= 0
+    /// D18: folded by itself while open would leave the filters fewer than 5 rows; `_serversForced`
+    /// is a hand unfold then, which opens upwards over the filters.
+    property bool _serversForced: false
+    readonly property bool serversShort: !root.serversOnly && root.serversRowCount > 0
+                                         && root.height - root._serversOpenHeight
+                                         < 5 * Theme.railRowHeight + Theme.space(30)
+    readonly property bool serversShownFolded: root.serversFolded
+                                               || (root.serversShort && !root._serversForced)
+    /// Open by hand in a short rail: drawn over the filters.
+    readonly property bool serversOverlay: root.serversShort && root._serversForced && !root.serversFolded
 
     /// The group the cursor position `index` falls in.
     function groupAt(index: int): string {
@@ -164,9 +196,22 @@ Item {
 
     /// Fold or unfold `group` and leave the cursor on its first stop.
     function toggleGroup(group: string): void {
-        root.groupToggled(group);
+        if (group === "servers" && root.serversShort && !root.serversFolded) {
+            // D18: a short rail's hand unfold is for now, not remembered.
+            root._serversForced = !root._serversForced;
+        } else {
+            root.groupToggled(group);
+        }
         root.cursorIndex = root.baseOf(group);
         root._scrollCursorIntoView();
+    }
+
+    /// esc on the servers block opened over the filters folds it again (D18).
+    function foldServersOverlay(): bool {
+        if (!root.serversOverlay)
+            return false;
+        root._serversForced = false;
+        return true;
     }
 
     // ---- the status group: nine fixed rows, spec v2 §9 `RAIL[0]` -------------------
@@ -236,14 +281,22 @@ Item {
     readonly property int trackersRowCount: 1 + root.trackersNamedCount
     readonly property int serversRowCount: root.serverCount > 1
                                            && root.serverList ? root.serverList.count : 0
+    /// The rows the open block lists (D18), and whether "… N more" follows them.
+    readonly property int serversListed: Math.min(root.serversRowCount, root.serversShownMax)
+    readonly property bool serversMore: root.serversRowCount > root.serversShownMax
 
-    // A folded group is one stop (its heading) in the cursor space.
-    readonly property int statusSpan: root.statusFolded ? 1 : root.statusRowCount
-    readonly property int categoriesSpan: root.categoriesFolded ? 1 : root.categoriesRowCount
-    readonly property int tagsSpan: root.tagsFolded ? 1 : root.tagsRowCount
-    readonly property int trackersSpan: root.trackersFolded ? 1 : root.trackersRowCount
-    readonly property int serversSpan: root.serversRowCount > 0 && root.serversFolded ? 1 :
-                                                                                     root.serversRowCount
+    // A folded group is one stop (its heading) in the cursor space. With `serversOnly` the
+    // filter groups have none.
+    readonly property int statusSpan: root.serversOnly ? 0 : root.statusFolded ? 1 : root.statusRowCount
+    readonly property int categoriesSpan: root.serversOnly ? 0 : root.categoriesFolded ? 1 :
+                                                                                         root.categoriesRowCount
+    readonly property int tagsSpan: root.serversOnly ? 0 : root.tagsFolded ? 1 : root.tagsRowCount
+    readonly property int trackersSpan: root.serversOnly ? 0 : root.trackersFolded ? 1 :
+                                                                                     root.trackersRowCount
+    // Folded, the block is its one line; open, its rows and "… N more".
+    readonly property int serversSpan: root.serversRowCount === 0 ? 0 : root.serversShownFolded ? 1 :
+                                                                                                root.serversListed
+                                                                                                + (root.serversMore ? 1 : 0)
 
     readonly property int statusBase: 0
     readonly property int categoriesBase: root.statusBase + root.statusSpan
@@ -298,8 +351,8 @@ Item {
 
     function _scrollCursorIntoView() {
         const entry = root._rowMap[root.cursorIndex];
-        if (!entry || !entry.item)
-            return;
+        if (!entry || !entry.item || entry.item.pinned === true)
+            return; // the servers block never scrolls (D12)
         const point = entry.item.mapToItem(content, 0, 0);
         const top = point.y;
         const bottom = top + entry.item.height;
@@ -312,7 +365,8 @@ Item {
     Accessible.role: Accessible.List
 
     activeFocusOnTab: true
-    implicitHeight: content.implicitHeight
+    implicitHeight: (root.serversOnly ? 0 : content.implicitHeight)
+                    + (root.serversRowCount > 0 ? root._serversOpenHeight : 0)
     implicitWidth: Theme.space(200)
     width: root.implicitWidth
 
@@ -349,6 +403,10 @@ Item {
             root.toggleGroup(root.groupAt(root.cursorIndex));
             event.accepted = true;
             break;
+        case Qt.Key_Escape:
+            if (root.foldServersOverlay())
+                event.accepted = true;
+            break;
         case Qt.Key_0:
         case Qt.Key_1:
         case Qt.Key_2:
@@ -368,7 +426,10 @@ Item {
     Flickable {
         id: flick
 
-        anchors.bottom: parent.bottom
+        // D12: the filters scroll above the servers block, never under it. Opened over the
+        // filters (D18), the block keeps only its folded line's room.
+        anchors.bottom: root.serversRowCount > 0 ? serversBlock.top : parent.bottom
+        anchors.bottomMargin: root.serversOverlay ? -(serversBlock.height - root._serversFoldedHeight) : 0
         anchors.left: parent.left
         anchors.right: hairline.left
         anchors.top: parent.top
@@ -377,6 +438,7 @@ Item {
         contentHeight: content.implicitHeight
         contentWidth: width
         interactive: content.implicitHeight > height
+        visible: !root.serversOnly
 
         Column {
             id: content
@@ -704,64 +766,6 @@ Item {
                     }
                 }
             }
-
-            // ---- servers -------------------------------------------------------------
-            // One row per configured server, named, with the default one drawn selected the
-            // way a status or category row is. `id` is a QML keyword, so the row's id comes
-            // from `idAt(index)` rather than from a required property.
-            RailGroup {
-                id: serversGroup
-
-                readonly property int globalIndex: root.serversFolded && root.serversRowCount > 0
-                                                   ? root.serversBase : -1
-
-                collapsed: root.serversFolded
-                count: root.serversRowCount
-                hasCursor: root.cursorIndex === serversGroup.globalIndex
-                label: qsTr("servers")
-                visible: root.serversRowCount > 0
-                width: content.width
-
-                onToggled: root.toggleGroup("servers")
-
-                Component.onCompleted: root._registerRow(serversGroup, () => root.toggleGroup(
-                                                             "servers"))
-                Component.onDestruction: root._unregisterRow(serversGroup)
-
-                Repeater {
-                    model: root.serverList
-
-                    RailRow {
-                        id: serverDelegate
-
-                        required property int index
-                        required property string name
-                        required property bool isDefault
-
-                        readonly property int globalIndex: root.serversFolded
-                                                           || root.serversRowCount === 0 ? -1 :
-                                                                                           root.serversBase
-                                                                                           + serverDelegate.index
-
-                        count: -1
-                        glyph: Glyphs.server
-                        hasCursor: root.cursorIndex === serverDelegate.globalIndex
-                        selected: serverDelegate.isDefault
-                        text: serverDelegate.name
-                        visible: !root.serversFolded
-                        width: content.width
-
-                        onClicked: root.clickRow(serverDelegate.globalIndex)
-
-                        Component.onCompleted: root._registerRow(serverDelegate, () => {
-                                                                     root.serverActivated(
-                                                                         root.serverList.idAt(
-                                                                             serverDelegate.index));
-                                                                 })
-                        Component.onDestruction: root._unregisterRow(serverDelegate)
-                    }
-                }
-            }
         }
     }
 
@@ -778,7 +782,7 @@ Item {
     ScrollHint {
         id: scrollHintOverlay
 
-        anchors.bottom: parent.bottom
+        anchors.bottom: flick.bottom
         anchors.left: parent.left
         anchors.right: hairline.left
         anchors.top: parent.top
@@ -797,10 +801,215 @@ Item {
         z: 4
     }
 
+    // ---- the servers block (docs/33 §9: D12, D16–D18) ----------------------------------
+    /// The block's height open and folded, for the short-window rule (D18).
+    readonly property real _serversFoldedHeight: Theme.railRowHeight + Theme.space(12)
+    readonly property real _serversOpenHeight: serversHeading.implicitHeight + Theme.space(12)
+                                               + (root.serversListed + (root.serversMore ? 1 : 0))
+                                               * Theme.railRowHeight
+
+    /// A server row's dot (R2): the current one live, the others as last seen (D5).
+    function _serverDotColor(state: string): color {
+        switch (state) {
+        case "live":
+            return Theme.green;
+        case "syncing":
+            return Theme.yellow;
+        case "down":
+            return root.serverRetrying ? Theme.yellow : Theme.red; // docs/35 N3
+        case "refused":
+        case "certificate":
+        case "failed":
+            return Theme.red;
+        default:
+            return Theme.fill(Theme.faintAlpha);
+        }
+    }
+
+    function _serverCountColor(text: string): color {
+        if (text === "!")
+            return Theme.red;
+        if (text.length > 0 && isNaN(Number(text)))
+            return root.serverRetrying ? Theme.yellow : Theme.red; // "down", docs/35 N3
+        return Theme.dimForeground;
+    }
+
+    /// The current server's row, for the folded line: `{name, state}`.
+    readonly property var _currentServer: {
+        root._serversRevision;
+        const list = root.serverList;
+        if (!list)
+            return {
+                "name": "",
+                "state": ""
+            };
+        for (let i = 0; i < list.count; ++i) {
+            const map = list.serverMap(list.idAt(i));
+            if (map.isCurrent === true)
+                return map;
+        }
+        for (let i = 0; i < list.count; ++i) {
+            const map = list.serverMap(list.idAt(i));
+            if (map.isDefault === true)
+                return map;
+        }
+        return {
+            "name": "",
+            "state": ""
+        };
+    }
+    property int _serversRevision: 0
+
+    Connections {
+        function onDataChanged(): void {
+            root._serversRevision++;
+        }
+
+        function onModelReset(): void {
+            root._serversRevision++;
+        }
+
+        target: root.serverList
+    }
+
+    Rectangle {
+        id: serversBlock
+
+        anchors.bottom: parent.bottom
+        anchors.left: parent.left
+        anchors.right: hairline.left
+        // D16 a: a band of its own, the idle fill under a hairline. Opened over the filters
+        // (D18) it is opaque, with an accent edge, like a menu.
+        border.color: Theme.accent
+        border.width: root.serversOverlay ? 1 : 0
+        color: root.serversOverlay ? Theme.background : "transparent"
+        height: root.serversShownFolded ? root._serversFoldedHeight : root._serversOpenHeight
+        objectName: "serversBlock"
+        visible: root.serverCount > 1 && root.serversRowCount > 0
+        z: 5
+
+        Rectangle {
+            anchors.fill: parent
+            anchors.margins: parent.border.width
+            color: Theme.fill(Theme.fillIdle)
+        }
+
+        Hairline {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+        }
+
+        Column {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.topMargin: Theme.space(6)
+
+            // The heading: "servers · 3" and the fold chevron (D16 a). A click folds.
+            RailGroup {
+                id: serversHeading
+
+                collapsed: false
+                label: qsTr("servers · %1").arg(root.serversRowCount)
+                objectName: "serversHeading"
+                visible: !root.serversShownFolded
+                width: parent.width
+
+                onToggled: root.toggleGroup("servers")
+            }
+
+            // D17 a: folded, one line: the current server, its live dot, ▴, how many.
+            RailRow {
+                id: serversFoldedLine
+
+                readonly property int globalIndex: root.serversShownFolded && root.serversRowCount > 0
+                                                   ? root.serversBase : -1
+                readonly property bool pinned: true
+
+                countText: qsTr("%n servers", "", root.serversRowCount)
+                glyph: Glyphs.dot
+                glyphColor: root._serverDotColor(root._currentServer.serverState || "")
+                hasCursor: root.cursorIndex === serversFoldedLine.globalIndex
+                objectName: "serversFoldedLine"
+                text: (root._currentServer.name || "") + " " + Glyphs.chevronUp
+                visible: root.serversShownFolded
+                width: parent.width
+
+                onClicked: root.toggleGroup("servers")
+
+                Component.onCompleted: root._registerRow(serversFoldedLine, () => root.toggleGroup("servers"))
+                Component.onDestruction: root._unregisterRow(serversFoldedLine)
+            }
+
+            // One row per server, in Settings' order, 5 at most (D18). `id` is a QML keyword,
+            // so the row's id comes from `idAt(index)` rather than from a required property.
+            Repeater {
+                model: root.serverList
+
+                RailRow {
+                    id: serverDelegate
+
+                    required property int index
+                    required property string name
+                    required property bool isDefault
+                    required property string serverState
+                    required property string countLabel
+
+                    readonly property bool listed: serverDelegate.index < root.serversShownMax
+                    readonly property int globalIndex: root.serversShownFolded || root.serversRowCount === 0
+                                                       || !serverDelegate.listed ? -1 : root.serversBase
+                                                                                        + serverDelegate.index
+                    readonly property bool pinned: true
+
+                    countColor: root._serverCountColor(serverDelegate.countLabel)
+                    countText: serverDelegate.countLabel
+                    glyph: Glyphs.dot
+                    glyphColor: root._serverDotColor(serverDelegate.serverState)
+                    hasCursor: root.cursorIndex === serverDelegate.globalIndex
+                    objectName: "serverRow-" + serverDelegate.name
+                    selected: serverDelegate.isDefault
+                    text: serverDelegate.name
+                    visible: !root.serversShownFolded && serverDelegate.listed
+                    width: parent.width
+
+                    onClicked: root.clickRow(serverDelegate.globalIndex)
+
+                    Component.onCompleted: root._registerRow(serverDelegate, () => {
+                                                                 root._serversForced = false;
+                                                                 root.serverActivated(root.serverList.idAt(
+                                                                                          serverDelegate.index));
+                                                             })
+                    Component.onDestruction: root._unregisterRow(serverDelegate)
+                }
+            }
+
+            // D18: past 5, one row that opens the server palette.
+            RailRow {
+                id: serversMoreRow
+
+                readonly property int globalIndex: !root.serversShownFolded && root.serversMore
+                                                   ? root.serversBase + root.serversListed : -1
+                readonly property bool pinned: true
+
+                glyph: "…"
+                hasCursor: root.cursorIndex === serversMoreRow.globalIndex
+                objectName: "serversMoreRow"
+                text: qsTr("%1 more · ctrl+s").arg(root.serversRowCount - root.serversListed)
+                visible: !root.serversShownFolded && root.serversMore
+                width: parent.width
+
+                onClicked: root.clickRow(serversMoreRow.globalIndex)
+
+                Component.onCompleted: root._registerRow(serversMoreRow, () => root.moreServersRequested())
+                Component.onDestruction: root._unregisterRow(serversMoreRow)
+            }
+        }
+    }
+
     // docs/08 §5: while the rail is scrolled, the heading of the group the top row belongs to
     // sticks to the top edge. It is the real group's heading drawn again, so it folds too.
-    readonly property var _groups: [statusGroup, categoriesGroup, tagsGroup, trackersGroup,
-        serversGroup]
+    readonly property var _groups: [statusGroup, categoriesGroup, tagsGroup, trackersGroup]
     /// The group whose heading has scrolled off while some of its rows are still in view.
     readonly property RailGroup stuckGroup: {
         const top = flick.contentY;

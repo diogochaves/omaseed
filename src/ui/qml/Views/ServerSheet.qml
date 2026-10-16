@@ -139,6 +139,17 @@ Sheet {
         root._runTest();
     }
 
+    /// docs/33 D9 (N2): the notice's "edit login": the sheet editing, with the keyboard on
+    /// the password (the key, for an API key server; the URL, for none).
+    function editLogin(map: var): void {
+        root.openFor(map);
+        root.editing = true;
+        Qt.callLater(() => {
+                         const field = root.editAuthMode === "apiKey" ? keyField : root.editAuthMode === "cookie" ? passField : urlField;
+                         field.focusInput();
+                     });
+    }
+
     /// `make default`: the app moves to this server, as `d` on its row does. The sheet stays
     /// open on it, now the default, so the button goes and the keyboard lands on `edit`.
     function makeDefault(): void {

@@ -357,6 +357,8 @@ Sheet {
     /// answer back through `applyChosenCategory` / `applyChosenTags`.
     signal categoryPaletteRequested
     signal tagPaletteRequested
+    /// docs/33 D14: the head's server chip or ctrl+s: the host opens the server palette.
+    signal serverPaletteRequested
 
     /// How many the add hands over: the batch's, or the ticks in In Downloads while it shows,
     /// less those in the library, which the batch they make leaves out.

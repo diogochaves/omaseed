@@ -207,48 +207,75 @@ TestCase {
         DisconnectedBanner {}
     }
 
-    function test_banner_shows_the_countdown() {
+    // docs/33 D8, D9 and docs/35: the notice's words come from App.serverProblem (ErrorWords),
+    // its kind follows "retrying" or "needs you", its actions the problem and the servers.
+    readonly property var downProblem: ({
+                                            "headline": "private didn't answer",
+                                            "lineBase": "Nothing is listening at 127.0.0.1:8091.",
+                                            "retry": "omaseed tries again in 7 s.",
+                                            "retryChars": 28,
+                                            "details": "network error · GET sync/maindata · Connection refused",
+                                            "kind": "down"
+                                        })
+
+    function test_banner_names_the_server_and_retries() {
         const banner = createTemporaryObject(bannerComponent, testCase, {
-                                                 "errorText": "connection refused",
-                                                 "retryInSeconds": 7
+                                                 "animated": false,
+                                                 "problem": testCase.downProblem,
+                                                 "width": 800
                                              });
-        compare(banner.text, "connection refused · retrying in 7 s");
+        compare(banner.title, "private didn't answer");
+        compare(banner.kind, "warning");
+        verify(banner.lineText.startsWith("Nothing is listening at 127.0.0.1:8091. omaseed tries again in 7 s."));
+        compare(banner.actions.map(action => action.key), ["retry"]);
+        banner.multiServer = true;
+        compare(banner.actions.map(action => action.key), ["retry", "switch"]);
+        banner.listTime = "23:26";
+        verify(banner.body.indexOf("The list below is from 23:26.") > 0);
     }
 
-    function test_banner_shows_retrying_now_at_zero() {
+    function test_banner_actions_emit() {
         const banner = createTemporaryObject(bannerComponent, testCase, {
-                                                 "errorText": "connection refused",
-                                                 "retryInSeconds": 0
+                                                 "multiServer": true,
+                                                 "problem": testCase.downProblem
                                              });
-        compare(banner.text, "connection refused · retrying now");
-    }
-
-    function test_banner_retry_action_emits_retryRequested() {
-        const banner = createTemporaryObject(bannerComponent, testCase);
-        const spy = createTemporaryObject(signalSpyComponent, testCase, {
-                                              "target": banner,
-                                              "signalName": "retryRequested"
-                                          });
+        const retry = createTemporaryObject(signalSpyComponent, testCase, {
+                                                "target": banner,
+                                                "signalName": "retryRequested"
+                                            });
+        const switching = createTemporaryObject(signalSpyComponent, testCase, {
+                                                    "target": banner,
+                                                    "signalName": "switchRequested"
+                                                });
         banner.actionTriggered("retry");
-        compare(spy.count, 1);
+        banner.actionTriggered("switch");
+        compare(retry.count, 1);
+        compare(switching.count, 1);
     }
 
-    function test_banner_settings_action_emits_settingsRequested() {
-        const banner = createTemporaryObject(bannerComponent, testCase);
-        const spy = createTemporaryObject(signalSpyComponent, testCase, {
-                                              "target": banner,
-                                              "signalName": "settingsRequested"
-                                          });
-        banner.actionTriggered("settings");
-        compare(spy.count, 1);
-    }
-
-    // Issue #2: a refused certificate puts `review certificate` first.
-    function test_banner_offers_the_certificate_review_when_refused() {
-        const banner = createTemporaryObject(bannerComponent, testCase);
-        compare(banner.actions.map(action => action.key), ["retry", "settings"]);
-        banner.certificate = true;
-        compare(banner.actions.map(action => action.key), ["certificate", "retry", "settings"]);
+    // D9: a refused sign-in is red, "edit login" first; issue #2: a certificate's review.
+    function test_banner_needs_you_after_a_refusal() {
+        const banner = createTemporaryObject(bannerComponent, testCase, {
+                                                 "multiServer": true,
+                                                 "problem": {
+                                                     "headline": "seedbox refused the sign-in",
+                                                     "lineBase": "The username or password omaseed has for it is wrong.",
+                                                     "retry": "",
+                                                     "kind": "refused"
+                                                 }
+                                             });
+        compare(banner.kind, "error");
+        compare(banner.actions.map(action => action.key), ["login", "switch"]);
+        const login = createTemporaryObject(signalSpyComponent, testCase, {
+                                                "target": banner,
+                                                "signalName": "loginRequested"
+                                            });
+        banner.actionTriggered("login");
+        compare(login.count, 1);
+        banner.problem = {
+            "headline": "seedbox's certificate isn't trusted",
+            "kind": "certificate"
+        };
         compare(banner.actions[0].label, "review certificate");
         const spy = createTemporaryObject(signalSpyComponent, testCase, {
                                               "target": banner,
@@ -256,6 +283,41 @@ TestCase {
                                           });
         banner.actionTriggered("certificate");
         compare(spy.count, 1);
+    }
+
+    // ---- docs/33 D6, D7: the empty state with two servers, and with no list
+    function test_empty_state_names_the_server_with_two() {
+        const empty = createTemporaryObject(emptyStateComponent, testCase, {
+                                                "serverName": "public"
+                                            });
+        compare(empty.headline, "No torrents yet");
+        compare(empty._rows.length, 3);
+        empty.multiServer = true;
+        empty.otherName = "private";
+        empty.otherCount = 4;
+        compare(empty.headline, "No torrents on public yet");
+        compare(empty._rows.length, 4);
+        compare(empty._rows[1].key, "ctrl+s");
+        compare(empty._rows[1].label, "switch server · private has 4");
+        const spy = createTemporaryObject(signalSpyComponent, testCase, {
+                                              "target": empty,
+                                              "signalName": "switchRequested"
+                                          });
+        empty.triggerRow(1);
+        compare(spy.count, 1);
+    }
+
+    function test_empty_state_without_a_list() {
+        const empty = createTemporaryObject(emptyStateComponent, testCase, {
+                                                "serverName": "public",
+                                                "variant": "noList"
+                                            });
+        compare(empty.headline, "Nothing from public yet");
+        verify(empty.note.indexOf("tries again on its own") >= 0);
+        compare(empty._rows.length, 0);
+        empty.variant = "refused";
+        compare(empty.headline, "public refused the sign-in");
+        verify(empty.note.indexOf("Settings › Servers") >= 0);
     }
 
     // ------------------------------------------------------------------------- LoadingState

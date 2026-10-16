@@ -1,49 +1,68 @@
 import QtQuick
 import Omaseed.Kit
 
-// The disconnected banner (spec v2 §7 Fig. 23 `.banner.err`): "✕ connection refused ·
-// retrying in 7 s · retry now · settings", `retry now` and `settings` as accent-coloured
-// links. Built on the Kit `Banner` in its "error" kind, whose `actions` list already renders
-// inline accent links and emits `actionTriggered(key)` on click — no Kit change needed. The
-// caller (Main.qml) is responsible for the figure's `Theme.space(10)` top / `Theme.space(16)`
-// side margins; this component fills whatever width it is given.
-Banner {
+// The lost server's notice (spec v2 §7 Fig. 23, in docs/33 D8/D9's words and docs/35's look):
+// a band across the window under the hero, the server named in plain words (core/ErrorWords,
+// D23), what omaseed does next, and at most two actions: "retry now" while it retries on its
+// own (yellow, docs/35 N3), "edit login" after a refused sign-in or "review certificate" for a
+// certificate (red), then "switch server" with two servers or more; the technical text behind
+// "details". The caller places it (full width, no margins: docs/35 N1) and says what each
+// action does.
+Notice {
     id: root
 
-    property string errorText: qsTr("connection refused")
-    property int retryInSeconds: 0
-    /// Issue #2: the server's certificate was refused; `review certificate` comes first.
-    property bool certificate: false
+    /// `App.serverProblem(lastError, retryInSeconds)`: {headline, line, lineBase, retry,
+    /// retryChars, details, kind}.
+    property var problem: ({})
+    /// Two servers or more: "switch server" (D8).
+    property bool multiServer: false
+    /// The last list is on screen, from `listTime` (Fig. 23: dimmed, read-only).
+    property string listTime: ""
+
+    readonly property string problemKind: root.problem.kind || ""
 
     signal retryRequested
-    signal settingsRequested
+    signal switchRequested
+    signal loginRequested
     signal certificateRequested
 
-    actions: (root.certificate ? [
-                                     {
-                                         "label": qsTr("review certificate"),
-                                         "key": "certificate"
-                                     }
-                                 ] : []).concat([
-                                                    {
-                                                        "label": qsTr("retry now"),
-                                                        "key": "retry"
-                                                    },
-                                                    {
-                                                        "label": qsTr("settings"),
-                                                        "key": "settings"
-                                                    }
-                                                ])
-    kind: "error"
-    text: root.retryInSeconds > 0 ? qsTr("%1 · retrying in %2 s").arg(root.errorText).arg(
-                                        root.retryInSeconds) : qsTr("%1 · retrying now").arg(
-                                        root.errorText)
+    // docs/35 N3: yellow while omaseed retries by itself, red once it needs you.
+    kind: root.problemKind === "down" || root.problemKind === "" ? "warning" : "error"
+    title: root.problem.headline || ""
+    body: {
+        const base = root.problem.lineBase || "";
+        if (root.listTime.length === 0)
+            return base;
+        const list = qsTr("The list below is from %1.").arg(root.listTime);
+        return base.length > 0 ? base + " " + list : list;
+    }
+    bodyTail: root.problem.retry || ""
+    bodyTailChars: root.problem.retryChars || 0
+    details: root.problem.details || ""
+    actions: {
+        const first = root.problemKind === "refused" || root.problemKind === "banned" ? {
+                                                                                            "label": qsTr("edit login"),
+                                                                                            "key": "login"
+                                                                                        } : root.problemKind === "certificate" ? {
+                                                                                                                                     "label": qsTr("review certificate"),
+                                                                                                                                     "key": "certificate"
+                                                                                                                                 } : {
+                                                                                                                                     "label": qsTr("retry now"),
+                                                                                                                                     "key": "retry"
+                                                                                                                                 };
+        return root.multiServer ? [first, {
+                                       "label": qsTr("switch server"),
+                                       "key": "switch"
+                                   }] : [first];
+    }
 
     onActionTriggered: key => {
         if (key === "retry")
             root.retryRequested();
-        else if (key === "settings")
-            root.settingsRequested();
+        else if (key === "switch")
+            root.switchRequested();
+        else if (key === "login")
+            root.loginRequested();
         else if (key === "certificate")
             root.certificateRequested();
     }

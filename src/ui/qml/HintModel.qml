@@ -42,6 +42,11 @@ QtObject {
     /// docs/32 §6, the log face: its marked lines, and whether it follows new ones.
     property int logMarked: 0
     property bool logFollowing: true
+    /// docs/33 D8, D19: `ctrl+s server` joins the lost and empty lines with two servers or
+    /// more; with one it is taught nowhere.
+    property int serverCount: 1
+    /// docs/33 D9: a refused sign-in is not retried, so `R retry` goes.
+    property bool refused: false
 
     // what the footer reads ---------------------------------------------------------
     /// The state the hints describe. A window-wide state (lost server, empty library,
@@ -77,14 +82,13 @@ QtObject {
         case "disconnected":
             // Fig. 23. `R retry` is the one hint with no Keymap entry: retrying is not a
             // table action, it only exists while the server is gone (App.retryNow()).
-            return [
-                        {
-                            "key": "R",
-                            "label": qsTr("retry")
-                        },
-                        root._hint("global", ",")];
+            return (root.refused ? [] : [
+                                           {
+                                               "key": "R",
+                                               "label": qsTr("retry")
+                                           }]).concat(root._servers(), [root._hint("global", ",")]);
         case "empty":
-            return [root._hint("global", "a")]; // Fig. 22
+            return [root._hint("global", "a")].concat(root._servers()); // Fig. 22, docs/33 E1
         case "filteredEmpty":
             return [root._hint("global", "esc")]; // Fig. 24
         case "search":
@@ -112,6 +116,11 @@ QtObject {
     readonly property var pinnedLead: root.pinned === null ? null : root._hint("global", ":")
 
     // internals ----------------------------------------------------------------------
+    /// `ctrl+s server` with two servers or more, else nothing (docs/33 D19).
+    function _servers() {
+        return root.serverCount > 1 ? [root._hint("global", "ctrl+s")] : [];
+    }
+
     /// One `{key, label}` pair. `keys` is what the footer prints ("j k", "+ -"); the label
     /// comes from the Keymap entry of the first key, unless the caller overrides it.
     function _hint(area, keys, custom) {

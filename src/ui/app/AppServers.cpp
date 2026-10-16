@@ -10,6 +10,7 @@
 #include "integration/Notifier.hpp"
 
 #include <QDebug>
+#include <QJsonArray>
 #include <QJsonObject>
 #include <QTimer>
 
@@ -183,7 +184,17 @@ QVariantMap App::serverProblem(const QString &lastError, int retryInSeconds) con
     // Q16: the engine's retry, counted down; none after a refused sign-in (D9).
     const bool refused = m_serverRefused || ErrorWords::isRefusedSignIn(error, m_server.authMode);
     subject.retrySeconds = refused ? -1 : retryInSeconds;
-    return ErrorWords::forServer(error, subject).toMap();
+    QVariantMap words = ErrorWords::forServer(error, subject).toMap();
+    // docs/35 N5: the window draws the retry in a slot of its own, so the line without it,
+    // the retry alone, and the slot's width (its longest form).
+    ErrorWords::Subject base = subject;
+    base.retrySeconds = -1;
+    words.insert(QStringLiteral("lineBase"), ErrorWords::forServer(error, base).line);
+    const bool retried = words.value(QStringLiteral("kind")).toString() == QLatin1String("down");
+    words.insert(QStringLiteral("retry"),
+                 retried ? ErrorWords::retryLine(subject.retrySeconds) : QString());
+    words.insert(QStringLiteral("retryChars"), retried ? int(ErrorWords::retryLine(88).size()) : 0);
+    return words;
 }
 
 QString App::guardNote(const QString &key) const
@@ -286,6 +297,18 @@ QVariantMap App::busiestOtherServer() const
         {QStringLiteral("name"), m_serverList->data(at, ServerListModel::NameRole)},
         {QStringLiteral("count"), m_serverList->data(at, ServerListModel::LastCountRole)},
     };
+}
+
+void App::loadEmptyDemo()
+{
+    startDemo(1, false);
+    QJsonArray removed;
+    for (const QString &hash : m_engine->torrents()->hashes())
+        removed.append(hash);
+    QJsonObject diff;
+    diff[QStringLiteral("rid")] = 2;
+    diff[QStringLiteral("torrents_removed")] = removed;
+    applyDemoData(diff);
 }
 
 bool App::serversFolded() const

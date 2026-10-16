@@ -243,6 +243,7 @@ TestCase {
         const first = testCase.addTestServer("home", "http://10.99.0.2:8080");
         testCase.addTestServer("seedbox", "http://10.99.0.3:8080");
         const rail = createTemporaryObject(railComponent, testCase, {
+                                               "height": 800,
                                                "serverCount": App.serverCount
                                            });
         compare(rail.serversRowCount, 2);
@@ -270,6 +271,7 @@ TestCase {
         testCase.addTestServer("home", "http://10.99.0.2:8080");
         const second = testCase.addTestServer("seedbox", "http://10.99.0.3:8080");
         const rail = createTemporaryObject(railComponent, testCase, {
+                                               "height": 800,
                                                "serverCount": App.serverCount
                                            });
         const asked = createTemporaryObject(serverActivatedSpy, testCase, {
@@ -348,5 +350,100 @@ TestCase {
         const entry = rail._rowMap[0];
         verify(entry !== undefined);
         compare(entry.item.height, Theme.railRowHeight);
+    }
+
+    // ---- docs/33 §9: the servers block (D12, D16–D18) -------------------------------------
+    function railWithServers(names, props) {
+        for (let i = 0; i < names.length; ++i)
+            testCase.addTestServer(names[i], "http://10.99.0." + (10 + i) + ":8080");
+        return createTemporaryObject(railComponent, testCase, Object.assign({
+                                                                                "height": 900,
+                                                                                "serverCount": App.serverCount
+                                                                            }, props || {}));
+    }
+
+    function test_the_servers_block_is_pinned_under_the_scroll() {
+        const rail = railWithServers(["public", "private"]);
+        const block = findChild(rail, "serversBlock");
+        verify(block.visible);
+        // At the rail's bottom, whatever the scroll.
+        compare(block.y + block.height, rail.height);
+        compare(rail._rowMap[rail.serversBase].item.pinned, true);
+        compare(findChild(rail, "serversHeading").label, "servers · 2");
+    }
+
+    function test_the_servers_block_folds_to_one_line() {
+        const rail = railWithServers(["public", "private"], {
+                                         "serversFolded": true
+                                     });
+        compare(rail.serversSpan, 1);
+        const line = findChild(rail, "serversFoldedLine");
+        verify(line.visible);
+        compare(line.text, "public " + Glyphs.chevronUp);
+        compare(line.countText, "2 servers");
+        verify(!findChild(rail, "serversHeading").visible);
+        // z on it asks the host to unfold (app-wide, D17).
+        const asked = [];
+        rail.groupToggled.connect(group => asked.push(group));
+        rail.cursorIndex = rail.serversBase;
+        rail.toggleGroup(rail.groupAt(rail.cursorIndex));
+        compare(asked, ["servers"]);
+    }
+
+    function test_a_short_rail_folds_the_block_by_itself() {
+        const rail = railWithServers(["public", "private"], {
+                                         "height": 6 * Theme.railRowHeight
+                                     });
+        verify(rail.serversShort);
+        verify(rail.serversShownFolded);
+        const asked = [];
+        rail.groupToggled.connect(group => asked.push(group));
+        // Unfolded by hand, it opens over the filters and is not remembered.
+        rail.toggleGroup("servers");
+        compare(asked, []);
+        verify(rail.serversOverlay);
+        verify(!rail.serversShownFolded);
+        compare(findChild(rail, "serversBlock").border.width, 1);
+        // esc folds it again.
+        verify(rail.foldServersOverlay());
+        verify(rail.serversShownFolded);
+    }
+
+    function test_at_most_five_servers_then_more() {
+        const rail = railWithServers(["s0", "s1", "s2", "s3", "s4", "s5", "s6"]);
+        compare(rail.serversListed, 5);
+        verify(rail.serversMore);
+        compare(rail.serversSpan, 6);
+        const more = findChild(rail, "serversMoreRow");
+        compare(more.text, "2 more · ctrl+s");
+        let opened = 0;
+        rail.moreServersRequested.connect(() => opened++);
+        rail.cursorIndex = rail.serversBase + 5;
+        rail.selectCursor();
+        compare(opened, 1);
+        verify(!findChild(rail, "serverRow-s6").visible);
+    }
+
+    function test_servers_only_leaves_the_block_alone() {
+        const rail = railWithServers(["public", "private"], {
+                                         "serversOnly": true
+                                     });
+        compare(rail.statusSpan, 0);
+        compare(rail.trackersSpan, 0);
+        compare(rail.serversBase, 0);
+        compare(rail.totalRowCount, 2);
+        compare(rail._rowMap[0].item.text, "public");
+    }
+
+    // D5, docs/35 N3: a row's dot and count say what omaseed saw last.
+    function test_a_server_row_shows_its_state() {
+        const rail = railWithServers(["public", "private"]);
+        compare(rail._serverDotColor("live"), Theme.green);
+        compare(rail._serverDotColor("refused"), Theme.red);
+        rail.serverRetrying = true;
+        compare(rail._serverDotColor("down"), Theme.yellow);
+        compare(rail._serverCountColor("down"), Theme.yellow);
+        compare(rail._serverCountColor("!"), Theme.red);
+        compare(rail._serverCountColor("4"), Theme.dimForeground);
     }
 }

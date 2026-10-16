@@ -80,6 +80,7 @@ qt_add_qml_module(omaseed-views
         ScopeLine.qml
         SeedToast.qml
         SelectionBar.qml
+        ServerPalette.qml
         ServerSelect.qml
         ServerSheet.qml
         SettingsModal.qml

@@ -6,7 +6,9 @@ import QtQuick
 // swallows every key except the ones the figure's footer hints still promise (`R` retry, `,`
 // settings, `?` help, `q` hide to tray, `ctrl+q` quit) and the command palette's (`:`,
 // `ctrl+shift+p`, docs/30 P6), which it forwards as signals instead of letting them reach the
-// dimmed table underneath.
+// dimmed table underneath. docs/33 D4: `ctrl+s` goes through too (switching away is what the
+// guard should let pass), and D23: any other key it stops says so (`blocked`), so the
+// footer can tell why nothing happened.
 Item {
     id: root
 
@@ -17,6 +19,10 @@ Item {
     signal quitRequested
     signal retryRequested
     signal settingsRequested
+    /// `ctrl+s`: the server palette (docs/33 D2, D4).
+    signal serversRequested
+    /// A key it stopped, as typed ("p", "d"); the footer says it waits (docs/33 D23).
+    signal blocked(string key)
 
     anchors.fill: parent
 
@@ -41,6 +47,11 @@ Item {
             root.quitRequested();
         } else if (event.key === Qt.Key_Q) {
             root.hideRequested();
+        } else if (event.key === Qt.Key_S && (event.modifiers & Qt.ControlModifier)) {
+            root.serversRequested();
+        } else if (event.text.length > 0 && event.text.trim().length > 0
+                   && !(event.modifiers & (Qt.ControlModifier | Qt.AltModifier))) {
+            root.blocked(event.text);
         }
         event.accepted = true;
     }

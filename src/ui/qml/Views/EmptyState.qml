@@ -10,33 +10,71 @@ import Omaseed.Kit
 // vertical `Theme.space(10)` gap between rows per the task brief). Every row is clickable
 // (hover fill, like a `RailRow`) and emits its own signal; the caller (Main.qml) owns what
 // happens next — opening the add dialog, settings, or the `?` help sheet.
+//
+// docs/33 D6 (DECISIONS C12): with two servers or more the headline names the server ("No
+// torrents on public yet") and a row "ctrl+s switch server · private has 4" leads to the
+// busiest other one; with one server, Fig. 22 as built. D7: a server lost before it gave a
+// list ("noList") or that refused the sign-in ("refused") shows the same place with a centred
+// line saying so, and no rows.
 Item {
     id: root
+
+    /// The server the app is on.
+    property string serverName: ""
+    /// Two servers or more (D6).
+    property bool multiServer: false
+    /// The busiest other server, for the ctrl+s row; "" when none has a count yet.
+    property string otherName: ""
+    property int otherCount: -1
+    /// "empty" (Fig. 22), "noList" (O3) or "refused" (O4).
+    property string variant: "empty"
 
     signal addRequested
     signal helpRequested
     signal settingsRequested
+    /// The ctrl+s row: the server palette (D2).
+    signal switchRequested
+
+    readonly property string headline: {
+        if (root.variant === "noList")
+            return qsTr("Nothing from %1 yet").arg(root.serverName);
+        if (root.variant === "refused")
+            return qsTr("%1 refused the sign-in").arg(root.serverName);
+        return root.multiServer && root.serverName.length > 0 ? qsTr("No torrents on %1 yet").arg(root.serverName)
+                                                              : qsTr("No torrents yet");
+    }
+    /// The centred line of O3 and O4; "" for Fig. 22, whose line teaches `a`.
+    readonly property string note: root.variant === "noList" ? qsTr("omaseed hasn't reached it since it started. It tries again on its own.") : root.variant === "refused" ? qsTr("Fix the login in Settings › Servers; omaseed won't keep trying a password it knows is wrong.") : ""
 
     implicitHeight: Theme.space(280)
     implicitWidth: Theme.space(400)
 
-    readonly property var _rows: [
-        {
-            "key": "a",
-            "label": qsTr("add a torrent"),
-            "signal": "add"
-        },
-        {
-            "key": ",",
-            "label": qsTr("settings and servers"),
-            "signal": "settings"
-        },
-        {
-            "key": "?",
-            "label": qsTr("every shortcut"),
-            "signal": "help"
-        }
-    ]
+    readonly property var _rows: {
+        if (root.variant !== "empty")
+            return [];
+        const rows = [
+                  {
+                      "key": "a",
+                      "label": qsTr("add a torrent"),
+                      "signal": "add"
+                  }];
+        if (root.multiServer)
+            rows.push({
+                          "key": "ctrl+s",
+                          "label": root.otherName.length > 0 && root.otherCount >= 0 ? qsTr("switch server · %1 has %2").arg(root.otherName).arg(root.otherCount) : qsTr("switch server"),
+                          "signal": "switch"
+                      });
+        rows.push({
+                      "key": ",",
+                      "label": qsTr("settings and servers"),
+                      "signal": "settings"
+                  }, {
+                      "key": "?",
+                      "label": qsTr("every shortcut"),
+                      "signal": "help"
+                  });
+        return rows;
+    }
 
     /// What a click on `_rows[index]` does — exposed so `tst_States.qml` can exercise the
     /// row's outcome directly (`mouseClick()` never delivers under the offscreen
@@ -45,6 +83,8 @@ Item {
         const kind = root._rows[index].signal;
         if (kind === "add")
             root.addRequested();
+        else if (kind === "switch")
+            root.switchRequested();
         else if (kind === "settings")
             root.settingsRequested();
         else
@@ -61,12 +101,27 @@ Item {
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.subtitle
             font.weight: Font.DemiBold
-            text: qsTr("No torrents yet")
+            objectName: "emptyHeadline"
+            text: root.headline
+        }
+
+        Text {
+            anchors.horizontalCenter: parent.horizontalCenter
+            color: Theme.dimForeground
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.font.small
+            horizontalAlignment: Text.AlignHCenter
+            objectName: "emptyNote"
+            text: root.note
+            visible: root.note.length > 0
+            width: Math.min(implicitWidth, root.width - Theme.space(32))
+            wrapMode: Text.Wrap
         }
 
         Row {
             anchors.horizontalCenter: parent.horizontalCenter
             spacing: Theme.space(4)
+            visible: root.variant === "empty"
 
             Text {
                 color: Theme.dimForeground
@@ -126,7 +181,7 @@ Item {
                             font.pixelSize: Theme.font.small
                             horizontalAlignment: Text.AlignRight
                             text: row.modelData.key
-                            width: Theme.space(20)
+                            width: Theme.space(root.multiServer ? 44 : 20)
                         }
 
                         Text {

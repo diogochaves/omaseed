@@ -1770,4 +1770,86 @@ TestCase {
         verify(!findChild(empty, "clearFilterLink").visible);
         App.filtered.clearCategory();
     }
+
+    // ---- docs/33 (#69): servers in any state --------------------------------------------
+    function _twoServers() {
+        App.addServer({
+                          "name": "public",
+                          "url": "http://10.99.0.2:8080",
+                          "authMode": "none"
+                      }, "");
+        App.addServer({
+                          "name": "private",
+                          "url": "http://10.99.0.3:8080",
+                          "authMode": "none"
+                      }, "");
+    }
+
+    function _noServers() {
+        view.serverPalette.close();
+        while (App.serverList.count > 0)
+            App.serverList.remove(App.serverList.idAt(0));
+    }
+
+    // D19: one server, nothing switches; ctrl+s answers in the footer.
+    function test_ctrl_s_with_one_server_answers_in_the_footer() {
+        testCase._noServers();
+        keyClick(Qt.Key_S, Qt.ControlModifier);
+        compare(view.serverPalette.opened, false);
+        compare(view.footerNote, "one server · add another in Settings › Servers");
+        verify(!view.hero.serverSwitchable);
+    }
+
+    // D2, D3: two servers, the palette and the hero's ▾.
+    function test_ctrl_s_opens_the_server_palette_with_two() {
+        testCase._twoServers();
+        verify(view.hero.serverSwitchable);
+        keyClick(Qt.Key_S, Qt.ControlModifier);
+        compare(view.serverPalette.opened, true);
+        compare(view.serverPalette.items.length, 2);
+        compare(view.serverPalette.items.map(row => row.title), ["public", "private"]);
+        // The cursor starts on the next one.
+        compare(view.serverPalette.cursorIndex, 1);
+        verify(view.serverPalette.items[1].detail.indexOf("10.99.0.3:8080") === 0);
+        // `,` hands it to Settings › Servers on the cursor's row.
+        keyClick(Qt.Key_Comma);
+        compare(view.serverPalette.opened, false);
+        compare(view.settingsModal.opened, true);
+        compare(view.settingsModal.paneIndex, 1);
+        view.settingsModal.close();
+        // Settings remembers where it was; the next case expects it as it starts.
+        view.settingsModal.showPane(0);
+        view.settingsModal.area = "nav";
+        testCase._noServers();
+    }
+
+    // D4, D23: a lost server lets ctrl+s through and says why another key waits.
+    function test_the_guard_lets_the_switch_through_and_says_why_others_wait() {
+        testCase._twoServers();
+        view._testServerLost = true;
+        wait(0);
+        verify(view.serverNotice.shown);
+        keyClick("p");
+        compare(actionSpy.count, 0);
+        verify(view.footerNote.indexOf("p waits until it answers") >= 0, view.footerNote);
+        keyClick(Qt.Key_S, Qt.ControlModifier);
+        compare(view.serverPalette.opened, true);
+        view.serverPalette.close();
+        view._testServerLost = false;
+        testCase._noServers();
+    }
+
+    // D1: the empty library keeps the rail's servers block with two servers, and none with one.
+    function test_the_empty_library_keeps_the_servers_block() {
+        App.loadEmptyDemo();
+        compare(view.libraryEmpty, true);
+        compare(view.rail.visible, false);
+        testCase._twoServers();
+        compare(view.rail.visible, true);
+        compare(view.rail.serversOnly, true);
+        compare(findChild(view, "emptyState").headline.indexOf("No torrents on"), 0);
+        testCase._noServers();
+        App.loadDemo(16);
+        compare(view.rail.serversOnly, false);
+    }
 }

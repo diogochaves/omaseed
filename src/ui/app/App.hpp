@@ -1814,6 +1814,8 @@ public:
     Q_PROPERTY(bool serversFolded READ serversFolded WRITE setServersFolded NOTIFY settingsChanged)
     bool serversFolded() const;
     void setServersFolded(bool folded);
+    /// Demo mode only (the QML tests): an empty library, Fig. 22, on the demo server.
+    Q_INVOKABLE void loadEmptyDemo();
 
 Q_SIGNALS:
     void serverStateChanged();

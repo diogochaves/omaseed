@@ -129,7 +129,7 @@ TestCase {
                                                 "< >", "H L", "X", "1–4 / w f t"]);
 
         const application = Keymap.helpRows("app");
-        compare(application.map(row => row.helpKeys), [": ctrl+shift+p", "A", ", ctrl+,", "ctrl+shift+,", "ctrl+.",
+        compare(application.map(row => row.helpKeys), [": ctrl+shift+p", "A", ", ctrl+,", "ctrl+shift+,", "ctrl+s", "ctrl+.",
                                                        "q", "ctrl+q",
                                                        "super+t"]);
     }
@@ -482,7 +482,7 @@ TestCase {
             if (entry.title === undefined && entry.titles === undefined)
                 continue;
             verify(["", "torrents", "cursor", "stopped", "running", "selection", "details", "marked",
-                    "row", "rows", "file"].indexOf(entry.needs) >= 0, "unknown needs: " + entry.needs);
+                    "row", "rows", "file", "servers"].indexOf(entry.needs) >= 0, "unknown needs: " + entry.needs);
             const listed = Keymap.commandGroups.some(group => group.actions.indexOf(entry.action) >= 0
                                                      && Keymap.commandEntry(group.group, entry.action) === entry);
             verify(listed, "a titled entry in no group: " + entry.area + " " + entry.action);
@@ -529,5 +529,70 @@ TestCase {
             else
                 compare(entry.via, "ctrl+.", item.action);
         }
+    }
+
+    // ---- docs/33 D2, D4, D19 (DECISIONS C12) ---------------------------------------------
+    readonly property var threeServers: [
+        {
+            "id": "a",
+            "name": "public",
+            "current": true,
+            "last": ""
+        },
+        {
+            "id": "b",
+            "name": "private",
+            "current": false,
+            "last": "4 torrents"
+        },
+        {
+            "id": "c",
+            "name": "seedbox",
+            "current": false,
+            "last": "sign-in refused"
+        }
+    ]
+
+    function test_ctrl_s_switches_server() {
+        const entry = Keymap.find("global", "ctrl+s");
+        compare(entry.action, "switchServer");
+        compare(entry.title, "switch server…");
+        verify(entry.aboutOne.indexOf("two servers or more") >= 0);
+    }
+
+    function test_the_palette_switches_server_with_two_or_more() {
+        const rows = Keymap.commandRows(testCase._context({
+                                                              "servers": testCase.threeServers
+                                                          }));
+        const actions = rows.map(row => row.action);
+        const at = actions.indexOf("switchServer");
+        verify(at >= 0);
+        // "switch server…" first, then one row per other server.
+        compare(actions.slice(at, at + 3), ["switchServer", "switchTo:b", "switchTo:c"]);
+        compare(rows[at].detail, "app · 3 servers");
+        compare(rows[at + 1].title, "switch to private");
+        compare(rows[at + 1].detail, "app · 4 torrents last time");
+        compare(rows[at + 2].detail, "app · sign-in refused last time");
+        verify(actions.indexOf("switchTo:a") < 0);
+    }
+
+    function test_the_switch_rows_run_while_the_server_is_lost() {
+        const rows = Keymap.commandRows(testCase._context({
+                                                              "servers": testCase.threeServers,
+                                                              "serverLost": true
+                                                          }));
+        verify(!rows.find(row => row.action === "switchServer").disabled);
+        verify(!rows.find(row => row.action === "switchTo:b").disabled);
+        verify(rows.find(row => row.action === "add").disabled);
+        verify(Keymap.isOffline("switchTo:b"));
+        verify(Keymap.isOffline("switchServer"));
+        verify(!Keymap.isOffline("stop"));
+    }
+
+    function test_one_server_offers_no_switch() {
+        const rows = Keymap.commandRows(testCase._context({
+                                                              "servers": [testCase.threeServers[0]]
+                                                          }));
+        verify(!rows.some(row => row.action === "switchServer" || row.action.startsWith("switchTo:")));
     }
 }
