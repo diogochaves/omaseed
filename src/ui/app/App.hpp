@@ -1816,12 +1816,26 @@ public:
     void setServersFolded(bool folded);
     /// Demo mode only (the QML tests): an empty library, Fig. 22, on the demo server.
     Q_INVOKABLE void loadEmptyDemo();
+    /// D15 (docs/33 N3): the last add the server refused or never took, in ErrorWords' words
+    /// (`{headline, line, details, kind, sentence}`); its `sentence` is the message
+    /// `addFinished` carried.
+    Q_PROPERTY(QVariantMap addFailure READ addFailure NOTIFY addFailureChanged)
+    QVariantMap addFailure() const { return m_addFailure; }
+    /// docs/35 N8: the last action the server refused, in ErrorWords' words; the footer's
+    /// sentence is its `sentence`, and its "details" open the band with the rest.
+    Q_PROPERTY(QVariantMap actionFailure READ actionFailure NOTIFY actionFailureChanged)
+    QVariantMap actionFailure() const { return m_actionFailure; }
 
 Q_SIGNALS:
     void serverStateChanged();
     void serverRowsChanged();
+    void addFailureChanged();
+    void actionFailureChanged();
 
 private:
+    /// An add the API refused: `addFailure` in words, then `addFinished(false, sentence)`.
+    void failAdd(const omaseed::core::ApiError &error, const QString &torrent);
+    QVariantMap m_addFailure;
     /// Reads state.json's `servers` section into the list (D5).
     void loadLastSeen();
     /// The current server answered: its count and the time, at most once a minute unless
@@ -1838,10 +1852,11 @@ private:
     /// The words a subject needs: the server's name, address, auth mode and certificate.
     omaseed::core::ErrorWords::Subject errorSubject() const;
     /// D23: an action's failure as one plain sentence for the footer; `torrent` and `folder`
-    /// say what it was about when the request does not.
+    /// say what it was about when the request does not. Its words stay in `actionFailure`.
     QString actionFailureText(const omaseed::core::ApiError &error,
                               const QString &torrent = QString(),
-                              const QString &folder = QString()) const;
+                              const QString &folder = QString());
+    QVariantMap m_actionFailure;
 
     bool m_serverRefused = false;
     bool m_serversFolded = false;

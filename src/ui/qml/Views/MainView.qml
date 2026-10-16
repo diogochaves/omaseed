@@ -756,6 +756,12 @@ Item {
                 root.quitRequested();
             return;
         }
+        // docs/35 N8: esc closes the failure's band first.
+        if (root.footerNoticeOpen && event.key === Qt.Key_Escape) {
+            root.footerNoticeOpen = false;
+            event.accepted = true;
+            return;
+        }
 
         if (ctrl) {
             switch (event.key) {
@@ -1434,9 +1440,20 @@ Item {
 
         /// T4.3's seam: an action the server refused, on the footer for a few seconds.
         function onActionFailed(action: string, message: string): void {
-            // docs/33 D23: a refusal comes worded already (ErrorWords), the subject named.
-            root.flashFooterNote(action.length > 0 ? qsTr("%1 failed: %2").arg(action).arg(message)
-                                                   : message);
+            // docs/33 D23: a refusal comes worded already (ErrorWords), the subject named; it
+            // stays until the next key, with "details" (docs/35 N8).
+            if (action.length > 0) {
+                root.flashFooterNote(qsTr("%1 failed: %2").arg(action).arg(message));
+                return;
+            }
+            root.flashFooterNote(message);
+            const failure = App.actionFailure;
+            if (failure.sentence === message) {
+                root.footerFailure = failure;
+                root.footerNoteMark = "✕";
+                footerNoteTimer.stop();
+                root.footerNoteSticky = true;
+            }
         }
 
         /// docs/32 N1: answered "OK", then failed, says the log.
@@ -2046,6 +2063,41 @@ Item {
         }
     }
 
+    // docs/35 N8: an action's failure, its details docked above the footer over the table's
+    // last rows, opaque; nothing moves. esc, a click outside or "details" again close it.
+    MouseArea {
+        anchors.fill: parent
+        enabled: root.footerNoticeOpen
+        visible: root.footerNoticeOpen
+        z: 7
+
+        onPressed: mouse => {
+            root.footerNoticeOpen = false;
+            mouse.accepted = false;
+        }
+    }
+
+    Notice {
+        id: footerNotice
+
+        anchors.bottom: footer.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        animated: !App.reducedMotion
+        body: root.footerFailure.line || ""
+        details: root.footerFailure.details || ""
+        detailsOpen: true
+        edge: "top"
+        kind: "error"
+        objectName: "footerNotice"
+        opaque: true
+        shown: root.footerNoticeOpen && root.footerFailure.headline !== undefined
+        title: root.footerFailure.headline || ""
+        z: 8
+
+        onCopyRequested: text => App.copyToClipboard(text)
+    }
+
     // footer (spec `.foot`)
     HintModel {
         id: hintModel
@@ -2144,7 +2196,8 @@ Item {
             // ▼ for turtle in yellow, and reads in the foreground.
             Label {
                 Layout.alignment: Qt.AlignVCenter
-                color: root.footerNoteMark === "▲" ? Theme.green : Theme.yellow
+                color: root.footerNoteMark === "▲" ? Theme.green : root.footerNoteMark === "✕" ? Theme.red
+                                                                                              : Theme.yellow
                 objectName: "footerNoteMark"
                 size: "caption"
                 text: root.footerNoteMark
@@ -2162,6 +2215,27 @@ Item {
                 size: "small"
                 text: root.footerNote
                 visible: root.footerNote.length > 0
+            }
+
+            // docs/35 N8: the sentence's "details" open the band above the footer.
+            Label {
+                Layout.alignment: Qt.AlignVCenter
+                color: footerDetailsMouse.containsMouse ? Theme.accent : Theme.dimForeground
+                objectName: "footerFailureDetails"
+                size: "small"
+                text: qsTr("details") + " " + (root.footerNoticeOpen ? Glyphs.chevronDown : Glyphs.chevronRight)
+                visible: root.footerNote.length > 0 && root.footerFailure.headline !== undefined
+
+                MouseArea {
+                    id: footerDetailsMouse
+
+                    anchors.fill: parent
+                    anchors.margins: -Theme.space(4)
+                    cursorShape: Qt.PointingHandCursor
+                    hoverEnabled: true
+
+                    onClicked: root.footerNoticeOpen = !root.footerNoticeOpen
+                }
             }
 
             // docs/32 N1: "· i details", while the pane that holds the block is hidden.
@@ -2293,8 +2367,15 @@ Item {
     /// The set's mark before the note after A ("▲", "▼"), "" for none.
     property string footerNoteMark: ""
 
+    /// docs/35 N8: the failure the footer's note is, for its "details"; {} when it is none.
+    property var footerFailure: ({})
+    /// The band with the failure's details, docked above the footer.
+    property bool footerNoticeOpen: false
+
     /// `y`/`Y`'s "copied", and (through `Connections` below) `App.actionFailed`.
     function flashFooterNote(text: string): void {
+        root.footerFailure = {};
+        root.footerNoticeOpen = false;
         root.footerNoteWarn = false;
         root.footerNoteHint = false;
         root.footerNoteSticky = false;
@@ -2367,6 +2448,7 @@ Item {
         onKeyPressed: {
             root.footerNote = "";
             root.footerNoteSticky = false;
+            root.footerNoticeOpen = false; // docs/35 N8: esc, or any key
         }
     }
 

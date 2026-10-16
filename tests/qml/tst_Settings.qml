@@ -373,7 +373,7 @@ TestCase {
         verify(row !== null);
         compare(row.title, "playground");
         compare(row.description, "http://127.0.0.1:8081 · API key · v5.2.3 · 3 torrents");
-        compare(row.status, "default"); // the only server is the default one
+        compare(row.status, "in use"); // the only server is the default one
         compare(row.failing, false);
 
         const addRow = testCase.childNamed(modal, "serverRowAdd");
@@ -828,7 +828,7 @@ TestCase {
         sheet.close();
     }
 
-    // #51 D4: the sheet of a server that is not the default has "make default", which does
+    // #51 D4: the sheet of a server that is not the default has "switch to it", which does
     // what `d` on its row does; the default one's sheet has no such button.
     function test_the_server_sheet_makes_a_server_the_default() {
         const first = testCase.addTestServer("first", "http://127.0.0.1:8081");
@@ -845,7 +845,7 @@ TestCase {
         sheet.close();
 
         sheet.openFor(App.serverList.serverMap(second));
-        compare(texts(), ["make default", "test", "remove", "edit"]);
+        compare(texts(), ["switch to it", "test", "remove", "edit"]);
         const button = sheet.actionButtons()[0];
         // The foot lays its four buttons out on the next polish.
         tryVerify(() => sheet.actionButtons()[3].x > button.x);
@@ -854,12 +854,12 @@ TestCase {
         verify(sheet.opened, "the sheet closed");
         verify(sheet.isDefault);
         compare(texts(), ["test", "remove", "edit"]);
-        compare(testCase.childNamed(modal, "serverRow1").status, "default");
+        compare(testCase.childNamed(modal, "serverRow1").status, "in use");
         sheet.close();
     }
 
-    // #51 D4: a right-click on a server row opens its menu (edit, test, make default,
-    // remove), with the row's keys; "make default" is greyed on the default one.
+    // #51 D4: a right-click on a server row opens its menu (edit, test, switch to it,
+    // remove), with the row's keys; "switch to it" is greyed on the default one.
     function test_a_right_click_on_a_server_row_opens_its_menu() {
         const first = testCase.addTestServer("first", "http://127.0.0.1:8081");
         const second = testCase.addTestServer("second", "http://127.0.0.1:8082");
@@ -876,7 +876,7 @@ TestCase {
         verify(menu.opened, "no menu on a server row");
         verify(!modal.serverSheet.opened, "a right-click opened the sheet");
         compare(menu.items.filter(entry => !entry.separator).map(entry => entry.text),
-                ["edit", "test", "make default", "remove"]);
+                ["edit", "test", "switch to it", "remove"]);
         compare(item("edit").key, "enter");
         compare(item("default").key, "d");
         compare(item("remove").key, "x");
@@ -899,7 +899,7 @@ TestCase {
         // The model is reset by a new default, so the rows are new too.
         row0 = testCase.childNamed(modal, "serverRow0");
         row1 = testCase.childNamed(modal, "serverRow1");
-        compare(row1.status, "default");
+        compare(row1.status, "in use");
         waitForItemPolished(row1.parent);
 
         // edit opens the row's sheet; remove asks first, as `x` does.

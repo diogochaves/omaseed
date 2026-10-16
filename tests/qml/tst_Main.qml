@@ -1852,4 +1852,28 @@ TestCase {
         App.loadDemo(16);
         compare(view.rail.serversOnly, false);
     }
+
+    // docs/35 N8: an action's failure stays in the footer, and its details dock above it
+    // over the table; esc closes them, nothing moves.
+    function test_a_failures_details_dock_above_the_footer() {
+        const table = view.table.y;
+        view.flashFooterNote("Field Recordings wasn't moved: qBittorrent can't create or write /proc/omaseed");
+        view.footerNoteSticky = true;
+        view.footerFailure = {
+            "headline": "Field Recordings wasn't moved",
+            "line": "qBittorrent can't create or write /proc/omaseed.",
+            "details": "conflict (409) · POST torrents/setLocation · server replied: Conflict",
+            "sentence": "x"
+        };
+        verify(findChild(view, "footerFailureDetails").visible);
+        view.footerNoticeOpen = true;
+        const band = findChild(view, "footerNotice");
+        verify(band.shown);
+        verify(band.opaque);
+        compare(band.edge, "top");
+        compare(view.table.y, table);
+        keyClick(Qt.Key_Escape);
+        compare(view.footerNoticeOpen, false);
+        view.flashFooterNote("");
+    }
 }

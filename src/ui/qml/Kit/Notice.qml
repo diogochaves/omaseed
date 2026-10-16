@@ -50,6 +50,8 @@ Item {
     property bool animated: true
     /// N5: below this width the actions move under the line.
     property real stackWidth: Theme.space(600)
+    /// N8: docked over the content (above the footer), the band is opaque under its fill.
+    property bool opaque: false
 
     readonly property bool stacked: root.width < root.stackWidth
     readonly property color kindColor: root.kind === "error" ? Theme.red : root.kind === "warning"
@@ -102,6 +104,11 @@ Item {
     }
 
     // The box: its own fill, the kind's rule, the hairline where it meets the content.
+    Rectangle {
+        anchors.fill: parent
+        color: root.opaque ? Theme.background : "transparent"
+    }
+
     Rectangle {
         anchors.fill: parent
         color: Theme.fill(Theme.fillIdle)

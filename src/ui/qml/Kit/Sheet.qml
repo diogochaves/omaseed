@@ -85,6 +85,10 @@ Item {
     /// Drawn right after the title on its line (docs/33 A1: the add sheet's server chip).
     /// Null draws nothing.
     property Component titleTrailer: null
+    /// docs/35 N7: a band under the head, the panel's full width (its padding bled), between
+    /// the head and the rows: the sheet's notice. Null draws nothing; a band of no height
+    /// (a folded Notice) takes no room.
+    property Component headBand: null
 
     /// The caller's rows. They are a `ColumnLayout`'s children: use `Layout.fillWidth`.
     default property alias content: bodyColumn.data
@@ -104,6 +108,8 @@ Item {
         let chrome = 2 * root._margin + 2 * panel.padding;
         if (head.visible)
             chrome += head.height + layout.spacing;
+        if (headBandLoader.visible)
+            chrome += headBandLoader.height + layout.spacing;
         if (actionsRow.visible)
             chrome += actionsRow.height + actionsRow.Layout.topMargin + layout.spacing;
         if (foot.visible)
@@ -523,6 +529,22 @@ Item {
                         onClicked: root.pressEscape()
                     }
                 }
+            }
+
+            // docs/35 N7: the sheet's notice, edge to edge under the head.
+            Loader {
+                id: headBandLoader
+
+                readonly property Item band: headBandLoader.item as Item
+
+                Layout.fillWidth: true
+                Layout.leftMargin: -panel.padding + panel.border.width
+                Layout.preferredHeight: headBandLoader.band ? headBandLoader.band.height : 0
+                Layout.rightMargin: -panel.padding + panel.border.width
+                active: root.headBand !== null
+                objectName: "sheetHeadBand"
+                sourceComponent: root.headBand
+                visible: active && headBandLoader.band !== null && headBandLoader.band.height > 0
             }
 
             // the caller's rows ------------------------------------------------------

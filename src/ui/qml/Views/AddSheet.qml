@@ -45,6 +45,17 @@ import Omaseed.Kit
 // Ticks in In Downloads are what `add` adds while the field is empty: the button reads
 // `add N`, and a click takes them, waits for their `.torrent`s to be read, and adds them.
 //
+// docs/33 #72 (D13–D15, D20; DECISIONS C12): with two servers or more the head says where the
+// torrent goes, "Add torrent to NAME", the name in a chip (its state's dot, ▾); the chip or
+// ctrl+s opens the server palette, and a pick switches the app (one connection, C8) with the
+// sheet still open: what was typed stays (category and tags by name), what came from the old
+// server is read again after the new one's first sync (the default save path, free space, the
+// library check), and one line says what moved. With one server the head is "Add torrent" and
+// nothing names the server (D20). A server that is down when the sheet opens, or goes while it
+// is up, gets docs/35's band under the head (yellow, N7) and `add when back` holds the
+// torrent until it answers or the app switches; an add the server refused or never took gets
+// the same band in red, with its words from core/ErrorWords (N3).
+//
 //     AddSheet { anchors.fill: parent; onAddRequested: request => App.addTorrent(request) }
 Sheet {
     id: sheet
@@ -69,8 +80,26 @@ Sheet {
     /// Test seam: what `Xdg.detectClipboardMagnet()` would answer. Non-empty wins over the
     /// real clipboard, which an offscreen test run has no control over.
     property string clipboardAddable: ""
-    /// The server's refusal, drawn as an error Banner above the rows; "" hides it.
+    /// What the sheet could not do, drawn in the band under the head (docs/35 N7); "" hides it.
     property string errorText: ""
+    /// D15 (docs/33 N3): the add the server refused or never took, App.addFailure's words.
+    property var failure: ({})
+    /// D14 (A2): what a switch from the sheet moved, one line; "" hides it.
+    property string movedText: ""
+    /// D15: `add when back` holds `{stopped}` until the server answers.
+    property var _held: null
+    /// The server the sheet's figures came from, to tell a switch from another server change.
+    property string _serverId: ""
+    /// A switch whose first sync has not come yet: the moved line waits for it.
+    property bool _switchPending: false
+    /// A test seam: the QML tests run on the demo library, whose server never goes.
+    property bool _testServerDown: false
+    /// docs/33 D13: there is another server to send it to.
+    readonly property bool multiServer: App.serverCount > 1
+    /// D15: the app's server is down (or refused the sign-in), not merely syncing.
+    readonly property bool serverDown: sheet._testServerDown
+                                       || (App.hasServer && !App.demoMode && !App.globalState.connected
+                                           && !(App.globalState.syncing && App.torrents.count === 0))
     /// Why the field's text is not addable, as `App.parseAddable` put it ("" when it gave no
     /// reason); shown when `enter` is pressed on it (review RUN-8).
     property string _parseError: ""
@@ -256,12 +285,16 @@ Sheet {
         {
             "key": "enter",
             "label": sheet._nothingTicked ? sheet._addStoppedText : sheet._addText
-        },
-        {
-            "key": "shift+enter",
-            "label": qsTr("add stopped")
         }
-    ]
+    ].concat(sheet.multiServer ? [
+                                     {
+                                         "key": "ctrl+s",
+                                         "label": qsTr("server")
+                                     }] : [], [
+                 {
+                     "key": "shift+enter",
+                     "label": qsTr("add stopped")
+                 }])
     /// … and the "in Downloads" list's (Keymap "addDownloads").
     readonly property var _downloadsHints: [
         {
@@ -372,7 +405,9 @@ Sheet {
                                                                       t => t.inLibrary
                                                                       && downloadsList.ticked.indexOf(t.path) >= 0).length
                                                                 : 0
-    readonly property string _addText: sheet._addCount > 1 ? qsTr("add %1").arg(sheet._addCount) : qsTr("add")
+    readonly property string _addText: sheet.serverDown ? qsTr("add when back")
+                                                        : sheet._addCount > 1 ? qsTr("add %1").arg(sheet._addCount)
+                                                                              : qsTr("add")
     readonly property string _addStoppedText: sheet._addCount > 1 ? qsTr("add %1 stopped").arg(sheet._addCount)
                                                                   : qsTr("add stopped")
 
@@ -787,7 +822,7 @@ Sheet {
                 return;
             }
             sheet.errorText = "";
-            sheet.addRequested(sheet.batchRequest(stopped));
+            sheet._send(stopped);
             return;
         }
         if (!sheet.addable && sourceField.text.trim().length > 0) {
@@ -817,7 +852,74 @@ Sheet {
         if (sheet._checkDuplicate())
             return;
             sheet.errorText = "";
-            sheet.addRequested(sheet.request(stopped));
+            sheet._send(stopped);
+        }
+
+            /// D15: the add now, or held until the server answers (`add when back`).
+            function _send(stopped: bool): void {
+            sheet.failure = {};
+            if (sheet.serverDown) {
+                sheet._held = {
+                    "stopped": stopped
+                };
+                return;
+            }
+            sheet._held = null;
+            sheet.addRequested(sheet.batchMode ? sheet.batchRequest(stopped) : sheet.request(stopped));
+        }
+
+            /// The server answers again (or the app is on another one that does): a held add goes.
+            function _releaseHeld(): void {
+            if (!sheet.opened || sheet._held === null || sheet.serverDown)
+                return;
+            const held = sheet._held;
+            sheet._held = null;
+            sheet._send(held.stopped);
+        }
+
+            /// D14: the app moved to another server while the sheet is up. What was typed stays;
+            /// the chips keep their names until the new server's lists are in.
+            function _serverSwitched(): void {
+            sheet.failure = {};
+            sheet.movedText = "";
+            const category = categoryChips.current;
+            if (category.length > 0 && sheet.extraCategories.indexOf(category) < 0)
+                sheet.extraCategories = sheet.extraCategories.concat([category]);
+            const tags = tagChips.selected.filter(tag => sheet.extraTags.indexOf(tag) < 0);
+            if (tags.length > 0)
+                sheet.extraTags = sheet.extraTags.concat(tags);
+            sheet._switchPending = true;
+        }
+
+            /// D14 (A2): the new server's first sync is in: read again what came from the server
+            /// and say in one line what moved.
+            function _afterSwitch(): void {
+            sheet._switchPending = false;
+            const parts = [];
+            if (!sheet._savePathEdited) {
+                sheet._applyCategorySavePath();
+                parts.push(qsTr("save path back to its default"));
+            } else {
+                parts.push(qsTr("the save path you typed is checked again there"));
+            }
+            const names = App.categories.count > 0 ? App.categories.names() : [];
+            const category = categoryChips.current;
+            if (category.length > 0 && names.indexOf(category) < 0)
+                parts.push(qsTr("category “%1” is new there and will be created").arg(category));
+            for (const tag of tagChips.selected) {
+                if (!App.tags.contains(tag))
+                    parts.push(qsTr("tag “%1” is new there and will be created").arg(tag));
+            }
+            sheet.movedText = qsTr("Moved to %1: %2.").arg(App.serverName).arg(parts.join(", "));
+            // The library check and the files match are the new server's now.
+            sheet._matchToken = "";
+            if (!sheet.batchMode && sheet._checkDuplicate())
+                return;
+            sheet._findMatches();
+            sheet._lookUp();
+            if (sheet.batchMode)
+                sheet._askBatchMatches();
+            sheet._releaseHeld();
         }
 
             /// A waiting `add` (`_submitWhenRead`) runs once nothing is being read any more.
@@ -837,10 +939,19 @@ Sheet {
             /// `App.addFinished`: move to the next queued source, close, or stay open in red.
             function finish(ok: bool, message: string): void {
             if (!ok) {
+                // docs/33 N3: a refusal the API gave comes in ErrorWords' words; anything else
+                // (nothing to add, a name already on disk) is the message itself.
+                const failure = App.addFailure;
+                if (failure.sentence !== undefined && failure.sentence === message) {
+                    sheet.failure = failure;
+                    sheet.errorText = "";
+                    return;
+                }
                 sheet.errorText = message.length > 0 ? message : qsTr(
                                                                      "the server refused this torrent");
                 return;
             }
+            sheet.failure = {};
             if (sheet.queue.length > 0) {
                 const next = sheet.queue[0];
                 sheet.queue = sheet.queue.slice(1);
@@ -878,6 +989,10 @@ Sheet {
                 sheet._batchMatches = {};
                 downloadsList.ticked = [];
                 sheet.errorText = "";
+                sheet.failure = {};
+                sheet.movedText = "";
+                sheet._held = null;
+                sheet._switchPending = false;
                 sheet.autoTMM = true;
                 sheet._savePathEdited = false;
                 sheet._pendingToken = "";
@@ -1065,8 +1180,12 @@ Sheet {
                                                         "primary": true
                                                     }
                                                 ]
-                footerRight: qsTr("server: %1").arg(App.serverName)
+                // docs/33 D13, D20: the server is named in the head with two servers, nowhere
+                // with one; the foot's "server: NAME" is gone.
+                footerRight: ""
                 glyph: Glyphs.add
+                headBand: noticeBand
+                titleTrailer: sheet.multiServer ? serverChip : null
                 // Manual box M5: a stray click or `esc` must not lose a half-filled add.
                 guarded: true
                 hints: filesTree.editing ? sheet._renameHints : filesTree.activeFocus
@@ -1102,7 +1221,9 @@ Sheet {
                         parts.push(sheet.sourceText);
                     return parts.join(" · ");
                 }
-                title: sheet.batchMode ? qsTr("Add %1 torrents").arg(sheet.batchCount) : qsTr("Add torrent")
+                title: sheet.multiServer ? (sheet.batchMode ? qsTr("Add %1 torrents to").arg(sheet.batchCount)
+                                                            : qsTr("Add torrent to"))
+                                         : sheet.batchMode ? qsTr("Add %1 torrents").arg(sheet.batchCount) : qsTr("Add torrent")
 
                 onAddableChanged: {
                     sheet._syncFiles();
@@ -1116,12 +1237,19 @@ Sheet {
                 // would type the "s", so the fields hand it on (`_fieldShortcuts`); anything
                 // else lets it reach the sheet.
                 keyHandler: event => {
-                    if (sheet._onShortcut(event.key, event.modifiers))
+                    if (sheet._onShortcut(event.key, event.modifiers)) {
                         event.accepted = true;
+                    } else if (event.key === Qt.Key_S && (event.modifiers & Qt.ControlModifier)
+                               && sheet.multiServer) {
+                        // docs/33 D14: the server palette over the sheet.
+                        sheet.serverPaletteRequested();
+                        event.accepted = true;
+                    }
                 }
                 // Each opening looks at Downloads again: the browser may have saved one since.
                 onOpenedChanged: {
                     if (sheet.opened) {
+                        sheet._serverId = App.serverId;
                         App.scanDownloads();
                         sheet._lookUp();
                     } else {
@@ -1200,13 +1328,131 @@ Sheet {
                         target: App
                     }
 
-                    // The server's refusal (spec has no state for it in Fig. 5; the kit's error Banner is
-                    // the one red surface a sheet already owns).
+                    // docs/33 D14 (A2): what a switch from the sheet moved, in one yellow line.
                     Banner {
                         Layout.fillWidth: true
-                        kind: "error"
-                        text: sheet.errorText
-                        visible: sheet.errorText.length > 0
+                        kind: "warning"
+                        objectName: "addMovedLine"
+                        text: sheet.movedText
+                        visible: sheet.movedText.length > 0
+                    }
+
+                    // D14, D15: the switch, the server's state and a held add.
+                    Connections {
+                        function onServerChanged(): void {
+                            if (!sheet.opened || App.serverId === sheet._serverId)
+                                return;
+                            sheet._serverId = App.serverId;
+                            sheet._serverSwitched();
+                        }
+
+                        target: App
+                    }
+
+                    Connections {
+                        function onLastSyncTimeChanged(): void {
+                            if (!sheet.opened)
+                                return;
+                            if (sheet._switchPending)
+                                sheet._afterSwitch();
+                            else
+                                sheet._releaseHeld();
+                        }
+
+                        target: App.globalState
+                    }
+
+                    // docs/35 N7: the sheet's notice, under its head, edge to edge.
+                    Component {
+                        id: noticeBand
+
+                        Notice {
+                            readonly property var problem: App.serverProblem(App.globalState.lastError,
+                                                                             App.globalState.retryInSeconds)
+                            readonly property bool failed: sheet.failure.headline !== undefined
+
+                            actions: sheet.multiServer && (failed || sheet.serverDown) ? [
+                                                                                            {
+                                                                                                "label": qsTr("switch server"),
+                                                                                                "key": "switch"
+                                                                                            }] : []
+                            animated: !App.reducedMotion
+                            body: failed ? (sheet.failure.line || "")
+                                         : sheet.serverDown ? (sheet._held !== null ? qsTr("The torrent is held: it goes as soon as %1 answers.").arg(App.serverName)
+                                                                                    : qsTr("“add when back” holds the torrent until it answers."))
+                                                            : ""
+                            bodyTail: !failed && sheet.serverDown ? (problem.retry || "") : ""
+                            bodyTailChars: problem.retryChars || 0
+                            details: failed ? (sheet.failure.details || "") : sheet.serverDown ? (problem.details || "") : ""
+                            edge: "both"
+                            // N3: nothing has failed yet while it is down (yellow); a refused add is red.
+                            kind: failed || sheet.errorText.length > 0 ? "error" : "warning"
+                            objectName: "addNotice"
+                            shown: sheet.opened && (failed || sheet.serverDown || sheet.errorText.length > 0)
+                            title: failed ? sheet.failure.headline
+                                          : sheet.errorText.length > 0 ? sheet.errorText
+                                                                       : qsTr("%1 isn't answering").arg(App.serverName)
+
+                            onActionTriggered: key => {
+                                if (key === "switch")
+                                    sheet.serverPaletteRequested();
+                            }
+                            onCopyRequested: text => App.copyToClipboard(text)
+                        }
+                    }
+
+                    // docs/33 D13 (A1): the server the torrent goes to, a chip after the title.
+                    Component {
+                        id: serverChip
+
+                        Rectangle {
+                            border.color: chipMouse.containsMouse ? Theme.fill(Theme.borderHover) : Theme.fill(Theme.borderIdle)
+                            border.width: 1
+                            color: chipMouse.containsMouse ? Theme.fill(Theme.fillHover) : "transparent"
+                            implicitHeight: chipRow.implicitHeight + Theme.space(4)
+                            implicitWidth: chipRow.implicitWidth + Theme.space(12)
+                            objectName: "addServerChip"
+                            radius: Theme.cornerRadius
+
+                            Row {
+                                id: chipRow
+
+                                anchors.centerIn: parent
+                                spacing: Theme.space(6)
+
+                                Rectangle {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    // docs/35 N3: yellow while omaseed retries, red when it needs you.
+                                    color: !sheet.serverDown ? Theme.green : App.serverRefused ? Theme.red : Theme.yellow
+                                    height: Theme.space(7)
+                                    radius: width / 2
+                                    width: Theme.space(7)
+                                }
+
+                                Label {
+                                    bright: true
+                                    font.weight: Font.DemiBold
+                                    objectName: "addServerName"
+                                    text: App.serverName
+                                }
+
+                                Label {
+                                    dim: true
+                                    size: "caption"
+                                    text: Glyphs.chevronDown
+                                }
+                            }
+
+                            MouseArea {
+                                id: chipMouse
+
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                hoverEnabled: true
+
+                                onClicked: sheet.serverPaletteRequested()
+                            }
+                        }
                     }
 
                     // `.row` — Magnet, URL or file; in a batch (#40), the list over a field for more
@@ -1461,7 +1707,8 @@ Sheet {
                             id: savePathField
 
                             Layout.fillWidth: true
-                            placeholder: qsTr("the server's default")
+                            placeholder: sheet.multiServer ? qsTr("%1's default").arg(App.serverName)
+                                                           : qsTr("the server's default")
                             shortcuts: sheet._fieldShortcuts
                             // #41: where the path came from, then the button.
                             trailing: sheet.savedThere ? qsTr("from the files match · browse")
@@ -1504,6 +1751,7 @@ Sheet {
                                                         : sheet.addable && sheet.addable.totalSize !== undefined
                                                           ? sheet.addable.totalSize : -1
                             alreadyThere: sheet.savedThere
+                            serverDown: sheet.serverDown
                             visible: sheet.batchMode ? sheet.batchCount > 0
                                                      : sheet.addable !== null && sheet.addable.valid === true
                         }

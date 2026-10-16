@@ -244,7 +244,8 @@ TestCase {
         compare(sheet.subtitle,
                 "Fedora-Workstation-Live-44-1.6.x86_64.iso · 2.34 GB · from clipboard");
         compare(sheet.title, "Add torrent");
-        compare(sheet.footerRight, "server: " + App.serverName);
+        // docs/33 D20: with one server nothing names it, the foot included.
+        compare(sheet.footerRight, "");
     }
 
     function test_an_empty_sheet_asks_for_a_source() {
@@ -1820,5 +1821,117 @@ TestCase {
         sheet.openWith(testCase.freshMagnet, "clipboard");
         compare(sheet._matchToken, "");
         compare(sheet.matchLine.visible, false);
+    }
+
+    // ---- docs/33 #72 (D13–D15, D20) -----------------------------------------------------
+    function _twoServers() {
+        App.addServer({
+                          "name": "public",
+                          "url": "http://10.99.0.2:8080",
+                          "authMode": "none"
+                      }, "");
+        App.addServer({
+                          "name": "private",
+                          "url": "http://10.99.0.3:8080",
+                          "authMode": "none"
+                      }, "");
+    }
+
+    function _noServers() {
+        while (App.serverList.count > 0)
+            App.serverList.remove(App.serverList.idAt(0));
+    }
+
+    // D13 (A1): with two servers the head names the server in a chip; ctrl+s asks for the
+    // server palette (D14).
+    function test_two_servers_name_the_target_in_the_head() {
+        testCase._twoServers();
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        sheet.openWith(testCase.freshMagnet, "clipboard");
+        compare(sheet.title, "Add torrent to");
+        compare(sheet.footerRight, "");
+        const chip = findChild(sheet, "addServerChip");
+        verify(chip !== null);
+        compare(findChild(chip, "addServerName").text, App.serverName);
+        verify(sheet._baseFormHints.some(hint => hint.key === "ctrl+s"));
+        let asked = 0;
+        sheet.serverPaletteRequested.connect(() => asked++);
+        keyClick(Qt.Key_S, Qt.ControlModifier);
+        compare(asked, 1);
+        sheet.dismiss();
+        testCase._noServers();
+    }
+
+    function test_one_server_has_no_chip() {
+        testCase._noServers();
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        sheet.openBlank();
+        compare(findChild(sheet, "addServerChip"), null);
+        verify(!sheet._baseFormHints.some(hint => hint.key === "ctrl+s"));
+        sheet.dismiss();
+    }
+
+    // D15 (A3): the server down, the sheet still opens; "add when back" holds the torrent and
+    // the band says so in yellow; free space says it doesn't know.
+    function test_add_when_back_holds_the_torrent() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        const spy = createTemporaryObject(addSpy, testCase, {
+                                              "target": sheet
+                                          });
+        sheet._testServerDown = true;
+        sheet.openWith(testCase.freshMagnet, "clipboard");
+        compare(sheet._addText, "add when back");
+        const band = findChild(sheet, "addNotice");
+        verify(band.shown);
+        compare(band.kind, "warning");
+        compare(band.title, App.serverName + " isn't answering");
+        verify(sheet.freeLine.roomText.indexOf("unknown while") >= 0);
+        sheet.submit(false);
+        compare(spy.count, 0);
+        verify(sheet._held !== null);
+        // The server answers: the held add goes.
+        sheet._testServerDown = false;
+        sheet._releaseHeld();
+        compare(spy.count, 1);
+        compare(sheet._held, null);
+        sheet.dismiss();
+    }
+
+    // N3: an add the server never took is red, in plain words.
+    function test_a_refused_add_is_red_in_plain_words() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        sheet.openWith(testCase.freshMagnet, "clipboard");
+        sheet.errorText = "nothing to add";
+        const band = findChild(sheet, "addNotice");
+        verify(band.shown);
+        compare(band.kind, "error");
+        compare(band.title, "nothing to add");
+        sheet.errorText = "";
+        sheet.failure = {
+            "headline": "private didn't take the torrent",
+            "line": "It stopped answering.",
+            "details": "network error · POST torrents/add · Connection refused",
+            "sentence": "x"
+        };
+        compare(band.title, "private didn't take the torrent");
+        compare(band.kind, "error");
+        verify(band.details.indexOf("Connection refused") > 0);
+        sheet.dismiss();
+    }
+
+    // D14 (A2): after a switch, what was typed stays and one line says what moved.
+    function test_a_switch_keeps_what_was_typed_and_says_what_moved() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        sheet.openWith(testCase.freshMagnet, "clipboard");
+        sheet.applyChosenTags(["keep-for-omaseed-tests"]);
+        sheet._serverSwitched();
+        verify(sheet._switchPending);
+        sheet._afterSwitch();
+        compare(sheet.sourceField.text, testCase.freshMagnet);
+        verify(sheet.movedText.indexOf("Moved to " + App.serverName + ": save path back to its default") === 0,
+               sheet.movedText);
+        verify(sheet.movedText.indexOf("tag “keep-for-omaseed-tests” is new there") > 0, sheet.movedText);
+        compare(sheet.tagChips.selected, ["keep-for-omaseed-tests"]);
+        sheet.dismiss();
     }
 }

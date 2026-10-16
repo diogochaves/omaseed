@@ -153,7 +153,7 @@ Sheet {
     /// `make default`: the app moves to this server, as `d` on its row does. The sheet stays
     /// open on it, now the default, so the button goes and the keyboard lands on `edit`.
     function makeDefault(): void {
-        if (root.isNew || root.isDefault || !App.setDefaultServer(root.serverId))
+        if (root.isNew || root.isDefault || !App.switchServer(root.serverId))
             return;
         root.server = App.serverList.serverMap(root.serverId);
         root.focusFirst();
@@ -359,7 +359,7 @@ Sheet {
                                       }
     ] : (root.isNew || root.isDefault ? [] : [
                                                  {
-                                                     "text": qsTr("make default")
+                                                     "text": qsTr("switch to it")
                                                  }
                                              ]).concat([
                                                            {
@@ -403,7 +403,7 @@ Sheet {
         const primary = root._actionFlagged("primary");
         return primary ? String(primary.text) : "";
     }
-    // Four equal buttons need more room than three: "make default" sat on its outline.
+    // Four equal buttons need more room than three: "switch to it" sat on its outline.
     sheetWidth: Theme.space(root.editing || root.isNew || root.isDefault ? 460 : 520)
     subtitle: {
         const parts = [];
@@ -418,7 +418,7 @@ Sheet {
     title: root.editName.length > 0 ? root.editName : qsTr("New server")
 
     onActionTriggered: text => {
-        if (text === qsTr("make default")) {
+        if (text === qsTr("switch to it")) {
             root.makeDefault();
             return;
         }

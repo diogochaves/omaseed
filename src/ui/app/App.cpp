@@ -2037,7 +2037,7 @@ void App::addTorrent(const QVariantMap &request)
                 return;
             }
             qWarning().noquote() << QStringLiteral("add failed: %1").arg(result.error().toString());
-            Q_EMIT addFinished(false, result.error().message(), QString());
+            failAdd(result.error(), request.value(QStringLiteral("name")).toString());
             return;
         }
         // qBittorrent 4.x answers "Fails." with 200 when it refuses the payload outright; 5.x
@@ -2129,7 +2129,7 @@ void App::addBatch(const QVariantMap &request)
             if (result.isError()) {
                 qWarning().noquote()
                     << QStringLiteral("batch add failed: %1").arg(result.error().toString());
-                Q_EMIT addFinished(false, result.error().message(), QString());
+                failAdd(result.error(), request.value(QStringLiteral("name")).toString());
                 return;
             }
             const QString body = QString::fromUtf8(result.value()).trimmed();
@@ -2675,7 +2675,7 @@ void App::retryUrlAdd(const QVariantMap &request,
         m_client->torrentsAddUrls(QStringList{value}, untilMetadata)
             ->then(this, [=, this](const QbtResult<QByteArray> &result) {
                 if (result.isError()) {
-                    Q_EMIT addFinished(false, result.error().message(), QString());
+                    failAdd(result.error(), request.value(QStringLiteral("name")).toString());
                     return;
                 }
                 afterUrlAdd(result.value(),

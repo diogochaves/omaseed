@@ -25,6 +25,8 @@ RowLayout {
     property real totalBytes: -1
     /// The files are already in Save to (#27's files match): nothing new is written.
     property bool alreadyThere: false
+    /// docs/33 D15: the server is down: free space is not known, not an old figure.
+    property bool serverDown: false
     /// Below this much left over, the line turns yellow (Settings › Notifications).
     property real thresholdBytes: App.lowDiskThresholdGiB * 1024 * 1024 * 1024
 
@@ -32,7 +34,7 @@ RowLayout {
     // revision is part of the expression: a bare read of it can be compiled away.
     readonly property var room: App.freeSpaceRevision >= 0 ? App.freeSpaceFor(root.savePath)
                                                            : ({})
-    readonly property bool known: root.room.source !== "unknown"
+    readonly property bool known: root.room.source !== "unknown" && !root.serverDown
     readonly property real free: root.room.bytesFree
     readonly property bool sizeKnown: root.neededBytes >= 0
 
@@ -73,6 +75,8 @@ RowLayout {
             return root.known ? qsTr("the files are already there · %1 free").arg(
                                     App.sizeText(root.free))
                               : qsTr("the files are already there");
+        if (root.serverDown)
+            return qsTr("free space unknown while %1 is down").arg(App.serverName);
         if (!root.known) {
             const scale = root.room.defaultFree > 0
                     ? qsTr("%1 reports only its default folder: %2").arg(App.serverName).arg(

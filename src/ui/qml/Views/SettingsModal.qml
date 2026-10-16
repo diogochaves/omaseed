@@ -17,7 +17,7 @@ import Omaseed.Kit
 //   tab         hand the keyboard to the pane, and back
 //   j k         inside a pane, move the row cursor
 //   enter space act on the cursor row (toggle, open the server sheet, copy)
-//   a x d       Servers pane only: add, remove (confirmed), make default
+//   a x d       Servers pane only: add, remove (confirmed), switch to it (docs/33 D11)
 //   esc         close — or, while the server sheet is up, close that first, because the
 //               sheet has the keyboard and traps the key itself.
 //
@@ -740,7 +740,7 @@ Item {
             if (map.id !== undefined)
                 serverSheet.reviewFor(map);
         } else if (action === "default") {
-            App.setDefaultServer(id);
+            App.switchServer(id);
         } else if (action === "remove") {
             root.removeCursorServer();
         }
@@ -1040,7 +1040,7 @@ Item {
             break;
         case Qt.Key_D:
             if (root.paneIndex === 1)
-                App.setDefaultServer(root.cursorServerId());
+                App.switchServer(root.cursorServerId());
             else if (root.inQbt)
                 qbtPane.resetDefaults(root.paneCursor);
             break;
@@ -1219,6 +1219,18 @@ Item {
                                  "key": "t",
                                  "label": qsTr("torrents: qBittorrent › Backup")
                              });
+                // docs/33 D11: the Servers pane names its keys, `d` only with two servers.
+                if (root.paneIndex === 1) {
+                    if (App.serverList.count > 1)
+                        out.push({
+                                     "key": "d",
+                                     "label": qsTr("switch to it")
+                                 });
+                    out.push({
+                                 "key": "a",
+                                 "label": qsTr("add")
+                             });
+                }
                 if (root.inQbtBackup && App.serverList.count > 1)
                     out.push(next);
                 return out;
@@ -1773,6 +1785,10 @@ Item {
                                     required property int torrentCount
                                     required property string url
                                     required property string versionText
+                                    required property int lastCount
+                                    required property bool lastFailed
+                                    required property string lastReason
+                                    required property string lastSeen
 
                                     Layout.fillWidth: true
                                     objectName: "serverRow" + serverRow.index
@@ -1786,6 +1802,13 @@ Item {
                                                            serverRow.torrentCount));
                                         else if (serverRow.lastError.length > 0)
                                             parts.push(serverRow.lastError);
+                                        // docs/33 D11 (D5): what omaseed saw last on it, instead of
+                                        // going grey and blank.
+                                        else if (serverRow.lastFailed)
+                                            parts.push(qsTr("%1 %2").arg(serverRow.lastReason).arg(serverRow.lastSeen));
+                                        else if (serverRow.lastCount >= 0)
+                                            parts.push(serverRow.lastCount === 1 ? qsTr("1 torrent last time")
+                                                                                 : qsTr("%1 torrents last time").arg(serverRow.lastCount));
                                         return parts.join(" · ");
                                     }
                                     /// The server the app is on (`tableStateKey()` is its id; the
@@ -1806,7 +1829,8 @@ Item {
                                     title: serverRow.name
                                     // Only the server being synced is retried; another one that failed
                                     // its test is just unreachable.
-                                    status: serverRow.isDefault ? qsTr("default")
+                                    // docs/33 D11: the one the app is on is "in use".
+                                    status: serverRow.isDefault ? qsTr("in use")
                                                                 : !serverRow.failing ? ""
                                                                                      : serverRow.current ? qsTr("retrying")
                                                                                                          : qsTr("unreachable")
@@ -3254,7 +3278,7 @@ Item {
                 "action": "test"
             },
             {
-                "text": qsTr("make default"),
+                "text": qsTr("switch to it"),
                 "key": "d",
                 "action": "default",
                 "disabled": serverMenu.isDefault

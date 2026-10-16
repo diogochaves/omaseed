@@ -210,13 +210,15 @@ void App::notifyServerLost(const ApiError &error, int retrySeconds)
     m_notifier->notifyServerLost(m_server.id, text.headline, text.line);
 }
 
-QString
-App::actionFailureText(const ApiError &error, const QString &torrent, const QString &folder) const
+QString App::actionFailureText(const ApiError &error, const QString &torrent, const QString &folder)
 {
     ErrorWords::Subject subject = errorSubject();
     subject.torrent = torrent;
     subject.folder = folder;
-    const QString sentence = ErrorWords::forRequest(error, subject).sentence();
+    const ErrorWords::Text words = ErrorWords::forRequest(error, subject);
+    m_actionFailure = words.toMap();
+    Q_EMIT actionFailureChanged();
+    const QString sentence = words.sentence();
     return sentence.isEmpty() ? error.toString() : sentence;
 }
 
@@ -297,6 +299,17 @@ QVariantMap App::busiestOtherServer() const
         {QStringLiteral("name"), m_serverList->data(at, ServerListModel::NameRole)},
         {QStringLiteral("count"), m_serverList->data(at, ServerListModel::LastCountRole)},
     };
+}
+
+void App::failAdd(const ApiError &error, const QString &torrent)
+{
+    ErrorWords::Subject subject = errorSubject();
+    subject.torrent = torrent;
+    const ErrorWords::Text words = ErrorWords::forRequest(error, subject);
+    m_addFailure = words.toMap();
+    Q_EMIT addFailureChanged();
+    const QString sentence = words.sentence();
+    Q_EMIT addFinished(false, sentence.isEmpty() ? error.message() : sentence, QString());
 }
 
 void App::loadEmptyDemo()
