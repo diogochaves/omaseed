@@ -195,6 +195,15 @@ BarWidget {
       else if (buttonCode === Qt.RightButton) root.act(root.cfg.rightClick)
     }
 
+    // A screen reader (#80). Named "omaseed", not by the tooltip, which carries the speeds
+    // and would be read again as they change: the description is the coarse state. Not
+    // `accessibleName`, which an Omarchy without PR #13212 lacks (the widget would fail to
+    // load); where the kit has it, the kit presses, so this steps aside (one press, not two).
+    Accessible.role: Accessible.Button
+    Accessible.name: "omaseed"
+    Accessible.description: Status.barDescription(root.status, service.now)
+    Accessible.onPressAction: if (!("accessibleName" in button)) button.pressed(Qt.LeftButton)
+
     Grid {
       id: content
       anchors.centerIn: parent
