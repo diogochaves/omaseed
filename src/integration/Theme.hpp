@@ -9,6 +9,7 @@
 #include <functional>
 
 QT_BEGIN_NAMESPACE
+class QJsonObject;
 class QQmlEngine;
 QT_END_NAMESPACE
 
@@ -230,6 +231,16 @@ public:
     /// `toward` when even that falls short (docs/DECISIONS.md Q19, the floor on dimForeground).
     static QColor
     liftToContrast(const QColor &dim, const QColor &toward, const QColor &against, qreal minimum);
+
+    /// `#rrggbb`, or `#rrggbbaa` when the colour is not opaque. (Qt's own HexArgb puts the
+    /// alpha first; CSS and every contrast tool put it last.)
+    static QString hexColor(const QColor &colour);
+    /// What `omaseed --theme-roles` prints (#76): the roles as this Theme resolved them, read
+    /// from its meta-object so a new role shows up without touching this.
+    /// `{"theme", "mode", "source", "colors": {role: hexColor}, "alphas": {role: number},
+    /// "windowAlpha"}`: `colors` holds every QColor property, `alphas` every qreal one
+    /// (windowAlpha among them), `source` the reader's colors.toml ("" without a reader).
+    static QJsonObject rolesJson(const Theme &theme);
 
     struct WindowCorners
     {

@@ -8,6 +8,7 @@
 #include <QGuiApplication>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QMetaProperty>
 #include <QProcess>
 
 #include <algorithm>
@@ -381,6 +382,39 @@ Theme::liftToContrast(const QColor &dim, const QColor &toward, const QColor &aga
             return candidate;
     }
     return toward;
+}
+
+QString Theme::hexColor(const QColor &colour)
+{
+    QString hex = colour.name(QColor::HexRgb);
+    if (colour.alpha() < 255)
+        hex += QStringLiteral("%1").arg(colour.alpha(), 2, 16, QLatin1Char('0'));
+    return hex;
+}
+
+QJsonObject Theme::rolesJson(const Theme &theme)
+{
+    QJsonObject colors;
+    QJsonObject alphas;
+    const QMetaObject *meta = theme.metaObject();
+    for (int i = 0; i < meta->propertyCount(); ++i) {
+        const QMetaProperty property = meta->property(i);
+        const int type = property.metaType().id();
+        if (type == QMetaType::QColor)
+            colors.insert(QString::fromLatin1(property.name()),
+                          hexColor(property.read(&theme).value<QColor>()));
+        else if (type == QMetaType::Double || type == QMetaType::Float)
+            alphas.insert(QString::fromLatin1(property.name()), property.read(&theme).toDouble());
+    }
+
+    QJsonObject roles;
+    roles.insert(QStringLiteral("theme"), theme.themeName());
+    roles.insert(QStringLiteral("mode"), theme.mode());
+    roles.insert(QStringLiteral("source"), theme.m_reader ? theme.m_reader->source() : QString());
+    roles.insert(QStringLiteral("colors"), colors);
+    roles.insert(QStringLiteral("alphas"), alphas);
+    roles.insert(QStringLiteral("windowAlpha"), theme.windowAlpha());
+    return roles;
 }
 
 } // namespace omaseed::integration

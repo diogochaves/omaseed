@@ -49,6 +49,12 @@ omaseed_add_test(tst_themecontrast
     LIBRARIES omaseed::integration
 )
 
+# #76: `omaseed --theme-roles`, the roles as Theme resolved them, as JSON.
+omaseed_add_test(tst_themeroles
+    SOURCES tst_themeroles.cpp
+    LIBRARIES omaseed::integration
+)
+
 # Under Hyprland, Hyprland owns the window edge and its corners.
 omaseed_add_test(tst_themecorners
     SOURCES tst_themecorners.cpp
