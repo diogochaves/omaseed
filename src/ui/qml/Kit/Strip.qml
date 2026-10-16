@@ -38,7 +38,14 @@ Item {
 
                 required property var modelData
 
+                // #79: one label per cell, named by its caption ("eta") with the value as its
+                // description, as KeyValue's rows (#78): a value that ticks every second
+                // ("2 min 40 s") is not read out again each time it changes.
+                Accessible.description: String(cell.modelData.value ?? "")
+                Accessible.name: String(cell.modelData.label ?? "")
+                Accessible.role: Accessible.StaticText
                 Layout.fillWidth: true
+                objectName: "stripCell"
                 spacing: 1
 
                 Text {

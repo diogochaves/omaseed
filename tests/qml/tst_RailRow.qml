@@ -111,6 +111,21 @@ TestCase {
         compare(clicked.count, 1);
     }
 
+    // #79: the count at the right is the row's description; none, none.
+    function test_the_count_is_the_description() {
+        const row = createTemporaryObject(railRowComponent, testCase, {
+                                              "text": "downloading",
+                                              "count": 8
+                                          });
+        compare(row.Accessible.name, "downloading");
+        compare(row.Accessible.description, "8");
+        row.countText = "2 servers";
+        compare(row.Accessible.description, "2 servers");
+        row.countText = "";
+        row.count = -1;
+        compare(row.Accessible.description, "");
+    }
+
     // #75: disabled, the row ignores a screen reader's press, as it ignores the pointer.
     function test_a_disabled_row_ignores_the_accessible_press() {
         const row = createTemporaryObject(railRowComponent, testCase, {

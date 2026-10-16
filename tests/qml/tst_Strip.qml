@@ -62,6 +62,18 @@ TestCase {
         compare(strip.rule, false);
     }
 
+    // #79: each cell is a label named by its caption, the value its description.
+    function test_a_screen_reader_hears_each_cell() {
+        const strip = createTemporaryObject(stripComponent, testCase, {
+                                                "items": testCase.sampleItems
+                                            });
+        const cell = findChild(strip, "stripCell");
+        verify(cell !== null);
+        compare(cell.Accessible.role, Accessible.StaticText);
+        compare(cell.Accessible.name, "size");
+        compare(cell.Accessible.description, "4.2 GB");
+    }
+
     function test_empty_items_still_lays_out() {
         const strip = createTemporaryObject(stripComponent, testCase, {
                                                 "items": []

@@ -434,6 +434,10 @@ Item {
                 Label {
                     id: serverLabel
 
+                    // #79: the connection line ("home · qBittorrent 5.2.3", "home · unreachable"),
+                    // whole on every step and without its ▾; the switch is the button in it.
+                    Accessible.name: root.serverLine
+                    Accessible.role: Accessible.StaticText
                     anchors.verticalCenter: parent.verticalCenter
                     elide: Text.ElideRight
                     objectName: "serverLine"
@@ -487,6 +491,11 @@ Item {
                 Label {
                     id: networkLabel
 
+                    // #79: a warning that comes on its own ("port 26999 not reachable"), with
+                    // what the pointer's tooltip explains as its description.
+                    Accessible.description: root.networkAdvice
+                    Accessible.name: root.networkText
+                    Accessible.role: Accessible.AlertMessage
                     anchors.verticalCenter: parent.verticalCenter
                     color: root.networkWarning === "disconnected" ? Theme.red : Theme.yellow
                     elide: Text.ElideRight
@@ -543,7 +552,10 @@ Item {
             Stat {
                 id: downInner
 
+                // #79: "download" on every step, the label or not.
+                accessibleName: qsTr("download")
                 glyph: Glyphs.arrowDown
+                objectName: "downInner"
                 glyphColor: Theme.stateDownloading
                 label: root.level >= 2 ? "" : qsTr("download")
                 value: root.level >= 4 ? root.downSpeedShort : root.downSpeed
@@ -555,10 +567,11 @@ Item {
 
             // #77: with the views, the ↑ number is a button to the seed console (the "seed"
             // tab does the same), its speed the description; without them it is no control.
-            Accessible.description: upStat.value
-            Accessible.ignored: root.views.length === 0
-            Accessible.name: qsTr("seed console")
-            Accessible.role: Accessible.Button
+            // #79: without them it is the "upload" figure, as ↓ is "download"; the day's total
+            // follows the speed either way.
+            Accessible.description: [upStat.value, root.upNote].filter(part => part.length > 0).join(" · ")
+            Accessible.name: root.views.length > 0 ? qsTr("seed console") : qsTr("upload")
+            Accessible.role: root.views.length > 0 ? Accessible.Button : Accessible.StaticText
             Accessible.onPressAction: if (upBox.enabled && root.views.length > 0)
                                           root.upClicked()
             Layout.alignment: Qt.AlignVCenter
@@ -582,6 +595,8 @@ Item {
             Stat {
                 id: upStat
 
+                // upBox says it (#79).
+                Accessible.ignored: true
                 glyph: Glyphs.arrowUp
                 glyphColor: Theme.stateSeeding
                 label: root.level >= 2 ? "" : root.upNote.length > 0 ? qsTr("upload · %1").arg(root.upNote)

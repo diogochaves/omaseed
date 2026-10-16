@@ -112,6 +112,32 @@ TestCase {
         compare(hero.networkWarning, "");
     }
 
+    // #79: the connection line is text by its words (no ▾), a network warning an alert with
+    // the tooltip's advice as its description, and ↓ the "download" figure on every step.
+    function test_a_screen_reader_hears_the_server_line_and_the_figures() {
+        const hero = createTemporaryObject(heroComponent, testCase, {
+                                               "serverLine": "private · qBittorrent 5.2.3",
+                                               "serverSwitchable": true,
+                                               "downSpeed": "4.21 MB/s"
+                                           });
+        const label = findChild(hero, "serverLine");
+        compare(label.Accessible.role, Accessible.StaticText);
+        compare(label.Accessible.name, "private · qBittorrent 5.2.3");
+
+        hero.connectionStatus = "firewalled";
+        hero.listenPort = 26999;
+        compare(hero.networkLabel.Accessible.role, Accessible.AlertMessage);
+        compare(hero.networkLabel.Accessible.name, "port 26999 not reachable");
+        verify(hero.networkLabel.Accessible.description.indexOf("UPnP") >= 0);
+
+        const down = findChild(hero, "downInner");
+        compare(down.Accessible.role, Accessible.StaticText);
+        compare(down.Accessible.name, "download");
+        compare(down.Accessible.description, "4.21 MB/s");
+        hero.width = 700; // a narrow step drops the caption, not the name
+        compare(down.Accessible.name, "download");
+    }
+
     // docs/16 §5: anonymous mode with private torrents is named in the warning colour.
     function test_anonymous_mode_is_named_while_it_is_on() {
         const hero = createTemporaryObject(heroComponent, testCase);
@@ -815,12 +841,13 @@ TestCase {
         compare(ups, 1, "a disabled hero's ↑ ran");
     }
 
-    // #77: without the views the ↑ number is no control; the lone dot is the server line's
-    // button only while the server can switch.
+    // #77: without the views the ↑ number is no control (#79: it is the "upload" figure); the
+    // lone dot is the server line's button only while the server can switch.
     function test_the_up_number_and_the_lone_dot_without_a_click() {
         const hero = createTemporaryObject(heroComponent, testCase);
         const up = findChild(hero, "upBox");
-        verify(up.Accessible.ignored);
+        compare(up.Accessible.role, Accessible.StaticText);
+        compare(up.Accessible.name, "upload");
         let ups = 0;
         hero.upClicked.connect(() => ups++);
         up.Accessible.pressAction();

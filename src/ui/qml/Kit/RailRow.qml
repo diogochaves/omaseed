@@ -42,6 +42,9 @@ Rectangle {
     readonly property bool truncated: nameText.truncated
     readonly property real countRight: countText.x + countText.width
 
+    // #79: the count at the row's right ("8") is its description.
+    Accessible.description: root.countText.length > 0 ? root.countText : root.count >= 0 ? String(root.count)
+                                                                                           : ""
     Accessible.name: root.text
     Accessible.role: Accessible.ListItem
 
