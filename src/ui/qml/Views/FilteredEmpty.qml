@@ -65,7 +65,7 @@ Item {
 
                 // #77: a link named by what it does, its key the description; its press is
                 // the click.
-                Accessible.description: "esc"
+                Accessible.description: qsTr("shortcut %1").arg("esc")
                 Accessible.name: qsTr("clear the filter")
                 Accessible.role: Accessible.Link
                 Accessible.onPressAction: if (clearLink.enabled)
@@ -120,7 +120,7 @@ Item {
                 id: allLink
 
                 // #77: as the other link.
-                Accessible.description: "0"
+                Accessible.description: qsTr("shortcut %1").arg("0")
                 Accessible.name: qsTr("show all statuses")
                 Accessible.role: Accessible.Link
                 Accessible.onPressAction: if (allLink.enabled)

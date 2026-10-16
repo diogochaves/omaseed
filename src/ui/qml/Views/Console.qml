@@ -98,7 +98,7 @@ Flickable {
                 id: clearScopeLink
 
                 // #77: a "clear scope" button, its key the description; its press is the click.
-                Accessible.description: "esc"
+                Accessible.description: qsTr("shortcut %1").arg("esc")
                 Accessible.name: qsTr("clear scope")
                 Accessible.role: Accessible.Button
                 Accessible.onPressAction: if (clearScopeLink.enabled)

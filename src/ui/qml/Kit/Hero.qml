@@ -621,7 +621,8 @@ Item {
 
                     // #77: a page tab, selected while its view shows; the key is the
                     // description. Its press is the click.
-                    Accessible.description: viewTab.modelData.hint ?? ""
+                    Accessible.description: viewTab.modelData.hint
+                                            ? qsTr("shortcut %1").arg(viewTab.modelData.hint) : ""
                     Accessible.name: viewTab.modelData.label
                     Accessible.role: Accessible.PageTab
                     Accessible.selectable: true

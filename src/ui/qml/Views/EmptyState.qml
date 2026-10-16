@@ -166,7 +166,7 @@ Item {
 
                     // #77: each way in is a button named by what it does, its key the
                     // description; its press is the click.
-                    Accessible.description: row.modelData.key
+                    Accessible.description: qsTr("shortcut %1").arg(row.modelData.key)
                     Accessible.name: row.modelData.label
                     Accessible.role: Accessible.Button
                     Accessible.onPressAction: if (row.enabled)

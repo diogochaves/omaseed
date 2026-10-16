@@ -353,7 +353,7 @@ Item {
                 // #77: the line is a button that opens the filter; its press is the click.
                 // A MouseArea's `enabled` is its own flag alone, so the line's says whether
                 // the tab is disabled.
-                Accessible.description: "/"
+                Accessible.description: qsTr("shortcut %1").arg("/")
                 Accessible.ignored: !root.canFilter
                 Accessible.name: qsTr("filter files")
                 Accessible.role: Accessible.Button
@@ -413,6 +413,9 @@ Item {
         anchors.right: parent.right
         anchors.rightMargin: Theme.space(8)
         anchors.verticalCenter: filterBar.verticalCenter
+        // #78: the lesson in syntax is the description, not the name; the cap, which clears
+        // the filter and closes the field, is named by that.
+        accessibleName: qsTr("filter files")
         hint: Glyphs.search
         objectName: "filesFilter"
         // docs/12 F4: the placeholder teaches the syntax.
@@ -423,6 +426,7 @@ Item {
         trailingKey: qsTr("esc")
         // The cap does what `esc` does: clears the filter and closes the field.
         trailingClickable: true
+        trailingName: qsTr("clear the filter")
         visible: root.filterShown
 
         Keys.onPressed: event => {

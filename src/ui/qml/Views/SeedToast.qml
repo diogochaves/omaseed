@@ -48,6 +48,8 @@ Rectangle {
     // #77: a button named by its moment, the detail the description; its press is the click,
     // and does nothing while disabled.
     Accessible.description: root.current !== null ? root.current.detail : ""
+    // #78: no moment, no toast: an unnamed button otherwise.
+    Accessible.ignored: root.current === null
     Accessible.name: root.current !== null ? root.current.title : ""
     Accessible.role: Accessible.Button
     Accessible.onPressAction: if (root.enabled)

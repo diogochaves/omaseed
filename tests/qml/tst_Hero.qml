@@ -791,7 +791,7 @@ TestCase {
         const seed = findChild(hero, "viewTab_seed");
         compare(seed.Accessible.role, Accessible.PageTab);
         compare(seed.Accessible.name, "seed");
-        compare(seed.Accessible.description, "S");
+        compare(seed.Accessible.description, "shortcut S");
         verify(library.Accessible.selected);
         verify(!seed.Accessible.selected);
         const picked = [];

@@ -1577,7 +1577,7 @@ Item {
 
                             // #77: a "close" button, its key the description; its press is
                             // the click.
-                            Accessible.description: "esc"
+                            Accessible.description: qsTr("shortcut %1").arg("esc")
                             Accessible.name: qsTr("close")
                             Accessible.role: Accessible.Button
                             Accessible.onPressAction: if (settingsEsc.enabled)
@@ -2127,7 +2127,7 @@ Item {
 
                                     // #77: a button to the `?` sheet, the key its
                                     // description; its press is the click.
-                                    Accessible.description: "?"
+                                    Accessible.description: qsTr("shortcut %1").arg("?")
                                     Accessible.name: qsTr("every shortcut")
                                     Accessible.role: Accessible.Button
                                     Accessible.onPressAction: if (keysHelpKey.enabled)

@@ -2266,7 +2266,7 @@ Item {
 
                 // #77: it shows while the pane is hidden: a "show details" button with its
                 // key; its press is the click.
-                Accessible.description: "i"
+                Accessible.description: qsTr("shortcut %1").arg("i")
                 Accessible.name: qsTr("show details")
                 Accessible.role: Accessible.Button
                 Accessible.onPressAction: if (footerNoteHint.enabled)

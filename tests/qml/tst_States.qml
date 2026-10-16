@@ -45,7 +45,7 @@ TestCase {
         const row = findChild(empty, "emptyRow_0");
         compare(row.Accessible.role, Accessible.Button);
         compare(row.Accessible.name, "add a torrent");
-        compare(row.Accessible.description, "a");
+        compare(row.Accessible.description, "shortcut a");
         row.Accessible.pressAction();
         compare(spy.count, 1);
         empty.enabled = false;
