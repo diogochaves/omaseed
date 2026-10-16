@@ -440,6 +440,14 @@ TestCase {
         menu.close();
     }
 
+    // #79: a menu with a heading is named by it, so it is said before the rows.
+    function test_a_heading_names_the_menu() {
+        const menu = createTemporaryObject(menuComponent, testCase);
+        compare(menu.panel.Accessible.name, "");
+        menu.heading = "switch omaseed to";
+        compare(menu.panel.Accessible.name, "switch omaseed to");
+    }
+
     // KIT-6: an open menu is modal — what it does not use stops at it, except ctrl+q.
     function test_keys_the_menu_does_not_use_stop_at_it() {
         const host = createTemporaryObject(hostComponent, testCase);

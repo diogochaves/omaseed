@@ -265,6 +265,10 @@ Item {
             // A torrent name is often one long word, so it breaks at the edge rather than
             // running past it.
             Label {
+                // #79: the line under the question (often a torrent's name). The question
+                // is the card's own name already, so its title is not said twice.
+                Accessible.name: text
+                Accessible.role: Accessible.StaticText
                 Layout.fillWidth: true
                 dim: true
                 size: "small"

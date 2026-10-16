@@ -471,6 +471,10 @@ Item {
                         spacing: Theme.space(6)
 
                         Label {
+                            // #79: the sheet's title is its heading; a plain Text publishes
+                            // nothing to a screen reader otherwise.
+                            Accessible.name: text
+                            Accessible.role: Accessible.Heading
                             Layout.fillWidth: root.titleTrailer === null
                             Layout.maximumWidth: implicitWidth
                             Layout.minimumWidth: Math.min(implicitWidth, Theme.space(80))
@@ -495,6 +499,10 @@ Item {
                     }
 
                     Label {
+                        // #79: what the sheet acts on ("1 torrent · 1.31 GB moves with it"),
+                        // whole even when it elides.
+                        Accessible.name: text
+                        Accessible.role: Accessible.StaticText
                         Layout.fillWidth: true
                         dim: true
                         elide: Text.ElideRight

@@ -117,6 +117,29 @@ TestCase {
         compare(copied.length, 1, "a disabled notice copied");
     }
 
+    // #79: the band is an alert named by its headline; the line under it is text named by
+    // the body, its countdown the description (it ticks); the details are text once open, and
+    // "details" is named without its chevron.
+    function test_a_screen_reader_hears_the_headline_and_the_line() {
+        const notice = createTemporaryObject(noticeComponent, testCase);
+        compare(notice.Accessible.role, Accessible.AlertMessage);
+        compare(notice.Accessible.name, "private didn't answer");
+        const line = findChild(notice, "noticeLine");
+        compare(line.Accessible.role, Accessible.StaticText);
+        compare(line.Accessible.name, "Nothing is listening at 127.0.0.1:8091.");
+        compare(line.Accessible.description, "omaseed tries again in 7 s.");
+        notice.bodyTail = "omaseed tries again in 6 s.";
+        compare(line.Accessible.name, "Nothing is listening at 127.0.0.1:8091.");
+        const toggle = findChild(notice, "noticeDetailsToggle");
+        compare(toggle.Accessible.name, "details");
+        compare(toggle.Accessible.description, "folded");
+        notice.toggleDetails();
+        compare(toggle.Accessible.description, "unfolded");
+        const details = findChild(notice, "noticeDetailsText");
+        compare(details.Accessible.role, Accessible.StaticText);
+        compare(details.Accessible.name, notice.details);
+    }
+
     function test_an_action_says_its_key() {
         const notice = createTemporaryObject(noticeComponent, testCase);
         let key = "";

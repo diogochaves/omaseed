@@ -41,10 +41,15 @@ Row {
     }
 
     Text {
+        // #79: an error or a warning shows up on its own, so it is an alert; an info line is
+        // plain text. The kind's glyph stays out: the role says it.
+        Accessible.name: root.text
+        Accessible.role: root.kind === "info" ? Accessible.StaticText : Accessible.AlertMessage
         anchors.verticalCenter: parent.verticalCenter
         color: Theme.foreground
         font.family: Theme.fontFamily
         font.pixelSize: Theme.font.body
+        objectName: "bannerText"
         text: root.text
     }
 

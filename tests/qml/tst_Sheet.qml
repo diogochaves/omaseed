@@ -870,6 +870,20 @@ TestCase {
         compare(esc.Accessible.description, "shortcut esc");
     }
 
+    // #79: the title is the sheet's heading, the line under it text, both by their words.
+    function test_a_screen_reader_hears_the_title_and_the_subtitle() {
+        const sheet = createTemporaryObject(keySheetComponent, testCase, {
+                                                "title": "Set location",
+                                                "subtitle": "1 torrent · 1.31 GB moves with it"
+                                            });
+        const title = findChild(sheet, "sheetTitle");
+        compare(title.Accessible.role, Accessible.Heading);
+        compare(title.Accessible.name, "Set location");
+        const subtitle = findChild(sheet, "sheetSubtitle");
+        compare(subtitle.Accessible.role, Accessible.StaticText);
+        compare(subtitle.Accessible.name, "1 torrent · 1.31 GB moves with it");
+    }
+
     // #75: disabled, the sheet ignores a screen reader's press, as it ignores the pointer.
     function test_a_disabled_sheet_ignores_the_accessible_press() {
         const sheet = createTemporaryObject(keySheetComponent, testCase);
