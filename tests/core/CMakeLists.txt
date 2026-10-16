@@ -8,6 +8,11 @@ omaseed_add_test(tst_apierror
     LIBRARIES omaseed::core
 )
 
+omaseed_add_test(tst_errorwords
+    SOURCES tst_errorwords.cpp
+    LIBRARIES omaseed::core
+)
+
 omaseed_add_test(tst_bencode
     SOURCES tst_bencode.cpp
     LIBRARIES omaseed::core
