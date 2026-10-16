@@ -9,6 +9,10 @@ before it will tag a release.
 
 ### Added
 
+- The bar widget speaks to screen readers: the bar button ("omaseed", with its state in words),
+  the popup's buttons, sections, rows, menu and settings, and the figures it shows. It works on
+  today's Omarchy and on the shell kit with accessibility (omacom/omarchy#13212), once the shell
+  runs on Quickshell 0.3.2 or later, which is the first to publish the shell to a screen reader.
 - The bar widget's popup has a ⋯ (`ctrl+.`) with omaseed's own menu, the one its tray icon
   shows: the servers (with two or more), alternative limits, stop all, start all, add, settings
   and quit. With two servers or more the popup's server line ends in ▾ (`ctrl+s`) and switches
