@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # omaseed — a qBittorrent's torrents exported and imported through the app's own UI (docs/24
-# §4–§5, §8 "checks"; #33). One box, two qBittorrents in it: the "source" with three swarm
-# torrents downloaded for real and a magnet that never got its metadata, set up the way a
+# §4–§5, §8 "checks"; #33). One box, two qBittorrents in it: the "source" with four swarm
+# torrents downloaded for real (one a hybrid whose files share content, whose .torrent
+# qBittorrent's own export breaks: #71) and a magnet that never got its metadata, set up the way a
 # library is (a category, tags, a renamed file, a skipped file, limits, one stopped); and an
 # empty "target". omaseed exports the source to a file through Settings › qBittorrent ›
 # Backup and the portal's save dialog, the files are copied elsewhere in the box (the usual
@@ -75,6 +76,46 @@ hash_of() {
     source_api torrents/info | python3 -c '
 import json, sys
 print(next(t["hash"] for t in json.load(sys.stdin) if t["name"].startswith(sys.argv[1])))' "$1"
+}
+
+# layers_sound FILE: a v2 or hybrid .torrent whose every piece layer is as long as its files
+# are (ceil(length / piece length) hashes), as libtorrent wants before it loads one (#71).
+layers_sound() {
+    python3 -I - "$1" <<'PY'
+import sys
+data = open(sys.argv[1], "rb").read()
+def dec(i):
+    c = data[i:i + 1]
+    if c == b"i":
+        j = data.index(b"e", i)
+        return int(data[i + 1:j]), j + 1
+    if c in (b"l", b"d"):
+        i, out = i + 1, []
+        while data[i:i + 1] != b"e":
+            v, i = dec(i)
+            out.append(v)
+        return (dict(zip(out[::2], out[1::2])) if c == b"d" else out), i + 1
+    j = data.index(b":", i)
+    n = int(data[i:j])
+    return data[j + 1:j + 1 + n], j + 1 + n
+t = dec(0)[0]
+size = t[b"info"][b"piece length"]
+layers = t.get(b"piece layers", {})
+bad = []
+def walk(node, path):
+    for name, child in node.items():
+        if name == b"":
+            want = -(-child[b"length"] // size) * 32 if child[b"length"] > size else 0
+            got = len(layers.get(child.get(b"pieces root", b""), b""))
+            if want and got != want:
+                bad.append("%s: %d bytes, not %d" % (path, got, want))
+        else:
+            walk(child, path + "/" + name.decode(errors="replace"))
+walk(t[b"info"].get(b"file tree", {}), "")
+if bad:
+    print("%d files' layers wrong, e.g. %s" % (len(bad), bad[0]), file=sys.stderr)
+    sys.exit(1)
+PY
 }
 
 CHECKS=0
@@ -213,27 +254,30 @@ EOF
 omabox run -b "$BOX" -d -- qbittorrent-nox "--profile=$TARGET_PROFILE" >/dev/null 2>&1
 wait_for "the target answers on :$TARGET_PORT" 20 target_api app/version
 
-# The source: three swarm torrents (from the box's ~/Downloads, app-box.sh put them there),
-# downloaded for real, and a magnet nobody seeds.
+# The source: four swarm torrents (from the box's ~/Downloads, app-box.sh put them there),
+# downloaded for real, and a magnet nobody seeds. The Nested Library Sampler is a hybrid whose
+# files share content (one "pieces root" for several files): qBittorrent's torrents/export
+# repeats its piece layers, and qBittorrent then refuses that .torrent (415, #71, upstream#97).
 add_args=()
-for name in "tiny-notes.txt" "Field Recordings" "Ünïcødé"; do
+for name in "tiny-notes.txt" "Field Recordings" "Ünïcødé" "Nested Library Sampler"; do
     for file in "$home"/Downloads/*.torrent; do
         [[ "$(basename "$file")" == "$name"* ]] && add_args+=(-F "torrents=@$BOX_HOME/Downloads/$(basename "$file")")
     done
 done
-[ ${#add_args[@]} = 6 ] || { echo "the box's ~/Downloads lacks some swarm .torrent files" >&2; exit 1; }
+[ ${#add_args[@]} = 8 ] || { echo "the box's ~/Downloads lacks some swarm .torrent files" >&2; exit 1; }
 source_api torrents/add "${add_args[@]}" >/dev/null
 source_api torrents/add -F "urls=magnet:?xt=urn:btih:$MAGNET_HASH&dn=link%20only" -F stopped=true >/dev/null
 all_complete() {
     source_api torrents/info | python3 -c '
 import json, sys
 done = [t for t in json.load(sys.stdin) if t["has_metadata"] and t["progress"] >= 1]
-sys.exit(0 if len(done) == 3 else 1)'
+sys.exit(0 if len(done) == 4 else 1)'
 }
-wait_for "the source downloaded its three torrents" 180 all_complete
+wait_for "the source downloaded its four torrents" 240 all_complete
 TINY="$(hash_of tiny-notes.txt)"
 ALBUM="$(hash_of "Field Recordings")"
 UNICODE="$(hash_of "Ünïcødé")"
+NESTED="$(hash_of "Nested Library Sampler")"
 TRACK="Field Recordings Vol. 3 [FLAC]/01 - Harbour at Dawn.flac"
 RENAMED="Field Recordings Vol. 3 [FLAC]/01 - Harbour.flac"
 source_api torrents/createCategory --data-urlencode category=notes --data-urlencode "savePath=$SOURCE_DIR/notes" >/dev/null
@@ -268,7 +312,7 @@ keys ctrl+shift+comma
 keys 0
 keys Tab
 keys j j
-shot "Backup, the torrents group: Export torrents (cursor) says 4 torrents with their save paths…, the files stay where they are, 1 magnet goes in as a link."
+shot "Backup, the torrents group: Export torrents (cursor) says 5 torrents with their save paths…, the files stay where they are, 1 magnet goes in as a link."
 keys Return
 omabox wait -b "$BOX" --timeout 10s window "Export qBittorrent's torrents" >/dev/null 2>&1 || fail "no save dialog"
 shot "The portal's save dialog, ~/torrents-box-<date>.omaseed-torrents proposed." dialog screen
@@ -277,14 +321,26 @@ wait_for "the file is written" 30 in_box test -s "$EXPORT"
 perms="$(omabox run -b "$BOX" -- stat -c %a "$EXPORT")"
 if [ "$perms" = 600 ]; then pass "the file is private (0600)"; else fail "the file is $perms, not 600"; fi
 entries="$(omabox run -b "$BOX" -- tar -tf "$EXPORT" | sort | tr '\n' ' ')"
-expected="manifest.json torrents/$ALBUM.json torrents/$ALBUM.torrent torrents/$MAGNET_HASH.json torrents/$TINY.json torrents/$TINY.torrent torrents/$UNICODE.json torrents/$UNICODE.torrent "
+expected="manifest.json torrents/$ALBUM.json torrents/$ALBUM.torrent torrents/$MAGNET_HASH.json torrents/$NESTED.json torrents/$NESTED.torrent torrents/$TINY.json torrents/$TINY.torrent torrents/$UNICODE.json torrents/$UNICODE.torrent "
 expected="$(tr ' ' '\n' <<<"$expected" | sed '/^$/d' | sort | tr '\n' ' ')"
 if [ "$entries" = "$expected" ]; then
-    pass "a plain tar: the manifest, 4 records, 3 .torrent files (D2 a)"
+    pass "a plain tar: the manifest, 5 records, 4 .torrent files (D2 a)"
 else
     fail "the archive lists: $entries"
 fi
-shot "The note under the rows: Exported 4 torrents to ~/torrents-box-<date>.omaseed-torrents. 1 magnet went in as a link." note
+# The hybrid's .torrent as the file holds it, and as qBittorrent's own export gives it: every
+# piece layer as long as its files are (#71). qBittorrent's is only said, not checked: it is
+# upstream's to fix (upstream#97).
+omabox run -b "$BOX" -- tar -xOf "$EXPORT" "torrents/$NESTED.torrent" >"$work/nested.torrent"
+source_api "torrents/export?hash=$NESTED" >"$work/nested-qbt.torrent"
+if layers_sound "$work/nested.torrent"; then
+    pass "the Nested Library Sampler's .torrent: each piece layer as long as its files (#71)"
+else
+    fail "the Nested Library Sampler's .torrent: $(layers_sound "$work/nested.torrent" 2>&1)"
+fi
+layers_sound "$work/nested-qbt.torrent" >/dev/null 2>&1 ||
+    echo "  (qBittorrent's own torrents/export of it still repeats its piece layers: upstream#97)"
+shot "The note under the rows: Exported 5 torrents to ~/torrents-box-<date>.omaseed-torrents. 1 magnet went in as a link." note
 
 step "Copy the files elsewhere" "In the box, ~/Torrents is copied to ~/Moved: the files as a new machine would have them, under another folder."
 in_box cp -a "$SOURCE_DIR" "$MOVED_DIR"
@@ -299,7 +355,7 @@ count="$(target_api torrents/info | python3 -c 'import json, sys; print(len(json
 if [ "$count" = 0 ]; then pass "the target is empty"; else fail "the target has $count torrents"; fi
 shot "The library on target: empty."
 
-step "Import into the target" "Settings › qBittorrent, 0, tab, j j j to Import torrents, enter; the path typed into the portal's open dialog; the sheet: 3 new, 1 link, the save path row from ~/Torrents; tab to its \"to\", ~/Moved typed."
+step "Import into the target" "Settings › qBittorrent, 0, tab, j j j to Import torrents, enter; the path typed into the portal's open dialog; the sheet: 4 new, 1 link, the save path row from ~/Torrents; tab to its \"to\", ~/Moved typed."
 keys ctrl+shift+comma
 keys 0
 keys Tab
@@ -311,7 +367,7 @@ shot "The portal's open dialog, the file's path typed." dialog screen
 dialog_keys Return
 omabox wait -b "$BOX" --timeout 10s window --gone "Import qBittorrent's torrents" >/dev/null 2>&1 || true
 sleep 1
-shot "Import 4 torrents into target: new to target 3 (added), already 0 (skipped), magnets 1 (added as links); save paths /home/sbx/Torrents → (empty), the ! line: save paths are kept as they are; then: check files, start the complete ones; + 1 category and 3 tags they use are created first; import 4." sheet
+shot "Import 5 torrents into target: new to target 4 (added), already 0 (skipped), magnets 1 (added as links); save paths /home/sbx/Torrents → (empty), the ! line: save paths are kept as they are; then: check files, start the complete ones; + 1 category and 3 tags they use are created first; import 5." sheet
 keys Tab
 keys -t "$MOVED_DIR"
 shot "The row reads /home/sbx/Torrents → /home/sbx/Moved; the ! line is gone (every path is under it)." row
@@ -322,11 +378,11 @@ import json, sys
 every = json.load(sys.stdin)
 busy = [t for t in every if t["state"].startswith("checking") or t["state"] in ("moving", "queuedForChecking")]
 running = [t for t in every if t["has_metadata"] and not t["state"].startswith("stopped")]
-sys.exit(0 if len(every) == 4 and not busy and len(running) == 2 else 1)'
+sys.exit(0 if len(every) == 5 and not busy and len(running) == 3 else 1)'
 }
-wait_for "the target has all 4, checked, the two complete started ones running" 120 settled
+wait_for "the target has all 5, checked, the three complete started ones running" 180 settled
 wait_for "the import is through: its journal is gone" 30 import_done
-shot "The note under the rows: Imported into target: 3 torrents, 1 link. After the check: 2 started, 1 left stopped." note
+shot "The note under the rows: Imported into target: 4 torrents, 1 link. After the check: 3 started, 1 left stopped." note
 
 step "Compare" "Every torrent on both servers, and the files on disk."
 snapshot target_api "$work/target"
@@ -387,10 +443,10 @@ dialog_keys -t "$EXPORT"
 dialog_keys Return
 omabox wait -b "$BOX" --timeout 10s window --gone "Import qBittorrent's torrents" >/dev/null 2>&1 || true
 sleep 1
-shot "Import 4 torrents into target: new 0, already in target 4 (skipped); the button reads nothing to import." sheet
+shot "Import 5 torrents into target: new 0, already in target 5 (skipped); the button reads nothing to import." sheet
 keys Escape
 count="$(target_api torrents/info | python3 -c 'import json, sys; print(len(json.load(sys.stdin)))')"
-if [ "$count" = 4 ]; then pass "still 4 torrents on the target"; else fail "the target has $count torrents"; fi
+if [ "$count" = 5 ]; then pass "still 5 torrents on the target"; else fail "the target has $count torrents"; fi
 
 step "A stray file under a renamed file's old name" "The album is taken off the target (its files stay), and a stray file is put where its first track was called before the rename. Imported again (tab to \"to\", ~/Moved), the rename would move the stray file over the real track (#64, #67): it is not sent, and the album stays stopped."
 ALBUM_DIR="$MOVED_DIR/Field Recordings Vol. 3 [FLAC]"
@@ -408,7 +464,7 @@ omabox wait -b "$BOX" --timeout 10s window --gone "Import qBittorrent's torrents
 sleep 1
 keys Tab
 keys -t "$MOVED_DIR"
-shot "Import 4 torrents into target: new 1, already 3; the row /home/sbx/Torrents → /home/sbx/Moved; import 1." sheet
+shot "Import 5 torrents into target: new 1, already 4; the row /home/sbx/Torrents → /home/sbx/Moved; import 1." sheet
 keys Return
 album_settled() {
     target_api torrents/info | python3 -c '
