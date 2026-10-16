@@ -32,7 +32,9 @@
 // A journal (`Journal`, one file per server) records each torrent between its add and its
 // last step, saved after every batch, so a run that fails (the server gone, the disk full) or
 // is stopped leaves what was added, and the next run of the same file finishes those and adds
-// the rest (§7).
+// the rest (§7). A .torrent the server can't read (415) is not such a failure: its batch goes
+// again one torrent at a time, that one is named in `errors` and the run goes on (#71). Each
+// .torrent is sent with its piece layers put right first (`TorrentFile::repairPieceLayers`).
 
 #include "core/PathMap.hpp"
 #include "core/TorrentsBackup.hpp"
@@ -192,7 +194,11 @@ private:
     };
 
     void next();
+    struct AddGroup;
     void addBatch();
+    void sendAdd(const std::shared_ptr<AddGroup> &group, const std::shared_ptr<int> &waiting);
+    void acceptAdded(const QList<Item> &items, const QByteArray &answer);
+    void addAnswered(const std::shared_ptr<int> &waiting);
     void awaitAdded(int attempt);
     void followUps(int at);
     void moveQueue(int at);

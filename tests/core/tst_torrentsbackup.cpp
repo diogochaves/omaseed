@@ -1,8 +1,11 @@
 // TorrentsBackup's file, TorrentsImport's plan, path rows, journal and rename guard
-// (docs/24 §2, §5, §7; #33), without a server. The runs against real qBittorrents are in
+// (docs/24 §2, §5, §7; #33), without a server; the add against a qBittorrent of its own that
+// refuses what libtorrent can't load (#71). The runs against real qBittorrents are in
 // tst_torrentsbackup_live.cpp.
 
+#include "core/Bencode.hpp"
 #include "core/PathMap.hpp"
+#include "core/QbtClient.hpp"
 #include "core/TarArchive.hpp"
 #include "core/TorrentFile.hpp"
 #include "core/TorrentsBackup.hpp"
@@ -12,11 +15,21 @@
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QJsonObject>
+#include <QSignalSpy>
+#include <QTcpServer>
+#include <QTcpSocket>
 #include <QTemporaryDir>
 #include <QTemporaryFile>
 #include <QTest>
+#include <QUrlQuery>
 
+#include <functional>
+#include <memory>
+
+namespace bencode = omaseed::core::bencode;
 using omaseed::core::PathMap;
+using omaseed::core::QbtClient;
 using omaseed::core::TarArchive;
 using omaseed::core::TarReader;
 using omaseed::core::TarWriter;
@@ -94,6 +107,192 @@ bool writeExport(const QString &path,
     }
     return ok && writer.finish();
 }
+
+// ---- a qBittorrent of our own, for the add (#71) ----------------------------------------
+
+/// A v2 .torrent named `name` whose two 48 KiB files have the same content (one "pieces root",
+/// one layer of three hashes at 16 KiB pieces); `layer` is what "piece layers" holds for it.
+QByteArray duplicateFilesTorrent(const QByteArray &name, const QByteArray &layer)
+{
+    const QByteArray root(32, 'R');
+    const auto leaf = [&root] {
+        return bencode::Value(bencode::Dict{
+            {QByteArray(),
+             bencode::Value(bencode::Dict{{"length", bencode::Value(qint64(3 * 16384))},
+                                          {"pieces root", bencode::Value(root)}})}});
+    };
+    const bencode::Value info(bencode::Dict{
+        {"file tree", bencode::Value(bencode::Dict{{"a.bin", leaf()}, {"b.bin", leaf()}})},
+        {"meta version", bencode::Value(qint64(2))},
+        {"name", bencode::Value(name)},
+        {"piece length", bencode::Value(qint64(16384))}});
+    return bencode::encode(bencode::Value(bencode::Dict{
+        {"info", info},
+        {"piece layers", bencode::Value(bencode::Dict{{root, bencode::Value(layer)}})}}));
+}
+
+QByteArray threeHashes()
+{
+    return QByteArray(32, '1') + QByteArray(32, '2') + QByteArray(32, '3');
+}
+
+/// What libtorrent checks before it loads a v2 .torrent, and qBittorrent's torrents/add with
+/// it (415 otherwise): each piece layer is ceil(length / piece length) hashes of its files.
+bool loadsLikeLibtorrent(const QByteArray &bytes)
+{
+    if (!TorrentFile::parse(bytes).isValid())
+        return false;
+    const bencode::Value root = bencode::decode(bytes);
+    const qint64 pieceLength = root.value("info").value("piece length").toInteger();
+    const bencode::Value layers = root.value("piece layers");
+    std::function<bool(const bencode::Value &)> walk = [&](const bencode::Value &node) {
+        for (const auto &[name, child] : node.toDict()) {
+            const bencode::Value leaf = child.value(QByteArray());
+            if (!leaf.isDict()) {
+                if (!walk(child))
+                    return false;
+                continue;
+            }
+            const qint64 length = leaf.value("length").toInteger();
+            if (length <= pieceLength)
+                continue;
+            const QByteArray layer = layers.value(leaf.value("pieces root").toString()).toString();
+            if (layer.size() != (length + pieceLength - 1) / pieceLength * 32)
+                return false;
+        }
+        return true;
+    };
+    return walk(root.value("info").value("file tree"));
+}
+
+QByteArray httpResponse(int code, const QByteArray &reason, const QByteArray &body)
+{
+    return "HTTP/1.1 " + QByteArray::number(code) + ' ' + reason +
+           "\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Length: " +
+           QByteArray::number(body.size()) + "\r\nConnection: close\r\n\r\n" + body;
+}
+
+/// The files of a multipart/form-data body, in order: (filename, bytes).
+QList<QPair<QByteArray, QByteArray>> uploads(const QByteArray &contentType, const QByteArray &body)
+{
+    QList<QPair<QByteArray, QByteArray>> out;
+    const qsizetype at = contentType.indexOf("boundary=");
+    if (at < 0)
+        return out;
+    QByteArray boundary = contentType.mid(at + 9).trimmed();
+    if (boundary.startsWith('"'))
+        boundary = boundary.mid(1, boundary.size() - 2);
+    const QByteArray mark = "--" + boundary;
+    qsizetype from = body.indexOf(mark);
+    while (from >= 0) {
+        const qsizetype start = from + mark.size() + 2; // past "\r\n"
+        const qsizetype end = body.indexOf("\r\n" + mark, start);
+        if (end < 0)
+            break;
+        const QByteArray part = body.mid(start, end - start);
+        const qsizetype split = part.indexOf("\r\n\r\n");
+        const QByteArray headers = part.left(split);
+        const qsizetype name = headers.indexOf("filename=\"");
+        if (split > 0 && name >= 0) {
+            const qsizetype close = headers.indexOf('"', name + 10);
+            out.append({headers.mid(name + 10, close - name - 10), part.mid(split + 4)});
+        }
+        from = end + 2;
+    }
+    return out;
+}
+
+/// Speaks just enough of qBittorrent's API for an import's add: torrents/add loads each file
+/// as libtorrent would, adds the good ones until it comes to one it can't load, and answers
+/// that with 415 (as 5.2.3 does); a torrent already there is 409. Everything else is "".
+class FakeQbt : public QTcpServer
+{
+public:
+    FakeQbt()
+    {
+        [this] { QVERIFY(listen(QHostAddress::LocalHost)); }();
+    }
+
+    QUrl url() const { return QUrl(QStringLiteral("http://127.0.0.1:%1").arg(serverPort())); }
+
+    QHash<QString, QByteArray> added; ///< id -> the bytes it was added from
+    int adds = 0;
+
+protected:
+    void incomingConnection(qintptr descriptor) override
+    {
+        auto *socket = new QTcpSocket(this);
+        socket->setSocketDescriptor(descriptor);
+        connect(socket, &QTcpSocket::disconnected, socket, &QObject::deleteLater);
+        auto buffer = std::make_shared<QByteArray>();
+        connect(socket, &QTcpSocket::readyRead, socket, [this, socket, buffer] {
+            buffer->append(socket->readAll());
+            const qsizetype headerEnd = buffer->indexOf("\r\n\r\n");
+            if (headerEnd < 0)
+                return;
+            const QList<QByteArray> lines = buffer->left(headerEnd).split('\n');
+            QByteArray contentType;
+            qsizetype length = 0;
+            for (const QByteArray &line : lines) {
+                const QByteArray lower = line.trimmed().toLower();
+                if (lower.startsWith("content-length:"))
+                    length = line.mid(line.indexOf(':') + 1).trimmed().toLongLong();
+                else if (lower.startsWith("content-type:"))
+                    contentType = line.mid(line.indexOf(':') + 1).trimmed();
+            }
+            if (buffer->size() - (headerEnd + 4) < length)
+                return;
+            const QByteArray target = lines.constFirst().split(' ').value(1);
+            const QByteArray body = buffer->mid(headerEnd + 4, length);
+            buffer->clear();
+            socket->write(answer(target, contentType, body));
+            socket->flush();
+            socket->disconnectFromHost();
+        });
+    }
+
+private:
+    QByteArray
+    answer(const QByteArray &target, const QByteArray &contentType, const QByteArray &body)
+    {
+        const QUrl url(QString::fromLatin1(target));
+        const QString path = url.path();
+        if (path.endsWith(u"/app/webapiVersion"))
+            return httpResponse(200, "OK", "2.15.1");
+        if (path.endsWith(u"/app/preferences"))
+            return httpResponse(200, "OK", R"({"save_path":"/d"})");
+        if (path.endsWith(u"/torrents/categories"))
+            return httpResponse(200, "OK", "{}");
+        if (path.endsWith(u"/torrents/info")) {
+            const QStringList asked = QUrlQuery(url)
+                                          .queryItemValue(QStringLiteral("hashes"))
+                                          .split(QLatin1Char('|'), Qt::SkipEmptyParts);
+            QJsonArray listed;
+            for (const QString &id : asked) {
+                if (added.contains(id))
+                    listed.append(QJsonObject{{QStringLiteral("hash"), id}});
+            }
+            return httpResponse(200, "OK", QJsonDocument(listed).toJson(QJsonDocument::Compact));
+        }
+        if (path.endsWith(u"/torrents/add")) {
+            ++adds;
+            bool any = false;
+            for (const auto &[name, bytes] : uploads(contentType, body)) {
+                if (!loadsLikeLibtorrent(bytes))
+                    return httpResponse(415,
+                                        "Unsupported Media Type",
+                                        "Error: '" + name + "' is not a valid torrent file.");
+                const QString id = TorrentFile::parse(bytes).torrentId();
+                if (added.contains(id))
+                    continue;
+                added.insert(id, bytes);
+                any = true;
+            }
+            return any ? httpResponse(200, "OK", "Ok.") : httpResponse(409, "Conflict", "Conflict");
+        }
+        return httpResponse(200, "OK", "");
+    }
+};
 
 } // namespace
 
@@ -538,6 +737,82 @@ private Q_SLOTS:
         QVERIFY(empty.save(path));
         QVERIFY(!QFile::exists(path));
         QVERIFY(TorrentsImport::Journal::load(path).stages.isEmpty());
+    }
+
+    // ---- the add (#71) -----------------------------------------------------------------
+
+    // A file exported from qBittorrent 5.2.3 holds a .torrent whose files share content: its
+    // piece layer repeated per file, which qBittorrent refuses (415) and with it the whole
+    // batch. The import puts the layer right before it sends it; a .torrent qBittorrent still
+    // can't read is named, and the rest of its batch goes in on its own.
+    void addsWhatTheServerCanRead()
+    {
+        QTemporaryDir dir;
+        const QByteArray v1 = fixture(QStringLiteral("single_file_v1.torrent"));
+        const QByteArray exported = duplicateFilesTorrent("dups", threeHashes().repeated(2));
+        const QByteArray unreadable = duplicateFilesTorrent("short", threeHashes().left(64));
+        QVERIFY(!loadsLikeLibtorrent(exported));
+        QVERIFY(!loadsLikeLibtorrent(unreadable));
+
+        const auto recordOf = [](const QByteArray &bytes, const QString &name) {
+            const TorrentFile parsed = TorrentFile::parse(bytes);
+            TorrentRecord r = record(parsed.torrentId(), QStringLiteral("/d"));
+            r.infohashV1 = parsed.infoHashV2.isEmpty() ? parsed.infoHashV1 : QString();
+            r.infohashV2 = parsed.infoHashV2;
+            r.name = name;
+            return r;
+        };
+        const QList<QPair<TorrentRecord, QByteArray>> torrents{
+            {recordOf(v1, QStringLiteral("plain v1")), v1},
+            {recordOf(exported, QStringLiteral("dups")), exported},
+            {recordOf(unreadable, QStringLiteral("short")), unreadable}};
+        const QString path = dir.filePath(QStringLiteral("t.omaseed-torrents"));
+        {
+            QFile file(path);
+            QVERIFY(file.open(QIODevice::WriteOnly));
+            TarWriter writer(&file);
+            QVERIFY(writer.add(
+                TorrentsBackup::kManifest, QJsonDocument(manifest().toJson()).toJson(), 0));
+            for (const auto &[r, bytes] : torrents) {
+                QVERIFY(writer.add(
+                    TorrentsBackup::recordEntry(r.id), QJsonDocument(r.toJson()).toJson(), 0));
+                QVERIFY(writer.add(TorrentsBackup::torrentEntry(r.id), bytes, 0));
+            }
+            QVERIFY(writer.finish());
+        }
+        QString error;
+        const auto contents = TorrentsBackup::read(path, &error);
+        QVERIFY2(contents.has_value(), qPrintable(error));
+        const TorrentsImport::Plan plan = TorrentsImport::plan(*contents, {});
+        QCOMPARE(plan.add, (QList<int>{0, 1, 2}));
+
+        FakeQbt server;
+        QbtClient client;
+        client.setBaseUrl(server.url());
+        TorrentsImport import(&client);
+        TorrentsImport::Options options;
+        options.check = false;
+        options.journalPath = dir.filePath(QStringLiteral("imports/fake.json"));
+        options.pollMs = 50;
+        QSignalSpy finished(&import, &TorrentsImport::finished);
+        import.start(*contents, plan, options);
+        QVERIFY(finished.wait(20000));
+        const auto outcome = finished.constFirst().constFirst().value<TorrentsImport::Outcome>();
+
+        QVERIFY2(outcome.complete, qPrintable(outcome.errors.join(u"; ")));
+        QCOMPARE(outcome.added, 2);
+        QCOMPARE(outcome.errors,
+                 QStringList{QStringLiteral("qBittorrent couldn't read the .torrent of short")});
+        QCOMPARE(server.added.size(), 2);
+        QVERIFY(server.added.contains(torrents.at(0).first.id));
+        // The layer put right, the hashes untouched.
+        const QByteArray sent = server.added.value(torrents.at(1).first.id);
+        QVERIFY(loadsLikeLibtorrent(sent));
+        QCOMPARE(sent, TorrentFile::repairPieceLayers(exported));
+        // One batch, then each of its three on its own.
+        QCOMPARE(server.adds, 4);
+        // Nothing left for a next run: the refused one was never added.
+        QVERIFY(!QFile::exists(options.journalPath));
     }
 
     // ---- the rename guard (#64, #67) ---------------------------------------------------

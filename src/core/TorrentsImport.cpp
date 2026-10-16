@@ -496,24 +496,26 @@ void TorrentsImport::next()
     }
 }
 
+/// One torrents/add request: torrents whose options agree, each a .torrent file or a link.
+struct TorrentsImport::AddGroup
+{
+    QbtClient::AddOptions options;
+    QList<QbtClient::AddFile> files;
+    QStringList urls;
+    QList<Item> items;
+    bool again = false; ///< one torrent of a batch qBittorrent refused, sent on its own
+};
+
 void TorrentsImport::addBatch()
 {
     if (m_next >= m_order.size()) {
         m_adding = false;
         return next();
     }
-    const int generation = m_generation;
     const int end = std::min<int>(m_next + m_options.batch, int(m_order.size()));
     m_items.clear();
 
-    struct Group
-    {
-        QbtClient::AddOptions options;
-        QList<QbtClient::AddFile> files;
-        QStringList urls;
-        QList<Item> items;
-    };
-    QList<Group> groups;
+    QList<std::shared_ptr<AddGroup>> groups;
     QHash<QString, int> groupOf;
     for (int at = m_next; at < end; ++at) {
         const int i = m_order.at(at);
@@ -529,6 +531,8 @@ void TorrentsImport::addBatch()
             bytes = TorrentsBackup::torrentBytes(m_file.get(), m_contents, r.id, &error);
             if (bytes.isEmpty())
                 return fail(error);
+            // A file exported before #71 may carry piece layers libtorrent refuses.
+            bytes = TorrentFile::repairPieceLayers(bytes);
             const QStringList own = TorrentFile::parse(bytes).trackers();
             for (const QString &url : r.trackers) {
                 if (!own.contains(url))
@@ -576,66 +580,110 @@ void TorrentsImport::addBatch()
         if (g < 0) {
             g = int(groups.size());
             groupOf.insert(key, g);
-            groups.append(Group{o, {}, {}, {}});
+            groups.append(std::make_shared<AddGroup>(AddGroup{o, {}, {}, {}, false}));
         }
         if (r.isMagnet())
-            groups[g].urls.append(r.magnet);
+            groups[g]->urls.append(r.magnet);
         else
-            groups[g].files.append({r.id + QStringLiteral(".torrent"), bytes});
-        groups[g].items.append(item);
+            groups[g]->files.append({r.id + QStringLiteral(".torrent"), bytes});
+        groups[g]->items.append(item);
     }
     m_next = end;
 
     auto waiting = std::make_shared<int>(int(groups.size()));
-    for (const Group &group : std::as_const(groups)) {
-        const auto answer = [this, generation, waiting, items = group.items](
-                                const QbtResult<QByteArray> &r) {
-            if (!live(generation))
-                return;
-            if (r.isError())
-                return fail(r.error().toString());
-            // 5.x answers {"added_torrent_ids": […], …}; older ones "Ok." or "Fails.".
-            const QByteArray body = r.value().trimmed();
-            const QJsonDocument doc = QJsonDocument::fromJson(body);
-            QSet<QString> ids;
-            bool knows = false;
-            if (doc.isObject() && doc.object().contains(QStringLiteral("added_torrent_ids"))) {
-                knows = true;
-                for (const QJsonValue &id :
-                     doc.object().value(QStringLiteral("added_torrent_ids")).toArray())
-                    ids.insert(id.toString().toLower());
-            }
-            const bool refused = body == "Fails.";
-            for (const Item &item : items) {
-                const TorrentRecord &rec = record(item.index);
-                const QStringList recIds = rec.ids();
-                const bool in =
-                    !refused &&
-                    (!knows || std::any_of(recIds.cbegin(),
-                                           recIds.cend(),
-                                           [&ids](const QString &id) { return ids.contains(id); }));
-                if (!in) {
-                    m_outcome.errors.append(QStringLiteral("%1 was not added").arg(rec.name));
-                    continue;
+    for (const std::shared_ptr<AddGroup> &group : std::as_const(groups))
+        sendAdd(group, waiting);
+}
+
+void TorrentsImport::sendAdd(const std::shared_ptr<AddGroup> &group,
+                             const std::shared_ptr<int> &waiting)
+{
+    const int generation = m_generation;
+    const auto answer = [this, generation, group, waiting](const QbtResult<QByteArray> &r) {
+        if (!live(generation))
+            return;
+        if (r.isError()) {
+            const ApiError &error = r.error();
+            // 415: qBittorrent couldn't load a .torrent it was sent ("not a valid torrent
+            // file") and stopped there. That is one torrent, not the server gone (docs/24 §7):
+            // each goes again on its own, to name the one refused and add the rest (#71).
+            if (error.httpStatus() == 415 && group->urls.isEmpty()) {
+                if (group->files.size() > 1) {
+                    *waiting += int(group->files.size()) - 1;
+                    for (qsizetype k = 0; k < group->files.size(); ++k) {
+                        sendAdd(std::make_shared<AddGroup>(AddGroup{group->options,
+                                                                    {group->files.at(k)},
+                                                                    {},
+                                                                    {group->items.at(k)},
+                                                                    true}),
+                                waiting);
+                    }
+                    return;
                 }
-                m_journal.stages.insert(rec.id, QStringLiteral("added"));
-                m_byId.insert(rec.id, item);
-                m_items.append(item);
-                if (rec.isMagnet())
-                    ++m_outcome.magnets;
-                else
-                    ++m_outcome.added;
+                m_outcome.errors.append(
+                    QStringLiteral("qBittorrent couldn't read the .torrent of %1")
+                        .arg(record(group->items.constFirst().index).name));
+                return addAnswered(waiting);
             }
-            if (--*waiting > 0)
-                return;
-            saveJournal();
-            awaitAdded(0);
-        };
-        QbtReply<QByteArray> *reply =
-            group.urls.isEmpty() ? m_client->torrentsAddMany(group.files, {}, group.options)
-                                 : m_client->torrentsAddUrls(group.urls, group.options);
-        reply->then(this, answer);
+            // Sent again on its own after its batch was refused: qBittorrent had added it
+            // before it came to the one it couldn't read, and now says it is there (409).
+            if (error.kind() == ApiError::Kind::Conflict && group->again) {
+                acceptAdded(group->items, QByteArray());
+                return addAnswered(waiting);
+            }
+            return fail(error.toString());
+        }
+        acceptAdded(group->items, r.value());
+        addAnswered(waiting);
+    };
+    QbtReply<QByteArray> *reply = group->urls.isEmpty()
+                                      ? m_client->torrentsAddMany(group->files, {}, group->options)
+                                      : m_client->torrentsAddUrls(group->urls, group->options);
+    reply->then(this, answer);
+}
+
+void TorrentsImport::acceptAdded(const QList<Item> &items, const QByteArray &answer)
+{
+    // 5.x answers {"added_torrent_ids": […], …}; older ones "Ok." or "Fails.".
+    const QByteArray body = answer.trimmed();
+    const QJsonDocument doc = QJsonDocument::fromJson(body);
+    QSet<QString> ids;
+    bool knows = false;
+    if (doc.isObject() && doc.object().contains(QStringLiteral("added_torrent_ids"))) {
+        knows = true;
+        for (const QJsonValue &id :
+             doc.object().value(QStringLiteral("added_torrent_ids")).toArray())
+            ids.insert(id.toString().toLower());
     }
+    const bool refused = body == "Fails.";
+    for (const Item &item : items) {
+        const TorrentRecord &rec = record(item.index);
+        const QStringList recIds = rec.ids();
+        const bool in =
+            !refused &&
+            (!knows || std::any_of(recIds.cbegin(), recIds.cend(), [&ids](const QString &id) {
+                return ids.contains(id);
+            }));
+        if (!in) {
+            m_outcome.errors.append(QStringLiteral("%1 was not added").arg(rec.name));
+            continue;
+        }
+        m_journal.stages.insert(rec.id, QStringLiteral("added"));
+        m_byId.insert(rec.id, item);
+        m_items.append(item);
+        if (rec.isMagnet())
+            ++m_outcome.magnets;
+        else
+            ++m_outcome.added;
+    }
+}
+
+void TorrentsImport::addAnswered(const std::shared_ptr<int> &waiting)
+{
+    if (--*waiting > 0)
+        return;
+    saveJournal();
+    awaitAdded(0);
 }
 
 void TorrentsImport::awaitAdded(int attempt)

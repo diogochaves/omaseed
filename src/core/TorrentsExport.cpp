@@ -1,6 +1,7 @@
 #include "core/TorrentsExport.hpp"
 
 #include "core/QbtClient.hpp"
+#include "core/TorrentFile.hpp"
 
 #include <QDateTime>
 #include <QDir>
@@ -225,7 +226,8 @@ void TorrentsExport::nextBatch()
                         else if (kind != ApiError::Kind::Conflict) // 409: a magnet, kept as a link
                             return fail(r.error().toString());
                     } else {
-                        m_batch[i].torrent = r.value();
+                        // Its piece layers as libtorrent can load them again (#71).
+                        m_batch[i].torrent = TorrentFile::repairPieceLayers(r.value());
                     }
                     settle();
                 });
