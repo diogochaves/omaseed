@@ -164,6 +164,12 @@ before it will tag a release.
   flips it and saves the setting, as a click would. Before, the press did nothing, and a
   toggle moved the switch without changing the setting behind it. Disabled controls still
   ignore it.
+- A screen reader can now find the rows and the other places you click: the library's
+  torrents, the details tabs' trackers, peers, HTTP sources and files, the add sheet's lists,
+  the console's and the log's rows, the rail's group headings, the empty states' ways in and
+  the settings' rows are named by what they are (a torrent's name, a peer's address), say
+  whether they are selected, ticked or folded, and pressing one does what a click does.
+  Before, these 72 places were not in its tree at all.
 - A server added in Settings › Servers is tested before it is saved, as in the first-run
   setup: `save` waits, dimmed with "test first", until a test has run; a failed test offers
   "save anyway" for a server that is down on purpose. Editing a server asks for a new test only
