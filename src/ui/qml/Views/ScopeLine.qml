@@ -63,6 +63,10 @@ Rectangle {
         Label {
             id: line
 
+            // #79: what the pane acts on, by its plain words (not the styled text with its
+            // markup and key).
+            Accessible.name: root.text
+            Accessible.role: Accessible.StaticText
             Layout.fillWidth: true
             lineHeight: 1.25
             objectName: "scopeText"

@@ -212,6 +212,9 @@ Rectangle {
                 Label {
                     id: countNumber
 
+                    // #79: "2 selected" in words, even when the bar is too narrow for "selected".
+                    Accessible.name: qsTr("%1 selected").arg(root.count)
+                    Accessible.role: Accessible.StaticText
                     anchors.baseline: countWord.baseline
                     bright: true
                     font.features: {

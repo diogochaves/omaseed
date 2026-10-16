@@ -184,6 +184,9 @@ TestCase {
         compare(testCase.logView.cursor, 0);
         verify(!testCase.logView.following, "the view left the bottom and still follows");
         compare(state.text, "○ paused");
+        // #79: a screen reader hears the word, without the ● or ○.
+        compare(state.Accessible.role, Accessible.StaticText);
+        compare(state.Accessible.name, "paused");
         const top = list.contentY;
         testCase.addLines(3, 4, "Failed to export torrent. Torrent: \"x\"");
         compare(testCase.logView.newLines, 3);

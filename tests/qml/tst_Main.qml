@@ -124,6 +124,21 @@ TestCase {
         verify(view.factsText.endsWith(" · 2 selected"));
     }
 
+    // #79: the facts are one label in whole words, the ↓ and the narrow steps' "sel" spelled
+    // out; a footer note is an alert by its words.
+    function test_a_screen_reader_hears_the_footer() {
+        const facts = findChild(view, "footerFacts");
+        compare(facts.Accessible.role, Accessible.StaticText);
+        compare(facts.Accessible.name, "16 torrents, 7 downloading, " + App.globalState.freeSpaceText
+                + " free");
+        compare(view.factsSpoken, facts.Accessible.name);
+        view.flashFooterNote("copied");
+        const note = findChild(view, "footerNote");
+        compare(note.Accessible.role, Accessible.AlertMessage);
+        compare(note.Accessible.name, "copied");
+        view.footerNote = "";
+    }
+
     function test_the_footer_hints_follow_the_focus() {
         compare(view.hintModel.area, "table");
         view.rail.forceActiveFocus();

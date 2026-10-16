@@ -72,6 +72,9 @@ TestCase {
         compare(bar.folded, []);
         verify(bar.fit.word, "the count should keep its word when there is room");
         compare(findChild(bar, "selectionCount").text, "2");
+        // #79: the count in words, for a screen reader.
+        compare(findChild(bar, "selectionCount").Accessible.role, Accessible.StaticText);
+        compare(findChild(bar, "selectionCount").Accessible.name, "2 selected");
     }
 
     function test_each_tooltip_names_its_key() {

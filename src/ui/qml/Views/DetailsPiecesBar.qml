@@ -39,6 +39,11 @@ Item {
         Label {
             id: pieceLabel
 
+            // #79: "pieces", what it has and the percent the description: both move while it
+            // downloads. The percent's own label is the same figure and stays out.
+            Accessible.description: [root.haveText, root.percentText].filter(part => part.length > 0).join(" · ")
+            Accessible.name: qsTr("pieces")
+            Accessible.role: Accessible.StaticText
             objectName: "piecesLabel"
             text: root.haveText.length > 0 ? qsTr("pieces · %1").arg(root.haveText) : qsTr(
                                                                                           "pieces")

@@ -91,6 +91,10 @@ Rectangle {
         return root.freeText.length > 0 ? folder + " · " + root.freeText : folder;
     }
 
+    // #79: the block is an alert named by its headline; its lines are text under it, and the
+    // kind's glyph stays out.
+    Accessible.name: root.problem.headline || ""
+    Accessible.role: Accessible.AlertMessage
     color: Theme.fill(Theme.fillIdle)
     implicitHeight: column.implicitHeight + Theme.space(12)
     objectName: "errorBlock"
@@ -138,6 +142,8 @@ Rectangle {
         }
 
         Text {
+            Accessible.name: text
+            Accessible.role: Accessible.StaticText
             color: Theme.foreground
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.small
@@ -150,6 +156,8 @@ Rectangle {
         }
 
         Text {
+            Accessible.name: text
+            Accessible.role: Accessible.StaticText
             color: Theme.dimForeground
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.small
@@ -162,6 +170,8 @@ Rectangle {
         }
 
         Text {
+            Accessible.name: text
+            Accessible.role: Accessible.StaticText
             color: Theme.dimForeground
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.small

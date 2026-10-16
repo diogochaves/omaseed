@@ -980,9 +980,12 @@ Item {
             anchors.topMargin: Theme.space(12)
             spacing: Theme.space(2)
 
+            // #79: the pane's heading is the torrent's name, whole when it is cut.
             Text {
                 id: headName
 
+                Accessible.name: text
+                Accessible.role: Accessible.Heading
                 color: Theme.brightForeground
                 elide: Text.ElideRight
                 font.family: Theme.fontFamily
@@ -1028,8 +1031,16 @@ Item {
                 readonly property bool labelsFit: metaLine.labels.length > 0
                                                   && metaLine.width - joinedMetrics.advanceWidth
                                                   >= Theme.space(40)
+                /// #79: the whole line, whatever the width drops ("linux · private · added 18 Sep
+                /// 10:41"), for a screen reader; its two texts publish nothing themselves.
+                readonly property string spoken: !root.torrent ? qsTr("pick a row in the table")
+                                                               : [metaLine.labels, metaLine.added].filter(
+                                                                     part => part.length > 0).join(" · ")
 
+                Accessible.name: metaLine.spoken
+                Accessible.role: Accessible.StaticText
                 height: addedText.implicitHeight
+                objectName: "headMeta"
                 width: parent.width
 
                 Text {

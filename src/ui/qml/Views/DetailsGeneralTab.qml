@@ -317,6 +317,9 @@ Flickable {
             // the rows), in the accent as docs/12 G1 draws it, so it does not read as one more
             // key.
             Label {
+                // #79: "Transfer", "Information", "Options": the rows' headings.
+                Accessible.name: text
+                Accessible.role: Accessible.Heading
                 bottomPadding: Theme.space(4)
                 color: Theme.accent
                 leftPadding: Theme.space(16)
