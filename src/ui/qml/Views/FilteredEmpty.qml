@@ -61,6 +61,15 @@ Item {
 
             // Each half of the note is also a link that does what its key does.
             Item {
+                id: clearLink
+
+                // #77: a link named by what it does, its key the description; its press is
+                // the click.
+                Accessible.description: "esc"
+                Accessible.name: qsTr("clear the filter")
+                Accessible.role: Accessible.Link
+                Accessible.onPressAction: if (clearLink.enabled)
+                                              root.clearRequested()
                 height: clearRow.implicitHeight
                 objectName: "clearFilterLink"
                 // Without filter text, `esc` has no filter to clear (#51 D13).
@@ -108,6 +117,14 @@ Item {
             }
 
             Item {
+                id: allLink
+
+                // #77: as the other link.
+                Accessible.description: "0"
+                Accessible.name: qsTr("show all statuses")
+                Accessible.role: Accessible.Link
+                Accessible.onPressAction: if (allLink.enabled)
+                                              root.allStatusesRequested()
                 height: allRow.implicitHeight
                 objectName: "allStatusesLink"
                 // Nothing to widen when the status is already "all" (review RUN-13).

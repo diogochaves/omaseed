@@ -67,6 +67,25 @@ TestCase {
             App.serverList.remove(App.serverList.idAt(0));
     }
 
+    // #77: with two servers the select is a "switch server" button whose press opens the
+    // list, as a click does.
+    function test_the_select_takes_the_accessible_press() {
+        const pub = testCase.add("public", 8090);
+        testCase.add("private", 8091);
+        const host = createTemporaryObject(selectComponent, testCase);
+        const select = host.select;
+        select.currentId = pub;
+        select.currentName = "public";
+        const box_ = findChild(select, "serverSelectBox");
+        compare(box_.Accessible.role, Accessible.Button);
+        compare(box_.Accessible.name, "switch server");
+        compare(box_.Accessible.description, "public");
+        box_.Accessible.pressAction();
+        verify(select.listOpen);
+        keyClick(Qt.Key_Escape);
+        verify(!select.listOpen);
+    }
+
     function test_one_server_is_a_label() {
         const id = testCase.add("public", 8090);
         const host = createTemporaryObject(selectComponent, testCase);

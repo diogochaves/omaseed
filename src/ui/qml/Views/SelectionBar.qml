@@ -252,7 +252,19 @@ Rectangle {
 
         // T1: size, given and ratio of what is selected; a click opens the console on it.
         Item {
+            id: summaryBox
+
+            // #77: a button to the seed console on the selection, the figures its
+            // description; its press is the click, and does nothing while disabled.
+            Accessible.description: [root.summary.sizeText ?? "",
+                                     qsTr("given %1").arg(root.summary.givenText ?? ""),
+                                     qsTr("ratio %1").arg(root.summary.ratioText ?? "")].join(" · ")
+            Accessible.name: qsTr("seed console")
+            Accessible.role: Accessible.Button
+            Accessible.onPressAction: if (summaryBox.enabled)
+                                          root.summaryClicked()
             height: Theme.controlHeight
+            objectName: "bar_summary"
             visible: root.showSummary
             width: root._summaryWidth
 

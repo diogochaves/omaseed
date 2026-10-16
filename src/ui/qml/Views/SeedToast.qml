@@ -34,7 +34,24 @@ Rectangle {
             timer.restart();
     }
 
+    /// Show the toast's torrent and go on to the next: a click, or a screen reader's press.
+    function activate(): void {
+        if (root.current !== null)
+            root.showRequested(root.current.hash);
+        root.current = null;
+        timer.stop();
+        root._next();
+    }
+
     onAllowedChanged: root._next()
+
+    // #77: a button named by its moment, the detail the description; its press is the click,
+    // and does nothing while disabled.
+    Accessible.description: root.current !== null ? root.current.detail : ""
+    Accessible.name: root.current !== null ? root.current.title : ""
+    Accessible.role: Accessible.Button
+    Accessible.onPressAction: if (root.enabled)
+                                  root.activate()
 
     border.color: Qt.alpha(root.current !== null && root.current.kind === "lastSeed" ? Theme.yellow
                                                                                      : Theme.stateSeeding, 0.55)
@@ -102,12 +119,6 @@ Rectangle {
     }
 
     TapHandler {
-        onTapped: {
-            if (root.current !== null)
-                root.showRequested(root.current.hash);
-            root.current = null;
-            timer.stop();
-            root._next();
-        }
+        onTapped: root.activate()
     }
 }

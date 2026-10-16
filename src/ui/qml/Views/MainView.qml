@@ -1926,6 +1926,7 @@ Item {
             }
 
             // #24 T7: seeding moments in the bar's spot, while nothing is selected.
+            // a11y-ignore A1: it names itself by the moment it shows, pushed at run time (#77)
             SeedToast {
                 id: seedToast
 
@@ -2073,6 +2074,7 @@ Item {
 
     // docs/35 N8: an action's failure, its details docked above the footer over the table's
     // last rows, opaque; nothing moves. esc, a click outside or "details" again close it.
+    // a11y-ignore A2: a click outside, not a control; esc and "details" close the band too (#77)
     MouseArea {
         anchors.fill: parent
         enabled: root.footerNoticeOpen
@@ -2227,6 +2229,18 @@ Item {
 
             // docs/35 N8: the sentence's "details" open the band above the footer.
             Label {
+                id: footerDetailsLink
+
+                /// Open or close the band: a click, or a screen reader's press.
+                function toggle(): void {
+                    root.footerNoticeOpen = !root.footerNoticeOpen;
+                }
+
+                // #77: a "details" button; its press is the click.
+                Accessible.name: qsTr("details")
+                Accessible.role: Accessible.Button
+                Accessible.onPressAction: if (footerDetailsLink.enabled)
+                                              footerDetailsLink.toggle()
                 Layout.alignment: Qt.AlignVCenter
                 color: footerDetailsMouse.containsMouse ? Theme.accent : Theme.dimForeground
                 objectName: "footerFailureDetails"
@@ -2242,12 +2256,21 @@ Item {
                     cursorShape: Qt.PointingHandCursor
                     hoverEnabled: true
 
-                    onClicked: root.footerNoticeOpen = !root.footerNoticeOpen
+                    onClicked: footerDetailsLink.toggle()
                 }
             }
 
             // docs/32 N1: "· i details", while the pane that holds the block is hidden.
             Item {
+                id: footerNoteHint
+
+                // #77: it shows while the pane is hidden: a "show details" button with its
+                // key; its press is the click.
+                Accessible.description: "i"
+                Accessible.name: qsTr("show details")
+                Accessible.role: Accessible.Button
+                Accessible.onPressAction: if (footerNoteHint.enabled)
+                                              root.toggleDetails()
                 Layout.alignment: Qt.AlignVCenter
                 implicitHeight: noteHintRow.implicitHeight
                 implicitWidth: noteHintRow.implicitWidth

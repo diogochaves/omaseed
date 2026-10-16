@@ -236,4 +236,26 @@ TestCase {
             signalName: "clearRequested"
         }
     }
+
+    // #77: the sums are a "seed console" button, the figures its description; a screen
+    // reader's press is the click, once; disabled, nothing.
+    function test_the_summary_takes_the_accessible_press() {
+        const bar = makeBar();
+        bar.summary = {
+            "sizeText": "3.65 GB",
+            "givenText": "572 MB",
+            "ratioText": "0.60"
+        };
+        const summary = findChild(bar, "bar_summary");
+        compare(summary.Accessible.role, Accessible.Button);
+        compare(summary.Accessible.name, "seed console");
+        compare(summary.Accessible.description, "3.65 GB · given 572 MB · ratio 0.60");
+        let clicks = 0;
+        bar.summaryClicked.connect(() => clicks++);
+        summary.Accessible.pressAction();
+        compare(clicks, 1);
+        bar.enabled = false;
+        summary.Accessible.pressAction();
+        compare(clicks, 1, "a disabled bar took the press");
+    }
 }

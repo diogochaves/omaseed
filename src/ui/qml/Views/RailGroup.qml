@@ -29,6 +29,14 @@ Column {
     Rectangle {
         id: header
 
+        // #77: the heading is a button that folds the group, named by it; whether it is
+        // folded is the description (Qt 6.11 has no `Accessible.expanded`). Its press is the
+        // click, and does nothing while disabled.
+        Accessible.description: root.collapsed ? qsTr("folded") : qsTr("unfolded")
+        Accessible.name: root.label
+        Accessible.role: Accessible.Button
+        Accessible.onPressAction: if (header.enabled)
+                                      root.toggled()
         color: root.hasCursor || headerMouse.containsMouse ? Theme.fill(Theme.fillHover) :
                                                              "transparent"
         implicitHeight: headerText.implicitHeight + Theme.space(4)

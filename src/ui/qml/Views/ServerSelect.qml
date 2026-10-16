@@ -135,6 +135,15 @@ Item {
     // More: the select, with the bordered Button's chrome; the accent edge under the
     // keyboard's cursor or the pointer, and while the list is open.
     Rectangle {
+        id: selectBox
+
+        // #77: a "switch server" button, the server it edits its description; its press
+        // opens the list, as the click does.
+        Accessible.description: root.currentName
+        Accessible.name: qsTr("switch server")
+        Accessible.role: Accessible.Button
+        Accessible.onPressAction: if (selectBox.enabled)
+                                      root.openList()
         anchors.fill: parent
         border.color: root.hot || list.opened ? Theme.accent : Theme.fill(Theme.borderIdle)
         border.width: 1

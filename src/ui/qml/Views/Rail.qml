@@ -1052,6 +1052,7 @@ Item {
             anchors.right: parent.right
         }
 
+        // a11y-ignore A2: a copy of the heading scrolled under it, which is in the tree (#77)
         MouseArea {
             anchors.fill: parent
             cursorShape: Qt.PointingHandCursor

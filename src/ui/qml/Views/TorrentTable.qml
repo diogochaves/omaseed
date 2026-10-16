@@ -1249,6 +1249,7 @@ Item {
         Repeater {
             model: root.activeColumns
 
+            // a11y-ignore A2: a drag handle; the columns palette puts widths back (#77)
             delegate: MouseArea {
                 id: grip
 
@@ -1994,6 +1995,7 @@ Item {
     // The list's empty space, below its last row and in the `bottomRoom` under the
     // selection bar: a click there clears the selection, as it does in a file manager, which
     // also puts the selection bar away. The cursor stays where it is.
+    // a11y-ignore A2: empty space, not a control; esc clears the selection too (#77)
     MouseArea {
         id: emptySpace
 

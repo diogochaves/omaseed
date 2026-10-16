@@ -164,6 +164,14 @@ Item {
 
                     readonly property bool hot: mouseArea.containsMouse
 
+                    // #77: each way in is a button named by what it does, its key the
+                    // description; its press is the click.
+                    Accessible.description: row.modelData.key
+                    Accessible.name: row.modelData.label
+                    Accessible.role: Accessible.Button
+                    Accessible.onPressAction: if (row.enabled)
+                                                  root.triggerRow(row.index)
+                    objectName: "emptyRow_" + row.index
                     color: row.hot ? Theme.fill(Theme.fillHover) : "transparent"
                     height: keyValueRow.implicitHeight + Theme.space(6)
                     width: keyValueRow.implicitWidth + Theme.space(16)

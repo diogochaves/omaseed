@@ -34,6 +34,51 @@ TestCase {
         compare(empty._rows[2].label, "every shortcut");
     }
 
+    // #77: each row is a button named by what it does, its key the description; a screen
+    // reader's press runs it, once.
+    function test_empty_state_rows_take_the_accessible_press() {
+        const empty = createTemporaryObject(emptyStateComponent, testCase);
+        const spy = createTemporaryObject(signalSpyComponent, testCase, {
+                                              "target": empty,
+                                              "signalName": "addRequested"
+                                          });
+        const row = findChild(empty, "emptyRow_0");
+        compare(row.Accessible.role, Accessible.Button);
+        compare(row.Accessible.name, "add a torrent");
+        compare(row.Accessible.description, "a");
+        row.Accessible.pressAction();
+        compare(spy.count, 1);
+        empty.enabled = false;
+        row.Accessible.pressAction();
+        compare(spy.count, 1, "a disabled row ran");
+    }
+
+    // #77: the note's halves are links a screen reader presses.
+    function test_the_note_halves_take_the_accessible_press() {
+        const filtered = createTemporaryObject(filteredEmptyComponent, testCase, {
+                                                   "text": "x",
+                                                   "statusName": "Downloading"
+                                               });
+        const clearSpy = createTemporaryObject(signalSpyComponent, testCase, {
+                                                   "target": filtered,
+                                                   "signalName": "clearRequested"
+                                               });
+        const allSpy = createTemporaryObject(signalSpyComponent, testCase, {
+                                                 "target": filtered,
+                                                 "signalName": "allStatusesRequested"
+                                             });
+        const clear = findChild(filtered, "clearFilterLink");
+        compare(clear.Accessible.role, Accessible.Link);
+        compare(clear.Accessible.name, "clear the filter");
+        clear.Accessible.pressAction();
+        compare(clearSpy.count, 1);
+        const all = findChild(filtered, "allStatusesLink");
+        compare(all.Accessible.name, "show all statuses");
+        all.Accessible.pressAction();
+        compare(allSpy.count, 1);
+        compare(clearSpy.count, 1);
+    }
+
     function test_empty_state_row_zero_emits_addRequested() {
         const empty = createTemporaryObject(emptyStateComponent, testCase);
         const spy = createTemporaryObject(signalSpyComponent, testCase, {

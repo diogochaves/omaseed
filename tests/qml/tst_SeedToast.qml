@@ -70,4 +70,21 @@ TestCase {
         tryCompare(testCase.timerProbe, "running", true);
         verify(toast.visible);
     }
+
+    // #77: a button named by its moment; a screen reader's press is the click, once.
+    function test_the_accessible_press_shows_the_torrent() {
+        toast.push("paidBack", "abc", "debian.iso paid back", "ratio 1.00");
+        compare(toast.Accessible.role, Accessible.Button);
+        compare(toast.Accessible.name, "debian.iso paid back");
+        compare(toast.Accessible.description, "ratio 1.00");
+        toast.Accessible.pressAction();
+        compare(showSpy.count, 1);
+        compare(showSpy.signalArguments[0][0], "abc");
+        compare(toast.visible, false);
+        toast.push("paidBack", "def", "ubuntu.iso paid back", "");
+        toast.enabled = false;
+        toast.Accessible.pressAction();
+        compare(showSpy.count, 1, "a disabled toast took the press");
+        toast.enabled = true;
+    }
 }

@@ -314,7 +314,11 @@ TestCase {
         view.toggleDetails();
         verify(view.details.collapsed);
         verify(hint.visible);
-        view.toggleDetails();
+        // #77: "· i details" is a "show details" button; a screen reader's press shows them.
+        compare(hint.Accessible.role, Accessible.Button);
+        compare(hint.Accessible.name, "show details");
+        hint.Accessible.pressAction();
+        verify(!view.details.collapsed, "the press did not show the details");
 
         // After a delete there is no torrent to show: no hint.
         App.loggedFailure("x was removed, its files weren't: Permission denied", []);
@@ -1866,6 +1870,14 @@ TestCase {
             "sentence": "x"
         };
         verify(findChild(view, "footerFailureDetails").visible);
+        // #77: "details" is a button a screen reader presses: it opens the band and closes it.
+        const detailsButton = findChild(view, "footerFailureDetails");
+        compare(detailsButton.Accessible.role, Accessible.Button);
+        compare(detailsButton.Accessible.name, "details");
+        detailsButton.Accessible.pressAction();
+        compare(view.footerNoticeOpen, true);
+        detailsButton.Accessible.pressAction();
+        compare(view.footerNoticeOpen, false);
         view.footerNoticeOpen = true;
         const band = findChild(view, "footerNotice");
         verify(band.shown);

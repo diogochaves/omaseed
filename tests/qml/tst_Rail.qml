@@ -133,6 +133,26 @@ TestCase {
         compare(rail._rowMap[rail.categoriesBase].item.selected, true);
     }
 
+    // #77: a group's heading is a button named by the group, folded or not in its
+    // description; a screen reader's press folds it, as a click does.
+    function test_a_headings_accessible_press_folds_the_group() {
+        const rail = createTemporaryObject(railComponent, testCase);
+        rail.groupToggled.connect(group => {
+            rail.collapsedGroups = rail.collapsedGroups.indexOf(group) >= 0
+                    ? rail.collapsedGroups.filter(g => g !== group)
+                    : rail.collapsedGroups.concat([group]);
+        });
+        const heading = findChild(rail, "categories").header;
+        compare(heading.Accessible.role, Accessible.Button);
+        compare(heading.Accessible.name, "categories");
+        compare(heading.Accessible.description, "unfolded");
+        heading.Accessible.pressAction();
+        compare(rail.collapsedGroups, ["categories"]);
+        compare(heading.Accessible.description, "folded");
+        heading.Accessible.pressAction();
+        compare(rail.collapsedGroups, []);
+    }
+
     // docs/08 §5: a folded group hides its rows and leaves one cursor stop, its heading;
     // `z` folds the group the cursor is in, and `enter` on the heading unfolds it.
     function test_a_folded_group_is_one_stop_and_z_folds_it() {
