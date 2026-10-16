@@ -929,4 +929,56 @@ TestCase {
         keyClick(Qt.Key_Down);
         compare(palette.cursorIndex, 1);
     }
+
+    // #75: a screen reader's press on a row is its click: in a single select it runs that
+    // row, once; in a multi-select it toggles it, once, and runs nothing.
+    function test_the_accessible_press_on_a_row_is_the_click() {
+        const palette = createTemporaryObject(paletteComponent, testCase);
+        const activated = createTemporaryObject(activatedSpy, testCase, {
+                                                    "target": palette
+                                                });
+        palette.open();
+        waitForRendering(palette.listView);
+        palette.listView.itemAtIndex(1).Accessible.pressAction();
+        compare(activated.count, 1);
+        compare(activated.signalArguments[0][0], 1);
+        compare(palette.cursorIndex, 1);
+        palette.close();
+
+        const multi = createTemporaryObject(multiComponent, testCase);
+        const toggled = createTemporaryObject(toggledSpy, testCase, {
+                                                  "target": multi
+                                              });
+        const multiActivated = createTemporaryObject(activatedSpy, testCase, {
+                                                         "target": multi
+                                                     });
+        multi.open();
+        waitForRendering(multi.listView);
+        multi.listView.itemAtIndex(2).Accessible.pressAction();
+        compare(toggled.count, 1);
+        compare(toggled.signalArguments[0][0], 2);
+        compare(multiActivated.count, 0);
+        multi.close();
+    }
+
+    // #75: a row that can't run, and a disabled palette, ignore a screen reader's press, as
+    // they ignore the pointer.
+    function test_what_takes_no_click_ignores_the_accessible_press() {
+        const palette = createTemporaryObject(paletteComponent, testCase, {
+                                                  "items": testCase.commandRows
+                                              });
+        const activated = createTemporaryObject(activatedSpy, testCase, {
+                                                    "target": palette
+                                                });
+        palette.open();
+        waitForRendering(palette.listView);
+        palette.listView.itemAtIndex(1).Accessible.pressAction();
+        compare(activated.count, 0, "the press ran a dim row");
+        compare(palette.cursorIndex, 0, "the press put the cursor on a dim row");
+        palette.enabled = false;
+        palette.listView.itemAtIndex(2).Accessible.pressAction();
+        compare(activated.count, 0, "a disabled palette ran a row");
+        compare(palette.cursorIndex, 0);
+        palette.close();
+    }
 }

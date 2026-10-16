@@ -407,6 +407,21 @@ Item {
             root.secondary(index, root.items[index]);
     }
 
+    /// A click on row `index` (from the row, or from the drag layer over the rows when the
+    /// list is `draggable`), and a screen reader's press on it (#75): the cursor goes there
+    /// and, in a multi-select, the row toggles, as `space` would; else it runs, as `enter`.
+    /// In a multi-select `enter` applies the whole selection (the tags picker), so a click
+    /// that activated could never pick a tag (KIT-4). A row that can't run takes nothing.
+    function _clickRow(index: int): void {
+        if (!root.canLand(index))
+            return;
+        root.cursorIndex = index;
+        if (root.multi)
+            root.toggled(index, root.items[index]);
+        else
+            root.activate();
+    }
+
     /// `enter`: hand the cursor's row to the caller. The caller closes the palette.
     function activate(): void {
         if (root.currentItem)
@@ -717,6 +732,10 @@ Item {
                     Accessible.name: row.modelData.title ?? ""
                     Accessible.role: Accessible.ListItem
                     Accessible.selected: row.current
+                    // A screen reader's press is the click (#75); disabled, it does nothing,
+                    // as the pointer.
+                    Accessible.onPressAction: if (row.enabled)
+                                                  root._clickRow(row.index)
                     color: row.lifted ? Theme.fill(Theme.fillSelected) : row.current
                             ? Theme.fill(Theme.fillHover) : "transparent"
                     height: rowColumn.implicitHeight + 2 * Theme.space(6)
@@ -824,21 +843,11 @@ Item {
 
                         onEntered: root._pointerOn(row.index, rowArea)
                         onPositionChanged: root._pointerOn(row.index, rowArea)
-                        // In a multi-select a click is `space` on that row, not `enter`:
-                        // `enter` applies the whole selection (the tags picker), so a
-                        // click that activated could never pick a tag (KIT-4).
                         onClicked: mouse => {
-                            if (mouse.button === Qt.RightButton) {
+                            if (mouse.button === Qt.RightButton)
                                 root._secondaryClick(row.index);
-                                return;
-                            }
-                            if (row.disabled)
-                                return;
-                            root.cursorIndex = row.index;
-                            if (root.multi)
-                                root.toggled(row.index, row.modelData);
                             else
-                                root.activate();
+                                root._clickRow(row.index);
                         }
                     }
                 }
@@ -894,14 +903,8 @@ Item {
 
             onCanceled: root._cancelDrag()
             onClicked: {
-                const index = dragArea.pressRow;
-                if (dragArea.dragged || !root.canLand(index))
-                    return;
-                root.cursorIndex = index;
-                if (root.multi)
-                    root.toggled(index, root.items[index]);
-                else
-                    root.activate();
+                if (!dragArea.dragged)
+                    root._clickRow(dragArea.pressRow);
             }
             onPositionChanged: mouse => {
                 if (dragArea.dragged) {
