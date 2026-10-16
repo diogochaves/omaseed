@@ -42,6 +42,12 @@ TestCase {
         App.loadDemo(16);
     }
 
+    function cleanup() {
+        // The servers a test added: App is a singleton shared with every other test file.
+        while (App.serverList.count > 0)
+            App.serverList.remove(App.serverList.idAt(0));
+    }
+
     /// The modal, open on the qBittorrent section `index` (0 Speed … 8 Advanced), the
     /// keyboard in the pane.
     function openOn(index) {
@@ -66,7 +72,10 @@ TestCase {
             verify(testCase.childNamed(modal, "qbtNavRow" + i) !== null);
         compare(testCase.childNamed(modal, "qbtNavHead").text, "qbittorrent");
         const server = testCase.childNamed(modal, "qbtNavServer");
-        verify(server.text.indexOf("home") === 0, server.text);
+        compare(server.currentName, "home");
+        // One server: the plain label, nothing to pick (docs/34 D3 a).
+        verify(!server.switches);
+        verify(testCase.childNamed(server, "serverSelectPlain").text.indexOf("home") === 0);
     }
 
     function test_ctrl_shift_comma_opens_on_the_group_and_digits_stay_in_it() {
@@ -101,35 +110,210 @@ TestCase {
         verify(pane.visible);
         verify(!testCase.childNamed(modal, "qbtPane").visible);
         const exportRow = testCase.childNamed(modal, "qbtExportRow");
-        compare(exportRow.title, "Export settings");
+        // docs/34 D2 a: every row names the server it acts on.
+        compare(exportRow.title, "Export home's settings");
         compare(exportRow.description, App.qbtExportSummary);
-        verify(exportRow.description.indexOf("Passwords are left out.") > 0, exportRow.description);
+        verify(exportRow.description.indexOf("Passwords are left out. Saved as qbittorrent-home-") > 0,
+               exportRow.description);
         compare(exportRow.opacity, 1);
-        compare(testCase.childNamed(modal, "qbtImportRow").title, "Import settings");
+        compare(testCase.childNamed(modal, "qbtImportRow").title, "Import settings into home");
+        const copyRow = testCase.childNamed(modal, "qbtCopyRow");
+        compare(copyRow.title, "Copy settings from another server");
+        // One server: nothing to copy from, and the row says how to get one.
+        verify(copyRow.description.indexOf("Add one in Settings › Servers first.") > 0,
+               copyRow.description);
+        verify(copyRow.opacity < 1);
+        verify(!testCase.childNamed(modal, "copySourceButton").visible);
         compare(testCase.childNamed(modal, "qbtHeadNote").text, "home · qBittorrent 5.2.3");
         const torrentsRow = testCase.childNamed(modal, "torrentsExportRow");
-        compare(torrentsRow.title, "Export torrents");
+        compare(torrentsRow.title, "Export home's torrents");
         compare(torrentsRow.description, App.torrentsExportSummary);
         verify(/^\d+ torrents with their save paths, categories, tags and limits\. The .+ of files stay where they are\./
                .test(torrentsRow.description), torrentsRow.description);
         compare(testCase.childNamed(modal, "torrentsExportButton").text, "export…");
-        compare(testCase.childNamed(modal, "torrentsImportRow").title, "Import torrents");
+        compare(testCase.childNamed(modal, "torrentsImportRow").title, "Import torrents into home");
         compare(testCase.childNamed(modal, "torrentsImportButton").text, "import…");
-        compare(modal.paneRowCount, 4);
+        // D2 a's scope line, with no other server to point at.
+        const scope = testCase.childNamed(modal, "qbtScopeLine");
+        verify(scope.visible);
+        compare(scope.text, "home's own settings and torrents, read from and sent to home only.");
+        compare(scope.linkText, "");
+        compare(modal.paneRowCount, 5);
         keyClick(Qt.Key_Tab);
         compare(modal.area, "pane");
         verify(exportRow.hasCursor);
         keyClick(Qt.Key_J);
         verify(testCase.childNamed(modal, "qbtImportRow").hasCursor);
         keyClick(Qt.Key_J);
+        verify(copyRow.hasCursor);
+        keyClick(Qt.Key_J);
         verify(torrentsRow.hasCursor);
         keyClick(Qt.Key_J);
         verify(testCase.childNamed(modal, "torrentsImportRow").hasCursor);
         keyClick(Qt.Key_J);
         verify(exportRow.hasCursor);
-        // The footer: rows to act on, nothing to toggle or edit.
+        // The footer: rows to act on, nothing to toggle or edit; one server, no `s`.
         verify(modal.sheet.hints.some(hint => hint.key === "enter" && hint.label === "act"));
         verify(!modal.sheet.hints.some(hint => hint.key === "space"));
+        verify(!modal.sheet.hints.some(hint => hint.key === "s"));
+    }
+
+    /// A second (and third) server for the demo, in memory only.
+    function addServer(name, port) {
+        const id = App.serverList.add({
+                                          "name": name,
+                                          "url": "http://127.0.0.1:" + port,
+                                          "authMode": "none"
+                                      }, "");
+        verify(id.length > 0);
+        return id;
+    }
+
+    // docs/34 D1 a: omaseed's Backup says what it holds and where torrents are; `t` (or the
+    // link) goes to qBittorrent's, the cursor on Export torrents.
+    function test_omaseeds_backup_says_what_it_holds() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        keyClick(Qt.Key_6);
+        compare(modal.paneIndex, 5);
+        const scope = testCase.childNamed(modal, "backupScopeLine");
+        verify(scope.visible);
+        verify(scope.text.indexOf("omaseed's own:") === 0, scope.text);
+        verify(scope.text.indexOf("Torrents aren't in it") > 0, scope.text);
+        compare(scope.linkKey, "t");
+        compare(scope.linkText, "qBittorrent › Backup ›");
+        const head = testCase.childNamed(modal, "qbtHeadNote");
+        verify(head.visible);
+        compare(head.text, "omaseed · on this machine");
+        verify(modal.sheet.hints.some(hint => hint.key === "t"
+                                      && hint.label === "torrents: qBittorrent › Backup"));
+        compare(modal.paneRowCount, 3);
+        keyClick("t");
+        verify(modal.inQbtBackup);
+        compare(modal.area, "pane");
+        compare(modal.paneCursor, 3);
+        verify(testCase.childNamed(modal, "torrentsExportRow").hasCursor);
+        // The link does the same.
+        modal.showPane(5);
+        scope.linkActivated();
+        verify(modal.inQbtBackup);
+        compare(modal.paneCursor, 3);
+    }
+
+    // docs/34 D3 a, D4 a, D5 a: with servers to switch to, the select is a nav stop between
+    // About and Speed; enter opens its list; `s` in every qBittorrent pane (Backup's too) and
+    // on the select goes straight to the next server, and the footer says so.
+    function test_the_select_and_s() {
+        const home = App.serverList.add({
+                                            "name": "home",
+                                            "url": "http://demo.example.org",
+                                            "authMode": "none"
+                                        }, "");
+        App.serverList.setDefault(home);
+        const second = testCase.addServer("private", 8091);
+        testCase.addServer("seedbox", 8092);
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.openQbt();
+        const select = testCase.childNamed(modal, "qbtNavServer");
+        verify(select.switches);
+        verify(testCase.childNamed(select, "serverSelectBox").visible);
+        compare(select.currentId, home);
+        // Every footer of the group has `s`.
+        verify(modal.sheet.hints.some(hint => hint.key === "s" && hint.label === "next server"));
+        keyClick(Qt.Key_0);
+        verify(modal.inQbtBackup);
+        verify(modal.sheet.hints.some(hint => hint.key === "s" && hint.label === "next server"));
+        compare(testCase.childNamed(modal, "qbtScopeLine").text,
+                "home's own settings and torrents, read from and sent to home only. The other servers have their own:");
+
+        // The nav: k from Speed lands on the select, which takes the cursor from the rows.
+        keyClick(Qt.Key_1);
+        compare(modal.area, "nav");
+        keyClick(Qt.Key_K);
+        verify(modal.navOnServer);
+        verify(select.hasCursor);
+        compare(modal.paneIndex, modal.qbtStart);
+        verify(!testCase.childNamed(modal, "qbtNavRow0").hasCursor);
+        verify(modal.sheet.hints.some(hint => hint.key === "enter" && hint.label === "servers"));
+        keyClick(Qt.Key_K);
+        verify(!modal.navOnServer);
+        compare(modal.paneIndex, modal.qbtStart - 1);
+        keyClick(Qt.Key_J);
+        verify(modal.navOnServer);
+
+        // enter: the list, three servers with their state, the cursor on the next one.
+        keyClick(Qt.Key_Return);
+        verify(select.listOpen);
+        compare(select.list.items.map(item => item.text), ["home", "private", "seedbox"]);
+        compare(select.list.items[0].note, "on it ✓");
+        compare(select.list.cursorIndex, 1);
+        keyClick(Qt.Key_Escape);
+        verify(!select.listOpen);
+        verify(modal.opened);
+        compare(App.serverList.defaultId, home);
+        keyClick(Qt.Key_Return);
+        keyClick(Qt.Key_J);
+        keyClick(Qt.Key_Return);
+        verify(!select.listOpen);
+        verify(App.serverList.defaultId !== home);
+        verify(modal.sheet.footerRight.indexOf("omaseed is on seedbox now · the library too") === 0,
+               modal.sheet.footerRight);
+
+        // `s` from the select itself, then from a pane: one step each.
+        keyClick("s");
+        compare(App.serverList.defaultId, home);
+        compare(modal.sheet.footerRight, "omaseed is on home now · the library too");
+        keyClick(Qt.Key_0);
+        keyClick("s");
+        compare(App.serverList.defaultId, second);
+        compare(modal.sheet.footerRight, "omaseed is on private now · the library too");
+    }
+
+    // docs/34 D6 a: copy settings from another server, on the demo's fiction of one: space
+    // picks which, enter reads it and opens the import sheet, titled for the copy.
+    function test_copy_settings_from_another_server() {
+        const home = App.serverList.add({
+                                            "name": "home",
+                                            "url": "http://demo.example.org",
+                                            "authMode": "none"
+                                        }, "");
+        App.serverList.setDefault(home);
+        testCase.addServer("private", 8091);
+        const seedbox = testCase.addServer("seedbox", 8092);
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.openQbt();
+        keyClick(Qt.Key_0);
+        keyClick(Qt.Key_Tab);
+        keyClick(Qt.Key_J);
+        keyClick(Qt.Key_J);
+        const copyRow = testCase.childNamed(modal, "qbtCopyRow");
+        verify(copyRow.hasCursor);
+        compare(copyRow.opacity, 1);
+        verify(copyRow.description.indexOf("Read from that server just now") === 0, copyRow.description);
+        const source = testCase.childNamed(modal, "copySourceButton");
+        verify(source.visible);
+        compare(modal.copySourceName, "private");
+        // space: the other servers, under the button; pick seedbox.
+        keyClick(Qt.Key_Space);
+        const menu = testCase.childNamed(modal, "copyMenu");
+        verify(menu.opened);
+        compare(menu.items.map(item => item.text), ["private", "seedbox"]);
+        keyClick(Qt.Key_J);
+        keyClick(Qt.Key_Return);
+        compare(modal.copySource, seedbox);
+        compare(modal.copySourceName, "seedbox");
+        // enter: the sheet, the app still on home.
+        keyClick(Qt.Key_Return);
+        const sheet = testCase.childNamed(modal, "qbtImportSheet");
+        tryVerify(() => sheet.opened, 5000);
+        compare(sheet.title, "Copy settings from seedbox into home");
+        verify(sheet.subtitle.indexOf("Read from seedbox just now") === 0, sheet.subtitle);
+        verify(sheet.subtitle.indexOf("seedbox is not changed.") > 0, sheet.subtitle);
+        compare(testCase.childNamed(sheet, "importNowHead").text, "home now");
+        compare(testCase.childNamed(sheet, "importFromHead").text, "seedbox");
+        compare(sheet.exportText, "export home first");
+        compare(App.serverList.defaultId, home);
+        sheet.close();
     }
 
     // A long value reads from its start at rest, and editing starts at its end.

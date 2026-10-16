@@ -180,6 +180,38 @@ TestCase {
         verify(sheet.opened);
     }
 
+    // docs/34 D2 a, D6 a: App's map names both servers; without those keys the sheet keeps
+    // its own words (an older map, the tests above).
+    function test_the_heads_name_both_servers() {
+        const sheet = createTemporaryObject(sheetComponent, testCase);
+        sheet.openFor(info());
+        compare(findChild(sheet, "importNowHead").text, "now");
+        compare(findChild(sheet, "importFromHead").text, "from the file");
+        compare(sheet.exportText, "export current first");
+        sheet.close();
+
+        const copied = info();
+        copied.copy = true;
+        copied.title = "Copy settings from private into home";
+        copied.nowHead = "home now";
+        copied.fromHead = "private";
+        copied.exportText = "export home first";
+        sheet.openFor(copied);
+        compare(sheet.title, "Copy settings from private into home");
+        compare(findChild(sheet, "importNowHead").text, "home now");
+        compare(findChild(sheet, "importFromHead").text, "private");
+        compare(sheet.exportText, "export home first");
+        compare(sheet.actions[1].text, "export home first");
+        compare(sheet.glyph, "⇣");
+        const exported = createTemporaryObject(spyComponent, testCase, {
+                                                   "target": sheet,
+                                                   "signalName": "exportRequested"
+                                               });
+        sheet.actionTriggered("export home first");
+        compare(exported.count, 1);
+        verify(sheet.opened);
+    }
+
     Component {
         id: spyComponent
 

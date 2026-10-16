@@ -77,8 +77,10 @@ qt_add_qml_module(omaseed-views
         RenameFilesSheet.qml
         RenameSheet.qml
         RestoreSheet.qml
+        ScopeLine.qml
         SeedToast.qml
         SelectionBar.qml
+        ServerSelect.qml
         ServerSheet.qml
         SettingsModal.qml
         SettingsRow.qml

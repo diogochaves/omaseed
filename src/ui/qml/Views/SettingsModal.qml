@@ -26,6 +26,13 @@ import Omaseed.Kit
 // panes follow omaseed's seven in `paneIndex` (7–15). There the digits pick a section of that
 // group, space flips a switch, enter edits, `d` puts an Advanced row back to its default and
 // `s` moves the app to the next server. `openQbt()` (ctrl+shift+,) opens straight on it.
+//
+// docs/34 (#70): with two servers or more the group's head is a select (`ServerSelect`, D3 a),
+// a stop of its own in the nav between About and Speed: enter opens its list, and the list's
+// pick moves the app, as `s` does from any of the group's panes (D4 a); after either, the
+// footer says the library went too (D5 a). Each Backup pane starts with a line saying what it
+// holds (`ScopeLine`, D1 a, D2 a); omaseed's links to the other on `t`. The qBittorrent Backup
+// pane names its server in every row and can copy another server's settings in (D6 a).
 Item {
     id: root
 
@@ -137,10 +144,45 @@ Item {
     property string qbtNote: ""
     property bool qbtNoteError: false
 
+    /// docs/34 D3 a: the nav's keyboard is on the server select, between About and Speed.
+    property bool navOnServer: false
+    /// The select is a stop of the nav's: two servers or more, and the nav drawn.
+    readonly property bool serverStop: App.serverList.count > 1 && !root.folded
+    /// docs/34 D5 a: the footer's note after a switch made here.
+    property string switchNote: ""
+    /// docs/34 D6 a: the server "copy settings from" reads, picked in its row.
+    property string copySourceId: ""
+
+    /// The id of the server omaseed is on (a demo's table key is "demo": its default one).
+    function _currentServerId(): string {
+        const key = App.tableStateKey();
+        return App.serverList.indexOfId(key) >= 0 ? key : App.serverList.defaultId;
+    }
+
+    /// The other servers' ids, starting after the one omaseed is on (where `s` would go).
+    function _otherServerIds(): var {
+        const count = App.serverList.count;
+        const here = App.serverList.indexOfId(root._currentServerId());
+        const ids = [];
+        for (let i = 1; i < count; ++i)
+            ids.push(App.serverList.idAt(((here < 0 ? 0 : here) + i) % count));
+        return here < 0 ? [] : ids;
+    }
+
+    /// The servers copy can read: re-read on a switch (serverName) and when the list changes.
+    readonly property var otherServerIds: App.serverName.length >= 0 && App.serverList.count >= 0
+                                          && App.serverList.defaultId.length >= 0
+                                          ? root._otherServerIds() : []
+    /// The one it reads now: the one picked, while it is still another server; else the next.
+    readonly property string copySource: root.otherServerIds.indexOf(root.copySourceId) >= 0
+                                         ? root.copySourceId : (root.otherServerIds[0] ?? "")
+    readonly property string copySourceName: root.copySource.length > 0
+                                             ? (App.serverList.serverMap(root.copySource).name ?? "") : ""
+
     /// How many cursor rows the pane on show has. Keybindings is a read-only list in v1.
     readonly property int paneRowCount: {
         if (root.inQbtBackup)
-            return 4; // settings: export, import (#32); torrents: export, import (#33)
+            return 5; // settings: export, import (#32), copy (#70); torrents: export, import (#33)
         if (root.inQbt)
             return qbtPane.cursorCount;
         switch (root.paneIndex) {
@@ -331,7 +373,50 @@ Item {
         // A demo run's table key is "demo", no server's id: go on from the default one.
         if (at < 0)
             at = App.serverList.indexOfId(App.serverList.defaultId);
-        App.setDefaultServer(App.serverList.idAt((at + 1) % count));
+        root.qbtSwitchTo(App.serverList.idAt((at + 1) % count));
+    }
+
+    /// docs/34 D5 a: a switch from Settings is the app's (C8, one connection), and the footer
+    /// says so.
+    function qbtSwitchTo(id: string): void {
+        const name = App.serverList.serverMap(id).name;
+        if (name === undefined || !App.setDefaultServer(id))
+            return;
+        root.switchNote = qsTr("omaseed is on %1 now · the library too").arg(name);
+        switchNoteTimer.restart();
+    }
+
+    /// docs/34 D1 a: `t` (or the scope line's link) in omaseed's Backup: qBittorrent's, the
+    /// cursor on Export torrents.
+    function openTorrentsBackup(): void {
+        root.showPane(root.qbtStart + root.qbtSections.length - 1);
+        root.paneCursor = 3;
+        root.area = "pane";
+        bodyItem.forceActiveFocus();
+    }
+
+    /// docs/34 D6 a: "copy…", from the server picked in the row.
+    function copyQbt(): void {
+        if (!App.globalState.connected || App.qbtBackupBusy || root.copySource.length === 0)
+            return;
+        const error = App.copyQbtSettingsFrom(root.copySource);
+        root.backupNote = error.length > 0 ? error : qsTr("reading %1…").arg(root.copySourceName);
+        root.backupNoteError = error.length > 0;
+    }
+
+    /// The copy row's "private ▾": the other servers, under it.
+    function openCopyPick(anchor: Item): void {
+        const ids = root.otherServerIds;
+        if (ids.length === 0)
+            return;
+        copyMenu.items = ids.map(id => ({
+                                            "text": App.serverList.serverMap(id).name,
+                                            "glyph": id === root.copySource ? Glyphs.check : "",
+                                            "action": id
+                                        }));
+        const at = anchor.mapToItem(root, 0, anchor.height + Theme.space(4));
+        copyMenu.openAt(Math.round(at.x), Math.round(at.y));
+        copyMenu.cursorIndex = Math.max(0, ids.indexOf(root.copySource));
     }
 
     function close(): void {
@@ -351,6 +436,7 @@ Item {
     function showPane(index: int): void {
         if (index < 0 || index >= root.paneCount)
             return;
+        root.navOnServer = false;
         root.paneIndex = index;
         root.paneCursor = 0;
     }
@@ -363,7 +449,11 @@ Item {
                 root.exportQbt();
             else if (root.paneCursor === 1)
                 root.chooseQbtImport();
+            else if (root.paneCursor === 2 && how === "space")
+                root.openCopyPick(copySourceButton); // docs/34 D6 a: which server to read
             else if (root.paneCursor === 2)
+                root.copyQbt();
+            else if (root.paneCursor === 3)
                 root.exportTorrents();
             else
                 root.chooseTorrentsImport();
@@ -757,14 +847,29 @@ Item {
     }
 
     function _moveNav(delta: int): void {
+        // docs/34 D3 a: the server select is a stop between About and Speed; on it, the pane
+        // stays the one it was.
+        if (root.serverStop && root.area === "nav") {
+            if (root.navOnServer) {
+                root.showPane(delta > 0 ? root.qbtStart : root.qbtStart - 1);
+                return;
+            }
+            if ((delta > 0 && root.paneIndex === root.qbtStart - 1)
+                    || (delta < 0 && root.paneIndex === root.qbtStart)) {
+                root.navOnServer = true;
+                Qt.callLater(root._revealNav);
+                return;
+            }
+        }
         root.showPane((root.paneIndex + delta + root.paneCount) % root.paneCount);
     }
 
     /// Scrolls the nav to keep its current row in view (both groups are taller than a short
     /// window).
     function _revealNav(): void {
-        const row = root.paneIndex < root.qbtStart ? navRepeater.itemAt(root.paneIndex)
-                                                   : qbtNavRepeater.itemAt(root.paneIndex - root.qbtStart);
+        const row = root.navOnServer ? serverSelect
+                                     : root.paneIndex < root.qbtStart ? navRepeater.itemAt(root.paneIndex)
+                                                                      : qbtNavRepeater.itemAt(root.paneIndex - root.qbtStart);
         if (!row)
             return;
         const top = row.mapToItem(navColumn, 0, 0).y;
@@ -810,6 +915,7 @@ Item {
             }
         }
         if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
+            root.navOnServer = false;
             root.area = root.area === "nav" ? "pane" : "nav";
             if (root.area === "pane" && root.paneCursor < 0)
                 root.paneCursor = 0;
@@ -827,10 +933,32 @@ Item {
             event.accepted = true;
             return;
         }
-        if (event.key === Qt.Key_S && root.inQbt) {
+        // docs/34 D4 a: in every qBittorrent pane (Backup's too), and on the select itself.
+        if (event.key === Qt.Key_S && (root.inQbt || root.navOnServer)) {
             root.qbtNextServer();
             event.accepted = true;
             return;
+        }
+        // docs/34 D1 a: omaseed's Backup links to qBittorrent's, where torrents are.
+        if (event.key === Qt.Key_T && root.paneIndex === 5) {
+            root.openTorrentsBackup();
+            event.accepted = true;
+            return;
+        }
+        // The select under the nav's cursor: enter (or l, space) opens its list.
+        if (root.navOnServer && root.area === "nav") {
+            switch (event.key) {
+            case Qt.Key_Return:
+            case Qt.Key_Enter:
+            case Qt.Key_Space:
+            case Qt.Key_L:
+            case Qt.Key_Right:
+                serverSelect.openList();
+                event.accepted = true;
+                return;
+            default:
+                break;
+            }
         }
         // The Servers pane's "add a server" row prints `a` whichever side has the keyboard,
         // so `2 a` from the nav adds one too (servers-walk: it used to need a tab first).
@@ -969,10 +1097,21 @@ Item {
         onTriggered: root.qbtNote = ""
     }
 
+    Timer {
+        id: switchNoteTimer
+
+        interval: 8000
+
+        onTriggered: root.switchNote = ""
+    }
+
     onOpenedChanged: {
         if (root.opened) {
             root._syncThresholdField();
             root._syncAppearanceFields();
+        } else {
+            root.navOnServer = false;
+            root.switchNote = "";
         }
     }
     onPaneIndexChanged: {
@@ -991,7 +1130,11 @@ Item {
             Qt.callLater(root._readQbt);
     }
     onPaneCursorChanged: Qt.callLater(root._revealCursor)
-    onAreaChanged: Qt.callLater(root._revealCursor)
+    onAreaChanged: {
+        if (root.area === "pane")
+            root.navOnServer = false;
+        Qt.callLater(root._revealCursor);
+    }
 
     FontMetrics {
         id: captionMetrics
@@ -1005,7 +1148,8 @@ Item {
     Keys.onPressed: event => {
         if (event.key !== Qt.Key_Escape
                 && (sheet.opened || serverSheet.opened || confirm.opened || qbtConfirm.opened
-                    || qbtListSheet.opened || qbtMenu.opened))
+                    || qbtListSheet.opened || qbtMenu.opened || serverSelect.listOpen
+                    || copyMenu.opened))
             event.accepted = true;
     }
 
@@ -1035,11 +1179,31 @@ Item {
                                                 "key": "tab",
                                                 "label": qsTr("pane")
                                             }];
-            if (!root.inQbt || root.inQbtBackup)
+            // docs/34 D4 a: `s` goes to the next server from every qBittorrent pane and from
+            // the select, and every one of their footers says so.
+            const next = {
+                "key": "s",
+                "label": qsTr("next server")
+            };
+            if (root.navOnServer)
                 return hints.concat([{
                                          "key": "enter",
-                                         "label": qsTr("act")
-                                     }]);
+                                         "label": qsTr("servers")
+                                     }, next]);
+            if (!root.inQbt || root.inQbtBackup) {
+                const out = hints.concat([{
+                                              "key": "enter",
+                                              "label": qsTr("act")
+                                          }]);
+                if (root.paneIndex === 5) // docs/34 D1 a
+                    out.push({
+                                 "key": "t",
+                                 "label": qsTr("torrents: qBittorrent › Backup")
+                             });
+                if (root.inQbtBackup && App.serverList.count > 1)
+                    out.push(next);
+                return out;
+            }
             hints.push({
                            "key": "space",
                            "label": qsTr("toggle")
@@ -1055,12 +1219,11 @@ Item {
             for (const preset of qbtPane.presets)
                 hints.push(preset);
             if (App.serverList.count > 1)
-                hints.push({
-                               "key": "s",
-                               "label": qsTr("server")
-                           });
+                hints.push(next);
             return hints;
         }
+        // docs/34 D5 a: after a switch from here, that the library went with it.
+        footerRight: root.switchNote
         sheetWidth: Theme.space(760)
         title: ""
 
@@ -1168,7 +1331,8 @@ Item {
                                 Layout.fillWidth: true
                                 objectName: "navRow" + navRow.index
                                 glyph: navRow.modelData.glyph
-                                hasCursor: root.area === "nav" && root.paneIndex === navRow.index
+                                hasCursor: root.area === "nav" && !root.navOnServer
+                                           && root.paneIndex === navRow.index
                                 selected: root.paneIndex === navRow.index
                                 text: navRow.modelData.text
 
@@ -1191,39 +1355,33 @@ Item {
                             tracked: true
                         }
 
-                        // With two servers or more, a click does what `s` does: the next
-                        // server, and the group with it.
-                        Label {
-                            id: qbtNavServer
-
-                            readonly property bool switches: App.serverList.count > 1
+                        // docs/34 D3 a: with two servers or more, the panes' pick-one select;
+                        // its list moves the app (D5 a). One server: its name, as a label.
+                        ServerSelect {
+                            id: serverSelect
 
                             Layout.bottomMargin: Theme.space(8)
                             Layout.fillWidth: true
                             Layout.leftMargin: Theme.space(4)
-                            color: qbtNavServer.switches && qbtNavServerHover.hovered ? Theme.accent
-                                                                                      : Theme.dimForeground
-                            elide: Text.ElideRight
+                            Layout.preferredHeight: implicitHeight
+                            connected: App.globalState.connected
+                            // Re-read on a switch (serverName) and a new default.
+                            currentId: App.serverName.length >= 0 && App.serverList.defaultId.length >= 0
+                                       ? root._currentServerId() : ""
+                            currentName: App.serverName
+                            hasCursor: root.area === "nav" && root.navOnServer
+                            menuParent: root
                             objectName: "qbtNavServer"
-                            size: "small"
-                            text: root.qbtServerText
+                            serverList: App.serverList
+                            version: App.globalState.serverVersion.replace(/^v/, "")
                             visible: root.qbtServerText.length > 0
 
-                            HoverHandler {
-                                id: qbtNavServerHover
-
-                                cursorShape: qbtNavServer.switches ? Qt.PointingHandCursor
-                                                                   : Qt.ArrowCursor
+                            onListOpened: {
+                                root.navOnServer = true;
+                                root.area = "nav";
+                                App.probeOtherServers();
                             }
-
-                            TapHandler {
-                                enabled: qbtNavServer.switches
-
-                                onTapped: {
-                                    root.qbtNextServer();
-                                    bodyItem.forceActiveFocus();
-                                }
-                            }
+                            onSwitchRequested: id => root.qbtSwitchTo(id)
                         }
 
                         Repeater {
@@ -1241,7 +1399,8 @@ Item {
                                 Layout.fillWidth: true
                                 objectName: "qbtNavRow" + qbtNavRow.index
                                 glyph: qbtNavRow.modelData.glyph
-                                hasCursor: root.area === "nav" && root.paneIndex === qbtNavRow.pane
+                                hasCursor: root.area === "nav" && !root.navOnServer
+                                           && root.paneIndex === qbtNavRow.pane
                                 selected: root.paneIndex === qbtNavRow.pane
                                 // The short name: the nav is 150 px, the pane's head has
                                 // the whole one.
@@ -1342,10 +1501,11 @@ Item {
                             objectName: "qbtHeadNote"
                             size: "caption"
                             text: root.qbtNote.length > 0 ? root.qbtNote
+                                                          : root.paneIndex === 5 ? qsTr("omaseed · on this machine") // docs/34 D1 a
                                                           : root.inQbtBackup ? root.qbtServerHead
                                                                              : qsTr("%1 · saved as you change it").arg(
                                                                                    App.serverName)
-                            visible: root.inQbt
+                            visible: root.inQbt || root.paneIndex === 5
                         }
 
                         // A click does what the key does: closes the modal.
@@ -2379,12 +2539,17 @@ Item {
                         // ---- qBittorrent › Backup (#32, #33, docs/24 §4) --------------------
                         // The server's settings, as a file and back, then its torrents. Every
                         // row needs the server: they dim and say so while it is not connected.
+                        // docs/34 D2 a: the server's name in the scope line and every row, and
+                        // the copy from another server (D6 a) after the import.
                         ColumnLayout {
                             id: qbtBackupPane
 
                             readonly property bool ready: App.globalState.connected && !App.qbtBackupBusy
                             readonly property bool torrentsReady: App.globalState.connected
                                                                   && App.torrentsBackupRunning.length === 0
+                            readonly property bool copyReady: qbtBackupPane.ready
+                                                              && root.otherServerIds.length > 0
+                            readonly property string name: App.serverName
 
                             anchors.left: parent.left
                             anchors.right: parent.right
@@ -2392,6 +2557,29 @@ Item {
                             objectName: "qbtBackupPane"
                             spacing: Theme.space(8)
                             visible: root.inQbtBackup
+
+                            ScopeLine {
+                                Layout.fillWidth: true
+                                linkKey: root.otherServerIds.length > 0 ? "s" : ""
+                                linkText: root.otherServerIds.length > 0 ? qsTr("switch server") : ""
+                                objectName: "qbtScopeLine"
+                                text: {
+                                    const own = qsTr("%1's own settings and torrents, read from and sent to %1 only.").arg(
+                                              qbtBackupPane.name);
+                                    const others = root.otherServerIds;
+                                    if (others.length === 0)
+                                        return own;
+                                    if (others.length === 1)
+                                        return own + " " + qsTr("%1 has its own:").arg(
+                                                    App.serverList.serverMap(others[0]).name);
+                                    return own + " " + qsTr("The other servers have their own:");
+                                }
+
+                                onLinkActivated: {
+                                    root.qbtNextServer();
+                                    bodyItem.forceActiveFocus();
+                                }
+                            }
 
                             Label {
                                 leftPadding: Theme.space(4)
@@ -2402,12 +2590,12 @@ Item {
                             SettingsRow {
                                 Layout.fillWidth: true
                                 description: App.globalState.connected ? App.qbtExportSummary
-                                                                       : qsTr("Connect to %1 to export.").arg(App.serverName)
+                                                                       : qsTr("Connect to %1 to export.").arg(qbtBackupPane.name)
                                 glyph: Glyphs.arrowDown
                                 hasCursor: root.area === "pane" && root.paneCursor === 0
                                 objectName: "qbtExportRow"
                                 opacity: qbtBackupPane.ready ? 1 : 0.55
-                                title: qsTr("Export settings")
+                                title: qsTr("Export %1's settings").arg(qbtBackupPane.name)
 
                                 onClicked: {
                                     root.paneCursor = 0;
@@ -2431,13 +2619,13 @@ Item {
                             SettingsRow {
                                 Layout.fillWidth: true
                                 description: App.globalState.connected
-                                             ? qsTr("From a qBittorrent export, or an omaseed backup. Every change is shown first; paths, ports and the Web UI login stay as they are unless you tick them.")
-                                             : qsTr("Connect to %1 to import: the changes are read against it.").arg(App.serverName)
+                                             ? qsTr("From a qBittorrent export or an omaseed backup. Every change is shown first; paths, ports and the Web UI login stay as they are unless you tick them.")
+                                             : qsTr("Connect to %1 to import: the changes are read against it.").arg(qbtBackupPane.name)
                                 glyph: Glyphs.arrowUp
                                 hasCursor: root.area === "pane" && root.paneCursor === 1
                                 objectName: "qbtImportRow"
                                 opacity: qbtBackupPane.ready ? 1 : 0.55
-                                title: qsTr("Import settings")
+                                title: qsTr("Import settings into %1").arg(qbtBackupPane.name)
 
                                 onClicked: {
                                     root.paneCursor = 1;
@@ -2453,6 +2641,58 @@ Item {
                                     onClicked: {
                                         root.paneCursor = 1;
                                         root.chooseQbtImport();
+                                    }
+                                }
+                            }
+
+                            // docs/34 D6 a: another server's settings, read just now through a
+                            // client of their own, shown as an import into this one.
+                            SettingsRow {
+                                Layout.fillWidth: true
+                                description: !App.globalState.connected
+                                             ? qsTr("Connect to %1 to copy into it.").arg(qbtBackupPane.name)
+                                             : root.otherServerIds.length === 0
+                                               ? qsTr("Another server's settings, read and shown as an import into %1. Add one in Settings › Servers first.").arg(qbtBackupPane.name)
+                                               : qsTr("Read from that server just now, then shown as an import into %1. Nothing changes on the other server.").arg(qbtBackupPane.name)
+                                glyph: Glyphs.copyFrom
+                                hasCursor: root.area === "pane" && root.paneCursor === 2
+                                objectName: "qbtCopyRow"
+                                opacity: qbtBackupPane.copyReady ? 1 : 0.55
+                                title: qsTr("Copy settings from another server")
+
+                                onClicked: {
+                                    root.paneCursor = 2;
+                                    root.area = "pane";
+                                    root.copyQbt();
+                                }
+
+                                RowLayout {
+                                    spacing: Theme.space(6)
+
+                                    Button {
+                                        id: copySourceButton
+
+                                        bordered: true
+                                        objectName: "copySourceButton"
+                                        text: root.copySourceName + "  " + Glyphs.chevronDown
+                                        visible: root.otherServerIds.length > 0
+
+                                        onClicked: {
+                                            root.paneCursor = 2;
+                                            root.openCopyPick(copySourceButton);
+                                        }
+                                    }
+
+                                    Button {
+                                        bordered: true
+                                        enabled: qbtBackupPane.copyReady
+                                        objectName: "qbtCopyButton"
+                                        text: qsTr("copy…")
+
+                                        onClicked: {
+                                            root.paneCursor = 2;
+                                            root.copyQbt();
+                                        }
                                     }
                                 }
                             }
@@ -2476,15 +2716,15 @@ Item {
                                 Layout.fillWidth: true
                                 description: running ? App.torrentsBackupProgress
                                                      : App.globalState.connected ? App.torrentsExportSummary
-                                                                                 : qsTr("Connect to %1 to export.").arg(App.serverName)
+                                                                                 : qsTr("Connect to %1 to export.").arg(qbtBackupPane.name)
                                 glyph: Glyphs.arrowDown
-                                hasCursor: root.area === "pane" && root.paneCursor === 2
+                                hasCursor: root.area === "pane" && root.paneCursor === 3
                                 objectName: "torrentsExportRow"
                                 opacity: running || qbtBackupPane.torrentsReady ? 1 : 0.55
-                                title: qsTr("Export torrents")
+                                title: qsTr("Export %1's torrents").arg(qbtBackupPane.name)
 
                                 onClicked: {
-                                    root.paneCursor = 2;
+                                    root.paneCursor = 3;
                                     root.area = "pane";
                                     root.exportTorrents();
                                 }
@@ -2497,7 +2737,7 @@ Item {
                                     text: torrentsExportRow.running ? qsTr("stop") : qsTr("export…")
 
                                     onClicked: {
-                                        root.paneCursor = 2;
+                                        root.paneCursor = 3;
                                         root.exportTorrents();
                                     }
                                 }
@@ -2510,16 +2750,16 @@ Item {
                                 Layout.fillWidth: true
                                 description: running ? App.torrentsBackupProgress
                                                      : App.globalState.connected
-                                                       ? qsTr("Adds them, lets qBittorrent check the files on disk, then starts the complete ones. Torrents already here are skipped.")
-                                                       : qsTr("Connect to %1 to import: what is new is read against it.").arg(App.serverName)
+                                                       ? qsTr("Adds them, lets qBittorrent check the files on disk, then starts the complete ones. Torrents already on %1 are skipped.").arg(qbtBackupPane.name)
+                                                       : qsTr("Connect to %1 to import: what is new is read against it.").arg(qbtBackupPane.name)
                                 glyph: Glyphs.arrowUp
-                                hasCursor: root.area === "pane" && root.paneCursor === 3
+                                hasCursor: root.area === "pane" && root.paneCursor === 4
                                 objectName: "torrentsImportRow"
                                 opacity: running || qbtBackupPane.torrentsReady ? 1 : 0.55
-                                title: qsTr("Import torrents")
+                                title: qsTr("Import torrents into %1").arg(qbtBackupPane.name)
 
                                 onClicked: {
-                                    root.paneCursor = 3;
+                                    root.paneCursor = 4;
                                     root.area = "pane";
                                     root.chooseTorrentsImport();
                                 }
@@ -2531,7 +2771,7 @@ Item {
                                     text: App.torrentsBackupRunning === "import" ? qsTr("stop") : qsTr("import…")
 
                                     onClicked: {
-                                        root.paneCursor = 3;
+                                        root.paneCursor = 4;
                                         root.chooseTorrentsImport();
                                     }
                                 }
@@ -2549,12 +2789,26 @@ Item {
                         }
 
                         // ---- Backup (#31, docs/24 §3) --------------------------------------
+                        // docs/34 D1 a: what it holds, and where torrents are, first.
                         ColumnLayout {
                             id: backupPane
 
                             anchors.fill: parent
                             spacing: Theme.space(8)
                             visible: root.paneIndex === 5
+
+                            ScopeLine {
+                                Layout.fillWidth: true
+                                linkKey: "t"
+                                linkText: qsTr("qBittorrent › Backup ›")
+                                objectName: "backupScopeLine"
+                                text: App.serverList.count === 1
+                                      ? qsTr("omaseed's own: its settings, your server (no password) and its seed history, with a copy of its qBittorrent settings. Torrents aren't in it: the server keeps them.")
+                                      : qsTr("omaseed's own: its settings, your %1 servers (no passwords) and their seed history, with a copy of each server's qBittorrent settings. Torrents aren't in it: each server keeps its own.").arg(
+                                            App.serverList.count)
+
+                                onLinkActivated: root.openTorrentsBackup()
+                            }
 
                             SettingsRow {
                                 Layout.fillWidth: true
@@ -2610,8 +2864,9 @@ Item {
                             SettingsRow {
                                 Layout.fillWidth: true
                                 description: {
-                                    // D3 a (#32): each server's qBittorrent settings go with them.
-                                    const where = qsTr("Into %1, the last 4 kept, each server's qBittorrent settings with them.").arg(App.backupsDirText);
+                                    // D3 a (#32): each server's qBittorrent settings go with them, which
+                                    // the scope line says now (docs/34 D1 a).
+                                    const where = qsTr("Into %1, the last 4 kept.").arg(App.backupsDirText);
                                     if (App.autoBackupMode === "off")
                                         return qsTr("Off: backups are made by hand only. On, they go into %1, the last 4 kept.").arg(App.backupsDirText);
                                     return App.lastBackupText.length > 0 ? where + " " + qsTr("Last one: %1.").arg(App.lastBackupText)
@@ -2853,6 +3108,24 @@ Item {
             root.paneCursor = Math.max(0, App.serverList.indexOfId(id));
             root.area = "pane";
         }
+    }
+
+    // docs/34 D6 a: which server "copy settings from" reads.
+    Menu {
+        id: copyMenu
+
+        anchors.fill: parent
+        dimmed: false
+        heading: qsTr("copy settings from")
+        menuWidth: Theme.space(220)
+        objectName: "copyMenu"
+        z: 1
+
+        onActivated: action => {
+            root.copySourceId = action;
+            bodyItem.forceActiveFocus();
+        }
+        onRejected: bodyItem.forceActiveFocus()
     }
 
     // docs/16 §3: a change that can cut you off asks first.

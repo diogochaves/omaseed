@@ -16,6 +16,11 @@ import Omaseed.Kit
 // counts the keys this qBittorrent lacks. "export current first" saves what the server has
 // now without closing the sheet.
 //
+// docs/34 D2 a, D6 a (#70): the head, the columns and that button name both servers ("From
+// private's export of …", "public now" / "from private", "export public first"), all from
+// App's map. The same sheet shows a copy from another server ("Copy settings from private into
+// public", glyph ⇣), whose rows are read the same way.
+//
 //     QbtImportSheet { anchors.fill: parent; schema: qbtSchema; onExportRequested: … }
 //
 // Do NOT run `qmlformat` on this file: with the project's 100-column wrap it re-indents the
@@ -41,7 +46,8 @@ Sheet {
     readonly property var rows: sheet.info.rows ?? []
     readonly property var mainRows: sheet.rows.filter(row => (row.group ?? "").length === 0)
     readonly property var machineRows: sheet.rows.filter(row => (row.group ?? "").length > 0)
-    readonly property string exportText: qsTr("export current first")
+    /// docs/34 D2 a: "export public first", naming the server the sheet writes to.
+    readonly property string exportText: sheet.info.exportText ?? qsTr("export current first")
     readonly property string applyText: sheet.count === 1 ? qsTr("apply 1 change")
                                                            : qsTr("apply %1 changes").arg(sheet.count)
     /// The ticked rows that change something (the folders row only says how).
@@ -186,7 +192,7 @@ Sheet {
             "disabled": sheet.count === 0
         }
     ]
-    glyph: Glyphs.backup
+    glyph: sheet.info.copy === true ? Glyphs.copyFrom : Glyphs.backup
     hints: [
         {
             "key": "tab",
@@ -229,15 +235,20 @@ Sheet {
             tracked: true
         }
 
+        // docs/34 D2 a: "public now" and "from private" (or, copied, "private").
         Label {
             Layout.preferredWidth: Theme.space(150)
-            text: qsTr("now")
+            elide: Text.ElideRight
+            objectName: "importNowHead"
+            text: sheet.info.nowHead ?? qsTr("now")
             tracked: true
         }
 
         Label {
             Layout.preferredWidth: Theme.space(150)
-            text: qsTr("from the file")
+            elide: Text.ElideRight
+            objectName: "importFromHead"
+            text: sheet.info.fromHead ?? qsTr("from the file")
             tracked: true
         }
     }

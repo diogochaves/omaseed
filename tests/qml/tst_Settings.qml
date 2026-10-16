@@ -277,26 +277,43 @@ TestCase {
         compare(helpSpy.count, 1);
     }
 
-    // The qBittorrent group's server line does what `s` does, once there are two servers.
-    function test_a_click_on_the_qbittorrent_server_line_moves_to_the_next_server() {
+    // docs/34 D3 a, D5 a: the qBittorrent group's server is a select once there are two
+    // servers; a click opens its list on the next one, enter moves the app there, and the
+    // footer says the library went too. With one, a label that does nothing.
+    function test_a_click_on_the_qbittorrent_server_select_opens_its_list() {
         const first = testCase.addTestServer("first", "http://127.0.0.1:8081");
         const modal = createTemporaryObject(modalComponent, testCase);
         modal.openQbt();
-        const line = testCase.childNamed(modal, "qbtNavServer");
-        verify(line !== null && line.visible);
-        waitForItemPolished(line.parent);
-        verify(line.width > 0);
+        const select = testCase.childNamed(modal, "qbtNavServer");
+        verify(select !== null && select.visible);
+        verify(!select.switches);
+        verify(testCase.childNamed(select, "serverSelectPlain").visible);
+        waitForItemPolished(select.parent);
+        verify(select.width > 0);
         serverChangedSpy.clear();
-        mouseClick(line);
+        mouseClick(select);
         compare(serverChangedSpy.count, 0, "one server: nothing to move to");
+        verify(!select.listOpen);
         verify(modal.opened);
 
-        testCase.addTestServer("second", "http://127.0.0.1:8082");
+        const second = testCase.addTestServer("second", "http://127.0.0.1:8082");
         compare(App.serverList.defaultId, first);
+        verify(select.switches);
+        waitForItemPolished(select.parent);
         serverChangedSpy.clear();
-        mouseClick(line);
+        mouseClick(select);
+        verify(select.listOpen);
+        compare(serverChangedSpy.count, 0, "the click only opens the list");
+        compare(select.list.heading, "switch omaseed to");
+        compare(select.list.footer, "The library and the tray follow, and it becomes the default.");
+        compare(select.list.items.map(item => item.text), ["first", "second"]);
+        compare(select.list.items[0].note, "on it ✓");
+        compare(select.list.cursorIndex, 1);
+        keyClick(Qt.Key_Return);
+        verify(!select.listOpen);
         verify(serverChangedSpy.count > 0);
-        verify(App.serverList.defaultId !== first);
+        compare(App.serverList.defaultId, second);
+        compare(modal.sheet.footerRight, "omaseed is on second now · the library too");
         verify(modal.opened);
         verify(modal.inQbt);
     }
