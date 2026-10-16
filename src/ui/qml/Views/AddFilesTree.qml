@@ -301,6 +301,9 @@ Rectangle {
     ListView {
         id: list
 
+        // #77: the files' list, for a screen reader; each row is a list item.
+        Accessible.name: qsTr("files")
+        Accessible.role: Accessible.List
         anchors.bottom: parent.bottom
         anchors.bottomMargin: 1
         anchors.left: parent.left
@@ -336,6 +339,8 @@ Rectangle {
                                             || pencilMouse.containsMouse
             readonly property bool editing: root.editingRow === row.index
 
+            // #77: a screen reader finds the file or folder by its name.
+            Accessible.name: row.name
             hasCursor: root.activeFocus && row.index === root.cursorIndex
             height: Theme.railRowHeight
             width: ListView.view.width
@@ -424,6 +429,15 @@ Rectangle {
                     MouseArea {
                         id: foldMouse
 
+                        // #77: a folder's arrow is a button, named for what a press does (Qt
+                        // 6.11 has no `Accessible.expanded`); its press is the click. A
+                        // MouseArea's `enabled` is its own flag alone, so the row's says
+                        // whether the tree is disabled.
+                        Accessible.ignored: !row.isFolder
+                        Accessible.name: row.expanded ? qsTr("fold") : qsTr("unfold")
+                        Accessible.role: Accessible.Button
+                        Accessible.onPressAction: if (row.enabled && foldMouse.enabled)
+                                                      root._clickPart(row.index, "fold")
                         anchors.horizontalCenter: foldGlyph.horizontalCenter
                         anchors.verticalCenter: parent.verticalCenter
                         cursorShape: Qt.PointingHandCursor
@@ -582,6 +596,12 @@ Rectangle {
                     MouseArea {
                         id: pencilMouse
 
+                        // #77: the pencil is a "rename" button, there whether or not it
+                        // shows; its press is the click.
+                        Accessible.name: qsTr("rename")
+                        Accessible.role: Accessible.Button
+                        Accessible.onPressAction: if (row.enabled && pencilMouse.enabled)
+                                                      root._clickPart(row.index, "rename")
                         anchors.fill: parent
                         cursorShape: Qt.PointingHandCursor
                         enabled: !row.editing
@@ -633,6 +653,13 @@ Rectangle {
                     MouseArea {
                         id: priorityMouse
 
+                        // #77: the priority is a button that cycles it, the priority its
+                        // description; its press is the click.
+                        Accessible.description: row.priorityText
+                        Accessible.name: qsTr("priority")
+                        Accessible.role: Accessible.Button
+                        Accessible.onPressAction: if (row.enabled)
+                                                      root._clickPart(row.index, "priority")
                         anchors.fill: parent
                         anchors.leftMargin: -Theme.space(4)
                         cursorShape: Qt.PointingHandCursor

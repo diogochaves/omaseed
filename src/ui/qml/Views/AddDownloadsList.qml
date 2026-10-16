@@ -154,6 +154,10 @@ Rectangle {
     }
 
     Column {
+        // #77: the files' list, for a screen reader; each row is a list item, selected while
+        // ticked.
+        Accessible.name: qsTr("in Downloads")
+        Accessible.role: Accessible.List
         anchors.fill: parent
         anchors.margins: 1
 
@@ -169,11 +173,29 @@ Rectangle {
                 readonly property bool inLibrary: row.modelData.inLibrary === true
                 readonly property bool isTicked: root.ticked.indexOf(row.modelData.path) >= 0
 
+                /// A click on the row with `modifiers`: the pointer's, and a screen reader's
+                /// press (#77), which is a plain one.
+                function click(modifiers: int): void {
+                    const ctrl = (modifiers & Qt.ControlModifier) !== 0;
+                    if ((modifiers & Qt.ShiftModifier) !== 0) {
+                        root.tickRange(row.index, ctrl);
+                    } else if (ctrl) {
+                        root.toggleTick(row.index);
+                    } else {
+                        root.anchorIndex = row.index;
+                        root.choose(row.index, true);
+                    }
+                }
+
+                // #77: a screen reader finds the file by its torrent's name.
+                Accessible.name: row.modelData.name
                 hasCursor: root.activeFocus && row.index === root.cursorIndex
                 height: Theme.railRowHeight
                 objectName: "downloadsRow" + row.index
                 selected: row.isTicked
                 width: parent ? parent.width : 0
+
+                onClicked: modifiers => row.click(modifiers)
 
                 // The row's own click carries no modifiers: this one, above it, reads ctrl.
                 MouseArea {
@@ -182,17 +204,7 @@ Rectangle {
                     parent: row
                     z: 2
 
-                    onClicked: mouse => {
-                        const ctrl = (mouse.modifiers & Qt.ControlModifier) !== 0;
-                        if ((mouse.modifiers & Qt.ShiftModifier) !== 0) {
-                            root.tickRange(row.index, ctrl);
-                        } else if (ctrl) {
-                            root.toggleTick(row.index);
-                        } else {
-                            root.anchorIndex = row.index;
-                            root.choose(row.index, true);
-                        }
-                    }
+                    onClicked: mouse => row.click(mouse.modifiers)
                 }
 
                 RowLayout {

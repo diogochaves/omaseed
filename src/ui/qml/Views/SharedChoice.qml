@@ -54,7 +54,22 @@ FocusScope {
 
                 readonly property bool picked: row.index === root.choice
 
+                /// Pick this row: a click, or a screen reader's press or toggle.
+                function pick(): void {
+                    if (row.enabled)
+                        root.choice = row.index;
+                }
+
+                // #77: a radio button, named by its title, the detail as its description.
+                Accessible.checkable: true
+                Accessible.checked: row.picked
+                Accessible.description: row.modelData.detail ?? ""
+                Accessible.name: row.modelData.title
+                Accessible.role: Accessible.RadioButton
+                Accessible.onPressAction: row.pick()
+                Accessible.onToggleAction: row.pick()
                 Layout.fillWidth: true
+                objectName: "sharedChoice_" + row.index
                 border.color: Qt.alpha(Theme.foreground, row.picked ? Theme.borderHover : 0)
                 border.width: 1
                 color: row.picked ? Qt.alpha(Theme.foreground, Theme.fillHover) : "transparent"
@@ -105,7 +120,7 @@ FocusScope {
                     anchors.fill: parent
                     cursorShape: Qt.PointingHandCursor
 
-                    onClicked: root.choice = row.index
+                    onClicked: row.pick()
                 }
             }
         }

@@ -1406,6 +1406,15 @@ Sheet {
                         id: serverChip
 
                         Rectangle {
+                            id: serverChipBox
+
+                            // #77: a "switch server" button, as the hero's server line; the
+                            // server is its description. Its press is the click.
+                            Accessible.description: App.serverName
+                            Accessible.name: qsTr("switch server")
+                            Accessible.role: Accessible.Button
+                            Accessible.onPressAction: if (serverChipBox.enabled)
+                                                          sheet.serverPaletteRequested()
                             border.color: chipMouse.containsMouse ? Theme.fill(Theme.borderHover) : Theme.fill(Theme.borderIdle)
                             border.width: 1
                             color: chipMouse.containsMouse ? Theme.fill(Theme.fillHover) : "transparent"
@@ -1475,6 +1484,13 @@ Sheet {
 
                             // docs/27 D9: back to the queue.
                             Label {
+                                id: oneByOneLink
+
+                                // #77: a link back to the queue; its press is the click.
+                                Accessible.name: oneByOneLink.text
+                                Accessible.role: Accessible.Link
+                                Accessible.onPressAction: if (oneByOneLink.enabled)
+                                                              sheet.oneByOne()
                                 color: oneByOneMouse.containsMouse ? Theme.accent : Theme.foreground
                                 objectName: "batchOneByOne"
                                 size: "caption"

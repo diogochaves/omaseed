@@ -118,8 +118,23 @@ RowLayout {
                 required property var modelData
                 required property int index
 
+                /// Make this the copy `save there` uses: a click, or a screen reader's press.
+                function pick(): void {
+                    root.index = copyRow.index;
+                }
+
+                // #77: a list item for each copy, named by where it is, selected while it is
+                // the one `save there` uses.
+                Accessible.description: root.whoText(copyRow.modelData) + " · " + copyRow.modelData.ratioText
+                Accessible.name: copyRow.modelData.savePath
+                Accessible.role: Accessible.ListItem
+                Accessible.selectable: true
+                Accessible.selected: copyRow.index === root.index
+                Accessible.onPressAction: if (copyRow.enabled)
+                                              copyRow.pick()
                 Layout.fillWidth: true
                 implicitHeight: copyLabel.implicitHeight
+                objectName: "matchCopy_" + copyRow.index
 
                 Label {
                     id: copyLabel
@@ -137,7 +152,7 @@ RowLayout {
                     anchors.fill: parent
                     cursorShape: Qt.PointingHandCursor
 
-                    onClicked: root.index = copyRow.index
+                    onClicked: copyRow.pick()
                 }
             }
         }

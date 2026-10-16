@@ -1041,6 +1041,8 @@ Window {
 
                                 required property var modelData
 
+                                // #77: a TableRow is a list item, named by its use.
+                                Accessible.name: tableRowSample.modelData.name
                                 hasCursor: tableRowSample.modelData.hasCursor
                                 selected: tableRowSample.modelData.selected
                                 width: Theme.space(360)

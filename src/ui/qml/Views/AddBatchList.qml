@@ -77,6 +77,9 @@ Rectangle {
     ListView {
         id: list
 
+        // #77: the batch's list, for a screen reader; each row is a list item.
+        Accessible.name: qsTr("torrents to add")
+        Accessible.role: Accessible.List
         anchors.fill: parent
         anchors.margins: 1
         boundsBehavior: Flickable.StopAtBounds
@@ -91,6 +94,9 @@ Rectangle {
 
             readonly property bool out: row.modelData.out === true
 
+            // #77: a screen reader finds the torrent by its name; the flag says the rest.
+            Accessible.description: row.modelData.flag ?? ""
+            Accessible.name: row.modelData.name
             hasCursor: root.activeFocus && row.index === root.cursorIndex
             height: Theme.railRowHeight
             objectName: "batchRow" + row.index
@@ -142,6 +148,14 @@ Rectangle {
                 }
 
                 Item {
+                    id: removeButton
+
+                    // #77: the ✕ is a "remove" button; its press is the click, and does
+                    // nothing while disabled.
+                    Accessible.name: qsTr("remove")
+                    Accessible.role: Accessible.Button
+                    Accessible.onPressAction: if (removeButton.enabled)
+                                                  root.removeRequested(row.index)
                     Layout.preferredHeight: Theme.railRowHeight
                     Layout.preferredWidth: Theme.space(18)
 

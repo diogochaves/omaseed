@@ -1934,4 +1934,128 @@ TestCase {
         compare(sheet.tagChips.selected, ["keep-for-omaseed-tests"]);
         sheet.dismiss();
     }
+
+    // #77: "in Downloads" rows are list items named by the torrent; a screen reader's press
+    // is a plain click: it chooses the file.
+    function test_a_downloads_row_takes_the_accessible_press() {
+        const sheet = testCase.openOnFixtures();
+        const row = findChild(sheet.downloadsList, "downloadsRow0");
+        compare(row.Accessible.role, Accessible.ListItem);
+        compare(row.Accessible.name, App.downloadsTorrents[0].name);
+        row.Accessible.pressAction();
+        compare(sheet.sourceField.text, App.downloadsTorrents[0].path);
+        compare(sheet.source, "file");
+    }
+
+    // #77: a batch row is named by its torrent, its flag the description, and its ✕ is a
+    // "remove" button whose press drops the row.
+    function test_a_batch_row_and_its_remove_button() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        sheet.openList([testCase.freshMagnet, testCase.secondMagnet, testCase.thirdMagnet], "drop");
+        waitForRendering(sheet.batchList);
+        const row = findChild(sheet.batchList, "batchRow1");
+        compare(row.Accessible.role, Accessible.ListItem);
+        compare(row.Accessible.name, sheet.batchRows[1].name);
+        compare(row.Accessible.description, "magnet · size after metadata");
+        const remove = findChild(row, "batchRemove").parent;
+        compare(remove.Accessible.role, Accessible.Button);
+        compare(remove.Accessible.name, "remove");
+        remove.Accessible.pressAction();
+        compare(sheet.batchCount, 2);
+        sheet.dismiss();
+    }
+
+    // #77: in the tree, a folder's arrow, a row's pencil and its priority are buttons whose
+    // press is their click.
+    function test_the_trees_buttons_take_the_accessible_press() {
+        const sheet = testCase.openTorrent(addSheetComponent);
+        let row = testCase.rowItem(sheet, "Big Buck Bunny/");
+        compare(row.Accessible.name, "Big Buck Bunny/");
+        const fold = findChild(row, "addFilesFold");
+        compare(fold.Accessible.role, Accessible.Button);
+        compare(fold.Accessible.name, "fold");
+        fold.Accessible.pressAction();
+        compare(sheet.filesTree.count, 10);
+        row = testCase.rowItem(sheet, "Big Buck Bunny/");
+        compare(findChild(row, "addFilesFold").Accessible.name, "unfold");
+        findChild(row, "addFilesFold").Accessible.pressAction();
+        compare(sheet.filesTree.count, 14);
+        verify(findChild(testCase.rowItem(sheet, "README.txt"), "addFilesFold").Accessible.ignored);
+
+        row = testCase.rowItem(sheet, "README.txt");
+        const priority = findChild(row, "addFilesPriority");
+        compare(priority.Accessible.name, "priority");
+        priority.Accessible.pressAction();
+        compare(App.addFiles.priority(row.index), 6);
+        compare(priority.Accessible.description, row.priorityText);
+
+        row = testCase.rowItem(sheet, "Tears of Steel/");
+        findChild(row, "addFilesPencil").Accessible.pressAction();
+        verify(sheet.filesTree.editing);
+        compare(sheet.filesTree.editingRow, row.index);
+        keyClick(Qt.Key_Escape);
+    }
+
+    Component {
+        id: matchLineComponent
+
+        AddMatchLine {
+            matches: [{
+                    "savePath": "/data/a",
+                    "seeding": true,
+                    "tracker": "one.example",
+                    "ratioText": "1.20"
+                }, {
+                    "savePath": "/data/b",
+                    "seeding": false,
+                    "stateText": "stopped",
+                    "tracker": "",
+                    "ratioText": "0.40"
+                }]
+        }
+    }
+
+    Component {
+        id: sharedChoiceComponent
+
+        SharedChoice {
+            rows: [{
+                    "title": "keep the files",
+                    "detail": "the other torrent still uses them"
+                }, {
+                    "title": "delete them too"
+                }]
+        }
+    }
+
+    // #77: each copy of a files match is a list item named by where it is; a screen reader's
+    // press picks it, as a click does.
+    function test_a_match_copy_takes_the_accessible_press() {
+        const line = createTemporaryObject(matchLineComponent, testCase);
+        const copies = [findChild(line, "matchCopy_0"), findChild(line, "matchCopy_1")];
+        compare(copies[0].Accessible.role, Accessible.ListItem);
+        compare(copies[1].Accessible.name, "/data/b");
+        compare(copies[1].Accessible.description, "stopped · 0.40");
+        verify(copies[0].Accessible.selected);
+        copies[1].Accessible.pressAction();
+        compare(line.index, 1);
+        verify(copies[1].Accessible.selected);
+    }
+
+    // #77: a shared-data choice is a radio button; its press and its toggle pick it.
+    function test_a_shared_choice_is_a_radio_button() {
+        const choice = createTemporaryObject(sharedChoiceComponent, testCase);
+        const second = findChild(choice, "sharedChoice_1");
+        compare(second.Accessible.role, Accessible.RadioButton);
+        compare(second.Accessible.name, "delete them too");
+        verify(findChild(choice, "sharedChoice_0").Accessible.checked);
+        verify(!second.Accessible.checked);
+        second.Accessible.toggleAction();
+        compare(choice.choice, 1);
+        findChild(choice, "sharedChoice_0").Accessible.pressAction();
+        compare(choice.choice, 0);
+        choice.enabled = false;
+        second.Accessible.pressAction();
+        compare(choice.choice, 0, "a disabled choice picked");
+    }
 }
