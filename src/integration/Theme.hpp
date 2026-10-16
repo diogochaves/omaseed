@@ -130,8 +130,8 @@ class Theme : public QObject
     /// The spec's alphas outside the shell's set, fixed by the spec rather than read from
     /// shell.toml: the rule between table and palette rows (`.tbl .r`, `.palette .it`, 5 %), a
     /// selected row under the cursor (`.tbl .r.sel.cur`, 24 %), the rule under a key/value row
-    /// (`.kv`, 6 %), and faint text (docs/30 `--t-faint`, 40 %): a palette row that can't run
-    /// and the "via" before a path.
+    /// (`.kv`, 6 %), and faint text (docs/30 `--t-faint`, 40 %): only for what is disabled, a
+    /// palette row that can't run (Q19 amended, #89: the "via" before a path is dim, not faint).
     Q_PROPERTY(qreal rowRuleAlpha READ rowRuleAlpha CONSTANT FINAL)
     Q_PROPERTY(qreal fillSelectedCursor READ fillSelectedCursor CONSTANT FINAL)
     Q_PROPERTY(qreal keyValueRuleAlpha READ keyValueRuleAlpha CONSTANT FINAL)

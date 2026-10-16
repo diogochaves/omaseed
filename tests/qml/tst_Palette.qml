@@ -821,7 +821,7 @@ TestCase {
 
         const via = palette.listView.itemAtIndex(2);
         compare(findChild(via, "paletteRowVia").visible, true);
-        compare(findChild(via, "paletteRowVia").color, faint);
+        compare(findChild(via, "paletteRowVia").color, Theme.dimForeground); // #89: not faint
         compare(findChild(via, "paletteRowMeta").text, "enter s");
         palette.close();
     }
