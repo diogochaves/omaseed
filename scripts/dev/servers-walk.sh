@@ -204,14 +204,21 @@ check "the box's keyring holds public's password" keyring_has "$public_id"
 
 # ---- add the second server ----------------------------------------------------------------
 # `,` settings, `2` Servers, `a` a new server: name, URL, the chips, username, password, then
-# path map remote, local, cancel, test.
+# path map remote, local, cancel, and the keyboard on test.
 clip private
 keys comma -s 600 2 -s 300 a -s 800 -t private Tab -t http://127.0.0.1:8091 Tab Tab space Tab Tab \
-    -t admin Tab ctrl+v Tab Tab Tab Tab Return -s 2500
+    -t admin Tab ctrl+v Tab Tab Tab Tab -s 800
 unclip
-step "Adding private" "The New server sheet, now titled private: cookie login as admin, the password as dots; under it reached http://127.0.0.1:8091 · qBittorrent 5.2.3 · API 2.15.1 · 4 torrents."
+step "Save waits for a test" "#68, as first run: the New server sheet filled in (private, cookie login as admin), the keyboard on test, which is the primary; save dimmed beside it and \"test first\" at the right of the footer, which says enter test."
 
-keys Tab Return -s 1200
+# The dimmed save is out of the tab cycle: `tab` from test wraps to the Name field, and enter
+# there runs the primary, the test, not a save.
+keys Tab Return -s 2500
+check "a dimmed save is not reached: nothing saved before the test" servers_are "public" public
+step "Adding private" "The New server sheet, now titled private: cookie login as admin, the password as dots; under it reached http://127.0.0.1:8091 · qBittorrent 5.2.3 · API 2.15.1 · 4 torrents. save is the primary now, no \"test first\"."
+
+# The test passed, so save is the primary: enter in the Name field saves.
+keys Return -s 1200
 step "Two servers" "Settings › Servers: public (default) and private, both green, private with 4 torrents; add a server below."
 check "servers.json: public and private, public still the default, no password in it" \
     servers_are "public private" public
@@ -255,9 +262,10 @@ check "servers.json: s moved the default to private" servers_are "public private
 
 # ---- remove the live server ----------------------------------------------------------------
 # Settings opens where it was left, on Speed in the qBittorrent group, where the digits pick
-# qBittorrent sections: `h` gives the nav the keyboard, five `k` walk up to Servers, `tab` to
-# its rows (the cursor on public), `j` to private, `x` asks.
-keys Escape -s 600 comma -s 600 h -s 200 k k k k k -s 300 Tab -s 300 j -s 300 x -s 800
+# qBittorrent sections: `h` gives the nav the keyboard, six `k` walk up to Servers (About,
+# Backup, Appearance, Keybindings, Notifications, Servers), `tab` to its rows (the cursor on
+# public), `j` to private, `x` asks.
+keys Escape -s 600 comma -s 600 h -s 200 k k k k k k -s 300 Tab -s 300 j -s 300 x -s 800
 step "Remove private?" "The confirm card: Remove the server private? · http://127.0.0.1:8091 · the stored secret goes with it. Nothing on the server is touched. The cursor on cancel, remove in red."
 keys l Return -s 2500
 step "One server left" "Settings › Servers: public only, now the default."
