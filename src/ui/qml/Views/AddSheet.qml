@@ -1809,6 +1809,7 @@ Sheet {
                                 Layout.preferredWidth: 1
                                 label: limitsRow.narrow ? qsTr("↓ limit") : qsTr(
                                                               "Download limit")
+                                spokenCaption: false // the field says it (#78)
 
                                 Field {
                                     id: dlLimitField
@@ -1832,6 +1833,7 @@ Sheet {
                                 Layout.preferredWidth: 1
                                 label: limitsRow.narrow ? qsTr("↑ limit") : qsTr(
                                                               "Upload limit")
+                                spokenCaption: false // the field says it (#78)
 
                                 Field {
                                     id: upLimitField

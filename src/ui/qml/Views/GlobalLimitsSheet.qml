@@ -100,6 +100,7 @@ Sheet {
             Layout.fillWidth: true
             Layout.preferredWidth: 1
             label: qsTr("Download")
+            spokenCaption: false // the field says it (#78)
 
             Field {
                 id: dlField
@@ -120,6 +121,7 @@ Sheet {
             Layout.fillWidth: true
             Layout.preferredWidth: 1
             label: qsTr("Upload")
+            spokenCaption: false // the field says it (#78)
 
             Field {
                 id: ulField
@@ -140,6 +142,7 @@ Sheet {
             Layout.fillWidth: true
             Layout.preferredWidth: 1
             label: qsTr("Alt-speed download")
+            spokenCaption: false // the field says it (#78)
 
             Field {
                 id: altDlField
@@ -160,6 +163,7 @@ Sheet {
             Layout.fillWidth: true
             Layout.preferredWidth: 1
             label: qsTr("Alt-speed upload")
+            spokenCaption: false // the field says it (#78)
 
             Field {
                 id: altUlField

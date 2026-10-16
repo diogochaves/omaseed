@@ -32,6 +32,13 @@ TestCase {
         compare(label.text, "New path on home");
         compare(label.font.pixelSize, Theme.font.caption);
         compare(label.color, Theme.dimForeground);
+        // #79: a screen reader hears the caption's words, before the control.
+        compare(label.Accessible.role, Accessible.StaticText);
+        compare(label.Accessible.name, "New path on home");
+        verify(!label.Accessible.ignored);
+        // A control named by the caption already says it: the caption stays out.
+        row.spokenCaption = false;
+        verify(label.Accessible.ignored);
     }
 
     function test_the_gap_between_label_and_control_is_four() {

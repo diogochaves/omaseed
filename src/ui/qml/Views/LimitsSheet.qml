@@ -306,6 +306,7 @@ Sheet {
             Layout.fillWidth: true
             Layout.preferredWidth: 1
             label: qsTr("Download")
+            spokenCaption: false // the field says it (#78)
 
             Field {
                 id: dlField
@@ -326,6 +327,7 @@ Sheet {
             Layout.fillWidth: true
             Layout.preferredWidth: 1
             label: qsTr("Upload")
+            spokenCaption: false // the field says it (#78)
 
             Field {
                 id: ulField
@@ -346,6 +348,7 @@ Sheet {
             Layout.fillWidth: true
             Layout.preferredWidth: 1
             label: qsTr("Share ratio")
+            spokenCaption: false // the field says it (#78)
 
             RowLayout {
                 Layout.fillWidth: true
@@ -404,6 +407,7 @@ Sheet {
             Layout.fillWidth: true
             Layout.preferredWidth: 1
             label: qsTr("Seeding time")
+            spokenCaption: false // the field says it (#78)
 
             // Ruling Q5: the ratio row's chip, for the same reason. A torrent on the global
             // seeding time used to show `∞`, which reads as "no limit".
