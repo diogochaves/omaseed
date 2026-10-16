@@ -17,6 +17,14 @@ TestCase {
         Chip {}
     }
 
+    Component {
+        id: clickedSpy
+
+        SignalSpy {
+            signalName: "clicked"
+        }
+    }
+
     function test_height_matches_the_spec_chip_height() {
         const chip = createTemporaryObject(chipComponent, testCase, {
                                                "text": "linux"
@@ -221,5 +229,30 @@ TestCase {
                                             });
         verify(!findChild(plain, "chipSuffix").visible);
         compare(plain.border.color, Theme.yellow);
+    }
+
+    // #75: a screen reader's press runs the click, once.
+    function test_the_accessible_press_is_the_click() {
+        const chip = createTemporaryObject(chipComponent, testCase, {
+                                               "text": "linux"
+                                           });
+        const clicked = createTemporaryObject(clickedSpy, testCase, {
+                                                  "target": chip
+                                              });
+        chip.Accessible.pressAction();
+        compare(clicked.count, 1);
+    }
+
+    // #75: disabled, the chip ignores a screen reader's press, as it ignores the pointer.
+    function test_a_disabled_chip_ignores_the_accessible_press() {
+        const chip = createTemporaryObject(chipComponent, testCase, {
+                                               "text": "linux"
+                                           });
+        const clicked = createTemporaryObject(clickedSpy, testCase, {
+                                                  "target": chip
+                                              });
+        chip.enabled = false;
+        chip.Accessible.pressAction();
+        compare(clicked.count, 0);
     }
 }

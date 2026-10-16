@@ -17,6 +17,14 @@ TestCase {
         IconButton {}
     }
 
+    Component {
+        id: clickedSpy
+
+        SignalSpy {
+            signalName: "clicked"
+        }
+    }
+
     function test_is_a_square_control_height() {
         const button = createTemporaryObject(iconButtonComponent, testCase, {
                                                  "glyph": "+"
@@ -131,5 +139,30 @@ TestCase {
         button.clicked.connect(() => clicks++);
         button.clicked();
         compare(clicks, 1);
+    }
+
+    // #75: a screen reader's press runs the click, once.
+    function test_the_accessible_press_is_the_click() {
+        const button = createTemporaryObject(iconButtonComponent, testCase, {
+                                                 "glyph": "+"
+                                             });
+        const clicked = createTemporaryObject(clickedSpy, testCase, {
+                                                  "target": button
+                                              });
+        button.Accessible.pressAction();
+        compare(clicked.count, 1);
+    }
+
+    // #75: disabled, the button ignores a screen reader's press, as it ignores the pointer.
+    function test_a_disabled_button_ignores_the_accessible_press() {
+        const button = createTemporaryObject(iconButtonComponent, testCase, {
+                                                 "glyph": "+"
+                                             });
+        const clicked = createTemporaryObject(clickedSpy, testCase, {
+                                                  "target": button
+                                              });
+        button.enabled = false;
+        button.Accessible.pressAction();
+        compare(clicked.count, 0);
     }
 }

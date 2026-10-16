@@ -48,6 +48,10 @@ Rectangle {
     Accessible.name: root.suffix.length > 0 ? root.text + " " + root.suffix : root.text
     Accessible.role: Accessible.Button
 
+    // A screen reader's press is the click (#75); disabled, it does nothing, as the pointer.
+    Accessible.onPressAction: if (root.enabled)
+                                  root.clicked()
+
     activeFocusOnTab: root.focusable && root.enabled
     border.color: root.warn ? root.warnColor : root.accent ? Theme.accent : root.hot ? Theme.fill(
                                                                                           Theme.borderHover)
