@@ -306,6 +306,9 @@ up_manual() {
     cp -a "$stage$BOX_HOME/.local/." "$home/.local/"
     rm -rf -- "$stage"
     omabox run -b "$BOX" -- update-desktop-database "$BOX_HOME/.local/share/applications" >/dev/null 2>&1 || true
+    # omaseed's two archives as MIME types (docs/34 D7 a): what shared-mime-info's pacman hook
+    # does for a package (the install above went through DESTDIR, which skips it).
+    omabox run -b "$BOX" -- update-mime-database "$BOX_HOME/.local/share/mime" >/dev/null 2>&1 || true
 
     # Two qBittorrents, as people who split public and private trackers run them: "public" in
     # the usual profile (~/.config/qBittorrent, the one first run reads), "private" in its own
