@@ -1,6 +1,7 @@
 #include "core/TorrentsBackup.hpp"
 
 #include "core/TorrentFile.hpp"
+#include "core/engines/qbt/QbtTranslate.hpp"
 
 #include <QFile>
 #include <QFileInfo>
@@ -306,8 +307,9 @@ TorrentRecord TorrentsBackup::recordFrom(const QJsonObject &info,
          info.value(QStringLiteral("tags")).toString().split(QLatin1Char(','), Qt::SkipEmptyParts))
         r.tags.append(tag.trimmed());
     r.autoTmm = info.value(QStringLiteral("auto_tmm")).toBool();
-    const QString state = info.value(QStringLiteral("state")).toString();
-    if (state.startsWith(QLatin1String("stopped")) || state.startsWith(QLatin1String("paused")))
+    const TorrentStatus status =
+        QbtTranslate::status(info.value(QStringLiteral("state")).toString());
+    if (status.isStopped())
         r.state = QStringLiteral("stopped");
     else if (info.value(QStringLiteral("force_start")).toBool())
         r.state = QStringLiteral("forced");
@@ -323,11 +325,10 @@ TorrentRecord TorrentsBackup::recordFrom(const QJsonObject &info,
     r.shareLimitAction = info.value(QStringLiteral("share_limit_action")).toString();
     r.sequential = info.value(QStringLiteral("seq_dl")).toBool();
     r.firstLastPiecePrio = info.value(QStringLiteral("f_l_piece_prio")).toBool();
-    for (const QJsonValue &item : trackers) {
-        const QString url = item.toObject().value(QStringLiteral("url")).toString();
-        // DHT, PeX and LSD show as "** [DHT] **" rows: not trackers.
-        if (!url.isEmpty() && !url.startsWith(QLatin1String("** [")) && !r.trackers.contains(url))
-            r.trackers.append(url);
+    for (const TrackerEntry &tracker : QbtTranslate::trackers(trackers)) {
+        // DHT, PeX and LSD are listed among the trackers: not trackers.
+        if (tracker.source == TrackerSource::Announce && !r.trackers.contains(tracker.url))
+            r.trackers.append(tracker.url);
     }
 
     if (torrent.isEmpty()) {

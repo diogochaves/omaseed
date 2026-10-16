@@ -3,6 +3,7 @@
 #include "core/QbtClient.hpp"
 #include "core/RenameDisk.hpp"
 #include "core/TorrentFile.hpp"
+#include "core/engines/qbt/QbtTranslate.hpp"
 
 #include <QDir>
 #include <QFileInfo>
@@ -38,10 +39,12 @@ bool under(const QString &path, const QString &folder)
     return path == folder || path.startsWith(folder + QLatin1Char('/'));
 }
 
+/// Busy with its data: checking (or queued for it), loading, allocating or moving.
 bool isChecking(const QString &state)
 {
-    return state.startsWith(QLatin1String("checking")) || state == QLatin1String("moving") ||
-           state == QLatin1String("queuedForChecking") || state == QLatin1String("allocating");
+    const TorrentPhase phase = QbtTranslate::status(state).phase;
+    return phase == TorrentPhase::Checking || phase == TorrentPhase::Loading ||
+           phase == TorrentPhase::Moving || phase == TorrentPhase::Allocating;
 }
 
 /// A request that may already be done (a category that exists) answers 409: not a failure.
