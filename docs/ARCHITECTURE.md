@@ -1,8 +1,8 @@
 # Architecture
 
 omaseed is one process and one binary. It has no torrent engine: everything it shows and does
-goes through qBittorrent's public Web UI API v2 (2.15), against one or more servers, local or
-remote. C++20 and Qt 6 Quick, built with CMake.
+goes through a server's API, today qBittorrent's public Web UI API v2 (2.15), against one or
+more servers, local or remote. C++20 and Qt 6 Quick, built with CMake.
 
 ## Layers
 
@@ -10,11 +10,21 @@ Three static libraries and the executable. Each layer only depends on the ones a
 
 **`omaseed-core`** (`src/core/`): Qt Core and Network only, no QML, every class unit-tested.
 
-- `QbtClient`, one per server: Bearer API key (qBittorrent 5.2 and later) with cookie login as
-  the fallback, a request queue with retry and back-off, a typed method per endpoint.
-  **Errors are values, never exceptions** (`ApiError`, and `Reply` / `Result`, the generic
-  future and value every call hands back): no call throws, and every failure reaches the UI
-  as data it can show.
+- `EngineClient` (`src/core/engines/`, [DECISIONS.md](DECISIONS.md) C14), one per server: the
+  only way anything talks to a server. It covers the connection and sign-in, the probe and
+  the feature record, the sync, the details, the actions, the labels, the limits and the add,
+  and speaks omaseed's types both ways: answers come back as the neutral types below, actions
+  settle with `Done`, an add with an `AddResult`, and what goes out (file priorities, share
+  limits as `RatioLimit` / `MinutesLimit`, `AddOptions`) leaves as omaseed's values for the
+  engine to spell. **Errors are values, never exceptions** (`ApiError`, and `Reply` /
+  `Result`, the generic future and value every call hands back; `mapReply` turns one into
+  another): no call throws, and every failure reaches the UI as data it can show. A call an
+  engine can't make settles as "not supported", and the feature record says so beforehand.
+- `QbtEngine` (`src/core/engines/qbt/`) is qBittorrent behind it. It wraps `QbtClient`, the
+  transport: Bearer API key (qBittorrent 5.2 and later) with cookie login as the fallback, a
+  request queue with retry and back-off, a typed method per endpoint. Only code in that
+  directory includes `QbtClient.hpp`; the tests that need the wire itself go through
+  `tests/QbtWire.hpp`.
 - The engine-neutral layer (`src/core/engines/`, [DECISIONS.md](DECISIONS.md) C14): the
   models never read an engine's wire format. `Torrent` holds typed fields, its state as a
   `TorrentStatus` (a phase such as downloading, seeding, checking or stopped, flags for
@@ -30,11 +40,22 @@ Three static libraries and the executable. Each layer only depends on the ones a
   are derived from phase and flags in one place (`Torrent.cpp`), so Q16 holds for any
   engine that maps its states. `EngineFeatures` says what a server can do, resolved from its
   engine and version (for qBittorrent, files before the add from Web API 2.11.9 and a
-  share-limit action from 2.15.1).
+  share-limit action from 2.15.1, everything else always), including which of qBittorrent's
+  own surfaces it has.
 - `QbtTranslate` (`src/core/engines/qbt/`) is the only code that turns qBittorrent's JSON into
-  those types, the demo data's included; the wire's sentinels end there.
-- `SyncEngine` polls `sync/maindata` with `rid` and applies each answer, as a `SyncDelta`, to
-  `TorrentModel`, `CategoryModel`, `TagModel`, `TrackerModel` and `GlobalState`. It polls every
+  those types, the demo data's included; the wire's sentinels end there. `QbtEngine` does the
+  way out (FilePriority's numbers, -2 and -1 share limits, the add's form, the share-limit
+  action's names).
+- qBittorrent's own surfaces live beside its engine and take a `QbtEngine`, which App hands
+  them through `App::qbtEngine()` when the feature record says the server has them
+  (docs/36 §4.4): `ServerPreferences` (Settings › qBittorrent), `QbtSettingsExport`,
+  `QbtSettingsImport` and `QbtSettingsFetch` (its settings as a file, and back, and another
+  server's read aside), `TorrentsExport` and `TorrentsImport` (C9's file holds qBittorrent's
+  rows). The log face and the problem log read the engine's log through `EngineClient::log`
+  (`engineLog`), and the add sheet's metadata lookup through `fetchMetadata`.
+- `SyncEngine` polls the engine's `sync(cursor)` (qBittorrent's `sync/maindata` with `rid`) and
+  applies each answer, a `SyncDelta`, to `TorrentModel`, `CategoryModel`, `TagModel`,
+  `TrackerModel` and `GlobalState`. It polls every
   1.5 s while the window shows, 5 s while hidden and 15 s after an error. It raises the events
   that notifications are built from: a torrent completed, a server lost or back. A torrent
   option asked of the server shows at once as a pending patch until the polls confirm it
@@ -44,7 +65,7 @@ Three static libraries and the executable. Each layer only depends on the ones a
 - The details tabs have their own models (`TorrentDetails`, `TorrentFilesModel`,
   `TorrentTrackersModel`, `TorrentPeersModel`, `TorrentWebSeedsModel`, `PieceStates`).
 - Parsing: `Bencode`, `TorrentFile` and `MagnetLink` read names, sizes and info-hashes for the
-  add sheet and duplicate detection. `MetadataLookup` asks qBittorrent for a magnet's file list
+  add sheet and duplicate detection. `MetadataLookup` asks the engine for a magnet's file list
   before the add, and `PrivateTrackers` says which magnets it can't get one for
   ([DECISIONS.md](DECISIONS.md) C5). `TorrentProblem` and `ProblemLog` explain an errored
   torrent from qBittorrent's own log, and the failures only that log knows: a move, rename,
@@ -56,13 +77,11 @@ Three static libraries and the executable. Each layer only depends on the ones a
   the technical text for "details" ([DECISIONS.md](DECISIONS.md) C12).
 - Servers and settings: `Server`, `ServerStore` (`servers.json`), `SecretStore` (the keyring
   through qtkeychain, a 0600 file under `secrets/` when there is none), `StateFile`,
-  `ServerPreferences` (qBittorrent's own settings), `CertificatePin` (trust on first use).
+  `CertificatePin` (trust on first use).
 - Features built on top: `SeedConsole`, `SeedLedger` and `WeeklyRecap` (the seed console),
-  `OmaseedBackup`, `AutoBackup` and `TarArchive` (backups), `QbtSettingsExport` and
-  `QbtSettingsImport` (a server's settings as a file, and back), `QbtSettingsFetch` (another
-  server's settings, read aside without moving the app), `BackupFormat` (which of those files
-  a file is, by its contents), `TorrentsBackup`,
-  `TorrentsExport` and `TorrentsImport` (its torrents as a file, and back), `LibraryMatch`,
+  `OmaseedBackup`, `AutoBackup` and `TarArchive` (backups), `BackupFormat` (which of the
+  backup files a file is, by its contents), `TorrentsBackup` (the torrents file's format),
+  `LibraryMatch`,
   `FreeSpace` and `SharedData` (what the add and delete sheets know about files already on
   disk), `RenamePlan` and `RenameDisk` (what a rename would land on).
 
@@ -83,7 +102,9 @@ Three static libraries and the executable. Each layer only depends on the ones a
   [`plugin/STATUS.md`](../plugin/STATUS.md).
 
 **`omaseed-app`** (`src/ui/app/`): `App`, the one object QML talks to. It owns the servers, the
-sync engine and the models, and turns key presses and clicks into API calls.
+engine client, the sync engine and the models, and turns key presses and clicks into engine
+calls. It keeps the chosen server's feature record, resolved after the probe from engine and
+version, and shows it to QML as `App.features`.
 
 **`omaseed`** (`src/ui/`): `main.cpp` and the QML.
 
@@ -91,7 +112,10 @@ sync engine and the models, and turns key presses and clicks into API calls.
   take only `Theme` tokens and each has a `tests/qml/tst_<Name>.qml`.
 - `qml/Views/`: the screens, built from the kit; views take models. The window has three
   faces: the library, the seed console (`Console`) and qBittorrent's log (`LogView`).
-- `Keymap.qml` maps keys to actions per focus area and feeds the key hints.
+- `Keymap.qml` maps keys to actions per focus area and feeds the key hints. It also says which
+  action needs which engine feature (`offered()`): the actions menu, the palette, the `?`
+  sheet and the keys leave out what `App.features` says the server can't do, as the add and
+  Limits sheets do with their fields ([DECISIONS.md](DECISIONS.md) C14 E4).
 
 **`plugin/`** is the bar widget itself, a Quickshell plugin (`chaves.omaseed`). It never talks
 to qBittorrent: it reads the status file and sends commands over D-Bus.
