@@ -1,12 +1,12 @@
 // T4.4 — the category/tag palettes' create actions against the real :8081 playground.
-// `App::createCategory()`/`createTag()` are thin wrappers over `QbtClient::torrentsCreate*()`
-// (App itself is exercised in demo mode by tst_app_tablestate.cpp, which never reaches a
-// server); this file checks the underlying calls actually create and can be cleaned up.
+// `App::createCategory()`/`createTag()` are thin wrappers over the engine's createCategory() /
+// createTags() (App itself is exercised in demo mode by tst_app_tablestate.cpp, which never
+// reaches a server); this file checks the underlying calls actually create and can be cleaned up.
 //
 // Nothing here touches the real library server: the URL comes from QBT_TEST_URL and falls
 // back to the playground's fixed address. The whole case skips when :8081 is down.
 
-#include "core/engines/qbt/QbtClient.hpp"
+#include "QbtWire.hpp"
 
 #include "LiveServer.hpp"
 

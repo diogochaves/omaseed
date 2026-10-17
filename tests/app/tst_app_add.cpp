@@ -7,11 +7,11 @@
 // magnet added stopped turns up stopped. The two live cases are skipped when the playground
 // is not answering, and both clean up after themselves — nothing here ever touches :8080.
 
+#include "QbtWire.hpp"
 #include "core/AddFilesModel.hpp"
 #include "core/SyncEngine.hpp"
 #include "core/TorrentFilesModel.hpp"
 #include "core/TorrentModel.hpp"
-#include "core/engines/qbt/QbtClient.hpp"
 #include "ui/app/App.hpp"
 
 #include "LiveServer.hpp"

@@ -6,7 +6,7 @@
 // Everything this test adds (torrents, categories, tags, directories) is removed again in
 // cleanupTestCase(), including on failure, so a run leaves the playground exactly as found.
 
-#include "core/engines/qbt/QbtClient.hpp"
+#include "QbtWire.hpp"
 
 #include "LiveServer.hpp"
 

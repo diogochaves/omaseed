@@ -9,7 +9,7 @@
 //   ThrowawayQbt qbt;
 //   if (!qbt.start())
 //       QSKIP(qPrintable(qbt.skipReason()));   // no qbittorrent-nox here
-//   QbtClient client; client.setBaseUrl(qbt.url());
+//   QbtEngine client; client.setBaseUrl(qbt.url());
 //   client.setCredentials(qbt.username(), qbt.password());
 //
 // HTTPS: `useHttps(cert, key)` before start() (a pair from `makeCertificate()`, self-signed

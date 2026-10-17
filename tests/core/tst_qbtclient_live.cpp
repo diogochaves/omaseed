@@ -5,7 +5,7 @@
 // skips when they are missing or the server does not answer. Secrets are never printed and
 // never live in this file.
 
-#include "core/engines/qbt/QbtClient.hpp"
+#include "QbtWire.hpp"
 
 #include "LiveServer.hpp"
 

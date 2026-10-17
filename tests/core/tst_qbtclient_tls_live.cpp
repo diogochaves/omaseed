@@ -6,8 +6,8 @@
 // is refused again, also on a connection that was open under the right pin. Skips without
 // qbittorrent-nox or openssl.
 
+#include "QbtWire.hpp"
 #include "core/CertificatePin.hpp"
-#include "core/engines/qbt/QbtClient.hpp"
 
 #include "ThrowawayQbt.hpp"
 

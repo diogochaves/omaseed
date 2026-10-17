@@ -7,9 +7,9 @@
 // Needs qbittorrent-nox, the swarm's tiny-notes.txt .torrent and its file in the :8081
 // playground's folder (copied, never touched); skips without.
 
+#include "QbtWire.hpp"
 #include "core/SyncEngine.hpp"
 #include "core/TorrentsBackup.hpp"
-#include "core/engines/qbt/QbtClient.hpp"
 #include "ui/app/App.hpp"
 
 #include "LiveServer.hpp"

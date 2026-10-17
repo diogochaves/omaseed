@@ -5,8 +5,8 @@
 // effect is also checked where the widget sees it: the next status file write.
 // Skipped when the playground is not answering; never touches :8080.
 
+#include "QbtWire.hpp"
 #include "core/SyncEngine.hpp"
-#include "core/engines/qbt/QbtClient.hpp"
 #include "integration/StatusWriter.hpp"
 #include "ui/app/App.hpp"
 #include "ui/app/StatusService.hpp"

@@ -2,7 +2,7 @@
 // back-off, the login retry and the queue limit are all observable without a real
 // qBittorrent. The live behaviour is covered by tst_qbtclient_live.
 
-#include "core/engines/qbt/QbtClient.hpp"
+#include "QbtWire.hpp"
 
 #include <QElapsedTimer>
 #include <QEventLoop>

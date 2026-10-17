@@ -8,11 +8,11 @@
 // Nothing here touches the real library server: the URL comes from LiveServer (QBT_TEST_URL
 // or the playground). The whole case skips when :8081 is down.
 
+#include "QbtWire.hpp"
 #include "core/Bencode.hpp"
 #include "core/TorrentDetails.hpp"
 #include "core/TorrentFile.hpp"
 #include "core/TorrentWebSeedsModel.hpp"
-#include "core/engines/qbt/QbtClient.hpp"
 #include "core/engines/qbt/QbtEngine.hpp"
 
 #include "LiveServer.hpp"
