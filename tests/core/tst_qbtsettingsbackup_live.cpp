@@ -5,9 +5,9 @@
 // an RSS feed and rule set on one, exported, imported into the other, and compared on the
 // second server itself. The round trip skips when qbittorrent-nox is not installed.
 
-#include "core/QbtClient.hpp"
 #include "core/QbtSettingsExport.hpp"
 #include "core/QbtSettingsImport.hpp"
+#include "core/engines/qbt/QbtClient.hpp"
 
 #include "LiveServer.hpp"
 #include "ThrowawayQbt.hpp"

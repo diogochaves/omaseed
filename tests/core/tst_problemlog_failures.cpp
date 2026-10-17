@@ -7,8 +7,8 @@
 
 #include "QbtFeed.hpp"
 #include "core/ProblemLog.hpp"
-#include "core/QbtClient.hpp"
 #include "core/TorrentModel.hpp"
+#include "core/engines/qbt/QbtClient.hpp"
 
 #include <QJsonArray>
 #include <QJsonDocument>

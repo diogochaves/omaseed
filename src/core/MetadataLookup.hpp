@@ -24,8 +24,9 @@
 // diogochaves/upstream#87). Every poll must go through the same QbtClient, whose session keeps
 // the result (diogochaves/upstream#86): `setFetch` is that client's torrentsFetchMetadata.
 
-#include "core/QbtClient.hpp"
 #include "core/TorrentFile.hpp"
+#include "core/engines/TorrentMetadata.hpp"
+#include "core/engines/qbt/QbtClient.hpp"
 
 #include <QElapsedTimer>
 #include <QJsonObject>
@@ -70,23 +71,8 @@ public:
     };
     Q_ENUM(Phase)
 
-    /// What the 200 says, ready for the add sheet: the files with the root folder stripped
-    /// (TorrentFileEntry's own convention, so AddFilesModel and LibraryMatch take them as a
-    /// .torrent's), in qBittorrent's file-id order.
-    struct Metadata
-    {
-        QString torrentId; ///< `hash`: the id maindata keys the torrent by
-        QString infoHashV1;
-        QString infoHashV2;
-        QString name;
-        qint64 totalSize = 0;
-        qint64 pieceLength = 0;
-        bool isPrivate = false;
-        /// The files sit in a folder named `name` (their paths carried `<name>/`).
-        bool multiFile = false;
-        QList<TorrentFileEntry> files;
-        QStringList trackers;
-    };
+    /// What the 200 says, ready for the add sheet (TorrentMetadata).
+    using Metadata = TorrentMetadata;
 
     using Fetch = std::function<Reply<QbtClient::FetchedMetadata> *(const QString &source)>;
     using Clock = std::function<qint64()>;

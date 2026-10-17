@@ -1,8 +1,8 @@
 #include "core/TorrentsImport.hpp"
 
-#include "core/QbtClient.hpp"
 #include "core/RenameDisk.hpp"
 #include "core/TorrentFile.hpp"
+#include "core/engines/qbt/QbtClient.hpp"
 #include "core/engines/qbt/QbtTranslate.hpp"
 
 #include <QDir>

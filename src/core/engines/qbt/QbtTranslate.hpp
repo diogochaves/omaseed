@@ -14,6 +14,7 @@
 #include "core/engines/EngineFeatures.hpp"
 #include "core/engines/LogEntry.hpp"
 #include "core/engines/SyncDelta.hpp"
+#include "core/engines/TorrentMetadata.hpp"
 #include "core/engines/TorrentPatch.hpp"
 
 #include <QJsonArray>
@@ -60,6 +61,10 @@ QList<LogEntry> log(const QJsonArray &array);
 /// `{hash, properties, files, trackers, peers, pieceStates, webSeeds}`, each as its endpoint
 /// answers: the demo's and the tests' details.
 TorrentDetailsData details(const QJsonObject &json);
+
+/// torrents/fetchMetadata's 200: the metadata as the add sheet needs it; nothing when it
+/// holds no usable `info`.
+std::optional<TorrentMetadata> metadata(const QJsonObject &body);
 
 /// What a qBittorrent with this Web API version ("2.15.1") can do.
 EngineFeatures features(const QString &apiVersion);

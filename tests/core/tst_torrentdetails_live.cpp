@@ -6,11 +6,11 @@
 // Nothing here touches the real library server: the URL comes from QBT_TEST_URL and falls
 // back to the playground's fixed address. The whole case skips when :8081 is down.
 
-#include "core/QbtClient.hpp"
 #include "core/TorrentDetails.hpp"
 #include "core/TorrentFilesModel.hpp"
 #include "core/TorrentPeersModel.hpp"
 #include "core/TorrentTrackersModel.hpp"
+#include "core/engines/qbt/QbtClient.hpp"
 
 #include "LiveServer.hpp"
 

@@ -8,10 +8,10 @@
 // is not answering, and both clean up after themselves — nothing here ever touches :8080.
 
 #include "core/AddFilesModel.hpp"
-#include "core/QbtClient.hpp"
 #include "core/SyncEngine.hpp"
 #include "core/TorrentFilesModel.hpp"
 #include "core/TorrentModel.hpp"
+#include "core/engines/qbt/QbtClient.hpp"
 #include "ui/app/App.hpp"
 
 #include "LiveServer.hpp"

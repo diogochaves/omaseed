@@ -10,10 +10,10 @@
 // failed run left behind. The delete test only ever deletes a torrent this file added itself.
 
 #include "core/GlobalState.hpp"
-#include "core/QbtClient.hpp"
 #include "core/SyncEngine.hpp"
 #include "core/Torrent.hpp"
 #include "core/TorrentModel.hpp"
+#include "core/engines/qbt/QbtClient.hpp"
 #include "ui/app/App.hpp"
 
 #include "LiveServer.hpp"

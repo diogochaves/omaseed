@@ -1,6 +1,7 @@
 #include "core/engines/qbt/QbtTranslate.hpp"
 
 #include "core/PieceStates.hpp"
+#include "core/TorrentFile.hpp"
 
 #include <QDateTime>
 #include <QJsonValue>
@@ -569,6 +570,55 @@ TorrentDetailsData details(const QJsonObject &json)
     return data;
 }
 
+std::optional<TorrentMetadata> metadata(const QJsonObject &body)
+{
+    const QJsonObject info = body.value(key("info")).toObject();
+    const QString name = info.value(key("name")).toString();
+    if (info.isEmpty() || name.isEmpty())
+        return std::nullopt;
+
+    TorrentMetadata metadata;
+    metadata.name = name;
+    metadata.infoHashV1 = body.value(key("infohash_v1")).toString().toLower();
+    metadata.infoHashV2 = body.value(key("infohash_v2")).toString().toLower();
+    metadata.torrentId = body.value(key("hash")).toString().toLower();
+    if (metadata.torrentId.isEmpty())
+        metadata.torrentId = TorrentFile::torrentIdFor(metadata.infoHashV1, metadata.infoHashV2);
+    metadata.pieceLength = info.value(key("piece_length")).toInteger();
+    const QJsonValue isPrivate = info.value(key("private"));
+    metadata.isPrivate = isPrivate.isBool() ? isPrivate.toBool() : isPrivate.toInt() != 0;
+
+    // A multi-file torrent's paths start with its folder, `<info.name>/`; a single file's path
+    // is its name. TorrentFileEntry keeps paths below the folder, as TorrentFile does.
+    const QString root = name + QLatin1Char('/');
+    const QJsonArray files = info.value(key("files")).toArray();
+    for (const QJsonValue &value : files) {
+        const QJsonObject file = value.toObject();
+        QString path = file.value(key("path")).toString();
+        if (path.startsWith(root)) {
+            path.remove(0, root.size());
+            metadata.multiFile = true;
+        }
+        const qint64 length = file.value(key("length")).toInteger();
+        metadata.files.append({path, length});
+        metadata.totalSize += length;
+    }
+    if (metadata.files.isEmpty()) {
+        const qint64 length = info.value(key("length")).toInteger();
+        metadata.files.append({name, length});
+        metadata.totalSize = length;
+    }
+    if (metadata.files.size() > 1)
+        metadata.multiFile = true;
+
+    for (const QJsonValue &value : body.value(key("trackers")).toArray()) {
+        const QString url = value.toObject().value(key("url")).toString();
+        if (!url.isEmpty() && !metadata.trackers.contains(url))
+            metadata.trackers.append(url);
+    }
+    return metadata;
+}
+
 EngineFeatures features(const QString &apiVersion)
 {
     const QVersionNumber version = QVersionNumber::fromString(apiVersion);
@@ -591,6 +641,16 @@ EngineFeatures features(const QString &apiVersion)
     f.superSeeding = true;
     f.autoManagement = true;
     f.engineLog = true;
+    f.addOptions = true;
+    f.peerControl = true;
+    f.editWebSeeds = true;
+    f.exportTorrent = true;
+    f.seedingTimeLimit = true;
+    // qBittorrent's own surfaces (docs/36 §4.4, C14 E7): Settings › qBittorrent with its
+    // export and import, torrents export and import (C9's file holds its rows), RSS.
+    f.qbtSettings = true;
+    f.torrentsBackup = true;
+    f.rss = true;
     // torrents/fetchMetadata, and file priorities on an add (C5).
     f.fetchMetadata = atLeast(2, 11, 9);
     // The shareLimitAction field: an older server rejects an unknown parameter.

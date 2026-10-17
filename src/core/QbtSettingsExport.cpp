@@ -1,6 +1,6 @@
 #include "core/QbtSettingsExport.hpp"
 
-#include "core/QbtClient.hpp"
+#include "core/engines/qbt/QbtClient.hpp"
 
 #include <QDir>
 #include <QFile>

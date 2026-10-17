@@ -432,3 +432,9 @@ omaseed_add_test(tst_qbttranslate
     SOURCES tst_qbttranslate.cpp
     LIBRARIES omaseed::core
 )
+
+# #82: qBittorrent behind EngineClient, both ways, against a fake server.
+omaseed_add_test(tst_qbtengine
+    SOURCES tst_qbtengine.cpp
+    LIBRARIES omaseed::core Qt6::Network
+)

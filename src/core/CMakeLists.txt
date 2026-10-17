@@ -22,14 +22,23 @@ qt_add_library(omaseed-core STATIC
     CategoryModel.hpp
     CertificatePin.cpp
     CertificatePin.hpp
+    engines/AddOptions.hpp
     engines/DetailsData.hpp
+    engines/EngineClient.cpp
+    engines/EngineClient.hpp
     engines/EngineFeatures.hpp
     engines/LogEntry.hpp
+    engines/ServerInfo.hpp
     engines/ShareLimits.hpp
     engines/SyncDelta.hpp
     engines/TorrentFields.hpp
+    engines/TorrentMetadata.hpp
     engines/TorrentPatch.hpp
     engines/TorrentStatus.hpp
+    engines/qbt/QbtClient.cpp
+    engines/qbt/QbtClient.hpp
+    engines/qbt/QbtEngine.cpp
+    engines/qbt/QbtEngine.hpp
     engines/qbt/QbtTranslate.cpp
     engines/qbt/QbtTranslate.hpp
     ErrorWords.cpp
@@ -67,8 +76,6 @@ qt_add_library(omaseed-core STATIC
     PrivateTrackers.hpp
     ProblemLog.cpp
     ProblemLog.hpp
-    QbtClient.cpp
-    QbtClient.hpp
     Reply.cpp
     Reply.hpp
     QbtSettingsExport.cpp

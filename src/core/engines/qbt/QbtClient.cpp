@@ -1,4 +1,4 @@
-#include "core/QbtClient.hpp"
+#include "core/engines/qbt/QbtClient.hpp"
 
 #include "core/CertificatePin.hpp"
 #include "core/Version.hpp"

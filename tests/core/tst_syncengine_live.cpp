@@ -6,9 +6,9 @@
 #include "core/CategoryModel.hpp"
 #include "core/FilterCounts.hpp"
 #include "core/GlobalState.hpp"
-#include "core/QbtClient.hpp"
 #include "core/SyncEngine.hpp"
 #include "core/TorrentModel.hpp"
+#include "core/engines/qbt/QbtClient.hpp"
 
 #include "LiveServer.hpp"
 

@@ -9,11 +9,11 @@
 // tst_torrentdetails_live uses the same torrent; both are LIVE tests, which ctest runs under
 // one resource lock, so they never overlap.
 
-#include "core/QbtClient.hpp"
 #include "core/SyncEngine.hpp"
 #include "core/TorrentDetails.hpp"
 #include "core/TorrentFilesModel.hpp"
 #include "core/TorrentModel.hpp"
+#include "core/engines/qbt/QbtClient.hpp"
 #include "ui/app/App.hpp"
 
 #include "LiveServer.hpp"

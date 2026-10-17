@@ -1,8 +1,8 @@
 #include "core/ServerLog.hpp"
 
-#include "core/QbtClient.hpp"
 #include "core/TorrentModel.hpp"
 #include "core/TorrentProblem.hpp"
+#include "core/engines/qbt/QbtClient.hpp"
 #include "core/engines/qbt/QbtTranslate.hpp"
 
 #include <QLocale>

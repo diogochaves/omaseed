@@ -10,11 +10,11 @@
 // The round trips need qbittorrent-nox, the swarm's .torrent files (scripts/dev/swarm.sh seed)
 // and their data in the playground's folder, copied (never touched); they skip without.
 
-#include "core/QbtClient.hpp"
 #include "core/TorrentFile.hpp"
 #include "core/TorrentsBackup.hpp"
 #include "core/TorrentsExport.hpp"
 #include "core/TorrentsImport.hpp"
+#include "core/engines/qbt/QbtClient.hpp"
 
 #include "LiveServer.hpp"
 #include "ThrowawayQbt.hpp"

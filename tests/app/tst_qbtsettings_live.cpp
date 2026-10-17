@@ -15,10 +15,10 @@
 #include "core/AltSpeed.hpp"
 #include "core/CertificatePin.hpp"
 #include "core/GlobalState.hpp"
-#include "core/QbtClient.hpp"
 #include "core/ServerListModel.hpp"
 #include "core/ServerPreferences.hpp"
 #include "core/SyncEngine.hpp"
+#include "core/engines/qbt/QbtClient.hpp"
 #include "ui/app/App.hpp"
 
 #include "ThrowawayQbt.hpp"

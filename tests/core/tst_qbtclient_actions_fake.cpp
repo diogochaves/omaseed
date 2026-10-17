@@ -3,7 +3,7 @@
 // mutating POST is never retried on a transient failure. Behaviour against a real
 // qBittorrent is covered by tst_qbtclient_actions_live.
 
-#include "core/QbtClient.hpp"
+#include "core/engines/qbt/QbtClient.hpp"
 
 #include <QEventLoop>
 #include <QJsonDocument>

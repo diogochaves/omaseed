@@ -13,11 +13,11 @@
 // removeServer, so initTestCase and cleanupTestCase empty the whole test service.
 
 #include "core/ApiError.hpp"
-#include "core/QbtClient.hpp"
 #include "core/SecretStore.hpp"
 #include "core/ServerListModel.hpp"
 #include "core/ServerStore.hpp"
 #include "core/SyncEngine.hpp"
+#include "core/engines/qbt/QbtClient.hpp"
 #include "integration/Theme.hpp"
 #include "integration/ThemeReader.hpp"
 #include "ui/app/App.hpp"

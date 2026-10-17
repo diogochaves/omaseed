@@ -1,8 +1,8 @@
 // ServerLog (docs/32 §6, #56) against the :8081 playground: the whole log read from the top at
 // all four levels, then only what follows. Reads only; the playground's log is never changed.
 
-#include "core/QbtClient.hpp"
 #include "core/ServerLog.hpp"
+#include "core/engines/qbt/QbtClient.hpp"
 
 #include "LiveServer.hpp"
 

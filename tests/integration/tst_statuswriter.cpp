@@ -1,11 +1,11 @@
 #include "QbtFeed.hpp"
 #include "core/AltSpeed.hpp"
 #include "core/GlobalState.hpp"
-#include "core/QbtClient.hpp"
 #include "core/SeedLedger.hpp"
 #include "core/ServerPreferences.hpp"
 #include "core/StateFile.hpp"
 #include "core/SyncEngine.hpp"
+#include "core/engines/qbt/QbtClient.hpp"
 #include "integration/BarMenu.hpp"
 #include "integration/StatusWriter.hpp"
 

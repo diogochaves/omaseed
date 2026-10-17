@@ -3,6 +3,11 @@
 // QbtClient — one HTTP client per qBittorrent server, written against the public WebUI API
 // v2 documentation (qBittorrent 5.x, API 2.15). No qBittorrent, qui or Taurent code is used.
 //
+// The qBittorrent engine's transport (docs/DECISIONS.md C14): QbtEngine wraps it behind
+// EngineClient, and only code under src/core/engines/qbt/ includes this header. Its calls
+// speak qBittorrent's wire (JSON, sentinels, its own names); QbtTranslate turns the answers
+// into omaseed's types.
+//
 // Auth policy
 //   * An API key (setApiKey) is sent on every request as `Authorization: Bearer <key>`.
 //   * If the server answers 401 or 403 and credentials exist (setCredentials), the client
@@ -107,6 +112,7 @@
 
 #include "core/ApiError.hpp"
 #include "core/Reply.hpp"
+#include "core/engines/ServerInfo.hpp"
 
 #include <QJsonArray>
 #include <QJsonObject>
@@ -127,15 +133,6 @@ class QSslError;
 class QHttpMultiPart;
 
 namespace omaseed::core {
-
-/// What a qBittorrent server said about itself, from app/version + app/webapiVersion.
-struct ServerInfo
-{
-    QString version;    ///< e.g. "v5.2.3"
-    QString apiVersion; ///< e.g. "2.15.1"
-
-    bool operator==(const ServerInfo &other) const = default;
-};
 
 /// Optional narrowing for torrents/info. An unset field is left out of the query, which is
 /// not the same as an empty one ("category=" means "torrents with no category").

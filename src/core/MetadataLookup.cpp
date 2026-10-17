@@ -310,51 +310,7 @@ MetadataLookup::Phase MetadataLookup::phaseAt(qint64 elapsedMs)
 
 std::optional<MetadataLookup::Metadata> MetadataLookup::parse(const QJsonObject &body)
 {
-    const QJsonObject info = body.value(QStringLiteral("info")).toObject();
-    const QString name = info.value(QStringLiteral("name")).toString();
-    if (info.isEmpty() || name.isEmpty())
-        return std::nullopt;
-
-    Metadata metadata;
-    metadata.name = name;
-    metadata.infoHashV1 = body.value(QStringLiteral("infohash_v1")).toString().toLower();
-    metadata.infoHashV2 = body.value(QStringLiteral("infohash_v2")).toString().toLower();
-    metadata.torrentId = body.value(QStringLiteral("hash")).toString().toLower();
-    if (metadata.torrentId.isEmpty())
-        metadata.torrentId = TorrentFile::torrentIdFor(metadata.infoHashV1, metadata.infoHashV2);
-    metadata.pieceLength = info.value(QStringLiteral("piece_length")).toInteger();
-    const QJsonValue isPrivate = info.value(QStringLiteral("private"));
-    metadata.isPrivate = isPrivate.isBool() ? isPrivate.toBool() : isPrivate.toInt() != 0;
-
-    // A multi-file torrent's paths start with its folder, `<info.name>/`; a single file's path
-    // is its name. TorrentFileEntry keeps paths below the folder, as TorrentFile does.
-    const QString root = name + QLatin1Char('/');
-    const QJsonArray files = info.value(QStringLiteral("files")).toArray();
-    for (const QJsonValue &value : files) {
-        const QJsonObject file = value.toObject();
-        QString path = file.value(QStringLiteral("path")).toString();
-        if (path.startsWith(root)) {
-            path.remove(0, root.size());
-            metadata.multiFile = true;
-        }
-        const qint64 length = file.value(QStringLiteral("length")).toInteger();
-        metadata.files.append({path, length});
-        metadata.totalSize += length;
-    }
-    if (metadata.files.isEmpty()) {
-        const qint64 length = info.value(QStringLiteral("length")).toInteger();
-        metadata.files.append({name, length});
-        metadata.totalSize = length;
-    }
-    if (metadata.files.size() > 1)
-        metadata.multiFile = true;
-
-    for (const QJsonValue &value : body.value(QStringLiteral("trackers")).toArray()) {
-        const QString url = value.toObject().value(QStringLiteral("url")).toString();
-        if (!url.isEmpty() && !metadata.trackers.contains(url))
-            metadata.trackers.append(url);
-    }
-    return metadata;
+    return QbtTranslate::metadata(body);
 }
 
 } // namespace omaseed::core

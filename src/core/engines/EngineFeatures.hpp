@@ -31,9 +31,20 @@ struct EngineFeatures
     bool sequentialDownload = false;
     bool firstLastPiece = false; ///< first and last pieces first
     bool superSeeding = false;
-    bool autoManagement = false; ///< automatic torrent management (categories move data)
-    bool fetchMetadata = false;  ///< a magnet's files before the add (C5)
-    bool engineLog = false;      ///< the engine's own log: the log face, the problem log
+    bool autoManagement = false;   ///< automatic torrent management (categories move data)
+    bool fetchMetadata = false;    ///< a magnet's files before the add (C5)
+    bool addOptions = false;       ///< the add's content layout, skip check and rename
+    bool peerControl = false;      ///< add a peer to a torrent, ban one from all
+    bool editWebSeeds = false;     ///< add and remove a torrent's HTTP sources
+    bool exportTorrent = false;    ///< hand back a torrent's .torrent file
+    bool seedingTimeLimit = false; ///< a limit on total seeding time (ratio and idle aside)
+    bool engineLog = false;        ///< the engine's own log: the log face, the problem log
+    /// qBittorrent's own surfaces, reached through its engine (docs/36 §4.4, C14 E6, E7):
+    /// Settings › qBittorrent with its settings export and import, the torrents export and
+    /// import (C9's file holds qBittorrent's rows), RSS feeds and rules.
+    bool qbtSettings = false;
+    bool torrentsBackup = false;
+    bool rss = false;
 
     bool shareLimitAction() const { return !shareLimitActions.isEmpty(); }
 

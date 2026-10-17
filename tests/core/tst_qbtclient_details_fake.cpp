@@ -4,9 +4,9 @@
 // (tst_qbtclient_live only proves it answers at all).
 
 #include "QbtFeed.hpp"
-#include "core/QbtClient.hpp"
 #include "core/TorrentDetails.hpp"
 #include "core/TorrentModel.hpp"
+#include "core/engines/qbt/QbtClient.hpp"
 
 #include <QEventLoop>
 #include <QJsonArray>

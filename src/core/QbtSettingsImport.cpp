@@ -1,7 +1,7 @@
 #include "core/QbtSettingsImport.hpp"
 
-#include "core/QbtClient.hpp"
 #include "core/ServerPreferences.hpp"
+#include "core/engines/qbt/QbtClient.hpp"
 
 #include <QDir>
 #include <QHash>

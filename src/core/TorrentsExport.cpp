@@ -1,7 +1,7 @@
 #include "core/TorrentsExport.hpp"
 
-#include "core/QbtClient.hpp"
 #include "core/TorrentFile.hpp"
+#include "core/engines/qbt/QbtClient.hpp"
 
 #include <QDateTime>
 #include <QDir>

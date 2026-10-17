@@ -4,11 +4,11 @@
 #include "core/FilterCounts.hpp"
 #include "core/GlobalState.hpp"
 #include "core/ProblemLog.hpp"
-#include "core/QbtClient.hpp"
 #include "core/ServerLog.hpp"
 #include "core/TagModel.hpp"
 #include "core/TorrentModel.hpp"
 #include "core/TrackerModel.hpp"
+#include "core/engines/qbt/QbtClient.hpp"
 #include "core/engines/qbt/QbtTranslate.hpp"
 
 #include <QTimer>

@@ -4,9 +4,9 @@
 #include "core/CategoryModel.hpp"
 #include "core/GlobalState.hpp"
 #include "core/MagnetLink.hpp"
-#include "core/QbtClient.hpp"
 #include "core/StateFile.hpp"
 #include "core/TorrentFile.hpp"
+#include "core/engines/qbt/QbtClient.hpp"
 #include "integration/Xdg.hpp"
 #include "ui/app/App.hpp"
 

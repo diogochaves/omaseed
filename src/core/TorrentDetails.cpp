@@ -3,9 +3,9 @@
 #include "core/FilesViewState.hpp"
 #include "core/Format.hpp"
 #include "core/PieceStates.hpp"
-#include "core/QbtClient.hpp"
 #include "core/Torrent.hpp"
 #include "core/TorrentModel.hpp"
+#include "core/engines/qbt/QbtClient.hpp"
 #include "core/engines/qbt/QbtTranslate.hpp"
 
 #include <QDateTime>

@@ -5,11 +5,11 @@
 
 #include "core/Bencode.hpp"
 #include "core/PathMap.hpp"
-#include "core/QbtClient.hpp"
 #include "core/TarArchive.hpp"
 #include "core/TorrentFile.hpp"
 #include "core/TorrentsBackup.hpp"
 #include "core/TorrentsImport.hpp"
+#include "core/engines/qbt/QbtClient.hpp"
 
 #include <QBuffer>
 #include <QFile>

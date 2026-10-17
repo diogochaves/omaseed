@@ -4,10 +4,10 @@
 // the cookie path: read with the right password, and refused with a wrong one. That half skips
 // when qbittorrent-nox is not installed.
 
-#include "core/QbtClient.hpp"
 #include "core/QbtSettingsFetch.hpp"
 #include "core/Reply.hpp"
 #include "core/Server.hpp"
+#include "core/engines/qbt/QbtClient.hpp"
 
 #include "LiveServer.hpp"
 #include "ThrowawayQbt.hpp"

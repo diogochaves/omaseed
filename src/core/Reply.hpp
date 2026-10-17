@@ -35,7 +35,7 @@ private:
     ApiError m_error;
 };
 
-/// Non-template base so the reply can carry signals. QbtClient hands out Reply<T>*
+/// Non-template base so the reply can carry signals. Engines hand out Reply<T>*
 /// pointers that delete themselves right after finished() is emitted, so callers connect
 /// immediately (or use Reply::then) and never own them.
 class ReplyBase : public QObject
@@ -58,7 +58,7 @@ public:
 Q_SIGNALS:
     /// Emitted exactly once; the reply is deleted right after.
     void finished();
-    /// Internal: QbtClient listens for it to cancel the transfer.
+    /// Internal: the engine listens for it to cancel the transfer.
     void abortRequested();
 
 protected:
@@ -91,7 +91,7 @@ public:
         return this;
     }
 
-    /// Called by QbtClient when the request settles. Deletes the reply.
+    /// Called by the engine when the request settles. Deletes the reply.
     void complete(Result<T> result)
     {
         m_result = std::move(result);
@@ -101,5 +101,27 @@ public:
 private:
     Result<T> m_result;
 };
+
+/// A reply that settles when `source` does, its value passed through `convert` (an error
+/// passes as it is). Aborting it aborts `source`. An engine uses it to hand out omaseed's
+/// types for its transport's answers (docs/DECISIONS.md C14): `convert` takes the source's
+/// value and returns a `U` or a `Result<U>`.
+template<class U, class T, class Fn>
+Reply<U> *mapReply(Reply<T> *source, QObject *parent, Fn &&convert)
+{
+    auto *mapped = new Reply<U>(parent);
+    QPointer<Reply<T>> from(source);
+    QObject::connect(mapped, &ReplyBase::abortRequested, mapped, [from]() {
+        if (!from.isNull())
+            from->abort();
+    });
+    source->then(mapped, [mapped, convert = std::forward<Fn>(convert)](const Result<T> &result) {
+        if (result.isError())
+            mapped->complete(Result<U>(result.error()));
+        else
+            mapped->complete(Result<U>(convert(result.value())));
+    });
+    return mapped;
+}
 
 } // namespace omaseed::core

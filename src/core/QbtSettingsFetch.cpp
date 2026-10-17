@@ -1,8 +1,8 @@
 #include "core/QbtSettingsFetch.hpp"
 
 #include "core/ApiError.hpp"
-#include "core/QbtClient.hpp"
 #include "core/Reply.hpp"
+#include "core/engines/qbt/QbtClient.hpp"
 
 #include <QFileInfo>
 

@@ -9,10 +9,10 @@
 // or the playground). The whole case skips when :8081 is down.
 
 #include "core/Bencode.hpp"
-#include "core/QbtClient.hpp"
 #include "core/TorrentDetails.hpp"
 #include "core/TorrentFile.hpp"
 #include "core/TorrentWebSeedsModel.hpp"
+#include "core/engines/qbt/QbtClient.hpp"
 
 #include "LiveServer.hpp"
 

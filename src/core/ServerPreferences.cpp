@@ -1,6 +1,6 @@
 #include "core/ServerPreferences.hpp"
 
-#include "core/QbtClient.hpp"
+#include "core/engines/qbt/QbtClient.hpp"
 
 #include <QJsonArray>
 #include <QJsonDocument>

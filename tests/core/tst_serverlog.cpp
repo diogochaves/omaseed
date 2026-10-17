@@ -4,9 +4,9 @@
 
 #include "QbtFeed.hpp"
 #include "core/LogFilterModel.hpp"
-#include "core/QbtClient.hpp"
 #include "core/ServerLog.hpp"
 #include "core/TorrentModel.hpp"
+#include "core/engines/qbt/QbtClient.hpp"
 
 #include <QJsonArray>
 #include <QJsonDocument>

@@ -2,8 +2,8 @@
 // object: a change shows at once, a refusal puts the old value back, a value the server
 // ignores comes back as the server's, and a reset drops late answers (docs/16 §3).
 
-#include "core/QbtClient.hpp"
 #include "core/ServerPreferences.hpp"
+#include "core/engines/qbt/QbtClient.hpp"
 
 #include <QJsonDocument>
 #include <QJsonObject>
