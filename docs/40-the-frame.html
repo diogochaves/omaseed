@@ -1,0 +1,1058 @@
+<title>The frame</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap">
+<style>
+/* ------------------------------------------------------------------
+   docs/40: the frame (2026-10-17, #92). Nothing here is ruled.
+   Board 39 put new layouts into today's window and ran out of room;
+   this board settles the window around any layout first: the rail,
+   the top bar, the footer, where the servers live, and how the keys
+   are taught. Board chrome: board 35's and 39's (one dark look). The
+   mocks are live JS at base 14 in Theme roles only (fills 4/8/18/22 %,
+   hairlines 12 %, the state colours as the app maps them, square
+   corners, the monospace face). Their colours are `omaseed
+   --theme-roles` at cb08b91 per theme, after Q19's 4.5:1 floor (board
+   38), the same values board 39 uses. The two strips in §1 are real
+   (main after boards 33 and 35, omabox, frieren). Data is example data.
+   ------------------------------------------------------------------ */
+:root {
+  --accent:#5492f8; --bg:#11111b; --bg-dark:#0d0d14;
+  --fg:#b9c5ef; --fg-dark:#8b94b3; --fg-bright:#cbd4f3;
+  --green:#7dd676; --red:#ee5681; --yellow:#f6d58c;
+  --fill-normal: color-mix(in srgb, var(--fg) 4%, transparent);
+  --hairline: color-mix(in srgb, var(--fg) 12%, transparent);
+  --mono: "JetBrains Mono", "JetBrainsMono Nerd Font", ui-monospace, monospace;
+  color-scheme: dark;
+}
+* { box-sizing:border-box; }
+[hidden] { display:none !important; }
+body { margin:0; background:var(--bg-dark); color:var(--fg); font:400 13px/1.6 var(--mono); -webkit-font-smoothing:antialiased; }
+body::before { content:""; position:fixed; inset:0 0 auto; height:env(safe-area-inset-top, 0px); z-index:30; background:var(--bg-dark); }
+main { max-width:1320px; margin:0 auto; padding-block:32px 72px; padding-left:max(16px, env(safe-area-inset-left, 0px)); padding-right:max(16px, env(safe-area-inset-right, 0px)); display:grid; gap:34px; }
+h1,h2,h3 { margin:0; font-weight:600; color:var(--fg-bright); text-wrap:balance; }
+h1 { font-size:30px; letter-spacing:-.01em; } h2 { font-size:17px; } h3 { font-size:13px; }
+p, li { max-width:84ch; }
+p { margin:0; }
+ul, ol { margin:0; padding-left:20px; display:grid; gap:4px; }
+code, kbd { font:inherit; color:var(--fg-bright); background:var(--fill-normal); padding:0 4px; overflow-wrap:anywhere; }
+b { color:var(--fg-bright); font-weight:600; }
+a { color:var(--accent); }
+.eyebrow { font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--fg-dark); }
+.dim { color:var(--fg-dark); }
+.lead { font-size:14px; color:var(--fg); max-width:86ch; }
+section { display:grid; gap:14px; border-top:1px solid var(--hairline); padding-top:22px; min-width:0; }
+.sec-head { display:grid; gap:4px; }
+figure { margin:0; display:grid; gap:6px; align-content:start; min-width:0; }
+figcaption { font-size:11px; color:var(--fg-dark); max-width:110ch; }
+figcaption b { color:var(--fg); font-weight:500; }
+.cols { display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:20px; }
+.cols > * { min-width:0; }
+table.t { border-collapse:collapse; width:100%; font-size:12px; color:var(--fg); }
+.t th, .t td { text-align:left; padding:6px 10px; border-bottom:1px solid var(--hairline); vertical-align:top; }
+.t th { font-weight:500; color:var(--fg-dark); font-size:10px; letter-spacing:.1em; text-transform:uppercase; white-space:nowrap; }
+.t td:first-child { color:var(--fg-bright); white-space:nowrap; }
+.t .y { color:var(--green); } .t .n { color:var(--red); } .t .m { color:var(--yellow); }
+.t td.y, .t td.n, .t td.m { white-space:nowrap; }
+.scroll { overflow-x:auto; }
+.themes { display:flex; flex-wrap:wrap; gap:6px; align-items:center; font-size:12px; color:var(--fg-dark); position:sticky; top:env(safe-area-inset-top, 0px); background:var(--bg-dark); padding-block:8px; z-index:20; border-bottom:1px solid var(--hairline); }
+.themes button, .ctl button { font:inherit; font-size:12px; color:var(--fg); background:transparent; border:1px solid var(--hairline); padding:2px 10px; cursor:pointer; }
+.themes button[aria-pressed="true"], .ctl button[aria-pressed="true"] { background:color-mix(in srgb, var(--fg) 18%, transparent); color:var(--fg-bright); border-color:transparent; }
+.themes .sep { width:1px; align-self:stretch; background:var(--hairline); margin:0 6px; }
+.themes a { color:var(--fg-dark); text-decoration:none; padding:2px 4px; }
+.themes a:hover { color:var(--fg-bright); }
+button:focus-visible, input:focus-visible, textarea:focus-visible, [tabindex]:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.shot { border:1px solid var(--hairline); display:block; max-width:100%; height:auto; }
+.note { border-left:2px solid var(--accent); padding:6px 12px; background:var(--fill-normal); font-size:12px; max-width:110ch; }
+.note.warn { border-color:var(--yellow); }
+.verdict { display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:6px 24px; font-size:12px; }
+.verdict > div { min-width:0; display:grid; gap:3px; align-content:start; }
+.verdict .pro b { color:var(--green); font-weight:500; }
+.verdict .con b { color:var(--red); font-weight:500; }
+.verdict .sup b { color:var(--yellow); font-weight:500; }
+.dirhead { display:flex; gap:12px; align-items:baseline; flex-wrap:wrap; }
+.dirhead .code { font-size:11px; color:var(--bg); background:var(--accent); padding:0 6px; font-weight:700; letter-spacing:.06em; }
+.dirhead .code.today { background:var(--fg-dark); }
+.dirhead .ans { font-size:12px; color:var(--fg-dark); }
+.dirhead button { font:inherit; font-size:11px; color:var(--accent); background:none; border:1px solid var(--hairline); padding:0 8px; cursor:pointer; }
+.art { font-size:12px; color:var(--fg-dark); }
+.art a { margin-right:10px; white-space:nowrap; }
+
+/* §1 anatomy */
+.jobs { display:grid; grid-template-columns:repeat(auto-fit, minmax(230px, 1fr)); gap:10px; }
+.job { border-top:2px solid var(--jc, var(--accent)); padding:10px 2px 0; display:grid; gap:6px; font-size:12px; align-content:start; }
+.job .k { font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--jc, var(--accent)); }
+.job .big { font-size:15px; color:var(--fg-bright); font-weight:600; line-height:1.3; }
+.needs { display:grid; grid-template-columns:repeat(auto-fit, minmax(270px, 1fr)); gap:10px; }
+.need { border:1px solid var(--hairline); padding:10px 12px; display:grid; gap:4px; font-size:12px; align-content:start; }
+.need b { font-weight:500; }
+
+/* the controls above the window */
+.ctl { display:grid; gap:8px; font-size:12px; color:var(--fg-dark); }
+.ctl .row { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.ctl .lbl { min-width:92px; font-size:10px; letter-spacing:.1em; text-transform:uppercase; }
+.ctl button.hold { border-color:var(--accent); color:var(--accent); }
+.ctl button.hold[aria-pressed="true"] { background:var(--accent); color:var(--bg); }
+
+/* ---------- the stage: Theme roles only, base 14 ---------- */
+.stage {
+  --t-fg:#a9b1d6; --t-bg:#1a1b26; --t-accent:#7aa2f7; --t-red:#f7768e; --t-yellow:#e0af68;
+  --t-green:#9ece6a; --t-blue:#7aa2f7; --t-magenta:#ad8ee6; --t-cyan:#449dab; --t-orange:#eb927b;
+  --t-bright:#c0caf5; --t-dim:#7982a9;
+  --t-hair: color-mix(in srgb, var(--t-fg) 12%, transparent);
+  --t-border: color-mix(in srgb, var(--t-fg) 40%, transparent);
+  --f4: color-mix(in srgb, var(--t-fg) 4%, transparent);
+  --f8: color-mix(in srgb, var(--t-fg) 8%, transparent);
+  --f18: color-mix(in srgb, var(--t-fg) 18%, transparent);
+  --f22: color-mix(in srgb, var(--t-fg) 22%, transparent);
+  --s-dl: var(--t-blue); --s-seed: var(--t-green); --s-stall: var(--t-orange); --s-err: var(--t-red);
+  --s-check: var(--t-yellow); --s-queue: var(--t-magenta); --s-stop: var(--t-dim); --s-meta: var(--t-blue);
+  --cap:11.7px; --small:12.8px; --body:14px; --sub:15.2px; --title:16.3px; --head:18.7px;
+  color:var(--t-fg); font-family:var(--mono); font-size:var(--body); line-height:1.4;
+  background:color-mix(in srgb, var(--t-bg) 70%, black); border:1px solid var(--hairline);
+  padding:22px; display:flex; flex-direction:column; gap:12px; align-items:flex-start; overflow-x:auto;
+}
+.stage.light { background:color-mix(in srgb, var(--t-bg) 86%, black); }
+.stage .cap { font-size:var(--cap); letter-spacing:.08em; text-transform:uppercase; color:var(--t-dim); }
+:where(.stage button) { font:inherit; color:inherit; background:none; border:0; padding:0; cursor:pointer; text-align:left; }
+.stage .wcap { font-size:11px; color:var(--fg-dark); max-width:1180px; }
+.stage .wcap b { color:var(--fg); font-weight:500; }
+
+/* the Omarchy bar above the window (concept E only) */
+.obar { width:1180px; display:flex; gap:14px; align-items:center; padding:3px 12px; font-size:var(--small); color:var(--t-fg); background:var(--t-bg); border:1px solid var(--t-hair); white-space:nowrap; overflow:hidden; }
+.obar.narrow { width:720px; }
+.obar .ws { display:flex; gap:8px; color:var(--t-dim); }
+.obar .ws b { color:var(--t-bright); font-weight:500; }
+.obar .ttl { color:var(--t-dim); overflow:hidden; text-overflow:ellipsis; }
+.obar .wid { display:flex; gap:8px; align-items:center; border:1px solid var(--t-accent); padding:0 8px; color:var(--t-bright); }
+.obar .wid i { font-style:normal; }
+
+/* the window */
+.win { position:relative; flex:none; display:flex; flex-direction:column; background:var(--t-bg); border:1px solid var(--t-accent); overflow:hidden; width:1180px; height:700px; }
+.win.narrow { width:720px; height:640px; }
+.row { display:flex; min-height:0; }
+.col { display:flex; flex-direction:column; min-width:0; min-height:0; }
+.fill { flex:1; min-width:0; min-height:0; }
+.grow { flex:1; }
+.bar { display:flex; align-items:center; gap:10px; padding:9px 16px; border-bottom:1px solid var(--t-hair); white-space:nowrap; flex:none; min-width:0; }
+.mark { width:24px; height:24px; border:1px solid var(--t-accent); color:var(--t-accent); display:grid; place-items:center; font-size:12px; flex:none; font-weight:700; }
+.nm { display:grid; gap:1px; flex:none; }
+.nm b { color:var(--t-bright); font-size:var(--sub); font-weight:600; }
+.srv { font-size:var(--cap); letter-spacing:.08em; text-transform:uppercase; color:var(--t-dim); display:flex; gap:6px; align-items:center; white-space:nowrap; }
+.srv.warn { color:var(--t-yellow); } .srv.bad { color:var(--t-red); }
+.dot { width:7px; height:7px; border-radius:50%; background:var(--t-green); flex:none; display:inline-block; }
+.hstat { display:grid; line-height:1.15; }
+.hstat .v { color:var(--t-bright); font-size:var(--head); font-weight:500; font-variant-numeric:tabular-nums; }
+.hstat .v i { font-style:normal; font-size:var(--body); margin-right:4px; }
+.hstat.d .v i { color:var(--s-dl); } .hstat.u .v i { color:var(--s-seed); }
+.hstat .cap { font-size:10.5px; }
+.views { display:flex; gap:14px; font-size:var(--body); color:var(--t-dim); }
+.views button { padding-bottom:3px; }
+.views .on { color:var(--t-bright); box-shadow:inset 0 -2px 0 var(--t-accent); }
+.pk { color:var(--t-dim); font-size:var(--cap); margin-left:4px; }
+.search { flex:0 1 190px; min-width:0; overflow:hidden; gap:8px; border:1px solid var(--t-hair); padding:4px 9px; color:var(--t-dim); font-size:var(--small); display:flex; justify-content:space-between; }
+.search.wide { flex:1 1 auto; }
+.ib { min-width:26px; height:26px; border:1px solid var(--t-hair); display:grid; place-items:center; color:var(--t-dim); font-size:12px; flex:none; padding:0 7px; }
+.ib.primary { border-color:var(--t-accent); color:var(--t-accent); }
+.ib.txt { display:flex; gap:7px; align-items:center; color:var(--t-fg); font-size:var(--small); }
+.ib.bare { border-color:transparent; }
+.narrow.c-T .bar .ib { padding:0 4px; min-width:24px; }
+.ib[aria-expanded="true"] { background:var(--f18); color:var(--t-bright); border-color:transparent; }
+.ttl { display:grid; gap:0; min-width:0; }
+.ttl b { color:var(--t-bright); font-size:var(--title); font-weight:600; overflow:hidden; text-overflow:ellipsis; }
+.ttl span { font-size:var(--cap); color:var(--t-dim); }
+.ttl.center { text-align:center; justify-items:center; }
+
+/* footer / status line */
+.foot { flex:none; border-top:1px solid var(--t-hair); display:flex; gap:14px; padding:5px 16px; font-size:var(--small); color:var(--t-dim); white-space:nowrap; overflow:hidden; align-items:center; }
+.foot b { color:var(--t-fg); font-weight:400; }
+.foot .k { color:var(--t-bright); }
+.foot .sp { display:flex; gap:12px; font-variant-numeric:tabular-nums; }
+.foot .sp i { font-style:normal; margin-right:3px; }
+.foot .sp .d i { color:var(--s-dl); } .foot .sp .u i { color:var(--s-seed); }
+.foot .sp b { color:var(--t-bright); }
+.foot button:hover { color:var(--t-bright); }
+/* painted hints drop whole hints that no longer fit, as HintModel does */
+.hints { display:flex; flex-wrap:wrap; gap:0 12px; height:1.45em; overflow:hidden; flex:1 1 0; min-width:0; }
+.hints > span { white-space:nowrap; }
+.foot > *:not(.hints):not(.grow), .sline > *:not(.grow) { flex:none; }
+
+/* the statusline (concept C) */
+.sline { flex:none; display:flex; gap:1px; font-size:var(--small); white-space:nowrap; overflow:hidden; background:var(--f4); border-top:1px solid var(--t-hair); }
+.sline .seg { padding:4px 12px; display:flex; gap:8px; align-items:center; color:var(--t-fg); background:var(--f8); }
+.sline .seg.srvseg { background:var(--f18); color:var(--t-bright); font-weight:500; }
+.sline .seg.srvseg.warn { background:var(--t-yellow); color:var(--t-bg); }
+.sline .seg.srvseg.bad { background:var(--t-red); color:var(--t-bg); }
+.sline .seg.srvseg.warn .dot, .sline .seg.srvseg.bad .dot { background:var(--t-bg) !important; }
+.sline .seg i { font-style:normal; } .sline .seg .dl { color:var(--s-dl); } .sline .seg .ul { color:var(--s-seed); }
+.sline .seg.plain { background:transparent; color:var(--t-dim); }
+.sline .seg .k { color:var(--t-bright); }
+
+/* panes with titles in their borders (concept C) */
+.pane { position:relative; border:1px solid var(--t-border); margin:12px 8px 8px; min-height:0; display:flex; flex-direction:column; }
+.pane > .pt { position:absolute; top:-9px; left:10px; right:10px; display:flex; gap:8px; pointer-events:none; font-size:var(--small); line-height:16px; }
+.pane > .pt > span { background:var(--t-bg); padding:0 6px; color:var(--t-bright); pointer-events:auto; }
+.pane > .pt > span.r { margin-left:auto; color:var(--t-dim); }
+.pane > .pt > span .n { color:var(--t-dim); }
+.pane.side { width:190px; flex:none; }
+.pane .cap { padding:8px 14px 3px; }
+.pane .inner { flex:1; min-height:0; overflow:hidden; padding-top:6px; display:flex; flex-direction:column; }
+.ctabs { display:flex; gap:16px; font-size:var(--body); color:var(--t-dim); }
+.ctabs .on { color:var(--t-bright); }
+.ctabs .num { color:var(--t-accent); margin-right:4px; }
+
+/* the rail */
+.rail { width:200px; border-right:1px solid var(--t-hair); display:flex; flex-direction:column; flex:none; overflow:hidden; background:var(--t-bg); }
+.rail.full { width:214px; }
+.rail .cap { padding:8px 14px 3px; }
+.rfil { flex:1; min-height:0; overflow:hidden; display:flex; flex-direction:column; gap:1px; padding-top:8px; }
+.rr { display:grid; grid-template-columns:16px 1fr auto; gap:8px; align-items:center; padding:3px 14px; font-size:var(--body); width:100%; }
+.rr:hover { background:var(--f8); }
+.rr.on { background:var(--f18); color:var(--t-bright); }
+.rr .g { color:var(--t-dim); font-size:12px; text-align:center; }
+.rr .c { color:var(--t-dim); font-size:var(--cap); font-variant-numeric:tabular-nums; }
+.rr.view { font-size:var(--sub); padding:5px 14px; }
+.rr.view .g { font-size:13px; }
+.rapp { display:flex; gap:10px; align-items:center; padding:10px 14px 8px; width:100%; }
+.rapp b { color:var(--t-bright); font-weight:600; font-size:var(--sub); }
+.rapp .chev { color:var(--t-dim); font-size:var(--cap); }
+.rsep { height:1px; background:var(--t-hair); margin:6px 0 2px; flex:none; }
+.rsrv { flex:none; border-top:1px solid var(--t-hair); background:var(--f4); padding:4px 0 6px; display:grid; gap:1px; }
+.rsrv .sh { display:flex; justify-content:space-between; align-items:center; padding:6px 14px 3px; width:100%; }
+.rsrv .sh .cap { padding:0; }
+.rsrv .sh .fold { color:var(--t-dim); font-size:var(--cap); }
+.rsrv .rr .c.down { color:var(--t-yellow); } .rsrv .rr .c.bad { color:var(--t-red); }
+.rsrv .folded { display:grid; grid-template-columns:16px auto 1fr; gap:8px; align-items:center; padding:7px 14px 5px; width:100%; color:var(--t-bright); }
+.rsrv .folded .c { color:var(--t-dim); font-size:var(--cap); text-align:right; }
+.sdot { width:7px; height:7px; border-radius:50%; display:inline-block; justify-self:center; }
+/* the icon rail (concept A at 720 px) */
+.irail { width:48px; border-right:1px solid var(--t-hair); display:flex; flex-direction:column; align-items:center; gap:4px; padding:8px 0; flex:none; }
+.irail .ii { width:34px; height:30px; display:grid; place-items:center; color:var(--t-dim); }
+.irail .ii.on { background:var(--f18); color:var(--t-bright); }
+.irail .ii:hover { background:var(--f8); }
+.irail .isrv { margin-top:auto; border-top:1px solid var(--t-hair); padding-top:8px; width:100%; display:grid; justify-items:center; gap:6px; background:var(--f4); padding-bottom:4px; }
+.irail .isrv button { width:34px; height:26px; display:grid; place-items:center; font-size:var(--cap); color:var(--t-dim); position:relative; }
+.irail .isrv button.on { background:var(--f18); color:var(--t-bright); }
+.irail .isrv button .sdot { position:absolute; right:3px; top:3px; }
+/* the server strip (concept D) */
+.strip { width:56px; flex:none; display:flex; flex-direction:column; align-items:center; gap:8px; padding:10px 0; background:color-mix(in srgb, var(--t-bg) 80%, black); border-right:1px solid var(--t-hair); }
+.strip .sm { width:38px; height:38px; display:grid; place-items:center; border:1px solid var(--t-hair); color:var(--t-fg); font-weight:600; font-size:var(--small); position:relative; letter-spacing:.04em; }
+.strip .sm.on { border-color:var(--t-accent); color:var(--t-bright); background:var(--f18); }
+.strip .sm.on::before { content:""; position:absolute; left:-10px; top:6px; bottom:6px; width:3px; background:var(--t-accent); }
+.strip .sm .sdot { position:absolute; right:-3px; bottom:-3px; width:9px; height:9px; border:2px solid var(--t-bg); box-sizing:content-box; }
+.strip .sm.add { color:var(--t-dim); border-style:dashed; font-weight:400; }
+.strip .bot { margin-top:auto; display:grid; gap:8px; justify-items:center; }
+
+/* the notice (docs/35 N1–N8, Kit/Notice) */
+.notice { flex:none; position:relative; display:grid; grid-template-columns:22px minmax(0,1fr) auto; gap:2px 6px; padding:9px 16px 10px; background:var(--f4); border-bottom:1px solid var(--t-hair); }
+.notice::before { content:""; position:absolute; inset:0 auto 0 0; width:2px; background:var(--kc); }
+.notice .g { color:var(--kc); font-weight:700; }
+.notice .h { color:var(--t-bright); font-weight:500; }
+.notice .l { grid-column:2 / 4; color:var(--t-fg); font-size:var(--small); }
+.notice .a { grid-row:1; grid-column:3; display:flex; gap:14px; font-size:var(--small); color:var(--t-accent); white-space:nowrap; }
+.notice .a .d { color:var(--t-dim); }
+.notice.docked { border-bottom:0; border-top:1px solid var(--t-hair); }
+.narrow .notice { grid-template-columns:22px minmax(0,1fr); }
+.narrow .notice .a { grid-row:3; grid-column:2; }
+.stale { opacity:.55; }
+
+/* content: classic table */
+.ctab { width:100%; border-collapse:collapse; font-size:var(--body); font-variant-numeric:tabular-nums; table-layout:fixed; }
+.ctab th { font-weight:400; color:var(--t-dim); font-size:var(--small); text-align:left; padding:8px 8px 6px; white-space:nowrap; overflow:hidden; }
+.ctab td { padding:6px 8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ctab tr.r { cursor:pointer; }
+.ctab tr.r:hover td { background:var(--f8); }
+.ctab tr.r.sel td { background:var(--f18); color:var(--t-bright); }
+.ctab .num { text-align:right; }
+.ctab th:first-child, .ctab td:first-child { padding-left:16px; }
+.pbar1 { height:3px; background:var(--f8); position:relative; width:56px; display:inline-block; vertical-align:middle; margin-right:6px; }
+.pbar1 i { position:absolute; inset:0 auto 0 0; }
+/* content: rows that speak (board 39 L1) */
+.srow { display:grid; grid-template-columns:22px minmax(0,1fr) 132px; gap:2px 12px; padding:8px 16px 9px; cursor:pointer; }
+.srow:hover { background:var(--f8); }
+.srow.sel { background:var(--f18); }
+.srow .g { grid-row:span 2; font-size:15px; padding-top:1px; text-align:center; }
+.srow .t1 { display:flex; gap:10px; align-items:baseline; min-width:0; }
+.srow .tt { color:var(--t-bright); font-size:var(--sub); font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.srow .chips { display:flex; gap:6px; color:var(--t-dim); font-size:var(--cap); white-space:nowrap; overflow:hidden; }
+.srow .when { grid-row:span 2; text-align:right; font-size:var(--sub); color:var(--t-bright); white-space:nowrap; font-variant-numeric:tabular-nums; }
+.srow .when small { display:block; font-size:var(--cap); color:var(--t-dim); letter-spacing:.06em; text-transform:uppercase; }
+.srow .t2 { display:grid; grid-template-columns:minmax(80px, 180px) minmax(0,1fr); gap:12px; align-items:center; min-width:0; }
+.srow .say { color:var(--t-dim); font-size:var(--small); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.srow .say b { color:var(--t-fg); font-weight:400; }
+.pbar { height:6px; display:flex; background:var(--f8); overflow:hidden; }
+.pbar i { flex:1; }
+.grp { display:flex; gap:10px; align-items:baseline; padding:12px 16px 4px; }
+.grp .cap { color:var(--t-bright); }
+.grp .agg { font-size:var(--cap); color:var(--t-dim); }
+.ph { padding:40px 24px; color:var(--t-dim); font-size:var(--small); display:grid; gap:6px; }
+.ph b { color:var(--t-bright); font-weight:500; font-size:var(--body); }
+.scrollY { flex:1; min-height:0; overflow-y:auto; overflow-x:hidden; scrollbar-width:thin; scrollbar-color:var(--f18) transparent; }
+.chead { display:flex; gap:10px; align-items:center; padding:7px 16px; border-bottom:1px solid var(--t-hair); font-size:var(--small); color:var(--t-dim); flex:none; white-space:nowrap; }
+.chead .ttl b { font-size:var(--sub); }
+.hov { display:none; gap:10px; color:var(--t-dim); font-size:var(--small); }
+.c-B .ctab tr.r:hover .hov, .c-B .srow:hover .hov { display:inline-flex; }
+
+/* the details pane */
+.det { width:300px; flex:none; border-left:1px solid var(--t-hair); display:flex; flex-direction:column; min-height:0; overflow:hidden; }
+.det .dh { padding:10px 14px 8px; display:grid; gap:2px; border-bottom:1px solid var(--t-hair); }
+.det .dh b { color:var(--t-bright); font-weight:600; font-size:var(--sub); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.det .dh span { font-size:var(--cap); color:var(--t-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.det .now { padding:12px 14px; display:grid; gap:6px; border-bottom:1px solid var(--t-hair); }
+.det .now .big { font-size:var(--head); color:var(--t-bright); }
+.det .now .say { font-size:var(--small); color:var(--t-dim); }
+.det .now .say b { color:var(--t-fg); font-weight:400; }
+.det .kv { padding:10px 14px; display:grid; grid-template-columns:auto 1fr; gap:6px 14px; font-size:var(--small); }
+.det .kv span:nth-child(odd) { color:var(--t-dim); font-size:var(--cap); letter-spacing:.08em; text-transform:uppercase; padding-top:1px; }
+.det .kv span:nth-child(even) { color:var(--t-bright); font-variant-numeric:tabular-nums; }
+.dtabs { display:flex; gap:14px; padding:6px 14px; border-bottom:1px solid var(--t-hair); font-size:var(--small); color:var(--t-dim); }
+.dtabs .on { color:var(--t-bright); }
+
+/* overlays: menu, palette, server palette */
+.scrim { position:absolute; inset:0; background:color-mix(in srgb, var(--t-bg) 55%, transparent); z-index:5; }
+.ov { position:absolute; z-index:6; background:var(--t-bg); border:1px solid var(--t-accent); display:grid; font-size:var(--small); }
+.ov .oh { display:flex; gap:10px; align-items:center; padding:9px 14px; border-bottom:1px solid var(--t-hair); color:var(--t-dim); font-size:var(--body); }
+.ov .oh .cur { width:1px; height:16px; background:var(--t-accent); }
+.ov .og { padding:6px 14px 2px; }
+.ov .oi { display:grid; grid-template-columns:18px minmax(0,1fr) auto; gap:10px; padding:5px 14px; align-items:center; cursor:pointer; width:100%; }
+.ov .oi:hover { background:var(--f8); }
+.ov .oi.cur { background:var(--f18); color:var(--t-bright); }
+.ov .oi .g { color:var(--t-dim); text-align:center; }
+.ov .oi .key { color:var(--t-dim); font-size:var(--cap); text-align:right; }
+.ov .oi .s { grid-column:2 / 4; color:var(--t-dim); font-size:var(--cap); }
+.ov .of { display:flex; gap:14px; padding:6px 14px; border-top:1px solid var(--t-hair); color:var(--t-dim); font-size:var(--cap); }
+.ov .of b { color:var(--t-bright); font-weight:400; }
+.ov .osep { height:1px; background:var(--t-hair); margin:4px 0; }
+
+/* key badges, shown while alt is held (K3) */
+.win [data-k] { position:relative; }
+.win.reveal [data-k]::after { content:attr(data-k); position:absolute; top:1px; left:1px; z-index:9; background:var(--t-accent); color:var(--t-bg); font-size:10.5px; font-weight:700; line-height:1; padding:2px 4px; white-space:nowrap; letter-spacing:0; text-transform:none; pointer-events:none; }
+.win.reveal .rr[data-k]::after, .win.reveal .oi[data-k]::after { left:auto; right:4px; top:3px; }
+
+/* the decisions */
+.dec { display:grid; gap:18px; }
+.q { display:grid; gap:8px; border:1px solid var(--hairline); padding:14px; }
+.q fieldset { border:0; margin:0; padding:0; display:grid; gap:6px; min-width:0; }
+.q legend { padding:0; color:var(--fg-bright); font-weight:500; margin-bottom:4px; }
+.q .id { color:var(--accent); font-weight:600; }
+.q .why { font-size:11.5px; color:var(--fg-dark); margin:0 0 4px; max-width:96ch; }
+.opt { display:grid; grid-template-columns:18px 1fr; gap:8px; align-items:start; font-size:12.4px; cursor:pointer; }
+.opt input { margin:3px 0 0; accent-color:var(--accent); }
+.opt .rec { color:var(--green); font-size:10px; letter-spacing:.1em; text-transform:uppercase; margin-left:6px; }
+.out { display:grid; gap:8px; }
+.out textarea { width:100%; min-height:240px; font:inherit; font-size:12.4px; color:var(--fg); background:var(--bg); border:1px solid var(--hairline); padding:10px; resize:vertical; }
+.out button { font:inherit; justify-self:start; color:var(--bg); background:var(--accent); border:0; padding:6px 14px; cursor:pointer; }
+.out .ok { color:var(--green); font-size:12px; }
+@media (prefers-reduced-motion: reduce) { * { transition:none !important; animation:none !important; } }
+</style>
+
+<main>
+  <header style="display:grid;gap:12px">
+    <div class="eyebrow">docs/40 · design for Diogo · 2026-10-17 · #92 · nothing here is ruled · boards 05–39 stay as they are</div>
+    <h1>The frame</h1>
+    <p class="lead">Board 39 put new layouts into today's window and ran out of room. The top bar already holds eleven controls, the new layouts had nowhere for the servers but a different spot each, and the keys are painted on almost every surface. Before any layout gets its own board, this one settles the window around them: what sits on the left, at the top and at the bottom, where the servers live, and how the keys are taught. Six frames, each a different idea, in one live window.</p>
+    <p class="dim" style="font-size:12px">§1 takes today's top bar and footer apart. §2 lists what any frame has to hold. <b>§3 is the live window</b>: switch the frame, the content, the width, one or two servers, a server going down, and how keys are shown. §4 explains each frame and where it comes from, §5 puts them side by side, §6 is the keys on their own, §7 is how board 39's layouts sit in the frame, §8 what the recommended path would replace, and §9 your calls. The theme switch repaints the mock.</p>
+  </header>
+  <nav class="themes" aria-label="Theme of the mock">
+    <span>theme</span>
+    <button type="button" data-theme-name="tokyo-night" aria-pressed="true">tokyo-night</button>
+    <button type="button" data-theme-name="baseline" aria-pressed="false">baseline</button>
+    <button type="button" data-theme-name="frieren" aria-pressed="false">frieren</button>
+    <button type="button" data-theme-name="gruvbox" aria-pressed="false">gruvbox</button>
+    <button type="button" data-theme-name="everforest" aria-pressed="false">everforest</button>
+    <button type="button" data-theme-name="catppuccin-latte" aria-pressed="false">catppuccin-latte</button>
+    <span class="sep"></span>
+    <a href="#s1">today</a><a href="#s3">window</a><a href="#s4">frames</a><a href="#s5">side by side</a><a href="#s6">keys</a><a href="#s7">layouts</a><a href="#s9">calls</a>
+  </nav>
+
+  <section id="s1">
+    <div class="sec-head"><div class="eyebrow">1 · the starting point</div><h2>Today's top bar does four jobs at once</h2></div>
+    <figure>
+      <img class="shot" src="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAQDAwQDAwQEBAQFBQQFBwsHBwYGBw4KCggLEA4RERAOEA8SFBoWEhMYEw8QFh8XGBsbHR0dERYgIh8cIhocHRz/2wBDAQUFBQcGBw0HBw0cEhASHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBz/wAARCABIBzoDASIAAhEBAxEB/8QAHQABAAIDAQEBAQAAAAAAAAAAAAEGBAUHAgMICf/EAFUQAAEDAwEFBAgCBQgFCAoDAAEAAgMEBREGEhMhkdEHMUFTFBYiUVZhk9RxgRUjMjN1CBc2QlemtdI1Q1RioSQlUnKClsHTGDQ3OEd2kpSisbKztP/EABsBAQEBAQEBAQEAAAAAAAAAAAABAgMEBQYH/8QAOREBAAIBAgMDCQYEBwAAAAAAAAECEQMEEiExQVFhBRMUMpGhsdHwIlJUcYHTksHh8SMzNEJicoL/2gAMAwEAAhEDEQA/AOMar1XaOyOw1ehtDVTam81Ld3fNQxcDIfGngP8AVYDkEjv/ABXDkRcNptK7asxE5tPOZnrM/XSOkRyhbX4vyERF6mBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBEUICIPFEBERARB4ogDuRE96AiBEBERA8E7kRATvREDCIiCFIQIiiZRAiCKApQO5MopQR3oiIJRQEQETKICdyBEBAiICIEQQpQIgIECBARFCCU8ECd6CApRPkgJ3IiAiJ70BAo8FKAo8FKIHvTwTwQIClR71KAiIgKc8FCICIiAiIgIiICIiAiIgIiICIiAiIgIiICIiCQMqFIOFCAiIgIiICkBQpHBARMJjCCEREBERAREQMIiDggIiICIiAiKUEDxUooQSoCIEEplFCD0igKUBERAREQPBQFKhATuUqEEIiICBFIHFBLe8qcKB3r0eOVFhHgoUqAMqgik8OAUIgiIghPeigIJTKhEE5RQgQEREBERBIRApQERESEKF6XnCKImEQEREBERAREQEREBERAREQEREBERAREQEREEhSvKkIJREQEREBeV6UIIREQEREEImFKCEARSgIiICBFIQd00hq+09rFipdD64qm094pm7ux6gl74z4QTHxYe4ErTVPYJ2i0tTNB6rVku6eWbyJrXMfgkZac8QfArkq6BSduPaHQ0sFLBq25MggY2ONu2DstAwBkjPcF8i+z3O3tM7GaxW3Oa2ziJ7646Z7Y6Z5x2uk8F/8zOfBz1ERfXcxdu0z/JX1tqzT1tvlBV2UUdwgbPEJaiRrw1wyAQIzg/mVrGfyctZSaHOsGuthtAtxuf/AKwd5uRHvD7Oz+1gd2e/xXS+zTtX7ZWaItNLpfRlsudloovRYan0eR7nbHD2iJhx/IL895T8pattLi8m6lMxbFuKYxHXlz7Xp0tKIn/FiVd/9DbtB/2ywf8A3Un/AJS5b2mdmd27K79T2a81FDPVz0rasGjkc9rWuc9oaS5rTtZYfDGCOK/XnYj23az152iXjSmq7RbLbJbaKSd8dPBLHK2VssTNk7cjhjDye73cVxX+WT/7V6P+Ew//ANkq+d5K8qeUr+Uo2W9muOHi+z7ubpq6WlGlx0fntZdstVde6+CgtlFU1tdOdmKnponSSSHvw1rQSeA8FiLsv8my70ls1TqimkulNarnddN11vtVbUTCBsVa8N3Z3p/dn2XAOyOPDvK/ZS8bnFVofU9DeHWep07d4bs2IzmikopGzCMAkv2C3OyACc4xgFL3ojU2mqcVF609drbTmY04lrKOSFu9AzsZcANrHHHfhfqqlvsVlk7O7JfNR0NZqyzae1A241LLg2oMRmY800Tpw4gvAGA3JIyMd4zjak1BabxYqaluGpo6enN00q59Sypa99M1tHszytBJ4scTtHBwe/3LPEPy/e9Dan0zRU9detO3e20VSQIZ6yikhjkJGQA5zQCcDP4L3WaA1Xb7Iy+VembzT2Z7WubXzUMrIC137J3hbs4ORg545X6p7U66jp+yrtaoKiptu/qa2gmoHesZudRXxiqI3+wXuEZLOOGhvDORgBZOtLjTai0nq6736ttdsrJ7DiO/6f1YZaa8TNjYGUvoDiHNDsbJGyMFp/FOIfkil0TqWtsMt+ptPXaexw5Mlwjo5HU7NnvJkA2Rjx48EsmidS6lo6mtsunrtcqOl4Tz0dHJMyI4zhzmggcOPHwX690/rSgpdPaB1JZ/0BUUNk0wyhrZbjqQ0cVPM2N7ZoJKJoc6Rzycghji4lvuBWk7KNQ0c3ZZ2ci0OtMly01X1k9wFdqP9FNo3unD45pWd80ZZhucOwAW4OSE4h+WLJpO+6kirJrPZrjcIaFokqZKSmfK2BvH2nloOyOB7/cfctx2p6Bk7MNe3fSktcyuktpiBqWR7sP24mSfsknGNvHf4LullvtRq3sy1nT6X1FarFfjreS91AjufobPQXRkBzHv2HPja/iBjPAeyCQFzn+VFcaO7du+ray31cFXRyupt3PTyCSN+KaIHDgcHiCPyVieY5Cie9FUEREBERAREQEREBERAREQEREBRlEHDKAiIgeCDuREEqEU+CCAilEEDuRFKCECBEEqEUoIRSoQSoHuREDuREQEwiIHyRQpQAiIEBAgRAUqFKCEUoghO5SiCMIiYwingvtSQelVUEG1s717WbWM4ycZXxW90vUWmGu2LsyVkbnMdFVRnJp3tOQS3+s09xA444jJGDulYtaImWbTiMsC8279EXi4W/eb30Ookg3mzs7Wy4tzjPDOFauynQkeu9UCGvqDR6etsLrhd63wp6SPi8j/AHncGtHHi4cO9YGvK2y1t8q32bezCSpmnlrJOG+L35Aa3wa3wJ4nJJxwAvmjNT6JZ2SVuk7tebrZLhcrkKmvnoLa2qNXBG0bmJzjKzDWv234weJBV1qxW81rPJNOZmsTLld+qLdVXqvmtFJJR2t8zjS08khe+OPPshzj3uxjJ7s5xgLXYXZf5RtJb6K96IitT3SUHqlbDFM+ERPmbsOw9zAThxGCRk8T3lUfVvZrqHRFl01d7zSxw0OpaX0ugcyZry+PDTxAOWnEjDg/9L3g45RLa0WR3ZhprS1lmvttr9T3267x9ZDSXD0RlrjD9ljRhh3khHtHJDRkD3rPvPZnpHRHbHqbTupL1U+rljp31kQbhlTXZiZJFTB2C1sh3gaSRj2Xd3Bb3si7KbnatLwdpc2lbhqWofI5tgtFJSvnjlmYSDU1JYDsxMcODCQXuHg0Emn2js01z2o9q9ZZLvT1lNqSqc6uuclfA5skEZw50ro8bR4ObstaOO00BQZmqdPaP1F2YT630tZ6/T81uukdtqrfUVvpcMzZI3PbJHIWtcHjYIc3iMEHguRYXce2a16jtdgorFbtHX+xdndilJhnuNE+F1dUv9l1VO4gDbdjDW/1W8B4rhysDsvZN2Z2bXOgtXVdVFO6+08rae2OjlLW7001RMGlvc7aNOGD5vWy1b2Uaf05pvQJbDUfpiuukdBdi+Ylpc6CmmcxrR+yW+kFh+bFrdAXqu032K6pvFtm3Fxt+o7RU08uAdh7G1BacHgeI7jwK3Ul6rdR9n2g7xcpt9cLhrmsqaiXAG294pi44HAcT3DgFOeRm3LQPZvfNZa30RarHerNdNPQ3CSC6uuYqYJDShxO+jMYLGODMZDjgkd64Npuw1eqNQWuyUDdqtuVTHSwg9209waM/Liv2ZePX69do3aFada26el7Jnm4mor56BlIyOFm8MEkc7WtdK7bEeAS/azxB71wHsMA0vTav7R5QB6r28xW8nxuFTmKHAPfsgyPPu2QUieQw+1mni1V2tP0xo63ieltu5sNuhpo2h9SYRuy8kftFzw920fAjJ4LSak7H9WaVs9Td66jo5rfRythqpqC4U9WKV7iQ1soie4syRgbWBnh3p2OVd8pe1HTVRpySi/Twqx6MLhJswyvII2Hn/fBLe/OXDByuqaq0VRzdm+sbvUdnV67O622ejlpkrag0l0e+YNMO6mGSQC542CQMeA7705D84+9ApT3qov9P2TXKo0+a0VtI27F8YjtRd+teHsc9rc9wkLWlwjPEj5kA1nRunX6u1dYtPsmED7tXQUQmIyI95IGbWPHGc4WfFd4hoOspXVR/SUl3hqg3J2y0RSgvz/1nDmvv2T3Gls/ajou4V07IKKkvFHNNM84bGxszS5xPgAASsU4ueXPT4szxS6Y/SXZvqi56v0jYLNeLbd7BR1tRR3iouAnFe6lDnPbLDsAMD2sdgtPA471wJfrSis+stPak1nNqa0G3aT09br86luUtI2GOoNYHhgbPgb8vc5uyMnGccF+TAtQ6gRAg8VUERSgBERAREQEREBERAREQEREBEV61Nomy27RVs1PZL9V3Knq6+a3yxVVvFK6KSOKOQkESv2hiUDw7u5BRUV6pez2oZ2b3PVlfb7vHHtwC31MMcZpHtMhZJvHF20DkANwDxzngslvY9qCv0nY9QWWkqbrFcKKetnigh40zY55YsD2iZCRCX8BkDw4ZTKueIrbp3sw1fqygjr7LYKyuo5HPjZLCAWvezG0wceLvaGG958AV8tN9m+q9XwVM9ksVbWxU8m5e6NmBvMZ3Yzjafj+qMniOCZFXRWrTnZrqvVsMs1mslTWRQz+jSObhojlxnZdkjB8OPjw7+C1tdpW822gqq6sttRT01JWm3TulbsmKpALjE5p4h2GngR4H3IjTos+9WS4aduU1tulLJS10GyZIZMbTdpocM/kQfzWAgIizLfaay6OkbR075d2AXkcA33ZJ4BBhos+GyXCetmo2UkvpMOTIwjBYPec93eO/wB6R2W4S18lC2kl9LjBL4y3BaB4nPcPn80GAi2DLHcX3A29tHL6YBkxY4gYzn3Yxxz3L3eLNLZxRNmJ3tRDvXMLcFh23tx8/wBjOfmg1ikdy+tNCKiQsMrIzskgvOASB3Z8Mr5Y4IAUqB3J3FBKjK3GnbTS3uuZRzVktPNK4Ni2IBICeOcnaGP+K11FQVNyqG09JC+aZ2SGsGTgd5/BBjjii2BsVybcW280c3pruLYtniRjOR8sDOe5eK601tsdG2sp3wmQEs2v6wBxkfJBhBSmMKEBERAREQETHBMICIiAiIEBERAQIiAgREEplQiCVKgKUBFClARRlEDKZUeCBAQIpAQQO9evevIXpAXsdy8hem9yiw8nvKlvAZXlej3YQeURFUFbdC01ufBqiuuFrprmLbbG1EMFTJKyPeOq6eLJ3T2OPsyv4Zxn8FUSrfor/Qeu/wCDR/4hRoPr6z2X4D079e4fdJ6z2X4E079e4fdKsrPs1uF0r2QPkMUIa6SWTGdhjQS48gg241PZfgTTv17h90nrNZfgPTv17h90qycbR2c4zwz3rZUFldWUclZJVU1LTMkEW3OXe04gnADWk9wQbT1nsvwHp369w+6T1nsvwHp369w+6Wmgt29oKmqkkdEIg0xtMTiJcuwcOAwMfNfYWVzrTLcI6umkZCWCSJpdts2iQM5bjw8Cg2frPZfgTTv17h90nrPZfgPTv17h90tRS2WrrKKoq4oiYoA0kYOX5OPZ4ccHvWLHSzyvkYyGR74/22taSW49/uQWH1nsvwHp369w+6T1nsvwHp369w+6Vdhppqg4hikkOcYY0nj+X4FfNzS0lrgQRwIPggsw1PZfgTTv17h90p9ZrL8Cad+vcPulpLba6m6TOjp2E7LXPLiDgBrS48fwBXx9FnErYdxKJXdzNg7R/JBYfWay/Amnfr3D7pPWey/Amnfr3D7pV0U8znvjEUhkZkuaGnIx7wpdTTRymJ0MjZQMlhaQQO/uRFi9ZrL8Cad+vcPulHrNZfgPTv17h90q9JTzQyCOSKRkhxhjmkE57uCl1JUMm3LoJRN5ZYdrkhCwes1lx/QTTv17h90o9ZrL8Cad+vcPulXzSVDZGxGCUSPG01hYcuHvAWRc7RVWmokhnZ+wQN40HYJIzwJCK3HrPZfgPTv17h90nrPZfgPTv17h90q9NTTU4bvoZI9sZbttIyPllfFBZ/Wey/Aenfr3D7pPWey/Aenfr3D7pVhEFn9ZrL8B6d+vcPuk9Z7L8B6d+vcPulWEQWf1nsvwHp369w+6T1nsvwHp369w+6VYRBZ/Way/Aenfr3D7pPWay/Aenfr3D7pVkIgs3rNZfgPTv17h90nrNZfgPTv17h90qz4L60tLNWztgp4zJK/uaPkMn/gEFh9ZrL8B6d+vcPulmxS2W/6b1U9mlbVbqq3UEdVBUUc1WXteauniIIlne0gtld4e5UvuVn0x/RzXn8Hi/wAQo0FKW201YJdTXZtviqqakO5nqHz1O3u444onyvJ2Gud+yx3ANJzhalW3s2/pHVfwe7f4fUIPXqVavjvTn0bh9qnqVa/jvTn0Lh9qq8rVRaAr6iipqqrr7VbPTGCSliuFW2KSdh7nBvHZaccHP2QfA4QYvqXavjvTn0Lh9qlToaFtoulwodUWW5C2QtqJ4KZlW2TdulZFkb2BjTh0rOG1nBWqutqrLJcKi33CnfT1lO7Zkjf3g947uBBGCCOBBBC3emP6N68/g8X+IUaClq09nlDQ1+o3tuNFFXUtPbrhV+jSve1kj4aOaVgcWOa7G2xucOH4qrK3dmv9Iq3+CXj/AA6oXn3czGhqTE45T8Jbp60PQ1jZv7P9NfXuP3an1xs39n+mvr3H7tU8L01rnnDQScZwAnotO+f4rfM4p+oW71xs39n+mvr3H7tbfTlxsWp6uvt8uirHR/8ANdwqGVFLUV28jkho5pWOG3UuafajbwLSCMrnKt3Zr/SKt/gl4/w6oXDc6FaaN71m2Yif91u781rbMxCoqFK2losVReI6qSGWmijpg0vfPMIxlxwBx9/L5r3ubVKFZ6zSUZhqai2XSlrIKaNz3hz2skOy8tdhuTwxhwJxkH38FWEBEUIJRQFKAoUogIsy22/9IzOi9KpabZbtbdTJsNPHuz7+K8XC3z2urkpalgbLHjOCCCCMggjgQQQc/NBjIERBIUqApQeUREH9D6L/AN1V3/ydJ/8A5HLkPYD2+6M7Ouzqnsl7qaxteKiWZzYaZz2tDncOPv4Z/Ndb7Oe0XQVN2VaYs951Pp7aNnggqqOprIXcDEA6ORhP4gtP4EL36Z2Bf9Hs7+jSdF/JaWrWuvttzoXtW1+KJry6Zjtie99jEzw2raI5OLdk/aXpdn8onWeqKq7wUVludDL6PPVndBznSQENwfHDXciqP/Ko1NZ9WdpFJX2S5U1woxbIozNTSB7Q4SSktyPHBHNaz+Ua/S0naG12jxaBaDRRf6JbGId5l+1wj4bXdnx7lyRfufJvkzStq6flKvFE8EV4Z7Ixjn4vBqasxE6XiIi7X/Ju0lp/VOoLqb3BDVyUkLHU9LMAWPyTtOLT34wOHzX2N5uq7TQtr3jMV7mdtoTuNWulWcTLiiLtf8pHSNg0tqC1myQQUklXC91RSwABrMEbLg0d2cnkuf6Xm9Gsl2lFayicJ6cb50Rk4ES5GAD34HJNluq7vQrr0jEW7zc6Ftvq20rTmYVRFf7TU09bPfpqCoZboZ6qnbHK6IEN2i8cW9wBPHHcPyWPa6zY13VRU0JpqeWSRr4CwDi1rvAd3tDOAvVhwypCKyWR099N4onkSVdZCJYyQMmSNwd//HbWzowybV10qacQ7i2QvbDvHtYw7LRDGSXEAZJB4pgUhFdKHeWbX7aKme0UlRWxjZADg+JzgWjPu2XDuXy0/c5qu43aprKl7XQ0LwJmRNc5gEjcYbwB7/emBUEWfeKw1tc+T0mSpaAGtlkiEbiPm0Egcc+KxaaOOWoijllEMT3hr5C0u2ATxOB3471B8kX2qo4oaqaOGYTwseWslDS3baDwdg8Rn3LaaVA/Skkmy10kNLUSx7TQ4B7Ynlpwe/BAKDSor3QSmou9grKg4qJrfUySytYNpxbvwHY4AkBo/HAWs1BWSQS2i5Usoc99O7FVumsfKQ94JczuBA4eOQBx91wKuitGrLnVUurKp8Muw6meWRENHsgjiO75letVXesp9RO3Uxb6KG7r2R7O1G3a8PH5oKqivNXUPuGt7TRVRbLSCWl/VOaMHaYwuz78knmvFJPJcqjSlVWBslS+5uic8sALmB0JAOBxALnc0wKSiv1U9klbpkvlFZLNXbQqtyGYYJGt3R8SQQTx8HD3rzenscbOXSirllrnFtQIgzdta4NMRPeSDg8fAjHemBQ0Vx1BcBPfG0rK+aeOOuOYZKdsYjw8gAODiXeI44Ww1cI6Wjqa2jwwuuTHDAHsPYJGO5lm1/2gmBz5FZtSXWrqLdZ45Jdpk9IJZBsgbT97IM93uAH5Ks96gKFdNUzuudHXTxz1ccdJUsZJR1MDY92XB2MEEk42SMHHeqc6GRkbJHMcGSZ2HEYDsd+D4qjwhVsuVfIdOuZXxwxvqd2aKljYBuI298nvAd3cT7WSfcqsYpGRtkdG4RvJDXEcHEd+Cg8BArjJUz1Gk6yikkmZV0jI5ZmTQgNdCXNDAw54ftNdxHH3476dhQEW2dFaRp5kzZKj9MGcsdGXDdhmM7WMZ8QO/wACtSgAKVsayhoILTbamC5tqK6p3vpNGIXNNLsuAZl54O2hx4d2OK1ylbRaMw1MY6igLsesL1bqKzT26sr4qoz2W3tpLY2jwaWYwQPM29IGOG2fZJzt4PivldZC+x3i0OjiFro9M2+up4hE0BlQ80pdIHYztOMsgJzxyR4L59N/a0VmaYz8OXhz6/l4vXbaREzHF0/r4+H9HIVK7heZIWaHqTNO2rghsNA0W0UzS6CSRrA2p3h4gAjB2c8XAHg5VU6nuv8ANWD6Wc+nm3/sN/cbgex3f8e/5q6e9tqRmte3HX9e7670vta0nE27M9P6ucKUXSLLeaik0RVOucNJBYXUk1FSUrYRt19U4kibJySYy4EvyANhrRxJXq19WdOImIzmcf2+v1hw0tOLzMTOHN0XT9H6wudJpe41Ej4YrZZKE0kETIx/yipne/dlxOSS0OkfwwMRNGPfNi05R1Gj6G0Mq5YL1qRkte2T0YPiMVOZAyJ0m0CzLo3uJDXf1M4A4+e2983NuOuIicdc+M55csRz7e7LtXbccRwT1jP8u/v5OXKV1LSWk5KjRU0tHUU7aq7w1MlTUbyNz6Wmga9+6EZcHbUr4+JA4NA8CQvfZrcriygks7pqmnfdIJWWmR9MySmDgHGVziSDngAD7QbtEkHAxL76Ii81jPDPf7Z6T0xP6RnuyptZmaxacZ+u/wDL9Zw5UoUrunZNQ0t10/pigkgjdVnUL62JxaC54h9FD4/m3dyyPx/uLru91G20/OTGf7TP8mNtoefvwROHCsKF1vs7nfRW/TDII4ti76mNFXbULX7+ANgxG7IPs/rJOHz+S1uhb5XW2n1dSUtRsU1JQT1UDdlp2JBLG0OBIz3cPcuc7y32uGvTHb4zHd3w3G2j7ObdfDwz3ubhO5fWqqZa2qnqZ37c873SSOxjacTknh8yur9lUb5tOVMEN0jt1RU3mkgZI+mbPvtqOX9Th3D2iB3kDIAJ4rrudfzGl5yY7vrpPwc9DR87fgifr2/zcjRdasV3oaO3a4uNPPVWCmkvFMIBBRMnkhjcKoiIsc5oAwBnB72jgvl2YMiqNQ3zUFZNTVFPTyRRmatkiphKZZ27RO24NDjCyb2QTx7srjbfTWt7TX1ce2ceGO3vl1rtYtNYi3XPuz457O5ylThdItdNV6It2vHUzmx3a1VdPRNqdgOcxu8kD9nI4bWw3j7uHisi2xxVlv7QDf4TZXSPpXzR0lJtbh5lJw2IvGAT4Z4Z/JanexGZiMxExHjOeHsx/wAmY22cRnnz92e39HL/AAUrt1PTim7XtU3eNlM9lnpzLG2rljhic97GRMDnPIaP3hdgn+r4rW2ihp9I6k7RIRWSUVNRUwdT1cEDahzInVcO7c1pcAdpjwM57neK5R5RiY5V54rPXvxy6Z5Zjs55b9DmOs9sx7M/HE/k5Gi61UQsZrLWLmwQRxzaffOzdMDWvD6eNwk2cDZc7O0W44FxHhlaHsrnjpazUVRJUy0rYbTI8VEUIlfERLF7QYSAfwyF1jeZ051Ir0iJ9v6Mejfbime2fcoaLc6pupu93kn/AEhPcIw1rGVE9O2B7hjxY1zgMEkd5/8ABaZeukzasTP18Pg89oiJmIFHyUqAtMilQtzYKalmbc5quDfspaXfNj2y3Lt4xvePk4oNOitIs1BFc615ikko4KBlcyB0mCS9rCGFwHcDJ3jBOFl0tgttRdHxbpzYJKekqmtLyd2HyRh7c+Iw896uBT5qmao3e+mkk3bAxm24nZaO5oz3D5L1PWVNVHBHPUTSx07diJr3lwjbnOGg9wz4BXYaatIv0dFICymdBUyuk2z7IbLI1rvyawH5rAGnqeC92yhqISDJRyPnZtH940S/+LAmBoIL3c6WFsUFxq4omcGsZO5rR+ABXlt2r2VL6ptdVCpe3ZdMJXbZHuJznHAcl99P0cFdchHUtc6COKWZzWu2S7Yjc/Zz4Z2cLPntFPXXCxNo4jAy6MaXR7ZcIzvXRnBPHGG54qYGqqLzcquF0NRcKuaJ3eySZzmn8iVhK2Cy2+TVVJBFE42yrhE8bC45xuySM9/B7SPyWrvNHSspLdXUkToGVjHl0JfthjmvLeB78Hh3/NXA1bamZkD4GzSCB5BdGHHZcR3EjuXptZUsjjjbUSiOJ+2xoecMd7wPA/NfFFBl1V2r65gjqq6pnYDkNllc4A/gStodY3P1LbpFphZZ/T/0k9rWYfJPsbALneIDTgDuHf3krQIgLMrbxcLmyJlbX1VUyIYY2eZzwz8MngsNEBERACKyz2ekjFfssd+ptdPVN9o/vH7raP8A+buC2NRp6hZad8+jdAz0BlQ2tM2A+YsB2Nk9+SccO78lcCqT3WvqqSGjnramWkg/dQPlc5kf/VaTgfksRbS50UNLR2mWMEPqaYyyZOcu3sjf/wBNC3Edmt5t8cLoXmrktz6/0jeHg5pd7Gz3Yw38cn8lBUkVjp7JBLpaasLXenZfMzj3xNcxh4fi9x/7JWRS2m3T26hhdTvFXU0NRVekNlPB0ZlwC3uIIjA8O9XAqqIsmC3VNRRVVZFEXU1KWCZ+R7G0cN+fEjwUGKpUK36e0/R1tFbzPTuldX1DoXyibYMDdpjGlrf6x2n8e/gPDvVFRHBE7lYLCy3T0NwNVb99LSQGcP3zm7X6xjcYHycoK+itVlt1tqYYZ6ike9tdcBRsYJSNw0gHIPifaHfw4KbZarcyld6ZTPnc64iiD2yFha0g+0O8Z4eIVwKoitVi07S1NzulLVuLo4H+iwvBx+ufJssPIOP5LDsVnhvMVRSEiCuhkbJvHk43WdmTI/3ch34ByYGhRZNwfTSV1Q6jjMdKXndMJJIb4ZJ8VjYyoCKcJhBC6fYv0PqXspg03PqS12a6UF6qLhs3MThk0UsELBsOjjeNoOiOQcd4+a5jjgoQdm0Ta7HH2X6rtdZrjTdFcNQ+gyQwTmp2oNzI9zhKWwOAOHDGyXfPCsWhdQ6aoo+ye7Vuq6CkGi46mWuopGymaUmsnkayENYQ5zmluclow5vE8cfndFMK6JPq9lu7PNCQ2uvEd8s16r7gWNbkwEilMLyCNk+1E/A4/s8Rx43ns71Rpt1stNzudzscd9jvktfdXXltSZGsc6NzH0bIhug4kSZzg7QbkhoGOBYRMDr2tdWWi4aN1jRUdwZJUV2tX3KnjZkGSm3c4Eg4d2Xt+fFbbsh1R666k1dFrYvr7ZcYm3+5TCNo2ZKN4lL8NAA24zLDwHEzBcLWRS3Croo6mOmqp4I6qPcztikLRKzIdsuA/aGWtODwyB7kwMzUl+q9U6hul7r3B1bcqmSqlI7tp7i4gfIZwPktWinCqICsWmqqOOnroJaigayYxkwV8bzHJs7XHaZxaRn88lV1Agu8FytQrb7SxSUxhqhCYXVZlMLiz9puR7eMk7OfcMpDeqOW5XOGaage2ajipopHRytpyWFh2Tx28YbgHxwMqkoOCuTC6fpSknuFVSvraSOOS2ehRzRRyNhY7aDsZJLiOBbtY/LC0+o56eSO0wQVTKk0tGIZHsBxtbyQ4GQOGCFpFBCZDChO5FAREQbbS9fDbNQW+qqHFsEUoL3AZwO7OFn2uOkts9fSSXSke2uo3QsqItssY7baQHZaCM7OOAPeq0ioukNyooa6joRUmdjbZLQyVMEbnBrnl5yAQC4DaA5rC1TA2jtun6dsjpNinkO09hYSDK/jsniB7s+CrkE8tLK2aCR8UrDlr2OLXD8CFNTVT1kplqZpJpT3vkcXOP5lB96K4GiMhEEEpeAP1rNoAZ4j8+a+VXUCpnMgijibgNDIxwAAx/4L4IoClQEQEJQIg9AcF5PepBTGUEYTCdykoICe9McEwgIiIGUREBEUIJQIiB3JlEQO5SoRARMogInepQApUBAglERAUt7ivJQHgivQ4lS7vUM7yh8VCEIiKwCt2iv9B67/AINH/iFGqgrfov8A0Hrv+DR/4hRoiuhb6k/5u01WVPdNcHilj9+7bh0h/M7A5rQr6PnlkjjjfI90ceQxhcSG5OTgeGSg+atsGoKqDSbAyaATx1Yja0wxk7sR+4jjx8e/5qpphBbbJS11Rp25wGpj3E8LRTxSVbGjaEzSfZLvZ4AniAsSzwGa1Xu3B8Lat7oS1kkrWB2w521hxIBxn3qvImRa7FU1sduvFsirjFVNDBAz0oMaCJPb2XbQbyPH5rKsUzxbJ4RI51xZXOkm2a9sDiNkAPLznbAcHdx8c+KpKhIkwtc91cyi1DLTTMglnr4nAU8ne39bnZPAkZI448Qq/c7jLda6WsmaxssuC7YGASABn8TjJ+axEQb/AEhXyUl13Yq3U8U0UrTmXYYXmNwZk5x+0RxPcs62ur457tBPWAXaala2CV1U0k/rGktEm1jJaD4/JVJSFcmF7NcIrlM81bDWw2Z0cszZA4mYNP8AXB4uAwMg94Wrst8qKi4QPqZgJKSiqY45nOO2cskLcknicuwPyVZUBMpharBfZKm6W9ldK0+jRzsinfJsv2ntds5ec4w7GD4ZW3hqxHebFHUbuN0G/JMlY2oe0FvAOcAABkEgZPeVz9Eyjf1F1qX2C3zGtlNbDVzhr96d4xpZH45yATtf8Vs9QVNZLfKetZWwy2508T4N5Uh8bXYHFzASWjvzw96pijCZawuWqnmS2ufLK+OV1VtCnNc2pY8EOy9uOLQOA4njn5KmoiAo96lFAREQEREEoieCAFYdO1Fvip6qKonfDU1LmxBzY9r9UT7Tc5GNrgM+7PvVeCIMu6xQw3Stjp8ejsme2PByNkOOOPjwW70x/RzXn8Hi/wAQo1WFZ9Mf0c15/B4v8Qo0FKVt7Nv6R1X8Hu3+H1CqStvZq6IaofHLUU1OJ7bcqdklTOyGPbkop2MBe8hrcuc0ZJAyQgr/AIK96v7QRqN9xpvRGVFtlEbqL0pmJbe4NYHNjc0/seyW7JyDgOwCtb/N/dP9u05/3it//np/N/dP9u05/wB4rf8A+egxdVXunvbrQYGy5ordBSSSSgB0j2A5PAngAQ0fJo7u5ZGmP6Oa8/g8X+IUan+b+6/7dpz/ALxW/wD89bOksM2ndL6ykr6+yH0u2xU8MdNeKSpkkk9Npn4DIpXOPsxuOcYAaUHNgrf2a/0irf4Jd/8ADqhVBW/s1/pFW/wS8f4dUrz7v/T6n/WfhLdPWhUV03sfvemLTcK39NUVR6W6guDW1f6RZBEWOpJGiLYdG723Elodtd7m+ycYPMkV3OhXcaVtK0zET3ThKW4ZzDYXeot1TcZpbVRz0VC7G7p56gTvZwGcvDW5ycn9kYzjj3qwdmv9Iq3+CXj/AA6oVPVw7Nf6Q1v8Eu/+HVCxuq8O2vEfdn4StPWhUVddIn0uzV1NDTxOmp5Y6iQOkjZ6THvGZjeXDIYNnOQ7GTxBVKTK9cMOptdNEaiuqo5pYKSGbe+mvga6oxK0blw9r2AWOAOOJyBhcrcckkDGfBZFbcKu4yiWsqZqiQN2Q6V5cQM93Hw4rGQQg4H3/JSo8FBtJbpTSTyyNtdMxr5mSBjS7DGtHFg49x+awaqVk9TNKyJkLJHlwiZnZYCe4Z44C+KICIpQbTTtHHW3WKKakqKuLZe4w0/7bsNJH5Zxn5L4Xa5vu1a+pfGyIbLY2RszssY1oa1ozx4ABYbHuYctcQ73jgvKCUREAKVCnKCEREBERAREQFkUNfV2yobU0VVNTVDP2ZYJCx7fwI4rHRSYiYxKxOOcMitr6q5VDqitqZqmof8AtSzSF7j+JPFfNtRKyCSBsjhDIWuezPBxGcH8snmvmisRERiCZzzl9WVMscEsDZHCKUgvYDwcR3csnmsuG+3KnqpqmKtmZUTfvJGuw5/4la9ERlsulbHX+nsqZW1mSd8He1kjBOfwK+LKqaOKaJsjhHPjeNB/bwcjP5r5IgyPT6n0iGo379/AGiOTPtN2f2cH5YGPwXqiuNXbpnTUlRJBK4FpfG7BIznH/ALFRBkVtdU3GYzVUz5pSANt5ycLHREBfWmqZqOdk9PK+KaM5a9jsEH8V8kQbet1JW1ddTV4lfFXQwiIzMecuwC3PyJBwcf+KxpL1cJa1lbJWzvq4xhkrnkuaPcD4d55rBRBl19zrLpI2StqZJ5GjZDpHZIHuXxqKiarmdNPI6SV2Mud3nAwF8lOeCD7SVlRNUCofM8zjZxJn2hsjAwflgclkVN6uNZUw1M9bPJPAQY3ueSWEHOR7uPFYCIMllwqo2xtZO8Nil3zAD+y/h7Q9x4DkE/SFVshu/fsiXfgZ4CT/pfjwCxkQbGrv9zrwxtVXTzCN4kaHuzhw8VjzXGrqIHwy1Ej4nymdzHOyDIeBd+KxkQfSWolnbE2SRzmwt2GAn9luScD8yT+a+QUogzau83CvgjgqqyeaGPGyx7yQMDAPLgvhNW1E9NBTyzPfBT7W6jcchm0cnA8MlfBSg2NTqG61tK6mqK+olp3AAxueS3A7uH5BYr62olpYaV873U0JJjjLvZYT34HzWOiDOlvFwnomUUtZO+kZgNic8lox3cPl4e5YSKEBSihBKIiD71dbUV8olqpnzShjIw55yQ1jQ1rfwDQAPkFnzaovVRZ47PLdKt9rjxs0rpSYwAcgY9wPEDuC1KLM6dZxmOnRqL2jOJ6tj+nrl7f/LZvbpRRO9r9qAYxGf8AdGyOHyCxvT6n0D0DfP8AQ97vtzn2dvGNrHvxwWOiRSsdIOKZ7Rb6HWuoae1C1RXmtZbRG6IUzZSGbDs5bj3HJ5rRd4TCX0639aMlb2r6s4fcV9V+jzQCd/oRl35hz7Jkxs7WPfjgs+l1ReqG0zWqmutZFbZg4Pp2SkMId+0Me4+I8fFanCKTp0tymPEi9o6S+1HW1Fvn39LM+GbZczbYcHZc0tcPwLSQfkVn0Oqb1bLbPbaO61dPQT7W8gjlIY7aGHcPmOB9471qSittOtvWjJW9q9JFsrdqC6Wl9I6hr6imdRyPlgMTy3dPe0Ne5vuJDQD+AWtUgK2rW0YtGUi015xLbWrVF6sUFRDbLpV0cVR+9bBKWhxwRnh44JGe/isCkrqmibUNp5nxCoiMMoacbbCQS0/LIHJfAqA1Z83TMzjr1XjtyjPRCyorlV09L6NFUysg3zZ9hrsDeNBDX/iA44PzKxsYULUxE9UiZjo3lBrPUFrqK6oorvWU89c8S1L4pC0zPyTtO95y53MrBqbzX1sVTHUVcsjKqf0mYOdneS4cNs+8+07/AOo+9YKLEaWnE5isZ/JqdS8xiZbqk1dfaG51FyprrVxV1SNmaZkhDpRw4O9/cO/3LCdd6+Rtc19XO8XBwfVF7yTO4O2gXE8ScnKwgisaVInMVj+3T2E3tPLLY1N9uVZ6b6RWzSenFjqjad+9LP2S734WRQ6tvlsrH1lHdauCqfCyndNHIQ50bQA1pPuAa0Af7o9y0yJOlSYxNYx+X13EalonOW3ptU3qkus92hutW25zgiSq3pMjwcZy48fAclkDW2ohdDcxea0XExbg1G9O2Y852c+7PFaFFJ0NOetY7unYsat46Wlm3W8V98qzV3Krlq6ktDTLK7acQO4ZWEiLdaxWMVjEMTMzOZFClFUQO5bG03QWx1UHU0dTFUw7l8chcBjaa7vaQe9oWvRBuWajl/SM9VJTQPingFM+n9oM3QAAaDnIxst45zwXoalnbXT1LIYmB9MKVkTc7MbAAG4yckjZB4+K0iKjdSaknlqXzuiZtOpHUmOOMOBBd+PEn819X6rqJbtR3GSnifLTwGAtycSZDgXHjnJ2yeC0CJkbeK9RUtfFVUlup4Axj2Pi23ubI1zS1wOXEjgSOBC+nrJLHXU1TT00UApIHwU8bHOIj2tr2sk5LsvJ/HC0iIN7Hqqr9Lt1VUD0moomPjEkz3OdI121wcc54bRwsK53Q3FtPG2nipqamaWRQxFxAySScuJJJJ9616ICKSoUBERARECAilQg3c2o3zW99P6JA2eSCOlkqQXbTo2FpaMZwD7DeOPBYNxuL7i6nc9jWmGCOAbPiGDAP4rCRUbh16hmttPST26CWSnidDHOXvDmguc7OA7BwXHvC9s1LIy3in9FgNQ2ndSNqSXbYiJJLcZ2c8SM47itIig3kOqq2CnhpWOcKGOmfTOpg927ftbWXEZxtZfnPyCiHUj4LfDTMo6ffwwSUzKkl221jy4uAGdnPtuGceK0iKgnd+CKFBK3Vs1HJbaenj9EgmkpJHS00shdmJzsZOAQDxaCM+K0qICy6KvfRRVsbWtcKuHcuz4Daa7I/NoWIiDc2jULrVA2J1JBUtinFTDvS4buQDGfZIyOA4H3L1btSPoYHxyUcFU41AqmumLvZkA4HDSM/gVpEVG4ptTXCjgnbTTvhmqKgVEs8by1zyAeBx4ZJOPmvk29PZdK2ubDG11W2ZpYM7Ld61zTj8No4WsU4IUDgpXlEE5Vu0Np7Sl+9P8AWfWXq1ud36P/AM2S1npGdra/dkbOzhvf37XyVRAULnq0tqUmtbTWe+MZ98THuWJxOZjLr383vZT/AGyf3Yqv8yHs97Kv7ZP7sVX+ZciCLxeha/4m/s0/23Tjr92Pf83XR2e9lX9sn92Kr/Mn83vZUP8A4yf3Yqv8y5Eieha/4m/s0/2zjr92Pf8AN13+b3sq/tk/uxVf5lH83nZT/bJ/diq/zLkaYT0LX/E39mn+2cdfux7/AJuufzedlX9sn92Kr/Mn83nZT/bJ/diq/wAy5Eieha/4m/s0/wBs46/dj3/N13+b3sp/tk/uxVf5lqdUaN7P7VYqursnaX+mrpFsbm3/AKCqKbfZeA79Y9xa3DSXce/GPFc5ATK1TZ61bRadxecdkxTn4cqRPsmJSbxMerHv+ZhMIO5F73MRFAQSoypHBQgIiICdyKUAAnuUKWnAOFCAiIgJ4JhTjAwgY4ZUL2wA/NQ5vtYCCAOBPuTiUIxkJlBCnJQfNM4yghTwwVCICIgQMcEwiIGPmiJ4IA4IiICJ3ogIEwiADhERARECCQMIinHA5QQEHepwFHvQMoOKhSOGUAoPFQpHcgNOzlTtcVLWgtXhFekUAoUDK3emdTO02+5A26iuNNcab0WenrDKGOYJY5QQYnscCHRN8fetGiIuHrra/gTTn1rh90nrra/gTTn1rh90qepCC3+utr+BNOfWuH3Ska1tfwJpz61w+6VORBcfXS1fAmnPrXD7pR662r4E059a4fdKoe9QguHrra/gTTn1rh90nrra/gTTn1rh90qeiC4eulr+BNOfWuH3Seulr+BNOfWuH3Sp6ILh662r4E059a4fdJ662v4E059a4fdKnoguPrra8f0E059a4fdJ66Wv4E059a4fdKn5RDC4eulr+BNOfWuH3Seulr+BNOfWuH3SqCILd662v4E059a4fdJ662v4E059a4fdKoeChBcPXW1fAmnPrXD7pR66Wr4E059a4fdKoIgt/rpavgTTn1rh90nrpavgTTn1rh90qgiC3+ulr+BNOfWuH3Seutr+BNOfWuH3Sp6lBb/XW1fAmnPrXD7pPXW1fAmnPrXD7pVBEFw9dbV8Cac+tcPuk9dbX8Cac+tcPulT1KC4eulq+BNOfWuH3Sj10tfwJpz61w+6VQCBBb/XS1fAmnPrXD7peanXMLrTdLdQ6YsttFzhbTzT0z6t0m7bLHLgb2d7Rl0TOOznCqQTCCEREBeV6UBAClQpQFt9Magk0vd23CKkpqz9RPTPp6rb3ckc0L4ntOw5rh7MjuIcCDhahFm9IvWaW6SsTjnC3euVm/s/019e4/dp642b+z/TX17j92qii4+i077fxW+bXHP1ELf642b+z/TX17j92vtT6/pKBtU63aM0/Q1VRSz0npMUlc98bJonxPLRJUubnYe7GWn8FSkUnaacxicz/wCrfM45SFK8qQV6WDHeoUqEBRlSoQMoEUIJREQERO5AClEQEREH13LPPj5O6JuWefHyd0REDcs8+Pk7om5Z58fJ3REQNyzz4+Tuiblnnx8ndERA3LPPj5O6JuWefHyd0REDcs8+Pk7om5Z58fJ3REQNyzz4+Tuiblnnx8ndERA3LPPj5O6JuWefHyd0REDcs8+Pk7om5Z58fJ3REQNyzz4+Tuiblnnx8ndERA3LPPj5O6JuWefHyd0REDdM8+Pk7om5Z58fJ3REQNyzz4+Tuibpnnx8ndERA3TPPj5O6JuWefHyd0REDcs8+Pk7om5Z58fJ3REQSKdrg4iePDRk8He/Hu+ajcs8+Pk7oiIG5Z58fJ3RNyzz4+TuiIgblnnx8ndE3LPPj5O6IiCN0zz4+Tuibpnnx8ndERBO5Z58fJ3RNyzz4+TuiIgblnnx8ndFO4b58fJ3REQBCzz4+Tuiblnnx8ndERBG5Z58fJ3RNyzz4+TuiIgblnnx8ndEELPPj5O6IiCREzz4+Tuincs8+Pk7oiIG5Z58fJ3RNyzz4+TuiIggws8+Pk7oo3LPPj5O6IiCRAzz4+Tui9blnnx8ndERBG5Z58fJ3RNyzz4+TuiIhDzumefHyd0Tcs8+Pk7oiII3LPPj5O6Kdyzz4+TuiIgjcs8+Pk7op3LPPj5O6IiBuWefHyd0TdM8+Pk7oiIG5Z58fJ3RN0zz4+TuiIgblnnx8ndE3LPPj5O6IiBumefHyd0Tcs8+Pk7oiIG5Z58fJ3RNyzz4+TuiIgblnnx8ndFIhZ58fJ3REQRuWefHyd0Tcs8+Pk7oiIG5Z58fJ3RNyzz4+TuiIgblnnx8ndEELPPj5O6IiCTCzz4+Tuijcs8+Pk7oiIG5Z58fJ3RNyzz4+TuiIgblnnx8ndFIhZ58fJ3REQDCzz4+Tuijcs8+Pk7oiIG5Z58fJ3RNyzz4+TuiIgblnnx8ndE3LPPj5O6IiBuWefHyd0Tcs8+Pk7oiIG5Z58fJ3RNyzz4+TuiIgblnnx8ndE3LPPj5O6IiBuWefHyd0Tcs8+Pk7oiIG5Z58fJ3RNyzz4+TuiIgbpnnx8ndF6MbCP38fJ3REQedyzz4+Tuiblnnx8ndERB63TPPj5O6LzumefHyd0REEiFnnx8ndFO5Z58fJ3REQQYmefHyd0QQs8+Pk7oiIBhZ58fJ3RN0zz4+TuiIgCFnnx8ndE3LPPj5O6IiBumefHyd0Ublnnx8ndERBO6Z58fJ3RN0zH7+Pk7oiII3TPPj5O6JuWefHyd0REDdM8+Pk7om5Z58fJ3REQNyzz4+Tuiblnnx8ndERA3LPPj5O6Kd0zz4+TuiIgbpnnx8ndFG5Z58fJ3REQBCzz4+Tuincs8+Pk7oiIAhb58fJ3RehC3j/wAoj5O6IiCN00nhPH+Qd0U7ppHGojx+DuiIg87lh/18fJ3RNywf6+Pk7oiIG5Z58fJ3RNyzz4+TuiIgCFg/18fJ3RNyzz4+TuiIgCFmP38efwd0Ublnnx8ndERBIiZg/r4+Tuiblnnx8ndERBG6Z58fJ3RNyzz4+TuiIgbpvnx8ndE3TPPj5O6IiCdyzz4+TuiCFnnx8ndERIE7lnnx8ndFG5Z58fJ3REQBCwf6+Pk7om5Zx/Xx8ndERBIhZ58fJ3RQIWefHyd0REHoQs8+Pk7om5Z58fJ3REQRumY/fx8ndFG5Z58fJ3REQNywj9/Hw+Tuijcs8+Pk7oiIJETPPj5O6L6Mij2f38fJ3REUkGxMx+/j5O6LxuWefHyd0REhUblnnx8ndFG5Z58fJ3REVEiJnnx8ndE3LPPj5O6IiIllO17g1s8ZLjgcHdFG5Z58fJ3REQN0zz4+Tuiblnnx8ndERAETPPj5O6KNyzz4+TuiIgblnnx8ndE3LPPj5O6IiBuWefHyd0Tcs8+Pk7oiIG6Z58fJ3RSIWH/Xx8ndERBO5YP9fHyd0Tcs8+Pk7oiIAhZ58fJ3RNyzz4+TuiIiG6Z58fJ3Redyzz4+TuiIim5Z58fJ3RNyzz4+TuiIgbpnnx8ndE3LPPj5O6IiAIWefHyd0TdM8+Pk7oiIG5Z58fJ3RNyzz4+TuiIgblnnx8ndFO6Z58fJ3REQN0zz4+Tuibpnnx8ndERA3LPPj5O6JumefHyd0REDdM8+Pk7om6Z58fJ3REQRuWefHyd0Tcs8+Pk7oiIG5Z58fJ3RNyzz4+TuiIgblnnx8ndE3TPPj5O6IiBuWefHyd0Tcs8+Pk7oiIG5Z58fJ3RNyzz4+TuiIgbpnnx8ndFIiZ58fJ3REQN0zz4+TuijdM8+Pk7oiIG5Z58fJ3RNyzj+vj5O6IiCBEzz4+Tuibpnnx8ndERBIhZ58fJ3RNyzz4+TuiIgblnnx8ndE3LPPj5O6IiBuWefHyd0TdM8+Pk7oiIG5Z58fJ3RNyzz4+TuiIg//9k=" alt="Today's top bar: the omaseed mark and name, the server line 'private · qBittorrent 5.2.3 ▾ · port 27643 not reachable', download 4.22 MB/s, upload 0 with '0 today', the tabs library, seed and log with their keys, the filter field, the alt-speed button, add, settings, more and help." width="1850" height="72">
+      <img class="shot" src="data:image/jpeg;base64,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" alt="Today's footer: 4 torrents, 2 downloading, 1.34 TB free, then nine key hints (j k move, space select, enter actions, p stop/start, d delete, o folder, / filter) and ': commands', '? help' at the right." width="1850" height="32">
+      <figcaption><b>main today, after boards 33 and 35, omabox, frieren.</b> The top bar and the footer of the same window. Board 39 then added a "display" button to the top bar for its layouts.</figcaption>
+    </figure>
+    <div class="jobs">
+      <div class="job" style="--jc:var(--accent)"><span class="k">where am I</span><span class="big">mark · name · server ▾ · library seed log</span><span>The server line also carries warnings ("port not reachable"). The views are tabs with their keys beside them.</span></div>
+      <div class="job" style="--jc:var(--green)"><span class="k">what's happening</span><span class="big">↓ 4.22 MB/s · ↑ 0 · 0 today</span><span>The biggest type in the window. The count and free space that belong with them sit at the other end, in the footer.</span></div>
+      <div class="job" style="--jc:var(--yellow)"><span class="k">what can I do</span><span class="big">filter · + add · (display)</span><span>The two things you do from the top bar every day, and board 39's new one.</span></div>
+      <div class="job" style="--jc:var(--red)"><span class="k">the rest</span><span class="big">alt speed · settings · more · help</span><span>Four icon buttons. More and help are the only ways in for a mouse user; settings and alt speed have keys.</span></div>
+    </div>
+    <ul>
+      <li><b>Eleven controls in one row</b> (twelve with board 39's display), and at 720 px every one of them still has to fit.</li>
+      <li><b>About twenty key labels are on screen at once:</b> the two view tabs, four detail tabs, nine footer hints, "commands" and "help". The footer teaches the table's keys even while you look at the log.</li>
+      <li><b>The servers ride on whatever surface a layout keeps.</b> Classic pins them under the rail (C12). Board 39's layouts have no rail, so it parked them at the end of its scope line: a second home for the same thing.</li>
+      <li><b>Status is split:</b> speeds at the top left, count and free space at the bottom left, the server at the top and again at the bottom of the rail.</li>
+    </ul>
+  </section>
+
+  <section id="s2">
+    <div class="sec-head"><div class="eyebrow">2 · the brief</div><h2>What any frame has to hold</h2></div>
+    <div class="needs">
+      <div class="need"><b>The same in every layout.</b><span>Board 39's layouts change the content area only. The rail, top and bottom stay put, so a layout switch never moves a control.</span></div>
+      <div class="need"><b>Servers in one place.</b><span>At every width, in every layout. With two or more, a way to the others is always on screen; with one, nothing offers to switch (C12, D19).</span></div>
+      <div class="need"><b>A place to pick the scope.</b><span>Board 39 recommends a layout remembered per category or tracker (its D4). That needs the categories and trackers somewhere you can see and pick.</span></div>
+      <div class="need"><b>A home for the notice.</b><span>docs/35's band when a server stops answering or refuses the sign-in, with retry, edit login and switch server.</span></div>
+      <div class="need"><b>720 px.</b><span>Half of a 1440 px screen when Hyprland tiles two windows. The frame has to keep its shape there, not shed half its buttons.</span></div>
+      <div class="need"><b>Keyboard-only and screen reader.</b><span>Every control reachable without the mouse; a reading order that follows the regions; names without keys or glyphs (#78).</span></div>
+      <div class="need"><b>Omarchy.</b><span>Theme roles, square corners, the monospace face. The bar widget already shows speeds and the server's state on every workspace (docs/20, C13).</span></div>
+      <div class="need"><b>Room to grow.</b><span>Engines (board 36, C14) will add a server's engine and hidden features. A frame full on day one has no room for them.</span></div>
+    </div>
+  </section>
+
+  <section id="s3">
+    <div class="sec-head"><div class="eyebrow">3 · try it</div><h2>One window, seven frames</h2></div>
+    <p>Pick a frame, then try it with the classic table or board 39's rows, at full width and at 720 px, with one server or two, and with the current server failing. "Keys" switches how shortcuts are shown (§6); with "on demand + alt", hold <kbd>alt</kbd> over the page (or hold the button) to see every key. Click the server, the menu and the command field to open what they open; click a row to select it.</p>
+    <div class="ctl" id="ctl">
+      <div class="row"><span class="lbl">frame</span>
+        <button type="button" data-set="c" data-v="T">T · today</button>
+        <button type="button" data-set="c" data-v="A">A · sidebar</button>
+        <button type="button" data-set="c" data-v="B">B · command</button>
+        <button type="button" data-set="c" data-v="C">C · panes + status line</button>
+        <button type="button" data-set="c" data-v="D">D · server strip</button>
+        <button type="button" data-set="c" data-v="E">E · Omarchy carries the live</button>
+        <button type="button" data-set="c" data-v="F">F · pane headers</button>
+      </div>
+      <div class="row"><span class="lbl">content</span>
+        <button type="button" data-set="content" data-v="classic">classic table</button>
+        <button type="button" data-set="content" data-v="rows">rows that speak (board 39)</button>
+        <span class="lbl" style="margin-left:14px">width</span>
+        <button type="button" data-set="w" data-v="full">full · 1180</button>
+        <button type="button" data-set="w" data-v="narrow">720 px</button>
+        <span class="lbl" style="margin-left:14px">details</span>
+        <button type="button" data-set="det" data-v="on">open</button>
+        <button type="button" data-set="det" data-v="off">closed</button>
+      </div>
+      <div class="row"><span class="lbl">servers</span>
+        <button type="button" data-set="n" data-v="1">one</button>
+        <button type="button" data-set="n" data-v="2">two</button>
+        <span class="lbl" style="margin-left:14px">home</span>
+        <button type="button" data-set="st" data-v="ok">answers</button>
+        <button type="button" data-set="st" data-v="down">didn't answer (yellow)</button>
+        <button type="button" data-set="st" data-v="refused">refused the sign-in (red)</button>
+      </div>
+      <div class="row"><span class="lbl">keys</span>
+        <button type="button" data-set="keys" data-v="painted">painted (today)</button>
+        <button type="button" data-set="keys" data-v="demand">on demand</button>
+        <button type="button" data-set="keys" data-v="reveal">on demand + alt</button>
+        <button type="button" class="hold" id="hold" aria-pressed="false">hold to show keys</button>
+      </div>
+    </div>
+    <div class="stage" data-stage id="stage"></div>
+  </section>
+
+  <section id="s4">
+    <div class="sec-head"><div class="eyebrow">4 · the frames</div><h2>Six ideas, and today for comparison</h2></div>
+    <p>Each is a different answer to "what is the outermost thing": the app's places (A), a command (B), a terminal's panes (C), the server (D), the desktop (E), or each pane on its own (F). The button by each name loads it in §3.</p>
+    <div id="cards" style="display:grid;gap:30px"></div>
+  </section>
+
+  <section id="s5">
+    <div class="sec-head"><div class="eyebrow">5 · side by side</div><h2>Where everything goes, and what each is good at</h2></div>
+    <div class="scroll"><table class="t" id="placeT"></table></div>
+    <div class="scroll"><table class="t" id="scoreT"></table></div>
+    <p class="dim" style="font-size:12px"><span style="color:var(--green)">yes</span> works well · <span style="color:var(--yellow)">partly</span> works with a cost · <span style="color:var(--red)">no</span> fails the brief in §2.</p>
+  </section>
+
+  <section id="s6">
+    <div class="sec-head"><div class="eyebrow">6 · teaching the keys</div><h2>Show keys where people look for them, not everywhere</h2></div>
+    <p>omaseed stays keyboard-first. The question is only where the keys are written. Try each with "keys" in §3.</p>
+    <div class="needs">
+      <div class="need"><b>K1 · painted (today)</b><span>Keys beside tabs, under the table in the footer, beside detail tabs. Learnable at a glance, but about twenty labels sit on screen at all times, most of them about the table even when it isn't in focus.</span></div>
+      <div class="need"><b>K2 · on demand</b><span>Keys appear where you go looking: a tooltip ("retry now · R"), right-aligned in every menu as desktop menus do, beside every command in the palette, and the <kbd>?</kbd> sheet. The footer carries status only and ends in one quiet "? keys". The palette becomes the teacher: run a command once from it and you've seen its key.</span></div>
+      <div class="need"><b>K3 · on demand, plus alt (recommended)</b><span>K2, and while <kbd>alt</kbd> is held every control shows its key as a small badge, as Vimium's link hints and Office's key tips do. Nothing is painted until you ask, and the whole map is one key away. Alt has no binding in <code>Keymap</code> today, and Omarchy's own bindings use super.</span></div>
+      <div class="need"><b>K4 · painted, then fading</b><span>K1 for the first two weeks (or the first 100 launches), then K2. Kind to newcomers, but the window changes under you one day, and a returning user has to find the setting to get the hints back.</span></div>
+    </div>
+    <ul>
+      <li><b>Screen readers are not affected by any of them:</b> since #78 a control's name never contains its key; the key is its description.</li>
+      <li><b>Board 39 used <kbd>v</kbd> for "display".</b> <kbd>v</kbd> is already the range select. The mocks here give display no key; it is in the menu and the palette.</li>
+      <li><b>The detail tabs' 1–4</b> stay keys under every option; only their labels go.</li>
+    </ul>
+  </section>
+
+  <section id="s7">
+    <div class="sec-head"><div class="eyebrow">7 · board 39 in the frame</div><h2>The frame holds still; the content changes</h2></div>
+    <ul>
+      <li><b>One frame for every layout.</b> Classic, rows, flow, shelves, map and places all sit in the same content area. Nothing around them moves when you switch.</li>
+      <li><b>The rail is the scope.</b> Board 39 replaced the rail with a line of chips in its new layouts (its D7). With frame A the rail stays in every layout, so that line goes, and so does its second home for the servers.</li>
+      <li><b>Display sits at the head of the content</b>, beside the scope's name, because it changes the content and nothing else. It is remembered per scope, as board 39's D4 recommends ("movies" as shelves, "all" as rows).</li>
+      <li><b>At 720 px</b> the rail becomes icons with the server dots at its foot, so the servers are still bottom left.</li>
+    </ul>
+  </section>
+
+  <section id="s8">
+    <div class="sec-head"><div class="eyebrow">8 · what changes</div><h2>What the recommended path would replace</h2></div>
+    <p>Each of these is a ruled thing. Nothing here changes it until you rule on this board; the build would then record a new entry in <code>docs/DECISIONS.md</code> that supersedes them.</p>
+    <div class="scroll"><table class="t">
+      <tr><th>ruled</th><th>today</th><th>with A + K3</th></tr>
+      <tr><td>v2 hero (docs/05)</td><td>name, server line, speeds, views, filter, buttons in one row</td><td>top bar keeps the scope's name, display, filter and add</td></tr>
+      <tr><td>#24 views</td><td>library · seed · log as tabs in the hero</td><td>the first three rows of the rail</td></tr>
+      <tr><td>C12 D3, D14</td><td>the hero's server line with ▾ and its tooltip</td><td>no server line at the top; the rail's block (unchanged) and <kbd>ctrl+s</kbd></td></tr>
+      <tr><td>C12 rail (D1, D7, D12, D16–D18)</td><td>block pinned under the rail's scroll, fold with <kbd>z</kbd></td><td>kept as it is; at 720 px it becomes dots at the icon rail's foot</td></tr>
+      <tr><td>docs/35 N1</td><td>the notice spans the window under the hero</td><td>the notice spans the content under the top bar; the rail stays usable beside it</td></tr>
+      <tr><td>v2 footer, <code>HintModel</code></td><td>count, free space, then the focused view's key hints</td><td>a status line: server, speeds (click: alt speed), count, free space, sync; "? keys" at the end</td></tr>
+      <tr><td><kbd>ctrl+b</kbd> (docs/08 §5)</td><td>hides the rail; its filters show as chips in the hero</td><td>folds the rail to icons; nothing moves to the top bar</td></tr>
+      <tr><td>M16</td><td>the footer's note sits after the facts</td><td>unchanged, in the status line</td></tr>
+      <tr><td>board 39 D7</td><td>scope line in the new layouts, servers at its end</td><td>dropped: the rail is the scope in every layout</td></tr>
+    </table></div>
+  </section>
+
+  <section id="s9">
+    <div class="sec-head"><div class="eyebrow">9 · your calls</div><h2>The frame, before any layout</h2></div>
+    <p>Recommended options are preselected. Change what you disagree with and paste the block back into a session. A "yes" here is the frame board 39's layouts are then drawn into; the build waits for that.</p>
+    <div class="dec" id="dec"></div>
+    <div class="out">
+      <label for="answers" class="eyebrow">your answers</label>
+      <textarea id="answers" readonly></textarea>
+      <div style="display:flex;gap:12px;align-items:center"><button type="button" id="copy">copy</button><span class="ok" id="copied" hidden>copied</span></div>
+    </div>
+  </section>
+</main>
+
+<script>
+(() => {
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+
+/* ---------- example data, modelled on the playground (board 39's) ---------- */
+const T = [
+  { id:"arch", raw:"archlinux-2026.10.01-x86_64.iso", title:"Arch Linux", chips:["2026.10.01","x86_64"], cat:"linux", tr:"archlinux.org", size:1.31, prog:.489, st:"dl", dl:1840, ul:112, eta:160, seeds:21, peers:42, ratio:.21 },
+  { id:"fedora", raw:"Fedora-Workstation-Live-x86_64-44-1.6.iso", title:"Fedora Workstation 44", chips:["live","x86_64"], cat:"linux", tr:"fedoraproject.org", size:2.34, prog:.124, st:"dl", dl:1020, ul:0, eta:1140, seeds:8, peers:19, ratio:0 },
+  { id:"cosmos", raw:"Cosmos.Laundromat.2015.2160p.WEB-DL.CC-BY", title:"Cosmos Laundromat", chips:["2015","2160p","WEB-DL"], cat:"movies", tr:"academictorrents.com", size:1.84, prog:.872, st:"dl", dl:940, ul:220, eta:425, seeds:40, peers:12, ratio:.21 },
+  { id:"debian", raw:"debian-13.1.0-amd64-DVD-1.iso", title:"Debian 13.1.0", chips:["DVD 1","amd64"], cat:"linux", tr:"debian.org", size:3.98, prog:.031, st:"dl", dl:410, ul:0, eta:9660, seeds:3, peers:6, ratio:0 },
+  { id:"enwiki", raw:"enwiki-20261001-pages-articles-multistream.xml.bz2", title:"Wikipedia (English)", chips:["articles","1 Oct 2026"], cat:"data", tr:"academictorrents.com", size:24.7, prog:.61, st:"dl", dl:3120, ul:40, eta:3080, seeds:14, peers:9, ratio:.02 },
+  { id:"elephants", raw:"Elephants.Dream.2006.1080p.BluRay.x264", title:"Elephants Dream", chips:["2006","1080p","BluRay"], cat:"movies", tr:"opentrackr.org", size:0.81, prog:.64, st:"check", dl:0, ul:0, eta:40, seeds:0, peers:0, ratio:1.2 },
+  { id:"spring", raw:"magnet: Spring.2019.2160p.Blender.Open.Movie", title:"Spring", chips:["2019","2160p"], cat:"movies", tr:"opentrackr.org", size:0, prog:0, st:"meta", dl:0, ul:0, eta:-1, seeds:0, peers:12, ratio:0 },
+  { id:"omarchy", raw:"omarchy-4.0.4-x86_64.iso", title:"Omarchy 4.0.4", chips:["x86_64"], cat:"linux", tr:"opentrackr.org", size:1.95, prog:0, st:"queue", dl:0, ul:0, eta:-1, seeds:4, peers:0, ratio:0 },
+  { id:"nixos", raw:"nixos-minimal-26.05-x86_64-linux.iso", title:"NixOS 26.05", chips:["minimal","x86_64"], cat:"linux", tr:"opentrackr.org", size:1.02, prog:.227, st:"stall", dl:0, ul:0, eta:-1, seeds:0, peers:2, ratio:0, lastSeed:"2 h" },
+  { id:"tears", raw:"Tears.of.Steel.2012.2160p.WEB-DL", title:"Tears of Steel", chips:["2012","2160p"], cat:"movies", tr:"academictorrents.com", size:6.32, prog:1, st:"err", dl:0, ul:0, eta:-1, seeds:31, peers:4, ratio:1.4 },
+  { id:"sintel", raw:"Sintel.2010.1080p.BluRay.x264-CC", title:"Sintel", chips:["2010","1080p"], cat:"movies", tr:"opentrackr.org", size:1.12, prog:1, st:"seed", dl:0, ul:96, eta:-1, seeds:22, peers:3, ratio:.12, landed:"2 h ago", goal:1 },
+  { id:"libre", raw:"LibreOffice_26.8.1_Linux_x86-64_rpm.tar.gz", title:"LibreOffice 26.8.1", chips:["rpm","x86-64"], cat:"apps", tr:"opentrackr.org", size:0.27, prog:1, st:"seed", dl:0, ul:30, eta:-1, seeds:9, peers:1, ratio:.64, goal:1 },
+  { id:"ubuntu", raw:"ubuntu-26.04.1-desktop-amd64.iso", title:"Ubuntu 26.04.1 LTS", chips:["desktop","amd64"], cat:"linux", tr:"torrent.ubuntu.com", size:6.1, prog:1, st:"seed", dl:0, ul:210, eta:-1, seeds:4, peers:14, ratio:2.4, goal:2 },
+  { id:"bbb", raw:"Big.Buck.Bunny.2008.2160p.60fps.CC-BY", title:"Big Buck Bunny", chips:["2008","2160p","60fps"], cat:"movies", tr:"academictorrents.com", size:10.2, prog:1, st:"seed", dl:0, ul:160, eta:-1, seeds:58, peers:6, ratio:3.1, goal:2 },
+  { id:"blender", raw:"blender-5.1.0-linux-x64.tar.xz", title:"Blender 5.1 LTS", chips:["linux","x64"], cat:"apps", tr:"opentrackr.org", size:0.38, prog:1, st:"seed", dl:0, ul:80, eta:-1, seeds:17, peers:2, ratio:.81, goal:1 },
+  { id:"osm", raw:"planet-261005.osm.pbf", title:"OpenStreetMap Planet", chips:["5 Oct 2026","pbf"], cat:"data", tr:"academictorrents.com", size:81.4, prog:1, st:"stop", dl:0, ul:0, eta:-1, seeds:12, peers:0, ratio:1.87 },
+  { id:"macleod", raw:"Kevin MacLeod - Royalty Free Collection (2025) [FLAC]", title:"Kevin MacLeod Collection", chips:["2025","FLAC"], cat:"music", tr:"opentrackr.org", size:4.6, prog:1, st:"stop", dl:0, ul:0, eta:-1, seeds:5, peers:0, ratio:.4 },
+];
+const CATS = ["linux","movies","apps","data","music"];
+const TRACKERS = ["academictorrents.com","opentrackr.org","archlinux.org","fedoraproject.org"];
+const SERVERS = [
+  { id:"home", addr:"127.0.0.1:8080", ver:"qBittorrent 5.2.3", n:17 },
+  { id:"nas", addr:"nas.lan:8080", ver:"qBittorrent 5.1.2", n:42 },
+];
+/* core/ErrorWords' lines, as board 39 has them */
+const WORDS = {
+  down:{ kc:"--t-yellow", cls:"warn", head:"home didn't answer", line:"Nothing is listening at 127.0.0.1:8080. The list below is from 11:52. omaseed tries again in 10 s.", act:"retry now", top:"unreachable", rail:"down" },
+  refused:{ kc:"--t-red", cls:"bad", head:"home refused the sign-in", line:"The username or password omaseed has for it is wrong. It won't try again until you change them.", act:"edit login", top:"sign-in refused", rail:"!" },
+};
+const STATE = {
+  dl:{ g:"↓", c:"--s-dl", w:"downloading" }, seed:{ g:"↑", c:"--s-seed", w:"seeding" },
+  stall:{ g:"◌", c:"--s-stall", w:"stalled" }, err:{ g:"!", c:"--s-err", w:"errored" },
+  check:{ g:"↻", c:"--s-check", w:"checking" }, queue:{ g:"≡", c:"--s-queue", w:"queued" },
+  stop:{ g:"■", c:"--s-stop", w:"stopped" }, meta:{ g:"⋯", c:"--s-meta", w:"metadata" },
+};
+const STATUS = [
+  ["all","◆","all",() => true], ["dl","↓","downloading",t => t.st === "dl" || t.st === "meta"],
+  ["seed","↑","seeding",t => t.st === "seed"], ["stall","◌","stalled",t => t.st === "stall"],
+  ["stop","■","stopped",t => t.st === "stop"], ["err","!","errored",t => t.st === "err"],
+];
+const v = n => `var(${n})`;
+const fSpeed = k => k >= 1000 ? (k / 1000).toFixed(2) + " MB/s" : k + " KB/s";
+const fSize = g => g >= 1 ? (g >= 10 ? g.toFixed(1) : g.toFixed(2)) + " GB" : g * 1024 >= 1 ? Math.round(g * 1024) + " MB" : "—";
+const fEta = s => s < 0 ? "∞" : s < 60 ? s + " s" : s < 3600 ? Math.round(s / 60) + " min" : Math.floor(s / 3600) + " h " + String(Math.round((s % 3600) / 60)).padStart(2, "0");
+const pct = p => (p * 100).toFixed(p < .1 ? 1 : 0) + " %";
+function rng(seed) { let a = 0; for (const ch of seed) a = (a * 31 + ch.charCodeAt(0)) | 0; return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function pieces(t, n) {
+  const r = rng(t.id + n), out = new Array(n).fill(0), have = Math.round(t.prog * n), idx = [...Array(n).keys()];
+  idx.sort((a, b) => (a + r() * n * .35) - (b + r() * n * .35));
+  for (let i = 0; i < have; i++) out[idx[i]] = 2;
+  if (t.st === "dl") for (let i = have; i < Math.min(n, have + 1); i++) out[idx[i]] = 1;
+  return out;
+}
+function say(t) {
+  switch (t.st) {
+    case "dl": return { big:fEta(t.eta), sm:"to ready", line:`<b>${pct(t.prog)}</b> of ${fSize(t.size)} · from <b>${t.seeds}</b> seeds at <b>${fSpeed(t.dl)}</b>` };
+    case "seed": return t.landed ? { big:t.landed, sm:"landed", line:`landed ${t.landed} · giving to ${t.peers} at <b>${fSpeed(t.ul)}</b> · not opened yet` }
+      : { big:t.ratio.toFixed(2) + "×", sm:"given back", line:`giving to <b>${t.peers}</b> at <b>${fSpeed(t.ul)}</b>` + (t.ratio >= t.goal ? " · goal reached" : ` · goal ${t.goal.toFixed(1)}×`) };
+    case "stall": return { big:"waiting", sm:"no seed", line:`no seed online · one was last seen <b>${t.lastSeed} ago</b>` };
+    case "err": return { big:"files missing", sm:"needs you", line:`the folder is gone from <b>/data/torrents/movies</b>` };
+    case "check": return { big:"checking", sm:pct(t.prog), line:`making sure the files on disk are whole · about ${fEta(t.eta)} left` };
+    case "queue": return { big:"next", sm:"in line", line:`starts when a download slot frees · <b>first in line</b>` };
+    case "meta": return { big:"finding files", sm:"magnet", line:`asking <b>${t.peers} peers</b> for the file list` };
+    default: return { big:"resting", sm:"stopped", line:`stopped · ratio ${t.ratio.toFixed(2)} · ${fSize(t.size)} on disk` };
+  }
+}
+
+/* ---------- state ---------- */
+const S = { c:"A", content:"classic", w:"full", det:"on", n:"2", st:"ok", keys:"reveal", view:"library", scope:"all", fold:false, ov:null, sel:"cosmos", reveal:false };
+const narrow = () => S.w === "narrow";
+const two = () => S.n === "2";
+const down = () => S.st !== "ok";
+const W = () => WORDS[S.st];
+const painted = () => S.keys === "painted";
+const pk = k => painted() ? `<span class="pk">${k}</span>` : "";
+const tip = (name, key) => key ? `title="${name} · ${key}" data-k="${key}"` : `title="${name}"`;
+const curDot = () => S.st === "down" ? v("--t-yellow") : S.st === "refused" ? v("--t-red") : v("--t-green");
+const list = () => {
+  const st = STATUS.find(s => s[0] === S.scope);
+  if (st) return T.filter(st[3]);
+  if (CATS.includes(S.scope)) return T.filter(t => t.cat === S.scope);
+  return T.filter(t => t.tr === S.scope);
+};
+const scopeName = () => { const st = STATUS.find(s => s[0] === S.scope); return st ? (S.scope === "all" ? "all torrents" : st[2]) : S.scope; };
+const totals = () => {
+  const L = list(), dl = L.reduce((a, t) => a + t.dl, 0), ul = L.reduce((a, t) => a + t.ul, 0);
+  return { n:L.length, dling:L.filter(t => t.st === "dl").length, dl:down() ? "—" : fSpeed(T.reduce((a, t) => a + t.dl, 0)), ul:down() ? "—" : fSpeed(T.reduce((a, t) => a + t.ul, 0)), sdl:dl, sul:ul };
+};
+
+/* ---------- shared pieces ---------- */
+function railFilters(withViews) {
+  const row = (key, g, label, n) => `<button class="rr ${S.scope === key && S.view === "library" ? "on" : ""}" data-scope="${key}"><span class="g">${g}</span><span>${label}</span><span class="c">${n}</span></button>`;
+  const views = withViews ? `${viewRows()}<div class="rsep"></div>` : "";
+  return `<div class="rfil">${views}<div class="cap">status</div>${STATUS.map(s => row(s[0], s[1], s[2], T.filter(s[3]).length)).join("")}
+    <div class="cap">categories</div>${CATS.map(c => row(c, "▭", c, T.filter(t => t.cat === c).length)).join("")}
+    <div class="cap">trackers</div>${TRACKERS.map(tr => row(tr, "·", tr, T.filter(t => t.tr === tr).length)).join("")}</div>`;
+}
+function viewRows() {
+  const r = (key, g, label, k, n) => `<button class="rr view ${S.view === key ? "on" : ""}" data-view="${key}" ${tip(label, k)}><span class="g">${g}</span><span>${label}${pk(k)}</span><span class="c">${n}</span></button>`;
+  return r("library", "▤", "library", "", T.length) + r("seed", "↑", "seed", "`", "") + r("log", "≡", "log", "~", "");
+}
+function srvBlock() {
+  if (!two()) return "";
+  const cur = SERVERS[0];
+  if (S.fold) return `<div class="rsrv"><button class="folded" data-act="fold" ${tip("unfold servers", "z")}><span class="sdot" style="background:${curDot()}"></span><span>${cur.id} ▴</span><span class="c">2 servers</span></button></div>`;
+  const rows = SERVERS.map((s, i) => {
+    const c = i === 0 ? (down() ? `<span class="c ${S.st === "down" ? "down" : "bad"}">${W().rail}</span>` : `<span class="c">${s.n}</span>`) : `<span class="c">${s.n}</span>`;
+    return `<button class="rr ${i === 0 ? "on" : ""}" data-act="spal"><span class="sdot" style="background:${i === 0 ? curDot() : v("--t-dim")}"></span><span>${s.id}</span>${c}</button>`;
+  }).join("");
+  return `<div class="rsrv"><button class="sh" data-act="fold" ${tip("fold servers", "z")}><span class="cap">servers · 2</span><span class="fold">▾</span></button>${rows}</div>`;
+}
+function notice(docked) {
+  if (!down()) return "";
+  const w = W();
+  return `<div class="notice ${docked ? "docked" : ""}" style="--kc:${v(w.kc)}"><span class="g">!</span><span class="h">${w.head}</span>
+    <span class="a"><button ${tip(w.act, S.st === "down" ? "R" : "")}>${w.act}</button>${two() ? `<button data-act="spal" ${tip("switch server", "ctrl+s")}>switch server</button>` : ""}<button class="d">details ›</button></span>
+    <span class="l">${w.line}</span></div>`;
+}
+function speedsFoot() {
+  const t = totals();
+  return `<button class="sp" ${tip("alt speed", "A")}><span class="d"><i>↓</i><b>${t.dl}</b></span><span class="u"><i>↑</i><b>${t.ul}</b></span></button>`;
+}
+function statusText(short) {
+  const t = totals();
+  return short ? `<span><b>${t.n}</b> torrents</span>` : `<span><b>${t.n}</b> torrents · <b>${t.dling}</b> downloading · <b>1.34 TB</b> free</span>`;
+}
+function syncText() { return down() ? `<span>last sync <b>11:52</b></span>` : `<span>synced <b>now</b></span>`; }
+function hintsTail(extraPainted) {
+  if (painted()) return `<span><span class="k">:</span> commands · <span class="k">?</span> help</span>`;
+  return `<span class="grow"></span><button ${tip("keys", "?")}>? keys${S.keys === "reveal" ? " · hold alt" : ""}</button>`;
+}
+function tableHints() {
+  if (!painted()) return "";
+  return `<span class="hints">${[["j k","move"],["space","select"],["enter","actions"],["p","stop/start"],["d","delete"],["o","folder"],["/","filter"]].map(([k, w]) => `<span><span class="k">${k}</span> ${w}</span>`).join("")}</span>`;
+}
+function searchBox(wide, label) {
+  return `<span class="search ${wide ? "wide" : ""}" ${tip("filter", "/")}>/ ${label || "filter"}${pk("/") ? "" : ""}<span>${list().length}</span></span>`;
+}
+function displayBtn(label) { return `<button class="ib txt" title="display: ${S.content === "classic" ? "table" : "rows"}"><span>${label || "display"}</span><span style="color:var(--t-dim)">${S.content === "classic" ? "table" : "rows"} ▾</span></button>`; }
+function addBtn(txt) { return `<button class="ib primary ${txt ? "txt" : ""}" ${tip("add torrent", "a")}>${txt ? "+ add" : "+"}${txt ? pk("a") : ""}</button>`; }
+
+/* ---------- content ---------- */
+function content(cw) {
+  const stale = down() ? "stale" : "";
+  if (S.view !== "library") {
+    const what = S.view === "seed" ? ["the seed console", "board 22's console, unchanged by this board."] : ["qBittorrent's log", "board 32's log face, unchanged by this board."];
+    return `<div class="scrollY ${stale}"><div class="ph"><b>${what[0]}</b><span>${what[1]}</span></div></div>`;
+  }
+  const L = list();
+  if (S.content === "classic") {
+    const compact = cw < 760, tiny = cw < 520;
+    const cols = tiny ? [["Name","auto"],["Status","140px"],["ETA","72px"]]
+      : compact ? [["Name","auto"],["Progress","134px"],["Status","140px"],["ETA","72px"]]
+      : [["Name","auto"],["Size","80px"],["Progress","134px"],["Status","140px"],["↓","92px"],["↑","88px"],["ETA","70px"],["Ratio","60px"]];
+    const cell = (c, t) => {
+      const s = STATE[t.st];
+      switch (c) {
+        case "Name": return `<td>${t.raw}</td>`;
+        case "Size": return `<td class="num">${fSize(t.size)}</td>`;
+        case "Progress": return `<td><span class="pbar1"><i style="width:${t.prog * 100}%;background:${v(s.c)}"></i></span>${pct(t.prog)}</td>`;
+        case "Status": return `<td><span style="color:${v(s.c)}">${s.g}</span> ${s.w}</td>`;
+        case "↓": return `<td class="num">${t.dl ? fSpeed(t.dl) : "0"}</td>`;
+        case "↑": return `<td class="num">${t.ul ? fSpeed(t.ul) : "0"}</td>`;
+        case "ETA": return `<td class="num">${fEta(t.eta)}</td>`;
+        case "Ratio": return `<td class="num">${t.ratio.toFixed(2)}</td>`;
+      }
+    };
+    return `<div class="scrollY ${stale}"><table class="ctab"><colgroup>${cols.map(c => `<col style="width:${c[1]}">`).join("")}</colgroup>
+      <tr>${cols.map(c => `<th class="${["Size","↓","↑","ETA","Ratio"].includes(c[0]) ? "num" : ""}">${c[0]}</th>`).join("")}</tr>
+      ${L.map(t => `<tr class="r ${S.sel === t.id ? "sel" : ""}" data-sel="${t.id}">${cols.map(c => cell(c[0], t)).join("")}</tr>`).join("")}</table></div>`;
+  }
+  const groups = [["arriving", t => ["dl","meta","check","queue"].includes(t.st)], ["needs you", t => ["err","stall"].includes(t.st)], ["seeding", t => t.st === "seed"], ["resting", t => t.st === "stop"]];
+  const short = cw < 620;
+  return `<div class="scrollY ${stale}">${groups.map(([name, f]) => {
+    const g = L.filter(f); if (!g.length) return "";
+    return `<div class="grp"><span class="cap">${name}</span><span class="agg">${g.length}</span></div>` + g.map(t => {
+      const s = STATE[t.st], w = say(t), p = pieces(t, 40);
+      const pc = ["var(--f8)", "color-mix(in srgb, " + v(s.c) + " 45%, transparent)", v(s.c)];
+      return `<div class="srow ${S.sel === t.id ? "sel" : ""}" data-sel="${t.id}" style="${short ? "grid-template-columns:22px minmax(0,1fr) 96px" : ""}">
+        <span class="g" style="color:${v(s.c)}">${s.g}</span>
+        <div class="t1"><span class="tt">${t.title}</span>${short ? "" : `<span class="chips">${t.chips.join(" · ")}</span>`}</div>
+        <div class="when">${w.big}<small>${w.sm}</small></div>
+        <div class="t2" style="${short ? "grid-template-columns:minmax(0,1fr)" : ""}"><span class="pbar">${p.map(x => `<i style="background:${pc[x]}"></i>`).join("")}</span>${short ? "" : `<span class="say">${w.line}</span>`}</div>
+      </div>`;
+    }).join("");
+  }).join("")}</div>`;
+}
+function details(head) {
+  const t = T.find(x => x.id === S.sel) || T[2], w = say(t), s = STATE[t.st];
+  const tabs = ["General","Files","Trackers","Peers"].map((n, i) => `<span class="${i ? "" : "on"}" data-k="${i + 1}">${n}${pk(i + 1)}</span>`).join("");
+  return `<aside class="det">${head || `<div class="dh"><b>${t.title}</b><span>${t.raw}</span></div>`}
+    <div class="now"><div class="big" style="color:${v(s.c)}">${w.big}</div><div class="say">${w.line}</div></div>
+    <div class="dtabs">${tabs}</div>
+    <div class="kv"><span>size</span><span>${fSize(t.size)}</span><span>done</span><span>${pct(t.prog)}</span><span>ratio</span><span>${t.ratio.toFixed(2)}</span><span>eta</span><span>${fEta(t.eta)}</span><span>seeds</span><span>${t.seeds} · ${t.peers} peers</span><span>tracker</span><span>${t.tr}</span><span>category</span><span>${t.cat}</span></div></aside>`;
+}
+const detW = () => (S.det === "on" && !narrow() && S.view === "library") ? 300 : 0;
+const withDet = (cw, head) => detW() ? details(head) : "";
+function srvWord() {
+  if (down()) return `<span class="srv ${W().cls}"><span class="dot" style="background:${curDot()}"></span>home · ${W().top}${two() ? " ▾" : ""}</span>`;
+  return `<span class="srv"><span class="dot"></span>home${narrow() ? "" : " · qBittorrent 5.2.3"}${two() ? " ▾" : ""}</span>`;
+}
+
+/* ---------- overlays ---------- */
+function overlay() {
+  if (!S.ov) return "";
+  const pos = S.ovPos || "top:60px;left:50%;transform:translateX(-50%)";
+  const item = (g, label, key, cls = "", act = "") => `<button class="oi ${cls}" ${act ? `data-act="${act}"` : ""} ${key ? `data-k="${key}"` : ""}><span class="g">${g}</span><span>${label}</span><span class="key">${key || ""}</span></button>`;
+  if (S.ov === "spal") {
+    return `<div class="scrim" data-act="close"></div><div class="ov" style="${pos};width:${narrow() ? 520 : 600}px">
+      <div class="oh"><span class="cur"></span><span class="grow">switch to…</span><span style="font-size:var(--cap)">2 servers</span></div>
+      <button class="oi"><span class="g"><span class="sdot" style="background:${curDot()}"></span></span><span><b style="color:var(--t-bright);font-weight:500">home</b> <span style="color:var(--t-dim)">on it now</span></span><span class="key">${down() ? W().rail : "17"}</span><span class="s">127.0.0.1:8080 · qBittorrent 5.2.3</span></button>
+      <button class="oi cur"><span class="g"><span class="sdot" style="background:var(--t-dim)"></span></span><span><b style="color:var(--t-bright);font-weight:500">nas</b></span><span class="key">42 last time</span><span class="s">nas.lan:8080 · qBittorrent 5.1.2 · 42 torrents last time</span></button>
+      <div class="of"><span><b>enter</b> switch</span><span><b>,</b> edit in settings</span><span><b>esc</b> close</span></div></div>`;
+  }
+  if (S.ov === "menu") {
+    return `<div class="scrim" data-act="close"></div><div class="ov" style="${pos};width:330px">
+      ${item("⛭", "settings", ",")}${item("◫", "qBittorrent settings", "ctrl+shift+,")}${item("◠", "alt speed limits", "A")}
+      <div class="osep"></div>${item("▦", "columns", "|")}${item("⇅", "sort", "s")}${item("▤", "rail", "ctrl+b")}
+      <div class="osep"></div>${item(":", "all commands", ":")}${item("?", "keys and help", "?")}${item("▁", "hide window", "q")}${item("✕", "quit", "ctrl+q")}</div>`;
+  }
+  if (S.ov === "pal") {
+    return `<div class="scrim" data-act="close"></div><div class="ov" style="${pos};width:${narrow() ? 560 : 640}px">
+      <div class="oh"><span class="cur"></span><span class="grow">type a command, a torrent or a filter</span><span style="font-size:var(--cap)">:</span></div>
+      <div class="og cap">go to</div>${item("▤", "library", "")}${item("↑", "seed console", "`")}${item("≡", "log", "~")}
+      ${two() ? item("●", "switch server…", "ctrl+s", "", "spal") + item("●", "switch to nas", "") : ""}
+      <div class="og cap">this view</div>${item("▦", "display: table · rows · flow · shelves · map · places", "")}${item("/", "filter torrents", "/")}${item("⇅", "sort…", "s")}
+      <div class="og cap">do</div>${item("+", "add torrent", "a", "cur")}${item("◠", "alt speed on", "A")}${item("⛭", "settings", ",")}
+      <div class="of"><span><b>enter</b> run</span><span><b>tab</b> complete</span><span>every command shows its key</span></div></div>`;
+  }
+  return "";
+}
+
+/* ---------- the frames ---------- */
+const F = {};
+/* T: today (v2 hero + boards 33, 35 and 39's display) */
+F.T = () => {
+  const nw = narrow(), t = totals(), rail = nw ? 170 : 200, cw = (nw ? 720 : 1180) - rail - detW();
+  const hero = `<div class="bar" style="gap:${nw ? 6 : 12}px;${nw ? "padding:9px 10px" : ""}">
+    ${nw ? "" : `<span class="mark">◧</span>`}
+    <div class="nm"><b>omaseed</b><button data-act="spal" ${tip("switch server", two() ? "ctrl+s" : "")}>${srvWord()}</button></div>
+    ${nw ? `<span style="font-size:var(--small);color:var(--t-bright);white-space:nowrap"><span style="color:var(--s-dl)">↓</span>${down() ? "—" : "6.4M"} <span style="color:var(--s-seed)">↑</span>${down() ? "—" : "918K"}</span>`
+      : `<div class="hstat d"><span class="v"><i>↓</i>${t.dl}</span><span class="cap">download</span></div><div class="hstat u"><span class="v"><i>↑</i>${t.ul}</span><span class="cap">upload · 0 today</span></div>`}
+    <div class="views" style="margin-left:${nw ? 2 : 14}px;gap:${nw ? 10 : 14}px">${["library","seed","log"].map((x, i) => `<button class="${S.view === x ? "on" : ""}" data-view="${x}" ${tip(x, ["", "`", "~"][i])}>${x}${pk(["", "`", "~"][i])}</button>`).join("")}</div>
+    <span class="grow"></span>
+    ${nw ? `<button class="ib" ${tip("filter", "/")}>/</button>` : searchBox(false, "filter torrents")}
+    ${displayBtn(nw ? "" : "display")}
+    <button class="ib" ${tip("alt speed", "A")}>◠</button>${addBtn()}
+    <button class="ib" ${tip("settings", ",")}>⛭</button>
+    <button class="ib" data-act="menu" ${tip("more", "ctrl+.")}>⋯</button>
+    <button class="ib" ${tip("help", "?")}>?</button></div>`;
+  return { html:`${hero}${notice()}
+    <div class="row fill"><nav class="rail" style="width:${rail}px">${railFilters(false)}${srvBlock()}</nav>
+      <div class="col fill">${content(cw)}</div>${withDet(cw)}</div>
+    <div class="foot">${statusText(nw)}${painted() ? tableHints() : ""}${hintsTail()}</div>`,
+    menuPos:"top:48px;right:44px" };
+};
+/* A: the sidebar navigates (Linear, Mail) */
+F.A = () => {
+  const nw = narrow(), rail = nw ? 48 : 214, cw = (nw ? 720 : 1180) - rail - detW();
+  const railHtml = nw
+    ? `<nav class="irail"><button class="ii" data-act="menu" ${tip("omaseed menu", "ctrl+.")}><span class="mark" style="width:22px;height:22px">◧</span></button>
+        <button class="ii ${S.view === "library" ? "on" : ""}" data-view="library" ${tip("library", "")}>▤</button>
+        <button class="ii ${S.view === "seed" ? "on" : ""}" data-view="seed" ${tip("seed", "`")}>↑</button>
+        <button class="ii ${S.view === "log" ? "on" : ""}" data-view="log" ${tip("log", "~")}>≡</button>
+        <button class="ii" ${tip("filters", "ctrl+b")}>▭</button>
+        ${two() ? `<div class="isrv">${SERVERS.map((s, i) => `<button class="${i ? "" : "on"}" data-act="spal" ${tip(s.id, i ? "ctrl+s" : "")}>${s.id.slice(0, 2)}<span class="sdot" style="background:${i ? v("--t-dim") : curDot()}"></span></button>`).join("")}</div>` : ""}</nav>`
+    : `<nav class="rail full"><button class="rapp" data-act="menu" ${tip("omaseed menu", "ctrl+.")}><span class="mark">◧</span><b>omaseed</b><span class="chev">▾</span></button>${railFilters(true)}${srvBlock()}</nav>`;
+  const top = `<div class="bar">
+    <div class="ttl"><b>${S.view === "library" ? scopeName() : S.view}</b><span>${S.view === "library" ? list().length + " torrents" + (two() || down() ? " · on home" : "") : "on home"}</span></div>
+    <span class="grow"></span>${S.view === "library" ? displayBtn(nw ? "" : "display") : ""}${searchBox(false, nw ? "" : "filter")}${addBtn(!nw)}</div>`;
+  return { html:`<div class="row fill">${railHtml}
+    <div class="col fill">${top}${notice()}<div class="row fill"><div class="col fill">${content(cw)}</div>${withDet(cw)}</div>
+      <div class="foot">${nw ? "" : `<span style="display:flex;gap:6px;align-items:center"><span class="dot" style="background:${curDot()}"></span><b>home</b></span>`}${speedsFoot()}${statusText(nw)}${nw ? "" : syncText()}${painted() ? tableHints() : ""}${hintsTail()}</div></div></div>`,
+    menuPos: nw ? "top:40px;left:52px" : "top:44px;left:12px" };
+};
+/* B: command first (Raycast, Zed, Helix) */
+F.B = () => {
+  const nw = narrow(), cw = (nw ? 720 : 1180) - detW(), t = totals();
+  const crumbs = `<span data-act="spal" role="button" tabindex="0" ${tip("switch server", two() ? "ctrl+s" : "")} style="display:inline-flex;gap:6px;align-items:center;cursor:pointer;color:${down() ? v(W().kc) : "var(--t-bright)"}"><span class="dot" style="background:${curDot()}"></span>home</span><span style="color:var(--t-dim)">›</span><span style="color:var(--t-bright)">${S.view}</span>${S.view === "library" ? `<span style="color:var(--t-dim)">›</span><span style="color:var(--t-bright)">${scopeName()}</span><span style="color:var(--t-dim)">›</span><span style="color:var(--t-dim)">${S.content === "classic" ? "table" : "rows"}</span>` : ""}`;
+  const top = `<div class="bar" style="padding:8px 12px">
+    <div class="search wide" data-act="pal" role="button" tabindex="0" ${tip("commands", ":")} style="justify-content:flex-start;gap:10px;color:var(--t-fg);padding:5px 10px;cursor:pointer">${crumbs}<span class="grow"></span><span style="color:var(--t-dim)">${nw ? ":" : "type to filter · : commands"}</span></div>${addBtn()}</div>`;
+  const hov = `<span class="hov">⏸ stop · ⌂ folder · ✕ delete</span>`;
+  let body = content(cw);
+  if (S.content === "classic") body = body.replace(/(<tr class="r[^"]*" data-sel="[^"]+">)(<td>)([^<]*)(<\/td>)/g, (m, a, b, c, d) => `${a}${b}${c} ${hov}${d}`);
+  return { html:`${top}${notice()}<div class="row fill"><div class="col fill">${body}</div>${withDet(cw)}</div>
+    <div class="foot" style="padding:4px 12px">${speedsFoot()}${statusText(true)}${nw ? "" : syncText()}${painted() ? tableHints() : ""}${hintsTail()}</div>`,
+    palPos:"top:46px;left:50%;transform:translateX(-50%)" };
+};
+/* C: titled panes and a status line (btop, lazygit, tmux) */
+F.C = () => {
+  const nw = narrow(), side = nw ? 0 : 206, cw = (nw ? 720 : 1180) - side - detW() - 30, t = totals();
+  const tabs = `<div class="ctabs">${["library","seed","log"].map((x, i) => `<button class="${S.view === x ? "on" : ""}" data-view="${x}" ${tip(x, ["1","2","3"][i])}><span class="num">${i + 1}</span>${x}</button>`).join("")}</div>`;
+  const top = `<div class="bar" style="padding:6px 14px"><span class="mark" style="width:20px;height:20px;font-size:11px">◧</span><b style="color:var(--t-bright)">omaseed</b>${tabs}<span class="grow"></span>${searchBox(false, nw ? "" : "filter")}${addBtn(true)}<button class="ib" data-act="menu" ${tip("menu", "ctrl+.")}>⋯</button></div>`;
+  const sidePane = nw ? "" : `<div class="pane side"><div class="pt"><span>scope</span></div><div class="inner">${railFilters(false).replace('class="rfil"', 'class="rfil" style="padding-top:2px"')}</div></div>`;
+  const main = `<div class="pane fill" style="margin-left:${nw ? 8 : 0}px"><div class="pt"><span>${S.view === "library" ? `${scopeName()} <span class="n">${list().length}</span>` : S.view}</span>${S.view === "library" ? `<span class="r">display: ${S.content === "classic" ? "table" : "rows"} ▾</span>` : ""}</div><div class="inner"><div class="row fill"><div class="col fill">${content(cw)}</div>${withDet(cw)}</div></div></div>`;
+  const srvSeg = `<button class="seg srvseg ${down() ? W().cls : ""}" data-act="spal" ${tip("switch server", two() ? "ctrl+s" : "")}><span class="dot" style="background:${curDot()}"></span>HOME${down() ? " · " + W().top.toUpperCase() : ""}${two() ? " ▾" : ""}</button>`;
+  const sl = `<div class="sline">${srvSeg}<button class="seg" ${tip("alt speed", "A")}><i class="dl">↓</i>${t.dl}</button><span class="seg"><i class="ul">↑</i>${t.ul}</span>${nw ? "" : `<span class="seg">${t.n} torrents · ${t.dling} downloading</span><span class="seg">1.34 TB free</span><span class="seg">${down() ? "last sync 11:52" : "synced now"}</span>`}
+    <span class="seg plain grow"></span>${painted() ? `<span class="seg plain"><span class="k">j k</span> move <span class="k">enter</span> actions <span class="k">:</span> commands</span>` : ""}<button class="seg plain" ${tip("keys", "?")}>${painted() ? '<span class="k">?</span> help' : "? keys"}</button></div>`;
+  return { html:`${top}<div class="row fill">${sidePane}${main}</div>${notice(true)}${sl}`, menuPos:"top:40px;right:12px" };
+};
+/* D: servers as places (Discord, Slack workspaces, Arc spaces) */
+F.D = () => {
+  const nw = narrow(), strip = two() ? 56 : 0, rail = nw ? 0 : 196, cw = (nw ? 720 : 1180) - strip - rail - detW();
+  const stripHtml = two() ? `<nav class="strip">${SERVERS.map((s, i) => `<button class="sm ${i ? "" : "on"}" data-act="${i ? "spal" : ""}" ${tip(s.id, i ? "ctrl+2" : "ctrl+1")}>${s.id.slice(0, 2).toUpperCase()}${i === 0 && down() ? `<span class="sdot" style="background:${curDot()}"></span>` : ""}</button>`).join("")}
+    <button class="sm add" ${tip("add a server", "")}>+</button><div class="bot"><button class="ib bare" data-act="menu" ${tip("omaseed menu", "ctrl+.")}>⛭</button></div></nav>` : "";
+  const railHtml = nw ? "" : `<nav class="rail" style="width:${rail}px"><div class="rapp" style="padding:10px 14px 6px"><b>${two() ? "home" : "omaseed"}</b>${two() ? `<span class="chev" style="margin-left:auto">${down() ? `<span style="color:${v(W().kc)}">${W().rail}</span>` : "127.0.0.1:8080"}</span>` : ""}</div>${railFilters(true)}</nav>`;
+  const top = `<div class="bar">${nw ? `<button class="ib" ${tip("filters", "ctrl+b")}>▭</button>` : ""}<div class="ttl"><b>${S.view === "library" ? scopeName() : S.view}</b><span>${list().length} torrents</span></div><span class="grow"></span>${S.view === "library" ? displayBtn(nw ? "" : "display") : ""}${searchBox(false, nw ? "" : "filter")}${addBtn(!nw)}${two() ? "" : `<button class="ib" data-act="menu" ${tip("omaseed menu", "ctrl+.")}>⋯</button>`}</div>`;
+  return { html:`<div class="row fill">${stripHtml}${railHtml}<div class="col fill">${top}${notice()}<div class="row fill"><div class="col fill">${content(cw)}</div>${withDet(cw)}</div>
+    <div class="foot">${speedsFoot()}${statusText(nw)}${nw ? "" : syncText()}${painted() ? tableHints() : ""}${hintsTail()}</div></div></div>`,
+    menuPos: two() ? "bottom:12px;left:62px" : "top:46px;right:12px" };
+};
+/* E: Omarchy carries the live (the bar widget, the window title) */
+F.E = () => {
+  const nw = narrow(), rail = nw ? 0 : 200, cw = (nw ? 720 : 1180) - rail - detW();
+  const top = `<div class="bar">${nw ? `<button class="ib" ${tip("filters", "ctrl+b")}>▭</button>` : `<span class="mark">◧</span>`}
+    <div class="views">${["library","seed","log"].map((x, i) => `<button class="${S.view === x ? "on" : ""}" data-view="${x}" ${tip(x, ["", "`", "~"][i])}>${x}${pk(["", "`", "~"][i])}</button>`).join("")}</div>
+    <span class="grow"></span>${searchBox(!nw, nw ? "" : "filter " + scopeName())}<span class="grow" style="max-width:40px"></span>${S.view === "library" ? displayBtn("") : ""}${addBtn()}<button class="ib" data-act="menu" ${tip("omaseed menu", "ctrl+.")}>⋯</button></div>`;
+  const railHtml = nw ? "" : `<nav class="rail" style="width:${rail}px">${railFilters(false)}${srvBlock()}</nav>`;
+  const hint = painted() ? `<div class="foot">${tableHints()}${hintsTail()}</div>` : "";
+  return { html:`${top}${notice()}<div class="row fill">${railHtml}<div class="col fill">${content(cw)}</div>${withDet(cw)}</div>${hint}`, menuPos:"top:46px;right:12px" };
+};
+/* F: each pane has its own header (GNOME / libadwaita) */
+F.F = () => {
+  const nw = narrow(), side = nw ? 0 : 214, cw = (nw ? 720 : 1180) - side - detW(), t = totals();
+  const sideHead = `<div class="bar" style="padding:8px 10px;gap:6px"><button class="ib txt bare" data-act="spal" ${tip("switch server", two() ? "ctrl+s" : "")} style="flex:1;justify-content:flex-start;padding:0 6px"><span class="dot" style="background:${curDot()}"></span><b style="color:var(--t-bright);font-weight:600">home</b>${two() ? '<span style="color:var(--t-dim)">▾</span>' : ""}</button><button class="ib bare" data-act="menu" ${tip("main menu", "ctrl+.")}>☰</button></div>`;
+  const sideHtml = nw ? "" : `<nav class="rail" style="width:${side}px">${sideHead}${railFilters(true)}</nav>`;
+  const sub = down() ? `<span style="color:${v(W().kc)}">${W().top}</span>` : `<span><span style="color:var(--s-dl)">↓</span> ${t.dl} · <span style="color:var(--s-seed)">↑</span> ${t.ul}</span>`;
+  const contentHead = `<div class="bar" style="padding:7px 10px">${nw ? `<button class="ib bare" ${tip("show sidebar", "ctrl+b")}>◧${two() || down() ? `<span class="sdot" style="background:${curDot()};position:absolute;right:2px;top:2px"></span>` : ""}</button>` : ""}<button class="ib bare" ${tip("filter", "/")}>⌕</button>
+    <span class="grow"></span><div class="ttl center"><b>${S.view === "library" ? scopeName() : S.view}</b>${sub}</div><span class="grow"></span>
+    ${S.view === "library" ? displayBtn("") : ""}${addBtn()}</div>`;
+  const tt = T.find(x => x.id === S.sel) || T[2];
+  const detHead = `<div class="bar" style="padding:7px 10px"><div class="ttl"><b style="font-size:var(--body)">${tt.title}</b></div><span class="grow"></span><button class="ib bare" ${tip("stop", "p")}>‖</button><button class="ib bare" ${tip("open folder", "o")}>⌂</button><button class="ib bare" ${tip("actions", "enter")}>⋯</button></div>`;
+  return { html:`<div class="row fill">${sideHtml}<div class="col fill">${contentHead}${notice()}<div class="row fill"><div class="col fill">${content(cw)}</div>${detW() ? details(detHead) : ""}</div>${painted() ? `<div class="foot">${tableHints()}${hintsTail()}</div>` : ""}</div></div>`,
+    menuPos: nw ? "top:44px;left:12px" : "top:44px;left:150px" };
+};
+
+/* ---------- render ---------- */
+const CAPS = {
+  T:"<b>T · today.</b> The v2 hero with boards 33 and 35 built, plus board 39's display button. At 720 px this approximates docs/10's narrow steps: the version and the labels drop, every button stays.",
+  A:"<b>A · the sidebar navigates.</b> The rail runs the full height: the app's menu, the three views, the scope, the servers pinned at its foot. The top bar names the scope and holds display, filter and add. The status line carries the server, speeds (click: alt speed), count, free space and sync. At 720 px the rail becomes icons with the server dots at its foot.",
+  B:"<b>B · command first.</b> One field at the top is the breadcrumbs (server › view › scope › layout), the filter and the palette (click it). A row's actions show on hover. The rail opens as an overlay with ctrl+b.",
+  C:"<b>C · panes and a status line.</b> Titled panes as btop and lazygit draw them, numbered views on top, a status line whose first segment is the server. A failing server turns that segment yellow or red, and the notice docks above the status line (C12's docked form).",
+  D:"<b>D · servers as places.</b> A strip of server marks on the far left (only with two or more), each its own place with its own rail. The rail's head names the server. Set servers to one to see the strip go.",
+  E:"<b>E · Omarchy carries the live.</b> The bar widget (above, drawn) already shows speeds and the server; Hyprland's title says the rest. The window drops the speeds and the footer: views, a wide filter, display, add and one menu.",
+  F:"<b>F · pane headers.</b> GNOME's split view: the sidebar's header holds the server switcher and the main menu, the content's header its title, speeds as a subtitle and its tools, the details pane its own actions. The notice is a banner under the content header (libadwaita's AdwBanner). At 720 px the sidebar collapses into a button, and the server goes with it.",
+};
+function render() {
+  const out = F[S.c]();
+  const nw = narrow();
+  const t = totals();
+  const ebar = S.c === "E" ? `<div class="obar ${nw ? "narrow" : ""}"><span class="ws"><b>1</b>2 3 4</span><span class="ttl">omaseed — home · ${S.view === "library" ? scopeName() : S.view}</span><span class="grow"></span><span class="wid" title="the omaseed bar widget (docs/20)"><span class="dot" style="background:${curDot()}"></span>home <i style="color:var(--s-dl)">↓</i>${down() ? "—" : "6.4M"} <i style="color:var(--s-seed)">↑</i>${down() ? "—" : "918K"}</span><span style="color:var(--t-dim)">11:58</span></div>` : "";
+  let ov = "";
+  if (S.ov) { S.ovPos = S.ov === "menu" ? out.menuPos : S.ov === "pal" ? (out.palPos || "top:50px;left:50%;transform:translateX(-50%)") : "top:70px;left:50%;transform:translateX(-50%)"; ov = overlay(); }
+  $("#stage").innerHTML = `${ebar}<div class="win c-${S.c} ${nw ? "narrow" : ""} ${S.reveal && S.keys === "reveal" ? "reveal" : ""}" role="img" aria-label="Mock of frame ${S.c}">${out.html}${ov}</div><div class="wcap">${CAPS[S.c]}</div>`;
+  for (const b of $$("[data-set]")) b.setAttribute("aria-pressed", String(S[b.dataset.set] === b.dataset.v));
+  $("#hold").hidden = S.keys !== "reveal";
+}
+$("#ctl").addEventListener("click", e => {
+  const b = e.target.closest("[data-set]"); if (!b) return;
+  S[b.dataset.set] = b.dataset.v; S.ov = null; render();
+});
+$("#stage").addEventListener("click", e => {
+  const a = e.target.closest("[data-act],[data-view],[data-scope],[data-sel]"); if (!a) return;
+  if (a.dataset.view) { S.view = a.dataset.view; S.ov = null; }
+  else if (a.dataset.scope) { S.scope = a.dataset.scope; S.view = "library"; S.ov = null; }
+  else if (a.dataset.sel) { S.sel = a.dataset.sel; }
+  else {
+    const act = a.dataset.act;
+    if (act === "close") S.ov = null;
+    else if (act === "fold") S.fold = !S.fold;
+    else if (act === "spal") S.ov = two() ? "spal" : null;
+    else if (act === "menu") S.ov = S.ov === "menu" ? null : "menu";
+    else if (act === "pal") S.ov = "pal";
+    else if (!act) return;
+  }
+  render();
+});
+const setReveal = on => { if (S.reveal === on) return; S.reveal = on; $("#hold").setAttribute("aria-pressed", String(on)); const w = $(".win"); if (w) w.classList.toggle("reveal", on && S.keys === "reveal"); };
+window.addEventListener("keydown", e => { if (e.key === "Alt") { setReveal(true); e.preventDefault(); } if (e.key === "Escape" && S.ov) { S.ov = null; render(); } });
+window.addEventListener("keyup", e => { if (e.key === "Alt") setReveal(false); });
+window.addEventListener("blur", () => setReveal(false));
+const hold = $("#hold");
+hold.addEventListener("pointerdown", () => setReveal(true));
+for (const ev of ["pointerup","pointerleave","pointercancel"]) hold.addEventListener(ev, () => setReveal(false));
+hold.addEventListener("keydown", e => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); setReveal(true); } });
+hold.addEventListener("keyup", e => { if (e.key === " " || e.key === "Enter") setReveal(false); });
+
+/* ---------- the cards (§4) ---------- */
+const CARDS = [
+  { c:"T", name:"Today", idea:"for comparison", art:[], text:"The v2 hero, with the server line and its ▾ (C12), the speeds, the three views as tabs, the filter, alt speed, add, settings, more and help; the rail with the servers pinned at its foot; a footer of status and key hints. Board 39 then added display.",
+    pro:["Everything has a button: nothing to discover.","The speeds are the biggest thing, which is what a torrent client used to be about."],
+    con:["Eleven controls in the top bar, twelve with display; no room for engines or anything else.","Board 39's layouts had to find the servers a second home.","About twenty painted keys."], sup:"—" },
+  { c:"A", name:"The sidebar navigates", idea:"where you are lives on the left; the top names it", art:[["Linear","https://linear.app/docs/display-options"],["Things 3","https://culturedcode.com/things/"],["Apple Mail","https://support.apple.com/guide/mail/welcome/mac"],["Slack","https://slack.com/help/articles/212596808"]],
+    text:"One column runs the full height on the left, top to bottom in the order you choose things: the app (its menu), the view (library, seed, log), the scope (status, categories, trackers), and the server, pinned at the foot as today. The top bar only names what you're looking at and holds what you do from it: display, filter, add. Live figures move to a status line at the bottom, next to the count and free space they belong with.",
+    pro:["The servers never move: the rail's foot in every layout, as dots at 720 px.","The top bar drops from eleven controls to three, with room for engines later.","The scope board 39's per-scope layouts need is right there.","One reading order (rail, top, content, status) for keyboard and screen reader.","The notice sits over the content only, so you can switch server from the rail while one is down."],
+    con:["The rail always costs width (214 px; 48 px as icons at 720).","Speeds lose the big type; the bar widget and the status line carry them.","Views as rail rows instead of tabs is a habit to relearn."], sup:"v2 hero; the views as tabs (#24); C12's server line in the hero (D3, D14); docs/35 N1's width; the footer's hints." },
+  { c:"B", name:"Command first", idea:"almost no chrome; everything is a command", art:[["Raycast","https://www.raycast.com"],["Zed","https://zed.dev"],["Helix","https://helix-editor.com"],["Superhuman","https://superhuman.com"]],
+    text:"One field at the top is three things: breadcrumbs (server › view › scope › layout), the filter as you type, and the command palette after a colon. A row's actions appear when you hover it. The rail opens over the content with ctrl+b and goes away again. The bottom line is a slim status.",
+    pro:["The most room for the content, and the same at 720 px and full width.","A keyboard user never needs the mouse; every command shows its key.","New features become commands, not buttons, so the frame never fills up."],
+    con:["Nothing to discover by looking: a mouse user and a newcomer lose the map.","The scope and the servers hide in a breadcrumb, so per-scope layouts are hard to find.","A very flat window for a screen reader."], sup:"v2 hero; the standing rail and C12's block; docs/08 §5's ctrl+b." },
+  { c:"C", name:"Panes and a status line", idea:"drawn like the terminal apps around it", art:[["btop","https://github.com/aristocratos/btop"],["lazygit","https://github.com/jesseduffield/lazygit"],["tmux","https://github.com/tmux/tmux"],["lualine","https://github.com/nvim-lualine/lualine.nvim"]],
+    text:"Titled panes with their names in the border, views numbered 1 2 3 on top as btop does, and one status line at the bottom. Its first segment is the server (click to switch); then speeds, count, free space and sync. A server in trouble fills its segment yellow or red, and the notice docks right above.",
+    pro:["The most Omarchy-looking of the six: it reads like btop and lazygit next to it.","Much status in one line, and the server always bottom left.","Pane titles label the regions for a screen reader."],
+    con:["Numbered tabs and segments paint keys by nature: the opposite of fewer painted shortcuts.","Dense; the titled borders take a few pixels on every side.","A status-line segment is a small target for switching servers."], sup:"v2 hero and footer; the rail's look; docs/35 N1 (docked, not under the top)." },
+  { c:"D", name:"Servers as places", idea:"the server is the outermost thing", art:[["Discord","https://discord.com"],["Slack workspaces","https://slack.com/help/articles/1500002200741"],["Arc spaces","https://arc.net"],["Thunderbird accounts","https://www.thunderbird.net"]],
+    text:"With two or more servers, a strip of marks runs down the far left, one per server, like Discord's servers. Each server is its own place, with its own rail, scope and layouts; the rail's head names it. A failing server gets a coloured dot on its mark. With one server there is no strip.",
+    pro:["Scales to five or ten servers (seedbox users, #60).","Says what's true: each server is a separate library.","A server in trouble is visible even when you're on another one."],
+    con:["The frame changes the day a second server is added.","Monograms collide for similar names (\"home\", \"home-2\").","One more column at 720 px."], sup:"C12's rail block (D1, D7, D12, D16–D18) and the hero's ▾." },
+  { c:"E", name:"Omarchy carries the live", idea:"the desktop already shows the figures", art:[["Omarchy","https://omarchy.org"],["Fragments","https://apps.gnome.org/Fragments/"],["iStat Menus","https://bjango.com/mac/istatmenus/"]],
+    text:"The bar widget already shows speeds and the server's state on every workspace (docs/20, C13), and Hyprland shows the window's title. So the window stops repeating them: no speeds, no footer. What's left is a quiet top bar: the views, a wide filter, display, add and one menu, with the rail below.",
+    pro:["The calmest window of the six, and the most rows on screen.","Nothing shown twice on an Omarchy desktop.","Omarchy-first, as the charter says."],
+    con:["Without the widget (\"In the bar\" off, another bar) the live figures are gone, so it needs a fallback status line.","Count and free space need a new home.","Screenshots of the window alone no longer show it working."], sup:"v2 hero's figures; the footer (M16's note needs a home); C13 would make the widget near-required." },
+  { c:"F", name:"Pane headers", idea:"each pane carries its own tools", art:[["GNOME HIG","https://developer.gnome.org/hig/"],["Fragments","https://apps.gnome.org/Fragments/"],["Fractal","https://apps.gnome.org/Fractal/"],["libadwaita banner","https://gnome.pages.gitlab.gnome.org/libadwaita/doc/main/class.Banner.html"]],
+    text:"GNOME's split view. The sidebar has a header with the server switcher on top, like an account switcher, and the main menu. The content has a header with its title, the speeds as a subtitle, filter, display and add. The details pane has a header with the torrent's actions. A server problem is a banner under the content's header.",
+    pro:["Every tool sits over the thing it acts on.","The server is the first thing you read, top left.","Familiar to anyone on a Linux desktop; the banner is libadwaita's own pattern."],
+    con:["At 720 px the sidebar collapses into a button and takes the server with it.","Three header bars cost height.","Closer to GNOME than to Omarchy's terminal look."], sup:"v2 hero; C12's block (bottom → top); docs/35 N1." },
+];
+$("#cards").innerHTML = CARDS.map(k => `<div style="display:grid;gap:10px">
+  <div class="dirhead"><span class="code ${k.c === "T" ? "today" : ""}">${k.c}</span><h2>${k.name}</h2><span class="ans">${k.idea}</span><button type="button" data-load="${k.c}">show in §3</button></div>
+  ${k.art.length ? `<div class="art">from ${k.art.map(([n, u]) => `<a href="${u}">${n}</a>`).join("")}</div>` : ""}
+  <p>${k.text}</p>
+  <div class="verdict"><div class="pro">${k.pro.map(x => `<span><b>+</b> ${x}</span>`).join("")}</div><div class="con">${k.con.map(x => `<span><b>−</b> ${x}</span>`).join("")}</div><div class="sup"><span><b>replaces</b> ${k.sup}</span></div></div></div>`).join("");
+$("#cards").addEventListener("click", e => { const b = e.target.closest("[data-load]"); if (!b) return; S.c = b.dataset.load; S.ov = null; render(); $("#s3").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }); });
+
+/* ---------- §5 tables ---------- */
+const PLACE = [
+  ["servers", "rail's foot + hero ▾", "rail's foot (icon dots at 720)", "breadcrumb", "status line, first segment", "strip, far left", "rail's foot", "sidebar's header"],
+  ["views", "hero tabs", "rail's top", "breadcrumb + palette", "numbered tabs, top", "rail's top", "top bar tabs", "sidebar's top"],
+  ["scope", "rail", "rail", "breadcrumb; rail on ctrl+b", "left pane", "rail", "rail", "sidebar"],
+  ["speeds", "hero, big", "status line", "status line", "status line", "status line", "the bar widget", "content subtitle"],
+  ["count, free space", "footer", "status line", "status line", "status line", "status line", "—", "—"],
+  ["display", "hero", "top bar", "palette", "pane title", "top bar", "top bar", "content header"],
+  ["filter, add", "hero", "top bar", "the one field, +", "top line", "top bar", "top bar", "content header"],
+  ["settings, help, more", "three buttons", "the app's menu (rail's top)", "palette", "⋯ menu", "⛭ on the strip", "⋯ menu", "☰ in the sidebar"],
+  ["the notice", "under the hero", "under the top bar", "under the field", "above the status line", "under the top bar", "under the top bar", "banner under the content header"],
+];
+$("#placeT").innerHTML = `<tr><th></th>${["T today","A sidebar","B command","C panes","D strip","E Omarchy","F headers"].map(h => `<th>${h}</th>`).join("")}</tr>` + PLACE.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join("")}</tr>`).join("");
+const SC = [
+  ["room in the top bar", "n","y","y","m","y","y","y"],
+  ["servers never move", "n","y","m","y","m","y","n"],
+  ["one server", "y","y","y","y","m","y","y"],
+  ["720 px", "m","y","y","m","m","y","m"],
+  ["keyboard only", "y","y","y","y","y","y","m"],
+  ["mouse, discovery", "y","y","n","m","y","y","y"],
+  ["screen reader", "m","y","m","y","y","m","y"],
+  ["home for the notice", "y","y","y","y","y","y","y"],
+  ["per-scope layouts", "m","y","m","m","y","y","y"],
+  ["fewer painted keys", "n","y","y","n","y","y","y"],
+  ["without the bar widget", "y","y","y","y","y","n","y"],
+  ["looks like Omarchy", "y","y","m","y","m","y","n"],
+];
+const WD = { y:"yes", m:"partly", n:"no" };
+$("#scoreT").innerHTML = `<tr><th></th>${["T","A","B","C","D","E","F"].map(h => `<th>${h}</th>`).join("")}</tr>` + SC.map(r => `<tr><td>${r[0]}</td>${r.slice(1).map(c => `<td class="${c}">${WD[c]}</td>`).join("")}</tr>`).join("");
+
+/* ---------- themes: `omaseed --theme-roles` at cb08b91, after Q19's 4.5:1 floor ---------- */
+const THEMES = {
+  "tokyo-night":      { fg:"#a9b1d6", bg:"#1a1b26", bright:"#c0caf5", dim:"#7982a9", accent:"#7aa2f7", red:"#f7768e", yellow:"#e0af68", green:"#9ece6a", blue:"#7aa2f7", magenta:"#ad8ee6", cyan:"#449dab", orange:"#eb927b" },
+  "baseline":         { fg:"#c4c7cc", bg:"#121316", bright:"#f2f2ec", dim:"#797d86", accent:"#efdf3c", red:"#ff4f5e", yellow:"#f2a33a", green:"#7fd08a", blue:"#6f9cf0", magenta:"#c88df0", cyan:"#45c6dc", orange:"#f9794c" },
+  "frieren":          { fg:"#b9c5ef", bg:"#11111b", bright:"#cbd4f3", dim:"#8b94b3", accent:"#5492f8", red:"#ee5681", yellow:"#f6d58c", green:"#7dd676", blue:"#5492f8", magenta:"#b47ff3", cyan:"#63d5c2", orange:"#f16f94" },
+  "gruvbox":          { fg:"#d4be98", bg:"#282828", bright:"#d4be98", dim:"#9c8c77", accent:"#7daea3", red:"#ea6962", yellow:"#d8a657", green:"#a9b665", blue:"#7daea3", magenta:"#d3869b", cyan:"#89b482", orange:"#e1875c" },
+  "everforest":       { fg:"#d3c6aa", bg:"#2d353b", bright:"#d3c6aa", dim:"#a09c8d", accent:"#7fbbb3", red:"#e67e80", yellow:"#dbbc7f", green:"#a7c080", blue:"#7fbbb3", magenta:"#d699b6", cyan:"#83c092", orange:"#e09d7f" },
+  "catppuccin-latte": { fg:"#4c4f69", bg:"#eff1f5", bright:"#4c4f69", dim:"#696d83", accent:"#2164ec", red:"#d20f39", yellow:"#87684a", green:"#467949", blue:"#2164ec", magenta:"#8a5e90", cyan:"#2c7786", orange:"#b54e3b", light:true },
+};
+function applyTheme(name) {
+  const t = THEMES[name];
+  for (const st of $$("[data-stage]")) {
+    for (const k of Object.keys(t)) if (k !== "light") st.style.setProperty("--t-" + k, t[k]);
+    st.classList.toggle("light", !!t.light);
+  }
+  for (const b of $$("[data-theme-name]")) b.setAttribute("aria-pressed", String(b.dataset.themeName === name));
+}
+for (const b of $$("[data-theme-name]")) b.addEventListener("click", () => applyTheme(b.dataset.themeName));
+
+/* ---------- decisions ---------- */
+const DEC = [
+  { id:"F1", q:"The frame", why:"§3–§5. The one call the others follow from.", opts:[
+    ["A","A · the sidebar navigates", true], ["B","B · command first"], ["C","C · panes and a status line"], ["D","D · servers as places"],
+    ["E","E · Omarchy carries the live"], ["F","F · pane headers"], ["T","Keep today's frame and fit board 39 into it"]]},
+  { id:"F2", q:"Where the servers live", why:"§2. You asked that they never move. The rail's foot is where C12 already puts them, so nothing there changes; only the hero's ▾ goes.", opts:[
+    ["a","The rail's foot, in every layout and width (dots on the icon rail at 720 px); ctrl+s everywhere", true],
+    ["b","A strip of server marks on the far left, with two or more (D)"],
+    ["c","The sidebar's header, top left (F)"],
+    ["d","The status line's first segment (C)"]]},
+  { id:"F3", q:"Library, seed and log", why:"#24 made them tabs in the hero.", opts:[
+    ["a","The first three rows of the rail, keys ` and ~ kept", true], ["b","Tabs in the top bar, as today"], ["c","Only the palette and their keys"]]},
+  { id:"F4", q:"The speeds", why:"Today the biggest type in the window.", opts:[
+    ["a","The status line at the bottom, with the server, count, free space and sync; a click toggles alt speed", true],
+    ["b","Stay big in the top bar"],
+    ["c","Only in the bar widget, with a status line when the widget is off (E)"]]},
+  { id:"F5", q:"Display (board 39's layouts)", why:"§7. It changes the content, so it sits with the content.", opts:[
+    ["a","In the top bar, beside the scope's name, remembered per scope; no key (v is the range select)", true],
+    ["b","Only in the palette and the menu"]]},
+  { id:"F6", q:"Settings, help, more and alt speed", why:"Four icon buttons today.", opts:[
+    ["a","One menu from the omaseed mark at the rail's top (ctrl+.); alt speed moves to the speeds", true],
+    ["b","One ⋯ at the top bar's right"],
+    ["c","Keep the buttons"]]},
+  { id:"F7", q:"Showing the keys", why:"§6.", opts:[
+    ["K1","Painted, as today"], ["K2","On demand: tooltips, menus, the palette, ? sheet; the footer ends in \"? keys\""],
+    ["K3","On demand, plus every key as a badge while alt is held", true], ["K4","Painted for the first weeks, then on demand"]]},
+  { id:"F8", q:"At 720 px", why:"§2.", opts:[
+    ["a","The rail folds to icons: views, a filters button, the server dots at its foot", true],
+    ["b","The rail becomes a drawer (ctrl+b); the server shows in the status line"]]},
+  { id:"F9", q:"Board 39's layouts in the frame", why:"§7. Board 39's D7 put a scope line in place of the rail.", opts:[
+    ["a","Every layout keeps the rail; board 39's scope line is dropped", true],
+    ["b","Layouts may hide the rail; the servers then show in the status line"]]},
+  { id:"F10", q:"The notice", why:"docs/35 N1 spans the window under the hero.", opts:[
+    ["a","It spans the content under the top bar; the rail beside it stays usable", true],
+    ["b","It keeps the window's width, above the rail too"]]},
+];
+const dec = $("#dec");
+for (const d of DEC) {
+  const box = document.createElement("div"); box.className = "q";
+  box.innerHTML = `<fieldset><legend><span class="id">${d.id}</span> · ${d.q}</legend><p class="why">${d.why}</p>${d.opts.map(([val, label, rec]) => {
+    const id = `${d.id}-${val}`;
+    return `<label class="opt" for="${id}"><input id="${id}" type="radio" name="${d.id}" value="${val}" ${rec ? "checked" : ""}><span><b>${val}</b> · ${label}${rec ? '<span class="rec">recommended</span>' : ""}</span></label>`;
+  }).join("")}</fieldset>`;
+  dec.append(box);
+}
+const notes = document.createElement("div"); notes.className = "q";
+notes.innerHTML = `<label for="free" style="color:var(--fg-bright);font-weight:500">Anything else (a frame I missed, a mix of two, something to kill)</label><textarea id="free" style="min-height:70px;font:inherit;font-size:12.4px;color:var(--fg);background:var(--bg);border:1px solid var(--hairline);padding:8px"></textarea>`;
+dec.append(notes);
+function answers() {
+  const lines = ["docs/40 the frame (2026-10-17):"];
+  for (const d of DEC) { const c = $$(`input[name="${d.id}"]:checked`).map(i => i.value); lines.push(`${d.id} ${c.length ? c.join(", ") : "-"}`); }
+  const f = $("#free").value.trim(); if (f) lines.push("notes: " + f);
+  $("#answers").value = lines.join("\n");
+}
+dec.addEventListener("input", answers); answers();
+$("#copy").addEventListener("click", () => {
+  const ta = $("#answers");
+  const done = () => { $("#copied").hidden = false; setTimeout(() => $("#copied").hidden = true, 1600); };
+  if (navigator.clipboard?.writeText) navigator.clipboard.writeText(ta.value).then(done, () => ta.select());
+  else ta.select();
+});
+
+render();
+applyTheme("tokyo-night");
+})();
+</script>

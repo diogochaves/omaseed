@@ -128,6 +128,12 @@ before it will tag a release.
 
 ### Changed
 
+- Captions, links, state words and coloured glyphs read at 4.5:1 against the window in every
+  theme (WCAG AA for text; captions were held at 3:1 and other colours not at all). A theme
+  colour that falls short is moved towards the theme's text colour just far enough; one that
+  reads already is kept exactly: captions move a little in most themes, the other colours
+  mostly in the light themes and miasma. The command palette's "via" before a path reads in
+  the caption colour; faint text is left for what can't be used.
 - Settings › Appearance has one row for omaseed in the bar, "In the bar: widget · tray icon ·
   both · none", in place of the separate Tray icon and Bar widget rows; your current settings
   read as one of the four. The widget's own settings stay a row of their own (customize).

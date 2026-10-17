@@ -817,7 +817,7 @@ Item {
                                 }
 
                                 Label {
-                                    color: row.faint
+                                    color: row.disabled ? row.faint : Theme.dimForeground
                                     objectName: "paletteRowVia"
                                     size: "small"
                                     text: qsTr("via")

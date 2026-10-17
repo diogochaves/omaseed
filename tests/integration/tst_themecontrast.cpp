@@ -7,7 +7,7 @@ using omaseed::integration::Theme;
 
 namespace {
 
-constexpr qreal kFloor = 3.0;
+constexpr qreal kFloor = Theme::kTextContrastFloor;
 
 /// The smallest lift that reaches the floor: at it, but not by more than a single 1/256
 /// step's worth of contrast.
@@ -15,13 +15,15 @@ constexpr qreal kStepEpsilon = 0.06;
 
 } // namespace
 
-/// docs/DECISIONS.md Q19: `dimForeground` reads at 3:1 against the window background in
-/// every theme. The ratio is WCAG 2's, and the lift is the least one that gets there.
+/// docs/DECISIONS.md Q19 (amended in #89): every colour omaseed paints text with reads at
+/// 4.5:1 against the window background in every theme. The ratio is WCAG 2's, and the lift is
+/// the least one that gets there.
 class TestThemeContrast : public QObject
 {
     Q_OBJECT
 
 private slots:
+    void theFloorIsWcagAaForNormalText();
     void contrastRatioIsWcags();
     void contrastRatioIsSymmetric();
     void liftIsTheSmallestThatReachesTheFloor_data();
@@ -30,6 +32,12 @@ private slots:
     void themesAlreadyAtTheFloorAreUntouched();
     void degeneratePaletteGetsTheForeground();
 };
+
+void TestThemeContrast::theFloorIsWcagAaForNormalText()
+{
+    // Q19 as amended on 2026-10-16: WCAG 2.2 AA for normal-size text, not the 3:1 it was.
+    QCOMPARE(Theme::kTextContrastFloor, 4.5);
+}
 
 void TestThemeContrast::contrastRatioIsWcags()
 {
@@ -57,16 +65,31 @@ void TestThemeContrast::liftIsTheSmallestThatReachesTheFloor_data()
     QTest::addColumn<QColor>("dim");
 
     // The worst and the reference theme of the review's table, values from their colors.toml.
-    QTest::newRow("everforest 1.72")
+    QTest::newRow("everforest dim 1.72")
         << QColor(QStringLiteral("#2d353b")) << QColor(QStringLiteral("#d3c6aa"))
         << QColor(QStringLiteral("#4f585e"));
-    QTest::newRow("tokyo-night 2.76")
+    QTest::newRow("tokyo-night dim 2.76")
         << QColor(QStringLiteral("#1a1b26")) << QColor(QStringLiteral("#a9b1d6"))
         << QColor(QStringLiteral("#565f89"));
+    // A dim that passed the old 3:1 floor and is lifted by the new one.
+    QTest::newRow("gruvbox dim 3.03")
+        << QColor(QStringLiteral("#282828")) << QColor(QStringLiteral("#d4be98"))
+        << QColor(QStringLiteral("#7c6f64"));
     // A light theme lifts the other way, towards a darker foreground.
-    QTest::newRow("white 1.82") << QColor(QStringLiteral("#ffffff"))
-                                << QColor(QStringLiteral("#000000"))
-                                << QColor(QStringLiteral("#c0c0c0"));
+    QTest::newRow("white dim 1.82")
+        << QColor(QStringLiteral("#ffffff")) << QColor(QStringLiteral("#000000"))
+        << QColor(QStringLiteral("#c0c0c0"));
+    // Palette colours painted as text, the worst of #89's survey: rose-pine's yellow and
+    // catppuccin-latte's magenta (light), miasma's red (dark).
+    QTest::newRow("rose-pine yellow 2.05")
+        << QColor(QStringLiteral("#faf4ed")) << QColor(QStringLiteral("#575279"))
+        << QColor(QStringLiteral("#ea9d34"));
+    QTest::newRow("catppuccin-latte magenta 2.34")
+        << QColor(QStringLiteral("#eff1f5")) << QColor(QStringLiteral("#4c4f69"))
+        << QColor(QStringLiteral("#ea76cb"));
+    QTest::newRow("miasma red 2.30")
+        << QColor(QStringLiteral("#222222")) << QColor(QStringLiteral("#c2c2b0"))
+        << QColor(QStringLiteral("#685742"));
 }
 
 void TestThemeContrast::liftIsTheSmallestThatReachesTheFloor()
@@ -95,10 +118,13 @@ void TestThemeContrast::themesAlreadyAtTheFloorAreUntouched_data()
     QTest::addColumn<QColor>("foreground");
     QTest::addColumn<QColor>("dim");
 
-    // gruvbox sits just over the line at 3.03 (values from its colors.toml).
-    QTest::newRow("gruvbox 3.03") << QColor(QStringLiteral("#282828"))
-                                  << QColor(QStringLiteral("#d4be98"))
-                                  << QColor(QStringLiteral("#7c6f64"));
+    // WCAG's own example sits just over the line at 4.54.
+    QTest::newRow("#767676 on white 4.54")
+        << QColor(Qt::white) << QColor(Qt::black) << QColor(QStringLiteral("#767676"));
+    // Tokyo Night's accent reads already (values from its colors.toml).
+    QTest::newRow("tokyo-night accent")
+        << QColor(QStringLiteral("#1a1b26")) << QColor(QStringLiteral("#a9b1d6"))
+        << QColor(QStringLiteral("#7aa2f7"));
     QTest::newRow("far above") << QColor(Qt::black) << QColor(Qt::white)
                                << QColor(QStringLiteral("#a0a0a0"));
 }
@@ -114,7 +140,7 @@ void TestThemeContrast::themesAlreadyAtTheFloorAreUntouched()
 
 void TestThemeContrast::degeneratePaletteGetsTheForeground()
 {
-    // Nothing on the line from dim to foreground reaches 3:1: the foreground is the best
+    // Nothing on the line from dim to foreground reaches 4.5:1: the foreground is the best
     // the palette has, so that is what the role becomes.
     const QColor background(QStringLiteral("#202020"));
     const QColor foreground(QStringLiteral("#404040"));

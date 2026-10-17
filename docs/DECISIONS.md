@@ -28,13 +28,39 @@ Settings → Appearance overrides it. Sheets, palettes and popups stay opaque.
 The design's 104 px cannot hold `downloading` beside its glyph in JetBrains Mono. The column
 is 116 px, taken from the flexible Name column, and the word is never cut.
 
-## Q19 — Captions stay readable on every theme
+## Q19 — Text stays readable on every theme
 
 In about half of Omarchy's themes `dark_foreground` is under 3:1 against `background`
 (everforest 1.72, white 1.82, miasma 2.13, Tokyo Night 2.76), which made captions and column
 headers faint. `Theme.dimForeground` therefore has a contrast floor: it is mixed towards
 `foreground` until it reads at 3:1 against the window background. A theme already at 3:1
 keeps its own colour.
+
+**Amended 2026-10-16** (#89, board [38](38-contrast-floor.html); Diogo took the contrast call
+as recommended). The floor is **4.5:1**, WCAG 2.2 AA for normal-size text
+(`Theme::kTextContrastFloor`), and it covers every colour omaseed paints text and glyphs with:
+
+- `dimForeground` (3:1 → 4.5:1) and the palette roles `accent`, `red`, `yellow`, `orange`,
+  `green`, `cyan`, `blue` and `magenta`. The `state*` roles read those, so they follow.
+  `muted`, `selection`, `brown` and the grounds are never text and stay as the theme has them.
+- Same mechanism: mixed towards `foreground` in 1/256 steps until it reads; a colour that
+  already reads keeps its bytes. Measured against the opaque window background, as before.
+- Across the 27 installed themes, 64 of 243 role colours move, only in themes that fall
+  short: `dimForeground` in 23 (most sat at exactly 3.0:1), `accent` 4, `red` 7, `yellow` 6,
+  `orange` 8, `green` 4, `cyan` 4, `blue` 3, `magenta` 5. The worst before were yellow 2.05:1
+  (rose-pine), red 2.30:1 (miasma) and magenta 2.34:1 (catppuccin-latte).
+- Not against the row fills. With the floor on the window, captions stay apart from body
+  text (`dimForeground` against `foreground`, median 2.43:1); lifting against the selected
+  row's fill as well would leave them at a median 1.66:1, nearly body text. Selected rows get
+  their own fix (#90).
+- Faint text (`Theme.faintAlpha`, 40 %) is for disabled things only, which WCAG exempts. The
+  "via" before a path in the command palette, which is not disabled, is `dimForeground`.
+- Text on a fill in one of these colours: the rename field's selected text (`background` on
+  `accent`) reads at the same ratio as accent on the window, so at least 4.5:1, and the ✓ on
+  a ticked box at 4.84:1 or more. Text on a tint of its own colour (a selected danger button,
+  red on red at `fillSelected`; the warning and attention bands at 7–8 %) reads at least as
+  well as before in every theme but is still under 4.5:1 in some: board 38 §4 lists them, and
+  they are not ruled yet.
 
 ## Q23 — A server tested before it is saved keeps its result
 
