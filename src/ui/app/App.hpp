@@ -115,6 +115,11 @@ class App : public QObject
     Q_PROPERTY(omaseed::core::GlobalState *globalState READ globalState CONSTANT)
     Q_PROPERTY(omaseed::core::SyncEngine *engine READ engine CONSTANT)
     Q_PROPERTY(omaseed::core::ServerStore *servers READ servers CONSTANT)
+    /// What the chosen server can do (docs/36 §4.3, docs/DECISIONS.md C14 E4): EngineFeatures
+    /// as a map, one key per switch ("forceStart", "categories", "peerControl", …) plus the
+    /// lists ("filePriorities", "shareLimitActions"). The views hide what is false wherever it
+    /// would be offered; for qBittorrent everything is on.
+    Q_PROPERTY(QVariantMap features READ featuresMap NOTIFY featuresChanged)
 
     // The server the hero line prints, and whether there is one at all.
     Q_PROPERTY(QString serverName READ serverName NOTIFY serverChanged)
@@ -182,6 +187,7 @@ public:
     omaseed::core::QbtEngine *qbtEngine() const;
     /// What the chosen server can do, resolved from its engine and version after the probe.
     const omaseed::core::EngineFeatures &features() const { return m_features; }
+    QVariantMap featuresMap() const;
     /// For tests: its probe runner and keychain hooks keep them off the desktop's keyring.
     omaseed::core::SecretStore *secretStore() const { return m_secrets; }
 

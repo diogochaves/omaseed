@@ -34,14 +34,14 @@ FocusScope {
                                                                       "key": column,
                                                                       "title": Keymap.columnTitles[column],
                                                                       "about": Keymap.columnAbout[column],
-                                                                      "rows": Keymap.helpRows(column, root.altKind).filter(
+                                                                      "rows": Keymap.helpRows(column, root.altKind, App.features).filter(
                                                                                   row => root.matches(row))
                                                                   })).filter(section => section.rows.length > 0)
     /// Every row still shown, in reading order (left column first).
     readonly property var matchedRows: root._columnSections(0).concat(root._columnSections(1)).reduce(
                                            (all, section) => all.concat(section.rows), [])
     readonly property int totalRows: Keymap.columns.reduce((n, column) => n + Keymap.helpRows(
-                                                               column).length, 0)
+                                                               column, root.altKind, App.features).length, 0)
     /// Where `up`/`down` put the cursor, as an index into `matchedRows`; -1 until they are
     /// used, and again after every change of filter.
     property int cursor: -1
@@ -61,7 +61,7 @@ FocusScope {
     /// The widest key chip of the whole sheet sets the key column, so every sentence starts on
     /// the same line.
     readonly property string _widestKeys: Keymap.columns.reduce((widest, column) => Keymap.helpRows(
-                                                                    column).reduce((w, row) => row.helpKeys.length
+                                                                    column, root.altKind, App.features).reduce((w, row) => row.helpKeys.length
                                                                                                 > w.length ? row.helpKeys : w,
                                                                                    widest), "")
 

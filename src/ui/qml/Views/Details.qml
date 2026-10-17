@@ -582,6 +582,12 @@ Item {
             root.copyCurrent();
             return;
         }
+        // C14 E4: peers and HTTP sources take an add, a ban or a removal only where the
+        // engine does (Keymap.tabFeatures).
+        const tab = root.currentTab === 3 ? "peers" : root.currentTab === 4 ? "webseeds" : "";
+        const keyAction = action === "add" ? "addRow" : action === "remove" ? "removeRow" : action;
+        if (!Keymap.offered(keyAction, App.features, tab))
+            return;
         const selection = root._listSelection();
         if (selection === null)
             return;
@@ -1758,7 +1764,8 @@ Item {
             readonly property int selected: root.peersSelection.count
 
             anchors.fill: parent
-            items: [
+            // C14 E4: add and ban only where the engine takes them.
+            items: (Keymap.offered("addRow", App.features, "peers") ? [
                 {
                     "text": qsTr("add peer…"),
                     "key": "a",
@@ -1771,14 +1778,13 @@ Item {
                 },
                 {
                     "separator": true
-                },
+                }] : []).concat([
                 {
                     "text": peerMenu.selected > 1 ? qsTr("copy %n addresses", "", peerMenu.selected)
                                                   : qsTr("copy address"),
                     "key": "y",
                     "action": "copy"
-                }
-            ]
+                }])
             menuWidth: Math.min(Theme.space(220), root.width - Theme.space(16))
             objectName: "peerMenu"
             z: 20
@@ -1792,7 +1798,8 @@ Item {
             readonly property int selected: root.webSeedsSelection.count
 
             anchors.fill: parent
-            items: [
+            // C14 E4: an engine that keeps web seeds read only offers no add or remove.
+            items: (Keymap.offered("addRow", App.features, "webseeds") ? [
                 {
                     "text": qsTr("add…"),
                     "key": "a",
@@ -1806,14 +1813,13 @@ Item {
                 },
                 {
                     "separator": true
-                },
+                }] : []).concat([
                 {
                     "text": webSeedMenu.selected > 1 ? qsTr("copy %n URLs", "", webSeedMenu.selected)
                                                      : qsTr("copy URL"),
                     "key": "y",
                     "action": "copy"
-                }
-            ]
+                }])
             menuWidth: Math.min(Theme.space(220), root.width - Theme.space(16))
             objectName: "webSeedMenu"
             z: 20

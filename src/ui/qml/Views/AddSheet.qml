@@ -63,6 +63,9 @@ Sheet {
     /// `App.parseAddable`'s map for what is in the field, or null while it holds nothing
     /// recognisable. `valid`, `name`, `sizeText`, `infoHashV1/V2`, `kind`, `value`, `token`.
     property var addable: null
+    /// What the server can do (App.features, docs/DECISIONS.md C14 E4): a field for what it
+    /// can't is not offered. A key it lacks counts as on.
+    readonly property var _can: App.features
     /// Where the current text came from: "clipboard", "magnet", "file", "drop", "handoff" (a
     /// browser or a file manager opened it with omaseed), or "" when it was typed. Only the
     /// head's subtitle reads it.
@@ -1663,7 +1666,7 @@ Sheet {
                     FormRow {
                         Layout.fillWidth: true
                         label: qsTr("Name")
-                        visible: !sheet.batchMode
+                        visible: !sheet.batchMode && sheet._can.addOptions !== false
 
                         Field {
                             id: renameField
@@ -1687,6 +1690,7 @@ Sheet {
                             Layout.fillWidth: true
                             Layout.preferredWidth: 1
                             label: qsTr("Category")
+                            visible: sheet._can.categories !== false
 
                             ChipSelect {
                                 id: categoryChips
@@ -1704,6 +1708,7 @@ Sheet {
                             Layout.fillWidth: true
                             Layout.preferredWidth: 1
                             label: qsTr("Tags")
+                            visible: sheet._can.tags !== false
 
                             ChipSelect {
                                 id: tagChips
@@ -1786,6 +1791,7 @@ Sheet {
                             Layout.fillWidth: true
                             Layout.preferredWidth: 1
                             label: qsTr("Layout")
+                            visible: sheet._can.addOptions !== false
 
                             ChipSelect {
                                 id: layoutChips
@@ -1876,6 +1882,7 @@ Sheet {
                             Layout.preferredWidth: 1
                             implicitHeight: sequentialToggle.implicitHeight
                             implicitWidth: sequentialToggle.implicitWidth
+                            visible: sheet._can.sequentialDownload !== false
 
                             Toggle {
                                 id: sequentialToggle
@@ -1891,6 +1898,7 @@ Sheet {
                             Layout.preferredWidth: 1
                             implicitHeight: firstLastToggle.implicitHeight
                             implicitWidth: firstLastToggle.implicitWidth
+                            visible: sheet._can.firstLastPiece !== false
 
                             Toggle {
                                 id: firstLastToggle
@@ -1906,6 +1914,7 @@ Sheet {
                             Layout.preferredWidth: 1
                             implicitHeight: skipCheckToggle.implicitHeight
                             implicitWidth: skipCheckToggle.implicitWidth
+                            visible: sheet._can.addOptions !== false
 
                             Toggle {
                                 id: skipCheckToggle

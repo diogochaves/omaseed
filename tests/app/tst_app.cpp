@@ -99,6 +99,7 @@ private slots:
 
     void withoutAServerNothingPolls();
     void demoDataReproducesTheSpecsSixteenRows();
+    void featuresFollowTheServersVersion();
     void demoListsItsServerAndPersistsNothing();
     void demoDataScalesWithUniqueHashes();
     void qmlSeesAppAndTheCoreTypes();
@@ -181,6 +182,46 @@ void TestApp::demoListsItsServerAndPersistsNothing()
     // A second demo in the same process does not list "home" twice.
     app.startDemo(16);
     QCOMPARE(app.serverCount(), 1);
+}
+
+// #82 (docs/36 §4.3, C14 E4): App.features is the chosen server's record, all on for a
+// qBittorrent, the version-gated parts once the version is known.
+void TestApp::featuresFollowTheServersVersion()
+{
+    App app;
+    QVERIFY(app.qbtEngine() != nullptr);
+    QSignalSpy changed(&app, &App::featuresChanged);
+    QVariantMap features = app.property("features").toMap();
+    for (const char *key : {"categories",
+                            "tags",
+                            "queue",
+                            "forceStart",
+                            "sequentialDownload",
+                            "firstLastPiece",
+                            "superSeeding",
+                            "autoManagement",
+                            "addOptions",
+                            "peerControl",
+                            "editWebSeeds",
+                            "seedingTimeLimit",
+                            "engineLog",
+                            "qbtSettings",
+                            "torrentsBackup",
+                            "rss"})
+        QVERIFY2(features.value(QLatin1String(key)).toBool(), key);
+    // No version yet: nothing that needs one.
+    QVERIFY(!features.value(QStringLiteral("fetchMetadata")).toBool());
+    QVERIFY(!features.value(QStringLiteral("shareLimitAction")).toBool());
+    QVERIFY(!app.supportsShareLimitAction());
+
+    app.globalState()->setServerVersions(QStringLiteral("v5.2.3"), QStringLiteral("2.15.1"));
+    QCOMPARE(changed.count(), 1);
+    features = app.property("features").toMap();
+    QVERIFY(features.value(QStringLiteral("fetchMetadata")).toBool());
+    QVERIFY(features.value(QStringLiteral("shareLimitAction")).toBool());
+    QCOMPARE(features.value(QStringLiteral("shareLimitActions")).toStringList().size(), 5);
+    QCOMPARE(features.value(QStringLiteral("filePriorities")).toList().size(), 4);
+    QVERIFY(app.supportsShareLimitAction());
 }
 
 void TestApp::demoDataReproducesTheSpecsSixteenRows()

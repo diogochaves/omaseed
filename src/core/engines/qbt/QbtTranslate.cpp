@@ -644,7 +644,6 @@ EngineFeatures features(const QString &apiVersion)
     f.addOptions = true;
     f.peerControl = true;
     f.editWebSeeds = true;
-    f.exportTorrent = true;
     f.seedingTimeLimit = true;
     // qBittorrent's own surfaces (docs/36 §4.4, C14 E7): Settings › qBittorrent with its
     // export and import, torrents export and import (C9's file holds its rows), RSS.

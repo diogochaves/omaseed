@@ -206,6 +206,9 @@ Item {
 
     /// `~` (docs/32 D9): the log, or back to where the window was.
     function toggleLog(): void {
+        // C14 E7: the engine's own log; a server without one has no log face.
+        if (root.view !== "log" && !Keymap.offered("toggleLog", App.features, ""))
+            return;
         root.setView(root.view === "log" ? root._viewBeforeLog : "log");
     }
 
@@ -588,7 +591,8 @@ Item {
     /// `category`/`tags` are T4.4's palettes to answer; this only raises the request.
     function torrentAction(action: string): void {
         const hashes = root.actionHashes();
-        if (hashes.length === 0)
+        // C14 E4: a key for what the server can't do does nothing, as its hidden row would.
+        if (hashes.length === 0 || !Keymap.offered(action, App.features, ""))
             return;
         switch (action) {
         case "stopStart":
@@ -966,7 +970,7 @@ Item {
         if (action.startsWith(Keymap.switchToPrefix))
             return App.switchServer(action.slice(Keymap.switchToPrefix.length));
         const run = root._runners[action];
-        if (run === undefined)
+        if (run === undefined || !Keymap.offered(action, App.features, ""))
             return false;
         run();
         return true;
@@ -1181,6 +1185,8 @@ Item {
                                                   })),
             "altKind": App.altSpeed.kind,
             "recent": App.recentCommands(),
+            // C14 E4: what the server can do; the rest is not listed.
+            "features": App.features,
             "states": {
                 "detailsShown": !details.collapsed,
                 "railShown": !App.railHidden,
@@ -1297,7 +1303,7 @@ Item {
     /// ctrl+shift+, (docs/16 §2): Settings on the qBittorrent group. First run holds it like
     /// `,` does.
     function openQbtSettings(): void {
-        if (root.firstRun)
+        if (root.firstRun || !Keymap.offered("qbtSettings", App.features, ""))
             return;
         settingsModal.openQbt();
     }

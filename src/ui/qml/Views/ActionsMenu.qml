@@ -1,11 +1,13 @@
 pragma ComponentBehavior: Bound
 import QtQuick
+import Omaseed
 import Omaseed.Kit
 
 // The torrent actions menu of spec v2 §3 Fig. 11 (`.menu`), a thin `Kit/Menu` skin: the
 // caller supplies which hashes the menu acts on and whether the cursor torrent is stopped
 // (so the first row reads "start" or "stop"), MainView's `torrentAction()` gets the result
-// through `activated`.
+// through `activated`. A row the server can't do (App.features, docs/DECISIONS.md C14 E4) is
+// left out.
 Menu {
     id: root
 
@@ -30,6 +32,23 @@ Menu {
         };
     }
 
+    /// `all` without the rows whose action the server can't do (Keymap.offered), and without
+    /// the separators that leaves first, last or twice in a row.
+    function _offered(all: var, features: var): var {
+        const kept = [];
+        for (const item of all) {
+            if (item.separator === true) {
+                if (kept.length > 0 && kept[kept.length - 1].separator !== true)
+                    kept.push(item);
+            } else if (Keymap.offered(item.action, features, "")) {
+                kept.push(item);
+            }
+        }
+        while (kept.length > 0 && kept[kept.length - 1].separator === true)
+            kept.pop();
+        return kept;
+    }
+
     /// `all` with `leadActions`' rows moved to the top, in the menu's own order, and the
     /// separators they leave behind tidied (none first, last or twice in a row).
     function _arrange(all: var): var {
@@ -52,7 +71,7 @@ Menu {
     }
 
     menuWidth: Theme.space(280)
-    items: root._arrange([
+    items: root._arrange(root._offered([
         {
             "text": root.cursorStopped ? qsTr("start") : qsTr("stop"),
             "key": "p",
@@ -155,5 +174,5 @@ Menu {
             "action": "delete",
             "danger": true
         }
-    ])
+    ], App.features))
 }

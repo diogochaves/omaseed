@@ -36,7 +36,6 @@ struct EngineFeatures
     bool addOptions = false;       ///< the add's content layout, skip check and rename
     bool peerControl = false;      ///< add a peer to a torrent, ban one from all
     bool editWebSeeds = false;     ///< add and remove a torrent's HTTP sources
-    bool exportTorrent = false;    ///< hand back a torrent's .torrent file
     bool seedingTimeLimit = false; ///< a limit on total seeding time (ratio and idle aside)
     bool engineLog = false;        ///< the engine's own log: the log face, the problem log
     /// qBittorrent's own surfaces, reached through its engine (docs/36 §4.4, C14 E6, E7):

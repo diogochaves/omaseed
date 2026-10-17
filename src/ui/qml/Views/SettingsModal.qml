@@ -106,7 +106,8 @@ Item {
 
     /// docs/16: the qBittorrent group's sections, closed by docs/24 §4's Backup (#32, D1 a),
     /// which is drawn by `qbtBackupPane` rather than from rows.
-    readonly property var qbtSections: qbtSchema.sections.concat([{
+    /// Only a server whose engine has them (App.features.qbtSettings, docs/36 §4.4); none else.
+    readonly property var qbtSections: App.features.qbtSettings === false ? [] : qbtSchema.sections.concat([{
                                                                       "id": "backup",
                                                                       "glyph": Glyphs.backup,
                                                                       "name": qsTr("Backup"),
@@ -252,6 +253,8 @@ Item {
 
     /// ctrl+shift+, (docs/16 §2): Settings, on the qBittorrent group.
     function openQbt(): void {
+        if (root.qbtSections.length === 0)
+            return;
         if (!root.inQbt)
             root.showPane(root.qbtStart);
         root.open();

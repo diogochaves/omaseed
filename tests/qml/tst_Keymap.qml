@@ -595,4 +595,91 @@ TestCase {
                                                           }));
         verify(!rows.some(row => row.action === "switchServer" || row.action.startsWith("switchTo:")));
     }
+
+    // ---- docs/36 §4.3 (DECISIONS C14 E4): what the server can't do is not offered --------
+    readonly property var lessCapable: ({
+                                            "forceStart": false,
+                                            "queue": false,
+                                            "tags": false,
+                                            "superSeeding": false,
+                                            "engineLog": false,
+                                            "qbtSettings": false,
+                                            "peerControl": false,
+                                            "editWebSeeds": false
+                                        })
+
+    function test_offered_reads_the_feature_record() {
+        verify(Keymap.offered("forceStart", undefined, ""));
+        verify(Keymap.offered("forceStart", {
+                                  "forceStart": true
+                              }, ""));
+        verify(!Keymap.offered("forceStart", testCase.lessCapable, ""));
+        verify(!Keymap.offered("queueUp", testCase.lessCapable, ""));
+        verify(Keymap.offered("recheck", testCase.lessCapable, ""));
+        // A details tab's shared key: trackers keep `a`, peers and HTTP sources lose it.
+        verify(Keymap.offered("addRow", testCase.lessCapable, "trackers"));
+        verify(!Keymap.offered("addRow", testCase.lessCapable, "peers"));
+        verify(!Keymap.offered("ban", testCase.lessCapable, "peers"));
+        verify(!Keymap.offered("removeRow", testCase.lessCapable, "webseeds"));
+        // The log face's own keys go with the engine's log.
+        verify(!Keymap.offered("logFilter", testCase.lessCapable, "log"));
+    }
+
+    function test_the_palette_lists_only_what_the_server_can_do() {
+        const all = Keymap.commandRows(testCase._context({})).map(row => row.action);
+        for (const action of ["forceStart", "queueUp", "queueDown", "tags", "superSeeding", "toggleLog",
+                              "qbtSettings"])
+            verify(all.indexOf(action) >= 0, action);
+        const fewer = Keymap.commandRows(testCase._context({
+                                                               "features": testCase.lessCapable
+                                                           })).map(row => row.action);
+        for (const action of ["forceStart", "queueUp", "queueDown", "tags", "superSeeding", "toggleLog",
+                              "qbtSettings"])
+            verify(fewer.indexOf(action) < 0, action);
+        verify(fewer.indexOf("recheck") >= 0);
+        verify(fewer.indexOf("category") >= 0);
+        const peers = Keymap.commandRows(testCase._context({
+                                                               "area": "peers",
+                                                               "features": testCase.lessCapable
+                                                           })).map(row => row.action);
+        verify(peers.indexOf("addRow") < 0);
+        verify(peers.indexOf("ban") < 0);
+        verify(peers.indexOf("copy") >= 0);
+    }
+
+    function test_the_help_sheet_leaves_out_what_the_server_cant_do() {
+        const view = Keymap.helpRows("view", "alt").map(row => row.action);
+        verify(view.indexOf("toggleLog") >= 0);
+        verify(view.indexOf("logLevels") >= 0);
+        const fewer = Keymap.helpRows("view", "alt", testCase.lessCapable).map(row => row.action);
+        // The log face goes, its own row with it.
+        verify(fewer.indexOf("toggleLog") < 0);
+        verify(fewer.indexOf("logLevels") < 0);
+        compare(fewer.length, view.length - 2);
+    }
+
+    function test_the_actions_menu_hides_rows_and_tidies_separators() {
+        const menu = createTemporaryObject(actionsMenuComponent, testCase);
+        const all = menu.items.map(item => item.action);
+        verify(all.indexOf("forceStart") >= 0);
+        const fewer = menu._offered(menu.items, {
+                                        "forceStart": false,
+                                        "queue": false,
+                                        "sequentialDownload": false,
+                                        "firstLastPiece": false,
+                                        "superSeeding": false,
+                                        "autoManagement": false
+                                    });
+        const actions = fewer.map(item => item.action);
+        for (const action of ["forceStart", "queueUp", "queueDown", "sequential", "firstLast",
+                              "superSeeding", "autoManagement"])
+            verify(actions.indexOf(action) < 0, action);
+        verify(actions.indexOf("stopStart") >= 0);
+        verify(actions.indexOf("delete") >= 0);
+        // The options' block is gone whole: no two separators in a row, none first or last.
+        for (let i = 1; i < fewer.length; ++i)
+            verify(!(fewer[i].separator === true && fewer[i - 1].separator === true), "two separators at " + i);
+        verify(fewer[0].separator !== true);
+        verify(fewer[fewer.length - 1].separator !== true);
+    }
 }

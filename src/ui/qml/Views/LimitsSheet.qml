@@ -408,6 +408,8 @@ Sheet {
             Layout.preferredWidth: 1
             label: qsTr("Seeding time")
             spokenCaption: false // the field says it (#78)
+            // C14 E4: an engine with no seeding-time limit gets no row (its value stays as is).
+            visible: App.features.seedingTimeLimit !== false
 
             // Ruling Q5: the ratio row's chip, for the same reason. A torrent on the global
             // seeding time used to show `∞`, which reads as "no limit".

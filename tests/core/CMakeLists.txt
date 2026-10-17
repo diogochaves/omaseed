@@ -433,6 +433,12 @@ omaseed_add_test(tst_qbttranslate
     LIBRARIES omaseed::core
 )
 
+# #82: the interface itself, with a fake engine of the test's own driving SyncEngine.
+omaseed_add_test(tst_engineclient
+    SOURCES tst_engineclient.cpp
+    LIBRARIES omaseed::core
+)
+
 # #82: qBittorrent behind EngineClient, both ways, against a fake server.
 omaseed_add_test(tst_qbtengine
     SOURCES tst_qbtengine.cpp

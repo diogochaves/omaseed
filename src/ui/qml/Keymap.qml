@@ -2037,6 +2037,51 @@ QtObject {
     /// docs/33 D4: one "switch to NAME" row per other server, its action "switchTo:<id>".
     readonly property string switchToPrefix: "switchTo:"
 
+    // ---- what the server can do (docs/36 §4.3, DECISIONS C14 E4) -------------------------
+    // An action whose engine feature is off is hidden wherever it would be offered: the
+    // actions menu, the palette, the `?` sheet, and its key does nothing. `features` is
+    // `App.features` (EngineFeatures as a map); a key it lacks counts as on, so a table copy
+    // without one (the site's demo) offers everything.
+
+    /// The feature each engine-dependent action needs, by action id.
+    readonly property var actionFeatures: ({
+                                               "forceStart": "forceStart",
+                                               "category": "categories",
+                                               "tags": "tags",
+                                               "queueUp": "queue",
+                                               "queueDown": "queue",
+                                               "sequential": "sequentialDownload",
+                                               "firstLast": "firstLastPiece",
+                                               "superSeeding": "superSeeding",
+                                               "autoManagement": "autoManagement",
+                                               "toggleLog": "engineLog",
+                                               "qbtSettings": "qbtSettings"
+                                           })
+    /// The details tabs' shared keys, per tab: the same `a` adds trackers everywhere, but
+    /// peers and HTTP sources only where the engine takes them.
+    readonly property var tabFeatures: ({
+                                            "peers": {
+                                                "addRow": "peerControl",
+                                                "ban": "peerControl"
+                                            },
+                                            "webseeds": {
+                                                "addRow": "editWebSeeds",
+                                                "removeRow": "editWebSeeds"
+                                            }
+                                        })
+
+    /// Whether `action` (in details tab `tab`, or the log face's when `tab` is "log") is
+    /// offered by a server that can do `features`.
+    function offered(action, features, tab) {
+        const can = features || {};
+        let feature = root.actionFeatures[action];
+        if (tab === "log")
+            feature = "engineLog";
+        else if (tab && root.tabFeatures[tab] !== undefined)
+            feature = root.tabFeatures[tab][action] || feature;
+        return feature === undefined || can[feature] !== false;
+    }
+
     /// Whether `action` runs while the server is lost.
     function isOffline(action: string): bool {
         return root.offlineActions.indexOf(action) >= 0 || action.startsWith(root.switchToPrefix);
@@ -2193,6 +2238,9 @@ QtObject {
                 const found = root.commandEntry(group.group, action);
                 if (found === null)
                     continue;
+                // C14 E4: what the server can't do is not offered at all.
+                if (!root.offered(action, ctx.features, group.area))
+                    continue;
                 // D19: with one server nothing offers to switch.
                 if (found.needs === "servers" && (ctx.servers || []).length < 2)
                     continue;
@@ -2259,10 +2307,12 @@ QtObject {
     }
 
     /// The rows of one help-sheet column, in Fig. 26's order. `altKind` ("burst", "turtle",
-    /// "alt") words A's row for the way the alternative set goes (docs/31 S1).
-    function helpRows(column, altKind) {
-        return root.entries.filter(entry => entry.column === column).sort((a, b) => a.rank
-                                                                                    - b.rank).map(
+    /// "alt") words A's row for the way the alternative set goes (docs/31 S1). A row whose
+    /// action the server can't do (`features`, C14 E4) is left out.
+    function helpRows(column, altKind, features) {
+        const shown = entry => root.offered(entry.action, features, entry.area === "log" ? "log" : "");
+        return root.entries.filter(entry => entry.column === column && shown(entry)).sort((a, b) => a.rank
+                                                                                          - b.rank).map(
                     entry => root.worded(entry, altKind));
     }
 

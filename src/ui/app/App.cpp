@@ -4422,6 +4422,37 @@ QbtEngine *App::qbtEngine() const
     return qobject_cast<QbtEngine *>(m_client);
 }
 
+QVariantMap App::featuresMap() const
+{
+    const EngineFeatures &f = m_features;
+    QVariantList priorities;
+    for (const int priority : f.filePriorities)
+        priorities.append(priority);
+    return {
+        {QStringLiteral("categories"), f.categories},
+        {QStringLiteral("categorySavePaths"), f.categorySavePaths},
+        {QStringLiteral("tags"), f.tags},
+        {QStringLiteral("filePriorities"), priorities},
+        {QStringLiteral("shareLimitActions"), f.shareLimitActions},
+        {QStringLiteral("shareLimitAction"), f.shareLimitAction()},
+        {QStringLiteral("queue"), f.queue},
+        {QStringLiteral("forceStart"), f.forceStart},
+        {QStringLiteral("sequentialDownload"), f.sequentialDownload},
+        {QStringLiteral("firstLastPiece"), f.firstLastPiece},
+        {QStringLiteral("superSeeding"), f.superSeeding},
+        {QStringLiteral("autoManagement"), f.autoManagement},
+        {QStringLiteral("fetchMetadata"), f.fetchMetadata},
+        {QStringLiteral("addOptions"), f.addOptions},
+        {QStringLiteral("peerControl"), f.peerControl},
+        {QStringLiteral("editWebSeeds"), f.editWebSeeds},
+        {QStringLiteral("seedingTimeLimit"), f.seedingTimeLimit},
+        {QStringLiteral("engineLog"), f.engineLog},
+        {QStringLiteral("qbtSettings"), f.qbtSettings},
+        {QStringLiteral("torrentsBackup"), f.torrentsBackup},
+        {QStringLiteral("rss"), f.rss},
+    };
+}
+
 void App::updateFeatures()
 {
     const GlobalState *state = m_engine->globalState();
