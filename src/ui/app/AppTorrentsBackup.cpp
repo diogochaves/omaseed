@@ -6,6 +6,7 @@
 #include "core/Format.hpp"
 #include "core/OmaseedBackup.hpp"
 #include "core/Version.hpp"
+#include "core/engines/qbt/QbtEngine.hpp"
 
 #include <QCoreApplication>
 #include <QDate>
@@ -133,7 +134,7 @@ void App::exportTorrents(const QString &path)
                                       false);
         return;
     }
-    auto *exporter = new TorrentsExport(m_client, this);
+    auto *exporter = new TorrentsExport(qbtEngine()->client(), this);
     m_torrentsExport = exporter;
     setTorrentsRunning(QStringLiteral("export"), tr("exporting…"));
     connect(exporter, &TorrentsExport::progress, this, [this](int done, int total) {
@@ -230,32 +231,28 @@ QString App::readTorrentsImport(const QString &path)
             TorrentsImport::Journal::load(TorrentsImport::Journal::pathFor(m_server.id)));
         Q_EMIT torrentsImportRead(torrentsImportInfo());
     };
-    m_client->torrentsInfo()->then(this, [read, settle](const Result<QJsonArray> &r) {
+    m_client->torrents()->then(this, [read, settle](const Result<QList<TorrentPatch>> &r) {
         if (r.isError())
             read->error = r.error().toString();
-        for (const QJsonValue &v : r.value()) {
-            const QJsonObject t = v.toObject();
-            for (const QString &key : {QStringLiteral("hash"),
-                                       QStringLiteral("infohash_v1"),
-                                       QStringLiteral("infohash_v2")}) {
-                const QString id = t.value(key).toString().toLower();
+        for (const TorrentPatch &t : r.value()) {
+            for (const QString &id : {t.hash, t.values.infohashV1, t.values.infohashV2}) {
                 if (!id.isEmpty())
-                    read->here.ids.insert(id);
+                    read->here.ids.insert(id.toLower());
             }
         }
         settle();
     });
-    m_client->torrentsCategories()->then(this, [read, settle](const Result<QJsonObject> &r) {
+    m_client->categories()->then(this, [read, settle](const Result<QList<CategoryPatch>> &r) {
         if (r.isError())
             read->error = r.error().toString();
-        read->here.categories = r.value().keys();
+        for (const CategoryPatch &category : r.value())
+            read->here.categories.append(category.name);
         settle();
     });
-    m_client->torrentsTags()->then(this, [read, settle](const Result<QJsonArray> &r) {
+    m_client->tags()->then(this, [read, settle](const Result<QStringList> &r) {
         if (r.isError())
             read->error = r.error().toString();
-        for (const QJsonValue &tag : r.value())
-            read->here.tags.append(tag.toString());
+        read->here.tags.append(r.value());
         settle();
     });
     return QString();
@@ -435,7 +432,7 @@ void App::applyTorrentsImport(const QVariantMap &choice)
     options.localPathFor = [this](const QString &serverPath) {
         return m_freeSpace.localPathFor(serverPath);
     };
-    auto *import = new TorrentsImport(m_client, this);
+    auto *import = new TorrentsImport(qbtEngine()->client(), this);
     m_torrentsImport = import;
     const QString name = m_server.name;
     const int total = m_torrentsPlan.count();

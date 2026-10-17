@@ -186,6 +186,11 @@ void QbtEngine::setApiKey(const QString &apiKey)
     m_client->setApiKey(apiKey);
 }
 
+bool QbtEngine::hasApiKey() const
+{
+    return m_client->hasApiKey();
+}
+
 void QbtEngine::setCredentials(const QString &username, const QString &password)
 {
     m_client->setCredentials(username, password);

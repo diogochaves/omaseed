@@ -5,7 +5,7 @@
 #include "core/ServerPreferences.hpp"
 #include "core/StateFile.hpp"
 #include "core/SyncEngine.hpp"
-#include "core/engines/qbt/QbtClient.hpp"
+#include "core/engines/qbt/QbtEngine.hpp"
 #include "integration/BarMenu.hpp"
 #include "integration/StatusWriter.hpp"
 
@@ -28,7 +28,7 @@
 #endif
 
 using omaseed::core::GlobalState;
-using omaseed::core::QbtClient;
+using omaseed::core::QbtEngine;
 using omaseed::core::SeedLedger;
 using omaseed::core::StateFile;
 using omaseed::core::SyncEngine;
@@ -319,7 +319,7 @@ void TestStatusWriter::neverWritesASecret()
     // nothing reachable from the engine may leak into the file either.
     const QString strictKey = qEnvironmentVariable("QBT_STRICT_API_KEY");
     const QString key = strictKey.isEmpty() ? kFakeKey : strictKey;
-    QbtClient client;
+    QbtEngine client;
     client.setBaseUrl(QUrl(QStringLiteral("http://127.0.0.1:9")));
     client.setApiKey(key);
     SyncEngine engine;

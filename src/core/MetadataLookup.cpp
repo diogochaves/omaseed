@@ -1,8 +1,5 @@
 #include "core/MetadataLookup.hpp"
 
-#include "core/engines/qbt/QbtTranslate.hpp"
-
-#include <QJsonArray>
 #include <QLoggingCategory>
 #include <QTimer>
 
@@ -117,7 +114,7 @@ void MetadataLookup::start(const QString &key, const QString &source, const QStr
     m_lastSeconds = 0;
     m_phase = Phase::Waiting;
     if (m_serverReady) {
-        if (QbtTranslate::features(m_apiVersion).fetchMetadata) {
+        if (m_canFetch) {
             begin();
             return;
         }
@@ -143,13 +140,13 @@ void MetadataLookup::startPrivate(const QString &key, const QString &source, con
     Q_EMIT changed();
 }
 
-void MetadataLookup::setServer(bool ready, const QString &apiVersion)
+void MetadataLookup::setServer(bool ready, bool canFetch)
 {
     m_serverReady = ready;
-    m_apiVersion = apiVersion;
+    m_canFetch = canFetch;
     if (m_phase != Phase::Waiting || !ready)
         return;
-    if (!QbtTranslate::features(apiVersion).fetchMetadata) {
+    if (!canFetch) {
         setPhase(Phase::Unsupported);
         return;
     }
@@ -205,17 +202,17 @@ void MetadataLookup::poll()
 {
     if (!m_fetch || m_inFlight)
         return;
-    Reply<QbtClient::FetchedMetadata> *reply = m_fetch(m_source);
+    Reply<FetchedMetadata> *reply = m_fetch(m_source);
     if (reply == nullptr)
         return;
     m_inFlight = true;
     const int generation = m_generation;
-    reply->then(this, [this, generation](const Result<QbtClient::FetchedMetadata> &result) {
+    reply->then(this, [this, generation](const Result<FetchedMetadata> &result) {
         onAnswer(generation, result);
     });
 }
 
-void MetadataLookup::onAnswer(int generation, const Result<QbtClient::FetchedMetadata> &result)
+void MetadataLookup::onAnswer(int generation, const Result<FetchedMetadata> &result)
 {
     if (generation != m_generation || !isRunning(m_phase))
         return;
@@ -240,7 +237,7 @@ void MetadataLookup::onAnswer(int generation, const Result<QbtClient::FetchedMet
         // A network error, a timeout, a 5xx, a session being re-established: try again,
         // as qBittorrent's own Web UI does.
     } else if (result.value().ready) {
-        const std::optional<Metadata> metadata = parse(result.value().body);
+        const std::optional<Metadata> &metadata = result.value().metadata;
         if (!metadata) {
             qCWarning(lcLookup) << "fetchMetadata answered 200 without a usable info";
             setPhase(Phase::Failed);
@@ -306,11 +303,6 @@ MetadataLookup::Phase MetadataLookup::phaseAt(qint64 elapsedMs)
     if (elapsedMs < kNeverFrom)
         return Phase::Slow;
     return Phase::Never;
-}
-
-std::optional<MetadataLookup::Metadata> MetadataLookup::parse(const QJsonObject &body)
-{
-    return QbtTranslate::metadata(body);
 }
 
 } // namespace omaseed::core

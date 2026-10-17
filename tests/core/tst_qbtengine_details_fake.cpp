@@ -1,12 +1,12 @@
-// The four GETs the details pane lives on, against a minimal HTTP/1.1 server of our own:
-// the exact query the client sends and the typed value it parses back. `sync/torrentPeers`
-// is the one that matters most here, because the playground never has a peer to answer with
-// (tst_qbtclient_live only proves it answers at all).
+// The GETs the details pane lives on, through the qBittorrent engine (#82), against a minimal
+// HTTP/1.1 server of our own: the exact query it sends and the typed value it hands back.
+// `sync/torrentPeers` is the one that matters most here, because the playground never has a peer to
+// answer with (tst_qbtclient_live only proves it answers at all).
 
 #include "QbtFeed.hpp"
 #include "core/TorrentDetails.hpp"
 #include "core/TorrentModel.hpp"
-#include "core/engines/qbt/QbtClient.hpp"
+#include "core/engines/qbt/QbtEngine.hpp"
 
 #include <QEventLoop>
 #include <QJsonArray>
@@ -22,11 +22,18 @@
 #include <memory>
 
 using omaseed::core::ApiError;
-using omaseed::core::QbtClient;
+using omaseed::core::ContentFile;
+using omaseed::core::Done;
+using omaseed::core::FilePriority;
+using omaseed::core::PeersDelta;
+using omaseed::core::QbtEngine;
 using omaseed::core::Reply;
 using omaseed::core::Result;
 using omaseed::core::TorrentDetails;
 using omaseed::core::TorrentModel;
+using omaseed::core::TorrentProperties;
+using omaseed::core::TrackerEntry;
+using omaseed::core::TrackerSource;
 
 namespace {
 
@@ -107,7 +114,7 @@ Result<T> await(QObject *context, Reply<T> *reply, int timeoutMs = 10000)
 
 } // namespace
 
-class TestQbtClientDetailsFake : public QObject
+class TestQbtEngineDetailsFake : public QObject
 {
     Q_OBJECT
 
@@ -123,17 +130,16 @@ private Q_SLOTS:
     void webSeedsAreAskedOnSelectionThenOneTickInTen();
 };
 
-void TestQbtClientDetailsFake::syncTorrentPeersSendsHashAndRid()
+void TestQbtEngineDetailsFake::syncTorrentPeersSendsHashAndRid()
 {
     FakeServer server;
     server.setHandler([](const QByteArray &) {
         return jsonResponse(R"({"full_update":true,"rid":3,"peers":{}})");
     });
 
-    QbtClient client;
+    QbtEngine client;
     client.setBaseUrl(server.url());
-    const Result<QJsonObject> result =
-        await(this, client.torrentsPeers(QStringLiteral("abc123"), 12));
+    const Result<PeersDelta> result = await(this, client.peers(QStringLiteral("abc123"), 12));
 
     QVERIFY2(!result.isError(), qPrintable(result.error().toString()));
     QCOMPARE(server.targets.size(), 1);
@@ -142,10 +148,11 @@ void TestQbtClientDetailsFake::syncTorrentPeersSendsHashAndRid()
     QVERIFY(server.targets.first().startsWith("/api/v2/sync/torrentPeers?"));
     QCOMPARE(query.queryItemValue(QStringLiteral("hash")), QStringLiteral("abc123"));
     QCOMPARE(query.queryItemValue(QStringLiteral("rid")), QStringLiteral("12"));
-    QCOMPARE(result.value().value(QStringLiteral("rid")).toInt(), 3);
+    QCOMPARE(result.value().cursor, std::optional<int>(3));
+    QVERIFY(result.value().full);
 }
 
-void TestQbtClientDetailsFake::torrentPeersParsesTheDiffShape()
+void TestQbtEngineDetailsFake::torrentPeersParsesTheDiffShape()
 {
     FakeServer server;
     server.setHandler([](const QByteArray &) {
@@ -153,25 +160,21 @@ void TestQbtClientDetailsFake::torrentPeersParsesTheDiffShape()
                             R"("dl_speed":1069547}},"peers_removed":["5.6.7.8:6881"]})");
     });
 
-    QbtClient client;
+    QbtEngine client;
     client.setBaseUrl(server.url());
-    const Result<QJsonObject> result =
-        await(this, client.torrentsPeers(QStringLiteral("abc123"), 3));
+    const Result<PeersDelta> result = await(this, client.peers(QStringLiteral("abc123"), 3));
 
     QVERIFY2(!result.isError(), qPrintable(result.error().toString()));
-    const QJsonObject answer = result.value();
-    QCOMPARE(answer.value(QStringLiteral("rid")).toInt(), 4);
-    QCOMPARE(answer.value(QStringLiteral("peers_removed")).toArray().size(), 1);
-    QCOMPARE(answer.value(QStringLiteral("peers"))
-                 .toObject()
-                 .value(QStringLiteral("1.2.3.4:6881"))
-                 .toObject()
-                 .value(QStringLiteral("dl_speed"))
-                 .toDouble(),
-             1069547.0);
+    const PeersDelta &answer = result.value();
+    QCOMPARE(answer.cursor, std::optional<int>(4));
+    QVERIFY(!answer.full);
+    QCOMPARE(answer.removed, QStringList{QStringLiteral("5.6.7.8:6881")});
+    QCOMPARE(answer.peers.size(), 1);
+    QCOMPARE(answer.peers.at(0).address, QStringLiteral("1.2.3.4:6881"));
+    QCOMPARE(answer.peers.at(0).dlSpeed, std::optional<qint64>(1069547));
 }
 
-void TestQbtClientDetailsFake::filesTrackersAndPropertiesSendTheHash()
+void TestQbtEngineDetailsFake::filesTrackersAndPropertiesSendTheHash()
 {
     FakeServer server;
     server.setHandler([](const QByteArray &target) {
@@ -182,23 +185,25 @@ void TestQbtClientDetailsFake::filesTrackersAndPropertiesSendTheHash()
         return jsonResponse(R"([{"url":"** [DHT] **","status":2}])");
     });
 
-    QbtClient client;
+    QbtEngine client;
     client.setBaseUrl(server.url());
 
-    const Result<QJsonObject> properties =
-        await(this, client.torrentsProperties(QStringLiteral("abc123")));
+    const Result<TorrentProperties> properties =
+        await(this, client.properties(QStringLiteral("abc123")));
     QVERIFY2(!properties.isError(), qPrintable(properties.error().toString()));
-    QCOMPARE(properties.value().value(QStringLiteral("name")).toString(),
-             QStringLiteral("Fixture"));
+    QCOMPARE(properties.value().name, QStringLiteral("Fixture"));
+    QCOMPARE(properties.value().totalSize, 4226);
 
-    const Result<QJsonArray> files = await(this, client.torrentsFiles(QStringLiteral("abc123")));
+    const Result<QList<ContentFile>> files = await(this, client.files(QStringLiteral("abc123")));
     QVERIFY2(!files.isError(), qPrintable(files.error().toString()));
     QCOMPARE(files.value().size(), 1);
+    QCOMPARE(files.value().at(0).path, QStringLiteral("a/b.bin"));
 
-    const Result<QJsonArray> trackers =
-        await(this, client.torrentsTrackers(QStringLiteral("abc123")));
+    const Result<QList<TrackerEntry>> trackers =
+        await(this, client.trackers(QStringLiteral("abc123")));
     QVERIFY2(!trackers.isError(), qPrintable(trackers.error().toString()));
     QCOMPARE(trackers.value().size(), 1);
+    QCOMPARE(trackers.value().at(0).source, TrackerSource::Dht);
 
     QCOMPARE(server.targets.size(), 3);
     for (const QByteArray &target : server.targets) {
@@ -207,20 +212,19 @@ void TestQbtClientDetailsFake::filesTrackersAndPropertiesSendTheHash()
     }
 }
 
-void TestQbtClientDetailsFake::pieceStatesSendsTheHashAndParsesTheArray()
+void TestQbtEngineDetailsFake::pieceStatesSendsTheHashAndParsesTheArray()
 {
     // docs/12 G3's bar: one number per piece.
     FakeServer server;
     server.setHandler([](const QByteArray &) { return jsonResponse("[2,2,1,0]"); });
 
-    QbtClient client;
+    QbtEngine client;
     client.setBaseUrl(server.url());
 
-    const Result<QJsonArray> states =
-        await(this, client.torrentsPieceStates(QStringLiteral("abc123")));
+    const Result<QByteArray> states = await(this, client.pieceStates(QStringLiteral("abc123")));
     QVERIFY2(!states.isError(), qPrintable(states.error().toString()));
     QCOMPARE(states.value().size(), 4);
-    QCOMPARE(states.value().at(2).toInt(), 1);
+    QCOMPARE(int(states.value().at(2)), 1);
 
     QCOMPARE(server.targets.size(), 1);
     const QUrl target(QString::fromLatin1(server.targets.constFirst()));
@@ -229,30 +233,30 @@ void TestQbtClientDetailsFake::pieceStatesSendsTheHashAndParsesTheArray()
              QStringLiteral("abc123"));
 }
 
-void TestQbtClientDetailsFake::filePrioPostsTheIdList()
+void TestQbtEngineDetailsFake::filePrioPostsTheIdList()
 {
     // The one action the details pane needs in Phase 3 (spec §2 Fig. 2's `+ - x`).
     FakeServer server;
     server.setHandler([](const QByteArray &) { return jsonResponse("ok"); });
 
-    QbtClient client;
+    QbtEngine client;
     client.setBaseUrl(server.url());
-    const Result<QByteArray> result =
-        await(this, client.torrentsSetFilePrio(QStringLiteral("abc123"), {2, 3}, 0));
+    const Result<Done> result =
+        await(this, client.setFilePriority(QStringLiteral("abc123"), {2, 3}, FilePriority::Skip));
 
     QVERIFY2(!result.isError(), qPrintable(result.error().toString()));
     QCOMPARE(server.targets.size(), 1);
     QVERIFY(server.targets.first().endsWith("/api/v2/torrents/filePrio"));
 }
 
-QTEST_MAIN(TestQbtClientDetailsFake)
+QTEST_MAIN(TestQbtEngineDetailsFake)
 // Review RUN-10: after `D` the pane kept asking about the deleted torrent (four 404s a tick)
 // and put the 404 up as its error line.
-void TestQbtClientDetailsFake::aDeletedTorrentStopsThePollQuietly()
+void TestQbtEngineDetailsFake::aDeletedTorrentStopsThePollQuietly()
 {
     FakeServer server;
     server.setHandler([](const QByteArray &) { return notFoundResponse(); });
-    QbtClient client;
+    QbtEngine client;
     client.setBaseUrl(server.url());
 
     TorrentDetails details;
@@ -272,11 +276,11 @@ void TestQbtClientDetailsFake::aDeletedTorrentStopsThePollQuietly()
     QTRY_VERIFY(server.targets.size() > asked);
 }
 
-void TestQbtClientDetailsFake::aHashTheModelNoLongerHoldsIsNotAsked()
+void TestQbtEngineDetailsFake::aHashTheModelNoLongerHoldsIsNotAsked()
 {
     FakeServer server;
     server.setHandler([](const QByteArray &) { return jsonResponse("{}"); });
-    QbtClient client;
+    QbtEngine client;
     client.setBaseUrl(server.url());
 
     TorrentModel torrents;
@@ -296,7 +300,7 @@ void TestQbtClientDetailsFake::aHashTheModelNoLongerHoldsIsNotAsked()
     QTRY_VERIFY(!server.targets.isEmpty());
 }
 
-void TestQbtClientDetailsFake::webSeedsSendsTheHashAndParsesTheList()
+void TestQbtEngineDetailsFake::webSeedsSendsTheHashAndParsesTheList()
 {
     // #10's HTTP sources tab.
     FakeServer server;
@@ -305,13 +309,12 @@ void TestQbtClientDetailsFake::webSeedsSendsTheHashAndParsesTheList()
             R"([{"url":"https://mirror.example/pub/"},{"url":"http://b.example/x"}])");
     });
 
-    QbtClient client;
+    QbtEngine client;
     client.setBaseUrl(server.url());
-    const Result<QJsonArray> seeds = await(this, client.torrentsWebSeeds(QStringLiteral("abc123")));
+    const Result<QStringList> seeds = await(this, client.webSeeds(QStringLiteral("abc123")));
     QVERIFY2(!seeds.isError(), qPrintable(seeds.error().toString()));
     QCOMPARE(seeds.value().size(), 2);
-    QCOMPARE(seeds.value().at(1).toObject().value(QStringLiteral("url")).toString(),
-             QStringLiteral("http://b.example/x"));
+    QCOMPARE(seeds.value().at(1), QStringLiteral("http://b.example/x"));
 
     QCOMPARE(server.targets.size(), 1);
     const QUrl target(QString::fromLatin1(server.targets.constFirst()));
@@ -323,7 +326,7 @@ void TestQbtClientDetailsFake::webSeedsSendsTheHashAndParsesTheList()
 // #10: no other call says whether a torrent has web seeds, so the list is asked for when the
 // selection changes, then on one poll in ten, and on every poll while its tab is on show.
 // The timer is parked and the polls are run by hand, so the count is exact.
-void TestQbtClientDetailsFake::webSeedsAreAskedOnSelectionThenOneTickInTen()
+void TestQbtEngineDetailsFake::webSeedsAreAskedOnSelectionThenOneTickInTen()
 {
     FakeServer server;
     server.setHandler([](const QByteArray &target) {
@@ -333,7 +336,7 @@ void TestQbtClientDetailsFake::webSeedsAreAskedOnSelectionThenOneTickInTen()
             return jsonResponse("{}");
         return jsonResponse("[]");
     });
-    QbtClient client;
+    QbtEngine client;
     client.setBaseUrl(server.url());
 
     TorrentDetails details;
@@ -379,4 +382,4 @@ void TestQbtClientDetailsFake::webSeedsAreAskedOnSelectionThenOneTickInTen()
     QTRY_VERIFY(details.webSeeds()->loaded());
 }
 
-#include "tst_qbtclient_details_fake.moc"
+#include "tst_qbtengine_details_fake.moc"

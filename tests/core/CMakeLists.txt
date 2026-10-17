@@ -241,8 +241,8 @@ omaseed_add_test(tst_syncengine_live LIVE
 )
 
 # --- T3.4: the details pane ---------------------------------------------------------------
-omaseed_add_test(tst_qbtclient_details_fake
-    SOURCES tst_qbtclient_details_fake.cpp
+omaseed_add_test(tst_qbtengine_details_fake
+    SOURCES tst_qbtengine_details_fake.cpp
     LIBRARIES omaseed::core
 )
 

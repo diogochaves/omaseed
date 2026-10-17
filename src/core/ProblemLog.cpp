@@ -2,8 +2,7 @@
 
 #include "core/SharedData.hpp"
 #include "core/TorrentModel.hpp"
-#include "core/engines/qbt/QbtClient.hpp"
-#include "core/engines/qbt/QbtTranslate.hpp"
+#include "core/engines/EngineClient.hpp"
 
 #include <QCryptographicHash>
 
@@ -63,7 +62,7 @@ ProblemLog::ProblemLog(QObject *parent)
     : QObject(parent)
 {}
 
-void ProblemLog::setClient(QbtClient *client)
+void ProblemLog::setClient(EngineClient *client)
 {
     if (m_client == client)
         return;
@@ -184,15 +183,15 @@ void ProblemLog::read()
     const quint64 serial = ++m_issued;
     const quint64 generation = m_generation;
     const bool fromStart = m_lastId < 0;
-    m_client->logMainProblems(m_lastId)->then(
-        this, [this, serial, generation, fromStart](const Result<QJsonArray> &result) {
+    m_client->log(m_lastId, true)
+        ->then(this, [this, serial, generation, fromStart](const Result<QList<LogEntry>> &result) {
             if (generation != m_generation)
                 return;
             m_reading = false;
             m_sinceRead.start();
             if (result.isError())
                 return;
-            applyRead(QbtTranslate::log(result.value()), serial, fromStart);
+            applyRead(result.value(), serial, fromStart);
             checkFiles();
         });
 }
@@ -596,13 +595,13 @@ void ProblemLog::checkFiles()
             continue;
         m_filesAsked.insert(hash);
         const quint64 generation = m_generation;
-        m_client->torrentsFiles(hash)->then(
-            this, [this, hash, generation](const Result<QJsonArray> &result) {
+        m_client->files(hash)->then(
+            this, [this, hash, generation](const Result<QList<ContentFile>> &result) {
                 m_filesAsked.remove(hash);
                 if (generation != m_generation || result.isError())
                     return;
                 QStringList paths;
-                for (const ContentFile &file : QbtTranslate::files(result.value()))
+                for (const ContentFile &file : result.value())
                     paths << file.path;
                 applyFiles(hash, paths);
             });

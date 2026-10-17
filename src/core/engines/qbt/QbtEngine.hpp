@@ -37,6 +37,7 @@ public:
     QUrl baseUrl() const override;
     void setBaseUrl(const QUrl &baseUrl) override;
     void setApiKey(const QString &apiKey) override;
+    bool hasApiKey() const override;
     void setCredentials(const QString &username, const QString &password) override;
     void clearAuth() override;
     void allowLoginAgain() override;

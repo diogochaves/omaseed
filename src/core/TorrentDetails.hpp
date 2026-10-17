@@ -51,7 +51,7 @@ QT_END_NAMESPACE
 
 namespace omaseed::core {
 
-class QbtClient;
+class EngineClient;
 class TorrentModel;
 
 class TorrentDetails : public QObject
@@ -91,7 +91,7 @@ public:
     ~TorrentDetails() override;
 
     /// The client to poll through. Not owned; nullptr means "demo or no server".
-    void setClient(QbtClient *client);
+    void setClient(EngineClient *client);
     /// Where the share limits come from: `torrents/properties` does not carry them, but the
     /// torrent row of `sync/maindata` does. Not owned; optional.
     void setTorrentModel(TorrentModel *torrents);
@@ -169,7 +169,7 @@ private:
     void noteSuccess();
     void setLastError(const QString &message);
 
-    QPointer<QbtClient> m_client;
+    QPointer<EngineClient> m_client;
     QPointer<TorrentModel> m_torrents;
 
     TorrentFilesModel *m_files = nullptr;

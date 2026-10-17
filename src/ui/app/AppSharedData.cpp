@@ -79,12 +79,12 @@ QVariantMap App::sharedData(const QStringList &hashes, bool fresh)
         if (!m_hasServer || m_sharedFilesInFlight.contains(hash))
             continue;
         m_sharedFilesInFlight.insert(hash);
-        m_client->torrentsFiles(hash)->then(this, [this, hash](const Result<QJsonArray> &result) {
+        m_client->files(hash)->then(this, [this, hash](const Result<QList<ContentFile>> &result) {
             m_sharedFilesInFlight.remove(hash);
             QStringList names;
             if (!result.isError()) {
-                for (const QJsonValue &file : result.value())
-                    names.append(file.toObject().value(QStringLiteral("name")).toString());
+                for (const ContentFile &file : result.value())
+                    names.append(file.path);
             }
             // A refusal (the torrent went away meanwhile) is cached as "no files": it
             // shares nothing, and asking again would only be refused again.
@@ -199,19 +199,18 @@ void App::setAutoManagementWithCategories(const QStringList &hashes, const QVari
     auto refused = std::make_shared<bool>(false);
     for (auto it = byCategory.cbegin(); it != byCategory.cend(); ++it) {
         const QString name = it.key();
-        m_client->torrentsSetCategory(it.value(), name)
-            ->then(this,
-                   [this, hashes, name, remaining, refused](const Result<QByteArray> &result) {
-                       if (result.isError()) {
-                           *refused = true;
-                           qWarning().noquote()
-                               << QStringLiteral("set category %1 failed, automatic management "
-                                                 "left off: %2")
-                                      .arg(name, result.error().toString());
-                       }
-                       if (--*remaining == 0 && !*refused)
-                           setAutoManagement(hashes, true);
-                   });
+        m_client->setCategory(it.value(), name)
+            ->then(this, [this, hashes, name, remaining, refused](const Result<Done> &result) {
+                if (result.isError()) {
+                    *refused = true;
+                    qWarning().noquote()
+                        << QStringLiteral("set category %1 failed, automatic management "
+                                          "left off: %2")
+                               .arg(name, result.error().toString());
+                }
+                if (--*remaining == 0 && !*refused)
+                    setAutoManagement(hashes, true);
+            });
     }
 }
 

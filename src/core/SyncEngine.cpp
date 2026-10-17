@@ -8,8 +8,7 @@
 #include "core/TagModel.hpp"
 #include "core/TorrentModel.hpp"
 #include "core/TrackerModel.hpp"
-#include "core/engines/qbt/QbtClient.hpp"
-#include "core/engines/qbt/QbtTranslate.hpp"
+#include "core/engines/EngineClient.hpp"
 
 #include <QTimer>
 
@@ -56,7 +55,7 @@ SyncEngine::~SyncEngine()
         m_client->setMaxRetries(m_savedMaxRetries);
 }
 
-void SyncEngine::setClient(QbtClient *client)
+void SyncEngine::setClient(EngineClient *client)
 {
     if (m_client == client)
         return;
@@ -218,8 +217,8 @@ void SyncEngine::poll()
     }
 
     const quint64 serial = ++m_pollsSent;
-    m_pollReply = m_client->syncMainData(m_rid)->then(
-        this, [this, generation, serial](const Result<QJsonObject> &result) {
+    m_pollReply = m_client->sync(m_rid)->then(
+        this, [this, generation, serial](const Result<SyncDelta> &result) {
             if (generation != m_generation)
                 return; // stopped or switched meanwhile: not ours to apply
             m_pollReply.clear();
@@ -230,7 +229,7 @@ void SyncEngine::poll()
                 onPollError(result.error());
             } else {
                 m_appliedPoll = serial;
-                onPollResult(QbtTranslate::syncDelta(result.value()));
+                onPollResult(result.value());
             }
         });
 }

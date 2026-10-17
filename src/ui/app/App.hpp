@@ -2,10 +2,10 @@
 
 // App — the composition root, and the one object QML talks to.
 //
-// Everything the views need hangs off here: the server list, the client that talks to the
-// chosen server, the sync loop, the models it feeds and the proxy the rail and the search
-// box drive. `main.cpp` creates exactly one, hands it to the QML engine as the `App`
-// singleton of module `Omaseed` (see `src/ui/qml/AppForeign.hpp`) and gives it the tray.
+// Everything the views need hangs off here: the server list, the engine client that talks to
+// the chosen server (docs/DECISIONS.md C14), the sync loop, the models it feeds and the proxy the
+// rail and the search box drive. `main.cpp` creates exactly one, hands it to the QML engine as the
+// `App` singleton of module `Omaseed` (see `src/ui/qml/AppForeign.hpp`) and gives it the tray.
 //
 // Where the server comes from, in order:
 //   1. `--demo table`: no server at all. `demoMode` is true, the engine never starts, and
@@ -55,7 +55,7 @@
 #include "core/TorrentsExport.hpp"
 #include "core/TorrentsImport.hpp"
 #include "core/TrackerModel.hpp"
-#include "core/engines/qbt/QbtClient.hpp"
+#include "core/engines/EngineClient.hpp"
 #include "integration/BarMenu.hpp"
 #include "integration/BarWidget.hpp"
 #include "integration/Tray.hpp"
@@ -85,6 +85,10 @@ QT_BEGIN_NAMESPACE
 class QNetworkAccessManager;
 class QQmlEngine;
 QT_END_NAMESPACE
+
+namespace omaseed::core {
+class QbtEngine;
+}
 
 namespace omaseed::integration {
 class Notifier;
@@ -169,7 +173,15 @@ public:
     omaseed::core::GlobalState *globalState() const;
     omaseed::core::SyncEngine *engine() const { return m_engine; }
     omaseed::core::ServerStore *servers() const { return m_servers; }
-    omaseed::core::QbtClient *client() const { return m_client; }
+    /// The chosen server's engine (docs/DECISIONS.md C14): every call to the server goes
+    /// through it.
+    omaseed::core::EngineClient *client() const { return m_client; }
+    /// The qBittorrent engine behind it, for the surfaces only qBittorrent has (its settings,
+    /// the torrents backup, RSS: docs/36 §4.4); null for any other engine. Callers check the
+    /// feature record (features()) for the surface first.
+    omaseed::core::QbtEngine *qbtEngine() const;
+    /// What the chosen server can do, resolved from its engine and version after the probe.
+    const omaseed::core::EngineFeatures &features() const { return m_features; }
     /// For tests: its probe runner and keychain hooks keep them off the desktop's keyring.
     omaseed::core::SecretStore *secretStore() const { return m_secrets; }
 
@@ -194,16 +206,18 @@ public Q_SLOTS:
     /// The window's visibility: the poll loop slows to 5 s while it is false.
     void setVisible(bool visible);
 
-    /// POST transfer/toggleSpeedLimitsMode. The tray's checkbox is not moved here — it
+    /// Flips the alternative speed limits. The tray's checkbox is not moved here — it
     /// follows `globalState.useAltSpeedLimits`, which the next poll brings back.
     void toggleAltSpeed();
-    /// POST torrents/stop with hashes=all.
+    /// Stops every torrent on the server.
     void stopAll();
-    /// POST torrents/start with hashes=all.
+    /// Starts every torrent on the server.
     void startAll();
 
 Q_SIGNALS:
     void serverChanged();
+    /// The chosen server's feature record moved (a probe, a switch).
+    void featuresChanged();
     void demoModeChanged();
 
     /// Raised by the tray menu, the hero's gear, `,` and a notice's "settings". MainView opens
@@ -219,8 +233,11 @@ private:
     void startEngine();
     void updateTray();
     void updateTrayNumbers();
+    /// Resolves m_features from the engine and the server's version (docs/36 §4.3).
+    void updateFeatures();
 
-    omaseed::core::QbtClient *m_client = nullptr;
+    omaseed::core::EngineClient *m_client = nullptr;
+    omaseed::core::EngineFeatures m_features;
     omaseed::core::SyncEngine *m_engine = nullptr;
     omaseed::core::TorrentFilterModel *m_filtered = nullptr;
     omaseed::core::ServerStore *m_servers = nullptr;
@@ -451,10 +468,10 @@ public:
     /// client (including its secret), start. The hero follows through `serverChanged`.
     Q_INVOKABLE bool setDefaultServer(const QString &id);
 
-    /// One throwaway `QbtClient` against `fields`: app/version, app/webapiVersion, then
-    /// torrents/info to count. Answers with `serverTested()`, always exactly once. An empty
-    /// `secret` on a server that already exists reads the stored one first. In demo mode the
-    /// result is fictional (there is no network to reach).
+    /// One throwaway engine client against `fields`: its probe, then the torrents to count. Answers
+    /// with `serverTested()`, always exactly once. An empty `secret` on a server that already
+    /// exists reads the stored one first. In demo mode the result is fictional (there is no network
+    /// to reach).
     Q_INVOKABLE void testServer(const QVariantMap &fields, const QString &secret = QString());
 
     // General pane -----------------------------------------------------------------------
@@ -652,7 +669,7 @@ private:
     // --- end T4.5 --------------------------------------------------------------------------
     // --- T4.3: torrent actions ---
     // Every action of spec §3 Fig. 6/7/8/11 and Fig. 26's "act" column that touches the
-    // server lives here, over `QbtClient`. Each one no-ops in demo mode (logging
+    // server lives here, over the engine client. Each one no-ops in demo mode (logging
     // "demo: <action> <n>") and otherwise reports a failure through `actionFailed` rather
     // than throwing it away, the way `toggleAltSpeed`/`stopAll` do above.
 public:
@@ -833,7 +850,7 @@ private:
                     bool on,
                     bool omaseed::core::Torrent::*member,
                     omaseed::core::TorrentField field,
-                    omaseed::core::Reply<QByteArray> *reply,
+                    omaseed::core::Reply<omaseed::core::Done> *reply,
                     const QString &action);
     /// G4 in demo mode: sets `field` to `on` on the fictional rows and returns true.
     bool applyDemoOption(const QStringList &hashes,
@@ -844,7 +861,7 @@ private:
     /// A refused action, in the footer's words (docs/33 D23): `hashes` and `folder` name
     /// what it was about when the request does not.
     void reportActionResult(const QString &action,
-                            const omaseed::core::Result<QByteArray> &result,
+                            const omaseed::core::Result<omaseed::core::Done> &result,
                             const QStringList &hashes = {},
                             const QString &folder = {});
     void loadDeleteFilesDefault();
@@ -1191,12 +1208,12 @@ private:
     /// are known) and adds again; failing that, adds the magnet to stop once its metadata is in
     /// and sets the priorities then, as for a .torrent (docs/29 §6, "Session swapped").
     void retryUrlAdd(const QVariantMap &request,
-                     const omaseed::core::QbtClient::AddOptions &options,
+                     const omaseed::core::AddOptions &options,
                      const QString &torrentId,
                      int attempt = 0);
     /// A magnet or link is in: its renames (M18) and then its start, or the priorities a
     /// fallback add could not send (`laterPriorities`), then `addFinished`.
-    void afterUrlAdd(const QByteArray &body,
+    void afterUrlAdd(const omaseed::core::AddResult &added,
                      const QVariantMap &request,
                      const QString &torrentId,
                      const QVariantList &laterPriorities);
@@ -1207,7 +1224,7 @@ private:
     double m_lookupTestNow = -1;
 
     /// Builds the client's options from the sheet's payload.
-    omaseed::core::QbtClient::AddOptions addOptionsFrom(const QVariantMap &request) const;
+    omaseed::core::AddOptions addOptionsFrom(const QVariantMap &request) const;
     /// Waits up to 10 s for `hash` to turn up in the model, then asks for the cursor.
     void watchForAddedHash(const QString &hash);
 

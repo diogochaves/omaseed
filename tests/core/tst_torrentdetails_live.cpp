@@ -10,7 +10,7 @@
 #include "core/TorrentFilesModel.hpp"
 #include "core/TorrentPeersModel.hpp"
 #include "core/TorrentTrackersModel.hpp"
-#include "core/engines/qbt/QbtClient.hpp"
+#include "core/engines/qbt/QbtEngine.hpp"
 
 #include "LiveServer.hpp"
 
@@ -84,8 +84,8 @@ private Q_SLOTS:
     void piece_states_poll_while_general_is_active();
 
 private:
-    void addFixture(QbtClient &client);
-    void removeFixture(QbtClient &client);
+    void addFixture(QbtEngine &client);
+    void removeFixture(QbtEngine &client);
 
     QUrl m_url;
 };
@@ -97,50 +97,49 @@ void TestTorrentDetailsLive::initTestCase()
         QSKIP("the :8081 playground is not running (scripts/dev/test-server.sh start)");
 }
 
-void TestTorrentDetailsLive::addFixture(QbtClient &client)
+void TestTorrentDetailsLive::addFixture(QbtEngine &client)
 {
     QFile file(QString::fromLatin1(kFixtureFile));
     QVERIFY2(file.open(QIODevice::ReadOnly), qPrintable(file.fileName()));
 
-    QbtClient::AddOptions options;
+    AddOptions options;
     options.stopped = true; // the test box never downloads anything
     options.category = QString::fromLatin1(kCategory);
-    const Result<QByteArray> added =
-        await(this,
-              client.torrentsAddFile(
-                  QStringLiteral("multi_file_v1_unicode.torrent"), file.readAll(), options));
+    const Result<AddResult> added = await(
+        this,
+        client.addFile(QStringLiteral("multi_file_v1_unicode.torrent"), file.readAll(), options));
     QVERIFY2(!added.isError(), qPrintable(added.error().toString()));
 
     // The server needs a moment to parse it before torrents/files answers.
     QVERIFY(waitFor(
         [&]() {
-            const Result<QJsonArray> files =
-                await(this, client.torrentsFiles(QString::fromLatin1(kFixtureHash)));
+            const Result<QList<ContentFile>> files =
+                await(this, client.files(QString::fromLatin1(kFixtureHash)));
             return !files.isError() && !files.value().isEmpty();
         },
         10000));
 }
 
-void TestTorrentDetailsLive::removeFixture(QbtClient &client)
+void TestTorrentDetailsLive::removeFixture(QbtEngine &client)
 {
-    await(this, client.torrentsDelete({QString::fromLatin1(kFixtureHash)}, /*deleteFiles=*/true));
+    await(this, client.remove({QString::fromLatin1(kFixtureHash)}, /*deleteFiles=*/true));
     // Deleting the torrent does not delete the category it was filed under: the playground
     // would otherwise collect one `omaseed-t34-live` row per run for ever (T4.8).
-    await(this, client.torrentsRemoveCategories({QString::fromLatin1(kCategory)}));
+    await(this, client.removeCategories({QString::fromLatin1(kCategory)}));
 }
 
 void TestTorrentDetailsLive::cleanup()
 {
     if (m_url.isEmpty() || !answers(m_url))
         return;
-    QbtClient client;
+    QbtEngine client;
     client.setBaseUrl(m_url);
     removeFixture(client);
 }
 
 void TestTorrentDetailsLive::polls_properties_files_and_trackers()
 {
-    QbtClient client;
+    QbtEngine client;
     client.setBaseUrl(m_url);
     addFixture(client);
 
@@ -184,7 +183,7 @@ void TestTorrentDetailsLive::polls_properties_files_and_trackers()
 
 void TestTorrentDetailsLive::peers_only_poll_while_the_tab_is_active()
 {
-    QbtClient client;
+    QbtEngine client;
     client.setBaseUrl(m_url);
     addFixture(client);
 
@@ -214,7 +213,7 @@ void TestTorrentDetailsLive::peers_only_poll_while_the_tab_is_active()
 void TestTorrentDetailsLive::piece_states_poll_while_general_is_active()
 {
     // docs/12 G3: torrents/pieceStates rides with the properties while General is on show.
-    QbtClient client;
+    QbtEngine client;
     client.setBaseUrl(m_url);
     addFixture(client);
 

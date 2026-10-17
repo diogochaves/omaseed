@@ -6,7 +6,7 @@
 #include "core/MagnetLink.hpp"
 #include "core/StateFile.hpp"
 #include "core/TorrentFile.hpp"
-#include "core/engines/qbt/QbtClient.hpp"
+#include "core/engines/EngineClient.hpp"
 #include "integration/Xdg.hpp"
 #include "ui/app/App.hpp"
 
@@ -84,19 +84,18 @@ bool StatusService::setAltSpeed(bool on)
     if (m_app->isDemoMode() || !m_app->hasServer())
         return now;
     QPointer<App> app(m_app);
-    m_app->client()->transferSetSpeedLimitsMode(on)->then(
-        this, [app, on](const Result<QByteArray> &result) {
-            if (!result.isError() || app.isNull())
-                return;
-            // A server without setSpeedLimitsMode: flip it when it is not where it should be.
-            if (result.error().kind() == ApiError::Kind::NotFound) {
-                if (app->globalState()->useAltSpeedLimits() != on)
-                    app->toggleAltSpeed();
-                return;
-            }
-            qWarning().noquote()
-                << QStringLiteral("alt-speed set failed: %1").arg(result.error().toString());
-        });
+    m_app->client()->setAltSpeed(on)->then(this, [app, on](const Result<Done> &result) {
+        if (!result.isError() || app.isNull())
+            return;
+        // A server without setSpeedLimitsMode: flip it when it is not where it should be.
+        if (result.error().kind() == ApiError::Kind::NotFound) {
+            if (app->globalState()->useAltSpeedLimits() != on)
+                app->toggleAltSpeed();
+            return;
+        }
+        qWarning().noquote()
+            << QStringLiteral("alt-speed set failed: %1").arg(result.error().toString());
+    });
     return on;
 }
 
@@ -236,14 +235,14 @@ void StatusService::addSources(const QStringList &sources,
     parseInBackground(sources, [this, category, stopped, reply](const QList<Source> &parsed) {
         // What the add sheet sends by default: the category, its save path, and automatic
         // management, so the category decides where the files go.
-        QbtClient::AddOptions options;
+        AddOptions options;
         if (!category.isEmpty()) {
             options.category = category;
             const QString savePath = m_app->categories()->savePathOf(category);
             if (!savePath.isEmpty())
-                options.savepath = savePath;
+                options.savePath = savePath;
         }
-        options.autoTMM = true;
+        options.autoManagement = true;
         if (stopped)
             options.stopped = true;
 
@@ -284,32 +283,26 @@ void StatusService::addSources(const QStringList &sources,
                 run->added.append(entry(source));
                 continue;
             }
-            core::Reply<QByteArray> *request =
+            core::Reply<AddResult> *request =
                 source.kind == QLatin1String("file")
-                    ? m_app->client()->torrentsAddFile(source.fileName, source.bytes, options)
-                    : m_app->client()->torrentsAddUrls(QStringList{source.value}, options);
+                    ? m_app->client()->addFile(source.fileName, source.bytes, options)
+                    : m_app->client()->addUrls(QStringList{source.value}, options);
             ++run->pending;
-            request->then(this, [run, source](const Result<QByteArray> &result) {
+            request->then(this, [run, source](const Result<AddResult> &result) {
                 if (result.isError()) {
                     // 5.x answers 409 for a torrent it already has.
                     if (result.error().kind() == ApiError::Kind::Conflict)
                         run->duplicates.append(entry(source));
                     else
                         run->failed.append(failure(source.source, result.error().message()));
-                } else if (QString::fromUtf8(result.value())
-                               .trimmed()
-                               .compare(QStringLiteral("Fails."), Qt::CaseInsensitive) == 0) {
-                    // 4.x refuses with a 200 and this body.
+                } else if (result.value().refused) {
+                    // 4.x refuses with a 200.
                     run->failed.append(
                         failure(source.source, tr("the server refused this torrent")));
                 } else {
                     Source added = source;
-                    const QJsonArray ids = QJsonDocument::fromJson(result.value())
-                                               .object()
-                                               .value(QStringLiteral("added_torrent_ids"))
-                                               .toArray();
-                    if (!ids.isEmpty())
-                        added.hash = ids.first().toString();
+                    if (!result.value().addedIds.isEmpty())
+                        added.hash = result.value().addedIds.first();
                     run->added.append(entry(added));
                 }
                 run->finishOne();

@@ -2,7 +2,7 @@
 
 #include "core/TorrentModel.hpp"
 #include "core/TorrentProblem.hpp"
-#include "core/engines/qbt/QbtClient.hpp"
+#include "core/engines/EngineClient.hpp"
 #include "core/engines/qbt/QbtTranslate.hpp"
 
 #include <QLocale>
@@ -44,7 +44,7 @@ ServerLog::ServerLog(QObject *parent)
     : QAbstractListModel(parent)
 {}
 
-void ServerLog::setClient(QbtClient *client)
+void ServerLog::setClient(EngineClient *client)
 {
     if (m_client == client)
         return;
@@ -125,14 +125,15 @@ void ServerLog::read()
         return;
     m_reading = true;
     const quint64 generation = m_generation;
-    m_client->logMain(m_lastId)->then(this, [this, generation](const Result<QJsonArray> &result) {
-        if (generation != m_generation)
-            return;
-        m_reading = false;
-        if (result.isError())
-            return;
-        applyRead(QbtTranslate::log(result.value()));
-    });
+    m_client->log(m_lastId, false)
+        ->then(this, [this, generation](const Result<QList<LogEntry>> &result) {
+            if (generation != m_generation)
+                return;
+            m_reading = false;
+            if (result.isError())
+                return;
+            applyRead(result.value());
+        });
 }
 
 void ServerLog::applyEntries(const QJsonArray &entries)

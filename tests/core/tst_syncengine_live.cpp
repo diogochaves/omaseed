@@ -8,7 +8,7 @@
 #include "core/GlobalState.hpp"
 #include "core/SyncEngine.hpp"
 #include "core/TorrentModel.hpp"
-#include "core/engines/qbt/QbtClient.hpp"
+#include "core/engines/qbt/QbtEngine.hpp"
 
 #include "LiveServer.hpp"
 
@@ -20,7 +20,6 @@
 #include <QTest>
 #include <QTimer>
 #include <QUrl>
-#include <QUrlQuery>
 
 #include <functional>
 
@@ -100,19 +99,16 @@ void TestSyncEngineLive::cleanup()
 
 void TestSyncEngineLive::deleteFixtureTorrent()
 {
-    QbtClient client;
+    QbtEngine client;
     client.setBaseUrl(m_url);
-    QUrlQuery form;
-    form.addQueryItem(QStringLiteral("hashes"), QString::fromLatin1(kTestHash));
-    form.addQueryItem(QStringLiteral("deleteFiles"), QStringLiteral("false"));
-    await(this, client.post(QStringLiteral("torrents/delete"), form));
+    await(this, client.remove({QString::fromLatin1(kTestHash)}, false));
 }
 
 void TestSyncEngineLive::seesAnAddedTorrentAndThenItsRemoval()
 {
     deleteFixtureTorrent(); // a leftover from an interrupted run must not confuse us
 
-    QbtClient client;
+    QbtEngine client;
     client.setBaseUrl(m_url);
 
     SyncEngine engine;
@@ -134,15 +130,16 @@ void TestSyncEngineLive::seesAnAddedTorrentAndThenItsRemoval()
     const int before = engine.torrents()->count();
 
     // Add it the way the app will (T2.5 wraps this endpoint), stopped so nothing downloads.
-    QbtClient adder;
+    QbtEngine adder;
     adder.setBaseUrl(m_url);
-    QUrlQuery form;
-    form.addQueryItem(QStringLiteral("urls"),
-                      QStringLiteral("magnet:?xt=urn:btih:%1&dn=%2")
-                          .arg(QString::fromLatin1(kTestHash), QString::fromLatin1(kTestName)));
-    form.addQueryItem(QStringLiteral("stopped"), QStringLiteral("true"));
-    form.addQueryItem(QStringLiteral("category"), QStringLiteral("fixtures"));
-    const Result<QByteArray> added = await(this, adder.post(QStringLiteral("torrents/add"), form));
+    AddOptions options;
+    options.stopped = true;
+    options.category = QStringLiteral("fixtures");
+    const Result<AddResult> added = await(
+        this,
+        adder.addUrls({QStringLiteral("magnet:?xt=urn:btih:%1&dn=%2")
+                           .arg(QString::fromLatin1(kTestHash), QString::fromLatin1(kTestName))},
+                      options));
     QVERIFY2(!added.isError(), qPrintable(added.error().toString()));
 
     QVERIFY2(

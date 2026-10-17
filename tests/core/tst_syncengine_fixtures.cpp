@@ -1,8 +1,8 @@
 // SyncEngine against recorded sync/maindata sequences.
 //
-// QbtClient belongs to another task and must not grow a test seam, so the engine is driven
-// the way tst_qbtclient_fake.cpp drives the client: a small HTTP server of our own replays
-// tests/fixtures/maindata/*.json in order, one file per poll, and records the rid it was
+// The qBittorrent engine must not grow a test seam, so the sync loop is driven the way
+// tst_qbtclient_fake.cpp drives the client, through QbtEngine: a small HTTP server of our own
+// replays tests/fixtures/maindata/*.json in order, one file per poll, and records the rid it was
 // asked for.
 
 #include "QbtFeed.hpp"
@@ -15,7 +15,7 @@
 #include "core/Torrent.hpp"
 #include "core/TorrentModel.hpp"
 #include "core/TrackerModel.hpp"
-#include "core/engines/qbt/QbtClient.hpp"
+#include "core/engines/qbt/QbtEngine.hpp"
 
 #include <QElapsedTimer>
 #include <QEventLoop>
@@ -219,7 +219,7 @@ void TestSyncEngineFixtures::fullUpdateFillsEveryModel()
     QVERIFY(server.start());
     server.setMainData({m_full});
 
-    QbtClient client;
+    QbtEngine client;
     client.setBaseUrl(server.url());
     SyncEngine engine;
     engine.setClient(&client);
@@ -263,7 +263,7 @@ void TestSyncEngineFixtures::partialSequenceAppliesDiffs()
     QVERIFY(server.start());
     server.setMainData({m_full, m_tags, m_removedCategoryAndTag, m_removedTorrent});
 
-    QbtClient client;
+    QbtEngine client;
     client.setBaseUrl(server.url());
     SyncEngine engine;
     engine.setClient(&client);
@@ -302,7 +302,7 @@ void TestSyncEngineFixtures::ridStartsAtZeroAndFollowsTheServer()
     QVERIFY(server.start());
     server.setMainData({m_full, m_tags, m_removedCategoryAndTag, m_removedTorrent});
 
-    QbtClient client;
+    QbtEngine client;
     client.setBaseUrl(server.url());
     SyncEngine engine;
     engine.setClient(&client);
@@ -325,7 +325,7 @@ void TestSyncEngineFixtures::onlyOnePollInFlight()
     server.setMainData({m_full, m_speed});
     server.setDelayMs(40);
 
-    QbtClient client;
+    QbtEngine client;
     client.setBaseUrl(server.url());
     SyncEngine engine;
     engine.setClient(&client);
@@ -347,7 +347,7 @@ void TestSyncEngineFixtures::cadenceFollowsVisibility()
     QVERIFY(server.start());
     server.setMainData({m_full, m_speed});
 
-    QbtClient client;
+    QbtEngine client;
     client.setBaseUrl(server.url());
     SyncEngine engine;
     engine.setClient(&client);
@@ -380,7 +380,7 @@ void TestSyncEngineFixtures::completionIsAnnouncedOnceAndNeverOnTheFirstFullUpda
     // fresh full update where the torrent is incomplete again (nothing to announce).
     server.setMainData({m_full, m_completion, m_completion, m_full});
 
-    QbtClient client;
+    QbtEngine client;
     client.setBaseUrl(server.url());
     SyncEngine engine;
     engine.setClient(&client);
@@ -424,7 +424,7 @@ void TestSyncEngineFixtures::aCompletionSeenOnlyInALaterFullUpdateIsAnnounced()
     QVERIFY(server.start());
     server.setMainData({m_full, QJsonDocument(later).toJson(QJsonDocument::Compact)});
 
-    QbtClient client;
+    QbtEngine client;
     client.setBaseUrl(server.url());
     SyncEngine engine;
     engine.setClient(&client);
@@ -462,7 +462,7 @@ void TestSyncEngineFixtures::aCompletionAfterARestartIsAnnounced()
     QVERIFY(server.start());
     server.setMainData({m_full});
 
-    QbtClient client;
+    QbtEngine client;
     client.setBaseUrl(server.url());
     SyncEngine engine;
     engine.setClient(&client);
@@ -503,7 +503,7 @@ void TestSyncEngineFixtures::aStalePollIsNotAppliedAfterAServerSwitch()
     newServer.setMainData(
         {QByteArrayLiteral(R"({"rid":7,"full_update":true,"torrents":{},"server_state":{}})")});
 
-    QbtClient client;
+    QbtEngine client;
     client.setBaseUrl(oldServer.url());
     SyncEngine engine;
     engine.setClient(&client);
@@ -561,7 +561,7 @@ void TestSyncEngineFixtures::aTorrentAddedAndFinishedBetweenPollsIsAnnounced()
     QVERIFY(server.start());
     server.setMainData({m_full, QJsonDocument(partial).toJson(QJsonDocument::Compact)});
 
-    QbtClient client;
+    QbtEngine client;
     client.setBaseUrl(server.url());
     SyncEngine engine;
     engine.setClient(&client);
@@ -588,7 +588,7 @@ void TestSyncEngineFixtures::trackerErrorFlagReachesTheRowWithoutANotice()
     QVERIFY(server.start());
     server.setMainData({m_full, m_trackerError, m_trackerError});
 
-    QbtClient client;
+    QbtEngine client;
     client.setBaseUrl(server.url());
     SyncEngine engine;
     engine.setClient(&client);
@@ -619,7 +619,7 @@ void TestSyncEngineFixtures::diskAlmostFullFiresOncePerCrossing()
     QVERIFY(server.start());
     server.setMainData({m_full, low, low, plenty, low});
 
-    QbtClient client;
+    QbtEngine client;
     client.setBaseUrl(server.url());
     SyncEngine engine;
     engine.setClient(&client);
@@ -646,7 +646,7 @@ void TestSyncEngineFixtures::serverLostOnceThenBackWithAFullUpdate()
         port = probe.serverPort();
     } // nothing listens there now
 
-    QbtClient client;
+    QbtEngine client;
     client.setBaseUrl(QUrl(QStringLiteral("http://127.0.0.1:%1").arg(port)));
     SyncEngine engine;
     engine.setClient(&client);
@@ -686,7 +686,7 @@ void TestSyncEngineFixtures::forbiddenStopsThePollLoop()
     QVERIFY(server.start());
     server.setStatus(403);
 
-    QbtClient client;
+    QbtEngine client;
     client.setBaseUrl(server.url());
     SyncEngine engine;
     engine.setClient(&client);

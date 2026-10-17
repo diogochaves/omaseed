@@ -17,7 +17,7 @@
 #include "core/ServerListModel.hpp"
 #include "core/ServerStore.hpp"
 #include "core/SyncEngine.hpp"
-#include "core/engines/qbt/QbtClient.hpp"
+#include "core/engines/EngineClient.hpp"
 #include "integration/Theme.hpp"
 #include "integration/ThemeReader.hpp"
 #include "ui/app/App.hpp"

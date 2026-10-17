@@ -13,6 +13,7 @@
 #include "core/TorrentFile.hpp"
 #include "core/TorrentWebSeedsModel.hpp"
 #include "core/engines/qbt/QbtClient.hpp"
+#include "core/engines/qbt/QbtEngine.hpp"
 
 #include "LiveServer.hpp"
 
@@ -92,11 +93,8 @@ QStringList sorted(QStringList urls)
     return urls;
 }
 
-QStringList urlsOf(const QJsonArray &seeds)
+QStringList urlsOf(QStringList urls)
 {
-    QStringList urls;
-    for (const QJsonValue &seed : seeds)
-        urls.append(seed.toObject().value(QStringLiteral("url")).toString());
     urls.sort();
     return urls;
 }
@@ -115,7 +113,7 @@ private Q_SLOTS:
     void theServerRefusesWhatItCannotUse();
 
 private:
-    QStringList webSeeds(QbtClient &client);
+    QStringList webSeeds(QbtEngine &client);
 
     QUrl m_url;
     QString m_hash;
@@ -134,14 +132,13 @@ void TestWebSeedsLive::initTestCase()
     m_hash = parsed.infoHashV1;
     QCOMPARE(m_hash.size(), 40);
 
-    QbtClient client;
+    QbtEngine client;
     client.setBaseUrl(m_url);
-    QbtClient::AddOptions options;
+    AddOptions options;
     options.stopped = true; // never fetches from the made-up sources
     options.category = QString::fromLatin1(kCategory);
-    const Result<QByteArray> added = await(
-        this,
-        client.torrentsAddFile(QStringLiteral("omaseed-webseed-live.torrent"), bytes, options));
+    const Result<AddResult> added =
+        await(this, client.addFile(QStringLiteral("omaseed-webseed-live.torrent"), bytes, options));
     QVERIFY2(!added.isError(), qPrintable(added.error().toString()));
     QVERIFY2(waitFor([&]() { return webSeeds(client).size() == 2; }, 10000),
              "the torrent's web seeds never showed");
@@ -151,21 +148,21 @@ void TestWebSeedsLive::cleanupTestCase()
 {
     if (m_hash.isEmpty() || !answers(m_url))
         return;
-    QbtClient client;
+    QbtEngine client;
     client.setBaseUrl(m_url);
-    await(this, client.torrentsDelete({m_hash}, /*deleteFiles=*/true));
-    await(this, client.torrentsRemoveCategories({QString::fromLatin1(kCategory)}));
+    await(this, client.remove({m_hash}, /*deleteFiles=*/true));
+    await(this, client.removeCategories({QString::fromLatin1(kCategory)}));
 }
 
-QStringList TestWebSeedsLive::webSeeds(QbtClient &client)
+QStringList TestWebSeedsLive::webSeeds(QbtEngine &client)
 {
-    const Result<QJsonArray> seeds = await(this, client.torrentsWebSeeds(m_hash));
+    const Result<QStringList> seeds = await(this, client.webSeeds(m_hash));
     return seeds.isError() ? QStringList() : urlsOf(seeds.value());
 }
 
 void TestWebSeedsLive::theTorrentsUrlListComesBack()
 {
-    QbtClient client;
+    QbtEngine client;
     client.setBaseUrl(m_url);
     QCOMPARE(webSeeds(client), sorted({kFirst, kSecond}));
 
@@ -185,41 +182,43 @@ void TestWebSeedsLive::theTorrentsUrlListComesBack()
 
 void TestWebSeedsLive::addEditAndRemove()
 {
-    QbtClient client;
+    QbtEngine client;
     client.setBaseUrl(m_url);
 
-    QVERIFY(!await(this, client.torrentsAddWebSeeds(m_hash, {kThird})).isError());
+    QVERIFY(!await(this, client.addWebSeeds(m_hash, {kThird})).isError());
     QCOMPARE(webSeeds(client), sorted({kFirst, kSecond, kThird}));
 
     const QString edited = QStringLiteral("https://edited.invalid/pub/");
-    QVERIFY(!await(this, client.torrentsEditWebSeed(m_hash, kThird, edited)).isError());
+    // The app never edits one; the endpoint is the transport's (QbtClient).
+    QVERIFY(!await(this, client.client()->torrentsEditWebSeed(m_hash, kThird, edited)).isError());
     QCOMPARE(webSeeds(client), sorted({kFirst, kSecond, edited}));
 
-    QVERIFY(!await(this, client.torrentsRemoveWebSeeds(m_hash, {edited})).isError());
+    QVERIFY(!await(this, client.removeWebSeeds(m_hash, {edited})).isError());
     QCOMPARE(webSeeds(client), sorted({kFirst, kSecond}));
 }
 
 void TestWebSeedsLive::theServerRefusesWhatItCannotUse()
 {
-    QbtClient client;
+    QbtEngine client;
     client.setBaseUrl(m_url);
 
     // Not one of the torrent's: 409.
-    const Result<QByteArray> edit = await(
-        this, client.torrentsEditWebSeed(m_hash, QStringLiteral("https://none.invalid/"), kThird));
+    const Result<QByteArray> edit =
+        await(this,
+              client.client()->torrentsEditWebSeed(
+                  m_hash, QStringLiteral("https://none.invalid/"), kThird));
     QVERIFY(edit.isError());
     QCOMPARE(edit.error().kind(), ApiError::Kind::Conflict);
 
     // Not a URL: 400, and nothing added.
-    const Result<QByteArray> add =
-        await(this, client.torrentsAddWebSeeds(m_hash, {QStringLiteral("not a url")}));
+    const Result<Done> add = await(this, client.addWebSeeds(m_hash, {QStringLiteral("not a url")}));
     QVERIFY(add.isError());
     QCOMPARE(add.error().httpStatus(), 400);
     QCOMPARE(webSeeds(client), sorted({kFirst, kSecond}));
 
     // An unknown torrent: 404.
-    const Result<QJsonArray> unknown = await(
-        this, client.torrentsWebSeeds(QStringLiteral("0000000000000000000000000000000000000000")));
+    const Result<QStringList> unknown =
+        await(this, client.webSeeds(QStringLiteral("0000000000000000000000000000000000000000")));
     QVERIFY(unknown.isError());
     QCOMPARE(unknown.error().kind(), ApiError::Kind::NotFound);
 }

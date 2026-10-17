@@ -8,15 +8,17 @@
 // this file borrows and puts back: every category/tag/location/limit/name change made to them
 // is undone in cleanupTestCase(), and `scripts/dev/test-server.sh reset` repairs anything a
 // failed run left behind. The delete test only ever deletes a torrent this file added itself.
+// What landed on the server is read back, and put back, through a client of the test's own
+// (QbtWire.hpp), not through the app's engine under test.
 
 #include "core/GlobalState.hpp"
 #include "core/SyncEngine.hpp"
 #include "core/Torrent.hpp"
 #include "core/TorrentModel.hpp"
-#include "core/engines/qbt/QbtClient.hpp"
 #include "ui/app/App.hpp"
 
 #include "LiveServer.hpp"
+#include "QbtWire.hpp"
 
 #include <QElapsedTimer>
 #include <QEventLoop>
@@ -104,6 +106,8 @@ private:
 
     QTemporaryDir m_config;
     std::unique_ptr<App> m_app;
+    /// The playground, behind the app's back.
+    QbtClient m_witness;
     QUrl m_playground;
     QString m_addedHash;
 };
@@ -112,7 +116,7 @@ QJsonObject TestAppActions::torrentInfo(const QString &hash)
 {
     TorrentsInfoQuery query;
     query.hashes = {hash};
-    const Result<QJsonArray> result = await(this, m_app->client()->torrentsInfo(query));
+    const Result<QJsonArray> result = await(this, m_witness.torrentsInfo(query));
     if (result.isError() || result.value().isEmpty())
         return {};
     return result.value().at(0).toObject();
@@ -150,6 +154,7 @@ void TestAppActions::initTestCase()
     qunsetenv("OMASEED_USERNAME");
     qunsetenv("OMASEED_PASSWORD");
 
+    m_witness.setBaseUrl(m_playground);
     m_app = std::make_unique<App>();
     QSignalSpy firstSync(m_app->engine(), &omaseed::core::SyncEngine::firstSyncFinished);
     m_app->start();
@@ -171,26 +176,26 @@ void TestAppActions::cleanupTestCase()
     // sent only when the server still has it on).
     const QJsonObject options = torrentInfo(kFixtureTwo);
     if (options.value(QStringLiteral("seq_dl")).toBool())
-        await(this, m_app->client()->torrentsToggleSequentialDownload({kFixtureTwo}));
+        await(this, m_witness.torrentsToggleSequentialDownload({kFixtureTwo}));
     if (options.value(QStringLiteral("f_l_piece_prio")).toBool())
-        await(this, m_app->client()->torrentsToggleFirstLastPiecePrio({kFixtureTwo}));
-    await(this, m_app->client()->torrentsSetSuperSeeding({kFixtureTwo}, false));
+        await(this, m_witness.torrentsToggleFirstLastPiecePrio({kFixtureTwo}));
+    await(this, m_witness.torrentsSetSuperSeeding({kFixtureTwo}, false));
 
     // Undo whatever this file changed on the two fixtures it borrowed, and remove the one
     // torrent it added itself.
-    await(this, m_app->client()->torrentsSetCategory({kFixtureOne}, QStringLiteral("fixtures")));
-    await(this, m_app->client()->torrentsRemoveTags({kFixtureOne}, {QStringLiteral("t43")}));
+    await(this, m_witness.torrentsSetCategory({kFixtureOne}, QStringLiteral("fixtures")));
+    await(this, m_witness.torrentsRemoveTags({kFixtureOne}, {QStringLiteral("t43")}));
     // Taking a tag off a torrent leaves the tag itself defined on the server.
-    await(this, m_app->client()->torrentsDeleteTags({QStringLiteral("t43")}));
+    await(this, m_witness.torrentsDeleteTags({QStringLiteral("t43")}));
     await(this,
-          m_app->client()->torrentsSetLocation(
+          m_witness.torrentsSetLocation(
               {kFixtureOne},
               QStringLiteral("/home/chaves/.local/share/omaseed-test/downloads/fixtures")));
-    await(this, m_app->client()->torrentsSetShareLimits({kFixtureTwo}, -2, -2, -2));
-    await(this, m_app->client()->torrentsStop({kFixtureOne, kFixtureTwo}));
+    await(this, m_witness.torrentsSetShareLimits({kFixtureTwo}, -2, -2, -2));
+    await(this, m_witness.torrentsStop({kFixtureOne, kFixtureTwo}));
 
     if (!m_addedHash.isEmpty())
-        await(this, m_app->client()->torrentsDelete({m_addedHash}, true));
+        await(this, m_witness.torrentsDelete({m_addedHash}, true));
 
     m_app->engine()->stop();
 }
@@ -380,7 +385,7 @@ void TestAppActions::deleteRemovesOnlyWhatThisTestAdded()
     options.stopped = true;
     const Result<QByteArray> added =
         await(this,
-              m_app->client()->torrentsAddUrls(
+              m_witness.torrentsAddUrls(
                   {QStringLiteral("magnet:?xt=urn:btih:%1&dn=t43-delete-me").arg(hash)}, options));
     QVERIFY2(!added.isError(), qPrintable(added.error().toString()));
     m_addedHash = hash;
@@ -464,8 +469,7 @@ void TestAppActions::trackersPeersAndBansReachTheServer()
     QSignalSpy failed(m_app.get(), &App::actionFailed);
 
     const auto hasTracker = [this, &url]() {
-        const Result<QJsonArray> trackers =
-            await(this, m_app->client()->torrentsTrackers(kFixtureOne));
+        const Result<QJsonArray> trackers = await(this, m_witness.torrentsTrackers(kFixtureOne));
         if (trackers.isError())
             return false;
         for (const QJsonValue &row : trackers.value()) {
@@ -482,14 +486,14 @@ void TestAppActions::trackersPeersAndBansReachTheServer()
              "the added tracker was never removed again");
 
     m_app->addPeers(kFixtureOne, {peer});
-    const Result<QJsonObject> before = await(this, m_app->client()->appPreferences());
+    const Result<QJsonObject> before = await(this, m_witness.appPreferences());
     QVERIFY2(!before.isError(), qPrintable(before.error().toString()));
     const QString bannedBefore = before.value().value(QStringLiteral("banned_IPs")).toString();
 
     m_app->banPeers({peer});
     const bool banned = waitFor(
         [this]() {
-            const Result<QJsonObject> prefs = await(this, m_app->client()->appPreferences());
+            const Result<QJsonObject> prefs = await(this, m_witness.appPreferences());
             return !prefs.isError() && prefs.value()
                                            .value(QStringLiteral("banned_IPs"))
                                            .toString()
@@ -497,8 +501,7 @@ void TestAppActions::trackersPeersAndBansReachTheServer()
         },
         8000);
     await(this,
-          m_app->client()->appSetPreferences(
-              QJsonObject{{QStringLiteral("banned_IPs"), bannedBefore}}));
+          m_witness.appSetPreferences(QJsonObject{{QStringLiteral("banned_IPs"), bannedBefore}}));
     QVERIFY2(banned, "the banned address never reached the IP filter");
     QCOMPARE(failed.count(), 0);
 }

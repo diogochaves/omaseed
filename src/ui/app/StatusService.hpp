@@ -2,8 +2,8 @@
 
 // StatusService — the app's side of `io.github.diogochaves.omaseed.Status` (#13, docs/20 §5):
 // what the companion bar widget's buttons and keys do. integration::StatusBus exports the
-// interface and calls this; this calls App's public API and QbtClient, the same requests the
-// add sheet and the tray send.
+// interface and calls this; this calls App's public API and its engine client, the same requests
+// the add sheet and the tray send.
 //
 // The widget's adds never raise the window: a source added from the bar stays in the bar. The
 // widget learns the outcome from the reply and, a moment later, from the status file.

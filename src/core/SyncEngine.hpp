@@ -2,8 +2,9 @@
 
 // SyncEngine — one sync poll loop for one server, and the models it feeds.
 //
-// Each poll's answer reaches the models as a SyncDelta (engines/SyncDelta.hpp); for
-// qBittorrent, QbtTranslate::syncDelta() turns sync/maindata into one, 1:1.
+// It polls through an EngineClient (docs/DECISIONS.md C14), and each answer reaches the
+// models as a SyncDelta (engines/SyncDelta.hpp); for qBittorrent, QbtTranslate::syncDelta()
+// turns sync/maindata into one, 1:1.
 //
 // Protocol (WebUI API v2). The first call sends rid=0 and gets `full_update: true` with the
 // whole world; every later call sends the rid the server last answered with and gets only
@@ -44,9 +45,9 @@ namespace omaseed::core {
 
 class CategoryModel;
 class FilterCounts;
+class EngineClient;
 class GlobalState;
 class ProblemLog;
-class QbtClient;
 class ServerLog;
 class TagModel;
 class TorrentModel;
@@ -65,8 +66,8 @@ public:
     ~SyncEngine() override;
 
     /// The client to poll. Not owned; changing it stops the loop and clears the models.
-    void setClient(QbtClient *client);
-    QbtClient *client() const { return m_client; }
+    void setClient(EngineClient *client);
+    EngineClient *client() const { return m_client; }
 
     TorrentModel *torrents() const { return m_torrents; }
     CategoryModel *categories() const { return m_categories; }
@@ -187,7 +188,7 @@ private:
     quint64 m_pollsSent = 0;
     quint64 m_appliedPoll = 0;
 
-    QbtClient *m_client = nullptr;
+    EngineClient *m_client = nullptr;
 
     TorrentModel *m_torrents = nullptr;
     CategoryModel *m_categories = nullptr;

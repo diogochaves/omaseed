@@ -8,7 +8,7 @@
 #include "QbtFeed.hpp"
 #include "core/ProblemLog.hpp"
 #include "core/TorrentModel.hpp"
-#include "core/engines/qbt/QbtClient.hpp"
+#include "core/engines/qbt/QbtEngine.hpp"
 
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -24,7 +24,7 @@
 #include <memory>
 
 using omaseed::core::ProblemLog;
-using omaseed::core::QbtClient;
+using omaseed::core::QbtEngine;
 using omaseed::core::TorrentModel;
 using omaseed::core::WebSeedLogLine;
 
@@ -546,7 +546,7 @@ void TestProblemLogFailures::readsEvery15sWhileShownAndNotWhileHidden()
 {
     LogServer server;
     QVERIFY(server.listen(QHostAddress::LocalHost));
-    QbtClient client;
+    QbtEngine client;
     client.setBaseUrl(server.url());
     m_log->setClient(&client);
     sync(true);
@@ -572,7 +572,7 @@ void TestProblemLogFailures::aWatchReadsOnEveryPoll()
 {
     LogServer server;
     QVERIFY(server.listen(QHostAddress::LocalHost));
-    QbtClient client;
+    QbtEngine client;
     client.setBaseUrl(server.url());
     m_log->setClient(&client);
     m_log->setVisible(false);
@@ -602,7 +602,7 @@ void TestProblemLogFailures::aFullUpdateReadsFromTheTopAgain()
     LogServer server;
     QVERIFY(server.listen(QHostAddress::LocalHost));
     server.log = {entry(220, moveLine())};
-    QbtClient client;
+    QbtEngine client;
     client.setBaseUrl(server.url());
     m_log->setClient(&client);
     m_log->setIdleInterval(std::chrono::milliseconds(0));
@@ -632,7 +632,7 @@ void TestProblemLogFailures::standingRenamesAskForTheFiles()
     QVERIFY(server.listen(QHostAddress::LocalHost));
     server.log = {entry(221, renameLine(QStringLiteral("log55-rename/b.txt")))};
     server.files = {QJsonObject{{QStringLiteral("name"), QStringLiteral("log55-rename/b2.txt")}}};
-    QbtClient client;
+    QbtEngine client;
     client.setBaseUrl(server.url());
     m_log->setClient(&client);
     sync(true);

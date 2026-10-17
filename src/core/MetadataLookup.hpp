@@ -15,21 +15,21 @@
 //   slow         10 s to 60 s, "still looking" (F3)
 //   never        60 s on, "may never come" (F4); polls slow to every 5 s and never stop
 //   done         the metadata is in (F2): metadata()
-//   unsupported  the server is below Web API 2.11.9, or answered 404: today's sheet (T2)
+//   unsupported  the server cannot (EngineFeatures::fetchMetadata: qBittorrent below Web API
+//                2.11.9), or answered 404: today's sheet (T2)
 //   failed       the server refused the source outright (a 4xx other than 404): today's sheet
 //
 // The clock starts once the server is ready (F7). The polls go at 0, 0.25, 0.5 and 1 s, then
 // every second, and every 5 s after a minute, one at a time; a lost poll is just asked again.
 // Nothing here stops the lookup on the server: qBittorrent has no way to (D6,
-// diogochaves/upstream#87). Every poll must go through the same QbtClient, whose session keeps
-// the result (diogochaves/upstream#86): `setFetch` is that client's torrentsFetchMetadata.
+// diogochaves/upstream#87). Every poll must go through the same engine, whose session keeps
+// the result (diogochaves/upstream#86): `setFetch` is that engine's fetchMetadata.
 
+#include "core/Reply.hpp"
 #include "core/TorrentFile.hpp"
 #include "core/engines/TorrentMetadata.hpp"
-#include "core/engines/qbt/QbtClient.hpp"
 
 #include <QElapsedTimer>
-#include <QJsonObject>
 #include <QList>
 #include <QObject>
 #include <QString>
@@ -74,12 +74,12 @@ public:
     /// What the 200 says, ready for the add sheet (TorrentMetadata).
     using Metadata = TorrentMetadata;
 
-    using Fetch = std::function<Reply<QbtClient::FetchedMetadata> *(const QString &source)>;
+    using Fetch = std::function<Reply<FetchedMetadata> *(const QString &source)>;
     using Clock = std::function<qint64()>;
 
     explicit MetadataLookup(QObject *parent = nullptr);
 
-    /// Where the polls go: the current server's QbtClient::torrentsFetchMetadata.
+    /// Where the polls go: the current server's EngineClient::fetchMetadata.
     void setFetch(Fetch fetch);
     /// Test seam: the time in ms comes from `clock`, and no timer is armed; the test calls
     /// wake() after moving its clock.
@@ -95,9 +95,10 @@ public:
     void start(const QString &key, const QString &source, const QString &kind);
     /// F5: the magnet's trackers are private ones; nothing is asked of the server.
     void startPrivate(const QString &key, const QString &source, const QString &host);
-    /// The server's state: `ready` once it is signed in and has said its Web API version. A
-    /// waiting lookup starts then, or turns "unsupported" below 2.11.9.
-    void setServer(bool ready, const QString &apiVersion);
+    /// The server's state: `ready` once it is signed in and has said its version, and whether
+    /// it can look metadata up (EngineFeatures::fetchMetadata). A waiting lookup starts then,
+    /// or turns "unsupported".
+    void setServer(bool ready, bool canFetch);
     /// The sheet let go of it (closed, another source, a batch). The server goes on looking
     /// (D6 a); only the polling stops.
     void stop();
@@ -121,8 +122,6 @@ public:
     static qint64 nextPollAt(qint64 elapsedMs);
     /// D2/D3: quiet under 0.5 s, fetching to 10 s, slow to 60 s, never after.
     static Phase phaseAt(qint64 elapsedMs);
-    /// The 200's body as the sheet needs it; nullopt when it holds no usable `info`.
-    static std::optional<Metadata> parse(const QJsonObject &body);
 
 Q_SIGNALS:
     void changed();
@@ -134,7 +133,7 @@ private:
     qint64 elapsed() const;
     void begin();
     void poll();
-    void onAnswer(int generation, const Result<QbtClient::FetchedMetadata> &result);
+    void onAnswer(int generation, const Result<FetchedMetadata> &result);
     void setPhase(Phase phase);
     void arm();
 
@@ -150,7 +149,7 @@ private:
     QString m_kind;
     QString m_privateHost;
     bool m_serverReady = false;
-    QString m_apiVersion;
+    bool m_canFetch = false;
     qint64 m_startedAt = 0;
     qint64 m_nextPoll = 0;
     int m_lastSeconds = 0;

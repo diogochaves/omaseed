@@ -2,7 +2,7 @@
 // all four levels, then only what follows. Reads only; the playground's log is never changed.
 
 #include "core/ServerLog.hpp"
-#include "core/engines/qbt/QbtClient.hpp"
+#include "core/engines/qbt/QbtEngine.hpp"
 
 #include "LiveServer.hpp"
 
@@ -11,7 +11,7 @@
 #include <QTcpSocket>
 #include <QTest>
 
-using omaseed::core::QbtClient;
+using omaseed::core::QbtEngine;
 using omaseed::core::ServerLog;
 
 namespace {
@@ -39,7 +39,7 @@ void TestServerLogLive::readsTheWholeLogThenWhatFollows()
     if (!answers(url))
         QSKIP("the :8081 playground is not running (scripts/dev/test-server.sh start)");
 
-    QbtClient client;
+    QbtEngine client;
     client.setBaseUrl(url);
     ServerLog log;
     log.setClient(&client);

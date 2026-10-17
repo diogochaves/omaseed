@@ -19,6 +19,7 @@
 #include "core/TrackerMerge.hpp"
 #include "core/Version.hpp"
 #include "core/WeeklyRecap.hpp"
+#include "core/engines/qbt/QbtEngine.hpp"
 #include "core/engines/qbt/QbtTranslate.hpp"
 #include "integration/Autostart.hpp"
 #include "integration/Notifier.hpp"
@@ -109,14 +110,17 @@ QString hostPort(const QUrl &url)
 
 App::App(QObject *parent)
     : QObject(parent)
-    , m_client(new QbtClient(this))
+    , m_client(new QbtEngine(this))
     , m_engine(new SyncEngine(this))
     , m_filtered(new TorrentFilterModel(this))
     , m_servers(new ServerStore(this))
     , m_secrets(new SecretStore(SecretStore::defaultServiceName(), this))
 {
     m_engine->setClient(m_client);
-    m_prefs = new ServerPreferences(m_client, this);
+    m_prefs = new ServerPreferences(qbtEngine()->client(), this);
+    // Before setUpMetadataLookup(): the lookup reads the features when the version moves.
+    connect(m_engine->globalState(), &GlobalState::apiVersionChanged, this, &App::updateFeatures);
+    updateFeatures();
     setUpMetadataLookup();
     m_altSpeed = new AltSpeed(this);
     m_altSpeed->setGlobalState(m_engine->globalState());
@@ -168,11 +172,8 @@ App::App(QObject *parent)
     connect(this, &App::settingsChanged, this, &App::updateFreeSpace);
     connect(m_engine->globalState(), &GlobalState::serverNameChanged, this, &App::updateTray);
     connect(m_engine->counts(), &FilterCounts::changed, this, &App::updateTray);
-    // T5.5 Q14: `supportsShareLimitAction` is derived from the API version, nothing else.
-    connect(m_engine->globalState(),
-            &GlobalState::apiVersionChanged,
-            this,
-            &App::supportsShareLimitActionChanged);
+    // T5.5 Q14: `supportsShareLimitAction` is derived from the feature record, nothing else.
+    connect(this, &App::featuresChanged, this, &App::supportsShareLimitActionChanged);
 
     connect(m_engine, &SyncEngine::firstSyncFinished, this, [this]() {
         if (m_demoMode)
@@ -453,7 +454,7 @@ void App::applyServer(const Server &server)
     m_server = server;
     m_hasServer = true;
     // clearAuth() and a new base URL also cancel everything still queued, in flight or
-    // backing off for the previous server (QbtClient::cancelAll).
+    // backing off for the previous server (EngineClient::cancelAll).
     m_client->clearAuth();
     m_client->setPinnedCertificate(server.certificateSha256);
     m_client->setBaseUrl(server.url);
@@ -680,8 +681,8 @@ void App::toggleAltSpeed()
 {
     if (m_demoMode || !m_hasServer)
         return;
-    m_client->transferToggleSpeedLimitsMode()->then(
-        this, [](const Result<QByteArray> &result) {
+    m_client->toggleAltSpeed()->then(
+        this, [](const Result<Done> &result) {
             if (result.isError())
                 qWarning().noquote()
                     << QStringLiteral("alt-speed toggle failed: %1").arg(result.error().toString());
@@ -692,24 +693,22 @@ void App::stopAll()
 {
     if (m_demoMode || !m_hasServer)
         return;
-    m_client->torrentsStop({QStringLiteral("all")})
-        ->then(this, [](const Result<QByteArray> &result) {
-            if (result.isError())
-                qWarning().noquote()
-                    << QStringLiteral("stop all failed: %1").arg(result.error().toString());
-        });
+    m_client->stop({QStringLiteral("all")})->then(this, [](const Result<Done> &result) {
+        if (result.isError())
+            qWarning().noquote()
+                << QStringLiteral("stop all failed: %1").arg(result.error().toString());
+    });
 }
 
 void App::startAll()
 {
     if (m_demoMode || !m_hasServer)
         return;
-    m_client->torrentsStart({QStringLiteral("all")})
-        ->then(this, [](const Result<QByteArray> &result) {
-            if (result.isError())
-                qWarning().noquote()
-                    << QStringLiteral("start all failed: %1").arg(result.error().toString());
-        });
+    m_client->start({QStringLiteral("all")})->then(this, [](const Result<Done> &result) {
+        if (result.isError())
+            qWarning().noquote()
+                << QStringLiteral("start all failed: %1").arg(result.error().toString());
+    });
 }
 
 // --- the tray ----------------------------------------------------------------------------
@@ -868,8 +867,8 @@ void App::setFilePriority(const QString &hash, const QVariantList &fileIndexes, 
     if (ids.isEmpty())
         return;
 
-    m_client->torrentsSetFilePrio(hash, ids, priority)
-        ->then(this, [this](const Result<QByteArray> &result) {
+    m_client->setFilePriority(hash, ids, FilePriority(priority))
+        ->then(this, [this](const Result<Done> &result) {
             if (result.isError()) {
                 qWarning().noquote() << QStringLiteral("set file priority failed: %1")
                                             .arg(result.error().toString());
@@ -1433,7 +1432,7 @@ void App::createCategory(const QString &name)
         qInfo().noquote() << QStringLiteral("demo: create category %1").arg(name);
         return;
     }
-    m_client->torrentsCreateCategory(name)->then(this, [name](const Result<QByteArray> &result) {
+    m_client->createCategory(name)->then(this, [name](const Result<Done> &result) {
         if (result.isError())
             qWarning().noquote() << QStringLiteral("create category %1 failed: %2")
                                         .arg(name, result.error().toString());
@@ -1450,20 +1449,18 @@ void App::createAndApplyCategory(const QStringList &hashes, const QString &name)
                                  .arg(hashes.size());
         return;
     }
-    m_client->torrentsCreateCategory(name)->then(
-        this, [this, hashes, name](const Result<QByteArray> &result) {
-            // 409 is "it exists already", which is what the set needs anyway.
-            if (result.isError() && result.error().kind() != ApiError::Kind::Conflict) {
-                reportActionResult(QStringLiteral("category"), result);
-                return;
-            }
-            if (hashes.isEmpty() || !m_hasServer)
-                return;
-            m_client->torrentsSetCategory(hashes, name)
-                ->then(this, [this](const Result<QByteArray> &set) {
-                    reportActionResult(QStringLiteral("category"), set);
-                });
+    m_client->createCategory(name)->then(this, [this, hashes, name](const Result<Done> &result) {
+        // 409 is "it exists already", which is what the set needs anyway.
+        if (result.isError() && result.error().kind() != ApiError::Kind::Conflict) {
+            reportActionResult(QStringLiteral("category"), result);
+            return;
+        }
+        if (hashes.isEmpty() || !m_hasServer)
+            return;
+        m_client->setCategory(hashes, name)->then(this, [this](const Result<Done> &set) {
+            reportActionResult(QStringLiteral("category"), set);
         });
+    });
 }
 
 void App::applyCategory(const QStringList &hashes, const QString &name)
@@ -1475,12 +1472,11 @@ void App::applyCategory(const QStringList &hashes, const QString &name)
             << QStringLiteral("demo: set category %1 on %2 torrents").arg(name).arg(hashes.size());
         return;
     }
-    m_client->torrentsSetCategory(hashes, name)
-        ->then(this, [name](const Result<QByteArray> &result) {
-            if (result.isError())
-                qWarning().noquote() << QStringLiteral("set category %1 failed: %2")
-                                            .arg(name, result.error().toString());
-        });
+    m_client->setCategory(hashes, name)->then(this, [name](const Result<Done> &result) {
+        if (result.isError())
+            qWarning().noquote() << QStringLiteral("set category %1 failed: %2")
+                                        .arg(name, result.error().toString());
+    });
 }
 
 void App::createTag(const QString &name)
@@ -1491,7 +1487,7 @@ void App::createTag(const QString &name)
         qInfo().noquote() << QStringLiteral("demo: create tag %1").arg(name);
         return;
     }
-    m_client->torrentsCreateTags({name})->then(this, [name](const Result<QByteArray> &result) {
+    m_client->createTags({name})->then(this, [name](const Result<Done> &result) {
         if (result.isError())
             qWarning().noquote()
                 << QStringLiteral("create tag %1 failed: %2").arg(name, result.error().toString());
@@ -1510,18 +1506,17 @@ void App::applyTags(const QStringList &hashes, const QStringList &added, const Q
         return;
     }
     if (!added.isEmpty())
-        m_client->torrentsAddTags(hashes, added)->then(this, [](const Result<QByteArray> &result) {
+        m_client->addTags(hashes, added)->then(this, [](const Result<Done> &result) {
             if (result.isError())
                 qWarning().noquote()
                     << QStringLiteral("add tags failed: %1").arg(result.error().toString());
         });
     if (!removed.isEmpty())
-        m_client->torrentsRemoveTags(hashes, removed)
-            ->then(this, [](const Result<QByteArray> &result) {
-                if (result.isError())
-                    qWarning().noquote()
-                        << QStringLiteral("remove tags failed: %1").arg(result.error().toString());
-            });
+        m_client->removeTags(hashes, removed)->then(this, [](const Result<Done> &result) {
+            if (result.isError())
+                qWarning().noquote()
+                    << QStringLiteral("remove tags failed: %1").arg(result.error().toString());
+        });
 }
 
 QStringList App::tagsOf(const QString &hash) const
@@ -1595,8 +1590,8 @@ void App::noteCommandRun(const QString &id)
 // --- end T4.4 --------------------------------------------------------------------------------
 // --- T4.2: add flow -----------------------------------------------------------------------------
 // The add sheet's whole server-facing half (spec §3 Fig. 5 and Fig. 10). Parsing is local and
-// never blocks the GUI thread for a .torrent; the POST is QbtClient's typed torrentsAddUrls /
-// torrentsAddFile; the duplicate test reads the model that is already in memory.
+// never blocks the GUI thread for a .torrent; the add goes through the engine's addUrls / addFile;
+// the duplicate test reads the model that is already in memory.
 
 namespace {
 
@@ -1611,13 +1606,13 @@ QString urlDisplayName(const QString &text)
     return last.isEmpty() ? url.host() : QUrl::fromPercentEncoding(last.toUtf8());
 }
 
-QbtClient::ContentLayout contentLayoutFrom(const QString &name)
+ContentLayout contentLayoutFrom(const QString &name)
 {
     if (name == QLatin1String("Subfolder"))
-        return QbtClient::ContentLayout::Subfolder;
+        return ContentLayout::Subfolder;
     if (name == QLatin1String("NoSubfolder"))
-        return QbtClient::ContentLayout::NoSubfolder;
-    return QbtClient::ContentLayout::Original;
+        return ContentLayout::NoSubfolder;
+    return ContentLayout::Original;
 }
 
 } // namespace
@@ -1886,9 +1881,9 @@ QVariantMap App::findDuplicate(const QString &hashV1, const QString &hashV2) con
     return QVariantMap();
 }
 
-QbtClient::AddOptions App::addOptionsFrom(const QVariantMap &request) const
+AddOptions App::addOptionsFrom(const QVariantMap &request) const
 {
-    QbtClient::AddOptions options;
+    AddOptions options;
 
     const QString category = request.value(QStringLiteral("category")).toString();
     if (!category.isEmpty())
@@ -1900,10 +1895,10 @@ QbtClient::AddOptions App::addOptionsFrom(const QVariantMap &request) const
 
     const QString savePath = request.value(QStringLiteral("savePath")).toString();
     if (!savePath.isEmpty())
-        options.savepath = savePath;
+        options.savePath = savePath;
 
     if (request.contains(QStringLiteral("autoTMM")))
-        options.autoTMM = request.value(QStringLiteral("autoTMM")).toBool();
+        options.autoManagement = request.value(QStringLiteral("autoTMM")).toBool();
 
     if (request.value(QStringLiteral("stopped")).toBool())
         options.stopped = true;
@@ -1928,7 +1923,7 @@ QbtClient::AddOptions App::addOptionsFrom(const QVariantMap &request) const
         options.rename = rename;
 
     if (request.value(QStringLiteral("firstLastPiecePrio")).toBool())
-        options.firstLastPiecePrio = true;
+        options.firstLastPiece = true;
 
     return options;
 }
@@ -1978,7 +1973,7 @@ void App::addTorrent(const QVariantMap &request)
         return;
     }
 
-    QbtClient::AddOptions options = addOptionsFrom(request);
+    AddOptions options = addOptionsFrom(request);
 
     const QVariantList filePriorities =
         hasList ? request.value(QStringLiteral("filePriorities")).toList() : QVariantList();
@@ -1996,7 +1991,7 @@ void App::addTorrent(const QVariantMap &request)
     const bool withPriorities = isFile && customised;
     if (!isFile && customised) {
         for (const QVariant &priority : filePriorities)
-            options.filePriorities.append(priority.toInt());
+            options.filePriorities.append(FilePriority(priority.toInt()));
     }
     if (withPriorities || withRenames)
         options.stopped = true;
@@ -2006,10 +2001,10 @@ void App::addTorrent(const QVariantMap &request)
     if (!isFile && !hasList && keepStopped &&
         request.value(QStringLiteral("untilMetadata")).toBool()) {
         options.stopped = false;
-        options.stopCondition = QStringLiteral("MetadataReceived");
+        options.stopCondition = StopCondition::MetadataReceived;
     }
 
-    Reply<QByteArray> *reply = nullptr;
+    Reply<AddResult> *reply = nullptr;
     QString torrentId = hash;
     if (isFile) {
         const PendingTorrentFile file = m_pendingTorrentFiles.value(token);
@@ -2019,14 +2014,14 @@ void App::addTorrent(const QVariantMap &request)
             Q_EMIT addFinished(false, tr("the .torrent was not read; pick it again"), QString());
             return;
         }
-        reply = m_client->torrentsAddFile(file.fileName, file.bytes, options);
+        reply = m_client->addFile(file.fileName, file.bytes, options);
     } else {
         if (torrentId.isEmpty() && hasList)
             torrentId = m_pendingTorrentFiles.value(token).torrentId;
-        reply = m_client->torrentsAddUrls(QStringList{value}, options);
+        reply = m_client->addUrls(QStringList{value}, options);
     }
 
-    reply->then(this, [=, this](const Result<QByteArray> &result) {
+    reply->then(this, [=, this](const Result<AddResult> &result) {
         if (result.isError()) {
             // #44: 400 to the priorities is a session that is not the one that fetched the
             // metadata any more.
@@ -2041,10 +2036,9 @@ void App::addTorrent(const QVariantMap &request)
             failAdd(result.error(), request.value(QStringLiteral("name")).toString());
             return;
         }
-        // qBittorrent 4.x answers "Fails." with 200 when it refuses the payload outright; 5.x
-        // answers 409 Conflict instead, which arrives above as an error.
-        const QString body = QString::fromUtf8(result.value()).trimmed();
-        if (body.compare(QStringLiteral("Fails."), Qt::CaseInsensitive) == 0) {
+        // qBittorrent 4.x refuses the payload outright with a 200; 5.x answers 409 Conflict
+        // instead, which arrives above as an error.
+        if (result.value().refused) {
             Q_EMIT addFinished(false, tr("the server refused this torrent"), QString());
             return;
         }
@@ -2059,13 +2053,10 @@ void App::addTorrent(const QVariantMap &request)
             Q_EMIT addFinished(true, QString(), torrentId);
             return;
         }
-        // 5.x answers with the ids it added; an older server says "Ok." and the metainfo's
-        // own id stands in.
-        const QJsonArray added = QJsonDocument::fromJson(result.value())
-                                     .object()
-                                     .value(QStringLiteral("added_torrent_ids"))
-                                     .toArray();
-        const QString id = added.isEmpty() ? torrentId : added.first().toString();
+        // 5.x answers with the ids it added; an older server does not, and the metainfo's own
+        // id stands in.
+        const QStringList &added = result.value().addedIds;
+        const QString id = added.isEmpty() ? torrentId : added.first();
         if (withRenames)
             applyAddRenames(id, renames, renameAnchor, filePriorities, keepStopped);
         else
@@ -2076,7 +2067,7 @@ void App::addTorrent(const QVariantMap &request)
 void App::addBatch(const QVariantMap &request)
 {
     const QVariantList items = request.value(QStringLiteral("items")).toList();
-    QList<QbtClient::AddFile> files;
+    QList<AddFile> files;
     QStringList urls;
     QStringList tokens;
     QStringList ids;
@@ -2095,7 +2086,7 @@ void App::addBatch(const QVariantMap &request)
                                    QString());
                 return;
             }
-            files.append(QbtClient::AddFile{file.fileName, file.bytes});
+            files.append(AddFile{file.fileName, file.bytes});
             tokens.append(token);
             if (id.isEmpty())
                 id = file.torrentId;
@@ -2123,27 +2114,25 @@ void App::addBatch(const QVariantMap &request)
         return;
     }
 
-    QbtClient::AddOptions options = addOptionsFrom(request);
+    AddOptions options = addOptionsFrom(request);
     options.rename.reset(); // one name cannot fit several torrents
-    m_client->torrentsAddMany(files, urls, options)
-        ->then(this, [=, this](const Result<QByteArray> &result) {
-            if (result.isError()) {
-                qWarning().noquote()
-                    << QStringLiteral("batch add failed: %1").arg(result.error().toString());
-                failAdd(result.error(), request.value(QStringLiteral("name")).toString());
-                return;
-            }
-            const QString body = QString::fromUtf8(result.value()).trimmed();
-            if (body.compare(QStringLiteral("Fails."), Qt::CaseInsensitive) == 0) {
-                Q_EMIT addFinished(false, tr("the server refused these torrents"), QString());
-                return;
-            }
-            for (const QString &token : tokens)
-                forgetTorrentFile(token);
-            if (!first.isEmpty())
-                watchForAddedHash(first);
-            Q_EMIT addFinished(true, QString(), first);
-        });
+    m_client->addMany(files, urls, options)->then(this, [=, this](const Result<AddResult> &result) {
+        if (result.isError()) {
+            qWarning().noquote()
+                << QStringLiteral("batch add failed: %1").arg(result.error().toString());
+            failAdd(result.error(), request.value(QStringLiteral("name")).toString());
+            return;
+        }
+        if (result.value().refused) {
+            Q_EMIT addFinished(false, tr("the server refused these torrents"), QString());
+            return;
+        }
+        for (const QString &token : tokens)
+            forgetTorrentFile(token);
+        if (!first.isEmpty())
+            watchForAddedHash(first);
+        Q_EMIT addFinished(true, QString(), first);
+    });
 }
 
 void App::applyAddRenames(const QString &id,
@@ -2162,7 +2151,7 @@ void App::applyAddRenames(const QString &id,
             applyAddRenames(id, renames, anchor, priorities, keepStopped, attempt + 1);
         });
     };
-    m_client->torrentsFiles(id)->then(this, [=, this](const Result<QJsonArray> &result) {
+    m_client->files(id)->then(this, [=, this](const Result<QList<ContentFile>> &result) {
         if (result.isError()) {
             const ApiError::Kind kind = result.error().kind();
             if ((kind == ApiError::Kind::NotFound || kind == ApiError::Kind::Conflict) &&
@@ -2186,10 +2175,9 @@ void App::applyAddRenames(const QString &id,
         const int index = anchor.value(QStringLiteral("index")).toInt();
         const QString path = anchor.value(QStringLiteral("path")).toString();
         QString served;
-        for (const QJsonValue &value : result.value()) {
-            const QJsonObject file = value.toObject();
-            if (file.value(QStringLiteral("index")).toInt(-1) == index) {
-                served = file.value(QStringLiteral("name")).toString();
+        for (const ContentFile &file : result.value()) {
+            if (file.index == index) {
+                served = file.path;
                 break;
             }
         }
@@ -2223,11 +2211,10 @@ void App::sendAddRename(const QString &id,
     const QVariantMap rename = renames.at(at).toMap();
     const QString from = root + rename.value(QStringLiteral("from")).toString();
     const QString to = root + rename.value(QStringLiteral("to")).toString();
-    Reply<QByteArray> *reply =
-        rename.value(QStringLiteral("kind")).toString() == QLatin1String("folder")
-            ? m_client->torrentsRenameFolder(id, from, to)
-            : m_client->torrentsRenameFile(id, from, to);
-    reply->then(this, [=, this](const Result<QByteArray> &result) {
+    Reply<Done> *reply = rename.value(QStringLiteral("kind")).toString() == QLatin1String("folder")
+                             ? m_client->renameFolder(id, from, to)
+                             : m_client->renameFile(id, from, to);
+    reply->then(this, [=, this](const Result<Done> &result) {
         if (result.isError()) {
             qWarning().noquote() << QStringLiteral("add: rename %1 -> %2 failed: %3")
                                         .arg(from, to, result.error().toString());
@@ -2258,17 +2245,16 @@ void App::applyAddFilePriorities(const QString &id,
             Q_EMIT addFinished(true, QString(), id);
             return;
         }
-        m_client->torrentsStart(QStringList{id})
-            ->then(this, [this, id](const Result<QByteArray> &started) {
-                if (started.isError()) {
-                    Q_EMIT addFinished(false,
-                                       tr("added with your file choices, but it did not start: %1")
-                                           .arg(started.error().message()),
-                                       id);
-                    return;
-                }
-                Q_EMIT addFinished(true, QString(), id);
-            });
+        m_client->start(QStringList{id})->then(this, [this, id](const Result<Done> &started) {
+            if (started.isError()) {
+                Q_EMIT addFinished(false,
+                                   tr("added with your file choices, but it did not start: %1")
+                                       .arg(started.error().message()),
+                                   id);
+                return;
+            }
+            Q_EMIT addFinished(true, QString(), id);
+        });
         return;
     }
 
@@ -2276,8 +2262,8 @@ void App::applyAddFilePriorities(const QString &id,
     // "normal" (done) and goes round again with what is left.
     const int priority = groups.firstKey();
     const QList<int> ids = groups.first();
-    m_client->torrentsSetFilePrio(id, ids, priority)
-        ->then(this, [=, this](const Result<QByteArray> &result) {
+    m_client->setFilePriority(id, ids, FilePriority(priority))
+        ->then(this, [=, this](const Result<Done> &result) {
             if (!result.isError()) {
                 QVariantList rest = priorities;
                 for (int at : ids)
@@ -2444,17 +2430,17 @@ QJsonObject demoMetadataBody(const TorrentFile &torrent)
 void App::setUpMetadataLookup()
 {
     m_addLookup = new MetadataLookup(this);
-    m_addLookup->setFetch([this](const QString &source) -> Reply<QbtClient::FetchedMetadata> * {
+    m_addLookup->setFetch([this](const QString &source) -> Reply<FetchedMetadata> * {
         if (!m_demoMode)
-            return m_client->torrentsFetchMetadata(source);
+            return m_client->fetchMetadata(source);
         // Demo: the demo .torrent's magnet answers with its files, anything else looks for
         // ever, as a dead magnet does. Nothing leaves the process.
-        auto *reply = new Reply<QbtClient::FetchedMetadata>(this);
-        QbtClient::FetchedMetadata answer;
+        auto *reply = new Reply<FetchedMetadata>(this);
+        FetchedMetadata answer;
         const TorrentFile demo = TorrentFile::parse(DemoData::demoTorrentBytes());
         if (demo.isValid() && source.contains(demo.infoHashV1, Qt::CaseInsensitive)) {
             answer.ready = true;
-            answer.body = demoMetadataBody(demo);
+            answer.metadata = QbtTranslate::metadata(demoMetadataBody(demo));
         }
         QTimer::singleShot(0, reply, [reply, answer]() { reply->complete(answer); });
         return reply;
@@ -2474,7 +2460,7 @@ void App::setUpMetadataLookup()
 void App::updateLookupServer()
 {
     if (m_demoMode) {
-        m_addLookup->setServer(true, QStringLiteral("2.15.1"));
+        m_addLookup->setServer(true, true);
         return;
     }
     // F7: the version (D11), a signed-in session and the library first: a magnet handed over
@@ -2492,7 +2478,7 @@ void App::updateLookupServer()
             return;
         }
     }
-    m_addLookup->setServer(ready, state->apiVersion());
+    m_addLookup->setServer(ready, m_features.fetchMetadata);
 }
 
 QString App::privateTrackerOf(const QStringList &trackers) const
@@ -2629,7 +2615,7 @@ void App::takeFetchedMetadata()
     Q_EMIT metadataFetched(map);
 }
 
-void App::afterUrlAdd(const QByteArray &body,
+void App::afterUrlAdd(const AddResult &added,
                       const QVariantMap &request,
                       const QString &torrentId,
                       const QVariantList &laterPriorities)
@@ -2640,9 +2626,7 @@ void App::afterUrlAdd(const QByteArray &body,
     if (token == m_lookupToken)
         m_lookupToken.clear();
     watchForAddedHash(torrentId);
-    const QJsonArray added =
-        QJsonDocument::fromJson(body).object().value(QStringLiteral("added_torrent_ids")).toArray();
-    const QString id = added.isEmpty() ? torrentId : added.first().toString();
+    const QString id = added.addedIds.isEmpty() ? torrentId : added.addedIds.first();
     const bool keepStopped = request.value(QStringLiteral("stopped")).toBool();
     const QVariantList renames =
         token.isEmpty() ? QVariantList() : request.value(QStringLiteral("fileRenames")).toList();
@@ -2662,19 +2646,19 @@ void App::afterUrlAdd(const QByteArray &body,
 }
 
 void App::retryUrlAdd(const QVariantMap &request,
-                      const QbtClient::AddOptions &options,
+                      const AddOptions &options,
                       const QString &torrentId,
                       int attempt)
 {
     const QString value = request.value(QStringLiteral("value")).toString();
     // The last way: added to stop once its metadata is in, the priorities set then.
     const auto fallback = [=, this]() {
-        QbtClient::AddOptions untilMetadata = options;
+        AddOptions untilMetadata = options;
         untilMetadata.filePriorities.clear();
         untilMetadata.stopped = false;
-        untilMetadata.stopCondition = QStringLiteral("MetadataReceived");
-        m_client->torrentsAddUrls(QStringList{value}, untilMetadata)
-            ->then(this, [=, this](const Result<QByteArray> &result) {
+        untilMetadata.stopCondition = StopCondition::MetadataReceived;
+        m_client->addUrls(QStringList{value}, untilMetadata)
+            ->then(this, [=, this](const Result<AddResult> &result) {
                 if (result.isError()) {
                     failAdd(result.error(), request.value(QStringLiteral("name")).toString());
                     return;
@@ -2685,32 +2669,31 @@ void App::retryUrlAdd(const QVariantMap &request,
                             request.value(QStringLiteral("filePriorities")).toList());
             });
     };
-    m_client->torrentsFetchMetadata(value)->then(
-        this, [=, this](const Result<QbtClient::FetchedMetadata> &fetched) {
-            if (fetched.isError()) {
-                fallback();
-                return;
-            }
-            if (!fetched.value().ready) {
-                // The swarm is known by now: a few seconds at most.
-                if (attempt < 20) {
-                    QTimer::singleShot(250, this, [=, this]() {
-                        retryUrlAdd(request, options, torrentId, attempt + 1);
-                    });
-                } else {
-                    fallback();
-                }
-                return;
-            }
-            m_client->torrentsAddUrls(QStringList{value}, options)
-                ->then(this, [=, this](const Result<QByteArray> &result) {
-                    if (result.isError()) {
-                        fallback();
-                        return;
-                    }
-                    afterUrlAdd(result.value(), request, torrentId, {});
+    m_client->fetchMetadata(value)->then(this, [=, this](const Result<FetchedMetadata> &fetched) {
+        if (fetched.isError()) {
+            fallback();
+            return;
+        }
+        if (!fetched.value().ready) {
+            // The swarm is known by now: a few seconds at most.
+            if (attempt < 20) {
+                QTimer::singleShot(250, this, [=, this]() {
+                    retryUrlAdd(request, options, torrentId, attempt + 1);
                 });
-        });
+            } else {
+                fallback();
+            }
+            return;
+        }
+        m_client->addUrls(QStringList{value}, options)
+            ->then(this, [=, this](const Result<AddResult> &result) {
+                if (result.isError()) {
+                    fallback();
+                    return;
+                }
+                afterUrlAdd(result.value(), request, torrentId, {});
+            });
+    });
 }
 
 QString App::demoAddText() const
@@ -2884,7 +2867,7 @@ bool App::demoGuard(const QString &action, int count)
 }
 
 void App::reportActionResult(const QString &action,
-                             const Result<QByteArray> &result,
+                             const Result<Done> &result,
                              const QStringList &hashes,
                              const QString &folder)
 {
@@ -2910,8 +2893,8 @@ void App::stopStart(const QStringList &hashes)
     const bool stopped =
         index >= 0 && startsOnToggle(m_engine->torrents()->torrent(hashes.constFirst()).status);
 
-    auto *reply = stopped ? m_client->torrentsStart(hashes) : m_client->torrentsStop(hashes);
-    reply->then(this, [this](const Result<QByteArray> &result) {
+    auto *reply = stopped ? m_client->start(hashes) : m_client->stop(hashes);
+    reply->then(this, [this](const Result<Done> &result) {
         reportActionResult(QStringLiteral("stopStart"), result);
     });
 }
@@ -2920,7 +2903,7 @@ void App::startTorrents(const QStringList &hashes)
 {
     if (hashes.isEmpty() || demoGuard(QStringLiteral("start"), hashes.size()) || !m_hasServer)
         return;
-    m_client->torrentsStart(hashes)->then(this, [this](const Result<QByteArray> &result) {
+    m_client->start(hashes)->then(this, [this](const Result<Done> &result) {
         reportActionResult(QStringLiteral("start"), result);
     });
 }
@@ -2929,7 +2912,7 @@ void App::stopTorrents(const QStringList &hashes)
 {
     if (hashes.isEmpty() || demoGuard(QStringLiteral("stop"), hashes.size()) || !m_hasServer)
         return;
-    m_client->torrentsStop(hashes)->then(this, [this](const Result<QByteArray> &result) {
+    m_client->stop(hashes)->then(this, [this](const Result<Done> &result) {
         reportActionResult(QStringLiteral("stop"), result);
     });
 }
@@ -2938,17 +2921,16 @@ void App::forceStart(const QStringList &hashes)
 {
     if (hashes.isEmpty() || demoGuard(QStringLiteral("forceStart"), hashes.size()) || !m_hasServer)
         return;
-    m_client->torrentsSetForceStart(hashes, true)
-        ->then(this, [this](const Result<QByteArray> &result) {
-            reportActionResult(QStringLiteral("forceStart"), result);
-        });
+    m_client->setForceStart(hashes, true)->then(this, [this](const Result<Done> &result) {
+        reportActionResult(QStringLiteral("forceStart"), result);
+    });
 }
 
 void App::recheck(const QStringList &hashes)
 {
     if (hashes.isEmpty() || demoGuard(QStringLiteral("recheck"), hashes.size()) || !m_hasServer)
         return;
-    m_client->torrentsRecheck(hashes)->then(this, [this](const Result<QByteArray> &result) {
+    m_client->recheck(hashes)->then(this, [this](const Result<Done> &result) {
         reportActionResult(QStringLiteral("recheck"), result);
     });
 }
@@ -2957,7 +2939,7 @@ void App::reannounce(const QStringList &hashes)
 {
     if (hashes.isEmpty() || demoGuard(QStringLiteral("reannounce"), hashes.size()) || !m_hasServer)
         return;
-    m_client->torrentsReannounce(hashes)->then(this, [this](const Result<QByteArray> &result) {
+    m_client->reannounce(hashes)->then(this, [this](const Result<Done> &result) {
         reportActionResult(QStringLiteral("reannounce"), result);
     });
 }
@@ -2967,12 +2949,11 @@ void App::removeTrackers(const QString &hash, const QStringList &urls)
     if (hash.isEmpty() || urls.isEmpty() ||
         demoGuard(QStringLiteral("remove tracker"), int(urls.size())) || !m_hasServer)
         return;
-    m_client->torrentsRemoveTrackers(hash, urls)
-        ->then(this, [this, hash](const Result<QByteArray> &result) {
-            reportActionResult(QStringLiteral("remove tracker"), result);
-            if (!result.isError() && m_details->hash() == hash)
-                m_details->refreshNow();
-        });
+    m_client->removeTrackers(hash, urls)->then(this, [this, hash](const Result<Done> &result) {
+        reportActionResult(QStringLiteral("remove tracker"), result);
+        if (!result.isError() && m_details->hash() == hash)
+            m_details->refreshNow();
+    });
 }
 
 void App::addTrackers(const QString &hash, const QStringList &urls)
@@ -2980,12 +2961,11 @@ void App::addTrackers(const QString &hash, const QStringList &urls)
     if (hash.isEmpty() || urls.isEmpty() || demoGuard(QStringLiteral("add trackers"), 1) ||
         !m_hasServer)
         return;
-    m_client->torrentsAddTrackers(hash, urls)
-        ->then(this, [this, hash](const Result<QByteArray> &result) {
-            reportActionResult(QStringLiteral("add tracker"), result);
-            if (!result.isError() && m_details->hash() == hash)
-                m_details->refreshNow();
-        });
+    m_client->addTrackers(hash, urls)->then(this, [this, hash](const Result<Done> &result) {
+        reportActionResult(QStringLiteral("add tracker"), result);
+        if (!result.isError() && m_details->hash() == hash)
+            m_details->refreshNow();
+    });
 }
 
 void App::loadDuplicateTrackers(const QString &hash, const QStringList &urls)
@@ -2997,17 +2977,16 @@ void App::loadDuplicateTrackers(const QString &hash, const QStringList &urls)
         Q_EMIT duplicateTrackersLoaded(hash, TrackerMerge::missing(urls, {}), {});
         return;
     }
-    m_client->torrentsTrackers(hash)->then(
-        this, [this, hash, urls](const Result<QJsonArray> &result) {
+    m_client->trackers(hash)->then(
+        this, [this, hash, urls](const Result<QList<TrackerEntry>> &result) {
             if (result.isError()) {
                 Q_EMIT actionFailed(QString(), actionFailureText(result.error()));
                 return;
             }
             QStringList existing;
-            for (const QJsonValue &entry : result.value()) {
-                const QString url = entry.toObject().value(QStringLiteral("url")).toString();
-                if (!TrackerMerge::key(url).isEmpty())
-                    existing.append(url);
+            for (const TrackerEntry &entry : result.value()) {
+                if (!TrackerMerge::key(entry.url).isEmpty())
+                    existing.append(entry.url);
             }
             Q_EMIT duplicateTrackersLoaded(hash, TrackerMerge::missing(urls, existing), existing);
         });
@@ -3023,16 +3002,15 @@ void App::mergeTrackers(const QString &hash, const QStringList &urls)
     }
     if (!m_hasServer)
         return;
-    m_client->torrentsAddTrackers(hash, urls)
-        ->then(this, [this, hash, urls](const Result<QByteArray> &result) {
-            if (result.isError()) {
-                Q_EMIT actionFailed(QString(), actionFailureText(result.error()));
-                return;
-            }
-            if (m_details->hash() == hash)
-                m_details->refreshNow();
-            Q_EMIT trackersMerged(hash, int(urls.size()));
-        });
+    m_client->addTrackers(hash, urls)->then(this, [this, hash, urls](const Result<Done> &result) {
+        if (result.isError()) {
+            Q_EMIT actionFailed(QString(), actionFailureText(result.error()));
+            return;
+        }
+        if (m_details->hash() == hash)
+            m_details->refreshNow();
+        Q_EMIT trackersMerged(hash, int(urls.size()));
+    });
 }
 
 namespace {
@@ -3109,15 +3087,12 @@ void App::findFilesMatch(const QString &token)
     const bool multiFile = pending->multiFile;
     const QList<TorrentFileEntry> files = pending->files;
     for (const QString &hash : candidates) {
-        m_client->torrentsFiles(hash)->then(this, [=, this](const Result<QJsonArray> &result) {
+        m_client->files(hash)->then(this, [=, this](const Result<QList<ContentFile>> &result) {
             if (!result.isError() && m_engine->torrents()->indexOfHash(hash) >= 0) {
                 const Torrent &torrent = m_engine->torrents()->torrent(hash);
                 LibraryMatch::Candidate candidate{torrent.savePath, torrent.contentPath, {}};
-                for (const QJsonValue &value : result.value()) {
-                    const QJsonObject file = value.toObject();
-                    candidate.files.append({file.value(QStringLiteral("name")).toString(),
-                                            file.value(QStringLiteral("size")).toInteger()});
-                }
+                for (const ContentFile &file : result.value())
+                    candidate.files.append({file.path, file.size});
                 const LibraryMatch::Result found =
                     LibraryMatch::match(name, multiFile, files, candidate);
                 if (found.exact) {
@@ -3148,12 +3123,11 @@ void App::addWebSeeds(const QString &hash, const QStringList &urls)
     if (hash.isEmpty() || urls.isEmpty() || demoGuard(QStringLiteral("add HTTP sources"), 1) ||
         !m_hasServer)
         return;
-    m_client->torrentsAddWebSeeds(hash, urls)
-        ->then(this, [this, hash](const Result<QByteArray> &result) {
-            reportActionResult(QStringLiteral("add HTTP source"), result);
-            if (!result.isError() && m_details->hash() == hash)
-                m_details->refreshWebSeeds();
-        });
+    m_client->addWebSeeds(hash, urls)->then(this, [this, hash](const Result<Done> &result) {
+        reportActionResult(QStringLiteral("add HTTP source"), result);
+        if (!result.isError() && m_details->hash() == hash)
+            m_details->refreshWebSeeds();
+    });
 }
 
 void App::removeWebSeeds(const QString &hash, const QStringList &urls)
@@ -3161,12 +3135,11 @@ void App::removeWebSeeds(const QString &hash, const QStringList &urls)
     if (hash.isEmpty() || urls.isEmpty() ||
         demoGuard(QStringLiteral("remove HTTP source"), int(urls.size())) || !m_hasServer)
         return;
-    m_client->torrentsRemoveWebSeeds(hash, urls)
-        ->then(this, [this, hash](const Result<QByteArray> &result) {
-            reportActionResult(QStringLiteral("remove HTTP source"), result);
-            if (!result.isError() && m_details->hash() == hash)
-                m_details->refreshWebSeeds();
-        });
+    m_client->removeWebSeeds(hash, urls)->then(this, [this, hash](const Result<Done> &result) {
+        reportActionResult(QStringLiteral("remove HTTP source"), result);
+        if (!result.isError() && m_details->hash() == hash)
+            m_details->refreshWebSeeds();
+    });
 }
 
 void App::addPeers(const QString &hash, const QStringList &peers)
@@ -3174,8 +3147,8 @@ void App::addPeers(const QString &hash, const QStringList &peers)
     if (hash.isEmpty() || peers.isEmpty() || demoGuard(QStringLiteral("add peers"), 1) ||
         !m_hasServer)
         return;
-    m_client->torrentsAddPeers(QStringList{hash}, peers)
-        ->then(this, [this, hash](const Result<QByteArray> &result) {
+    m_client->addPeers(QStringList{hash}, peers)
+        ->then(this, [this, hash](const Result<Done> &result) {
             reportActionResult(QStringLiteral("add peer"), result);
             if (!result.isError() && m_details->hash() == hash)
                 m_details->refreshNow();
@@ -3187,7 +3160,7 @@ void App::banPeers(const QStringList &addresses)
     if (addresses.isEmpty() || demoGuard(QStringLiteral("ban peer"), int(addresses.size())) ||
         !m_hasServer)
         return;
-    m_client->transferBanPeers(addresses)->then(this, [this](const Result<QByteArray> &result) {
+    m_client->banPeers(addresses)->then(this, [this](const Result<Done> &result) {
         reportActionResult(QStringLiteral("ban"), result);
         if (!result.isError())
             m_details->refreshNow();
@@ -3223,10 +3196,9 @@ void App::setCategory(const QStringList &hashes, const QString &name)
 {
     if (hashes.isEmpty() || demoGuard(QStringLiteral("category"), hashes.size()) || !m_hasServer)
         return;
-    m_client->torrentsSetCategory(hashes, name)
-        ->then(this, [this](const Result<QByteArray> &result) {
-            reportActionResult(QStringLiteral("category"), result);
-        });
+    m_client->setCategory(hashes, name)->then(this, [this](const Result<Done> &result) {
+        reportActionResult(QStringLiteral("category"), result);
+    });
 }
 
 void App::addTags(const QStringList &hashes, const QStringList &tags)
@@ -3234,7 +3206,7 @@ void App::addTags(const QStringList &hashes, const QStringList &tags)
     if (hashes.isEmpty() || tags.isEmpty() || demoGuard(QStringLiteral("addTags"), hashes.size()) ||
         !m_hasServer)
         return;
-    m_client->torrentsAddTags(hashes, tags)->then(this, [this](const Result<QByteArray> &result) {
+    m_client->addTags(hashes, tags)->then(this, [this](const Result<Done> &result) {
         reportActionResult(QStringLiteral("addTags"), result);
     });
 }
@@ -3244,10 +3216,9 @@ void App::removeTags(const QStringList &hashes, const QStringList &tags)
     if (hashes.isEmpty() || tags.isEmpty() ||
         demoGuard(QStringLiteral("removeTags"), hashes.size()) || !m_hasServer)
         return;
-    m_client->torrentsRemoveTags(hashes, tags)
-        ->then(this, [this](const Result<QByteArray> &result) {
-            reportActionResult(QStringLiteral("removeTags"), result);
-        });
+    m_client->removeTags(hashes, tags)->then(this, [this](const Result<Done> &result) {
+        reportActionResult(QStringLiteral("removeTags"), result);
+    });
 }
 
 void App::setLocation(const QStringList &hashes, const QString &path)
@@ -3258,8 +3229,8 @@ void App::setLocation(const QStringList &hashes, const QString &path)
     // docs/32 D2: "OK" only means the move was queued; a failure is in the log. Watched from
     // before the request, so a read on its way meanwhile can't take the line first.
     m_engine->problems()->watchMove(hashes, path);
-    m_client->torrentsSetLocation(hashes, path)
-        ->then(this, [this, hashes, path](const Result<QByteArray> &result) {
+    m_client->setLocation(hashes, path)
+        ->then(this, [this, hashes, path](const Result<Done> &result) {
             reportActionResult(QStringLiteral("location"), result, hashes, path);
         });
 }
@@ -3273,17 +3244,16 @@ void App::requestGlobalLimits()
     }
     if (!m_hasServer)
         return;
-    m_client->appPreferences()->then(this, [this](const Result<QJsonObject> &result) {
+    m_client->globalLimits()->then(this, [this](const Result<GlobalLimits> &result) {
         if (result.isError()) {
             Q_EMIT actionFailed(QString(), actionFailureText(result.error()));
             return;
         }
-        // app/preferences carries these in bytes/s on 5.x (checked live on :8081).
-        const QJsonObject &prefs = result.value();
-        Q_EMIT globalLimitsLoaded(prefs.value(QStringLiteral("dl_limit")).toInteger(),
-                                  prefs.value(QStringLiteral("up_limit")).toInteger(),
-                                  prefs.value(QStringLiteral("alt_dl_limit")).toInteger(),
-                                  prefs.value(QStringLiteral("alt_up_limit")).toInteger());
+        const GlobalLimits &limits = result.value();
+        Q_EMIT globalLimitsLoaded(limits.download.value_or(0),
+                                  limits.upload.value_or(0),
+                                  limits.altDownload.value_or(0),
+                                  limits.altUpload.value_or(0));
     });
 }
 
@@ -3293,18 +3263,14 @@ void App::setGlobalLimits(qint64 dl, qint64 up, qint64 altDl, qint64 altUp)
     if (demoGuard(QStringLiteral("globalLimits"), 1) || !m_hasServer)
         return;
 
-    QJsonObject changes;
-    const auto put = [&changes](const char *key, qint64 value) {
-        if (value >= 0)
-            changes.insert(QLatin1String(key), value);
+    // A negative value leaves that limit as it is.
+    const auto given = [](qint64 value) {
+        return value >= 0 ? std::optional<qint64>(value) : std::nullopt;
     };
-    put("dl_limit", dl);
-    put("up_limit", up);
-    put("alt_dl_limit", altDl);
-    put("alt_up_limit", altUp);
-    if (changes.isEmpty())
+    const GlobalLimits changes{given(dl), given(up), given(altDl), given(altUp)};
+    if (changes == GlobalLimits())
         return;
-    m_client->appSetPreferences(changes)->then(this, [this](const Result<QByteArray> &result) {
+    m_client->setGlobalLimits(changes)->then(this, [this](const Result<Done> &result) {
         reportActionResult(QStringLiteral("limits"), result);
         // The word follows the sets (docs/31 §3): read them back.
         if (!result.isError())
@@ -3420,12 +3386,8 @@ void App::probeWebUi(const QUrl &base, std::function<void(bool)> done, int attem
 {
     if (m_probeNam == nullptr)
         m_probeNam = new QNetworkAccessManager(this);
-    QUrl url = base;
-    QString path = url.path();
-    if (!path.endsWith(QLatin1Char('/')))
-        path += QLatin1Char('/');
-    url.setPath(path + QStringLiteral("api/v2/app/version"));
-    QNetworkRequest request(url);
+    // Any answer at the engine's own address will do, signed in or not.
+    QNetworkRequest request(m_client->reachableUrl(base));
     // An HTTP server never answers a TLS hello, so a wrong scheme ends at this timeout.
     request.setTransferTimeout(1500);
     QNetworkReply *reply = m_probeNam->get(request);
@@ -3481,29 +3443,31 @@ void App::setLimits(const QStringList &hashes,
         return;
 
     if (dl != -1) {
-        m_client->torrentsSetDownloadLimit(hashes, dl)
-            ->then(this, [this](const Result<QByteArray> &result) {
-                reportActionResult(QStringLiteral("limits"), result);
-            });
+        m_client->setDownloadLimit(hashes, dl)->then(this, [this](const Result<Done> &result) {
+            reportActionResult(QStringLiteral("limits"), result);
+        });
     }
     if (ul != -1) {
-        m_client->torrentsSetUploadLimit(hashes, ul)
-            ->then(this, [this](const Result<QByteArray> &result) {
-                reportActionResult(QStringLiteral("limits"), result);
-            });
+        m_client->setUploadLimit(hashes, ul)->then(this, [this](const Result<Done> &result) {
+            reportActionResult(QStringLiteral("limits"), result);
+        });
     }
 
-    // torrents/setShareLimits takes seedingTimeLimit in minutes (qBittorrent's own unit); the
-    // caller (LimitsSheet) has already converted its days field, so this is passed straight
-    // through, sentinels (-2 global, -1 none) included. The action (T5.5 Q14) travels only
-    // when the server knows the field; a server still without a version answer gets the
+    // The seeding times are in minutes; the caller (LimitsSheet) has already converted its
+    // days field, and speaks the Limits sheet's codes (-2 the server's default, -1 none,
+    // ShareLimits.hpp), which the engine spells its own way. The action (T5.5 Q14) travels
+    // only when the server knows the field; a server still without a version answer gets the
     // field too, since 5.2.3 (the server this ships against) refuses the call without it.
-    const QString apiVersion = m_engine->globalState()->apiVersion();
-    std::optional<QbtClient::ShareLimitAction> action;
-    if (apiVersion.isEmpty() || QbtTranslate::features(apiVersion).shareLimitAction())
-        action = QbtClient::shareLimitActionFromName(shareLimitAction);
-    m_client->torrentsSetShareLimits(hashes, ratio, seedingMinutes, inactiveSeedingMinutes, action)
-        ->then(this, [this](const Result<QByteArray> &result) {
+    std::optional<QString> action;
+    if (m_engine->globalState()->apiVersion().isEmpty() || m_features.shareLimitAction())
+        action = shareLimitAction;
+    m_client
+        ->setShareLimits(hashes,
+                         RatioLimit::fromCode(ratio),
+                         MinutesLimit::fromCode(seedingMinutes),
+                         MinutesLimit::fromCode(inactiveSeedingMinutes),
+                         action)
+        ->then(this, [this](const Result<Done> &result) {
             reportActionResult(QStringLiteral("limits"), result);
         });
 }
@@ -3512,7 +3476,7 @@ void App::rename(const QString &hash, const QString &name)
 {
     if (hash.isEmpty() || name.isEmpty() || demoGuard(QStringLiteral("rename"), 1) || !m_hasServer)
         return;
-    m_client->torrentsRename(hash, name)->then(this, [this](const Result<QByteArray> &result) {
+    m_client->rename(hash, name)->then(this, [this](const Result<Done> &result) {
         reportActionResult(QStringLiteral("rename"), result);
     });
 }
@@ -3521,7 +3485,7 @@ void App::queueUp(const QStringList &hashes)
 {
     if (hashes.isEmpty() || demoGuard(QStringLiteral("queueUp"), hashes.size()) || !m_hasServer)
         return;
-    m_client->torrentsIncreasePrio(hashes)->then(this, [this](const Result<QByteArray> &result) {
+    m_client->queueUp(hashes)->then(this, [this](const Result<Done> &result) {
         reportActionResult(QStringLiteral("queueUp"), result);
     });
 }
@@ -3530,7 +3494,7 @@ void App::queueDown(const QStringList &hashes)
 {
     if (hashes.isEmpty() || demoGuard(QStringLiteral("queueDown"), hashes.size()) || !m_hasServer)
         return;
-    m_client->torrentsDecreasePrio(hashes)->then(this, [this](const Result<QByteArray> &result) {
+    m_client->queueDown(hashes)->then(this, [this](const Result<Done> &result) {
         reportActionResult(QStringLiteral("queueDown"), result);
     });
 }
@@ -3565,13 +3529,13 @@ void App::sendOption(const QStringList &hashes,
                      bool on,
                      bool Torrent::*member,
                      TorrentField field,
-                     Reply<QByteArray> *reply,
+                     Reply<Done> *reply,
                      const QString &action)
 {
     for (const QString &hash : hashes)
         m_engine->setPendingTorrentValue(TorrentPatch(hash).set(member, field, on));
     const QPointer<SyncEngine> engine(m_engine);
-    reply->then(this, [this, engine, hashes, field, action](const Result<QByteArray> &result) {
+    reply->then(this, [this, engine, hashes, field, action](const Result<Done> &result) {
         if (engine) {
             for (const QString &hash : hashes)
                 engine->settlePendingTorrentValue(hash, field, result.isError());
@@ -3588,7 +3552,7 @@ void App::setSequentialDownload(const QStringList &hashes, bool on)
     const QStringList flip = hashesNotAt(hashes, on, member, field);
     if (flip.isEmpty() || applyDemoOption(flip, member, field, on, action) || !m_hasServer)
         return;
-    sendOption(flip, on, member, field, m_client->torrentsToggleSequentialDownload(flip), action);
+    sendOption(flip, on, member, field, m_client->toggleSequentialDownload(flip), action);
 }
 
 void App::setFirstLastPiecePrio(const QStringList &hashes, bool on)
@@ -3599,7 +3563,7 @@ void App::setFirstLastPiecePrio(const QStringList &hashes, bool on)
     const QStringList flip = hashesNotAt(hashes, on, member, field);
     if (flip.isEmpty() || applyDemoOption(flip, member, field, on, action) || !m_hasServer)
         return;
-    sendOption(flip, on, member, field, m_client->torrentsToggleFirstLastPiecePrio(flip), action);
+    sendOption(flip, on, member, field, m_client->toggleFirstLastPiece(flip), action);
 }
 
 void App::setSuperSeeding(const QStringList &hashes, bool on)
@@ -3610,7 +3574,7 @@ void App::setSuperSeeding(const QStringList &hashes, bool on)
     const QStringList change = hashesNotAt(hashes, on, member, field);
     if (change.isEmpty() || applyDemoOption(change, member, field, on, action) || !m_hasServer)
         return;
-    sendOption(change, on, member, field, m_client->torrentsSetSuperSeeding(change, on), action);
+    sendOption(change, on, member, field, m_client->setSuperSeeding(change, on), action);
 }
 
 void App::setAutoManagement(const QStringList &hashes, bool on)
@@ -3621,7 +3585,7 @@ void App::setAutoManagement(const QStringList &hashes, bool on)
     const QStringList change = hashesNotAt(hashes, on, member, field);
     if (change.isEmpty() || applyDemoOption(change, member, field, on, action) || !m_hasServer)
         return;
-    sendOption(change, on, member, field, m_client->torrentsSetAutoManagement(change, on), action);
+    sendOption(change, on, member, field, m_client->setAutoManagement(change, on), action);
 }
 
 bool App::applyDemoOption(const QStringList &hashes,
@@ -3648,10 +3612,9 @@ void App::remove(const QStringList &hashes, bool deleteFiles)
     // removal may fail after the answer, in the log only.
     if (deleteFiles)
         m_engine->problems()->watchDelete(hashes);
-    m_client->torrentsDelete(hashes, deleteFiles)
-        ->then(this, [this](const Result<QByteArray> &result) {
-            reportActionResult(QStringLiteral("delete"), result);
-        });
+    m_client->remove(hashes, deleteFiles)->then(this, [this](const Result<Done> &result) {
+        reportActionResult(QStringLiteral("delete"), result);
+    });
 }
 
 void App::copyToClipboard(const QString &text) const
@@ -3862,7 +3825,9 @@ void App::testServer(const QVariantMap &fields, const QString &secret)
 
 void App::runServerTest(const Server &server, const QString &secret, bool announce)
 {
-    auto *client = new QbtClient(this);
+    // E3 (docs/36 §6) picks the engine from the server; until then every server is a
+    // qBittorrent.
+    auto *client = new QbtEngine(this);
     client->setPinnedCertificate(server.certificateSha256);
     client->setBaseUrl(server.url);
     client->setMaxRetries(0);
@@ -3909,11 +3874,12 @@ void App::runServerTest(const Server &server, const QString &secret, bool announ
             }
 
             const ServerInfo info = result.value();
-            // sync/maindata would do this too, but it also allocates a rid on the server; a
-            // plain torrents/info is the cheaper way to count what is there.
-            client->torrentsInfo()->then(
+            // A sync would do this too, but it also allocates a cursor on the server; a plain
+            // list is the cheaper way to count what is there.
+            client->torrents()->then(
                 this,
-                [this, client, id, info, latency, announce](const Result<QJsonArray> &listResult) {
+                [this, client, id, info, latency, announce](
+                    const Result<QList<TorrentPatch>> &listResult) {
                     const int count = listResult.isError() ? -1 : int(listResult.value().size());
                     const QString version = info.version;
                     const QString apiVersion = info.apiVersion;
@@ -4446,7 +4412,25 @@ void App::runInstall(const QString &program, const QStringList &arguments)
 
 bool App::supportsShareLimitAction() const
 {
-    return QbtTranslate::features(m_engine->globalState()->apiVersion()).shareLimitAction();
+    return m_features.shareLimitAction();
+}
+
+// --- docs/36 §4.3: what the server can do -------------------------------------------------------
+
+QbtEngine *App::qbtEngine() const
+{
+    return qobject_cast<QbtEngine *>(m_client);
+}
+
+void App::updateFeatures()
+{
+    const GlobalState *state = m_engine->globalState();
+    const EngineFeatures features =
+        m_client->features(ServerInfo{state->serverVersion(), state->apiVersion()});
+    if (features == m_features)
+        return;
+    m_features = features;
+    Q_EMIT featuresChanged();
 }
 
 // --- end T5.5 Q14 ----------------------------------------------------------------------------
@@ -4528,9 +4512,9 @@ void App::renameTorrentFile(const QString &hash,
 
     // docs/32 D2: the rename itself happens after the answer; a failure is in the log.
     m_engine->problems()->watchRename(hash, 1);
-    auto *reply = folder ? m_client->torrentsRenameFolder(hash, oldPath, newPath)
-                         : m_client->torrentsRenameFile(hash, oldPath, newPath);
-    reply->then(this, [this](const Result<QByteArray> &result) {
+    auto *reply = folder ? m_client->renameFolder(hash, oldPath, newPath)
+                         : m_client->renameFile(hash, oldPath, newPath);
+    reply->then(this, [this](const Result<Done> &result) {
         if (result.isError()) {
             Q_EMIT actionFailed(QString(), actionFailureText(result.error()));
             return;
@@ -4716,8 +4700,8 @@ void App::sendFileRename(const QString &hash,
         Q_EMIT torrentFilesRenamed(hash, at, int(moves.size()), QString(), QString());
         return;
     }
-    auto *reply = m_client->torrentsRenameFile(hash, moves.at(at).first, moves.at(at).second);
-    reply->then(this, [this, hash, moves, at](const Result<QByteArray> &result) {
+    auto *reply = m_client->renameFile(hash, moves.at(at).first, moves.at(at).second);
+    reply->then(this, [this, hash, moves, at](const Result<Done> &result) {
         if (result.isError()) {
             m_details->refreshNow();
             Q_EMIT torrentFilesRenamed(
@@ -5410,22 +5394,23 @@ void App::refreshQbtBackupInfo()
         Q_EMIT qbtBackupChanged();
         return;
     }
+    QbtEngine *qbt = m_features.rss ? qbtEngine() : nullptr;
+    if (qbt == nullptr) {
+        m_qbtRssFeeds = m_qbtRssRules = -1;
+        Q_EMIT qbtBackupChanged();
+        return;
+    }
     const QString id = m_server.id;
-    QUrlQuery query;
-    query.addQueryItem(QStringLiteral("withData"), QStringLiteral("false"));
-    m_client->get(QStringLiteral("rss/items"), query)
-        ->then(this, [this, id](const Result<QByteArray> &r) {
-            if (r.isError() || m_server.id != id)
-                return;
-            QbtSettingsSnapshot s;
-            s.rssItems = QJsonDocument::fromJson(r.value()).object();
-            m_qbtRssFeeds = s.feedCount();
-            Q_EMIT qbtBackupChanged();
-        });
-    m_client->get(QStringLiteral("rss/rules"))->then(this, [this, id](const Result<QByteArray> &r) {
+    qbt->rssFeedCount()->then(this, [this, id](const Result<int> &r) {
         if (r.isError() || m_server.id != id)
             return;
-        m_qbtRssRules = int(QJsonDocument::fromJson(r.value()).object().size());
+        m_qbtRssFeeds = r.value();
+        Q_EMIT qbtBackupChanged();
+    });
+    qbt->rssRuleCount()->then(this, [this, id](const Result<int> &r) {
+        if (r.isError() || m_server.id != id)
+            return;
+        m_qbtRssRules = r.value();
         Q_EMIT qbtBackupChanged();
     });
 }
@@ -5471,7 +5456,7 @@ void App::collectQbtSettings(
         });
         return;
     }
-    auto *exporter = new QbtSettingsExport(m_client, this);
+    auto *exporter = new QbtSettingsExport(qbtEngine()->client(), this);
     const QString id = m_server.id;
     connect(exporter,
             &QbtSettingsExport::collected,
@@ -5901,7 +5886,7 @@ void App::applyQbtImport(const QVariantMap &choice)
     if (m_demoMode)
         plan.categories = plan.tags = plan.rss = false; // the demo's server is fiction
 
-    auto *import = new QbtSettingsImport(m_demoMode ? nullptr : m_client, this);
+    auto *import = new QbtSettingsImport(m_demoMode ? nullptr : qbtEngine()->client(), this);
     import->setPreferences(m_prefs);
     const QString name = m_server.name;
     ++m_qbtBusy;

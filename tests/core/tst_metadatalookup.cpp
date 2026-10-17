@@ -6,20 +6,22 @@
 // Sampler and tiny-notes.txt).
 
 #include "core/MetadataLookup.hpp"
+#include "core/engines/qbt/QbtTranslate.hpp"
 
 #include <QJsonDocument>
+#include <QJsonObject>
 #include <QPointer>
 #include <QSignalSpy>
 #include <QTest>
 
 using omaseed::core::ApiError;
 using omaseed::core::MetadataLookup;
-using omaseed::core::QbtClient;
 using omaseed::core::Reply;
 using omaseed::core::Result;
 using omaseed::core::TorrentFileEntry;
 using Phase = MetadataLookup::Phase;
-using Fetched = QbtClient::FetchedMetadata;
+using Fetched = omaseed::core::FetchedMetadata;
+namespace QbtTranslate = omaseed::core::QbtTranslate;
 
 Q_DECLARE_METATYPE(MetadataLookup::Phase)
 
@@ -46,6 +48,18 @@ QJsonObject json(const char *text)
     return QJsonDocument::fromJson(QByteArray(text)).object();
 }
 
+/// What qBittorrent's engine hands the lookup for this torrents/fetchMetadata answer.
+Fetched fetched(bool ready, const char *body)
+{
+    return Fetched{ready, ready ? QbtTranslate::metadata(json(body)) : std::nullopt};
+}
+
+/// Whether a qBittorrent with this Web API version can look metadata up.
+bool canFetch(const char *apiVersion)
+{
+    return QbtTranslate::features(QString::fromLatin1(apiVersion)).fetchMetadata;
+}
+
 /// The server side of the test: every poll gets a reply the test answers.
 struct FakeServer
 {
@@ -68,8 +82,8 @@ struct FakeServer
         QVERIFY(!replies.isEmpty() && !replies.last().isNull());
         replies.last()->complete(result);
     }
-    void looking() { answer(Fetched{false, json(R"({"hash":"1f85"})")}); }
-    void done(const char *body = kSampler) { answer(Fetched{true, json(body)}); }
+    void looking() { answer(fetched(false, R"({"hash":"1f85"})")); }
+    void done(const char *body = kSampler) { answer(fetched(true, body)); }
     void fail(ApiError::Kind kind, int status)
     {
         answer(Result<Fetched>(ApiError(kind, QStringLiteral("test"), status)));
@@ -122,7 +136,7 @@ private:
     }
     void startReady(const QString &key = QStringLiteral("k"))
     {
-        m_lookup->setServer(true, QStringLiteral("2.15.1"));
+        m_lookup->setServer(true, canFetch("2.15.1"));
         m_lookup->start(
             key, QStringLiteral("magnet:?xt=urn:btih:") + key, QStringLiteral("magnet"));
     }
@@ -195,7 +209,7 @@ void TestMetadataLookup::phaseTimes()
 // qBittorrent's file-id order.
 void TestMetadataLookup::parsesAMultiFileTorrentWithoutItsRoot()
 {
-    const auto metadata = MetadataLookup::parse(json(kSampler));
+    const auto metadata = QbtTranslate::metadata(json(kSampler));
     QVERIFY(metadata.has_value());
     QCOMPARE(metadata->name, QStringLiteral("Public Domain Sampler"));
     QCOMPARE(metadata->torrentId, QStringLiteral("1f85b9e8a0d259478ee98344b2b0816f899e59b8"));
@@ -216,7 +230,7 @@ void TestMetadataLookup::parsesAMultiFileTorrentWithoutItsRoot()
 // A single-file torrent's path is its name (tiny-notes.txt in the research).
 void TestMetadataLookup::parsesASingleFile()
 {
-    const auto metadata = MetadataLookup::parse(json(kTinyNotes));
+    const auto metadata = QbtTranslate::metadata(json(kTinyNotes));
     QVERIFY(metadata.has_value());
     QVERIFY(!metadata->multiFile);
     QVERIFY(metadata->isPrivate);
@@ -224,8 +238,8 @@ void TestMetadataLookup::parsesASingleFile()
 
     // Without a files list, info.length stands for the one file.
     const auto bare =
-        MetadataLookup::parse(json(R"({"infohash_v1":"AB12AB12AB12AB12AB12AB12AB12AB12AB12AB12",)"
-                                   R"("info":{"name":"one.bin","length":7}})"));
+        QbtTranslate::metadata(json(R"({"infohash_v1":"AB12AB12AB12AB12AB12AB12AB12AB12AB12AB12",)"
+                                    R"("info":{"name":"one.bin","length":7}})"));
     QVERIFY(bare.has_value());
     QCOMPARE(bare->files, (QList<TorrentFileEntry>{{QStringLiteral("one.bin"), 7}}));
     QCOMPARE(bare->torrentId, QStringLiteral("ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12"));
@@ -233,8 +247,8 @@ void TestMetadataLookup::parsesASingleFile()
 
 void TestMetadataLookup::refusesABodyWithoutInfo()
 {
-    QVERIFY(!MetadataLookup::parse(json(R"({"hash":"1f85"})")).has_value());
-    QVERIFY(!MetadataLookup::parse(json("{}")).has_value());
+    QVERIFY(!QbtTranslate::metadata(json(R"({"hash":"1f85"})")).has_value());
+    QVERIFY(!QbtTranslate::metadata(json("{}")).has_value());
 }
 
 // F7: handed over with the app closed, the lookup waits for the server's login and version;
@@ -247,9 +261,9 @@ void TestMetadataLookup::waitsForTheServer()
     QCOMPARE(m_lookup->phase(), Phase::Waiting);
     QCOMPARE(m_server->polls(), 0);
 
-    m_lookup->setServer(false, QString());
+    m_lookup->setServer(false, false);
     QCOMPARE(m_lookup->phase(), Phase::Waiting);
-    m_lookup->setServer(true, QStringLiteral("2.15.1"));
+    m_lookup->setServer(true, canFetch("2.15.1"));
     QCOMPARE(m_lookup->phase(), Phase::Quiet);
     QCOMPARE(m_server->polls(), 1);
     QCOMPARE(m_server->sources.first(), QStringLiteral("magnet:?xt=k"));
@@ -259,7 +273,7 @@ void TestMetadataLookup::waitsForTheServer()
 // D11: below Web API 2.11.9 the sheet is today's, and nothing is asked.
 void TestMetadataLookup::anOldServerIsUnsupported()
 {
-    m_lookup->setServer(true, QStringLiteral("2.11.4"));
+    m_lookup->setServer(true, canFetch("2.11.4"));
     m_lookup->start(QStringLiteral("k"), QStringLiteral("magnet:?xt=k"), QStringLiteral("magnet"));
     QCOMPARE(m_lookup->phase(), Phase::Unsupported);
     QCOMPARE(m_lookup->phaseName(), QStringLiteral("unsupported"));
@@ -437,7 +451,7 @@ void TestMetadataLookup::anotherKeyDropsTheOldAnswer()
                     QStringLiteral("magnet"));
     QCOMPARE(m_server->polls(), 2);
     QCOMPARE(m_server->sources.last(), QStringLiteral("magnet:?xt=urn:btih:bbbb"));
-    first->complete(Fetched{true, json(kSampler)});
+    first->complete(fetched(true, kSampler));
     QCOMPARE(m_lookup->phase(), Phase::Quiet);
     QCOMPARE(m_lookup->key(), QStringLiteral("bbbb"));
 }
@@ -462,7 +476,7 @@ void TestMetadataLookup::stopLetsGo()
 // F5: a private tracker's magnet asks nothing of the server.
 void TestMetadataLookup::privateAsksNothing()
 {
-    m_lookup->setServer(true, QStringLiteral("2.15.1"));
+    m_lookup->setServer(true, canFetch("2.15.1"));
     m_lookup->startPrivate(
         QStringLiteral("k"), QStringLiteral("magnet:?xt=k"), QStringLiteral("tracker.example"));
     QCOMPARE(m_lookup->phase(), Phase::Private);

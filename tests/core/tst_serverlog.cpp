@@ -6,7 +6,7 @@
 #include "core/LogFilterModel.hpp"
 #include "core/ServerLog.hpp"
 #include "core/TorrentModel.hpp"
-#include "core/engines/qbt/QbtClient.hpp"
+#include "core/engines/qbt/QbtEngine.hpp"
 
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -21,7 +21,7 @@
 #include <memory>
 
 using omaseed::core::LogFilterModel;
-using omaseed::core::QbtClient;
+using omaseed::core::QbtEngine;
 using omaseed::core::ServerLog;
 using omaseed::core::TorrentModel;
 
@@ -353,7 +353,7 @@ void TestServerLog::nothingIsReadWhileInactive()
 {
     LogServer server;
     server.lines = l1();
-    QbtClient client;
+    QbtEngine client;
     client.setBaseUrl(server.url());
     m_log->setClient(&client);
     for (int i = 0; i < 3; ++i)
@@ -367,7 +367,7 @@ void TestServerLog::activeReadsAtOnceThenAfterEachPoll()
 {
     LogServer server;
     server.lines = l1();
-    QbtClient client;
+    QbtEngine client;
     client.setBaseUrl(server.url());
     m_log->setClient(&client);
 
@@ -394,7 +394,7 @@ void TestServerLog::aRestartReadsFromTheTop()
 {
     LogServer server;
     server.lines = l1();
-    QbtClient client;
+    QbtEngine client;
     client.setBaseUrl(server.url());
     m_log->setClient(&client);
     m_log->setActive(true);
@@ -413,7 +413,7 @@ void TestServerLog::releaseDropsTheLines()
 {
     LogServer server;
     server.lines = l1();
-    QbtClient client;
+    QbtEngine client;
     client.setBaseUrl(server.url());
     m_log->setClient(&client);
     m_log->setActive(true);

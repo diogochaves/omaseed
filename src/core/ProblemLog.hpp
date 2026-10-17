@@ -16,7 +16,7 @@
 
 namespace omaseed::core {
 
-class QbtClient;
+class EngineClient;
 class TorrentModel;
 
 /// What qBittorrent's log says about the torrents: why errored ones are in error (docs/28,
@@ -50,7 +50,7 @@ public:
 
     /// The server to read the log of. Not owned; changing it forgets every line, and the
     /// dismissals with them.
-    void setClient(QbtClient *client);
+    void setClient(EngineClient *client);
     /// The rows to watch and to write problems into. Not owned.
     void setTorrents(TorrentModel *torrents);
 
@@ -181,7 +181,7 @@ private:
     void checkFiles();
     bool failureTouched() const;
 
-    QPointer<QbtClient> m_client;
+    QPointer<EngineClient> m_client;
     QPointer<TorrentModel> m_torrents;
     std::chrono::milliseconds m_interval{5000};
     std::chrono::milliseconds m_idleInterval{15000};

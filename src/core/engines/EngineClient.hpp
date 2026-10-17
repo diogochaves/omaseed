@@ -73,6 +73,7 @@ public:
     virtual void setBaseUrl(const QUrl &baseUrl) = 0;
     /// Sign in with a key the server issued (qBittorrent 5.2's API key).
     virtual void setApiKey(const QString &apiKey) = 0;
+    virtual bool hasApiKey() const = 0;
     /// Sign in with a user name and password, when the server asks.
     virtual void setCredentials(const QString &username, const QString &password) = 0;
     /// Forgets the key, the credentials and any session, and cancels everything outstanding.

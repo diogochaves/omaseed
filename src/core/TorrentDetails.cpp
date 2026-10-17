@@ -5,8 +5,7 @@
 #include "core/PieceStates.hpp"
 #include "core/Torrent.hpp"
 #include "core/TorrentModel.hpp"
-#include "core/engines/qbt/QbtClient.hpp"
-#include "core/engines/qbt/QbtTranslate.hpp"
+#include "core/engines/EngineClient.hpp"
 
 #include <QDateTime>
 #include <QDebug>
@@ -121,7 +120,7 @@ void TorrentDetails::setPollInterval(int milliseconds)
     m_peersTimer->setInterval(milliseconds);
 }
 
-void TorrentDetails::setClient(QbtClient *client)
+void TorrentDetails::setClient(EngineClient *client)
 {
     m_client = client;
     m_demo = false;
@@ -263,7 +262,7 @@ void TorrentDetails::poll()
 
     const QString hash = m_hash;
 
-    m_client->torrentsProperties(hash)->then(this, [this, hash](const Result<QJsonObject> &result) {
+    m_client->properties(hash)->then(this, [this, hash](const Result<TorrentProperties> &result) {
         if (hash != m_hash)
             return; // the selection moved on while this was in flight
         if (result.isError()) {
@@ -271,11 +270,11 @@ void TorrentDetails::poll()
             return;
         }
         noteSuccess();
-        applyProperties(QbtTranslate::properties(result.value()));
+        applyProperties(result.value());
         Q_EMIT refreshed();
     });
 
-    m_client->torrentsFiles(hash)->then(this, [this, hash](const Result<QJsonArray> &result) {
+    m_client->files(hash)->then(this, [this, hash](const Result<QList<ContentFile>> &result) {
         if (hash != m_hash)
             return;
         if (result.isError()) {
@@ -283,10 +282,10 @@ void TorrentDetails::poll()
             return;
         }
         noteSuccess();
-        m_files->applyFiles(QbtTranslate::files(result.value()));
+        m_files->applyFiles(result.value());
     });
 
-    m_client->torrentsTrackers(hash)->then(this, [this, hash](const Result<QJsonArray> &result) {
+    m_client->trackers(hash)->then(this, [this, hash](const Result<QList<TrackerEntry>> &result) {
         if (hash != m_hash)
             return;
         if (result.isError()) {
@@ -294,7 +293,7 @@ void TorrentDetails::poll()
             return;
         }
         noteSuccess();
-        m_trackers->applyTrackers(QbtTranslate::trackers(result.value()));
+        m_trackers->applyTrackers(result.value());
     });
 
     if (m_webSeedsActive || m_pollTick % kWebSeedsIdleTicks == 0)
@@ -311,7 +310,7 @@ void TorrentDetails::pollWebSeeds()
         return;
 
     const QString hash = m_hash;
-    m_client->torrentsWebSeeds(hash)->then(this, [this, hash](const Result<QJsonArray> &result) {
+    m_client->webSeeds(hash)->then(this, [this, hash](const Result<QStringList> &result) {
         if (hash != m_hash)
             return;
         if (result.isError()) {
@@ -319,7 +318,7 @@ void TorrentDetails::pollWebSeeds()
             return;
         }
         noteSuccess();
-        m_webSeeds->applyWebSeeds(QbtTranslate::webSeeds(result.value()));
+        m_webSeeds->applyWebSeeds(result.value());
     });
 }
 
@@ -329,7 +328,7 @@ void TorrentDetails::pollPieceStates()
         return;
 
     const QString hash = m_hash;
-    m_client->torrentsPieceStates(hash)->then(this, [this, hash](const Result<QJsonArray> &result) {
+    m_client->pieceStates(hash)->then(this, [this, hash](const Result<QByteArray> &result) {
         if (hash != m_hash || !m_generalActive)
             return;
         if (result.isError()) {
@@ -337,7 +336,7 @@ void TorrentDetails::pollPieceStates()
             return;
         }
         noteSuccess();
-        setPieceStates(QbtTranslate::pieceStates(result.value()));
+        setPieceStates(result.value());
     });
 }
 
@@ -347,8 +346,8 @@ void TorrentDetails::pollPeers()
         return;
 
     const QString hash = m_hash;
-    m_client->torrentsPeers(hash, m_peers->rid())
-        ->then(this, [this, hash](const Result<QJsonObject> &result) {
+    m_client->peers(hash, m_peers->rid())
+        ->then(this, [this, hash](const Result<PeersDelta> &result) {
             if (hash != m_hash || !m_peersActive)
                 return;
             if (result.isError()) {
@@ -356,7 +355,7 @@ void TorrentDetails::pollPeers()
                 return;
             }
             noteSuccess();
-            m_peers->applyPeers(QbtTranslate::peers(result.value()));
+            m_peers->applyPeers(result.value());
         });
 }
 

@@ -13,7 +13,7 @@
 
 namespace omaseed::core {
 
-class QbtClient;
+class EngineClient;
 class TorrentModel;
 
 /// qBittorrent's whole log, for the log face (docs/32 §6, D9–D15, #56): `log/main` at all four
@@ -68,7 +68,7 @@ public:
     explicit ServerLog(QObject *parent = nullptr);
 
     /// The server to read. Not owned; changing it forgets every line.
-    void setClient(QbtClient *client);
+    void setClient(EngineClient *client);
     /// The library, to tie a line to the torrent it names (torrentAt()). Not owned.
     void setTorrents(TorrentModel *torrents);
 
@@ -137,7 +137,7 @@ private:
     void startOver();
     void applyRead(const QList<LogEntry> &entries);
 
-    QPointer<QbtClient> m_client;
+    QPointer<EngineClient> m_client;
     QPointer<TorrentModel> m_torrents;
     QList<Line> m_lines;
     std::array<int, 4> m_counts{};

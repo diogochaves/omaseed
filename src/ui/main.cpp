@@ -6,7 +6,7 @@
 #include "core/TorrentModel.hpp"
 #include "core/TrackerModel.hpp"
 #include "core/Version.hpp"
-#include "core/engines/qbt/QbtClient.hpp"
+#include "core/engines/qbt/QbtEngine.hpp"
 #include "integration/AppIdentity.hpp"
 #include "integration/BarWidget.hpp"
 #include "integration/BarWidgetInstaller.hpp"
@@ -208,7 +208,7 @@ int runSyncDemo()
     }
     const QUrl url(urlText);
 
-    QbtClient client;
+    QbtEngine client;
     client.setBaseUrl(url);
     const QString apiKey =
         QProcessEnvironment::systemEnvironment().value(QStringLiteral("QBT_API_KEY"));
