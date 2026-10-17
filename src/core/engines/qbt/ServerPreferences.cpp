@@ -1,6 +1,7 @@
-#include "core/ServerPreferences.hpp"
+#include "core/engines/qbt/ServerPreferences.hpp"
 
 #include "core/engines/qbt/QbtClient.hpp"
+#include "core/engines/qbt/QbtEngine.hpp"
 
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -10,9 +11,9 @@
 
 namespace omaseed::core {
 
-ServerPreferences::ServerPreferences(QbtClient *client, QObject *parent)
+ServerPreferences::ServerPreferences(QbtEngine *engine, QObject *parent)
     : QObject(parent)
-    , m_client(client)
+    , m_client(engine != nullptr ? engine->client() : nullptr)
 {}
 
 bool ServerPreferences::sameValue(const QVariant &a, const QVariant &b)

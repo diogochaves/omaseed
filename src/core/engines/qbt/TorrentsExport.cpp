@@ -1,7 +1,8 @@
-#include "core/TorrentsExport.hpp"
+#include "core/engines/qbt/TorrentsExport.hpp"
 
 #include "core/TorrentFile.hpp"
 #include "core/engines/qbt/QbtClient.hpp"
+#include "core/engines/qbt/QbtEngine.hpp"
 
 #include <QDateTime>
 #include <QDir>
@@ -11,9 +12,9 @@
 
 namespace omaseed::core {
 
-TorrentsExport::TorrentsExport(QbtClient *client, QObject *parent)
+TorrentsExport::TorrentsExport(QbtEngine *engine, QObject *parent)
     : QObject(parent)
-    , m_client(client)
+    , m_client(engine != nullptr ? engine->client() : nullptr)
 {}
 
 TorrentsExport::~TorrentsExport()

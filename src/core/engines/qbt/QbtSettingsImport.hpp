@@ -26,7 +26,7 @@
 // running it again skips it (§7). The preferences go through ServerPreferences when one is
 // given, so the Settings panes show them at once and App follows a Web UI move.
 
-#include "core/QbtSettingsExport.hpp"
+#include "core/engines/qbt/QbtSettingsExport.hpp"
 
 #include <QJsonObject>
 #include <QJsonValue>
@@ -43,6 +43,7 @@
 namespace omaseed::core {
 
 class QbtClient;
+class QbtEngine;
 class ServerPreferences;
 
 class QbtSettingsImport : public QObject
@@ -118,7 +119,8 @@ public:
         bool ok() const { return errors.isEmpty(); }
     };
 
-    explicit QbtSettingsImport(QbtClient *client, QObject *parent = nullptr);
+    /// Talks to `engine`'s transport (docs/36 §4.4: a qBittorrent surface); null for none.
+    explicit QbtSettingsImport(QbtEngine *engine, QObject *parent = nullptr);
     /// Preferences go through `prefs` (App's) instead of a POST of their own.
     void setPreferences(ServerPreferences *prefs);
 

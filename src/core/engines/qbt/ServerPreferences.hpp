@@ -25,6 +25,7 @@
 namespace omaseed::core {
 
 class QbtClient;
+class QbtEngine;
 
 class ServerPreferences : public QObject
 {
@@ -44,7 +45,8 @@ class ServerPreferences : public QObject
     Q_PROPERTY(QStringList interfaceAddresses READ interfaceAddresses NOTIFY interfacesChanged)
 
 public:
-    explicit ServerPreferences(QbtClient *client, QObject *parent = nullptr);
+    /// Talks to `engine`'s transport (docs/36 §4.4: a qBittorrent surface); null for none.
+    explicit ServerPreferences(QbtEngine *engine, QObject *parent = nullptr);
 
     QVariantMap values() const { return m_values; }
     bool isLoaded() const { return m_loaded; }

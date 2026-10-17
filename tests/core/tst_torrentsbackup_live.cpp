@@ -12,11 +12,12 @@
 
 #include "core/TorrentFile.hpp"
 #include "core/TorrentsBackup.hpp"
-#include "core/TorrentsExport.hpp"
-#include "core/TorrentsImport.hpp"
-#include "core/engines/qbt/QbtClient.hpp"
+#include "core/engines/qbt/QbtEngine.hpp"
+#include "core/engines/qbt/TorrentsExport.hpp"
+#include "core/engines/qbt/TorrentsImport.hpp"
 
 #include "LiveServer.hpp"
+#include "QbtWire.hpp"
 #include "ThrowawayQbt.hpp"
 
 #include <QDirIterator>
@@ -27,6 +28,7 @@
 #include <QTest>
 
 using omaseed::core::QbtClient;
+using omaseed::core::QbtEngine;
 using omaseed::core::Reply;
 using omaseed::core::Result;
 using omaseed::core::TorrentFile;
@@ -49,7 +51,7 @@ Result<T> wait(Reply<T> *reply, QObject *context)
     return *got;
 }
 
-TorrentsExport::Outcome exportFrom(QbtClient &client, const QString &path)
+TorrentsExport::Outcome exportFrom(QbtEngine &client, const QString &path)
 {
     TorrentsExport exporter(&client);
     QSignalSpy finished(&exporter, &TorrentsExport::finished);
@@ -61,10 +63,10 @@ TorrentsExport::Outcome exportFrom(QbtClient &client, const QString &path)
 }
 
 /// What the server has, as the plan reads it.
-TorrentsImport::Here hereOf(QbtClient &client, QObject *context)
+TorrentsImport::Here hereOf(QbtEngine &client, QObject *context)
 {
     TorrentsImport::Here here;
-    const QJsonArray infos = wait(client.torrentsInfo(), context).value();
+    const QJsonArray infos = wait(client.client()->torrentsInfo(), context).value();
     for (const QJsonValue &v : infos) {
         const QJsonObject t = v.toObject();
         for (const char *key : {"hash", "infohash_v1", "infohash_v2"}) {
@@ -73,17 +75,17 @@ TorrentsImport::Here hereOf(QbtClient &client, QObject *context)
                 here.ids.insert(id);
         }
     }
-    const QJsonObject categories = wait(client.torrentsCategories(), context).value();
+    const QJsonObject categories = wait(client.client()->torrentsCategories(), context).value();
     here.categories = categories.keys();
-    const QJsonArray tags = wait(client.torrentsTags(), context).value();
+    const QJsonArray tags = wait(client.client()->torrentsTags(), context).value();
     for (const QJsonValue &tag : tags)
         here.tags.append(tag.toString());
     return here;
 }
 
-QJsonObject torrentNamed(QbtClient &client, QObject *context, const QString &name)
+QJsonObject torrentNamed(QbtEngine &client, QObject *context, const QString &name)
 {
-    const QJsonArray infos = wait(client.torrentsInfo(), context).value();
+    const QJsonArray infos = wait(client.client()->torrentsInfo(), context).value();
     for (const QJsonValue &v : infos) {
         if (v.toObject().value(QStringLiteral("name")).toString() == name)
             return v.toObject();
@@ -161,7 +163,7 @@ private:
     }
 
     TorrentsImport::Outcome
-    runImport(QbtClient &client,
+    runImport(QbtEngine &client,
               const QString &data,
               const QString &journal,
               std::function<void(TorrentsImport &, const QString &, int)> onProgress = {})
@@ -196,7 +198,7 @@ private:
     }
 
     /// The round trip's result, read on the target: what docs/24 §8 compares.
-    void compareTarget(QbtClient &client, const QString &data)
+    void compareTarget(QbtEngine &client, const QString &data)
     {
         // qBittorrent shows a start in torrents/info a moment after it answers it.
         const auto running = [&client, this](const QString &name) {
@@ -218,7 +220,7 @@ private:
         QCOMPARE(album.value(QStringLiteral("save_path")).toString(), data);
         QCOMPARE(album.value(QStringLiteral("ratio_limit")).toDouble(), 2.0);
         QCOMPARE(album.value(QStringLiteral("progress")).toDouble(), 1.0);
-        const QJsonArray files = wait(client.torrentsFiles(id), this).value();
+        const QJsonArray files = wait(client.client()->torrentsFiles(id), this).value();
         QCOMPARE(files.at(0).toObject().value(QStringLiteral("name")).toString(),
                  kAlbum + QLatin1Char('/') + kRenamed);
         bool skippedCover = false;
@@ -232,7 +234,7 @@ private:
         QVERIFY(!magnet.isEmpty());
         QVERIFY(magnet.value(QStringLiteral("state")).toString().startsWith(u"stopped"));
 
-        const QJsonObject categories = wait(client.torrentsCategories(), this).value();
+        const QJsonObject categories = wait(client.client()->torrentsCategories(), this).value();
         QCOMPARE(categories.value(QStringLiteral("notes")).toObject().value(u"savePath").toString(),
                  data + QStringLiteral("/notes"));
         // The files on disk are the copies, untouched by the check.
@@ -247,9 +249,9 @@ private Q_SLOTS:
     // metadata as links, the file private.
     void exportsThePlayground()
     {
-        QbtClient client;
+        QbtEngine client;
         client.setBaseUrl(LiveServer::playground());
-        const auto info = wait(client.torrentsInfo(), this);
+        const auto info = wait(client.client()->torrentsInfo(), this);
         if (info.isError())
             QSKIP("the :8081 playground is not running (scripts/dev/test-server.sh start)");
         const QString path = m_dir.filePath(QStringLiteral("playground.omaseed-torrents"));
@@ -308,12 +310,13 @@ private Q_SLOTS:
                 QSKIP(qPrintable(why));
             QFAIL("the source qBittorrent did not start");
         }
-        QbtClient a;
+        QbtEngine a;
         a.setBaseUrl(ThrowawayQbt::urlOn(m_source->webPort()));
-        QVERIFY(wait(a.torrentsCreateCategory(QStringLiteral("notes"),
-                                              m_source->downloadsPath() + QStringLiteral("/notes")),
-                     this)
-                    .isValid());
+        QVERIFY(
+            wait(a.client()->torrentsCreateCategory(
+                     QStringLiteral("notes"), m_source->downloadsPath() + QStringLiteral("/notes")),
+                 this)
+                .isValid());
         const auto read = [](const QString &path) {
             QFile f(path);
             return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray();
@@ -323,35 +326,35 @@ private Q_SLOTS:
         o.dlLimit = 1; // it has no files here and must not fetch any
         o.category = QStringLiteral("notes");
         o.tags = {QStringLiteral("keep")};
-        QVERIFY(wait(a.torrentsAddFile(kTiny, read(tinyFile), o), this).isValid());
+        QVERIFY(wait(a.client()->torrentsAddFile(kTiny, read(tinyFile), o), this).isValid());
         o.category.reset();
         o.tags = {QStringLiteral("flac"), QStringLiteral("field")};
-        QVERIFY(wait(a.torrentsAddFile(kAlbum, read(albumFile), o), this).isValid());
+        QVERIFY(wait(a.client()->torrentsAddFile(kAlbum, read(albumFile), o), this).isValid());
         QbtClient::AddOptions stopped;
         stopped.stopped = true;
         stopped.savepath = m_source->downloadsPath();
-        QVERIFY(wait(a.torrentsAddUrls({QStringLiteral("magnet:?xt=urn:btih:") + kMagnetHash +
-                                        QStringLiteral("&dn=link%20only")},
-                                       stopped),
+        QVERIFY(wait(a.client()->torrentsAddUrls({QStringLiteral("magnet:?xt=urn:btih:") +
+                                                  kMagnetHash + QStringLiteral("&dn=link%20only")},
+                                                 stopped),
                      this)
                     .isValid());
         QTRY_VERIFY_WITH_TIMEOUT(!torrentNamed(a, this, kAlbum).isEmpty(), 10000);
         const QString album =
             torrentNamed(a, this, kAlbum).value(QStringLiteral("hash")).toString();
-        QVERIFY(wait(a.torrentsRenameFile(album,
-                                          kAlbum + QLatin1Char('/') + kTrack,
-                                          kAlbum + QLatin1Char('/') + kRenamed),
+        QVERIFY(wait(a.client()->torrentsRenameFile(album,
+                                                    kAlbum + QLatin1Char('/') + kTrack,
+                                                    kAlbum + QLatin1Char('/') + kRenamed),
                      this)
                     .isValid());
-        const QJsonArray files = wait(a.torrentsFiles(album), this).value();
+        const QJsonArray files = wait(a.client()->torrentsFiles(album), this).value();
         for (const QJsonValue &f : files) {
             if (f.toObject().value(QStringLiteral("name")).toString().endsWith(u"cover.jpg"))
-                QVERIFY(
-                    wait(a.torrentsSetFilePrio(album, {f.toObject().value(u"index").toInt()}, 0),
-                         this)
-                        .isValid());
+                QVERIFY(wait(a.client()->torrentsSetFilePrio(
+                                 album, {f.toObject().value(u"index").toInt()}, 0),
+                             this)
+                            .isValid());
         }
-        QVERIFY(wait(a.torrentsSetShareLimits({album}, 2.0, -2, -2), this).isValid());
+        QVERIFY(wait(a.client()->torrentsSetShareLimits({album}, 2.0, -2, -2), this).isValid());
 
         m_export = m_dir.filePath(QStringLiteral("source.omaseed-torrents"));
         const TorrentsExport::Outcome outcome = exportFrom(a, m_export);
@@ -369,7 +372,7 @@ private Q_SLOTS:
             QSKIP(qPrintable(why));
         ThrowawayQbt target;
         QVERIFY(target.start(false));
-        QbtClient b;
+        QbtEngine b;
         b.setBaseUrl(ThrowawayQbt::urlOn(target.webPort()));
         const QString data = dataCopy(QStringLiteral("round-trip"));
         QVERIFY(!data.isEmpty());
@@ -398,7 +401,7 @@ private Q_SLOTS:
             QSKIP(qPrintable(why));
         ThrowawayQbt target;
         QVERIFY(target.start(false));
-        QbtClient c;
+        QbtEngine c;
         c.setBaseUrl(ThrowawayQbt::urlOn(target.webPort()));
         c.setMaxRetries(0);
         const QString data = dataCopy(QStringLiteral("resume"));
@@ -420,7 +423,7 @@ private Q_SLOTS:
 
         QVERIFY(target.restart());
         c.setMaxRetries(3);
-        QTRY_VERIFY_WITH_TIMEOUT(wait(c.torrentsInfo(), this).isValid(), 10000);
+        QTRY_VERIFY_WITH_TIMEOUT(wait(c.client()->torrentsInfo(), this).isValid(), 10000);
         const auto contents = TorrentsBackup::read(m_export);
         QVERIFY(contents.has_value());
         const TorrentsImport::Plan plan = TorrentsImport::plan(
@@ -444,7 +447,7 @@ private Q_SLOTS:
             QSKIP(qPrintable(why));
         ThrowawayQbt target;
         QVERIFY(target.start(false));
-        QbtClient e;
+        QbtEngine e;
         e.setBaseUrl(ThrowawayQbt::urlOn(target.webPort()));
         const QString data = dataCopy(QStringLiteral("stray"));
         QVERIFY(!data.isEmpty());
@@ -464,7 +467,8 @@ private Q_SLOTS:
         const QJsonObject t = torrentNamed(e, this, kAlbum);
         QVERIFY(t.value(QStringLiteral("state")).toString().startsWith(u"stopped"));
         const QJsonArray files =
-            wait(e.torrentsFiles(t.value(QStringLiteral("hash")).toString()), this).value();
+            wait(e.client()->torrentsFiles(t.value(QStringLiteral("hash")).toString()), this)
+                .value();
         QCOMPARE(files.at(0).toObject().value(QStringLiteral("name")).toString(),
                  kAlbum + QLatin1Char('/') + kTrack);
     }

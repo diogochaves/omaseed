@@ -5,11 +5,12 @@
 // an RSS feed and rule set on one, exported, imported into the other, and compared on the
 // second server itself. The round trip skips when qbittorrent-nox is not installed.
 
-#include "core/QbtSettingsExport.hpp"
-#include "core/QbtSettingsImport.hpp"
-#include "core/engines/qbt/QbtClient.hpp"
+#include "core/engines/qbt/QbtEngine.hpp"
+#include "core/engines/qbt/QbtSettingsExport.hpp"
+#include "core/engines/qbt/QbtSettingsImport.hpp"
 
 #include "LiveServer.hpp"
+#include "QbtWire.hpp"
 #include "ThrowawayQbt.hpp"
 
 #include <QJsonArray>
@@ -20,6 +21,7 @@
 #include <QUrlQuery>
 
 using omaseed::core::QbtClient;
+using omaseed::core::QbtEngine;
 using omaseed::core::QbtSettingsExport;
 using omaseed::core::QbtSettingsImport;
 using omaseed::core::QbtSettingsSnapshot;
@@ -27,7 +29,7 @@ using omaseed::core::Result;
 
 namespace {
 
-std::optional<QbtSettingsSnapshot> collect(QbtClient &client, QString *error)
+std::optional<QbtSettingsSnapshot> collect(QbtEngine &client, QString *error)
 {
     QbtSettingsExport exporter(&client);
     QSignalSpy collected(&exporter, &QbtSettingsExport::collected);
@@ -44,14 +46,15 @@ std::optional<QbtSettingsSnapshot> collect(QbtClient &client, QString *error)
     return collected.at(0).at(0).value<QbtSettingsSnapshot>();
 }
 
-bool post(QbtClient &client, const QString &path, const QList<QPair<QString, QString>> &fields)
+/// A raw POST behind the surfaces' back, to set a server up.
+bool post(QbtEngine &engine, const QString &path, const QList<QPair<QString, QString>> &fields)
 {
     QUrlQuery form;
     for (const auto &[key, value] : fields)
         form.addQueryItem(key, QString::fromLatin1(QUrl::toPercentEncoding(value)));
     bool done = false;
     bool ok = false;
-    client.post(path, form)->then(&client, [&](const Result<QByteArray> &r) {
+    engine.client()->post(path, form)->then(&engine, [&](const Result<QByteArray> &r) {
         ok = r.isValid();
         done = true;
     });
@@ -68,7 +71,7 @@ private Q_SLOTS:
     // docs/24 §8: the export reads the playground; no secret in what it hands back.
     void exportsThePlayground()
     {
-        QbtClient client;
+        QbtEngine client;
         client.setBaseUrl(LiveServer::playground());
         QString error;
         const std::optional<QbtSettingsSnapshot> s = collect(client, &error);
@@ -96,10 +99,10 @@ private Q_SLOTS:
         ThrowawayQbt to;
         QVERIFY2(to.start(), qPrintable(to.error()));
 
-        QbtClient a;
+        QbtEngine a;
         a.setBaseUrl(from.url());
         a.setCredentials(from.username(), from.password());
-        QbtClient b;
+        QbtEngine b;
         b.setBaseUrl(to.url());
         b.setCredentials(to.username(), to.password());
 

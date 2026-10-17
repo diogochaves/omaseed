@@ -5,12 +5,12 @@
 #include "core/FilterCounts.hpp"
 #include "core/GlobalState.hpp"
 #include "core/SeedLedger.hpp"
-#include "core/ServerPreferences.hpp"
 #include "core/StateFile.hpp"
 #include "core/SyncEngine.hpp"
 #include "core/TorrentFolderScan.hpp"
 #include "core/TorrentModel.hpp"
 #include "core/Version.hpp"
+#include "core/engines/qbt/ServerPreferences.hpp"
 #include "integration/BarMenu.hpp"
 
 #include <QCoreApplication>

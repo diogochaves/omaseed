@@ -134,7 +134,13 @@ void App::exportTorrents(const QString &path)
                                       false);
         return;
     }
-    auto *exporter = new TorrentsExport(qbtEngine()->client(), this);
+    // C9's file holds qBittorrent's rows: a qBittorrent surface (docs/36 §4.4).
+    if (!m_features.torrentsBackup || qbtEngine() == nullptr) {
+        Q_EMIT torrentsExportFinished(
+            tr("Not exported: %1 cannot export its torrents.").arg(m_server.name), false);
+        return;
+    }
+    auto *exporter = new TorrentsExport(qbtEngine(), this);
     m_torrentsExport = exporter;
     setTorrentsRunning(QStringLiteral("export"), tr("exporting…"));
     connect(exporter, &TorrentsExport::progress, this, [this](int done, int total) {
@@ -424,6 +430,10 @@ void App::applyTorrentsImport(const QVariantMap &choice)
         Q_EMIT torrentsImportFinished(tr("Another export or import is running."), false);
         return;
     }
+    if (!m_features.torrentsBackup || qbtEngine() == nullptr) {
+        Q_EMIT torrentsImportFinished(tr("%1 cannot import torrents.").arg(m_server.name), false);
+        return;
+    }
     TorrentsImport::Options options;
     options.rows = torrentsRows(choice.value(QStringLiteral("rows")).toList());
     options.check = choice.value(QStringLiteral("check"), true).toBool();
@@ -432,7 +442,7 @@ void App::applyTorrentsImport(const QVariantMap &choice)
     options.localPathFor = [this](const QString &serverPath) {
         return m_freeSpace.localPathFor(serverPath);
     };
-    auto *import = new TorrentsImport(qbtEngine()->client(), this);
+    auto *import = new TorrentsImport(qbtEngine(), this);
     m_torrentsImport = import;
     const QString name = m_server.name;
     const int total = m_torrentsPlan.count();

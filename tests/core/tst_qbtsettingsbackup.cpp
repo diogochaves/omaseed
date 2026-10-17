@@ -4,9 +4,9 @@
 // their folders follow the target's. The live half (two qBittorrents) is
 // tst_qbtsettingsbackup_live.
 
-#include "core/QbtSettingsExport.hpp"
-#include "core/QbtSettingsImport.hpp"
-#include "core/ServerPreferences.hpp"
+#include "core/engines/qbt/QbtSettingsExport.hpp"
+#include "core/engines/qbt/QbtSettingsImport.hpp"
+#include "core/engines/qbt/ServerPreferences.hpp"
 
 #include <QFile>
 #include <QJsonArray>

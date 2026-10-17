@@ -28,6 +28,7 @@
 namespace omaseed::core {
 
 class QbtClient;
+class QbtEngine;
 
 class TorrentsExport : public QObject
 {
@@ -47,7 +48,8 @@ public:
         int gone = 0; ///< deleted on the server while the export ran
     };
 
-    explicit TorrentsExport(QbtClient *client, QObject *parent = nullptr);
+    /// Talks to `engine`'s transport (docs/36 §4.4: a qBittorrent surface); null for none.
+    explicit TorrentsExport(QbtEngine *engine, QObject *parent = nullptr);
     ~TorrentsExport() override;
 
     void start(const QString &path,

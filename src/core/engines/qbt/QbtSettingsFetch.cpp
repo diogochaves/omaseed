@@ -1,8 +1,9 @@
-#include "core/QbtSettingsFetch.hpp"
+#include "core/engines/qbt/QbtSettingsFetch.hpp"
 
 #include "core/ApiError.hpp"
 #include "core/Reply.hpp"
 #include "core/engines/qbt/QbtClient.hpp"
+#include "core/engines/qbt/QbtEngine.hpp"
 
 #include <QFileInfo>
 
@@ -19,7 +20,7 @@ QbtSettingsFetch::QbtSettingsFetch(QObject *parent)
     : QObject(parent)
 {}
 
-// A client still reading is this object's child and goes with it; no signal follows.
+// An engine still reading is this object's child and goes with it; no signal follows.
 QbtSettingsFetch::~QbtSettingsFetch() = default;
 
 void QbtSettingsFetch::fetch(const Server &server, const QString &secret, const QString &appVersion)
@@ -29,7 +30,7 @@ void QbtSettingsFetch::fetch(const Server &server, const QString &secret, const 
     m_busy = true;
     m_mode = server.authMode;
 
-    auto *client = new QbtClient(this);
+    auto *client = new QbtEngine(this);
     client->setPinnedCertificate(server.certificateSha256);
     client->setBaseUrl(server.url);
     client->setMaxRetries(0);
@@ -76,16 +77,17 @@ void QbtSettingsFetch::finish(const std::optional<QbtSettingsSnapshot> &snapshot
     if (m_export)
         m_export->deleteLater();
     m_export = nullptr;
-    QbtClient *client = m_client;
+    QbtEngine *engine = m_client;
     m_client = nullptr;
-    if (client) {
-        // A password login leaves a session on the server: end it, then drop the client. An
+    if (engine) {
+        // A password login leaves a session on the server: end it, then drop the engine. An
         // API key (or no login) has none.
+        QbtClient *client = engine->client();
         if (m_mode == AuthMode::Cookie && client->authState() == QbtClient::AuthState::Ok)
             client->post(QStringLiteral("auth/logout"))
-                ->then(client, [client](const Result<QByteArray> &) { client->deleteLater(); });
+                ->then(engine, [engine](const Result<QByteArray> &) { engine->deleteLater(); });
         else
-            client->deleteLater();
+            engine->deleteLater();
     }
     if (snapshot)
         Q_EMIT fetched(*snapshot);

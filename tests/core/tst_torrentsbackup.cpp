@@ -8,8 +8,8 @@
 #include "core/TarArchive.hpp"
 #include "core/TorrentFile.hpp"
 #include "core/TorrentsBackup.hpp"
-#include "core/TorrentsImport.hpp"
-#include "core/engines/qbt/QbtClient.hpp"
+#include "core/engines/qbt/QbtEngine.hpp"
+#include "core/engines/qbt/TorrentsImport.hpp"
 
 #include <QBuffer>
 #include <QFile>
@@ -29,7 +29,7 @@
 
 namespace bencode = omaseed::core::bencode;
 using omaseed::core::PathMap;
-using omaseed::core::QbtClient;
+using omaseed::core::QbtEngine;
 using omaseed::core::TarArchive;
 using omaseed::core::TarReader;
 using omaseed::core::TarWriter;
@@ -787,7 +787,7 @@ private Q_SLOTS:
         QCOMPARE(plan.add, (QList<int>{0, 1, 2}));
 
         FakeQbt server;
-        QbtClient client;
+        QbtEngine client;
         client.setBaseUrl(server.url());
         TorrentsImport import(&client);
         TorrentsImport::Options options;

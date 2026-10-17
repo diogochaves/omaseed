@@ -19,7 +19,8 @@
 // the one test, by name and by suffix, so a key a later qBittorrent adds in the same form
 // stays out too. `parse` drops them again, so a file edited by hand cannot bring one in.
 //
-// `collect()` reads all of it from a server through QbtClient; `toJson` / `parse` are pure.
+// `collect()` reads all of it from a server through its qBittorrent engine; `toJson` / `parse`
+// are pure.
 
 #include <QByteArray>
 #include <QDateTime>
@@ -34,6 +35,7 @@
 namespace omaseed::core {
 
 class QbtClient;
+class QbtEngine;
 
 /// One server's settings, as the file holds them.
 struct QbtSettingsSnapshot
@@ -62,7 +64,8 @@ public:
     static inline const QString kFormat = QStringLiteral("omaseed-qbittorrent-settings");
     static inline const QString kSuffix = QStringLiteral(".json");
 
-    explicit QbtSettingsExport(QbtClient *client, QObject *parent = nullptr);
+    /// Talks to `engine`'s transport (docs/36 §4.4: a qBittorrent surface); null for none.
+    explicit QbtSettingsExport(QbtEngine *engine, QObject *parent = nullptr);
 
     /// A key whose value is a secret (D5 a): never written, never imported.
     static bool isSecretKey(const QString &key);

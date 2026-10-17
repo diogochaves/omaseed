@@ -2,8 +2,8 @@
 // object: a change shows at once, a refusal puts the old value back, a value the server
 // ignores comes back as the server's, and a reset drops late answers (docs/16 §3).
 
-#include "core/ServerPreferences.hpp"
-#include "core/engines/qbt/QbtClient.hpp"
+#include "core/engines/qbt/QbtEngine.hpp"
+#include "core/engines/qbt/ServerPreferences.hpp"
 
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -15,7 +15,7 @@
 
 #include <memory>
 
-using omaseed::core::QbtClient;
+using omaseed::core::QbtEngine;
 using omaseed::core::ServerPreferences;
 
 namespace {
@@ -123,7 +123,7 @@ private slots:
 void TestServerPreferences::loadsEveryKey()
 {
     FakeQbt server;
-    QbtClient client;
+    QbtEngine client;
     client.setBaseUrl(server.url());
     ServerPreferences prefs(&client);
     QVERIFY(!prefs.isLoaded());
@@ -139,7 +139,7 @@ void TestServerPreferences::loadsEveryKey()
 void TestServerPreferences::appliesAtOnceAndReadsBack()
 {
     FakeQbt server;
-    QbtClient client;
+    QbtEngine client;
     client.setBaseUrl(server.url());
     ServerPreferences prefs(&client);
     prefs.reload();
@@ -163,7 +163,7 @@ void TestServerPreferences::appliesAtOnceAndReadsBack()
 void TestServerPreferences::refusalPutsTheOldValueBack()
 {
     FakeQbt server;
-    QbtClient client;
+    QbtEngine client;
     client.setBaseUrl(server.url());
     ServerPreferences prefs(&client);
     prefs.reload();
@@ -183,7 +183,7 @@ void TestServerPreferences::ignoredValueComesBackAsTheServers()
 {
     FakeQbt server;
     server.ignored = {QStringLiteral("max_ratio")};
-    QbtClient client;
+    QbtEngine client;
     client.setBaseUrl(server.url());
     ServerPreferences prefs(&client);
     prefs.reload();
@@ -200,7 +200,7 @@ void TestServerPreferences::ignoredValueComesBackAsTheServers()
 void TestServerPreferences::resetDropsLateAnswers()
 {
     FakeQbt server;
-    QbtClient client;
+    QbtEngine client;
     client.setBaseUrl(server.url());
     ServerPreferences prefs(&client);
     QSignalSpy values(&prefs, &ServerPreferences::valuesChanged);

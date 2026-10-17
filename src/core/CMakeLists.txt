@@ -39,8 +39,20 @@ qt_add_library(omaseed-core STATIC
     engines/qbt/QbtClient.hpp
     engines/qbt/QbtEngine.cpp
     engines/qbt/QbtEngine.hpp
+    engines/qbt/QbtSettingsExport.cpp
+    engines/qbt/QbtSettingsExport.hpp
+    engines/qbt/QbtSettingsFetch.cpp
+    engines/qbt/QbtSettingsFetch.hpp
+    engines/qbt/QbtSettingsImport.cpp
+    engines/qbt/QbtSettingsImport.hpp
     engines/qbt/QbtTranslate.cpp
     engines/qbt/QbtTranslate.hpp
+    engines/qbt/ServerPreferences.cpp
+    engines/qbt/ServerPreferences.hpp
+    engines/qbt/TorrentsExport.cpp
+    engines/qbt/TorrentsExport.hpp
+    engines/qbt/TorrentsImport.cpp
+    engines/qbt/TorrentsImport.hpp
     ErrorWords.cpp
     ErrorWords.hpp
     FilesViewState.cpp
@@ -78,12 +90,6 @@ qt_add_library(omaseed-core STATIC
     ProblemLog.hpp
     Reply.cpp
     Reply.hpp
-    QbtSettingsExport.cpp
-    QbtSettingsExport.hpp
-    QbtSettingsFetch.cpp
-    QbtSettingsFetch.hpp
-    QbtSettingsImport.cpp
-    QbtSettingsImport.hpp
     RenameDisk.cpp
     RenameDisk.hpp
     RenamePlan.cpp
@@ -98,8 +104,6 @@ qt_add_library(omaseed-core STATIC
     ServerLog.hpp
     ServerListModel.cpp
     ServerListModel.hpp
-    ServerPreferences.cpp
-    ServerPreferences.hpp
     ServerStore.cpp
     ServerStore.hpp
     SeedConsole.cpp
@@ -142,10 +146,6 @@ qt_add_library(omaseed-core STATIC
     TorrentProblem.hpp
     TorrentsBackup.cpp
     TorrentsBackup.hpp
-    TorrentsExport.cpp
-    TorrentsExport.hpp
-    TorrentsImport.cpp
-    TorrentsImport.hpp
     TorrentTrackersModel.cpp
     TorrentTrackersModel.hpp
     TorrentWebSeedsModel.cpp

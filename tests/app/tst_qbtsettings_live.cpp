@@ -16,11 +16,12 @@
 #include "core/CertificatePin.hpp"
 #include "core/GlobalState.hpp"
 #include "core/ServerListModel.hpp"
-#include "core/ServerPreferences.hpp"
 #include "core/SyncEngine.hpp"
-#include "core/engines/qbt/QbtClient.hpp"
+#include "core/engines/qbt/QbtEngine.hpp"
+#include "core/engines/qbt/ServerPreferences.hpp"
 #include "ui/app/App.hpp"
 
+#include "QbtWire.hpp"
 #include "ThrowawayQbt.hpp"
 
 #include <QEventLoop>
@@ -50,6 +51,7 @@
 using omaseed::app::App;
 using omaseed::core::ApiError;
 using omaseed::core::QbtClient;
+using omaseed::core::QbtEngine;
 using omaseed::core::Reply;
 using omaseed::core::Result;
 using omaseed::core::ServerPreferences;
@@ -385,7 +387,7 @@ private:
     /// A fresh App from what the first one saved: true when it signs in and syncs.
     bool savedServerSyncs();
     /// Logs a client into `qbt` and loads `prefs`; false when that fails.
-    bool connectPrefs(ThrowawayQbt &qbt, QbtClient &client, ServerPreferences &prefs);
+    bool connectPrefs(ThrowawayQbt &qbt, QbtEngine &client, ServerPreferences &prefs);
     /// Applies `values` and waits for the read-back; the keys the server kept, or an error.
     QString applyAndWait(ServerPreferences &prefs, const QVariantMap &values, QStringList *kept);
 
@@ -413,7 +415,7 @@ void TestQbtSettingsLive::init()
 }
 
 bool TestQbtSettingsLive::connectPrefs(ThrowawayQbt &qbt,
-                                       QbtClient &client,
+                                       QbtEngine &client,
                                        ServerPreferences &prefs)
 {
     client.setBaseUrl(qbt.url());
@@ -449,7 +451,7 @@ void TestQbtSettingsLive::everySettingRoundTrips()
     const QVariantList sections = loadSections(&schemaError);
     QVERIFY2(!sections.isEmpty(), qPrintable(schemaError));
 
-    QbtClient client;
+    QbtEngine client;
     ServerPreferences prefs(&client);
     QVERIFY2(connectPrefs(qbt, client, prefs), qPrintable(prefs.loadError()));
     const QVariantMap original = prefs.values();
@@ -561,7 +563,7 @@ void TestQbtSettingsLive::unknownAndBadValuesAreKeptNotRefused()
     // type; only the read-back tells. ServerPreferences reports those keys as kept.
     ThrowawayQbt qbt;
     START_OR_SKIP(qbt);
-    QbtClient client;
+    QbtEngine client;
     ServerPreferences prefs(&client);
     QVERIFY2(connectPrefs(qbt, client, prefs), qPrintable(prefs.loadError()));
 
@@ -889,7 +891,7 @@ void TestQbtSettingsLive::resumeDataStorageSurvivesARestart()
     // lose the torrents qBittorrent knew (a real library has thousands).
     ThrowawayQbt qbt;
     START_OR_SKIP(qbt);
-    QbtClient client;
+    QbtEngine client;
     ServerPreferences prefs(&client);
     QVERIFY2(connectPrefs(qbt, client, prefs), qPrintable(prefs.loadError()));
 
@@ -898,11 +900,11 @@ void TestQbtSettingsLive::resumeDataStorageSurvivesARestart()
     QbtClient::AddOptions options;
     options.stopped = true;
     QVERIFY(!await(this,
-                   client.torrentsAddFile(
+                   client.client()->torrentsAddFile(
                        QStringLiteral("single_file_v1.torrent"), torrent.readAll(), options))
                  .isError());
     const auto count = [&]() {
-        const auto info = await(this, client.get(QStringLiteral("torrents/info")));
+        const auto info = await(this, client.client()->get(QStringLiteral("torrents/info")));
         return info.isError() ? -1 : int(QJsonDocument::fromJson(info.value()).array().size());
     };
     QTRY_COMPARE_WITH_TIMEOUT(count(), 1, 10000);

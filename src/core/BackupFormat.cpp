@@ -1,9 +1,9 @@
 #include "core/BackupFormat.hpp"
 
 #include "core/OmaseedBackup.hpp"
-#include "core/QbtSettingsExport.hpp"
 #include "core/TarArchive.hpp"
 #include "core/TorrentsBackup.hpp"
+#include "core/engines/qbt/QbtSettingsExport.hpp"
 
 #include <QFile>
 #include <QJsonDocument>

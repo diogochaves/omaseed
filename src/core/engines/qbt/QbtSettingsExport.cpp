@@ -1,6 +1,7 @@
-#include "core/QbtSettingsExport.hpp"
+#include "core/engines/qbt/QbtSettingsExport.hpp"
 
 #include "core/engines/qbt/QbtClient.hpp"
+#include "core/engines/qbt/QbtEngine.hpp"
 
 #include <QDir>
 #include <QFile>
@@ -57,9 +58,9 @@ int QbtSettingsSnapshot::feedCount() const
     return countFeeds(rssItems);
 }
 
-QbtSettingsExport::QbtSettingsExport(QbtClient *client, QObject *parent)
+QbtSettingsExport::QbtSettingsExport(QbtEngine *engine, QObject *parent)
     : QObject(parent)
-    , m_client(client)
+    , m_client(engine != nullptr ? engine->client() : nullptr)
 {}
 
 QStringList QbtSettingsExport::knownSecretKeys()

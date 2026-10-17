@@ -1,7 +1,8 @@
-#include "core/QbtSettingsImport.hpp"
+#include "core/engines/qbt/QbtSettingsImport.hpp"
 
-#include "core/ServerPreferences.hpp"
 #include "core/engines/qbt/QbtClient.hpp"
+#include "core/engines/qbt/QbtEngine.hpp"
+#include "core/engines/qbt/ServerPreferences.hpp"
 
 #include <QDir>
 #include <QHash>
@@ -321,9 +322,9 @@ QJsonObject QbtSettingsImport::ruleDefinition(const QJsonObject &rule,
     return out;
 }
 
-QbtSettingsImport::QbtSettingsImport(QbtClient *client, QObject *parent)
+QbtSettingsImport::QbtSettingsImport(QbtEngine *engine, QObject *parent)
     : QObject(parent)
-    , m_client(client)
+    , m_client(engine != nullptr ? engine->client() : nullptr)
 {}
 
 void QbtSettingsImport::setPreferences(ServerPreferences *prefs)

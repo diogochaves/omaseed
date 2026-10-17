@@ -1,7 +1,7 @@
 #include "core/AltSpeed.hpp"
 
 #include "core/GlobalState.hpp"
-#include "core/ServerPreferences.hpp"
+#include "core/engines/qbt/ServerPreferences.hpp"
 
 namespace omaseed::core {
 

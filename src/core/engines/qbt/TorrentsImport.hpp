@@ -57,6 +57,7 @@
 namespace omaseed::core {
 
 class QbtClient;
+class QbtEngine;
 
 class TorrentsImport : public QObject
 {
@@ -169,7 +170,8 @@ public:
         bool complete = false; ///< every step ran
     };
 
-    explicit TorrentsImport(QbtClient *client, QObject *parent = nullptr);
+    /// Talks to `engine`'s transport (docs/36 §4.4: a qBittorrent surface); null for none.
+    explicit TorrentsImport(QbtEngine *engine, QObject *parent = nullptr);
     ~TorrentsImport() override;
 
     void start(const TorrentsBackup::Contents &contents, const Plan &plan, const Options &options);

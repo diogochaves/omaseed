@@ -1,7 +1,7 @@
 #include "core/engines/qbt/QbtEngine.hpp"
 
-#include "core/QbtSettingsExport.hpp"
 #include "core/engines/qbt/QbtClient.hpp"
+#include "core/engines/qbt/QbtSettingsExport.hpp"
 #include "core/engines/qbt/QbtTranslate.hpp"
 
 #include <QJsonDocument>

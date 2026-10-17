@@ -10,7 +10,6 @@
 #include "core/PeerInput.hpp"
 #include "core/PrivateTrackers.hpp"
 #include "core/ProblemLog.hpp"
-#include "core/QbtSettingsImport.hpp"
 #include "core/RenamePlan.hpp"
 #include "core/ServerLog.hpp"
 #include "core/StateFile.hpp"
@@ -20,6 +19,7 @@
 #include "core/Version.hpp"
 #include "core/WeeklyRecap.hpp"
 #include "core/engines/qbt/QbtEngine.hpp"
+#include "core/engines/qbt/QbtSettingsImport.hpp"
 #include "core/engines/qbt/QbtTranslate.hpp"
 #include "integration/Autostart.hpp"
 #include "integration/Notifier.hpp"
@@ -117,7 +117,7 @@ App::App(QObject *parent)
     , m_secrets(new SecretStore(SecretStore::defaultServiceName(), this))
 {
     m_engine->setClient(m_client);
-    m_prefs = new ServerPreferences(qbtEngine()->client(), this);
+    m_prefs = new ServerPreferences(qbtEngine(), this);
     // Before setUpMetadataLookup(): the lookup reads the features when the version moves.
     connect(m_engine->globalState(), &GlobalState::apiVersionChanged, this, &App::updateFeatures);
     updateFeatures();
@@ -5456,7 +5456,14 @@ void App::collectQbtSettings(
         });
         return;
     }
-    auto *exporter = new QbtSettingsExport(qbtEngine()->client(), this);
+    // Settings › qBittorrent's own (docs/36 §4.4).
+    if (!m_features.qbtSettings || qbtEngine() == nullptr) {
+        QTimer::singleShot(0, this, [this, done] {
+            done(std::nullopt, tr("%1 has no qBittorrent settings.").arg(m_server.name));
+        });
+        return;
+    }
+    auto *exporter = new QbtSettingsExport(qbtEngine(), this);
     const QString id = m_server.id;
     connect(exporter,
             &QbtSettingsExport::collected,
@@ -5886,7 +5893,8 @@ void App::applyQbtImport(const QVariantMap &choice)
     if (m_demoMode)
         plan.categories = plan.tags = plan.rss = false; // the demo's server is fiction
 
-    auto *import = new QbtSettingsImport(m_demoMode ? nullptr : qbtEngine()->client(), this);
+    auto *import =
+        new QbtSettingsImport(m_demoMode || !m_features.qbtSettings ? nullptr : qbtEngine(), this);
     import->setPreferences(m_prefs);
     const QString name = m_server.name;
     ++m_qbtBusy;

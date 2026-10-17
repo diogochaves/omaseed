@@ -1,8 +1,9 @@
-#include "core/TorrentsImport.hpp"
+#include "core/engines/qbt/TorrentsImport.hpp"
 
 #include "core/RenameDisk.hpp"
 #include "core/TorrentFile.hpp"
 #include "core/engines/qbt/QbtClient.hpp"
+#include "core/engines/qbt/QbtEngine.hpp"
 #include "core/engines/qbt/QbtTranslate.hpp"
 
 #include <QDir>
@@ -265,9 +266,9 @@ bool TorrentsImport::renameWouldReplace(const QString &localBase,
 
 // ---- the run --------------------------------------------------------------------------------
 
-TorrentsImport::TorrentsImport(QbtClient *client, QObject *parent)
+TorrentsImport::TorrentsImport(QbtEngine *engine, QObject *parent)
     : QObject(parent)
-    , m_client(client)
+    , m_client(engine != nullptr ? engine->client() : nullptr)
 {
     m_pollTimer.setSingleShot(true);
     connect(&m_pollTimer, &QTimer::timeout, this, &TorrentsImport::poll);

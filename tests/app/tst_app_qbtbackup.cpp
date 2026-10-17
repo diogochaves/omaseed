@@ -5,8 +5,8 @@
 // settings is found by the server's address. The real servers are tst_qbtsettingsbackup_live.
 
 #include "core/OmaseedBackup.hpp"
-#include "core/QbtSettingsExport.hpp"
-#include "core/ServerPreferences.hpp"
+#include "core/engines/qbt/QbtSettingsExport.hpp"
+#include "core/engines/qbt/ServerPreferences.hpp"
 #include "ui/app/App.hpp"
 
 #include <QFile>

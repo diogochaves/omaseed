@@ -5,7 +5,7 @@
 //
 // "Copy settings from another server" never moves the app: omaseed stays connected to the
 // server it is on (C8, one connection) and only reads the other one. `fetch()` makes a
-// short-lived QbtClient for it, as the server sheet's test does (App::runServerTest): the
+// short-lived QbtEngine for it, as the server sheet's test does (App::runServerTest): the
 // server's address, pinned certificate and the login the caller read from the keyring, no
 // retries and an 8 s timeout. It probes, makes the five reads a settings export makes
 // (QbtSettingsExport::collect), signs out when it signed in with a password, and drops the
@@ -15,8 +15,8 @@
 // kept of it, in its automatic copies or read earlier this session, whichever is newest.
 
 #include "core/OmaseedBackup.hpp"
-#include "core/QbtSettingsExport.hpp"
 #include "core/Server.hpp"
+#include "core/engines/qbt/QbtSettingsExport.hpp"
 
 #include <QByteArray>
 #include <QHash>
@@ -30,7 +30,7 @@
 
 namespace omaseed::core {
 
-class QbtClient;
+class QbtEngine;
 
 class QbtSettingsFetch : public QObject
 {
@@ -71,7 +71,7 @@ Q_SIGNALS:
 private:
     void finish(const std::optional<QbtSettingsSnapshot> &snapshot, const QString &reason);
 
-    QPointer<QbtClient> m_client;
+    QPointer<QbtEngine> m_client;
     QPointer<QbtSettingsExport> m_export;
     std::chrono::milliseconds m_timeout{8000};
     AuthMode m_mode = AuthMode::None;

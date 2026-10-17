@@ -108,7 +108,6 @@
 #include "core/MetadataLookup.hpp"
 #include "core/SeedConsole.hpp"
 #include "core/ServerLog.hpp"
-#include "core/ServerPreferences.hpp"
 #include "core/ServerStore.hpp"
 #include "core/SyncEngine.hpp"
 #include "core/TagModel.hpp"
@@ -121,6 +120,7 @@
 #include "core/TorrentTrackersModel.hpp"
 #include "core/TorrentWebSeedsModel.hpp"
 #include "core/TrackerModel.hpp"
+#include "core/engines/qbt/ServerPreferences.hpp"
 
 #include <QQmlEngine>
 

@@ -6,11 +6,11 @@
 #include "core/ApiError.hpp"
 #include "core/BackupFormat.hpp"
 #include "core/OmaseedBackup.hpp"
-#include "core/QbtSettingsExport.hpp"
-#include "core/QbtSettingsFetch.hpp"
 #include "core/Server.hpp"
 #include "core/TarArchive.hpp"
 #include "core/TorrentsBackup.hpp"
+#include "core/engines/qbt/QbtSettingsExport.hpp"
+#include "core/engines/qbt/QbtSettingsFetch.hpp"
 
 #include <QBuffer>
 #include <QFile>
