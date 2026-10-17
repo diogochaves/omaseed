@@ -191,6 +191,11 @@ Item {
         }
 
         Text {
+            // #79: the line under the headline, in the alert. Named by `body`, which holds
+            // still; the tail counts down every second, so it is the description.
+            Accessible.description: root.body.length > 0 ? root.bodyTail : ""
+            Accessible.name: root.body.length > 0 ? root.body : root.bodyTail
+            Accessible.role: Accessible.StaticText
             Layout.fillWidth: true
             Layout.leftMargin: glyph.Layout.preferredWidth + Theme.space(8)
             color: Theme.foreground
@@ -237,6 +242,9 @@ Item {
                 spacing: Theme.space(2)
 
                 Text {
+                    // #79: the technical text, once "details" unfolds it.
+                    Accessible.name: text
+                    Accessible.role: Accessible.StaticText
                     Layout.fillWidth: true
                     color: Theme.dimForeground
                     font.family: Theme.fontFamily
@@ -320,7 +328,10 @@ Item {
         Text {
             id: detailsLink
 
-            Accessible.name: text
+            // "details", never its chevron; whether it is open is the description, as a rail
+            // group's (#78).
+            Accessible.description: root.detailsOpen ? qsTr("unfolded") : qsTr("folded")
+            Accessible.name: qsTr("details")
             Accessible.role: Accessible.Link
             // As an action's (#75).
             Accessible.onPressAction: if (detailsLink.enabled)

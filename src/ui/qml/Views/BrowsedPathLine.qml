@@ -45,6 +45,8 @@ Item {
     Text {
         id: lineText
 
+        Accessible.name: text
+        Accessible.role: Accessible.StaticText
         anchors.left: parent.left
         anchors.leftMargin: root.outside ? Theme.space(10) : 0
         anchors.right: parent.right

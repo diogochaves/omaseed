@@ -1475,6 +1475,8 @@ Sheet {
                             visible: sheet.batchMode
 
                             Label {
+                                Accessible.name: text
+                                Accessible.role: Accessible.StaticText
                                 Layout.fillWidth: true
                                 elide: Text.ElideRight
                                 objectName: "batchHead"
@@ -1631,6 +1633,8 @@ Sheet {
 
                             // #40 (docs/27 B3): what `enter` does with ticks.
                             Label {
+                                Accessible.name: text
+                                Accessible.role: Accessible.StaticText
                                 dim: true
                                 objectName: "downloadsTicked"
                                 size: "caption"
@@ -1809,11 +1813,14 @@ Sheet {
                                 Layout.preferredWidth: 1
                                 label: limitsRow.narrow ? qsTr("↓ limit") : qsTr(
                                                               "Download limit")
+                                spokenCaption: false // the field says it (#78)
 
                                 Field {
                                     id: dlLimitField
 
                                     Layout.fillWidth: true
+                                    // #78: named in words; `∞` (and a narrow row's ↓) is no name.
+                                    accessibleName: qsTr("Download limit")
                                     implicitWidth: Theme.space(80)
                                     numeric: true
                                     placeholder: qsTr("∞")
@@ -1830,11 +1837,14 @@ Sheet {
                                 Layout.preferredWidth: 1
                                 label: limitsRow.narrow ? qsTr("↑ limit") : qsTr(
                                                               "Upload limit")
+                                spokenCaption: false // the field says it (#78)
 
                                 Field {
                                     id: upLimitField
 
                                     Layout.fillWidth: true
+                                    // #78: named in words; `∞` (and a narrow row's ↑) is no name.
+                                    accessibleName: qsTr("Upload limit")
                                     implicitWidth: Theme.space(80)
                                     numeric: true
                                     placeholder: qsTr("∞")
@@ -1931,6 +1941,8 @@ Sheet {
                             }
 
                             Label {
+                                Accessible.name: text
+                                Accessible.role: Accessible.StaticText
                                 color: !sheet.showFiles && fetchLine.summaryWarn ? Theme.yellow : Theme.dimForeground
                                 objectName: "addFilesSummary"
                                 size: "caption"
@@ -1967,6 +1979,8 @@ Sheet {
                         Label {
                             id: nothingTickedLine
 
+                            Accessible.name: text
+                            Accessible.role: Accessible.StaticText
                             Layout.fillWidth: true
                             dim: true
                             elide: Text.ElideRight

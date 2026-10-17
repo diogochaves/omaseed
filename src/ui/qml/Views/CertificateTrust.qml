@@ -72,12 +72,16 @@ ColumnLayout {
             }
 
             Label {
+                Accessible.name: text
+                Accessible.role: Accessible.StaticText
                 objectName: "fingerprintFirstHalf"
                 size: "small"
                 text: root._pairs.slice(0, 16).join(":")
             }
 
             Label {
+                Accessible.name: text
+                Accessible.role: Accessible.StaticText
                 objectName: "fingerprintSecondHalf"
                 size: "small"
                 text: root._pairs.slice(16).join(":")

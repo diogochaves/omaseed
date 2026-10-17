@@ -238,9 +238,13 @@ Item {
             objectName: "filesSummary"
             visible: !root.filterShown
 
+            // #79: the Files tab's summary: the count, the facts after it the description.
             Text {
                 id: summaryCount
 
+                Accessible.description: root.summaryFactsText
+                Accessible.name: text
+                Accessible.role: Accessible.StaticText
                 anchors.left: parent.left
                 anchors.verticalCenter: parent.verticalCenter
                 color: Theme.foreground
@@ -353,7 +357,7 @@ Item {
                 // #77: the line is a button that opens the filter; its press is the click.
                 // A MouseArea's `enabled` is its own flag alone, so the line's says whether
                 // the tab is disabled.
-                Accessible.description: "/"
+                Accessible.description: qsTr("shortcut %1").arg("/")
                 Accessible.ignored: !root.canFilter
                 Accessible.name: qsTr("filter files")
                 Accessible.role: Accessible.Button
@@ -413,6 +417,9 @@ Item {
         anchors.right: parent.right
         anchors.rightMargin: Theme.space(8)
         anchors.verticalCenter: filterBar.verticalCenter
+        // #78: the lesson in syntax is the description, not the name; the cap, which clears
+        // the filter and closes the field, is named by that.
+        accessibleName: qsTr("filter files")
         hint: Glyphs.search
         objectName: "filesFilter"
         // docs/12 F4: the placeholder teaches the syntax.
@@ -423,6 +430,7 @@ Item {
         trailingKey: qsTr("esc")
         // The cap does what `esc` does: clears the filter and closes the field.
         trailingClickable: true
+        trailingName: qsTr("clear the filter")
         visible: root.filterShown
 
         Keys.onPressed: event => {
@@ -874,8 +882,12 @@ Item {
         z: 2
     }
 
-    // A filter that hides everything says so, rather than leaving an empty list.
+    // A filter that hides everything says so, rather than leaving an empty list. #79: by its
+    // words to a screen reader, the key in the description.
     Text {
+        Accessible.description: qsTr("shortcut %1").arg("esc")
+        Accessible.name: qsTr("no file matches")
+        Accessible.role: Accessible.StaticText
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: header.bottom
         anchors.topMargin: Theme.space(16)
@@ -888,6 +900,9 @@ Item {
 
     // #9: every file skipped, and the skipped hidden: say why the list is empty.
     Text {
+        Accessible.description: qsTr("shortcut %1").arg("X")
+        Accessible.name: qsTr("every file is skipped")
+        Accessible.role: Accessible.StaticText
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: header.bottom
         anchors.topMargin: Theme.space(16)

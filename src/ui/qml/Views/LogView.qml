@@ -381,6 +381,9 @@ FocusScope {
 
             // D13 (L2): the torrent the lines are narrowed to; a click, or `esc`, clears it.
             Chip {
+                // Named without its ✕; what a press does is the description.
+                Accessible.description: tooltip
+                Accessible.name: qsTr("torrent: %1").arg(root.lines.torrentName)
                 accent: true
                 objectName: "torrentChip"
                 text: qsTr("torrent: %1").arg(root.lines.torrentName) + "  " + Glyphs.close
@@ -404,9 +407,12 @@ FocusScope {
             }
         }
 
+        // #79: what the log holds ("since qBittorrent started · 18:14 · 28 lines").
         Text {
             id: sinceLabel
 
+            Accessible.name: text
+            Accessible.role: Accessible.StaticText
             anchors.right: parent.right
             anchors.rightMargin: Theme.space(16)
             anchors.verticalCenter: parent.verticalCenter
@@ -493,7 +499,10 @@ FocusScope {
 
             onClicked: (row, modifiers) => root.clickRow(row, modifiers)
         }
+        // #79: where the log starts, said before its lines.
         header: Text {
+            Accessible.name: text
+            Accessible.role: Accessible.StaticText
             bottomPadding: Theme.space(6)
             color: Theme.dimForeground
             font.family: Theme.fontFamily
@@ -522,7 +531,11 @@ FocusScope {
 
         Keys.onPressed: event => root._key(event)
 
+        // #79: the empty log's line; "esc clears" is a key hint, so the description.
         Text {
+            Accessible.description: root.log.total === 0 ? "" : qsTr("shortcut %1").arg("esc")
+            Accessible.name: root.log.total === 0 ? text : qsTr("no line matches")
+            Accessible.role: Accessible.StaticText
             anchors.centerIn: parent
             color: Theme.dimForeground
             font.family: Theme.fontFamily

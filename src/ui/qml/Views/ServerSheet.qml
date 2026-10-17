@@ -703,9 +703,14 @@ Sheet {
             }
         }
 
+        // #79: a test's answer comes on its own, as first run's does: an alert by its words;
+        // the raw error under a refused sign-in is text.
         Label {
+            Accessible.name: text
+            Accessible.role: Accessible.AlertMessage
             Layout.fillWidth: true
             dim: true
+            objectName: "testResultText"
             size: "small"
             text: root.testing ? qsTr("testing…") : root.tested ? (root.testOk ? qsTr(
                                                                                     "reached %1 · qBittorrent %2 · API %3 · %4").arg(
@@ -724,6 +729,8 @@ Sheet {
         // The server was reached and turned the credential down: the raw error, dim, under
         // the words above.
         Label {
+            Accessible.name: text
+            Accessible.role: Accessible.StaticText
             Layout.fillWidth: true
             dim: true
             objectName: "testErrorDetail"

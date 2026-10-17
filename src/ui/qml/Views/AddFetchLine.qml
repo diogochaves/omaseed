@@ -155,6 +155,8 @@ Rectangle {
             spacing: Theme.space(4)
 
             Label {
+                Accessible.name: text
+                Accessible.role: Accessible.StaticText
                 Layout.fillWidth: true
                 bright: true
                 objectName: "addFetchHeadline"
@@ -170,7 +172,11 @@ Rectangle {
                     id: lineLabel
 
                     required property string modelData
+                    /// #79: the line's words for a screen reader, without its markup.
+                    readonly property string spoken: lineLabel.modelData.replace(/<[^>]*>/g, "")
 
+                    Accessible.name: lineLabel.spoken
+                    Accessible.role: Accessible.StaticText
                     Layout.fillWidth: true
                     dim: true
                     lineHeight: 1.1

@@ -108,6 +108,8 @@ RowLayout {
     spacing: Theme.space(8)
 
     Label {
+        Accessible.name: text
+        Accessible.role: Accessible.StaticText
         objectName: "addFreeNeeds"
         color: root.tone
         size: "caption"
@@ -143,6 +145,8 @@ RowLayout {
     }
 
     Label {
+        Accessible.name: root.roomText
+        Accessible.role: Accessible.StaticText
         objectName: "addFreeRoom"
         Layout.fillWidth: true
         color: root.tone

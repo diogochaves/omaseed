@@ -39,6 +39,8 @@ Palette {
         }
     ]
     items: root._rows
+    // #79: a row's meta is its count.
+    metaSpoken: true
     multi: true
     title: root.choiceMode ? qsTr("tags for the new torrent") : root.hashes.length
                              === 1 ? qsTr("tags for 1 torrent") : qsTr(

@@ -1214,6 +1214,9 @@ Item {
     Sheet {
         id: sheet
 
+        // #79: the dialog is "settings", as the nav's caption says; the panes' titles are
+        // headings inside it.
+        accessibleName: qsTr("settings")
         anchors.fill: parent
         // The head belongs to the pane in this figure, not to the sheet: no glyph, no title,
         // and no `esc` chip up there either.
@@ -1410,6 +1413,9 @@ Item {
                         // docs/16 §2: the group's head names the server it edits:
                         // "qbittorrent", then "playground 5.2.3" under it.
                         Label {
+                            // #79: the second group's heading, as the pane titles are.
+                            Accessible.name: qsTr("qBittorrent")
+                            Accessible.role: Accessible.Heading
                             Layout.fillWidth: true
                             Layout.leftMargin: Theme.space(4)
                             Layout.topMargin: Theme.space(14)
@@ -1544,18 +1550,26 @@ Item {
                         Layout.fillWidth: true
                         spacing: Theme.space(10)
 
+                        // #79: the pane's title is its heading.
                         Label {
+                            Accessible.name: text
+                            Accessible.role: Accessible.Heading
                             Layout.fillWidth: true
                             bright: true
                             elide: Text.ElideRight
                             font.weight: Font.DemiBold
+                            objectName: "paneTitle"
                             size: "subtitle"
                             text: root.allRows[root.paneIndex].text
                         }
 
                         // docs/16 §3: which server this is, and that a change is saved as it
                         // is made; after a change, what the server said about it.
+                        // #79: which server and how it saves, as text; what the server said
+                        // after a change comes on its own, as an alert.
                         Label {
+                            Accessible.name: text
+                            Accessible.role: root.qbtNote.length > 0 ? Accessible.AlertMessage : Accessible.StaticText
                             Layout.maximumWidth: Theme.space(320)
                             color: root.qbtNote.length > 0 ? (root.qbtNoteError ? Theme.yellow
                                                                                  : Theme.green)
@@ -1577,7 +1591,7 @@ Item {
 
                             // #77: a "close" button, its key the description; its press is
                             // the click.
-                            Accessible.description: "esc"
+                            Accessible.description: qsTr("shortcut %1").arg("esc")
                             Accessible.name: qsTr("close")
                             Accessible.role: Accessible.Button
                             Accessible.onPressAction: if (settingsEsc.enabled)
@@ -1650,6 +1664,8 @@ Item {
                             visible: root.paneIndex === 0
 
                             SettingsRow {
+                                id: serversRailRow
+
                                 Layout.fillWidth: true
                                 // Batch-2 J8: plain words, and true to Rail.qml, which draws
                                 // the group only from two servers and never while this is off.
@@ -1665,6 +1681,8 @@ Item {
                                 }
 
                                 Toggle {
+                                    // #78: named by its row, whose title is a sibling text.
+                                    Accessible.name: serversRailRow.title
                                     checked: App.showServersGroup
 
                                     onToggled: App.showServersGroup = checked
@@ -1672,6 +1690,8 @@ Item {
                             }
 
                             SettingsRow {
+                                id: pathMapRow
+
                                 Layout.fillWidth: true
                                 description: qsTr("Rewrites remote paths to local mounts before asking the file manager.")
                                 glyph: Glyphs.home
@@ -1685,6 +1705,8 @@ Item {
                                 }
 
                                 Toggle {
+                                    // #78: named by its row, whose title is a sibling text.
+                                    Accessible.name: pathMapRow.title
                                     checked: App.pathMapEnabled
 
                                     onToggled: App.pathMapEnabled = checked
@@ -1695,6 +1717,8 @@ Item {
                             // was not merged yet. It is the delete confirm's remembered
                             // default (Fig. 8's "also delete the files" toggle).
                             SettingsRow {
+                                id: deleteFilesRow
+
                                 Layout.fillWidth: true
                                 description: qsTr("The delete confirm opens with \"also delete the files\" already on.")
                                 glyph: Glyphs.statusErrored
@@ -1709,6 +1733,8 @@ Item {
                                 }
 
                                 Toggle {
+                                    // #78: named by its row, whose title is a sibling text.
+                                    Accessible.name: deleteFilesRow.title
                                     checked: App.deleteFilesDefault
 
                                     onToggled: App.deleteFilesDefault = checked
@@ -1926,6 +1952,8 @@ Item {
                                 }
 
                                 Label {
+                                    Accessible.name: text
+                                    Accessible.role: Accessible.StaticText
                                     Layout.fillWidth: true
                                     dim: true
                                     objectName: "plainSecretsText"
@@ -2000,6 +2028,8 @@ Item {
                                     }
 
                                     Toggle {
+                                        // #78: named by its row, whose title is a sibling text.
+                                        Accessible.name: notifyRow.title
                                         checked: App.notificationsEnabled[notifyRow.modelData.key] === true
 
                                         onToggled: App.setNotificationEnabled(notifyRow.modelData.key, checked)
@@ -2069,6 +2099,8 @@ Item {
                                 }
 
                                 Toggle {
+                                    // #78: named by its row, whose title is a sibling text.
+                                    Accessible.name: weeklyRow.title
                                     checked: App.notificationsEnabled.weekly === true
 
                                     onToggled: App.setNotificationEnabled("weekly", checked)
@@ -2111,7 +2143,7 @@ Item {
 
                                     // #77: a button to the `?` sheet, the key its
                                     // description; its press is the click.
-                                    Accessible.description: "?"
+                                    Accessible.description: qsTr("shortcut %1").arg("?")
                                     Accessible.name: qsTr("every shortcut")
                                     Accessible.role: Accessible.Button
                                     Accessible.onPressAction: if (keysHelpKey.enabled)
@@ -2186,6 +2218,8 @@ Item {
                             visible: root.paneIndex === 4
 
                             SettingsRow {
+                                id: followThemeRow
+
                                 Layout.fillWidth: true
                                 description: qsTr("Off keeps the bundled Tokyo Night whatever the desktop does.")
                                 glyph: Glyphs.appearance
@@ -2199,6 +2233,8 @@ Item {
                                 }
 
                                 Toggle {
+                                    // #78: named by its row, whose title is a sibling text.
+                                    Accessible.name: followThemeRow.title
                                     checked: App.followOmarchyTheme
 
                                     onToggled: App.followOmarchyTheme = checked
@@ -2565,6 +2601,8 @@ Item {
                                 }
 
                                 Toggle {
+                                    // #78: named by its row, whose title is a sibling text.
+                                    Accessible.name: pulseRow.title
                                     checked: App.pulseRows
 
                                     onToggled: App.pulseRows = checked
@@ -2750,6 +2788,10 @@ Item {
                                     Button {
                                         id: copySourceButton
 
+                                        // #78: named by what it picks; the server it shows is
+                                        // the description, and the ▾ neither.
+                                        Accessible.description: root.copySourceName
+                                        Accessible.name: qsTr("copy from")
                                         bordered: true
                                         objectName: "copySourceButton"
                                         text: root.copySourceName + "  " + Glyphs.chevronDown
@@ -2856,6 +2898,8 @@ Item {
                             }
 
                             Label {
+                                Accessible.name: text
+                                Accessible.role: Accessible.StaticText
                                 Layout.fillWidth: true
                                 color: root.backupNoteError ? Theme.yellow : Theme.green
                                 objectName: "qbtBackupNote"
@@ -2988,6 +3032,8 @@ Item {
                             }
 
                             Label {
+                                Accessible.name: text
+                                Accessible.role: Accessible.StaticText
                                 Layout.fillWidth: true
                                 color: root.backupNoteError ? Theme.yellow : Theme.green
                                 objectName: "backupNote"

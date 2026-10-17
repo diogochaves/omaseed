@@ -81,6 +81,11 @@ Item {
         }
 
         Label {
+            // #79: the folded pane's line: the torrent by its name, whole when cut, its figures
+            // the description.
+            Accessible.description: root.statsText
+            Accessible.name: text
+            Accessible.role: Accessible.StaticText
             // Its whole width when there is room, less (elided) when there is not. With only
             // fillWidth the spacer below took half the spare room and the name was cut short.
             // Rounded up: the layout snaps to whole pixels, and 109 px for 109.16 px of text

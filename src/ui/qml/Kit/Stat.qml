@@ -11,7 +11,15 @@ Column {
     property color glyphColor: Theme.foreground
     property string label: ""
     property string value: ""
+    /// What a screen reader calls the number when the label is cut or gone (the hero's
+    /// narrow steps drop it): words, never the glyph.
+    property string accessibleName: root.label
 
+    // #79: a label named by what it counts ("download"), the number its description: a speed
+    // changes every second and is not read out again each time.
+    Accessible.description: root.value
+    Accessible.name: root.accessibleName
+    Accessible.role: Accessible.StaticText
     spacing: 0
 
     Row {

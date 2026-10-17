@@ -52,6 +52,22 @@ TestCase {
         compare(banner._kindColor, Theme.accent);
     }
 
+    // #79: an error or a warning is an alert named by its text, never its glyph; an info line
+    // is plain text.
+    function test_a_screen_reader_hears_the_text_as_an_alert() {
+        const banner = createTemporaryObject(bannerComponent, testCase, {
+                                                 "kind": "error",
+                                                 "text": "connection refused"
+                                             });
+        const text = findChild(banner, "bannerText");
+        compare(text.Accessible.role, Accessible.AlertMessage);
+        compare(text.Accessible.name, "connection refused");
+        banner.kind = "warning";
+        compare(text.Accessible.role, Accessible.AlertMessage);
+        banner.kind = "info";
+        compare(text.Accessible.role, Accessible.StaticText);
+    }
+
     function test_action_triggered_emits_the_key() {
         const banner = createTemporaryObject(bannerComponent, testCase, {
                                                  "kind": "error",

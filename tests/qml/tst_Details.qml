@@ -73,6 +73,37 @@ TestCase {
         compare(view.rowCount, findChild(view, "generalTab").count);
     }
 
+    // #79: a screen reader hears the head (the name as the heading, the line under it whole),
+    // the strip's figures, the pieces line and General's group headings; an error block is an
+    // alert named by its headline, its lines text.
+    function test_a_screen_reader_hears_the_head_and_the_figures() {
+        const view = testCase.select(testCase.archName);
+        const name = findChild(view, "headName");
+        compare(name.Accessible.role, Accessible.Heading);
+        compare(name.Accessible.name, testCase.archName);
+        const meta = findChild(view, "headMeta");
+        compare(meta.Accessible.role, Accessible.StaticText);
+        verify(meta.Accessible.name.startsWith("linux · "), meta.Accessible.name);
+        verify(meta.Accessible.name.indexOf("added ") >= 0, meta.Accessible.name);
+        const cell = findChild(view, "stripCell");
+        compare(cell.Accessible.name, "size");
+        compare(cell.Accessible.description, "1.31 GB");
+        const pieces = findChild(view, "piecesLabel");
+        compare(pieces.Accessible.name, "pieces");
+        compare(pieces.Accessible.description, "617 of 1 264 · 48.9 %");
+        const transfer = findChild(view, "generalHeading_Transfer");
+        compare(transfer.Accessible.role, Accessible.Heading);
+        compare(transfer.Accessible.name, "Transfer");
+
+        const errored = testCase.select(testCase.elephantsName);
+        const block = findChild(errored, "errorBlock");
+        compare(block.Accessible.role, Accessible.AlertMessage);
+        compare(block.Accessible.name, "The disk is full");
+        const detail = findChild(errored, "errorDetail");
+        compare(detail.Accessible.role, Accessible.StaticText);
+        compare(detail.Accessible.name, detail.text);
+    }
+
     // docs/28 G2: an errored torrent says why at the top of General, and its Status row
     // carries the short cause; a healthy one shows neither.
     function test_an_errored_torrent_says_why() {

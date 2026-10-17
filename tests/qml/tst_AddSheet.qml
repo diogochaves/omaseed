@@ -1250,6 +1250,8 @@ TestCase {
         const view = sheet.filesTree.view;
         view.currentIndex = sheet.filesTree.editingRow;
         verify(findChild(view.currentItem, "addFilesRenameError").visible);
+        // #79: the complaint is an alert a screen reader hears.
+        compare(findChild(view.currentItem, "addFilesRenameError").Accessible.role, Accessible.AlertMessage);
         compare(App.addFiles.renameList().length, 0);
         // Typing again clears the complaint.
         keyClick(Qt.Key_Backspace);

@@ -13,6 +13,11 @@ Item {
     property color noteColor: Theme.dimForeground
     property color valueColor: Theme.brightForeground
 
+    // #79: one label named by its caption ("given"), the figure with its unit and the note
+    // under it the description: the figure moves while you seed.
+    Accessible.description: [(root.value + " " + root.unit).trim(), root.note].filter(part => part.length > 0).join(" · ")
+    Accessible.name: root.caption
+    Accessible.role: Accessible.StaticText
     implicitHeight: column.implicitHeight + Theme.space(21)
 
     Column {

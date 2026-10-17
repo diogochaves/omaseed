@@ -50,6 +50,9 @@ Item {
     /// The head's title (`.hd .t b`) and the dim line under it (`.hd .t .m`).
     property string title: ""
     property string subtitle: ""
+    /// What a screen reader calls the dialog: the title, or words of the caller's when the
+    /// head has none (#79: Settings draws its titles in the pane).
+    property string accessibleName: root.title
     /// The subtitle takes a second line when it needs one, as ConfirmDialog's does, instead
     /// of being cut at the panel's edge (#66: the `?` sheet's). Off, it stays one line and
     /// elides (a torrent's name in the add sheet).
@@ -415,7 +418,7 @@ Item {
 
         readonly property int padding: Theme.space(16)
 
-        Accessible.name: root.title
+        Accessible.name: root.accessibleName
         Accessible.role: Accessible.Dialog
         border.color: Theme.accent
         border.width: 1
@@ -471,6 +474,10 @@ Item {
                         spacing: Theme.space(6)
 
                         Label {
+                            // #79: the sheet's title is its heading; a plain Text publishes
+                            // nothing to a screen reader otherwise.
+                            Accessible.name: text
+                            Accessible.role: Accessible.Heading
                             Layout.fillWidth: root.titleTrailer === null
                             Layout.maximumWidth: implicitWidth
                             Layout.minimumWidth: Math.min(implicitWidth, Theme.space(80))
@@ -495,6 +502,10 @@ Item {
                     }
 
                     Label {
+                        // #79: what the sheet acts on ("1 torrent · 1.31 GB moves with it"),
+                        // whole even when it elides.
+                        Accessible.name: text
+                        Accessible.role: Accessible.StaticText
                         Layout.fillWidth: true
                         dim: true
                         elide: Text.ElideRight
@@ -520,7 +531,9 @@ Item {
                     MouseArea {
                         id: escArea
 
-                        Accessible.name: root.escText
+                        // #78: named by what it does, not by its key, which is the description.
+                        Accessible.description: qsTr("shortcut %1").arg(root.escText)
+                        Accessible.name: qsTr("close")
                         Accessible.role: Accessible.Button
                         // A screen reader's press is the click (#75); disabled, it does
                         // nothing, as the pointer. A MouseArea's own `enabled` is its flag

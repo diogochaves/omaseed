@@ -60,6 +60,8 @@ RowLayout {
         return qsTr("<b>These files are already on disk.</b> Same %1 files and sizes as <b>%2</b>, %3.").arg(
                     match.fileCount).arg(match.name).arg(root.whoText(match));
     }
+    /// #79: the head's words for a screen reader, without the bold's markup.
+    readonly property string headSpoken: root.headText.replace(/<[^>]*>/g, "")
     readonly property string subText: {
         if (!root.current)
             return "";
@@ -91,6 +93,8 @@ RowLayout {
         spacing: Theme.space(2)
 
         Label {
+            Accessible.name: root.headSpoken
+            Accessible.role: Accessible.StaticText
             objectName: "addMatchHead"
             Layout.fillWidth: true
             size: "small"
@@ -100,6 +104,8 @@ RowLayout {
         }
 
         Label {
+            Accessible.name: text
+            Accessible.role: Accessible.StaticText
             Layout.fillWidth: true
             dim: true
             elide: Text.ElideMiddle

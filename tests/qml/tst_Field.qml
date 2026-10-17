@@ -388,4 +388,53 @@ TestCase {
         button.Accessible.pressAction();
         compare(clicked.count, 0, "a disabled field's trailing ran");
     }
+
+    // #78: the clickable trailing is named by its action, its key the description; with a
+    // `trailingName` the text (a count) goes in the description too. A plain trailing is a
+    // label, and no trailing is nothing at all.
+    function test_the_trailing_is_named_by_its_action_and_the_key_is_its_description() {
+        const field = createTemporaryObject(fieldComponent, testCase, {
+                                                "width": 300,
+                                                "trailing": "browse",
+                                                "trailingKey": "ctrl+o",
+                                                "trailingClickable": true
+                                            });
+        const button = findChild(field, "fieldTrailingButton");
+        compare(button.Accessible.name, "browse");
+        compare(button.Accessible.description, "shortcut ctrl+o");
+        compare(button.Accessible.role, Accessible.Button);
+        compare(button.Accessible.ignored, false);
+
+        field.trailing = "2 of 5 files";
+        field.trailingKey = "esc";
+        field.trailingName = "clear the filter";
+        compare(button.Accessible.name, "clear the filter");
+        compare(button.Accessible.description, "2 of 5 files · shortcut esc");
+
+        field.trailingClickable = false;
+        field.trailingName = "";
+        field.trailingKey = "";
+        compare(button.Accessible.name, "2 of 5 files");
+        compare(button.Accessible.role, Accessible.StaticText);
+
+        field.trailing = "";
+        compare(button.Accessible.ignored, true, "an empty trailing is in the tree");
+    }
+
+    // #78: the field is named by its placeholder, unless `accessibleName` says otherwise (a
+    // placeholder that is a glyph or a lesson in syntax); that placeholder is then the
+    // description.
+    function test_the_field_is_named_by_its_placeholder_or_its_accessible_name() {
+        const field = createTemporaryObject(fieldComponent, testCase, {
+                                                "width": 300,
+                                                "placeholder": "filter torrents"
+                                            });
+        const input = findChild(field, "fieldInput");
+        compare(input.Accessible.name, "filter torrents");
+        compare(input.Accessible.description, "");
+        field.placeholder = "∞";
+        field.accessibleName = "download limit";
+        compare(input.Accessible.name, "download limit");
+        compare(input.Accessible.description, "∞");
+    }
 }

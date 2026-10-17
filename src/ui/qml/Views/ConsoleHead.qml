@@ -15,15 +15,22 @@ RowLayout {
 
     spacing: Theme.space(12)
 
+    // #79: the section's title is a heading, the line after it text.
     Label {
+        Accessible.name: text
+        Accessible.role: Accessible.Heading
         Layout.alignment: Qt.AlignBaseline
         color: Theme.accent
+        objectName: "consoleHeadTitle"
         text: root.title
         tracked: true
     }
 
     Text {
+        Accessible.name: text
+        Accessible.role: Accessible.StaticText
         Layout.alignment: Qt.AlignBaseline
+        objectName: "consoleHeadSummary"
         Layout.fillWidth: true
         color: root.summaryColor
         elide: Text.ElideRight

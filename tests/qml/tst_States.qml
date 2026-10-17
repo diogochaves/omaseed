@@ -45,7 +45,7 @@ TestCase {
         const row = findChild(empty, "emptyRow_0");
         compare(row.Accessible.role, Accessible.Button);
         compare(row.Accessible.name, "add a torrent");
-        compare(row.Accessible.description, "a");
+        compare(row.Accessible.description, "shortcut a");
         row.Accessible.pressAction();
         compare(spy.count, 1);
         empty.enabled = false;
@@ -363,6 +363,42 @@ TestCase {
         empty.variant = "refused";
         compare(empty.headline, "public refused the sign-in");
         verify(empty.note.indexOf("Settings › Servers") >= 0);
+    }
+
+    // #79: what a sighted user reads first is in a screen reader's tree: the empty state's
+    // headline as a heading, its line as text, the teaching line as one sentence; the filtered
+    // result's message as a heading; the first sync's count as the description of "first
+    // sync", since it counts up.
+    function test_a_screen_reader_hears_the_states_text() {
+        const empty = createTemporaryObject(emptyStateComponent, testCase);
+        const headline = findChild(empty, "emptyHeadline");
+        compare(headline.Accessible.role, Accessible.Heading);
+        compare(headline.Accessible.name, "No torrents yet");
+        const teach = findChild(empty, "emptyTeach");
+        compare(teach.Accessible.role, Accessible.StaticText);
+        compare(teach.Accessible.name, "Press a, drop a file here, or click a magnet link anywhere.");
+        empty.serverName = "public";
+        empty.variant = "noList";
+        const note = findChild(empty, "emptyNote");
+        compare(note.Accessible.role, Accessible.StaticText);
+        compare(note.Accessible.name, empty.note);
+
+        const filtered = createTemporaryObject(filteredEmptyComponent, testCase, {
+                                                   "text": "fedora 45",
+                                                   "statusName": "Downloading"
+                                               });
+        const message = findChild(filtered, "filteredMessage");
+        compare(message.Accessible.role, Accessible.Heading);
+        compare(message.Accessible.name, "Nothing matches \"fedora 45\" in Downloading");
+
+        const loading = createTemporaryObject(loadingComponent, testCase, {
+                                                  "torrentCount": 8400,
+                                                  "receivedText": "1.2 MB"
+                                              });
+        const count = findChild(loading, "loadingNote");
+        compare(count.Accessible.role, Accessible.StaticText);
+        compare(count.Accessible.name, "first sync");
+        compare(count.Accessible.description, "8400 torrents · 1.2 MB received");
     }
 
     // ------------------------------------------------------------------------- LoadingState

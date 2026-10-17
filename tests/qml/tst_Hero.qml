@@ -112,6 +112,32 @@ TestCase {
         compare(hero.networkWarning, "");
     }
 
+    // #79: the connection line is text by its words (no ▾), a network warning an alert with
+    // the tooltip's advice as its description, and ↓ the "download" figure on every step.
+    function test_a_screen_reader_hears_the_server_line_and_the_figures() {
+        const hero = createTemporaryObject(heroComponent, testCase, {
+                                               "serverLine": "private · qBittorrent 5.2.3",
+                                               "serverSwitchable": true,
+                                               "downSpeed": "4.21 MB/s"
+                                           });
+        const label = findChild(hero, "serverLine");
+        compare(label.Accessible.role, Accessible.StaticText);
+        compare(label.Accessible.name, "private · qBittorrent 5.2.3");
+
+        hero.connectionStatus = "firewalled";
+        hero.listenPort = 26999;
+        compare(hero.networkLabel.Accessible.role, Accessible.AlertMessage);
+        compare(hero.networkLabel.Accessible.name, "port 26999 not reachable");
+        verify(hero.networkLabel.Accessible.description.indexOf("UPnP") >= 0);
+
+        const down = findChild(hero, "downInner");
+        compare(down.Accessible.role, Accessible.StaticText);
+        compare(down.Accessible.name, "download");
+        compare(down.Accessible.description, "4.21 MB/s");
+        hero.width = 700; // a narrow step drops the caption, not the name
+        compare(down.Accessible.name, "download");
+    }
+
     // docs/16 §5: anonymous mode with private torrents is named in the warning colour.
     function test_anonymous_mode_is_named_while_it_is_on() {
         const hero = createTemporaryObject(heroComponent, testCase);
@@ -261,6 +287,44 @@ TestCase {
         compare(hero.addButton.tooltip, "add · a");
         compare(findChild(hero, "settingsButton").tooltip, "settings · ,");
         compare(findChild(hero, "helpButton").tooltip, "help · ?");
+    }
+
+    // #78: a screen reader hears what each one does; the key is the description, not the name.
+    function test_the_icon_buttons_are_named_by_their_action_and_the_key_is_the_description() {
+        const hero = createTemporaryObject(heroComponent, testCase);
+        const cases = [[hero.addButton, "add torrent", "shortcut a"],
+                       [findChild(hero, "settingsButton"), "settings", "shortcut ,"],
+                       [hero.moreButton, "more", "shortcut ctrl+."],
+                       [findChild(hero, "helpButton"), "help", "shortcut ?"],
+                       [findChild(hero, "searchButton"), "filter", "shortcut /"]];
+        for (const [button, name, description] of cases) {
+            compare(button.Accessible.name, name);
+            compare(button.Accessible.description, description);
+        }
+        hero.searchField.text = "iso";
+        compare(findChild(hero, "searchButton").Accessible.description, "iso · shortcut /");
+        const trailing = findChild(hero.searchField, "fieldTrailingButton");
+        compare(trailing.Accessible.name, "clear the filter");
+        hero.searchField.text = "";
+    }
+
+    // #78: the alt-speed chip is named by its set, never by the limits or the time it prints
+    // (read out again with every change), and off it is no unnamed glyph; its tooltip is the
+    // description.
+    function test_the_alt_speed_chip_is_named_by_its_set() {
+        const hero = createTemporaryObject(heroComponent, testCase, {
+                                               "altDownLimit": "10 KB/s",
+                                               "altUpLimit": "∞"
+                                           });
+        compare(hero.altChip.Accessible.name, "alt-speed");
+        compare(hero.altChip.Accessible.description, "alt-speed · A");
+        hero.altSpeedActive = true;
+        compare(hero.altChip.Accessible.name, "alt-speed");
+        compare(hero.altChip.Accessible.description, "alt-speed on · A");
+        hero.altKind = "burst";
+        compare(hero.altChip.Accessible.name, "burst");
+        hero.altKind = "turtle";
+        compare(hero.altChip.Accessible.name, "turtle");
     }
 
     // While the field filters, its count and `esc` cap clear it with a click, as `esc` does.
@@ -663,7 +727,11 @@ TestCase {
         compare(asked, 3);
         const tip = findChild(testCase.Window.window.contentItem, "filterButtonTip");
         tryCompare(tip, "shown", true);
-        compare(tip.text, button.Accessible.name);
+        // (No catalogue in the tests: `%n filter(s)` keeps its brackets.)
+        compare(tip.text, "5 filter(s) · /");
+        // #78: the name says what it does; the count and the key are the description.
+        compare(button.Accessible.name, "filters");
+        compare(button.Accessible.description, "5 filter(s) up · shortcut /");
         button.focus = false;
 
         // No chips: the lone name filter keeps today's `/`, which opens the field.
@@ -749,7 +817,7 @@ TestCase {
         const seed = findChild(hero, "viewTab_seed");
         compare(seed.Accessible.role, Accessible.PageTab);
         compare(seed.Accessible.name, "seed");
-        compare(seed.Accessible.description, "S");
+        compare(seed.Accessible.description, "shortcut S");
         verify(library.Accessible.selected);
         verify(!seed.Accessible.selected);
         const picked = [];
@@ -773,12 +841,13 @@ TestCase {
         compare(ups, 1, "a disabled hero's ↑ ran");
     }
 
-    // #77: without the views the ↑ number is no control; the lone dot is the server line's
-    // button only while the server can switch.
+    // #77: without the views the ↑ number is no control (#79: it is the "upload" figure); the
+    // lone dot is the server line's button only while the server can switch.
     function test_the_up_number_and_the_lone_dot_without_a_click() {
         const hero = createTemporaryObject(heroComponent, testCase);
         const up = findChild(hero, "upBox");
-        verify(up.Accessible.ignored);
+        compare(up.Accessible.role, Accessible.StaticText);
+        compare(up.Accessible.name, "upload");
         let ups = 0;
         hero.upClicked.connect(() => ups++);
         up.Accessible.pressAction();

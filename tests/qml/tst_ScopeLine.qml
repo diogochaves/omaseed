@@ -45,6 +45,9 @@ TestCase {
         verify(line.implicitHeight > text.implicitHeight);
         verify(text.text.indexOf("<a href='scope'>") > 0, text.text);
         verify(text.text.indexOf("qBittorrent › Backup ›") > 0);
+        // #79: a screen reader hears the plain words, not the markup.
+        compare(text.Accessible.role, Accessible.StaticText);
+        compare(text.Accessible.name, line.text);
         const spy = createTemporaryObject(spyComponent, testCase, {
                                               "target": line,
                                               "signalName": "linkActivated"

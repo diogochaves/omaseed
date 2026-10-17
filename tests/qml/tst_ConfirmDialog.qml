@@ -95,6 +95,17 @@ TestCase {
         compare(message.lineHeight, 1.35);
     }
 
+    // #79: the card is an alert named by its question; the line under it (the torrents it is
+    // about) is text by its words. The question's own label is not said a second time.
+    function test_a_screen_reader_hears_the_question_and_the_line_under_it() {
+        const dialog = createTemporaryObject(deleteComponent, testCase);
+        compare(dialog.panel.Accessible.role, Accessible.AlertMessage);
+        compare(dialog.panel.Accessible.name, "Delete 2 torrents?");
+        const subtitle = dialog.panel.children[0].children[1];
+        compare(subtitle.Accessible.role, Accessible.StaticText);
+        compare(subtitle.Accessible.name, dialog.subtitle);
+    }
+
     function test_the_two_buttons_are_eighty_eight_wide_at_caption_size() {
         const dialog = createTemporaryObject(deleteComponent, testCase);
         compare(dialog.cancelButton.width, Theme.space(88));

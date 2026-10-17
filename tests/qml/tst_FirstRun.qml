@@ -579,6 +579,49 @@ TestCase {
 
     // docs/14 B1: the welcome comes first on a real first run; enter moves on to step 1 and
     // esc quits, as its footer says. The search's answer is listed as it arrives.
+    // #79: what a sighted user reads first is in a screen reader's tree: the welcome's heading,
+    // intro and what the search found (without its · or ✓), each step's question as a
+    // heading, a test's answer as an alert with the raw error under it as text.
+    function test_a_screen_reader_hears_the_welcome_and_the_answers() {
+        const page = createTemporaryObject(pageComponent, testCase, {
+                                               "candidates": [],
+                                               "page": "welcome"
+                                           });
+        const heading = findChild(page, "welcomeHeading");
+        compare(heading.Accessible.role, Accessible.Heading);
+        compare(heading.Accessible.name, "omaseed");
+        const intro = findChild(page, "welcomeIntro");
+        compare(intro.Accessible.role, Accessible.StaticText);
+        compare(intro.Accessible.name, "Torrents for Omarchy, powered by qBittorrent.");
+        const none = findChild(page, "detectNone");
+        verify(none.visible);
+        compare(none.Accessible.role, Accessible.StaticText);
+        compare(none.Accessible.name, "no qBittorrent on this machine yet");
+
+        const found = createTemporaryObject(pageComponent, testCase, {
+                                                "candidates": [localCandidate],
+                                                "page": "welcome"
+                                            });
+        compare(findChild(found, "detectFound").Accessible.name,
+                "found 127.0.0.1:8080 · Docker container qbittorrent");
+
+        page.page = "choose";
+        const question = findChild(page, "heading");
+        compare(question.Accessible.role, Accessible.Heading);
+        compare(question.Accessible.name, question.text);
+
+        page.chooseCursor();
+        page.testing = true;
+        App.serverTested("", false, "", "", -1, 4, "wrong username or password",
+                         "unauthorized (401): POST auth/login: Host requires authentication");
+        const answer = findChild(page, "testResultText");
+        compare(answer.Accessible.role, Accessible.AlertMessage);
+        compare(answer.Accessible.name, "wrong username or password");
+        const detail = findChild(page, "testErrorDetail");
+        compare(detail.Accessible.role, Accessible.StaticText);
+        compare(detail.Accessible.name, "unauthorized (401): POST auth/login: Host requires authentication");
+    }
+
     function test_welcome_enter_sets_up_and_esc_quits() {
         const page = createTemporaryObject(pageComponent, testCase, {
                                                "candidates": [],
@@ -810,6 +853,35 @@ TestCase {
 
         page.page = "handler";
         compare(footer.hasPinned, false);
+    }
+
+    // #78: the footer's keys are named by their action, the key the description, and are left
+    // out where the same action is a button on the page: the welcome's "set up" and "quit".
+    function test_the_footer_keys_are_named_by_their_action() {
+        const page = createTemporaryObject(pageComponent, testCase, {
+                                               "candidates": [],
+                                               "height": testCase.height,
+                                               "width": testCase.width
+                                           });
+        const footer = findChild(page, "setupFooterHints");
+        const pinned = findChild(footer, "keyHintPinnedArea");
+        page.page = "welcome";
+        const setUp = findChild(findChild(footer, "keyHint_enter"), "keyHintArea");
+        compare(setUp.Accessible.name, "set up");
+        compare(setUp.Accessible.description, "shortcut enter");
+        verify(setUp.Accessible.ignored, "the welcome's enter hint doubles its set up button");
+        compare(pinned.Accessible.name, "quit");
+        verify(pinned.Accessible.ignored, "the welcome's esc hint doubles its quit button");
+
+        page.page = "choose";
+        verify(!pinned.Accessible.ignored, "quit is no button on the choose step");
+        compare(pinned.Accessible.name, "quit");
+        compare(pinned.Accessible.description, "shortcut esc");
+        compare(pinned.Accessible.role, Accessible.Button);
+        const cont = findChild(findChild(footer, "keyHint_enter"), "keyHintArea");
+        compare(cont.Accessible.name, "continue");
+        verify(!cont.Accessible.ignored);
+        compare(cont.Accessible.role, Accessible.StaticText);
     }
 
     Component {

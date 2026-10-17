@@ -363,6 +363,8 @@ SettingsRow {
         Toggle {
             id: toggle
 
+            // #78: named by the row, whose title is a sibling text.
+            Accessible.name: row.title
             checked: !!row.values[row.spec.toggle]
             objectName: "rowToggle"
             visible: !!row.spec.toggle
@@ -474,20 +476,27 @@ SettingsRow {
         Button {
             id: pickButton
 
-            bordered: true
-            objectName: "pickButton"
-            text: {
+            /// The value it shows, in words; the ▾ after it is drawn only.
+            readonly property string valueText: {
                 const pick = row.spec.pick;
                 if (!pick)
                     return "";
                 const value = row.values[pick.key];
                 if (pick.source === "interfaces")
-                    return (value ? value : qsTr("any")) + "  ▾";
+                    return value ? value : qsTr("any");
                 if (pick.source === "addresses")
-                    return (value ? value : qsTr("every address")) + "  ▾";
+                    return value ? value : qsTr("every address");
                 const option = pick.options.find(entry => entry[0] === value);
-                return (option ? option[1] : String(value)) + "  ▾";
+                return option ? option[1] : String(value);
             }
+
+            // #78: named by the setting it picks, not by the value it shows (and its ▾),
+            // which is the description.
+            Accessible.description: pickButton.valueText
+            Accessible.name: row.title
+            bordered: true
+            objectName: "pickButton"
+            text: row.spec.pick ? pickButton.valueText + "  ▾" : ""
             visible: !!row.spec.pick
 
             onClicked: row.pickRequested(row.spec.pick, pickButton, row.confirmKind)

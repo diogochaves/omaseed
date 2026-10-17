@@ -279,7 +279,11 @@ ColumnLayout {
                         anchors.verticalCenter: parent.verticalCenter
                         spacing: Theme.space(2)
 
+                        // #79: the pane's line by its words (its glyph left out); a warning is
+                        // an alert, the note under it text.
                         Label {
+                            Accessible.name: text
+                            Accessible.role: line.warn ? Accessible.AlertMessage : Accessible.StaticText
                             objectName: "qbtLineText"
                             size: "small"
                             text: line.text
@@ -288,6 +292,8 @@ ColumnLayout {
                         }
 
                         Label {
+                            Accessible.name: text
+                            Accessible.role: Accessible.StaticText
                             dim: true
                             objectName: "qbtLineNote"
                             size: "caption"

@@ -105,6 +105,30 @@ TestCase {
             App.serverList.remove(App.serverList.idAt(0));
     }
 
+    /// Every `Toggle` under `item`: the kit's switch, known by its track.
+    function togglesUnder(item, found) {
+        if (item.trackWidth !== undefined && typeof item.toggle === "function")
+            found.push(item);
+        for (let i = 0; i < item.children.length; ++i)
+            testCase.togglesUnder(item.children[i], found);
+        return found;
+    }
+
+    // #78: every switch in the modal has a name, its row's title: the title is a sibling
+    // text, so without one a screen reader landed on a switch named nothing.
+    function test_every_switch_is_named_by_its_row() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        const toggles = testCase.togglesUnder(modal, []);
+        verify(toggles.length >= 10, "found " + toggles.length + " switches");
+        const names = toggles.map(toggle => toggle.Accessible.name);
+        for (let i = 0; i < names.length; ++i)
+            verify(names[i].length > 0, "switch " + i + " has no name");
+        verify(names.indexOf("Show the Servers group in the rail") >= 0);
+        verify(names.indexOf("Follow the Omarchy theme") >= 0);
+        verify(names.indexOf("Pulse sending rows") >= 0);
+        verify(names.indexOf("Weekly recap") >= 0);
+    }
+
     function test_the_nav_has_the_seven_rows() {
         // The figure's six, and Backup after Appearance (#31, docs/24 §3).
         const modal = createTemporaryObject(modalComponent, testCase);
@@ -116,6 +140,25 @@ TestCase {
         // The first pane is General, and the nav has the keyboard.
         compare(modal.paneIndex, 0);
         compare(modal.area, "nav");
+    }
+
+    // #79: the dialog is "settings", the pane's title its heading, and the line beside it
+    // (which server, how it saves) text.
+    function test_a_screen_reader_hears_the_dialog_and_the_pane_title() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        const title = testCase.childNamed(modal, "paneTitle");
+        compare(title.Accessible.role, Accessible.Heading);
+        compare(title.Accessible.name, "General");
+        let dialog = title.parent;
+        while (dialog !== null && dialog.Accessible.role !== Accessible.Dialog)
+            dialog = dialog.parent;
+        verify(dialog !== null, "no dialog above the pane");
+        compare(dialog.Accessible.name, "settings");
+        const head = testCase.childNamed(modal, "qbtNavHead");
+        compare(head.Accessible.role, Accessible.Heading);
+        compare(head.Accessible.name, "qBittorrent");
+        modal.close();
     }
 
     function test_digits_switch_panes_and_tab_hands_over_the_keyboard() {

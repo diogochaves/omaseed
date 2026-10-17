@@ -16,10 +16,18 @@ ColumnLayout {
 
     /// The tracked caption above the control. Empty hides the label entirely.
     property string label: ""
+    /// False when the control's own accessible name is the caption (#78's limit fields).
+    property bool spokenCaption: true
 
     spacing: Theme.space(4)
 
+    // #79: the caption is text, just before its control in reading order, so a field that
+    // names itself by its value still has its row's words before it. A control that already
+    // carries the caption as its own name sets `spokenCaption: false`, so it is said once.
     Label {
+        Accessible.ignored: !root.spokenCaption
+        Accessible.name: text
+        Accessible.role: Accessible.StaticText
         Layout.fillWidth: true
         elide: Text.ElideRight
         text: root.label

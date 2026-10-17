@@ -53,8 +53,9 @@ Rectangle {
                                                                                Theme.borderIdle) :
                                                                            "transparent"
 
-    Accessible.name: root.text.length > 0 ? root.text : root.glyph.startsWith("icon:") ? "" :
-                                                                                         root.glyph
+    // The text, never the glyph (#78): a Nerd Font code point reads as noise or nothing. A use
+    // with a glyph alone names itself with `Accessible.name`.
+    Accessible.name: root.text
 
     Accessible.role: Accessible.Button
 

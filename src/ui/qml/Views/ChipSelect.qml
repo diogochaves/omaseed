@@ -130,6 +130,8 @@ Item {
 
             // `.chip.dim` — the row's hand-off to the matching palette.
             Chip {
+                // #78: the `…` is no name; it opens the rest of the list.
+                Accessible.name: qsTr("more")
                 hasCursor: root.activeFocus && root.cursorIndex === root.options.length
                 text: root.moreText
                 visible: root.more

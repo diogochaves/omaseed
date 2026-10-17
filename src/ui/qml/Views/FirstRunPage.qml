@@ -120,14 +120,18 @@ Item {
     })
     /// The footer's keys for this page; `esc` is pinned right, as in the library's footer, and
     /// takes a click too (#51 D3): the mouse's way back to step 1 and out, with no button added.
+    /// A screen reader finds each hint named by its action, the key its description (#78);
+    /// `onScreen` leaves one out where the same action is a button on the page (the welcome's
+    /// "set up" and "quit", done's "open the library"), so it is not found twice.
     readonly property var _footerHints: {
-        const hint = (key, label) => ({
-                                          "key": key,
-                                          "label": label
-                                      });
+        const hint = (key, label, onScreen) => ({
+                                                    "key": key,
+                                                    "label": label,
+                                                    "onScreen": onScreen === true
+                                                });
         switch (root.page) {
         case "welcome":
-            return [hint("enter", qsTr("set up"))];
+            return [hint("enter", qsTr("set up"), true)];
         case "choose":
             return [hint("j k", qsTr("choose")), hint("enter", qsTr("continue"))];
         case "apikey":
@@ -137,14 +141,15 @@ Item {
         case "bar":
             return [hint("tab", qsTr("switch")), hint("enter", qsTr("choose"))];
         case "done":
-            return [hint("enter", qsTr("open the library"))];
+            return [hint("enter", qsTr("open the library"), true)];
         }
         return [];
     }
     readonly property var _footerPinned: root.page === "welcome" || root.page === "choose" ? {
                                                                                                  "key": "esc",
                                                                                                  "label": qsTr("quit"),
-                                                                                                 "clickable": true
+                                                                                                 "clickable": true,
+                                                                                                 "onScreen": root.page === "welcome"
                                                                                              } : root.page === "install"
                                                                                                  || root.page === "apikey" ? {
                                                                                                                                  "key": "esc",
@@ -596,17 +601,25 @@ Flickable {
                 name: "mark"
             }
 
+            // #79: the welcome's heading, then its intro and what the search found as text; a
+            // plain Text publishes nothing to a screen reader otherwise.
             Label {
+                Accessible.name: text
+                Accessible.role: Accessible.Heading
                 bright: true
                 font.weight: Font.DemiBold
+                objectName: "welcomeHeading"
                 size: "display"
                 text: qsTr("omaseed")
             }
         }
 
         Label {
+            Accessible.name: text
+            Accessible.role: Accessible.StaticText
             Layout.fillWidth: true
             dim: true
+            objectName: "welcomeIntro"
             text: qsTr("Torrents for Omarchy, powered by qBittorrent.")
             visible: root.page === "welcome"
             wrapMode: Text.WordWrap
@@ -619,7 +632,10 @@ Flickable {
             spacing: Theme.space(4)
             visible: root.page === "welcome"
 
+            // Each line by its words, without the leading · or ✓.
             Label {
+                Accessible.name: qsTr("looking for qBittorrent on this machine…")
+                Accessible.role: Accessible.StaticText
                 Layout.fillWidth: true
                 dim: true
                 size: "small"
@@ -633,8 +649,11 @@ Flickable {
                 Label {
                     required property var modelData
 
+                    Accessible.name: qsTr("found %1").arg(modelData.detail || modelData.url || "")
+                    Accessible.role: Accessible.StaticText
                     Layout.fillWidth: true
                     color: Theme.green
+                    objectName: "detectFound"
                     size: "small"
                     text: qsTr("✓ found %1").arg(modelData.detail || modelData.url || "")
                     wrapMode: Text.WordWrap
@@ -642,8 +661,11 @@ Flickable {
             }
 
             Label {
+                Accessible.name: qsTr("no qBittorrent on this machine yet")
+                Accessible.role: Accessible.StaticText
                 Layout.fillWidth: true
                 dim: true
+                objectName: "detectNone"
                 size: "small"
                 text: qsTr("· no qBittorrent on this machine yet")
                 visible: !root.detecting && !root.hasLocal
@@ -741,7 +763,10 @@ Flickable {
             }
         }
 
+        // #79: each step's question is its page's heading.
         Label {
+            Accessible.name: text
+            Accessible.role: Accessible.Heading
             Layout.fillWidth: true
             size: "heading"
             bright: true
@@ -753,6 +778,9 @@ Flickable {
 
         // Review Q9: under the welcome's buttons, or step 1's question.
         Label {
+            // #79: a warning that comes on its own.
+            Accessible.name: text
+            Accessible.role: Accessible.AlertMessage
             Layout.fillWidth: true
             color: Theme.yellow
             objectName: "serversKeptLine"
@@ -884,6 +912,8 @@ Flickable {
             visible: root.page === "install"
 
             Label {
+                Accessible.name: text
+                Accessible.role: Accessible.StaticText
                 Layout.fillWidth: true
                 text: qsTr(
                           "Two commands: install the package, then enable the user service so it starts with your session.")
@@ -917,6 +947,9 @@ Flickable {
                 Label {
                     id: portWarningText
 
+                    // #79: the clash is a warning: an alert by its words, the glyph left out.
+                    Accessible.name: text
+                    Accessible.role: Accessible.AlertMessage
                     Layout.fillWidth: true
                     color: Theme.yellow
                     size: "small"
@@ -972,8 +1005,13 @@ Flickable {
             Label {
                 id: installResultLabel
 
+                // #79: what the install came to ("installed", or why not) comes on its own.
+                Accessible.ignored: text.length === 0
+                Accessible.name: text
+                Accessible.role: Accessible.AlertMessage
                 Layout.fillWidth: true
                 color: Theme.red
+                objectName: "installResult"
                 wrapMode: Text.WordWrap
             }
         }
@@ -1144,7 +1182,12 @@ Flickable {
                 Label {
                     id: resultText
 
+                    // #79: the test's answer comes on its own: an alert by its words (the dot
+                    // beside it says the same in colour).
+                    Accessible.name: text
+                    Accessible.role: Accessible.AlertMessage
                     Layout.fillWidth: true
+                    objectName: "testResultText"
                     color: root.tested && !root.testOk ? Theme.red : Theme.foreground
                     text: root.testOk ? qsTr("%1 · %2").arg(root.editAuthMode === "none" ? qsTr("reached") :
                                                                                            qsTr("signed in")).arg(
@@ -1154,6 +1197,8 @@ Flickable {
             }
 
             Label {
+                Accessible.name: text
+                Accessible.role: Accessible.StaticText
                 Layout.fillWidth: true
                 Layout.leftMargin: Theme.space(15)
                 Layout.topMargin: -Theme.space(8)
@@ -1225,6 +1270,8 @@ Flickable {
 
                 // M2: why `continue` is dimmed, until a test has said anything.
                 Label {
+                    Accessible.name: text
+                    Accessible.role: Accessible.StaticText
                     dim: true
                     objectName: "continueHint"
                     size: "small"
@@ -1254,6 +1301,8 @@ Flickable {
             visible: root.page === "handler"
 
             Label {
+                Accessible.name: text
+                Accessible.role: Accessible.StaticText
                 Layout.fillWidth: true
                 dim: true
                 objectName: "handlerText"
@@ -1263,6 +1312,8 @@ Flickable {
             }
 
             Label {
+                Accessible.name: text
+                Accessible.role: Accessible.StaticText
                 Layout.fillWidth: true
                 dim: true
                 text: root.currentHandlerText.length > 0 ? qsTr("currently: %1").arg(
@@ -1308,6 +1359,8 @@ Flickable {
             visible: root.page === "bar"
 
             Label {
+                Accessible.name: text
+                Accessible.role: Accessible.StaticText
                 Layout.fillWidth: true
                 dim: true
                 objectName: "barText"
@@ -1354,7 +1407,10 @@ Flickable {
             spacing: Theme.space(12)
             visible: root.page === "done"
 
+            // #79: what setup ended with, line by line, as text.
             Label {
+                Accessible.name: text
+                Accessible.role: Accessible.StaticText
                 Layout.fillWidth: true
                 objectName: "doneFacts"
                 text: {
@@ -1373,6 +1429,8 @@ Flickable {
             }
 
             Label {
+                Accessible.name: text
+                Accessible.role: Accessible.StaticText
                 Layout.fillWidth: true
                 dim: true
                 objectName: "doneHandler"
@@ -1382,6 +1440,8 @@ Flickable {
             }
 
             Label {
+                Accessible.name: text
+                Accessible.role: Accessible.StaticText
                 Layout.fillWidth: true
                 dim: true
                 objectName: "doneBar"
@@ -1393,6 +1453,8 @@ Flickable {
             }
 
             Label {
+                Accessible.name: text
+                Accessible.role: Accessible.StaticText
                 Layout.fillWidth: true
                 dim: true
                 objectName: "doneAnother"

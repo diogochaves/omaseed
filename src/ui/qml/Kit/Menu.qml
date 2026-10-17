@@ -272,6 +272,9 @@ Item {
 
         readonly property int padding: Theme.space(6)
 
+        // #79: a menu with a heading ("switch omaseed to") is named by it, so a screen reader
+        // says it first: the heading is drawn above the rows but comes after them in the tree.
+        Accessible.name: root.heading
         Accessible.role: Accessible.PopupMenu
         border.color: Theme.accent
         border.width: 1

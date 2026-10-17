@@ -43,9 +43,10 @@ Rectangle {
                                                                                Theme.borderIdle) :
                                                                            "transparent"
 
-    // An SVG glyph ("icon:gear") is no name to read out.
-    Accessible.name: root.tooltip.length > 0 ? root.tooltip : root.glyph.startsWith("icon:") ? "" :
-                                                                                               root.glyph
+    // The tooltip, then nothing; never the glyph (#78), which reads as noise or nothing. A
+    // tooltip with its key ("add · a") is no name either: such a use sets `Accessible.name`
+    // to the action and `Accessible.description` to the key.
+    Accessible.name: root.tooltip
     Accessible.role: Accessible.Button
 
     // A screen reader's press is the click (#75); disabled, it does nothing, as the pointer.

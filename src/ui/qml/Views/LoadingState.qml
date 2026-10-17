@@ -73,10 +73,16 @@ Item {
             }
         }
 
+        // #79: the note counts up while the first sync lands, so it is the description of a
+        // label named for what is happening, not a name read out again at every step.
         Text {
+            Accessible.description: root.note
+            Accessible.name: qsTr("first sync")
+            Accessible.role: Accessible.StaticText
             color: Theme.dimForeground
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.small
+            objectName: "loadingNote"
             text: root.note
             topPadding: Theme.space(4)
         }

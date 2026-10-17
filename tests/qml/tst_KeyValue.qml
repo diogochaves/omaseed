@@ -150,4 +150,41 @@ TestCase {
         mouseClick(rows[1].valueText);
         compare(opened, ["https://example.invalid/omaseed"]);
     }
+
+    // #78: a screen reader finds each value named by its key, the value its description, so
+    // an empty value is no empty label; a link's press opens it, as its click.
+    function test_a_value_is_named_by_its_key() {
+        const kv = createTemporaryObject(keyValueComponent, testCase, {
+                                             "items": [
+                                                 {
+                                                     "key": "version",
+                                                     "value": ""
+                                                 },
+                                                 {
+                                                     "key": "repository",
+                                                     "value": "https://example.invalid/omaseed",
+                                                     "url": "https://example.invalid/omaseed"
+                                                 }
+                                             ],
+                                             "width": 400
+                                         });
+        let opened = [];
+        kv.linkActivated.connect(url => opened.push(url));
+        const rows = [];
+        for (let i = 0; i < kv.children[0].children.length; ++i) {
+            const child = kv.children[0].children[i];
+            if (child.objectName === "keyValueRow")
+                rows.push(child);
+        }
+        compare(rows[0].valueText.Accessible.name, "version");
+        compare(rows[0].valueText.Accessible.description, "");
+        compare(rows[0].valueText.Accessible.role, Accessible.StaticText);
+        compare(rows[1].valueText.Accessible.name, "repository");
+        compare(rows[1].valueText.Accessible.description, "https://example.invalid/omaseed");
+        compare(rows[1].valueText.Accessible.role, Accessible.Link);
+        rows[0].valueText.Accessible.pressAction();
+        compare(opened.length, 0, "a plain value opened something");
+        rows[1].valueText.Accessible.pressAction();
+        compare(opened, ["https://example.invalid/omaseed"]);
+    }
 }

@@ -45,6 +45,9 @@ Rectangle {
 
     readonly property bool hot: root.hasCursor || mouseArea.containsMouse
 
+    // #79: the count it shows ("19") and its key are the description, as a rail row's count.
+    Accessible.description: [root.count, root.keyText.length > 0 ? qsTr("shortcut %1").arg(root.keyText) : ""].filter(
+                                part => part.length > 0).join(" · ")
     Accessible.name: root.suffix.length > 0 ? root.text + " " + root.suffix : root.text
     Accessible.role: Accessible.Button
 

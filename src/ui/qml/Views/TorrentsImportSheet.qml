@@ -166,6 +166,12 @@ Sheet {
 
             required property var modelData
 
+            // #79: one label per row of the plan ("new"), what happens, how many and how much
+            // the description; its four texts publish nothing themselves.
+            Accessible.description: [planRow.modelData.verb ?? "", String(planRow.modelData.count ?? ""),
+                                     planRow.modelData.sizeText ?? ""].filter(part => part.length > 0).join(" · ")
+            Accessible.name: planRow.modelData.label ?? ""
+            Accessible.role: Accessible.StaticText
             Layout.fillWidth: true
             objectName: "planRow-" + planRow.modelData.key
             spacing: Theme.space(12)
@@ -268,6 +274,8 @@ Sheet {
         spacing: Theme.space(8)
 
         Label {
+            Accessible.name: text
+            Accessible.role: Accessible.StaticText
             dim: true
             objectName: "pathSource"
             size: "small"
@@ -308,6 +316,8 @@ Sheet {
         }
 
         Label {
+            Accessible.name: text
+            Accessible.role: Accessible.StaticText
             Layout.fillWidth: true
             dim: true
             objectName: "pathsNote"
@@ -365,6 +375,8 @@ Sheet {
         }
 
         Label {
+            Accessible.name: text
+            Accessible.role: Accessible.StaticText
             Layout.fillWidth: true
             dim: true
             objectName: "importCreated"

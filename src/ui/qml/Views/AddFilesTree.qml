@@ -551,6 +551,8 @@ Rectangle {
                         Text {
                             id: renameErrorText
 
+                            Accessible.name: text
+                            Accessible.role: Accessible.AlertMessage
                             anchors.right: parent.right
                             anchors.rightMargin: Theme.space(6)
                             anchors.verticalCenter: parent.verticalCenter

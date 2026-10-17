@@ -47,6 +47,8 @@ Item {
     /// by; `order` is the order a first click on that header applies.
     ///
     /// `name`, where given, is what the columns palette lists instead of a terse `title`.
+    /// `spoken`, where given, is what a screen reader calls the header instead of a `title`
+    /// that is or holds a glyph or an abbreviation (`↓`, `S / P`; #78).
     ///
     /// The first eight are Fig. 1's and drawn by cells of their own. The rest are optional
     /// (docs/10 §4, "like qui"): off until the columns palette turns them on (`default:
@@ -96,6 +98,7 @@ Item {
             "key": "seedsPeers",
             "name": qsTr("S / P  seeds / peers"),
             "title": qsTr("S / P"),
+            "spoken": qsTr("Seeds and peers"),
             "role": "numSeeds",
             "width": 62,
             "align": Qt.AlignRight,
@@ -119,6 +122,7 @@ Item {
             "key": "dlspeed",
             "name": qsTr("↓  download speed"),
             "title": Glyphs.arrowDown,
+            "spoken": qsTr("Download speed"),
             "role": "dlspeed",
             "width": 84,
             "align": Qt.AlignRight,
@@ -129,6 +133,7 @@ Item {
             "key": "upspeed",
             "name": qsTr("↑  upload speed"),
             "title": Glyphs.arrowUp,
+            "spoken": qsTr("Upload speed"),
             "role": "upspeed",
             "width": 84,
             "align": Qt.AlignRight,
@@ -303,6 +308,7 @@ Item {
             "key": "dlLimit",
             "name": qsTr("↓ limit  download limit"),
             "title": Glyphs.arrowDown + " " + qsTr("limit"),
+            "spoken": qsTr("Download limit"),
             "role": "dlLimit",
             "text": "dlLimitText",
             "width": 84,
@@ -315,6 +321,7 @@ Item {
             "key": "upLimit",
             "name": qsTr("↑ limit  upload limit"),
             "title": Glyphs.arrowUp + " " + qsTr("limit"),
+            "spoken": qsTr("Upload limit"),
             "role": "upLimit",
             "text": "upLimitText",
             "width": 84,
@@ -1193,6 +1200,8 @@ Item {
 
                 readonly property var box: root.columnLayout[headerCell.modelData.key]
 
+                // #78: "Download speed", never the arrow the header prints.
+                Accessible.name: headerCell.modelData.spoken ?? headerCell.modelData.title
                 alignRight: headerCell.modelData.align === Qt.AlignRight
                 elides: true
                 descending: root.filtered.sortOrder === Qt.DescendingOrder
@@ -1360,6 +1369,8 @@ Item {
             TableHeader {
                 alignRight: dragGhost.column !== null && dragGhost.column.align === Qt.AlignRight
                 anchors.fill: parent
+                // A picture of the header being dragged; the header itself is in the tree.
+                Accessible.ignored: true
                 descending: root.filtered.sortOrder === Qt.DescendingOrder
                 enabled: false
                 sorted: dragGhost.column !== null && root.sortRoleName === dragGhost.column.role
@@ -1510,6 +1521,10 @@ Item {
 
             // #77: a screen reader finds the row by the torrent's name; the speeds, ETA and
             // progress change too often to be in it. Its press is a plain click.
+            // #79: what the row says of the torrent (its status, progress, size, category) is
+            // the description, which is not read out again as it changes.
+            Accessible.description: [statusWord.text, row.progressText, row.sizeText, row.category].filter(
+                                        part => part.length > 0).join(" · ")
             Accessible.name: row.name
             Accessible.role: Accessible.ListItem
             Accessible.selectable: true

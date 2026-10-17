@@ -92,6 +92,8 @@ Item {
             required property string statusMeta
 
             // #77: a screen reader finds the web seed by its URL.
+            // #79: what the log says of it (an error, when it last answered) is the description.
+            Accessible.description: [row.statusError, row.statusMeta].filter(part => part.length > 0).join(" · ")
             Accessible.name: row.url
             hasCursor: row.index === root.cursorIndex
             height: root.rowHeight

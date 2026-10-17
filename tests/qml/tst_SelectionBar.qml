@@ -72,6 +72,9 @@ TestCase {
         compare(bar.folded, []);
         verify(bar.fit.word, "the count should keep its word when there is room");
         compare(findChild(bar, "selectionCount").text, "2");
+        // #79: the count in words, for a screen reader.
+        compare(findChild(bar, "selectionCount").Accessible.role, Accessible.StaticText);
+        compare(findChild(bar, "selectionCount").Accessible.name, "2 selected");
     }
 
     function test_each_tooltip_names_its_key() {
@@ -82,6 +85,23 @@ TestCase {
         compare(button(bar, "more").tooltip, "all actions · enter");
         compare(button(bar, "delete").tooltip, "delete · d");
         verify(button(bar, "recheck").tooltipAbove, "the bar's tips open over it");
+    }
+
+    // #78: a screen reader hears the action; the key is the description, not the name. The
+    // hairlines between the groups are no buttons.
+    function test_each_button_is_named_by_its_action_and_the_key_is_the_description() {
+        const bar = makeBar();
+        const cases = [["recheck", "recheck", "shortcut c"], ["start", "start", "shortcut p"],
+                       ["location", "set location", "shortcut m"],
+                       ["more", "all actions", "shortcut enter"],
+                       ["delete", "delete", "shortcut d"],
+                       ["clear", "clear selection", "shortcut esc"]];
+        for (const [action, name, description] of cases) {
+            compare(button(bar, action).Accessible.name, name);
+            compare(button(bar, action).Accessible.description, description);
+            verify(!button(bar, action).Accessible.ignored);
+        }
+        compare(button(bar, "|").Accessible.ignored, true);
     }
 
     function test_delete_is_red() {

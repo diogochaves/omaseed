@@ -39,6 +39,14 @@ Rectangle {
     /// a pointing hand and the accent under the mouse, and a click emits `trailingClicked`.
     /// The key it names still has to be handled by the caller.
     property bool trailingClickable: false
+    /// What a screen reader calls the clickable trailing when its text is no name for it (a
+    /// count that clears the filter: "clear the filter"); the text then goes in its
+    /// description. "" names it by `trailing` (#78).
+    property string trailingName: ""
+    /// What a screen reader calls the field when the placeholder is no name for it (a syntax
+    /// lesson, a glyph like `∞`); the placeholder then goes in its description. "" names it
+    /// by `placeholder` (#78).
+    property string accessibleName: ""
     property bool hasCursor: false
     /// `TextInput.Password` for a secret (spec §3 Fig. 9's `Key` field). Normal by default.
     property int echoMode: TextInput.Normal
@@ -202,8 +210,19 @@ Rectangle {
     MouseArea {
         id: trailingButton
 
-        Accessible.name: root.trailing
-        Accessible.role: Accessible.Button
+        // #78: the action is the name, its key the description ("shortcut ctrl+o"); a trailing
+        // that only shows something (a count) is a label, and none at all is nothing.
+        Accessible.description: {
+            const parts = [];
+            if (root.trailingName.length > 0 && root.trailing.length > 0)
+                parts.push(root.trailing);
+            if (root.trailingKey.length > 0)
+                parts.push(qsTr("shortcut %1").arg(root.trailingKey));
+            return parts.join(" · ");
+        }
+        Accessible.ignored: !trailingText.visible && !trailingCap.visible
+        Accessible.name: root.trailingName.length > 0 ? root.trailingName : root.trailing
+        Accessible.role: trailingButton.enabled ? Accessible.Button : Accessible.StaticText
         // A screen reader's press is the click (#75): only on a clickable trailing, and not
         // while the field is disabled. A MouseArea's own `enabled` is its flag alone, so the
         // field's says whether the field, or something above it, is disabled.
@@ -225,8 +244,10 @@ Rectangle {
     TextInput {
         id: input
 
-        Accessible.name: root.placeholder
+        Accessible.description: root.accessibleName.length > 0 ? root.placeholder : ""
+        Accessible.name: root.accessibleName.length > 0 ? root.accessibleName : root.placeholder
         Accessible.role: Accessible.EditableText
+        objectName: "fieldInput"
         anchors.left: hintText.visible ? hintText.right : parent.left
         anchors.leftMargin: hintText.visible ? Theme.space(6) : Theme.space(10)
         anchors.right: trailingText.visible ? trailingText.left : trailingCap.visible

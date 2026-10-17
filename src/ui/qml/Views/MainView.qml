@@ -338,10 +338,13 @@ Item {
         // Fig. 1 (and Fig. 22, which simply has no downloading torrents to count). docs/10 §3:
         // on the hero's narrow steps the words shorten, then the least-read facts go.
         const step = hero.level;
+        // `spoken` (#79): the words a screen reader says where the narrow steps shorten them.
+        const torrentsWord = App.counts.total === 1 ? qsTr("torrent") : qsTr("torrents");
         const parts = [
             {
                 "value": String(App.counts.total),
-                "label": step >= 3 ? "" : App.counts.total === 1 ? qsTr("torrent") : qsTr("torrents")
+                "label": step >= 3 ? "" : torrentsWord,
+                "spoken": torrentsWord
             }
         ];
         // Not the rail's count: that one takes stopped downloads too (Q16), which a status
@@ -349,7 +352,8 @@ Item {
         if (App.counts.inProgress > 0 && step < 4)
             parts.push({
                 "value": String(App.counts.inProgress),
-                "label": step >= 2 ? Glyphs.arrowDown : qsTr("downloading")
+                "label": step >= 2 ? Glyphs.arrowDown : qsTr("downloading"),
+                "spoken": qsTr("downloading")
             });
         if (step < 4)
             parts.push({
@@ -360,23 +364,28 @@ Item {
             parts.push({
                 "value": "",
                 "label": step >= 2 ? qsTr("%1 sel").arg(table.selectedCount)
-                                   : qsTr("%1 selected").arg(table.selectedCount)
+                                   : qsTr("%1 selected").arg(table.selectedCount),
+                "spoken": qsTr("%1 selected").arg(table.selectedCount)
             });
         // docs/12 F3: the Files tab's own selection (`space`, `v`, `ctrl+a`), while it shows.
         const files = App.details.files.selectedCount;
-        if (files > 0 && details.currentTab === 1 && !details.collapsed)
+        if (files > 0 && details.currentTab === 1 && !details.collapsed) {
+            const filesWords = files === 1 ? qsTr("1 file selected") : qsTr("%1 files selected").arg(files);
             parts.push({
                 "value": "",
-                "label": step >= 2 ? qsTr("%1 files sel").arg(files) : files === 1
-                                                                       ? qsTr("1 file selected")
-                                                                       : qsTr("%1 files selected").arg(files)
+                "label": step >= 2 ? qsTr("%1 files sel").arg(files) : filesWords,
+                "spoken": filesWords
             });
+        }
         return parts;
     }
 
     /// The same line as plain text, for the tests and for a log.
     readonly property string factsText: root.factParts.map(
                                             part => (part.value + " " + part.label).trim()).join(" · ")
+    /// #79: the line as a screen reader says it: whole words, never the ↓, joined by commas.
+    readonly property string factsSpoken: root.factParts.map(
+                                              part => (part.value + " " + (part.spoken ?? part.label)).trim()).join(", ")
 
     implicitHeight: Theme.space(800)
     implicitWidth: Theme.space(1360)
@@ -2155,7 +2164,12 @@ Item {
             Row {
                 id: facts
 
+                // #79: the status line, one label in whole words ("16 torrents, 7 downloading,
+                // 1.80 TB free"); the texts it is drawn from publish nothing themselves.
+                Accessible.name: root.factsSpoken
+                Accessible.role: Accessible.StaticText
                 Layout.alignment: Qt.AlignVCenter
+                objectName: "footerFacts"
                 spacing: Theme.space(10)
 
                 Repeater {
@@ -2217,6 +2231,10 @@ Item {
             Label {
                 id: footerNoteText
 
+                // #79: the note comes on its own ("copied", a failure, the set after A): an
+                // alert by its words. Its ▲ ▼ mark stays out; the words name the set.
+                Accessible.name: text
+                Accessible.role: Accessible.AlertMessage
                 Layout.alignment: Qt.AlignVCenter
                 // docs/32 N1: a failure the log told of is yellow, as its block is.
                 color: root.footerNoteWarn ? Theme.yellow : root.footerNoteSticky ? Theme.foreground
@@ -2266,7 +2284,7 @@ Item {
 
                 // #77: it shows while the pane is hidden: a "show details" button with its
                 // key; its press is the click.
-                Accessible.description: "i"
+                Accessible.description: qsTr("shortcut %1").arg("i")
                 Accessible.name: qsTr("show details")
                 Accessible.role: Accessible.Button
                 Accessible.onPressAction: if (footerNoteHint.enabled)
@@ -2314,6 +2332,9 @@ Item {
 
             // docs/32 D12 (L1, L2): whether the log follows new lines, on its face only.
             Label {
+                // #79: the log's state by its word, without the ● or ○.
+                Accessible.name: logView.following ? qsTr("following") : qsTr("paused")
+                Accessible.role: Accessible.StaticText
                 Layout.alignment: Qt.AlignVCenter
                 color: logView.following ? Theme.green : Theme.dimForeground
                 objectName: "logFollowState"

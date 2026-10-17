@@ -100,10 +100,13 @@ Sheet {
             Layout.fillWidth: true
             Layout.preferredWidth: 1
             label: qsTr("Download")
+            spokenCaption: false // the field says it (#78)
 
             Field {
                 id: dlField
 
+                // #78: named by its row's label; `∞` is no name.
+                accessibleName: qsTr("Download")
                 Layout.fillWidth: true
                 escClears: false
                 numeric: true
@@ -118,10 +121,13 @@ Sheet {
             Layout.fillWidth: true
             Layout.preferredWidth: 1
             label: qsTr("Upload")
+            spokenCaption: false // the field says it (#78)
 
             Field {
                 id: ulField
 
+                // #78: named by its row's label; `∞` is no name.
+                accessibleName: qsTr("Upload")
                 Layout.fillWidth: true
                 escClears: false
                 numeric: true
@@ -136,10 +142,13 @@ Sheet {
             Layout.fillWidth: true
             Layout.preferredWidth: 1
             label: qsTr("Alt-speed download")
+            spokenCaption: false // the field says it (#78)
 
             Field {
                 id: altDlField
 
+                // #78: named by its row's label; `∞` is no name.
+                accessibleName: qsTr("Alt-speed download")
                 Layout.fillWidth: true
                 escClears: false
                 numeric: true
@@ -154,10 +163,13 @@ Sheet {
             Layout.fillWidth: true
             Layout.preferredWidth: 1
             label: qsTr("Alt-speed upload")
+            spokenCaption: false // the field says it (#78)
 
             Field {
                 id: altUlField
 
+                // #78: named by its row's label; `∞` is no name.
+                accessibleName: qsTr("Alt-speed upload")
                 Layout.fillWidth: true
                 escClears: false
                 numeric: true

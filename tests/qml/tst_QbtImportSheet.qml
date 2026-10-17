@@ -173,6 +173,9 @@ TestCase {
         empty.notes = [];
         sheet.openFor(empty);
         verify(findChild(sheet, "importNothing").visible);
+        // #79: the empty state is text a screen reader hears.
+        compare(findChild(sheet, "importNothing").Accessible.role, Accessible.StaticText);
+        verify(findChild(sheet, "importNothing").Accessible.name.startsWith("Nothing to change"));
         verify(!findChild(sheet, "importMachineHead").visible);
         compare(sheet.count, 0);
         verify(sheet.actions[2].disabled);

@@ -24,6 +24,11 @@ import Omaseed.Kit
 //
 // `pinnedLead` is one more pair kept at the right edge, just before `pinned` (docs/30 D10's
 // `: commands` beside `? help`). It is never dropped either.
+//
+// A screen reader (#78) finds each hint named by what it does (its label), with the key as its
+// description ("shortcut enter"): a button when it is clickable, a label when it is not. A hint
+// with `onScreen: true` is left out, because the same action is a button on screen and the
+// screen reader finds that one (first run's `enter set up` beside its "set up").
 RowLayout {
     id: root
 
@@ -79,6 +84,11 @@ RowLayout {
     /// How many of `model`'s hints are shown.
     readonly property int shownCount: root._shown.filter(shown => shown).length
 
+    /// A key as a screen reader's description: "shortcut enter"; nothing for no key.
+    function keyDescription(key: string): string {
+        return key.length > 0 ? qsTr("shortcut %1").arg(key) : "";
+    }
+
     spacing: Theme.space(14)
 
     Row {
@@ -125,8 +135,10 @@ RowLayout {
                 MouseArea {
                     id: hintArea
 
-                    Accessible.name: hintRow.modelData.key + " " + hintRow.modelData.label
-                    Accessible.role: Accessible.Button
+                    Accessible.description: root.keyDescription(hintRow.modelData.key ?? "")
+                    Accessible.ignored: hintRow.modelData.onScreen === true
+                    Accessible.name: String(hintRow.modelData.label ?? "").trim()
+                    Accessible.role: hintArea.enabled ? Accessible.Button : Accessible.StaticText
                     // A screen reader's press is the click (#75): only on a clickable hint,
                     // and not while disabled. A MouseArea's own `enabled` is its flag alone,
                     // so the row's says whether something above it is disabled.
@@ -204,8 +216,11 @@ RowLayout {
         MouseArea {
             id: pinnedArea
 
-            Accessible.name: root.pinned ? root.pinned.key + " " + root.pinned.label : ""
-            Accessible.role: Accessible.Button
+            Accessible.description: root.hasPinned ? root.keyDescription(root.pinned.key ?? "") : ""
+            // No pinned hint, nothing to find; one whose action is a button on screen, as a hint.
+            Accessible.ignored: !root.hasPinned || root.pinned.onScreen === true
+            Accessible.name: root.hasPinned ? String(root.pinned.label ?? "").trim() : ""
+            Accessible.role: pinnedArea.enabled ? Accessible.Button : Accessible.StaticText
             // As a hint's (#75).
             Accessible.onPressAction: if (pinnedRow.enabled && pinnedArea.enabled)
                                           root.pinnedClicked(root.pinned)
