@@ -1,0 +1,1244 @@
+<title>The whole app</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Chakra+Petch:wght@500;600;700&family=Share+Tech+Mono&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@500&text=%E3%82%A1%E3%82%A4%E3%82%A6%E3%82%A9%E3%82%AB%E3%82%B4%E3%82%B5%E3%82%B7%E3%82%B9%E3%83%83%E3%83%86%E3%83%88%E3%83%89%E3%83%90%E3%83%94%E3%83%95%E3%83%96%E3%83%A0%E3%83%A7%E3%83%A9%E3%83%AA%E3%83%AB%E3%83%B3%E3%83%BC%E4%B8%AD%E4%BA%86%E4%BD%93%E4%BF%A1%E5%81%9C%E5%85%A8%E5%89%8A%E5%8A%A0%E5%8F%97%E5%A4%96%E5%AE%8C%E5%AE%9A%E5%AF%BE%E5%B1%A5%E5%BA%A6%E5%BF%9C%E6%AD%A2%E6%AD%B4%E8%A6%81%E8%A6%B3%E8%A8%AD%E8%BF%BD%E9%80%9F%E9%99%A4&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Sharp:opsz,wght,FILL,GRAD@20..24,300,0,0&icon_names=add,backup,bolt,category,close,content_copy,delete,dns,download,drive_file_move,edit,error,expand_more,folder_open,grid_view,help,history,hourglass_empty,info,inventory_2,keyboard,label,lan,link,low_priority,more_horiz,notifications,palette,pause,public,radar,refresh,search,settings,shield,speed,sync,table_rows,terminal,tune,upload,view_agenda,volunteer_activism,warning&display=block">
+<style>
+/* ------------------------------------------------------------------
+   docs/41: the whole app, in two skins (2026-10-17, #93).
+   Nothing here is ruled. One design of every surface (frame, library,
+   add, settings, the right-click menu, the actions, the details),
+   drawn twice: in omaseed's own Omarchy look (Theme roles, fills
+   4/8/18/22 %, hairlines 12 %, the monospace face, square corners) and
+   in the console's BASELINE skin (omarchy-console DESIGN.md §5: plates,
+   cuts by rule, upper-case tracked labels, mono values, kana, lamps,
+   cells, hatch for withheld, worn for stale). Colours in both are
+   `omaseed --theme-roles` at cb08b91 per theme (4.5:1, Q19), the values
+   boards 39 and 40 use; the console mixes its tiers from them the way
+   kit/Skin.js does. Board chrome: one dark look, like boards 35-40.
+   Data is example data.
+   Layout: a mast with the thesis, five laws, a sticky switch strip over
+   one live window (or both skins side by side), then the surfaces, the
+   skins, the three boards' ideas and the calls.
+   ------------------------------------------------------------------ */
+:root {
+  --ink: #0b0c0e; --ground: #121316; --raise: #191b1f; --line: #2a2d33;
+  --text: #c4c7cc; --dim: #8d929b; --bright: #f2f2ec; --hot: #efdf3c; --sig: #45c6dc;
+  --mono: "JetBrains Mono", "JetBrainsMono Nerd Font", ui-monospace, monospace;
+  --lab: "Chakra Petch", "Rajdhani", system-ui, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { background: var(--ink); }
+body { margin: 0; background: var(--ink); color: var(--text); font: 400 13px/1.62 var(--mono); -webkit-font-smoothing: antialiased; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 60; background: var(--ink); }
+main { max-width: 1340px; margin: 0 auto; padding-block: 34px 80px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 40px; }
+h1, h2, h3 { margin: 0; color: var(--bright); text-wrap: balance; }
+h1 { font: 700 clamp(30px, 6vw, 52px)/1.02 var(--lab); letter-spacing: .14em; text-transform: uppercase; }
+h1 .kn { font: 500 .36em "Noto Sans JP", sans-serif; color: var(--sig); letter-spacing: .08em; margin-left: .6em; vertical-align: .3em; }
+h2 { font: 700 17px var(--lab); letter-spacing: .18em; text-transform: uppercase; display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+h2 .ix { font: 500 13px var(--mono); color: var(--hot); letter-spacing: 0; }
+h3 { font: 600 13px var(--mono); }
+p { margin: 0; max-width: 82ch; }
+b { color: var(--bright); font-weight: 600; }
+code, kbd { font: inherit; color: var(--bright); background: var(--raise); padding: 0 4px; overflow-wrap: anywhere; }
+a { color: var(--sig); }
+section { display: grid; gap: 16px; min-width: 0; }
+.shead { display: grid; gap: 6px; padding-top: 18px; border-top: 1px solid var(--line); }
+.sub { color: var(--dim); }
+.eyebrow { font: 600 11px var(--lab); letter-spacing: .24em; text-transform: uppercase; color: var(--dim); }
+.mast { display: grid; gap: 14px; }
+.lede { font-size: 14.5px; line-height: 1.7; color: var(--text); max-width: 86ch; }
+.flags { display: flex; flex-wrap: wrap; gap: 8px; }
+.flag { font: 600 10.5px var(--lab); letter-spacing: .16em; text-transform: uppercase; color: var(--dim); border: 1px solid var(--line); padding: 3px 9px; }
+.flag.hot { color: var(--hot); border-color: color-mix(in srgb, var(--hot) 45%, transparent); }
+.flag.sig { color: var(--sig); border-color: color-mix(in srgb, var(--sig) 45%, transparent); }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 236px), 1fr)); gap: 12px; }
+.card { background: var(--ground); border: 1px solid var(--line); padding: 14px 16px; display: grid; gap: 6px; align-content: start; min-width: 0; }
+.card .k { font: 500 12px var(--mono); color: var(--hot); }
+.card .t { font: 600 13.5px var(--lab); letter-spacing: .12em; text-transform: uppercase; color: var(--bright); }
+.card p { font-size: 12.6px; }
+.card ul { margin: 0; padding-left: 16px; display: grid; gap: 3px; font-size: 12.4px; }
+.card li::marker { color: var(--dim); }
+.tag { font: 600 9.5px var(--lab); letter-spacing: .16em; text-transform: uppercase; padding: 0 5px; border: 1px solid var(--line); color: var(--dim); white-space: nowrap; }
+.tag.kept { color: var(--sig); border-color: color-mix(in srgb, var(--sig) 40%, transparent); }
+.tag.chg { color: var(--hot); border-color: color-mix(in srgb, var(--hot) 40%, transparent); }
+.tag.drop { color: #ff7a85; border-color: color-mix(in srgb, #ff7a85 40%, transparent); }
+.tag.new { color: var(--bright); border-color: var(--dim); }
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); }
+table.t { border-collapse: collapse; width: 100%; min-width: 760px; font-size: 12.4px; }
+table.t th, table.t td { text-align: left; vertical-align: top; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+table.t th { font: 600 10.5px var(--lab); letter-spacing: .16em; text-transform: uppercase; color: var(--dim); background: var(--ground); position: sticky; top: 0; }
+table.t td:first-child { color: var(--bright); }
+
+/* ---------- the switch strip ---------- */
+.ctl { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 40; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; padding: 9px 12px; background: color-mix(in srgb, var(--ink) 92%, transparent); backdrop-filter: blur(8px); border: 1px solid var(--line); }
+.grp { display: flex; align-items: center; gap: 3px; flex-wrap: wrap; }
+.grp > span { font: 600 9.5px var(--lab); letter-spacing: .2em; text-transform: uppercase; color: var(--dim); margin-right: 5px; }
+.tog { font: 500 11.5px var(--mono); color: var(--dim); background: var(--ground); border: 1px solid var(--line); padding: 3px 8px; cursor: pointer; white-space: nowrap; }
+.tog:hover { color: var(--text); }
+.tog[aria-pressed="true"] { color: var(--ink); background: var(--hot); border-color: var(--hot); }
+.tog:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--sig); outline-offset: 2px; }
+.grp.only-con[data-off] { opacity: .35; pointer-events: none; }
+.stages { display: grid; gap: 18px; }
+.stages.both { grid-template-columns: repeat(auto-fit, minmax(min(100%, 560px), 1fr)); }
+.stagebox { display: grid; gap: 8px; min-width: 0; }
+.stagecap { font: 600 10.5px var(--lab); letter-spacing: .18em; text-transform: uppercase; color: var(--dim); display: flex; gap: 10px; flex-wrap: wrap; align-items: baseline; }
+.stagecap b { color: var(--bright); }
+.stage { position: relative; width: 100%; overflow: hidden; background: var(--ground); border: 1px solid var(--line); }
+.stage .sc { position: absolute; left: 0; top: 0; transform-origin: 0 0; padding: 14px; }
+.note { font-size: 12.4px; color: var(--text); max-width: 100ch; }
+.note b { color: var(--bright); }
+
+/* ---------- decisions ---------- */
+#dec { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 400px), 1fr)); gap: 12px; }
+.q { background: var(--ground); border: 1px solid var(--line); padding: 12px 14px; min-width: 0; }
+.q fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 5px; min-width: 0; }
+.q legend { padding: 0; font: 600 13px var(--mono); color: var(--bright); margin-bottom: 2px; }
+.q legend .id { color: var(--hot); }
+.q .why { font-size: 12px; color: var(--dim); margin-bottom: 4px; }
+.opt { display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: start; font-size: 12.4px; cursor: pointer; padding: 3px 4px; }
+.opt:hover { background: var(--raise); }
+.opt input { margin: 3px 0 0; accent-color: var(--hot); }
+.rec { font: 600 9.5px var(--lab); letter-spacing: .16em; text-transform: uppercase; color: var(--hot); margin-left: 8px; }
+.ansrow { display: grid; gap: 8px; }
+#answers { width: 100%; min-height: 230px; font: 12.4px/1.55 var(--mono); color: var(--bright); background: var(--ground); border: 1px solid var(--line); padding: 10px 12px; resize: vertical; }
+.copy { justify-self: start; font: 600 11px var(--lab); letter-spacing: .16em; text-transform: uppercase; color: var(--ink); background: var(--hot); border: 0; padding: 6px 12px; cursor: pointer; }
+#free { width: 100%; min-height: 70px; font: 12.4px var(--mono); color: var(--text); background: var(--ink); border: 1px solid var(--line); padding: 8px; }
+
+/* =================================================================
+   THE MOCK WINDOW: shared structure
+   ================================================================= */
+.wf { position: relative; width: var(--W); height: var(--H); padding: 2px; background: var(--wfc); clip-path: var(--wcut); }
+.win { position: relative; width: 100%; height: 100%; overflow: hidden; display: grid; grid-template-columns: var(--railw) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); background: var(--bg); color: var(--fg); clip-path: var(--wcuti); }
+.win button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
+.win .rail { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.win .rscroll { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+.win .main { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; min-width: 0; min-height: 0; position: relative; }
+.win .main > .top { grid-row: 1; } .win .main > .notice { grid-row: 2; } .win .main > .body { grid-row: 3; } .win .main > .status { grid-row: 4; }
+.win .body { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; min-height: 0; }
+.win .content { min-width: 0; min-height: 0; overflow-y: auto; overflow-x: hidden; position: relative; scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--fg) 25%, transparent) transparent; }
+.win .det { width: 372px; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+.win.narrow .det { position: absolute; right: 0; top: 0; bottom: 0; z-index: 6; width: 360px; }
+.win .ov { position: absolute; z-index: 20; }
+.win .menu .mi { width: 100%; }
+.win .scrim { position: absolute; inset: 0; z-index: 15; }
+.win .kb { display: none; }
+.win.keys .kb { display: inline-flex; }
+.win .ell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.win .row { position: relative; cursor: pointer; }
+.win .grow { flex: 1; min-width: 0; }
+.win svg { display: block; }
+@keyframes blk { 0% { background-position: 0 0; } 100% { background-position: 24px 0; } }
+@keyframes flick { 0%, 12% { opacity: .2; } 6%, 20%, 100% { opacity: 1; } 15% { opacity: .5; } }
+@keyframes glt { 0%, 100% { transform: none; clip-path: none; } 20% { transform: translateX(5px); clip-path: inset(30% 0 40% 0); } 60% { transform: translateX(-3px); clip-path: inset(50% 0 20% 0); } }
+@media (prefers-reduced-motion: reduce) { .win * { animation: none !important; transition: none !important; } }
+
+/* =================================================================
+   SKIN 1: OMARCHY (omaseed's v2 rules: Theme roles, fills 4/8/18/22 %,
+   hairlines 12 %, the monospace face, square corners, base 14 → 13 here)
+   ================================================================= */
+.sk-oma { --wfc: var(--accent); --wcut: none; --wcuti: none;
+  --hair: color-mix(in srgb, var(--fg) 12%, transparent);
+  --f4: color-mix(in srgb, var(--fg) 4%, transparent); --f8: color-mix(in srgb, var(--fg) 8%, transparent);
+  --f18: color-mix(in srgb, var(--fg) 18%, transparent); --f22: color-mix(in srgb, var(--fg) 22%, transparent);
+  --fsel: color-mix(in srgb, var(--fg) calc(var(--fs) * 100%), transparent);
+  font: 400 13px/1.5 "JetBrains Mono", "JetBrainsMono Nerd Font", ui-monospace, monospace; }
+.sk-oma .win { --railw: 214px; }
+.sk-oma .win.narrow { --railw: 48px; }
+.sk-oma .rail { border-right: 1px solid var(--hair); background: var(--bg); }
+.sk-oma .mark { display: flex; align-items: center; gap: 9px; height: 54px; padding: 0 14px; border-bottom: 1px solid var(--hair); flex: none; }
+.sk-oma .mark .logo { width: 20px; height: 20px; border: 2px solid var(--accent); display: grid; place-items: center; font-size: 10px; color: var(--accent); font-weight: 700; }
+.sk-oma .mark b { color: var(--bright); font-weight: 600; }
+.sk-oma .mark .car { color: var(--dim); font-size: 11px; }
+.sk-oma .rg { padding: 10px 8px 4px; display: grid; gap: 1px; }
+.sk-oma .rg h6 { margin: 0 6px 4px; font-weight: 500; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+.sk-oma .ri { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 3px 6px; color: var(--fg); }
+.sk-oma .ri:hover { background: var(--f8); }
+.sk-oma .ri.on { background: var(--fsel); color: var(--bright); }
+.sk-oma .ri .g { color: var(--dim); text-align: center; font-size: 12px; }
+.sk-oma .ri .n { color: var(--dim); font-size: 12px; font-variant-numeric: tabular-nums; }
+.sk-oma .ri.needs .g, .sk-oma .ri.needs .n { color: var(--red); }
+.sk-oma .ri .tick { width: 3px; height: 12px; background: var(--c); justify-self: center; }
+.sk-oma .views { padding: 8px 8px 8px; display: grid; gap: 1px; border-bottom: 1px solid var(--hair); }
+.sk-oma .views .ri { padding: 5px 6px; }
+.sk-oma .views .ri.on { background: var(--f8); box-shadow: inset 2px 0 0 var(--accent); }
+.sk-oma .srv { border-top: 1px solid var(--hair); background: var(--f4); padding: 8px 8px 10px; flex: none; display: grid; gap: 1px; }
+.sk-oma .srv h6 { display: flex; justify-content: space-between; margin: 0 6px 3px; font-weight: 500; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+.sk-oma .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); justify-self: center; }
+.sk-oma .dot.off { background: var(--dim); }
+.sk-oma .dot.down { background: var(--yellow); }
+.sk-oma .dot.ref { background: var(--red); }
+.sk-oma .top { height: 54px; display: flex; align-items: center; gap: 12px; padding: 0 14px 0 18px; border-bottom: 1px solid var(--hair); min-width: 0; }
+.sk-oma .top h1 { font-weight: 600; font-size: 15px; color: var(--bright); letter-spacing: 0; text-transform: none; }
+.sk-oma .top p { font-size: 11.5px; color: var(--dim); }
+.sk-oma .top .tt { min-width: 0; flex: 1; display: grid; }
+.sk-oma .tool { position: relative; display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border: 1px solid var(--hair); color: var(--fg); white-space: nowrap; }
+.sk-oma .tool:hover { background: var(--f8); }
+.sk-oma .tool.find { width: 176px; color: var(--dim); }
+.sk-oma .tool.add { border-color: var(--accent); color: var(--accent); }
+.sk-oma .tool .c { color: var(--dim); }
+.sk-oma .kb { position: absolute; right: -6px; top: -9px; z-index: 3; font-size: 10px; line-height: 14px; padding: 0 4px; background: var(--accent); color: var(--bg); font-weight: 700; }
+.sk-oma .ri .kb { position: static; margin-left: 4px; }
+.sk-oma .notice { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 4px 10px; padding: 9px 14px 10px 16px; border-bottom: 1px solid var(--hair); box-shadow: inset 3px 0 0 var(--nc); background: color-mix(in srgb, var(--nc) 8%, transparent); }
+.sk-oma .notice .g { color: var(--nc); font-weight: 700; }
+.sk-oma .notice b { font-weight: 600; }
+.sk-oma .notice .ln { grid-column: 2 / -1; font-size: 12px; }
+.sk-oma .notice .acts { display: flex; gap: 14px; font-size: 12px; color: var(--accent); }
+.sk-oma .notice .acts .d { color: var(--dim); }
+.sk-oma .gh { display: flex; gap: 10px; align-items: baseline; padding: 12px 18px 4px; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+.sk-oma .gh .n { color: var(--fg); }
+.sk-oma .gh .s { text-transform: none; letter-spacing: 0; font-size: 11.5px; margin-left: auto; }
+.sk-oma .gh.needs { color: var(--red); }
+.sk-oma .row { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; grid-template-rows: auto auto; gap: 1px 10px; padding: 7px 18px 8px 14px; border-bottom: 1px solid color-mix(in srgb, var(--fg) 5%, transparent); }
+.sk-oma .row:hover { background: var(--f4); }
+.sk-oma .row.sel { background: var(--fsel); }
+.sk-oma .row.picked { background: color-mix(in srgb, var(--accent) 9%, transparent); box-shadow: inset 2px 0 0 var(--accent); }
+.sk-oma .row .st { grid-row: 1 / 3; color: var(--sc); text-align: center; font-size: 13px; padding-top: 1px; }
+.sk-oma .row .l1 { display: flex; gap: 8px; align-items: baseline; min-width: 0; }
+.sk-oma .row .nm { color: var(--bright); font-weight: 600; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sk-oma .row .mt { color: var(--dim); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sk-oma .row .fact { grid-row: 1 / 3; grid-column: 3; text-align: right; display: grid; align-content: center; min-width: 92px; }
+.sk-oma .row .fact b { font-weight: 500; font-size: 14px; color: var(--bright); }
+.sk-oma .row .fact span { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+.sk-oma .row.needs .fact b { color: var(--red); }
+.sk-oma .row .l2 { display: flex; gap: 10px; align-items: center; min-width: 0; font-size: 11.8px; color: var(--dim); }
+.sk-oma .row .fix { color: var(--accent); white-space: nowrap; border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); padding: 0 6px; font-size: 11px; }
+.sk-oma .strip { flex: none; width: 168px; height: 4px; display: flex; gap: 1px; background: var(--f8); }
+.sk-oma .strip i { flex: 1; background: transparent; }
+.sk-oma .strip i.h { background: var(--sc); }
+.sk-oma .strip i.a { background: color-mix(in srgb, var(--sc) 45%, transparent); }
+.sk-oma .strip i.o { background: var(--orange); }
+.sk-oma .row.rest .strip i.h { background: var(--dim); }
+.sk-oma .worn .row { opacity: .55; }
+.sk-oma .status { height: 30px; display: flex; align-items: center; gap: 12px; padding: 0 14px 0 18px; border-top: 1px solid var(--hair); font-size: 11.8px; color: var(--dim); white-space: nowrap; min-width: 0; overflow: hidden; }
+.sk-oma .status b { color: var(--fg); font-weight: 500; }
+.sk-oma .status .dn { color: var(--blue); } .sk-oma .status .up { color: var(--green); }
+.sk-oma .status .sep { opacity: .5; }
+.sk-oma .status .r { margin-left: auto; }
+.sk-oma .status.sel { background: var(--f8); color: var(--fg); gap: 4px; }
+.sk-oma .status.sel .ab { padding: 2px 8px; }
+.sk-oma .status.sel .ab:hover { background: var(--f8); }
+.sk-oma .status.sel .ab.red { color: var(--red); }
+/* table display */
+.sk-oma .tbl { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
+.sk-oma .tbl th { font-weight: 500; font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); text-align: left; padding: 8px 8px; border-bottom: 1px solid var(--hair); }
+.sk-oma .tbl td { padding: 5px 8px; border-bottom: 1px solid color-mix(in srgb, var(--fg) 5%, transparent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sk-oma .tbl tr.sel td { background: var(--fsel); }
+.sk-oma .tbl td.r, .sk-oma .tbl th.r { text-align: right; }
+.sk-oma .pbar { display: inline-block; width: 54px; height: 3px; background: var(--f8); vertical-align: middle; margin-right: 6px; position: relative; }
+.sk-oma .pbar i { position: absolute; inset: 0 auto 0 0; background: var(--sc); }
+/* overview: shelves */
+.sk-oma .ovw { padding: 6px 18px 12px; display: grid; gap: 14px; }
+.sk-oma .shelf h5 { margin: 0 0 6px; display: flex; gap: 10px; align-items: baseline; font-weight: 500; font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: .12em; }
+.sk-oma .shelf h5 b { color: var(--bright); font-weight: 600; text-transform: none; letter-spacing: 0; font-size: 13px; }
+.sk-oma .covers { display: flex; gap: 10px; flex-wrap: nowrap; overflow: hidden; }
+.sk-oma .cover { flex: none; width: 92px; display: grid; gap: 4px; }
+.sk-oma .cover .art { position: relative; height: 118px; background: var(--f4); border: 1px solid var(--hair); overflow: hidden; }
+.sk-oma .cover .art .grid { position: absolute; inset: 6px; display: grid; grid-template-columns: repeat(10, 1fr); gap: 1px; align-content: start; }
+.sk-oma .cover .art .grid i { height: 6px; background: var(--f8); }
+.sk-oma .cover .art .grid i.h { background: color-mix(in srgb, var(--sc) 55%, transparent); }
+.sk-oma .cover .art .ab2 { position: absolute; left: 8px; bottom: 6px; font-weight: 700; font-size: 30px; color: var(--bright); letter-spacing: -.02em; }
+.sk-oma .cover.sel .art { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.sk-oma .cover .cn { font-size: 11px; color: var(--fg); }
+.sk-oma .cover .cf { font-size: 10.5px; color: var(--dim); }
+.sk-oma .cover.needs .cf { color: var(--red); }
+/* details */
+.sk-oma .det { border-left: 1px solid var(--hair); background: var(--bg); }
+.sk-oma.narrow-det .det { box-shadow: -14px 0 30px -18px #000; }
+.sk-oma .dh { padding: 12px 16px 10px; border-bottom: 1px solid var(--hair); display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 8px; }
+.sk-oma .dh b { color: var(--bright); font-size: 14px; font-weight: 600; }
+.sk-oma .dh .raw { grid-column: 1; font-size: 11px; color: var(--dim); }
+.sk-oma .dh .x { grid-row: 1; grid-column: 2; color: var(--dim); font-size: 11.5px; }
+.sk-oma .dhero { padding: 10px 16px 12px; display: grid; gap: 3px; border-bottom: 1px solid var(--hair); }
+.sk-oma .dhero .big { font-size: 22px; color: var(--sc); font-weight: 500; }
+.sk-oma .dhero .big span { font-size: 12px; color: var(--dim); margin-left: 8px; }
+.sk-oma .dhero p { font-size: 12px; color: var(--fg); }
+.sk-oma .tabs { display: flex; gap: 2px; padding: 0 10px; border-bottom: 1px solid var(--hair); }
+.sk-oma .tab { padding: 7px 7px; font-size: 12px; color: var(--dim); }
+.sk-oma .tab.on { color: var(--bright); box-shadow: inset 0 -2px 0 var(--accent); }
+.sk-oma .tb { flex: 1; min-height: 0; overflow: hidden; padding: 12px 16px; display: grid; gap: 12px; align-content: start; }
+.sk-oma .tb h5 { margin: 0; display: flex; justify-content: space-between; font-weight: 500; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+.sk-oma .pmap { display: grid; grid-template-columns: repeat(34, 1fr); gap: 1px; }
+.sk-oma .pmap i { aspect-ratio: 1; background: var(--f8); }
+.sk-oma .pmap i.h { background: var(--sc); }
+.sk-oma .pmap i.a { background: color-mix(in srgb, var(--sc) 45%, transparent); }
+.sk-oma .pmap i.o { background: var(--orange); }
+.sk-oma .leg { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 10.5px; color: var(--dim); }
+.sk-oma .leg i { display: inline-block; width: 8px; height: 8px; margin-right: 5px; vertical-align: -1px; }
+.sk-oma .tl { display: grid; gap: 7px; font-size: 12px; }
+.sk-oma .tl div { display: grid; grid-template-columns: 42px 10px minmax(0, 1fr); gap: 8px; }
+.sk-oma .tl .tm { color: var(--dim); font-variant-numeric: tabular-nums; }
+.sk-oma .tl .mk { width: 7px; height: 7px; margin-top: 6px; background: var(--sc); }
+.sk-oma .tl .mk.w { background: var(--yellow); } .sk-oma .tl .mk.n { background: var(--accent); }
+.sk-oma .tl small { display: block; color: var(--dim); font-size: 11px; }
+.sk-oma .fl { display: grid; gap: 8px; font-size: 12px; }
+.sk-oma .fl .f { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 10px; }
+.sk-oma .fl .bar { grid-column: 1 / -1; height: 5px; background: var(--f8); position: relative; }
+.sk-oma .fl .bar i { position: absolute; inset: 0 auto 0 0; background: var(--sc); }
+.sk-oma .fl .f.off { opacity: .55; }
+.sk-oma .kv { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 0; font-size: 12px; }
+.sk-oma .kv dt { color: var(--dim); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; padding: 4px 0; border-bottom: 1px solid color-mix(in srgb, var(--fg) 6%, transparent); }
+.sk-oma .kv dd { margin: 0; padding: 4px 0; border-bottom: 1px solid color-mix(in srgb, var(--fg) 6%, transparent); overflow-wrap: anywhere; }
+.sk-oma .swarm { display: grid; grid-template-columns: 136px minmax(0, 1fr); gap: 12px; align-items: center; }
+.sk-oma .where { display: grid; grid-template-columns: 26px minmax(0, 1fr) 22px; gap: 4px 8px; font-size: 11.5px; align-items: center; }
+.sk-oma .where .bar { height: 4px; background: var(--f8); position: relative; }
+.sk-oma .where .bar i { position: absolute; inset: 0 auto 0 0; background: var(--blue); }
+.sk-oma .trk { display: grid; gap: 6px; font-size: 12px; }
+.sk-oma .trk div { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+/* overlays */
+.sk-oma .scrim { background: color-mix(in srgb, var(--dbg) 62%, transparent); }
+.sk-oma .sheet { background: var(--bg); border: 1px solid var(--accent); box-shadow: 0 24px 60px -20px #000; display: flex; flex-direction: column; overflow: hidden; }
+.sk-oma .sheet .shh { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--hair); }
+.sk-oma .sheet .shh h4 { margin: 0; font-weight: 600; font-size: 14px; color: var(--bright); }
+.sk-oma .sheet .shb { padding: 12px 16px; display: grid; gap: 12px; overflow: hidden; align-content: start; flex: 1; min-height: 0; }
+.sk-oma .sheet .shf { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-top: 1px solid var(--hair); }
+.sk-oma .chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--hair); padding: 2px 8px; color: var(--fg); white-space: nowrap; }
+.sk-oma .chip.on { background: var(--f18); color: var(--bright); border-color: transparent; }
+.sk-oma .btn { border: 1px solid var(--hair); padding: 4px 12px; color: var(--fg); white-space: nowrap; }
+.sk-oma .btn.pri { background: var(--accent); color: var(--bg); border-color: var(--accent); font-weight: 600; }
+.sk-oma .btn.red { background: var(--red); color: var(--bg); border-color: var(--red); font-weight: 600; }
+.sk-oma .btn.ghost { border-color: transparent; color: var(--dim); }
+.sk-oma .field { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 10px; align-items: center; font-size: 12px; }
+.sk-oma .field > span:first-child { color: var(--dim); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; }
+.sk-oma .input { border: 1px solid var(--hair); padding: 3px 8px; color: var(--bright); background: var(--f4); min-width: 0; display: flex; gap: 8px; }
+.sk-oma .input .u { margin-left: auto; color: var(--dim); }
+.sk-oma .typebar { display: flex; height: 10px; gap: 1px; }
+.sk-oma .typebar i { display: block; }
+.sk-oma .warnbox { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 4px 10px; padding: 8px 12px; box-shadow: inset 3px 0 0 var(--wc); background: color-mix(in srgb, var(--wc) 9%, transparent); font-size: 12px; }
+.sk-oma .warnbox .g { color: var(--wc); font-weight: 700; }
+.sk-oma .menu { background: var(--bg); border: 1px solid var(--hair); box-shadow: 0 18px 44px -14px #000; min-width: 268px; padding: 4px 0; font-size: 12.5px; }
+.sk-oma .menu .mh { padding: 6px 12px 8px; border-bottom: 1px solid var(--hair); margin-bottom: 4px; display: grid; }
+.sk-oma .menu .mh b { color: var(--bright); font-weight: 600; }
+.sk-oma .menu .mh span { font-size: 11px; color: var(--dim); }
+.sk-oma .menu .mi { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 8px; padding: 3px 12px; align-items: center; }
+.sk-oma .menu .mi:hover, .sk-oma .menu .mi.cur { background: var(--fsel); color: var(--bright); }
+.sk-oma .menu .mi .g { color: var(--dim); text-align: center; }
+.sk-oma .menu .mi .k { color: var(--dim); font-size: 11px; }
+.sk-oma .menu .mi.red { color: var(--red); } .sk-oma .menu .mi.red .g { color: var(--red); }
+.sk-oma .menu hr { border: 0; border-top: 1px solid var(--hair); margin: 4px 0; }
+.sk-oma .menu .sub { color: var(--dim); }
+.sk-oma .snav { width: 200px; border-right: 1px solid var(--hair); padding: 10px 8px; display: grid; gap: 1px; align-content: start; }
+.sk-oma .snav h6 { margin: 8px 6px 4px; font-weight: 500; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+.sk-oma .snav h6:first-child { margin-top: 0; }
+.sk-oma .snav .ri { grid-template-columns: 16px minmax(0, 1fr); }
+.sk-oma .scope { display: flex; gap: 8px; align-items: center; margin: 2px 4px 6px; padding: 4px 8px; border: 1px solid var(--hair); font-size: 12px; }
+.sk-oma .srow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 14px; align-items: center; padding: 9px 12px; border: 1px solid var(--hair); background: var(--f4); }
+.sk-oma .srow b { font-weight: 500; color: var(--bright); }
+.sk-oma .srow small { grid-column: 1; color: var(--dim); font-size: 11.5px; }
+.sk-oma .srow .ctl2 { grid-row: 1 / 3; grid-column: 2; }
+.sk-oma .sw { width: 30px; height: 14px; border: 1px solid var(--hair); position: relative; display: inline-block; }
+.sk-oma .sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 8px; height: 8px; background: var(--dim); }
+.sk-oma .sw.on { background: color-mix(in srgb, var(--accent) 22%, transparent); border-color: var(--accent); }
+.sk-oma .sw.on::after { left: auto; right: 2px; background: var(--accent); }
+.sk-oma .pick { display: grid; gap: 6px; }
+.sk-oma .pick .opt2 { display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 8px; padding: 6px 10px; border: 1px solid var(--hair); font-size: 12px; }
+.sk-oma .pick .opt2.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.sk-oma .pick .opt2 i { width: 10px; height: 10px; border: 1px solid var(--dim); margin-top: 4px; border-radius: 50%; }
+.sk-oma .pick .opt2.on i { border-color: var(--accent); background: var(--accent); box-shadow: inset 0 0 0 2px var(--bg); }
+.sk-oma .pick .opt2 small { display: block; color: var(--dim); font-size: 11px; }
+
+/* =================================================================
+   SKIN 2: CONSOLE (BASELINE, omarchy-console DESIGN.md §5): plates cut
+   by rule, a hairline at fg 21 %, the panel at lighter 45 %, labels in
+   Chakra Petch upper-case tracked .16 em, values in Share Tech Mono,
+   kana in the signal, Material Symbols Sharp, the 70/20/10 budget
+   (neutral, signal = cyan for data, accent only for selected or needs
+   you), alert only for failure, hatch = withheld, worn = stale.
+   ================================================================= */
+.sk-con { --wcut: polygon(12px 0, calc(100% - 12px) 0, 100% 12px, 100% calc(100% - 12px), calc(100% - 12px) 100%, 12px 100%, 0 calc(100% - 12px), 0 12px);
+  --wcuti: polygon(11px 0, calc(100% - 11px) 0, 100% 11px, 100% calc(100% - 11px), calc(100% - 11px) 100%, 11px 100%, 0 calc(100% - 11px), 0 11px);
+  --wfc: var(--accent);
+  --panel: color-mix(in srgb, var(--lbg) 45%, var(--bg)); --panel2: var(--lbg);
+  --hair: color-mix(in srgb, var(--fg) 21%, var(--bg)); --faint: color-mix(in srgb, var(--fg) 10%, var(--bg));
+  --signal: var(--cyan); --alert: var(--red); --warn: var(--yellow); --ok: var(--green);
+  --sg1: color-mix(in srgb, var(--cyan) 40%, var(--bg)); --sg2: color-mix(in srgb, var(--cyan) 20%, var(--bg));
+  --ac2: color-mix(in srgb, var(--accent) 20%, var(--bg));
+  --fl: "Chakra Petch", "Rajdhani", system-ui, sans-serif; --fv: "Share Tech Mono", "JetBrains Mono", ui-monospace, monospace; --fk: "Noto Sans JP", "Hiragino Sans", sans-serif;
+  font: 500 13px/1.42 var(--fl); }
+.sk-con .win { --railw: 222px; background: var(--bg); }
+.sk-con .win.narrow { --railw: 52px; }
+.sk-con .ms { font-family: "Material Symbols Sharp"; font-style: normal; font-weight: 300; font-size: 16px; line-height: 1; letter-spacing: normal; text-transform: none; white-space: nowrap; display: inline-block; direction: ltr; font-feature-settings: "liga"; -webkit-font-smoothing: antialiased; }
+.sk-con .lab { text-transform: uppercase; letter-spacing: .16em; font-weight: 600; font-size: 10.5px; color: var(--dim); }
+.sk-con .kn { font: 500 9.5px var(--fk); color: var(--signal); letter-spacing: .06em; margin-left: .8em; text-transform: none; }
+.sk-con .v { font-family: var(--fv); font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+/* the cut panel: outer = frame colour, inner = fill (DESIGN §5 Cut) */
+.sk-con .pn { --cut: 16px; padding: 1px; background: var(--pc, var(--hair)); clip-path: polygon(0 0, calc(100% - var(--cut)) 0, 100% var(--cut), 100% 100%, var(--cut) 100%, 0 calc(100% - var(--cut))); }
+.sk-con .pn > .pi { height: 100%; background: var(--pf, var(--panel)); clip-path: polygon(0 0, calc(100% - var(--cut) + .4px) 0, 100% calc(var(--cut) - .4px), 100% 100%, calc(var(--cut) - .4px) 100%, 0 calc(100% - var(--cut) + .4px)); }
+.sk-con .pn.key { --cut: 10px; }
+.sk-con .rail { background: var(--dbg); box-shadow: inset -1px 0 0 var(--faint); }
+.sk-con .mark { display: flex; align-items: center; gap: 10px; height: 58px; padding: 0 14px; flex: none; box-shadow: inset 0 -1px 0 var(--faint); }
+.sk-con .mark .logo { width: 22px; height: 22px; display: grid; place-items: center; background: var(--accent); color: var(--bg); font: 700 11px var(--fl); clip-path: polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 6px 100%, 0 calc(100% - 6px)); }
+.sk-con .mark b { font: 700 13px var(--fl); letter-spacing: .2em; text-transform: uppercase; color: var(--bright); }
+.sk-con .mark .car { color: var(--dim); }
+.sk-con .rg { padding: 10px 8px 4px; display: grid; gap: 1px; }
+.sk-con .rg h6 { margin: 0 8px 5px; display: flex; align-items: baseline; }
+.sk-con .ri { position: relative; display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 9px; align-items: center; padding: 3px 8px; color: var(--fg); font-size: 12.5px; letter-spacing: .04em; }
+.sk-con .ri:hover { background: var(--panel2); }
+.sk-con .ri.on { background: var(--panel2); color: var(--bright); }
+.sk-con .ri.on::after, .sk-con .row.sel::after, .sk-con .card.sel::after, .sk-con .mi.cur::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(var(--accent), var(--accent)) 0 0 / 8px 2px no-repeat, linear-gradient(var(--accent), var(--accent)) 0 0 / 2px 8px no-repeat,
+    linear-gradient(var(--accent), var(--accent)) 100% 0 / 8px 2px no-repeat, linear-gradient(var(--accent), var(--accent)) 100% 0 / 2px 8px no-repeat,
+    linear-gradient(var(--accent), var(--accent)) 0 100% / 8px 2px no-repeat, linear-gradient(var(--accent), var(--accent)) 0 100% / 2px 8px no-repeat,
+    linear-gradient(var(--accent), var(--accent)) 100% 100% / 8px 2px no-repeat, linear-gradient(var(--accent), var(--accent)) 100% 100% / 2px 8px no-repeat; }
+.sk-con .ri .g { color: var(--dim); text-align: center; }
+.sk-con .ri .g .ms { font-size: 16px; }
+.sk-con .ri .n { font: 13px var(--fv); color: var(--dim); }
+.sk-con .ri .tick { position: absolute; left: 0; top: 4px; bottom: 4px; width: 3px; background: var(--c); }
+.sk-con .ri .lamp { display: inline-block; width: 7px; height: 7px; background: var(--accent); justify-self: center; animation: flick .6s 1; }
+.sk-con .ri.needs .n { color: var(--accent); }
+.sk-con .views { padding: 8px 8px; display: grid; gap: 1px; box-shadow: inset 0 -1px 0 var(--faint); }
+.sk-con .views .ri { text-transform: uppercase; letter-spacing: .16em; font-size: 11.5px; font-weight: 600; padding: 5px 8px; }
+.sk-con .srv { flex: none; padding: 8px 8px 10px; display: grid; gap: 1px; background: var(--panel); box-shadow: inset 0 1px 0 var(--hair); }
+.sk-con .srv h6 { margin: 0 8px 4px; display: flex; align-items: baseline; justify-content: space-between; }
+.sk-con .dot { width: 7px; height: 7px; background: var(--ok); justify-self: center; }
+.sk-con .dot.off { background: transparent; box-shadow: inset 0 0 0 1px var(--dim); }
+.sk-con .dot.down { background: var(--warn); }
+.sk-con .dot.ref { background: var(--alert); }
+.sk-con .top { height: 58px; display: flex; align-items: center; gap: 10px; padding: 0 14px 0 18px; min-width: 0; box-shadow: inset 0 -1px 0 var(--faint); }
+.sk-con .top .tt { min-width: 0; flex: 1; display: grid; gap: 1px; }
+.sk-con .top h1 { font: 700 19px/1.1 var(--fl); letter-spacing: .22em; text-transform: uppercase; color: var(--bright); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sk-con .top h1 .kn { font-size: 10px; vertical-align: .25em; }
+.sk-con .top p { font: 12px var(--fv); color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: .02em; }
+.sk-con .tool { position: relative; height: 30px; flex: none; }
+.sk-con .tool .pi { display: flex; align-items: center; gap: 7px; padding: 0 12px; font: 600 11px var(--fl); letter-spacing: .16em; text-transform: uppercase; color: var(--fg); white-space: nowrap; }
+.sk-con .tool:hover .pi { --pf: var(--panel2); background: var(--panel2); }
+.sk-con .tool.find { width: 188px; } .sk-con .tool.find .pi { color: var(--dim); font: 12.5px var(--fv); letter-spacing: .02em; text-transform: none; }
+.sk-con .tool.add { --pc: var(--accent); } .sk-con .tool.add .pi { color: var(--accent); }
+.sk-con .tool .c { color: var(--dim); }
+.sk-con .kb { position: absolute; right: -4px; top: -8px; z-index: 3; font: 11px/14px var(--fv); padding: 0 4px; background: var(--accent); color: var(--bg); }
+.sk-con .ri .kb { position: static; margin-left: 4px; }
+.sk-con .notice { margin: 10px 14px 0 18px; --pc: var(--nc); }
+.sk-con .notice .pi { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 4px 12px; padding: 9px 14px 10px; align-items: baseline; --pf: color-mix(in srgb, var(--nc) 9%, var(--bg)); background: color-mix(in srgb, var(--nc) 9%, var(--bg)); }
+.sk-con .notice .stl { font: 600 11px var(--fl); letter-spacing: .16em; text-transform: uppercase; color: var(--nc); }
+.sk-con .notice b { font: 600 13px var(--fl); letter-spacing: .04em; color: var(--bright); }
+.sk-con .notice .ln { grid-column: 2 / -1; font: 12px var(--fv); color: var(--fg); }
+.sk-con .notice .acts { display: flex; gap: 14px; font: 600 10.5px var(--fl); letter-spacing: .16em; text-transform: uppercase; color: var(--accent); }
+.sk-con .notice .acts .d { color: var(--dim); }
+.sk-con .gh { display: flex; gap: 10px; align-items: baseline; padding: 14px 18px 5px; position: relative; }
+.sk-con .gh::before { content: ""; position: absolute; left: 8px; top: 16px; width: 3px; height: 11px; background: var(--gc, var(--hair)); }
+.sk-con .gh .n { font: 13px var(--fv); color: var(--fg); }
+.sk-con .gh .s { margin-left: auto; font: 12px var(--fv); color: var(--dim); }
+.sk-con .gh.needs { --gc: var(--accent); }
+.sk-con .row { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; grid-template-rows: auto auto; gap: 3px 12px; padding: 8px 18px 9px 14px; margin: 0 6px; }
+.sk-con .row:hover { background: var(--panel); }
+.sk-con .row.sel { background: var(--panel2); }
+.sk-con .row.picked { background: var(--ac2); }
+.sk-con .row .st { grid-row: 1 / 3; color: var(--sc); text-align: center; padding-top: 1px; }
+.sk-con .row .st .ms { font-size: 17px; }
+.sk-con .row .l1 { display: flex; gap: 10px; align-items: baseline; min-width: 0; }
+.sk-con .row .nm { font: 600 13.5px var(--fl); letter-spacing: .06em; text-transform: uppercase; color: var(--bright); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sk-con .row .mt { font: 12px var(--fv); color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sk-con .row .fact { grid-row: 1 / 3; grid-column: 3; text-align: right; display: grid; align-content: center; min-width: 100px; }
+.sk-con .row .fact b { font: 18px/1.1 var(--fv); color: var(--bright); }
+.sk-con .row .fact span { font: 600 9.5px var(--fl); letter-spacing: .18em; text-transform: uppercase; color: var(--fcap, var(--dim)); }
+.sk-con .row.needs .fact b { color: var(--alert); }
+.sk-con .row.needs .fact span { --fcap: var(--accent); }
+.sk-con .row .l2 { display: flex; gap: 12px; align-items: center; min-width: 0; font: 12px var(--fv); color: var(--dim); }
+.sk-con .row .fix { font: 600 9.5px var(--fl); letter-spacing: .16em; text-transform: uppercase; color: var(--bg); background: var(--accent); padding: 1px 7px; white-space: nowrap; }
+.sk-con .row.worn { opacity: .5; filter: saturate(.4); }
+.sk-con .row.err .st { animation: glt .1s 3 steps(2); }
+.sk-con .strip { flex: none; width: 168px; height: 8px; display: flex; gap: 1px; }
+.sk-con .strip i { flex: 1; background: var(--faint); }
+.sk-con .strip i.h { background: var(--signal); }
+.sk-con .strip i.a { background: var(--sg1); }
+.sk-con .strip i.o { background: var(--warn); }
+.sk-con .row.seed .strip i.h { background: var(--ok); }
+.sk-con .row.err .strip i.h { background: var(--alert); }
+.sk-con .row.rest .strip { background: repeating-linear-gradient(135deg, var(--hair) 0 2px, transparent 2px 7px); }
+.sk-con .row.rest .strip i { background: transparent; }
+.sk-con .verb { font: 600 9.5px var(--fl); letter-spacing: .18em; text-transform: uppercase; }
+.sk-con .blocks { display: inline-block; width: 24px; height: 6px; margin-left: 6px; vertical-align: 1px; background: linear-gradient(90deg, var(--warn) 0 5px, transparent 5px 6px, var(--sg2) 6px 11px, transparent 11px 12px, var(--sg2) 12px 17px, transparent 17px 18px, var(--sg2) 18px 23px, transparent 23px); }
+.sk-con .worn .row { opacity: .5; filter: saturate(.35); }
+.sk-con .status { height: 26px; display: grid; grid-template-columns: 1fr 1.6fr 1fr; align-items: center; padding: 0 14px 0 16px; background: var(--dbg); box-shadow: inset 0 1px 0 var(--faint); font: 11px var(--fv); letter-spacing: .04em; text-transform: uppercase; color: var(--dim); white-space: nowrap; min-width: 0; overflow: hidden; }
+.sk-con .status > div { display: flex; gap: 10px; align-items: center; min-width: 0; overflow: hidden; }
+.sk-con .status > div:nth-child(2) { justify-content: center; }
+.sk-con .status > div:nth-child(3) { justify-content: flex-end; }
+.sk-con .status b { color: var(--bright); font-weight: 400; }
+.sk-con .status .dn, .sk-con .status .up { color: var(--signal); }
+.sk-con .status .m10 { display: inline-flex; gap: 1px; } .sk-con .status .m10 i { width: 3px; height: 7px; background: var(--faint); } .sk-con .status .m10 i.h { background: var(--signal); }
+.sk-con .status.sel { grid-template-columns: auto 1fr auto; background: var(--panel); box-shadow: inset 0 2px 0 var(--accent); }
+.sk-con .status.sel .ab { font: 600 10px var(--fl); letter-spacing: .16em; padding: 3px 8px; color: var(--fg); }
+.sk-con .status.sel .ab:hover { background: var(--panel2); }
+.sk-con .status.sel .ab.red { color: var(--alert); }
+/* table */
+.sk-con .tbl { width: calc(100% - 12px); margin: 0 6px; border-collapse: collapse; font: 12px var(--fv); table-layout: fixed; }
+.sk-con .tbl th { font: 600 9.5px var(--fl); letter-spacing: .18em; text-transform: uppercase; color: var(--dim); text-align: left; padding: 10px 8px 6px; box-shadow: inset 0 -1px 0 var(--hair); }
+.sk-con .tbl td { padding: 5px 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-shadow: inset 0 -1px 0 var(--faint); }
+.sk-con .tbl td.nm2 { font: 600 12px var(--fl); letter-spacing: .05em; color: var(--bright); }
+.sk-con .tbl tr.sel td { background: var(--panel2); }
+.sk-con .tbl td.r, .sk-con .tbl th.r { text-align: right; }
+.sk-con .pbar { display: inline-flex; gap: 1px; vertical-align: middle; margin-right: 6px; }
+.sk-con .pbar i { width: 4px; height: 7px; background: var(--faint); } .sk-con .pbar i.h { background: var(--sc); }
+/* overview: the station */
+.sk-con .ovw { position: absolute; inset: 0; display: grid; grid-template-columns: minmax(0, 1fr) 150px; grid-template-rows: auto minmax(0, 1fr); background:
+  radial-gradient(circle, color-mix(in srgb, var(--fg) 14%, transparent) 1px, transparent 1.4px) 0 0 / 14px 14px, var(--dbg); }
+.sk-con .sthead { grid-column: 1 / -1; display: flex; align-items: center; gap: 14px; padding: 10px 14px; box-shadow: inset 0 -1px 0 var(--faint); background: color-mix(in srgb, var(--dbg) 86%, transparent); }
+.sk-con .sthead .find2 { flex: 1; font: 12px var(--fv); color: var(--dim); max-width: 200px; box-shadow: inset 0 0 0 1px var(--hair); padding: 3px 8px; }
+.sk-con .sthead .place { font: 600 12px var(--fl); letter-spacing: .16em; text-transform: uppercase; color: var(--accent); }
+.sk-con .sthead .keys { margin-left: auto; font: 11px var(--fv); color: var(--dim); }
+.sk-con .strows { padding: 10px 6px 10px 12px; display: grid; gap: 12px; align-content: start; overflow: hidden; }
+.sk-con .strow { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 10px; align-items: start; }
+.sk-con .plate { --pc: var(--hair); }
+.sk-con .plate .pi { padding: 6px 9px 7px; display: grid; gap: 1px; --pf: var(--panel); }
+.sk-con .plate .pnum { font: 18px/1 var(--fv); color: var(--c); }
+.sk-con .plate .pname { font: 600 11px var(--fl); letter-spacing: .16em; text-transform: uppercase; color: var(--bright); }
+.sk-con .plate .pc2 { font: 11px var(--fv); color: var(--dim); }
+.sk-con .plate.on { --pc: var(--accent); }
+.sk-con .cards { display: flex; gap: 8px; overflow: hidden; }
+.sk-con .card { position: relative; flex: none; width: 84px; --cut: 10px; }
+.sk-con .card .pi { height: 92px; position: relative; overflow: hidden; --pf: var(--bg); }
+.sk-con .card .grid { position: absolute; inset: 6px 6px auto; display: grid; grid-template-columns: repeat(9, 1fr); gap: 1px; }
+.sk-con .card .grid i { height: 5px; background: var(--faint); } .sk-con .card .grid i.h { background: var(--sc); }
+.sk-con .card .two { position: absolute; left: 7px; bottom: 18px; font: 700 24px/1 var(--fl); letter-spacing: .06em; color: var(--bright); }
+.sk-con .card .cf { position: absolute; left: 7px; right: 6px; bottom: 5px; font: 10.5px var(--fv); color: var(--dim); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.sk-con .card.needs { --pc: var(--accent); } .sk-con .card.needs .cf { color: var(--accent); }
+.sk-con .card.rest .pi::after { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(135deg, var(--hair) 0 2px, transparent 2px 7px); opacity: .7; }
+.sk-con .card.sel { --pc: var(--accent); }
+.sk-con .specials { padding: 10px 12px 10px 4px; display: grid; gap: 10px; align-content: start; box-shadow: inset 1px 0 0 var(--faint); }
+.sk-con .spc .pi { padding: 8px 10px; display: grid; gap: 3px; }
+.sk-con .spc .pname { font: 600 10px var(--fl); letter-spacing: .18em; text-transform: uppercase; color: var(--dim); }
+.sk-con .spc b { font: 600 12px var(--fl); letter-spacing: .05em; color: var(--bright); }
+.sk-con .spc small { font: 11px var(--fv); color: var(--dim); }
+.sk-con .spc.needs { --pc: var(--accent); } .sk-con .spc.needs .pname { color: var(--accent); }
+/* details */
+.sk-con .det { background: var(--dbg); box-shadow: inset 1px 0 0 var(--faint); }
+.sk-con.narrow-det .det { box-shadow: inset 1px 0 0 var(--hair), -14px 0 30px -18px #000; }
+.sk-con .dh { padding: 12px 16px 10px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 8px; box-shadow: inset 0 -1px 0 var(--faint); }
+.sk-con .dh b { font: 700 14px var(--fl); letter-spacing: .14em; text-transform: uppercase; color: var(--bright); }
+.sk-con .dh .raw { grid-column: 1; font: 11px var(--fv); color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sk-con .dh .x { grid-row: 1; grid-column: 2; font: 11px var(--fv); color: var(--dim); }
+.sk-con .dhero { margin: 12px 14px 4px; --pc: var(--hair); }
+.sk-con .dhero .pi { padding: 10px 14px 12px; display: grid; gap: 2px; }
+.sk-con .dhero .eb { font: 600 9.5px var(--fl); letter-spacing: .2em; text-transform: uppercase; color: var(--dim); }
+.sk-con .dhero .big { font: 34px/1.05 var(--fv); color: var(--bright); }
+.sk-con .dhero .big span { font: 600 10px var(--fl); letter-spacing: .18em; color: var(--dim); margin-left: 8px; text-transform: uppercase; vertical-align: .5em; }
+.sk-con .dhero p { font: 12px/1.45 var(--fv); color: var(--fg); }
+.sk-con .tabs { display: flex; gap: 2px; padding: 6px 12px 0; box-shadow: inset 0 -1px 0 var(--faint); }
+.sk-con .tab { padding: 6px 8px; font: 600 10px var(--fl); letter-spacing: .16em; text-transform: uppercase; color: var(--dim); }
+.sk-con .tab.on { color: var(--bright); box-shadow: inset 0 -2px 0 var(--accent); }
+.sk-con .tb { flex: 1; min-height: 0; overflow: hidden; padding: 12px 16px; display: grid; gap: 12px; align-content: start; }
+.sk-con .tb h5 { margin: 0; display: flex; justify-content: space-between; align-items: baseline; }
+.sk-con .tb h5 .v { font-size: 12px; color: var(--fg); }
+.sk-con .pmap { display: grid; grid-template-columns: repeat(34, 1fr); gap: 1px; }
+.sk-con .pmap i { aspect-ratio: 1; background: var(--faint); }
+.sk-con .pmap i.h { background: var(--signal); } .sk-con .pmap i.a { background: var(--sg1); } .sk-con .pmap i.o { background: var(--warn); }
+.sk-con .leg { display: flex; flex-wrap: wrap; gap: 4px 12px; font: 10.5px var(--fv); text-transform: uppercase; color: var(--dim); }
+.sk-con .leg i { display: inline-block; width: 8px; height: 8px; margin-right: 5px; vertical-align: -1px; }
+.sk-con .tl { display: grid; gap: 8px; font: 12px var(--fv); }
+.sk-con .tl div { display: grid; grid-template-columns: 44px 10px minmax(0, 1fr); gap: 8px; }
+.sk-con .tl .tm { color: var(--dim); }
+.sk-con .tl .mk { width: 7px; height: 7px; margin-top: 5px; background: var(--signal); }
+.sk-con .tl .mk.w { background: var(--warn); } .sk-con .tl .mk.n { background: var(--accent); }
+.sk-con .tl b { font: 600 12px var(--fl); letter-spacing: .05em; color: var(--bright); }
+.sk-con .tl small { display: block; color: var(--dim); font-size: 11px; }
+.sk-con .fl { display: grid; gap: 9px; font: 12px var(--fv); }
+.sk-con .fl .f { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 10px; }
+.sk-con .fl .bar { grid-column: 1 / -1; display: flex; gap: 1px; height: 6px; }
+.sk-con .fl .bar i { flex: 1; background: var(--faint); } .sk-con .fl .bar i.h { background: var(--signal); }
+.sk-con .fl .f.off { opacity: .5; } .sk-con .fl .f.off .bar { background: repeating-linear-gradient(135deg, var(--hair) 0 2px, transparent 2px 7px); } .sk-con .fl .f.off .bar i { background: transparent; }
+.sk-con .kv { display: grid; grid-template-columns: 112px minmax(0, 1fr); font: 12px var(--fv); }
+.sk-con .kv dt { font: 600 9.5px var(--fl); letter-spacing: .18em; text-transform: uppercase; color: var(--dim); padding: 5px 0; box-shadow: inset 0 -1px 0 var(--faint); }
+.sk-con .kv dd { margin: 0; padding: 4px 0; box-shadow: inset 0 -1px 0 var(--faint); color: var(--fg); overflow-wrap: anywhere; }
+.sk-con .swarm { display: grid; grid-template-columns: 136px minmax(0, 1fr); gap: 12px; align-items: center; }
+.sk-con .where { display: grid; grid-template-columns: 26px minmax(0, 1fr) 22px; gap: 5px 8px; font: 11.5px var(--fv); align-items: center; }
+.sk-con .where .bar { display: flex; gap: 1px; } .sk-con .where .bar i { flex: 1; height: 6px; background: var(--faint); } .sk-con .where .bar i.h { background: var(--signal); }
+.sk-con .trk { display: grid; gap: 7px; font: 12px var(--fv); }
+.sk-con .trk div { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+/* overlays */
+.sk-con .scrim { background: color-mix(in srgb, var(--dbg) 70%, transparent); }
+.sk-con .sheet { --pc: var(--accent); }
+.sk-con .sheet > .pi { display: flex; flex-direction: column; overflow: hidden; --pf: var(--panel); }
+.sk-con .sheet .shh { display: flex; align-items: center; gap: 10px; padding: 14px 18px 10px; box-shadow: inset 0 -1px 0 var(--faint); }
+.sk-con .sheet .shh h4 { margin: 0; font: 700 15px var(--fl); letter-spacing: .2em; text-transform: uppercase; color: var(--bright); }
+.sk-con .sheet .shb { padding: 12px 18px; display: grid; gap: 12px; overflow: hidden; align-content: start; flex: 1; min-height: 0; }
+.sk-con .sheet .shf { display: flex; align-items: center; gap: 10px; padding: 10px 18px 14px; box-shadow: inset 0 1px 0 var(--faint); }
+.sk-con .chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; box-shadow: inset 0 0 0 1px var(--hair); font: 600 10.5px var(--fl); letter-spacing: .14em; text-transform: uppercase; color: var(--fg); white-space: nowrap; }
+.sk-con .chip.on { background: var(--panel2); color: var(--bright); box-shadow: inset 0 0 0 1px var(--accent); }
+.sk-con .btn { font: 600 10.5px var(--fl); letter-spacing: .18em; text-transform: uppercase; padding: 6px 14px; box-shadow: inset 0 0 0 1px var(--hair); color: var(--fg); white-space: nowrap; clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px)); }
+.sk-con .btn.pri { background: var(--accent); color: var(--bg); box-shadow: none; }
+.sk-con .btn.red { background: var(--alert); color: var(--bg); box-shadow: none; }
+.sk-con .btn.ghost { box-shadow: none; color: var(--dim); }
+.sk-con .field { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 10px; align-items: center; }
+.sk-con .field > span:first-child { font: 600 9.5px var(--fl); letter-spacing: .18em; text-transform: uppercase; color: var(--dim); }
+.sk-con .input { box-shadow: inset 0 0 0 1px var(--hair); background: var(--bg); padding: 4px 9px; font: 12.5px var(--fv); color: var(--bright); display: flex; gap: 8px; min-width: 0; }
+.sk-con .input .u { margin-left: auto; color: var(--dim); }
+.sk-con .typebar { display: flex; height: 10px; gap: 2px; }
+.sk-con .typebar i { display: block; }
+.sk-con .warnbox { --pc: var(--wc); }
+.sk-con .warnbox .pi { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; padding: 9px 12px; font: 12px var(--fv); background: color-mix(in srgb, var(--wc) 8%, var(--panel)); }
+.sk-con .warnbox .g { color: var(--wc); }
+.sk-con .warnbox b { font: 600 12.5px var(--fl); letter-spacing: .04em; color: var(--bright); }
+.sk-con .menu { --pc: var(--hair); min-width: 286px; }
+.sk-con .menu > .pi { padding: 4px 0 8px; --pf: var(--panel); }
+.sk-con .menu .mh { padding: 8px 14px 9px; box-shadow: inset 0 -1px 0 var(--faint); margin-bottom: 4px; display: grid; gap: 1px; }
+.sk-con .menu .mh b { font: 700 12.5px var(--fl); letter-spacing: .14em; text-transform: uppercase; color: var(--bright); }
+.sk-con .menu .mh span { font: 11px var(--fv); color: var(--dim); }
+.sk-con .menu .mi { position: relative; display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; gap: 8px; padding: 3px 14px; align-items: center; font: 600 11px var(--fl); letter-spacing: .12em; text-transform: uppercase; color: var(--fg); }
+.sk-con .menu .mi:hover, .sk-con .menu .mi.cur { background: var(--panel2); color: var(--bright); }
+.sk-con .menu .mi .g { color: var(--dim); } .sk-con .menu .mi .g .ms { font-size: 16px; }
+.sk-con .menu .mi .k { font: 11.5px var(--fv); color: var(--dim); letter-spacing: 0; text-transform: none; }
+.sk-con .menu .mi.red { color: var(--alert); } .sk-con .menu .mi.red .g { color: var(--alert); }
+.sk-con .menu hr { border: 0; height: 1px; background: var(--faint); margin: 4px 0; }
+.sk-con .menu .sub { color: var(--dim); }
+.sk-con .snav { width: 214px; padding: 12px 8px; display: grid; gap: 1px; align-content: start; box-shadow: inset -1px 0 0 var(--faint); }
+.sk-con .snav h6 { margin: 10px 8px 5px; }
+.sk-con .snav h6:first-child { margin-top: 0; }
+.sk-con .snav .ri { grid-template-columns: 18px minmax(0, 1fr); font-size: 12px; }
+.sk-con .scope { display: flex; gap: 8px; align-items: center; margin: 2px 4px 6px; padding: 5px 9px; box-shadow: inset 0 0 0 1px var(--hair); font: 12px var(--fv); }
+.sk-con .srow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 14px; align-items: center; padding: 9px 12px; background: var(--bg); box-shadow: inset 0 0 0 1px var(--faint); }
+.sk-con .srow b { font: 600 12.5px var(--fl); letter-spacing: .06em; color: var(--bright); }
+.sk-con .srow small { grid-column: 1; font: 11.5px var(--fv); color: var(--dim); }
+.sk-con .srow .ctl2 { grid-row: 1 / 3; grid-column: 2; }
+.sk-con .sw { width: 32px; height: 14px; position: relative; display: inline-block; box-shadow: inset 0 0 0 1px var(--hair); }
+.sk-con .sw::after { content: ""; position: absolute; top: 3px; left: 3px; width: 8px; height: 8px; background: var(--dim); }
+.sk-con .sw.on { background: var(--ac2); box-shadow: inset 0 0 0 1px var(--accent); }
+.sk-con .sw.on::after { left: auto; right: 3px; background: var(--accent); }
+.sk-con .pick { display: grid; gap: 6px; }
+.sk-con .pick .opt2 { display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 8px; padding: 7px 10px; box-shadow: inset 0 0 0 1px var(--faint); background: var(--bg); font: 600 12px var(--fl); letter-spacing: .04em; }
+.sk-con .pick .opt2.on { box-shadow: inset 0 0 0 1px var(--accent); }
+.sk-con .pick .opt2 i { width: 9px; height: 9px; box-shadow: inset 0 0 0 1px var(--dim); margin-top: 4px; }
+.sk-con .pick .opt2.on i { background: var(--accent); box-shadow: none; }
+.sk-con .pick .opt2 small { display: block; color: var(--dim); font: 11px var(--fv); letter-spacing: 0; }
+/* Neon: a glow on focused, running and arrived things only (DESIGN §5 Glow, rule 8) */
+.sk-con.neon .wf { filter: drop-shadow(0 0 9px color-mix(in srgb, var(--accent) 45%, transparent)); }
+.sk-con.neon .row.sel .fact b, .sk-con.neon .row.down .strip i.h { text-shadow: 0 0 10px var(--signal); box-shadow: 0 0 6px color-mix(in srgb, var(--signal) 70%, transparent); }
+.sk-con.neon .tab.on, .sk-con.neon .ri.on { text-shadow: 0 0 10px color-mix(in srgb, var(--accent) 70%, transparent); }
+</style>
+
+<main>
+  <header class="mast">
+    <div class="eyebrow">omaseed · board 41 · 2026-10-17 · #93 · draft for Diogo</div>
+    <h1>The whole app<span class="kn">全体</span></h1>
+    <p class="lede"><b>omaseed is something you glance at, not a spreadsheet you operate.</b> It opens on the questions people bring to a torrent client (does anything need me, what is arriving and when, what landed, am I giving back, what is resting) and answers each one in words before numbers. The window has one frame that never changes: <b>where you are</b> down the left, <b>what you are looking at</b> along the top in one sentence, <b>what is live</b> along the bottom. Columns, raw names, peers and keys are one step away, never on screen by default. The same design wears two skins: <b>Omarchy's</b>, quiet and monospace, following any theme; and <b>the console's</b>, BASELINE's plates, cuts, labels and lamps, for a desk that runs omarchy-console.</p>
+    <div class="flags">
+      <span class="flag hot">a proposal: nothing here is ruled</span>
+      <span class="flag">built from boards 39, 40 and today's main</span>
+      <span class="flag sig">two skins, one design</span>
+      <span class="flag">colours: omaseed --theme-roles, 4.5:1</span>
+      <span class="flag">example data</span>
+    </div>
+  </header>
+
+  <section>
+    <div class="shead"><h2><span class="ix">§1</span>Why 39 and 40 felt off</h2>
+      <p class="sub">My read of your "it still seems a bit off", not your words. Tell me where I'm wrong in the notes at the end.</p></div>
+    <div class="cards">
+      <div class="card"><div class="k">board 39</div><div class="t">Good content, crowded frame</div><p>Rows that speak, the story in details and the add sheet's checks were the strong part. But six layouts, each with its own chrome, were stacked onto a top bar that was already full, and the servers moved from layout to layout.</p></div>
+      <div class="card"><div class="k">board 40</div><div class="t">Placement without a point of view</div><p>Seven frames moved the same ten controls around. None of them said what the app is <i>for</i>, so each looked like today's window rearranged. A frame should follow from a thesis, not be the thesis.</p></div>
+      <div class="card"><div class="k">board 41</div><div class="t">One idea, finished everywhere</div><p>This board picks one direction, carries it through every surface (frame, library, add, settings, menu, actions, details), and draws it twice so the look and the design can be judged separately. You take what you want from here.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="shead"><h2><span class="ix">§2</span>Five laws</h2>
+      <p class="sub">Short enough to check a screen against, as BASELINE's rules are.</p></div>
+    <div class="cards">
+      <div class="card"><div class="k">law 1</div><div class="t">Questions, not columns</div><p>The rail's first group is the five questions. "Library" shows every torrent grouped under them. A status word like "stalledUP" never reaches the screen.</p></div>
+      <div class="card"><div class="k">law 2</div><div class="t">One frame, always</div><p>Rail left, title top, status line bottom, in every layout and width. The servers live at the rail's foot and nowhere else. A layout changes only the content.</p></div>
+      <div class="card"><div class="k">law 3</div><div class="t">Words first</div><p>Each row says the one thing that matters on the right ("7 min", "2.4×", "files missing") and one sentence under the name. The numbers are in details.</p></div>
+      <div class="card"><div class="k">law 4</div><div class="t">Keys on demand</div><p>Menus, tooltips, the palette and <code>?</code> teach the keys. Nothing else paints them. Holding <code>alt</code> shows every key on the controls for as long as it's held.</p></div>
+      <div class="card"><div class="k">law 5</div><div class="t">Calm until it needs you</div><p>Colour marks what needs you and what is moving. Motion only for work in progress. A window with nothing wrong reads as still.</p></div>
+    </div>
+  </section>
+
+  <section id="mock">
+    <div class="shead"><h2><span class="ix">§3</span>The window</h2>
+      <p class="sub">Live. Click the rail, a row (opens details), right-click a row (the menu), <b>+ add</b>, the omaseed mark (the app menu), the details' tabs. The strip below switches the rest. <b>Both</b> puts the two skins side by side.</p></div>
+    <div class="ctl" id="ctl">
+      <div class="grp"><span>skin</span><button class="tog" data-set="skin" data-v="oma">Omarchy</button><button class="tog" data-set="skin" data-v="con">Console</button><button class="tog" data-set="skin" data-v="both">Both</button></div>
+      <div class="grp"><span>surface</span><button class="tog" data-set="surface" data-v="library">library</button><button class="tog" data-set="surface" data-v="details">details</button><button class="tog" data-set="surface" data-v="add">add</button><button class="tog" data-set="surface" data-v="settings">settings</button><button class="tog" data-set="surface" data-v="menu">menu</button><button class="tog" data-set="surface" data-v="actions">actions</button></div>
+      <div class="grp" id="subgrp"></div>
+      <div class="grp"><span>display</span><button class="tog" data-set="display" data-v="rows">rows</button><button class="tog" data-set="display" data-v="table">table</button><button class="tog" data-set="display" data-v="overview">overview</button></div>
+      <div class="grp"><span>theme</span><button class="tog" data-set="theme" data-v="baseline">baseline</button><button class="tog" data-set="theme" data-v="tokyo-night">tokyo night</button><button class="tog" data-set="theme" data-v="frieren">frieren</button><button class="tog" data-set="theme" data-v="gruvbox">gruvbox</button><button class="tog" data-set="theme" data-v="everforest">everforest</button><button class="tog" data-set="theme" data-v="catppuccin-latte">latte</button></div>
+      <div class="grp"><span>width</span><button class="tog" data-set="width" data-v="full">full</button><button class="tog" data-set="width" data-v="narrow">720 px</button></div>
+      <div class="grp"><span>servers</span><button class="tog" data-set="servers" data-v="2">two</button><button class="tog" data-set="servers" data-v="1">one</button></div>
+      <div class="grp"><span>home</span><button class="tog" data-set="server" data-v="ok">answers</button><button class="tog" data-set="server" data-v="down">didn't answer</button><button class="tog" data-set="server" data-v="refused">refused sign-in</button></div>
+      <div class="grp"><span>keys</span><button class="tog" data-set="keys" data-v="demand">on demand</button><button class="tog" data-set="keys" data-v="all">alt held</button></div>
+      <div class="grp only-con" id="glowgrp"><span>glow</span><button class="tog" data-set="glow" data-v="clean">clean</button><button class="tog" data-set="glow" data-v="neon">neon</button></div>
+    </div>
+    <div class="stages" id="stages"></div>
+    <p class="note" id="snote"></p>
+  </section>
+
+  <section>
+    <div class="shead"><h2><span class="ix">§4</span>Surface by surface</h2>
+      <p class="sub">What each surface takes from board 39, board 40 and today's main, and what is new. Click a title to show it above.</p></div>
+    <div class="cards" id="surfcards"></div>
+  </section>
+
+  <section>
+    <div class="shead"><h2><span class="ix">§5</span>Two skins</h2>
+      <p class="sub">Same rail, same rows, same sheets, same keys. The skin decides form: type, containers, how progress, state and selection are drawn, and motion. Colours always come from the Omarchy theme in both.</p></div>
+    <div class="tablewrap"><table class="t">
+      <thead><tr><th>Aspect</th><th>Omarchy</th><th>Console (BASELINE)</th></tr></thead>
+      <tbody>
+        <tr><td>Type</td><td>The Omarchy monospace face everywhere, sentence case, weights for hierarchy.</td><td>Chakra Petch for labels (upper case, tracked .16 em, titles .22 em), Share Tech Mono for values (never tracked), kana beside headers in the signal colour.</td></tr>
+        <tr><td>Containers</td><td>Square. Hairlines at 12 %, fills at 4 / 8 / 18 / 22 %. The window keeps Hyprland's border.</td><td>Plates cut by rule: floating panels top-right and bottom-left (16 px), keys and buttons 10 / 8 px, the window 12 px on every corner. Hairline at fg 21 %, panel at lighter 45 %.</td></tr>
+        <tr><td>Colour budget</td><td>omaseed's state colours: downloading blue, seeding green, checking yellow, queued magenta, stalled orange, error red.</td><td>70 / 20 / 10: neutral; the signal (cyan) for data and anything arriving; the accent only for selected or needs you. Alert only for failure; warn for work being checked; seeding in the theme's green as "done".</td></tr>
+        <tr><td>Progress</td><td>A thin piece strip in the state colour, a half tone for pieces arriving.</td><td>Cells (dead cells at tier 2), a 10-cell meter for speed in the status line.</td></tr>
+        <tr><td>State</td><td>A glyph and a word.</td><td>Material Symbols Sharp and a verb; checking runs the four-block cycle; failure glitches once; stopped is hatched (withheld); a torrent with no seed and a list from a server that stopped answering are worn (dim, a ghost).</td></tr>
+        <tr><td>Selection</td><td>The theme's selected fill.</td><td>The panel2 fill and brackets that lock on the corners.</td></tr>
+        <tr><td>Status line</td><td>One line: server, speeds, count, free space, sync.</td><td>The glimpse's three lanes at 1 : 1.6 : 1: the server, the speeds with a meter, disk and sync.</td></tr>
+        <tr><td>Overview display</td><td>Shelves: one shelf per category, each cover two letters over the torrent's own piece grid.</td><td>The station: categories as rows with a plate in the gutter, torrents as cards, the dot grid, a specials band (needs you, next, resting) fixed on the right. <b>Where the console changes structure:</b> only here, because the station is how the console already shows "everything at once".</td></tr>
+        <tr><td>Motion</td><td>Fades, 120–180 ms.</td><td>Assemble, then rest; arrive once (600 ms flicker); decode on change; glitch only on failure; Neon adds glow only to focused and running things. Reduced motion is fades in both.</td></tr>
+      </tbody>
+    </table></div>
+    <div class="cards">
+      <div class="card"><div class="k">Omarchy skin bends</div><div class="t">Nothing of v2's rules</div><p>It changes v2's <i>structure</i> (§7) but keeps every theme rule in docs/ARCHITECTURE.md: Theme roles only, the four fills, hairlines at 12 %, base-size, the Omarchy font.</p></div>
+      <div class="card"><div class="k">Console skin bends</div><div class="t">Six v2 rules</div><ul><li>Solid fills above 22 % (the accent's buttons, the lamp, selected chips).</li><li>Cut corners, against "square".</li><li>Three faces that aren't the Omarchy font (OFL and Apache 2.0, from Google Fonts, as the console installs them).</li><li>Upper-case tracked labels and kana.</li><li>The state colours give way to the console's role budget.</li><li>Motion beyond fades (decode, flicker, the block cycle).</li></ul></div>
+      <div class="card"><div class="k">Issue #1, docs/09</div><div class="t">An earlier "Console"</div><p>docs/09 drew four opt-in styles; its "Console" came from another reference (TRA). This console is your own BASELINE instead. If G10 is a, it takes docs/09's Console slot and reads <code>console-skin.json</code> as the console kit does; Label, Pass and Mission stay parked in #1.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="shead"><h2><span class="ix">§6</span>From the three boards</h2>
+      <p class="sub">Every idea from 39 and 40, and what 41 does with it, so you can mix.</p></div>
+    <div class="tablewrap"><table class="t">
+      <thead><tr><th>Idea</th><th>From</th><th>In 41</th><th>Note</th></tr></thead>
+      <tbody id="mixrows"></tbody>
+    </table></div>
+  </section>
+
+  <section>
+    <div class="shead"><h2><span class="ix">§7</span>What this would replace</h2>
+      <p class="sub">Listed, not decided. Each needs your ruling, and each "yes" becomes its own build board as before.</p></div>
+    <div class="cards">
+      <div class="card"><div class="t">v2's hero</div><p>The hero (mark, server line, speeds, tabs, filter and five buttons) becomes the title bar: a title, its sentence, filter, display and add. v2 stays frozen; a ruling here supersedes it in DECISIONS.</p></div>
+      <div class="card"><div class="t">The rail's status group</div><p>The status filters (all, downloading, seeding, completed, stopped, active, stalled, checking, errored) become the five questions. Every status stays reachable by the filter (<code>/is:stalled</code>) and the palette.</p></div>
+      <div class="card"><div class="t">The view tabs (#24)</div><p>library, seed and log move to the rail's first rows; <code>`</code> and <code>~</code> stay.</p></div>
+      <div class="card"><div class="t">C12's hero ▾ and the footer's words</div><p>The servers stay where C12 put them (the rail's foot) and keep <code>ctrl+s</code>; the hero's "NAME ▾" goes with the hero, and the footer's key hints go (law 4). C12's ErrorWords and the notice's words stay.</p></div>
+      <div class="card"><div class="t">docs/35 N1</div><p>The notice spans the content under the title, not the window; the rail beside it stays usable (as board 40's F10 a).</p></div>
+      <div class="card"><div class="t">The selection bar</div><p>While torrents are selected, the status line becomes the action bar (§4 actions). The floating bar goes.</p></div>
+      <div class="card"><div class="t">The details' tabs</div><p>General, Files, Trackers, Peers, Web seeds become Story, Files, Swarm, Trackers, Facts. Today's General rows live in Facts; web seeds join Trackers.</p></div>
+      <div class="card"><div class="t">Board 39's D-calls and board 40's F-calls</div><p>If you rule here, 39's D1–D8 and 40's F1–F10 close as "superseded by 41" except what §6 marks kept.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="shead"><h2><span class="ix">§8</span>Your calls</h2>
+      <p class="sub">My recommendation is preselected in each. Change what you like, add notes, copy the block and paste it into a session.</p></div>
+    <div id="dec"></div>
+    <div class="ansrow">
+      <textarea id="answers" readonly aria-label="Your answers, ready to copy"></textarea>
+      <button class="copy" id="copy">copy the answers</button><span id="copied" class="sub" hidden>copied</span>
+    </div>
+  </section>
+</main>
+
+<script>
+(() => {
+"use strict";
+const THEMES = {
+  "baseline": {"bg":"#121316","dbg":"#0d0e10","lbg":"#1d1f23","fg":"#c4c7cc","dim":"#797d86","bright":"#f2f2ec","accent":"#efdf3c","sel":"#3e3c1e","muted":"#37393c","red":"#ff4f5e","yellow":"#f2a33a","green":"#7fd08a","blue":"#6f9cf0","magenta":"#c88df0","cyan":"#45c6dc","orange":"#f9794c","sDown":"#6f9cf0","sSeed":"#7fd08a","sCheck":"#f2a33a","sQueue":"#c88df0","sStall":"#f9794c","sErr":"#ff4f5e","sStop":"#797d86","light":false,"fs":0.13},
+  "tokyo-night": {"bg":"#1a1b26","dbg":"#13141c","lbg":"#24283b","fg":"#a9b1d6","dim":"#7982a9","bright":"#c0caf5","accent":"#7aa2f7","sel":"#292e42","muted":"#414868","red":"#f7768e","yellow":"#e0af68","green":"#9ece6a","blue":"#7aa2f7","magenta":"#ad8ee6","cyan":"#449dab","orange":"#eb927b","sDown":"#7aa2f7","sSeed":"#9ece6a","sCheck":"#e0af68","sQueue":"#ad8ee6","sStall":"#eb927b","sErr":"#f7768e","sStop":"#7982a9","light":false,"fs":0.18},
+  "frieren": {"bg":"#11111b","dbg":"#0d0d14","lbg":"#292932","fg":"#b9c5ef","dim":"#8b94b3","bright":"#cbd4f3","accent":"#5492f8","sel":"#292932","muted":"#272833","red":"#ee5681","yellow":"#f6d58c","green":"#7dd676","blue":"#5492f8","magenta":"#b47ff3","cyan":"#63d5c2","orange":"#f16f94","sDown":"#5492f8","sSeed":"#7dd676","sCheck":"#f6d58c","sQueue":"#b47ff3","sStall":"#f16f94","sErr":"#ee5681","sStop":"#8b94b3","light":false,"fs":0.18},
+  "gruvbox": {"bg":"#282828","dbg":"#1e1e1e","lbg":"#3c3836","fg":"#d4be98","dim":"#9c8c77","bright":"#d4be98","accent":"#7daea3","sel":"#504945","muted":"#665c54","red":"#ea6962","yellow":"#d8a657","green":"#a9b665","blue":"#7daea3","magenta":"#d3869b","cyan":"#89b482","orange":"#e1875c","sDown":"#7daea3","sSeed":"#a9b665","sCheck":"#d8a657","sQueue":"#d3869b","sStall":"#e1875c","sErr":"#ea6962","sStop":"#9c8c77","light":false,"fs":0.18},
+  "everforest": {"bg":"#2d353b","dbg":"#21272c","lbg":"#343f44","fg":"#d3c6aa","dim":"#a09c8d","bright":"#d3c6aa","accent":"#7fbbb3","sel":"#3d484d","muted":"#475258","red":"#e67e80","yellow":"#dbbc7f","green":"#a7c080","blue":"#7fbbb3","magenta":"#d699b6","cyan":"#83c092","orange":"#e09d7f","sDown":"#7fbbb3","sSeed":"#a7c080","sCheck":"#dbbc7f","sQueue":"#d699b6","sStall":"#e09d7f","sErr":"#e67e80","sStop":"#a09c8d","light":false,"fs":0.18},
+  "catppuccin-latte": {"bg":"#eff1f5","dbg":"#e3e4e8","lbg":"#dce0e8","fg":"#4c4f69","dim":"#696d83","bright":"#4c4f69","accent":"#2164ec","sel":"#ccd0da","muted":"#acb0be","red":"#d20f39","yellow":"#87684a","green":"#467949","blue":"#2164ec","magenta":"#8a5e90","cyan":"#2c7786","orange":"#b54e3b","sDown":"#2164ec","sSeed":"#467949","sCheck":"#87684a","sQueue":"#8a5e90","sStall":"#b54e3b","sErr":"#d20f39","sStop":"#696d83","light":true,"fs":0.18},
+};
+
+const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const S = { skin: "oma", surface: "library", display: "rows", theme: "baseline", width: "full", servers: "2", server: "ok", keys: "demand", glow: "clean",
+  scope: "all", sel: "cosmos", add: "film", set: "speed", menu: "one", act: "delete", tab: "story" };
+
+/* ---------- data (examples) ---------- */
+const Q = [
+  { id: "needs", name: "needs you", kana: "要対応", ic: "error", g: "!" },
+  { id: "arriving", name: "arriving", kana: "受信中", ic: "download", g: "↓" },
+  { id: "landed", name: "landed today", kana: "完了", ic: "inventory_2", g: "✓" },
+  { id: "giving", name: "giving back", kana: "シード中", ic: "upload", g: "↑" },
+  { id: "resting", name: "resting", kana: "停止中", ic: "pause", g: "■" },
+];
+const CATS = [["linux", "blue", "/data/torrents/linux", "28.4 GB"], ["movies", "magenta", "/data/torrents/movies", "12.0 GB"], ["apps", "green", "/data/torrents/apps", "1.1 GB"], ["data", "yellow", "/data/torrents/data", "105.7 GB"], ["music", "orange", "/data/torrents/music", "4.4 GB"]];
+const T = [
+  { id: "tos", q: "needs", st: "err", name: "Tears of Steel", meta: "2012 · 2160p", raw: "Tears.of.Steel.2012.2160p.WEB-DL", cat: "movies", tr: "academictorrents.com", pct: 100, fact: "files missing", cap: "needs you", say: "the folder is gone from /data/torrents/movies", fix: "set location", size: "6.21 GB", dn: "0", up: "0", eta: "∞", ratio: "1.12", sp: "31 / 0", two: "TS" },
+  { id: "arch", q: "arriving", st: "down", name: "Arch Linux", meta: "2026.10.01 · x86_64", raw: "archlinux-2026.10.01-x86_64.iso", cat: "linux", tr: "archlinux.org", pct: 49, fact: "3 min", cap: "to ready", say: "49 % of 1.31 GB · from 21 seeds and 42 peers", size: "1.31 GB", dn: "1.12 MB/s", up: "116 KB/s", eta: "3 min", ratio: "0.04", sp: "21 / 42", two: "AL" },
+  { id: "cosmos", q: "arriving", st: "down", name: "Cosmos Laundromat", meta: "2015 · 2160p · WEB-DL", raw: "Cosmos.Laundromat.2015.2160p.WEB-DL.CC-BY", cat: "movies", tr: "academictorrents.com", pct: 87, fact: "7 min", cap: "to ready", say: "87 % of 1.84 GB · from 40 seeds at 940 KB/s", size: "1.84 GB", dn: "940 KB/s", up: "22 KB/s", eta: "7 min", ratio: "0.21", sp: "40 / 12", two: "CL", one: true },
+  { id: "fedora", q: "arriving", st: "down", name: "Fedora Workstation 44", meta: "live · x86_64", raw: "Fedora-Workstation-Live-x86_64-44", cat: "linux", tr: "fedoraproject.org", pct: 12, fact: "19 min", cap: "to ready", say: "12 % of 2.34 GB · from 8 seeds and 19 peers", size: "2.34 GB", dn: "1.81 MB/s", up: "0", eta: "19 min", ratio: "0.00", sp: "8 / 19", two: "FW" },
+  { id: "wiki", q: "arriving", st: "down", name: "Wikipedia (English)", meta: "articles · 1 Oct 2026", raw: "enwiki-20261001-pages-articles-multistream", cat: "data", tr: "opentrackr.org", pct: 61, fact: "51 min", cap: "to ready", say: "61 % of 24.7 GB · from 14 seeds and 9 peers", size: "24.7 GB", dn: "3.20 MB/s", up: "402 KB/s", eta: "51 min", ratio: "0.03", sp: "14 / 9", two: "WP" },
+  { id: "debian", q: "arriving", st: "down", name: "Debian 13.1.0", meta: "DVD 1 · amd64", raw: "debian-13.1.0-amd64-DVD-1.iso", cat: "linux", tr: "opentrackr.org", pct: 3, fact: "2 h 41", cap: "to ready", say: "3.1 % of 3.98 GB · from 3 seeds and 6 peers", size: "3.98 GB", dn: "410 KB/s", up: "0", eta: "2 h 41", ratio: "0.00", sp: "3 / 6", two: "DB" },
+  { id: "nix", q: "arriving", st: "stall", name: "NixOS 26.05", meta: "minimal · x86_64", raw: "nixos-minimal-26.05-x86_64-linux.iso", cat: "linux", tr: "opentrackr.org", pct: 23, fact: "waiting", cap: "no seed", say: "no seed online · one was last seen 2 h ago", size: "1.10 GB", dn: "0", up: "0", eta: "∞", ratio: "0.00", sp: "0 / 2", two: "NX" },
+  { id: "ele", q: "arriving", st: "check", name: "Elephants Dream", meta: "2006 · 1080p · BluRay", raw: "Elephants.Dream.2006.1080p.BluRay.x264", cat: "movies", tr: "academictorrents.com", pct: 64, fact: "checking", cap: "64 %", say: "making sure the files on disk are whole", size: "820 MB", dn: "0", up: "0", eta: "40 s", ratio: "1.02", sp: "0 / 0", two: "ED" },
+  { id: "spring", q: "arriving", st: "meta", name: "Spring", meta: "2019 · 2160p", raw: "magnet: Spring.2019.2160p.Blender", cat: "movies", tr: "opentrackr.org", pct: 0, fact: "finding files", cap: "magnet", say: "asking 12 peers for the file list", size: "—", dn: "0", up: "0", eta: "∞", ratio: "—", sp: "0 / 12", two: "SP" },
+  { id: "omarchy", q: "arriving", st: "queue", name: "Omarchy 4.0.4", meta: "x86_64", raw: "omarchy-4.0.4-x86_64.iso", cat: "linux", tr: "opentrackr.org", pct: 0, fact: "next", cap: "in line", say: "starts when a download slot frees", size: "1.62 GB", dn: "0", up: "0", eta: "∞", ratio: "0.00", sp: "4 / 0", two: "OM" },
+  { id: "sintel", q: "landed", st: "seed", name: "Sintel", meta: "2010 · 1080p", raw: "Sintel.2010.1080p.BluRay.x264-CC", cat: "movies", tr: "academictorrents.com", pct: 100, fact: "09:12", cap: "landed", say: "in movies · 1.20 GB · given back 0.4× so far", size: "1.20 GB", dn: "0", up: "96 KB/s", eta: "—", ratio: "0.41", sp: "22 / 3", two: "SI" },
+  { id: "lo", q: "landed", st: "seed", name: "LibreOffice 26.8.1", meta: "Linux · x86_64 · rpm", raw: "LibreOffice_26.8.1_Linux_x86-64_rpm", cat: "apps", tr: "opentrackr.org", pct: 100, fact: "08:40", cap: "landed", say: "in apps · 278 MB · given back 1.1× so far", size: "278 MB", dn: "0", up: "0", eta: "—", ratio: "1.10", sp: "9 / 0", two: "LO" },
+  { id: "ubuntu", q: "giving", st: "seed", name: "Ubuntu 26.04.1", meta: "desktop · amd64", raw: "ubuntu-26.04.1-desktop-amd64.iso", cat: "linux", tr: "opentrackr.org", pct: 100, fact: "2.4×", cap: "given", say: "sending 610 KB/s to 4 peers · 14.9 GB given", size: "6.21 GB", dn: "0", up: "610 KB/s", eta: "—", ratio: "2.40", sp: "4 / 31", two: "UB" },
+  { id: "bbb", q: "giving", st: "seed", name: "Big Buck Bunny", meta: "2008 · 2160p · 60 fps", raw: "Big.Buck.Bunny.2008.2160p.60fps.CC", cat: "movies", tr: "academictorrents.com", pct: 100, fact: "3.1×", cap: "given", say: "sending 160 KB/s to 2 peers · 31.6 GB given", size: "10.2 GB", dn: "0", up: "160 KB/s", eta: "—", ratio: "3.10", sp: "58 / 2", two: "BB" },
+  { id: "blender", q: "giving", st: "seed", name: "Blender 5.1.0", meta: "linux · x64", raw: "blender-5.1.0-linux-x64.tar.xz", cat: "apps", tr: "opentrackr.org", pct: 100, fact: "0.8×", cap: "given", say: "sending 178 KB/s to 3 peers · 1.0× in about 2 h", size: "386 MB", dn: "0", up: "178 KB/s", eta: "—", ratio: "0.80", sp: "17 / 3", two: "BL" },
+  { id: "osm", q: "resting", st: "stop", name: "planet-261005", meta: "OpenStreetMap · .osm.pbf", raw: "planet-261005.osm.pbf", cat: "data", tr: "opentrackr.org", pct: 100, fact: "stopped", cap: "1.2×", say: "stopped by you on 12 Oct · 81 GB on disk", size: "81.0 GB", dn: "0", up: "0", eta: "—", ratio: "1.20", sp: "12 / 0", two: "PL" },
+  { id: "kevin", q: "resting", st: "stop", name: "Kevin MacLeod", meta: "Royalty Free Collection", raw: "Kevin MacLeod - Royalty Free Collection", cat: "music", tr: "academictorrents.com", pct: 100, fact: "stopped", cap: "0.6×", say: "stopped by the queue · 4.4 GB on disk", size: "4.40 GB", dn: "0", up: "0", eta: "—", ratio: "0.60", sp: "5 / 0", two: "KM" },
+];
+const byId = Object.fromEntries(T.map(t => [t.id, t]));
+const ST = { err: ["sErr", "error", "!"], down: ["sDown", "download", "↓"], stall: ["sStall", "hourglass_empty", "◌"], check: ["sCheck", "sync", "↻"], meta: ["sDown", "link", "⋯"], queue: ["sQueue", "low_priority", "≡"], seed: ["sSeed", "upload", "↑"], stop: ["sStop", "pause", "■"] };
+const VERB_OMA = { err: "error", down: "downloading", stall: "stalled", check: "checking", meta: "metadata", queue: "queued", seed: "seeding", stop: "stopped" };
+const VERB = { err: "failed", down: "receiving", stall: "no seed", check: "checking", meta: "finding files", queue: "queued", seed: "seeding", stop: "stopped" };
+const SERV = [{ id: "home", n: 17, addr: "127.0.0.1:8080" }, { id: "nas", n: 42, addr: "nas.local:8080" }];
+
+function rng(seed) { let h = 2166136261; for (const c of seed) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return () => ((h = Math.imul(h ^ (h >>> 13), 1274126177) >>> 0) / 4294967296); }
+function pieces(t, n) {
+  // runs, not noise: smooth a random field, then keep the top pct % as pieces you have
+  const r = rng(t.id + n), raw = Array.from({ length: n }, () => r()), sm = raw.map((_, i) => { let a = 0, c = 0; for (let j = i - 3; j <= i + 3; j++) if (j >= 0 && j < n) { a += raw[j]; c++; } return a / c; });
+  const sorted = [...sm].sort((a, b) => b - a), have = Math.round(n * t.pct / 100), cut = have ? sorted[Math.min(n - 1, have - 1)] : Infinity;
+  const arr = t.st === "down" ? sorted[Math.min(n - 1, have + Math.round(n * .06))] : cut;
+  return sm.map((v, i) => {
+    if (t.st === "meta") return "";
+    if (t.pct >= 100) return "h";
+    if (v >= cut) return "h";
+    if (t.st === "down" && v >= arr) return "a";
+    if (t.one && i > n * .5 && raw[i] > .78) return "o";
+    return "";
+  });
+}
+/* ---------- small helpers ---------- */
+let K = false; // console skin while rendering
+const ic = (name, glyph) => K ? `<i class="ms" aria-hidden="true">${name}</i>` : `<span aria-hidden="true">${glyph}</span>`;
+const lab = (text, kana) => K ? `<span class="lab">${text}${kana ? `<span class="kn">${kana}</span>` : ""}</span>` : `<span class="lab2">${text}</span>`;
+const kb = k => `<span class="kb">${k}</span>`;
+const scol = t => `var(--${ST[t.st][0]})`;
+const conCol = t => ({ err: "var(--alert)", down: "var(--signal)", stall: "var(--dim)", check: "var(--warn)", meta: "var(--signal)", queue: "var(--dim)", seed: "var(--ok)", stop: "var(--dim)" })[t.st];
+const col = t => K ? conCol(t) : scol(t);
+const strip = (t, n = 48) => `<span class="strip" aria-hidden="true">${pieces(t, n).map(s => `<i class="${s}"></i>`).join("")}</span>`;
+const pad = (s) => K ? String(s).replace(/^(\d)(\s|$)/, "0$1$2") : s;
+const inScope = t => S.scope === "all" || t.q === S.scope || t.cat === S.scope;
+const serverState = () => S.server;
+const nServers = () => +S.servers;
+
+/* ---------- the rail ---------- */
+function rail(narrow) {
+  const R = [];
+  R.push(`<button class="mark" data-a="appmenu" aria-label="omaseed menu">${K ? `<span class="logo">OS</span><b>omaseed</b><span class="car">${ic("expand_more", "▾")}</span>` : `<span class="logo">o</span><b>omaseed</b><span class="car">▾</span>`}${kb("ctrl+.")}</button>`.replace("<b>omaseed</b>", narrow ? "" : "<b>omaseed</b>").replace(/<span class="car">.*?<\/span>/, narrow ? "" : "$&"));
+  const v = [["library", "view_agenda", "≡", "library", "ライブラリ"], ["seed", "volunteer_activism", "↑", "seed console", ""], ["log", "history", "~", "log", ""]];
+  R.push(`<div class="views">${v.map(([id, i, g, name], k) => `<button class="ri ${k === 0 && S.scope === "all" ? "on" : ""}" data-scope="${k === 0 ? "all" : ""}"><span class="g">${ic(i, g)}</span>${narrow ? "" : `<span class="ell">${name}</span><span class="n">${k === 0 ? pad("17") : ""}${k === 1 ? kb("`") : ""}${k === 2 ? kb("~") : ""}</span>`}</button>`).join("")}</div>`);
+  R.push(`<div class="rscroll">`);
+  R.push(`<div class="rg">${narrow ? "" : `<h6>${K ? lab("now", "") : "now"}</h6>`}${Q.map(q => {
+    const n = T.filter(t => t.q === q.id).length;
+    return `<button class="ri ${q.id === "needs" ? "needs" : ""} ${S.scope === q.id ? "on" : ""}" data-scope="${q.id}" title="${q.name}"><span class="g">${q.id === "needs" && K ? `<span class="lamp"></span>` : ic(q.ic, q.g)}</span>${narrow ? "" : `<span class="ell">${q.name}</span><span class="n">${pad(n)}</span>`}</button>`;
+  }).join("")}</div>`);
+  if (!narrow) {
+    R.push(`<div class="rg"><h6>${K ? lab("categories", "カテゴリ") : "categories"}</h6>${CATS.map(([c, cc]) => `<button class="ri ${S.scope === c ? "on" : ""}" data-scope="${c}" style="--c:var(--${cc})"><span class="${K ? "tick" : "tick"}"></span>${K ? "" : ""}<span class="ell">${c}</span><span class="n">${pad(T.filter(t => t.cat === c).length)}</span></button>`).join("").replace(/<span class="tick"><\/span>/g, K ? `<span class="tick"></span><span></span>` : `<span class="tick"></span>`)}</div>`);
+    R.push(`<div class="rg"><h6>${K ? lab("trackers", "トラッカー") : "trackers"}</h6>${[["academictorrents.com", 7], ["opentrackr.org", 8], ["+ 2 more", ""]].map(([h, n]) => `<button class="ri"><span class="g">${ic("radar", "·")}</span><span class="ell">${h}</span><span class="n">${n === "" ? "" : pad(n)}</span></button>`).join("")}</div>`);
+  } else {
+    R.push(`<div class="rg"><button class="ri" title="categories, trackers, tags"><span class="g">${ic("category", "▤")}</span></button></div>`);
+  }
+  R.push(`</div>`);
+  if (nServers() > 1) {
+    const st = serverState();
+    R.push(`<div class="srv">${narrow ? "" : `<h6>${K ? lab("servers", "サーバー") : "<span>servers · 2</span>"}<span>${K ? `<span class="v" style="font-size:12px;color:var(--dim)">02</span>` : "▾"}</span></h6>`}${SERV.map((s, i) => {
+      const cls = i === 0 ? (st === "down" ? "down" : st === "refused" ? "ref" : "") : "off";
+      const n = i === 0 ? (st === "ok" ? pad(s.n) : st === "down" ? "down" : "!") : pad(s.n);
+      return `<button class="ri ${i === 0 ? "on" : ""}" title="${s.id}"><span class="dot ${cls}"></span>${narrow ? "" : `<span class="ell">${s.id}</span><span class="n">${n}</span>`}</button>`;
+    }).join("")}${narrow ? "" : `<span style="position:relative">${kb("ctrl+s")}</span>`}</div>`);
+  }
+  return `<nav class="rail" aria-label="where">${R.join("")}</nav>`;
+}
+
+/* ---------- the title bar ---------- */
+function titleBar(narrow) {
+  const st = serverState();
+  let h = "Library", kana = "ライブラリ", sub = "1 needs you · 9 arriving, the next in 3 min · 2 landed today · giving back 948 KB/s";
+  const q = Q.find(q => q.id === S.scope), c = CATS.find(c => c[0] === S.scope);
+  if (q) { h = q.name[0].toUpperCase() + q.name.slice(1); kana = q.kana;
+    sub = { needs: "one torrent waits for a fix · nothing else is wrong", arriving: "9 torrents · the next ready in 3 min, the last in about 2 h 41 · 7.48 MB/s", landed: "2 since midnight · both seeding", giving: "3 torrents at 948 KB/s · 49.7 GB given this month · ratio 1.6", resting: "2 torrents · 85.4 GB on disk · not sharing" }[q.id]; }
+  if (c) { h = c[0]; kana = "カテゴリ"; sub = `${T.filter(t => t.cat === c[0]).length} torrents · ${c[3]} in ${c[2]} · 1.34 TB free there`; }
+  if (st === "down") sub = "the list is from 11:52 · home isn't answering";
+  if (st === "refused") sub = "the list is from 11:52 · home refused the sign-in";
+  const disp = { rows: ["view_agenda", "rows"], table: ["table_rows", "table"], overview: ["grid_view", K ? "station" : "shelves"] }[S.display];
+  const tool = (cls, inner, k) => K ? `<button class="tool pn key ${cls}"><span class="pi">${inner}</span>${k ? kb(k) : ""}</button>` : `<button class="tool ${cls}">${inner}${k ? kb(k) : ""}</button>`;
+  return `<header class="top"><div class="tt"><h1>${h}${K ? `<span class="kn">${kana}</span>` : ""}</h1><p class="ell">${sub}</p></div>
+    ${narrow ? tool("", ic("search", "/"), "/") : tool("find", `${K ? ic("search", "") : "/"} filter <span class="c" style="margin-left:auto">17</span>`, "/")}
+    ${tool("disp", `${ic(disp[0], "≡")}${narrow ? "" : ` ${disp[1]} <span class="c">${K ? ic("expand_more", "") : "▾"}</span>`}`, "")}
+    ${tool("add", `${ic("add", "+")}${narrow ? "" : " add"}`, "a")}</header>`;
+}
+
+/* ---------- the notice (C12 / docs/35 words) ---------- */
+function notice() {
+  const st = serverState(); if (st === "ok") return "";
+  const two = nServers() > 1;
+  const nc = st === "down" ? "var(--yellow)" : "var(--red)";
+  const head = st === "down" ? "home didn't answer" : "home refused the sign-in";
+  const line = st === "down" ? "Nothing is listening at 127.0.0.1:8080. The list below is from 11:52. omaseed tries again in 10 s." : "qBittorrent turned down the saved login. Nothing is retried until you change it.";
+  const acts = (st === "down" ? ["retry now"] : ["edit login"]).concat(two ? ["switch server"] : []);
+  const inner = `${K ? `<span class="stl">${st === "down" ? "no signal" : "refused"}</span>` : `<span class="g">!</span>`}<b>${head}</b><span class="acts">${acts.map(a => `<button>${a}</button>`).join("")}<button class="d">details ›</button></span><span class="ln">${line}</span>`;
+  return K ? `<div class="notice pn" style="--nc:${nc}" role="status"><div class="pi">${inner}</div></div>` : `<div class="notice" style="--nc:${nc}" role="status">${inner}</div>`;
+}
+
+/* ---------- content: rows, table, overview ---------- */
+function rowHtml(t, opts = {}) {
+  const sel = S.sel === t.id && S.surface !== "actions" && !(S.surface === "menu" && S.menu === "many"), picked = (S.surface === "actions" || (S.surface === "menu" && S.menu === "many")) && ["arch", "fedora", "debian"].includes(t.id);
+  const cls = ["row", t.q === "needs" ? "needs" : "", t.st === "seed" ? "seed" : "", t.st === "stop" ? "rest" : "", t.st === "err" ? "err" : "", t.st === "down" ? "down" : "", t.st === "stall" && K ? "worn" : "", sel ? "sel" : "", picked ? "picked" : ""].join(" ");
+  let factB = pad(t.fact), cap = t.cap;
+  if (K && t.st === "check") cap = `${t.cap}<span class="blocks"></span>`;
+  const say = t.fix ? `<span class="ell">${t.say}</span><span class="fix">${t.fix}</span>` : `<span class="ell">${t.say}</span>`;
+  return `<div class="${cls}" data-id="${t.id}" style="--sc:${col(t)}" tabindex="-1">
+    <span class="st">${ic(ST[t.st][1], ST[t.st][2])}</span>
+    <div class="l1"><b class="nm">${t.name}</b><span class="mt">${t.meta}</span></div>
+    <div class="fact"><b>${factB}</b><span>${cap}</span></div>
+    <div class="l2">${strip(t, opts.n || 48)}${say}</div></div>`;
+}
+function rows(narrow) {
+  const list = T.filter(inScope), out = [];
+  for (const q of Q) {
+    const g = list.filter(t => t.q === q.id); if (!g.length) continue;
+    const s = { needs: "one fix waits", arriving: "next ready in 3 min", landed: "since midnight", giving: "948 KB/s · ratio 1.6", resting: "not sharing" }[q.id];
+    out.push(`<div class="gh ${q.id === "needs" ? "needs" : ""}">${K ? lab(q.name, q.kana) : `<span>${q.name}</span>`}<span class="n">${K ? pad(g.length) : "· " + g.length}</span><span class="s">${narrow ? "" : s}</span></div>`);
+    out.push(g.map(t => rowHtml(t, { n: narrow ? 30 : 48 })).join(""));
+  }
+  return `<div class="rows${serverState() !== "ok" ? " worn" : ""}">${out.join("")}</div>`;
+}
+function table(narrow) {
+  const list = T.filter(inScope);
+  const cols = narrow ? [["Name", "44%"], ["Progress", "24%"], ["ETA", "14%", "r"], ["Ratio", "18%", "r"]] : [["Name", "27%"], ["Size", "9%", "r"], ["Progress", "15%"], ["Status", "13%"], ["↓", "10%", "r"], ["↑", "10%", "r"], ["ETA", "8%", "r"], ["Ratio", "8%", "r"]];
+  const pb = t => K ? `<span class="pbar">${pieces(t, 10).map(s => `<i class="${s === "h" ? "h" : ""}"></i>`).join("")}</span>` : `<span class="pbar"><i style="width:${t.pct}%"></i></span>`;
+  const cell = (t, c) => ({ Name: `<td class="nm2">${t.raw}</td>`, Size: `<td class="r">${t.size}</td>`, Progress: `<td style="--sc:${col(t)}">${pb(t)}${t.pct} %</td>`, Status: `<td style="color:${col(t)}">${K ? `<span class="verb">${VERB[t.st]}</span>` : VERB_OMA[t.st]}</td>`, "↓": `<td class="r">${t.dn}</td>`, "↑": `<td class="r">${t.up}</td>`, ETA: `<td class="r">${t.eta}</td>`, Ratio: `<td class="r">${t.ratio}</td>` })[c[0]];
+  return `<table class="tbl${serverState() !== "ok" ? " worn" : ""}"><colgroup>${cols.map(c => `<col style="width:${c[1]}">`).join("")}</colgroup><thead><tr>${cols.map(c => `<th class="${c[2] || ""}">${c[0]}</th>`).join("")}</tr></thead><tbody>${list.map(t => `<tr class="trw ${S.sel === t.id ? "sel" : ""}" data-id="${t.id}">${cols.map(c => cell(t, c)).join("")}</tr>`).join("")}</tbody></table>`;
+}
+function overview(narrow) {
+  const cats = CATS.filter(c => T.some(t => t.cat === c[0] && inScope(t)));
+  if (!K) {
+    return `<div class="ovw">${cats.map(([c, cc, path, size]) => `<div class="shelf"><h5><b>${c}</b>${T.filter(t => t.cat === c).length} · ${size}</h5><div class="covers">${T.filter(t => t.cat === c && inScope(t)).map(t => `<button class="cover ${S.sel === t.id ? "sel" : ""} ${t.q === "needs" ? "needs" : ""}" data-id="${t.id}" style="--sc:${col(t)}"><div class="art"><div class="grid">${pieces(t, 60).map(s => `<i class="${s === "h" ? "h" : ""}"></i>`).join("")}</div><div class="ab2">${t.two}</div></div><div class="cn ell">${t.name}</div><div class="cf ell">${t.fact}</div></button>`).join("")}</div></div>`).join("")}</div>`;
+  }
+  const selCat = byId[S.sel]?.cat;
+  return `<div class="ovw"><div class="sthead"><span class="lab" style="color:var(--bright)">station<span class="kn">ステーション</span></span><span class="find2">type to find</span><span class="place">${String(CATS.findIndex(c => c[0] === selCat) + 1).padStart(2, "0")} · ${selCat} · ${byId[S.sel].name}</span>${narrow ? "" : `<span class="keys">↑↓ roll · ←→ pick · ↵ open · esc close</span>`}</div>
+    <div class="strows">${cats.map(([c, cc], i) => `<div class="strow"><div class="plate pn ${c === selCat ? "on" : ""}" style="--c:var(--${cc})"><div class="pi"><span class="pnum">${String(CATS.findIndex(x => x[0] === c) + 1).padStart(2, "0")}</span><span class="pname">${c}</span><span class="pc2">${pad(T.filter(t => t.cat === c).length)} torrents</span></div></div><div class="cards">${T.filter(t => t.cat === c && inScope(t)).map(t => `<button class="card pn ${S.sel === t.id ? "sel" : ""} ${t.q === "needs" ? "needs" : ""} ${t.st === "stop" ? "rest" : ""}" data-id="${t.id}" style="--sc:${col(t)}"><div class="pi"><div class="grid">${pieces(t, 54).map(s => `<i class="${s === "h" ? "h" : ""}"></i>`).join("")}</div><div class="two">${t.two}</div><div class="cf">${t.fact}</div></div></button>`).join("")}</div></div>`).join("")}</div>
+    ${narrow ? "" : `<div class="specials">${[["needs you", "Tears of Steel", "files missing · set location", "needs"], ["next ready", "Arch Linux", "in 3 min", ""], ["resting", "2 torrents", "85.4 GB · not sharing", ""]].map(([n, b, s, c]) => `<div class="spc pn ${c}"><div class="pi"><span class="pname">${n}</span><b>${b}</b><small>${s}</small></div></div>`).join("")}</div>`}</div>`;
+}
+
+/* ---------- details ---------- */
+function details(narrow) {
+  const t = byId[S.sel] || byId.cosmos; const cos = t.id === "cosmos";
+  const tabs = [["story", "story", "履歴"], ["files", "files", "ファイル"], ["swarm", "swarm", "スウォーム"], ["trackers", "trackers", "トラッカー"], ["facts", "facts", ""]];
+  const big = t.st === "down" ? t.eta : t.fact, bigCap = t.st === "down" ? "to ready" : t.cap;
+  const sentence = cos ? "From 40 seeds and 12 peers at 940 KB/s. More connections would help: you're at 63 of 100." : t.say[0].toUpperCase() + t.say.slice(1) + ".";
+  let body = "";
+  if (S.tab === "story") {
+    const pm = pieces(t, 34 * 9);
+    const n = pm.filter(s => s === "h").length;
+    body = `<h5>${K ? lab("pieces", "ピース") : "pieces"}<span class="v">${cos ? "1 842 of 2 112" : n + " of " + pm.length} · ${t.pct} %</span></h5>
+      <div class="pmap" style="--sc:${col(t)}">${pm.map(s => `<i class="${s}"></i>`).join("")}</div>
+      <div class="leg"><span><i style="background:${K ? "var(--signal)" : col(t)}"></i>have</span><span><i style="background:${K ? "var(--sg1)" : `color-mix(in srgb, ${col(t)} 45%, transparent)`}"></i>arriving</span><span><i style="background:${K ? "var(--warn)" : "var(--orange)"}"></i>only one peer has these</span></div>
+      <h5>${K ? lab("story", "履歴") : "story"}</h5>
+      <div class="tl">${(cos ? [["09:15", "", "Added from a magnet", "from Firefox · into movies, guessed from 6 of 6 films"], ["09:15", "", "Found the file list", "12 peers answered in 4 s"], ["09:40", "w", "Slowed by the turtle schedule", "300 KB/s until 10:00"], ["10:35", "n", "Ready in about 7 min", "38 pieces only one peer has: keep it open"]] : [["09:02", "", "Added", "into " + t.cat], ["10:20", "", t.say, ""]]).map(([tm, k, b, s]) => `<div><span class="tm">${tm}</span><span class="mk ${k}"></span><span>${K ? `<b>${b}</b>` : b}<small>${s}</small></span></div>`).join("")}</div>`;
+  } else if (S.tab === "files") {
+    const files = [["Cosmos.Laundromat.2015.2160p.mkv", "1.79 GB", 87, true], ["Subs/ · 3 languages", "142 KB", 100, true], ["poster.jpg", "2.1 MB", 100, true], ["Sample/sample.mkv", "48 MB", 0, false]];
+    body = `<h5>${K ? lab("files", "ファイル") : "files"}<span class="v">4 · 1.84 GB</span></h5><div class="fl">${files.map(([n, s, p, on]) => `<div class="f ${on ? "" : "off"}"><span class="ell">${n}</span><span>${on ? s : "skipped"}</span><span class="bar" style="--sc:${col(t)}">${K ? Array.from({ length: 24 }, (_, i) => `<i class="${i < p / 100 * 24 ? "h" : ""}"></i>`).join("") : `<i style="width:${p}%"></i>`}</span></div>`).join("")}</div>
+      <p style="font-size:11.5px;color:var(--dim)">space skips a file · enter opens it once it's whole</p>`;
+  } else if (S.tab === "swarm") {
+    const r = rng("sw"); const dots = Array.from({ length: 24 }, (_, i) => { const a = i / 24 * Math.PI * 2 + r() * .3, d = 30 + r() * 30; return [68 + Math.cos(a) * d, 68 + Math.sin(a) * d, i < 15]; });
+    body = `<h5>${K ? lab("swarm", "スウォーム") : "swarm"}<span class="v">40 seeds · 12 peers · 24 shown</span></h5>
+      <div class="swarm"><svg viewBox="0 0 136 136" width="136" height="136" aria-label="peers around you">${K ? "" : `<circle cx="68" cy="68" r="64" fill="none" stroke="var(--hair)"/>`}${K ? `<polygon points="10,0 136,0 136,126 126,136 0,136 0,10" fill="none" stroke="var(--hair)"/>` : ""}${dots.map(([x, y, s]) => `<line x1="68" y1="68" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" stroke="${s ? (K ? "var(--signal)" : "var(--green)") : (K ? "var(--hair)" : "var(--blue)")}" stroke-opacity=".45" stroke-dasharray="2 2"/><rect x="${(x - 2.5).toFixed(1)}" y="${(y - 2.5).toFixed(1)}" width="5" height="5" fill="${s ? (K ? "var(--signal)" : "var(--green)") : (K ? "var(--fg)" : "var(--blue)")}"/>`).join("")}<rect x="54" y="60" width="28" height="16" fill="var(--bg)" stroke="var(--accent)"/><text x="68" y="71.5" text-anchor="middle" font-size="9" fill="var(--bright)" font-family="inherit">you</text></svg>
+      <div class="where">${[["DE", 16], ["US", 11], ["BR", 7], ["NL", 5], ["JP", 4], ["+12", 8]].map(([c, n]) => `<span>${c}</span><span class="bar">${K ? Array.from({ length: 14 }, (_, i) => `<i class="${i < n / 16 * 14 ? "h" : ""}"></i>`).join("") : `<i style="width:${n / 16 * 100}%"></i>`}</span><span style="text-align:right">${n}</span>`).join("")}</div></div>
+      <p style="font-size:11.5px;color:var(--dim)">${cos ? "Most of the speed comes from 3 peers in Germany. 38 pieces live on one peer only." : "Peers appear while it is transferring."}</p>`;
+  } else if (S.tab === "trackers") {
+    body = `<h5>${K ? lab("trackers", "トラッカー") : "trackers"}<span class="v">1 working · 3 sources</span></h5><div class="trk">${[["ok", t.tr, "working · 40 seeds · next in 24 min"], ["ok", "DHT", "31 nodes"], ["ok", "PeX", "12 peers"], ["off", "LSD", "off for private torrents"]].map(([s, n, d]) => `<div><span class="dot ${s === "ok" ? "" : "off"}" style="${K ? "" : "border-radius:50%;width:7px;height:7px;background:" + (s === "ok" ? "var(--green)" : "var(--dim)")}"></span><span>${n}<br><small style="color:var(--dim)">${d}</small></span><span></span></div>`).join("")}</div>`;
+  } else {
+    const kv = [["size", t.size], ["done", t.pct + " %"], ["ratio", t.ratio], ["seeds / peers", t.sp], ["save path", (CATS.find(c => c[0] === t.cat) || [])[2] || ""], ["added", "today 09:15"], ["hash v1", "3aa9fc28d0bfcc56b2b60d067669fa655730e1"], ["created by", "qBittorrent v5.2.3"]];
+    body = `<h5>${K ? lab("facts", "") : "facts"}<span class="v">today's General</span></h5><dl class="kv">${kv.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("")}</dl>`;
+  }
+  const heroInner = `${K ? `<span class="eb">${VERB[t.st]}</span>` : ""}<span class="big" style="--sc:${col(t)}">${pad(big)}<span>${bigCap}</span></span><p>${sentence}</p>`;
+  return `<aside class="det" aria-label="details">
+    <div class="dh"><b class="ell">${t.name}</b><span class="raw ell">${t.raw}</span><button class="x" data-a="closedet">esc ×</button></div>
+    ${K ? `<div class="dhero pn"><div class="pi">${heroInner}</div></div>` : `<div class="dhero">${heroInner}</div>`}
+    <nav class="tabs">${tabs.map(([id, name]) => `<button class="tab ${S.tab === id ? "on" : ""}" data-tab="${id}">${name}</button>`).join("")}</nav>
+    <div class="tb">${body}</div></aside>`;
+}
+
+/* ---------- status line / action bar ---------- */
+function statusLine(narrow) {
+  const st = serverState();
+  if (S.surface === "actions") {
+    const acts = [["stop", "p"], ["recheck", "c"], ["location", "m"], ["category", "C"], ["tags", "t"], ["limits", "L"], ["delete", "d"]];
+    return `<footer class="status sel"><div><b>3 selected</b><span>· 7.63 GB</span></div><div style="${K ? "justify-content:center" : ""}">${(narrow ? acts.filter(a => ["stop", "location", "delete"].includes(a[0])) : acts).map(([a, k]) => `<button class="ab ${a === "delete" ? "red" : ""}" style="position:relative">${a}${kb(k)}</button>`).join("")}</div><div style="${K ? "" : "margin-left:auto"}"><button class="ab">all actions</button><button class="ab">esc</button></div></footer>`;
+  }
+  const dotc = st === "ok" ? "" : st === "down" ? "down" : "ref";
+  const srvName = `<span class="dot ${dotc}" style="${K ? "" : "display:inline-block"}"></span><b>home</b>${nServers() > 1 && !K ? "" : ""}`;
+  const dn = st === "ok" ? "7.48 MB/s" : "—", up = st === "ok" ? "948 KB/s" : "—";
+  if (K) {
+    const m = n => `<span class="m10">${Array.from({ length: 10 }, (_, i) => `<i class="${i < n ? "h" : ""}"></i>`).join("")}</span>`;
+    return `<footer class="status"><div>${srvName}<span>${st === "ok" ? "qbt 5.2.3" : st === "down" ? "no signal" : "refused"}</span></div><div><span class="dn">↓</span><b>${dn}</b>${st === "ok" ? m(7) : ""}<span class="up">↑</span><b>${up}</b>${st === "ok" ? m(2) : ""}</div><div>${narrow ? "" : "<span>1.34 TB free</span>"}<span>${st === "ok" ? "sync 00:02" : "list 11:52"}</span></div></footer>`;
+  }
+  return `<footer class="status"><span style="display:inline-flex;gap:7px;align-items:center">${srvName}</span><span class="dn">↓ ${dn}</span><span class="up">↑ ${up}</span>${narrow ? "" : `<span class="sep">·</span><span>17 torrents</span><span class="sep">·</span><span>1.34 TB free</span>`}<span class="sep">·</span><span>${st === "ok" ? "synced now" : "list from 11:52"}</span><span class="r">? keys</span></footer>`;
+}
+
+/* ---------- overlays ---------- */
+function panel(cls, inner, style = "") { return K ? `<div class="${cls} pn ov" style="${style}"><div class="pi">${inner}</div></div>` : `<div class="${cls} ov" style="${style}">${inner}</div>`; }
+function addSheet(W, H) {
+  const ex = S.add; const two = nServers() > 1;
+  const name = ex === "magnet" ? ["Spring", "2019 · 2160p", "magnet: Spring.2019.2160p.Blender"] : ["Night of the Living Dead", "1968 · 1080p · BluRay", "Night.of.the.Living.Dead.1968.1080p.BluRay.x264"];
+  const types = ex === "magnet" ? [] : ex === "program" ? [["video", 78, "var(--blue)", "7.9 GB"], ["subtitles", 3, "var(--green)", "210 KB"], ["sample", 8, "var(--dim)", "120 MB"], ["program", 11, "var(--red)", "setup.exe · 2.3 MB"]] : [["video", 86, "var(--blue)", "7.9 GB"], ["subtitles", 3, "var(--green)", "210 KB"], ["images", 3, "var(--magenta)", "3.1 MB"], ["sample", 8, "var(--dim)", "120 MB"]];
+  const tc = c => K ? ({ "var(--blue)": "var(--signal)", "var(--green)": "var(--sg1)", "var(--magenta)": "var(--sg2)", "var(--dim)": "var(--faint)", "var(--red)": "var(--alert)" })[c] : c;
+  const w = Math.min(620, W - 60);
+  const inner = `<div class="shh"><h4>${two ? "Add torrent to" : "Add torrent"}${K ? `<span class="kn">追加</span>` : ""}</h4>${two ? `<span class="chip on"><span class="dot ${serverState() === "ok" ? "" : "down"}" style="${K ? "" : "display:inline-block"}"></span>home ▾</span>` : ""}<span class="grow"></span><button class="btn ghost">esc</button></div>
+    <div class="shb">
+      ${serverState() !== "ok" ? warnbox("var(--yellow)", "!", "home isn't answering", "Free space is unknown. Add when back holds it and sends it when home answers.") : ""}
+      <div style="display:grid;gap:2px"><b style="font-size:${K ? 15 : 14}px;${K ? "font-family:var(--fl);letter-spacing:.08em;text-transform:uppercase" : ""};color:var(--bright)">${name[0]} <span style="color:var(--dim);font-weight:400;${K ? "font-family:var(--fv);text-transform:none;letter-spacing:0;font-size:12px" : "font-size:12px"}">${name[1]}</span></b><span style="font-size:11px;color:var(--dim);${K ? "font-family:var(--fv)" : ""}">${name[2]}</span></div>
+      ${ex === "magnet" ? `<div style="font-size:12px;color:var(--dim)">${K ? `<span class="verb" style="color:var(--signal)">finding files</span><span class="blocks"></span> ` : "⋯ "}asking 12 peers for the file list. The sheet fills in when one answers; you can add it now and pick files later.</div>`
+        : `<div style="display:grid;gap:6px"><div class="typebar">${types.map(([n, p, c]) => `<i style="flex:${p};background:${tc(c)}"></i>`).join("")}</div><div style="display:flex;flex-wrap:wrap;gap:4px 14px;font-size:11.5px;color:var(--dim)">${types.map(([n, p, c, s]) => `<span><i style="display:inline-block;width:8px;height:8px;background:${tc(c)};margin-right:5px"></i>${n} <span style="color:var(--fg)">${s}</span></span>`).join("")}<span style="margin-left:auto">8.1 GB · 7 files ›</span></div></div>`}
+      ${ex === "program" ? warnbox("var(--red)", "!", "A film with a program inside", "It says 1080p BluRay but carries setup.exe. Films never need one. omaseed left it unticked.") : ""}
+      <div class="field"><span>category</span><span style="display:flex;gap:6px;flex-wrap:wrap"><span class="chip on">movies</span><span style="font-size:11.5px;color:var(--dim);align-self:center">guessed: you put 6 of 6 films here</span></span></div>
+      <div class="field"><span>save to</span><span class="input"><span class="ell">/data/torrents/movies</span><span class="u">1.34 TB free</span></span></div>
+      <div class="field"><span>tags</span><span style="display:flex;gap:6px"><span class="chip">+ tag</span></span></div>
+      <div class="field"><span>when</span><span style="font-size:12px">${ex === "magnet" ? "ready time once the files are known" : `<b style="color:var(--bright);font-weight:500">ready in about 9 min</b> <span style="color:var(--dim)">at today's 7.5 MB/s, 31 seeds</span>`}</span></div>
+    </div>
+    <div class="shf"><span style="font-size:11.5px;color:var(--dim)">${two ? "to home · " : ""}starts now</span><span class="grow"></span><button class="btn">add stopped</button><button class="btn pri">${serverState() === "ok" ? "add" : "add when back"}</button></div>`;
+  return scrim() + panel("sheet", inner, `left:${(W - w) / 2}px;top:${narrow0 ? 40 : 70}px;width:${w}px;max-height:${H - 90}px`);
+}
+function warnbox(c, g, b, s) {
+  return K ? `<div class="warnbox pn" style="--wc:${c}"><div class="pi"><span class="g">${ic(c.includes("red") ? "error" : "warning", g)}</span><b>${b}</b><span></span><span>${s}</span></div></div>` : `<div class="warnbox" style="--wc:${c}"><span class="g">${g}</span><b>${b}</b><span></span><span style="color:var(--fg)">${s}</span></div>`;
+}
+const scrim = () => `<div class="scrim" data-a="close"></div>`;
+function settingsSheet(W, H) {
+  const omaNav = [["settings", "◎", "General"], ["dns", "▤", "Servers"], ["notifications", "◉", "Notifications"], ["keyboard", "⌨", "Keys"], ["palette", "◐", "Appearance", "appearance"], ["backup", "⛁", "Backup"], ["info", "i", "About"]];
+  const qNav = [["speed", "⇅", "Speed", "speed"], ["shield", "◌", "Discovery"], ["lan", "⇄", "Connection"], ["public", "→", "Proxy"], ["upload", "↑", "Seeding"], ["low_priority", "≡", "Queue"], ["folder_open", "▤", "Downloads"], ["terminal", "⌘", "Web UI"], ["tune", "◆", "Advanced"], ["backup", "⛁", "Backup"]];
+  const nav = (arr) => arr.map(([i, g, n, id]) => `<button class="ri ${S.set === id ? "on" : ""}" ${id ? `data-set2="${id}"` : ""}><span class="g">${ic(i, g)}</span><span class="ell">${n}</span></button>`).join("");
+  const narrow = W < 800;
+  let pane;
+  if (S.set === "speed") {
+    pane = `<div class="shh"><h4>Speed${K ? `<span class="kn">速度</span>` : ""}</h4><span class="grow"></span><span style="font-size:11.5px;color:var(--dim)">home's qBittorrent · saved as you change it</span></div>
+      <div class="shb">${[["Download limit", "For every torrent together. Empty means no limit.", "∞", "KB/s"], ["Upload limit", "", "∞", "KB/s"], ["Turtle download", "In force while turtle is on: A, the speeds in the status line, or the schedule below.", "10", "KB/s"], ["Turtle upload", "", "10", "KB/s"]].map(([b, s, v, u]) => `<div class="srow"><b>${b}</b>${s ? `<small>${s}</small>` : ""}<span class="ctl2 input" style="width:112px"><span>${v}</span><span class="u">${u}</span></span></div>`).join("")}
+      ${[["Schedule turtle", "qBittorrent switches to turtle by itself between two times.", false], ["Limit µTP too", "Apply the limits to µTP connections as well as TCP.", true]].map(([b, s, on]) => `<div class="srow"><b>${b}</b><small>${s}</small><span class="ctl2 sw ${on ? "on" : ""}"></span></div>`).join("")}</div>`;
+  } else {
+    pane = `<div class="shh"><h4>Appearance${K ? `<span class="kn">外観</span>` : ""}</h4><span class="grow"></span><span style="font-size:11.5px;color:var(--dim)">omaseed · on this computer</span></div>
+      <div class="shb"><div style="font-size:12px;color:var(--dim)">${K ? lab("skin", "") : "skin"}</div><div class="pick">${[["Follow the desktop", "The console when the Omarchy theme carries a console-skin.json (as omarchy-console's kit reads it), Omarchy otherwise.", true], ["Omarchy", "Quiet and monospace, in any theme.", false], ["Console", "BASELINE's plates, labels and lamps, in any theme.", false]].map(([b, s, on]) => `<div class="opt2 ${on ? "on" : ""}"><i></i><span>${b}<small>${s}</small></span></div>`).join("")}</div>
+      ${[["Follow the Omarchy theme", "Colours, font and transparency from the current theme.", true], ["Glow (console)", "Neon: a glow on focused and running things only. Follows fx.glow when the console is installed.", false]].map(([b, s, on]) => `<div class="srow"><b>${b}</b><small>${s}</small><span class="ctl2 sw ${on ? "on" : ""}"></span></div>`).join("")}</div>`;
+  }
+  const w = Math.min(820, W - 40), h = Math.min(600, H - 70);
+  const inner = `<div style="display:flex;height:100%;min-height:0">${narrow ? "" : `<div class="snav"><h6>${K ? lab("omaseed", "設定") : "omaseed"}</h6>${nav(omaNav)}<h6>${K ? lab("qbittorrent", "") : "qbittorrent"}</h6><div class="scope"><span class="dot" style="${K ? "" : "display:inline-block;border-radius:50%;width:7px;height:7px;background:var(--green)"}"></span>home<span style="margin-left:auto;color:var(--dim)">5.2.3 ▾</span></div>${nav(qNav)}</div>`}<div style="flex:1;min-width:0;display:flex;flex-direction:column">${pane}<div class="shf"><span style="font-size:11.5px;color:var(--dim)">${narrow ? "h l section · " : ""}esc closes</span></div></div></div>`;
+  return scrim() + panel("sheet", inner, `left:${(W - w) / 2}px;top:${(H - h) / 2}px;width:${w}px;height:${h}px`);
+}
+function menuHtml(kind) {
+  const mi = (i, g, n, k, cls = "", cur = false) => `<button class="mi ${cls} ${cur ? "cur" : ""}"><span class="g">${ic(i, g)}</span><span class="ell">${n}</span><span class="k">${k}</span></button>`;
+  if (kind === "app") {
+    return `<div class="mh"><b>omaseed</b><span>0.2.0+ · home · qBittorrent 5.2.3</span></div>
+      ${mi("settings", "◎", "settings", ",", "", true)}${mi("tune", "◆", "qBittorrent settings", "ctrl+shift+,")}${mi("speed", "⇅", "speed limits", "")}${mi("bolt", "◌", "turtle speeds", "A")}<hr>
+      ${mi("volunteer_activism", "↑", "seed console", "`")}${mi("history", "~", "log", "~")}${mi("terminal", ":", "commands", ":")}${mi("help", "?", "keys and help", "?")}<hr>
+      ${mi("close", "–", "hide window", "q")}${mi("close", "×", "quit omaseed", "ctrl+q")}`;
+  }
+  const many = kind === "many";
+  const head = many ? `<div class="mh"><b>3 torrents</b><span>7.63 GB · all arriving</span></div>` : `<div class="mh"><b>${byId[S.sel].name}</b><span>${(K ? VERB : VERB_OMA)[byId[S.sel].st]} · ${byId[S.sel].pct} % · ${byId[S.sel].cat}</span></div>`;
+  return `${head}
+    ${mi("pause", "■", many ? "stop 3" : "stop", "p", "", true)}${mi("refresh", "↻", "recheck", "c")}${mi("sync", "⟳", "reannounce", "R")}<hr>
+    ${mi("drive_file_move", "→", "set location…", "m")}${mi("category", "▤", "category ›", "C")}${mi("label", "#", "tags ›", "t")}${many ? "" : mi("edit", "✎", "rename…", "r")}<hr>
+    ${mi("speed", "⇅", "limits…", "L")}${mi("more_horiz", "⋯", "transfer ›", "", "sub")}${mi("low_priority", "≡", "queue ›", "", "sub")}<hr>
+    ${many ? "" : mi("folder_open", "▢", "open folder", "o")}${mi("content_copy", "⧉", "copy ›", "", "sub")}<hr>
+    ${mi("delete", "✕", many ? "delete 3…" : "delete…", "d", "red")}`;
+}
+function menuOverlay(W, H, kind) {
+  let x, y;
+  if (kind === "app") { x = 10; y = 50; }
+  else { x = Math.min(W - 310, (W > 900 ? 440 : 230)); y = 150; }
+  return `<div class="scrim" data-a="close" style="background:transparent"></div>` + panel("menu", menuHtml(kind), `left:${x}px;top:${y}px`);
+}
+function actionSheet(W, H) {
+  const w = Math.min(560, W - 60);
+  let inner;
+  if (S.act === "delete") {
+    inner = `<div class="shh"><h4>Delete 3 torrents?${K ? `<span class="kn">削除</span>` : ""}</h4></div><div class="shb">
+      <div style="font-size:12px">Arch Linux, Fedora Workstation 44, Debian 13.1.0 · <b>7.63 GB</b> on disk, none of it finished.</div>
+      <div class="pick">${[["Delete, keep the files", "The parts already downloaded stay in /data/torrents/linux.", false], ["Delete with the files", "7.63 GB freed. Nothing else uses them.", true]].map(([b, s, on]) => `<div class="opt2 ${on ? "on" : ""}"><i></i><span>${b}<small>${s}</small></span></div>`).join("")}</div>
+      ${warnbox("var(--yellow)", "!", "Debian has 3 seeds in the swarm", "Stopping it instead keeps your 3.1 % for later.")}</div>
+      <div class="shf"><button class="btn ghost">stop instead</button><span class="grow"></span><button class="btn">cancel</button><button class="btn red">delete 3 with files</button></div>`;
+  } else if (S.act === "location") {
+    inner = `<div class="shh"><h4>Move 3 torrents</h4></div><div class="shb">
+      <div class="field"><span>from</span><span style="font-size:12px">/data/torrents/linux</span></div>
+      <div class="field"><span>to</span><span class="input"><span class="ell">/mnt/archive/linux</span><span class="u">612 GB free</span></span></div>
+      <div class="srow"><b>Move the files too</b><small>7.63 GB, about 40 s on the same disk. Off: qBittorrent only looks there.</small><span class="ctl2 sw on"></span></div>
+      <div style="font-size:11.5px;color:var(--dim)">tab completes a folder · ↑ recent places</div></div>
+      <div class="shf"><span class="grow"></span><button class="btn">cancel</button><button class="btn pri">move 3</button></div>`;
+  } else if (S.act === "category") {
+    inner = `<div class="shh"><h4>Category for 3</h4></div><div class="shb">
+      <span class="input"><span style="color:var(--dim)">type a category or a new one</span></span>
+      <div class="pick">${[["linux", "all 3 are here now · /data/torrents/linux", true], ["apps", "/data/torrents/apps", false], ["data", "/data/torrents/data", false], ["none", "keeps the save path as it is", false]].map(([b, s, on]) => `<div class="opt2 ${on ? "on" : ""}"><i></i><span>${b}<small>${s}</small></span></div>`).join("")}</div>
+      <div class="srow"><b>Move files with automatic management</b><small>On: the files follow the category's folder.</small><span class="ctl2 sw on"></span></div></div>
+      <div class="shf"><span class="grow"></span><button class="btn">cancel</button><button class="btn pri">set</button></div>`;
+  } else {
+    inner = `<div class="shh"><h4>Limits for 3</h4></div><div class="shb">
+      ${[["Download", "each torrent · ∞ means the global limit", "∞", "KB/s"], ["Upload", "", "200", "KB/s"], ["Share until", "ratio, then stop", "1.0", "×"]].map(([b, s, v, u]) => `<div class="srow"><b>${b}</b>${s ? `<small>${s}</small>` : ""}<span class="ctl2 input" style="width:112px"><span>${v}</span><span class="u">${u}</span></span></div>`).join("")}
+      <div style="font-size:11.5px;color:var(--dim)">Global limits are in Settings › Speed.</div></div>
+      <div class="shf"><span class="grow"></span><button class="btn">cancel</button><button class="btn pri">set</button></div>`;
+  }
+  return scrim() + panel("sheet", inner, `left:${(W - w) / 2}px;top:120px;width:${w}px;max-height:${H - 160}px`);
+}
+
+/* ---------- the window ---------- */
+let narrow0 = false;
+function win(skin) {
+  K = skin === "con";
+  const narrow = S.width === "narrow"; narrow0 = narrow;
+  const W = narrow ? 720 : 1180, H = 760;
+  const showDet = S.surface === "details" || (S.surface === "menu" && !narrow && S.menu === "one");
+  let content = S.display === "rows" ? rows(narrow) : S.display === "table" ? table(narrow) : overview(narrow);
+  let ov = "";
+  if (S.surface === "add") ov = addSheet(W, H);
+  else if (S.surface === "settings") ov = settingsSheet(W, H);
+  else if (S.surface === "menu") ov = menuOverlay(W, H, S.menu);
+  else if (S.surface === "actions" && S.act !== "none") ov = actionSheet(W, H);
+  const keys = S.keys === "all";
+  return `<div class="wf" style="--W:${W}px;--H:${H}px"><div class="win ${narrow ? "narrow" : ""} ${keys ? "keys" : ""}">
+    ${rail(narrow)}
+    <div class="main">${titleBar(narrow)}${notice()}<div class="body"><div class="content">${content}</div>${showDet ? details(narrow) : ""}</div>${statusLine(narrow)}</div>
+    ${ov}</div></div>`;
+}
+
+/* ---------- stages ---------- */
+const SUB = {
+  add: ["add", [["film", "a film"], ["program", "a film with a program"], ["magnet", "a magnet"]]],
+  settings: ["set", [["speed", "qBittorrent › speed"], ["appearance", "omaseed › appearance"]]],
+  menu: ["menu", [["one", "one torrent"], ["many", "three selected"], ["app", "the app menu"]]],
+  actions: ["act", [["delete", "delete"], ["location", "set location"], ["category", "category"], ["limits", "limits"], ["none", "just the bar"]]],
+  details: ["tab", [["story", "story"], ["files", "files"], ["swarm", "swarm"], ["trackers", "trackers"], ["facts", "facts"]]],
+};
+const NOTES = {
+  library: "<b>Library, grouped by the five questions.</b> The rail's <b>now</b> group is the same five as scopes; categories and trackers below; the servers pinned at the foot (C12). The title says the scope in a sentence; the status line says what's live. Try <b>display</b>: rows, table, overview (shelves in Omarchy, the station in the console).",
+  details: "<b>Details as a story.</b> The one fact big, a sentence, then five tabs: <b>story</b> (the piece map that marks pieces only one peer has, and the torrent's life), <b>files</b> as size bars, <b>swarm</b> drawn around you, <b>trackers</b> with DHT and PeX, <b>facts</b> (today's General, every row kept).",
+  add: "<b>The add sheet.</b> Board 39's checks on C12's sheet: \"Add torrent to ● home ▾\" with two servers, what's inside as one bar by type, a category guessed from your past choices, a ready-time estimate, and a check for a film that carries a program. With home down: \"add when back\".",
+  settings: "<b>Settings</b> as C11 ruled it: omaseed's own sections, then the selected qBittorrent's behind its server chip. Appearance gains the skin: <b>follow the desktop</b> picks the console when the theme carries <code>console-skin.json</code>.",
+  menu: "<b>The right-click menu</b> (and enter on a row): the verbs grouped, keys right-aligned, delete last and apart. With three selected the counts move into the verbs. The omaseed mark opens the app menu: settings, help, the seed console, the log, quit.",
+  actions: "<b>Actions on a selection.</b> While torrents are selected, the status line becomes the action bar (no floating bar); each verb opens its sheet. The delete sheet keeps today's \"stop instead\" and the swarm warning.",
+};
+function sync() {
+  for (const b of $$("#ctl .tog")) b.setAttribute("aria-pressed", String(S[b.dataset.set] === b.dataset.v));
+  const sub = SUB[S.surface], sg = $("#subgrp");
+  sg.innerHTML = sub ? `<span>${S.surface}</span>` + sub[1].map(([v, n]) => `<button class="tog" data-sub="${sub[0]}" data-v="${v}" aria-pressed="${S[sub[0]] === v}">${n}</button>`).join("") : "";
+  sg.hidden = !sub;
+  if (S.skin === "oma") $("#glowgrp").setAttribute("data-off", ""); else $("#glowgrp").removeAttribute("data-off");
+}
+function render() {
+  sync();
+  const box = $("#stages"); const skins = S.skin === "both" ? ["oma", "con"] : [S.skin];
+  box.className = "stages" + (S.skin === "both" ? " both" : "");
+  box.innerHTML = skins.map(k => `<div class="stagebox"><div class="stagecap"><b>${k === "oma" ? "Omarchy" : "Console"}</b><span>${S.theme.replace("-", " ")} · ${S.width === "narrow" ? "720" : "1180"} × 760</span></div><div class="stage" data-stage="${k}"><div class="sc sk-${k} ${k === "con" && S.glow === "neon" ? "neon" : ""} ${S.width === "narrow" && (S.surface === "details") ? "narrow-det" : ""}">${win(k)}</div></div></div>`).join("");
+  applyTheme(); fit(); placeMenus();
+  $("#snote").innerHTML = NOTES[S.surface];
+}
+function placeMenus() {
+  if (S.surface !== "menu" || S.menu === "app") return;
+  for (const w of $$(".win")) {
+    const m = $(".menu", w), r = $(".row.sel, .row.picked", w); if (!m || !r) continue;
+    let y = 0, x = 0, el = r; while (el && el !== w) { y += el.offsetTop; x += el.offsetLeft; el = el.offsetParent; }
+    const c = $(".content", w); y -= c.scrollTop;
+    m.style.top = Math.max(8, Math.min(y + 30, w.clientHeight - m.offsetHeight - 8)) + "px";
+    m.style.left = Math.min(x + 180, w.clientWidth - m.offsetWidth - 8) + "px";
+  }
+}
+function applyTheme() {
+  const t = THEMES[S.theme];
+  for (const sc of $$(".stage .sc")) { for (const [k, v] of Object.entries(t)) if (k !== "light" && k !== "fs") sc.style.setProperty("--" + k, v); sc.style.setProperty("--fs", t.fs); }
+}
+function fit() {
+  for (const st of $$(".stage")) {
+    const sc = $(".sc", st), W = (S.width === "narrow" ? 720 : 1180) + 28, H = 760 + 28;
+    const s = Math.min(1, st.clientWidth / W);
+    sc.style.transform = `scale(${s})`; st.style.height = Math.ceil(H * s) + "px";
+  }
+}
+new ResizeObserver(fit).observe($("#stages"));
+
+/* ---------- interaction ---------- */
+$("#ctl").addEventListener("click", e => {
+  const b = e.target.closest(".tog"); if (!b) return;
+  if (b.dataset.set) S[b.dataset.set] = b.dataset.v;
+  if (b.dataset.sub) S[b.dataset.sub] = b.dataset.v;
+  render();
+});
+$("#stages").addEventListener("click", e => {
+  const a = e.target.closest("[data-a],[data-scope],[data-id],[data-tab],[data-set2],.tool.add,.tool.disp");
+  if (!a) return;
+  if (a.dataset.scope) { S.scope = a.dataset.scope; S.surface = "library"; }
+  else if (a.dataset.tab) S.tab = a.dataset.tab;
+  else if (a.dataset.set2) S.set = a.dataset.set2;
+  else if (a.dataset.id) { S.sel = a.dataset.id; S.surface = "details"; }
+  else if (a.classList.contains("add")) S.surface = "add";
+  else if (a.classList.contains("disp")) S.display = { rows: "table", table: "overview", overview: "rows" }[S.display];
+  else if (a.dataset.a === "appmenu") { S.surface = "menu"; S.menu = "app"; }
+  else if (a.dataset.a === "close" || a.dataset.a === "closedet") S.surface = "library";
+  render();
+});
+$("#stages").addEventListener("contextmenu", e => {
+  const r = e.target.closest("[data-id]"); if (!r) return; e.preventDefault();
+  S.sel = r.dataset.id; S.surface = "menu"; S.menu = "one"; render();
+});
+
+/* ---------- §4 surface cards ---------- */
+const SURF = [
+  ["library", "Frame and library", ["39: rows that speak, clean names, the one fact, Flow's grouping by question", "40: frame A (the rail navigates, views in the rail, speeds in a status line, keys on demand)", "today: categories, trackers, the servers block (C12), the filter", "new: the five questions as the rail's first group and as the library's groups"]],
+  ["details", "Details", ["39: the sentence, the piece map with one-peer pieces, the swarm drawn, the life as a timeline, files as bars", "today: every General row, kept under facts", "new: tabs renamed for what they answer"]],
+  ["add", "Add sheet", ["39: the type bar, the guessed category, ready in about N min, the program-in-a-film check", "today (C12): Add torrent to [server ▾], add when back", "dropped from 39: nothing"]],
+  ["settings", "Settings", ["today (C11): omaseed's sections, then the selected qBittorrent's, its server chip", "new: the skin under Appearance, following the desktop"]],
+  ["menu", "Right-click menu", ["today: ActionsMenu's verbs and keys", "new: grouped by what they touch, counts in the verbs for a selection, delete last; the app menu from the mark replaces settings, ⋯ and ? buttons"]],
+  ["actions", "Actions", ["today: the sheets (location, category, limits, delete with stop instead and the swarm warning)", "40: no painted keys", "new: the status line becomes the action bar while something is selected"]],
+];
+$("#surfcards").innerHTML = SURF.map(([id, t, items]) => `<div class="card"><button class="t" data-go="${id}" style="all:unset;cursor:pointer;font:600 13.5px var(--lab);letter-spacing:.12em;text-transform:uppercase;color:var(--bright)">${t} ↑</button><ul>${items.map(i => `<li>${i}</li>`).join("")}</ul></div>`).join("");
+$("#surfcards").addEventListener("click", e => { const b = e.target.closest("[data-go]"); if (!b) return; S.surface = b.dataset.go; render(); $("#mock").scrollIntoView({ behavior: "smooth" }); });
+
+/* ---------- §6 mix table ---------- */
+const MIX = [
+  ["Rows that speak (two lines, clean name, the one fact)", "39 L1", "kept", "The default content in both skins."],
+  ["Flow (an arrivals board by question)", "39 L2", "changed", "Its grouping became the library's groups and the rail's now group, not a separate layout."],
+  ["Shelves (drawn covers over the piece grid)", "39 L3", "changed", "The overview display in the Omarchy skin; the station in the console."],
+  ["Map (blocks sized by disk use)", "39 L4", "dropped", "Belongs in a disk view under data or resting, later."],
+  ["Places (categories and trackers as cards)", "39 L5", "changed", "Their facts (free space, health, a private tracker's ratio rule) moved into the title's sentence for that scope."],
+  ["Classic table", "39 L6", "kept", "A display option, remembered per scope."],
+  ["Six layouts behind a display button", "39 D1", "changed", "Three displays: rows, table, overview."],
+  ["Layout remembered per category or tracker", "39 D2", "kept", ""],
+  ["Details as a story, one-peer pieces, the swarm drawn", "39 §5", "kept", "Tabs: story, files, swarm, trackers, facts."],
+  ["The add sheet's type bar, guessed category, ready time, program check", "39 §6", "kept", "On C12's sheet."],
+  ["The scope line in place of the rail", "39 D7", "dropped", "Every display keeps the rail (40 F9 a)."],
+  ["Frame A: the sidebar navigates", "40 F1", "kept", "The base of 41's frame."],
+  ["Servers at the rail's foot in every layout and width", "40 F2", "kept", "As C12 has them; ctrl+s everywhere."],
+  ["Views as the rail's first rows", "40 F3", "kept", ""],
+  ["Speeds in a status line", "40 F4", "kept", "The console draws it as the glimpse's three lanes."],
+  ["Display beside the scope's name", "40 F5", "kept", ""],
+  ["One menu from the omaseed mark", "40 F6", "kept", "The app menu (ctrl+.)."],
+  ["Keys on demand, badges while alt is held", "40 F7", "kept", "Law 4."],
+  ["720 px: the rail folds to icons", "40 F8", "kept", "Details then open over the content."],
+  ["The notice spans the content", "40 F10", "kept", ""],
+  ["B · command first, C · panes, D · servers as places, E · Omarchy carries the live, F · pane headers", "40", "dropped", "D's strip is worth keeping in mind for five servers or more."],
+  ["The five questions as the rail's first group", "41", "new", ""],
+  ["The status line becomes the action bar", "41", "new", ""],
+  ["Two skins following the desktop (console-skin.json)", "41", "new", "Takes docs/09's Console slot (#1)."],
+];
+$("#mixrows").innerHTML = MIX.map(([i, f, v, n]) => `<tr><td>${i}</td><td>${f}</td><td><span class="tag ${{ kept: "kept", changed: "chg", dropped: "drop", new: "new" }[v]}">${v}</span></td><td>${n}</td></tr>`).join("");
+
+/* ---------- §8 decisions ---------- */
+const DEC = [
+  { id: "G1", q: "The direction", why: "Everything else follows from it.", opts: [["a", "41 is the target: build towards it, board by board", true], ["b", "41's frame and laws, with 39's six layouts as display options"], ["c", "Not yet: keep exploring (say what's missing in the notes)"]] },
+  { id: "G2", q: "The rail's first group", why: "Law 1. The status filters stay reachable by the filter and the palette.", opts: [["a", "The five questions (needs you, arriving, landed today, giving back, resting)", true], ["b", "Today's status list"], ["c", "The questions, with the status list folded under them"]] },
+  { id: "G3", q: "Library", why: "§3, library.", opts: [["a", "Grouped under the five questions", true], ["b", "One list, sorted as today"]] },
+  { id: "G4", q: "Displays", why: "39 had six.", opts: [["a", "Rows (default for new installs), table, overview; remembered per scope", true], ["b", "Rows and table only"], ["c", "Table stays the default; rows and overview are options"]] },
+  { id: "G5", q: "Details", why: "§3, details.", opts: [["a", "The story: one fact, a sentence, then story · files · swarm · trackers · facts", true], ["b", "Today's tabs, with the sentence and the piece map on top of General"]] },
+  { id: "G6", q: "The add sheet", why: "§3, add.", opts: [["a", "39's type bar, guessed category, ready time and program check, on C12's sheet", true], ["b", "Today's sheet; only the program check"]] },
+  { id: "G7", q: "Acting on a selection", why: "§3, actions.", opts: [["a", "The status line becomes the action bar", true], ["b", "Keep today's floating selection bar"]] },
+  { id: "G8", q: "The menus", why: "§3, menu.", opts: [["a", "Right-click and enter: grouped verbs, keys right-aligned, delete last; the omaseed mark opens the app menu", true], ["b", "Keep today's ActionsMenu and the hero's buttons"]] },
+  { id: "G9", q: "Keys", why: "Law 4, as 40's F7 recommended.", opts: [["a", "On demand (menus, tooltips, palette, ?), badges while alt is held", true], ["b", "Painted, as today"]] },
+  { id: "G10", q: "The skins", why: "§5. The console is yours; others may want it.", opts: [["a", "Both ship. Appearance › skin: follow the desktop (console when the theme has console-skin.json), Omarchy, Console", true], ["b", "Omarchy only; the console stays a mock"], ["c", "Console only, on your desk; Omarchy for everyone else"]] },
+  { id: "G11", q: "Glow", why: "BASELINE rule 8.", opts: [["a", "Clean only in omaseed", true], ["b", "Neon too, following the console's fx.glow"]] },
+  { id: "G12", q: "Build order", why: "Each step its own board first.", opts: [["a", "Frame (rail, title, status line), then library, details, add, menus and actions, then the console skin", true], ["b", "The console skin first, on today's layout"]] },
+];
+const dec = $("#dec");
+for (const d of DEC) {
+  const box = document.createElement("div"); box.className = "q";
+  box.innerHTML = `<fieldset><legend><span class="id">${d.id}</span> · ${d.q}</legend><p class="why">${d.why}</p>${d.opts.map(([v, l, rec]) => { const id = `${d.id}-${v}`; return `<label class="opt" for="${id}"><input id="${id}" type="radio" name="${d.id}" value="${v}" ${rec ? "checked" : ""}><span><b>${v}</b> · ${l}${rec ? '<span class="rec">recommended</span>' : ""}</span></label>`; }).join("")}</fieldset>`;
+  dec.append(box);
+}
+const notes = document.createElement("div"); notes.className = "q";
+notes.innerHTML = `<label for="free" style="color:var(--bright);font-weight:600">Anything else (what still feels off, a piece from 39 or 40 to bring back, something to kill)</label><textarea id="free"></textarea>`;
+dec.append(notes);
+function answers() {
+  const lines = ["docs/41 the whole app (2026-10-17):"];
+  for (const d of DEC) { const c = $(`input[name="${d.id}"]:checked`); lines.push(`${d.id} ${c ? c.value : "-"}`); }
+  const f = $("#free").value.trim(); if (f) lines.push("notes: " + f);
+  $("#answers").value = lines.join("\n");
+}
+dec.addEventListener("input", answers); answers();
+$("#copy").addEventListener("click", () => {
+  const ta = $("#answers"); const done = () => { $("#copied").hidden = false; setTimeout(() => $("#copied").hidden = true, 1600); };
+  if (navigator.clipboard?.writeText) navigator.clipboard.writeText(ta.value).then(done, () => ta.select()); else ta.select();
+});
+
+render();
+})();
+</script>
