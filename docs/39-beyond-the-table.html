@@ -5,14 +5,18 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap">
 <style>
 /* ------------------------------------------------------------------
-   docs/36: beyond the table, a discovery board (2026-10-16). No issue
-   yet, nothing ruled. Explores new layouts for the library, the
+   docs/39: beyond the table, a discovery board (2026-10-16; revised
+   2026-10-17 to match the window on main). No issue yet, nothing ruled. Explores new layouts for the library, the
    details and the add sheet. Board chrome: board 35's. The mocks are
    live JS at base 14 in Theme roles only (fills 4/8/18/22 %, hairlines
    12 %, the state colours as the app maps them, square corners, the
    monospace face); where a direction would bend a theme rule it says
    so in its verdict. The screenshot in §1 is real (v0.2.0, omabox,
    tokyo-night). Data is example data modelled on the playground.
+   The mock's colours are the app's own: `omaseed --theme-roles` (#76)
+   at cb08b91 for each of the six themes, with Q19's 4.5:1 floor
+   (docs/DECISIONS.md Q19, board 38). Faint text is gone (Q19: faint is
+   for disabled things only), so --t-faint reads as --t-dim.
    ------------------------------------------------------------------ */
 :root {
   --accent:#5492f8; --bg:#11111b; --bg-dark:#0d0d14;
@@ -99,24 +103,24 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, [tabindex]:fo
 /* ---------- the stage: Theme roles only, base 14 ---------- */
 .stage {
   --t-fg:#a9b1d6; --t-bg:#1a1b26; --t-accent:#7aa2f7; --t-red:#f7768e; --t-yellow:#e0af68;
-  --t-green:#9ece6a; --t-blue:#7aa2f7; --t-magenta:#ad8ee6; --t-cyan:#449dab; --t-orange:#ff9e64;
-  --t-bright: color-mix(in srgb, var(--t-fg) 100%, white 14%);
+  --t-green:#9ece6a; --t-blue:#7aa2f7; --t-magenta:#ad8ee6; --t-cyan:#449dab; --t-orange:#eb927b;
+  --t-bright:#c0caf5; --t-dim:#7982a9;
   --t-hair: color-mix(in srgb, var(--t-fg) 12%, transparent);
-  --t-dim: color-mix(in srgb, var(--t-fg) 62%, transparent);
-  --t-faint: color-mix(in srgb, var(--t-fg) 40%, transparent);
+  --t-faint: var(--t-dim);
   --t-border: color-mix(in srgb, var(--t-fg) 40%, transparent);
   --f4: color-mix(in srgb, var(--t-fg) 4%, transparent);
   --f8: color-mix(in srgb, var(--t-fg) 8%, transparent);
   --f18: color-mix(in srgb, var(--t-fg) 18%, transparent);
   --f22: color-mix(in srgb, var(--t-fg) 22%, transparent);
-  --s-dl: var(--t-blue); --s-seed: var(--t-green); --s-stall: var(--t-yellow); --s-err: var(--t-red);
-  --s-check: var(--t-cyan); --s-queue: var(--t-faint); --s-stop: var(--t-dim); --s-meta: var(--t-magenta); --s-done: var(--t-green);
+  /* the app's state roles (Torrent::stateRole): metadata reads as downloading */
+  --s-dl: var(--t-blue); --s-seed: var(--t-green); --s-stall: var(--t-orange); --s-err: var(--t-red);
+  --s-check: var(--t-yellow); --s-queue: var(--t-magenta); --s-stop: var(--t-dim); --s-meta: var(--t-blue); --s-done: var(--t-green);
   --cap:11.7px; --small:12.8px; --body:14px; --sub:15.2px; --title:16.3px; --head:18.7px; --disp:28px;
   color:var(--t-fg); font-family:var(--mono); font-size:var(--body); line-height:1.4;
   background:color-mix(in srgb, var(--t-bg) 70%, black); border:1px solid var(--hairline);
   padding:22px; display:flex; flex-wrap:wrap; gap:26px; align-items:start; overflow-x:auto;
 }
-.stage.light { --t-bright: color-mix(in srgb, var(--t-fg) 100%, black 22%); background:color-mix(in srgb, var(--t-bg) 86%, black); }
+.stage.light { background:color-mix(in srgb, var(--t-bg) 86%, black); }
 .stage figcaption { color:var(--fg-dark); }
 .stage .cap { font-size:var(--cap); letter-spacing:.08em; text-transform:uppercase; color:var(--t-dim); }
 .stage .cap.acc { color:var(--t-accent); }
@@ -126,7 +130,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, [tabindex]:fo
 
 /* the window */
 .win { position:relative; flex:none; display:flex; flex-direction:column; background:var(--t-bg); border:1px solid var(--t-accent); overflow:hidden; width:1180px; height:740px; }
-.hero { display:flex; align-items:center; gap:18px; padding:10px 16px; border-bottom:1px solid var(--t-hair); white-space:nowrap; flex:none; position:relative; }
+.hero { display:flex; align-items:center; gap:10px; padding:10px 16px; border-bottom:1px solid var(--t-hair); white-space:nowrap; flex:none; position:relative; }
 .hero .mark { width:24px; height:24px; border:1px solid var(--t-accent); color:var(--t-accent); display:grid; place-items:center; font-size:12px; flex:none; font-weight:700; }
 .hero .name { display:grid; gap:1px; }
 .hero .name b { color:var(--t-bright); font-size:var(--sub); font-weight:600; }
@@ -139,7 +143,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, [tabindex]:fo
 .views { display:flex; gap:14px; font-size:var(--body); color:var(--t-dim); }
 .views .on { color:var(--t-bright); box-shadow:inset 0 -2px 0 var(--t-accent); padding-bottom:3px; }
 .grow { flex:1; }
-.search { width:190px; border:1px solid var(--t-hair); padding:4px 9px; color:var(--t-faint); font-size:var(--small); display:flex; justify-content:space-between; }
+.search { width:172px; gap:8px; border:1px solid var(--t-hair); padding:4px 9px; color:var(--t-faint); font-size:var(--small); display:flex; justify-content:space-between; }
 .ib { min-width:26px; height:26px; border:1px solid var(--t-hair); display:grid; place-items:center; color:var(--t-dim); font-size:12px; flex:none; padding:0 7px; }
 .ib.primary { border-color:var(--t-accent); color:var(--t-accent); }
 .ib.disp { display:flex; gap:7px; align-items:center; color:var(--t-fg); font-size:var(--small); }
@@ -169,6 +173,48 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, [tabindex]:fo
 .rr.on { background:var(--f18); color:var(--t-bright); }
 .rr .g { color:var(--t-dim); font-size:12px; text-align:center; }
 .rr .c { color:var(--t-dim); font-size:var(--cap); font-variant-numeric:tabular-nums; }
+
+/* the servers, as main has them (C12, boards 33 and 35): pinned under the rail's scroll */
+.rail { padding:0; gap:0; }
+.rfil { flex:1; min-height:0; overflow:hidden; display:flex; flex-direction:column; gap:1px; padding-top:10px; }
+.rsrv { flex:none; border-top:1px solid var(--t-hair); background:var(--f4); padding:4px 0 6px; display:grid; gap:1px; }
+.rsrv .sh { display:flex; justify-content:space-between; align-items:center; padding:6px 14px 3px; width:100%; }
+.rsrv .sh .cap { padding:0; }
+.rsrv .sh .fold { color:var(--t-dim); font-size:var(--cap); }
+.rsrv .rr { width:100%; grid-template-columns:16px 1fr auto; }
+.rsrv .rr .c.down { color:var(--t-yellow); } .rsrv .rr .c.bad { color:var(--t-red); }
+.rsrv .folded { display:grid; grid-template-columns:16px auto 1fr auto; gap:8px; align-items:center; padding:7px 14px 5px; width:100%; color:var(--t-bright); }
+.rsrv .folded .c { color:var(--t-dim); font-size:var(--cap); text-align:right; }
+.sdot { width:7px; height:7px; border-radius:50%; display:inline-block; justify-self:center; }
+/* the new layouts have no rail: the servers' folded line sits at the scope line's right end */
+.scope .srvchip { margin-left:auto; display:inline-flex; gap:8px; align-items:center; padding:2px 9px; border:1px solid var(--t-hair); color:var(--t-bright); flex:none; }
+.scope .srvchip .n { color:var(--t-dim); font-size:var(--cap); }
+.hero .srv { cursor:pointer; }
+.hero .srv:hover { color:var(--t-fg); }
+
+/* the notice under the hero (docs/35 N1–N8, Kit/Notice): its own fill, the kind's rule */
+.notice { flex:none; position:relative; display:grid; grid-template-columns:22px minmax(0,1fr) auto; gap:2px 6px; padding:9px 16px 10px; background:var(--f4); border-bottom:1px solid var(--t-hair); }
+.notice::before { content:""; position:absolute; inset:0 auto 0 0; width:2px; background:var(--kc); }
+.notice .g { color:var(--kc); font-weight:700; }
+.notice .h { color:var(--t-bright); font-weight:500; }
+.notice .l { grid-column:2 / 3; color:var(--t-fg); font-size:var(--small); }
+.notice .a { grid-row:1; grid-column:3; display:flex; gap:14px; font-size:var(--small); color:var(--t-accent); white-space:nowrap; }
+.notice .a .d { color:var(--t-dim); }
+.wbody.stale .wmain { opacity:.55; }
+
+/* the server palette (ctrl+s, Views/ServerPalette) */
+.spal { width:600px; background:var(--t-bg); border:1px solid var(--t-accent); display:grid; font-size:var(--small); }
+.spal .ph { display:flex; gap:10px; align-items:center; padding:10px 14px; border-bottom:1px solid var(--t-hair); color:var(--t-dim); font-size:var(--body); }
+.spal .ph .grow { flex:1; } .spal .ph .n { font-size:var(--cap); }
+.spal .pr { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:2px 10px; padding:8px 14px; cursor:pointer; }
+.spal .pr:hover { background:var(--f8); }
+.spal .pr.cur { background:var(--f18); }
+.spal .pr b { color:var(--t-bright); font-weight:500; font-size:var(--body); }
+.spal .pr .s { grid-column:1 / -1; color:var(--t-dim); }
+.spal .pr .on { color:var(--t-dim); }
+.spal .pf { display:flex; gap:14px; padding:7px 14px; border-top:1px solid var(--t-hair); color:var(--t-dim); font-size:var(--cap); }
+.spal .pf b { color:var(--t-bright); font-weight:400; }
+.sheet .shd .to { display:inline-flex; gap:6px; align-items:center; margin-left:auto; text-transform:none; letter-spacing:0; color:var(--t-bright); border:1px solid var(--t-hair); padding:0 7px; }
 
 /* classic table */
 .ctab { width:100%; border-collapse:collapse; font-size:var(--body); font-variant-numeric:tabular-nums; table-layout:fixed; }
@@ -442,9 +488,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, [tabindex]:fo
 </style>
 <main>
   <header style="display:grid;gap:12px">
-    <div class="eyebrow">docs/36 · discovery for Diogo · 2026-10-16 · no issue yet · nothing here is ruled · boards 05–35 stay as they are</div>
+    <div class="eyebrow">docs/39 · discovery for Diogo · 2026-10-16, revised 2026-10-17 · no issue yet · nothing here is ruled · boards 05–38 stay as they are</div>
     <h1>Beyond the table</h1>
     <p class="lead">omaseed today is a very good torrent client that looks like every other torrent client, dressed in Omarchy. Transmission once felt like a revolution because each row said what was happening in plain words. Nobody has moved since. This board goes looking for the next step: new ways to see the library, the details of one torrent, and adding one, while keeping everything that makes omaseed feel like Omarchy (theme roles, the monospace face, square corners, the keyboard).</p>
+    <div class="note"><b>Revised 2026-10-17: brought in line with today's window.</b> The first version was drawn from the window before boards 33, 35 and 38 were built. Now the mock has: two servers, with the servers block pinned under classic's rail (fold with <code>z</code>), the ▾ by the server's name, and the <code>ctrl+s</code> switcher (C12); the notice band, stale list and footer when the server stops answering, yellow while omaseed retries and red when it needs you (docs/35, C12), with buttons above the window to try both; "Add torrent to" a server in the arrival sheet, with "add when back" while it's down (C12); the log view in the hero (board 32), the settings button and <code>:</code> commands in the footer; and every colour as the app resolves it in each of the six themes, at the 4.5:1 floor (Q19 amended, board 38). That last change also makes stalled orange, checking yellow, queued magenta and a magnet's metadata blue, as the app has them. Faint text is gone, because Q19 keeps faint for disabled things. <b>One placement is new and unruled:</b> the new layouts have no rail, so their servers sit at the end of the scope line. Each layout's own board settles it. The ideas themselves are unchanged. Renumbered from 36, because the engines board on the <code>engines</code> branch is 36.</div>
     <p class="dim" style="font-size:12px">§1 says why every client looks the same. §2 is what other apps do better. §3 sets five questions a client should answer before it shows any mechanism. <b>§4 is a live window</b>: switch layouts with "display" (or <code>v</code> once you've clicked into it), click any torrent to open its story, press "+" to add one. §5–§11 take each idea apart with what it costs. §12 is how it would reach the app (opt-in or not), §13 what the API already gives, and §14 your calls. The theme switch repaints every mock.</p>
   </header>
   <nav class="themes" aria-label="Theme of the mocks">
@@ -513,6 +560,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, [tabindex]:fo
   <section id="s4">
     <div class="sec-head"><div class="eyebrow">4 · try it</div><h2>One window, six layouts</h2></div>
     <p>A working mock at base 14, 1180 × 740. <b>"display"</b> in the hero picks the layout, the grouping and what each row shows; click into the window and press <code>v</code> to cycle layouts. <b>Click a torrent</b> for its story. <b>"+"</b> opens the arrival sheet. The scope line (categories as chips, then trackers) replaces the four-list rail in every new layout; "classic" keeps today's rail and table.</p>
+    <p>The window has <b>two servers</b>, home and nas, as main does since boards 33 and 35 (C12): the server's name in the hero has a ▾, <code>ctrl+s</code> opens the switcher, classic's rail keeps the servers in a block pinned under its scroll (<code>z</code> folds it), and the new layouts, which have no rail, put the same folded line at the scope line's right end. The buttons below make the server you're on stop answering, so you can see the notice band, the stale list and the footer the app shows then.</p>
+    <div class="togbar"><span>the server you're on</span><button type="button" data-srvst="live" aria-pressed="true">answers</button><button type="button" data-srvst="down" aria-pressed="false">didn't answer (omaseed retries: yellow)</button><button type="button" data-srvst="refused" aria-pressed="false">refused the sign-in (needs you: red)</button></div>
     <div class="stage" data-stage>
       <figure><div id="win" class="win" tabindex="0" aria-label="omaseed mock window"></div>
       <figcaption id="wincap"></figcaption></figure>
@@ -693,6 +742,17 @@ const CATS = [
 ];
 const HUE = Object.fromEntries(CATS.map(c => [c.id, c.hue]));
 const TRACKERS = ["academictorrents.com","opentrackr.org","archlinux.org","fedoraproject.org","debian.org","torrent.ubuntu.com"];
+/* the servers (docs/DECISIONS.md C12): two, so the rail's block, the hero's ▾ and ctrl+s show.
+   Both show the same example library; the words are core/ErrorWords'. */
+const SERVERS = [
+  { id:"home", addr:"127.0.0.1:8080", ver:"qbittorrent 5.2.3", n:17 },
+  { id:"nas", addr:"nas.lan:8080", ver:"qbittorrent 5.1.2", n:42 },
+];
+const SRV_WORDS = {
+  down:{ kind:"--t-yellow", head:n => `${n} didn't answer`, line:sv => `Nothing is listening at ${sv.addr}. The list below is from 11:52. omaseed tries again in 10 s.`, act:["retry","retry now"], hero:"unreachable", rail:"down", cls:"down" },
+  refused:{ kind:"--t-red", head:n => `${n} refused the sign-in`, line:() => "The username or password omaseed has for it is wrong. It won't try again until you change them.", act:["retry","edit login"], hero:"sign-in refused", rail:"!", cls:"bad" },
+};
+const srvOf = id => SERVERS.find(x => x.id === id);
 const STATE = {
   dl:    { g:"↓", c:"--s-dl",    w:"downloading" },
   seed:  { g:"↑", c:"--s-seed",  w:"seeding" },
@@ -743,7 +803,10 @@ function say(t) {
 }
 
 /* ---------- window state ---------- */
-const S = { layout:"rows", group:"none", cat:"all", tr:"all", sel:"cosmos", menu:false, arrival:false, show:{ sentence:true, pieces:true, raw:false }, mapBy:"state", arrEx:"ok" };
+const S = { layout:"rows", group:"none", cat:"all", tr:"all", sel:"cosmos", menu:false, arrival:false, show:{ sentence:true, pieces:true, raw:false }, mapBy:"state", arrEx:"ok",
+  server:"home", srv:{ home:"live", nas:"live" }, folded:false, palette:false };
+const lost = () => S.srv[S.server] !== "live";
+const srvDot = id => id !== S.server ? "var(--t-dim)" : S.srv[id] === "live" ? "var(--t-green)" : v(SRV_WORDS[S.srv[id]].kind);
 const LAYOUTS = [
   ["classic","▤","classic table","today's rail and columns"],
   ["rows","☰","rows that speak","L1"],
@@ -759,28 +822,46 @@ function hero() {
   const lay = LAYOUTS.find(l => l[0] === S.layout);
   return `<div class="hero">
     <div class="mark">◧</div>
-    <div class="name"><b>omaseed</b><span class="srv"><span class="dot"></span>home · qbittorrent 5.2.3</span></div>
-    <div class="hstat d"><span class="v"><i>↓</i>7.33 MB/s</span><span class="cap">download</span></div>
-    <div class="hstat u"><span class="v"><i>↑</i>718 KB/s</span><span class="cap">upload · 18.3 GB today</span></div>
-    <div class="views"><span class="on">library</span><span>seed</span></div>
+    <div class="name"><b>omaseed</b><button class="srv" data-act="palette" title="switch server · ctrl+s"><span class="dot" style="background:${srvDot(S.server)}"></span>${S.server} · ${lost() ? SRV_WORDS[S.srv[S.server]].hero : srvOf(S.server).ver} ▾</button></div>
+    <div class="hstat d"><span class="v"><i>↓</i>${lost() ? "—" : "7.33 MB/s"}</span><span class="cap">download</span></div>
+    <div class="hstat u"><span class="v"><i>↑</i>${lost() ? "—" : "718 KB/s"}</span><span class="cap">upload${lost() ? "" : " · 18.3 GB today"}</span></div>
+    <div class="views"><span class="on">library</span><span>seed</span><span>log</span></div>
     <div class="grow"></div>
     <div class="search"><span>/ filter torrents</span><span>${visible().length}</span></div>
     <div class="acts">
       <button class="ib disp" data-act="menu" aria-expanded="${S.menu}" aria-haspopup="true"><span>${lay[1]}</span>display <kbd>v</kbd></button>
       <button class="ib primary" data-act="add" aria-label="add a torrent">+</button>
-      <span class="ib">⋯</span><span class="ib">?</span>
+      <span class="ib" aria-label="settings">⛭</span><span class="ib">⋯</span><span class="ib">?</span>
     </div>
   </div>`;
+}
+/* the notice under the hero while the server is lost (docs/35, Kit/Notice): yellow when
+   omaseed retries on its own, red when it needs you (C12) */
+function notice() {
+  if (!lost()) return "";
+  const w = SRV_WORDS[S.srv[S.server]];
+  return `<div class="notice" style="--kc:${v(w.kind)}" role="status"><span class="g">!</span><span class="h">${w.head(S.server)}</span><span class="l">${w.line(srvOf(S.server))}</span><span class="a"><button data-act="${w.act[0]}">${w.act[1]}</button><button data-act="palette">switch server</button><span class="d">details ›</span></span></div>`;
+}
+function palette() {
+  const rows = SERVERS.map(sv => {
+    const cur = sv.id === S.server, st = S.srv[sv.id];
+    const sub = st !== "live" ? `${sv.addr} · ${SRV_WORDS[st].hero}` : cur ? `${sv.addr} · ${sv.n} torrents · ${sv.ver.replace("qbittorrent", "qBittorrent")}` : `${sv.addr} · ${sv.n} torrents last time`;
+    return `<div class="pr ${cur ? "" : "cur"}" data-server="${sv.id}" role="option"><b>${sv.id}</b><span class="on">${cur ? "on it now" : ""}</span><span class="s">${sub}</span></div>`;
+  }).join("");
+  return `<div class="spal" role="dialog" aria-label="switch server"><div class="ph"><span>▤</span><span class="grow">switch server</span><span class="n">${SERVERS.length} servers</span></div>${rows}<div class="pf"><span><b>↑↓</b> move</span><span><b>enter</b> switch</span><span><b>,</b> manage servers</span><span><b>esc</b> close</span></div></div>`;
 }
 function scope() {
   const cnt = c => T.filter(t => c === "all" || t.cat === c).length;
   const cats = ["all", ...CATS.map(c => c.id)].map(c => `<button class="chip ${S.cat === c ? "on" : ""}" data-cat="${c}">${c}<span class="n">${cnt(c)}</span></button>`).join("");
-  const trs = ["all", ...TRACKERS.slice(0, 3)].map(r => `<button class="chip ${S.tr === r ? "on" : ""}" data-tr="${r}">${r === "all" ? "any tracker" : r}</button>`).join("");
-  return `<div class="scope"><span class="lbl">scope</span>${cats}<span class="vr"></span>${trs}<span class="chip">+3</span></div>`;
+  const trs = ["all", ...TRACKERS.slice(0, 2)].map(r => `<button class="chip ${S.tr === r ? "on" : ""}" data-tr="${r}">${r === "all" ? "any tracker" : r}</button>`).join("");
+  const srv = `<button class="srvchip" data-act="palette" title="switch server · ctrl+s"><span class="sdot" style="background:${srvDot(S.server)}"></span>${S.server} ▾<span class="n">${SERVERS.length} servers</span></button>`;
+  return `<div class="scope"><span class="lbl">scope</span>${cats}<span class="vr"></span>${trs}<span class="chip">+4</span>${srv}</div>`;
 }
 function foot() {
   const keys = { classic:"j k move · space select · enter actions", rows:"j k move · enter story · r raw names", flow:"j k move · enter story · o open", shelves:"h j k l move · enter story · o open", map:"c colour by · enter story", places:"j k move · enter scope to it" }[S.layout];
-  return `<div class="foot"><span><b>17</b> torrents</span><span>·</span><span><b>5</b> arriving</span><span>·</span><span><b>1.80 TB</b> free</span><span>·</span><span>${keys}</span><span class="grow"></span><span><span class="k">v</span> layout · <span class="k">?</span> help</span></div>`;
+  const right = `<span class="grow"></span><span><span class="k">v</span> layout · <span class="k">:</span> commands · <span class="k">?</span> help</span>`;
+  if (lost()) return `<div class="foot"><span>last sync <b>11:52</b></span><span><span class="k">R</span> retry</span><span><span class="k">ctrl+s</span> server</span><span><span class="k">,</span> settings</span>${right}</div>`;
+  return `<div class="foot"><span><b>17</b> torrents</span><span>·</span><span><b>5</b> arriving</span><span>·</span><span><b>1.80 TB</b> free</span><span>·</span><span>${keys}</span>${right}</div>`;
 }
 
 function pbar(t, n = 120) {
@@ -811,7 +892,11 @@ function rowsLayout() {
 }
 function classicLayout() {
   const rr = (g, n, c, on) => `<div class="rr ${on ? "on" : ""}"><span class="g">${g}</span><span>${n}</span><span class="c">${c}</span></div>`;
-  const rail = `<div class="rail"><span class="cap">status</span>${rr("◆","all",17,true)}${rr("↓","downloading",5)}${rr("↑","seeding",5)}${rr("■","stopped",2)}${rr("!","errored",1)}<span class="cap">categories</span>${CATS.map(c => rr("▭", c.id, T.filter(t => t.cat === c.id).length)).join("")}<span class="cap">trackers</span>${TRACKERS.slice(0,4).map(r => rr("·", r, T.filter(t => t.tr === r).length)).join("")}</div>`;
+  const srvRow = sv => { const st = S.srv[sv.id], w = SRV_WORDS[st]; return `<button class="rr ${sv.id === S.server ? "on" : ""}" data-server="${sv.id}"><span class="sdot" style="background:${srvDot(sv.id)}"></span><span>${sv.id}</span><span class="c ${w ? w.cls : ""}">${w ? w.rail : sv.n}</span></button>`; };
+  const servers = S.folded
+    ? `<div class="rsrv"><button class="folded" data-act="fold" title="unfold · z"><span class="sdot" style="background:${srvDot(S.server)}"></span><span>${S.server} ▴</span><span></span><span class="c">${SERVERS.length} servers</span></button></div>`
+    : `<div class="rsrv"><button class="sh" data-act="fold" title="fold · z"><span class="cap">servers · ${SERVERS.length}</span><span class="fold">▾</span></button>${SERVERS.map(srvRow).join("")}</div>`;
+  const rail = `<div class="rail"><div class="rfil"><span class="cap">status</span>${rr("◆","all",17,true)}${rr("↓","downloading",5)}${rr("↑","seeding",5)}${rr("■","stopped",2)}${rr("!","errored",1)}<span class="cap">categories</span>${CATS.map(c => rr("▭", c.id, T.filter(t => t.cat === c.id).length)).join("")}<span class="cap">trackers</span>${TRACKERS.slice(0,4).map(r => rr("·", r, T.filter(t => t.tr === r).length)).join("")}</div>${servers}</div>`;
   const rows = visible().map(t => { const s = STATE[t.st]; return `<tr class="r" data-sel="${t.id}" style="${S.sel === t.id ? "background:var(--f18)" : ""};cursor:pointer"><td style="color:var(--t-bright)">${t.raw}</td><td class="num">${t.size ? fSize(t.size) : "—"}</td><td><span class="bar"><i style="width:${t.prog * 100}%;background:${v(s.c)}"></i></span> <span style="color:var(--t-faint);font-size:var(--cap)">${pct(t.prog)}</span></td><td><span style="color:${v(s.c)}">${s.g}</span> ${s.w}</td><td class="num">${t.seeds} / ${t.peers}</td><td class="num">${t.dl ? fSpeed(t.dl) : "0"}</td><td class="num">${t.ul ? fSpeed(t.ul) : "0"}</td><td class="num">${t.st === "dl" ? fEta(t.eta) : "∞"}</td><td class="num">${t.ratio.toFixed(2)}</td></tr>`; }).join("");
   return { rail, main:`<div class="scrollY"><table class="ctab"><colgroup><col style="width:30%"><col style="width:9%"><col style="width:13%"><col style="width:14%"><col style="width:8%"><col style="width:9%"><col style="width:8%"><col style="width:6%"><col style="width:6%"></colgroup><thead><tr><th>Name</th><th class="num">Size</th><th>Progress</th><th>Status</th><th class="num">S / P</th><th class="num">↓</th><th class="num">↑</th><th class="num">ETA</th><th class="num">Ratio</th></tr></thead><tbody>${rows}</tbody></table></div>` };
 }
@@ -1021,9 +1106,9 @@ function arrival(ex) {
   }[ex];
   const tot = E.kinds.reduce((a, k) => a + Math.max(k[2], .02), 0);
   return `<div class="sheet" role="dialog" aria-label="add ${E.title}">
-    <div class="shd"><span class="from"><span>${E.from}</span><span>·</span><span>arrival</span></span><h4>${E.title}</h4><div class="chips">${E.chips.map(c => `<span>${c}</span>`).join("")}</div></div>
+    <div class="shd"><span class="from"><span>${E.from}</span><span>·</span><span>arrival</span><span class="to" title="add to another server · ctrl+s">to <span class="sdot" style="background:${srvDot(S.server)}"></span>${S.server} ▾</span></span><h4>${E.title}</h4><div class="chips">${E.chips.map(c => `<span>${c}</span>`).join("")}</div></div>
     <div class="sb">
-      ${E.guard}
+      ${lost() ? `<div class="guard warn"><b>${S.server} isn't answering.</b><span>Free space is unknown. "add when back" holds the add and sends it when ${S.server} answers, or when you switch to a server that does.</span></div>` : ""}${E.guard}
       <div class="inside"><div class="lh" style="display:flex;justify-content:space-between"><span class="cap">what's inside</span><span class="cap">${fSize(E.kinds.reduce((a, k) => a + (/skipped/.test(k[3]) ? 0 : k[2]), 0))} to download</span></div>
         <div class="stack">${E.kinds.map(k => `<i style="flex:${Math.max(k[2], .02) / tot};background:${/skipped/.test(k[3]) ? "var(--f18)" : v(k[1])}"></i>`).join("")}</div>
         <div class="rows">${E.kinds.map(k => `<div class="${/skipped/.test(k[3]) ? "skip" : ""}"><i style="background:${/skipped/.test(k[3]) ? "var(--f18)" : v(k[1])}"></i><span>${k[3]}</span><span class="sz">${fSize(k[2])}</span></div>`).join("")}</div></div>
@@ -1034,7 +1119,7 @@ function arrival(ex) {
       <div class="disk"><div class="bar"><i style="width:10%;background:var(--t-dim)"></i><i style="width:${ex === "bad" ? .2 : 1.4}%;background:var(--t-accent)"></i></div><span>1.80 TB free now · ${ex === "bad" ? "1.80" : "1.79"} TB after this</span></div>
       <div class="eta"><span class="cap">ready</span><span class="big">${E.eta}</span><span class="sm">${E.etaSm}</span></div>
     </div>
-    <div class="sf"><span>cancel<kbd>esc</kbd></span><span>add stopped<kbd>⇧ enter</kbd></span><span class="p">${ex === "bad" ? "add without the program" : "add"}<kbd>enter</kbd></span></div>
+    <div class="sf"><span>cancel<kbd>esc</kbd></span><span>add stopped<kbd>⇧ enter</kbd></span><span class="p">${lost() ? "add when back" : ex === "bad" ? "add without the program" : "add"}<kbd>enter</kbd></span></div>
   </div>`;
 }
 
@@ -1047,14 +1132,14 @@ function render() {
   const storyOpen = !!sel && S.layout !== "classic";
   if (S.layout === "classic") {
     const c = classicLayout();
-    body = `<div class="wbody">${c.rail}<div class="wmain">${c.main}</div>${sel ? storyPane(sel) : ""}</div>`;
+    body = `<div class="wbody ${lost() ? "stale" : ""}">${c.rail}<div class="wmain">${c.main}</div>${sel ? storyPane(sel) : ""}</div>`;
   } else {
     const mainW = W - (storyOpen ? 430 : 0);
     const inner = { rows:rowsLayout, flow:() => flowLayout(mainW), shelves:shelvesLayout, map:() => mapLayout(mainW - 32, 500), places:placesLayout }[S.layout]();
-    body = `${scope()}<div class="wbody"><div class="wmain">${inner}</div>${storyOpen ? storyPane(sel) : ""}</div>`;
+    body = `${scope()}<div class="wbody ${lost() ? "stale" : ""}"><div class="wmain">${inner}</div>${storyOpen ? storyPane(sel) : ""}</div>`;
   }
   const keepScroll = $(".scrollY", win)?.scrollTop || 0;
-  win.innerHTML = hero() + body + foot() + (S.menu ? menu() : "") + (S.arrival ? `<div class="scrim" data-act="scrim">${arrival(S.arrEx)}</div>` : "");
+  win.innerHTML = hero() + notice() + body + foot() + (S.menu ? menu() : "") + (S.arrival ? `<div class="scrim" data-act="scrim">${arrival(S.arrEx)}</div>` : "") + (S.palette ? `<div class="scrim" data-act="scrim">${palette()}</div>` : "");
   const sc = $(".wmain .scrollY", win); if (sc) sc.scrollTop = keepScroll;
   const L = LAYOUTS.find(l => l[0] === S.layout);
   $("#wincap").innerHTML = `<b>${L[2]}${L[3].startsWith("L") ? " (" + L[3] + ")" : ""}.</b> ` + {
@@ -1064,16 +1149,21 @@ function render() {
     shelves:"A shelf per category, a drawn cover per torrent: monogram over its own piece grid.",
     map:"The library by size. Switch the colour: state, ratio, last active, tracker. Click a tile for its story.",
     places:"Categories and trackers as cards. Click one to scope the window to it (the scope line follows).",
-  }[S.layout] + (S.sel ? " The story pane is open on the right; esc closes it." : "");
+  }[S.layout] + (S.sel ? " The story pane is open on the right; esc closes it." : "") + (S.layout === "classic" ? " The servers sit under the rail's scroll (z folds them)." : " No rail here: the servers' folded line sits at the scope line's right end.") + " ctrl+s or the ▾ by the server's name switches server.";
+  for (const b of $$("[data-srvst]")) b.setAttribute("aria-pressed", String(b.dataset.srvst === S.srv[S.server]));
 }
 const win = $("#win");
 win.addEventListener("click", e => {
-  const a = e.target.closest("[data-act],[data-layout],[data-group],[data-show],[data-cat],[data-tr],[data-mapby],[data-sel]");
+  const a = e.target.closest("[data-act],[data-layout],[data-group],[data-show],[data-cat],[data-tr],[data-mapby],[data-server],[data-sel]");
   if (!a) { if (S.menu) { S.menu = false; render(); } return; }
   const d = a.dataset;
   if (d.act === "menu") S.menu = !S.menu;
   else if (d.act === "add") { S.arrival = true; S.menu = false; }
-  else if (d.act === "scrim") { if (e.target === a) S.arrival = false; else return; }
+  else if (d.act === "scrim") { if (e.target === a) S.arrival = S.palette = false; else return; }
+  else if (d.act === "palette") { S.palette = true; S.menu = false; }
+  else if (d.act === "fold") S.folded = !S.folded;
+  else if (d.act === "retry") S.srv[S.server] = "live";
+  else if (d.server) { S.server = d.server; S.palette = false; }
   else if (d.act === "close") S.sel = null;
   else if (d.layout) { S.layout = d.layout; S.menu = false; }
   else if (d.group) S.group = d.group;
@@ -1087,7 +1177,10 @@ win.addEventListener("click", e => {
 win.addEventListener("keydown", e => {
   if (e.key === "v" || e.key === "V") { const i = LAYOUTS.findIndex(l => l[0] === S.layout); S.layout = LAYOUTS[(i + (e.key === "V" ? LAYOUTS.length - 1 : 1)) % LAYOUTS.length][0]; render(); e.preventDefault(); }
   else if (/^[1-6]$/.test(e.key)) { S.layout = LAYOUTS[+e.key - 1][0]; render(); }
-  else if (e.key === "Escape") { if (S.arrival) S.arrival = false; else if (S.menu) S.menu = false; else S.sel = null; render(); }
+  else if (e.key === "s" && e.ctrlKey) { S.palette = true; render(); e.preventDefault(); }
+  else if (e.key === "z") { S.folded = !S.folded; render(); }
+  else if (e.key === "R") { S.srv[S.server] = "live"; render(); }
+  else if (e.key === "Escape") { if (S.palette) S.palette = false; else if (S.arrival) S.arrival = false; else if (S.menu) S.menu = false; else S.sel = null; render(); }
   else if (e.key === "+") { S.arrival = true; render(); }
   else if (e.key === "r") { S.show.raw = !S.show.raw; render(); }
   else if (e.key === "j" || e.key === "k") {
@@ -1096,6 +1189,7 @@ win.addEventListener("keydown", e => {
   }
 });
 render();
+for (const b of $$("[data-srvst]")) b.addEventListener("click", () => { S.srv[S.server] = b.dataset.srvst; render(); });
 
 /* ---------- the single-purpose figures ---------- */
 const byId = id => T.find(t => t.id === id);
@@ -1110,18 +1204,20 @@ for (const b of $$("[data-arr]")) b.addEventListener("click", () => drawArrival(
 drawArrival("ok");
 
 /* ---------- themes ---------- */
+/* `omaseed --theme-roles` at cb08b91, per theme: foreground, background, brightForeground,
+   dimForeground and the palette roles after Q19's 4.5:1 floor */
 const THEMES = {
-  "tokyo-night":      { fg:"#a9b1d6", bg:"#1a1b26", accent:"#7aa2f7", red:"#f7768e", yellow:"#e0af68", green:"#9ece6a", blue:"#7aa2f7", magenta:"#ad8ee6", cyan:"#449dab", orange:"#ff9e64" },
-  "baseline":         { fg:"#c4c7cc", bg:"#121316", accent:"#efdf3c", red:"#ff4f5e", yellow:"#f2a33a", green:"#7fd08a", blue:"#6f9cf0", magenta:"#c88df0", cyan:"#45c6dc", orange:"#f2a33a" },
-  "frieren":          { fg:"#b9c5ef", bg:"#11111b", accent:"#5492f8", red:"#ee5681", yellow:"#f6d58c", green:"#7dd676", blue:"#5492f8", magenta:"#b47ff3", cyan:"#63d5c2", orange:"#f6a87c" },
-  "gruvbox":          { fg:"#d4be98", bg:"#282828", accent:"#7daea3", red:"#ea6962", yellow:"#d8a657", green:"#a9b665", blue:"#7daea3", magenta:"#d3869b", cyan:"#89b482", orange:"#e78a4e" },
-  "everforest":       { fg:"#d3c6aa", bg:"#2d353b", accent:"#7fbbb3", red:"#e67e80", yellow:"#dbbc7f", green:"#a7c080", blue:"#7fbbb3", magenta:"#d699b6", cyan:"#83c092", orange:"#e69875" },
-  "catppuccin-latte": { fg:"#4c4f69", bg:"#eff1f5", accent:"#1e66f5", red:"#d20f39", yellow:"#df8e1d", green:"#40a02b", blue:"#1e66f5", magenta:"#ea76cb", cyan:"#179299", orange:"#fe640b", light:true },
+  "tokyo-night":      { fg:"#a9b1d6", bg:"#1a1b26", bright:"#c0caf5", dim:"#7982a9", accent:"#7aa2f7", red:"#f7768e", yellow:"#e0af68", green:"#9ece6a", blue:"#7aa2f7", magenta:"#ad8ee6", cyan:"#449dab", orange:"#eb927b" },
+  "baseline":         { fg:"#c4c7cc", bg:"#121316", bright:"#f2f2ec", dim:"#797d86", accent:"#efdf3c", red:"#ff4f5e", yellow:"#f2a33a", green:"#7fd08a", blue:"#6f9cf0", magenta:"#c88df0", cyan:"#45c6dc", orange:"#f9794c" },
+  "frieren":          { fg:"#b9c5ef", bg:"#11111b", bright:"#cbd4f3", dim:"#8b94b3", accent:"#5492f8", red:"#ee5681", yellow:"#f6d58c", green:"#7dd676", blue:"#5492f8", magenta:"#b47ff3", cyan:"#63d5c2", orange:"#f16f94" },
+  "gruvbox":          { fg:"#d4be98", bg:"#282828", bright:"#d4be98", dim:"#9c8c77", accent:"#7daea3", red:"#ea6962", yellow:"#d8a657", green:"#a9b665", blue:"#7daea3", magenta:"#d3869b", cyan:"#89b482", orange:"#e1875c" },
+  "everforest":       { fg:"#d3c6aa", bg:"#2d353b", bright:"#d3c6aa", dim:"#a09c8d", accent:"#7fbbb3", red:"#e67e80", yellow:"#dbbc7f", green:"#a7c080", blue:"#7fbbb3", magenta:"#d699b6", cyan:"#83c092", orange:"#e09d7f" },
+  "catppuccin-latte": { fg:"#4c4f69", bg:"#eff1f5", bright:"#4c4f69", dim:"#696d83", accent:"#2164ec", red:"#d20f39", yellow:"#87684a", green:"#467949", blue:"#2164ec", magenta:"#8a5e90", cyan:"#2c7786", orange:"#b54e3b", light:true },
 };
 function applyTheme(name) {
   const t = THEMES[name];
   for (const st of $$("[data-stage]")) {
-    for (const k of ["fg","bg","accent","red","yellow","green","blue","magenta","cyan","orange"]) st.style.setProperty("--t-" + k, t[k]);
+    for (const k of ["fg","bg","bright","dim","accent","red","yellow","green","blue","magenta","cyan","orange"]) st.style.setProperty("--t-" + k, t[k]);
     st.classList.toggle("light", !!t.light);
   }
   for (const b of $$("[data-theme-name]")) b.setAttribute("aria-pressed", String(b.dataset.themeName === name));
@@ -1154,7 +1250,7 @@ const DEC = [
     ["a","On by default everywhere, raw names a key away (r) and in the story header", true],
     ["b","Off by default, a display option"],
     ["c","Not wanted"]]},
-  { id:"D7", q:"Filters", why:"§4. The scope line puts categories and trackers on one line of chips; status becomes a group or a layout's job (flow's lanes).", opts:[
+  { id:"D7", q:"Filters", why:"§4. The scope line puts categories and trackers on one line of chips; status becomes a group or a layout's job (flow's lanes). Whichever you pick, C12 keeps a way to the other servers on screen: the rail's pinned block in classic, the folded line at the scope line's end in the new layouts (placement assumed here, for each layout's board).", opts:[
     ["a","Scope line in the new layouts, the rail in classic", true],
     ["b","Keep the rail everywhere"],
     ["c","Scope line everywhere"]]},
@@ -1176,7 +1272,7 @@ const notes = document.createElement("div"); notes.className = "q";
 notes.innerHTML = `<label for="free" style="color:var(--fg-bright);font-weight:500">Anything else (an idea I missed, one you'd push further, one you'd kill)</label><textarea id="free" style="min-height:70px;font:inherit;font-size:12.4px;color:var(--fg);background:var(--bg);border:1px solid var(--hairline);padding:8px"></textarea>`;
 dec.append(notes);
 function answers() {
-  const lines = ["docs/36 beyond the table (2026-10-16):"];
+  const lines = ["docs/39 beyond the table (2026-10-17):"];
   for (const d of DEC) { const c = $$(`input[name="${d.id}"]:checked`).map(i => i.value); lines.push(`${d.id} ${c.length ? c.join(", ") : "-"}`); }
   const f = $("#free").value.trim(); if (f) lines.push("notes: " + f);
   $("#answers").value = lines.join("\n");
