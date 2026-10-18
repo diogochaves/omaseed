@@ -660,6 +660,79 @@ status file's contract as built.
 - **The manifest version** stays: the contract changes within v2 and the widget ships with the
   app.
 
+## C15 — Move a folder (board 42, ruled 2026-10-18)
+
+Board [42](42-move-a-folder.html) M1–M20, all as recommended (#95). A folder of the library,
+not a selection, moves to another drive as one job that can run for hours: every torrent keeps
+its place below the folder, a preflight checks before anything is sent, the job runs in waves
+it can pause, survives a hidden window and a restart, and ends with one summary. (C14 is the
+engines ruling, kept on the `engines` branch until that work lands; the board's M numbers are
+its own, not the manual pass's M8–M18 below.)
+
+**This entry changes C2 D2 for moves made by a job:** the log is read on every poll for the
+job's whole life, not 30 s. Set location keeps D2.
+
+- **Picking (M1, M2, M3):** a folders group in the rail, after categories: each save path is a
+  row, a save path under another sits under it, a drive's top with no torrents of its own is a
+  dim foldable heading (one that is itself a save path is a row, "4 here"). Picking one filters
+  the table to it and everything below, as a category does. The row shows the name and the
+  torrent count (the job's % while it moves); bytes on disk (qBittorrent's `completed`), save
+  paths and loose files go in the scope line and the row's tooltip. The scope line offers
+  "move this folder…"; so do `shift+m`, the row's menu and `:` "move folder…" (`m` stays set
+  location). The Save path column cuts from the left.
+- **The field (M4):** the folder's new path, prefilled with its current one; browse picks a
+  parent and the sheet adds the folder's name. Each torrent's new save path is the new path
+  plus its save path below the folder.
+- **Room (M5):** bytes on disk plus the loose files when carried, against free space read on
+  this machine (or qBittorrent's figure for its default drive) less the low-disk threshold
+  (Q16). Short turns the move off with the figures; can't tell is a yellow line and the move is
+  allowed; the same drive needs no room. Read again before every send.
+- **Writable (M6):** qBittorrent 5.2.3 answers 200 for a folder it can't write
+  (diogochaves/upstream#120). A local check against the owner of the folder's files when
+  omaseed sees the disks, and always the smallest torrent alone first: if it fails, the job
+  stops with its reason before anything else moves.
+- **Automatic management (M7):** a yellow line with the count and the category's folder;
+  nothing changed (setLocation turns it off; turning it back on would move the torrent back).
+- **A file already at a torrent's target (M8):** qBittorrent keeps it and reports the move done
+  (upstream#123). Those torrents are left out and listed in red; the rest go.
+- **Loose files, which (M9):** under no torrent's content path and none of a no-subfolder
+  torrent's files; never loose: `.parts`, `*.!qB`, `Thumbs.db`, `desktop.ini`, `.DS_Store`
+  (the list is shown); changed in the last 15 min stays; unreadable is unknown and stays; the
+  preflight's list is the dry run; with no local view nothing is shown or carried, and the sheet
+  says so.
+- **The running job (M10):** a band under the hero in board 35's box (C12), accent kind, with a
+  2 px progress line; pause / show / details. "show" lists the job's torrents in the order sent,
+  with a Move column (moved, failed, moving now, queued, waiting, left out).
+- **Pause and end (M11):** pause stops sending; the ones already with qBittorrent (3 at most)
+  finish. End the move = pause, then the summary; nothing moves back; "move the rest…" reopens
+  the sheet and skips what is already there.
+- **Order (M12):** smallest first, keeping 3 in qBittorrent's queue (one moving, two behind).
+- **Hidden, quit, restart (M13):** hidden to the tray the job goes on, the tray tooltip carrying
+  its line (M20). Quit asks (keep running / pause and quit). After a crash, a logout or a reboot
+  the job resumes by itself at the next start. It is saved in
+  `~/.config/omaseed/moves/<server id>.json`.
+- **Stuck (M14):** nothing landed for 4 × the current torrent's expected time and at least
+  10 min (a file growing at the destination counts as progress): stop sending, a yellow band
+  that says a qBittorrent restart usually frees it, one notice; after the restart the job sends
+  again what hadn't landed.
+- **Failures (M15):** a failure marks the torrent and gets C2 D1's block; the job goes on. No
+  space, the first torrent failing, or stuck pause it. Errors and missing files in the next 24 h
+  are tied to the job's record.
+- **The end (M16):** a green summary band until closed, its record in details; one desktop
+  notice (a job that pauses itself gives one too); recheck the failed ones smallest first and
+  start those that come out complete; retry them to the job's target; set location….
+- **Carrying loose files (M17):** automatically after the last torrent lands, when the
+  preflight's tick is on (on by default when omaseed sees the disks): copy to a temporary name
+  hashing as it reads, read back and compare, rename into place, remove the source; the same
+  drive is a rename; the same file at the target counts as carried, a different one leaves
+  both; folders left empty at the source are removed. Nothing is ever deleted otherwise.
+- **More than one move (M18):** one job per server at a time; a second is queued after it.
+- **Words (M19):** core/ErrorWords, board 42 §8: 409 "qBittorrent can't create FOLDER", 403
+  and a 200 followed by "Permission denied" in the log "qBittorrent can't write to FOLDER",
+  never a sign-in word.
+- **Outside the window (M20):** the tray tooltip carries the job's line; the bar widget is
+  unchanged (a docs/20 change, later).
+
 ## M8 — A click leaves the keyboard focus where it was
 
 Buttons and toggles do not take the focus when clicked. Otherwise an overlay gives the focus
