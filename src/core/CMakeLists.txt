@@ -41,6 +41,8 @@ qt_add_library(omaseed-core STATIC
     HomeGuard.hpp
     LibraryMatch.cpp
     LibraryMatch.hpp
+    LooseCarry.cpp
+    LooseCarry.hpp
     LooseFiles.cpp
     LooseFiles.hpp
     MoveJob.cpp

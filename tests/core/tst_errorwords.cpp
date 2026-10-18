@@ -221,6 +221,33 @@ private slots:
         QCOMPARE(text.line, QStringLiteral("Big Box Scans didn't move. The move is paused."));
     }
 
+    void moveFailureMissing()
+    {
+        // #97's box: 200, then "No such file or directory" (a drive gone mid-move).
+        const ErrorWords::Text text =
+            ErrorWords::forMoveFailure(QStringLiteral("Open Movie Night (2026)"),
+                                       QStringLiteral("/mnt/fast/games"),
+                                       QStringLiteral("/mnt/fast"),
+                                       QStringLiteral("missing"),
+                                       QStringLiteral("No such file or directory"));
+        QCOMPARE(text.headline, QStringLiteral("qBittorrent can't reach /mnt/fast/games"));
+        QCOMPARE(text.line,
+                 QStringLiteral("Open Movie Night (2026) didn't move: “No such file or "
+                                "directory”. Check that both drives are mounted."));
+        QVERIFY(!text.headline.contains(QStringLiteral("sign")));
+    }
+
+    void moveFailureReadOnly()
+    {
+        const ErrorWords::Text text =
+            ErrorWords::forMoveFailure(QStringLiteral("x"),
+                                       QStringLiteral("/mnt/fast/games"),
+                                       QString(),
+                                       QStringLiteral("readOnly"),
+                                       QStringLiteral("Read-only file system"));
+        QCOMPARE(text.headline, QStringLiteral("qBittorrent can't write to /mnt/fast/games"));
+    }
+
     void moveFailureOther()
     {
         const ErrorWords::Text text =

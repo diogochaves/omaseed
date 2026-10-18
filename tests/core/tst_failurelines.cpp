@@ -73,6 +73,7 @@ private slots:
     void aMoveTellsSourceFromDestinationByTheFile();
     void wordsAMove();
     void wordsAMoveWithNoFile();
+    void realUnwritableDestinationsReadAsNoAccess();
     void wordsARename();
     void wordsAFolderRename();
     void wordsAPartfile();
@@ -271,6 +272,29 @@ void TestFailureLines::wordsAMoveWithNoFile()
     QCOMPARE(failure.headline, QStringLiteral("The move to e/f didn't happen"));
     QCOMPARE(failure.detail, QStringLiteral("No space left on device"));
     QCOMPARE(failure.folder, QStringLiteral("Its files are still in /d"));
+}
+
+// #98: what qBittorrent 5.2.3 logged on the playground for a destination it can't write (an
+// existing 0555 or 0000 folder, a root-owned one): always "Permission denied", from whichever
+// libtorrent call failed first, and naming the source file. All read as no access (C15 M19).
+void TestFailureLines::realUnwritableDestinationsReadAsNoAccess()
+{
+    const QStringList reasons{
+        QStringLiteral("81f2da storage move failed. file_rename (/d/swarm/tiny-notes.txt): "
+                       "Permission denied"),
+        QStringLiteral("81f2da storage move failed. file_open (/d/swarm/tiny-notes.txt): "
+                       "Permission denied"),
+        QStringLiteral("1f85b9 storage move failed. mkdir (/d/Public Domain Sampler/README.txt): "
+                       "Permission denied"),
+    };
+    for (const QString &reason : reasons) {
+        const ProblemLine line = ProblemLine::parse(
+            QStringLiteral("Failed to move torrent. Torrent: \"a\". Source: \"/d\". "
+                           "Destination: \"/usr/share\". Reason: \"%1\"")
+                .arg(reason));
+        QVERIFY2(line.isFailure(), qPrintable(reason));
+        QCOMPARE(ProblemMatch::describe(line).causeKey, QStringLiteral("noAccess"));
+    }
 }
 
 void TestFailureLines::wordsARename()

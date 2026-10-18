@@ -416,6 +416,15 @@ ErrorWords::Text ErrorWords::forMoveFailure(const QString &torrent,
         text.line = tr("%1 didn't move. The move is paused.").arg(name);
         return text;
     }
+    if (causeKey == QLatin1String("missing")) {
+        // libtorrent names the source file even when the destination is what went away, so
+        // the words don't guess which side: a drive unmounted mid-move, on either side.
+        text.headline = folder.isEmpty() ? tr("qBittorrent can't reach that folder")
+                                         : tr("qBittorrent can't reach %1").arg(folder);
+        text.line =
+            tr("%1 didn't move: “%2”. Check that both drives are mounted.").arg(name, reason);
+        return text;
+    }
     text.headline = tr("%1 didn't move").arg(name);
     text.line = reason.isEmpty() ? QString() : tr("“%1”.").arg(reason);
     return text;
