@@ -83,6 +83,8 @@ void ProblemLog::setClient(QbtClient *client)
     m_filesAsked.clear();
     m_renamed.clear();
     m_watches.clear();
+    m_jobHashes.clear();
+    m_jobTold.clear();
     const bool hadLogLines = !m_webSeedLines.isEmpty() || !m_exportFailure.isEmpty();
     m_webSeedLines.clear();
     m_exportFailure.clear();
@@ -130,7 +132,8 @@ void ProblemLog::onSynced(bool fullUpdate, bool mayRead)
         return;
     const auto since =
         m_sinceRead.isValid() ? m_sinceRead.durationElapsed() : std::chrono::nanoseconds::max();
-    bool due = !m_watches.isEmpty(); // D2: every poll while omaseed waits for an answer
+    // D2: every poll while omaseed waits for an answer; C15 M15: and while a move job runs.
+    bool due = !m_watches.isEmpty() || !m_jobHashes.isEmpty();
     if (!m_errored.isEmpty() && (!m_readOnce || since >= m_interval))
         due = true;
     if (m_visible && since >= m_idleInterval)
@@ -255,6 +258,7 @@ void ProblemLog::applyRead(const QJsonArray &entries, quint64 serial, bool fromS
         updateLogLines();
     }
     tellWatches(serial);
+    tellJob(serial);
 }
 
 void ProblemLog::rematch()
@@ -625,6 +629,42 @@ void ProblemLog::watchMove(const QStringList &hashes, const QString &destination
     watch.fromRead = m_issued + 1;
     watch.age.start();
     m_watches.append(watch);
+}
+
+void ProblemLog::watchJob(const QStringList &hashes, const QDateTime &since)
+{
+    m_jobHashes = QSet<QString>(hashes.cbegin(), hashes.cend());
+    if (m_jobHashes.isEmpty()) {
+        m_jobTold.clear();
+        return;
+    }
+    m_jobSince = since;
+}
+
+void ProblemLog::tellJob(quint64 serial)
+{
+    if (m_jobHashes.isEmpty() || m_torrents.isNull())
+        return;
+    QList<Torrent> torrents;
+    for (const QString &hash : std::as_const(m_jobHashes)) {
+        if (m_torrents->indexOfHash(hash) >= 0)
+            torrents << m_torrents->torrent(hash);
+    }
+    // qBittorrent's log counts whole seconds: a line from the second the job began counts.
+    const QDateTime since = m_jobSince.isValid() ? m_jobSince.addSecs(-1) : QDateTime();
+    for (const Line &line : std::as_const(m_lines)) {
+        if (line.read != serial || line.parsed.kind != ProblemLine::Kind::MoveFailed ||
+            m_jobTold.contains(line.key) || (since.isValid() && line.at < since))
+            continue;
+        const QStringList hashes = ProblemMatch::match(line.parsed, torrents, nullptr);
+        if (hashes.isEmpty())
+            continue;
+        m_jobTold.insert(line.key);
+        const TorrentProblem words = ProblemMatch::describe(line.parsed);
+        for (const QString &hash : hashes)
+            Q_EMIT jobMoveFailed(
+                hash, line.at, line.parsed.systemMessage, words.causeKey, line.message);
+    }
 }
 
 void ProblemLog::watchRename(const QString &hash, int files)

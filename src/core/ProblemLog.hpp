@@ -105,7 +105,14 @@ public:
     /// request: the torrents' names are taken from the model now, while they are still there.
     void watchDelete(const QStringList &hashes);
     /// Whether a watch is on: the log is read on every poll.
-    bool isWatching() const { return !m_watches.isEmpty(); }
+    bool isWatching() const { return !m_watches.isEmpty() || !m_jobHashes.isEmpty(); }
+
+    /// C15 M15 (board 42 §5): a folder's move is running with these torrents. The log is
+    /// read on every poll for as long as it lasts, not D2's 30 s, and every "Failed to move
+    /// torrent" line written since `since` about one of them is told once, through
+    /// jobMoveFailed(). The failure still shows as D1's block. No footer note: the job tells.
+    /// Called again with the job's torrents as they change; an empty list ends it.
+    void watchJob(const QStringList &hashes, const QDateTime &since);
 
     /// The paths of `hash`'s files, as torrents/files lists them: a rename failure whose file
     /// is no longer among them was fixed. The tests feed it; with a server, it asks itself.
@@ -128,6 +135,14 @@ Q_SIGNALS:
     /// ("log55-move.bin didn't move: Permission denied"). `hashes` are the torrents it is
     /// about that are still in the list (none after a delete).
     void watchedFailure(const QString &text, const QStringList &hashes);
+    /// C15 M15: qBittorrent logged that `hash`, one of watchJob()'s, didn't move. `reason`
+    /// is libtorrent's text ("Permission denied"), `causeKey` TorrentProblem's (noAccess,
+    /// readOnly, diskFull…), `line` the whole line.
+    void jobMoveFailed(const QString &hash,
+                       const QDateTime &at,
+                       const QString &reason,
+                       const QString &causeKey,
+                       const QString &line);
     /// webSeedLines() or exportFailure() changed.
     void logLinesChanged();
     /// dismissed() changed: a dismissal, or a read from the top that let old ones go.
@@ -177,6 +192,7 @@ private:
     void updateFailures();
     void updateLogLines();
     void tellWatches(quint64 serial);
+    void tellJob(quint64 serial);
     void endWatches();
     void checkFiles();
     bool failureTouched() const;
@@ -213,6 +229,9 @@ private:
     QHash<QString, QList<WebSeedLogLine>> m_webSeedLines;
     QVariantMap m_exportFailure;
     QList<Watch> m_watches;
+    QSet<QString> m_jobHashes;
+    QDateTime m_jobSince;
+    QSet<QString> m_jobTold; ///< lineKey()s already told to the job
 };
 
 } // namespace omaseed::core
