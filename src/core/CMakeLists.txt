@@ -28,6 +28,8 @@ qt_add_library(omaseed-core STATIC
     FilesViewState.hpp
     FilterCounts.cpp
     FilterCounts.hpp
+    FolderTree.cpp
+    FolderTree.hpp
     Format.cpp
     Format.hpp
     FreeSpace.cpp

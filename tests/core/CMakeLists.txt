@@ -414,3 +414,8 @@ omaseed_add_test(tst_qbtsettingsbackup_live LIVE
     SOURCES tst_qbtsettingsbackup_live.cpp
     LIBRARIES omaseed::core Qt6::Network
 )
+
+omaseed_add_test(tst_foldertree
+    SOURCES tst_foldertree.cpp
+    LIBRARIES omaseed::core
+)
