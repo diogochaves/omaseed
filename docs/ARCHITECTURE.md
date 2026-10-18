@@ -44,6 +44,12 @@ Three static libraries and the executable. Each layer only depends on the ones a
   `TorrentsExport` and `TorrentsImport` (its torrents as a file, and back), `LibraryMatch`,
   `FreeSpace` and `SharedData` (what the add and delete sheets know about files already on
   disk), `RenamePlan` and `RenameDisk` (what a rename would land on).
+- Moving a folder ([DECISIONS.md](DECISIONS.md) C15): `FolderTree` (the library's save paths
+  as the rail's folders), `MovePlan` (the preflight: targets, room, writability, shared data,
+  files already at a target), `LooseFiles` (the files no torrent owns, failing closed), and
+  `MoveJob`, which sends the plan in waves and follows it for hours, saved under
+  `~/.config/omaseed/moves/`. `MoveJob` hears and asks in neutral terms; `QbtMoveFeed` is its
+  qBittorrent side (setLocation, the polls, the log's move failures through `ProblemLog`).
 
 **`omaseed-integration`** (`src/integration/`): the desktop, through Qt DBus and Gui.
 
