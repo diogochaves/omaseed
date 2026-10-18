@@ -74,6 +74,18 @@ void TestTray::tooltipMatchesSpec()
         QStringLiteral("home"), QStringLiteral("4.21 MB/s"), QStringLiteral("812 KB/s"), 6, 118);
     QCOMPARE(tray.tooltip(),
              QStringLiteral("home · ↓ 4.21 MB/s ↑ 812 KB/s · 6 downloading · 118 seeding"));
+
+    // Board 42 J6 (DECISIONS C15 M20): a running move adds its line, and goes with it.
+    tray.setJobLine(QStringLiteral("Moving games: 52 %, about 50 min left"));
+    QCOMPARE(tray.tooltip(),
+             QStringLiteral("home · ↓ 4.21 MB/s ↑ 812 KB/s · 6 downloading · 118 seeding\n"
+                            "Moving games: 52 %, about 50 min left"));
+    tray.setTooltip(
+        QStringLiteral("home"), QStringLiteral("1 MB/s"), QStringLiteral("2 MB/s"), 0, 118);
+    QVERIFY(tray.tooltip().endsWith(QStringLiteral("\nMoving games: 52 %, about 50 min left")));
+    tray.setJobLine(QString());
+    QCOMPARE(tray.tooltip(),
+             QStringLiteral("home · ↓ 1 MB/s ↑ 2 MB/s · 0 downloading · 118 seeding"));
 }
 
 // docs/33 §11 (D10, D24; DECISIONS C13): "show omaseed" and Fig. 18's two figure rows, then

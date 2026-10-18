@@ -59,6 +59,11 @@ public:
     /// server id.
     quint32 notifyWeeklyRecap(const QString &serverId, const QString &summary, const QString &body);
 
+    /// Board 42 E2 (DECISIONS C15 M16): a folder's move, once: at its end ("games moved" /
+    /// "385 moved, 2 failed · 149 loose files carried"), or when it paused itself (T2–T4).
+    /// Action "show", also the click. Event class "move", subject the server id.
+    quint32 notifyMove(const QString &serverId, const QString &summary, const QString &body);
+
 signals:
     /// Fired when the shell reports ActionInvoked for a notice this Notifier sent.
     /// eventClass/subjectId are the values the corresponding notify*() call was made with;

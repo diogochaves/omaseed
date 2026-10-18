@@ -28,6 +28,7 @@ private slots:
     void actionInvokedCarriesClassSubjectAndKey();
     void clickOnTheBodyActsAsTheMainButton();
     void notificationClosedForgetsTheKey();
+    void aMoveIsOneNoticePerServer();
     void aDaemonRestartForgetsTheLiveIds(); // INT-9
     void aServiceThatAppearsLaterIsUsed();  // INT-9
 
@@ -197,6 +198,30 @@ void TestNotifier::clickOnTheBodyActsAsTheMainButton()
 
     QCOMPARE(spy.size(), 1);
     QCOMPARE(spy.first().at(0).toString(), QStringLiteral("completed"));
+    QCOMPARE(spy.first().at(2).toString(), QStringLiteral("show"));
+}
+
+// Board 42 E2 (DECISIONS C15 M16): one notice for a folder's move, and a click shows it.
+void TestNotifier::aMoveIsOneNoticePerServer()
+{
+    const quint32 id = m_notifier->notifyMove(QStringLiteral("home"),
+                                              QStringLiteral("games moved"),
+                                              QStringLiteral("385 moved, 2 failed"));
+    QVERIFY(id != 0);
+    QCOMPARE(m_server->calls.at(0).summary, QStringLiteral("games moved"));
+    QCOMPARE(m_server->calls.at(0).body, QStringLiteral("385 moved, 2 failed"));
+    QCOMPARE(m_server->calls.at(0).actions.mid(0, 2),
+             QStringList({QStringLiteral("show"), QStringLiteral("show")}));
+    // A second for the same server takes the first one's place.
+    const quint32 second = m_notifier->notifyMove(
+        QStringLiteral("home"), QStringLiteral("games moved"), QStringLiteral("loose files too"));
+    QCOMPARE(second, id);
+
+    QSignalSpy spy(m_notifier, &Notifier::actionInvoked);
+    m_server->triggerActionInvoked(id, QStringLiteral("default"));
+    QVERIFY(spy.wait(2000));
+    QCOMPARE(spy.first().at(0).toString(), QStringLiteral("move"));
+    QCOMPARE(spy.first().at(1).toString(), QStringLiteral("home"));
     QCOMPARE(spy.first().at(2).toString(), QStringLiteral("show"));
 }
 

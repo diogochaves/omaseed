@@ -269,4 +269,18 @@ Notifier::notifyWeeklyRecap(const QString &serverId, const QString &summary, con
                       QStringLiteral("console"));
 }
 
+quint32 Notifier::notifyMove(const QString &serverId, const QString &summary, const QString &body)
+{
+    const QStringList actions{QStringLiteral("show"), QStringLiteral("show")};
+    return sendNotice(QStringLiteral("move|%1").arg(serverId),
+                      QStringLiteral("move"),
+                      serverId,
+                      summary,
+                      body,
+                      actions,
+                      kUrgencyNormal,
+                      QStringLiteral("transfer"),
+                      QStringLiteral("show"));
+}
+
 } // namespace omaseed::integration
