@@ -165,6 +165,10 @@ before it will tag a release.
 
 ### Fixed
 
+- Set location's refusals name the folder, not the sign-in: "qBittorrent can't create
+  /mnt/x" (check that the drive is mounted) or "qBittorrent can't write to /mnt/x". A 403 that
+  qBittorrent sends for a folder it can't write no longer makes omaseed sign in again or mark
+  the server as refusing it.
 - A screen reader can now use the controls it finds: pressing a button, a tab, a menu or
   palette row, a rail row, a link or a key hint does what a click does, and a switch's toggle
   flips it and saves the setting, as a click would. Before, the press did nothing, and a

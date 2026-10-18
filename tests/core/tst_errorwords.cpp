@@ -1,6 +1,8 @@
 #include "core/ErrorWords.hpp"
+#include "core/Format.hpp"
 
 #include <QTest>
+#include <QTimeZone>
 
 using omaseed::core::ApiError;
 using omaseed::core::AuthMode;
@@ -129,6 +131,7 @@ private slots:
         QVERIFY(!ErrorWords::isRefusedSignIn(error, AuthMode::Cookie));
     }
 
+    // C15 M19 (board 42 §8): setLocation's refusals are about the folder.
     void setLocationConflict()
     {
         const ApiError error = ApiError::fromHttpStatus(
@@ -142,14 +145,127 @@ private slots:
         subject.torrent = QStringLiteral("Field Recordings Vol. 3 [FLAC]");
         subject.folder = QStringLiteral("/proc/omaseed");
         const ErrorWords::Text text = ErrorWords::forRequest(error, subject);
-        QCOMPARE(text.headline, QStringLiteral("Field Recordings Vol. 3 [FLAC] wasn't moved"));
-        QCOMPARE(text.line, QStringLiteral("qBittorrent can't create or write /proc/omaseed."));
+        QCOMPARE(text.headline, QStringLiteral("qBittorrent can't create /proc/omaseed"));
+        QCOMPARE(text.line,
+                 QStringLiteral("Check that the drive is mounted and its parent folder exists."));
         QCOMPARE(text.details,
                  QStringLiteral("conflict (409) · POST torrents/setLocation · server replied: "
                                 "Conflict · 127.0.0.1:8090"));
         QCOMPARE(text.sentence(),
-                 QStringLiteral("Field Recordings Vol. 3 [FLAC] wasn't moved: qBittorrent can't "
-                                "create or write /proc/omaseed"));
+                 QStringLiteral("qBittorrent can't create /proc/omaseed: check that the drive is "
+                                "mounted and its parent folder exists"));
+    }
+
+    void setLocationNoFolder()
+    {
+        const ApiError error = ApiError::fromHttpStatus(
+            400, QStringLiteral("POST torrents/setLocation: Save path is empty"));
+        const ErrorWords::Text text = ErrorWords::forRequest(error, server());
+        QCOMPARE(text.headline, QStringLiteral("No folder given"));
+        QCOMPARE(text.line, QStringLiteral("Type the folder's new path."));
+    }
+
+    void setLocationForbiddenFolder()
+    {
+        // What QbtClient makes of a 403 whose body is qBittorrent's own text.
+        const ApiError error(ApiError::Kind::Forbidden,
+                             QStringLiteral("POST torrents/setLocation: Cannot write to directory"),
+                             403);
+        ErrorWords::Subject subject = server(AuthMode::Cookie);
+        subject.folder = QStringLiteral("/mnt/fast/games");
+        const ErrorWords::Text text = ErrorWords::forRequest(error, subject);
+        QCOMPARE(text.headline, QStringLiteral("qBittorrent can't write to /mnt/fast/games"));
+        QCOMPARE(text.line,
+                 QStringLiteral("Its user has no write access there. This is not about the "
+                                "sign-in."));
+        QCOMPARE(text.kind, QStringLiteral("request"));
+    }
+
+    void setLocationBareForbiddenIsStillTheSignIn()
+    {
+        // A session qBittorrent doesn't know answers the bare "Forbidden": not a folder word.
+        const ApiError error(ApiError::Kind::Forbidden,
+                             QStringLiteral("POST torrents/setLocation: Error transferring "
+                                            "http://127.0.0.1:8090/api/v2/torrents/setLocation "
+                                            "- server replied: Forbidden"),
+                             403);
+        ErrorWords::Subject subject = server(AuthMode::Cookie);
+        subject.folder = QStringLiteral("/mnt/fast/games");
+        const ErrorWords::Text text = ErrorWords::forRequest(error, subject);
+        QVERIFY2(!text.headline.contains(QStringLiteral("can't write")), qPrintable(text.headline));
+    }
+
+    void moveFailurePermissionDenied()
+    {
+        // T2: 200, then "Failed to move torrent … Permission denied" in the log.
+        const ErrorWords::Text text =
+            ErrorWords::forMoveFailure(QStringLiteral("Tiny Platformers Bundle"),
+                                       QStringLiteral("/mnt/fast/games"),
+                                       QStringLiteral("/mnt/fast"),
+                                       QStringLiteral("noAccess"),
+                                       QStringLiteral("Permission denied"));
+        QCOMPARE(text.headline, QStringLiteral("qBittorrent can't write to /mnt/fast/games"));
+        QCOMPARE(text.line,
+                 QStringLiteral("Tiny Platformers Bundle didn't move: “Permission denied”."));
+    }
+
+    void moveFailureDiskFull()
+    {
+        const ErrorWords::Text text =
+            ErrorWords::forMoveFailure(QStringLiteral("Big Box Scans"),
+                                       QStringLiteral("/mnt/fast/games"),
+                                       QStringLiteral("/mnt/fast"),
+                                       QStringLiteral("diskFull"),
+                                       QStringLiteral("No space left on device"));
+        QCOMPARE(text.headline, QStringLiteral("/mnt/fast is full"));
+        QCOMPARE(text.line, QStringLiteral("Big Box Scans didn't move. The move is paused."));
+    }
+
+    void moveFailureOther()
+    {
+        const ErrorWords::Text text =
+            ErrorWords::forMoveFailure(QStringLiteral("x"),
+                                       QStringLiteral("/d"),
+                                       QString(),
+                                       QStringLiteral("other"),
+                                       QStringLiteral("Input/output error"));
+        QCOMPARE(text.headline, QStringLiteral("x didn't move"));
+        QCOMPARE(text.line, QStringLiteral("“Input/output error”."));
+    }
+
+    void nearlyFull()
+    {
+        const ErrorWords::Text text = ErrorWords::forNearlyFull(
+            QStringLiteral("Big Box Scans"), QStringLiteral("/mnt/fast"), 1503238553);
+        QCOMPARE(text.headline, QStringLiteral("/mnt/fast is nearly full"));
+        QCOMPARE(text.line,
+                 QStringLiteral("Big Box Scans would leave 1.40 GB free, under what "
+                                "you keep free. The move is paused."));
+    }
+
+    void stuck()
+    {
+        const QDateTime landed(QDate(2026, 10, 18), QTime(14, 2), QTimeZone::LocalTime);
+        const ErrorWords::Text text = ErrorWords::forStuck(QStringLiteral("Freeware Classics"),
+                                                           std::chrono::minutes(38),
+                                                           landed,
+                                                           std::chrono::minutes(5));
+        QCOMPARE(text.headline, QStringLiteral("qBittorrent stopped moving"));
+        QCOMPARE(text.line,
+                 QStringLiteral("Freeware Classics has been moving for 38 min and nothing has "
+                                "landed since 14:02 (at this move's speed it needs %1). "
+                                "Restarting qBittorrent usually frees it.")
+                     .arg(omaseed::core::Format::eta(300)));
+    }
+
+    void leftOut()
+    {
+        const ErrorWords::Text text = ErrorWords::forLeftOut(2, QStringLiteral("/mnt/fast/games"));
+        QCOMPARE(text.headline, QStringLiteral("2 left out"));
+        QCOMPARE(text.line,
+                 QStringLiteral("/mnt/fast/games already has a file with their file's "
+                                "name. qBittorrent would keep that file and report "
+                                "the move as done."));
     }
 
     void addUnsupportedMediaType()

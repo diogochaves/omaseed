@@ -514,6 +514,18 @@ void QbtClient::onJobReplyFinished(const JobPtr &job)
     ++job->attempt;
 
     ApiError error = mapError(job, status, reason);
+    if (job->spec.forbiddenMayNameRequest && status == 403) {
+        const QByteArray own = body.trimmed();
+        if (!own.isEmpty() && own != QByteArrayLiteral("Forbidden")) {
+            error = ApiError(
+                ApiError::Kind::Forbidden,
+                QStringLiteral("%1 %2: %3").arg(job->spec.verb, job->spec.path, firstLine(own)),
+                status);
+            finishJob(job, body, error);
+            pump();
+            return;
+        }
+    }
     if (job->spec.isLogin) {
         if (!error.isError()) {
             // 5.x answers 204; older builds answer 200 with "Ok." or "Fails.".
@@ -1196,7 +1208,14 @@ QbtReply<QByteArray> *QbtClient::torrentsSetLocation(const QStringList &hashes,
 {
     QUrlQuery form = hashesForm(hashes);
     addItem(form, QStringLiteral("location"), location);
-    return post(QStringLiteral("torrents/setLocation"), form);
+    RequestSpec spec;
+    spec.verb = QStringLiteral("POST");
+    spec.path = QStringLiteral("torrents/setLocation");
+    spec.form = form;
+    spec.retryOnTransient = false;
+    spec.forbiddenMayNameRequest = true;
+    return submit<QByteArray>(std::move(spec),
+                              [](const QByteArray &body) { return QbtResult<QByteArray>(body); });
 }
 
 QbtReply<QByteArray> *QbtClient::torrentsSetDownloadLimit(const QStringList &hashes,

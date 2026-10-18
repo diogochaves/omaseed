@@ -1876,11 +1876,11 @@ TestCase {
     // over the table; esc closes them, nothing moves.
     function test_a_failures_details_dock_above_the_footer() {
         const table = view.table.y;
-        view.flashFooterNote("Field Recordings wasn't moved: qBittorrent can't create or write /proc/omaseed");
+        view.flashFooterNote("qBittorrent can't create /proc/omaseed: check that the drive is mounted and its parent folder exists");
         view.footerNoteSticky = true;
         view.footerFailure = {
-            "headline": "Field Recordings wasn't moved",
-            "line": "qBittorrent can't create or write /proc/omaseed.",
+            "headline": "qBittorrent can't create /proc/omaseed",
+            "line": "Check that the drive is mounted and its parent folder exists.",
             "details": "conflict (409) · POST torrents/setLocation · server replied: Conflict",
             "sentence": "x"
         };

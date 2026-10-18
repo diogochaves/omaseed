@@ -453,6 +453,10 @@ private:
         bool retryOnTransient = true;
         bool isLogin = false;
         bool allowReloginRetry = true;
+        /// A 403 whose body is qBittorrent's own text (not its bare "Forbidden" for a session
+        /// it doesn't know) refuses the request, not the sign-in: setLocation's "can't write
+        /// to directory" (C15 M19). No re-login, no auth state; the body becomes the message.
+        bool forbiddenMayNameRequest = false;
         /// Set instead of `form` for a multipart POST: called once per attempt, see
         /// postMultipart().
         std::function<QHttpMultiPart *()> buildMultiPart;

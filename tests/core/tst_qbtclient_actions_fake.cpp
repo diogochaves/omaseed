@@ -154,6 +154,10 @@ private slots:
     void addUrlsSendsStoppedAndPausedAndOptions();
     void a500OnActionIsNotRetried();
     void a409OnActionMapsToConflict();
+    void setLocationSendsEveryHashInOneBody();
+    void setLocationFolder403IsNotASignIn();
+    void setLocationBare403StillSignsIn();
+    void setLocation409IsAConflict();
     void setPreferencesSendsOnlyTheChangedKeysAsJson();
     void removeTrackersSendsTheHashAndPipedUrls();
     void addTrackersSendsOneUrlPerLine();
@@ -730,6 +734,95 @@ void TestQbtClientActionsFake::a409OnActionMapsToConflict()
     QVERIFY(result.isError());
     QCOMPARE(result.error().kind(), ApiError::Kind::Conflict);
     QCOMPARE(result.error().httpStatus(), 409);
+    QCOMPARE(server.requests.size(), 1);
+}
+
+// C15 (board 42): a folder's move sends one setLocation per target with every hash, piped,
+// in one form body; 430 hashes are ~19 KB.
+void TestQbtClientActionsFake::setLocationSendsEveryHashInOneBody()
+{
+    FakeServer server;
+    server.setHandler([](const Recorded &, int) { return httpResponse(200, "OK", ""); });
+
+    QbtClient client;
+    client.setBaseUrl(server.url());
+
+    QStringList hashes;
+    for (int i = 0; i < 430; ++i)
+        hashes << QStringLiteral("%1").arg(i, 40, 16, QLatin1Char('0'));
+    const QString location = QStringLiteral("/mnt/fast/games/Hand Held & Ünïcødé");
+    const QbtResult<QByteArray> result = await(this, client.torrentsSetLocation(hashes, location));
+    QVERIFY2(!result.isError(), qPrintable(result.error().toString()));
+    QCOMPARE(server.requests.size(), 1);
+    QCOMPARE(server.requests.at(0).target, QByteArrayLiteral("/api/v2/torrents/setLocation"));
+    const QUrlQuery form(QString::fromUtf8(server.requests.at(0).body));
+    QCOMPARE(form.queryItemValue(QStringLiteral("hashes"), QUrl::FullyDecoded),
+             hashes.join(QLatin1Char('|')));
+    QCOMPARE(form.queryItemValue(QStringLiteral("location"), QUrl::FullyDecoded), location);
+    QVERIFY(server.requests.at(0).body.size() < 20 * 1024);
+}
+
+// C15 M19: the API documents 403 "User does not have write access to directory" for
+// setLocation. That refuses the folder, not the sign-in: no re-login, no auth state.
+void TestQbtClientActionsFake::setLocationFolder403IsNotASignIn()
+{
+    FakeServer server;
+    server.setHandler([](const Recorded &, int) {
+        return httpResponse(403, "Forbidden", "Cannot write to directory");
+    });
+
+    QbtClient client;
+    client.setBaseUrl(server.url());
+    client.setCredentials(QStringLiteral("user"), QStringLiteral("pass"));
+
+    const QbtResult<QByteArray> result = await(
+        this, client.torrentsSetLocation({QStringLiteral("h1")}, QStringLiteral("/mnt/readonly")));
+    QVERIFY(result.isError());
+    QCOMPARE(result.error().kind(), ApiError::Kind::Forbidden);
+    QCOMPARE(result.error().httpStatus(), 403);
+    QVERIFY2(result.error().message().contains(QStringLiteral("Cannot write to directory")),
+             qPrintable(result.error().message()));
+    QCOMPARE(server.requests.size(), 1); // no auth/login
+    QVERIFY(client.authState() != QbtClient::AuthState::Forbidden);
+}
+
+// The bare "Forbidden" is a session qBittorrent doesn't know: that one still signs in again.
+void TestQbtClientActionsFake::setLocationBare403StillSignsIn()
+{
+    FakeServer server;
+    server.setHandler([](const Recorded &request, int) {
+        if (request.target.startsWith("/api/v2/auth/login"))
+            return httpResponse(200, "OK", "Ok.", {"Set-Cookie: SID=abc; path=/"});
+        return httpResponse(403, "Forbidden", "Forbidden");
+    });
+
+    QbtClient client;
+    client.setBaseUrl(server.url());
+    client.setCredentials(QStringLiteral("user"), QStringLiteral("pass"));
+
+    const QbtResult<QByteArray> result =
+        await(this, client.torrentsSetLocation({QStringLiteral("h1")}, QStringLiteral("/mnt/x")));
+    QVERIFY(result.isError());
+    bool loggedIn = false;
+    for (const Recorded &request : std::as_const(server.requests))
+        loggedIn = loggedIn || request.target.startsWith("/api/v2/auth/login");
+    QVERIFY(loggedIn);
+}
+
+void TestQbtClientActionsFake::setLocation409IsAConflict()
+{
+    FakeServer server;
+    server.setHandler([](const Recorded &, int) {
+        return httpResponse(409, "Conflict", "Cannot make save path");
+    });
+
+    QbtClient client;
+    client.setBaseUrl(server.url());
+
+    const QbtResult<QByteArray> result = await(
+        this, client.torrentsSetLocation({QStringLiteral("h1")}, QStringLiteral("/proc/nope")));
+    QVERIFY(result.isError());
+    QCOMPARE(result.error().kind(), ApiError::Kind::Conflict);
     QCOMPARE(server.requests.size(), 1);
 }
 

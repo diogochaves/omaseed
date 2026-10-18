@@ -1,8 +1,11 @@
 #include "core/ErrorWords.hpp"
 
+#include "core/Format.hpp"
+
 #include <QCoreApplication>
 #include <QRegularExpression>
 
+#include <algorithm>
 #include <cmath>
 
 namespace omaseed::core {
@@ -88,6 +91,24 @@ QString joined(const QString &first, const QString &second)
 bool isStatus(const ApiError &error, int status)
 {
     return error.httpStatus() == status;
+}
+
+/// A 403 from setLocation that is about the folder (qBittorrent's "Cannot write to
+/// directory"), not the bare "Forbidden" of a session it doesn't know, nor a sign-in omaseed
+/// held back (QbtClient keeps the body's text for setLocation's 403).
+bool isFolderRefusal(const ApiError &error)
+{
+    if (error.kind() != ApiError::Kind::Forbidden)
+        return false;
+    const QString own = ownText(error);
+    return !own.isEmpty() && !own.contains(QLatin1String("Forbidden"), Qt::CaseInsensitive) &&
+           !own.contains(QLatin1String("sign-in"));
+}
+
+QString cantWrite(const QString &folder)
+{
+    return folder.isEmpty() ? tr("qBittorrent can't write to that folder")
+                            : tr("qBittorrent can't write to %1").arg(folder);
 }
 
 } // namespace
@@ -303,17 +324,29 @@ ErrorWords::Text ErrorWords::forRequest(const ApiError &error, const Subject &su
     const QString req = request(error);
     const bool add = req.endsWith(QLatin1String("torrents/add"));
 
-    // 409 on setLocation: qBittorrent can't create or write the folder.
-    if (error.kind() == ApiError::Kind::Conflict &&
-        req.endsWith(QLatin1String("torrents/setLocation"))) {
+    // setLocation (C15 M19, board 42 §8): what qBittorrent refused is the folder, never the
+    // sign-in.
+    if (req.endsWith(QLatin1String("torrents/setLocation"))) {
         Text text;
         text.kind = QStringLiteral("request");
         text.details = details(error, subject.address);
-        text.headline = tr("%1 wasn't moved").arg(torrentName(subject));
-        text.line = subject.folder.isEmpty()
-                        ? tr("qBittorrent can't create or write that folder.")
-                        : tr("qBittorrent can't create or write %1.").arg(subject.folder);
-        return text;
+        if (isStatus(error, 400)) {
+            text.headline = tr("No folder given");
+            text.line = tr("Type the folder's new path.");
+            return text;
+        }
+        if (error.kind() == ApiError::Kind::Conflict) {
+            text.headline = subject.folder.isEmpty()
+                                ? tr("qBittorrent can't create that folder")
+                                : tr("qBittorrent can't create %1").arg(subject.folder);
+            text.line = tr("Check that the drive is mounted and its parent folder exists.");
+            return text;
+        }
+        if (isFolderRefusal(error)) {
+            text.headline = cantWrite(subject.folder);
+            text.line = tr("Its user has no write access there. This is not about the sign-in.");
+            return text;
+        }
     }
     // 415 on add: the .torrent itself (C9).
     if (add && isStatus(error, 415)) {
@@ -359,6 +392,78 @@ ErrorWords::Text ErrorWords::forRequest(const ApiError &error, const Subject &su
     Subject plain = subject;
     plain.retrySeconds = -1;
     return forServer(error, plain);
+}
+
+ErrorWords::Text ErrorWords::forMoveFailure(const QString &torrent,
+                                            const QString &folder,
+                                            const QString &drive,
+                                            const QString &causeKey,
+                                            const QString &reason)
+{
+    Text text;
+    text.kind = QStringLiteral("request");
+    text.details = reason;
+    const QString name = torrent.isEmpty() ? tr("the torrent") : torrent;
+    if (causeKey == QLatin1String("noAccess") || causeKey == QLatin1String("readOnly")) {
+        // T2: answered 200, then "Permission denied" in the log.
+        text.headline = cantWrite(folder);
+        text.line = tr("%1 didn't move: “%2”.").arg(name, reason);
+        return text;
+    }
+    if (causeKey == QLatin1String("diskFull")) {
+        const QString where = drive.isEmpty() ? folder : drive;
+        text.headline = where.isEmpty() ? tr("The drive is full") : tr("%1 is full").arg(where);
+        text.line = tr("%1 didn't move. The move is paused.").arg(name);
+        return text;
+    }
+    text.headline = tr("%1 didn't move").arg(name);
+    text.line = reason.isEmpty() ? QString() : tr("“%1”.").arg(reason);
+    return text;
+}
+
+ErrorWords::Text
+ErrorWords::forNearlyFull(const QString &torrent, const QString &drive, qint64 freeAfter)
+{
+    Text text;
+    text.kind = QStringLiteral("request");
+    text.headline =
+        drive.isEmpty() ? tr("The drive is nearly full") : tr("%1 is nearly full").arg(drive);
+    text.line = tr("%1 would leave %2 free, under what you keep free. The move is paused.")
+                    .arg(torrent.isEmpty() ? tr("The next torrent") : torrent,
+                         Format::size(std::max<qint64>(0, freeAfter)));
+    return text;
+}
+
+ErrorWords::Text ErrorWords::forStuck(const QString &torrent,
+                                      std::chrono::seconds moving,
+                                      const QDateTime &lastLanded,
+                                      std::chrono::seconds expected)
+{
+    Text text;
+    text.kind = QStringLiteral("request");
+    text.headline = tr("qBittorrent stopped moving");
+    const QString name = torrent.isEmpty() ? tr("A torrent") : torrent;
+    const qint64 minutes = std::max<qint64>(1, moving.count() / 60);
+    QString first = tr("%1 has been moving for %2 min").arg(name).arg(minutes);
+    if (lastLanded.isValid())
+        first = tr("%1 and nothing has landed since %2")
+                    .arg(first, lastLanded.toLocalTime().toString(QStringLiteral("HH:mm")));
+    QString second;
+    if (expected.count() > 0)
+        second = tr(" (at this move's speed it needs %1)").arg(Format::eta(expected.count()));
+    text.line = tr("%1%2. Restarting qBittorrent usually frees it.").arg(first, second);
+    return text;
+}
+
+ErrorWords::Text ErrorWords::forLeftOut(int count, const QString &folder)
+{
+    Text text;
+    text.kind = QStringLiteral("request");
+    text.headline = tr("%1 left out").arg(count);
+    text.line = tr("%1 already has a file with their file's name. qBittorrent would keep that "
+                   "file and report the move as done.")
+                    .arg(folder.isEmpty() ? tr("The new folder") : folder);
+    return text;
 }
 
 } // namespace omaseed::core
