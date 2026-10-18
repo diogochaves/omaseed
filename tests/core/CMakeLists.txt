@@ -420,6 +420,11 @@ omaseed_add_test(tst_foldertree
     LIBRARIES omaseed::core
 )
 
+omaseed_add_test(tst_foldermodel
+    SOURCES tst_foldermodel.cpp
+    LIBRARIES omaseed::core
+)
+
 omaseed_add_test(tst_loosefiles
     SOURCES tst_loosefiles.cpp
     LIBRARIES omaseed::core
