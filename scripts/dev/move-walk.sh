@@ -3,8 +3,12 @@
 # library of a few hundred small torrents: a folder with a nested save path and loose files
 # moved to another filesystem, omaseed killed mid-move and started again, the loose files
 # carried after the torrents; pause, end and "move the rest…"; a destination qBittorrent
-# can't write; a destination that fills up. After each step it checks what qBittorrent says
-# and what is on disk, and stops at the first mismatch.
+# can't write; a destination that fills up. Then a selection moved through the Move… sheet
+# (board 43, DECISIONS C16): one torrent's quick move, three from three folders keeping their
+# places, one queued behind a folder's move and the folder moved back from its summary, a name
+# already at the destination; and a second box whose omaseed is on the playground, whose disks
+# it can't see (L13). After each step it checks what qBittorrent says and what is on disk, and
+# stops at the first mismatch.
 # Run it again after any change to the move sheet, the job, the carry or their words.
 #
 #   scripts/dev/move-walk.sh [OUT_DIR]        # agents: a headless box, a shot per step,
@@ -12,11 +16,14 @@
 #                                             # lists every check
 #   scripts/dev/move-walk.sh --interactive    # Diogo: the box is a window on workspace 9; each
 #                                             # step says what it will do and waits for enter
-#   OMASEED_MOVE_WALK_FROM=music …            # only the last two steps (unwritable, full)
+#   OMASEED_MOVE_WALK_FROM=selection …        # from the selections on (no folder moves first)
+#   OMASEED_MOVE_WALK_FROM=music …            # from the unwritable and full steps on
+#   OMASEED_MOVE_WALK_FROM=remote …           # only the server omaseed can't see
 #   OMASEED_MOVE_WALK_KEEP=1 …                # a failed run leaves its box up
 #
 # Everything happens in a box with a qBittorrent of its own (scripts/dev/app-box.sh up --qbt),
-# so no other server is involved. The library is made in the box: 160 torrents in
+# so no other server is involved, but for the last step: a second box on the playground
+# (scripts/dev/test-server.sh start), whose Public Domain Sampler it moves and puts back. The library is made in the box: 160 torrents in
 # ~/Torrents/library/games (40 of them in games/handheld), 100 in films and 20 in music, each
 # a folder with one small file, added as already complete, plus files no torrent owns beside
 # them. The box's /tmp is a tmpfs, so moving there copies real bytes. The full destination is
@@ -184,6 +191,43 @@ shot() {
     printf '  ![%s](%s)\n  *%s*\n' "$file" "$file" "$1" >>"$OUT/index.md"
 }
 
+# save_of PREFIX: where qBittorrent saves the torrent whose name starts with PREFIX.
+save_of() {
+    api torrents/info | python3 -c '
+import json, sys
+print(next(t["save_path"] for t in json.load(sys.stdin) if t["name"].startswith(sys.argv[1])).rstrip("/"))' "$1"
+}
+
+# expect_at "WHAT" PREFIX PATH [SECONDS]: wait until PREFIX's torrent saves at PATH, moved.
+expect_at() {
+    local what="$1" prefix="$2" path="$3" limit="${4:-30}" got=""
+    for _ in $(seq 1 "$limit"); do
+        got="$(api torrents/info | python3 -c '
+import json, sys
+t = next(t for t in json.load(sys.stdin) if t["name"].startswith(sys.argv[1]))
+print(t["save_path"].rstrip("/") + ("" if t["state"] != "moving" else " (moving)"))' "$prefix" 2>/dev/null || true)"
+        [ "$got" = "$path" ] && { pass "$what"; return 0; }
+        sleep 1
+    done
+    fail "$what (after ${limit}s it saves at ${got:-nothing}, not $path)"
+}
+
+# expect_checked "WHAT" NAME [SECONDS]: wait until the radio button NAME reads checked.
+expect_checked() {
+    local what="$1" name="$2" limit="${3:-10}"
+    for _ in $(seq 1 "$limit"); do
+        omabox tree -b "$BOX" --window omaseed --find "$name" 2>/dev/null |
+            grep -qF "radio button \"$name\" [checked]" && { pass "$what"; return 0; }
+        sleep 1
+    done
+    fail "$what (after ${limit}s \"$name\" is not a checked radio button)"
+}
+
+# no_text "WHAT" TEXT: the window doesn't show TEXT.
+no_text() {
+    if find_text "$2"; then fail "$1 (\"$2\" is in the window)"; else pass "$1"; fi
+}
+
 # open_move QUERY DEST N: the cursor on QUERY's torrent, shift+m, DEST typed over the field;
 # waits until the sheet offers to move N torrents.
 open_move() {
@@ -227,11 +271,36 @@ cleanup() {
         echo "kept the box for a look: scripts/dev/app-box.sh down -b $BOX"
     else
         chmod -R u+w "$home/locked" 2>/dev/null || true
-        "$APP_BOX" down -b "$BOX" >/dev/null 2>&1 || true
+        "$APP_BOX" down -b "$MAIN_BOX" >/dev/null 2>&1 || true
+        [ -z "$REMOTE_BOX" ] || "$APP_BOX" down -b "$REMOTE_BOX" >/dev/null 2>&1 || true
     fi
+    put_back_remote
     exit "$status"
 }
 home=""
+MAIN_BOX="$BOX"
+REMOTE_BOX=""
+REMOTE_HASH=""
+REMOTE_FROM=""
+REMOTE_DEST=""
+# put_back_remote: the playground's torrent the last step moved goes back, and the folder it
+# made goes (only that one: under the playground's own downloads, named remote-walk).
+put_back_remote() {
+    [ -n "$REMOTE_HASH" ] || return 0
+    curl -s -o /dev/null "$PLAYGROUND/torrents/setLocation" -d "hashes=$REMOTE_HASH" \
+        --data-urlencode "location=$REMOTE_FROM" || true
+    for _ in $(seq 1 30); do
+        [ "$(curl -s "$PLAYGROUND/torrents/info?hashes=$REMOTE_HASH" | python3 -c '
+import json, sys
+print(json.load(sys.stdin)[0]["save_path"].rstrip("/"))' 2>/dev/null)" = "$REMOTE_FROM" ] && break
+        sleep 1
+    done
+    case "$REMOTE_DEST" in
+    "$HOME"/.local/share/omaseed-test/*/remote-walk) rm -rf "$REMOTE_DEST" ;;
+    esac
+    REMOTE_HASH=""
+}
+PLAYGROUND=http://127.0.0.1:8081/api/v2
 trap cleanup EXIT
 
 # ---- setup --------------------------------------------------------------------------------
@@ -336,8 +405,9 @@ expect_count "music holds $MUSIC" count_under "$LIB/music" -eq "$MUSIC"
 expect_text "the rail lists the folders" "handheld" 30
 shot "The library: the rail's folders group lists library, games with handheld under it, films and music."
 
-# OMASEED_MOVE_WALK_FROM=music skips games and films (for working on the last two steps).
-if [ "${OMASEED_MOVE_WALK_FROM:-games}" = games ]; then
+# OMASEED_MOVE_WALK_FROM skips what comes before: selection, music or remote.
+FROM="${OMASEED_MOVE_WALK_FROM:-games}"
+if [ "$FROM" = games ]; then
 
 # ---- games: another filesystem, a kill mid-move, the loose files ---------------------------
 
@@ -418,7 +488,115 @@ expect_count "nothing is left in films" count_under "$LIB/films" -eq 0 5
 
 fi
 
+# ---- a selection (board 43, C16) ------------------------------------------------------------
+
+if [ "$FROM" = games ] || [ "$FROM" = selection ]; then
+SEL="$BOX_HOME/sel"
+
+step "One torrent, a quick move" "The cursor on Handheld Pack 040, m: the Move… sheet on that torrent. ~/sel/one typed over the field: one green line (L3). enter: it lands within 3 s, so no band; the footer says it moved (L7)."
+table_on "Handheld Pack 040"
+keys m
+expect_text "the Move… sheet is open" "Move Handheld Pack 040" 10
+keys ctrl+a -t "$SEL/one"
+expect_text "one green line" "access are fine" 20
+shot "The Move… sheet for one torrent: the field, one green line, move." sheet
+keys Return
+expect_at "Handheld Pack 040 saves at ~/sel/one" "Handheld Pack 040" "$SEL/one"
+expect_disk "its file is there" -f "$SEL/one/Handheld Pack 040/data.bin"
+expect_text "the footer says it moved" "Handheld Pack 040 moved to $SEL/one" 20
+no_text "no band for it" "Moving Handheld Pack 040"
+shot "The footer note: Handheld Pack 040 moved to ~/sel/one, a green ✓." note
+
+step "Three from three folders, keeping their places" "space on Arcade Set 002 (games), Handheld Pack 002 (games/handheld) and Short Film 002 (films); m, ~/sel/keep. The sheet offers into one folder or keeping their places below the folder they share; keep their places: each folder's row and where it goes. move 3 torrents: each lands in the same place below ~/sel/keep."
+read -r common < <(api torrents/info | python3 -c '
+import json, os, sys
+paths = [t["save_path"].rstrip("/") for t in json.load(sys.stdin)
+         if t["name"] in ("Arcade Set 002", "Handheld Pack 002", "Short Film 002")]
+print(os.path.commonpath(paths))')
+rel_of() { local at; at="$(save_of "$1")"; echo "${at#"$common"}"; }
+arcade_rel="$(rel_of "Arcade Set 002")"
+handheld_rel="$(rel_of "Handheld Pack 002")"
+film_rel="$(rel_of "Short Film 002")"
+table_on "Arcade Set 002"
+keys space
+table_on "Handheld Pack 002"
+keys space
+table_on "Short Film 002"
+keys space
+keys m
+expect_text "the sheet is for the three" "Move 3 torrents" 10
+keys ctrl+a -t "$SEL/keep"
+expect_text "it offers to keep their places below $common" "keep their places below $common" 20
+press "keep their places below $common"
+expect_checked "keep their places is picked" "keep their places below $common"
+expect_text "a row for handheld" "to $SEL/keep$handheld_rel" 10
+shot "Keep their places: three rows, each folder and where it goes; room; move 3 torrents." sheet
+press "move 3 torrents"
+expect_at "Arcade Set 002 is at ~/sel/keep$arcade_rel" "Arcade Set 002" "$SEL/keep$arcade_rel"
+expect_at "Handheld Pack 002 at ~/sel/keep$handheld_rel" "Handheld Pack 002" "$SEL/keep$handheld_rel"
+expect_at "Short Film 002 at ~/sel/keep$film_rel" "Short Film 002" "$SEL/keep$film_rel"
+expect_text "the footer says 3 moved" "3 moved to $SEL/keep" 20
+table_on "Short Film 002"
+keys Escape
+
+films="$(save_of "Short Film 010")"
+nfilms="$(count_at "$films")"
+step "A move queued behind a folder's" "The films folder ($nfilms torrents), shift+m, ~/sel/films, enter: the band. While it runs, Arcade Set 003, m, ~/sel/after: the button reads move after films (Q4); enter, and the band names what's next. When films ends its summary stays, and Arcade Set 003 moves under it (#105)."
+open_move "Short Film 010" "$SEL/films" "$nfilms"
+keys Return
+expect_text "the band shows the folder's move (moving, or renaming on one drive)" "films to $SEL/films" 30
+table_on "Arcade Set 003"
+keys m
+keys ctrl+a -t "$SEL/after"
+expect_text "the sheet says it waits" "move after films" 20
+shot "The Move… sheet during the folder's move: move after films." sheet
+press "move after films"
+shot "The band: films moving, next: Arcade Set 003 to ~/sel/after." band
+press details
+expect_text "details list it, waiting (J3)" "waiting: Arcade Set 003" 10
+shot "The band's details: waiting: Arcade Set 003, with cancel." details
+press details
+expect_count "all films land on ~/sel/films" count_at "$SEL/films" -eq "$nfilms" 400
+expect_at "Arcade Set 003 moved after them" "Arcade Set 003" "$SEL/after" 60
+expect_text "its footer note" "Arcade Set 003 moved to $SEL/after" 20
+expect_text "the films' summary is still there" "films moved" 5
+shot "The films summary, still there after the queued move landed under it; the footer note." summary
+
+step "Move back" "The films summary's move back…: the sheet sends each of the $nfilms back to $films; move $nfilms back. Arcade Set 003, moved after it, stays."
+press "move back…"
+expect_text "the sheet moves the films back" "move $nfilms back" 30
+shot "Move back: each to where it was." sheet
+press "move $nfilms back"
+expect_count "the films are back at $films" count_at "$films" -eq "$nfilms" 400
+expect_count "none left on ~/sel/films" count_at "$SEL/films" -eq 0 5
+expect_at "Arcade Set 003 stays at ~/sel/after" "Arcade Set 003" "$SEL/after" 1
+expect_text "the band says they moved back" "moved back" 60
+shot "The end of the move back." back
+press close
+
+step "A name already there" "The box's ~/sel/clash already has Arcade Set 004/data.bin, another file under the torrent's file's name. space on Arcade Set 004 and Arcade Set 005, m, ~/sel/clash: 1 left out (qBittorrent would keep that folder's file and call the move done, board 43 §1); move 1 torrent moves the other."
+mkdir -p "$home/sel/clash/Arcade Set 004"
+echo planted >"$home/sel/clash/Arcade Set 004/data.bin"
+clash_from="$(save_of "Arcade Set 004")"
+table_on "Arcade Set 004"
+keys space
+table_on "Arcade Set 005"
+keys space
+keys m
+keys ctrl+a -t "$SEL/clash"
+expect_text "one is left out" "1 left out" 20
+shot "The Move… sheet: 1 left out, the red line; move 1 torrent." sheet
+press "move 1 torrent"
+expect_at "Arcade Set 005 is at ~/sel/clash" "Arcade Set 005" "$SEL/clash"
+expect_at "Arcade Set 004 stayed" "Arcade Set 004" "$clash_from" 1
+if [ "$(cat "$home/sel/clash/Arcade Set 004/data.bin")" = planted ]; then pass "the file there is untouched"; else fail "the planted data.bin changed"; fi
+table_on "Arcade Set 005"
+keys Escape
+fi
+
 # ---- music: a folder qBittorrent can't write, then a full one ------------------------------
+
+if [ "$FROM" != remote ]; then
 
 step "A folder qBittorrent can't write" "The box's ~/locked/music exists, read-only. The sheet warns (yellow, not a block); enter sends the smallest alone; qBittorrent answers 200 and logs \"Permission denied\"; the job stops there: \"qBittorrent can't write to …\"."
 mkdir -p "$home/locked/music"
@@ -463,6 +641,48 @@ for line in sys.stdin:
 omabox click -b "$BOX" --window omaseed --wait $where >/dev/null 2>&1 || true
 expect_text "the folder line offers to move it" "move this folder…" 10
 shot "The folder line: one line, its text cut short, \"shift+m move this folder…\" whole at its end."
+fi
+
+# ---- a server whose disks omaseed can't see (board 43 L13, #102) ---------------------------
+
+step "A server omaseed can't see" "A second box, its omaseed on the playground (:8081, a qBittorrent on this machine whose folders the box can't see: no path map, nothing local to check). The playground's downloads/remote-walk already holds a folder called photo-archive-2019-2025. Public Domain Sampler and photo-archive-2019-2025 selected, m, that folder: the sheet says what was checked on the server and what can't be, and leaves photo-archive out from the server's own listing. move 1 torrent: Public Domain Sampler moves, the other stays, the folder there is untouched. Then the playground is put back."
+[ "$(curl -s "$PLAYGROUND/app/version")" != "" ] || fail "no playground on :8081: scripts/dev/test-server.sh start"
+read -r REMOTE_HASH REMOTE_FROM < <(curl -s "$PLAYGROUND/torrents/info" | python3 -c '
+import json, sys
+t = next(t for t in json.load(sys.stdin) if t["name"] == "Public Domain Sampler")
+print(t["hash"], t["save_path"].rstrip("/"))')
+photo_from="$(curl -s "$PLAYGROUND/torrents/info" | python3 -c '
+import json, sys
+print(next(t["save_path"] for t in json.load(sys.stdin) if t["name"] == "photo-archive-2019-2025").rstrip("/"))')"
+REMOTE_DEST="$REMOTE_FROM/remote-walk"
+mkdir -p "$REMOTE_DEST/photo-archive-2019-2025"
+echo planted >"$REMOTE_DEST/photo-archive-2019-2025/planted.txt"
+REMOTE_BOX="$MAIN_BOX-remote"
+"$APP_BOX" up -b "$REMOTE_BOX" >/dev/null
+BOX="$REMOTE_BOX"
+expect_text "omaseed is on the playground" "Public Domain Sampler" 60
+table_on "Public Domain Sampler"
+keys space
+table_on "photo-archive"
+keys space
+keys m
+expect_text "the sheet is for the two" "Move 2 torrents" 10
+keys ctrl+a -t "$REMOTE_DEST"
+expect_text "the remote line says what was checked where" "can't see" 20
+expect_text "the server's listing leaves photo-archive out" "1 left out" 30
+no_text "nothing claims room read here" "read on this machine"
+no_text "nothing claims a local write check" "is writable by the owner"
+shot "The Move… sheet on a server omaseed can't see: the remote line, room and writing can't tell, 1 left out from the server's listing." sheet
+press "move 1 torrent"
+# The note stays 6 s: read it first.
+expect_text "the footer says it moved" "Public Domain Sampler moved to" 20
+shot "The footer note on the playground: Public Domain Sampler moved to …/remote-walk." note
+expect_at "Public Domain Sampler is in remote-walk" "Public Domain Sampler" "$REMOTE_DEST"
+expect_at "photo-archive-2019-2025 stayed" "photo-archive-2019-2025" "$photo_from" 1
+if [ -d "$REMOTE_DEST/Public Domain Sampler" ]; then pass "its files are there, on the playground's disk"; else fail "no $REMOTE_DEST/Public Domain Sampler"; fi
+if [ "$(ls -A "$REMOTE_DEST/photo-archive-2019-2025")" = planted.txt ]; then pass "the planted folder holds only its own file"; else fail "the planted folder changed: $(ls -A "$REMOTE_DEST/photo-archive-2019-2025")"; fi
+put_back_remote
+if [ "$(save_of "Public Domain Sampler")" = "$REMOTE_FROM" ] && [ ! -e "$REMOTE_DEST" ]; then pass "the playground is as it was"; else fail "the playground was not put back"; fi
 
 echo
 echo "all $CHECKS checks passed"

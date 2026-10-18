@@ -20,6 +20,8 @@ before it will tag a release.
   places under the field (↓, or as you type): where you moved things lately, the library's
   folders and the categories' folders. Torrents from several folders go into one folder, or keep
   their places below a new one. Its checks say something only when there is something to say.
+  A move's summary stays while the next move, queued behind it or started after it, runs
+  under it; when only one of a selection moves, the footer names that one.
 
 - The bar widget speaks to screen readers: the bar button ("omaseed", with its state in words),
   the popup's buttons, sections, rows, menu and settings, and the figures it shows. It works on

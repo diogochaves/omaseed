@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # omaseed — the risky actions, walked through the app's own UI: renames, categories, tags,
-# automatic torrent management, set location (also onto another filesystem, a 2 GiB torrent),
+# automatic torrent management, set location through the Move… sheet (board 43: also onto
+# another filesystem, a 2 GiB torrent, and onto a folder that already has its name),
 # recheck, the selection bar on two torrents, the command palette (docs/30), delete with and
 # without files, and two torrents that share one file (#27: the twin goes in through the add
 # sheet's "save there"; #28: the delete confirm, the location sheet, a category change and
@@ -171,6 +172,20 @@ expect_disk() {
         sleep 0.25
     done
     fail "$what (after ${limit}s: test $op $path is false in the box)"
+}
+
+# expect_text "WHAT" TEXT [SECONDS]: wait until omaseed's window shows TEXT (its accessibility
+# tree has a node holding it).
+expect_text() {
+    local what="$1" text="$2" limit="${3:-20}"
+    for _ in $(seq 1 "$limit"); do
+        omabox tree -b "$BOX" --window omaseed --find "$text" >/dev/null 2>&1 && {
+            pass "$what"
+            return 0
+        }
+        sleep 1
+    done
+    fail "$what (after ${limit}s no \"$text\" in the window)"
 }
 
 # expect_size "WHAT" PATH BYTES: the file PATH in the box is BYTES long.
@@ -417,13 +432,16 @@ api torrents/tags | python3 -c 'import json, sys; sys.exit(0 if "walk-tag" in js
     fail "the tag walk-tag itself was deleted (the app never deletes tags)"
 pass "the tag itself stays on the server"
 
-step "Set location, same disk" "Nested Library Sampler, the menu's set location (m), ~/Moved, enter. 113 files in 26 folders move."
+step "Set location, same disk" "Nested Library Sampler, the menu's move… (m), ~/Moved, enter. 113 files in 26 folders move; it lands within 3 s, so no band, and the footer says so (board 43 L7)."
 menu_on "Nested Library"
 keys m
+expect_text "the Move… sheet is open" "new path on" 10
 keys ctrl+a -t "$BOX_HOME/Moved"
-shot "The set location sheet: ~/Moved, \"123 MB moves with it\"." sheet
+expect_text "one green line" "access are fine" 20
+shot "The Move… sheet: ~/Moved, one green line (L3)." sheet
 keys Return
 expect "the save path is ~/Moved" "$NESTED" "t['save_path'] == '$BOX_HOME/Moved'" 30
+expect_text "the footer says it moved" "Nested Library Sampler (2026) moved to $BOX_HOME/Moved" 20
 expect_disk "the files are in ~/Moved" -f "$BOX_HOME/Moved/Nested Library Sampler (2026)/Docs/README.md" 30
 expect_disk "…and gone from ~/Torrents" ! "$TORRENTS_DIR/Nested Library Sampler (2026)"
 expect "it still seeds, complete" "$NESTED" "t['state'] in $SEEDING and t['progress'] == 1" 30
@@ -432,13 +450,31 @@ shot "Nested Library Sampler's details: save path ~/Moved."
 step "Set location, another filesystem" "$BIG (2 GiB), m, /tmp/elsewhere (a tmpfs in the box): qBittorrent copies the bytes, then deletes the old file."
 menu_on "$BIG"
 keys m
-keys ctrl+a -t /tmp/elsewhere Return
-shot "Straight after enter. A tmpfs takes 2 GiB in about a second, so the row seldom still reads moving."
+keys ctrl+a -t /tmp/elsewhere
+expect_text "the sheet reads the room on /tmp" "Room and access are fine on /tmp" 20
+keys Return
+shot "Straight after enter. A tmpfs takes 2 GiB in about a second, so the row seldom still reads moving, and the band (after 3 s) seldom shows."
 expect "the save path is /tmp/elsewhere" "$BIGH" "t['save_path'] == '/tmp/elsewhere' and t['state'] != 'moving'" 120
+expect_text "the footer says it moved, or the band does" "$BIG moved to /tmp/elsewhere" 30
 expect_size "the 2 GiB file is in /tmp/elsewhere, whole" "/tmp/elsewhere/$BIG" "$BIG_SIZE"
 expect_disk "…and gone from ~/Torrents" ! "$TORRENTS_DIR/$BIG"
 expect "it still seeds, complete" "$BIGH" "t['state'] in $SEEDING and t['progress'] == 1" 30
 shot "$BIG seeding from /tmp/elsewhere." after
+
+step "Set location onto a folder with its name" "The box's ~/clash has a folder called Field Recordings Vol. 3 [FLAC] already (a file in it). Field Recordings, m, ~/clash: qBittorrent would keep that folder's files and call the move done (board 43 §1), so the sheet leaves it out and has nothing to move. esc; nothing moved, the folder there is untouched."
+mkdir -p "$home/clash/Field Recordings Vol. 3 [FLAC]"
+echo planted >"$home/clash/Field Recordings Vol. 3 [FLAC]/planted.txt"
+menu_on "Field Recordings"
+keys m
+keys ctrl+a -t "$BOX_HOME/clash"
+expect_text "the sheet leaves it out" "1 left out" 20
+expect_text "…and has nothing to move" "Nothing to move" 10
+shot "The Move… sheet: 1 left out, a folder with its name is already at ~/clash; nothing to move." sheet
+keys Return
+keys Escape
+expect "Field Recordings has not moved" "$FIELD" "t['save_path'] == '$TORRENTS_DIR' and t['state'] != 'moving'" 5
+expect_disk "the folder at ~/clash is untouched" -f "$BOX_HOME/clash/Field Recordings Vol. 3 [FLAC]/planted.txt"
+expect_disk "…and holds nothing of the torrent's" ! "$BOX_HOME/clash/Field Recordings Vol. 3 [FLAC]/album.cue"
 
 step "Recheck" "$BIG, the menu's recheck (c): qBittorrent hashes the moved 2 GiB again and finds it whole."
 menu_on "$BIG"
@@ -600,7 +636,7 @@ expect "$BIG is back, complete" "$BIGH" "t is not None and t['progress'] == 1" 1
 table_on "twin"
 keys m
 keys ctrl+a -t /tmp/pair
-shot "Set location: /tmp/pair; the yellow line names $BIG; move both picked; the button reads move 2." sheet
+shot "Move…: /tmp/pair; the yellow line names $BIG; move both picked; the button reads move 2." sheet
 keys Return
 expect "the twin is in /tmp/pair" "$TWIN" "t['save_path'] == '/tmp/pair' and t['state'] != 'moving'" 120
 expect "$BIG is in /tmp/pair too" "$BIGH" "t['save_path'] == '/tmp/pair' and t['state'] != 'moving'" 120
