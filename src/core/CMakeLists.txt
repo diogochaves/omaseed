@@ -39,6 +39,8 @@ qt_add_library(omaseed-core STATIC
     HomeGuard.hpp
     LibraryMatch.cpp
     LibraryMatch.hpp
+    LooseFiles.cpp
+    LooseFiles.hpp
     LogFilterModel.cpp
     LogFilterModel.hpp
     MagnetLink.cpp
