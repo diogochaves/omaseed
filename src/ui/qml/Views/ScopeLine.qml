@@ -98,6 +98,10 @@ Rectangle {
         Label {
             id: oneLineLink
 
+            // #75: a link to a screen reader, by its words; its press is the click.
+            Accessible.name: root.linkText
+            Accessible.role: Accessible.Link
+            Accessible.onPressAction: root.linkActivated()
             lineHeight: 1.25
             objectName: "scopeLink"
             size: "small"

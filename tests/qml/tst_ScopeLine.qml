@@ -71,6 +71,8 @@ TestCase {
         verify(link.visible);
         verify(link.text.indexOf("move this folder…") > 0, link.text);
         verify(link.width >= link.implicitWidth - 1, "the link is whole");
+        compare(link.Accessible.role, Accessible.Link);
+        compare(link.Accessible.name, "move this folder…");
         const spy = createTemporaryObject(spyComponent, testCase, {
                                               "target": line,
                                               "signalName": "linkActivated"
