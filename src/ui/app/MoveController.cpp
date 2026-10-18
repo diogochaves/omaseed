@@ -662,6 +662,9 @@ QVariantMap MoveController::plan(const QString &rootIn, const QString &newPathIn
     case MovePlan::Blocker::NoRoom:
         blocker = tr("Not enough room on %1.").arg(plan.drive().isEmpty() ? newPath : plan.drive());
         break;
+    case MovePlan::Blocker::AllThere:
+        blocker = tr("All %1 are already at %2.").arg(plan.alreadyThere().size()).arg(newPath);
+        break;
     }
     out.insert(QStringLiteral("blocker"), blocker);
 

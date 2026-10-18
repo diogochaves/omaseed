@@ -28,11 +28,20 @@
 // restore() at the next start (M13); it is kept after the end until the summary is closed
 // (closeSummary()), and for 24 h after it, errors and missing files among its torrents are
 // tied to its record (M15).
+//
+// Every move is a job (DECISIONS C16 L1, #103): a folder's, a selection's, a move back's (L11)
+// or a retry's. Its `spec` (kind, title, the sheet's inputs) travels with it; a job queued
+// behind another is planned again from it when its turn comes (L12), through replan. A job
+// that isn't a folder's is quiet (L6): it shows only once it has run for the show delay (3 s)
+// or paused itself; one that lands sooner is told in a line (L7). While a torrent moves, its
+// bytes at the target are read every 2 s through the growth probe (L10): progress, speed and
+// time left for one big torrent, and the progress that tells "stuck" from "slow" (M14).
 
 #include "core/ApiError.hpp"
 #include "core/MovePlan.hpp"
 
 #include <QDateTime>
+#include <QHash>
 #include <QJsonObject>
 #include <QList>
 #include <QObject>
@@ -108,12 +117,15 @@ public:
         int sends = 0;
         int quietPolls = 0;  ///< polls in a row it read neither moving nor landed
         bool unsure = false; ///< a send that got no answer: the next polls tell
+        bool autoTmm = false; ///< it used automatic management before the move (L11)
         QString later;       ///< after the end: "error" or "missingFiles" within 24 h
     };
 
     /// What the summary band and the notice say (E1, E2).
     struct Summary
     {
+        QString kind;  ///< "folder", "selection", "back", "retry"
+        QString title; ///< "films", "6 torrents"
         QString root;
         QString newPath;
         int total = 0; ///< torrents the job meant to move
@@ -148,6 +160,7 @@ public:
     void setGrowthProbe(std::function<qint64(const QString &hash, const QString &target)> probe)
     {
         m_growthProbe = std::move(probe);
+        updateLiveTimer();
     }
     void setLowDiskThreshold(qint64 bytes) { m_lowDiskThreshold = bytes; }
     /// M13: `~/.config/omaseed/moves/<serverId>.json`, where the app keeps a server's job.
@@ -161,13 +174,27 @@ public:
     // ---- starting, and the controls ---------------------------------------------------------
 
     /// Starts `plan` (canMove() must hold). `serverId` names the server in the file. With a
-    /// job running, the plan waits behind it instead (M18) and this returns false.
+    /// job running, the plan waits behind it instead (M18) and this returns false. `spec`
+    /// says what it is (`kind`, `title`) and how to plan it again (replan()).
     bool start(const MovePlan &plan,
                const QString &serverId,
                bool carryLoose = false,
-               qint64 looseBytes = 0);
+               qint64 looseBytes = 0,
+               const QJsonObject &spec = {});
+    /// The plan as the job keeps it (the file, the queue).
+    static QJsonObject
+    planJson(const MovePlan &plan, bool carryLoose, qint64 looseBytes, const QJsonObject &spec);
+    /// L12: plans a queued job again from its spec when its turn comes: the plan's json
+    /// (planJson()), or an empty object when it can't move any more (it is dropped).
+    void setReplan(std::function<QJsonObject(const QJsonObject &spec)> replan)
+    {
+        m_replan = std::move(replan);
+    }
     /// Plans waiting behind the running one, oldest first: their roots.
     QStringList queuedRoots() const;
+    /// The same, by title ("films", "2 torrents"), and their specs.
+    QStringList queuedTitles() const;
+    QList<QJsonObject> queuedSpecs() const;
     /// Drops a plan waiting behind the running one.
     void dropQueued(int index);
 
@@ -208,6 +235,27 @@ public:
 
     State state() const { return m_state; }
     bool isActive() const;
+    QJsonObject spec() const { return m_spec; }
+    /// "folder", "selection", "back" (L11), "retry" (M16).
+    QString kind() const;
+    /// "films" for a folder; a selection's from its spec ("6 torrents").
+    QString title() const;
+    /// L6: a job that isn't a folder's shows only after the show delay, or once it pauses.
+    bool isQuiet() const { return kind() != QLatin1String("folder"); }
+    bool wasShown() const { return m_shown; }
+    void setShowDelay(std::chrono::milliseconds delay) { m_showTimer.setInterval(delay); }
+    /// L10: how often the moving torrent's bytes at its target are read (2 s).
+    void setLiveEvery(std::chrono::milliseconds every) { m_liveTimer.setInterval(every); }
+    /// Reads the moving torrent's bytes at its target now (the timer's tick).
+    void sampleLive();
+    /// L10: `hash`'s bytes at its target while it moves, -1 when it isn't moving or this
+    /// machine can't tell.
+    qint64 liveBytes(const QString &hash) const;
+    /// L11: the torrents that moved, by hash: where they were, and where they are now.
+    QHash<QString, QString> movedFrom() const;
+    QHash<QString, QString> movedTo() const;
+    /// L11: those of them that used automatic management before (it stays off).
+    QStringList hadAutoTmm() const;
     PauseReason pauseReason() const { return m_pauseReason; }
     QString serverId() const { return m_serverId; }
     QString root() const { return m_root; }
@@ -260,6 +308,8 @@ Q_SIGNALS:
     void pausedItself(omaseed::core::MoveJob::PauseReason reason);
     /// The torrents are done and loose files are to be carried (#98).
     void carryWanted();
+    /// L12: a queued job that can't move any more was dropped when its turn came.
+    void queuedDropped(const QString &title);
     /// Done or Ended: the summary and the one notice.
     void finished();
 
@@ -276,12 +326,14 @@ private:
     void save();
     void reset();
     void startPlan(const QJsonObject &plan);
-    static QJsonObject planJson(const MovePlan &plan, bool carryLoose, qint64 looseBytes);
+    void startNext();
+    void updateLiveTimer();
 
     QPointer<TorrentModel> m_torrents;
     std::function<QDateTime()> m_clock;
     std::function<qint64(const QString &)> m_roomProbe;
     std::function<qint64(const QString &, const QString &)> m_growthProbe;
+    std::function<QJsonObject(const QJsonObject &)> m_replan;
     qint64 m_lowDiskThreshold = 2LL * 1024 * 1024 * 1024;
     int m_ahead = 3;
     QString m_filePath;
@@ -289,6 +341,10 @@ private:
     State m_state = State::Idle;
     PauseReason m_pauseReason = PauseReason::None;
     QString m_serverId;
+    QJsonObject m_spec;
+    bool m_shown = false;
+    QTimer m_showTimer;
+    QTimer m_liveTimer;
     QString m_root;
     QString m_newPath;
     bool m_sameDrive = false;
@@ -305,8 +361,11 @@ private:
     QDateTime m_runningSince; ///< for the speed: since the last start or resume
     QDateTime m_lastLandedAt;
     QDateTime m_progressAt; ///< the last sign of progress, for stuck
-    QString m_growthHash;
-    qint64 m_growthBytes = -1;
+    // L10: the moving torrent's bytes at its target.
+    QString m_liveHash;
+    qint64 m_liveBytes = -1;
+    qint64 m_liveFirstBytes = -1;
+    QDateTime m_liveFirstAt;
     QString m_nearlyFullHash;
     qint64 m_nearlyFullFreeAfter = 0;
     int m_landedWhileAway = 0;

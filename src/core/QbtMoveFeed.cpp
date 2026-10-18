@@ -16,7 +16,8 @@ namespace omaseed::core {
 
 namespace {
 
-constexpr qint64 kGrowthEveryMs = 30000;
+// C16 L10: the band reads it every 2 s; a reading this fresh is reused.
+constexpr qint64 kGrowthEveryMs = 1500;
 
 qint64 sizeOf(const QString &localPath)
 {

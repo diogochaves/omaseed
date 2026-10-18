@@ -33,6 +33,7 @@ struct Library
         QString savePath;
         QString state = QStringLiteral("stalledUP");
         qint64 bytes = 0;
+        bool autoTmm = false;
     };
     QMap<QString, Row> rows;
 
@@ -60,6 +61,7 @@ struct Library
                                    {QStringLiteral("state"), it->state},
                                    {QStringLiteral("completed"), it->bytes},
                                    {QStringLiteral("size"), it->bytes},
+                                   {QStringLiteral("auto_tmm"), it->autoTmm},
                                    {QStringLiteral("added_on"), 1792075500}});
         }
         return out;
@@ -101,6 +103,23 @@ class TestMoveJob : public QObject
         in.root = kRoot;
         in.newPath = to;
         return MovePlan::make(in);
+    }
+    /// A selection (C16 L1) to `to`, as the sheet would start it.
+    MovePlan selection(const QStringList &hashes,
+                       const QString &to,
+                       MovePlan::Rule rule = MovePlan::Rule::OneFolder) const
+    {
+        MovePlan::Input in;
+        in.torrents = m_library.torrents();
+        in.hashes = hashes;
+        in.newPath = to;
+        in.rule = rule;
+        return MovePlan::make(in);
+    }
+    static QJsonObject spec(const QString &title)
+    {
+        return {{QStringLiteral("kind"), QStringLiteral("selection")},
+                {QStringLiteral("title"), title}};
     }
     QStringList sentHashes() const
     {
@@ -503,6 +522,178 @@ private slots:
         QCOMPARE(m_job->root(), QStringLiteral("/srv/media/films"));
         QCOMPARE(m_job->state(), MoveJob::State::Running);
         QCOMPARE(m_sent.last().second, QStringLiteral("/mnt/fast/films"));
+    }
+
+    // ---- C16 (#103): every move is a job -------------------------------------------------
+
+    void aSelectionShowsOnlyAfterTheDelay()
+    {
+        m_library.add(1, kMiB);
+        m_library.add(2, kMiB, QStringLiteral("/srv/media/films"));
+        poll();
+        m_job->setShowDelay(std::chrono::milliseconds(50));
+        // L6: one that lands sooner never shows.
+        QVERIFY(m_job->start(selection({hashOf(1)}, kTo),
+                             QStringLiteral("home"),
+                             false,
+                             0,
+                             spec(QStringLiteral("t1"))));
+        QVERIFY(m_job->isQuiet());
+        QCOMPARE(m_job->kind(), QStringLiteral("selection"));
+        QCOMPARE(m_job->title(), QStringLiteral("t1"));
+        QVERIFY(!m_job->wasShown());
+        m_library.land(1);
+        poll();
+        QCOMPARE(m_job->state(), MoveJob::State::Done);
+        QTest::qWait(100);
+        QVERIFY(!m_job->wasShown());
+        QCOMPARE(m_job->summary().title, QStringLiteral("t1"));
+        m_job->closeSummary();
+
+        // One that is still moving after it does.
+        QVERIFY(m_job->start(selection({hashOf(2)}, QStringLiteral("/mnt/fast/films")),
+                             QStringLiteral("home"),
+                             false,
+                             0,
+                             spec(QStringLiteral("t2"))));
+        QVERIFY(!m_job->wasShown());
+        QTRY_VERIFY(m_job->wasShown());
+
+        // A folder's move shows at once (C15).
+        m_library.land(2, QStringLiteral("/mnt/fast/films"));
+        poll();
+        m_job->closeSummary();
+        m_library.add(3, kMiB);
+        poll();
+        QVERIFY(m_job->start(plan(QStringLiteral("/mnt/other/games")), QStringLiteral("home")));
+        QCOMPARE(m_job->kind(), QStringLiteral("folder"));
+        QVERIFY(m_job->wasShown());
+    }
+
+    void aQuietJobThatPausesItselfShows()
+    {
+        m_library.add(1, kMiB);
+        m_library.add(2, 2 * kMiB);
+        poll();
+        QVERIFY(m_job->start(selection({hashOf(1), hashOf(2)}, kTo),
+                             QStringLiteral("home"),
+                             false,
+                             0,
+                             spec(QStringLiteral("2 torrents"))));
+        QVERIFY(!m_job->wasShown());
+        m_job->onFailed(hashOf(1), m_now, QStringLiteral("Permission denied"), "noAccess", "line");
+        QCOMPARE(m_job->state(), MoveJob::State::Paused);
+        QVERIFY(m_job->wasShown());
+    }
+
+    void liveBytesForOneBigTorrent()
+    {
+        // L10: what is already at the target is progress, speed and time left.
+        m_library.add(1, 1000 * kMiB);
+        poll();
+        qint64 there = -1;
+        m_job->setGrowthProbe([&there](const QString &, const QString &) { return there; });
+        QVERIFY(m_job->start(selection({hashOf(1)}, kTo),
+                             QStringLiteral("home"),
+                             false,
+                             0,
+                             spec(QStringLiteral("t1"))));
+        m_library.moving(1);
+        poll();
+        QCOMPARE(m_job->current(), hashOf(1));
+        QCOMPARE(m_job->liveBytes(hashOf(1)), -1); // this machine can't tell
+        QCOMPARE(m_job->bytesMoved(), 0);
+
+        there = 100 * kMiB;
+        m_job->sampleLive();
+        QCOMPARE(m_job->liveBytes(hashOf(1)), 100 * kMiB);
+        QCOMPARE(m_job->bytesMoved(), 100 * kMiB);
+        QCOMPARE(m_job->percent(), 10);
+        wait(10);
+        there = 300 * kMiB;
+        QSignalSpy changed(m_job, &MoveJob::changed);
+        m_job->sampleLive();
+        QVERIFY(changed.count() > 0);
+        QCOMPARE(m_job->percent(), 30);
+        QCOMPARE(m_job->speed(), 20 * kMiB);
+        QCOMPARE(m_job->secondsLeft(), 35);
+
+        // Landed: the bytes are the torrent's, not the probe's.
+        there = 2000 * kMiB;
+        m_library.land(1);
+        poll();
+        QCOMPARE(m_job->liveBytes(hashOf(1)), -1);
+        QCOMPARE(m_job->bytesMoved(), 1000 * kMiB);
+    }
+
+    void itKeepsWhereEachWasForMoveBack()
+    {
+        m_library.add(1, kMiB, kRoot);
+        m_library.add(2, 2 * kMiB, kRoot + "/handheld");
+        m_library.rows[hashOf(2)].autoTmm = true;
+        poll();
+        QVERIFY(m_job->start(selection({hashOf(1), hashOf(2)}, QStringLiteral("/mnt/fast/all")),
+                             QStringLiteral("home"),
+                             false,
+                             0,
+                             spec(QStringLiteral("2 torrents"))));
+        m_library.land(1, QStringLiteral("/mnt/fast/all"));
+        poll();
+        m_library.land(2, QStringLiteral("/mnt/fast/all"));
+        poll();
+        QCOMPARE(m_job->state(), MoveJob::State::Done);
+        QCOMPARE(m_job->movedFrom().value(hashOf(2)), kRoot + "/handheld");
+        QCOMPARE(m_job->movedTo().value(hashOf(1)), QStringLiteral("/mnt/fast/all"));
+        QCOMPARE(m_job->hadAutoTmm(), QStringList({hashOf(2)}));
+        // Kept in the file too.
+        MoveJob again;
+        QVERIFY(again.fromJson(m_job->toJson()));
+        QCOMPARE(again.hadAutoTmm(), QStringList({hashOf(2)}));
+        QCOMPARE(again.title(), QStringLiteral("2 torrents"));
+        QVERIFY(!again.wasShown()); // it ended unseen
+    }
+
+    void aQueuedMoveIsCheckedAgainWhenItsTurnComes()
+    {
+        m_library.add(1, kMiB);
+        m_library.add(2, kMiB, QStringLiteral("/srv/media/films"));
+        m_library.add(3, kMiB, QStringLiteral("/srv/media/music"));
+        poll();
+        QVERIFY(m_job->start(plan(), QStringLiteral("home")));
+        // L12: two selections wait behind the folder's move.
+        QJsonObject gone = spec(QStringLiteral("t2"));
+        gone.insert(QStringLiteral("gone"), true);
+        QVERIFY(!m_job->start(selection({hashOf(2)}, QStringLiteral("/mnt/fast/films")),
+                              QStringLiteral("home"),
+                              false,
+                              0,
+                              gone));
+        QVERIFY(!m_job->start(selection({hashOf(3)}, QStringLiteral("/mnt/fast/music")),
+                              QStringLiteral("home"),
+                              false,
+                              0,
+                              spec(QStringLiteral("t3"))));
+        QCOMPARE(m_job->queuedTitles(), QStringList({QStringLiteral("t2"), QStringLiteral("t3")}));
+        QCOMPARE(m_job->queuedSpecs().at(1).value(QStringLiteral("newPath")).toString(),
+                 QStringLiteral("/mnt/fast/music"));
+        QStringList replanned;
+        m_job->setReplan([this, &replanned](const QJsonObject &spec) {
+            replanned << spec.value(QStringLiteral("title")).toString();
+            if (spec.value(QStringLiteral("gone")).toBool())
+                return QJsonObject();
+            return MoveJob::planJson(
+                selection({hashOf(3)}, QStringLiteral("/mnt/fast/music2")), false, 0, spec);
+        });
+        QSignalSpy dropped(m_job, &MoveJob::queuedDropped);
+        m_library.land(1);
+        poll();
+        m_job->closeSummary();
+        QCOMPARE(replanned, QStringList({QStringLiteral("t2"), QStringLiteral("t3")}));
+        QCOMPARE(dropped.count(), 1);
+        QCOMPARE(dropped.at(0).at(0).toString(), QStringLiteral("t2"));
+        QCOMPARE(m_job->title(), QStringLiteral("t3"));
+        QCOMPARE(m_job->newPath(), QStringLiteral("/mnt/fast/music2"));
+        QCOMPARE(m_sent.last().second, QStringLiteral("/mnt/fast/music2"));
     }
 
     void looseFilesComeAfter()

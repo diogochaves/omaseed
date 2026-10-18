@@ -114,20 +114,63 @@ MoveDisk MoveDisk::real()
     return disk;
 }
 
+QString MovePlan::commonFolder(const QStringList &paths)
+{
+    QString common;
+    bool first = true;
+    for (const QString &one : paths) {
+        const QString path = norm(one);
+        if (path.isEmpty())
+            continue;
+        if (first) {
+            common = path;
+            first = false;
+            continue;
+        }
+        while (!common.isEmpty() && common != QLatin1String("/") &&
+               !SharedData::isUnder(path, common))
+            common = FolderTree::parentOf(common);
+        if (common.isEmpty())
+            common = QStringLiteral("/");
+    }
+    return common;
+}
+
 MovePlan MovePlan::make(const Input &input)
 {
     MovePlan plan;
-    plan.m_root = norm(input.root);
+    plan.m_selection = !input.hashes.isEmpty();
+    plan.m_rule = plan.m_selection ? input.rule : Rule::KeepPlaces;
+    const QSet<QString> chosen(input.hashes.cbegin(), input.hashes.cend());
+    QString rootIn = input.root;
+    if (plan.m_selection) {
+        QSet<QString> saves;
+        for (const Torrent &torrent : input.torrents) {
+            if (chosen.contains(torrent.hash) && !norm(torrent.savePath).isEmpty())
+                saves.insert(norm(torrent.savePath));
+        }
+        plan.m_savePaths = QStringList(saves.cbegin(), saves.cend());
+        plan.m_savePaths.sort();
+        // L5: "keep their places below ROOT", ROOT their deepest common folder.
+        if (rootIn.isEmpty())
+            rootIn = commonFolder(plan.m_savePaths);
+    }
+    plan.m_root = norm(rootIn);
     plan.m_newPath = norm(input.newPath);
     const QString &root = plan.m_root;
     const QString &to = plan.m_newPath;
+    const bool eachOwn = plan.m_selection && plan.m_rule == Rule::EachOwn;
 
-    if (to.isEmpty())
+    if (plan.m_selection) {
+        if (to.isEmpty() && !eachOwn)
+            plan.m_blocker = Blocker::NoPath;
+    } else if (to.isEmpty()) {
         plan.m_blocker = Blocker::NoPath;
-    else if (to == root)
+    } else if (to == root) {
         plan.m_blocker = Blocker::SameFolder;
-    else if (SharedData::isUnder(to, root))
+    } else if (SharedData::isUnder(to, root)) {
         plan.m_blocker = Blocker::InsideTheFolder;
+    }
 
     const FreeSpaceProbe *probe = input.probe;
     plan.m_seesDisks = probe != nullptr && probe->seesServerDisks();
@@ -149,6 +192,55 @@ MovePlan MovePlan::make(const Input &input)
         const QString content = norm(torrent.contentPath);
         rows << SharedDataRow{
             torrent.hash, torrent.savePath, torrent.contentPath, torrent.completed};
+        if (plan.m_selection) {
+            if (!chosen.contains(torrent.hash) || save.isEmpty())
+                continue;
+            Item item;
+            item.hash = torrent.hash;
+            item.name = torrent.name;
+            item.from = save;
+            item.bytes = std::max<qint64>(0, torrent.completed);
+            item.autoTmm = torrent.autoTmm;
+            item.category = torrent.category;
+            switch (plan.m_rule) {
+            case Rule::OneFolder:
+                item.to = to;
+                break;
+            case Rule::KeepPlaces:
+                item.to = to.isEmpty() || root.isEmpty() ? QString()
+                                                         : FolderTree::targetFor(save, root, to);
+                break;
+            case Rule::EachOwn:
+                item.to = norm(input.targets.value(torrent.hash));
+                break;
+            }
+            if (eachOwn) {
+                // L11: one moved since by something else stays where it is now.
+                const auto at = input.expectedAt.constFind(torrent.hash);
+                if (at != input.expectedAt.cend() && norm(*at) != save) {
+                    item.kind = Item::Kind::MovedSince;
+                    item.why = save;
+                    others << item;
+                    continue;
+                }
+                if (item.to.isEmpty())
+                    continue;
+            }
+            if (!item.to.isEmpty() && item.to == save) {
+                item.kind = Item::Kind::AlreadyThere;
+                others << item;
+                continue;
+            }
+            if (!item.to.isEmpty() && !content.isEmpty() && content != save &&
+                (item.to == content || SharedData::isUnder(item.to, content))) {
+                item.kind = Item::Kind::IntoItself;
+                item.why = content;
+                others << item;
+                continue;
+            }
+            moving << item;
+            continue;
+        }
         if (save.isEmpty() || root.isEmpty())
             continue;
 
@@ -230,7 +322,11 @@ MovePlan MovePlan::make(const Input &input)
     QSet<QString> listed;
     for (const Item &item : std::as_const(others))
         listed.insert(item.hash);
-    for (const QString &hash : shared.outside) {
+    // A selection's sharers outside it are the shared-data guard's question (#28), not the
+    // plan's.
+    if (plan.m_selection)
+        plan.m_sharedOutside = shared.outside;
+    for (const QString &hash : plan.m_selection ? QStringList() : shared.outside) {
         const Torrent *torrent = byHash.value(hash);
         if (listed.contains(hash) || torrent == nullptr)
             continue;
@@ -256,7 +352,7 @@ MovePlan MovePlan::make(const Input &input)
     if ((plan.m_seesDisks && input.disk.exists) || askServer) {
         for (Item &item : moving) {
             const Torrent *torrent = byHash.value(item.hash);
-            if (torrent == nullptr || item.to.isEmpty() || to.isEmpty())
+            if (torrent == nullptr || item.to.isEmpty())
                 continue;
             const QString save = norm(torrent->savePath);
             const QString content = norm(torrent->contentPath);
@@ -345,8 +441,18 @@ MovePlan MovePlan::make(const Input &input)
     plan.m_needFiles = QStringList(needFiles.cbegin(), needFiles.cend());
     plan.m_needFiles.sort();
 
-    if (plan.m_blocker == Blocker::None && going.isEmpty())
-        plan.m_blocker = Blocker::NothingToMove;
+    if (plan.m_blocker == Blocker::None && going.isEmpty()) {
+        const bool allThere = plan.m_selection && !others.isEmpty() &&
+                              std::all_of(others.cbegin(), others.cend(), [](const Item &item) {
+                                  return item.kind == Item::Kind::AlreadyThere;
+                              });
+        plan.m_blocker = allThere ? Blocker::AllThere : Blocker::NothingToMove;
+    }
+    if (plan.m_selection) {
+        if (!to.isEmpty() || eachOwn)
+            plan.roomForEach(input);
+        return plan;
+    }
     if (to.isEmpty())
         return plan;
 
@@ -365,6 +471,7 @@ MovePlan MovePlan::make(const Input &input)
             plan.m_freeReadHere = there.source == FreeSpaceProbe::Source::Local;
         }
     }
+    plan.m_bytesFreeAfter = plan.m_bytesFree < 0 ? -1 : plan.m_bytesFree - plan.m_bytesToMove;
     if (plan.m_sameDrive) {
         plan.m_room = Check::Ok;
     } else if (plan.m_bytesFree < 0) {
@@ -397,6 +504,106 @@ MovePlan MovePlan::make(const Input &input)
         }
     }
     return plan;
+}
+
+void MovePlan::roomForEach(const Input &input)
+{
+    // M5 and M6 for a selection: its torrents may come from several drives and, moving back,
+    // go to several. Room is read per destination drive, and a torrent renamed on its own
+    // drive needs none; the line names the drive with the least left after.
+    const FreeSpaceProbe *probe = input.probe;
+    const auto local = [this, probe](const QString &serverPath) {
+        return m_seesDisks ? probe->localPathFor(serverPath) : QString();
+    };
+    struct Drive
+    {
+        qint64 bytes = 0;
+        qint64 free = -1;
+        bool local = false;
+    };
+    QMap<QString, Drive> drives;
+    bool unknown = false;
+    bool allSame = true;
+    bool any = false;
+    QMap<QString, QString> writes; // target → a source, for M6
+    for (const Item &item : std::as_const(m_items)) {
+        if (item.kind != Item::Kind::Move && item.kind != Item::Kind::PulledIn)
+            continue;
+        any = true;
+        if (writes.size() < 16 && !writes.contains(item.to))
+            writes.insert(item.to, item.from);
+        if (probe == nullptr) {
+            unknown = true;
+            allSame = false;
+            continue;
+        }
+        const FreeSpaceProbe::Answer there = probe->answer(item.to);
+        if (m_seesDisks) {
+            const FreeSpaceProbe::Answer here = probe->answer(item.from);
+            if (here.source == FreeSpaceProbe::Source::Local &&
+                there.source == FreeSpaceProbe::Source::Local && !here.where.isEmpty() &&
+                here.where == there.where)
+                continue; // a rename
+        }
+        allSame = false;
+        if (there.source == FreeSpaceProbe::Source::Unknown) {
+            unknown = true;
+            continue;
+        }
+        Drive &drive = drives[there.where];
+        drive.bytes += item.bytes;
+        drive.free = there.bytesFree;
+        drive.local = there.source == FreeSpaceProbe::Source::Local;
+    }
+    m_sameDrive = any && allSame;
+    QString worst;
+    for (auto it = drives.cbegin(); it != drives.cend(); ++it) {
+        const qint64 after = it->free - it->bytes;
+        if (worst.isEmpty() || after < drives.value(worst).free - drives.value(worst).bytes)
+            worst = it.key();
+    }
+    if (!worst.isEmpty()) {
+        const Drive drive = drives.value(worst);
+        m_drive = worst;
+        m_bytesFree = drive.free;
+        m_bytesFreeAfter = drive.free - drive.bytes;
+        m_freeReadHere = drive.local;
+    }
+    if (m_sameDrive) {
+        m_room = Check::Ok;
+    } else if (!worst.isEmpty() && m_bytesFreeAfter < input.lowDiskThreshold) {
+        m_room = Check::Block;
+        if (m_blocker == Blocker::None)
+            m_blocker = Blocker::NoRoom;
+    } else if (unknown || worst.isEmpty()) {
+        m_room = Check::Unknown;
+    } else {
+        m_room = Check::Ok;
+    }
+
+    if (!m_seesDisks || !input.disk.canWrite || writes.isEmpty())
+        return;
+    bool no = false;
+    bool notKnown = false;
+    for (auto it = writes.cbegin(); it != writes.cend(); ++it) {
+        const QString target = local(it.key());
+        const QString source = local(it.value());
+        if (target.isEmpty() || source.isEmpty()) {
+            notKnown = true;
+            continue;
+        }
+        switch (input.disk.canWrite(target, source)) {
+        case MoveDisk::Access::Yes:
+            break;
+        case MoveDisk::Access::No:
+            no = true;
+            break;
+        case MoveDisk::Access::Unknown:
+            notKnown = true;
+            break;
+        }
+    }
+    m_writable = no ? Check::Warn : notKnown ? Check::Unknown : Check::Ok;
 }
 
 QStringList MovePlan::toMove() const

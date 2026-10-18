@@ -28,6 +28,10 @@
 //   (the folder itself, a path inside it).
 //
 // What it can't check without a local view it says it couldn't (Check::Unknown), never "fine".
+//
+// A selection (DECISIONS C16 L1, #103) is the other way in: `hashes` instead of a folder, and
+// a target rule (L5, L11): into one folder, keep their places below their deepest common
+// folder, or each to its own path (move back). The same checks follow.
 
 #include "core/FreeSpace.hpp"
 #include "core/ServerFolder.hpp"
@@ -86,6 +90,14 @@ public:
         InsideTheFolder, ///< "That is inside games."
         NothingToMove,
         NoRoom,
+        AllThere, ///< a selection whose every torrent is already at its target
+    };
+
+    /// Where each torrent of a selection goes (C16 L5, L11).
+    enum class Rule {
+        KeepPlaces, ///< the new path plus its save path below the root (a folder's, C15 M4)
+        OneFolder,  ///< every torrent to the new path
+        EachOwn,    ///< each to its own path, from Input::targets (move back)
     };
 
     struct Item
@@ -96,6 +108,8 @@ public:
             LeftOut,      ///< M8: a file already at its target
             AlreadyThere, ///< already under the new path: skipped
             Spans,        ///< saved outside, some of its files inside: stays, listed
+            MovedSince,   ///< move back: no longer where the move put it (`why`)
+            IntoItself,   ///< its target lies inside its own content folder (`why`)
         };
         QString hash;
         QString name;
@@ -134,12 +148,33 @@ public:
         QHash<QString, ServerFolder> serverFolders;
         /// False once the server answered that it can't list folders.
         bool serverLists = true;
+
+        /// C16 L1: a selection. Empty: the folder `root` and what is saved under it (C15). For
+        /// a selection `root` may stay empty: KeepPlaces then uses their deepest common folder.
+        QStringList hashes;
+        Rule rule = Rule::KeepPlaces;
+        /// EachOwn: each torrent's target, by hash (`newPath` is not used).
+        QHash<QString, QString> targets;
+        /// EachOwn: where each torrent should be now (where a move put it); one that isn't was
+        /// moved since and is left out (L11).
+        QHash<QString, QString> expectedAt;
     };
+
+    /// The deepest folder every one of `paths` lies in (itself included): "/" at worst, ""
+    /// for none.
+    static QString commonFolder(const QStringList &paths);
 
     static MovePlan make(const Input &input);
 
     QString root() const { return m_root; }
     QString newPath() const { return m_newPath; }
+    bool isSelection() const { return m_selection; }
+    Rule rule() const { return m_rule; }
+    /// A selection's save paths, distinct (L5 offers its choice when there are two or more).
+    QStringList savePaths() const { return m_savePaths; }
+    /// A selection's torrents that share files with torrents outside it (they are not in the
+    /// plan: the shared-data guard asks, #28).
+    QStringList sharedOutside() const { return m_sharedOutside; }
     /// Every torrent the plan looked at, in the order it would send them.
     const QList<Item> &items() const { return m_items; }
     /// The hashes it sends, in order: smallest first (M12). The first goes alone (M6).
@@ -164,7 +199,8 @@ public:
     /// Torrents with less on disk than their size.
     int partial() const { return m_partial; }
     qint64 bytesFree() const { return m_bytesFree; } ///< -1 unknown
-    qint64 bytesFreeAfter() const { return m_bytesFree < 0 ? -1 : m_bytesFree - m_bytesToMove; }
+    /// What is left on that drive after the move, -1 unknown.
+    qint64 bytesFreeAfter() const { return m_bytesFreeAfter; }
     bool sameDrive() const { return m_sameDrive; } ///< a rename for each torrent
     QString drive() const { return m_drive; }      ///< the destination's mount point, if known
     bool freeReadHere() const { return m_freeReadHere; }
@@ -175,6 +211,8 @@ public:
     /// Groups of moving torrents that share data among themselves (they move together).
     QList<QStringList> sharedInside() const { return m_sharedInside; }
     QStringList pulledIn() const { return hashesOf(Item::Kind::PulledIn); }
+    QStringList movedSince() const { return hashesOf(Item::Kind::MovedSince); }
+    QStringList intoItself() const { return hashesOf(Item::Kind::IntoItself); }
     QStringList spans() const { return hashesOf(Item::Kind::Spans); }
     QStringList leftOut() const { return hashesOf(Item::Kind::LeftOut); }
     QStringList alreadyThere() const { return hashesOf(Item::Kind::AlreadyThere); }
@@ -184,9 +222,14 @@ public:
 
 private:
     QStringList hashesOf(Item::Kind kind) const;
+    void roomForEach(const Input &input);
 
     QString m_root;
     QString m_newPath;
+    bool m_selection = false;
+    Rule m_rule = Rule::KeepPlaces;
+    QStringList m_savePaths;
+    QStringList m_sharedOutside;
     QList<Item> m_items;
     QList<PathRow> m_pathRows;
     QStringList m_needFiles;
@@ -199,6 +242,7 @@ private:
     qint64 m_sizeOfTorrents = 0;
     int m_partial = 0;
     qint64 m_bytesFree = -1;
+    qint64 m_bytesFreeAfter = -1;
     bool m_sameDrive = false;
     QString m_drive;
     bool m_freeReadHere = false;

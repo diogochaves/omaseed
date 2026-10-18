@@ -407,6 +407,166 @@ private slots:
         QCOMPARE(askedTarget, m_fast + QStringLiteral("/games"));
         QCOMPARE(askedOwner, games);
     }
+
+    // ---- a selection (DECISIONS C16 L1, L5, L11; #103) -------------------------------------
+
+    MovePlan::Input selection(const QList<Torrent> &torrents,
+                              const QStringList &hashes,
+                              const QString &newPath,
+                              MovePlan::Rule rule)
+    {
+        MovePlan::Input in = input(torrents, newPath);
+        in.root.clear();
+        in.hashes = hashes;
+        in.rule = rule;
+        return in;
+    }
+
+    void theCommonFolder()
+    {
+        QCOMPARE(MovePlan::commonFolder({}), QString());
+        QCOMPARE(MovePlan::commonFolder({QStringLiteral("/a/b/")}), QStringLiteral("/a/b"));
+        QCOMPARE(MovePlan::commonFolder({QStringLiteral("/a/b"), QStringLiteral("/a/b/c")}),
+                 QStringLiteral("/a/b"));
+        QCOMPARE(MovePlan::commonFolder({QStringLiteral("/a/bc"), QStringLiteral("/a/b")}),
+                 QStringLiteral("/a"));
+        QCOMPARE(MovePlan::commonFolder({QStringLiteral("/srv/x"), QStringLiteral("/mnt/y")}),
+                 QStringLiteral("/"));
+    }
+
+    void aSelectionIntoOneFolder()
+    {
+        const QString games = m_archive + QStringLiteral("/games");
+        const Torrent a = torrent(QStringLiteral("Open Arena"), games, 2 * kGiB);
+        const Torrent b = torrent(QStringLiteral("Tiny"), games + "/handheld", kGiB);
+        const Torrent there = torrent(QStringLiteral("Done"), m_fast + "/games", kGiB);
+        const Torrent other = torrent(QStringLiteral("Not chosen"), games, kGiB);
+        const MovePlan plan = MovePlan::make(selection({a, b, there, other},
+                                                       {a.hash, b.hash, there.hash},
+                                                       m_fast + QStringLiteral("/games"),
+                                                       MovePlan::Rule::OneFolder));
+        QVERIFY(plan.isSelection());
+        QVERIFY(plan.canMove());
+        QCOMPARE(plan.toMove(), QStringList({b.hash, a.hash}));
+        QCOMPARE(plan.item(b.hash)->to, m_fast + QStringLiteral("/games"));
+        QCOMPARE(plan.alreadyThere(), QStringList({there.hash}));
+        QVERIFY(plan.item(other.hash) == nullptr);
+        QCOMPARE(plan.savePaths().size(), 3);
+        QCOMPARE(plan.pathRows().size(), 2);
+        QCOMPARE(plan.room(), MovePlan::Check::Ok);
+        QCOMPARE(plan.bytesFreeAfter(), 97 * kGiB);
+        QCOMPARE(plan.writable(), MovePlan::Check::Ok);
+
+        // Every one already there: nothing to send, and the button says why.
+        const MovePlan none = MovePlan::make(selection(
+            {there}, {there.hash}, m_fast + QStringLiteral("/games"), MovePlan::Rule::OneFolder));
+        QCOMPARE(none.blocker(), MovePlan::Blocker::AllThere);
+        QCOMPARE(MovePlan::make(selection({a}, {a.hash}, QString(), MovePlan::Rule::OneFolder))
+                     .blocker(),
+                 MovePlan::Blocker::NoPath);
+    }
+
+    void aSelectionKeepsItsPlacesBelowTheCommonFolder()
+    {
+        const QString games = m_archive + QStringLiteral("/games");
+        const Torrent a = torrent(QStringLiteral("Open Arena"), games, 3);
+        const Torrent b = torrent(QStringLiteral("Tiny"), games + "/handheld", 2);
+        const Torrent c = torrent(QStringLiteral("Film"), m_archive + "/films", 1);
+        const MovePlan plan = MovePlan::make(selection(
+            {a, b, c}, {a.hash, b.hash, c.hash}, m_fast + "/all", MovePlan::Rule::KeepPlaces));
+        QCOMPARE(plan.root(), m_archive);
+        QCOMPARE(plan.item(a.hash)->to, m_fast + QStringLiteral("/all/games"));
+        QCOMPARE(plan.item(b.hash)->to, m_fast + QStringLiteral("/all/games/handheld"));
+        QCOMPARE(plan.item(c.hash)->to, m_fast + QStringLiteral("/all/films"));
+        QCOMPARE(plan.toMove(), QStringList({c.hash, b.hash, a.hash}));
+
+        // Into a folder below the common one is fine; into a torrent's own folder is not.
+        const MovePlan inside = MovePlan::make(selection(
+            {a, b}, {a.hash, b.hash}, games + "/Open Arena/sub", MovePlan::Rule::OneFolder));
+        QCOMPARE(inside.intoItself(), QStringList({a.hash}));
+        QCOMPARE(inside.item(a.hash)->why, games + QStringLiteral("/Open Arena"));
+        QCOMPARE(inside.toMove(), QStringList({b.hash}));
+    }
+
+    void moveBackSendsEachToItsOwnPlace()
+    {
+        const Torrent a = torrent(QStringLiteral("Open Arena"), m_fast + "/films", 3);
+        const Torrent b = torrent(QStringLiteral("Tiny"), m_fast + "/films", 2);
+        const Torrent moved = torrent(QStringLiteral("Moved since"), m_archive + "/other", 1);
+        MovePlan::Input in = selection(
+            {a, b, moved}, {a.hash, b.hash, moved.hash}, QString(), MovePlan::Rule::EachOwn);
+        in.targets = {{a.hash, m_archive + "/games"},
+                      {b.hash, m_archive + "/games/handheld"},
+                      {moved.hash, m_archive + "/films"}};
+        in.expectedAt = {{a.hash, m_fast + "/films"},
+                         {b.hash, m_fast + "/films/"},
+                         {moved.hash, m_fast + "/films"}};
+        const MovePlan plan = MovePlan::make(in);
+        QVERIFY(plan.canMove());
+        QCOMPARE(plan.toMove(), QStringList({b.hash, a.hash}));
+        QCOMPARE(plan.item(a.hash)->to, m_archive + QStringLiteral("/games"));
+        QCOMPARE(plan.item(b.hash)->to, m_archive + QStringLiteral("/games/handheld"));
+        QCOMPARE(plan.movedSince(), QStringList({moved.hash}));
+        QCOMPARE(plan.item(moved.hash)->why, m_archive + QStringLiteral("/other"));
+        QCOMPARE(plan.pathRows().size(), 2);
+        QCOMPARE(plan.room(), MovePlan::Check::Ok);
+        QCOMPARE(plan.drive(), m_archive);
+    }
+
+    void aSelectionCountsRoomPerDrive()
+    {
+        // One torrent is renamed on the fast drive (no room needed); the other comes across.
+        m_fastFree = 10 * kGiB;
+        const Torrent near = torrent(QStringLiteral("Near"), m_fast + "/old", 50 * kGiB);
+        const Torrent far = torrent(QStringLiteral("Far"), m_archive + "/games", 9 * kGiB);
+        MovePlan plan = MovePlan::make(selection(
+            {near, far}, {near.hash, far.hash}, m_fast + "/new", MovePlan::Rule::OneFolder));
+        QVERIFY(!plan.sameDrive());
+        QCOMPARE(plan.room(), MovePlan::Check::Block); // 1 GiB left, under the 2 GiB kept free
+        QCOMPARE(plan.blocker(), MovePlan::Blocker::NoRoom);
+        QCOMPARE(plan.bytesFreeAfter(), kGiB);
+        QCOMPARE(plan.bytesToMove(), 59 * kGiB);
+
+        plan = MovePlan::make(
+            selection({near}, {near.hash}, m_fast + "/new", MovePlan::Rule::OneFolder));
+        QVERIFY(plan.sameDrive());
+        QCOMPARE(plan.room(), MovePlan::Check::Ok);
+    }
+
+    void aSelectionLeavesItsOutsideSharersToTheGuard()
+    {
+        const QString games = m_archive + QStringLiteral("/games");
+        const Torrent a = torrent(QStringLiteral("Pack"), games, 5);
+        const Torrent b = torrent(QStringLiteral("Pack"), games, 5); // a cross-seed
+        const MovePlan plan = MovePlan::make(
+            selection({a, b}, {a.hash}, m_fast + "/games", MovePlan::Rule::OneFolder));
+        QCOMPARE(plan.toMove(), QStringList({a.hash}));
+        QCOMPARE(plan.sharedOutside(), QStringList({b.hash}));
+        QVERIFY(plan.spans().isEmpty());
+    }
+
+    void withoutAViewASelectionAsksTheServerToo()
+    {
+        // #102 for a selection: the target's folder is listed on the server.
+        const Torrent a = torrent(QStringLiteral("Clash"), QStringLiteral("/srv/games"), 5);
+        MovePlan::Input in =
+            selection({a}, {a.hash}, QStringLiteral("/volume2/games"), MovePlan::Rule::OneFolder);
+        FreeSpaceProbe remote([](const QString &) { return StorageReading(); });
+        remote.setServer(QStringLiteral("/downloads"), 50 * kGiB, PathMap(), false);
+        in.probe = &remote;
+        MovePlan plan = MovePlan::make(in);
+        QVERIFY(!plan.seesDisks());
+        QCOMPARE(plan.namesCheck(), MovePlan::NamesCheck::Pending);
+        QCOMPARE(plan.needListings(), QStringList({QStringLiteral("/volume2/games")}));
+        ServerFolder listed;
+        listed.state = ServerFolder::State::Listed;
+        listed.names = {QStringLiteral("Clash")};
+        in.serverFolders.insert(QStringLiteral("/volume2/games"), listed);
+        plan = MovePlan::make(in);
+        QCOMPARE(plan.namesCheck(), MovePlan::NamesCheck::Server);
+        QCOMPARE(plan.leftOut(), QStringList({a.hash}));
+        QCOMPARE(plan.blocker(), MovePlan::Blocker::NothingToMove);
+    }
 };
 
 QTEST_GUILESS_MAIN(TestMovePlan)

@@ -77,6 +77,8 @@ QString kindKey(MovePlan::Item::Kind kind)
         return QStringLiteral("alreadyThere");
     case MovePlan::Item::Kind::LeftOut:
     case MovePlan::Item::Kind::Spans:
+    case MovePlan::Item::Kind::MovedSince:
+    case MovePlan::Item::Kind::IntoItself:
         return QStringLiteral("leftOut");
     }
     return QStringLiteral("leftOut");
@@ -90,6 +92,18 @@ MoveJob::MoveJob(QObject *parent)
     m_saveTimer.setSingleShot(true);
     m_saveTimer.setInterval(1000);
     connect(&m_saveTimer, &QTimer::timeout, this, &MoveJob::save);
+    // L6: a quiet job shows once it has run 3 s.
+    m_showTimer.setSingleShot(true);
+    m_showTimer.setInterval(3000);
+    connect(&m_showTimer, &QTimer::timeout, this, [this]() {
+        if (m_shown || !isActive())
+            return;
+        m_shown = true;
+        touch();
+    });
+    // L10: every 2 s while a torrent moves.
+    m_liveTimer.setInterval(2000);
+    connect(&m_liveTimer, &QTimer::timeout, this, &MoveJob::sampleLive);
 }
 
 QString MoveJob::defaultFilePath(const QString &serverId)
@@ -139,34 +153,46 @@ bool MoveJob::isActive() const
     }
 }
 
-QJsonObject MoveJob::planJson(const MovePlan &plan, bool carryLoose, qint64 looseBytes)
+QJsonObject
+MoveJob::planJson(const MovePlan &plan, bool carryLoose, qint64 looseBytes, const QJsonObject &spec)
 {
     QJsonArray items;
     for (const MovePlan::Item &item : plan.items()) {
-        items.append(QJsonObject{{QStringLiteral("hash"), item.hash},
-                                 {QStringLiteral("name"), item.name},
-                                 {QStringLiteral("from"), item.from},
-                                 {QStringLiteral("to"), item.to},
-                                 {QStringLiteral("bytes"), item.bytes},
-                                 {QStringLiteral("kind"), kindKey(item.kind)},
-                                 {QStringLiteral("why"), item.why}});
+        QJsonObject json{{QStringLiteral("hash"), item.hash},
+                         {QStringLiteral("name"), item.name},
+                         {QStringLiteral("from"), item.from},
+                         {QStringLiteral("to"), item.to},
+                         {QStringLiteral("bytes"), item.bytes},
+                         {QStringLiteral("kind"), kindKey(item.kind)},
+                         {QStringLiteral("why"), item.why}};
+        if (item.autoTmm)
+            json.insert(QStringLiteral("autoTmm"), true);
+        items.append(json);
     }
-    return {{QStringLiteral("root"), plan.root()},
-            {QStringLiteral("newPath"), plan.newPath()},
-            {QStringLiteral("sameDrive"), plan.sameDrive()},
-            {QStringLiteral("carryLoose"), carryLoose},
-            {QStringLiteral("looseBytes"), looseBytes},
-            {QStringLiteral("items"), items}};
+    QJsonObject json{{QStringLiteral("root"), plan.root()},
+                     {QStringLiteral("newPath"), plan.newPath()},
+                     {QStringLiteral("sameDrive"), plan.sameDrive()},
+                     {QStringLiteral("carryLoose"), carryLoose},
+                     {QStringLiteral("looseBytes"), looseBytes},
+                     {QStringLiteral("items"), items}};
+    QJsonObject withKind = spec;
+    if (!withKind.contains(QStringLiteral("kind")))
+        withKind.insert(QStringLiteral("kind"),
+                        plan.isSelection() ? QStringLiteral("selection")
+                                           : QStringLiteral("folder"));
+    json.insert(QStringLiteral("spec"), withKind);
+    return json;
 }
 
 bool MoveJob::start(const MovePlan &plan,
                     const QString &serverId,
                     bool carryLoose,
-                    qint64 looseBytes)
+                    qint64 looseBytes,
+                    const QJsonObject &spec)
 {
     if (!plan.canMove())
         return false;
-    const QJsonObject json = planJson(plan, carryLoose, looseBytes);
+    const QJsonObject json = planJson(plan, carryLoose, looseBytes, spec);
     if (m_state != State::Idle) {
         // M18: one at a time; this one waits behind the running one (or its summary).
         m_queued.append(json);
@@ -180,6 +206,7 @@ bool MoveJob::start(const MovePlan &plan,
 
 void MoveJob::startPlan(const QJsonObject &plan)
 {
+    m_spec = plan.value(QStringLiteral("spec")).toObject();
     m_root = plan.value(QStringLiteral("root")).toString();
     m_newPath = plan.value(QStringLiteral("newPath")).toString();
     m_sameDrive = plan.value(QStringLiteral("sameDrive")).toBool();
@@ -195,6 +222,7 @@ void MoveJob::startPlan(const QJsonObject &plan)
         entry.to = item.value(QStringLiteral("to")).toString();
         entry.bytes = item.value(QStringLiteral("bytes")).toInteger();
         entry.why = item.value(QStringLiteral("why")).toString();
+        entry.autoTmm = item.value(QStringLiteral("autoTmm")).toBool();
         const QString kind = item.value(QStringLiteral("kind")).toString();
         entry.step = kind == QLatin1String("move")           ? Step::Waiting
                      : kind == QLatin1String("alreadyThere") ? Step::AlreadyThere
@@ -214,11 +242,78 @@ void MoveJob::startPlan(const QJsonObject &plan)
     m_landedWhileAway = 0;
     m_secondsAway = 0;
     m_nearlyFullHash.clear();
-    m_growthHash.clear();
-    m_growthBytes = -1;
+    m_liveHash.clear();
+    m_liveBytes = -1;
+    m_liveFirstBytes = -1;
+    m_liveFirstAt = QDateTime();
+    m_shown = !isQuiet();
+    if (!m_shown)
+        m_showTimer.start();
     setState(State::Running);
     pump();
     touch();
+}
+
+void MoveJob::startNext()
+{
+    while (!m_queued.isEmpty()) {
+        QJsonObject next = m_queued.takeFirst();
+        const QJsonObject spec = next.value(QStringLiteral("spec")).toObject();
+        // L12: checked again now, against the library as it is.
+        if (m_replan && !spec.isEmpty()) {
+            const QJsonObject fresh = m_replan(spec);
+            if (fresh.isEmpty()) {
+                Q_EMIT queuedDropped(spec.value(QStringLiteral("title")).toString());
+                continue;
+            }
+            next = fresh;
+        }
+        startPlan(next);
+        return;
+    }
+    touch();
+}
+
+QString MoveJob::kind() const
+{
+    const QString kind = m_spec.value(QStringLiteral("kind")).toString();
+    return kind.isEmpty() ? QStringLiteral("folder") : kind;
+}
+
+QString MoveJob::title() const
+{
+    const QString title = m_spec.value(QStringLiteral("title")).toString();
+    if (!title.isEmpty())
+        return title;
+    const QString root = SharedData::normalize(m_root);
+    const qsizetype slash = root.lastIndexOf(QLatin1Char('/'));
+    return slash < 0 || root == QLatin1String("/") ? root : root.mid(slash + 1);
+}
+
+QStringList MoveJob::queuedTitles() const
+{
+    QStringList titles;
+    for (const QJsonObject &plan : m_queued) {
+        QString title =
+            plan.value(QStringLiteral("spec")).toObject().value(QStringLiteral("title")).toString();
+        if (title.isEmpty()) {
+            const QString root = plan.value(QStringLiteral("root")).toString();
+            title = root.mid(root.lastIndexOf(QLatin1Char('/')) + 1);
+        }
+        titles << title;
+    }
+    return titles;
+}
+
+QList<QJsonObject> MoveJob::queuedSpecs() const
+{
+    QList<QJsonObject> specs;
+    for (const QJsonObject &plan : m_queued) {
+        QJsonObject spec = plan.value(QStringLiteral("spec")).toObject();
+        spec.insert(QStringLiteral("newPath"), plan.value(QStringLiteral("newPath")));
+        specs << spec;
+    }
+    return specs;
 }
 
 QStringList MoveJob::queuedRoots() const
@@ -242,7 +337,102 @@ void MoveJob::setState(State state)
     if (m_state == state)
         return;
     m_state = state;
+    // L6: a pause asks something of someone; a quiet job shows from then on.
+    if (state == State::Paused || state == State::Pausing || state == State::Ending)
+        m_shown = true;
+    updateLiveTimer();
     Q_EMIT stateChanged();
+}
+
+void MoveJob::updateLiveTimer()
+{
+    const bool moving =
+        m_state == State::Running || m_state == State::Pausing || m_state == State::Ending;
+    if (moving && m_growthProbe && !m_liveTimer.isActive())
+        m_liveTimer.start();
+    else if ((!moving || !m_growthProbe) && m_liveTimer.isActive())
+        m_liveTimer.stop();
+}
+
+void MoveJob::sampleLive()
+{
+    const Entry *moving = nullptr;
+    for (const Entry &entry : std::as_const(m_entries)) {
+        if (entry.step == Step::Moving) {
+            moving = &entry;
+            break;
+        }
+    }
+    if (moving == nullptr || !m_growthProbe) {
+        if (!m_liveHash.isEmpty()) {
+            m_liveHash.clear();
+            m_liveBytes = -1;
+            Q_EMIT changed();
+        }
+        return;
+    }
+    const qint64 bytes = m_growthProbe(moving->hash, moving->to);
+    const QDateTime at = now();
+    if (bytes < 0) {
+        const bool was = m_liveBytes >= 0 || m_liveHash != moving->hash;
+        m_liveHash = moving->hash;
+        m_liveBytes = -1;
+        if (was)
+            Q_EMIT changed();
+        return;
+    }
+    if (m_liveHash != moving->hash || m_liveBytes < 0) {
+        m_liveHash = moving->hash;
+        m_liveBytes = bytes;
+        m_liveFirstBytes = bytes;
+        m_liveFirstAt = at;
+        Q_EMIT changed();
+    } else if (bytes != m_liveBytes) {
+        // M14: a file growing at the destination is progress.
+        m_liveBytes = bytes;
+        m_progressAt = at;
+        Q_EMIT changed();
+    }
+}
+
+qint64 MoveJob::liveBytes(const QString &hash) const
+{
+    if (hash.isEmpty() || hash != m_liveHash || m_liveBytes < 0)
+        return -1;
+    const Entry *one = entry(hash);
+    if (one == nullptr || one->step != Step::Moving)
+        return -1;
+    return std::min(m_liveBytes, one->bytes);
+}
+
+QHash<QString, QString> MoveJob::movedFrom() const
+{
+    QHash<QString, QString> out;
+    for (const Entry &entry : m_entries) {
+        if (entry.step == Step::Moved)
+            out.insert(entry.hash, entry.from);
+    }
+    return out;
+}
+
+QHash<QString, QString> MoveJob::movedTo() const
+{
+    QHash<QString, QString> out;
+    for (const Entry &entry : m_entries) {
+        if (entry.step == Step::Moved)
+            out.insert(entry.hash, entry.to);
+    }
+    return out;
+}
+
+QStringList MoveJob::hadAutoTmm() const
+{
+    QStringList out;
+    for (const Entry &entry : m_entries) {
+        if (entry.step == Step::Moved && entry.autoTmm)
+            out << entry.hash;
+    }
+    return out;
 }
 
 void MoveJob::pause(PauseReason reason)
@@ -310,14 +500,16 @@ void MoveJob::closeSummary()
     if (m_state != State::Done && m_state != State::Ended && m_state != State::Idle)
         return;
     reset();
-    if (!m_queued.isEmpty())
-        startPlan(m_queued.takeFirst());
-    else
-        touch();
+    startNext();
 }
 
 void MoveJob::reset()
 {
+    m_showTimer.stop();
+    m_spec = QJsonObject();
+    m_shown = false;
+    m_liveHash.clear();
+    m_liveBytes = -1;
     m_entries.clear();
     m_root.clear();
     m_newPath.clear();
@@ -603,18 +795,7 @@ void MoveJob::checkStuck()
     if (now_ == nullptr)
         return;
     const QDateTime at = now();
-    if (m_growthProbe) {
-        const qint64 bytes = m_growthProbe(now_->hash, now_->to);
-        if (bytes >= 0) {
-            if (m_growthHash != now_->hash) {
-                m_growthHash = now_->hash;
-                m_growthBytes = bytes;
-            } else if (bytes != m_growthBytes) {
-                m_growthBytes = bytes;
-                m_progressAt = at;
-            }
-        }
-    }
+    sampleLive();
     QDateTime since = m_progressAt;
     if (now_->movingSince.isValid() && now_->movingSince > since)
         since = now_->movingSince;
@@ -694,7 +875,8 @@ qint64 MoveJob::bytesMoved() const
         if (entry.step == Step::Moved)
             bytes += entry.bytes;
     }
-    return bytes;
+    // L10: and what of the moving one is already at its target.
+    return bytes + std::max<qint64>(0, liveBytes(m_liveHash));
 }
 
 int MoveJob::percent() const
@@ -719,7 +901,15 @@ qint64 MoveJob::speed() const
         if (entry.step == Step::Moved && entry.landedAt.isValid() && entry.landedAt >= from)
             bytes += entry.bytes;
     }
-    return bytes / span;
+    // L10: the moving one's growth at its target, from its first reading.
+    const qint64 grown = liveBytes(m_liveHash) >= 0 && m_liveFirstAt.isValid()
+                             ? std::max<qint64>(0, m_liveBytes - m_liveFirstBytes)
+                             : 0;
+    if (bytes == 0 && grown > 0) {
+        const qint64 since = m_liveFirstAt.secsTo(at);
+        return since > 0 ? grown / since : 0;
+    }
+    return (bytes + grown) / span;
 }
 
 qint64 MoveJob::secondsLeft() const
@@ -756,6 +946,8 @@ QString MoveJob::current() const
 MoveJob::Summary MoveJob::summary() const
 {
     Summary summary;
+    summary.kind = kind();
+    summary.title = title();
     summary.root = m_root;
     summary.newPath = m_newPath;
     summary.total = total();
@@ -835,6 +1027,8 @@ QJsonObject MoveJob::toJson() const
                          {QStringLiteral("bytes"), entry.bytes},
                          {QStringLiteral("step"), keyOf(entry.step)},
                          {QStringLiteral("sends"), entry.sends}};
+        if (entry.autoTmm)
+            json.insert(QStringLiteral("autoTmm"), true);
         const auto put = [&json](const char *key, const QString &value) {
             if (!value.isEmpty())
                 json.insert(QLatin1String(key), value);
@@ -854,6 +1048,8 @@ QJsonObject MoveJob::toJson() const
         queued.append(plan);
     return {{QStringLiteral("version"), kFileVersion},
             {QStringLiteral("server"), m_serverId},
+            {QStringLiteral("spec"), m_spec},
+            {QStringLiteral("shown"), m_shown},
             {QStringLiteral("state"), keyOf(m_state)},
             {QStringLiteral("pauseReason"), keyOf(m_pauseReason)},
             {QStringLiteral("root"), m_root},
@@ -884,6 +1080,7 @@ bool MoveJob::fromJson(const QJsonObject &json)
         return false;
 
     m_serverId = json.value(QStringLiteral("server")).toString();
+    m_spec = json.value(QStringLiteral("spec")).toObject();
     m_root = json.value(QStringLiteral("root")).toString();
     m_newPath = json.value(QStringLiteral("newPath")).toString();
     m_sameDrive = json.value(QStringLiteral("sameDrive")).toBool();
@@ -913,6 +1110,7 @@ bool MoveJob::fromJson(const QJsonObject &json)
         entry.line = item.value(QStringLiteral("line")).toString();
         entry.why = item.value(QStringLiteral("why")).toString();
         entry.later = item.value(QStringLiteral("later")).toString();
+        entry.autoTmm = item.value(QStringLiteral("autoTmm")).toBool();
         entry.sentAt = dateOf(item.value(QStringLiteral("sentAt")));
         entry.movingSince = dateOf(item.value(QStringLiteral("movingSince")));
         entry.landedAt = dateOf(item.value(QStringLiteral("landedAt")));
@@ -932,10 +1130,14 @@ bool MoveJob::fromJson(const QJsonObject &json)
     m_progressAt = at; // a long absence is not "stuck"
     m_restored = true;
     m_state = next;
+    // L6: a job still going after a restart has been at it a while: it shows. A quiet one
+    // that had ended unseen stays unseen.
+    m_shown = json.value(QStringLiteral("shown")).toBool() || isActive();
+    updateLiveTimer();
     Q_EMIT stateChanged();
     Q_EMIT changed();
     if (m_state == State::Idle && !m_queued.isEmpty())
-        startPlan(m_queued.takeFirst());
+        startNext();
     return true;
 }
 
