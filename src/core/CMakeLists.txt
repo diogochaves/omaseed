@@ -41,6 +41,8 @@ qt_add_library(omaseed-core STATIC
     LibraryMatch.hpp
     LooseFiles.cpp
     LooseFiles.hpp
+    MoveJob.cpp
+    MoveJob.hpp
     MovePlan.cpp
     MovePlan.hpp
     LogFilterModel.cpp
