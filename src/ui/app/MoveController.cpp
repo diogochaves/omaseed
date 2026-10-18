@@ -177,6 +177,7 @@ void MoveController::detachJob()
     m_job->saveNow();
     m_feed.reset();
     m_job.reset();
+    m_held.reset();
     m_restoredAt = QDateTime();
 }
 
@@ -189,6 +190,9 @@ void MoveController::bump()
 
 void MoveController::onJobChanged()
 {
+    // A held summary gives way once the job under it shows.
+    if (m_held.has_value() && m_job != nullptr && m_job->wasShown())
+        m_held.reset();
     bump();
 }
 
@@ -444,9 +448,18 @@ bool MoveController::startSpec(const QJsonObject &spec)
             true);
         return false;
     }
-    // The last job's summary gives way to the new one (J3's "move the rest", L11).
-    if (m_job->state() == MoveJob::State::Done || m_job->state() == MoveJob::State::Ended)
-        closeSummary();
+    // The last job's summary: move back and retry are its own actions and take its place
+    // (L11, M16); any other move runs under it, and it stays until closed (#105).
+    const QString kind = spec.value(QStringLiteral("kind")).toString();
+    const bool fromSummary = kind == QLatin1String("back") || kind == QLatin1String("retry");
+    if (fromSummary)
+        m_held.reset();
+    if (m_job->state() == MoveJob::State::Done || m_job->state() == MoveJob::State::Ended) {
+        if (!fromSummary && m_job->wasShown())
+            holdSummary();
+        else
+            forgetSummary();
+    }
     if (m_hooks.lowDiskBytes)
         m_job->setLowDiskThreshold(m_hooks.lowDiskBytes());
     m_restoredAt = QDateTime();
@@ -489,8 +502,40 @@ void MoveController::closeQuietSummary()
             return;
         if (self->m_job->state() == MoveJob::State::Done ||
             self->m_job->state() == MoveJob::State::Ended)
-            self->closeSummary();
+            self->forgetSummary();
     });
+}
+
+bool MoveController::holding() const
+{
+    return m_held.has_value() && (m_job == nullptr || !m_job->wasShown());
+}
+
+void MoveController::holdSummary()
+{
+    if (m_job == nullptr || !m_job->wasShown() ||
+        (m_job->state() != MoveJob::State::Done && m_job->state() != MoveJob::State::Ended))
+        return;
+    Held held;
+    held.band = band();
+    held.kind = kind();
+    held.title = title();
+    held.state = stateName();
+    held.root = root();
+    held.newPath = newPath();
+    held.details = detailsText();
+    held.hashes = jobHashes();
+    held.failed = failedHashes();
+    held.carryRows = carryRows();
+    for (const QString &hash : std::as_const(held.hashes))
+        held.steps.insert(hash, stepFor(hash));
+    held.back = backSpec();
+    held.retry = retrySpec();
+    forgetSummary();
+    // A folder's move shows at once, and takes the band.
+    if (m_job == nullptr || !m_job->wasShown())
+        m_held = std::move(held);
+    bump();
 }
 
 bool MoveController::noticeWanted() const
@@ -517,6 +562,8 @@ void MoveController::dropQueued(int index)
 
 bool MoveController::shown() const
 {
+    if (holding())
+        return true;
     return m_job != nullptr && m_job->state() != MoveJob::State::Idle && m_job->wasShown();
 }
 
@@ -528,11 +575,15 @@ bool MoveController::active() const
 
 QString MoveController::kind() const
 {
+    if (holding())
+        return m_held->kind;
     return m_job == nullptr || m_job->state() == MoveJob::State::Idle ? QString() : m_job->kind();
 }
 
 QString MoveController::title() const
 {
+    if (holding())
+        return m_held->title;
     return m_job == nullptr ? QString() : m_job->title();
 }
 
@@ -543,21 +594,29 @@ QStringList MoveController::queued() const
 
 QString MoveController::stateName() const
 {
+    if (holding())
+        return m_held->state;
     return m_job == nullptr ? QStringLiteral("idle") : stateKey(m_job->state());
 }
 
 QString MoveController::root() const
 {
+    if (holding())
+        return m_held->root;
     return m_job == nullptr ? QString() : m_job->root();
 }
 
 QString MoveController::newPath() const
 {
+    if (holding())
+        return m_held->newPath;
     return m_job == nullptr ? QString() : m_job->newPath();
 }
 
 QStringList MoveController::jobHashes() const
 {
+    if (holding())
+        return m_held->hashes;
     QStringList out;
     if (m_job == nullptr)
         return out;
@@ -606,6 +665,19 @@ void MoveController::keepWaiting()
 
 void MoveController::closeSummary()
 {
+    if (m_held.has_value()) {
+        // The held summary goes; the move under it goes on.
+        const bool wasHolding = holding();
+        m_held.reset();
+        bump();
+        if (wasHolding)
+            return;
+    }
+    forgetSummary();
+}
+
+void MoveController::forgetSummary()
+{
     if (m_job != nullptr &&
         (m_job->state() == MoveJob::State::Done || m_job->state() == MoveJob::State::Ended)) {
         QFile::remove(carryFilePath());
@@ -638,7 +710,7 @@ QVariantMap MoveController::stepFor(const QString &hash) const
         return {};
     const MoveJob::Entry *entry = m_job->entry(hash);
     if (entry == nullptr)
-        return {};
+        return holding() ? m_held->steps.value(hash) : QVariantMap();
     QString text;
     QString glyph;
     QString kind = QStringLiteral("dim");
@@ -697,6 +769,8 @@ QVariantMap MoveController::stepFor(const QString &hash) const
 
 QStringList MoveController::failedHashes() const
 {
+    if (holding())
+        return m_held->failed;
     if (m_job == nullptr)
         return {};
     QList<const MoveJob::Entry *> failed;
@@ -756,6 +830,8 @@ QString MoveController::quitLine() const
 
 QVariantMap MoveController::band() const
 {
+    if (holding())
+        return m_held->band;
     QVariantMap band;
     // C16 L6: a quiet move shows no band until it has run 3 s.
     if (m_job == nullptr || m_job->state() == MoveJob::State::Idle || !m_job->wasShown())
@@ -1168,6 +1244,8 @@ QVariantMap MoveController::band() const
 
 QString MoveController::detailsText() const
 {
+    if (holding())
+        return m_held->details;
     if (m_job == nullptr || m_job->state() == MoveJob::State::Idle)
         return {};
     const MoveJob &job = *m_job;
@@ -1177,7 +1255,27 @@ QString MoveController::detailsText() const
           << words.value(QStringLiteral("line")).toString() << QString();
     if (job.startedAt().isValid())
         lines << tr("started %1").arg(core::Format::relativeTime(job.startedAt()));
-    lines << tr("from %1 to %2").arg(job.root(), job.newPath()) << QString();
+    if (job.kind() == QLatin1String("folder")) {
+        lines << tr("from %1 to %2").arg(job.root(), job.newPath());
+    } else {
+        // A selection's torrents can come from, and go to, several folders (L5, L11).
+        QStringList froms;
+        QStringList tos;
+        for (const MoveJob::Entry &entry : job.entries()) {
+            if (!entry.from.isEmpty() && !froms.contains(entry.from))
+                froms << entry.from;
+            if (!entry.to.isEmpty() && !tos.contains(entry.to))
+                tos << entry.to;
+        }
+        const QString from =
+            froms.size() == 1 ? froms.constFirst() : tr("%1 places").arg(froms.size());
+        const QString to = tos.size() == 1 ? tos.constFirst()
+                           : job.newPath().isEmpty()
+                               ? tr("%1 places").arg(tos.size())
+                               : tr("%1 places below %2").arg(tos.size()).arg(job.newPath());
+        lines << tr("from %1 to %2").arg(from, to);
+    }
+    lines << QString();
     for (const MoveJob::Entry &entry : job.entries()) {
         const QString step = stepFor(entry.hash).value(QStringLiteral("text")).toString();
         lines << QStringLiteral("%1 · %2 · %3 → %4").arg(step, entry.name, entry.from, entry.to);
@@ -1229,6 +1327,15 @@ void MoveController::onFinished()
         }
         closeQuietSummary();
         return;
+    }
+    if (!m_job->queuedTitles().isEmpty()) {
+        // L12 (Q4): what waits behind it goes now, under its summary. Not from inside the
+        // job's own signal.
+        QPointer<MoveController> self(this);
+        QTimer::singleShot(0, this, [self]() {
+            if (!self.isNull())
+                self->holdSummary();
+        });
     }
     if (!m_hooks.notify || !noticeWanted())
         return;
@@ -1442,6 +1549,8 @@ void MoveController::stopCarry()
 
 QVariantList MoveController::carryRows() const
 {
+    if (holding())
+        return m_held->carryRows;
     QVariantList rows;
     if (m_job == nullptr)
         return rows;
@@ -1550,8 +1659,15 @@ void MoveController::recheckNext()
 
 void MoveController::retryFailed()
 {
+    const QJsonObject spec = holding() ? m_held->retry : retrySpec();
+    if (!spec.isEmpty())
+        startSpec(spec);
+}
+
+QJsonObject MoveController::retrySpec() const
+{
     if (m_job == nullptr)
-        return;
+        return {};
     // M16: again to the place the job meant for each; C16 L9: as a job of its own, so its log
     // is read for its whole life.
     QStringList hashes;
@@ -1566,14 +1682,14 @@ void MoveController::retryFailed()
         expected.insert(hash, entry->from);
     }
     if (hashes.isEmpty())
-        return;
-    startSpec({{QStringLiteral("kind"), QStringLiteral("retry")},
-               {QStringLiteral("title"),
-                counted(int(hashes.size()), tr("%1 torrent"), tr("%1 torrents"))},
-               {QStringLiteral("hashes"), QJsonArray::fromStringList(hashes)},
-               {QStringLiteral("rule"), QStringLiteral("eachOwn")},
-               {QStringLiteral("targets"), targets},
-               {QStringLiteral("expectedAt"), expected}});
+        return {};
+    return {
+        {QStringLiteral("kind"), QStringLiteral("retry")},
+        {QStringLiteral("title"), counted(int(hashes.size()), tr("%1 torrent"), tr("%1 torrents"))},
+        {QStringLiteral("hashes"), QJsonArray::fromStringList(hashes)},
+        {QStringLiteral("rule"), QStringLiteral("eachOwn")},
+        {QStringLiteral("targets"), targets},
+        {QStringLiteral("expectedAt"), expected}};
 }
 
 } // namespace omaseed::app

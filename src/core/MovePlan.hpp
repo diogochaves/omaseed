@@ -203,6 +203,16 @@ public:
     qint64 bytesFreeAfter() const { return m_bytesFreeAfter; }
     bool sameDrive() const { return m_sameDrive; } ///< a rename for each torrent
     QString drive() const { return m_drive; }      ///< the destination's mount point, if known
+    /// A selection's destination drives, when it goes to more than one (moving back, keeping
+    /// places across drives): each with what goes there and what it has free, the one with
+    /// the least left after first. Empty for one drive, which drive() and bytesFree() tell.
+    struct DriveRoom
+    {
+        QString drive;
+        qint64 bytes = 0;
+        qint64 bytesFree = -1;
+    };
+    QList<DriveRoom> drives() const { return m_drives; }
     bool freeReadHere() const { return m_freeReadHere; }
 
     // ---- the rest of the checks ------------------------------------------------------------
@@ -245,6 +255,7 @@ private:
     qint64 m_bytesFreeAfter = -1;
     bool m_sameDrive = false;
     QString m_drive;
+    QList<DriveRoom> m_drives;
     bool m_freeReadHere = false;
     Check m_writable = Check::Unknown;
     bool m_seesDisks = false;

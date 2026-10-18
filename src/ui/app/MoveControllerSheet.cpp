@@ -43,6 +43,41 @@ QVariantMap always(QVariantMap line)
     return line;
 }
 
+/// A selection going to several drives, each named (L5, L11): "20 MB to /tmp, 30 GB free;
+/// 5 MB to /home, 100 GB free". "" for one drive.
+QString perDrive(const MovePlan &plan)
+{
+    QStringList parts;
+    for (const MovePlan::DriveRoom &room : plan.drives())
+        parts << MoveController::tr("%1 to %2, %3 free")
+                     .arg(core::Format::size(room.bytes),
+                          room.drive,
+                          core::Format::size(std::max<qint64>(0, room.bytesFree)));
+    return parts.join(QStringLiteral("; "));
+}
+
+/// "/tmp and /home", "/a, /b and /c".
+QString driveNames(const MovePlan &plan)
+{
+    QStringList names;
+    for (const MovePlan::DriveRoom &room : plan.drives())
+        names << room.drive;
+    const QString last = names.takeLast();
+    return names.isEmpty()
+               ? last
+               : MoveController::tr("%1 and %2").arg(names.join(QStringLiteral(", ")), last);
+}
+
+/// The drive plan.drive() names: what goes there, -1 when it is the only one.
+qint64 bytesToDrive(const MovePlan &plan)
+{
+    for (const MovePlan::DriveRoom &room : plan.drives()) {
+        if (room.drive == plan.drive())
+            return room.bytes;
+    }
+    return -1;
+}
+
 } // namespace
 
 // ---- the sheet (S1–S3) ----------------------------------------------------------------------
@@ -273,9 +308,21 @@ MoveController::checkLines(const MovePlan &plan, const QString &newPath, const Q
                                      ? tr("%1 to move (torrents and loose files)")
                                      : tr("%1 to move");
             const QString toMove = what.arg(core::Format::size(plan.bytesToMove()));
+            const QString drives = perDrive(plan);
+            const qint64 there = bytesToDrive(plan);
             switch (plan.room()) {
             case MovePlan::Check::Ok:
             case MovePlan::Check::Warn:
+                if (!drives.isEmpty()) {
+                    checks << check(
+                        plan.room() == MovePlan::Check::Ok ? QStringLiteral("ok")
+                                                           : QStringLiteral("warn"),
+                        tr("Room. %1.").arg(drives),
+                        plan.freeReadHere()
+                            ? tr("read on this machine, which sees %1's disks").arg(server)
+                            : tr("qBittorrent's own figure for its default drive"));
+                    break;
+                }
                 checks << check(
                     plan.room() == MovePlan::Check::Ok ? QStringLiteral("ok")
                                                        : QStringLiteral("warn"),
@@ -289,13 +336,15 @@ MoveController::checkLines(const MovePlan &plan, const QString &newPath, const Q
                         : tr("qBittorrent's own figure for its default drive"));
                 break;
             case MovePlan::Check::Block:
-                checks << check(QStringLiteral("bad"),
-                                tr("Not enough room. %1, %2 free on %3, and %4 is kept free.")
-                                    .arg(toMove,
-                                         core::Format::size(std::max<qint64>(0, plan.bytesFree())),
-                                         drive,
-                                         core::Format::size(
-                                             m_hooks.lowDiskBytes ? m_hooks.lowDiskBytes() : 0)));
+                checks << check(
+                    QStringLiteral("bad"),
+                    tr("Not enough room. %1, %2 free on %3, and %4 is kept free.")
+                        .arg(
+                            there < 0 ? toMove
+                                      : tr("%1 to move there").arg(core::Format::size(there)),
+                            core::Format::size(std::max<qint64>(0, plan.bytesFree())),
+                            drive,
+                            core::Format::size(m_hooks.lowDiskBytes ? m_hooks.lowDiskBytes() : 0)));
                 break;
             case MovePlan::Check::Unknown:
                 checks << check(QStringLiteral("unknown"),
@@ -311,7 +360,8 @@ MoveController::checkLines(const MovePlan &plan, const QString &newPath, const Q
         case MovePlan::Check::Ok:
             checks << check(
                 QStringLiteral("ok"),
-                tr("Writable. %1 is writable by the owner of these files.").arg(drive),
+                tr("Writable. %1 is writable by the owner of these files.")
+                    .arg(plan.drives().isEmpty() ? drive : driveNames(plan)),
                 tr("checked here; qBittorrent's own answer comes from the first torrent, "
                    "which goes alone"));
             break;
@@ -321,11 +371,11 @@ MoveController::checkLines(const MovePlan &plan, const QString &newPath, const Q
                 tr("Writable: can't tell here. The first torrent goes alone and answers it."));
             break;
         default:
-            checks << check(
-                QStringLiteral("warn"),
-                tr("Not writable here: the owner of these files can't write to %1.").arg(drive),
-                tr("the check can be wrong for a container's user; the first torrent "
-                   "goes alone and answers it"));
+            checks << check(QStringLiteral("warn"),
+                            tr("Not writable here: the owner of these files can't write to %1.")
+                                .arg(plan.drives().isEmpty() ? drive : driveNames(plan)),
+                            tr("the check can be wrong for a container's user; the first torrent "
+                               "goes alone and answers it"));
             break;
         }
         // Shared data, pulled in, spans.
@@ -877,6 +927,8 @@ QJsonObject MoveController::selectionSpec(const QStringList &hashes,
 QJsonObject MoveController::backSpec() const
 {
     // L11: each torrent the last job moved, to where it was; one moved since stays.
+    if (holding())
+        return m_held->back;
     if (m_job == nullptr)
         return {};
     const QHash<QString, QString> from = m_job->movedFrom();
@@ -1039,6 +1091,9 @@ QVariantMap MoveController::selectionWords(const MovePlan &plan, const QJsonObje
             checks.prepend(check(QStringLiteral("ok"),
                                  tr("Same drive: a rename, it lands at once. Room and access "
                                     "are fine.")));
+        else if (!plan.drives().isEmpty())
+            checks.prepend(check(QStringLiteral("ok"),
+                                 tr("Room and access are fine: %1.").arg(perDrive(plan))));
         else if (plan.bytesFree() >= 0)
             checks.prepend(check(QStringLiteral("ok"),
                                  tr("Room and access are fine on %1: %2 to move, %3 free.")

@@ -50,6 +50,7 @@
 #include <atomic>
 #include <functional>
 #include <memory>
+#include <optional>
 
 namespace omaseed::core {
 class FreeSpaceProbe;
@@ -272,6 +273,12 @@ private:
     QJsonObject replan(const QJsonObject &spec) const;
     void rememberDestination(const QString &path);
     void closeQuietSummary();
+    /// The job's summary goes, and the next queued move starts.
+    void forgetSummary();
+    /// A shown job's summary is kept while the next move runs under it, unseen (#105).
+    void holdSummary();
+    bool holding() const;
+    QJsonObject retrySpec() const;
     bool noticeWanted() const;
     QDateTime now() const;
     QString serverName() const;
@@ -288,6 +295,27 @@ private:
     QStringList m_recents;  ///< L4, the server's, newest first
     QJsonObject m_pending;  ///< a start waiting for file lists or listings
     QDateTime m_restoredAt; ///< J4's line shows for a while after a restore
+
+    // A shown job's summary, as it read at its end, kept while the move after it runs unseen
+    // (L6, L12): the band and its actions read it until it is closed or the job under it
+    // shows. Not saved: a restart forgets it.
+    struct Held
+    {
+        QVariantMap band;
+        QString kind;
+        QString title;
+        QString state;
+        QString root;
+        QString newPath;
+        QString details;
+        QStringList hashes;
+        QStringList failed;
+        QVariantList carryRows;
+        QHash<QString, QVariantMap> steps;
+        QJsonObject back;
+        QJsonObject retry;
+    };
+    std::optional<Held> m_held;
 
     // M17: the loose files' carry, run off the main thread after the torrents.
     std::shared_ptr<std::atomic_bool> m_carryStop;

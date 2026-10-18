@@ -533,6 +533,45 @@ private slots:
         QCOMPARE(plan.room(), MovePlan::Check::Ok);
     }
 
+    void moveBackToTwoDrivesNamesBoth()
+    {
+        // #105: back from a third drive to the fast one and the archive; each is read for room,
+        // and the one with the least left after comes first.
+        QDir().mkpath(m_tmp.filePath(QStringLiteral("usb")));
+        const QString usb = m_tmp.filePath(QStringLiteral("usb"));
+        m_probe = FreeSpaceProbe([this, usb](const QString &path) {
+            StorageReading reading;
+            reading.valid = true;
+            reading.exists = QFileInfo::exists(path);
+            reading.rootPath = path.startsWith(m_fast) ? m_fast
+                               : path.startsWith(usb)  ? usb
+                                                       : m_archive;
+            reading.bytesFree = path.startsWith(m_fast) ? 10 * kGiB : 500 * kGiB;
+            reading.bytesTotal = 1000 * kGiB;
+            return reading;
+        });
+        m_probe.setServer(m_archive, 500 * kGiB, PathMap(), false);
+        const Torrent a = torrent(QStringLiteral("Open Arena"), usb + "/films", 3 * kGiB);
+        const Torrent b = torrent(QStringLiteral("Tiny"), usb + "/films", 2 * kGiB);
+        MovePlan::Input in =
+            selection({a, b}, {a.hash, b.hash}, QString(), MovePlan::Rule::EachOwn);
+        in.targets = {{a.hash, m_archive + "/games"}, {b.hash, m_fast + "/films"}};
+        const MovePlan plan = MovePlan::make(in);
+        QVERIFY(plan.canMove());
+        QCOMPARE(plan.room(), MovePlan::Check::Ok);
+        QCOMPARE(plan.drives().size(), 2);
+        QCOMPARE(plan.drives().at(0).drive, m_fast);
+        QCOMPARE(plan.drives().at(0).bytes, 2 * kGiB);
+        QCOMPARE(plan.drives().at(0).bytesFree, 10 * kGiB);
+        QCOMPARE(plan.drives().at(1).drive, m_archive);
+        QCOMPARE(plan.drives().at(1).bytes, 3 * kGiB);
+        QCOMPARE(plan.drive(), m_fast);
+
+        // One drive: drive() says it all.
+        in.targets = {{a.hash, m_archive + "/games"}, {b.hash, m_archive + "/films"}};
+        QVERIFY(MovePlan::make(in).drives().isEmpty());
+    }
+
     void aSelectionLeavesItsOutsideSharersToTheGuard()
     {
         const QString games = m_archive + QStringLiteral("/games");

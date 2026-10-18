@@ -9,6 +9,7 @@
 #include "core/SyncEngine.hpp"
 #include "core/TorrentModel.hpp"
 #include "ui/app/MoveController.hpp"
+#include "ui/app/MoveWords.hpp"
 
 #include <QDir>
 #include <QFile>
@@ -687,6 +688,94 @@ private slots:
         QCOMPARE(m_move->job()->kind(), QStringLiteral("selection"));
         QCOMPARE(m_move->title(), QStringLiteral("Big Film"));
         QCOMPARE(m_move->job()->entry(QStringLiteral("d4"))->to, QStringLiteral("/mnt/fast/films"));
+    }
+
+    void aSummaryStaysWhileTheMoveQueuedBehindItRuns()
+    {
+        // L12 (Q4): the queued move goes when the folder's ends, under its summary, which stays
+        // until it is closed (#105).
+        m_move->setServer(QStringLiteral("home"));
+        QTRY_COMPARE(m_move->folders()->total(), 5);
+        QVERIFY(m_move->start(
+            QStringLiteral("/mnt/archive/games"), QStringLiteral("/mnt/fast/games"), false));
+        QVERIFY(m_move->startSelection({QStringLiteral("d4")},
+                                       QStringLiteral("/mnt/fast/films"),
+                                       QStringLiteral("oneFolder")));
+        QSignalSpy notes(m_move, &MoveController::note);
+        for (int i = 0; i < 3; ++i)
+            landSent();
+        QTRY_COMPARE(m_move->job()->kind(), QStringLiteral("selection"));
+        QVERIFY(m_move->shown());
+        QCOMPARE(m_move->stateName(), QStringLiteral("done"));
+        QCOMPARE(m_move->kind(), QStringLiteral("folder"));
+        QCOMPARE(m_move->band().value(QStringLiteral("headline")).toString(),
+                 QStringLiteral("games moved to /mnt/fast/games"));
+        QVERIFY(m_move->queued().isEmpty());
+        // The quick one lands unseen: its note, and the summary still there.
+        landSent();
+        QTRY_COMPARE(notes.count(), 1);
+        QCOMPARE(notes.at(0).at(0).toString(), QStringLiteral("Big Film moved to /mnt/fast/films"));
+        QCOMPARE(m_engine->torrents()->torrent(QStringLiteral("d4")).savePath,
+                 QStringLiteral("/mnt/fast/films"));
+        QVERIFY(m_move->shown());
+        QCOMPARE(m_move->band().value(QStringLiteral("headline")).toString(),
+                 QStringLiteral("games moved to /mnt/fast/games"));
+        QCOMPARE(m_move->jobHashes().size(), 3);
+        QCOMPARE(m_move->stepFor(QStringLiteral("a1")).value(QStringLiteral("text")).toString(),
+                 m_move->stepFor(QStringLiteral("b2")).value(QStringLiteral("text")).toString());
+        m_move->closeSummary();
+        QVERIFY(!m_move->shown());
+        QTRY_COMPARE(m_move->stateName(), QStringLiteral("idle"));
+    }
+
+    void aNewMoveRunsUnderTheSummaryAndMoveBackIsTheSummarys()
+    {
+        m_move->setServer(QStringLiteral("home"));
+        m_move->job()->setShowDelay(std::chrono::milliseconds(0));
+        QVERIFY(m_move->startSelection({QStringLiteral("b2"), QStringLiteral("c3")},
+                                       QStringLiteral("/mnt/fast/all"),
+                                       QStringLiteral("oneFolder")));
+        QTRY_VERIFY(m_move->shown());
+        landSent();
+        landSent();
+        QCOMPARE(m_move->stateName(), QStringLiteral("done"));
+        // #105: the record names where they came from.
+        QVERIFY(m_move->detailsText().contains(QStringLiteral("from 2 places to /mnt/fast/all")));
+
+        m_move->job()->setShowDelay(std::chrono::hours(1));
+        QSignalSpy notes(m_move, &MoveController::note);
+        QVERIFY(m_move->startSelection({QStringLiteral("d4")},
+                                       QStringLiteral("/mnt/fast/films"),
+                                       QStringLiteral("oneFolder")));
+        QVERIFY(m_move->shown());
+        QCOMPARE(m_move->band().value(QStringLiteral("headline")).toString(),
+                 QStringLiteral("2 torrents moved to /mnt/fast/all"));
+        QVERIFY(m_move->detailsText().contains(QStringLiteral("from 2 places to /mnt/fast/all")));
+        landSent();
+        QTRY_COMPARE(notes.count(), 1);
+        QCOMPARE(m_move->band().value(QStringLiteral("headline")).toString(),
+                 QStringLiteral("2 torrents moved to /mnt/fast/all"));
+        // Move back is the summary's: the two, not the film.
+        const QVariantMap back = m_move->planBack();
+        QCOMPARE(back.value(QStringLiteral("title")).toString(),
+                 QStringLiteral("Move 2 torrents back"));
+        QVERIFY(m_move->startBack());
+        QCOMPARE(m_move->job()->kind(), QStringLiteral("back"));
+        QVERIFY(m_move->job()->entry(QStringLiteral("d4")) == nullptr);
+        QCOMPARE(m_move->job()->entry(QStringLiteral("c3"))->to,
+                 QStringLiteral("/mnt/archive/games/handheld"));
+    }
+
+    void timeLeftSaysWhatItCanTell()
+    {
+        using omaseed::app::movewords::timeLeft;
+        QCOMPARE(timeLeft(-1), QString());
+        QCOMPARE(timeLeft(12), QStringLiteral("less than a minute left"));
+        QCOMPARE(timeLeft(59), QStringLiteral("less than a minute left"));
+        QCOMPARE(timeLeft(80), QStringLiteral("about 1 min left"));
+        QCOMPARE(timeLeft(100), QStringLiteral("about 2 min left"));
+        QCOMPARE(timeLeft(3000), QStringLiteral("about 50 min left"));
+        QCOMPARE(timeLeft(7800), QStringLiteral("about 2 h 10 min left"));
     }
 
     void placesAreRecentsFoldersAndCategories()

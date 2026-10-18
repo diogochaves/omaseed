@@ -562,6 +562,13 @@ void MovePlan::roomForEach(const Input &input)
         if (worst.isEmpty() || after < drives.value(worst).free - drives.value(worst).bytes)
             worst = it.key();
     }
+    if (drives.size() > 1) {
+        for (auto it = drives.cbegin(); it != drives.cend(); ++it)
+            m_drives << DriveRoom{it.key(), it->bytes, it->free};
+        std::stable_sort(m_drives.begin(), m_drives.end(), [](const auto &a, const auto &b) {
+            return a.bytesFree - a.bytes < b.bytesFree - b.bytes;
+        });
+    }
     if (!worst.isEmpty()) {
         const Drive drive = drives.value(worst);
         m_drive = worst;

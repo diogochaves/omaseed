@@ -14,12 +14,15 @@
 
 namespace omaseed::app::movewords {
 
-/// "about 50 min left", "about 2 h 10 min left", "" when it can't tell.
+/// "less than a minute left", "about 50 min left", "about 2 h 10 min left", "" when it
+/// can't tell.
 inline QString timeLeft(qint64 seconds)
 {
     if (seconds < 0)
         return {};
-    const qint64 minutes = std::max<qint64>(1, (seconds + 59) / 60);
+    if (seconds < 60)
+        return MoveController::tr("less than a minute left");
+    const qint64 minutes = (seconds + 30) / 60;
     if (minutes < 90)
         return MoveController::tr("about %1 min left").arg(minutes);
     return MoveController::tr("about %1 h %2 min left").arg(minutes / 60).arg(minutes % 60);
