@@ -5,7 +5,11 @@ import Omaseed.Kit
 TestCase {
     id: testCase
 
+    height: 200
     name: "RailRow"
+    visible: true
+    when: windowShown
+    width: 400
 
     Component {
         id: railRowComponent
@@ -87,6 +91,37 @@ TestCase {
         row.count = 4;
         compare(count.text, "4");
         compare(count.color, Theme.red);
+    }
+
+    // Board 42 F1 (DECISIONS C15 M2): a folder row sits in by its depth, a drive's top reads
+    // dim, and a folder's ▾ folds it without picking it.
+    function test_a_folder_row_indents_dims_and_folds_from_its_glyph() {
+        const row = createTemporaryObject(railRowComponent, testCase, {
+                                              "text": "games",
+                                              "glyph": "▾",
+                                              "width": 200
+                                          });
+        const area = findChild(row, "railRowGlyphArea");
+        verify(!area.visible);
+        const label = findChild(row, "railRowLabel");
+        const flat = label.x;
+        row.indent = 2;
+        compare(label.x, flat + 2 * Theme.space(12));
+        row.dimText = true;
+        row.glyphClickable = true;
+        verify(area.visible);
+        const clicks = createTemporaryObject(clickedSpy, testCase, {
+                                                 "target": row
+                                             });
+        const folds = createTemporaryObject(clickedSpy, testCase, {
+                                                "target": row,
+                                                "signalName": "glyphClicked"
+                                            });
+        mouseClick(area);
+        compare(folds.count, 1);
+        compare(clicks.count, 0);
+        mouseClick(row, row.width - 20, row.height / 2);
+        compare(clicks.count, 1);
     }
 
     function test_click_emits_clicked() {

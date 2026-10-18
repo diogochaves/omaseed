@@ -56,6 +56,31 @@ TestCase {
         compare(findChild(notice, "noticeRule").color, Theme.red);
     }
 
+    // Board 42 (DECISIONS C15 M10, M16): a folder's move uses the band too.
+    function test_a_move_draws_its_sign_progress_and_failures() {
+        const notice = createTemporaryObject(noticeComponent, testCase);
+        notice.kind = "info";
+        notice.glyph = "↻";
+        compare(findChild(notice, "noticeGlyph").text, "↻");
+        compare(findChild(notice, "noticeRule").color, Theme.accent);
+        const line = findChild(notice, "noticeProgress");
+        verify(!line.visible);
+        notice.progress = 0.5;
+        verify(line.visible);
+        fuzzyCompare(line.width, notice.width / 2, 1);
+        compare(line.color, Theme.accent);
+        notice.bodyAlert = "2 failed";
+        const text = findChild(notice, "noticeLine");
+        compare(text.textFormat, Text.StyledText);
+        verify(text.text.indexOf("2 failed") > 0);
+        notice.bodyAlert = "";
+        compare(text.textFormat, Text.PlainText);
+        notice.kind = "success";
+        notice.glyph = "";
+        compare(findChild(notice, "noticeGlyph").text, Glyphs.check);
+        compare(findChild(notice, "noticeRule").color, Theme.green);
+    }
+
     function test_actions_beside_then_under_when_narrow() {
         const notice = createTemporaryObject(noticeComponent, testCase);
         verify(!notice.stacked);
