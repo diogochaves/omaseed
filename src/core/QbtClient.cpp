@@ -526,6 +526,12 @@ void QbtClient::onJobReplyFinished(const JobPtr &job)
             return;
         }
     }
+    if (job->spec.errorKeepsBody && status >= 400 && status < 500 && status != 401 &&
+        status != 403 && !body.trimmed().isEmpty()) {
+        error = ApiError::fromHttpStatus(
+            status,
+            QStringLiteral("%1 %2: %3").arg(job->spec.verb, job->spec.path, firstLine(body)));
+    }
     if (job->spec.isLogin) {
         if (!error.isError()) {
             // 5.x answers 204; older builds answer 200 with "Ok." or "Fails.".
@@ -769,6 +775,18 @@ QbtReply<QString> *QbtClient::appVersion()
     RequestSpec spec;
     spec.path = QStringLiteral("app/version");
     return submit<QString>(std::move(spec), parseText);
+}
+
+QbtReply<QJsonArray> *QbtClient::appDirectoryContent(const QString &dirPath)
+{
+    RequestSpec spec;
+    spec.path = QStringLiteral("app/getDirectoryContent");
+    addItem(spec.query, QStringLiteral("dirPath"), dirPath);
+    addItem(spec.query, QStringLiteral("mode"), QStringLiteral("all"));
+    spec.errorKeepsBody = true;
+    const QString path = spec.path;
+    return submit<QJsonArray>(std::move(spec),
+                              [path](const QByteArray &body) { return parseArray(body, path); });
 }
 
 QbtReply<QString> *QbtClient::webApiVersion()

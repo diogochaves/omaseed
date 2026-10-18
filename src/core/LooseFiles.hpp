@@ -20,8 +20,15 @@
 //
 // Matching is on the content path, never only the save path (qui fixed that false positive in
 // April 2026). Paths are compared as written, case-sensitive.
+//
+// For a server whose disks this machine can't see, onServer() names what qBittorrent lists of
+// the folder that no torrent owns (DECISIONS C16 L13, #102): names only, so nothing is recent,
+// unknown or carried; they stay where they are.
+
+#include "core/ServerFolder.hpp"
 
 #include <QDateTime>
+#include <QHash>
 #include <QList>
 #include <QString>
 #include <QStringList>
@@ -82,6 +89,27 @@ public:
                        const QDateTime &now,
                        std::chrono::seconds minAge = std::chrono::minutes(15),
                        const std::function<bool()> &stop = {});
+
+    struct OnServer
+    {
+        /// Below the folder, as qBittorrent listed them: "manual.pdf", "handheld/config". A
+        /// folder no torrent owns is one name; what is inside it isn't listed.
+        QStringList names;
+        int neverCounts = 0;
+        /// Folders to ask the server for first.
+        QStringList needListings;
+        /// False while listings are missing or one failed: then nothing may be called loose.
+        bool complete = true;
+    };
+
+    /// The entries of `folders` (the folder being moved, every save path below it and the
+    /// folders between, as the server writes them) that no torrent owns, from what the server
+    /// listed. `owned` are server paths, as scan()'s. An entry that is one of `folders` or
+    /// holds one is not named.
+    static OnServer onServer(const QString &root,
+                             const QStringList &folders,
+                             const QHash<QString, ServerFolder> &listed,
+                             const QStringList &owned);
 };
 
 } // namespace omaseed::core

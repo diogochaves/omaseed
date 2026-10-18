@@ -4,6 +4,7 @@
 // qBittorrent is covered by tst_qbtclient_actions_live.
 
 #include "core/QbtClient.hpp"
+#include "core/ServerFolder.hpp"
 
 #include <QEventLoop>
 #include <QJsonDocument>
@@ -23,6 +24,7 @@ using omaseed::core::ApiError;
 using omaseed::core::QbtClient;
 using omaseed::core::QbtReply;
 using omaseed::core::QbtResult;
+using omaseed::core::ServerFolder;
 
 namespace {
 
@@ -158,6 +160,8 @@ private slots:
     void setLocationFolder403IsNotASignIn();
     void setLocationBare403StillSignsIn();
     void setLocation409IsAConflict();
+    void directoryContentListsAFolder();
+    void directoryContentTellsMissingFromUnsupported();
     void setPreferencesSendsOnlyTheChangedKeysAsJson();
     void removeTrackersSendsTheHashAndPipedUrls();
     void addTrackersSendsOneUrlPerLine();
@@ -824,6 +828,64 @@ void TestQbtClientActionsFake::setLocation409IsAConflict()
     QVERIFY(result.isError());
     QCOMPARE(result.error().kind(), ApiError::Kind::Conflict);
     QCOMPARE(server.requests.size(), 1);
+}
+
+// #102 (C16 L13): app/getDirectoryContent, with qBittorrent 5.2.3's own answers.
+void TestQbtClientActionsFake::directoryContentListsAFolder()
+{
+    FakeServer server;
+    server.setHandler([](const Recorded &, int) {
+        return httpResponse(
+            200, "OK", R"(["/srv/media/films/Short Film 01","/srv/media/films/poster.jpg"])");
+    });
+
+    QbtClient client;
+    client.setBaseUrl(server.url());
+
+    const QbtResult<QJsonArray> result =
+        await(this, client.appDirectoryContent(QStringLiteral("/srv/media/films")));
+    QVERIFY(!result.isError());
+    QCOMPARE(server.requests.size(), 1);
+    const QUrlQuery query(QUrl(QString::fromUtf8(server.requests.at(0).target)));
+    QCOMPARE(QUrl(QString::fromUtf8(server.requests.at(0).target)).path(),
+             QStringLiteral("/api/v2/app/getDirectoryContent"));
+    QCOMPARE(query.queryItemValue(QStringLiteral("dirPath"), QUrl::FullyDecoded),
+             QStringLiteral("/srv/media/films"));
+    QCOMPARE(query.queryItemValue(QStringLiteral("mode")), QStringLiteral("all"));
+
+    const ServerFolder folder = ServerFolder::fromReply(result);
+    QCOMPARE(folder.state, ServerFolder::State::Listed);
+    QVERIFY(folder.has(QStringLiteral("Short Film 01")));
+    QVERIFY(folder.has(QStringLiteral("poster.jpg")));
+    QVERIFY(!folder.has(QStringLiteral("films")));
+}
+
+void TestQbtClientActionsFake::directoryContentTellsMissingFromUnsupported()
+{
+    const QList<std::pair<QByteArray, ServerFolder::State>> cases{
+        {"404 Directory does not exist", ServerFolder::State::Missing},
+        {"400 Invalid directory path", ServerFolder::State::Missing},
+        {"404 Endpoint does not exist", ServerFolder::State::Unsupported},
+        {"404 Not Found", ServerFolder::State::Unsupported},
+        {"500 Internal Server Error", ServerFolder::State::Failed},
+    };
+    for (const auto &[answer, state] : cases) {
+        const int code = answer.left(3).toInt();
+        const QByteArray text = answer.mid(4);
+        FakeServer server;
+        server.setHandler([code, text](const Recorded &, int) {
+            return httpResponse(code, code == 404 ? "Not Found" : "Error", text);
+        });
+        QbtClient client;
+        client.setBaseUrl(server.url());
+        const QbtResult<QJsonArray> result =
+            await(this, client.appDirectoryContent(QStringLiteral("/srv/media/nope")));
+        QVERIFY2(result.isError(), answer.constData());
+        QCOMPARE(ServerFolder::fromReply(result).state, state);
+        // Not a sign-in matter: no login asked.
+        for (const Recorded &request : std::as_const(server.requests))
+            QVERIFY(!request.target.startsWith("/api/v2/auth/login"));
+    }
 }
 
 QTEST_MAIN(TestQbtClientActionsFake)

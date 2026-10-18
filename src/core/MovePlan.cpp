@@ -244,11 +244,19 @@ MovePlan MovePlan::make(const Input &input)
         others << item;
     }
 
-    // M8: a file already at a torrent's target.
-    if (plan.m_seesDisks && !to.isEmpty() && input.disk.exists) {
+    // M8: a file already at a torrent's target. Here when this machine sees the server's
+    // disks; else in the folders qBittorrent listed (C16 L13, #102).
+    const bool askServer = !plan.m_seesDisks && input.serverLists;
+    plan.m_namesCheck = plan.m_seesDisks    ? NamesCheck::Here
+                        : input.serverLists ? NamesCheck::Server
+                                            : NamesCheck::Cannot;
+    QSet<QString> needListings;
+    bool failed = false;
+    bool namesNeedFiles = false;
+    if ((plan.m_seesDisks && input.disk.exists) || askServer) {
         for (Item &item : moving) {
             const Torrent *torrent = byHash.value(item.hash);
-            if (torrent == nullptr || item.to.isEmpty())
+            if (torrent == nullptr || item.to.isEmpty() || to.isEmpty())
                 continue;
             const QString save = norm(torrent->savePath);
             const QString content = norm(torrent->contentPath);
@@ -261,10 +269,27 @@ MovePlan MovePlan::make(const Input &input)
                     targets << FolderTree::join(item.to, norm(file));
             } else {
                 needFiles.insert(item.hash);
+                namesNeedFiles = true;
             }
             for (const QString &target : std::as_const(targets)) {
-                const QString here = local(target);
-                if (!here.isEmpty() && input.disk.exists(here)) {
+                bool there = false;
+                if (plan.m_seesDisks) {
+                    const QString here = local(target);
+                    there = !here.isEmpty() && input.disk.exists(here);
+                } else {
+                    const QString folder = FolderTree::parentOf(target);
+                    const auto listed = input.serverFolders.constFind(folder);
+                    if (listed == input.serverFolders.cend()) {
+                        needListings.insert(folder);
+                        continue;
+                    }
+                    if (listed->state == ServerFolder::State::Unsupported)
+                        plan.m_namesCheck = NamesCheck::Cannot;
+                    else if (listed->state == ServerFolder::State::Failed)
+                        failed = true;
+                    there = listed->has(FolderTree::baseName(target));
+                }
+                if (there) {
                     item.kind = Item::Kind::LeftOut;
                     item.why = target;
                     break;
@@ -272,6 +297,14 @@ MovePlan MovePlan::make(const Input &input)
             }
         }
     }
+    if (askServer && plan.m_namesCheck == NamesCheck::Server) {
+        if (!needListings.isEmpty() || namesNeedFiles)
+            plan.m_namesCheck = NamesCheck::Pending;
+        else if (failed)
+            plan.m_namesCheck = NamesCheck::Cannot;
+    }
+    plan.m_needListings = QStringList(needListings.cbegin(), needListings.cend());
+    plan.m_needListings.sort();
 
     // M12: smallest first, then by name.
     QCollator collator;

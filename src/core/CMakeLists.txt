@@ -97,6 +97,8 @@ qt_add_library(omaseed-core STATIC
     ServerListModel.hpp
     ServerPreferences.cpp
     ServerPreferences.hpp
+    ServerFolder.cpp
+    ServerFolder.hpp
     ServerStore.cpp
     ServerStore.hpp
     SeedConsole.cpp

@@ -11,6 +11,7 @@ using omaseed::core::FreeSpaceProbe;
 using omaseed::core::MoveDisk;
 using omaseed::core::MovePlan;
 using omaseed::core::PathMap;
+using omaseed::core::ServerFolder;
 using omaseed::core::StorageReading;
 using omaseed::core::Torrent;
 
@@ -171,6 +172,84 @@ private slots:
         QCOMPARE(plan.room(), MovePlan::Check::Unknown);
         QCOMPARE(plan.writable(), MovePlan::Check::Unknown);
         QVERIFY(plan.canMove());
+    }
+
+    // #102, C16 L13: without a view of the disks, M8's check runs on what the server lists.
+    void withoutAViewTheServerListsTheTargets()
+    {
+        const QString games = m_archive + QStringLiteral("/games");
+        const Torrent clash = torrent(QStringLiteral("Clash"), games, 5);
+        const Torrent fine =
+            torrent(QStringLiteral("Fine"), games + QStringLiteral("/handheld"), 6);
+        MovePlan::Input in = input({clash, fine}, QStringLiteral("/volume2/games"));
+        FreeSpaceProbe remote([](const QString &) { return StorageReading(); });
+        remote.setServer(QStringLiteral("/downloads"), 50 * kGiB, PathMap(), false);
+        in.probe = &remote;
+        in.disk.exists = [](const QString &) {
+            QTest::qFail("the local disk was asked", __FILE__, __LINE__);
+            return true;
+        };
+
+        // Nothing listed yet: the plan asks for both targets' folders and waits.
+        MovePlan plan = MovePlan::make(in);
+        QCOMPARE(plan.namesCheck(), MovePlan::NamesCheck::Pending);
+        QCOMPARE(plan.needListings(),
+                 QStringList({QStringLiteral("/volume2/games"),
+                              QStringLiteral("/volume2/games/handheld")}));
+        QVERIFY(plan.leftOut().isEmpty());
+
+        ServerFolder listed;
+        listed.state = ServerFolder::State::Listed;
+        listed.names = {QStringLiteral("Clash"), QStringLiteral("handheld")};
+        ServerFolder missing;
+        missing.state = ServerFolder::State::Missing;
+        in.serverFolders.insert(QStringLiteral("/volume2/games"), listed);
+        in.serverFolders.insert(QStringLiteral("/volume2/games/handheld"), missing);
+        plan = MovePlan::make(in);
+        QCOMPARE(plan.namesCheck(), MovePlan::NamesCheck::Server);
+        QVERIFY(plan.needListings().isEmpty());
+        QCOMPARE(plan.leftOut(), QStringList({clash.hash}));
+        QCOMPARE(plan.item(clash.hash)->why, QStringLiteral("/volume2/games/Clash"));
+        QCOMPARE(plan.toMove(), QStringList({fine.hash}));
+    }
+
+    void withoutAViewAServerThatCantListCantTell()
+    {
+        const QString games = m_archive + QStringLiteral("/games");
+        const Torrent one = torrent(QStringLiteral("One"), games, 5);
+        MovePlan::Input in = input({one}, QStringLiteral("/volume2/games"));
+        FreeSpaceProbe remote([](const QString &) { return StorageReading(); });
+        remote.setServer(QStringLiteral("/downloads"), 50 * kGiB, PathMap(), false);
+        in.probe = &remote;
+
+        // A qBittorrent without the endpoint: said once, then nothing is asked.
+        in.serverLists = false;
+        MovePlan plan = MovePlan::make(in);
+        QCOMPARE(plan.namesCheck(), MovePlan::NamesCheck::Cannot);
+        QVERIFY(plan.needListings().isEmpty());
+        QCOMPARE(plan.toMove(), QStringList({one.hash}));
+
+        // A listing that didn't come back: can't tell, and the move is still allowed (M5's
+        // "unknown" rule), with the line that says so.
+        in.serverLists = true;
+        in.serverFolders.insert(QStringLiteral("/volume2/games"), ServerFolder());
+        plan = MovePlan::make(in);
+        QCOMPARE(plan.namesCheck(), MovePlan::NamesCheck::Cannot);
+        QVERIFY(plan.canMove());
+
+        ServerFolder unsupported;
+        unsupported.state = ServerFolder::State::Unsupported;
+        in.serverFolders.insert(QStringLiteral("/volume2/games"), unsupported);
+        QCOMPARE(MovePlan::make(in).namesCheck(), MovePlan::NamesCheck::Cannot);
+    }
+
+    void withAViewTheServerIsNotAsked()
+    {
+        const QString games = m_archive + QStringLiteral("/games");
+        const MovePlan plan = MovePlan::make(
+            input({torrent(QStringLiteral("a"), games, 1)}, m_fast + QStringLiteral("/games")));
+        QCOMPARE(plan.namesCheck(), MovePlan::NamesCheck::Here);
+        QVERIFY(plan.needListings().isEmpty());
     }
 
     void sameDriveNeedsNoRoom()

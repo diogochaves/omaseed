@@ -21,13 +21,16 @@
 //   the server's disks;
 // - automatic management (M7): which torrents use it; setLocation turns it off for them;
 // - a file already at a torrent's target (M8): qBittorrent would keep it and report the move
-//   done (diogochaves/upstream#123), so that torrent is left out;
+//   done (diogochaves/upstream#123), so that torrent is left out. Checked on this machine when
+//   it sees the server's disks, else on the server through the folders qBittorrent listed
+//   (ServerFolder, DECISIONS C16 L13, #102);
 // - torrents already at the new path (counted, skipped) and what blocks the move as a whole
 //   (the folder itself, a path inside it).
 //
 // What it can't check without a local view it says it couldn't (Check::Unknown), never "fine".
 
 #include "core/FreeSpace.hpp"
+#include "core/ServerFolder.hpp"
 #include "core/Torrent.hpp"
 
 #include <QHash>
@@ -66,6 +69,14 @@ public:
         Warn,    ///< yellow: fine, but know it
         Block,   ///< red, about the whole move: the button is off
         Unknown, ///< can't tell here; the move is allowed
+    };
+
+    /// Where M8's check ran (C16 L13).
+    enum class NamesCheck {
+        Here,    ///< on this machine, which sees the server's disks
+        Server,  ///< on the server: qBittorrent listed every target's folder
+        Pending, ///< on the server, some listings still to come: don't send yet
+        Cannot,  ///< nowhere: the server can't list folders, or didn't answer
     };
 
     enum class Blocker {
@@ -117,6 +128,12 @@ public:
         qint64 lowDiskThreshold = 2LL * 1024 * 1024 * 1024; ///< Q16
         qint64 looseBytes = 0; ///< loose files to carry (M17), when the tick is on
         MoveDisk disk = MoveDisk::real();
+        /// Folders qBittorrent listed, by folder as the server writes it: M8's check when this
+        /// machine doesn't see the server's disks. Those the plan needed and didn't get are in
+        /// needListings().
+        QHash<QString, ServerFolder> serverFolders;
+        /// False once the server answered that it can't list folders.
+        bool serverLists = true;
     };
 
     static MovePlan make(const Input &input);
@@ -131,6 +148,9 @@ public:
     QList<PathRow> pathRows() const { return m_pathRows; }
     /// Hashes of torrents added without a subfolder whose file lists the plan needs.
     QStringList needFiles() const { return m_needFiles; }
+    /// Folders on the server whose listings M8's check needs (when the disks aren't seen).
+    QStringList needListings() const { return m_needListings; }
+    NamesCheck namesCheck() const { return m_namesCheck; }
 
     Blocker blocker() const { return m_blocker; }
     bool canMove() const { return m_blocker == Blocker::None; }
@@ -170,6 +190,8 @@ private:
     QList<Item> m_items;
     QList<PathRow> m_pathRows;
     QStringList m_needFiles;
+    QStringList m_needListings;
+    NamesCheck m_namesCheck = NamesCheck::Here;
     Blocker m_blocker = Blocker::None;
     Check m_room = Check::Unknown;
     qint64 m_bytesToMove = 0;

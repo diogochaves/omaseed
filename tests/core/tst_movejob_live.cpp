@@ -2,13 +2,16 @@
 // folder with a subfolder save path is moved to another drive (/dev/shm when it is there) and
 // every torrent keeps its place below the folder; then a move to a folder qBittorrent can't
 // write stops after its first torrent, which qBittorrent answers 200 for and fails in its log
-// (diogochaves/upstream#120). Everything it adds is removed with its files at the end.
+// (diogochaves/upstream#120). Before those, a plan made without a view of the disks asks the
+// server what is already where the torrents would go (#102, C16 L13). Everything it adds is
+// removed with its files at the end.
 
 #include "core/Bencode.hpp"
 #include "core/MoveJob.hpp"
 #include "core/MovePlan.hpp"
 #include "core/QbtClient.hpp"
 #include "core/QbtMoveFeed.hpp"
+#include "core/ServerFolder.hpp"
 #include "core/SyncEngine.hpp"
 #include "core/TorrentModel.hpp"
 
@@ -36,6 +39,7 @@ using omaseed::core::QbtClient;
 using omaseed::core::QbtMoveFeed;
 using omaseed::core::QbtReply;
 using omaseed::core::QbtResult;
+using omaseed::core::ServerFolder;
 using omaseed::core::SyncEngine;
 using omaseed::core::Torrent;
 namespace bencode = omaseed::core::bencode;
@@ -106,6 +110,7 @@ class TestMoveJobLive : public QObject
 private slots:
     void initTestCase();
     void cleanupTestCase();
+    void theServerSaysWhatIsAlreadyThere();
     void movesAFolderKeepingItsShape();
     void anUnwritableFolderStopsAfterTheFirst();
 
@@ -204,6 +209,47 @@ void TestMoveJobLive::startEngine()
     QSignalSpy first(&m_engine, &SyncEngine::firstSyncFinished);
     m_engine.start();
     QVERIFY2(waitFor([&first] { return first.count() > 0; }, 15000), "no first sync");
+}
+
+void TestMoveJobLive::theServerSaysWhatIsAlreadyThere()
+{
+    // A folder on the playground holds a different file named like the biggest torrent's; the
+    // handheld folder isn't there at all. No probe: this machine "can't see" the disks.
+    const QString target = m_base + QStringLiteral("/remote/games");
+    QVERIFY(QDir().mkpath(target));
+    QFile stray(target + QStringLiteral("/movejob-big.bin"));
+    QVERIFY(stray.open(QIODevice::WriteOnly));
+    stray.write("not the torrent's bytes");
+    stray.close();
+
+    MovePlan::Input in;
+    for (int row = 0; row < m_engine.torrents()->count(); ++row)
+        in.torrents << m_engine.torrents()->torrentAt(row);
+    in.root = m_root;
+    in.newPath = target;
+    MovePlan plan = MovePlan::make(in);
+    QVERIFY(!plan.seesDisks());
+    QCOMPARE(plan.namesCheck(), MovePlan::NamesCheck::Pending);
+    QCOMPARE(plan.needListings(), QStringList({target, target + QStringLiteral("/handheld")}));
+
+    for (const QString &folder : plan.needListings()) {
+        const ServerFolder listed =
+            ServerFolder::fromReply(await(this, m_client.appDirectoryContent(folder)));
+        in.serverFolders.insert(folder, listed);
+    }
+    QCOMPARE(in.serverFolders.value(target).state, ServerFolder::State::Listed);
+    QCOMPARE(in.serverFolders.value(target + QStringLiteral("/handheld")).state,
+             ServerFolder::State::Missing);
+    plan = MovePlan::make(in);
+    QCOMPARE(plan.namesCheck(), MovePlan::NamesCheck::Server);
+    QCOMPARE(plan.leftOut().size(), 1);
+    QCOMPARE(plan.item(plan.leftOut().constFirst())->name, QStringLiteral("movejob-big.bin"));
+    QCOMPARE(plan.toMove().size(), 2);
+
+    // A file's path is no folder: qBittorrent says "Directory does not exist".
+    const ServerFolder file = ServerFolder::fromReply(
+        await(this, m_client.appDirectoryContent(target + QStringLiteral("/movejob-big.bin"))));
+    QCOMPARE(file.state, ServerFolder::State::Missing);
 }
 
 void TestMoveJobLive::movesAFolderKeepingItsShape()

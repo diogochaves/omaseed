@@ -10,6 +10,7 @@
 
 using omaseed::core::LooseFile;
 using omaseed::core::LooseFiles;
+using omaseed::core::ServerFolder;
 
 namespace {
 
@@ -173,6 +174,61 @@ private slots:
             });
         QVERIFY(!result.complete);
         QVERIFY(result.files.size() < 200);
+    }
+
+    // #102, C16 L13: a server whose disks this machine can't see names what it lists.
+    void onServerNamesWhatNoTorrentOwns()
+    {
+        const QString root = QStringLiteral("/volume1/games");
+        const QStringList folders{root, root + QStringLiteral("/handheld")};
+        const QStringList owned{root + QStringLiteral("/Arcade Set 01"),
+                                root + QStringLiteral("/handheld/Pack 01"),
+                                root + QStringLiteral("/handheld/loose-rom.bin")};
+        QHash<QString, ServerFolder> listed;
+
+        LooseFiles::OnServer out = LooseFiles::onServer(root, folders, listed, owned);
+        QVERIFY(!out.complete);
+        QCOMPARE(out.needListings, folders);
+        QVERIFY(out.names.isEmpty());
+
+        ServerFolder games;
+        games.state = ServerFolder::State::Listed;
+        games.names = {QStringLiteral("Arcade Set 01"),
+                       QStringLiteral("handheld"),
+                       QStringLiteral("manual.pdf"),
+                       QStringLiteral("Thumbs.db")};
+        ServerFolder handheld;
+        handheld.state = ServerFolder::State::Listed;
+        handheld.names = {QStringLiteral("Pack 01"),
+                          QStringLiteral("loose-rom.bin"),
+                          QStringLiteral("launcher-config"),
+                          QStringLiteral(".abc.parts")};
+        listed.insert(root, games);
+        listed.insert(root + QStringLiteral("/handheld"), handheld);
+        out = LooseFiles::onServer(root + QStringLiteral("/"), folders, listed, owned);
+        QVERIFY(out.complete);
+        QVERIFY(out.needListings.isEmpty());
+        QCOMPARE(out.names,
+                 QStringList(
+                     {QStringLiteral("manual.pdf"), QStringLiteral("handheld/launcher-config")}));
+        QCOMPARE(out.neverCounts, 2);
+    }
+
+    void onServerFailsClosed()
+    {
+        const QString root = QStringLiteral("/volume1/games");
+        QHash<QString, ServerFolder> listed;
+        listed.insert(root, ServerFolder()); // no answer
+        LooseFiles::OnServer out = LooseFiles::onServer(root, {root}, listed, {});
+        QVERIFY(!out.complete);
+        QVERIFY(out.needListings.isEmpty());
+
+        ServerFolder missing;
+        missing.state = ServerFolder::State::Missing;
+        listed.insert(root, missing);
+        out = LooseFiles::onServer(root, {root}, listed, {});
+        QVERIFY(out.complete);
+        QVERIFY(out.names.isEmpty());
     }
 
     void theNeverCountList()

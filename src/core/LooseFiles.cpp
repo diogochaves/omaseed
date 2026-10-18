@@ -1,5 +1,8 @@
 #include "core/LooseFiles.hpp"
 
+#include "core/FolderTree.hpp"
+#include "core/SharedData.hpp"
+
 #include <QCoreApplication>
 #include <QDir>
 #include <QFileInfo>
@@ -183,6 +186,64 @@ LooseFiles::Result LooseFiles::scan(const QString &folder,
     }
     walk.folder(walk.root);
     return walk.result;
+}
+
+LooseFiles::OnServer LooseFiles::onServer(const QString &rootIn,
+                                          const QStringList &foldersIn,
+                                          const QHash<QString, ServerFolder> &listed,
+                                          const QStringList &ownedIn)
+{
+    OnServer out;
+    const QString root = SharedData::normalize(rootIn);
+    QStringList folders;
+    for (const QString &folder : foldersIn)
+        folders << SharedData::normalize(folder);
+    folders.removeDuplicates();
+    folders.sort();
+    QStringList owned;
+    for (const QString &path : ownedIn)
+        owned << SharedData::normalize(path);
+
+    for (const QString &folder : std::as_const(folders)) {
+        const auto found = listed.constFind(folder);
+        if (found == listed.cend()) {
+            out.needListings << folder;
+            out.complete = false;
+            continue;
+        }
+        if (found->state == ServerFolder::State::Missing)
+            continue;
+        if (found->state != ServerFolder::State::Listed) {
+            out.complete = false;
+            continue;
+        }
+        QStringList names(found->names.cbegin(), found->names.cend());
+        names.sort();
+        for (const QString &name : std::as_const(names)) {
+            const QString full = FolderTree::join(folder, name);
+            // A save path, or a folder on the way to one: listed on its own.
+            const bool holdsAFolder =
+                std::any_of(folders.cbegin(), folders.cend(), [&full](const QString &other) {
+                    return SharedData::isUnder(other, full);
+                });
+            if (holdsAFolder)
+                continue;
+            // A torrent's content (a folder covers what is below it), or a file of one added
+            // without a subfolder, or a folder holding some of those.
+            const bool isOwned =
+                std::any_of(owned.cbegin(), owned.cend(), [&full](const QString &path) {
+                    return SharedData::isUnder(full, path) || SharedData::isUnder(path, full);
+                });
+            if (isOwned)
+                continue;
+            if (neverCounts(name)) {
+                ++out.neverCounts;
+                continue;
+            }
+            out.names << (root == QLatin1String("/") ? full.mid(1) : full.mid(root.size() + 1));
+        }
+    }
+    return out;
 }
 
 } // namespace omaseed::core
