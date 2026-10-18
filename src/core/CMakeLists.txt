@@ -67,6 +67,8 @@ qt_add_library(omaseed-core STATIC
     ProblemLog.hpp
     QbtClient.cpp
     QbtClient.hpp
+    QbtMoveFeed.cpp
+    QbtMoveFeed.hpp
     QbtReply.cpp
     QbtReply.hpp
     QbtSettingsExport.cpp

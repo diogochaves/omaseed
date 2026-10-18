@@ -434,3 +434,8 @@ omaseed_add_test(tst_movejob
     SOURCES tst_movejob.cpp
     LIBRARIES omaseed::core
 )
+
+omaseed_add_test(tst_movejob_live LIVE
+    SOURCES tst_movejob_live.cpp
+    LIBRARIES omaseed::core
+)
