@@ -469,6 +469,13 @@ while [ $# -gt 0 ]; do
     shift
 done
 
+# --build is used as $repo/$build, and the box sees only this checkout: an absolute path inside it
+# becomes relative, one outside it can't run there.
+case "$build" in
+"$repo"/*) build="${build#"$repo"/}" ;;
+/*) die "--build $build is outside this checkout ($repo), which is all the box sees: build inside it" ;;
+esac
+
 # The BitTorrent ports of the box's qBittorrents ("public", and the manual box's "private"),
 # from the box's name. From the host every box is 127.0.0.1, so two boxes on the same port are
 # one peer to the swarm's tracker, and the second one up never gets a peer (#22). 27100-27899:
