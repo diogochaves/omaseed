@@ -2,6 +2,7 @@
 // job's band, against a SyncEngine whose rows the test writes itself (no server: sends get no
 // answer, and the test lands the torrents by moving their save paths, as a poll would).
 
+#include "core/CategoryModel.hpp"
 #include "core/FreeSpace.hpp"
 #include "core/MoveJob.hpp"
 #include "core/QbtClient.hpp"
@@ -124,6 +125,8 @@ private:
     SyncEngine *m_engine = nullptr;
     MoveController *m_move = nullptr;
     QStringList m_notices;
+    QHash<QString, QStringList> m_recents; ///< state.json's, by server
+    const omaseed::core::FreeSpaceProbe *m_probe = nullptr;
 
     void make()
     {
@@ -136,6 +139,11 @@ private:
         hooks.notify = [this](const QString &summary, const QString &body) {
             m_notices << summary + QStringLiteral(" | ") + body;
         };
+        hooks.loadRecents = [this](const QString &server) { return m_recents.value(server); };
+        hooks.saveRecents = [this](const QString &server, const QStringList &paths) {
+            m_recents.insert(server, paths);
+        };
+        hooks.probe = m_probe;
         m_move->setHooks(std::move(hooks));
     }
 
@@ -161,6 +169,8 @@ private slots:
     void init()
     {
         m_notices.clear();
+        m_recents.clear();
+        m_probe = nullptr;
         delete m_engine;
         m_engine = new SyncEngine(this);
         m_engine->torrents()->applyFullUpdate(library());
@@ -532,6 +542,249 @@ private slots:
                  QStringLiteral("The move of games is paused: /mnt/fast/games is full"));
     }
 
+    // ---- board 43, DECISIONS C16 (#103): every move is a job -------------------------------
+
+    void aQuickSelectionIsANoteNotABand()
+    {
+        m_move->setServer(QStringLiteral("home"));
+        QSignalSpy notes(m_move, &MoveController::note);
+        // L1: set location's torrents go through the job, smallest first, the first alone.
+        QVERIFY(m_move->startSelection({QStringLiteral("a1")},
+                                       QStringLiteral("/mnt/fast/shooters"),
+                                       QStringLiteral("oneFolder")));
+        QCOMPARE(m_move->job()->kind(), QStringLiteral("selection"));
+        QCOMPARE(m_move->title(), QStringLiteral("Open Arena"));
+        QVERIFY(!m_move->shown());
+        QVERIFY(!m_move->active()); // a quit asks nothing (board 43 §9)
+        QVERIFY(m_move->band().isEmpty());
+        landSent();
+        // L7: it landed before the band was due: a note, no summary, no notice.
+        QCOMPARE(notes.count(), 1);
+        QCOMPARE(notes.at(0).at(0).toString(),
+                 QStringLiteral("Open Arena moved to /mnt/fast/shooters"));
+        QCOMPARE(notes.at(0).at(2).toBool(), false);
+        QTRY_COMPARE(m_move->stateName(), QStringLiteral("idle"));
+        QVERIFY(m_notices.isEmpty());
+        // L4: the destination is remembered for this server.
+        QCOMPARE(m_recents.value(QStringLiteral("home")),
+                 QStringList({QStringLiteral("/mnt/fast/shooters")}));
+    }
+
+    void aQuickFailureIsAFailedNote()
+    {
+        m_move->setServer(QStringLiteral("home"));
+        QSignalSpy notes(m_move, &MoveController::note);
+        QVERIFY(m_move->startSelection(
+            {QStringLiteral("a1")}, QStringLiteral("/nope/x"), QStringLiteral("oneFolder")));
+        m_move->job()->onSendResult(
+            {QStringLiteral("a1")},
+            omaseed::core::ApiError(omaseed::core::ApiError::Kind::Conflict,
+                                    QStringLiteral("Cannot make save path")));
+        QCOMPARE(m_move->stateName(), QStringLiteral("done"));
+        QVERIFY(!m_move->shown());
+        QCOMPARE(notes.count(), 1);
+        QCOMPARE(notes.at(0).at(0).toString(),
+                 QStringLiteral("Open Arena didn't move: qBittorrent can't create /nope/x"));
+        QCOMPARE(notes.at(0).at(1).toStringList(), QStringList({QStringLiteral("a1")}));
+        QCOMPARE(notes.at(0).at(2).toBool(), true);
+    }
+
+    void aSlowSelectionShowsItsBandThenMovesBack()
+    {
+        m_move->setServer(QStringLiteral("home"));
+        m_move->job()->setShowDelay(std::chrono::milliseconds(20));
+        QVERIFY(m_move->startSelection({QStringLiteral("b2"), QStringLiteral("c3")},
+                                       QStringLiteral("/mnt/fast/all"),
+                                       QStringLiteral("oneFolder")));
+        QCOMPARE(m_move->title(), QStringLiteral("2 torrents"));
+        QVERIFY(!m_move->shown());
+        QTRY_VERIFY(m_move->shown()); // L6: it ran past the delay
+        QVERIFY(m_move->active());
+        QCOMPARE(m_move->band().value(QStringLiteral("headline")).toString(),
+                 QStringLiteral("Moving 2 torrents to /mnt/fast/all"));
+        landSent();
+        landSent();
+        QCOMPARE(m_move->stateName(), QStringLiteral("done"));
+        QVariantMap band = m_move->band();
+        QCOMPARE(band.value(QStringLiteral("headline")).toString(),
+                 QStringLiteral("2 torrents moved to /mnt/fast/all"));
+        QStringList ids;
+        for (const QVariant &item : band.value(QStringLiteral("actions")).toList())
+            ids << item.toMap().value(QStringLiteral("id")).toString();
+        QVERIFY(ids.contains(QStringLiteral("moveBack")));
+        // L8: watched land, in under a minute: no notice.
+        QVERIFY(m_notices.isEmpty());
+
+        // L11: each back to where it was.
+        const QVariantMap back = m_move->planBack();
+        QCOMPARE(back.value(QStringLiteral("title")).toString(),
+                 QStringLiteral("Move 2 torrents back"));
+        QCOMPARE(back.value(QStringLiteral("moveText")).toString(), QStringLiteral("move 2 back"));
+        QCOMPARE(back.value(QStringLiteral("pathRows")).toList().size(), 2);
+        QVERIFY(m_move->startBack());
+        QCOMPARE(m_move->job()->kind(), QStringLiteral("back"));
+        const MoveJob::Entry *c3 = m_move->job()->entry(QStringLiteral("c3"));
+        QCOMPARE(c3->to, QStringLiteral("/mnt/archive/games/handheld"));
+        landSent();
+        landSent();
+        QCOMPARE(m_engine->torrents()->torrent(QStringLiteral("b2")).savePath,
+                 QStringLiteral("/mnt/archive/games"));
+    }
+
+    void oneBigTorrentSaysWhatItCanTell()
+    {
+        // L10 (B2): without a view of the disks, no progress and no time left, rather than a
+        // guess.
+        m_move->setServer(QStringLiteral("home"));
+        m_move->job()->setShowDelay(std::chrono::milliseconds(0));
+        QVERIFY(m_move->startSelection(
+            {QStringLiteral("d4")}, QStringLiteral("/mnt/usb/films"), QStringLiteral("oneFolder")));
+        m_engine->torrents()->applyPartial(
+            {{QStringLiteral("d4"),
+              QJsonObject{{QStringLiteral("state"), QStringLiteral("moving")}}}},
+            {});
+        Q_EMIT m_engine->synced(false);
+        QTRY_VERIFY(m_move->shown());
+        const QVariantMap band = m_move->band();
+        QCOMPARE(band.value(QStringLiteral("headline")).toString(),
+                 QStringLiteral("Moving Big Film to /mnt/usb/films"));
+        QVERIFY(band.value(QStringLiteral("line"))
+                    .toString()
+                    .contains(QStringLiteral("qBittorrent doesn't report a single move's "
+                                             "progress, and omaseed can't see home's disks")));
+        QCOMPARE(band.value(QStringLiteral("progress")).toDouble(), -1.0);
+        QStringList ids;
+        for (const QVariant &item : band.value(QStringLiteral("actions")).toList())
+            ids << item.toMap().value(QStringLiteral("id")).toString();
+        QVERIFY(!ids.contains(QStringLiteral("pause"))); // it is with qBittorrent already
+        QCOMPARE(m_move->stepFor(QStringLiteral("d4")).value(QStringLiteral("progress")).toInt(),
+                 -1);
+    }
+
+    void aSelectionWaitsBehindAFolder()
+    {
+        m_move->setServer(QStringLiteral("home"));
+        QTRY_COMPARE(m_move->folders()->total(), 5);
+        QVERIFY(m_move->start(
+            QStringLiteral("/mnt/archive/games"), QStringLiteral("/mnt/fast/games"), false));
+        // Q4: checked now, sent when the folder's move ends.
+        const QVariantMap sheet = m_move->planSelection(
+            {QStringLiteral("d4")}, QStringLiteral("/mnt/fast/films"), QStringLiteral("oneFolder"));
+        QCOMPARE(sheet.value(QStringLiteral("moveText")).toString(),
+                 QStringLiteral("move after games"));
+        QVERIFY(m_move->startSelection({QStringLiteral("d4")},
+                                       QStringLiteral("/mnt/fast/films"),
+                                       QStringLiteral("oneFolder")));
+        QCOMPARE(m_move->queued(), QStringList({QStringLiteral("Big Film")}));
+        QVERIFY(m_move->band()
+                    .value(QStringLiteral("line"))
+                    .toString()
+                    .endsWith(QStringLiteral("next: Big Film to /mnt/fast/films")));
+        for (int i = 0; i < 3; ++i)
+            landSent();
+        QCOMPARE(m_move->stateName(), QStringLiteral("done"));
+        m_move->closeSummary();
+        QCOMPARE(m_move->job()->kind(), QStringLiteral("selection"));
+        QCOMPARE(m_move->title(), QStringLiteral("Big Film"));
+        QCOMPARE(m_move->job()->entry(QStringLiteral("d4"))->to, QStringLiteral("/mnt/fast/films"));
+    }
+
+    void placesAreRecentsFoldersAndCategories()
+    {
+        m_recents.insert(QStringLiteral("home"),
+                         {QStringLiteral("/mnt/fast/films"), QStringLiteral("/srv/old")});
+        m_engine->categories()->applyFullUpdate(QJsonObject{
+            {QStringLiteral("incoming"),
+             QJsonObject{{QStringLiteral("name"), QStringLiteral("incoming")},
+                         {QStringLiteral("savePath"), QStringLiteral("/mnt/fast/incoming")}}},
+            {QStringLiteral("films"),
+             QJsonObject{{QStringLiteral("name"), QStringLiteral("films")},
+                         {QStringLiteral("savePath"), QStringLiteral("/srv/media/films")}}}});
+        make();
+        m_move->setServer(QStringLiteral("home"));
+        QTRY_COMPARE(m_move->folders()->total(), 5);
+        QStringList paths;
+        QStringList kinds;
+        for (const QVariant &place : m_move->places(QStringLiteral("fast"))) {
+            paths << place.toMap().value(QStringLiteral("path")).toString();
+            kinds << place.toMap().value(QStringLiteral("kind")).toString();
+        }
+        QCOMPARE(
+            paths,
+            QStringList({QStringLiteral("/mnt/fast/films"), QStringLiteral("/mnt/fast/incoming")}));
+        QCOMPARE(kinds, QStringList({QStringLiteral("recent"), QStringLiteral("category")}));
+        // Unfiltered: the library's save paths with their counts; a category already among
+        // them once.
+        const QVariantList all = m_move->places(QString());
+        QStringList allPaths;
+        for (const QVariant &place : all)
+            allPaths << place.toMap().value(QStringLiteral("path")).toString();
+        QCOMPARE(allPaths.count(QStringLiteral("/srv/media/films")), 1);
+        QVERIFY(allPaths.contains(QStringLiteral("/mnt/archive/games/handheld")));
+    }
+
+    void theQuietSheetSaysOneLine()
+    {
+        // L3, with a view of the disks: every check passed, so one green line.
+        QTemporaryDir disks;
+        const QString archive = disks.filePath(QStringLiteral("archive"));
+        const QString fast = disks.filePath(QStringLiteral("fast"));
+        QDir().mkpath(archive + QStringLiteral("/games/handheld"));
+        QDir().mkpath(fast);
+        omaseed::core::FreeSpaceProbe probe([&](const QString &path) {
+            omaseed::core::StorageReading reading;
+            reading.valid = true;
+            reading.exists = QFileInfo::exists(path);
+            reading.rootPath = path.startsWith(fast) ? fast : archive;
+            reading.bytesFree = 400LL * 1024 * 1024 * 1024;
+            reading.bytesTotal = 1000LL * 1024 * 1024 * 1024;
+            return reading;
+        });
+        probe.setServer(archive, 400LL * 1024 * 1024 * 1024, omaseed::core::PathMap(), false);
+        QVERIFY(probe.seesServerDisks());
+        m_probe = &probe;
+        m_engine->torrents()->applyFullUpdate(QJsonObject{
+            {QStringLiteral("e5"),
+             torrent(QStringLiteral("Open Arena"), archive + QStringLiteral("/games"), 1000)},
+            {QStringLiteral("f6"),
+             torrent(QStringLiteral("Demo"), archive + QStringLiteral("/games/handheld"), 10)}});
+        make();
+        m_move->setServer(QStringLiteral("home"));
+
+        QVariantMap sheet = m_move->planSelection(
+            {QStringLiteral("e5")}, archive + QStringLiteral("/old"), QStringLiteral("oneFolder"));
+        QCOMPARE(sheet.value(QStringLiteral("title")).toString(),
+                 QStringLiteral("Move Open Arena"));
+        QCOMPARE(sheet.value(QStringLiteral("moveText")).toString(), QStringLiteral("move"));
+        QCOMPARE(checkTexts(sheet),
+                 QStringList({QStringLiteral(
+                     "Same drive: a rename, it lands at once. Room and access are fine.")}));
+
+        sheet = m_move->planSelection({QStringLiteral("e5"), QStringLiteral("f6")},
+                                      fast + QStringLiteral("/library"),
+                                      QStringLiteral("keepPlaces"));
+        QVERIFY(sheet.value(QStringLiteral("ruleOffered")).toBool());
+        QCOMPARE(sheet.value(QStringLiteral("commonRoot")).toString(),
+                 archive + QStringLiteral("/games"));
+        QCOMPARE(sheet.value(QStringLiteral("pathRows")).toList().size(), 2);
+        const QStringList texts = checkTexts(sheet);
+        QCOMPARE(texts.size(), 1);
+        QVERIFY(texts.constFirst().startsWith(QStringLiteral("Room and access are fine on ")));
+
+        // Something to say: the whole of S1's lines, word for word.
+        QFile clash(fast + QStringLiteral("/library/Open Arena"));
+        QDir().mkpath(fast + QStringLiteral("/library"));
+        QVERIFY(clash.open(QIODevice::WriteOnly));
+        clash.close();
+        sheet = m_move->planSelection({QStringLiteral("e5"), QStringLiteral("f6")},
+                                      fast + QStringLiteral("/library"),
+                                      QStringLiteral("oneFolder"));
+        QVERIFY(checkTexts(sheet).size() > 2);
+        QCOMPARE(sheet.value(QStringLiteral("moveText")).toString(),
+                 QStringLiteral("move 1 torrent"));
+        m_probe = nullptr;
+    }
+
     void pauseEndAndTheRest()
     {
         m_move->setServer(QStringLiteral("home"));
@@ -553,10 +806,11 @@ private slots:
         QStringList ids;
         for (const QVariant &item : band.value(QStringLiteral("actions")).toList())
             ids << item.toMap().value(QStringLiteral("id")).toString();
-        QCOMPARE(
-            ids,
-            QStringList(
-                {QStringLiteral("moveRest"), QStringLiteral("show"), QStringLiteral("close")}));
+        QCOMPARE(ids,
+                 QStringList({QStringLiteral("moveRest"),
+                              QStringLiteral("moveBack"),
+                              QStringLiteral("show"),
+                              QStringLiteral("close")}));
     }
 
     void quitPausesAndTheNextStartRunsAgain()

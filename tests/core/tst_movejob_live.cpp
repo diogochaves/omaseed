@@ -112,6 +112,7 @@ private slots:
     void cleanupTestCase();
     void theServerSaysWhatIsAlreadyThere();
     void movesAFolderKeepingItsShape();
+    void aSelectionGoesIntoOneFolderAndBack();
     void anUnwritableFolderStopsAfterTheFirst();
 
 private:
@@ -283,6 +284,69 @@ void TestMoveJobLive::movesAFolderKeepingItsShape()
     }
     job.closeSummary();
     QCOMPARE(job.state(), MoveJob::State::Idle);
+}
+
+// DECISIONS C16 L1, L11 (#103): a selection into one folder, then each back to its own place,
+// on a real qBittorrent.
+void TestMoveJobLive::aSelectionGoesIntoOneFolderAndBack()
+{
+    QStringList chosen;
+    QList<Torrent> torrents;
+    for (int row = 0; row < m_engine.torrents()->count(); ++row) {
+        const Torrent &torrent = m_engine.torrents()->torrentAt(row);
+        torrents << torrent;
+        if (m_hashes.contains(torrent.hash) && torrent.name != QLatin1String("movejob-small.bin"))
+            chosen << torrent.hash;
+    }
+    QCOMPARE(chosen.size(), 2);
+    MovePlan::Input in;
+    in.torrents = torrents;
+    in.hashes = chosen;
+    in.rule = MovePlan::Rule::OneFolder;
+    in.newPath = m_other + QStringLiteral("/one");
+    MovePlan plan = MovePlan::make(in);
+    QVERIFY(plan.canMove());
+    QCOMPARE(plan.savePaths().size(), 2);
+
+    MoveJob job;
+    QbtMoveFeed feed(&m_engine, &job);
+    QSignalSpy finished(&job, &MoveJob::finished);
+    const QJsonObject spec{{QStringLiteral("kind"), QStringLiteral("selection")},
+                           {QStringLiteral("title"), QStringLiteral("2 torrents")}};
+    QVERIFY(job.start(plan, QStringLiteral("playground"), false, 0, spec));
+    QVERIFY(job.isQuiet());
+    QVERIFY(waitFor([&finished] { return finished.count() > 0; }, 60000));
+    QCOMPARE(job.moved(), 2);
+    for (const QString &hash : std::as_const(chosen))
+        QCOMPARE(m_engine.torrents()->torrent(hash).savePath, m_other + QStringLiteral("/one"));
+
+    // L11: each to where it was.
+    MovePlan::Input back;
+    for (int row = 0; row < m_engine.torrents()->count(); ++row)
+        back.torrents << m_engine.torrents()->torrentAt(row);
+    back.hashes = job.movedFrom().keys();
+    back.rule = MovePlan::Rule::EachOwn;
+    back.targets = job.movedFrom();
+    back.expectedAt = job.movedTo();
+    plan = MovePlan::make(back);
+    QVERIFY(plan.canMove());
+    job.closeSummary();
+    finished.clear();
+    QVERIFY(job.start(plan,
+                      QStringLiteral("playground"),
+                      false,
+                      0,
+                      {{QStringLiteral("kind"), QStringLiteral("back")}}));
+    QVERIFY(waitFor([&finished] { return finished.count() > 0; }, 60000));
+    QCOMPARE(job.moved(), 2);
+    for (const QString &hash : std::as_const(chosen)) {
+        const Torrent &torrent = m_engine.torrents()->torrent(hash);
+        const QString expected = torrent.name == QLatin1String("movejob-mid.bin")
+                                     ? m_other + QStringLiteral("/games/handheld")
+                                     : m_other + QStringLiteral("/games");
+        QCOMPARE(torrent.savePath, expected);
+    }
+    job.closeSummary();
 }
 
 void TestMoveJobLive::anUnwritableFolderStopsAfterTheFirst()

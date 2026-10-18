@@ -6,6 +6,7 @@
 
 #include "ui/app/MoveWords.hpp"
 
+#include "core/CategoryModel.hpp"
 #include "core/ErrorWords.hpp"
 #include "core/Format.hpp"
 #include "core/FreeSpace.hpp"
@@ -15,6 +16,8 @@
 #include "core/TorrentModel.hpp"
 
 #include <QCoreApplication>
+#include <QJsonArray>
+#include <QLocale>
 #include <QThreadPool>
 
 #include <algorithm>
@@ -32,6 +35,13 @@ namespace {
 /// The loose files' walk is read again when it is older than this (S1 is read again on every
 /// change of the field, and the files beside a folder don't change that fast).
 constexpr qint64 kWalkFreshSeconds = 60;
+
+/// A line a selection's quiet sheet keeps even when every check passed (C16 L3, L13).
+QVariantMap always(QVariantMap line)
+{
+    line.insert(QStringLiteral("always"), true);
+    return line;
+}
 
 } // namespace
 
@@ -231,6 +241,244 @@ MovePlan MoveController::makePlan(const QString &root, const QString &newPath, b
     return MovePlan::make(input);
 }
 
+QVariantList
+MoveController::checkLines(const MovePlan &plan, const QString &newPath, const QString &name)
+{
+    // S1's lines (board 42), for a folder and for a selection (board 43 Q2: word for word).
+    const QString server = serverName();
+    const bool selection = plan.isSelection();
+    QVariantList checks;
+    const bool pathOk = plan.blocker() != MovePlan::Blocker::NoPath &&
+                        plan.blocker() != MovePlan::Blocker::SameFolder &&
+                        plan.blocker() != MovePlan::Blocker::InsideTheFolder;
+    if (pathOk) {
+        const QString drive = plan.drive().isEmpty() ? FolderTree::parentOf(newPath) : plan.drive();
+        // C16 L13: said once, so a remote move never reads as checked as a local one.
+        if (!plan.seesDisks())
+            checks << always(check(
+                QStringLiteral("fact"),
+                tr("omaseed can't see %1's disks. Checked on %1, through qBittorrent: files "
+                   "already where the torrents go; the first torrent, sent alone, answers for "
+                   "writing. Not checked here: room on that drive, writing, the age and size of "
+                   "files no torrent owns.")
+                    .arg(server),
+                tr("a path map in Settings › Servers lets omaseed see them")));
+        // M5: room.
+        if (plan.sameDrive()) {
+            checks << check(
+                QStringLiteral("ok"),
+                tr("Room. The same drive: each torrent is renamed, nothing is copied."));
+        } else {
+            const QString what = plan.bytesToMove() > plan.torrentBytes()
+                                     ? tr("%1 to move (torrents and loose files)")
+                                     : tr("%1 to move");
+            const QString toMove = what.arg(core::Format::size(plan.bytesToMove()));
+            switch (plan.room()) {
+            case MovePlan::Check::Ok:
+            case MovePlan::Check::Warn:
+                checks << check(
+                    plan.room() == MovePlan::Check::Ok ? QStringLiteral("ok")
+                                                       : QStringLiteral("warn"),
+                    tr("Room. %1, %2 free on %3. %4 left after.")
+                        .arg(toMove,
+                             core::Format::size(plan.bytesFree()),
+                             drive,
+                             core::Format::size(std::max<qint64>(0, plan.bytesFreeAfter()))),
+                    plan.freeReadHere()
+                        ? tr("read on this machine, which sees %1's disks").arg(server)
+                        : tr("qBittorrent's own figure for its default drive"));
+                break;
+            case MovePlan::Check::Block:
+                checks << check(QStringLiteral("bad"),
+                                tr("Not enough room. %1, %2 free on %3, and %4 is kept free.")
+                                    .arg(toMove,
+                                         core::Format::size(std::max<qint64>(0, plan.bytesFree())),
+                                         drive,
+                                         core::Format::size(
+                                             m_hooks.lowDiskBytes ? m_hooks.lowDiskBytes() : 0)));
+                break;
+            case MovePlan::Check::Unknown:
+                checks << check(QStringLiteral("unknown"),
+                                tr("Room: can't tell. %1. omaseed can't see %2's disks there.")
+                                    .arg(toMove, server),
+                                tr("a torrent that doesn't fit fails; the job pauses at the first "
+                                   "\"no space\" from qBittorrent"));
+                break;
+            }
+        }
+        // M6: writable.
+        switch (plan.writable()) {
+        case MovePlan::Check::Ok:
+            checks << check(
+                QStringLiteral("ok"),
+                tr("Writable. %1 is writable by the owner of these files.").arg(drive),
+                tr("checked here; qBittorrent's own answer comes from the first torrent, "
+                   "which goes alone"));
+            break;
+        case MovePlan::Check::Unknown:
+            checks << check(
+                QStringLiteral("unknown"),
+                tr("Writable: can't tell here. The first torrent goes alone and answers it."));
+            break;
+        default:
+            checks << check(
+                QStringLiteral("warn"),
+                tr("Not writable here: the owner of these files can't write to %1.").arg(drive),
+                tr("the check can be wrong for a container's user; the first torrent "
+                   "goes alone and answers it"));
+            break;
+        }
+        // Shared data, pulled in, spans.
+        int sharing = 0;
+        QStringList sharers;
+        for (const QStringList &group : plan.sharedInside()) {
+            sharing += int(group.size());
+            sharers << group;
+        }
+        if (sharing > 0 || !plan.pulledIn().isEmpty()) {
+            QStringList parts;
+            if (sharing > 0)
+                parts << (selection ? counted(sharing,
+                                              tr("%1 torrent shares files with another of these; "
+                                                 "they move together."),
+                                              tr("%1 torrents share files with each other; they "
+                                                 "move together."))
+                                    : counted(sharing,
+                                              tr("%1 torrent shares files with others in the "
+                                                 "folder; they move together."),
+                                              tr("%1 torrents share files with others in the "
+                                                 "folder; they move together.")));
+            if (!plan.pulledIn().isEmpty())
+                parts << counted(
+                             int(plan.pulledIn().size()),
+                             tr("%1 saved outside has all its files inside %2: it moves too."),
+                             tr("%1 saved outside have all their files inside %2: they move too."))
+                             .arg(name);
+            checks << check(QStringLiteral("ok"),
+                            tr("Shared data.") + QLatin1Char(' ') + parts.join(QLatin1Char(' ')),
+                            QString(),
+                            sharers + plan.pulledIn());
+        }
+        if (!plan.spans().isEmpty())
+            checks << check(
+                QStringLiteral("warn"),
+                counted(int(plan.spans().size()),
+                        tr("%1 spans %2: its files inside would be left without it. It stays."),
+                        tr("%1 span %2: their files inside would be left without them. They stay."))
+                    .arg(name),
+                QString(),
+                plan.spans());
+        // M7: automatic management.
+        if (!plan.autoManaged().isEmpty()) {
+            const QStringList categories = plan.autoManagedCategories();
+            checks << check(
+                QStringLiteral("warn"),
+                counted(
+                    int(plan.autoManaged().size()),
+                    tr("Automatic management. %1 torrent uses it%2. Moving turns it off for it, as "
+                       "qBittorrent does for any set location, and the category still points at "
+                       "the old folder."),
+                    tr("Automatic management. %1 torrents use it%2. Moving turns it off for them, "
+                       "as "
+                       "qBittorrent does for any set location, and the category still points at "
+                       "the old folder."))
+                    .arg(categories.isEmpty()
+                             ? QString()
+                             : QStringLiteral(" (") +
+                                   tr("category %1").arg(categories.join(QStringLiteral(", "))) +
+                                   QLatin1Char(')')),
+                QString(),
+                plan.autoManaged());
+        }
+        // M8: left out.
+        if (!plan.leftOut().isEmpty()) {
+            // Moving back, each goes to its own place: the first one's names it.
+            const MovePlan::Item *first = plan.item(plan.leftOut().constFirst());
+            const QString where =
+                !newPath.isEmpty() || first == nullptr ? newPath : FolderTree::parentOf(first->why);
+            const core::ErrorWords::Text words =
+                core::ErrorWords::forLeftOut(int(plan.leftOut().size()), where);
+            checks << check(QStringLiteral("bad"),
+                            words.headline + QStringLiteral(": ") + words.line,
+                            QString(),
+                            plan.leftOut());
+        }
+        switch (plan.namesCheck()) {
+        case MovePlan::NamesCheck::Here:
+            break;
+        case MovePlan::NamesCheck::Server:
+            if (plan.leftOut().isEmpty())
+                checks << check(
+                    QStringLiteral("ok"),
+                    tr("Nothing already there. %1 listed where the torrents go.").arg(server));
+            break;
+        case MovePlan::NamesCheck::Pending:
+            checks << check(QStringLiteral("busy"),
+                            tr("Asking %1 whether files with these torrents' names are already "
+                               "where they go…")
+                                .arg(server));
+            break;
+        case MovePlan::NamesCheck::Cannot:
+            checks << check(
+                QStringLiteral("unknown"),
+                m_serverLists
+                    ? tr("Files already there: can't tell. %1 didn't answer when asked to list "
+                         "where the torrents go.")
+                          .arg(server)
+                    : tr("Files already there: can't tell. %1's qBittorrent can't list its "
+                         "folders to omaseed.")
+                          .arg(server),
+                tr("qBittorrent keeps a file already at a torrent's place and reports the move "
+                   "done; the torrent then has the wrong data. Look there first."));
+            break;
+        }
+        // C16: a selection's own reasons to leave one where it is.
+        if (!plan.movedSince().isEmpty())
+            checks << check(QStringLiteral("warn"),
+                            counted(int(plan.movedSince().size()),
+                                    tr("%1 was moved since by something else: it stays where it is "
+                                       "now."),
+                                    tr("%1 were moved since by something else: they stay where "
+                                       "they are now.")),
+                            QString(),
+                            plan.movedSince());
+        if (!plan.intoItself().isEmpty())
+            checks << check(QStringLiteral("bad"),
+                            counted(int(plan.intoItself().size()),
+                                    tr("%1 would go inside its own folder: left out."),
+                                    tr("%1 would go inside their own folders: left out.")),
+                            QString(),
+                            plan.intoItself());
+        if (!plan.alreadyThere().isEmpty())
+            checks << always(check(
+                QStringLiteral("fact"),
+                newPath.isEmpty()
+                    ? tr("%1 already where it was. Skipped.").arg(int(plan.alreadyThere().size()))
+                    : tr("%1 already there, at %2. Skipped.")
+                          .arg(int(plan.alreadyThere().size()))
+                          .arg(newPath),
+                QString(),
+                plan.alreadyThere()));
+        // M6, M12: the order.
+        const QStringList order = plan.toMove();
+        if (!order.isEmpty()) {
+            const MovePlan::Item *first = plan.item(order.first());
+            const QString firstText =
+                first == nullptr
+                    ? QString()
+                    : QStringLiteral("%1 (%2)").arg(first->name, core::Format::size(first->bytes));
+            checks << check(
+                QStringLiteral("fact"),
+                order.size() == 1
+                    ? tr("Order: %1 goes alone.").arg(firstText)
+                    : tr("Order: smallest first. %1 goes alone; the rest follow, 3 at a "
+                         "time in qBittorrent's queue.")
+                          .arg(firstText));
+        }
+    }
+    return checks;
+}
+
 QVariantMap MoveController::plan(const QString &rootIn, const QString &newPathIn, bool carry)
 {
     const QString root = SharedData::normalize(rootIn);
@@ -336,206 +584,7 @@ QVariantMap MoveController::plan(const QString &rootIn, const QString &newPathIn
     }
     out.insert(QStringLiteral("blocker"), blocker);
 
-    QVariantList checks;
-    const bool pathOk = plan.blocker() != MovePlan::Blocker::NoPath &&
-                        plan.blocker() != MovePlan::Blocker::SameFolder &&
-                        plan.blocker() != MovePlan::Blocker::InsideTheFolder;
-    if (pathOk) {
-        const QString drive = plan.drive().isEmpty() ? FolderTree::parentOf(newPath) : plan.drive();
-        // C16 L13: said once, so a remote move never reads as checked as a local one.
-        if (!plan.seesDisks())
-            checks << check(
-                QStringLiteral("fact"),
-                tr("omaseed can't see %1's disks. Checked on %1, through qBittorrent: files "
-                   "already where the torrents go; the first torrent, sent alone, answers for "
-                   "writing. Not checked here: room on that drive, writing, the age and size of "
-                   "files no torrent owns.")
-                    .arg(server),
-                tr("a path map in Settings › Servers lets omaseed see them"));
-        // M5: room.
-        if (plan.sameDrive()) {
-            checks << check(
-                QStringLiteral("ok"),
-                tr("Room. The same drive: each torrent is renamed, nothing is copied."));
-        } else {
-            const QString what = plan.bytesToMove() > plan.torrentBytes()
-                                     ? tr("%1 to move (torrents and loose files)")
-                                     : tr("%1 to move");
-            const QString toMove = what.arg(core::Format::size(plan.bytesToMove()));
-            switch (plan.room()) {
-            case MovePlan::Check::Ok:
-            case MovePlan::Check::Warn:
-                checks << check(
-                    plan.room() == MovePlan::Check::Ok ? QStringLiteral("ok")
-                                                       : QStringLiteral("warn"),
-                    tr("Room. %1, %2 free on %3. %4 left after.")
-                        .arg(toMove,
-                             core::Format::size(plan.bytesFree()),
-                             drive,
-                             core::Format::size(std::max<qint64>(0, plan.bytesFreeAfter()))),
-                    plan.freeReadHere()
-                        ? tr("read on this machine, which sees %1's disks").arg(server)
-                        : tr("qBittorrent's own figure for its default drive"));
-                break;
-            case MovePlan::Check::Block:
-                checks << check(QStringLiteral("bad"),
-                                tr("Not enough room. %1, %2 free on %3, and %4 is kept free.")
-                                    .arg(toMove,
-                                         core::Format::size(std::max<qint64>(0, plan.bytesFree())),
-                                         drive,
-                                         core::Format::size(
-                                             m_hooks.lowDiskBytes ? m_hooks.lowDiskBytes() : 0)));
-                break;
-            case MovePlan::Check::Unknown:
-                checks << check(QStringLiteral("unknown"),
-                                tr("Room: can't tell. %1. omaseed can't see %2's disks there.")
-                                    .arg(toMove, server),
-                                tr("a torrent that doesn't fit fails; the job pauses at the first "
-                                   "\"no space\" from qBittorrent"));
-                break;
-            }
-        }
-        // M6: writable.
-        switch (plan.writable()) {
-        case MovePlan::Check::Ok:
-            checks << check(
-                QStringLiteral("ok"),
-                tr("Writable. %1 is writable by the owner of these files.").arg(drive),
-                tr("checked here; qBittorrent's own answer comes from the first torrent, "
-                   "which goes alone"));
-            break;
-        case MovePlan::Check::Unknown:
-            checks << check(
-                QStringLiteral("unknown"),
-                tr("Writable: can't tell here. The first torrent goes alone and answers it."));
-            break;
-        default:
-            checks << check(
-                QStringLiteral("warn"),
-                tr("Not writable here: the owner of these files can't write to %1.").arg(drive),
-                tr("the check can be wrong for a container's user; the first torrent "
-                   "goes alone and answers it"));
-            break;
-        }
-        // Shared data, pulled in, spans.
-        int sharing = 0;
-        QStringList sharers;
-        for (const QStringList &group : plan.sharedInside()) {
-            sharing += int(group.size());
-            sharers << group;
-        }
-        if (sharing > 0 || !plan.pulledIn().isEmpty()) {
-            QStringList parts;
-            if (sharing > 0)
-                parts << counted(
-                    sharing,
-                    tr("%1 torrent shares files with others in the folder; they move together."),
-                    tr("%1 torrents share files with others in the folder; they move together."));
-            if (!plan.pulledIn().isEmpty())
-                parts << counted(
-                             int(plan.pulledIn().size()),
-                             tr("%1 saved outside has all its files inside %2: it moves too."),
-                             tr("%1 saved outside have all their files inside %2: they move too."))
-                             .arg(name);
-            checks << check(QStringLiteral("ok"),
-                            tr("Shared data.") + QLatin1Char(' ') + parts.join(QLatin1Char(' ')),
-                            QString(),
-                            sharers + plan.pulledIn());
-        }
-        if (!plan.spans().isEmpty())
-            checks << check(
-                QStringLiteral("warn"),
-                counted(int(plan.spans().size()),
-                        tr("%1 spans %2: its files inside would be left without it. It stays."),
-                        tr("%1 span %2: their files inside would be left without them. They stay."))
-                    .arg(name),
-                QString(),
-                plan.spans());
-        // M7: automatic management.
-        if (!plan.autoManaged().isEmpty()) {
-            const QStringList categories = plan.autoManagedCategories();
-            checks << check(
-                QStringLiteral("warn"),
-                counted(
-                    int(plan.autoManaged().size()),
-                    tr("Automatic management. %1 torrent uses it%2. Moving turns it off for it, as "
-                       "qBittorrent does for any set location, and the category still points at "
-                       "the old folder."),
-                    tr("Automatic management. %1 torrents use it%2. Moving turns it off for them, "
-                       "as "
-                       "qBittorrent does for any set location, and the category still points at "
-                       "the old folder."))
-                    .arg(categories.isEmpty()
-                             ? QString()
-                             : QStringLiteral(" (") +
-                                   tr("category %1").arg(categories.join(QStringLiteral(", "))) +
-                                   QLatin1Char(')')),
-                QString(),
-                plan.autoManaged());
-        }
-        // M8: left out.
-        if (!plan.leftOut().isEmpty()) {
-            const core::ErrorWords::Text words =
-                core::ErrorWords::forLeftOut(int(plan.leftOut().size()), newPath);
-            checks << check(QStringLiteral("bad"),
-                            words.headline + QStringLiteral(": ") + words.line,
-                            QString(),
-                            plan.leftOut());
-        }
-        switch (plan.namesCheck()) {
-        case MovePlan::NamesCheck::Here:
-            break;
-        case MovePlan::NamesCheck::Server:
-            if (plan.leftOut().isEmpty())
-                checks << check(
-                    QStringLiteral("ok"),
-                    tr("Nothing already there. %1 listed where the torrents go.").arg(server));
-            break;
-        case MovePlan::NamesCheck::Pending:
-            checks << check(QStringLiteral("busy"),
-                            tr("Asking %1 whether files with these torrents' names are already "
-                               "where they go…")
-                                .arg(server));
-            break;
-        case MovePlan::NamesCheck::Cannot:
-            checks << check(
-                QStringLiteral("unknown"),
-                m_serverLists
-                    ? tr("Files already there: can't tell. %1 didn't answer when asked to list "
-                         "where the torrents go.")
-                          .arg(server)
-                    : tr("Files already there: can't tell. %1's qBittorrent can't list its "
-                         "folders to omaseed.")
-                          .arg(server),
-                tr("qBittorrent keeps a file already at a torrent's place and reports the move "
-                   "done; the torrent then has the wrong data. Look there first."));
-            break;
-        }
-        if (!plan.alreadyThere().isEmpty())
-            checks << check(QStringLiteral("fact"),
-                            tr("%1 already there, at %2. Skipped.")
-                                .arg(int(plan.alreadyThere().size()))
-                                .arg(newPath),
-                            QString(),
-                            plan.alreadyThere());
-        // M6, M12: the order.
-        const QStringList order = plan.toMove();
-        if (!order.isEmpty()) {
-            const MovePlan::Item *first = plan.item(order.first());
-            const QString firstText =
-                first == nullptr
-                    ? QString()
-                    : QStringLiteral("%1 (%2)").arg(first->name, core::Format::size(first->bytes));
-            checks << check(
-                QStringLiteral("fact"),
-                order.size() == 1
-                    ? tr("Order: %1 goes alone.").arg(firstText)
-                    : tr("Order: smallest first. %1 goes alone; the rest follow, 3 at a "
-                         "time in qBittorrent's queue.")
-                          .arg(firstText));
-        }
-    }
-    out.insert(QStringLiteral("checks"), checks);
+    out.insert(QStringLiteral("checks"), checkLines(plan, newPath, name));
 
     // The files no torrent owns: a dry run (M9).
     QVariantMap loose;
@@ -738,6 +787,366 @@ QString MoveController::looseText(const QString &root) const
                           map.value(QStringLiteral("what")).toString());
     }
     return lines.join(QLatin1Char('\n'));
+}
+
+// ---- a selection (board 43, DECISIONS C16) --------------------------------------------------
+
+namespace {
+
+MovePlan::Rule ruleOf(const QString &rule)
+{
+    if (rule == QLatin1String("keepPlaces"))
+        return MovePlan::Rule::KeepPlaces;
+    if (rule == QLatin1String("eachOwn"))
+        return MovePlan::Rule::EachOwn;
+    return MovePlan::Rule::OneFolder; // L5's default
+}
+
+QJsonObject pathsJson(const QHash<QString, QString> &paths)
+{
+    QJsonObject out;
+    for (auto it = paths.cbegin(); it != paths.cend(); ++it)
+        out.insert(it.key(), it.value());
+    return out;
+}
+
+QHash<QString, QString> pathsOf(const QJsonValue &json)
+{
+    QHash<QString, QString> out;
+    const QJsonObject object = json.toObject();
+    for (auto it = object.constBegin(); it != object.constEnd(); ++it)
+        out.insert(it.key(), it.value().toString());
+    return out;
+}
+
+} // namespace
+
+MovePlan MoveController::planFor(const QJsonObject &spec) const
+{
+    const QString kind = spec.value(QStringLiteral("kind")).toString();
+    if (kind == QLatin1String("folder") || kind.isEmpty())
+        return makePlan(spec.value(QStringLiteral("root")).toString(),
+                        spec.value(QStringLiteral("newPath")).toString(),
+                        spec.value(QStringLiteral("carry")).toBool());
+    MovePlan::Input input;
+    input.torrents = library();
+    input.hashes = spec.value(QStringLiteral("hashes")).toVariant().toStringList();
+    input.rule = ruleOf(spec.value(QStringLiteral("rule")).toString());
+    input.newPath = spec.value(QStringLiteral("newPath")).toString();
+    input.targets = pathsOf(spec.value(QStringLiteral("targets")));
+    input.expectedAt = pathsOf(spec.value(QStringLiteral("expectedAt")));
+    input.files = m_files;
+    input.probe = m_hooks.probe;
+    input.serverFolders = m_serverFolders;
+    input.serverLists =
+        m_serverLists && m_hooks.engine != nullptr && m_hooks.engine->client() != nullptr;
+    if (m_hooks.lowDiskBytes)
+        input.lowDiskThreshold = m_hooks.lowDiskBytes();
+    return MovePlan::make(input);
+}
+
+bool MoveController::fetchFor(const MovePlan &plan)
+{
+    fetchFiles(plan.needFiles());
+    fetchListings(plan.needListings());
+    const bool files = std::any_of(plan.needFiles().cbegin(),
+                                   plan.needFiles().cend(),
+                                   [this](const QString &hash) { return !m_files.contains(hash); });
+    return files || plan.namesCheck() == MovePlan::NamesCheck::Pending;
+}
+
+QJsonObject MoveController::selectionSpec(const QStringList &hashes,
+                                          const QString &newPath,
+                                          const QString &rule) const
+{
+    // The title the band and the summary use: the torrent's name, or "6 torrents".
+    QString title = counted(int(hashes.size()), tr("%1 torrent"), tr("%1 torrents"));
+    if (hashes.size() == 1 && m_hooks.engine != nullptr &&
+        m_hooks.engine->torrents()->indexOfHash(hashes.constFirst()) >= 0)
+        title = m_hooks.engine->torrents()->torrent(hashes.constFirst()).name;
+    return {{QStringLiteral("kind"), QStringLiteral("selection")},
+            {QStringLiteral("title"), title},
+            {QStringLiteral("hashes"), QJsonArray::fromStringList(hashes)},
+            {QStringLiteral("rule"),
+             rule == QLatin1String("keepPlaces") ? QStringLiteral("keepPlaces")
+                                                 : QStringLiteral("oneFolder")},
+            {QStringLiteral("newPath"),
+             newPath.trimmed().isEmpty() ? QString() : SharedData::normalize(newPath.trimmed())}};
+}
+
+QJsonObject MoveController::backSpec() const
+{
+    // L11: each torrent the last job moved, to where it was; one moved since stays.
+    if (m_job == nullptr)
+        return {};
+    const QHash<QString, QString> from = m_job->movedFrom();
+    if (from.isEmpty())
+        return {};
+    QStringList hashes = from.keys();
+    hashes.sort();
+    return {
+        {QStringLiteral("kind"), QStringLiteral("back")},
+        {QStringLiteral("title"), counted(int(hashes.size()), tr("%1 torrent"), tr("%1 torrents"))},
+        {QStringLiteral("hashes"), QJsonArray::fromStringList(hashes)},
+        {QStringLiteral("rule"), QStringLiteral("eachOwn")},
+        {QStringLiteral("targets"), pathsJson(from)},
+        {QStringLiteral("expectedAt"), pathsJson(m_job->movedTo())},
+        {QStringLiteral("backOf"), m_job->title()},
+        {QStringLiteral("backFrom"), m_job->newPath()},
+        {QStringLiteral("startedAt"), m_job->startedAt().toString(Qt::ISODate)}};
+}
+
+QJsonObject MoveController::replan(const QJsonObject &spec) const
+{
+    // L12: checked again now; one that can't move any more is dropped.
+    const MovePlan plan = planFor(spec);
+    if (!plan.canMove() || plan.namesCheck() == MovePlan::NamesCheck::Pending)
+        return {};
+    return MoveJob::planJson(plan, spec.value(QStringLiteral("carry")).toBool(), 0, spec);
+}
+
+QVariantMap MoveController::planSelection(const QStringList &hashes,
+                                          const QString &newPath,
+                                          const QString &rule)
+{
+    const QJsonObject spec = selectionSpec(hashes, newPath, rule);
+    const MovePlan plan = planFor(spec);
+    fetchFor(plan);
+    return selectionWords(plan, spec);
+}
+
+QVariantMap MoveController::planBack()
+{
+    const QJsonObject spec = backSpec();
+    if (spec.isEmpty())
+        return {};
+    const MovePlan plan = planFor(spec);
+    fetchFor(plan);
+    return selectionWords(plan, spec);
+}
+
+QVariantMap MoveController::selectionWords(const MovePlan &plan, const QJsonObject &spec)
+{
+    const QString kind = spec.value(QStringLiteral("kind")).toString();
+    const bool back = kind == QLatin1String("back");
+    const QString title = spec.value(QStringLiteral("title")).toString();
+    const QString newPath = plan.newPath();
+    const QString server = serverName();
+    const QStringList hashes = spec.value(QStringLiteral("hashes")).toVariant().toStringList();
+    const int count = int(hashes.size());
+    const int folders = int(plan.savePaths().size());
+
+    QVariantMap out;
+    out.insert(QStringLiteral("title"),
+               back ? tr("Move %1 back").arg(title) : tr("Move %1").arg(title));
+    {
+        qint64 onDisk = 0;
+        for (const MovePlan::Item &item : plan.items())
+            onDisk += item.bytes;
+        QStringList parts;
+        if (back) {
+            const QDateTime at = QDateTime::fromString(
+                spec.value(QStringLiteral("startedAt")).toString(), Qt::ISODate);
+            parts << (at.isValid() ? tr("each to where it was before %1")
+                                         .arg(QLocale().toString(at.toLocalTime().time(),
+                                                                 QLocale::ShortFormat))
+                                   : tr("each to where it was"));
+        } else {
+            parts << (folders > 1 ? tr("%1 from %2 folders")
+                                        .arg(counted(count, tr("%1 torrent"), tr("%1 torrents")))
+                                        .arg(folders)
+                                  : counted(count, tr("%1 torrent"), tr("%1 torrents")));
+        }
+        QString disk = tr("%1 on disk").arg(core::Format::size(onDisk));
+        if (plan.partial() > 0)
+            disk += QStringLiteral(" ") +
+                    tr("(%1 in the torrents: %2)")
+                        .arg(core::Format::size(plan.sizeOfTorrents()),
+                             counted(plan.partial(), tr("%1 is partial"), tr("%1 are partial")));
+        parts << disk;
+        if (!server.isEmpty())
+            parts << tr("on %1").arg(server);
+        out.insert(QStringLiteral("header"), parts.join(QStringLiteral(" · ")));
+    }
+    // L5: the choice, only when they come from two save paths or more.
+    out.insert(QStringLiteral("savePaths"), folders);
+    out.insert(QStringLiteral("commonRoot"), plan.root());
+    out.insert(QStringLiteral("ruleOffered"), !back && folders > 1);
+    out.insert(QStringLiteral("rule"), spec.value(QStringLiteral("rule")).toString());
+    if (!back && !newPath.isEmpty()) {
+        out.insert(QStringLiteral("explain"),
+                   plan.rule() == MovePlan::Rule::KeepPlaces
+                       ? tr("each goes to the same place below %1").arg(newPath)
+                   : count == 1 ? tr("it goes into %1").arg(newPath)
+                                : tr("all %1 go into %2").arg(count).arg(newPath));
+        out.insert(QStringLiteral("keepText"), tr("keep their places below %1").arg(plan.root()));
+    }
+    QVariantList rows;
+    if (back || (folders > 1 && plan.rule() == MovePlan::Rule::KeepPlaces)) {
+        for (const MovePlan::PathRow &row : plan.pathRows())
+            rows << QVariantMap{{QStringLiteral("from"), row.from},
+                                {QStringLiteral("to"), row.to},
+                                {QStringLiteral("count"), row.count}};
+    }
+    out.insert(QStringLiteral("pathRows"), rows);
+
+    QString blocker;
+    switch (plan.blocker()) {
+    case MovePlan::Blocker::None:
+    case MovePlan::Blocker::SameFolder:
+    case MovePlan::Blocker::InsideTheFolder:
+        break;
+    case MovePlan::Blocker::NoPath:
+        blocker = tr("Type the new path.");
+        break;
+    case MovePlan::Blocker::AllThere:
+        blocker = count == 1 ? tr("It is already at %1.").arg(newPath)
+                             : tr("All %1 are already at %2.").arg(count).arg(newPath);
+        break;
+    case MovePlan::Blocker::NothingToMove:
+        blocker = tr("Nothing to move: every torrent is already there or left out.");
+        break;
+    case MovePlan::Blocker::NoRoom:
+        blocker = tr("Not enough room on %1.").arg(plan.drive().isEmpty() ? newPath : plan.drive());
+        break;
+    }
+    out.insert(QStringLiteral("blocker"), blocker);
+
+    // L3: a line shows only when it says something; when every check passed, one green line
+    // stands for them.
+    const QVariantList all = checkLines(plan, newPath, title);
+    QVariantList checks;
+    bool says = false;
+    for (const QVariant &value : all) {
+        const QString lineKind = value.toMap().value(QStringLiteral("kind")).toString();
+        if (lineKind == QLatin1String("warn") || lineKind == QLatin1String("bad") ||
+            lineKind == QLatin1String("unknown") || lineKind == QLatin1String("busy"))
+            says = true;
+    }
+    if (plan.blocker() == MovePlan::Blocker::NoRoom) {
+        for (const QVariant &value : all) {
+            if (value.toMap().value(QStringLiteral("kind")).toString() == QLatin1String("bad"))
+                checks << value;
+        }
+    } else if (says) {
+        checks = all;
+    } else if (plan.blocker() == MovePlan::Blocker::None) {
+        for (const QVariant &value : all) {
+            if (value.toMap().value(QStringLiteral("always")).toBool())
+                checks << value;
+        }
+        if (plan.sameDrive())
+            checks.prepend(check(QStringLiteral("ok"),
+                                 tr("Same drive: a rename, it lands at once. Room and access "
+                                    "are fine.")));
+        else if (plan.bytesFree() >= 0)
+            checks.prepend(check(QStringLiteral("ok"),
+                                 tr("Room and access are fine on %1: %2 to move, %3 free.")
+                                     .arg(plan.drive(),
+                                          core::Format::size(plan.bytesToMove()),
+                                          core::Format::size(plan.bytesFree()))));
+        else
+            checks.prepend(check(QStringLiteral("ok"), tr("Room and access are fine.")));
+    } else {
+        for (const QVariant &value : all) {
+            if (value.toMap().value(QStringLiteral("always")).toBool())
+                checks << value;
+        }
+    }
+    if (back) {
+        // L11: what moving back doesn't put back.
+        const QStringList had = m_job == nullptr ? QStringList() : m_job->hadAutoTmm();
+        int hadHere = 0;
+        for (const QString &hash : had)
+            hadHere += plan.toMove().contains(hash) ? 1 : 0;
+        if (hadHere > 0)
+            checks << check(QStringLiteral("warn"),
+                            counted(hadHere,
+                                    tr("Automatic management stays off for the %1 that had it. "
+                                       "Turning it on again is up to you (the torrent's menu)."),
+                                    tr("Automatic management stays off for the %1 that had it. "
+                                       "Turning it on again is up to you (the torrent's menu).")),
+                            QString(),
+                            had);
+        if (m_carryDone && m_carryResult.carried > 0)
+            checks << check(QStringLiteral("fact"),
+                            counted(m_carryResult.carried,
+                                    tr("The %1 loose file carried stays at %2."),
+                                    tr("The %1 loose files carried stay at %2."))
+                                .arg(spec.value(QStringLiteral("backFrom")).toString()));
+    }
+    // Q4: a move running now goes first.
+    const bool behind = m_job != nullptr && m_job->isActive();
+    if (behind) {
+        const QString left = timeLeft(m_job->secondsLeft());
+        QString line = tr("The move of %1 is running (%2 of %3). These go when it ends.")
+                           .arg(m_job->title())
+                           .arg(m_job->moved())
+                           .arg(m_job->total());
+        if (!left.isEmpty())
+            line += QLatin1Char(' ') + tr("That is %1.").arg(left);
+        checks << always(check(QStringLiteral("fact"), line));
+    }
+    out.insert(QStringLiteral("checks"), checks);
+    out.insert(QStringLiteral("loose"), QVariantMap());
+    out.insert(QStringLiteral("carryOffered"), false);
+    out.insert(QStringLiteral("carryDefault"), false);
+
+    const int moveCount = int(plan.toMove().size());
+    out.insert(QStringLiteral("moveCount"), moveCount);
+    out.insert(QStringLiteral("moveHashes"), plan.toMove());
+    out.insert(QStringLiteral("canMove"),
+               plan.canMove() && plan.namesCheck() != MovePlan::NamesCheck::Pending);
+    out.insert(QStringLiteral("queuedBehind"), behind ? m_job->title() : QString());
+    out.insert(QStringLiteral("moveText"),
+               behind       ? tr("move after %1").arg(m_job->title())
+               : back       ? tr("move %1 back").arg(moveCount)
+               : count == 1 ? tr("move")
+               : moveCount == 0
+                   ? tr("move")
+                   : counted(moveCount, tr("move %1 torrent"), tr("move %1 torrents")));
+    return out;
+}
+
+QVariantList MoveController::places(const QString &typed) const
+{
+    // P1: recent destinations, the library's folders, the categories' folders not among
+    // them; `typed` narrows all three.
+    const QString needle = typed.trimmed();
+    const auto wanted = [&needle](const QString &path) {
+        return needle.isEmpty() || path.contains(needle, Qt::CaseInsensitive);
+    };
+    QVariantList out;
+    QSet<QString> seen;
+    for (const QString &path : m_recents) {
+        if (!wanted(path) || seen.contains(path))
+            continue;
+        seen.insert(path);
+        out << QVariantMap{{QStringLiteral("path"), path},
+                           {QStringLiteral("kind"), QStringLiteral("recent")}};
+    }
+    QList<core::FolderNode> nodes = m_folders->nodes();
+    for (const core::FolderNode &node : std::as_const(nodes)) {
+        if (!node.isSavePath || !wanted(node.path) || seen.contains(node.path))
+            continue;
+        seen.insert(node.path);
+        out << QVariantMap{{QStringLiteral("path"), node.path},
+                           {QStringLiteral("kind"), QStringLiteral("folder")},
+                           {QStringLiteral("count"), node.countHere}};
+    }
+    if (m_hooks.engine != nullptr) {
+        const core::CategoryModel *categories = m_hooks.engine->categories();
+        for (const QString &name : categories->names()) {
+            const QString path = SharedData::normalize(categories->savePathOf(name));
+            if (path.isEmpty() || !wanted(path) || seen.contains(path))
+                continue;
+            seen.insert(path);
+            out << QVariantMap{{QStringLiteral("path"), path},
+                               {QStringLiteral("kind"), QStringLiteral("category")},
+                               {QStringLiteral("name"), name}};
+        }
+    }
+    return out;
 }
 
 } // namespace omaseed::app

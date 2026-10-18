@@ -609,7 +609,9 @@ void MoveJob::onSendResult(const QStringList &hashes, const ApiError &error)
             break;
         }
     }
-    if ((refused || (wasProbe && failed() > 0)) && m_state == State::Running) {
+    // Nothing left to send: there is nothing to hold back, so the job just ends (C16: a quick
+    // move's failure is told in its line).
+    if ((refused || (wasProbe && failed() > 0)) && m_state == State::Running && waiting() > 0) {
         const PauseReason reason = wasProbe ? PauseReason::FirstFailed : PauseReason::Refused;
         pause(reason);
         Q_EMIT pausedItself(reason);
@@ -642,7 +644,10 @@ void MoveJob::onFailed(const QString &hash,
             why = PauseReason::FirstFailed;
         else if (causeKey == QLatin1String("diskFull"))
             why = PauseReason::NoSpace;
-        if (why != PauseReason::None) {
+        // The first failing with nothing left to send just ends the job; a full disk always
+        // says so.
+        if (why != PauseReason::None &&
+            (why != PauseReason::FirstFailed || m_state == State::Pausing || waiting() > 0)) {
             if (m_state == State::Running)
                 pause(why);
             else

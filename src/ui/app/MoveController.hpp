@@ -17,7 +17,16 @@
 // - the end: one notice (E2) through the hook App gives; the failures' "recheck smallest
 //   first, then start the complete ones" (E3) and "retry" (M16).
 //
-// Loose files are carried by #98: `carryWanted` finishes at once here, with nothing carried.
+// Every move is a job (board 43, DECISIONS C16, #103): a selection starts one too
+// (planSelection(), startSelection(); App::setLocation goes through it), and so do move back
+// (planBack(), startBack(), L11) and the failures' retry. A job that isn't a folder's shows
+// only after 3 s (L6): one that lands sooner is told by note() (L7), and gives a desktop notice
+// only when it showed and ran past a minute or the window was hidden at its end (L8). A move
+// started while another runs waits behind it and is checked again when its turn comes (L12).
+// The sheet's places (L4): recent destinations per server, the library's folders, the
+// categories' folders.
+//
+// The sheet's half lives in MoveControllerSheet.cpp; the words both use in MoveWords.hpp.
 
 #include "core/FolderModel.hpp"
 #include "core/LooseCarry.hpp"
@@ -28,6 +37,7 @@
 
 #include <QDateTime>
 #include <QHash>
+#include <QJsonObject>
 #include <QObject>
 #include <QPointer>
 #include <QSet>
@@ -53,10 +63,17 @@ class MoveController : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(omaseed::core::FolderModel *folders READ folders CONSTANT)
-    /// A job the band shows: running, paused, or its summary (not Idle).
+    /// A job the band shows: running, paused, or its summary (not Idle); a quiet one only
+    /// once it has run 3 s (C16 L6).
     Q_PROPERTY(bool shown READ shown NOTIFY changed)
-    /// A job that is still moving (or would, resumed): quit asks first (M13, J5).
+    /// A job that is still moving (or would, resumed) and shows: quit asks first (M13, J5).
     Q_PROPERTY(bool active READ active NOTIFY changed)
+    /// "folder", "selection", "back", "retry"; "" without a job.
+    Q_PROPERTY(QString kind READ kind NOTIFY changed)
+    /// "films", "6 torrents", a torrent's name.
+    Q_PROPERTY(QString title READ title NOTIFY changed)
+    /// L12: the moves waiting behind this one, by title, oldest first.
+    Q_PROPERTY(QStringList queued READ queued NOTIFY changed)
     /// "idle", "running", "pausing", "paused", "ending", "carrying", "done", "ended".
     Q_PROPERTY(QString state READ stateName NOTIFY changed)
     Q_PROPERTY(QString root READ root NOTIFY changed)
@@ -88,6 +105,9 @@ public:
         std::function<void(const QString &, const QString &)> notify;
         /// Tests set the time; the app leaves the system clock.
         std::function<QDateTime()> clock;
+        /// L4: a server's recent destinations, newest first, from state.json and back.
+        std::function<QStringList(const QString &serverId)> loadRecents;
+        std::function<void(const QString &serverId, const QStringList &paths)> saveRecents;
     };
 
     explicit MoveController(QObject *parent = nullptr);
@@ -108,6 +128,9 @@ public:
     QString stateName() const;
     QString root() const;
     QString newPath() const;
+    QString kind() const;
+    QString title() const;
+    QStringList queued() const;
     QVariantMap band() const;
     QStringList jobHashes() const;
     int revision() const { return m_revision; }
@@ -140,6 +163,29 @@ public:
     /// can't move.
     Q_INVOKABLE bool start(const QString &root, const QString &newPath, bool carry);
 
+    // ---- a selection (board 43, C16) ----------------------------------------------------------
+
+    /// The sheet for moving `hashes` to `newPath` by `rule` ("oneFolder", the default, or
+    /// "keepPlaces", L5). The keys of plan(), with `loose` empty, and: savePaths (how many),
+    /// commonRoot, ruleOffered (two save paths or more), rule. Its checks speak only when they
+    /// have something to say; when all pass, one green line (L3).
+    Q_INVOKABLE QVariantMap planSelection(const QStringList &hashes,
+                                          const QString &newPath,
+                                          const QString &rule);
+    /// Starts it as a job (or queues it, L12). The file lists or the server's listings it
+    /// needs are fetched first, and it starts once they are in. False when it can't move: the
+    /// reason goes out through note().
+    Q_INVOKABLE bool
+    startSelection(const QStringList &hashes, const QString &newPath, const QString &rule);
+    /// L11: the sheet for moving the last job's torrents back, each to where it was.
+    Q_INVOKABLE QVariantMap planBack();
+    Q_INVOKABLE bool startBack();
+    /// L4: places for the field, `typed` narrowing them: [{path, kind (recent, folder,
+    /// category), count, name}], recent first.
+    Q_INVOKABLE QVariantList places(const QString &typed) const;
+    /// L12: drops the `index`th move waiting behind this one.
+    Q_INVOKABLE void dropQueued(int index);
+
     // ---- the job's controls --------------------------------------------------------------
 
     Q_INVOKABLE void pause();
@@ -160,7 +206,8 @@ public:
     /// E3: recheck `hashes` one at a time, smallest first; each that comes out complete
     /// starts.
     Q_INVOKABLE void recheckSmallestFirst(const QStringList &hashes);
-    /// M16 "retry": sends the failed ones again to the place the job meant for them.
+    /// M16 "retry": the failed ones again to the place the job meant for them, as a job of
+    /// their own (C16 L9).
     Q_INVOKABLE void retryFailed();
 
     /// J5's "pause and quit" (and any quit): saved now, started again at the next launch.
@@ -172,6 +219,9 @@ Q_SIGNALS:
     void changed();
     void planChanged();
     void rechecksChanged();
+    /// L7: a quiet move landed ("2 moved to /srv/media/games"), or didn't (`failed`: the
+    /// torrents it is about); also a move that couldn't start, and a queued one dropped.
+    void note(const QString &text, const QStringList &hashes, bool failed);
 
 private:
     void attachJob();
@@ -206,6 +256,23 @@ private:
     void fetchListings(const QStringList &folders);
     void scanLoose(const QString &root);
     core::MovePlan makePlan(const QString &root, const QString &newPath, bool carry) const;
+    /// A job's spec (kind, title, hashes, rule, newPath, targets, expectedAt; a folder's root
+    /// and carry) as a plan.
+    core::MovePlan planFor(const QJsonObject &spec) const;
+    /// Fetches what planFor(spec) still needs; true while something is on its way.
+    bool fetchFor(const core::MovePlan &plan);
+    QVariantMap selectionWords(const core::MovePlan &plan, const QJsonObject &spec);
+    QVariantList
+    checkLines(const core::MovePlan &plan, const QString &newPath, const QString &name);
+    QJsonObject
+    selectionSpec(const QStringList &hashes, const QString &newPath, const QString &rule) const;
+    QJsonObject backSpec() const;
+    bool startSpec(const QJsonObject &spec);
+    void tryPending();
+    QJsonObject replan(const QJsonObject &spec) const;
+    void rememberDestination(const QString &path);
+    void closeQuietSummary();
+    bool noticeWanted() const;
     QDateTime now() const;
     QString serverName() const;
     void recheckNext();
@@ -218,6 +285,8 @@ private:
     QTimer m_foldersTimer;
     int m_revision = 0;
     int m_planRevision = 0;
+    QStringList m_recents;  ///< L4, the server's, newest first
+    QJsonObject m_pending;  ///< a start waiting for file lists or listings
     QDateTime m_restoredAt; ///< J4's line shows for a while after a restore
 
     // M17: the loose files' carry, run off the main thread after the torrents.
