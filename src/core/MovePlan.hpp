@@ -139,11 +139,10 @@ public:
     Check room() const { return m_room; }
     qint64 bytesToMove() const { return m_bytesToMove; } ///< torrents and loose files
     qint64 torrentBytes() const { return m_torrentBytes; }
-    qint64 sizeOfTorrents() const
-    {
-        return m_sizeOfTorrents;
-    }                                                ///< their size, for "1.64 TB in the torrents"
-    int partial() const { return m_partial; }        ///< torrents with less on disk than their size
+    /// Their size, for "1.64 TB in the torrents".
+    qint64 sizeOfTorrents() const { return m_sizeOfTorrents; }
+    /// Torrents with less on disk than their size.
+    int partial() const { return m_partial; }
     qint64 bytesFree() const { return m_bytesFree; } ///< -1 unknown
     qint64 bytesFreeAfter() const { return m_bytesFree < 0 ? -1 : m_bytesFree - m_bytesToMove; }
     bool sameDrive() const { return m_sameDrive; } ///< a rename for each torrent
