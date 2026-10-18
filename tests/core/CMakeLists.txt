@@ -424,3 +424,8 @@ omaseed_add_test(tst_loosefiles
     SOURCES tst_loosefiles.cpp
     LIBRARIES omaseed::core
 )
+
+omaseed_add_test(tst_moveplan
+    SOURCES tst_moveplan.cpp
+    LIBRARIES omaseed::core
+)

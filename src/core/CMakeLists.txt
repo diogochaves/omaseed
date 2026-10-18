@@ -41,6 +41,8 @@ qt_add_library(omaseed-core STATIC
     LibraryMatch.hpp
     LooseFiles.cpp
     LooseFiles.hpp
+    MovePlan.cpp
+    MovePlan.hpp
     LogFilterModel.cpp
     LogFilterModel.hpp
     MagnetLink.cpp
