@@ -726,10 +726,21 @@ job's whole life, not 30 s. Set location keeps D2.
   hashing as it reads, read back and compare, rename into place, remove the source; the same
   drive is a rename; the same file at the target counts as carried, a different one leaves
   both; folders left empty at the source are removed. Nothing is ever deleted otherwise.
+  (#98) The sheet's dry run is what is carried, kept beside the job so a restart carries the
+  same list; a file changed since (size or time) or in the last 15 min stays. A full
+  destination drops the partial copy and stops the carry; pause does the same and waits.
 - **More than one move (M18):** one job per server at a time; a second is queued after it.
 - **Words (M19):** core/ErrorWords, board 42 §8: 409 "qBittorrent can't create FOLDER", 403
   and a 200 followed by "Permission denied" in the log "qBittorrent can't write to FOLDER",
-  never a sign-in word.
+  never a sign-in word. (#98) On 5.2.3 every unwritable destination tried (an existing 0555 or
+  0000 folder, a root-owned one) logged "Permission denied", from file_rename, file_open or
+  mkdir, naming the source file; "No such file or directory" reads "qBittorrent can't reach
+  FOLDER … Check that both drives are mounted."
+- **A torrent still downloading into the incomplete folder (#98, checked on the playground):**
+  setLocation changes its save path at once and moves nothing; its data stays in the
+  incomplete folder and qBittorrent moves it to the new place when the download finishes (the
+  move's log lines come then). The job counts it moved at once: none of its data is in the
+  folder being moved.
 - **Outside the window (M20):** the tray tooltip carries the job's line; the bar widget is
   unchanged (a docs/20 change, later).
 
