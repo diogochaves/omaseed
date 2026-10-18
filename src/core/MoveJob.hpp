@@ -115,10 +115,10 @@ public:
         QDateTime movingSince; ///< when it became the one moving now
         QDateTime landedAt;
         int sends = 0;
-        int quietPolls = 0;  ///< polls in a row it read neither moving nor landed
-        bool unsure = false; ///< a send that got no answer: the next polls tell
+        int quietPolls = 0;   ///< polls in a row it read neither moving nor landed
+        bool unsure = false;  ///< a send that got no answer: the next polls tell
         bool autoTmm = false; ///< it used automatic management before the move (L11)
-        QString later;       ///< after the end: "error" or "missingFiles" within 24 h
+        QString later;        ///< after the end: "error" or "missingFiles" within 24 h
     };
 
     /// What the summary band and the notice say (E1, E2).
