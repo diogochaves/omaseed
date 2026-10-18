@@ -744,6 +744,52 @@ job's whole life, not 30 s. Set location keeps D2.
 - **Outside the window (M20):** the tray tooltip carries the job's line; the bar widget is
   unchanged (a docs/20 change, later).
 
+## C16 — A better set location (board 43, ruled 2026-10-18)
+
+Board [43](43-better-set-location.html) L1–L12, all as recommended, and L13 (#101). Every move
+is a job: a folder (C15) and a selection are two ways to start one, on the same checks, waves,
+saving and summary. (C14 is the engines ruling, kept on the `engines` branch until that work
+lands.)
+
+**This entry changes C2 D2 for every move:** the log is read for the move's whole life (M15).
+D2's 30 s watch stays for renames and deletes.
+
+- **One move for both (L1):** set location runs on board 42's job. The folder move's sheet, in
+  a selection mode, replaces LocationSheet: every move gets the checks, the waves (smallest
+  first, the first alone, 3 queued), saving and resuming, and the log for its whole life.
+- **The name (L2):** "Move…" in the menus, the palette and the sheet ("Move 4 torrents",
+  "Move NAME…"); `m` kept; `:` still finds "set location".
+- **Which checks show (L3):** board 42's lines (M5–M8) and the shared-data guard (#28/#35),
+  each only when it says something; room only across drives; when all pass, one green line.
+- **Places (L4):** a list under the field on ↓ or typing: recent destinations (the last 8 per
+  server, in state.json), the library's folders with counts, the categories' folders; then
+  browse.
+- **Several save paths (L5):** when the selection's save paths differ, a choice: "into one
+  folder" (the default, today's behaviour) or "keep their places below ROOT" (board 42's rule;
+  ROOT is their deepest common folder).
+- **The band (L6):** it appears once a move has run 3 s; a move that lands sooner shows none.
+- **A quick move (L7):** the footer's note line (D2's) says it landed, "2 moved to …", for
+  6 s; no band, no notice.
+- **The notice (L8):** for a selection, one desktop notice only when the band showed and the
+  move ran past a minute or the window was hidden at the end. A folder move keeps M16 (always
+  one).
+- **Failures (L9):** the log is read for every move's whole life (M15); a failure gets C2 D1's
+  block and the summary's recheck smallest first / retry.
+- **Live bytes (L10):** for a torrent moving, MoveJob's growth probe reads the target's file
+  sizes every 2 s through the path map and feeds the band's bytes, %, time left and the row;
+  without a local view the band says it can't tell.
+- **Move back (L11):** on the summary of every job, folder or selection: the sheet with each
+  torrent to its own old place, checked as any move; it says automatic management stays off.
+- **A move while another runs (L12):** checked now, queued behind it ("move after games"); the
+  band names what is next; details lists the queue, each with cancel. M18 for every move.
+- **A server whose disks omaseed can't see (L13):** a NAS or a remote server without a path map.
+  The sheet says once which checks ran on the server (through qBittorrent's API) and which
+  can't run here, so a remote move never reads as checked as a local one. What runs on the
+  server: the destination's existing names, through `app/getDirectoryContent` (M8's guard,
+  #102), and the probe torrent sent alone (M6). What can't run here: room (unless qBittorrent's
+  figure for its default drive applies), the local writability check, the loose files' age,
+  size and carry (their names are listed as staying behind), live bytes (L10).
+
 ## M8 — A click leaves the keyboard focus where it was
 
 Buttons and toggles do not take the focus when clicked. Otherwise an overlay gives the focus
