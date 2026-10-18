@@ -59,6 +59,7 @@
 #include "integration/BarMenu.hpp"
 #include "integration/BarWidget.hpp"
 #include "integration/Tray.hpp"
+#include "ui/app/MoveController.hpp"
 
 #include <QDate>
 #include <QDateTime>
@@ -1908,6 +1909,31 @@ private:
     /// While the widget goes in or out of the bar: the choice that asked for it.
     QString m_inTheBarWanted;
     // --- end #73 ------------------------------------------------------------------------------
+
+    // --- #97: moving a folder -----------------------------------------------------------------
+    // Board 42 (DECISIONS C15). MoveController has the rail's folders, the move sheet and the
+    // job for the server the window is on; App gives it the engine, the free-space probe, the
+    // low-disk threshold and the notice, and asks it before a quit (M13, J5).
+public:
+    Q_PROPERTY(omaseed::app::MoveController *move READ move CONSTANT)
+    MoveController *move() const { return m_move; }
+    /// The window's quit (ctrl+q, the palette): false when a move is running and the window
+    /// must ask first (J5); then moveQuitAsked() has gone out.
+    Q_INVOKABLE bool quitAllowed();
+    /// J5's "pause and quit": the job is saved paused-for-quit, then the app quits.
+    Q_INVOKABLE void pauseMoveAndQuit();
+
+Q_SIGNALS:
+    /// A quit came while a folder moves: the window shows J5's confirm.
+    void moveQuitAsked();
+    /// The move's notice was clicked: the window shows the job (its band, "show").
+    void moveShowRequested();
+
+private:
+    void setUpMove();
+    void updateMoveServer();
+    MoveController *m_move = nullptr;
+    // --- end #97 ------------------------------------------------------------------------------
 };
 
 } // namespace omaseed::app

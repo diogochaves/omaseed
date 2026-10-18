@@ -266,6 +266,7 @@ App::App(QObject *parent)
     setUpServers();
     // docs/33 §11 (#73): the one menu of the tray and the bar widget.
     setUpBarMenu();
+    setUpMove();
 }
 
 App::~App()
@@ -741,6 +742,7 @@ void App::attachTray(Tray *tray)
     // docs/33 §11 (D10): the tray's rows under "show omaseed" and the figures are the shared
     // menu's, which App answers (AppBarMenu.cpp).
     tray->setMenuModel(m_barMenu);
+    tray->setJobLine(m_move->trayLine());
 
     // The Tray shows its icon when it is built; a saved "never" has to be applied here, not
     // only when the setting changes.
@@ -1281,6 +1283,13 @@ void App::onNotifierActionInvoked(const QString &eventClass,
     if (eventClass == QStringLiteral("server") || eventClass == QStringLiteral("disk")) {
         if (actionKey == QStringLiteral("settings"))
             Q_EMIT openSettings();
+        return;
+    }
+
+    // Board 42 E2: the move's notice shows the window on the job.
+    if (eventClass == QStringLiteral("move")) {
+        Q_EMIT raiseRequested();
+        Q_EMIT moveShowRequested();
         return;
     }
 

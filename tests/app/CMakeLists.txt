@@ -123,3 +123,9 @@ omaseed_add_test(tst_app_torrentsbackup_live LIVE
     SOURCES tst_app_torrentsbackup_live.cpp
     LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::Network
 )
+
+# #97 (board 42): moving a folder, as the window sees it, with no server.
+omaseed_add_test(tst_movecontroller
+    SOURCES tst_movecontroller.cpp
+    LIBRARIES omaseed::app omaseed::core
+)

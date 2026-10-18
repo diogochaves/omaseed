@@ -55,7 +55,9 @@ void App::setUpBarMenu()
         } else if (id == QLatin1String("settings")) {
             Q_EMIT openSettings();
         } else if (id == QLatin1String("quit")) {
-            Q_EMIT quitRequested();
+            // J5 (DECISIONS C15 M13): a running move asks first, in the window.
+            if (quitAllowed())
+                Q_EMIT quitRequested();
         }
     });
 
