@@ -1303,7 +1303,11 @@ QVariantMap MoveController::band() const
             const QString hash = job.nearlyFullTorrent();
             const core::ErrorWords::Text words =
                 core::ErrorWords::forNearlyFull(entryName(hash), drive, job.nearlyFullFreeAfter());
-            headline = tr("The move of %1 is paused: %2").arg(name, words.headline);
+            // T3 and board 42 §8: a disk qBittorrent found full says so; "nearly full" is
+            // omaseed's own reading before it sends (M5).
+            headline = job.pauseReason() == MoveJob::PauseReason::NoSpace
+                           ? tr("The move of %1 is paused: %2 is full").arg(name, drive)
+                           : tr("The move of %1 is paused: %2").arg(name, words.headline);
             line = (job.pauseReason() == MoveJob::PauseReason::NearlyFull
                         ? words.line
                         : tr("qBittorrent reports “No space left on device”.")) +

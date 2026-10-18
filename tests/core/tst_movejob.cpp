@@ -208,6 +208,10 @@ private slots:
         QCOMPARE(m_job->entry(hashOf(1))->reason, QStringLiteral("Permission denied"));
         poll();
         QCOMPARE(m_sent.size(), 1); // nothing else was sent
+        // T2's "end the move": nothing is with qBittorrent, so it ends at once.
+        poll();
+        m_job->end();
+        QCOMPARE(m_job->state(), MoveJob::State::Ended);
     }
 
     void aLaterFailureMarksAndGoesOn()

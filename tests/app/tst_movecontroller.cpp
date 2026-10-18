@@ -356,6 +356,28 @@ private slots:
         m_move = nullptr;
     }
 
+    // T3, board 42 §8: qBittorrent's "No space left on device" reads "… is full".
+    void aFullDiskSaysFull()
+    {
+        m_move->setServer(QStringLiteral("home"));
+        QTRY_COMPARE(m_move->folders()->total(), 5);
+        QVERIFY(m_move->start(
+            QStringLiteral("/mnt/archive/games"), QStringLiteral("/mnt/fast/games"), false));
+        landSent(); // the probe lands; the next ones go
+        QVERIFY(m_move->job()->moved() == 1);
+        const QString next = m_move->jobHashes().at(1);
+        m_move->job()->onFailed(next,
+                                QDateTime::currentDateTime(),
+                                QStringLiteral("No space left on device"),
+                                QStringLiteral("diskFull"),
+                                QStringLiteral("Failed to move torrent. …"));
+        QTRY_COMPARE(m_move->job()->pauseReason(), MoveJob::PauseReason::NoSpace);
+        landSent(); // what was already with qBittorrent finishes; then it is paused
+        QCOMPARE(m_move->stateName(), QStringLiteral("paused"));
+        QCOMPARE(m_move->band().value(QStringLiteral("headline")).toString(),
+                 QStringLiteral("The move of games is paused: /mnt/fast/games is full"));
+    }
+
     void pauseEndAndTheRest()
     {
         m_move->setServer(QStringLiteral("home"));
