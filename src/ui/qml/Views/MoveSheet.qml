@@ -507,6 +507,8 @@ Sheet {
 
                 required property var modelData
 
+                Accessible.name: qsTr("%1 to %2, %3").arg(pathRow.modelData.from).arg(pathRow.modelData.to).arg(pathRow.modelData.count)
+                Accessible.role: Accessible.StaticText
                 Layout.fillWidth: true
                 spacing: Theme.space(8)
 
@@ -575,6 +577,8 @@ Sheet {
 
     // A red line about the whole job turns the move off and says why (S1).
     Label {
+        Accessible.name: text
+        Accessible.role: Accessible.StaticText
         Layout.fillWidth: true
         color: Theme.red
         objectName: "moveBlocker"

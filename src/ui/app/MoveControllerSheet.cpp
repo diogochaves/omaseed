@@ -298,85 +298,90 @@ MoveController::checkLines(const MovePlan &plan, const QString &newPath, const Q
                    "files no torrent owns.")
                     .arg(server),
                 tr("a path map in Settings › Servers lets omaseed see them")));
-        // M5: room.
-        if (plan.sameDrive()) {
-            checks << check(
-                QStringLiteral("ok"),
-                tr("Room. The same drive: each torrent is renamed, nothing is copied."));
-        } else {
-            const QString what = plan.bytesToMove() > plan.torrentBytes()
-                                     ? tr("%1 to move (torrents and loose files)")
-                                     : tr("%1 to move");
-            const QString toMove = what.arg(core::Format::size(plan.bytesToMove()));
-            const QString drives = perDrive(plan);
-            const qint64 there = bytesToDrive(plan);
-            switch (plan.room()) {
-            case MovePlan::Check::Ok:
-            case MovePlan::Check::Warn:
-                if (!drives.isEmpty()) {
+        // M5 and M6, for what goes: with nothing to move there is nothing to say.
+        if (!plan.toMove().isEmpty()) {
+            // M5: room.
+            if (plan.sameDrive()) {
+                checks << check(
+                    QStringLiteral("ok"),
+                    tr("Room. The same drive: each torrent is renamed, nothing is copied."));
+            } else {
+                const QString what = plan.bytesToMove() > plan.torrentBytes()
+                                         ? tr("%1 to move (torrents and loose files)")
+                                         : tr("%1 to move");
+                const QString toMove = what.arg(core::Format::size(plan.bytesToMove()));
+                const QString drives = perDrive(plan);
+                const qint64 there = bytesToDrive(plan);
+                switch (plan.room()) {
+                case MovePlan::Check::Ok:
+                case MovePlan::Check::Warn:
+                    if (!drives.isEmpty()) {
+                        checks << check(
+                            plan.room() == MovePlan::Check::Ok ? QStringLiteral("ok")
+                                                               : QStringLiteral("warn"),
+                            tr("Room. %1.").arg(drives),
+                            plan.freeReadHere()
+                                ? tr("read on this machine, which sees %1's disks").arg(server)
+                                : tr("qBittorrent's own figure for its default drive"));
+                        break;
+                    }
                     checks << check(
                         plan.room() == MovePlan::Check::Ok ? QStringLiteral("ok")
                                                            : QStringLiteral("warn"),
-                        tr("Room. %1.").arg(drives),
+                        tr("Room. %1, %2 free on %3. %4 left after.")
+                            .arg(toMove,
+                                 core::Format::size(plan.bytesFree()),
+                                 drive,
+                                 core::Format::size(std::max<qint64>(0, plan.bytesFreeAfter()))),
                         plan.freeReadHere()
                             ? tr("read on this machine, which sees %1's disks").arg(server)
                             : tr("qBittorrent's own figure for its default drive"));
                     break;
+                case MovePlan::Check::Block:
+                    checks << check(
+                        QStringLiteral("bad"),
+                        tr("Not enough room. %1, %2 free on %3, and %4 is kept free.")
+                            .arg(there < 0 ? toMove
+                                           : tr("%1 to move there").arg(core::Format::size(there)),
+                                 core::Format::size(std::max<qint64>(0, plan.bytesFree())),
+                                 drive,
+                                 core::Format::size(m_hooks.lowDiskBytes ? m_hooks.lowDiskBytes()
+                                                                         : 0)));
+                    break;
+                case MovePlan::Check::Unknown:
+                    checks << check(
+                        QStringLiteral("unknown"),
+                        tr("Room: can't tell. %1. omaseed can't see %2's disks there.")
+                            .arg(toMove, server),
+                        tr("a torrent that doesn't fit fails; the job pauses at the first "
+                           "\"no space\" from qBittorrent"));
+                    break;
                 }
+            }
+            // M6: writable.
+            switch (plan.writable()) {
+            case MovePlan::Check::Ok:
                 checks << check(
-                    plan.room() == MovePlan::Check::Ok ? QStringLiteral("ok")
-                                                       : QStringLiteral("warn"),
-                    tr("Room. %1, %2 free on %3. %4 left after.")
-                        .arg(toMove,
-                             core::Format::size(plan.bytesFree()),
-                             drive,
-                             core::Format::size(std::max<qint64>(0, plan.bytesFreeAfter()))),
-                    plan.freeReadHere()
-                        ? tr("read on this machine, which sees %1's disks").arg(server)
-                        : tr("qBittorrent's own figure for its default drive"));
-                break;
-            case MovePlan::Check::Block:
-                checks << check(
-                    QStringLiteral("bad"),
-                    tr("Not enough room. %1, %2 free on %3, and %4 is kept free.")
-                        .arg(
-                            there < 0 ? toMove
-                                      : tr("%1 to move there").arg(core::Format::size(there)),
-                            core::Format::size(std::max<qint64>(0, plan.bytesFree())),
-                            drive,
-                            core::Format::size(m_hooks.lowDiskBytes ? m_hooks.lowDiskBytes() : 0)));
+                    QStringLiteral("ok"),
+                    tr("Writable. %1 is writable by the owner of these files.")
+                        .arg(plan.drives().isEmpty() ? drive : driveNames(plan)),
+                    tr("checked here; qBittorrent's own answer comes from the first torrent, "
+                       "which goes alone"));
                 break;
             case MovePlan::Check::Unknown:
-                checks << check(QStringLiteral("unknown"),
-                                tr("Room: can't tell. %1. omaseed can't see %2's disks there.")
-                                    .arg(toMove, server),
-                                tr("a torrent that doesn't fit fails; the job pauses at the first "
-                                   "\"no space\" from qBittorrent"));
+                checks << check(
+                    QStringLiteral("unknown"),
+                    tr("Writable: can't tell here. The first torrent goes alone and answers it."));
+                break;
+            default:
+                checks << check(
+                    QStringLiteral("warn"),
+                    tr("Not writable here: the owner of these files can't write to %1.")
+                        .arg(plan.drives().isEmpty() ? drive : driveNames(plan)),
+                    tr("the check can be wrong for a container's user; the first torrent "
+                       "goes alone and answers it"));
                 break;
             }
-        }
-        // M6: writable.
-        switch (plan.writable()) {
-        case MovePlan::Check::Ok:
-            checks << check(
-                QStringLiteral("ok"),
-                tr("Writable. %1 is writable by the owner of these files.")
-                    .arg(plan.drives().isEmpty() ? drive : driveNames(plan)),
-                tr("checked here; qBittorrent's own answer comes from the first torrent, "
-                   "which goes alone"));
-            break;
-        case MovePlan::Check::Unknown:
-            checks << check(
-                QStringLiteral("unknown"),
-                tr("Writable: can't tell here. The first torrent goes alone and answers it."));
-            break;
-        default:
-            checks << check(QStringLiteral("warn"),
-                            tr("Not writable here: the owner of these files can't write to %1.")
-                                .arg(plan.drives().isEmpty() ? drive : driveNames(plan)),
-                            tr("the check can be wrong for a container's user; the first torrent "
-                               "goes alone and answers it"));
-            break;
         }
         // Shared data, pulled in, spans.
         int sharing = 0;
