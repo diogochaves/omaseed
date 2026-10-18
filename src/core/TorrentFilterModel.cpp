@@ -1,5 +1,6 @@
 #include "core/TorrentFilterModel.hpp"
 
+#include "core/SharedData.hpp"
 #include "core/TorrentModel.hpp"
 #include "core/TrackerModel.hpp"
 
@@ -108,6 +109,28 @@ void TorrentFilterModel::setTag(const QVariant &tag)
     m_tag = next;
     applyFilterChange();
     Q_EMIT tagChanged();
+    Q_EMIT countChanged();
+}
+
+void TorrentFilterModel::setFolder(const QString &folder)
+{
+    const QString next = folder.isEmpty() ? QString() : SharedData::normalize(folder);
+    if (next == m_folder)
+        return;
+    m_folder = next;
+    applyFilterChange();
+    Q_EMIT folderChanged();
+    Q_EMIT countChanged();
+}
+
+void TorrentFilterModel::setOnlyHashes(const QStringList &hashes)
+{
+    if (hashes == m_onlyHashes)
+        return;
+    m_onlyHashes = hashes;
+    m_onlyHashSet = QSet<QString>(hashes.cbegin(), hashes.cend());
+    applyFilterChange();
+    Q_EMIT onlyHashesChanged();
     Q_EMIT countChanged();
 }
 
@@ -456,6 +479,15 @@ bool TorrentFilterModel::filterAcceptsRow(int sourceRow, const QModelIndex &sour
 
     if (m_statusFilter != All && !t.statusGroups().testFlag(groupFor(m_statusFilter)))
         return false;
+
+    if (!m_onlyHashSet.isEmpty() && !m_onlyHashSet.contains(t.hash))
+        return false;
+
+    if (!m_folder.isEmpty()) {
+        const QString save = SharedData::normalize(t.savePath);
+        if (!SharedData::isUnder(save, m_folder))
+            return false;
+    }
 
     if (m_category && t.category != *m_category)
         return false;

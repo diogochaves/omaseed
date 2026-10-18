@@ -6,6 +6,10 @@
 // category, tag and tracker filters are three-valued: unset means "any", and a set-but-empty
 // string means "the torrents with none" — the rail's `none` row (spec §1).
 //
+// Two more narrow it for a folder's move (board 42, DECISIONS C15 M1, M10): `folder`, a save
+// path, keeps the torrents saved there or below it ("" is any); `onlyHashes`, when not empty,
+// keeps those torrents only (a move's "show").
+//
 // A tracker row lists every torrent that has any announce URL on that host — the same
 // membership TrackerModel counts for the rail, and what qBittorrent's own WebUI filters on
 // — not only the torrents whose current tracker is on it. The trackerless row lists the
@@ -63,6 +67,8 @@ class TorrentFilterModel : public QSortFilterProxyModel
     Q_PROPERTY(
         QVariant tracker READ tracker WRITE setTracker RESET clearTracker NOTIFY trackerChanged)
     Q_PROPERTY(QString text READ text WRITE setText NOTIFY textChanged)
+    Q_PROPERTY(QString folder READ folder WRITE setFolder NOTIFY folderChanged)
+    Q_PROPERTY(QStringList onlyHashes READ onlyHashes WRITE setOnlyHashes NOTIFY onlyHashesChanged)
     Q_PROPERTY(int sortRole READ sortRole WRITE setSortRole NOTIFY sortRoleChanged)
     Q_PROPERTY(
         QString sortRoleName READ sortRoleName WRITE setSortByRoleName NOTIFY sortRoleChanged)
@@ -108,6 +114,12 @@ public:
     QString text() const { return m_text; }
     void setText(const QString &text);
 
+    QString folder() const { return m_folder; }
+    void setFolder(const QString &folder);
+
+    QStringList onlyHashes() const { return m_onlyHashes; }
+    void setOnlyHashes(const QStringList &hashes);
+
     int sortRole() const { return m_sortRole; }
     void setSortRole(int role);
     QString sortRoleName() const;
@@ -149,6 +161,8 @@ Q_SIGNALS:
     void tagChanged();
     void trackerChanged();
     void textChanged();
+    void folderChanged();
+    void onlyHashesChanged();
     void sortRoleChanged();
     void sortOrderChanged();
     void countChanged();
@@ -190,6 +204,9 @@ private:
     QPointer<TrackerModel> m_trackerModel;
     QSet<QString> m_trackerHashes; ///< the filtered host's torrents, from m_trackerModel
     QString m_text;
+    QString m_folder; ///< normalised; "" is any
+    QStringList m_onlyHashes;
+    QSet<QString> m_onlyHashSet;
     int m_sortRole = 0; ///< resolved to TorrentModel::NameRole on the first setSourceModel
     Qt::SortOrder m_sortOrder = Qt::AscendingOrder;
     QCollator m_collator;

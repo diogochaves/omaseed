@@ -175,6 +175,8 @@ private slots:
     void statusFilters();
     void categoryFilterIsThreeValued();
     void tagFilterIsThreeValued();
+    void folderFilterTakesTheFoldersBelow();
+    void onlyHashesKeepsThoseTorrents();
     void trackerFilterGroupsByHostAndTrackerless();
     void trackerFilterListsWhatTheRailCounts();
     void textMatchesNameHashCategoryAndTags();
@@ -209,6 +211,8 @@ void TestFilterModel::init()
     m_proxy.clearTag();
     m_proxy.clearTracker();
     m_proxy.setText(QString());
+    m_proxy.setFolder(QString());
+    m_proxy.setOnlyHashes({});
     m_proxy.setSortRole(TorrentModel::NameRole);
     m_proxy.setSortOrder(Qt::AscendingOrder);
 }
@@ -271,6 +275,61 @@ void TestFilterModel::categoryFilterIsThreeValued()
     m_proxy.clearCategory();
     QCOMPARE(m_proxy.rowCount(), 6);
     QVERIFY(!m_proxy.category().isValid());
+}
+
+void TestFilterModel::folderFilterTakesTheFoldersBelow()
+{
+    // Board 42 F1: a picked folder lists its torrents and those of the save paths below it,
+    // and only at a path-component boundary ("games-old" is not under "games").
+    QJsonObject partial;
+    const auto at = [&partial](const char *hash, const char *path) {
+        partial.insert(QLatin1String(hash),
+                       QJsonObject{{QStringLiteral("save_path"), QLatin1String(path)}});
+    };
+    at("1111", "/mnt/archive/games");
+    at("2222", "/mnt/archive/games/handheld/");
+    at("3333", "/mnt/archive/games-old");
+    at("4444", "/mnt/archive");
+    at("5555", "/srv/media/films");
+    at("6666", "/mnt/archive/games");
+    m_source.applyPartial(partial, {});
+
+    QSignalSpy changed(&m_proxy, &TorrentFilterModel::folderChanged);
+    m_proxy.setFolder(QStringLiteral("/mnt/archive/games/"));
+    QCOMPARE(changed.count(), 1);
+    QCOMPARE(m_proxy.folder(), QStringLiteral("/mnt/archive/games"));
+    QStringList hashes = visibleHashes(m_proxy);
+    hashes.sort();
+    QCOMPARE(hashes,
+             QStringList({QStringLiteral("1111"), QStringLiteral("2222"), QStringLiteral("6666")}));
+
+    m_proxy.setFolder(QStringLiteral("/mnt/archive"));
+    QCOMPARE(m_proxy.rowCount(), 5);
+
+    // It ANDs with the others, like every rail filter.
+    m_proxy.setCategory(QStringLiteral("linux"));
+    hashes = visibleHashes(m_proxy);
+    hashes.sort();
+    QCOMPARE(hashes,
+             QStringList({QStringLiteral("1111"), QStringLiteral("3333"), QStringLiteral("6666")}));
+
+    m_proxy.setFolder(QString());
+    m_proxy.clearCategory();
+    QCOMPARE(m_proxy.rowCount(), 6);
+}
+
+void TestFilterModel::onlyHashesKeepsThoseTorrents()
+{
+    // Board 42 J1: a move's "show" lists the job's torrents and no others.
+    m_proxy.setOnlyHashes({QStringLiteral("2222"), QStringLiteral("5555"), QStringLiteral("9999")});
+    QStringList hashes = visibleHashes(m_proxy);
+    hashes.sort();
+    QCOMPARE(hashes, QStringList({QStringLiteral("2222"), QStringLiteral("5555")}));
+    m_proxy.setStatusFilter(TorrentFilterModel::Errored);
+    QCOMPARE(visibleHashes(m_proxy), QStringList({QStringLiteral("5555")}));
+    m_proxy.setStatusFilter(TorrentFilterModel::All);
+    m_proxy.setOnlyHashes({});
+    QCOMPARE(m_proxy.rowCount(), 6);
 }
 
 void TestFilterModel::tagFilterIsThreeValued()
