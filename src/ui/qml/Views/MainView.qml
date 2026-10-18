@@ -240,6 +240,9 @@ Item {
         case "retry":
             App.move.retryFailed();
             break;
+        case "stayed":
+            moveLooseList.openStayed(App.move.root);
+            break;
         case "close":
             root.leaveMoveShow();
             App.move.closeSummary();
@@ -2009,6 +2012,7 @@ Item {
                 anchors.top: parent.top
                 anchors.topMargin: Theme.space(12)
                 linkKey: root.moveShowing ? "esc" : "shift+m"
+                oneLine: true
                 linkText: root.moveShowingJob ? qsTr("all torrents") : root.moveShowing ? qsTr("back to the sheet")
                                                                                          : qsTr("move this folder…")
                 objectName: "moveScope"

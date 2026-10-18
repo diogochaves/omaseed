@@ -20,6 +20,9 @@ Rectangle {
     property string linkKey: ""
     /// The link's words; empty draws no link.
     property string linkText: ""
+    /// One line: the text is elided in the middle and the key and link always show whole
+    /// (board 42 F1's folder line, #98: the action never wraps away from its line).
+    property bool oneLine: false
 
     /// The link was clicked.
     signal linkActivated
@@ -71,23 +74,47 @@ Rectangle {
             lineHeight: 1.25
             objectName: "scopeText"
             size: "small"
+            elide: root.oneLine ? Text.ElideMiddle : Text.ElideNone
             text: {
                 const body = root._escaped(root.text);
-                if (root.linkText.length === 0)
-                    return body;
+                if (root.linkText.length === 0 || root.oneLine)
+                    return root.oneLine ? root.text : body;
                 const key = root.linkKey.length > 0
                         ? "<font color='%1'>%2</font> ".arg(Theme.dimForeground).arg(root._escaped(root.linkKey))
                         : "";
                 return body + " " + key + "<a href='scope'><font color='%1'>%2</font></a>".arg(Theme.accent).arg(
                             root._escaped(root.linkText));
             }
-            textFormat: Text.StyledText
-            wrapMode: Text.WordWrap
+            textFormat: root.oneLine ? Text.PlainText : Text.StyledText
+            wrapMode: root.oneLine ? Text.NoWrap : Text.WordWrap
 
             onLinkActivated: root.linkActivated()
 
             HoverHandler {
                 cursorShape: line.hoveredLink.length > 0 ? Qt.PointingHandCursor : Qt.ArrowCursor
+            }
+        }
+
+        Label {
+            id: oneLineLink
+
+            lineHeight: 1.25
+            objectName: "scopeLink"
+            size: "small"
+            text: {
+                const key = root.linkKey.length > 0
+                        ? "<font color='%1'>%2</font> ".arg(Theme.dimForeground).arg(root._escaped(root.linkKey))
+                        : "";
+                return key + "<a href='scope'><font color='%1'>%2</font></a>".arg(Theme.accent).arg(root._escaped(
+                                                                                                    root.linkText));
+            }
+            textFormat: Text.StyledText
+            visible: root.oneLine && root.linkText.length > 0
+
+            onLinkActivated: root.linkActivated()
+
+            HoverHandler {
+                cursorShape: oneLineLink.hoveredLink.length > 0 ? Qt.PointingHandCursor : Qt.ArrowCursor
             }
         }
     }

@@ -2,12 +2,15 @@
 // job's band, against a SyncEngine whose rows the test writes itself (no server: sends get no
 // answer, and the test lands the torrents by moving their save paths, as a poll would).
 
+#include "core/FreeSpace.hpp"
 #include "core/MoveJob.hpp"
 #include "core/SyncEngine.hpp"
 #include "core/TorrentModel.hpp"
 #include "ui/app/MoveController.hpp"
 
+#include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QSignalSpy>
@@ -242,6 +245,115 @@ private slots:
         make();
         m_move->setServer(QStringLiteral("home"));
         QVERIFY(!m_move->shown());
+    }
+
+    // #98, M17: after the torrents, the files no torrent owns follow; the summary says so, and
+    // keeps saying so after a restart.
+    void looseFilesFollowTheTorrents()
+    {
+        QTemporaryDir disks;
+        const QString games = disks.filePath(QStringLiteral("archive/games"));
+        const QString fast = disks.filePath(QStringLiteral("fast/games"));
+        const auto put = [](const QString &path, const QByteArray &bytes, bool old) {
+            QDir().mkpath(QFileInfo(path).path());
+            QFile file(path);
+            QVERIFY(file.open(QIODevice::WriteOnly));
+            file.write(bytes);
+            file.flush();
+            if (old)
+                file.setFileTime(QDateTime::currentDateTime().addDays(-2),
+                                 QFileDevice::FileModificationTime);
+        };
+        put(games + u"/Open Arena/arena.bin", "torrent's own", true);
+        put(games + u"/handheld/Homebrew Pack/pack.bin", "torrent's own", true);
+        put(games + u"/manual.pdf", "loose", true);
+        put(games + u"/handheld/saves/slot1.sav", "loose too", true);
+        put(games + u"/still-writing.part.mkv", "recent", false);
+        put(games + u"/Thumbs.db", "never counts", true);
+
+        QJsonObject list{
+            {QStringLiteral("a1"), torrent(QStringLiteral("Open Arena"), games, 300)},
+            {QStringLiteral("c3"),
+             torrent(QStringLiteral("Homebrew Pack"), games + u"/handheld", 100)},
+        };
+        m_engine->torrents()->applyFullUpdate(list);
+        omaseed::core::FreeSpaceProbe probe([](const QString &) {
+            omaseed::core::StorageReading reading;
+            reading.valid = true;
+            reading.exists = true;
+            reading.bytesFree = 500LL << 30;
+            reading.bytesTotal = 1000LL << 30;
+            reading.rootPath = QStringLiteral("/");
+            return reading;
+        });
+        probe.setServer(games, 500LL << 30, omaseed::core::PathMap(), false);
+        QVERIFY(probe.seesServerDisks());
+        const auto withProbe = [&]() {
+            delete m_move;
+            m_move = new MoveController(this);
+            MoveController::Hooks hooks;
+            hooks.engine = m_engine;
+            hooks.probe = &probe;
+            hooks.lowDiskBytes = []() { return qint64(0); };
+            hooks.serverName = []() { return QStringLiteral("home"); };
+            hooks.notify = [this](const QString &summary, const QString &body) {
+                m_notices << summary + QStringLiteral(" | ") + body;
+            };
+            m_move->setHooks(std::move(hooks));
+            m_move->setServer(QStringLiteral("home"));
+        };
+        withProbe();
+
+        // The sheet's dry run.
+        m_move->plan(games, fast, true);
+        QTRY_COMPARE(m_move->looseRows(games).size(), 4);
+        QVERIFY(m_move->start(games, fast, true));
+        for (int poll = 0; poll < 6 && m_move->stateName() == QStringLiteral("running"); ++poll)
+            landSent();
+        QTRY_COMPARE(m_move->stateName(), QStringLiteral("done"));
+
+        QCOMPARE(QFile(fast + u"/manual.pdf").exists(), true);
+        QCOMPARE(QFile(fast + u"/handheld/saves/slot1.sav").exists(), true);
+        QVERIFY(!QFile::exists(games + u"/manual.pdf"));
+        QVERIFY(!QFileInfo::exists(games + u"/handheld/saves")); // left empty, so removed
+        QVERIFY(QFile::exists(games + u"/still-writing.part.mkv"));
+        QVERIFY(QFile::exists(games + u"/Thumbs.db"));
+
+        QVariantMap band = m_move->band();
+        QCOMPARE(band.value(QStringLiteral("headline")).toString(),
+                 QStringLiteral("games moved, loose files too"));
+        const QString line = band.value(QStringLiteral("line")).toString();
+        QVERIFY2(line.startsWith(QStringLiteral("2 torrents and 2 files at ") + fast),
+                 qPrintable(line));
+        QVERIFY2(line.contains(QStringLiteral("stayed at %1: 1 recent file").arg(games)),
+                 qPrintable(line));
+        QVERIFY2(line.contains(QStringLiteral("1 empty folder removed there")), qPrintable(line));
+        QStringList keys;
+        for (const QVariant &action : band.value(QStringLiteral("actions")).toList())
+            keys << action.toMap().value(QStringLiteral("id")).toString();
+        QVERIFY2(keys.contains(QStringLiteral("stayed")), qPrintable(keys.join(u',')));
+        QCOMPARE(m_notices.size(), 1);
+        QVERIFY2(m_notices.first().contains(QStringLiteral("2 loose files carried")),
+                 qPrintable(m_notices.first()));
+        const QVariantList rows = m_move->carryRows();
+        QCOMPARE(rows.size(), 3);
+        QVERIFY(rows.first()
+                    .toMap()
+                    .value(QStringLiteral("what"))
+                    .toString()
+                    .startsWith(QStringLiteral("stays: ")));
+
+        // The record survives a restart, and goes with the summary.
+        withProbe();
+        QCOMPARE(m_move->stateName(), QStringLiteral("done"));
+        QCOMPARE(m_move->band().value(QStringLiteral("headline")).toString(),
+                 QStringLiteral("games moved, loose files too"));
+        m_move->closeSummary();
+        QVERIFY(
+            !QFile::exists(MoveJob::defaultFilePath(QStringLiteral("home"))
+                               .replace(QStringLiteral(".json"), QStringLiteral(".carry.json"))));
+        delete m_move;
+        m_move = nullptr;
     }
 
     void pauseEndAndTheRest()

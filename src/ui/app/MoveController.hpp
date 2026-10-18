@@ -20,6 +20,7 @@
 // Loose files are carried by #98: `carryWanted` finishes at once here, with nothing carried.
 
 #include "core/FolderModel.hpp"
+#include "core/LooseCarry.hpp"
 #include "core/LooseFiles.hpp"
 #include "core/MoveJob.hpp"
 #include "core/MovePlan.hpp"
@@ -35,6 +36,7 @@
 #include <QVariantList>
 #include <QVariantMap>
 
+#include <atomic>
 #include <functional>
 #include <memory>
 
@@ -125,6 +127,10 @@ public:
     Q_INVOKABLE QVariantList looseRows(const QString &root) const;
     /// S2's "copy the list": the same, as text.
     Q_INVOKABLE QString looseText(const QString &root) const;
+    /// The carried job's loose files that stayed, and why (board 42 L2's "show what stayed").
+    Q_INVOKABLE QVariantList carryRows() const;
+    /// The same, as text for the clipboard.
+    Q_INVOKABLE QString carryText() const;
     /// The scope line's words for a picked folder (F1).
     Q_INVOKABLE QString folderLine(const QString &path) const;
     /// The folder a move starts from when nothing is picked: the save path of `hash`.
@@ -176,6 +182,15 @@ private:
     void onFinished();
     void onPausedItself(core::MoveJob::PauseReason reason);
     void onCarryWanted();
+    void onCarryRan(const QString &serverId,
+                    const QString &root,
+                    const QString &from,
+                    const QString &to,
+                    const core::LooseCarry::Result &result);
+    QString carryFilePath() const;
+    bool
+    loadCarry(const QString &root, QString *from, QString *to, QList<core::CarryFile> *files) const;
+    void stopCarry();
     void onSynced();
     void bump();
 
@@ -198,6 +213,16 @@ private:
     int m_revision = 0;
     int m_planRevision = 0;
     QDateTime m_restoredAt; ///< J4's line shows for a while after a restore
+
+    // M17: the loose files' carry, run off the main thread after the torrents.
+    std::shared_ptr<std::atomic_bool> m_carryStop;
+    std::shared_ptr<std::atomic_bool> m_carryRunning;
+    bool m_carryPaused = false;
+    core::LooseCarry::Progress m_carryProgress;
+    QDateTime m_carryStartedAt;
+    qint64 m_carryStartBytes = -1;
+    core::LooseCarry::Result m_carryResult;
+    bool m_carryDone = false;
 
     // torrents/files, by hash: the names below the save path (for torrents added without a
     // subfolder). Kept for the server it was read from.

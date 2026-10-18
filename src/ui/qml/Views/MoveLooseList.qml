@@ -12,14 +12,28 @@ Sheet {
 
     property string folder: ""
     property var rows: []
+    /// The summary's record (L2's "show what stayed") rather than the preflight's dry run.
+    property bool record: false
 
     signal copyRequested(string text)
 
     function openFor(folder: string): void {
+    root.record = false;
     root.folder = folder;
     root.rows = App.move.looseRows(folder);
     root.open();
 }
+
+    function openStayed(folder: string): void {
+    root.record = true;
+    root.folder = folder;
+    root.rows = App.move.carryRows();
+    root.open();
+}
+
+    function listText(): string {
+        return root.record ? App.move.carryText() : App.move.looseText(root.folder);
+    }
 
     actions: [
         {
@@ -36,19 +50,20 @@ Sheet {
     keyHandler: event => {
         if (event.key === Qt.Key_C && (event.modifiers & (Qt.ControlModifier | Qt.AltModifier))
                 === 0) {
-            root.copyRequested(App.move.looseText(root.folder));
+            root.copyRequested(root.listText());
             event.accepted = true;
         }
     }
     sheetWidth: Theme.space(640)
-    subtitle: qsTr("a dry run: what would be carried, and what stays")
-    title: qsTr("Files no torrent owns, in %1").arg(root.folder.substring(root.folder.lastIndexOf(
-                                                                              "/") + 1))
+    subtitle: root.record ? qsTr("what was carried, and what stayed and why") : qsTr(
+                                "a dry run: what would be carried, and what stays")
+    title: (root.record ? qsTr("Loose files of %1") : qsTr("Files no torrent owns, in %1")).arg(
+               root.folder.substring(root.folder.lastIndexOf("/") + 1))
 
     onAccepted: root.close()
     onActionTriggered: text => {
         if (text === qsTr("copy the list"))
-            root.copyRequested(App.move.looseText(root.folder));
+            root.copyRequested(root.listText());
     }
 
     Repeater {
