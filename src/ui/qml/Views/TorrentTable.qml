@@ -479,7 +479,25 @@ Item {
     }
     readonly property var activeColumns: root.orderedColumns.filter(column => {
         return column.visible && root.visibleColumns.indexOf(column.key) >= 0;
-    })
+    }).concat(root.showMoveColumn ? [root._moveColumnSpec] : [])
+
+    /// Board 42 J1 (DECISIONS C15 M10): a move's "show" adds the Move column, the job's word
+    /// for each torrent (moved, failed, moving now, queued, waiting…), from `moveStepFor`. It
+    /// is not one of the table's columns: nothing saves it, and it goes with the "show".
+    property bool showMoveColumn: false
+    /// `hash => {text, glyph, kind}`; called again when `moveRevision` moves.
+    property var moveStepFor: null
+    property int moveRevision: 0
+    readonly property var _moveColumnSpec: ({
+                                                "key": "move",
+                                                "title": qsTr("Move"),
+                                                "role": "name",
+                                                "text": "move",
+                                                "width": 120,
+                                                "align": Qt.AlignLeft,
+                                                "order": Qt.AscendingOrder,
+                                                "visible": true
+                                            })
     /// The active columns that are plain text, drawn by one generic cell each.
     readonly property var textColumns: root.activeColumns.filter(column => column.text !== undefined)
 
@@ -1852,6 +1870,9 @@ Item {
 
                         readonly property var box: root.columnLayout[textCell.modelData.key]
                         readonly property var value: row.model[textCell.modelData.text]
+                        readonly property bool isMove: textCell.modelData.key === "move"
+                        readonly property var step: textCell.isMove && root.moveStepFor !== null
+                                                    && root.moveRevision >= 0 ? root.moveStepFor(row.hash) : null
                         // #24 T3 and T4: the swarm and ratio columns draw a little more.
                         readonly property bool isSwarm: textCell.modelData.key === "swarm"
                         readonly property bool isRatio: textCell.modelData.key === "ratio"
@@ -1866,10 +1887,16 @@ Item {
                             return own > 1 ? own : 5;
                         }
 
-                        color: textCell.rare ? Theme.yellow
-                                             : textCell.isRatio && textCell.ratio >= textCell.ratioGoal
-                                               ? Theme.stateSeeding : band.textColor
-                        elide: Text.ElideRight
+                        color: textCell.step !== null && textCell.step !== undefined
+                               ? (textCell.step.kind === "ok" ? Theme.green : textCell.step.kind === "bad"
+                                                                ? Theme.red : textCell.step.kind === "busy"
+                                                                  ? Theme.accent : Theme.dimForeground)
+                               : textCell.rare ? Theme.yellow
+                                               : textCell.isRatio && textCell.ratio >= textCell.ratioGoal
+                                                 ? Theme.stateSeeding : band.textColor
+                        // Board 42 M3: a save path is cut from the left, so the folder that
+                        // differs stays in sight.
+                        elide: textCell.modelData.key === "savePath" ? Text.ElideLeft : Text.ElideRight
                         font.family: Theme.fontFamily
                         font.features: ({
                                 "tnum": 1
@@ -1881,7 +1908,8 @@ Item {
                         leftPadding: Theme.space(8)
                         objectName: textCell.modelData.key + "_" + row.index
                         rightPadding: Theme.space(8)
-                        text: textCell.isSwarm ? (textCell.complete || textCell.swarmSeeds > 1
+                        text: textCell.isMove ? (textCell.step ? textCell.step.glyph + " " + textCell.step.text : "")
+                                              : textCell.isSwarm ? (textCell.complete || textCell.swarmSeeds > 1
                                                   ? App.console.swarmText(textCell.swarmSeeds) : "")
                                                : textCell.value === undefined || textCell.value === null
                                                  ? "" : String(textCell.value)

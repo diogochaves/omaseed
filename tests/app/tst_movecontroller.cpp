@@ -116,7 +116,7 @@ private slots:
         m_move = nullptr;
     }
 
-    void foldersFollowTheServer()
+    void foldersFollowTheList()
     {
         // F1: the rows come with a server, and go without one.
         m_move->setServer(QStringLiteral("home"));
@@ -128,7 +128,12 @@ private slots:
                      "games · /mnt/archive/games · 3 torrents · 600 B on disk · 2 save paths"));
         QCOMPARE(m_move->folderOf(QStringLiteral("c3")),
                  QStringLiteral("/mnt/archive/games/handheld"));
+        // Without a server (a demo) the rows stay, and there is no job to start.
         m_move->setServer(QString());
+        QVERIFY(m_move->job() == nullptr);
+        QVERIFY(!m_move->start(
+            QStringLiteral("/mnt/archive/games"), QStringLiteral("/mnt/fast/games"), false));
+        m_engine->torrents()->applyFullUpdate({});
         QTRY_COMPARE(m_move->folders()->total(), 0);
     }
 

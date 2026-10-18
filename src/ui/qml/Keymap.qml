@@ -853,6 +853,19 @@ QtObject {
             "helpKeys": "",
             "help": ""
         },
+        // Board 42 F1 (DECISIONS C15 M1): the folder picked in the rail, or the cursor's.
+        {
+            "area": "table",
+            "key": "M",
+            "action": "moveFolder",
+            "title": qsTr("move folder…"),
+            "needs": "folder",
+            "label": qsTr("move folder"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
         {
             "area": "table",
             "key": "L",
@@ -1956,7 +1969,7 @@ QtObject {
             "group": "torrents",
             "word": qsTr("torrents"),
             "actions": ["start", "stop", "forceStart", "recheck", "reannounce", "delete",
-                "deleteWithFiles", "category", "tags", "location", "limits", "rename", "openFolder",
+                "deleteWithFiles", "category", "tags", "location", "moveFolder", "limits", "rename", "openFolder",
                 "queueUp", "queueDown", "copyMagnet", "copyHash", "copyName", "sequential", "firstLast",
                 "superSeeding", "autoManagement"]
         },
@@ -2086,6 +2099,9 @@ QtObject {
             return "";
         case "cursor":
             return cursor.length > 0 ? "" : qsTr("no torrent under the cursor");
+        case "folder":
+            return (ctx.folder || "").length > 0 || cursor.length > 0 ? "" : qsTr(
+                                                                             "pick a folder in the rail");
         case "selection":
             return selected > 0 ? "" : qsTr("nothing selected");
         case "details":
@@ -2114,6 +2130,8 @@ QtObject {
             return (ctx.selected || 0) > 0 ? qsTr("%n selected", "", ctx.selected) : (ctx.cursor || "");
         case "cursor":
             return ctx.cursor || "";
+        case "folder":
+            return ctx.folder || "";
         case "selection":
             return qsTr("%n selected", "", ctx.selected || 0);
         case "servers":

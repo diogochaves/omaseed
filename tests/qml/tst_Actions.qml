@@ -49,6 +49,10 @@ TestCase {
         view.table.forceActiveFocus();
         view.deleteConfirmPanel.close();
         view.locationSheetPanel.close();
+        view.moveSheet.close();
+        view.leaveMoveShow();
+        view.moveSheet.close();
+        App.filtered.folder = "";
         view.limitsSheetPanel.close();
         view.renameSheetPanel.close();
         view.actionsMenuPanel.close();
@@ -630,6 +634,60 @@ TestCase {
     }
 
     // ---- the location sheet (Fig. 7) -------------------------------------------------------
+    // Board 42 F1 (DECISIONS C15 M1, M2): the folders group lists the library's save paths;
+    // picking one filters the table to it and the scope line offers the move.
+    function test_folders_in_the_rail_filter_and_offer_the_move() {
+        const folders = App.move.folders;
+        verify(folders.total > 0);
+        const hash = hashByName("Big Buck Bunny 4K (CC-BY)");
+        const path = App.torrentRow(hash).savePath.replace(/\/+$/, "");
+        const row = findChild(view.rail, "folderRow-" + path);
+        verify(row !== null, "no rail row for " + path);
+        mouseClick(row);
+        compare(App.filtered.folder, path);
+        for (let i = 0; i < App.filtered.count; ++i)
+            verify(App.torrentRow(App.filtered.hashAt(i)).savePath.startsWith(path));
+        verify(view.moveScope.visible);
+        compare(view.moveScope.linkText, "move this folder…");
+        verify(view.moveScope.text.indexOf(path) >= 0, view.moveScope.text);
+        mouseClick(row); // picked again: the filter goes
+        compare(App.filtered.folder, "");
+        verify(!view.moveScope.visible);
+    }
+
+    // Board 42 S1 (M4–M9): shift+m opens the sheet on the folder; the field is its new path,
+    // the preflight says what blocks, and "show" filters the table under it until esc.
+    function test_move_sheet_reads_the_field_and_shows_its_torrents() {
+        const hash = hashByName("Big Buck Bunny 4K (CC-BY)");
+        const path = App.torrentRow(hash).savePath.replace(/\/+$/, "");
+        App.filtered.folder = path;
+        keyClick(Qt.Key_M, Qt.ShiftModifier);
+        const sheet = view.moveSheet;
+        compare(sheet.opened, true);
+        compare(sheet.folder, path);
+        compare(sheet.pathField.text, path);
+        tryCompare(sheet.plan, "blocker", path.substring(path.lastIndexOf("/") + 1) + " is already there.");
+        compare(sheet.plan.canMove, false);
+        sheet.pathField.text = "/mnt/elsewhere/" + path.substring(path.lastIndexOf("/") + 1);
+        tryVerify(() => sheet.plan.canMove === true);
+        verify(sheet.plan.moveCount > 0);
+        compare(sheet.plan.pathRows[0].to, sheet.pathField.text);
+        compare(sheet.plan.moveText, sheet.plan.moveCount === 1 ? "move 1 torrent" : "move " + sheet.plan.moveCount
+                                                                 + " torrents");
+        // A demo has no job to start: the sheet stays.
+        sheet.triggerPrimary();
+        compare(sheet.opened, true);
+
+        sheet.showRequested(sheet.plan.moveHashes);
+        sheet.close();
+        compare(App.filtered.onlyHashes.length, sheet.plan.moveHashes.length);
+        verify(view.moveShowing);
+        compare(view.moveScope.linkText, "back to the sheet");
+        view.handleEscape();
+        compare(App.filtered.onlyHashes.length, 0);
+        compare(sheet.opened, true);
+    }
+
     function test_location_sheet_prefills_the_save_path() {
         const hash = hashByName("Big Buck Bunny 4K (CC-BY)");
         view.table.moveCursorTo(App.filtered.rowOfHash(hash));

@@ -118,7 +118,7 @@ public:
     /// The sheet for moving `root` to `newPath`, with the loose files carried when `carry`.
     /// Keys: title, header, explain, pathRows [{from, to, count}], checks [{kind, glyph, text,
     /// note, hashes}], loose {state, rows, count, bytes}, carryOffered, carryDefault, blocker,
-    /// canMove, moveCount, moveText, queuedBehind.
+    /// canMove, moveCount, moveHashes, moveText, queuedBehind.
     Q_INVOKABLE QVariantMap plan(const QString &root, const QString &newPath, bool carry);
     /// S2: every file no torrent owns under `root`, [{path, size, what, kind}], from the last
     /// walk; empty until it has run.

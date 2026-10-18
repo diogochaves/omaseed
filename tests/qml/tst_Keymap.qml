@@ -229,31 +229,31 @@ TestCase {
         compare(row.helpKeys, ": ctrl+shift+p");
     }
 
-    // §5: 44 rows from the table (docs/32 added `~`), plus the focused area's own: Files 15,
+    // §5: 45 rows from the table (docs/32 added `~`, board 42 "move folder…"), plus the focused area's own: Files 15,
     // Trackers 4, Peers 3, HTTP sources 3, the seed console 3, the log 14.
     function test_the_rows_from_each_area() {
-        compare(Keymap.commandRows(testCase._context({})).length, 44);
+        compare(Keymap.commandRows(testCase._context({})).length, 45);
         compare(Keymap.commandRows(testCase._context({
                                                          "area": "rail"
-                                                     })).length, 44);
+                                                     })).length, 45);
         compare(Keymap.commandRows(testCase._context({
                                                          "area": "files"
-                                                     })).length, 59);
+                                                     })).length, 60);
         compare(Keymap.commandRows(testCase._context({
                                                          "area": "trackers"
-                                                     })).length, 48);
+                                                     })).length, 49);
         compare(Keymap.commandRows(testCase._context({
                                                          "area": "peers"
-                                                     })).length, 47);
+                                                     })).length, 48);
         compare(Keymap.commandRows(testCase._context({
                                                          "area": "webseeds"
-                                                     })).length, 47);
+                                                     })).length, 48);
         compare(Keymap.commandRows(testCase._context({
                                                          "area": "console"
-                                                     })).length, 47);
+                                                     })).length, 48);
         compare(Keymap.commandRows(testCase._context({
                                                          "area": "log"
-                                                     })).length, 58);
+                                                     })).length, 59);
         // Every action id is listed once, and movements never.
         const actions = Keymap.commandRows(testCase._context({})).map(row => row.action);
         for (const action of actions)
@@ -326,7 +326,8 @@ TestCase {
             const row = testCase._row(rows, action);
             compare(row.disabled, true, action + " can run with nothing to act on");
             verify(row.detail.endsWith("nothing selected, no torrent under the cursor")
-                   || row.detail.endsWith("no torrent under the cursor"), row.detail);
+                   || row.detail.endsWith("no torrent under the cursor")
+                   || row.detail.endsWith("pick a folder in the rail"), row.detail);
         }
         compare(testCase._row(rows, "add").disabled, false);
         compare(rows[0].action, "selectAll", "a row that can run did not come first");
@@ -482,7 +483,7 @@ TestCase {
             if (entry.title === undefined && entry.titles === undefined)
                 continue;
             verify(["", "torrents", "cursor", "stopped", "running", "selection", "details", "marked",
-                    "row", "rows", "file", "servers"].indexOf(entry.needs) >= 0, "unknown needs: " + entry.needs);
+                    "row", "rows", "file", "servers", "folder"].indexOf(entry.needs) >= 0, "unknown needs: " + entry.needs);
             const listed = Keymap.commandGroups.some(group => group.actions.indexOf(entry.action) >= 0
                                                      && Keymap.commandEntry(group.group, entry.action) === entry);
             verify(listed, "a titled entry in no group: " + entry.area + " " + entry.action);

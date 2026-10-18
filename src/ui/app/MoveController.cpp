@@ -285,8 +285,8 @@ void MoveController::rebuildFolders()
         mounts.insert(path, root);
         return root;
     };
-    m_folders->setNodes(m_serverId.isEmpty() ? QList<core::FolderNode>()
-                                             : FolderTree::build(library(), mountRoot));
+    // The rows follow the list on show, a demo's too; only the job needs a server.
+    m_folders->setNodes(FolderTree::build(library(), mountRoot));
     updateMarks();
 }
 
@@ -797,6 +797,7 @@ QVariantMap MoveController::plan(const QString &rootIn, const QString &newPathIn
 
     const int moveCount = int(plan.toMove().size());
     out.insert(QStringLiteral("moveCount"), moveCount);
+    out.insert(QStringLiteral("moveHashes"), plan.toMove());
     out.insert(QStringLiteral("canMove"), plan.canMove());
     const bool behind = m_job != nullptr && m_job->state() != MoveJob::State::Idle &&
                         m_job->state() != MoveJob::State::Done &&
@@ -1327,6 +1328,7 @@ QVariantMap MoveController::band() const
     band.insert(QStringLiteral("failedText"), failedText);
     band.insert(QStringLiteral("progress"), progress);
     band.insert(QStringLiteral("actions"), actions);
+    band.insert(QStringLiteral("withServer"), job.withServer());
     return band;
 }
 

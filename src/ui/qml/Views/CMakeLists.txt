@@ -67,6 +67,12 @@ qt_add_qml_module(omaseed-views
         LogView.qml
         MainView.qml
         MoreMenu.qml
+        MoveBand.qml
+        MoveCheckLine.qml
+        MoveLooseList.qml
+        MoveQuitConfirm.qml
+        MoveRecheckSheet.qml
+        MoveSheet.qml
         QbtImportSheet.qml
         QbtListSheet.qml
         QbtSettingRow.qml
