@@ -3269,13 +3269,10 @@ void App::setLocation(const QStringList &hashes, const QString &path)
     if (hashes.isEmpty() || path.isEmpty() ||
         demoGuard(QStringLiteral("location"), hashes.size()) || !m_hasServer)
         return;
-    // docs/32 D2: "OK" only means the move was queued; a failure is in the log. Watched from
-    // before the request, so a read on its way meanwhile can't take the line first.
-    m_engine->problems()->watchMove(hashes, path);
-    m_client->torrentsSetLocation(hashes, path)
-        ->then(this, [this, hashes, path](const QbtResult<QByteArray> &result) {
-            reportActionResult(QStringLiteral("location"), result, hashes, path);
-        });
+    // DECISIONS C16 L1, L9: every move is a job (board 43): checked first, sent in waves, its
+    // log read for its whole life. The torrents go into the one folder, as set location
+    // always did.
+    m_move->startSelection(hashes, path, QStringLiteral("oneFolder"));
 }
 
 void App::requestGlobalLimits()

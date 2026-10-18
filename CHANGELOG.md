@@ -9,6 +9,14 @@ before it will tag a release.
 
 ### Added
 
+- Set location is a move like a folder's (board 43): checked before anything is sent (room on
+  each drive, writing, files already where a torrent goes, automatic management), sent smallest
+  first, and followed in qBittorrent's log until the last one lands, not for 30 s. A move that
+  lands in a few seconds says so in the footer; a longer one gets the band, its summary and
+  "move back…", which puts each torrent back where it was. One big torrent shows how much of it
+  has arrived, when omaseed can see the destination's disk. A move started while another runs
+  waits its turn and is checked again then.
+
 - The bar widget speaks to screen readers: the bar button ("omaseed", with its state in words),
   the popup's buttons, sections, rows, menu and settings, and the figures it shows. It works on
   today's Omarchy and on the shell kit with accessibility (omacom/omarchy#13212), once the shell

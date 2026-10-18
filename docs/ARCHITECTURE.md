@@ -44,14 +44,17 @@ Three static libraries and the executable. Each layer only depends on the ones a
   `TorrentsExport` and `TorrentsImport` (its torrents as a file, and back), `LibraryMatch`,
   `FreeSpace` and `SharedData` (what the add and delete sheets know about files already on
   disk), `RenamePlan` and `RenameDisk` (what a rename would land on).
-- Moving a folder ([DECISIONS.md](DECISIONS.md) C15): `FolderTree` (the library's save paths
-  as the rail's folders), `MovePlan` (the preflight: targets, room, writability, shared data,
-  files already at a target), `LooseFiles` (the files no torrent owns, failing closed),
+- Moving a folder or a selection ([DECISIONS.md](DECISIONS.md) C15, C16: every move is a job):
+  `FolderTree` (the library's save paths as the rail's folders), `MovePlan` (the preflight:
+  targets by rule (a folder's structure, one folder, each its own for move back), room per
+  drive, writability, shared data, files already at a target), `LooseFiles` (the files no torrent owns, failing closed),
   `ServerFolder` (what qBittorrent lists of a folder, for a server whose disks this machine
   can't see: C16 L13), and
   `MoveJob`, which sends the plan in waves and follows it for hours, saved under
   `~/.config/omaseed/moves/`. `MoveJob` hears and asks in neutral terms; `QbtMoveFeed` is its
-  qBittorrent side (setLocation, the polls, the log's move failures through `ProblemLog`).
+  qBittorrent side (setLocation, the polls, the log's move failures through `ProblemLog`, and
+  the bytes at a target for live progress). In the app, `MoveController` puts them together for
+  the window (its sheet's half in `MoveControllerSheet.cpp`); `App::setLocation` starts a job.
 
 **`omaseed-integration`** (`src/integration/`): the desktop, through Qt DBus and Gui.
 

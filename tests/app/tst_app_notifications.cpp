@@ -182,7 +182,7 @@ private slots:
     void lowDiskThresholdDefaultsToTwoGiBInTheEngine();
     void lowDiskThresholdPersistsReachesTheEngineAndClamps();
     void anOldStateFileWithTheTrackerKeyStillLoads();
-    void aFailureIsNeverANoticeButTheFooterHearsIt();
+    void aMoveFailureIsNeverANotice();
     void aDismissedFailureStaysDismissedAfterARestart();
     void theLogFaceKeepsItsLevelsPerServer();
     void theDemoHasAWholeLog();
@@ -699,9 +699,10 @@ QJsonArray moveFailedLog()
 
 } // namespace
 
-// docs/32 D8 (#55): a move that failed is never a desktop notice. The one omaseed asked for
-// reaches the footer through loggedFailure (D2); the block stays on the torrent.
-void TestAppNotifications::aFailureIsNeverANoticeButTheFooterHearsIt()
+// docs/32 D8 (#55): a move that failed is never a desktop notice; the block stays on the
+// torrent. DECISIONS C16 L9: the job tells of it (its band, or its footer line), not the log's
+// own D2 note.
+void TestAppNotifications::aMoveFailureIsNeverANotice()
 {
     App app;
     Notifier notifier(m_bus.connection());
@@ -709,11 +710,9 @@ void TestAppNotifications::aFailureIsNeverANoticeButTheFooterHearsIt()
     app.applyDemoData(QJsonDocument::fromJson(movedMaindata()).object());
     QSignalSpy told(&app, &App::loggedFailure);
 
-    app.engine()->problems()->watchMove({kMovedHash}, QStringLiteral("/d/dest"));
+    app.engine()->problems()->watchJob({kMovedHash}, QDateTime());
     app.engine()->problems()->applyEntries(moveFailedLog());
-    QCOMPARE(told.size(), 1);
-    QCOMPARE(told.at(0).at(0).toString(),
-             QStringLiteral("log55-move.bin didn't move: Permission denied"));
+    QCOMPARE(told.size(), 0);
     QCOMPARE(app.torrentRow(kMovedHash)
                  .value(QStringLiteral("failure"))
                  .toMap()

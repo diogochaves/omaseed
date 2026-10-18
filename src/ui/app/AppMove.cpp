@@ -7,6 +7,8 @@
 #include "integration/Notifier.hpp"
 
 #include <QCoreApplication>
+#include <QJsonArray>
+#include <QJsonObject>
 
 namespace omaseed::app {
 
@@ -22,7 +24,32 @@ void App::setUpMove()
         if (!m_notifier.isNull() && !m_demoMode)
             m_notifier->notifyMove(m_move->serverId(), summary, body);
     };
+    // C16 L4: the last destinations, per server, in state.json's "moves".
+    hooks.loadRecents = [this](const QString &serverId) {
+        return stateSection(QStringLiteral("moves"))
+            .value(serverId)
+            .toObject()
+            .value(QStringLiteral("recent"))
+            .toVariant()
+            .toStringList();
+    };
+    hooks.saveRecents = [this](const QString &serverId, const QStringList &paths) {
+        QJsonObject section = stateSection(QStringLiteral("moves"));
+        QJsonObject server = section.value(serverId).toObject();
+        server.insert(QStringLiteral("recent"), QJsonArray::fromStringList(paths));
+        section.insert(serverId, server);
+        writeStateSection(QStringLiteral("moves"), section);
+    };
     m_move->setHooks(std::move(hooks));
+    // C16 L7: a quick move that didn't happen is said in the footer, as a failure the log told
+    // (docs/32 N1) was; one that landed is #104's footer note.
+    connect(m_move,
+            &MoveController::note,
+            this,
+            [this](const QString &text, const QStringList &hashes, bool failed) {
+                if (failed)
+                    Q_EMIT loggedFailure(text, hashes);
+            });
     connect(this, &App::serverChanged, this, &App::updateMoveServer);
     // J6 (M20): the tray's tooltip carries the job's line.
     connect(m_move, &MoveController::changed, this, [this]() {
