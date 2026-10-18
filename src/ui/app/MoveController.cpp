@@ -1303,7 +1303,14 @@ void MoveController::onFinished()
             const QString where = m_job->kind() == QLatin1String("back")
                                       ? tr("moved back")
                                       : tr("moved to %1").arg(m_job->newPath());
-            Q_EMIT note(summary.moved == 1 ? tr("%1 %2").arg(summary.title, where)
+            // The one that moved by its name: the title counts the selection, left-out
+            // ones too.
+            QString one = summary.title;
+            for (const MoveJob::Entry &entry : m_job->entries()) {
+                if (entry.step == MoveJob::Step::Moved)
+                    one = entry.name;
+            }
+            Q_EMIT note(summary.moved == 1 ? tr("%1 %2").arg(one, where)
                                            : tr("%1 %2").arg(summary.moved).arg(where),
                         m_job->hashes(),
                         false);

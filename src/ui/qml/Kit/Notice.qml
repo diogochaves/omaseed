@@ -293,6 +293,8 @@ Item {
                         spacing: Theme.space(10)
 
                         Text {
+                            Accessible.name: text
+                            Accessible.role: Accessible.StaticText
                             Layout.fillWidth: true
                             color: Theme.foreground
                             elide: Text.ElideRight

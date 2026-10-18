@@ -871,6 +871,15 @@ private slots:
         QVERIFY(checkTexts(sheet).size() > 2);
         QCOMPARE(sheet.value(QStringLiteral("moveText")).toString(),
                  QStringLiteral("move 1 torrent"));
+        // The note names the one that moved, not the selection ("2 torrents", #105).
+        QSignalSpy notes(m_move, &MoveController::note);
+        QVERIFY(m_move->startSelection({QStringLiteral("e5"), QStringLiteral("f6")},
+                                       fast + QStringLiteral("/library"),
+                                       QStringLiteral("oneFolder")));
+        landSent();
+        QTRY_COMPARE(notes.count(), 1);
+        QCOMPARE(notes.at(0).at(0).toString(),
+                 QStringLiteral("Demo moved to %1/library").arg(fast));
         m_probe = nullptr;
     }
 
