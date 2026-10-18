@@ -52,6 +52,9 @@ Item {
     /// The technical text; "" leaves out "details".
     property string details: ""
     property bool detailsOpen: false
+    /// Rows above the details' text, each with its own link: `[{text, link}]` (board 43 J3:
+    /// the moves waiting behind this one, each with "cancel"). A link says `detailRowTriggered`.
+    property var detailRows: []
     /// Where the hairline goes: "bottom", "top" or "both".
     property string edge: "bottom"
     /// N6: false folds the band away.
@@ -89,6 +92,7 @@ Item {
 
     signal actionTriggered(string key)
     signal copyRequested(string text)
+    signal detailRowTriggered(int index)
 
     /// Plain text made safe for StyledText.
     function _escaped(text: string): string {
@@ -263,7 +267,7 @@ Item {
             color: Theme.fill(Theme.fillIdle)
             implicitHeight: detailsColumn.implicitHeight + 2 * Theme.space(6)
             objectName: "noticeDetails"
-            visible: root.detailsOpen && root.details.length > 0
+            visible: root.detailsOpen && (root.details.length > 0 || root.detailRows.length > 0)
 
             ColumnLayout {
                 id: detailsColumn
@@ -274,6 +278,57 @@ Item {
                 anchors.rightMargin: Theme.space(8)
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: Theme.space(2)
+
+                Repeater {
+                    model: root.detailRows
+
+                    RowLayout {
+                        id: detailRow
+
+                        required property int index
+                        required property var modelData
+
+                        Layout.fillWidth: true
+                        objectName: "noticeDetailRow"
+                        spacing: Theme.space(10)
+
+                        Text {
+                            Layout.fillWidth: true
+                            color: Theme.foreground
+                            elide: Text.ElideRight
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.font.caption
+                            text: detailRow.modelData.text
+                            textFormat: Text.PlainText
+                        }
+
+                        Text {
+                            id: rowLink
+
+                            Accessible.name: rowLink.text
+                            Accessible.role: Accessible.Link
+                            Accessible.onPressAction: root.detailRowTriggered(detailRow.index)
+                            color: rowLinkMouse.containsMouse ? Theme.brightForeground :
+                                                                Theme.accent
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.font.caption
+                            objectName: "noticeDetailRowLink"
+                            text: detailRow.modelData.link ?? ""
+                            visible: text.length > 0
+
+                            MouseArea {
+                                id: rowLinkMouse
+
+                                anchors.fill: parent
+                                anchors.margins: -Theme.space(4)
+                                cursorShape: Qt.PointingHandCursor
+                                hoverEnabled: true
+
+                                onClicked: root.detailRowTriggered(detailRow.index)
+                            }
+                        }
+                    }
+                }
 
                 Text {
                     // #79: the technical text, once "details" unfolds it.
@@ -286,6 +341,7 @@ Item {
                     objectName: "noticeDetailsText"
                     text: root.details
                     textFormat: Text.PlainText
+                    visible: root.details.length > 0
                     wrapMode: Text.WrapAnywhere
                 }
 
@@ -303,6 +359,7 @@ Item {
                     font.pixelSize: Theme.font.caption
                     objectName: "noticeCopy"
                     text: qsTr("copy")
+                    visible: root.details.length > 0
 
                     MouseArea {
                         id: copyMouse
@@ -376,7 +433,7 @@ Item {
             objectName: "noticeDetailsToggle"
             text: qsTr("details") + " " + (root.detailsOpen ? Glyphs.chevronDown :
                                                               Glyphs.chevronRight)
-            visible: root.details.length > 0
+            visible: root.details.length > 0 || root.detailRows.length > 0
 
             MouseArea {
                 id: detailsMouse

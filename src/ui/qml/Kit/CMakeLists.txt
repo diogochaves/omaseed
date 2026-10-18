@@ -45,6 +45,7 @@ qt_add_qml_module(omaseed-kit
         Menu.qml
         Notice.qml
         Palette.qml
+        PickList.qml
         ProgressLine.qml
         RailRow.qml
         RatioLadder.qml

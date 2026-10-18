@@ -173,6 +173,43 @@ TestCase {
         compare(key, "switch");
     }
 
+    // Board 43 J3 (DECISIONS C16 L12): the moves waiting behind this one, each with its link.
+    function test_detail_rows_list_above_the_text_each_with_its_link() {
+        const notice = createTemporaryObject(noticeComponent, testCase, {
+                                                 "detailRows": [
+                                                     {
+                                                         "text": "2 torrents to /mnt/fast/films",
+                                                         "link": "cancel"
+                                                     },
+                                                     {
+                                                         "text": "Big Film to /mnt/fast/films",
+                                                         "link": "cancel"
+                                                     }
+                                                 ]
+                                             });
+        notice.toggleDetails();
+        verify(findChild(notice, "noticeDetails").visible);
+        let picked = -1;
+        notice.detailRowTriggered.connect(index => picked = index);
+        const rows = [];
+        const walk = item => {
+            for (let i = 0; i < item.children.length; ++i) {
+                if (item.children[i].objectName === "noticeDetailRowLink")
+                    rows.push(item.children[i]);
+                walk(item.children[i]);
+            }
+        };
+        walk(notice);
+        compare(rows.length, 2);
+        compare(rows[1].text, "cancel");
+        rows[1].children[0].clicked(null);
+        compare(picked, 1);
+        // Rows alone unfold too, without the text and its copy.
+        notice.details = "";
+        verify(findChild(notice, "noticeDetails").visible);
+        verify(!findChild(notice, "noticeCopy").visible);
+    }
+
     function test_no_details_no_toggle() {
         const notice = createTemporaryObject(noticeComponent, testCase, {
                                                  "details": ""
