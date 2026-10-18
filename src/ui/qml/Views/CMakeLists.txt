@@ -62,7 +62,6 @@ qt_add_qml_module(omaseed-views
         JumpPalette.qml
         LimitsSheet.qml
         LoadingState.qml
-        LocationSheet.qml
         LogRow.qml
         LogView.qml
         MainView.qml

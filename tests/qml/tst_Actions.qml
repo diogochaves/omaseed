@@ -48,7 +48,6 @@ TestCase {
         view.table.moveCursorTo(0);
         view.table.forceActiveFocus();
         view.deleteConfirmPanel.close();
-        view.locationSheetPanel.close();
         view.moveSheet.close();
         view.leaveMoveShow();
         view.moveSheet.close();
@@ -437,25 +436,136 @@ TestCase {
         const sintel = hashByName("Sintel 1080p (CC-BY)");
         const tears = hashByName("Tears of Steel 4K (CC-BY)");
         shareData(sintel, tears);
-        const sheet = view.locationSheetPanel;
-        sheet.openFor([sintel]);
+        const sheet = view.moveSheet;
+        sheet.openSelection([sintel], "");
         verify(sheet.asking);
         compare(sheet.choice, 0);
         compare(sheet.moveHashes(), [sintel, tears]);
-        compare(sheet.actions[1].text, "move 2");
-        compare(sheet.sheetWidth, Theme.space(520));
-        // #35: the line under the title counts what moves: both, their one copy once.
-        const once = Math.max(App.torrentRow(sintel).size, App.torrentRow(tears).size);
-        compare(sheet.subtitle, "2 torrents · " + App.sizeText(once) + " moves with it");
+        compare(sheet.sheetWidth, Theme.space(600));
         // The path field is still the first stop for the keyboard.
         compare(sheet.focusables()[0].text, App.torrentRow(sintel).savePath);
-        // "Move only this one": the line counts the one again.
+        // #35, C16 L1: the plan counts what moves: both, read again for the pick.
+        sheet.pathField.text = "/mnt/elsewhere";
+        tryVerify(() => sheet.plan.explain === "all 2 go into /mnt/elsewhere", 2000, sheet.plan.explain);
+        verify(sheet.subtitle.startsWith("2 torrents"), sheet.subtitle);
+        // "Move only this one": the plan counts the one again.
+        sheet.pathField.focusInput();
         keyClick(Qt.Key_Tab);
         keyClick("j");
         compare(sheet.choice, 1);
         compare(sheet.moveHashes(), [sintel]);
-        compare(sheet.subtitle, "1 torrent · " + App.sizeText(App.torrentRow(sintel).size) + " moves with it");
+        compare(sheet.plan.explain, "it goes into /mnt/elsewhere");
+        verify(sheet.subtitle.startsWith("1 torrent"), sheet.subtitle);
         sheet.close();
+    }
+
+    // ---- the move sheet for a selection (board 43, DECISIONS C16) ----------------------------
+    /// Two torrents of the demo whose save paths differ.
+    function twoSavePaths() {
+        const first = App.filtered.hashAt(0);
+        const path = App.torrentRow(first).savePath;
+        for (let i = 1; i < App.filtered.count; ++i) {
+            const hash = App.filtered.hashAt(i);
+            if (App.torrentRow(hash).savePath !== path)
+                return [first, hash];
+        }
+        return [];
+    }
+
+    // L1, L2: `m` opens the move sheet on the selection, named "Move …", its field on the
+    // cursor's save path; the plan follows the field.
+    function test_m_opens_the_move_sheet_on_the_selection() {
+        const hash = hashByName("Big Buck Bunny 4K (CC-BY)");
+        view.table.moveCursorTo(App.filtered.rowOfHash(hash));
+        keyClick("m");
+        const sheet = view.moveSheet;
+        compare(sheet.opened, true);
+        compare(sheet.mode, "selection");
+        compare(sheet.hashes, [hash]);
+        compare(sheet.title, "Move " + App.torrentRow(hash).name);
+        compare(sheet.pathField.text, App.torrentRow(hash).savePath);
+        verify(!sheet.ruleChoice.visible, "one save path offered the choice");
+        sheet.pathField.text = "/mnt/elsewhere";
+        tryVerify(() => sheet.plan.explain === "it goes into /mnt/elsewhere", 2000, sheet.plan.explain);
+        compare(sheet.plan.moveText, "move");
+        compare(sheet.plan.canMove, true);
+        compare(sheet.actions.length, 2, "one torrent offered show");
+        // A demo has no job to start: the sheet stays.
+        sheet.triggerPrimary();
+        compare(sheet.opened, true);
+        sheet.close();
+    }
+
+    // L5: torrents from two save paths: "into one folder" first, "keep their places" maps
+    // each save path below the new one.
+    function test_several_save_paths_choose_one_folder_or_their_places() {
+        const hashes = twoSavePaths();
+        compare(hashes.length, 2, "the demo has one save path");
+        const sheet = view.moveSheet;
+        sheet.openSelection(hashes, "/mnt/fast/library");
+        tryVerify(() => sheet.plan.ruleOffered === true, 2000);
+        verify(sheet.ruleChoice.visible);
+        compare(sheet.ruleChoice.choice, 0);
+        compare(sheet.rule, "oneFolder");
+        compare(sheet.plan.explain, "all 2 go into /mnt/fast/library");
+        compare(sheet.plan.pathRows.length, 0);
+        compare(sheet.ruleChoice.rows[1].title, sheet.plan.keepText);
+        verify(sheet.plan.keepText.startsWith("keep their places below "), sheet.plan.keepText);
+        compare(sheet.actions[1].text, "show the 2");
+        sheet.ruleChoice.choice = 1;
+        compare(sheet.rule, "keepPlaces");
+        compare(sheet.plan.explain, "each goes to the same place below /mnt/fast/library");
+        compare(sheet.plan.pathRows.length, 2);
+        for (const row of sheet.plan.pathRows)
+            verify(row.to.startsWith("/mnt/fast/library"), row.to);
+        compare(sheet.plan.moveText, "move 2 torrents");
+        sheet.close();
+    }
+
+    // L4: ↓ opens the places under the field; ↓ picks, enter fills it in and checks it, and
+    // the sheet stays for the next enter. Typing narrows them; esc closes only the list.
+    function test_places_open_on_down_and_fill_the_field() {
+        keyClick("m");
+        const sheet = view.moveSheet;
+        const field = sheet.pathField;
+        tryVerify(() => field.editing, 1000, "the path field does not have the keyboard");
+        verify(!sheet.placesOpen);
+        keyClick(Qt.Key_Down);
+        verify(sheet.placesOpen, "↓ did not open the places");
+        const rows = sheet.placeList.rows;
+        verify(rows.length > 1);
+        compare(rows[0].section, "library");
+        keyClick(Qt.Key_Down);
+        compare(sheet.placeList.current, 0);
+        keyClick(Qt.Key_Down);
+        keyClick(Qt.Key_Return);
+        compare(field.text, rows[1].text);
+        verify(!sheet.placesOpen);
+        compare(sheet.opened, true, "enter on a place moved");
+        tryVerify(() => sheet.plan.explain === "it goes into " + rows[1].text, 2000, sheet.plan.explain);
+
+        // Typing opens them, narrowed to what is typed.
+        field.selectAll();
+        keyClick("z");
+        keyClick("z");
+        keyClick("z");
+        verify(!sheet.placesOpen, "a place matched zzz");
+        field.selectAll();
+        keyClick(Qt.Key_Slash);
+        verify(sheet.placesOpen);
+        keyClick(Qt.Key_Escape);
+        verify(!sheet.placesOpen, "esc left the places open");
+        compare(sheet.opened, true, "esc on the places closed the sheet");
+        keyClick(Qt.Key_Escape);
+        compare(sheet.opened, false);
+    }
+
+    // C16 L7: a move that landed before its band showed is said in the footer, with a ✓.
+    function test_a_landed_move_says_so_in_the_footer() {
+        App.move.note("2 moved to /mnt/fast/films", [], false);
+        compare(view.footerNote, "2 moved to /mnt/fast/films");
+        compare(findChild(view, "footerNoteMark").text, "✓");
+        compare(findChild(view, "footerNoteMark").color, Theme.green);
     }
 
     function test_a_category_change_that_moves_shared_files_asks_first() {
@@ -694,9 +804,9 @@ TestCase {
         const savePath = App.torrentRow(hash).savePath;
         verify(savePath.length > 0);
         keyClick("m");
-        compare(view.locationSheetPanel.opened, true);
-        // the only Field the sheet declares — see LocationSheet.qml's FormRow > Field
-        const field = view.locationSheetPanel.focusables()[0];
+        compare(view.moveSheet.opened, true);
+        // the only Field the sheet declares — see MoveSheet.qml's FormRow > Field
+        const field = view.moveSheet.focusables()[0];
         compare(field.text, savePath);
     }
 
@@ -704,7 +814,7 @@ TestCase {
     // ctrl+o open the same picker at the field's path and put the pick in the field.
     function test_location_sheet_browse_is_a_button_that_fills_the_field() {
         keyClick("m");
-        const sheet = view.locationSheetPanel;
+        const sheet = view.moveSheet;
         compare(sheet.opened, true);
         const field = sheet.pathField;
         compare(field.trailing, "browse");
@@ -745,23 +855,23 @@ TestCase {
     // Review VIEW-18: an emptied path is not sent; the sheet waits for one.
     function test_location_sheet_does_not_move_to_an_empty_path() {
         keyClick("m");
-        const field = view.locationSheetPanel.focusables()[0];
+        const field = view.moveSheet.focusables()[0];
         field.text = "   ";
-        view.locationSheetPanel.triggerPrimary();
-        compare(view.locationSheetPanel.opened, true, "an empty path was sent");
+        view.moveSheet.triggerPrimary();
+        compare(view.moveSheet.opened, true, "an empty path was sent");
     }
 
     // Review RUN-5: one esc in a prefilled field cancels the sheet; it does not wipe the value
     // and leave the sheet up to collect the next keys.
     function test_one_esc_in_a_prefilled_field_closes_the_sheet() {
         keyClick("m");
-        compare(view.locationSheetPanel.opened, true);
-        const field = view.locationSheetPanel.focusables()[0];
+        compare(view.moveSheet.opened, true);
+        const field = view.moveSheet.focusables()[0];
         const path = field.text;
         verify(path.length > 0);
         tryVerify(() => field.editing, 1000, "the path field does not have the keyboard");
         keyClick(Qt.Key_Escape);
-        compare(view.locationSheetPanel.opened, false, "esc left the location sheet open");
+        compare(view.moveSheet.opened, false, "esc left the location sheet open");
         compare(field.text, path, "esc wiped the path");
 
         view.renameSheetPanel.openFor(view.cursorHash);

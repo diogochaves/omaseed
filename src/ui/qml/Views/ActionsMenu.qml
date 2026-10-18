@@ -90,7 +90,7 @@ Menu {
             "action": "tags"
         },
         {
-            "text": qsTr("set location"),
+            "text": qsTr("move…"),
             "key": "m",
             "action": "location"
         },

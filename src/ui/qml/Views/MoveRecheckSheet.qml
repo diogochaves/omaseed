@@ -27,7 +27,7 @@ Sheet {
             "cancel": true
         },
         {
-            "text": qsTr("set location…")
+            "text": qsTr("move…")
         },
         {
             "text": qsTr("recheck %1").arg(root.rows.length),
@@ -46,7 +46,7 @@ Sheet {
         root.close();
     }
     onActionTriggered: text => {
-        if (text === qsTr("set location…")) {
+        if (text === qsTr("move…")) {
             root.close();
             root.setLocationRequested(root.hashes);
         }

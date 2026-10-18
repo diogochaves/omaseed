@@ -270,7 +270,7 @@ TestCase {
         const rows = Keymap.commandRows(testCase._context({
                                                               "recent": ["stop", "location", "copyMagnet"]
                                                           }));
-        compare(rows.slice(0, 8).map(row => row.title), ["stop", "set location", "copy magnet",
+        compare(rows.slice(0, 8).map(row => row.title), ["stop", "move…", "copy magnet",
                                                          "force start", "recheck", "reannounce",
                                                          "delete", "delete with files"]);
         const stop = rows[0];

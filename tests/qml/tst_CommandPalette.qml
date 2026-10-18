@@ -85,7 +85,7 @@ TestCase {
         compare(palette.counter, "45 commands");
         compare(palette.items.length, 45);
         compare(palette.items[0].title, "stop");
-        compare(palette.items[1].title, "set location");
+        compare(palette.items[1].title, "move…");
         compare(palette.cursorIndex, 0);
         compare(palette.hints.map(hint => hint.key), ["↑↓", "enter", "esc"]);
         compare(palette.hints[2].label, "close");

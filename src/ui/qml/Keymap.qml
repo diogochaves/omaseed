@@ -845,9 +845,11 @@ QtObject {
             "area": "table",
             "key": "m",
             "action": "location",
-            "title": qsTr("set location"),
+            // DECISIONS C16 L2: "move…" now; `:` still finds it by its old name.
+            "title": qsTr("move…"),
+            "also": qsTr("set location"),
             "needs": "torrents",
-            "label": qsTr("location"),
+            "label": qsTr("move"),
             "column": "",
             "rank": 0,
             "helpKeys": "",
@@ -2180,6 +2182,7 @@ QtObject {
             "disabled": reason.length > 0,
             "group": group.group,
             "word": group.word,
+            "also": entry.also ?? "",
             "recent": (ctx.recent || []).indexOf(entry.action)
         };
     }

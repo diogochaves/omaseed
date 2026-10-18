@@ -143,7 +143,7 @@ TestCase {
         compare(findChild(block, "errorFolder").text, "Its files are still in /data/torrents/movies");
         verify(findChild(block, "errorMeta").text.startsWith("qBittorrent's log · "));
         compare(block.hints.map(hint => (hint.key + " " + hint.label).trim()),
-                ["m set location", "o open folder", "copy the line", "its lines in the log", "x dismiss"]);
+                ["m move…", "o open folder", "copy the line", "its lines in the log", "x dismiss"]);
 
         // `x` on General asks for the dismissal; on Files it would skip a file instead.
         failureSpy.target = view;

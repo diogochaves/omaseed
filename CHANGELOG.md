@@ -16,6 +16,10 @@ before it will tag a release.
   "move back…", which puts each torrent back where it was. One big torrent shows how much of it
   has arrived, when omaseed can see the destination's disk. A move started while another runs
   waits its turn and is checked again then.
+- "Set location" is "Move…" now (`m` as before; `:` still finds "set location"). Its sheet lists
+  places under the field (↓, or as you type): where you moved things lately, the library's
+  folders and the categories' folders. Torrents from several folders go into one folder, or keep
+  their places below a new one. Its checks say something only when there is something to say.
 
 - The bar widget speaks to screen readers: the bar button ("omaseed", with its state in words),
   the popup's buttons, sections, rows, menu and settings, and the figures it shows. It works on

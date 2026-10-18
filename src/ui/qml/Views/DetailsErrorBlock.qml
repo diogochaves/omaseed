@@ -30,7 +30,7 @@ Rectangle {
     readonly property color kindColor: root.missingFiles || root.failure ? Theme.yellow : Theme.red
     readonly property var hints: {
         const keys = {
-            "location": ["m", qsTr("set location")],
+            "location": ["m", qsTr("move…")],
             "start": ["p", qsTr("try again")],
             "recheck": ["c", qsTr("recheck")],
             "rename": ["2", qsTr("rename in Files")],

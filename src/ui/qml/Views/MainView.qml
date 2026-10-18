@@ -47,7 +47,6 @@ Item {
     readonly property alias actionsMenuPanel: actionsMenuPanel
     readonly property alias selectionBar: selectionBar
     readonly property alias deleteConfirmPanel: deleteConfirmPanel
-    readonly property alias locationSheetPanel: locationSheetPanel
     readonly property alias moveSheet: moveSheet
     readonly property alias moveBand: moveBand
     readonly property alias moveScope: moveScope
@@ -130,8 +129,6 @@ Item {
             return moveRecheckSheet;
         if (moveSheet.opened)
             return moveSheet;
-        if (locationSheetPanel.opened)
-            return locationSheetPanel;
         if (deleteConfirmPanel.opened)
             return deleteConfirmPanel;
         if (actionsMenuPanel.opened)
@@ -204,6 +201,12 @@ Item {
             root.quitRequested();
     }
 
+    /// The job's torrents that haven't moved (yet): what "move the rest…" and "change the
+    /// folder…" open a selection's sheet on.
+    function moveRestHashes(): var {
+        return App.move.jobHashes.filter(hash => (App.move.stepFor(hash).kind ?? "") !== "ok");
+    }
+
     /// An action of the move's band.
     function moveBandAction(key: string): void {
         switch (key) {
@@ -227,12 +230,26 @@ Item {
                                                                                               ).indexOf(hash) < 0)),
                                 false);
             break;
-        case "changeFolder":
+        case "changeFolder": {
+            // C16 L1: a selection's job opens the selection's sheet on what didn't move.
+            const rest = root.moveRestHashes();
+            const folder = App.move.kind === "folder";
             App.move.end();
-            root.openMoveFolder(App.move.root, App.move.newPath);
+            if (folder)
+                root.openMoveFolder(App.move.root, App.move.newPath);
+            else
+                moveSheet.openSelection(rest, App.move.newPath);
             break;
+        }
         case "moveRest":
-            root.openMoveFolder(App.move.root, App.move.newPath);
+            if (App.move.kind === "folder")
+                root.openMoveFolder(App.move.root, App.move.newPath);
+            else
+                moveSheet.openSelection(root.moveRestHashes(), App.move.newPath);
+            break;
+        case "moveBack":
+            // C16 L11: each torrent back to where it was, checked as any move.
+            moveSheet.openBack();
             break;
         case "recheck":
             moveRecheckSheet.openFor(App.move.failedHashes());
@@ -742,7 +759,7 @@ Item {
         case "location": {
             // docs/32 F1: `m` on the one torrent whose move didn't happen tries it again.
             const failure = hashes.length === 1 ? (App.torrentRow(hashes[0]).failure || {}) : {};
-            locationSheetPanel.openFor(hashes, failure.destination || "");
+            moveSheet.openSelection(hashes, failure.destination || "");
             break;
         }
         case "limits":
@@ -1465,7 +1482,7 @@ Item {
             root.torrentAction("tags");
             return true;
         case Qt.Key_M:
-            // Board 42 (M1): shift+m moves the picked folder; m stays set location.
+            // Board 42 (M1): shift+m moves the picked folder; m moves the selection (C16 L2).
             if (shift)
                 root.openMoveFolder("", "");
             else
@@ -1821,10 +1838,12 @@ Item {
         band: App.move.band
         // Read again whenever the job moves (`revision`).
         record: App.move.revision >= 0 && App.move.shown ? App.move.detailsText() : ""
+        queued: App.move.queued
         shown: App.move.shown && !root.firstRun
         z: 1
 
         onActionTriggered: key => root.moveBandAction(key)
+        onDropRequested: index => App.move.dropQueued(index)
         onCopyRequested: text => root.copyText(text, qsTr("copied"))
     }
 
@@ -2215,7 +2234,7 @@ Item {
                 if (action === "log")
                     root.showTorrentLog(hashes[0]);
                 else if (action === "location")
-                    locationSheetPanel.openFor(hashes, "");
+                    moveSheet.openSelection(hashes, "");
                 else if (action === "start")
                     App.startTorrents(hashes);
                 else if (action === "recheck")
@@ -2230,7 +2249,7 @@ Item {
                 if (action === "log")
                     root.showTorrentLog(hash);
                 else if (action === "location")
-                    locationSheetPanel.openFor([hash], (App.torrentRow(hash).failure || {}).destination || "");
+                    moveSheet.openSelection([hash], (App.torrentRow(hash).failure || {}).destination || "");
                 else if (action === "folder")
                     App.openFolder(hash);
                 else if (action === "dismiss")
@@ -2427,8 +2446,9 @@ Item {
             // ▼ for turtle in yellow, and reads in the foreground.
             Label {
                 Layout.alignment: Qt.AlignVCenter
-                color: root.footerNoteMark === "▲" ? Theme.green : root.footerNoteMark === "✕" ? Theme.red
-                                                                                              : Theme.yellow
+                color: root.footerNoteMark === "▲" || root.footerNoteMark === "✓" ? Theme.green
+                                                                                   : root.footerNoteMark === "✕"
+                                                                                     ? Theme.red : Theme.yellow
                 objectName: "footerNoteMark"
                 size: "caption"
                 text: root.footerNoteMark
@@ -2620,6 +2640,8 @@ Item {
     property bool footerNoteWarn: false
     property bool footerNoteHint: false
     readonly property int _footerNoteSeconds: 5
+    /// C16 L7: a landed move's note stays 6 s.
+    property bool _footerNoteLong: false
 
     /// docs/31 F1: the note after A stays until the next key, not for a few seconds.
     property bool footerNoteSticky: false
@@ -2639,7 +2661,16 @@ Item {
         root.footerNoteHint = false;
         root.footerNoteSticky = false;
         root.footerNoteMark = "";
+        root._footerNoteLong = false;
         root.footerNote = text;
+        footerNoteTimer.restart();
+    }
+
+    /// C16 L7: a quick move landed: its note, with a green ✓, for 6 s.
+    function flashMoveNote(text: string): void {
+        root.flashFooterNote(text);
+        root.footerNoteMark = "✓";
+        root._footerNoteLong = true;
         footerNoteTimer.restart();
     }
 
@@ -2722,7 +2753,7 @@ Item {
     Timer {
         id: footerNoteTimer
 
-        interval: root._footerNoteSeconds * 1000
+        interval: (root._footerNoteLong ? 6 : root._footerNoteSeconds) * 1000
 
         onTriggered: root.footerNote = ""
     }
@@ -2787,13 +2818,6 @@ Item {
         z: 9
     }
 
-    LocationSheet {
-        id: locationSheetPanel
-
-        anchors.fill: parent
-        z: 9
-    }
-
     // Board 42 §3 (M4–M9): the move sheet, its loose files' list, the failures' recheck, and
     // quit's question while a move runs (J5).
     MoveSheet {
@@ -2815,13 +2839,24 @@ Item {
         onCopyRequested: text => root.copyText(text, qsTr("copied the list"))
     }
 
+    // C16 L7: a move that landed before its band showed says so in the footer's note, "2
+    // moved to …", for 6 s. A failed one is App.loggedFailure's (docs/32 N1).
+    Connections {
+        function onNote(text: string, hashes: var, failed: bool): void {
+            if (!failed)
+                root.flashMoveNote(text);
+        }
+
+        target: App.move
+    }
+
     MoveRecheckSheet {
         id: moveRecheckSheet
 
         anchors.fill: parent
         z: 9
 
-        onSetLocationRequested: hashes => locationSheetPanel.openFor(hashes, "")
+        onSetLocationRequested: hashes => moveSheet.openSelection(hashes, "")
     }
 
     MoveQuitConfirm {

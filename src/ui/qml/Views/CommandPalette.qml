@@ -34,7 +34,11 @@ Palette {
     function _ranked(rows: var, text: string): var {
         const hits = [];
         for (let i = 0; i < rows.length; ++i) {
-            const score = Fuzzy.score(rows[i].title + " " + rows[i].word, text);
+            // C16 L2: a row's old name (`also`) still finds it. Lower is better, -1 none.
+            const byTitle = Fuzzy.score(rows[i].title + " " + rows[i].word, text);
+            const byAlso = (rows[i].also ?? "").length > 0 ? Fuzzy.score(rows[i].also + " " + rows[i].word,
+                                                                         text) : -1;
+            const score = byTitle < 0 ? byAlso : byAlso < 0 ? byTitle : Math.min(byTitle, byAlso);
             if (score >= 0)
                 hits.push({
                               "row": rows[i],

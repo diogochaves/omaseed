@@ -68,7 +68,7 @@ TestCase {
         view.settingsModal.close();
         view.actionsMenuPanel.close();
         view.deleteConfirmPanel.close();
-        view.locationSheetPanel.close();
+        view.moveSheet.close();
         view.limitsSheetPanel.close();
         view.renameSheetPanel.close();
         view.detailsAddSheet.close();
@@ -367,11 +367,11 @@ TestCase {
         compare(App.torrentRow(hash).failure.kind, "move");
 
         keyClick("m");
-        verify(view.locationSheetPanel.opened);
-        compare(view.locationSheetPanel.focusables()[0].text, "/mnt/archive/movies");
+        verify(view.moveSheet.opened);
+        compare(view.moveSheet.focusables()[0].text, "/mnt/archive/movies");
         keyClick(Qt.Key_Escape);
         keyClick(Qt.Key_Escape);
-        verify(!view.locationSheetPanel.opened);
+        verify(!view.moveSheet.opened);
         view.table.forceActiveFocus();
 
         view.details.activateTab(1);
@@ -802,9 +802,9 @@ TestCase {
                                       view.jumpPalette, "the jump palette");
         testCase._checkFocusComesBack(() => keyClick("d"), view.deleteConfirmPanel,
                                       "the delete confirm");
-        // The location sheet opens with the torrent's save path already in its field.
-        testCase._checkFocusComesBack(() => keyClick("m"), view.locationSheetPanel,
-                                      "the location sheet", 2);
+        // The move sheet opens with the torrent's save path already in its field.
+        testCase._checkFocusComesBack(() => keyClick("m"), view.moveSheet,
+                                      "the move sheet", 2);
         testCase._checkFocusComesBack(() => keyClick(Qt.Key_C, Qt.ShiftModifier),
                                       view.categoryPalette, "the category palette");
         testCase._checkFocusComesBack(() => keyClick("t"), view.tagPalette, "the tag palette");
@@ -856,8 +856,8 @@ TestCase {
         testCase._checkFooterStandsAside(() => App.addRequested(), view.addSheet, "the add sheet");
         testCase._checkFooterStandsAside(() => keyClick("L", Qt.ShiftModifier),
                                          view.limitsSheetPanel, "the limits sheet");
-        testCase._checkFooterStandsAside(() => keyClick("m"), view.locationSheetPanel,
-                                         "the location sheet");
+        testCase._checkFooterStandsAside(() => keyClick("m"), view.moveSheet,
+                                         "the move sheet");
         testCase._checkFooterStandsAside(() => App.openSettings(), view.settingsModal,
                                          "the settings modal");
         // The help sheet is driven by `helpOpen`; this stands in for its panel.
@@ -1267,8 +1267,8 @@ TestCase {
 
     function test_run_action_does_what_the_key_does() {
         compare(view.runAction("location"), true);
-        compare(view.locationSheetPanel.opened, true, "set location did not open its sheet");
-        view.locationSheetPanel.close();
+        compare(view.moveSheet.opened, true, "move… did not open its sheet");
+        view.moveSheet.close();
         compare(view.runAction("globalLimits"), true);
         compare(view.globalLimitsSheet.opened, true, "the menu-only limits sheet did not open");
         view.globalLimitsSheet.close();
@@ -1326,8 +1326,8 @@ TestCase {
         compare(view.commandPalette.currentItem.action, "location");
         keyClick(Qt.Key_Return);
         compare(view.commandPalette.opened, false);
-        compare(view.locationSheetPanel.opened, true, "set location did not run");
-        view.locationSheetPanel.close();
+        compare(view.moveSheet.opened, true, "move… did not run (found by its old name)");
+        view.moveSheet.close();
         compare(App.recentCommands()[0], "location");
         keyClick(":");
         compare(view.commandPalette.items[0].action, "location");
