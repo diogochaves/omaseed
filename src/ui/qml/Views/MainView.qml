@@ -2024,7 +2024,7 @@ Item {
                                                                       "%1 torrents from the move sheet").arg(root.moveShowHashes.length);
                     return App.move.folders.revision >= 0 ? App.move.folderLine(App.filtered.folder) : "";
                 }
-                visible: root.view === "library" && (root.moveShowing || App.filtered.folder.length > 0)
+                visible: root.view === "library" && (root.moveShowing || App.filtered.folder.length > 0) && text.length > 0
 
                 onLinkActivated: {
                     if (root.moveShowing)
@@ -2827,6 +2827,21 @@ Item {
         z: 15
 
         onHideRequested: root.hideRequested()
+    }
+
+    // A picked folder that the move emptied: the pick follows it to its new place (F3), or
+    // goes when the folder is gone for another reason.
+    Connections {
+        function onRevisionChanged(): void {
+            const folder = App.filtered.folder;
+            if (folder.length === 0 || Object.keys(App.move.folders.figures(folder)).length > 0)
+                return;
+            const moved = App.move.root === folder && App.move.newPath.length > 0
+                    && Object.keys(App.move.folders.figures(App.move.newPath)).length > 0;
+            App.filtered.folder = moved ? App.move.newPath : "";
+        }
+
+        target: App.move.folders
     }
 
     Connections {

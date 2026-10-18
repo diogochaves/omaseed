@@ -26,7 +26,7 @@ Sheet {
         }
     ]
     glyph: "↻"
-    sheetWidth: Theme.space(460)
+    sheetWidth: Theme.space(560)
     title: qsTr("A move is running on %1").arg(App.serverName)
 
     onAccepted: {

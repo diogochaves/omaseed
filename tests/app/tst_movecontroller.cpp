@@ -206,7 +206,11 @@ private slots:
                  QStringLiteral("waiting"));
         QVERIFY(m_move->stepFor(QStringLiteral("d4")).isEmpty());
         QCOMPARE(m_move->trayLine(), QStringLiteral("Moving games: 0 %"));
-        QVERIFY(m_move->quitLine().startsWith(QStringLiteral("0 of 3 moved. Quitting pauses it")));
+        QCOMPARE(
+            m_move->quitLine(),
+            QStringLiteral(
+                "0 of 3 moved. Quitting pauses it: the 1 with qBittorrent finishes, and the rest "
+                "wait until omaseed runs again."));
         // F3: the marks.
         QTRY_COMPARE(
             m_move->folders()->index(1).data(omaseed::core::FolderModel::MarkRole).toString(),

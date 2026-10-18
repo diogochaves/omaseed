@@ -499,9 +499,13 @@ QVariantMap MoveController::plan(const QString &rootIn, const QString &newPathIn
     const int count = figures.value(QStringLiteral("count")).toInt();
     out.insert(QStringLiteral("title"), tr("Move %1").arg(name));
     {
+        // A plan that can't move (the field is the folder itself) counts nothing: the folder's
+        // own figure then.
+        const qint64 onDisk = plan.torrentBytes() > 0
+                                  ? plan.torrentBytes()
+                                  : figures.value(QStringLiteral("bytes")).toLongLong();
         QString header = counted(count, tr("%1 torrent"), tr("%1 torrents")) +
-                         QStringLiteral(" · ") +
-                         tr("%1 on disk").arg(core::Format::size(plan.torrentBytes()));
+                         QStringLiteral(" · ") + tr("%1 on disk").arg(core::Format::size(onDisk));
         if (plan.partial() > 0)
             header += QStringLiteral(" ") +
                       tr("(%1 in the torrents: %2)")
@@ -806,7 +810,9 @@ QVariantMap MoveController::plan(const QString &rootIn, const QString &newPathIn
                behind ? FolderTree::baseName(m_job->root()) : QString());
     out.insert(QStringLiteral("moveText"),
                behind ? tr("move after %1").arg(FolderTree::baseName(m_job->root()))
-                      : counted(moveCount, tr("move %1 torrent"), tr("move %1 torrents")));
+               : moveCount == 0
+                   ? tr("move")
+                   : counted(moveCount, tr("move %1 torrent"), tr("move %1 torrents")));
     return out;
 }
 
@@ -1073,11 +1079,17 @@ QString MoveController::quitLine() const
 {
     if (m_job == nullptr || !m_job->isActive())
         return {};
-    return tr("%1 of %2 moved. Quitting pauses it: the %3 with qBittorrent finish, and the rest "
-              "wait until omaseed runs again.")
-        .arg(m_job->moved())
-        .arg(m_job->total())
-        .arg(std::max(m_job->withServer(), 0));
+    const QString moved = tr("%1 of %2 moved.").arg(m_job->moved()).arg(m_job->total());
+    const int with = m_job->withServer();
+    if (with == 0)
+        return moved + QLatin1Char(' ') +
+               tr("Quitting pauses it: the rest wait until omaseed runs again.");
+    return moved + QLatin1Char(' ') +
+           counted(with,
+                   tr("Quitting pauses it: the %1 with qBittorrent finishes, and the rest wait "
+                      "until omaseed runs again."),
+                   tr("Quitting pauses it: the %1 with qBittorrent finish, and the rest wait "
+                      "until omaseed runs again."));
 }
 
 QVariantMap MoveController::band() const
@@ -1192,6 +1204,7 @@ QVariantMap MoveController::band() const
                        : tr("%1 didn't move: “%2”. Nothing more is sent.")
                              .arg(first == nullptr ? QString() : first->name,
                                   first == nullptr ? QString() : first->reason);
+            failedText.clear(); // the headline says it
             actions.clear();
             actions << action(QStringLiteral("changeFolder"), tr("change the folder…"))
                     << action(QStringLiteral("end"), tr("end the move"));

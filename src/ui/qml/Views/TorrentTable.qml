@@ -477,9 +477,15 @@ Item {
             byKey[column.key] = column;
         return root.columnOrder.map(key => byKey[key]).filter(column => column !== undefined);
     }
-    readonly property var activeColumns: root.orderedColumns.filter(column => {
-        return column.visible && root.visibleColumns.indexOf(column.key) >= 0;
-    }).concat(root.showMoveColumn ? [root._moveColumnSpec] : [])
+    readonly property var activeColumns: {
+        const shown = root.orderedColumns.filter(column => {
+            return column.visible && root.visibleColumns.indexOf(column.key) >= 0;
+        });
+        // J1: the Move column right after Name, where a wide table can't scroll it away.
+        if (root.showMoveColumn)
+            shown.splice(1, 0, root._moveColumnSpec);
+        return shown;
+    }
 
     /// Board 42 J1 (DECISIONS C15 M10): a move's "show" adds the Move column, the job's word
     /// for each torrent (moved, failed, moving now, queued, waiting…), from `moveStepFor`. It
@@ -716,6 +722,8 @@ Item {
     function defaultWidthOf(key: string): real {
         if (key === "name")
             return root.minimumNameWidth;
+        if (key === "move")
+            return root._moveColumnSpec.width;
         const column = root.columns.find(other => other.key === key);
         return column !== undefined ? column.width : 0;
     }

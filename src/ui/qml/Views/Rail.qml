@@ -678,6 +678,8 @@ Item {
                         count: folderDelegate.heading ? -1 : folderDelegate.folderCount
                         countText: folderDelegate.mark
                         dimText: folderDelegate.heading
+                        // A path below its parent row: the end tells two apart (M3).
+                        elideLeft: true
                         glyph: folderDelegate.hasChildren ? (folderDelegate.folded ? Glyphs.chevronRight
                                                                                    : Glyphs.chevronDown)
                                                           : Glyphs.middot
