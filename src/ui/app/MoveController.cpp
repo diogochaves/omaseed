@@ -161,6 +161,10 @@ void MoveController::setServer(const QString &serverId)
     m_serverId = serverId;
     m_files.clear();
     m_filesPending.clear();
+    m_serverFolders.clear();
+    m_serverFoldersAt.clear();
+    m_listingsPending.clear();
+    m_serverLists = true;
     m_loose.clear();
     m_rechecks.clear();
     m_recheckHash.clear();
@@ -423,6 +427,79 @@ void MoveController::fetchFiles(const QStringList &hashes)
     }
 }
 
+QStringList MoveController::ownedServerPaths(const QString &root) const
+{
+    // M9, as ownedLocalPaths() but as the server writes them (C16 L13).
+    QStringList owned;
+    const QString normalRoot = SharedData::normalize(root);
+    for (const core::Torrent &torrent : library()) {
+        const QString save = SharedData::normalize(torrent.savePath);
+        const QString content = SharedData::normalize(torrent.contentPath);
+        if (!content.isEmpty() && content != save) {
+            owned << content;
+            continue;
+        }
+        if (!SharedData::isUnder(save, normalRoot) && !SharedData::isUnder(normalRoot, save))
+            continue;
+        for (const QString &file : m_files.value(torrent.hash))
+            owned << FolderTree::join(save, file);
+    }
+    return owned;
+}
+
+QStringList MoveController::foldersToList(const QString &root) const
+{
+    // The folder, every save path below it, and the folders between.
+    const QString normalRoot = SharedData::normalize(root);
+    QSet<QString> folders{normalRoot};
+    for (const core::Torrent &torrent : library()) {
+        QString folder = SharedData::normalize(torrent.savePath);
+        while (!folder.isEmpty() && folder != normalRoot &&
+               SharedData::isUnder(folder, normalRoot) && !folders.contains(folder)) {
+            folders.insert(folder);
+            folder = FolderTree::parentOf(folder);
+        }
+    }
+    QStringList out(folders.cbegin(), folders.cend());
+    out.sort();
+    return out;
+}
+
+core::LooseFiles::OnServer MoveController::looseOnServer(const QString &root) const
+{
+    return core::LooseFiles::onServer(
+        root, foldersToList(root), m_serverFolders, ownedServerPaths(root));
+}
+
+void MoveController::fetchListings(const QStringList &folders)
+{
+    if (!m_serverLists || m_hooks.engine == nullptr || m_hooks.engine->client() == nullptr)
+        return;
+    for (const QString &folder : folders) {
+        if (folder.isEmpty() || m_listingsPending.contains(folder))
+            continue;
+        m_listingsPending.insert(folder);
+        const QString server = m_serverId;
+        QPointer<MoveController> self(this);
+        m_hooks.engine->client()->appDirectoryContent(folder)->then(
+            this, [self, folder, server](const core::QbtResult<QJsonArray> &result) {
+                if (self.isNull() || self->m_serverId != server)
+                    return;
+                self->m_listingsPending.remove(folder);
+                const core::ServerFolder listed = core::ServerFolder::fromReply(result);
+                if (listed.state == core::ServerFolder::State::Unsupported)
+                    self->m_serverLists = false;
+                // A listing read again that fails keeps the one it had.
+                if (listed.state != core::ServerFolder::State::Failed ||
+                    !self->m_serverFolders.contains(folder))
+                    self->m_serverFolders.insert(folder, listed);
+                self->m_serverFoldersAt.insert(folder, self->now());
+                ++self->m_planRevision;
+                Q_EMIT self->planChanged();
+            });
+    }
+}
+
 void MoveController::scanLoose(const QString &root)
 {
     if (m_hooks.probe == nullptr || !m_hooks.probe->seesServerDisks())
@@ -472,6 +549,10 @@ MovePlan MoveController::makePlan(const QString &root, const QString &newPath, b
     input.newPath = newPath;
     input.files = m_files;
     input.probe = m_hooks.probe;
+    input.serverFolders = m_serverFolders;
+    // With no client to ask (a demo, a test), the server can't list either.
+    input.serverLists =
+        m_serverLists && m_hooks.engine != nullptr && m_hooks.engine->client() != nullptr;
     if (m_hooks.lowDiskBytes)
         input.lowDiskThreshold = m_hooks.lowDiskBytes();
     if (carry) {
@@ -509,6 +590,21 @@ QVariantMap MoveController::plan(const QString &rootIn, const QString &newPathIn
                            !m_hooks.probe->localPathFor(root).isEmpty();
     if (filesIn && seesDisks)
         scanLoose(root);
+    // C16 L13 (#102): without a view of the disks, the server lists the folders M8's check and
+    // the loose files' names need; a listing a minute old is read again behind the old one.
+    core::LooseFiles::OnServer onServer;
+    const bool serverLists =
+        m_serverLists && m_hooks.engine != nullptr && m_hooks.engine->client() != nullptr;
+    if (!seesDisks && serverLists) {
+        onServer = looseOnServer(root);
+        QStringList listings = plan.needListings() + onServer.needListings;
+        for (auto at = m_serverFoldersAt.cbegin(); at != m_serverFoldersAt.cend(); ++at) {
+            if (at.value().secsTo(now()) >= kWalkFreshSeconds)
+                listings << at.key();
+        }
+        listings.removeDuplicates();
+        fetchListings(listings);
+    }
 
     QVariantMap out;
     const QVariantMap figures = m_folders->figures(root);
@@ -575,6 +671,16 @@ QVariantMap MoveController::plan(const QString &rootIn, const QString &newPathIn
                         plan.blocker() != MovePlan::Blocker::InsideTheFolder;
     if (pathOk) {
         const QString drive = plan.drive().isEmpty() ? FolderTree::parentOf(newPath) : plan.drive();
+        // C16 L13: said once, so a remote move never reads as checked as a local one.
+        if (!plan.seesDisks())
+            checks << check(
+                QStringLiteral("fact"),
+                tr("omaseed can't see %1's disks. Checked on %1, through qBittorrent: files "
+                   "already where the torrents go; the first torrent, sent alone, answers for "
+                   "writing. Not checked here: room on that drive, writing, the age and size of "
+                   "files no torrent owns.")
+                    .arg(server),
+                tr("a path map in Settings › Servers lets omaseed see them"));
         // M5: room.
         if (plan.sameDrive()) {
             checks << check(
@@ -705,6 +811,35 @@ QVariantMap MoveController::plan(const QString &rootIn, const QString &newPathIn
                             QString(),
                             plan.leftOut());
         }
+        switch (plan.namesCheck()) {
+        case MovePlan::NamesCheck::Here:
+            break;
+        case MovePlan::NamesCheck::Server:
+            if (plan.leftOut().isEmpty())
+                checks << check(
+                    QStringLiteral("ok"),
+                    tr("Nothing already there. %1 listed where the torrents go.").arg(server));
+            break;
+        case MovePlan::NamesCheck::Pending:
+            checks << check(QStringLiteral("busy"),
+                            tr("Asking %1 whether files with these torrents' names are already "
+                               "where they go…")
+                                .arg(server));
+            break;
+        case MovePlan::NamesCheck::Cannot:
+            checks << check(
+                QStringLiteral("unknown"),
+                m_serverLists
+                    ? tr("Files already there: can't tell. %1 didn't answer when asked to list "
+                         "where the torrents go.")
+                          .arg(server)
+                    : tr("Files already there: can't tell. %1's qBittorrent can't list its "
+                         "folders to omaseed.")
+                          .arg(server),
+                tr("qBittorrent keeps a file already at a torrent's place and reports the move "
+                   "done; the torrent then has the wrong data. Look there first."));
+            break;
+        }
         if (!plan.alreadyThere().isEmpty())
             checks << check(QStringLiteral("fact"),
                             tr("%1 already there, at %2. Skipped.")
@@ -735,11 +870,46 @@ QVariantMap MoveController::plan(const QString &rootIn, const QString &newPathIn
     QVariantMap loose;
     QVariantList looseLines;
     bool carryOffered = false;
-    if (!seesDisks) {
+    if (!seesDisks && serverLists && filesIn && onServer.needListings.isEmpty() &&
+        onServer.complete) {
+        // C16 L13: their names, as the server lists them; nothing is carried.
+        loose.insert(QStringLiteral("state"), QStringLiteral("onServer"));
+        loose.insert(QStringLiteral("count"), int(onServer.names.size()));
+        if (onServer.names.isEmpty()) {
+            looseLines << check(
+                QStringLiteral("ok"),
+                tr("No files no torrent owns in %1, as %2 lists it.").arg(name, server));
+        } else {
+            looseLines << check(
+                QStringLiteral("warn"),
+                counted(int(onServer.names.size()),
+                        tr("%1 file or folder no torrent owns in %2 stays where it is: omaseed "
+                           "can't see %3's disks, so it can't carry it."),
+                        tr("%1 files and folders no torrent owns in %2 stay where they are: "
+                           "omaseed can't see %3's disks, so it can't carry them."))
+                    .arg(name, server),
+                tr("names as %1 lists them; their size and age can't be read from here")
+                    .arg(server));
+        }
+        if (onServer.neverCounts > 0)
+            looseLines << check(
+                QStringLiteral("fact"),
+                counted(onServer.neverCounts, tr("%1 never counts: %2."), tr("%1 never count: %2."))
+                    .arg(core::LooseFiles::neverCountPatterns().join(QStringLiteral(", "))));
+    } else if (!seesDisks && serverLists && (!filesIn || !onServer.needListings.isEmpty())) {
+        loose.insert(QStringLiteral("state"), QStringLiteral("reading"));
+        looseLines << check(QStringLiteral("busy"),
+                            tr("Asking %1 what is in %2…").arg(server, name));
+    } else if (!seesDisks) {
         loose.insert(QStringLiteral("state"), QStringLiteral("cantSee"));
-        looseLines << check(QStringLiteral("fact"),
-                            tr("Files no torrent owns: can't see them. They stay where they are. A "
-                               "path map in Settings › Servers lets omaseed see them."));
+        looseLines << check(
+            QStringLiteral("fact"),
+            serverLists
+                ? tr("Files no torrent owns: %1 couldn't list all of %2. Whatever is there stays "
+                     "where it is.")
+                      .arg(server, name)
+                : tr("Files no torrent owns: can't see them. They stay where they are. A path map "
+                     "in Settings › Servers lets omaseed see them."));
     } else {
         const auto walk = m_loose.constFind(root);
         if (!filesIn || walk == m_loose.cend() || walk->running || !walk->at.isValid()) {
@@ -818,7 +988,9 @@ QVariantMap MoveController::plan(const QString &rootIn, const QString &newPathIn
     const int moveCount = int(plan.toMove().size());
     out.insert(QStringLiteral("moveCount"), moveCount);
     out.insert(QStringLiteral("moveHashes"), plan.toMove());
-    out.insert(QStringLiteral("canMove"), plan.canMove());
+    // #102: nothing is sent before the server has said what is already there.
+    out.insert(QStringLiteral("canMove"),
+               plan.canMove() && plan.namesCheck() != MovePlan::NamesCheck::Pending);
     const bool behind = m_job != nullptr && m_job->state() != MoveJob::State::Idle &&
                         m_job->state() != MoveJob::State::Done &&
                         m_job->state() != MoveJob::State::Ended;
@@ -836,6 +1008,21 @@ QVariantList MoveController::looseRows(const QString &rootIn) const
 {
     QVariantList rows;
     const auto walk = m_loose.constFind(SharedData::normalize(rootIn));
+    if (walk == m_loose.cend() && m_serverLists && !m_serverFolders.isEmpty()) {
+        // C16 L13: names only, as the server lists them.
+        const QString root = SharedData::normalize(rootIn);
+        const core::LooseFiles::OnServer onServer = looseOnServer(root);
+        if (!onServer.complete)
+            return rows;
+        const QString name = FolderTree::baseName(root);
+        const QString what = tr("stays: omaseed can't see %1's disks").arg(serverName());
+        for (const QString &entry : onServer.names)
+            rows << QVariantMap{{QStringLiteral("path"), name + QLatin1Char('/') + entry},
+                                {QStringLiteral("size"), QStringLiteral("—")},
+                                {QStringLiteral("what"), what},
+                                {QStringLiteral("kind"), QStringLiteral("warn")}};
+        return rows;
+    }
     if (walk == m_loose.cend() || walk->running)
         return rows;
     const QString name = FolderTree::baseName(walk->root);
@@ -889,7 +1076,7 @@ bool MoveController::start(const QString &rootIn, const QString &newPathIn, bool
     const QString root = SharedData::normalize(rootIn);
     const QString newPath = SharedData::normalize(newPathIn.trimmed());
     const MovePlan plan = makePlan(root, newPath, carry);
-    if (!plan.canMove())
+    if (!plan.canMove() || plan.namesCheck() == MovePlan::NamesCheck::Pending)
         return false;
     // J3's "move the rest…": the summary of the last job gives way to the new one.
     if (m_job->state() == MoveJob::State::Done || m_job->state() == MoveJob::State::Ended)

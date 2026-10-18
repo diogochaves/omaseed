@@ -24,6 +24,7 @@
 #include "core/LooseFiles.hpp"
 #include "core/MoveJob.hpp"
 #include "core/MovePlan.hpp"
+#include "core/ServerFolder.hpp"
 
 #include <QDateTime>
 #include <QHash>
@@ -198,6 +199,11 @@ private:
     QString mountRootOf(const QString &serverPath) const;
     QStringList ownedLocalPaths(const QString &root) const;
     void fetchFiles(const QStringList &hashes);
+    // C16 L13 (#102): a server whose disks this machine can't see answers for them.
+    QStringList ownedServerPaths(const QString &root) const;
+    QStringList foldersToList(const QString &root) const;
+    core::LooseFiles::OnServer looseOnServer(const QString &root) const;
+    void fetchListings(const QStringList &folders);
     void scanLoose(const QString &root);
     core::MovePlan makePlan(const QString &root, const QString &newPath, bool carry) const;
     QDateTime now() const;
@@ -228,6 +234,14 @@ private:
     // subfolder). Kept for the server it was read from.
     QHash<QString, QStringList> m_files;
     QSet<QString> m_filesPending;
+
+    // app/getDirectoryContent, by folder as the server writes it (C16 L13, #102), for a server
+    // whose disks this machine can't see. Kept for the server it was read from; read again in
+    // the background once a minute old, the old listing standing until the new one is in.
+    QHash<QString, core::ServerFolder> m_serverFolders;
+    QHash<QString, QDateTime> m_serverFoldersAt;
+    QSet<QString> m_listingsPending;
+    bool m_serverLists = true; ///< false once the server said it can't list folders
 
     struct LooseWalk
     {

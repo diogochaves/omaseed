@@ -4,6 +4,7 @@
 
 #include "core/FreeSpace.hpp"
 #include "core/MoveJob.hpp"
+#include "core/QbtClient.hpp"
 #include "core/SyncEngine.hpp"
 #include "core/TorrentModel.hpp"
 #include "ui/app/MoveController.hpp"
@@ -12,10 +13,15 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <QJsonObject>
 #include <QSignalSpy>
+#include <QTcpServer>
+#include <QTcpSocket>
 #include <QTemporaryDir>
 #include <QTest>
+#include <QUrl>
+#include <QUrlQuery>
 
 using omaseed::app::MoveController;
 using omaseed::core::MoveJob;
@@ -49,6 +55,55 @@ QJsonObject library()
          torrent(QStringLiteral("Big Film"), QStringLiteral("/srv/media/films"), 900)},
     };
 }
+
+/// A qBittorrent that only answers app/getDirectoryContent, from `folders` (a folder's entries
+/// as full paths); any other folder is "Directory does not exist". `unsupported` answers as a
+/// qBittorrent without the endpoint.
+class ListingServer : public QTcpServer
+{
+public:
+    QHash<QString, QStringList> folders;
+    bool unsupported = false;
+    QStringList asked;
+
+    ListingServer()
+    {
+        listen(QHostAddress::LocalHost);
+        connect(this, &QTcpServer::newConnection, this, [this]() {
+            while (QTcpSocket *socket = nextPendingConnection()) {
+                connect(socket, &QTcpSocket::readyRead, socket, [this, socket]() {
+                    const QByteArray request = socket->readAll();
+                    const QByteArray target = request.split(' ').value(1);
+                    const QUrl url(QString::fromUtf8(target));
+                    const QString folder = QUrlQuery(url).queryItemValue(QStringLiteral("dirPath"),
+                                                                         QUrl::FullyDecoded);
+                    asked << folder;
+                    QByteArray status = "200 OK";
+                    QByteArray body;
+                    if (unsupported) {
+                        status = "404 Not Found";
+                        body = "Endpoint does not exist";
+                    } else if (folders.contains(folder)) {
+                        QJsonArray entries;
+                        for (const QString &entry : folders.value(folder))
+                            entries << entry;
+                        body = QJsonDocument(entries).toJson(QJsonDocument::Compact);
+                    } else {
+                        status = "404 Not Found";
+                        body = "Directory does not exist";
+                    }
+                    socket->write(
+                        "HTTP/1.1 " + status + "\r\nContent-Type: text/plain\r\nContent-Length: " +
+                        QByteArray::number(body.size()) + "\r\nConnection: close\r\n\r\n" + body);
+                    socket->disconnectFromHost();
+                });
+                connect(socket, &QTcpSocket::disconnected, socket, &QObject::deleteLater);
+            }
+        });
+    }
+
+    QUrl url() const { return QUrl(QStringLiteral("http://127.0.0.1:%1").arg(serverPort())); }
+};
 
 QStringList checkTexts(const QVariantMap &plan)
 {
@@ -180,6 +235,105 @@ private slots:
         const QVariantMap loose = plan.value(QStringLiteral("loose")).toMap();
         QCOMPARE(loose.value(QStringLiteral("state")).toString(), QStringLiteral("cantSee"));
         QCOMPARE(plan.value(QStringLiteral("carryOffered")).toBool(), false);
+    }
+
+    // #102, C16 L13: a server whose disks this machine can't see answers for them.
+    void aRemoteServerListsWhatIsThere()
+    {
+        ListingServer server;
+        server.folders.insert(QStringLiteral("/volume2/games"),
+                              {QStringLiteral("/volume2/games/Open Arena"),
+                               QStringLiteral("/volume2/games/notes.txt")});
+        server.folders.insert(QStringLiteral("/mnt/archive/games"),
+                              {QStringLiteral("/mnt/archive/games/Open Arena"),
+                               QStringLiteral("/mnt/archive/games/Demo Disc"),
+                               QStringLiteral("/mnt/archive/games/handheld"),
+                               QStringLiteral("/mnt/archive/games/manual.pdf"),
+                               QStringLiteral("/mnt/archive/games/Thumbs.db")});
+        server.folders.insert(QStringLiteral("/mnt/archive/games/handheld"),
+                              {QStringLiteral("/mnt/archive/games/handheld/Homebrew Pack"),
+                               QStringLiteral("/mnt/archive/games/handheld/config")});
+        omaseed::core::QbtClient client;
+        client.setBaseUrl(server.url());
+        m_engine->setClient(&client); // a new client empties the library: fill it again
+        m_engine->torrents()->applyFullUpdate(library());
+        m_move->setServer(QStringLiteral("home"));
+        QTRY_COMPARE(m_move->folders()->total(), 5);
+
+        const QString games = QStringLiteral("/mnt/archive/games");
+        const QString target = QStringLiteral("/volume2/games");
+        QVariantMap plan = m_move->plan(games, target, false);
+        // Asked, and nothing goes before the answer.
+        QCOMPARE(plan.value(QStringLiteral("canMove")).toBool(), false);
+        QVERIFY(checkTexts(plan).contains(
+            QStringLiteral("Asking home whether files with these torrents' names are already "
+                           "where they go…")));
+        QVERIFY(!m_move->start(games, target, false));
+        QCOMPARE(plan.value(QStringLiteral("loose")).toMap().value(QStringLiteral("state")),
+                 QVariant(QStringLiteral("reading")));
+
+        QTRY_VERIFY(m_move->plan(games, target, false).value(QStringLiteral("canMove")).toBool());
+        plan = m_move->plan(games, target, false);
+        const QStringList texts = checkTexts(plan);
+        QVERIFY(texts.constFirst().startsWith(QStringLiteral("omaseed can't see home's disks.")));
+        QVERIFY(texts.contains(QStringLiteral(
+            "1 left out: /volume2/games already has a file with their file's name. qBittorrent "
+            "would keep that file and report the move as done.")));
+        QCOMPARE(plan.value(QStringLiteral("moveHashes")).toStringList(),
+                 QStringList({QStringLiteral("c3"), QStringLiteral("b2")}));
+        QVERIFY(server.asked.contains(QStringLiteral("/volume2/games/handheld")));
+
+        const QVariantMap loose = plan.value(QStringLiteral("loose")).toMap();
+        QCOMPARE(loose.value(QStringLiteral("state")).toString(), QStringLiteral("onServer"));
+        QCOMPARE(loose.value(QStringLiteral("count")).toInt(), 2);
+        QCOMPARE(plan.value(QStringLiteral("carryOffered")).toBool(), false);
+        const QVariantList rows = m_move->looseRows(games);
+        QCOMPARE(rows.size(), 2);
+        QCOMPARE(rows.at(0).toMap().value(QStringLiteral("path")).toString(),
+                 QStringLiteral("games/manual.pdf"));
+        QCOMPARE(rows.at(1).toMap().value(QStringLiteral("path")).toString(),
+                 QStringLiteral("games/handheld/config"));
+        QCOMPARE(rows.at(1).toMap().value(QStringLiteral("what")).toString(),
+                 QStringLiteral("stays: omaseed can't see home's disks"));
+
+        // Without a clash the server's check says so, once.
+        plan = m_move->plan(games, QStringLiteral("/volume2/new-games"), false);
+        QTRY_VERIFY(m_move->plan(games, QStringLiteral("/volume2/new-games"), false)
+                        .value(QStringLiteral("canMove"))
+                        .toBool());
+        QVERIFY(checkTexts(m_move->plan(games, QStringLiteral("/volume2/new-games"), false))
+                    .contains(QStringLiteral(
+                        "Nothing already there. home listed where the torrents go.")));
+        m_engine->setClient(nullptr);
+    }
+
+    void aServerThatCantListSaysSo()
+    {
+        ListingServer server;
+        server.unsupported = true;
+        omaseed::core::QbtClient client;
+        client.setBaseUrl(server.url());
+        m_engine->setClient(&client); // a new client empties the library: fill it again
+        m_engine->torrents()->applyFullUpdate(library());
+        m_move->setServer(QStringLiteral("home"));
+        QTRY_COMPARE(m_move->folders()->total(), 5);
+
+        const QString games = QStringLiteral("/mnt/archive/games");
+        const QString target = QStringLiteral("/volume2/games");
+        m_move->plan(games, target, false);
+        QTRY_VERIFY(m_move->plan(games, target, false).value(QStringLiteral("canMove")).toBool());
+        const QVariantMap plan = m_move->plan(games, target, false);
+        QVERIFY(checkTexts(plan).contains(
+            QStringLiteral("Files already there: can't tell. home's qBittorrent can't list its "
+                           "folders to omaseed.")));
+        QCOMPARE(plan.value(QStringLiteral("loose")).toMap().value(QStringLiteral("state")),
+                 QVariant(QStringLiteral("cantSee")));
+        // Asked once; the server's answer stands for the rest of the session.
+        const int asked = int(server.asked.size());
+        m_move->plan(games, QStringLiteral("/volume2/other"), false);
+        QTest::qWait(200);
+        QCOMPARE(int(server.asked.size()), asked);
+        m_engine->setClient(nullptr);
     }
 
     void aJobFromStartToSummary()
