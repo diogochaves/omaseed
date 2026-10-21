@@ -25,6 +25,14 @@ TestCase {
         }
     }
 
+    Component {
+        id: openerClickedSpy
+
+        SignalSpy {
+            signalName: "openerClicked"
+        }
+    }
+
     // A numeric field in a pane taller than its view: what the wheel scrolls when the field
     // does not take it.
     Component {
@@ -436,5 +444,72 @@ TestCase {
         field.accessibleName = "download limit";
         compare(input.Accessible.name, "download limit");
         compare(input.Accessible.description, "∞");
+    }
+
+    // C18 D5 (board 45): no opener unless asked; with one, "places ▾" before the trailing, in
+    // the accent, flipping to ▴ while expanded, and the text stops before it.
+    function test_an_opener_sits_before_the_trailing_and_flips_its_arrow() {
+        const plain = createTemporaryObject(fieldComponent, testCase, {
+                                                "width": 300
+                                            });
+        verify(!findChild(plain, "fieldOpenerText").visible, "an opener nobody asked for");
+        const field = createTemporaryObject(fieldComponent, testCase, {
+                                                "width": 360,
+                                                "opener": "places",
+                                                "trailing": "browse",
+                                                "trailingClickable": true
+                                            });
+        const opener = findChild(field, "fieldOpenerText");
+        const trailing = findChild(field, "fieldTrailingText");
+        verify(opener.visible);
+        compare(opener.text, "places " + Glyphs.chevronDown);
+        compare(opener.color, Theme.accent);
+        verify(opener.x + opener.width <= trailing.x, "the opener is not before browse");
+        const input = findChild(field, "fieldInput");
+        verify(input.x + input.width <= opener.x, "the text runs under the opener");
+        field.openerExpanded = true;
+        compare(opener.text, "places " + Glyphs.chevronUp);
+    }
+
+    // A click and a screen reader's press both open it; a disabled field's opener takes none.
+    function test_the_opener_takes_a_click_and_an_accessible_press() {
+        const field = createTemporaryObject(fieldComponent, testCase, {
+                                                "width": 360,
+                                                "opener": "places"
+                                            });
+        const clicked = createTemporaryObject(openerClickedSpy, testCase, {
+                                                  "target": field
+                                              });
+        const button = findChild(field, "fieldOpenerButton");
+        mouseClick(button);
+        compare(clicked.count, 1);
+        button.Accessible.pressAction();
+        compare(clicked.count, 2);
+        field.enabled = false;
+        button.Accessible.pressAction();
+        compare(clicked.count, 2, "a disabled field's opener ran");
+    }
+
+    // For a screen reader: with an opener the field is a combobox, collapsed or expanded, and
+    // the opener a button with its description; without one, an editable text as before.
+    function test_with_an_opener_the_field_reads_as_a_combobox() {
+        const plain = createTemporaryObject(fieldComponent, testCase);
+        compare(findChild(plain, "fieldInput").Accessible.role, Accessible.EditableText);
+        verify(findChild(plain, "fieldOpenerButton").Accessible.ignored);
+        const field = createTemporaryObject(fieldComponent, testCase, {
+                                                "width": 360,
+                                                "opener": "places",
+                                                "openerDescription": "9 places"
+                                            });
+        const input = findChild(field, "fieldInput");
+        const button = findChild(field, "fieldOpenerButton");
+        compare(input.Accessible.role, Accessible.ComboBox);
+        compare(button.Accessible.role, Accessible.Button);
+        compare(button.Accessible.name, "places");
+        compare(button.Accessible.description, "9 places");
+        verify(!button.Accessible.expanded);
+        field.openerExpanded = true;
+        verify(button.Accessible.expanded);
+        verify(input.Accessible.expanded);
     }
 }

@@ -94,6 +94,10 @@ Rectangle {
 
                     readonly property bool isCurrent: entry.index === root.current
 
+                    // C18 D5: each option with its group and count ("library, 60").
+                    Accessible.description: [entry.modelData.section ?? "",
+                                             entry.modelData.detail ?? ""]
+                                            .filter(part => String(part).length > 0).join(", ")
                     Accessible.name: entry.modelData.text
                     Accessible.role: Accessible.ListItem
                     Accessible.selected: rowBox.isCurrent

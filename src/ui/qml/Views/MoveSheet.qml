@@ -374,6 +374,13 @@ Sheet {
                                                                      "key": Qt.Key_Down,
                                                                      "modifiers": 0
                                                                  }]
+            // C18 D5 (board 45): "places ▾" opens the same list with the mouse; a second
+            // click closes it. For a screen reader the field is a combobox named "new path".
+            accessibleName: root.selection ? qsTr("new path") : ""
+            opener: root.selection ? qsTr("places") : ""
+            openerDescription: root.selection && !root.placesOpen
+                               ? qsTr("%n places", "", root._placeRows().length) : ""
+            openerExpanded: root.placesOpen
             trailing: qsTr("browse")
             trailingClickable: true
             trailingKey: "ctrl+o"
@@ -411,6 +418,13 @@ Sheet {
                 if (root._pick.path !== undefined && root._pick.path !== pathField.text)
                     root._pick = ({});
                 if (root.selection && pathField.editing)
+                    root._openPlaces();
+            }
+            onOpenerClicked: {
+                pathField.focusInput();
+                if (root.placesOpen)
+                    root.placesOpen = false;
+                else
                     root._openPlaces();
             }
             onTrailingClicked: root.browse()

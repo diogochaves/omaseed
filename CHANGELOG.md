@@ -9,6 +9,10 @@ before it will tag a release.
 
 ### Added
 
+- The Move sheet's field has "places ▾" before browse: a click opens the list of places
+  (recent destinations, the library's folders, the categories' folders), a second closes it
+  (board 45 D5, #132). ↓ and typing still open it. A screen reader hears the field as a
+  combobox and each place with its group and count.
 - Set location is a move like a folder's (board 43): checked before anything is sent (room on
   each drive, writing, files already where a torrent goes, automatic management), sent smallest
   first, and followed in qBittorrent's log until the last one lands, not for 30 s. A move that
