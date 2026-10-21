@@ -18,6 +18,7 @@
 #                                             # step says what it will do and waits for enter
 #   OMASEED_MOVE_WALK_FROM=selection …        # from the selections on (no folder moves first)
 #   OMASEED_MOVE_WALK_FROM=sheet …            # from the places, names and partial pack on
+#   OMASEED_MOVE_WALK_FROM=history …          # from move back after the summary (C18) on
 #   OMASEED_MOVE_WALK_FROM=music …            # from the unwritable and full steps on
 #   OMASEED_MOVE_WALK_FROM=remote …           # only the server omaseed can't see
 #   OMASEED_MOVE_WALK_KEEP=1 …                # a failed run leaves its box up
@@ -155,7 +156,9 @@ expect_tree() {
     fail "$what (after ${limit}s no $text in the window's tree)"
 }
 
-# press NAME: click the middle of the node (a button first) whose accessible name is NAME.
+# press NAME [top]: click the middle of the node (a button first) whose accessible name is NAME;
+# the leftmost such node, or with `top` the topmost of any role (the band's link, under the top
+# bar, when the details pane offers the same action as a button further down).
 press() {
     local where
     # The job's desktop notice (a pause, the end) sits over the band's right end, and a click
@@ -171,14 +174,16 @@ press() {
     where="$(omabox tree -b "$BOX" --window omaseed --find "$1" 2>/dev/null | python3 -c '
 import re, sys
 name = sys.argv[1]
+top = sys.argv[2] == "top"
 found = []
 for line in sys.stdin:
     m = re.search(r"(\w[\w ]*) \"" + re.escape(name) + r"\"[^@>]*@(-?\d+),(-?\d+) (\d+)x(\d+)", line)
     if m:
         x, y, w, h = map(int, m.groups()[1:])
-        found.append((m.group(1).strip() != "button", x + w // 2, y + h // 2))
+        # The band has links, not buttons: with top only the place counts.
+        found.append((not top and m.group(1).strip() != "button", y if top else x, x + w // 2, y + h // 2))
 if found:
-    print(*sorted(found)[0][1:])' "$1")"
+    print(*sorted(found)[0][2:])' "$1" "${2:-}")"
     [ -n "$where" ] || fail "no button \"$1\" in the window"
     # shellcheck disable=SC2086 # two numbers
     omabox click -b "$BOX" --window omaseed --wait $where >/dev/null 2>&1 || true
@@ -419,7 +424,7 @@ expect_count "music holds $MUSIC" count_under "$LIB/music" -eq "$MUSIC"
 expect_text "the rail lists the folders" "handheld" 30
 shot "The library: the rail's folders group lists library, games with handheld under it, films and music."
 
-# OMASEED_MOVE_WALK_FROM skips what comes before: selection, sheet, music or remote.
+# OMASEED_MOVE_WALK_FROM skips what comes before: selection, sheet, history, music or remote.
 FROM="${OMASEED_MOVE_WALK_FROM:-games}"
 if [ "$FROM" = games ]; then
 
@@ -585,7 +590,8 @@ expect_text "the films' summary is still there" "films moved" 5
 shot "The films summary, still there after the queued move landed under it; the footer note." summary
 
 step "Move back" "The films summary's move back…: the sheet sends each of the $nfilms back to $films; move $nfilms back. Arcade Set 003, moved after it, stays."
-press "move back…"
+# The band's, not the details pane's: that one is the cursor torrent's own last move (C18 D7).
+press "move back…" top
 expect_text "the sheet moves the films back" "move $nfilms back" 30
 shot "Move back: each to where it was." sheet
 press "move $nfilms back"
@@ -777,6 +783,82 @@ table_on "Big Collection 1"
 keys Escape
 fi
 
+# ---- move back after the summary closes (board 45 D7–D8, DECISIONS C18, #133) ----------------
+
+if [ "$FROM" = games ] || [ "$FROM" = selection ] || [ "$FROM" = sheet ] || [ "$FROM" = history ]; then
+SEL="$BOX_HOME/sel"
+# Each film's own folder: on a full run the places step has left one of them elsewhere.
+declare -A hist_from
+for n in 020 021 022 023; do
+    hist_from[$n]="$(save_of "Short Film $n")"
+done
+
+step "Four films moved, then three of them again" "space on Short Film 020–023, m, ~/sel/hist, move 4 torrents: a quick move, so no summary is left to close; move back now lives in the history. Then 020–022 again, to ~/sel/hist2. The log (~) has a line for each move, with move back…."
+for n in 020 021 022 023; do
+    table_on "Short Film $n"
+    keys space
+done
+keys m
+expect_text "the sheet is for the four" "Move 4 torrents" 10
+keys ctrl+a -t "$SEL/hist"
+expect_text "one green line" "access are fine" 20
+press "move 4 torrents"
+for n in 020 021 022 023; do
+    expect_at "Short Film $n is at ~/sel/hist" "Short Film $n" "$SEL/hist"
+done
+table_on "Short Film 023"
+keys Escape
+for n in 020 021 022; do
+    table_on "Short Film $n"
+    keys space
+done
+keys m
+expect_text "the sheet is for the three" "Move 3 torrents" 10
+keys ctrl+a -t "$SEL/hist2"
+expect_text "one green line" "access are fine" 20
+press "move 3 torrents"
+for n in 020 021 022; do
+    expect_at "Short Film $n is at ~/sel/hist2" "Short Film $n" "$SEL/hist2"
+done
+table_on "Short Film 022"
+keys Escape
+keys asciitilde
+expect_text "the log has the first move's line" "omaseed moved 4 torrents to $SEL/hist" 20
+expect_text "and the second's" "omaseed moved 3 torrents to $SEL/hist2" 5
+shot "The log: a line for each move, with move back… at its end." log
+keys asciitilde
+
+step "The first move back, from a torrent's details" "Short Film 023's General tab shows its last move (B1). move back…: the sheet for the four; 3 were moved again since, by the move to ~/sel/hist2, with move that one back first; the button reads move 1 back · 3 stay. move that one back first opens the second move's sheet: move 3 back, and they land on ~/sel/hist. Short Film 023's move back… again: move 4 back, whole again; they all land where they were."
+table_on "Short Film 023"
+find_text "Moved today" || keys i
+expect_text "General shows its last move" "Moved today" 20
+expect_text "from where it was" "from ${hist_from[023]} to $SEL/hist" 5
+shot "Short Film 023's details: its last move, move back…, this one only, show the move." details
+press "move back…"
+expect_text "the three moved since are named" "3 were moved again since, by the move to $SEL/hist2" 30
+expect_text "the button counts what stays" "move 1 back · 3 stay" 5
+shot "The first move's way back: 1 goes, 3 stay, named with the move that took them; move that one back first." sheet
+press "move that one back first"
+expect_text "the second move's sheet" "move 3 back" 30
+press "move 3 back"
+for n in 020 021 022; do
+    expect_at "Short Film $n is back at ~/sel/hist" "Short Film $n" "$SEL/hist"
+done
+table_on "Short Film 023"
+expect_text "023's last move is still offered" "Moved today" 20
+press "move back…"
+expect_text "the first move is whole again" "move 4 back" 30
+no_text "nothing stays now" "were moved again since"
+shot "The first move's way back, whole again: move 4 back." whole
+press "move 4 back"
+for n in 020 021 022 023; do
+    expect_at "Short Film $n is back where it was" "Short Film $n" "${hist_from[$n]}"
+done
+expect_count "none left on ~/sel/hist" count_at "$SEL/hist" -eq 0 5
+table_on "Short Film 023"
+keys Escape
+fi
+
 # ---- music: a folder qBittorrent can't write, then a full one ------------------------------
 
 if [ "$FROM" != remote ]; then
@@ -810,6 +892,8 @@ fi
 if [ -z "$(bad_states)" ]; then pass "no torrent in error or missing files"; else fail "in error: $(bad_states)"; fi
 shot "The paused band: the drive is full, the move is paused." full
 
+# The rail's fast/games exists only once the games step moved it there.
+if [ "$FROM" = games ]; then
 step "A folder picked in the rail" "A click on fast/games in the rail's folders group: the table narrows to it and the folder line above it keeps \"move this folder…\" on its one line, the text cut short instead."
 where="$(omabox tree -b "$BOX" --window omaseed --find "fast/games" 2>/dev/null | python3 -c '
 import re, sys
@@ -824,6 +908,7 @@ for line in sys.stdin:
 omabox click -b "$BOX" --window omaseed --wait $where >/dev/null 2>&1 || true
 expect_text "the folder line offers to move it" "move this folder…" 10
 shot "The folder line: one line, its text cut short, \"shift+m move this folder…\" whole at its end."
+fi
 fi
 
 # ---- a server whose disks omaseed can't see (board 43 L13, #102) ---------------------------
