@@ -23,10 +23,10 @@
 -- QGuiApplication::setDesktopFileName() in src/ui/main.cpp).
 local class = "io.github.diogochaves.omaseed"
 
--- Opt out of Omarchy's default window opacity.
+-- Opt out of Omarchy 4.0.x's default window opacity.
 --
--- Omarchy tags every window `+default-opacity` and then applies `opacity 0.985 0.96` to
--- whatever still carries that tag once every app-specific file has had a chance to remove
+-- Omarchy 4.0.x tags every window `+default-opacity` and then applies `opacity 0.985 0.96`
+-- to whatever still carries that tag once every app-specific file has had a chance to remove
 -- it (see /usr/share/omarchy/default/hypr/windows.lua, loaded before this file). omaseed
 -- paints its own translucent "ground" panel per the approved spec (docs/05-ui-spec-v2.html:
 -- the base surface reads as ~90% of the theme background colour over the wallpaper, via
@@ -35,6 +35,12 @@ local class = "io.github.diogochaves.omaseed"
 -- not 90%) and any fully-opaque chrome (menus, the tray icon, notifications) would also pick
 -- up an unwanted 1.5-4% translucency. omaseed is the only source of its own translucency:
 -- drop the tag and force the window itself to full opacity.
+--
+-- Omarchy 4.5 has no `default-opacity` tag: apps are opaque unless they opt in
+-- (`o.transparent_window`), so there the tag removal does nothing and `opacity "1 1"` only
+-- restates the default. It does not get in the way of 4.5's Super+Backspace, which opts a
+-- window in with the `transparent` tag: in a 4.5.0rc1 box with this file loaded, the toggle
+-- still takes omaseed to 0.985 / 0.96 and back (#111). The rule stays for 4.0.x.
 o.window(class, { tag = "-default-opacity", opacity = "1 1" })
 
 -- First run needs no rule: its window fixes its own size (min = max, 875 x 600), which
