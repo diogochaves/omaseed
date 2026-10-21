@@ -186,6 +186,9 @@ before it will tag a release.
 
 ### Fixed
 
+- The bar widget on Omarchy 4.5: the mark is as big as the bar's other icons (12 px at the
+  default size, was 13), and the speeds' digits sit on the same line as the bar's other labels
+  (they could sit 1 px high, in Liberation Mono for one) (#111). On 4.0.x nothing changes.
 - Set location's refusals name the folder, not the sign-in: "qBittorrent can't create
   /mnt/x" (check that the drive is mounted) or "qBittorrent can't write to /mnt/x". A 403 that
   qBittorrent sends for a folder it can't write no longer makes omaseed sign in again or mark

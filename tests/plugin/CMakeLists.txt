@@ -1,6 +1,6 @@
-# The companion bar widget's Format.js, Status.js (#16) and IpcOwner.js, and its rows on a
-# stand-in for the shell's kit (kit/, #80). The rest of its QML needs the Omarchy shell and is
-# checked in an omabox instead.
+# The companion bar widget's Format.js, Status.js (#16), IpcOwner.js and SpeedField (#111),
+# and its rows on a stand-in for the shell's kit (kit/, #80). The rest of its QML needs the
+# Omarchy shell and is checked in an omabox instead.
 omaseed_add_test(tst_plugin
     SOURCES tst_plugin.cpp
     LIBRARIES Qt6::Qml Qt6::Quick Qt6::QuickTest

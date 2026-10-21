@@ -175,10 +175,17 @@ BarWidget {
     return Math.ceil(w)
   }
   readonly property int arrowSlot: Math.ceil(Math.max(arrowMetrics.advanceWidth("↓"), arrowMetrics.advanceWidth("↑")))
-  // The shell's own bar icon canvas (16 at the default size), with an icon font's margin: a
-  // glyph inks about 20 of its 24 units, the mark all of them, so the mark takes 20/24 of the
-  // canvas and inks as wide as the glyphs beside it (13-14 px where the canvas is 17).
-  readonly property int markSize: Math.round(Style.bar.iconCanvas * 20 / 24)
+  // As big as the glyphs beside it. Omarchy 4.5 paints every bar icon at Style.bar.iconSize
+  // (12 at the default size) inside its canvas, and the mark inks all of its box, so it takes
+  // that (#111). 4.0.x has no such token: there it is the shell's icon canvas (16 at the
+  // default size) less an icon font's margin, as a glyph inks about 20 of its 24 units (13-14
+  // px where the canvas is 17).
+  readonly property int markSize: Style.bar.iconSize !== undefined ? Style.bar.iconSize
+    : Math.round(Style.bar.iconCanvas * 20 / 24)
+  // 4.5's bar labels centre their figures, not their line box (WidgetButton's
+  // `centerFigures`), so the speeds do the same where the kit does; 4.0.x's centre the line.
+  readonly property bool centerFigures: "centerFigures" in button
+  readonly property bool animate: !root.bar || root.bar.foregroundAnimationEnabled
 
   WidgetButton {
     id: button
@@ -239,7 +246,8 @@ BarWidget {
         fontFamily: root.fontFamily
         valueSlot: root.valueSlot
         arrowSlot: root.arrowSlot
-        animate: !root.bar || root.bar.foregroundAnimationEnabled
+        animate: root.animate
+        centerFigures: root.centerFigures
       }
 
       SpeedField {
@@ -251,7 +259,8 @@ BarWidget {
         fontFamily: root.fontFamily
         valueSlot: root.valueSlot
         arrowSlot: root.arrowSlot
-        animate: !root.bar || root.bar.foregroundAnimationEnabled
+        animate: root.animate
+        centerFigures: root.centerFigures
       }
     }
   }

@@ -18,6 +18,12 @@ Item {
   property int valueSlot: 0
   property int arrowSlot: 0
   property bool animate: true
+  // Horizontal only: centre the figures' height, not the line box, which keeps room for
+  // descenders and so sits the digits about 1 px above the bar's middle. Omarchy 4.5's own
+  // labels do this (WidgetButton's `centerFigures`), so the speeds line up with them (#111).
+  property bool centerFigures: false
+  readonly property real figureOffset: centerFigures && !vertical
+    ? Math.round((valueMetrics.descent - valueMetrics.ascent + valueMetrics.tightBoundingRect("0").height) / 2) : 0
 
   // The arrow is placed by its ink, not its advance: a monospace font centres "↓" in a
   // whole cell, which would leave half a cell between the arrow and its number.
@@ -25,6 +31,11 @@ Item {
   readonly property real arrowGap: Style.space(2)
 
   implicitWidth: vertical ? Math.max(valueSlot, arrowSlot) : arrowInk + arrowGap + valueSlot
+
+  FontMetrics {
+    id: valueMetrics
+    font: valueText.font
+  }
 
   TextMetrics {
     id: arrowMetrics
@@ -36,7 +47,7 @@ Item {
   Text {
     id: arrowText
     x: root.vertical ? Math.round((root.width - width) / 2) : -arrowMetrics.tightBoundingRect.x
-    y: root.vertical ? 0 : Math.round((root.height - height) / 2)
+    y: root.vertical ? 0 : Math.round((root.height - height) / 2) + root.figureOffset
     text: root.arrow
     color: root.ink
     opacity: root.value === "" ? 0.45 : 1
@@ -49,7 +60,7 @@ Item {
   Text {
     id: valueText
     x: root.vertical ? Math.round((root.width - width) / 2) : root.arrowInk + root.arrowGap
-    y: root.vertical ? arrowText.implicitHeight : Math.round((root.height - height) / 2)
+    y: root.vertical ? arrowText.implicitHeight : Math.round((root.height - height) / 2) + root.figureOffset
     width: root.vertical ? implicitWidth : root.valueSlot
     horizontalAlignment: root.vertical ? Text.AlignHCenter : Text.AlignLeft
     text: root.value
