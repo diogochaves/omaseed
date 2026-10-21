@@ -1,5 +1,6 @@
 import QtQuick
 import qs.Commons
+import qs.Commons as Commons
 
 // A number over a tracked caption, the app's hero stat in the shell's card wording:
 // "↓ 1.18 MB/s" over "DOWNLOAD", "14.2 GB" over "GIVEN".
@@ -11,7 +12,7 @@ Column {
   property string value: ""
   property color valueColor: foreground
   property string caption: ""
-  property color foreground: Color.foreground
+  property color foreground: Commons.Color.foreground
   property color dim: Qt.darker(foreground, 1.55)
   property string fontFamily: Style.font.family
   property real valueSize: Style.font.heading

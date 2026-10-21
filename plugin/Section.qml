@@ -1,5 +1,6 @@
 import QtQuick
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "Status.js" as Status
 
@@ -13,7 +14,7 @@ Column {
   property string summary: ""
   property bool folded: false
   property bool hasCursor: false
-  property color foreground: Color.foreground
+  property color foreground: Commons.Color.foreground
   property color dim: Qt.darker(foreground, 1.55)
   property string fontFamily: Style.font.family
   default property alias body: bodyColumn.data

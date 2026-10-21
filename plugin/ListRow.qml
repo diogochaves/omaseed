@@ -1,5 +1,6 @@
 import QtQuick
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "Status.js" as Status
 
@@ -14,13 +15,13 @@ CursorSurface {
   property color metaColor: dim
   property string subline: ""
   property string badge: ""
-  property color badgeColor: Color.accent
+  property color badgeColor: Commons.Color.accent
   // "" | "tick" | "check" | "mark"
   property string leading: ""
   property bool ticked: false
   property color leadingColor: foreground
   property real progress: -1
-  property color progressColor: Color.accent
+  property color progressColor: Commons.Color.accent
   property bool readOnly: false
   property color dim: Qt.darker(foreground, 1.55)
   property string fontFamily: Style.font.family

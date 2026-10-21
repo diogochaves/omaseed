@@ -1,5 +1,6 @@
 import QtQuick
 import qs.Commons
+import qs.Commons as Commons
 
 // The last hour of upload (contract §3 Now): 60 one-minute averages the app samples,
 // oldest first, as a line over a faint fill, scaled to the hour's peak.
@@ -7,7 +8,7 @@ Canvas {
   id: root
 
   property var points: []
-  property color color: Color.accent
+  property color color: Commons.Color.accent
 
   onPointsChanged: requestPaint()
   onColorChanged: requestPaint()

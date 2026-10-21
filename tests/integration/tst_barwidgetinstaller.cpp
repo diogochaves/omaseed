@@ -239,6 +239,15 @@ void TestBarWidgetInstaller::inBarWhereTheShellLoadsIt()
     QVERIFY(Installer::isInBar(json));
     writeFile(json, R"({"bar": {"layout": {"left": ["chaves.omaseed"]}}})");
     QVERIFY(Installer::isInBar(json));
+    // Omarchy 4.5's sections (#110): beside the centre, and in the tray drawer.
+    writeFile(json, R"({"bar": {"layout": {"centerAnchor": "chaves.omaseed",
+                        "centerEnd": [{"id": "chaves.omaseed"}]}}})");
+    QVERIFY(Installer::isInBar(json));
+    writeFile(json, R"({"bar": {"layout": {"tray": ["chaves.omaseed"]}}})");
+    QVERIFY(Installer::isInBar(json));
+    writeFile(json, R"({"bar": {"layout": {"centerBegin": [{"id": "omarchy.clock"}],
+                        "tray": [{"id": "omarchy.audio"}]}}})");
+    QVERIFY(!Installer::isInBar(json));
     // Hosted by a container widget (the console's rail): its own list names it, and the
     // plugins[] line is what loads it.
     writeFile(json, R"({"bar": {"layout": {"right": []}},

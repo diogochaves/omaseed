@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "Format.js" as Format
 import "IpcOwner.js" as IpcOwner
@@ -41,14 +42,14 @@ BarWidget {
   readonly property string consoleValue: consoleReading.value
   readonly property bool running: service.running
 
-  readonly property color foreground: bar ? bar.barForeground : Color.foreground
-  readonly property color urgent: bar ? bar.urgent : Color.urgent
+  readonly property color foreground: bar ? bar.barForeground : Commons.Color.foreground
+  readonly property color urgent: bar ? bar.urgent : Commons.Color.urgent
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
   readonly property color offInk: Qt.rgba(foreground.r, foreground.g, foreground.b, 0.3)
 
   // A lit arrow: the theme's blue in and green out, or the accent for both.
-  readonly property color downInk: cfg.markColor === "single" ? Color.accent : service.blue
-  readonly property color upInk: cfg.markColor === "single" ? Color.accent : service.green
+  readonly property color downInk: cfg.markColor === "single" ? Commons.Color.accent : service.blue
+  readonly property color upInk: cfg.markColor === "single" ? Commons.Color.accent : service.green
   // docs/31 W2: a burst holds nothing back, so the speeds keep their usual ink.
   readonly property color speedInk: service.altSlows ? service.yellow : foreground
 

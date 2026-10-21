@@ -1,5 +1,6 @@
 import QtQuick
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "Status.js" as Status
 
@@ -18,7 +19,7 @@ CursorSurface {
   property bool locked: false
   property bool inactive: false
   property color dim: Qt.darker(foreground, 1.55)
-  property color warn: Color.foreground
+  property color warn: Commons.Color.foreground
   property string fontFamily: Style.font.family
 
   signal stepped(int dir)

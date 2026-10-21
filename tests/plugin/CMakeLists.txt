@@ -24,3 +24,12 @@ if(NOT WIN32)
     )
     set_tests_properties(plugin_validate PROPERTIES LABELS "lint" TIMEOUT 60 SKIP_RETURN_CODE 77)
 endif()
+
+# No bare `Color.` in the widget: Qt 6.12 hides the shell's palette behind its own type (#109).
+if(NOT WIN32)
+    add_test(
+        NAME plugin_palette
+        COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/palette.sh" "${PROJECT_SOURCE_DIR}/plugin"
+    )
+    set_tests_properties(plugin_palette PROPERTIES LABELS "lint" TIMEOUT 30)
+endif()

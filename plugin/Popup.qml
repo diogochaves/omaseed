@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import Quickshell
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "Format.js" as Format
 import "Status.js" as Status
@@ -48,9 +49,9 @@ Panel {
   readonly property bool altSlows: altOn && altKind !== "burst"
   readonly property var mark: service ? service.markState : Status.markState(null, 0)
 
-  readonly property color foreground: bar ? bar.foreground : Color.foreground
-  readonly property color urgent: bar ? bar.urgent : Color.urgent
-  readonly property color accent: Color.accent
+  readonly property color foreground: bar ? bar.foreground : Commons.Color.foreground
+  readonly property color urgent: bar ? bar.urgent : Commons.Color.urgent
+  readonly property color accent: Commons.Color.accent
   readonly property color dim: Qt.darker(foreground, 1.55)
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
   readonly property color blue: service ? service.blue : accent
