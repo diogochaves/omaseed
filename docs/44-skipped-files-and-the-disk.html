@@ -1,0 +1,721 @@
+<title>Skipped files and the disk</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap">
+<style>
+/* ------------------------------------------------------------------
+   docs/44: skipped files and the disk, a proposal (2026-10-21).
+   Findings #115, #116, #117 folded in; D10 ruled. Board chrome and the window kit
+   are board 42's and 43's, unchanged: one dark look, JetBrains Mono,
+   mocks at base 14 in Theme roles, drawn against today's window (v2
+   and the C rulings to C16). File names in the mocks are made up;
+   the sizes are the real case of 2026-10-21.
+   ------------------------------------------------------------------ */
+:root {
+  --accent:#5492f8; --bg:#11111b; --bg-dark:#0d0d14;
+  --fg:#b9c5ef; --fg-dark:#8b94b3; --fg-bright:#cbd4f3;
+  --green:#7dd676; --red:#ee5681; --yellow:#f6d58c;
+  --fill-normal: color-mix(in srgb, var(--fg) 4%, transparent);
+  --hairline: color-mix(in srgb, var(--fg) 12%, transparent);
+  --mono: "JetBrains Mono", "JetBrainsMono Nerd Font", ui-monospace, monospace;
+  color-scheme: dark;
+}
+* { box-sizing:border-box; }
+[hidden] { display:none !important; }
+body { margin:0; background:var(--bg-dark); color:var(--fg); font:400 13px/1.6 var(--mono); -webkit-font-smoothing:antialiased; }
+body::before { content:""; position:fixed; inset:0 0 auto; height:env(safe-area-inset-top, 0px); z-index:30; background:var(--bg-dark); }
+main { max-width:1320px; margin:0 auto; padding-block:32px 72px; padding-left:max(16px, env(safe-area-inset-left, 0px)); padding-right:max(16px, env(safe-area-inset-right, 0px)); display:grid; gap:32px; }
+h1,h2,h3 { margin:0; font-weight:600; color:var(--fg-bright); text-wrap:balance; }
+h1 { font-size:26px; } h2 { font-size:17px; } h3 { font-size:13px; }
+p, li { max-width:84ch; }
+p { margin:0; }
+ul, ol { margin:0; padding-left:20px; display:grid; gap:4px; }
+code { color:var(--fg-bright); background:var(--fill-normal); padding:0 4px; overflow-wrap:anywhere; }
+b { color:var(--fg-bright); font-weight:600; }
+a { color:var(--accent); }
+blockquote { margin:0; border-left:2px solid var(--yellow); padding:8px 14px; background:var(--fill-normal); max-width:96ch; color:var(--fg-bright); }
+.eyebrow { font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--fg-dark); }
+.dim { color:var(--fg-dark); }
+.lead { font-size:14px; color:var(--fg); max-width:86ch; }
+section { display:grid; gap:14px; border-top:1px solid var(--hairline); padding-top:22px; min-width:0; }
+.sec-head { display:grid; gap:4px; }
+figure { margin:0; display:grid; gap:6px; align-content:start; min-width:0; }
+figcaption { font-size:11px; color:var(--fg-dark); max-width:96ch; }
+figcaption b { color:var(--fg); font-weight:500; }
+.scroll { overflow-x:auto; }
+.cols { display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:20px; }
+.cols > * { min-width:0; }
+table.t { border-collapse:collapse; width:100%; font-size:12px; }
+.t th, .t td { text-align:left; padding:6px 10px; border-bottom:1px solid var(--hairline); vertical-align:top; }
+.t th { font-weight:500; color:var(--fg-dark); font-size:10px; letter-spacing:.1em; text-transform:uppercase; white-space:nowrap; }
+.t td:first-child { color:var(--fg-bright); }
+.t td.nw { white-space:nowrap; }
+.t .y { color:var(--green); } .t .n { color:var(--red); } .t .m { color:var(--yellow); }
+.themes { display:flex; flex-wrap:wrap; gap:6px; align-items:center; font-size:12px; color:var(--fg-dark); position:sticky; top:env(safe-area-inset-top, 0px); background:var(--bg-dark); padding-block:8px; z-index:20; border-bottom:1px solid var(--hairline); }
+.themes button { font:inherit; font-size:12px; color:var(--fg); background:transparent; border:1px solid var(--hairline); padding:2px 10px; cursor:pointer; }
+.themes button[aria-pressed="true"] { background:color-mix(in srgb, var(--fg) 18%, transparent); color:var(--fg-bright); border-color:transparent; }
+button:focus-visible, input:focus-visible, textarea:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.shot { border:1px solid var(--hairline); display:block; max-width:100%; height:auto; }
+.note { border-left:2px solid var(--accent); padding:6px 12px; background:var(--fill-normal); font-size:12px; max-width:96ch; }
+.note.warn { border-color:var(--yellow); }
+.note.bad { border-color:var(--red); }
+.broken { display:grid; gap:6px; padding-left:22px; margin:0; }
+.broken li::marker { color:var(--red); }
+.facts li::marker { color:var(--accent); }
+.verdict { display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:6px 24px; font-size:12px; }
+.verdict > div { min-width:0; }
+.verdict .pro b { color:var(--green); font-weight:500; }
+.verdict .con b { color:var(--red); font-weight:500; }
+.optname { display:flex; gap:10px; align-items:baseline; flex-wrap:wrap; }
+.optname .tag { font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--green); border:1px solid color-mix(in srgb, var(--green) 40%, transparent); padding:0 6px; }
+.optname .tag.no { color:var(--fg-dark); border-color:var(--hairline); }
+.anat { display:grid; grid-template-columns:auto 1fr; gap:4px 16px; font-size:12px; }
+.anat dt { color:var(--fg-bright); white-space:nowrap; }
+.anat dd { margin:0; color:var(--fg); }
+.steps { counter-reset:s; list-style:none; padding:0; display:grid; gap:8px; }
+.steps li { counter-increment:s; display:grid; grid-template-columns:28px 1fr; gap:8px; }
+.steps li::before { content:counter(s); color:var(--accent); font-weight:600; }
+
+/* ---------- the stage: Theme roles only, base 14 ---------- */
+.stage {
+  --t-fg:#c4c7cc; --t-bg:#121316; --t-accent:#efdf3c; --t-red:#ff4f5e; --t-yellow:#f2a33a;
+  --t-green:#7fd08a; --t-blue:#6f9cf0; --t-magenta:#c88df0; --t-cyan:#45c6dc;
+  --t-bright: color-mix(in srgb, var(--t-fg) 100%, white 12%);
+  --t-hair: color-mix(in srgb, var(--t-fg) 12%, transparent);
+  --t-rule: color-mix(in srgb, var(--t-fg) 5%, transparent);
+  --t-dim: color-mix(in srgb, var(--t-fg) 72%, transparent);
+  --t-faint: color-mix(in srgb, var(--t-fg) 55%, transparent);
+  --f4: color-mix(in srgb, var(--t-fg) 4%, transparent);
+  --f8: color-mix(in srgb, var(--t-fg) 8%, transparent);
+  --f18: color-mix(in srgb, var(--t-fg) 18%, transparent);
+  --cap:11.7px; --body:14px; --small:12.8px; --sub:15.2px; --head:18.7px;
+  color:var(--t-fg); font-family:var(--mono); font-size:var(--body); line-height:1.4;
+  background:color-mix(in srgb, var(--t-bg) 70%, black); border:1px solid var(--hairline);
+  padding:22px; display:flex; flex-wrap:wrap; gap:26px; align-items:start; overflow-x:auto;
+}
+.stage.light { --t-bright: color-mix(in srgb, var(--t-fg) 100%, black 18%); background:color-mix(in srgb, var(--t-bg) 88%, black); }
+.stage .cap { font-size:var(--cap); letter-spacing:.08em; text-transform:uppercase; color:var(--t-dim); }
+.stage figure { flex:none; }
+.stage figcaption { max-width:1180px; }
+
+/* the window, after board 35, at base 14 */
+.win { position:relative; flex:none; display:flex; flex-direction:column; background:var(--t-bg); border:1px solid var(--t-accent); overflow:hidden; }
+.hero { display:flex; align-items:center; gap:18px; padding:11px 16px; border-bottom:1px solid var(--t-hair); white-space:nowrap; flex:none; position:relative; }
+.hero .mark { width:24px; height:24px; border:1px solid var(--t-accent); color:var(--t-accent); display:grid; place-items:center; font-size:12px; flex:none; }
+.hero .name { display:grid; gap:1px; }
+.hero .name b { color:var(--t-bright); font-size:var(--sub); font-weight:600; }
+.srv { font-size:var(--cap); letter-spacing:.08em; text-transform:uppercase; color:var(--t-dim); display:flex; gap:6px; align-items:center; }
+.dot { width:7px; height:7px; border-radius:50%; background:var(--t-green); flex:none; display:inline-block; }
+.hstat { display:grid; line-height:1.15; }
+.hstat .v { color:var(--t-bright); font-size:var(--head); font-weight:500; }
+.hstat .v i { font-style:normal; font-size:var(--body); margin-right:4px; }
+.hstat.d .v i { color:var(--t-blue); } .hstat.u .v i { color:var(--t-green); }
+.views { display:flex; gap:14px; font-size:var(--body); color:var(--t-dim); }
+.views .on { color:var(--t-bright); box-shadow:inset 0 -2px 0 var(--t-accent); padding-bottom:3px; }
+.grow { flex:1; }
+.search { width:200px; border:1px solid var(--t-hair); padding:4px 9px; color:var(--t-faint); font-size:var(--small); display:flex; justify-content:space-between; }
+.ib { width:26px; height:26px; border:1px solid var(--t-hair); display:grid; place-items:center; color:var(--t-dim); font-size:12px; flex:none; }
+.ib.primary { border-color:var(--t-accent); color:var(--t-accent); }
+.acts { display:flex; gap:6px; }
+.body { display:grid; grid-template-columns:210px minmax(0,1fr); flex:1; min-height:0; }
+.col { display:flex; flex-direction:column; min-width:0; }
+.rail { border-right:1px solid var(--t-hair); padding:10px 0 8px; display:flex; flex-direction:column; gap:1px; min-width:0; }
+.rail .cap { padding:8px 14px 3px; }
+.rail .cap:first-child { padding-top:2px; }
+.rr { display:grid; grid-template-columns:16px 1fr auto; gap:8px; align-items:center; padding:3px 14px; color:var(--t-fg); font-size:var(--body); }
+.rr > span:nth-child(2) { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.rr.on { background:var(--f18); color:var(--t-bright); }
+.rr.on .g { color:var(--t-accent); }
+.rr .g { color:var(--t-dim); font-size:12px; text-align:center; }
+.rr .c { color:var(--t-dim); font-size:var(--cap); font-variant-numeric:tabular-nums; }
+.rr .c.acc { color:var(--t-accent); }
+.rr.l1 { padding-left:30px; } .rr.l2 { padding-left:46px; }
+.rr.parent { color:var(--t-faint); font-size:var(--small); grid-template-columns:16px 1fr; }
+.rr.parent .g { color:var(--t-faint); }
+.rr.more { color:var(--t-faint); font-size:var(--cap); grid-template-columns:16px 1fr; }
+.tbl { min-width:0; flex:1; }
+.tbl .th, .tbl .tr { display:grid; gap:12px; padding:6px 14px; white-space:nowrap; }
+.tbl .th { font-size:var(--cap); color:var(--t-faint); border-bottom:1px solid var(--t-hair); padding-block:7px; }
+.tbl .tr { font-size:var(--small); border-bottom:1px solid var(--t-rule); }
+.tbl .tr > span, .tbl .th > span { overflow:hidden; text-overflow:ellipsis; }
+.tbl .tr .s { color:var(--t-green); } .tbl .tr .st { color:var(--t-dim); } .tbl .tr .mv { color:var(--t-yellow); }
+.tbl .tr .bad { color:var(--t-red); } .tbl .tr .ok { color:var(--t-green); } .tbl .tr .wt { color:var(--t-faint); }
+.tbl .r { text-align:right; }
+.tbl .p { color:var(--t-dim); direction:rtl; text-align:left; }
+.tbl .p bdi { direction:ltr; }
+.foot { display:flex; gap:14px; align-items:center; padding:6px 16px; border-top:1px solid var(--t-hair); font-size:var(--cap); color:var(--t-dim); white-space:nowrap; overflow:hidden; flex:none; position:relative; }
+.foot b { color:var(--t-fg); font-weight:500; }
+.foot .k { color:var(--t-bright); }
+.foot .sp { flex:1; }
+/* the scope line: Kit/Banner "info", as ScopeLine (docs/34) */
+.scope { position:relative; background:var(--f4); border-bottom:1px solid var(--t-hair); padding:7px 14px 7px 16px; font-size:var(--small); display:flex; gap:10px; align-items:baseline; white-space:nowrap; overflow:hidden; }
+.scope::before { content:""; position:absolute; left:0; top:0; bottom:0; width:2px; background:var(--t-accent); }
+.scope .g { color:var(--t-accent); }
+.scope b { color:var(--t-bright); font-weight:600; }
+.scope .d { color:var(--t-dim); overflow:hidden; text-overflow:ellipsis; }
+.scope .lk { color:var(--t-accent); margin-left:auto; }
+.scope .key { color:var(--t-dim); }
+/* the notice band (Kit/Notice, docs/35), here in the accent kind for a job */
+.nb { --k:var(--t-accent); position:relative; flex:none; background:var(--f4); border-bottom:1px solid var(--t-hair); padding:9px 16px 10px 18px; display:grid; grid-template-columns:auto minmax(0,1fr) auto; column-gap:10px; row-gap:2px; font-size:var(--small); align-items:baseline; }
+.nb::before { content:""; position:absolute; left:0; top:0; bottom:0; width:2px; background:var(--k); }
+.nb.warn { --k:var(--t-yellow); } .nb.err { --k:var(--t-red); } .nb.ok { --k:var(--t-green); }
+.nb .g { color:var(--k); font-size:var(--body); grid-row:1; grid-column:1; width:1ch; text-align:center; }
+.nb .tt { grid-row:1; grid-column:2; color:var(--t-bright); font-weight:600; font-size:var(--body); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.nb .ac { grid-row:1; grid-column:3; display:flex; gap:14px; white-space:nowrap; justify-self:end; }
+.lk { color:var(--t-accent); }
+.lk.dt { color:var(--t-dim); }
+.nb .bd { grid-column:2 / 4; color:var(--t-fg); }
+.nb .bd .n { color:var(--t-bright); font-variant-numeric:tabular-nums; }
+.nb .bd .x { color:var(--t-red); } .nb .bd .w { color:var(--t-yellow); }
+.nb .pl { position:absolute; left:0; right:0; bottom:-1px; height:2px; background:var(--t-hair); }
+.nb .pl i { position:absolute; left:0; top:0; bottom:0; background:var(--k); }
+.nb .dtl { grid-column:2 / 4; margin-top:6px; background:var(--f4); padding:6px 10px; font-size:var(--cap); color:var(--t-dim); display:grid; gap:2px; }
+.band-only { width:1180px; background:var(--t-bg); border:1px solid var(--t-hair); }
+/* sheets, after board 33/35 */
+.sheet { width:720px; flex:none; background:var(--t-bg); border:1px solid var(--t-accent); padding:14px 16px 10px; display:grid; gap:10px; font-size:var(--small); }
+.sheet .hd { display:grid; grid-template-columns:30px 1fr auto; gap:10px; align-items:start; }
+.sheet .ic { width:30px; height:30px; border:1px solid var(--t-fg); display:grid; place-items:center; color:var(--t-bright); }
+.sheet .ti b { color:var(--t-bright); font-weight:600; font-size:var(--body); display:block; }
+.sheet .ti small { color:var(--t-dim); font-size:var(--small); display:block; }
+.sheet .x { color:var(--t-dim); font-size:var(--cap); }
+.sheet .lb { font-size:var(--cap); letter-spacing:.08em; text-transform:uppercase; color:var(--t-dim); }
+.sheet .fld { border:1px solid var(--t-accent); padding:5px 10px; color:var(--t-bright); white-space:nowrap; overflow:hidden; display:flex; gap:10px; }
+.sheet .fld .sp { flex:1; }
+.sheet .fld .bw { color:var(--t-dim); }
+.sheet .fl { display:grid; gap:4px; }
+.sheet .line { color:var(--t-dim); font-size:var(--cap); }
+.sheet .btns { display:grid; grid-template-columns:1fr 1fr 1.4fr; gap:8px; }
+.sheet .btns span { border:1px solid var(--t-fg); text-align:center; padding:5px 0; color:var(--t-fg); }
+.sheet .btns span.p { border-color:var(--t-accent); color:var(--t-accent); }
+.sheet .btns span.off { border-color:var(--t-hair); color:var(--t-faint); }
+.sheet .ft { display:flex; gap:12px; border-top:1px solid var(--t-hair); padding-top:8px; font-size:var(--cap); color:var(--t-dim); }
+.sheet .ft b { color:var(--t-bright); font-weight:500; }
+.map { display:grid; grid-template-columns:minmax(0,1fr) 18px minmax(0,1fr) auto; gap:2px 10px; font-size:var(--small); background:var(--f4); padding:6px 10px; }
+.map span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.map .a { color:var(--t-dim); text-align:center; }
+.map .c { color:var(--t-dim); text-align:right; font-variant-numeric:tabular-nums; }
+.map .to { color:var(--t-bright); }
+.pf { display:grid; grid-template-columns:16px minmax(0,1fr) auto; gap:3px 10px; align-items:baseline; }
+.pf .g { text-align:center; }
+.pf .g.ok { color:var(--t-green); } .pf .g.w { color:var(--t-yellow); } .pf .g.x { color:var(--t-red); } .pf .g.i { color:var(--t-dim); }
+.pf .t b { color:var(--t-bright); font-weight:500; }
+.pf .t small { display:block; color:var(--t-dim); font-size:var(--cap); }
+.pf .lk { font-size:var(--cap); white-space:nowrap; }
+.lf { display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:2px 14px; font-size:var(--cap); background:var(--f4); padding:6px 10px; color:var(--t-fg); }
+.lf span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.lf .h { color:var(--t-faint); letter-spacing:.08em; text-transform:uppercase; }
+.lf .r { text-align:right; color:var(--t-dim); font-variant-numeric:tabular-nums; }
+.lf .w { color:var(--t-yellow); } .lf .u { color:var(--t-red); } .lf .k { color:var(--t-green); }
+.tick { display:flex; gap:8px; align-items:baseline; }
+.tick i { font-style:normal; width:14px; height:14px; border:1px solid var(--t-accent); display:inline-grid; place-items:center; font-size:10px; color:var(--t-accent); flex:none; transform:translateY(2px); }
+/* a dialog and a desktop notice */
+.dlg { width:520px; flex:none; background:var(--t-bg); border:1px solid var(--t-accent); padding:14px 16px 12px; display:grid; gap:10px; font-size:var(--small); }
+.dlg b { color:var(--t-bright); font-size:var(--body); }
+.dlg .btns { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; }
+.dlg .btns span { border:1px solid var(--t-fg); text-align:center; padding:5px 0; }
+.dlg .btns span.p { border-color:var(--t-accent); color:var(--t-accent); }
+.toast { width:380px; flex:none; background:var(--t-bg); border:2px solid var(--t-fg); padding:10px 14px; display:grid; gap:2px; font-size:var(--small); }
+.toast b { color:var(--t-bright); font-size:var(--body); }
+.toast small { color:var(--t-dim); }
+/* the decision sheet */
+.dec { display:grid; gap:18px; }
+.q { display:grid; gap:8px; border:1px solid var(--hairline); padding:14px; }
+.q fieldset { border:0; margin:0; padding:0; display:grid; gap:6px; min-width:0; }
+.q legend { padding:0; color:var(--fg-bright); font-weight:500; margin-bottom:4px; }
+.q .id { color:var(--accent); font-weight:600; }
+.q .why { font-size:11.5px; color:var(--fg-dark); margin:0 0 4px; max-width:96ch; }
+.q .flag { color:var(--yellow); }
+.opt { display:grid; grid-template-columns:18px 1fr; gap:8px; align-items:start; font-size:12.4px; cursor:pointer; }
+.opt input { margin:3px 0 0; accent-color:var(--accent); }
+.opt .rec { color:var(--green); font-size:10px; letter-spacing:.1em; text-transform:uppercase; margin-left:6px; }
+.out { display:grid; gap:8px; }
+.out textarea { width:100%; min-height:200px; font:inherit; font-size:12.4px; color:var(--fg); background:var(--bg); border:1px solid var(--hairline); padding:10px; resize:vertical; }
+.out button { font:inherit; justify-self:start; color:var(--bg); background:var(--accent); border:0; padding:6px 14px; cursor:pointer; }
+.out .ok { color:var(--green); font-size:12px; }
+@media (max-width: 560px) { .stage { padding:12px; } }
+@media (prefers-reduced-motion: reduce) { * { transition:none !important; } }
+
+/* ---------- board 43's additions, same roles ---------- */
+.places { border:1px solid var(--t-hair); border-top:0; margin-top:-5px; display:grid; font-size:var(--small); }
+.places .h { font-size:var(--cap); letter-spacing:.08em; text-transform:uppercase; color:var(--t-faint); padding:6px 10px 2px; }
+.places .o { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px; padding:3px 10px; color:var(--t-fg); }
+.places .o > span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.places .o .c { color:var(--t-dim); font-size:var(--cap); }
+.places .o.on { background:var(--f18); color:var(--t-bright); }
+.places .o mark { background:none; color:var(--t-accent); }
+.places .b { border-top:1px solid var(--t-hair); padding:5px 10px; color:var(--t-dim); font-size:var(--cap); display:flex; gap:14px; }
+.choice { display:grid; gap:4px; }
+.choice .r { display:grid; grid-template-columns:16px 1fr; gap:8px; padding:5px 10px; border:1px solid transparent; }
+.choice .r.on { background:var(--f8); border-color:var(--t-hair); }
+.choice .r i { font-style:normal; color:var(--t-dim); }
+.choice .r.on i { color:var(--t-accent); }
+.choice .r b { color:var(--t-bright); font-weight:500; display:block; }
+.choice .r small { color:var(--t-dim); font-size:var(--cap); display:block; }
+.warnbox { background:color-mix(in srgb, var(--t-yellow) 8%, transparent); border-left:2px solid var(--t-yellow); padding:6px 10px; display:grid; gap:2px; }
+.warnbox .w { color:var(--t-yellow); }
+.warnbox b { color:var(--t-bright); font-weight:500; }
+.footnote { font-size:var(--cap); color:var(--t-dim); }
+.footnote b { color:var(--t-fg); font-weight:500; }
+.tl { display:grid; grid-template-columns:62px minmax(0,1fr); gap:6px 14px; font-size:var(--small); width:560px; }
+.tl .at { color:var(--t-dim); text-align:right; font-variant-numeric:tabular-nums; }
+.tl .ev b { color:var(--t-bright); font-weight:500; }
+.bytes { position:relative; height:4px; background:var(--t-hair); margin-top:4px; }
+.bytes i { position:absolute; left:0; top:0; bottom:0; background:var(--t-accent); }
+
+/* ---------- board 44's additions, same roles ---------- */
+/* the Files tab, after N1 and docs/27: name, size, on disk (new), progress, priority */
+.files { width:900px; flex:none; background:var(--t-bg); border:1px solid var(--t-accent); display:flex; flex-direction:column; }
+.files .tabs { display:flex; gap:16px; padding:8px 14px 0; border-bottom:1px solid var(--t-hair); font-size:var(--small); color:var(--t-dim); }
+.files .tabs span { padding-bottom:6px; }
+.files .tabs .on { color:var(--t-bright); box-shadow:inset 0 -2px 0 var(--t-accent); }
+.files .th, .files .tr { display:grid; grid-template-columns:20px minmax(0,1fr) 84px 104px 120px 82px; gap:12px; padding:5px 14px; white-space:nowrap; align-items:baseline; }
+.files .th { font-size:var(--cap); color:var(--t-faint); border-bottom:1px solid var(--t-hair); letter-spacing:.04em; }
+.files .tr { font-size:var(--small); border-bottom:1px solid var(--t-rule); }
+.files .tr > span { overflow:hidden; text-overflow:ellipsis; }
+.files .r { text-align:right; font-variant-numeric:tabular-nums; }
+.files .bx { color:var(--t-accent); }
+.files .tr.skip { color:var(--t-faint); }
+.files .tr.skip .bx { color:var(--t-faint); }
+.files .od { color:var(--t-yellow); }
+.files .od.none { color:var(--t-faint); }
+.files .pr { display:flex; gap:6px; align-items:center; }
+.files .pr i { flex:1; height:3px; background:var(--t-hair); position:relative; }
+.files .pr i b { position:absolute; inset:0 auto 0 0; background:var(--t-green); }
+.files .tr.fold { color:var(--t-bright); }
+.files .tr.fold .nm::before { content:"▾ "; color:var(--t-dim); }
+.files .tr.ind .nm { padding-left:16px; }
+.files .tr.cur { background:var(--f18); }
+.files .tr.pend .bx { color:var(--t-accent); }
+.files .tr.pend .nm { color:var(--t-fg); }
+.files .fb { display:flex; gap:14px; align-items:baseline; padding:6px 14px; border-top:1px solid var(--t-hair); font-size:var(--cap); color:var(--t-dim); white-space:nowrap; overflow:hidden; }
+.files .fb b { color:var(--t-fg); font-weight:500; }
+.files .fb .sp { flex:1; }
+.files .nb { border-bottom:0; border-top:1px solid var(--t-hair); }
+.files .nb .pl { top:-1px; bottom:auto; }
+/* a filled check line (board 25's free space line, extended) */
+.chk { display:grid; grid-template-columns:16px minmax(0,1fr); gap:2px 8px; font-size:var(--small); align-items:baseline; }
+.chk .g { text-align:center; }
+.chk .g.ok { color:var(--t-green); } .chk .g.w { color:var(--t-yellow); } .chk .g.x { color:var(--t-red); } .chk .g.i { color:var(--t-dim); }
+.chk small { grid-column:2; color:var(--t-dim); font-size:var(--cap); }
+.chk b { color:var(--t-bright); font-weight:500; }
+.fsb { font-size:var(--cap); letter-spacing:.06em; color:var(--t-dim); border:1px solid var(--t-hair); padding:0 5px; margin-left:6px; }
+/* a settings row, after the qBittorrent settings pane (docs/34) */
+.set { width:720px; flex:none; background:var(--t-bg); border:1px solid var(--t-hair); display:grid; font-size:var(--small); }
+.set .sh { padding:10px 16px 4px; font-size:var(--cap); letter-spacing:.08em; text-transform:uppercase; color:var(--t-dim); }
+.set .sr { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:4px 16px; padding:7px 16px; border-top:1px solid var(--t-rule); align-items:center; }
+.set .sr b { color:var(--t-bright); font-weight:500; }
+.set .sr small { display:block; color:var(--t-dim); font-size:var(--cap); }
+.set .sw { width:30px; height:16px; border:1px solid var(--t-fg); position:relative; }
+.set .sw::after { content:""; position:absolute; top:2px; left:2px; width:10px; height:10px; background:var(--t-dim); }
+.set .sw.on { border-color:var(--t-accent); }
+.set .sw.on::after { left:auto; right:2px; background:var(--t-accent); }
+.set .val { color:var(--t-bright); }
+.set .hint { grid-column:1 / 3; }
+/* the server line, after board 33 / 35 */
+.srvline { width:1000px; flex:none; background:var(--t-bg); border:1px solid var(--t-hair); }
+/* measured cases table, board chrome */
+.meas td.num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.big { font-size:22px; color:var(--fg-bright); font-weight:600; font-variant-numeric:tabular-nums; }
+.figs { display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:14px 24px; }
+.figs > div { display:grid; gap:2px; border-left:1px solid var(--hairline); padding-left:12px; min-width:0; }
+.figs small { color:var(--fg-dark); font-size:11px; }
+
+</style>
+<main>
+  <header style="display:grid;gap:10px">
+    <div class="eyebrow">docs/44 · proposal for Diogo · 2026-10-21 · findings #115 #116 #117 in · D10 ruled · touches the Files tab (N1), Save to (board 25), Move (board 43), the server line (boards 33 and 35), the qBittorrent settings pane (board 34)</div>
+    <h1>Skipped files and the disk</h1>
+    <p class="lead">Skipping a file in qBittorrent stops it downloading. It does not take back what is already on the disk, and on an NTFS disk under Linux's <code>ntfs3</code> driver (or exFAT, or FAT) that can be the file's whole size. A three-second misclick on 21 October left 80 skipped files holding about 78 GB on a disk with 23 GB free. This board proposes five changes. Two fix what happened: omaseed shows what skipped files still hold and frees it, and it holds back a big selection for a moment so a misclick can be undone. Two help around it: name the disk's driver where it changes what a tick costs, and say "isn't answering" when qBittorrent is only slow. A third, suggesting an incomplete folder, is dropped (D10, ruled); in its place a small notice for a move that never arrived (D13).</p>
+    <p class="dim" style="font-size:12px">§1 is what happened, with the measurements behind it. §2–§6 are the proposals, mocks at base 14 in Theme roles (use the theme switch). File names in the mocks are made up; the sizes are the real case's. The three questions the first draft left open are answered and folded in: <a href="https://github.com/diogochaves/omaseed/issues/115">#115</a> (the recheck error is a libtorrent bug with hybrid torrents), <a href="https://github.com/diogochaves/omaseed/issues/116">#116</a> (what each filesystem does), <a href="https://github.com/diogochaves/omaseed/issues/117">#117</a> (an incomplete folder and open files). The calls are D1–D13 in §8; at the ruling they become one C entry in DECISIONS.</p>
+  </header>
+  <nav class="themes" aria-label="Theme of the mocks">
+    <span>theme</span>
+    <button type="button" data-theme-name="baseline" aria-pressed="true">baseline</button>
+    <button type="button" data-theme-name="frieren" aria-pressed="false">frieren</button>
+    <button type="button" data-theme-name="tokyo-night" aria-pressed="false">tokyo-night</button>
+    <button type="button" data-theme-name="gruvbox" aria-pressed="false">gruvbox</button>
+    <button type="button" data-theme-name="everforest" aria-pressed="false">everforest</button>
+    <button type="button" data-theme-name="catppuccin-latte" aria-pressed="false">catppuccin-latte</button>
+  </nav>
+
+  <!-- 1 -->
+  <section id="today">
+    <div class="sec-head"><div class="eyebrow">1 · what happened</div><h2>One folder wanted, the whole torrent written</h2></div>
+    <p>A torrent of 174 files was added from the add sheet with one folder chosen. The add sheet adds it stopped, sends the choices, then starts it, so nothing else was ever wanted at that point. Later, in the Files tab, a misclick wanted the whole torrent. It was skipped again within seconds.</p>
+    <div class="figs">
+      <div><span class="big">85.8 GB</span><small>on disk for the torrent: all 174 files at full size</small></div>
+      <div><span class="big">8.0 GB</span><small>wanted: 94 files</small></div>
+      <div><span class="big">77.8 GB</span><small>held by the 80 skipped files</small></div>
+      <div><span class="big">≈ 33 MB</span><small>downloaded when the files were written: 4 pieces of 8 MiB</small></div>
+      <div><span class="big">23 GB</span><small>free on the save disk: NTFS through <code>ntfs3</code>, 15 TB, a spinning drive</small></div>
+    </div>
+    <div class="stage">
+      <figure>
+        <div class="cap">the day, from qBittorrent's log, omaseed's log and the files' times</div>
+        <div class="tl">
+          <span class="at">12:00</span><span class="ev"><b>Added</b> with one folder wanted. omaseed moves it to its folder on the same disk.</span>
+          <span class="at">≈ 12:07</span><span class="ev"><b>The misclick.</b> Every file wanted, then skipped again within seconds.</span>
+          <span class="at">12:07–12:22</span><span class="ev"><b>The disk writes out all 174 files</b> at full size, 85.8 GB of zeros, the skipped ones included. Every other read and write on that disk queues behind it.</span>
+          <span class="at">12:08–12:15</span><span class="ev">New picks sent from omaseed only show up in qBittorrent minutes later. The row stays green, at the old size.</span>
+          <span class="at">12:13:55</span><span class="ev"><b>No answer for 15 s.</b> omaseed's line says the server is lost.</span>
+          <span class="at">12:14:18</span><span class="ev">Back. qBittorrent never restarted; it was waiting on the disk.</span>
+        </div>
+      </figure>
+    </div>
+    <p>Then the same steps were repeated on the playground qBittorrent (5.2.4, libtorrent 2.1.2), saving to a folder on another NTFS disk (the in-kernel <code>ntfs3</code> driver), with a 113-file test torrent:</p>
+    <div class="scroll">
+    <table class="t meas">
+      <tr><th>case</th><th>steps</th><th>files on disk</th><th>space used</th><th>wanted</th></tr>
+      <tr><td>A</td><td>Skipped from the start, only 4 files wanted</td><td class="num">4</td><td class="num">25 KB</td><td class="num">25 KB</td></tr>
+      <tr><td>B</td><td>Every file wanted for 3 s after adding, then skipped</td><td class="num">43</td><td class="num">114.6 MB</td><td class="num">25 KB</td></tr>
+      <tr><td>C (the real case)</td><td>Added with 4 files, finished, every file wanted for 3 s, then skipped</td><td class="num">113</td><td class="num">124 MB</td><td class="num">25 KB</td></tr>
+      <tr><td>C, then freed</td><td>Stop, delete the skipped files, start</td><td class="num">4</td><td class="num">48 KB</td><td class="num y">healthy</td></tr>
+      <tr><td>B, then freed with a recheck</td><td>Delete the skipped files while running, force a recheck</td><td class="num">4</td><td class="num">48 KB</td><td class="num n">error, stuck (#115: libtorrent, hybrid torrents)</td></tr>
+    </table>
+    </div>
+    <ul class="facts">
+      <li><b>The tick itself takes the space.</b> Wanting a file makes libtorrent open it for writing, and its first open sets the file to its final length, even on a stopped torrent with nothing downloading. On <code>ntfs3</code>, exFAT and FAT32 that allocates the whole file at once, and skipping it later keeps it. On the newer in-kernel <code>ntfs</code>, ext4 and btrfs the same file is sparse and costs nothing until data lands. <code>ntfs3</code>'s <code>prealloc</code> option is not the cause (§4, <a href="https://github.com/diogochaves/omaseed/issues/116">#116</a>).</li>
+      <li><b>The stall is NTFS's valid-data rule.</b> Reserving the space is instant; the first write near a file's end makes <code>ntfs3</code> write zeros over everything before it. On the NVMe that was 4.3 GB of zeros for one 16 KB write; on a ~150 MB/s spinning disk 86 GB is about ten minutes, which is the stall above.</li>
+      <li><b>qBittorrent never removes a skipped file</b>, and its Web API can neither see the files on disk nor delete one. Only something that can see the disk can free that space, and omaseed sometimes can.</li>
+      <li><b>Stop, delete, start</b> frees it cleanly. <b>Delete, then recheck</b> errored because of a libtorrent 2.1.2 bug (<a href="https://github.com/diogochaves/omaseed/issues/115">#115</a>): on a <b>hybrid</b> (v1+v2) torrent, deleting a file whose pieces were downloaded and then rechecking fails with <code>torrent_inconsistent_hashes</code>. The test torrent is hybrid, and B had downloaded pieces of the deleted files. The misclick case, where no skipped piece was downloaded, stays clean even with a recheck. qBittorrent neither logs this error nor exposes it: the API only says <code>error</code>. Only removing the torrent (keeping files) and adding it again clears it.</li>
+      <li>omaseed did nothing wrong here. It sent each change at once, as N1 says it should. The cost came from qBittorrent and the disk, and omaseed is the only place it could be shown.</li>
+    </ul>
+  </section>
+
+  <!-- 2 -->
+  <section id="free">
+    <div class="sec-head"><div class="eyebrow">2 · proposal 1 · both kinds of disk</div><h2>Skipped files that still take space, and one action to free it</h2></div>
+    <p>The Files tab already lists every file with its priority. When omaseed can read the torrent's folder (the same rule as the add sheet's free space, below), it also looks at each skipped file on the disk. A column shows what each one holds, and the footer gives the total. The figure is the space the file really takes (its allocated blocks), not its listed size, so on a sparse disk (ext4, btrfs, the newer <code>ntfs</code>) a misclick shows the next to nothing it cost, and on <code>ntfs3</code>, exFAT or FAT it shows the whole file.</p>
+    <div class="stage">
+      <figure>
+        <div class="cap">F1 · the Files tab of a torrent like the real one: 94 wanted, 80 skipped</div>
+        <div class="files">
+          <div class="tabs"><span>General</span><span>Trackers</span><span>Peers</span><span>HTTP sources</span><span class="on">Files</span></div>
+          <div class="th"><span></span><span>name</span><span class="r">size</span><span class="r">on disk</span><span>progress</span><span>priority</span></div>
+          <div class="tr fold"><span class="bx">◩</span><span class="nm">Archive 2019–2025</span><span class="r">85.8 GB</span><span class="r od">77.8 GB</span><span class="pr"><i><b style="width:92%"></b></i>92 %</span><span>mixed</span></div>
+          <div class="tr ind fold"><span class="bx">■</span><span class="nm">Sessions</span><span class="r">8.0 GB</span><span class="r od none">—</span><span class="pr"><i><b style="width:92%"></b></i>92 %</span><span>normal</span></div>
+          <div class="tr ind skip"><span class="bx">□</span><span class="nm">Concert 2019, part 1.mp4</span><span class="r">1.02 GB</span><span class="r od">1.02 GB</span><span class="pr"><i></i>0 %</span><span>skip</span></div>
+          <div class="tr ind skip cur"><span class="bx">□</span><span class="nm">Concert 2019, part 2.mp4</span><span class="r">750.6 MB</span><span class="r od">750.6 MB</span><span class="pr"><i></i>0 %</span><span>skip</span></div>
+          <div class="tr ind skip"><span class="bx">□</span><span class="nm">Concert 2020, full set.mp4</span><span class="r">2.25 GB</span><span class="r od">2.25 GB</span><span class="pr"><i></i>0 %</span><span>skip</span></div>
+          <div class="tr ind skip"><span class="bx">□</span><span class="nm">Rehearsal tapes.wmv</span><span class="r">512.7 MB</span><span class="r od">512.7 MB</span><span class="pr"><i></i>0 %</span><span>skip</span></div>
+          <div class="tr ind skip"><span class="bx">□</span><span class="nm">… 76 more skipped</span><span class="r"></span><span class="r od"></span><span></span><span></span></div>
+          <div class="nb warn"><span class="g">◆</span><span class="tt">80 skipped files hold 77.8 GB on /mnt/media</span><span class="ac"><span class="lk">Free the space…</span><span class="lk dt">Why?</span></span><span class="bd">They were written while wanted. qBittorrent keeps them; it never deletes a skipped file.</span></div>
+          <div class="fb"><span><b>94</b> wanted · 8.0 GB</span><span><b>80</b> skipped</span><span class="sp"></span><span>space · priority · F free</span></div>
+        </div>
+        <figcaption><b>On disk</b> is new, and shown only when some skipped file holds space; otherwise the column isn't there. Wanted files show "—" (their space is expected). The band uses Kit/Notice in the yellow kind (board 35) and appears only above a threshold (D2). <b>Why?</b> opens a short note on what happened, with the filesystem's name.</figcaption>
+      </figure>
+      <figure>
+        <div class="cap">F2 · free the space: a sheet that says each step before it runs</div>
+        <div class="sheet" style="width:620px">
+          <div class="hd"><span class="ic">⌫</span><span class="ti"><b>Free 77.4 GB</b><small>Archive 2019–2025 · /mnt/media/Archive</small></span><span class="x">esc</span></div>
+          <ol class="steps" style="font-size:var(--small)">
+            <li><span><b style="color:var(--t-bright)">Stop the torrent</b> so nothing writes while files go.</span></li>
+            <li><span><b style="color:var(--t-bright)">Delete 79 skipped files</b> from the disk: those that hold no downloaded piece. Only skipped files, only inside this torrent's folder, and none another torrent also uses (board 26's guard).</span></li>
+            <li><span><b style="color:var(--t-bright)">Start it again.</b> The 94 wanted files carry on. No recheck.</span></li>
+          </ol>
+          <div class="lf"><span class="h">file</span><span class="h r">holds</span><span class="h r"></span>
+            <span>Concert 2019, part 1.mp4</span><span class="r">1.02 GB</span><span class="r k">delete</span>
+            <span>Concert 2020, full set.mp4</span><span class="r">2.25 GB</span><span class="r k">delete</span>
+            <span>Rehearsal tapes.wmv</span><span class="r">512.7 MB</span><span class="r k">delete</span>
+            <span>Interview (raw).mov</span><span class="r">1.88 GB</span><span class="r w">open in mpv · stays</span>
+            <span>Encore.mp4</span><span class="r">412.3 MB</span><span class="r w">has 3 downloaded pieces · stays</span>
+            <span class="dim">… 75 more</span><span></span><span></span>
+          </div>
+          <div class="footnote">A file another program has open stays (on Linux the space would only come back when that program closes it). <b>Encore.mp4</b> stays because this torrent is hybrid and pieces of that file were downloaded: deleting it safely needs a recheck, and a recheck there hits libtorrent's bug. <span class="lk">Free it too by adding the torrent again…</span></div>
+          <div class="btns"><span>Cancel</span><span>Show in folder</span><span class="p">Free 77.4 GB</span></div>
+        </div>
+        <figcaption>The steps follow §1 (C, then freed) and <a href="https://github.com/diogochaves/omaseed/issues/115">#115</a>'s rule. A deleted file that held no piece costs nothing to get back: ticking it again downloads it again. Files that do hold downloaded pieces are the table below.</figcaption>
+      </figure>
+    </div>
+
+    <h3 style="margin-top:6px">Skipped files that hold downloaded pieces</h3>
+    <p>A misclick writes files without completing their pieces, so the common case is the simple one. A file skipped after part of it arrived is different: libtorrent's record still says it has those pieces after the file is gone. Wanting the file again would then show it complete and download nothing (every kind of torrent, #115's second trap). A recheck clears that record, and a recheck is exactly what breaks on hybrid torrents. So the sheet treats those files by kind:</p>
+    <div class="scroll">
+    <table class="t">
+      <tr><th>skipped file</th><th>v1-only or v2-only torrent</th><th>hybrid (v1+v2) torrent</th></tr>
+      <tr><td>No downloaded piece (the misclick)</td><td class="y">Stop, delete, start. No recheck</td><td class="y">The same</td></tr>
+      <tr><td>Some downloaded pieces</td><td class="y">Included: stop, delete, start, then a recheck (safe on these torrents), named in the sheet before it runs</td><td class="m">Left on disk, and the sheet says why. "Add the torrent again" frees them: remove it keeping files, add it back with the same selection, then reapply its category, tags and limits. It costs the torrent's ratio, seeding time and added date, and the sheet says so</td></tr>
+    </table>
+    </div>
+    <p>Everything there comes from the API. A torrent is hybrid when <code>torrents/info</code> gives both <code>infohash_v1</code> and <code>infohash_v2</code>. Which files hold downloaded pieces: <code>torrents/files</code> gives each file's <code>progress</code> and <code>piece_range</code>, and <code>torrents/pieceStates</code> says which pieces are downloaded (2). A file holds none when no piece in its range is downloaded; <code>progress</code> 0 is the quick check. A piece shared with a wanted neighbour counts as downloaded, so such a file is treated as holding pieces: on a hybrid it stays. That costs a little space, never a broken torrent.</p>
+    <div class="note bad"><b>Already in that error.</b> A hybrid torrent that hit the bug only says <code>error</code>, with no text in qBittorrent's log or API; starting it or restarting qBittorrent brings the error back. omaseed's error block (board 28) can name it when an errored torrent is hybrid and was just rechecked, and offer the same "add it again". That is a small addition to board 28's causes, decided with D3.</div>
+
+    <h3 style="margin-top:6px">Who can see the disk: a NAS too, when its share is mounted</h3>
+    <p>The add sheet's free space (board 25 §4, <code>FreeSpaceProbe</code>) already decides whether omaseed can see the server's disks: the default save path, through the path map, has to exist on this machine and read within 1 % of the free space qBittorrent reports. That rule decides here too.</p>
+    <div class="scroll">
+    <table class="t">
+      <tr><th>where qBittorrent runs</th><th>can omaseed see the files?</th><th>what the Files tab shows</th></tr>
+      <tr><td>On this machine</td><td class="y">Yes, the same paths</td><td>On disk, the band, free the space</td></tr>
+      <tr><td>In Docker on this machine</td><td class="y">Yes, through the path map (<code>/downloads</code> → <code>/mnt/…</code>) once the free-space check passes</td><td>The same</td></tr>
+      <tr><td>On a NAS whose download share is mounted here (SMB or NFS), with a path map to it</td><td class="y">Yes, over the network. The check passes when the share reports the same free space</td><td>The same. Sizes and deletes go over the share. Whether a network mount reports real allocated space is still unmeasured (<a href="https://github.com/diogochaves/omaseed/issues/116">#116</a> had no server at hand)</td></tr>
+      <tr><td>On a NAS or seedbox with nothing mounted here</td><td class="n">No</td><td>A hint from the API only (below), and how to make it visible: mount the share and add a path map</td></tr>
+    </table>
+    </div>
+    <p>Without a mount, the one thing the API says is a skipped file's progress. A skipped file with progress above 0 % was written to. That is a weak hint. In the real case only 4 pieces had arrived, so the hint would have named a handful of files while 174 held 85.8 GB. So the wording says "at least", says what is unknown, and doesn't offer an action it can't perform:</p>
+    <div class="stage">
+      <figure>
+        <div class="cap">F3 · a server whose disks omaseed can't see</div>
+        <div class="files" style="width:900px">
+          <div class="nb"><span class="g">◇</span><span class="tt">At least 6 skipped files were partly written</span><span class="ac"><span class="lk">Path maps…</span></span><span class="bd">omaseed can't see seedbox's disks, so it can't tell how much space they hold or delete them. Mount its download folder here and add a path map to see and free that space.</span></div>
+        </div>
+        <figcaption>Accent kind, not yellow: it is information, not a warning. It shows only when a skipped file has progress above 0 %.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <!-- 3 -->
+  <section id="undo">
+    <div class="sec-head"><div class="eyebrow">3 · proposal 2 · both kinds of disk</div><h2>A big selection waits three seconds, with an undo</h2></div>
+    <p>The cost in §1 came from the three seconds the whole torrent was wanted. <a href="https://github.com/diogochaves/omaseed/issues/116">#116</a> narrowed it further: the tick itself creates every newly wanted file at full length, even on a <b>stopped</b> torrent, before a byte downloads. Stopping first doesn't protect anything; only not sending the tick does. If a big widening waits a moment before it is sent, a misclick undone within that time never reaches qBittorrent. The rows tick at once, as today. Only the request waits.</p>
+    <div class="stage">
+      <figure>
+        <div class="cap">U1 · the whole torrent just ticked by mistake, still unsent</div>
+        <div class="files">
+          <div class="tabs"><span>General</span><span>Trackers</span><span>Peers</span><span>HTTP sources</span><span class="on">Files</span></div>
+          <div class="th"><span></span><span>name</span><span class="r">size</span><span class="r">on disk</span><span>progress</span><span>priority</span></div>
+          <div class="tr fold cur"><span class="bx">■</span><span class="nm">Archive 2019–2025</span><span class="r">85.8 GB</span><span class="r od none">—</span><span class="pr"><i><b style="width:9%"></b></i>9 %</span><span>normal</span></div>
+          <div class="tr ind pend"><span class="bx">■</span><span class="nm">Concert 2019, part 1.mp4</span><span class="r">1.02 GB</span><span class="r od none">—</span><span class="pr"><i></i>0 %</span><span>normal</span></div>
+          <div class="tr ind pend"><span class="bx">■</span><span class="nm">Concert 2019, part 2.mp4</span><span class="r">750.6 MB</span><span class="r od none">—</span><span class="pr"><i></i>0 %</span><span>normal</span></div>
+          <div class="tr ind pend"><span class="bx">■</span><span class="nm">… 78 more</span><span class="r"></span><span class="r"></span><span></span><span></span></div>
+          <div class="nb"><span class="g">◆</span><span class="tt">Wanting 80 more files · 77.8 GB</span><span class="ac"><span class="lk">Undo  u</span><span class="lk dt">Send now  ⏎</span></span><span class="bd">Sends in 3 s.</span><span class="pl"><i style="width:40%"></i></span></div>
+          <div class="fb"><span><b>174</b> wanted · 85.8 GB</span><span class="sp"></span><span>u undo · ⏎ send now</span></div>
+        </div>
+        <figcaption>The band's thin line runs down the 3 s. <b>Undo</b> puts the ticks back and sends nothing. Ticking them off again inside the window cancels the change too, so a misclick that is put right by hand also costs nothing.</figcaption>
+      </figure>
+    </div>
+    <dl class="anat">
+      <dt>what waits</dt><dd>Only a change that <b>adds</b> files, and only when it adds more than the threshold (D6). Running or stopped alike: the files are created when the tick arrives, not when the torrent starts. Skipping is always sent at once (it never costs space).</dd>
+      <dt>several changes</dt><dd>Changes made while one waits join it, and the window starts again. What is finally sent is the net change per file. If it nets out to nothing, nothing is sent.</dd>
+      <dt>leaving</dt><dd>Switching torrent, closing the pane or quitting sends what was waiting. You asked for it, so it isn't dropped silently.</dd>
+      <dt>the add sheet</dt><dd>Not affected: it adds the torrent stopped and sends the choices before starting, so nothing is written while you pick.</dd>
+    </dl>
+    <div class="note warn"><b>Rules against N1 as built.</b> N1 says the Files tab does what qBittorrent's Web UI allows, and the code reads it as "the rows change at once and the request goes at once" (<code>App::setFilePriority</code>). This keeps the rows but delays the request for big widenings. It needs your ruling (D5); it would be recorded as a change to N1.</div>
+  </section>
+
+  <!-- 4 -->
+  <section id="fs">
+    <div class="sec-head"><div class="eyebrow">4 · proposal 3 · ntfs3, exfat, vfat</div><h2>Name the disk's driver where it changes what a tick costs</h2></div>
+    <p>The call omaseed already makes for free space (<code>QStorageInfo</code>) also reports the filesystem, and it names the driver, not the format: <code>ntfs3</code>, <code>ntfs</code>, <code>exfat</code>, <code>vfat</code>, <code>ext4</code>, <code>btrfs</code>. That matters, because the two NTFS drivers behave differently. <a href="https://github.com/diogochaves/omaseed/issues/116">#116</a> measured each with the same steps (Open Movie Night, 751 MB; only README and subs wanted):</p>
+    <div class="scroll">
+    <table class="t meas">
+      <tr><th><code>fileSystemType()</code></th><th>skipped from the start</th><th>everything ticked 3 s on a stopped torrent, then skipped</th><th>kept after skipping</th></tr>
+      <tr><td><code>ntfs3</code> (with or without <code>prealloc</code>)</td><td class="num">0.3 MB</td><td class="num n">750.8 MB</td><td class="n">yes, full size</td></tr>
+      <tr><td><code>exfat</code></td><td class="num">0.4 MB</td><td class="num n">750.8 MB</td><td class="n">yes</td></tr>
+      <tr><td><code>vfat</code> (FAT32)</td><td class="num">0.3 MB</td><td class="num n">750.8 MB</td><td class="n">yes</td></tr>
+      <tr><td><code>ntfs</code> (the newer in-kernel driver)</td><td class="num">0.3 MB</td><td class="num y">0, sparse</td><td class="y">~nothing</td></tr>
+      <tr><td><code>ext4</code>, <code>btrfs</code></td><td class="num">0.3 MB</td><td class="num y">0, sparse</td><td class="y">~nothing</td></tr>
+      <tr><td class="dim"><code>fuseblk</code> (ntfs-3g), <code>xfs</code>, CIFS, NFS</td><td colspan="3" class="dim">not measured: tools not installed, no server at hand</td></tr>
+    </table>
+    </div>
+    <p>So the notice is for <b><code>ntfs3</code>, <code>exfat</code> and <code>vfat</code> only</b>, and it says the driver's name, not "NTFS": a disk mounted with the newer <code>ntfs</code> driver needs nothing. On those three, Save to in the add sheet and the destination in the Move sheet (board 43) say so, and the room check counts what the disk will really use: the <b>full size of every newly ticked file, at the moment of the tick</b>, not what is left to download. The same check runs on a tick in the Files tab, beside D5's window. On a spinning disk the notice matters twice: the space goes at once, and the first write near each file's end makes the drive write zeros up to it (§1).</p>
+    <div class="stage">
+      <figure>
+        <div class="cap">S1 · add sheet, Save to on an <code>ntfs3</code> disk</div>
+        <div class="sheet" style="width:620px">
+          <div class="fl"><span class="lb">save to</span><span class="fld"><span>/mnt/media/Downloads</span><span class="sp"></span><span class="bw">browse</span></span></div>
+          <div class="chk"><span class="g w">◆</span><span><b>23 GB free</b> of 15 TB<span class="fsb">ntfs3</span></span><small>On this disk every file you tick takes its full size at once. Selected: 8.0 GB, so it fits.</small></div>
+        </div>
+      </figure>
+      <figure>
+        <div class="cap">S2 · the same, when it doesn't fit</div>
+        <div class="sheet" style="width:620px">
+          <div class="fl"><span class="lb">save to</span><span class="fld"><span>/mnt/media/Downloads</span><span class="sp"></span><span class="bw">browse</span></span></div>
+          <div class="chk"><span class="g x">✕</span><span><b>Needs 85.8 GB, 23 GB free</b><span class="fsb">ntfs3</span></span><small>Every ticked file takes its full size here at once, so qBittorrent would stop with "No space left on device" before downloading. Select fewer files, or save to another disk.</small></div>
+        </div>
+      </figure>
+      <figure>
+        <div class="cap">S3 · FAT32's 4 GiB limit</div>
+        <div class="sheet" style="width:620px">
+          <div class="fl"><span class="lb">save to</span><span class="fld"><span>/run/media/usb-stick/films</span><span class="sp"></span><span class="bw">browse</span></span></div>
+          <div class="chk"><span class="g x">✕</span><span><b>2 files are 4 GiB or more</b>, past what FAT32 can hold<span class="fsb">vfat</span></span><small>qBittorrent would stop with "File too large" within seconds of the tick. <span class="lk">Skip these 2</span> · or save to another disk.</small></div>
+        </div>
+      </figure>
+    </div>
+    <p>Both errors come early, which is why the check belongs at the tick. FAT32 rejects a file of 4 GiB or more within 3 s of wanting it (<code>file_truncate … File too large</code>). exFAT, and by the same rule <code>ntfs3</code>, errors at once when a newly wanted file is bigger than the free space (<code>file_truncate … No space left on device</code>). <code>fuseblk</code> (ntfs-3g) and <code>xfs</code> get no line until measured; a server whose disks omaseed can't see gets none either: the API doesn't report a filesystem, and omaseed won't guess.</p>
+  </section>
+
+  <!-- 5 -->
+  <section id="incomplete">
+    <div class="sec-head"><div class="eyebrow">5 · proposal 4 · dropped (D10, ruled 2026-10-21) · and a small notice in its place (D13)</div><h2>No incomplete-folder hint. A notice when a move never arrived</h2></div>
+    <p>The idea was a hint in the qBittorrent settings pane: keep running downloads in a folder on a Linux disk and let qBittorrent move them to the NTFS save path when they finish. <b>Dropped:</b> an incomplete folder doubles the space a torrent uses while it downloads and adds a move step to every finish. Proposals 1–3 deal with the cost where it arises instead.</p>
+    <p class="dim" style="font-size:12px"><a href="https://github.com/diogochaves/omaseed/issues/117">#117</a> measured it before the ruling. The fear of a file open at the finish doesn't hold on Linux: a 503 MB file held open from 2 % moved fine, and the reader kept reading the old copy (its space comes back when the reader closes). The real risk was a full destination, which is what D13 below is about.</p>
+
+    <h3 style="margin-top:6px">D13 · finished, but still in the incomplete folder</h3>
+    <p>Some people already use an incomplete folder. When the destination is full at the finish, the move fails <b>silently</b>. #117, a 38.9 MB torrent finishing into a disk with 22 MB free:</p>
+    <ul class="broken">
+      <li>qBittorrent logs <code>Failed to move torrent … file_write (&lt;the source path&gt;): No space left on device</code>. The reason names the <b>source</b> file, not the destination that is full.</li>
+      <li><b>699 partial files</b> are left in the destination, which is now 100 % full. Nothing cleans them up.</li>
+      <li>The torrent stays <code>stalledUP</code> at 100 %, seeding from the incomplete folder. No error state, no retry, and a recheck changes nothing. <code>save_path</code> already says the destination; only <code>content_path</code>, still under <code>download_path</code>, shows the files never arrived.</li>
+    </ul>
+    <div class="stage">
+      <figure>
+        <div class="cap">M1 · the torrent's details, General tab: a problem, in board 28's error-block place</div>
+        <div class="band-only" style="width:900px">
+          <div class="nb err"><span class="g">✕</span><span class="tt">Finished, but its files never reached /mnt/media/Downloads</span><span class="ac"><span class="lk">Show both folders</span><span class="lk">Set location…</span></span><span class="bd">qBittorrent couldn't move them: <span class="x">No space left on device</span> (its log, 12:41). It's seeding from <span class="n">/mnt/fast/incomplete</span>. Partial copies may be left in the destination.</span></div>
+        </div>
+        <figcaption>Red, because nothing else shows it and the destination is now full. The row's status cell gets board 28's short cause ("move failed"). <b>Set location…</b> is board 43's sheet, aimed at the same destination once room is made. When omaseed can see the destination, the partial copies are named there (board 42's loose files) instead of "may be left".</figcaption>
+      </figure>
+    </div>
+    <dl class="anat">
+      <dt>when it shows</dt><dd>A finished torrent (<code>progress</code> 1), not <code>moving</code>, with a <code>download_path</code> set and its <code>content_path</code> under it. All three come from <code>torrents/info</code>, so it works on any server, seen disks or not.</dd>
+      <dt>the reason</dt><dd>The newest "Failed to move torrent" line for that torrent in qBittorrent's log, read through board 32's log feed. Without one, the notice says the files are still in the incomplete folder and doesn't guess why.</dd>
+      <dt>who sees it</dt><dd>Only people whose qBittorrent uses an incomplete folder. omaseed never suggests one (D10).</dd>
+    </dl>
+  </section>
+
+  <!-- 6 -->
+  <section id="answer">
+    <div class="sec-head"><div class="eyebrow">6 · proposal 5 · words</div><h2>"Isn't answering" is not "unreachable"</h2></div>
+    <p>At 12:13:55 qBittorrent was alive but waiting on its disk. omaseed's client already tells a timeout (<code>ApiError::Kind::Timeout</code>) from a refused connection (<code>Network</code>), but both end in the same words: "home · unreachable", and "server lost" in the log. The two need different words, because the advice differs: wait, or check that it's running.</p>
+    <div class="stage">
+      <figure>
+        <div class="cap">W1 · a timeout: the server is there but slow (yellow, retrying)</div>
+        <div class="srvline">
+          <div class="nb warn"><span class="g">◆</span><span class="tt">home isn't answering</span><span class="ac"><span class="lk dt">waiting · 18 s</span></span><span class="bd">qBittorrent is running but hasn't replied for 18 s. It may be busy writing to its disk. omaseed keeps asking.</span></div>
+        </div>
+      </figure>
+      <figure>
+        <div class="cap">W2 · refused or unreachable: nothing is there (as today)</div>
+        <div class="srvline">
+          <div class="nb err"><span class="g">✕</span><span class="tt">home is unreachable</span><span class="ac"><span class="lk dt">retrying in 7 s</span><span class="lk">Servers…</span></span><span class="bd">Connection refused at 127.0.0.1:8080. Is qBittorrent running?</span></div>
+        </div>
+      </figure>
+    </div>
+    <p>The "busy writing to its disk" clause could be measured rather than guessed when the save disk is on this machine: the disk's own activity counters (<code>/proc/diskstats</code>) show whether it is saturated. That only works for qBittorrent on this machine or in Docker here, not over a network share, so it is a separate call (D12).</p>
+    <p class="dim" style="font-size:12px">Desktop notice, rail line and command palette follow the same split ("home isn't answering" / "home is unreachable"). The notice titled "Server lost and back" becomes "home answered again" after a timeout.</p>
+  </section>
+
+  <!-- 7 -->
+  <section id="build">
+    <div class="sec-head"><div class="eyebrow">7 · how it's built</div><h2>Mostly pieces that exist, read from one more angle</h2></div>
+    <dl class="anat">
+      <dt>FreeSpace</dt><dd><code>StorageReading</code> gains the filesystem (<code>QStorageInfo::fileSystemType()</code>, as #116 read it: <code>ntfs3</code>, <code>ntfs</code>, <code>exfat</code>, <code>vfat</code>, <code>ext4</code>, <code>btrfs</code>). A small table says which allocate in full (<code>ntfs3</code>, <code>exfat</code>, <code>vfat</code>); unknown types (<code>fuseblk</code>, <code>xfs</code>, network mounts) get no notice. <code>FreeSpaceProbe::Answer</code> carries it to the add sheet, the Move sheet and the Files tab's tick check. Tests with a fake reader for each type.</dd>
+      <dt>SkippedOnDisk (new, core)</dt><dd>Given a torrent's file list (paths, priorities, <code>progress</code>, <code>piece_range</code>), its piece states and the local folder from <code>FreeSpaceProbe::localPathFor</code>, reads each skipped file's allocated size (<code>st_blocks</code>, not the length) on the thread pool and marks the ones that hold a downloaded piece. Refreshed when the Files tab opens and after a priority change, never polled. QtTest with a fake filesystem.</dd>
+      <dt>free the space</dt><dd><code>App::freeSkippedSpace(hash)</code>: stop, then delete through the path map, re-checking at delete time that each file is still skipped, inside the content path, not shared (board 26's guard), and not held open (<code>/proc/*/fd</code> on this machine); then start. Files holding downloaded pieces: included with a recheck after the start on a v1-only or v2-only torrent, left on a hybrid (<code>infohash_v1</code> and <code>infohash_v2</code> both set). Never a recheck on a hybrid. Each step goes to the problem log (C2).</dd>
+      <dt>add it again</dt><dd>For a hybrid's leftover files, and for a hybrid already in libtorrent's error: remove keeping files, add the same <code>.torrent</code> (<code>torrents/export</code>) stopped with the same file priorities and save path, reapply category, tags and limits, start. The sheet names what is lost (ratio, seeding time, added date) before it runs.</dd>
+      <dt>stuck move (D13)</dt><dd>A problem kind beside board 28's: finished, not moving, <code>content_path</code> under <code>download_path</code>. The reason is matched from the log feed (board 32) by the torrent's name.</dd>
+      <dt>the send window</dt><dd>A small queue in front of <code>App::setFilePriority</code>: widening changes above the threshold wait, running or stopped, merge per file, and are cancelled by undo. <code>setLocalPriority</code> still changes the rows at once. tst for merge, cancel, net-zero and leave.</dd>
+      <dt>words</dt><dd>The server line, the rail, the palette and the notices read the error kind they already get, and say "isn't answering" for a timeout.</dd>
+      <dt>walks</dt><dd><b>actions-walk</b> gains a misclick and a free the space on a loop-mounted <code>ntfs3</code> image, a hybrid and a v1-only torrent, checked on the server and on the disk. The mount is <a href="https://github.com/diogochaves/omaseed/issues/116">#116</a>'s: <code>udisksctl loop-setup</code> and <code>udisksctl mount</code>, no root. A stuck move is staged with a full loop image, as in #117.</dd>
+      <dt>engines</dt><dd>Nothing qBittorrent-only: Transmission's <code>files-unwanted</code> works the same way, and the disk side is omaseed's own.</dd>
+    </dl>
+  </section>
+
+  <!-- 8 -->
+  <section id="decisions">
+    <div class="sec-head"><div class="eyebrow">8 · your calls</div><h2>Decisions, and your answers in one paste</h2></div>
+    <p>Recommended options are marked and preselected. D10 is already ruled and shown as such. Change what you disagree with and paste the block back into a session.</p>
+    <div class="dec" id="dec"></div>
+    <div class="out">
+      <textarea id="answers" readonly aria-label="Your answers"></textarea>
+      <div style="display:flex;gap:12px;align-items:center"><button type="button" id="copy">Copy answers</button><span class="ok" id="copied" hidden>Copied</span></div>
+    </div>
+  </section>
+</main>
+
+<script>
+(() => {
+"use strict";
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+
+/* ---------- themes (board 42's) ---------- */
+const THEMES = {
+  "baseline":         { fg:"#c4c7cc", bg:"#121316", accent:"#efdf3c", red:"#ff4f5e", yellow:"#f2a33a", green:"#7fd08a", blue:"#6f9cf0", magenta:"#c88df0", cyan:"#45c6dc" },
+  "frieren":          { fg:"#b9c5ef", bg:"#11111b", accent:"#5492f8", red:"#ee5681", yellow:"#f6d58c", green:"#7dd676", blue:"#5492f8", magenta:"#b47ff3", cyan:"#63d5c2" },
+  "tokyo-night":      { fg:"#a9b1d6", bg:"#1a1b26", accent:"#7aa2f7", red:"#f7768e", yellow:"#e0af68", green:"#9ece6a", blue:"#7aa2f7", magenta:"#ad8ee6", cyan:"#449dab" },
+  "gruvbox":          { fg:"#d4be98", bg:"#282828", accent:"#7daea3", red:"#ea6962", yellow:"#d8a657", green:"#a9b665", blue:"#7daea3", magenta:"#d3869b", cyan:"#89b482" },
+  "everforest":       { fg:"#d3c6aa", bg:"#2d353b", accent:"#7fbbb3", red:"#e67e80", yellow:"#dbbc7f", green:"#a7c080", blue:"#7fbbb3", magenta:"#d699b6", cyan:"#83c092" },
+  "catppuccin-latte": { fg:"#4c4f69", bg:"#eff1f5", accent:"#1e66f5", red:"#d20f39", yellow:"#df8e1d", green:"#40a02b", blue:"#1e66f5", magenta:"#ea76cb", cyan:"#179299", light:true },
+};
+function applyTheme(name) {
+  const t = THEMES[name];
+  for (const st of $$(".stage")) {
+    for (const k of ["fg","bg","accent","red","yellow","green","blue","magenta","cyan"]) st.style.setProperty("--t-" + k, t[k]);
+    st.classList.toggle("light", !!t.light);
+  }
+  for (const b of $$("[data-theme-name]")) b.setAttribute("aria-pressed", String(b.dataset.themeName === name));
+}
+for (const b of $$("[data-theme-name]")) b.addEventListener("click", () => applyTheme(b.dataset.themeName));
+
+/* ---------- decisions ---------- */
+const DEC = [
+  { id:"D1", q:"Show what skipped files hold", why:"§2 F1. Only when omaseed can see the torrent's folder (board 25's check).", opts:[
+    ["a","An \"on disk\" column in the Files tab with each skipped file's allocated size, and the count in the footer; the column shows only when some skipped file holds space", true],
+    ["b","Only the band (D2), no column"],
+    ["c","Nothing"]]},
+  { id:"D2", q:"When the band shows", why:"§2 F1. Kit/Notice, yellow kind.", opts:[
+    ["a","When skipped files hold more than 1 GiB, or more than 5 % of the torrent", true],
+    ["b","Whenever any skipped file holds space"],
+    ["c","Never: the column is enough"]]},
+  { id:"D3", q:"Free the space", why:"§2 F2 and its table, #115. Hybrid = infohash_v1 and infohash_v2 both set; pieces from torrents/files and torrents/pieceStates.", opts:[
+    ["a","The F2 sheet: stop, delete the skipped files with no downloaded piece (not shared, not open), start, no recheck; files with pieces: on v1-only/v2-only included with a recheck after the start, on a hybrid left, with \"add it again\" offered and its cost named; board 28 names the hybrid error", true],
+    ["b","Only files with no downloaded piece; files with pieces are always left, on every kind of torrent"],
+    ["c","Show the space only, no action"]]},
+  { id:"D4", q:"A server whose disks omaseed can't see (a NAS with nothing mounted, a seedbox)", why:"§2, the table and F3. A NAS whose share is mounted and mapped counts as seen.", opts:[
+    ["a","The F3 hint from progress above 0 %, worded \"at least\", saying what is unknown and pointing to path maps; no action", true],
+    ["b","Nothing unless the disks can be seen"]]},
+  { id:"D5", q:"Hold back a big selection", flag:"Changes N1 as built: rows still change at once, the request waits.", why:"§3 U1. The tick itself allocates, even on a stopped torrent (#116): only not sending it protects.", opts:[
+    ["a","Widening changes above the threshold wait, running or stopped, with Undo (u) and Send now (⏎); skips are sent at once; leaving sends", true],
+    ["b","A confirm dialog for such changes instead"],
+    ["c","Nothing: N1 as built"]]},
+  { id:"D6", q:"The threshold", why:"§3.", opts:[
+    ["a","Adds more than 1 GiB, or the whole torrent; on every disk", true],
+    ["b","The same, only when the save disk is ntfs3, exfat or vfat (needs the disk seen)"],
+    ["c","Every widening"]]},
+  { id:"D7", q:"How long it waits", why:"§3.", opts:[
+    ["a","3 s, the window starting again with each change", true],
+    ["b","5 s"]]},
+  { id:"D8", q:"Name the disk's driver", why:"§4 S1–S2 and #116's table. The newer ntfs driver is sparse and gets nothing.", opts:[
+    ["a","On Save to, the Move sheet and a Files tab tick, for ntfs3, exfat and vfat only, by the driver's name; the room check counts the full size of every newly ticked file at the tick", true],
+    ["b","Name every filesystem, Linux ones too"],
+    ["c","Nothing"]]},
+  { id:"D9", q:"FAT32 (vfat) and files of 4 GiB or more", why:"§4 S3. qBittorrent errors within seconds of the tick.", opts:[
+    ["a","A red line naming them, with \"Skip these\"; the add stays possible", true],
+    ["b","Refuse the add until they are skipped"],
+    ["c","A yellow note only"]]},
+  { id:"D10", q:"The incomplete-folder hint", ruled:true, flag:"Ruled 2026-10-21: dropped.", why:"§5. It doubles the space a torrent uses while downloading and adds a move step (#117 has the measurements).", opts:[
+    ["drop","Dropped: omaseed never suggests an incomplete folder", true]]},
+  { id:"D13", q:"Finished, but still in the incomplete folder", why:"§5 M1, #117's silent half-move. For people who already use an incomplete folder.", opts:[
+    ["a","A red problem in board 28's place and the status cell, with the log's reason, Show both folders and Set location…; partial copies named when the destination is seen", true],
+    ["b","Only a line in the problem log"],
+    ["c","Nothing"]]},
+  { id:"D11", q:"A timeout's words", why:"§6 W1–W2.", opts:[
+    ["a","\"home isn't answering\" (yellow, waiting) for a timeout; \"home is unreachable\" (red) for refused or no route; everywhere the state shows", true],
+    ["b","Keep \"unreachable\" for both"]]},
+  { id:"D12", q:"\"Busy writing to its disk\"", why:"§6. Measurable only when the save disk is on this machine.", opts:[
+    ["a","Later, its own issue: read the disk's activity when it is local and say so only when it is busy", true],
+    ["b","Now, with D11"],
+    ["c","Never: W1 always says \"it may be busy\""]]},
+];
+const dec = $("#dec");
+for (const d of DEC) {
+  const box = document.createElement("div"); box.className = "q";
+  const inputs = d.opts.map(([v, label, rec]) => {
+    const id = `${d.id}-${v}`;
+    const mark = rec ? `<span class="rec">${d.ruled ? "ruled" : "recommended"}</span>` : "";
+    return `<label class="opt" for="${id}"><input id="${id}" type="radio" name="${d.id}" value="${v}" ${rec ? "checked" : ""} ${d.ruled ? "disabled" : ""}><span><b>${v}</b> · ${label}${mark}</span></label>`;
+  }).join("");
+  const why = `<p class="why">${d.why || ""}${d.flag ? ` <span class="flag">${d.flag}</span>` : ""}</p>`;
+  box.innerHTML = `<fieldset><legend><span class="id">${d.id}</span> · ${d.q}</legend>${why}${inputs}</fieldset>`;
+  dec.append(box);
+}
+const notes = document.createElement("div"); notes.className = "q";
+notes.innerHTML = `<label for="free" style="color:var(--fg-bright);font-weight:500">Anything else (a case I missed, a word)</label><textarea id="free" style="min-height:70px;font:inherit;font-size:12.4px;color:var(--fg);background:var(--bg);border:1px solid var(--hairline);padding:8px"></textarea>`;
+dec.append(notes);
+function answers() {
+  const lines = ["docs/44 skipped files and the disk (2026-10-21):"];
+  for (const d of DEC) { const c = $(`input[name="${d.id}"]:checked`); lines.push(`${d.id} ${c ? c.value : "-"}`); }
+  const f = $("#free").value.trim(); if (f) lines.push("notes: " + f);
+  $("#answers").value = lines.join("\n");
+}
+dec.addEventListener("input", answers); answers();
+$("#copy").addEventListener("click", () => {
+  const ta = $("#answers");
+  const done = () => { $("#copied").hidden = false; setTimeout(() => $("#copied").hidden = true, 1600); };
+  if (navigator.clipboard?.writeText) navigator.clipboard.writeText(ta.value).then(done, () => { ta.select(); });
+  else ta.select();
+});
+})();
+</script>
