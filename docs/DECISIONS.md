@@ -831,6 +831,45 @@ shows that space and frees it where it can see the disk.
 - **Busy disk (D12):** later, its own issue: say "busy writing to its disk" only when the local
   disk's activity shows it. #123.
 
+## C18 — After a move (board 45, ruled 2026-10-21)
+
+Board [45](45-after-a-move.html) D1–D9, all as recommended, with D7 made precise in the ruling
+(below). From Diogo's manual pass of the moves: their outcome showed far from the torrent, the
+places list had no way in for the mouse, selecting several rows with the mouse was invisible, and
+closing a move's summary lost "move back". #130.
+
+**This entry changes C16 L7 and L9 and C2 D1's footer sentence (D1), C12 D22 and board 35 N8
+(D2), and adds to C16 L11 and C15 M16 (D7–D8):** a finished move's record outlives its summary.
+
+- **Where a quick action's outcome shows (D1):** a strip in the selection bar's place (bottom
+  middle of the table), plus the row's own mark in its status cell while the row is on screen.
+  The details' error block stays. v0.4.0.
+- **Which actions (D2):** every action on torrents from the table (move, start/stop, delete,
+  rename, category, tags…). v0.4.0.
+- **How long (D3):** done for 6 s, its line running down; a failure until × / esc or the next
+  action; several at once as counts, yellow when some failed. v0.4.0.
+- **A long move (D4):** its band and summary stay where they are, under the top bar.
+- **The places list's opener (D5):** "places ▾" in the Move sheet's field, before browse; a
+  combobox for screen readers. v0.3.0.
+- **Mouse selection (D6):** a □ at a row's start on hover (click adds, shift+click ranges), ■ on
+  selected rows, a mouse block in the `?` sheet, a faint hint on the selection bar the first 3
+  times. v0.4.0.
+- **Move back after the summary closes (D7):** in the torrent's details (its last move), the log
+  (one line per move) and the palette. Ruled with these rules for moves that overlap:
+  - Each torrent goes back only if it is still where that move put it. A later move of other
+    torrents never blocks it; only an overlap matters.
+  - The sheet names what is in the way: "3 were moved again since, by *move to PATH (14:02)*",
+    with "move that one back first". Undoing the later move puts them where this one left them,
+    and this one is whole again: undo in reverse order, only where moves overlap.
+  - Never a silent partial: the button says what will happen ("move 46 back · 3 stay") and
+    nothing is sent until it is pressed.
+  - The palette's "undo last move" offers only the newest move. Older moves come from details
+    or the log, through the sheet above.
+  - A torrent moved outside omaseed (qBittorrent's Web UI, another tool) counts the same: not
+    where the move put it, so it stays and is listed. v0.3.0.
+- **How long (D8):** the last 20 moves or 30 days, whichever ends first. v0.3.0.
+- **When (D9):** D5, D7 and D8 with v0.3.0; D1–D4 and D6 in v0.4.0.
+
 ## M8 — A click leaves the keyboard focus where it was
 
 Buttons and toggles do not take the focus when clicked. Otherwise an overlay gives the focus
