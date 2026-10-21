@@ -284,9 +284,11 @@ What the board left open:
   crossed 1.0 this week, from what the ledger saw each one give; the best day is the weekday
   that gave most. A part with nothing to say (no streak of two days or more, nothing rare,
   nothing paid back) is left out.
-- **Words.** Title "Your week", the board's two lines, the button "open the console" (also the
-  click, for Omarchy's toasts, which draw no buttons). The ratio prints as the console prints
-  it ("2.40", where the board's mock says "2.4").
+- **Words.** Title "Your week", the board's two lines, the button "Open the console" (also the
+  click). The ratio prints as the console prints it ("2.40", where the board's mock says
+  "2.4"). The button was "open the console" while Omarchy's toasts drew no buttons; Omarchy 4.5
+  draws a notice's actions in sentence case, so every omaseed notice button is sentence case
+  now (ruled 2026-10-21, #111, 3148dc9).
 - **The setting** is a fifth switch under Settings › Notifications, "Weekly recap", off.
 
 The pure part is `core/WeeklyRecap`.
