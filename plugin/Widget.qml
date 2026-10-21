@@ -129,10 +129,16 @@ BarWidget {
     IpcOwner.leave(root)
   }
 
+  // Omarchy 4.5 answers `omarchy-shell` over its own socket (~5 ms, not a qs ipc client's
+  // ~45 ms) for the handlers in its IpcRegistry, which answers only an enabled one: every
+  // instance registers, the owner is the one that answers (#111). 4.0.x has no registry, and
+  // the ReferenceError is caught, so there it is qs ipc as before.
   IpcHandler {
     id: ipc
     target: root.moduleName
     enabled: root.ipcOwner
+    Component.onCompleted: { try { IpcRegistry.register(ipc) } catch (e) {} }
+    Component.onDestruction: { try { IpcRegistry.unregister(ipc) } catch (e) {} }
     function open(): void { root.open() }
     function close(): void { root.close() }
     function toggle(): void { root.toggle() }

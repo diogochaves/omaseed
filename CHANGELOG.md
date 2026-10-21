@@ -142,6 +142,9 @@ before it will tag a release.
 
 ### Changed
 
+- `omarchy-shell chaves.omaseed open|close|toggle|altSpeed|settings` takes Omarchy 4.5's fast
+  path, the shell's own socket, instead of starting a qs ipc client each time (#111). 4.0.x
+  goes through qs ipc as before.
 - Reduced motion also follows Hyprland's animations: with them off (Omarchy's "no
   animations", which 4.5 turns on by itself in a VM), the rows' pulse and the tide's halo hold
   still, as the shell's own motion does, and they move again when the animations come back
