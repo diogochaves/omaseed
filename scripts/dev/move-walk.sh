@@ -621,7 +621,7 @@ fi
 if [ "$FROM" = games ] || [ "$FROM" = selection ] || [ "$FROM" = sheet ]; then
 SEL="$BOX_HOME/sel"
 
-step "Places under the field" "The cursor on Short Film 020, m: the Move… sheet. ↓ opens the places under the field (recent destinations, the library's folders, the categories' folders); ↓ again moves to the next one; enter fills the field with it and moves nothing; esc closes only the list, and a second esc the sheet."
+step "Places under the field" "The cursor on Short Film 020, m: the Move… sheet. ↓ opens the places under the field (recent destinations, the library's folders, the categories' folders); ↓ again moves to the next one; enter fills the field with it and moves nothing; ↓ opens it again and esc closes only the list; the next enter moves the torrent to the place filled in."
 places_from="$(save_of "Short Film 020")"
 table_on "Short Film 020"
 keys m
@@ -649,19 +649,27 @@ shot "The places under the field: recent, library, categories; the hints pick, f
 keys Down
 second="$(place_rows | sed -n 's/^\* //p')"
 if [ -n "$second" ] && [ "$second" != "$first" ]; then pass "↓ moves to the next place ($second)"; else fail "↓ didn't move (\"$first\" then \"$second\")"; fi
+# Past the torrent's own folder, so the move below proves the fill.
+for _ in 1 2 3 4; do
+    [ "$second" != "$places_from" ] && break
+    keys Down
+    second="$(place_rows | sed -n 's/^\* //p')"
+done
+[ "$second" != "$places_from" ] || fail "every place picked is Short Film 020's own folder"
 keys Return
-expect_tree "enter fills the field with it" "'$second'" 10
-no_text "the list closed" "fill in"
+no_text "enter closes the list" "fill in"
 expect_text "the sheet stays open" "Move Short Film 020" 3
-expect_at "nothing moved" "Short Film 020" "$places_from" 3
+expect_at "enter moved nothing" "Short Film 020" "$places_from" 3
 keys Down
 expect_text "↓ opens the list again" "fill in" 10
 keys Escape
 no_text "esc closes the list" "fill in"
 expect_text "and only the list" "Move Short Film 020" 3
-keys Escape
-no_text "a second esc closes the sheet" "Move Short Film 020"
 expect_at "still nothing moved" "Short Film 020" "$places_from" 3
+# The field reads as a combo box "new path" (C18 D5), whose text the tree doesn't print: the
+# fill is proven by where the next enter sends the torrent.
+keys Return
+expect_at "the next enter moves it to the place filled in" "Short Film 020" "$second" 30
 
 step "The names" "The : palette finds move… when set location is typed; the actions menu (enter) and the selection bar (space) say move…."
 keys colon
