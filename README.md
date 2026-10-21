@@ -239,7 +239,12 @@ it. A capital letter is the stronger variant of its lower-case neighbour (`p` st
 | `?` `F1` | every key |
 
 Keys cannot be rebound yet. omaseed binds no global shortcut; to summon it with, say,
-`super+t`, bind that in Hyprland to launch `omaseed`: a second launch raises the running one.
+`super+shift+t` (free in Omarchy's default bindings, 4.0 and 4.5 alike), add a line to
+`~/.config/hypr/bindings.lua` that launches `omaseed`: a second launch raises the running one.
+
+```lua
+o.bind("SUPER + SHIFT + T", "omaseed", { launch = "omaseed" })
+```
 
 ## Theme
 
