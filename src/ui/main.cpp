@@ -657,7 +657,8 @@ int main(int argc, char *argv[])
     QObject::connect(&omaseedApp, &omaseed::app::App::showConsoleRequested, &app, showWindow);
 
     // #24 T5: the desktop's reduced-motion setting (the settings portal) stills the rows'
-    // pulse and the tide's halo, and follows the setting when it changes.
+    // pulse and the tide's halo, and follows the setting when it changes; so does Hyprland's
+    // animations turned off (#111: Omarchy's "no animations" toggle, as its shell does).
     omaseed::integration::MotionPreference motion;
     QObject::connect(&motion,
                      &omaseed::integration::MotionPreference::reducedChanged,
