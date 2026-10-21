@@ -1,0 +1,88 @@
+# Testing omaseed
+
+How omaseed is checked, in the order it is checked, and the rules every session and contributor
+follows. The commands themselves are listed in `CLAUDE.md`; `README.md` says how to build.
+
+## The layers
+
+1. **Unit and QML tests** (`ctest --test-dir build -LE live`). QtTest for every `core` class and
+   most of `integration` and `App`; `tst_<Name>.qml` (qmltestrunner) for each Kit component.
+   They run offscreen and need nothing else. CI runs them on every push, with warnings as errors.
+2. **Live tests** (`ctest -L live`). Against two throwaway qBittorrents from
+   `scripts/dev/test-server.sh`: the playground on `:8081` (no login from localhost) and the
+   strict twin on `:8082` (real logins and an API key, kept in `~/.config/omaseed/dev.env`,
+   outside the repo). Without `dev.env` loaded the strict tests skip and say so.
+3. **Walks** (`scripts/dev/*-walk.sh`). The app driven through its own UI in an
+   [omabox](https://github.com/diogochaves/omabox), an invisible desktop, checking what
+   qBittorrent says and what is on disk after each step, with a shot per step and an `index.md`
+   in the output folder. `--interactive` shows the box as a window and waits for enter at each
+   step. Most use the offline swarm (`scripts/dev/swarm.sh`): real downloads that never leave the
+   machine.
+
+   | Walk | What it covers |
+   |---|---|
+   | `swarm-walk.sh` | every torrent state the swarm can produce, in the table and details |
+   | `strict-walk.sh` | first run against `:8082`: cookie login and an API key |
+   | `notify-walk.sh` | downloads finishing: one notice each, a click shows the torrent |
+   | `magnet-walk.sh` | a magnet or `.torrent` opened with `xdg-open`: closed, hidden, running |
+   | `actions-walk.sh` | renames, categories, tags, automatic management, the Move… sheet, delete |
+   | `settings-walk.sh` | the qBittorrent settings pane, against a qBittorrent in the box |
+   | `servers-walk.sh` | two qBittorrents: first run, add, switch, an action on each, remove |
+   | `backup-walk.sh` | a qBittorrent's torrents exported and imported through the app |
+   | `error-walk.sh` | a torrent going into error, and the app saying why |
+   | `menu-walk.sh` | the one menu shown by the tray and the bar widget |
+   | `move-walk.sh` | moving folders and selections: queue, places, partial packs, move back |
+
+   `move-walk.sh` takes about 11 minutes; `OMASEED_MOVE_WALK_FROM` set to `selection`, `sheet`,
+   `history`, `music` or `remote` starts it later.
+
+4. **Visual check** (`omabox check run … -- scripts/dev/visual-check.sh`). The screens the walks
+   reach (library, details, menus, palette, help, the add sheet, every Settings page, the bar
+   widget) compared with a baseline: "same", or which region changed and which elements moved.
+   The baseline is per machine and GPU, in `.local/visual` (not committed): make it once with
+   `--approve` (three runs, about 6 minutes); a check takes about 90 s.
+5. **A person's pass** (`docs/manual-tests/*.md`). What tests can't judge: whether it reads well,
+   looks right and feels right. Each plan names its setup, its steps and what each should show.
+   `scripts/dev/manual-box.sh` makes a throwaway desktop with omaseed built from the checkout and
+   two qBittorrents of its own; a plan's own script fills it (`scripts/dev/move-library.sh` for
+   [moves](manual-tests/moves.md)).
+
+## The order
+
+Automated first, then a person. Before asking anyone for a manual pass of a feature, its tests,
+its walk and the visual check pass on the same commit. A person's pass is for wording, look and
+feel, and for what a walk can't reach; anything it finds that a walk could check becomes a walk
+step, so it is checked every time after.
+
+## The rules
+
+- **Never a real library.** Tests, walks and scripts talk to the playground, the strict twin, a
+  box's own qBittorrent, or the swarm. A script that takes a Web API URL refuses `:8080`.
+- **Anything with a window runs in a box.** Apps, test binaries outside `ctest`, the tray, the
+  bar, notifications, the keyring: an omabox, never the desktop you are using.
+- **Test scripts are committed and re-runnable.** A script that builds test state (a library,
+  destinations, servers) or drives a test lives in `scripts/dev/`, is shellcheck-clean
+  (`scripts/dev/shellcheck.sh`), is listed in `CLAUDE.md`, and can run again on the same box. A
+  manual plan lives in `docs/manual-tests/`. Nothing a test needs lives only in someone's
+  temporary folder.
+- **Research is kept.** A script that answered a question about qBittorrent, libtorrent or a
+  filesystem goes in `scripts/dev/research/<issue>-<topic>/` with a README: the question, the
+  commands, what they printed. See [the index](../scripts/dev/research/README.md).
+- **Public repo.** No real paths, server names or torrent names from anyone's library in tests,
+  plans, shots or issues; boxes use `/home/sbx` and `/tmp` paths.
+
+## Adding a walk
+
+Start from the closest existing walk: its helpers (`api`, `keys`, `press`, `expect_text`,
+`expect_count`, `shot`, `step`) are copied, not shared. Seed state through the API or files in
+the box, drive the app through its own keys and its accessibility tree (`omabox tree`), and
+check the server and the disk after each step, not only the screen. Wait on conditions, never on
+fixed sleeps alone: a busy machine is slower. Add an `OMASEED_<NAME>_WALK_FROM` start point when
+the walk is long. List it in `CLAUDE.md` and in the table above.
+
+## Adding a manual plan
+
+`docs/manual-tests/<feature>.md`: what the walk already covers (so the person doesn't repeat
+it), the setup as commands (a script in `scripts/dev/` when it needs data), and numbered steps,
+each "do this, then you should see that". Use only box paths. When a step turns out to be
+checkable, move it into the walk and keep the plan for what remains.

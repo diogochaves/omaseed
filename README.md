@@ -314,7 +314,8 @@ scripts/dev/lint.sh build                             # qmllint and clang-format
 ```
 
 `-DOMASEED_WERROR=ON` turns warnings into errors (CI uses it); `-DBUILD_TESTING=OFF` skips
-the tests.
+the tests. [docs/TESTING.md](docs/TESTING.md) covers the rest: live tests, the walks in an
+omabox, the visual check and the manual test plans.
 
 The live tests (`ctest -L live`) talk to two throwaway qBittorrent servers that
 `scripts/dev/test-server.sh` runs: `start` (port 8081, no login from localhost) and `start
