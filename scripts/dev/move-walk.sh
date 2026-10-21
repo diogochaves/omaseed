@@ -17,6 +17,7 @@
 #   scripts/dev/move-walk.sh --interactive    # Diogo: the box is a window on workspace 9; each
 #                                             # step says what it will do and waits for enter
 #   OMASEED_MOVE_WALK_FROM=selection …        # from the selections on (no folder moves first)
+#   OMASEED_MOVE_WALK_FROM=sheet …            # from the places, names and partial pack on
 #   OMASEED_MOVE_WALK_FROM=music …            # from the unwritable and full steps on
 #   OMASEED_MOVE_WALK_FROM=remote …           # only the server omaseed can't see
 #   OMASEED_MOVE_WALK_KEEP=1 …                # a failed run leaves its box up
@@ -143,12 +144,25 @@ expect_text() {
     fail "$what (after ${limit}s no \"$text\" in the window)"
 }
 
+# expect_tree "WHAT" STRING [SECONDS]: wait until the window's tree, as text, holds STRING (a
+# role with its name, like 'menu item "move…"', or a field's value, like "'~/sel/one'").
+expect_tree() {
+    local what="$1" text="$2" limit="${3:-10}"
+    for _ in $(seq 1 "$limit"); do
+        omabox tree -b "$BOX" --window omaseed 2>/dev/null | grep -qF -- "$text" && { pass "$what"; return 0; }
+        sleep 1
+    done
+    fail "$what (after ${limit}s no $text in the window's tree)"
+}
+
 # press NAME: click the middle of the node (a button first) whose accessible name is NAME.
 press() {
     local where
     # The job's desktop notice (a pause, the end) sits over the band's right end, and a click
     # on it shows the job's torrents: wait for the toast to go (the shell keeps one JSON per
-    # toast on screen), then let the window settle.
+    # toast on screen), then let the window settle. Dismissed first: waiting them out took up to
+    # 20 s a press, long enough for a folder's move to end before its queue could be looked at.
+    in_box omarchy-shell -q notifications dismissAll || true
     for _ in $(seq 1 40); do
         compgen -G "$home/.local/state/omarchy/notifications/*.json" >/dev/null || break
         sleep 0.5
@@ -405,7 +419,7 @@ expect_count "music holds $MUSIC" count_under "$LIB/music" -eq "$MUSIC"
 expect_text "the rail lists the folders" "handheld" 30
 shot "The library: the rail's folders group lists library, games with handheld under it, films and music."
 
-# OMASEED_MOVE_WALK_FROM skips what comes before: selection, music or remote.
+# OMASEED_MOVE_WALK_FROM skips what comes before: selection, sheet, music or remote.
 FROM="${OMASEED_MOVE_WALK_FROM:-games}"
 if [ "$FROM" = games ]; then
 
@@ -532,10 +546,13 @@ expect_checked "keep their places is picked" "keep their places below $common"
 expect_text "a row for handheld" "to $SEL/keep$handheld_rel" 10
 shot "Keep their places: three rows, each folder and where it goes; room; move 3 torrents." sheet
 press "move 3 torrents"
+# C16 L6/L7: a move that lands within 3 s says so in the footer ("3 moved to …"); a slower
+# one (a busy machine) gets the band and its summary ("3 torrents moved to …"). Either is right.
+# Looked for first: the note lasts 6 s, and the server checks below take seconds.
+expect_text "the footer or the band says 3 moved" "moved to $SEL/keep" 30
 expect_at "Arcade Set 002 is at ~/sel/keep$arcade_rel" "Arcade Set 002" "$SEL/keep$arcade_rel"
 expect_at "Handheld Pack 002 at ~/sel/keep$handheld_rel" "Handheld Pack 002" "$SEL/keep$handheld_rel"
 expect_at "Short Film 002 at ~/sel/keep$film_rel" "Short Film 002" "$SEL/keep$film_rel"
-expect_text "the footer says 3 moved" "3 moved to $SEL/keep" 20
 table_on "Short Film 002"
 keys Escape
 
@@ -551,14 +568,19 @@ keys ctrl+a -t "$SEL/after"
 expect_text "the sheet says it waits" "move after films" 20
 shot "The Move… sheet during the folder's move: move after films." sheet
 press "move after films"
+# The band's line ends "next: Arcade Set 003 to …", past the length omabox's tree keeps of a
+# name, so the shot shows it and the details below check it.
 shot "The band: films moving, next: Arcade Set 003 to ~/sel/after." band
 press details
 expect_text "details list it, waiting (J3)" "waiting: Arcade Set 003" 10
 shot "The band's details: waiting: Arcade Set 003, with cancel." details
+# Its footer note, or its band's summary when it ran past 3 s (C16 L6/L7). Looked for first,
+# with the details still open: the note lasts 6 s, while closing them waits out the films'
+# desktop notice (press) and the server checks below take seconds on a busy machine.
+expect_text "it says Arcade Set 003 moved" "Arcade Set 003 moved to $SEL/after" 400
 press details
 expect_count "all films land on ~/sel/films" count_at "$SEL/films" -eq "$nfilms" 400
 expect_at "Arcade Set 003 moved after them" "Arcade Set 003" "$SEL/after" 60
-expect_text "its footer note" "Arcade Set 003 moved to $SEL/after" 20
 expect_text "the films' summary is still there" "films moved" 5
 shot "The films summary, still there after the queued move landed under it; the footer note." summary
 
@@ -591,6 +613,159 @@ expect_at "Arcade Set 005 is at ~/sel/clash" "Arcade Set 005" "$SEL/clash"
 expect_at "Arcade Set 004 stayed" "Arcade Set 004" "$clash_from" 1
 if [ "$(cat "$home/sel/clash/Arcade Set 004/data.bin")" = planted ]; then pass "the file there is untouched"; else fail "the planted data.bin changed"; fi
 table_on "Arcade Set 005"
+keys Escape
+fi
+
+# ---- the sheet's places, the names, a partial pack (board 43 L2, L4; C16) -------------------
+
+if [ "$FROM" = games ] || [ "$FROM" = selection ] || [ "$FROM" = sheet ]; then
+SEL="$BOX_HOME/sel"
+
+step "Places under the field" "The cursor on Short Film 020, m: the Move… sheet. ↓ opens the places under the field (recent destinations, the library's folders, the categories' folders); ↓ again moves to the next one; enter fills the field with it and moves nothing; esc closes only the list, and a second esc the sheet."
+places_from="$(save_of "Short Film 020")"
+table_on "Short Film 020"
+keys m
+expect_text "the Move… sheet is open" "Move Short Film 020" 10
+keys Down
+expect_text "↓ opens the places" "fill in" 10
+# The rows the list shows, and which one is current ([selected]), from the window's tree.
+place_rows() {
+    omabox tree -b "$BOX" --window omaseed 2>/dev/null | python3 -c '
+import re, sys
+inside = False
+for line in sys.stdin:
+    if "dialog \"Move Short Film 020\"" in line:
+        inside = True
+    elif inside and re.match(r"  \S", line):
+        break
+    m = re.search(r"list item \"([^\"]+)\"( \[selected\])?", line) if inside else None
+    if m:
+        print(("* " if m.group(2) else "  ") + m.group(1))'
+}
+first="$(place_rows | sed -n 's/^\* //p')"
+rows="$(place_rows | wc -l)"
+if [ "$rows" -ge 2 ]; then pass "the list shows $rows places"; else fail "the list shows $rows places, expected at least 2"; fi
+shot "The places under the field: recent, library, categories; the hints pick, fill in, close, browse…." places
+keys Down
+second="$(place_rows | sed -n 's/^\* //p')"
+if [ -n "$second" ] && [ "$second" != "$first" ]; then pass "↓ moves to the next place ($second)"; else fail "↓ didn't move (\"$first\" then \"$second\")"; fi
+keys Return
+expect_tree "enter fills the field with it" "'$second'" 10
+no_text "the list closed" "fill in"
+expect_text "the sheet stays open" "Move Short Film 020" 3
+expect_at "nothing moved" "Short Film 020" "$places_from" 3
+keys Down
+expect_text "↓ opens the list again" "fill in" 10
+keys Escape
+no_text "esc closes the list" "fill in"
+expect_text "and only the list" "Move Short Film 020" 3
+keys Escape
+no_text "a second esc closes the sheet" "Move Short Film 020"
+expect_at "still nothing moved" "Short Film 020" "$places_from" 3
+
+step "The names" "The : palette finds move… when set location is typed; the actions menu (enter) and the selection bar (space) say move…."
+keys colon
+keys -t "set location"
+expect_tree "the palette finds move… for \"set location\"" 'list item "move…"' 10
+shot "The command palette: set location typed, move… found." palette
+# The esc ladder: the first clears what was typed, the second closes the palette.
+keys Escape
+keys Escape
+no_text "the palette is closed" "set location"
+table_on "Short Film 021"
+keys Return
+expect_tree "the actions menu says move…" 'menu item "move…"' 10
+shot "The actions menu: move… and move folder…." actions
+keys Escape
+table_on "Short Film 021"
+keys space
+expect_tree "the selection bar says move…" 'button "move…"' 10
+shot "The selection bar: move…." bar
+keys space
+keys Escape
+
+step "A partial pack to another drive" "Big Collection 1: six files, the first two wanted and on disk, the other four never written, 100 % of what it wants. m, /tmp/fast/partial, enter: only the two wanted files go; it stays at 100 % with no missing files, and the four others don't appear anywhere."
+python3 -I - "$home" <<'PY'
+import hashlib, os, sys
+home, PIECE = sys.argv[1], 16384
+def bencode(x):
+    if isinstance(x, int):
+        return b"i%de" % x
+    if isinstance(x, bytes):
+        return b"%d:%s" % (len(x), x)
+    if isinstance(x, str):
+        return bencode(x.encode())
+    if isinstance(x, list):
+        return b"l" + b"".join(map(bencode, x)) + b"e"
+    return b"d" + b"".join(bencode(k) + bencode(x[k]) for k in sorted(x)) + b"e"
+# Every file a whole number of pieces, so the two wanted ones verify alone (as move-library.sh).
+files = [("Disc 1/part %d.bin" % n,
+          (hashlib.sha256(b"p1-%d" % n).digest() * (PIECE * (2 + n) // 32 + 1))[:PIECE * (2 + n)])
+         for n in range(6)]
+folder = os.path.join(home, "Torrents/library/packs/Big Collection 1")
+for path, data in files[:2]:
+    os.makedirs(os.path.dirname(os.path.join(folder, path)), exist_ok=True)
+    with open(os.path.join(folder, path), "wb") as f:
+        f.write(data)
+stream = b"".join(d for _, d in files)
+info = {"name": "Big Collection 1", "piece length": PIECE, "private": 1,
+        "pieces": b"".join(hashlib.sha1(stream[i:i + PIECE]).digest() for i in range(0, len(stream), PIECE)),
+        "files": [{"length": len(d), "path": p.split("/")} for p, d in files]}
+os.makedirs(os.path.join(home, "walk-torrents/packs"), exist_ok=True)
+with open(os.path.join(home, "walk-torrents/packs/Big Collection 1.torrent"), "wb") as f:
+    f.write(bencode({"info": info, "created by": "move-walk"}))
+PY
+api torrents/add -F "torrents=@$BOX_HOME/walk-torrents/packs/Big Collection 1.torrent" \
+    -F "savepath=$LIB/packs" -F stopped=true >/dev/null
+pack=""
+for _ in $(seq 1 20); do
+    pack="$(api torrents/info | python3 -c '
+import json, sys
+print(next((t["hash"] for t in json.load(sys.stdin) if t["name"] == "Big Collection 1"), ""))')"
+    [ -n "$pack" ] && break
+    sleep 0.5
+done
+[ -n "$pack" ] || fail "Big Collection 1 wasn't added"
+api -X POST torrents/filePrio -d "hash=$pack" -d "id=2|3|4|5" -d priority=0 >/dev/null
+# Checked while stopped, then started: a start sent during a check is lost (move-library.sh).
+api -X POST torrents/recheck -d "hashes=$pack" >/dev/null
+pack_state() {
+    api "torrents/info?hashes=$pack" | python3 -c '
+import json, sys
+t = json.load(sys.stdin)[0]
+print(t["state"], t["progress"], t["save_path"].rstrip("/"))'
+}
+for _ in $(seq 1 60); do
+    read -r st prog _ < <(pack_state)
+    case "$st" in checking*) ;; *) [ "$prog" = 1 ] && break ;; esac
+    sleep 0.5
+done
+if [ "$prog" = 1 ]; then pass "the pack is at 100 % of its two files"; else fail "the pack reads $prog ($st) after its check"; fi
+api -X POST torrents/start -d "hashes=$pack" >/dev/null
+table_on "Big Collection 1"
+keys m
+expect_text "the Move… sheet is open" "Move Big Collection 1" 10
+keys ctrl+a -t /tmp/fast/partial
+expect_text "it checks the room on /tmp" "Room" 20
+shot "The Move… sheet for the partial pack: what it holds on disk, room on /tmp." sheet
+keys Return
+expect_at "Big Collection 1 saves at /tmp/fast/partial" "Big Collection 1" /tmp/fast/partial 60
+expect_disk "part 0 is there" -f "/tmp/fast/partial/Big Collection 1/Disc 1/part 0.bin"
+expect_disk "part 1 is there" -f "/tmp/fast/partial/Big Collection 1/Disc 1/part 1.bin"
+for n in 2 3 4 5; do
+    if in_box test -e "/tmp/fast/partial/Big Collection 1/Disc 1/part $n.bin"; then
+        fail "part $n, never wanted, appeared at the destination"
+    fi
+done
+pass "parts 2–5 are nowhere at the destination"
+expect_disk "the source's part 0 is gone" ! "$LIB/packs/Big Collection 1/Disc 1/part 0.bin"
+read -r st prog _ < <(pack_state)
+if [ "$prog" = 1 ] && [ "$st" != missingFiles ] && [ "$st" != error ]; then
+    pass "still 100 %, $st, no missing files"
+else
+    fail "after the move it reads $prog ($st)"
+fi
+table_on "Big Collection 1"
 keys Escape
 fi
 
