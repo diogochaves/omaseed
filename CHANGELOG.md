@@ -142,6 +142,9 @@ before it will tag a release.
 
 ### Changed
 
+- Notices on Omarchy 4.5, which draws their actions as buttons: the labels are sentence case
+  ("Open folder", "Show", "Settings"), and the main action is the click only, not a second
+  button doing the same (#111). Omarchy 4.0.x draws no buttons and behaves as before.
 - Captions, links, state words and coloured glyphs read at 4.5:1 against the window in every
   theme (WCAG AA for text; captions were held at 3:1 and other colours not at all). A theme
   colour that falls short is moved towards the theme's text colour just far enough; one that

@@ -27,8 +27,8 @@ public:
     explicit Notifier(QDBusConnection connection = QDBusConnection::sessionBus(),
                       QObject *parent = nullptr);
 
-    /// "<name> · <sizeText> · <category>". Actions are "open folder" (only when a folder is
-    /// known) and "show". Event class "completed", subject the torrent hash.
+    /// "<name> · <sizeText> · <category>". Actions are "Open folder" (only when a folder is
+    /// known) and "Show", which is the click. Event class "completed", subject the torrent hash.
     quint32 notifyCompleted(const QString &hash,
                             const QString &name,
                             const QString &sizeText,
@@ -45,17 +45,18 @@ public:
     /// docs/33 D22, D23: the window's headline and line, in ErrorWords' words ("private
     /// didn't answer" / "Nothing is listening at 127.0.0.1:8091. omaseed tries again in
     /// 10 s."), so the notice and the window say the same with the same retry figure.
-    /// Action "settings". Event class "server", subject the server id.
+    /// Action "settings", also the click. Event class "server", subject the server id.
     quint32 notifyServerLost(const QString &serverId, const QString &headline, const QString &body);
 
     /// The matching "back" toast: replaces the server-lost notice for the same server id.
     quint32 notifyServerBack(const QString &serverId, const QString &serverName);
 
-    /// "<freeText> free". Action "settings". Event class "disk", subject the server id.
+    /// "<freeText> free". Action "settings", also the click. Event class "disk", subject the
+    /// server id.
     quint32 notifyDiskAlmostFull(const QString &serverId, const QString &freeText);
 
     /// #24 T8: the weekly recap, `summary` / `body` as WeeklyRecap words them. Action
-    /// "console" ("open the console"), also the click. Event class "recap", subject the
+    /// "console" ("Open the console"), also the click. Event class "recap", subject the
     /// server id.
     quint32 notifyWeeklyRecap(const QString &serverId, const QString &summary, const QString &body);
 

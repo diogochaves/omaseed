@@ -29,8 +29,9 @@ private slots:
     void clickOnTheBodyActsAsTheMainButton();
     void notificationClosedForgetsTheKey();
     void aMoveIsOneNoticePerServer();
-    void aDaemonRestartForgetsTheLiveIds(); // INT-9
-    void aServiceThatAppearsLaterIsUsed();  // INT-9
+    void theMainActionIsTheClickAndNoButtonOfItsOwn(); // #111
+    void aDaemonRestartForgetsTheLiveIds();            // INT-9
+    void aServiceThatAppearsLaterIsUsed();             // INT-9
 
 private:
     FakeNotificationBus m_bus;
@@ -80,11 +81,9 @@ void TestNotifier::completedBodyAndActionsMatchSpec()
     QCOMPARE(call.body, QStringLiteral("archlinux-2026.09.01-x86_64.iso · 1.31 GB · linux"));
     QCOMPARE(call.actions,
              QStringList({QStringLiteral("open-folder"),
-                          QStringLiteral("open folder"),
-                          QStringLiteral("show"),
-                          QStringLiteral("show"),
+                          QStringLiteral("Open folder"),
                           QStringLiteral("default"),
-                          QStringLiteral("show")}));
+                          QStringLiteral("Show")}));
     QCOMPARE(call.hints.value(QStringLiteral("category")).toString(),
              QStringLiteral("transfer.complete"));
 }
@@ -98,10 +97,7 @@ void TestNotifier::completedWithoutFolderOmitsOpenFolderAction()
                                 /*hasFolder=*/false);
     QCOMPARE(m_server->calls.size(), 1);
     QCOMPARE(m_server->calls.first().actions,
-             QStringList({QStringLiteral("show"),
-                          QStringLiteral("show"),
-                          QStringLiteral("default"),
-                          QStringLiteral("show")}));
+             QStringList({QStringLiteral("default"), QStringLiteral("Show")}));
 }
 
 void TestNotifier::serverLostBodyAndActionsMatchSpec()
@@ -117,11 +113,7 @@ void TestNotifier::serverLostBodyAndActionsMatchSpec()
     QCOMPARE(
         call.body,
         QStringLiteral("Nothing is listening at nas.local:9090. omaseed tries again in 10 s."));
-    QCOMPARE(call.actions,
-             QStringList({QStringLiteral("settings"),
-                          QStringLiteral("settings"),
-                          QStringLiteral("default"),
-                          QStringLiteral("settings")}));
+    QCOMPARE(call.actions, QStringList({QStringLiteral("default"), QStringLiteral("Settings")}));
     QCOMPARE(call.hints.value(QStringLiteral("category")).toString(),
              QStringLiteral("network.disconnected"));
 }
@@ -210,8 +202,8 @@ void TestNotifier::aMoveIsOneNoticePerServer()
     QVERIFY(id != 0);
     QCOMPARE(m_server->calls.at(0).summary, QStringLiteral("games moved"));
     QCOMPARE(m_server->calls.at(0).body, QStringLiteral("385 moved, 2 failed"));
-    QCOMPARE(m_server->calls.at(0).actions.mid(0, 2),
-             QStringList({QStringLiteral("show"), QStringLiteral("show")}));
+    QCOMPARE(m_server->calls.at(0).actions,
+             QStringList({QStringLiteral("default"), QStringLiteral("Show")}));
     // A second for the same server takes the first one's place.
     const quint32 second = m_notifier->notifyMove(
         QStringLiteral("home"), QStringLiteral("games moved"), QStringLiteral("loose files too"));
@@ -223,6 +215,45 @@ void TestNotifier::aMoveIsOneNoticePerServer()
     QCOMPARE(spy.first().at(0).toString(), QStringLiteral("move"));
     QCOMPARE(spy.first().at(1).toString(), QStringLiteral("home"));
     QCOMPARE(spy.first().at(2).toString(), QStringLiteral("show"));
+}
+
+// #111: Omarchy 4.5 draws a notice's actions as buttons, "default" aside (the click). The main
+// action goes only as "default", so it is no second button doing what the click does, and its
+// label is sentence case like the shell's own. 4.0.x draws no buttons and invokes "default".
+void TestNotifier::theMainActionIsTheClickAndNoButtonOfItsOwn()
+{
+    m_notifier->notifyCompleted(QStringLiteral("a"),
+                                QStringLiteral("name"),
+                                QStringLiteral("1 GB"),
+                                QStringLiteral("linux"),
+                                /*hasFolder=*/true);
+    m_notifier->notifyErrored(
+        QStringLiteral("b"), QStringLiteral("name"), QStringLiteral("headline"), QString());
+    m_notifier->notifyServerLost(
+        QStringLiteral("home"), QStringLiteral("home didn't answer"), QStringLiteral("line"));
+    m_notifier->notifyDiskAlmostFull(QStringLiteral("disk"), QStringLiteral("1 GB"));
+    m_notifier->notifyWeeklyRecap(
+        QStringLiteral("recap"), QStringLiteral("Your week"), QStringLiteral("line"));
+    m_notifier->notifyMove(
+        QStringLiteral("move"), QStringLiteral("games moved"), QStringLiteral("line"));
+    QCOMPARE(m_server->calls.size(), 6);
+
+    const QStringList mainKeys{QStringLiteral("show"),
+                               QStringLiteral("show"),
+                               QStringLiteral("settings"),
+                               QStringLiteral("settings"),
+                               QStringLiteral("console"),
+                               QStringLiteral("show")};
+    for (qsizetype n = 0; n < m_server->calls.size(); ++n) {
+        const QStringList actions = m_server->calls.at(n).actions;
+        QVERIFY2(actions.size() % 2 == 0, qPrintable(actions.join(u',')));
+        QCOMPARE(actions.count(QStringLiteral("default")), 1);
+        QVERIFY2(!actions.contains(mainKeys.at(n)), qPrintable(actions.join(u',')));
+        for (qsizetype i = 1; i < actions.size(); i += 2)
+            QVERIFY2(actions.at(i).at(0).isUpper(), qPrintable(actions.at(i)));
+    }
+    // The one other button: the completed notice's "Open folder", before the click.
+    QCOMPARE(m_server->calls.first().actions.first(), QStringLiteral("open-folder"));
 }
 
 void TestNotifier::notificationClosedForgetsTheKey()
