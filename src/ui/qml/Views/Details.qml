@@ -115,6 +115,11 @@ Item {
     /// "folder", "dismiss" (MainView runs them); "rename" and "copy" are handled here. `x` on
     /// General sends "dismiss" too.
     signal failureActionRequested(string action)
+    /// Board 45 B1 (C18 D7): General's last-move block wants a move back of finished move `id`,
+    /// `only` this torrent when given (MainView opens the Move sheet).
+    signal moveBackRequested(string id, string only)
+    /// Board 45 B1: "show the move", its torrents in the table.
+    signal moveShowRequested(var hashes)
     /// A few words for the window's footer note ("one file, nothing to filter").
     signal noteRequested(string text)
 
@@ -1226,6 +1231,21 @@ Item {
                 return room.source === "unknown" ? "" : qsTr("%1 free").arg(App.sizeText(room.bytesFree));
             }
 
+            // Board 45 B1: read again when the history or the torrent's place changes.
+            lastMove: {
+                const revision = App.move.historyRevision;
+                const savePath = root.torrent ? root.torrent.savePath : "";
+                return root.torrent && revision >= 0 && savePath !== undefined
+                       ? App.move.lastMoveOf(root.torrent.hash) : ({});
+            }
+
+            onMoveAction: action => {
+                const move = generalTab.lastMove;
+                if (action === "show")
+                    root.moveShowRequested(move.hashes ?? []);
+                else
+                    root.moveBackRequested(move.id ?? "", action === "backThis" ? root.torrent.hash : "");
+            }
             onProblemAction: action => {
                 if (action === "rename") {
                     root.currentTab = 1;

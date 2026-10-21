@@ -917,6 +917,22 @@ QHash<QString, QString> pathsOf(const QJsonValue &json)
     return out;
 }
 
+/// C18 D7: when a finished move ended, "16:24" today, "20 Oct 16:24" another day.
+QString whenText(const QDateTime &at, const QDateTime &now)
+{
+    const QDateTime local = at.toLocalTime();
+    const QString time = QLocale().toString(local.time(), QLocale::ShortFormat);
+    if (local.date() == now.toLocalTime().date())
+        return time;
+    return QLocale().toString(local.date(), QStringLiteral("d MMM")) + QLatin1Char(' ') + time;
+}
+
+/// Where a finished move went, for its line: the folder, or "their places below ROOT".
+QString whereOf(const core::MoveRecord &record)
+{
+    return record.newPath.isEmpty() ? MoveController::tr("their places") : record.newPath;
+}
+
 } // namespace
 
 MovePlan MoveController::planFor(const QJsonObject &spec) const
@@ -993,7 +1009,125 @@ QJsonObject MoveController::backSpec() const
         {QStringLiteral("expectedAt"), pathsJson(m_job->movedTo())},
         {QStringLiteral("backOf"), m_job->title()},
         {QStringLiteral("backFrom"), m_job->newPath()},
-        {QStringLiteral("startedAt"), m_job->startedAt().toString(Qt::ISODate)}};
+        {QStringLiteral("startedAt"), m_job->startedAt().toString(Qt::ISODate)},
+        // C18 D7: what goes back leaves the job's record in the history.
+        {QStringLiteral("historyId"), recordIdOfJob()}};
+}
+
+QJsonObject MoveController::backSpecOf(const QString &id, const QString &only) const
+{
+    // C18 D7: a finished move's torrents, each to where it was, after its summary closed.
+    const core::MoveRecord *record = m_history.find(id);
+    if (record == nullptr)
+        return {};
+    QStringList hashes = record->from.keys();
+    if (!only.isEmpty())
+        hashes = hashes.contains(only) ? QStringList{only} : QStringList();
+    if (hashes.isEmpty())
+        return {};
+    hashes.sort();
+    QHash<QString, QString> from;
+    QHash<QString, QString> to;
+    for (const QString &hash : std::as_const(hashes)) {
+        from.insert(hash, record->from.value(hash));
+        to.insert(hash, record->to.value(hash));
+    }
+    QStringList hadAutoTmm;
+    for (const QString &hash : record->hadAutoTmm) {
+        if (from.contains(hash))
+            hadAutoTmm << hash;
+    }
+    const QString title = hashes.size() == 1 && record->names.contains(hashes.constFirst())
+                              ? record->names.value(hashes.constFirst())
+                              : counted(int(hashes.size()), tr("%1 torrent"), tr("%1 torrents"));
+    return {{QStringLiteral("kind"), QStringLiteral("back")},
+            {QStringLiteral("title"), title},
+            {QStringLiteral("hashes"), QJsonArray::fromStringList(hashes)},
+            {QStringLiteral("rule"), QStringLiteral("eachOwn")},
+            {QStringLiteral("targets"), pathsJson(from)},
+            {QStringLiteral("expectedAt"), pathsJson(to)},
+            {QStringLiteral("backOf"), record->title},
+            {QStringLiteral("backFrom"), record->newPath},
+            {QStringLiteral("startedAt"), record->startedAt.toString(Qt::ISODate)},
+            {QStringLiteral("historyId"), id},
+            {QStringLiteral("hadAutoTmm"), QJsonArray::fromStringList(hadAutoTmm)},
+            {QStringLiteral("carried"), only.isEmpty() ? record->carried : 0}};
+}
+
+QVariantMap MoveController::planBackOf(const QString &id, const QString &only)
+{
+    const QJsonObject spec = backSpecOf(id, only);
+    if (spec.isEmpty())
+        return {};
+    const MovePlan plan = planFor(spec);
+    fetchFor(plan);
+    return selectionWords(plan, spec);
+}
+
+QVariantMap MoveController::lastMoveOf(const QString &hash) const
+{
+    const core::MoveRecord *record = m_history.lastFor(hash);
+    if (record == nullptr)
+        return {};
+    const core::MoveHistory::BackCheck all = m_history.check(record->id, savePaths());
+    const int others = int(record->from.size()) - 1;
+    return {{QStringLiteral("id"), record->id},
+            {QStringLiteral("title"), record->title},
+            {QStringLiteral("when"), whenText(record->finishedAt, now())},
+            {QStringLiteral("today"),
+             record->finishedAt.toLocalTime().date() == now().toLocalTime().date()},
+            {QStringLiteral("from"), record->from.value(hash)},
+            {QStringLiteral("to"), record->to.value(hash)},
+            {QStringLiteral("others"), others},
+            {QStringLiteral("hashes"), QStringList(record->from.keys())},
+            {QStringLiteral("carried"), record->carried > 0 ? tr("loose files too") : QString()},
+            {QStringLiteral("canBack"), !all.goBack.isEmpty()},
+            {QStringLiteral("canBackThis"), all.goBack.contains(hash)}};
+}
+
+QVariantMap MoveController::newestMove() const
+{
+    const core::MoveRecord *record = m_history.newest();
+    if (record == nullptr)
+        return {};
+    const core::MoveHistory::BackCheck all = m_history.check(record->id, savePaths());
+    return {{QStringLiteral("id"), record->id},
+            {QStringLiteral("title"), record->title},
+            {QStringLiteral("when"), whenText(record->finishedAt, now())},
+            {QStringLiteral("where"), whereOf(*record)},
+            {QStringLiteral("count"), int(record->from.size())},
+            {QStringLiteral("canBack"), !all.goBack.isEmpty()}};
+}
+
+QVariantList MoveController::moveLines() const
+{
+    // C18 D7: one line per move in the log, oldest first, worded as qBittorrent's are: a name
+    // in quotes (the torrent's, so the log's torrent chip finds it, or the folder's), a
+    // selection by its count alone (its title is the count).
+    QVariantList out;
+    const QList<core::MoveRecord> &records = m_history.records();
+    for (auto it = records.crbegin(); it != records.crend(); ++it) {
+        const core::MoveRecord &record = *it;
+        const int count = int(record.from.size());
+        const QString torrents = counted(count, tr("%1 torrent"), tr("%1 torrents"));
+        QString text;
+        if (count == 1)
+            text = tr("omaseed moved \"%1\" to %2")
+                       .arg(record.names.value(record.from.keys().constFirst(), record.title),
+                            whereOf(record));
+        else if (record.kind == QLatin1String("folder"))
+            text = tr("omaseed moved the folder \"%1\", %2, to %3")
+                       .arg(record.title, torrents, whereOf(record));
+        else
+            text = tr("omaseed moved %1 to %2").arg(torrents, whereOf(record));
+        if (record.carried > 0)
+            text += QLatin1Char(' ') +
+                    counted(record.carried, tr("and %1 loose file"), tr("and %1 loose files"));
+        out << QVariantMap{{QStringLiteral("at"), record.finishedAt.toSecsSinceEpoch()},
+                           {QStringLiteral("message"), text},
+                           {QStringLiteral("id"), record.id}};
+    }
+    return out;
 }
 
 QJsonObject MoveController::replan(const QJsonObject &spec) const
@@ -1114,7 +1248,52 @@ QVariantMap MoveController::selectionWords(const MovePlan &plan, const QJsonObje
 
     // L3: a line shows only when it says something; when every check passed, one green line
     // stands for them.
-    const QVariantList all = checkLines(plan, newPath, title);
+    QVariantList all = checkLines(plan, newPath, title);
+    // C18 D7: a finished move's way back says who moved the others since.
+    const QString historyId = back ? spec.value(QStringLiteral("historyId")).toString() : QString();
+    const core::MoveHistory::BackCheck since =
+        historyId.isEmpty() ? core::MoveHistory::BackCheck()
+                            : m_history.check(historyId, savePaths(), hashes);
+    if (!historyId.isEmpty() && m_history.find(historyId) != nullptr) {
+        const QStringList generic = plan.movedSince();
+        all.removeIf([&generic](const QVariant &value) {
+            const QVariantMap line = value.toMap();
+            return !generic.isEmpty() &&
+                   line.value(QStringLiteral("hashes")).toStringList() == generic;
+        });
+        for (const auto &group : since.movedAgain) {
+            const core::MoveRecord *later = m_history.find(group.first);
+            if (later == nullptr)
+                continue;
+            QVariantMap line = check(
+                QStringLiteral("warn"),
+                counted(int(group.second.size()),
+                        tr("%1 was moved again since, by the move to %2 (%3): it stays where it "
+                           "is now."),
+                        tr("%1 were moved again since, by the move to %2 (%3): they stay where "
+                           "they are now."))
+                    .arg(whereOf(*later), whenText(later->finishedAt, now())),
+                tr("Moving that one back first puts them where this move left them."),
+                group.second);
+            line.insert(QStringLiteral("link"), tr("move that one back first"));
+            line.insert(QStringLiteral("backFirst"), later->id);
+            all << line;
+        }
+        if (!since.outside.isEmpty())
+            all << check(QStringLiteral("warn"),
+                         counted(int(since.outside.size()),
+                                 tr("%1 was moved since outside omaseed: it stays where it is "
+                                    "now."),
+                                 tr("%1 were moved since outside omaseed: they stay where they "
+                                    "are now.")),
+                         QString(),
+                         since.outside);
+        if (!since.gone.isEmpty())
+            all << check(QStringLiteral("fact"),
+                         counted(int(since.gone.size()),
+                                 tr("%1 is no longer in the library."),
+                                 tr("%1 are no longer in the library.")));
+    }
     QVariantList checks;
     bool says = false;
     for (const QVariant &value : all) {
@@ -1157,8 +1336,12 @@ QVariantMap MoveController::selectionWords(const MovePlan &plan, const QJsonObje
         }
     }
     if (back) {
-        // L11: what moving back doesn't put back.
-        const QStringList had = m_job == nullptr ? QStringList() : m_job->hadAutoTmm();
+        // L11: what moving back doesn't put back. A finished move's (C18 D7) from its record.
+        const QStringList had =
+            spec.contains(QStringLiteral("hadAutoTmm"))
+                ? spec.value(QStringLiteral("hadAutoTmm")).toVariant().toStringList()
+            : m_job == nullptr ? QStringList()
+                               : m_job->hadAutoTmm();
         int hadHere = 0;
         for (const QString &hash : had)
             hadHere += plan.toMove().contains(hash) ? 1 : 0;
@@ -1171,9 +1354,13 @@ QVariantMap MoveController::selectionWords(const MovePlan &plan, const QJsonObje
                                        "Turning it on again is up to you (the torrent's menu).")),
                             QString(),
                             had);
-        if (m_carryDone && m_carryResult.carried > 0)
+        const int carried = spec.contains(QStringLiteral("carried"))
+                                ? spec.value(QStringLiteral("carried")).toInt()
+                            : m_carryDone ? m_carryResult.carried
+                                          : 0;
+        if (carried > 0)
             checks << check(QStringLiteral("fact"),
-                            counted(m_carryResult.carried,
+                            counted(carried,
                                     tr("The %1 loose file carried stays at %2."),
                                     tr("The %1 loose files carried stay at %2."))
                                 .arg(spec.value(QStringLiteral("backFrom")).toString()));
@@ -1201,13 +1388,14 @@ QVariantMap MoveController::selectionWords(const MovePlan &plan, const QJsonObje
     out.insert(QStringLiteral("canMove"),
                plan.canMove() && plan.namesCheck() != MovePlan::NamesCheck::Pending);
     out.insert(QStringLiteral("queuedBehind"), behind ? m_job->title() : QString());
-    out.insert(QStringLiteral("moveText"),
-               behind       ? tr("move after %1").arg(m_job->title())
-               : back       ? tr("move %1 back").arg(moveCount)
-               : count == 1 ? tr("move")
-               : moveCount == 0
-                   ? tr("move")
-                   : counted(moveCount, tr("move %1 torrent"), tr("move %1 torrents")));
+    out.insert(
+        QStringLiteral("moveText"),
+        behind                     ? tr("move after %1").arg(m_job->title())
+        : back && since.stay() > 0 ? tr("move %1 back · %2 stay").arg(moveCount).arg(since.stay())
+        : back                     ? tr("move %1 back").arg(moveCount)
+        : count == 1               ? tr("move")
+        : moveCount == 0 ? tr("move")
+                         : counted(moveCount, tr("move %1 torrent"), tr("move %1 torrents")));
     return out;
 }
 

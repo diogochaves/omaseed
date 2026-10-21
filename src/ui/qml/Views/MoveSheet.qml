@@ -20,6 +20,9 @@ import Omaseed.Kit
 // asked about, "move both" picked every time (#28, #35, docs/26).
 //
 // "back" (board 43 §7 E2, L11): the last job's torrents, each to where it was. No field.
+// After the summary closed (board 45 D7, DECISIONS C18, #133), a finished move from the
+// history (`backId`), the whole of it or `backOnly` one torrent; a line naming a later move in
+// the way links "move that one back first", which opens that one's sheet.
 //
 // The words are App.move's (plan(), planSelection(), planBack()). It fetches what it still
 // needs (file lists, the walk for loose files, a remote server's listings) as it goes and
@@ -33,6 +36,10 @@ Sheet {
 
     /// "folder", "selection" or "back".
     property string mode: "folder"
+    /// C18 D7: the finished move a "back" sheet is for, "" for the last job's summary.
+    property string backId: ""
+    /// C18 D7: only this torrent of it (the details' "this one only"), "" for all.
+    property string backOnly: ""
     /// The folder being moved, as the server writes it ("folder").
     property string folder: ""
     /// The torrents the sheet was opened on ("selection").
@@ -82,7 +89,8 @@ Sheet {
 
     function _readPlan(): void {
         if (root.mode === "back") {
-            root.plan = App.move.planBack();
+            root.plan = root.backId.length > 0 ? App.move.planBackOf(root.backId, root.backOnly)
+                                               : App.move.planBack();
             return;
         }
         if (root.selection) {
@@ -159,8 +167,11 @@ Sheet {
         pathField.selectAll();
     }
 
-    /// L11: the last job's torrents, each back to where it was.
-    function openBack(): void {
+    /// L11: the last job's torrents, each back to where it was; with `id`, a finished move from
+    /// the history (C18 D7), `only` one of its torrents when given.
+    function openBack(id: string, only: string): void {
+        root.backId = id ?? "";
+        root.backOnly = only ?? "";
         root.mode = "back";
         root.folder = "";
         root.hashes = [];
@@ -296,7 +307,8 @@ Sheet {
             return;
         let started = false;
         if (root.mode === "back")
-            started = App.move.startBack();
+            started = root.backId.length > 0 ? App.move.startBackOf(root.backId, root.backOnly)
+                                             : App.move.startBack();
         else if (root.selection)
             started = App.move.startSelection(root.moveHashes(), pathField.text.trim(), root.rule);
         else
@@ -618,8 +630,11 @@ Sheet {
 
             Layout.fillWidth: true
             line: modelData
+            // C18 D7: a later move in the way is undone first, from its own sheet.
+            linkText: modelData.link ?? ""
             tone: root._kindColor(modelData.kind)
 
+            onLinkActivated: root.openBack(modelData.backFirst ?? "", "")
             onShowRequested: hashes => {
                 root.close();
                 root.showRequested(hashes);

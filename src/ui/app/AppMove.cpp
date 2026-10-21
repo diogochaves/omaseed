@@ -4,6 +4,8 @@
 // App.hpp.
 #include "ui/app/App.hpp"
 
+#include "core/ServerLog.hpp"
+#include "core/SyncEngine.hpp"
 #include "integration/Notifier.hpp"
 
 #include <QCoreApplication>
@@ -40,7 +42,37 @@ void App::setUpMove()
         section.insert(serverId, server);
         writeStateSection(QStringLiteral("moves"), section);
     };
+    // C18 D8: the finished moves, per server, in the same section.
+    hooks.loadHistory = [this](const QString &serverId) {
+        return stateSection(QStringLiteral("moves"))
+            .value(serverId)
+            .toObject()
+            .value(QStringLiteral("history"))
+            .toArray();
+    };
+    hooks.saveHistory = [this](const QString &serverId, const QJsonArray &moves) {
+        QJsonObject section = stateSection(QStringLiteral("moves"));
+        QJsonObject server = section.value(serverId).toObject();
+        server.insert(QStringLiteral("history"), moves);
+        section.insert(serverId, server);
+        writeStateSection(QStringLiteral("moves"), section);
+    };
     m_move->setHooks(std::move(hooks));
+    // C18 D7: each finished move is a line in the log, with "move back…" while it is kept.
+    const auto feedLog = [this]() {
+        QList<core::ServerLog::Line> lines;
+        for (const QVariant &value : m_move->moveLines()) {
+            const QVariantMap map = value.toMap();
+            core::ServerLog::Line line;
+            line.at = map.value(QStringLiteral("at")).toLongLong();
+            line.level = core::ServerLog::Info;
+            line.message = map.value(QStringLiteral("message")).toString();
+            line.moveId = map.value(QStringLiteral("id")).toString();
+            lines << line;
+        }
+        m_engine->serverLog()->setMoveLines(std::move(lines));
+    };
+    connect(m_move, &MoveController::historyChanged, this, feedLog);
     // C16 L7: a quick move that didn't happen is said in the footer, as a failure the log told
     // (docs/32 N1) was; one that landed is #104's footer note.
     connect(m_move,

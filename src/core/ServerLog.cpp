@@ -7,6 +7,8 @@
 #include <QJsonObject>
 #include <QLocale>
 
+#include <algorithm>
+
 namespace omaseed::core {
 
 namespace {
@@ -70,6 +72,37 @@ void ServerLog::setActive(bool active)
         read();
 }
 
+void ServerLog::setMoveLines(QList<Line> lines)
+{
+    std::stable_sort(
+        lines.begin(), lines.end(), [](const Line &a, const Line &b) { return a.at < b.at; });
+    beginResetModel();
+    m_lines.removeIf([](const Line &line) { return !line.moveId.isEmpty(); });
+    m_moveLines = std::move(lines);
+    mergeMoveLines();
+    endResetModel();
+    Q_EMIT countsChanged();
+}
+
+void ServerLog::mergeMoveLines()
+{
+    // Each of omaseed's lines after qBittorrent's of the same second or before.
+    QList<Line> merged;
+    merged.reserve(m_lines.size() + m_moveLines.size());
+    qsizetype i = 0;
+    for (const Line &line : std::as_const(m_lines)) {
+        while (i < m_moveLines.size() && m_moveLines.at(i).at < line.at)
+            merged.append(m_moveLines.at(i++));
+        merged.append(line);
+    }
+    while (i < m_moveLines.size())
+        merged.append(m_moveLines.at(i++));
+    m_lines = std::move(merged);
+    m_counts = {};
+    for (const Line &line : std::as_const(m_lines))
+        ++m_counts[levelIndex(line.level)];
+}
+
 void ServerLog::setCapacity(int lines)
 {
     m_capacity = qMax(1, lines);
@@ -103,10 +136,12 @@ void ServerLog::startOver()
     ++m_generation;
     m_reading = false;
     const bool had = !m_lines.isEmpty();
-    if (had) {
+    if (had || !m_moveLines.isEmpty()) {
         beginResetModel();
         m_lines.clear();
         m_counts = {};
+        // omaseed's own lines don't come from the server: they stay.
+        mergeMoveLines();
         endResetModel();
     }
     m_lastId = -1;
@@ -179,11 +214,16 @@ void ServerLog::applyRead(const QJsonArray &entries)
         endRemoveRows();
     }
     if (!fresh.isEmpty()) {
-        const int first = int(m_lines.size());
-        beginInsertRows({}, first, first + int(fresh.size()) - 1);
+        // Before omaseed's lines that are newer than the first of them (a move's line is
+        // written when it ends, qBittorrent's about it may come at the next read).
+        qsizetype first = m_lines.size();
+        while (first > 0 && !m_lines.at(first - 1).moveId.isEmpty() &&
+               m_lines.at(first - 1).at > fresh.constFirst().at)
+            --first;
+        beginInsertRows({}, int(first), int(first + fresh.size()) - 1);
         for (Line &line : fresh) {
             ++m_counts[levelIndex(line.level)];
-            m_lines.append(std::move(line));
+            m_lines.insert(first++, std::move(line));
         }
         endInsertRows();
     }
@@ -336,6 +376,8 @@ QVariant ServerLog::data(const QModelIndex &index, int role) const
     case Qt::DisplayRole:
     case MessageRole:
         return line.message;
+    case MoveIdRole:
+        return line.moveId;
     default:
         return {};
     }
@@ -348,7 +390,8 @@ QHash<int, QByteArray> ServerLog::roleNames() const
             {LevelNameRole, "levelName"},
             {TimestampRole, "timestamp"},
             {TimeTextRole, "timeText"},
-            {MessageRole, "message"}};
+            {MessageRole, "message"},
+            {MoveIdRole, "moveId"}};
 }
 
 } // namespace omaseed::core

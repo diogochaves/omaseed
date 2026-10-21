@@ -43,7 +43,8 @@ import QtQuick
 //             "running" one target to start / stop, "selection" one torrent selected,
 //             "details" the pane on show, and in a details tab "marked" (marked rows or the
 //             cursor's), "row" (the cursor's row), "rows" (any row), "file" (a file, not a
-//             folder, under the cursor).
+//             folder, under the cursor), "lastMove" a finished move that can go back
+//             (board 45 D7).
 //   via       a menu-only action has no key ("key": ""): the path to it ("enter s",
 //             "ctrl+."), printed in the key's place (D3). Key routing, the footer and the `?`
 //             sheet never see an entry with no key.
@@ -850,6 +851,22 @@ QtObject {
             "also": qsTr("set location"),
             "needs": "torrents",
             "label": qsTr("move"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        // Board 45 B3 (DECISIONS C18 D7): the newest finished move, back. Palette only, listed
+        // in the library group while the history keeps a move.
+        {
+            "area": "table",
+            "key": "",
+            "via": ":",
+            "action": "undoLastMove",
+            "title": qsTr("undo last move"),
+            "also": qsTr("move back"),
+            "needs": "lastMove",
+            "label": qsTr("undo last move"),
             "column": "",
             "rank": 0,
             "helpKeys": "",
@@ -1983,7 +2000,7 @@ QtObject {
         {
             "group": "library",
             "word": qsTr("library"),
-            "actions": ["add", "filter", "jump", "sort"]
+            "actions": ["add", "filter", "jump", "sort", "undoLastMove"]
         },
         {
             "group": "view",
@@ -2106,6 +2123,11 @@ QtObject {
                                                                              "pick a folder in the rail");
         case "selection":
             return selected > 0 ? "" : qsTr("nothing selected");
+        case "lastMove":
+            // C18 D7: the newest finished move only.
+            if ((ctx.lastMove?.id ?? "").length === 0)
+                return qsTr("no move to undo");
+            return ctx.lastMove.canBack === true ? "" : qsTr("moved again since: nothing to move back");
         case "details":
             return states.detailsShown === true ? "" : qsTr("details hidden · i shows them");
         case "marked":
@@ -2136,6 +2158,9 @@ QtObject {
             return ctx.folder || "";
         case "selection":
             return qsTr("%n selected", "", ctx.selected || 0);
+        case "lastMove":
+            return (ctx.lastMove?.id ?? "").length > 0 ? qsTr("%1 · %2 · %3").arg(ctx.lastMove.title).arg(
+                                                             ctx.lastMove.when).arg(ctx.lastMove.where) : "";
         case "servers":
             return qsTr("%n servers", "", (ctx.servers || []).length);
         case "marked":
@@ -2216,6 +2241,9 @@ QtObject {
                     continue;
                 // D19: with one server nothing offers to switch.
                 if (found.needs === "servers" && (ctx.servers || []).length < 2)
+                    continue;
+                // Board 45 B3 (C18 D7): with no finished move kept, nothing offers to undo one.
+                if (found.needs === "lastMove" && (ctx.lastMove?.id ?? "").length === 0)
                     continue;
                 // D4: the per-server rows follow "switch server…".
                 const servers = found.action === "switchServer" ? root.serverRows(ctx, group) : [];

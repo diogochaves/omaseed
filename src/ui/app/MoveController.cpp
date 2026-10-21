@@ -21,6 +21,7 @@
 #include <QSaveFile>
 #include <QThread>
 #include <QThreadPool>
+#include <QUuid>
 
 #include <algorithm>
 
@@ -119,6 +120,14 @@ void MoveController::setServer(const QString &serverId)
     m_pending = QJsonObject();
     m_recents =
         !serverId.isEmpty() && m_hooks.loadRecents ? m_hooks.loadRecents(serverId) : QStringList();
+    // C18 D8: that server's finished moves, what is past the limits dropped.
+    m_history = !serverId.isEmpty() && m_hooks.loadHistory
+                    ? core::MoveHistory::fromJson(m_hooks.loadHistory(serverId))
+                    : core::MoveHistory();
+    if (m_history.prune(now()))
+        saveHistory();
+    ++m_historyRevision;
+    Q_EMIT historyChanged();
     if (!serverId.isEmpty())
         attachJob();
     scheduleFolders();
@@ -420,6 +429,12 @@ bool MoveController::startSelection(const QStringList &hashes,
     return startSpec(selectionSpec(hashes, newPath, rule));
 }
 
+bool MoveController::startBackOf(const QString &id, const QString &only)
+{
+    const QJsonObject spec = backSpecOf(id, only);
+    return !spec.isEmpty() && startSpec(spec);
+}
+
 bool MoveController::startBack()
 {
     const QJsonObject spec = backSpec();
@@ -491,6 +506,70 @@ void MoveController::rememberDestination(const QString &path)
         m_recents.removeLast();
     if (m_hooks.saveRecents)
         m_hooks.saveRecents(m_serverId, m_recents);
+}
+
+// ---- the history (board 45 D7–D8, C18, #133) ------------------------------------------------
+
+QString MoveController::recordIdOfJob() const
+{
+    if (m_job == nullptr || !m_job->startedAt().isValid())
+        return {};
+    for (const core::MoveRecord &record : m_history.records()) {
+        if (record.startedAt == m_job->startedAt() && record.title == m_job->title())
+            return record.id;
+    }
+    return {};
+}
+
+void MoveController::recordFinished()
+{
+    const QHash<QString, QString> from = m_job->movedFrom();
+    if (m_job->kind() == QLatin1String("back")) {
+        // A move back of a record: what went back leaves it. The move back itself isn't
+        // recorded: its summary offers moving them again while it shows.
+        const QString of = m_job->spec().value(QStringLiteral("historyId")).toString();
+        if (!of.isEmpty() && m_history.backDone(of, from.keys()))
+            saveHistory();
+        return;
+    }
+    if (from.isEmpty() || !recordIdOfJob().isEmpty())
+        return;
+    core::MoveRecord record;
+    record.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    record.kind = m_job->kind();
+    record.title = m_job->title();
+    record.newPath = m_job->newPath();
+    record.startedAt = m_job->startedAt();
+    record.finishedAt = now();
+    record.from = from;
+    record.to = m_job->movedTo();
+    for (const MoveJob::Entry &entry : m_job->entries()) {
+        if (from.contains(entry.hash))
+            record.names.insert(entry.hash, entry.name);
+    }
+    record.hadAutoTmm = m_job->hadAutoTmm();
+    if (m_carryDone && m_carryResult.carried > 0) {
+        record.carried = m_carryResult.carried;
+        record.carriedTo = m_job->newPath();
+    }
+    m_history.add(std::move(record), now());
+    saveHistory();
+}
+
+void MoveController::saveHistory()
+{
+    if (!m_serverId.isEmpty() && m_hooks.saveHistory)
+        m_hooks.saveHistory(m_serverId, m_history.toJson());
+    ++m_historyRevision;
+    Q_EMIT historyChanged();
+}
+
+QHash<QString, QString> MoveController::savePaths() const
+{
+    QHash<QString, QString> out;
+    for (const core::Torrent &torrent : library())
+        out.insert(torrent.hash, torrent.savePath);
+    return out;
 }
 
 void MoveController::closeQuietSummary()
@@ -1296,6 +1375,7 @@ void MoveController::onFinished()
     bump();
     if (m_job == nullptr)
         return;
+    recordFinished();
     const MoveJob::Summary summary = m_job->summary();
     if (!m_job->wasShown()) {
         // C16 L7: a quiet move is told in the footer's note, and leaves no summary.

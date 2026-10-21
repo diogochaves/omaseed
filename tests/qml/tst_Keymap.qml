@@ -474,6 +474,35 @@ TestCase {
         compare(toggle.meta, "~");
     }
 
+    // Board 45 B3 (C18 D7): "undo last move" while the history keeps a move, the newest only.
+    function test_undo_last_move_follows_the_history() {
+        const none = Keymap.commandRows(testCase._context({}));
+        verify(none.find(row => row.action === "undoLastMove") === undefined,
+               "listed with no move to undo");
+        const move = {
+            "id": "m1",
+            "title": "games",
+            "when": "16:24",
+            "where": "/tmp/fast/games",
+            "count": 48,
+            "canBack": true
+        };
+        const rows = Keymap.commandRows(testCase._context({
+                                                             "lastMove": move
+                                                         }));
+        const row = testCase._row(rows, "undoLastMove");
+        compare(row.disabled, false);
+        compare(row.title, "undo last move");
+        compare(row.detail, "library · games · 16:24 · /tmp/fast/games");
+        // Everything moved again since: listed, dim, with why.
+        move.canBack = false;
+        const dim = testCase._row(Keymap.commandRows(testCase._context({
+                                                                          "lastMove": move
+                                                                      })), "undoLastMove");
+        compare(dim.disabled, true);
+        verify(dim.detail.endsWith("moved again since: nothing to move back"), dim.detail);
+    }
+
     function test_the_groups_and_the_entries_agree() {
         for (const group of Keymap.commandGroups) {
             for (const action of group.actions)
@@ -483,7 +512,7 @@ TestCase {
             if (entry.title === undefined && entry.titles === undefined)
                 continue;
             verify(["", "torrents", "cursor", "stopped", "running", "selection", "details", "marked",
-                    "row", "rows", "file", "servers", "folder"].indexOf(entry.needs) >= 0, "unknown needs: " + entry.needs);
+                    "row", "rows", "file", "servers", "folder", "lastMove"].indexOf(entry.needs) >= 0, "unknown needs: " + entry.needs);
             const listed = Keymap.commandGroups.some(group => group.actions.indexOf(entry.action) >= 0
                                                      && Keymap.commandEntry(group.group, entry.action) === entry);
             verify(listed, "a titled entry in no group: " + entry.area + " " + entry.action);

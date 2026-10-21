@@ -249,7 +249,7 @@ Item {
             break;
         case "moveBack":
             // C16 L11: each torrent back to where it was, checked as any move.
-            moveSheet.openBack();
+            moveSheet.openBack("", "");
             break;
         case "recheck":
             moveRecheckSheet.openFor(App.move.failedHashes());
@@ -1152,6 +1152,8 @@ Item {
         "tags": () => root._runOnTorrents("tags"),
         "location": () => root._runOnTorrents("location"),
         "moveFolder": () => root.openMoveFolder("", ""),
+        // Board 45 B3 (C18 D7): the newest finished move only.
+        "undoLastMove": () => moveSheet.openBack(App.move.newestMove().id ?? "", ""),
         "limits": () => root._runOnTorrents("limits"),
         "rename": () => root._runOnTorrents("rename"),
         "openFolder": () => root._runOnTorrents("openFolder"),
@@ -1306,6 +1308,8 @@ Item {
             "cursor": cursor.name || "",
             // Board 42 (M1): the folder "move folder…" would move.
             "folder": root.moveFolderTarget(),
+            // Board 45 B3 (C18 D7): what "undo last move" would move back.
+            "lastMove": App.move.newestMove(),
             "stopped": stopped,
             "running": targets.length - stopped,
             // App.stopStart follows the first hash: `p` starts when that one is stopped.
@@ -2001,6 +2005,8 @@ Item {
 
             onCopyRequested: (text, note) => root.copyText(text, note)
             onLeaveRequested: root.toggleLog()
+            // Board 45 B2 (C18 D7): a move's line moves it back, through the Move sheet.
+            onMoveBackRequested: id => moveSheet.openBack(id, "")
             onNoteRequested: text => root.flashFooterNote(text)
             onShowTorrent: hash => root.showLogTorrent(hash)
         }
@@ -2255,6 +2261,9 @@ Item {
                 else if (action === "dismiss")
                     App.dismissFailure(hash);
             }
+            // Board 45 B1 (C18 D7): the last move's block.
+            onMoveBackRequested: (id, only) => moveSheet.openBack(id, only)
+            onMoveShowRequested: hashes => root.showMoveHashes(hashes, false)
 
             Rectangle {
                 anchors.fill: parent

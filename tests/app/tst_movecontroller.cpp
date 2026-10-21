@@ -127,6 +127,7 @@ private:
     MoveController *m_move = nullptr;
     QStringList m_notices;
     QHash<QString, QStringList> m_recents; ///< state.json's, by server
+    QHash<QString, QJsonArray> m_history;  ///< state.json's finished moves, by server
     const omaseed::core::FreeSpaceProbe *m_probe = nullptr;
 
     void make()
@@ -144,8 +145,22 @@ private:
         hooks.saveRecents = [this](const QString &server, const QStringList &paths) {
             m_recents.insert(server, paths);
         };
+        hooks.loadHistory = [this](const QString &server) { return m_history.value(server); };
+        hooks.saveHistory = [this](const QString &server, const QJsonArray &moves) {
+            m_history.insert(server, moves);
+        };
         hooks.probe = m_probe;
         m_move->setHooks(std::move(hooks));
+    }
+
+    /// The `checks` line that names a later move to undo first, or {}.
+    static QVariantMap backFirstLine(const QVariantMap &plan)
+    {
+        for (const QVariant &line : plan.value(QStringLiteral("checks")).toList()) {
+            if (line.toMap().contains(QStringLiteral("backFirst")))
+                return line.toMap();
+        }
+        return {};
     }
 
     /// One poll that moves every torrent sent so far to its target.
@@ -171,6 +186,7 @@ private slots:
     {
         m_notices.clear();
         m_recents.clear();
+        m_history.clear();
         m_probe = nullptr;
         delete m_engine;
         m_engine = new SyncEngine(this);
@@ -630,6 +646,118 @@ private slots:
         landSent();
         QCOMPARE(m_engine->torrents()->torrent(QStringLiteral("b2")).savePath,
                  QStringLiteral("/mnt/archive/games"));
+    }
+
+    void moveBackOutlivesTheSummaryAndUndoesInOrder()
+    {
+        // Board 45 D7–D8 (C18, #133): Diogo's case. Two torrents moved, one of them moved
+        // again; the first move's way back names the second, which goes back first.
+        const QString b2 = QStringLiteral("b2");
+        const QString c3 = QStringLiteral("c3");
+        m_move->setServer(QStringLiteral("home"));
+        QVERIFY(m_move->startSelection(
+            {b2, c3}, QStringLiteral("/mnt/fast/all"), QStringLiteral("oneFolder")));
+        landSent();
+        landSent();
+        // A quick move: no summary to close, and it is in the history all the same.
+        QTRY_COMPARE(m_move->stateName(), QStringLiteral("idle"));
+        const QVariantMap first = m_move->newestMove();
+        const QString firstId = first.value(QStringLiteral("id")).toString();
+        QVERIFY(!firstId.isEmpty());
+        QCOMPARE(first.value(QStringLiteral("count")).toInt(), 2);
+        QCOMPARE(first.value(QStringLiteral("where")).toString(), QStringLiteral("/mnt/fast/all"));
+        QCOMPARE(m_history.value(QStringLiteral("home")).size(), 1);
+
+        QVERIFY(m_move->startSelection(
+            {b2}, QStringLiteral("/mnt/elsewhere"), QStringLiteral("oneFolder")));
+        landSent();
+        QTRY_COMPARE(m_move->stateName(), QStringLiteral("idle"));
+        const QString secondId = m_move->newestMove().value(QStringLiteral("id")).toString();
+        QVERIFY(secondId != firstId);
+        // The details: each torrent's last move.
+        QCOMPARE(m_move->lastMoveOf(b2).value(QStringLiteral("id")).toString(), secondId);
+        const QVariantMap c3Move = m_move->lastMoveOf(c3);
+        QCOMPARE(c3Move.value(QStringLiteral("id")).toString(), firstId);
+        QCOMPARE(c3Move.value(QStringLiteral("from")).toString(),
+                 QStringLiteral("/mnt/archive/games/handheld"));
+        QCOMPARE(c3Move.value(QStringLiteral("others")).toInt(), 1);
+        QVERIFY(c3Move.value(QStringLiteral("canBackThis")).toBool());
+        // The log: one line per move, oldest first.
+        const QVariantList lines = m_move->moveLines();
+        QCOMPARE(lines.size(), 2);
+        QCOMPARE(lines.at(0).toMap().value(QStringLiteral("message")).toString(),
+                 QStringLiteral("omaseed moved 2 torrents to /mnt/fast/all"));
+        QCOMPARE(lines.at(1).toMap().value(QStringLiteral("message")).toString(),
+                 QStringLiteral("omaseed moved \"Demo Disc\" to /mnt/elsewhere"));
+
+        // The first move back: c3 goes, b2 stays, named with the move that took it.
+        QVariantMap sheet = m_move->planBackOf(firstId);
+        QCOMPARE(sheet.value(QStringLiteral("moveText")).toString(),
+                 QStringLiteral("move 1 back · 1 stay"));
+        const QVariantMap inTheWay = backFirstLine(sheet);
+        QCOMPARE(inTheWay.value(QStringLiteral("backFirst")).toString(), secondId);
+        QCOMPARE(inTheWay.value(QStringLiteral("link")).toString(),
+                 QStringLiteral("move that one back first"));
+        QVERIFY(inTheWay.value(QStringLiteral("text"))
+                    .toString()
+                    .startsWith(QStringLiteral(
+                        "1 was moved again since, by the move to /mnt/elsewhere (")));
+        QCOMPARE(inTheWay.value(QStringLiteral("hashes")).toStringList(), QStringList{b2});
+
+        // Taken up again after a restart.
+        make();
+        m_move->setServer(QStringLiteral("home"));
+        QCOMPARE(m_move->newestMove().value(QStringLiteral("id")).toString(), secondId);
+
+        // "Move that one back first": b2 lands where the first move left it, and the second
+        // move leaves the history.
+        QVERIFY(m_move->startBackOf(secondId));
+        landSent();
+        QTRY_COMPARE(m_move->stateName(), QStringLiteral("idle"));
+        QCOMPARE(m_engine->torrents()->torrent(b2).savePath, QStringLiteral("/mnt/fast/all"));
+        QCOMPARE(m_move->newestMove().value(QStringLiteral("id")).toString(), firstId);
+        // The first is whole again.
+        sheet = m_move->planBackOf(firstId);
+        QCOMPARE(sheet.value(QStringLiteral("moveText")).toString(), QStringLiteral("move 2 back"));
+        QVERIFY(backFirstLine(sheet).isEmpty());
+        QVERIFY(m_move->startBackOf(firstId));
+        landSent();
+        landSent();
+        QTRY_COMPARE(m_move->stateName(), QStringLiteral("idle"));
+        QCOMPARE(m_engine->torrents()->torrent(c3).savePath,
+                 QStringLiteral("/mnt/archive/games/handheld"));
+        QVERIFY(m_move->newestMove().isEmpty());
+        QCOMPARE(m_history.value(QStringLiteral("home")).size(), 0);
+    }
+
+    void aTorrentMovedOutsideOmaseedStays()
+    {
+        // C18 D7: not where the move put it, and no later move here did it.
+        m_move->setServer(QStringLiteral("home"));
+        QVERIFY(m_move->startSelection({QStringLiteral("b2"), QStringLiteral("c3")},
+                                       QStringLiteral("/mnt/fast/all"),
+                                       QStringLiteral("oneFolder")));
+        landSent();
+        landSent();
+        QTRY_COMPARE(m_move->stateName(), QStringLiteral("idle"));
+        const QString id = m_move->newestMove().value(QStringLiteral("id")).toString();
+        m_engine->torrents()->applyPartial(
+            {{QStringLiteral("c3"),
+              QJsonObject{{QStringLiteral("save_path"), QStringLiteral("/mnt/by/hand")}}}},
+            {});
+        Q_EMIT m_engine->synced(false);
+        const QVariantMap sheet = m_move->planBackOf(id);
+        QCOMPARE(sheet.value(QStringLiteral("moveText")).toString(),
+                 QStringLiteral("move 1 back · 1 stay"));
+        QVERIFY(checkTexts(sheet).contains(
+            QStringLiteral("1 was moved since outside omaseed: it stays where it is now.")));
+        // "this one only", on the one that moved away: nothing to move.
+        QCOMPARE(
+            m_move->planBackOf(id, QStringLiteral("c3")).value(QStringLiteral("canMove")).toBool(),
+            false);
+        QVERIFY(!m_move->lastMoveOf(QStringLiteral("c3"))
+                     .value(QStringLiteral("canBackThis"))
+                     .toBool());
     }
 
     void oneBigTorrentSaysWhatItCanTell()

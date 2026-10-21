@@ -26,11 +26,16 @@
 // The sheet's places (L4): recent destinations per server, the library's folders, the
 // categories' folders.
 //
+// A move that lands goes into the server's MoveHistory (board 45 D7–D8, DECISIONS C18, #133):
+// move back stays offered after the summary closes, from the torrent's details, the log and
+// the palette (lastMoveOf(), moveLines(), newestMove(), planBackOf(), startBackOf()).
+//
 // The sheet's half lives in MoveControllerSheet.cpp; the words both use in MoveWords.hpp.
 
 #include "core/FolderModel.hpp"
 #include "core/LooseCarry.hpp"
 #include "core/LooseFiles.hpp"
+#include "core/MoveHistory.hpp"
 #include "core/MoveJob.hpp"
 #include "core/MovePlan.hpp"
 #include "core/ServerFolder.hpp"
@@ -94,6 +99,8 @@ class MoveController : public QObject
     Q_PROPERTY(int planRevision READ planRevision NOTIFY planChanged)
     /// A recheck run (E3) is going: how many are left.
     Q_PROPERTY(int rechecksLeft READ rechecksLeft NOTIFY rechecksChanged)
+    /// Moves when the history of finished moves changes (C18 D7–D8): read it again.
+    Q_PROPERTY(int historyRevision READ historyRevision NOTIFY historyChanged)
 
 public:
     struct Hooks
@@ -109,6 +116,9 @@ public:
         /// L4: a server's recent destinations, newest first, from state.json and back.
         std::function<QStringList(const QString &serverId)> loadRecents;
         std::function<void(const QString &serverId, const QStringList &paths)> saveRecents;
+        /// C18 D8: a server's finished moves, from state.json and back.
+        std::function<QJsonArray(const QString &serverId)> loadHistory;
+        std::function<void(const QString &serverId, const QJsonArray &moves)> saveHistory;
     };
 
     explicit MoveController(QObject *parent = nullptr);
@@ -139,6 +149,8 @@ public:
     QString quitLine() const;
     int planRevision() const { return m_planRevision; }
     int rechecksLeft() const { return int(m_rechecks.size()) + (m_recheckHash.isEmpty() ? 0 : 1); }
+    int historyRevision() const { return m_historyRevision; }
+    const core::MoveHistory &history() const { return m_history; }
 
     // ---- the sheet (S1–S3) ------------------------------------------------------------------
 
@@ -181,6 +193,24 @@ public:
     /// L11: the sheet for moving the last job's torrents back, each to where it was.
     Q_INVOKABLE QVariantMap planBack();
     Q_INVOKABLE bool startBack();
+
+    // ---- after the summary closes (board 45 D7–D8, C18, #133) --------------------------------
+
+    /// The move back of a finished move in the history, `only` one of its torrents when given
+    /// (the details' "this one only"). The sheet's words, as planBack()'s; a torrent not where
+    /// that move put it stays, named with the later move that took it ("move that one back
+    /// first": a check line's `backFirst`) or as moved outside omaseed.
+    Q_INVOKABLE QVariantMap planBackOf(const QString &id, const QString &only = QString());
+    Q_INVOKABLE bool startBackOf(const QString &id, const QString &only = QString());
+    /// The torrent's last move while the history keeps it, for its details: id, title, when,
+    /// from, to, others (the other torrents in it), carried ("loose files too" or ""), canBack
+    /// (some of the move can go back), canBackThis (this one can); {} for none.
+    Q_INVOKABLE QVariantMap lastMoveOf(const QString &hash) const;
+    /// The newest move, for the palette's "undo last move": id, title, when, where, count,
+    /// canBack; {} for none.
+    Q_INVOKABLE QVariantMap newestMove() const;
+    /// The history as log lines, oldest first: at (seconds), message, id.
+    QVariantList moveLines() const;
     /// L4: places for the field, `typed` narrowing them: [{path, kind (recent, folder,
     /// category), count, name}], recent first.
     Q_INVOKABLE QVariantList places(const QString &typed) const;
@@ -223,6 +253,7 @@ Q_SIGNALS:
     /// L7: a quiet move landed ("2 moved to /srv/media/games"), or didn't (`failed`: the
     /// torrents it is about); also a move that couldn't start, and a queued one dropped.
     void note(const QString &text, const QStringList &hashes, bool failed);
+    void historyChanged();
 
 private:
     void attachJob();
@@ -268,6 +299,15 @@ private:
     QJsonObject
     selectionSpec(const QStringList &hashes, const QString &newPath, const QString &rule) const;
     QJsonObject backSpec() const;
+    /// C18 D7: a history record's move back, `only` one torrent when given.
+    QJsonObject backSpecOf(const QString &id, const QString &only) const;
+    /// The library's save path by hash, for MoveHistory::check().
+    QHash<QString, QString> savePaths() const;
+    /// The record of the job that ran last (by its start), "" for none.
+    QString recordIdOfJob() const;
+    /// The job landed: its record into the history, or a move back out of it.
+    void recordFinished();
+    void saveHistory();
     bool startSpec(const QJsonObject &spec);
     void tryPending();
     QJsonObject replan(const QJsonObject &spec) const;
@@ -292,7 +332,9 @@ private:
     QTimer m_foldersTimer;
     int m_revision = 0;
     int m_planRevision = 0;
-    QStringList m_recents;  ///< L4, the server's, newest first
+    QStringList m_recents;       ///< L4, the server's, newest first
+    core::MoveHistory m_history; ///< C18 D7–D8, the server's
+    int m_historyRevision = 0;
     QJsonObject m_pending;  ///< a start waiting for file lists or listings
     QDateTime m_restoredAt; ///< J4's line shows for a while after a restore
 

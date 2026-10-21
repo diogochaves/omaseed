@@ -45,6 +45,8 @@ qt_add_library(omaseed-core STATIC
     LooseCarry.hpp
     LooseFiles.cpp
     LooseFiles.hpp
+    MoveHistory.cpp
+    MoveHistory.hpp
     MoveJob.cpp
     MoveJob.hpp
     MovePlan.cpp

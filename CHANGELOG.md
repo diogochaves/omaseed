@@ -13,6 +13,13 @@ before it will tag a release.
   (recent destinations, the library's folders, the categories' folders), a second closes it
   (board 45 D5, #132). ↓ and typing still open it. A screen reader hears the field as a
   combobox and each place with its group and count.
+- Move back no longer ends when a move's summary is closed (board 45 D7–D8): the last 20
+  moves, or 30 days of them, stay offered in the torrent's details (its last move, "move
+  back…", "this one only", "show the move"), as a line in the log, and in the palette ("undo
+  last move", the newest only). Each torrent goes back only if it is still where that move put
+  it; one moved again since is named with the move that took it, and "move that one back first"
+  undoes that one, after which the first is whole again. The button says what will happen
+  ("move 46 back · 3 stay"). A torrent moved outside omaseed stays and is listed.
 - Set location is a move like a folder's (board 43): checked before anything is sent (room on
   each drive, writing, files already where a torrent goes, automatic management), sent smallest
   first, and followed in qBittorrent's log until the last one lands, not for 30 s. A move that

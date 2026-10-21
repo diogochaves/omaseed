@@ -53,8 +53,10 @@ Three static libraries and the executable. Each layer only depends on the ones a
   `MoveJob`, which sends the plan in waves and follows it for hours, saved under
   `~/.config/omaseed/moves/`. `MoveJob` hears and asks in neutral terms; `QbtMoveFeed` is its
   qBittorrent side (setLocation, the polls, the log's move failures through `ProblemLog`, and
-  the bytes at a target for live progress). In the app, `MoveController` puts them together for
-  the window (its sheet's half in `MoveControllerSheet.cpp`); `App::setLocation` starts a job.
+  the bytes at a target for live progress). `MoveHistory` keeps the moves that landed (the
+  last 20 or 30 days, per server, in `state.json`), and says what each one's move back would do
+  per torrent (C18). In the app, `MoveController` puts them together for the window (its
+  sheet's half in `MoveControllerSheet.cpp`); `App::setLocation` starts a job.
 
 **`omaseed-integration`** (`src/integration/`): the desktop, through Qt DBus and Gui.
 
