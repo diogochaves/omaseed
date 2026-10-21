@@ -66,10 +66,18 @@ omabox wait --timeout 20s window "$APP"
 # "added today HH:MM", its "Created on" value, the footer's free space.
 ADDED="1500,86 396x22"
 CREATED="1600,712 296x26"
-FREE="80,1005 130x25"
+FREE="10,1004 200x24"
 # A sheet over the dimmed window: its own region only (settings and help; the add sheet is smaller).
 SHEET="568,78 760x875"
 ADD_SHEET="648,275 600x481"
+# Settings sections that show today's date or the clock, in window coordinates (every --ignore
+# with --window is, crop or not): the alt-speed schedule's "Next: off at 20:00", omaseed's backup
+# "seed history since <date>", qBittorrent's backup file names "…-<date>.json" (settings, torrents).
+declare -A SECTION_IGNORE=(
+    [qbt-speed]="792,619 512x38"
+    [backup]="798,224 425x52"
+    [qbt-backup]="798,208 430x52|798,479 430x52"
+)
 
 # key KEY...: into the app, returning once the window has settled; what the wait saw goes to the
 # run's log, so a 124 there says what it waited on.
@@ -105,7 +113,10 @@ sections=(general servers notifications keybindings appearance backup about
 key comma
 for i in "${!sections[@]}"; do
     [ "$i" = 0 ] || key j
-    omabox check point "settings-${sections[$i]}" --window "$APP" -g "$SHEET"
+    ignores=()
+    IFS='|' read -ra regions <<<"${SECTION_IGNORE[${sections[$i]}]:-}"
+    for r in "${regions[@]}"; do ignores+=(--ignore "$r"); done
+    omabox check point "settings-${sections[$i]}" --window "$APP" -g "$SHEET" "${ignores[@]}"
 done
 key Escape
 
