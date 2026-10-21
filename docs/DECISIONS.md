@@ -792,6 +792,45 @@ D2's 30 s watch stays for renames and deletes.
   figure for its default drive applies), the local writability check, the loose files' age,
   size and carry (their names are listed as staying behind), live bytes (L10).
 
+## C17 — Skipped files and the disk (board 44, ruled 2026-10-21)
+
+Board [44](44-skipped-files-and-the-disk.html) D1–D13, all as recommended; D10 ruled "drop"
+earlier the same day. A file a torrent starts writing is created at its full length at the tick,
+even on a stopped torrent; on `ntfs3`, `exfat` and `vfat` that allocates it in full and skipping
+it later keeps it (#116). qBittorrent never deletes a skipped file and its API can't, so omaseed
+shows that space and frees it where it can see the disk.
+
+**This entry changes N1:** a big widening of a torrent's selection waits before it is sent (D5).
+
+- **On disk (D1):** a column in the Files tab with each skipped file's allocated size, and a
+  footer count; only when some skipped file holds space, only when omaseed can see the folder
+  (board 25's FreeSpaceProbe check). #118.
+- **The band (D2):** yellow, when skipped files hold more than 1 GiB or 5 % of the torrent. #118.
+- **Free the space (D3):** stop, delete the skipped files with no downloaded piece (inside the
+  content path, not shared, not open), start, no recheck. Files with pieces: on v1-only and
+  v2-only torrents included with a recheck after the start; on a hybrid left, with "add it
+  again" and its cost named, because a recheck there hits libtorrent 2.1.2's
+  `torrent_inconsistent_hashes` (#115). Board 28 names that error on a hybrid. #118.
+- **Disks omaseed can't see (D4):** an "at least" hint from skipped files with progress above 0 %,
+  pointing to path maps, no action. A NAS share mounted here and mapped counts as seen. #118.
+- **Hold back a big selection (D5–D7):** a widening that adds more than 1 GiB, or the whole
+  torrent, waits 3 s (restarting with each change), running or stopped, with Undo and Send now;
+  rows change at once, skips go at once, leaving sends, a net-zero change sends nothing. #119.
+- **Name the driver (D8):** for `ntfs3`, `exfat` and `vfat` only, Save to, the Move sheet and a
+  Files tab tick name the driver and count the full size of every newly ticked file at the
+  tick. The newer `ntfs` driver, Linux filesystems and unmeasured types get no line. #120.
+- **FAT32 (D9):** files of 4 GiB or more on `vfat`: a red line naming them, with "Skip these";
+  the add stays possible. #120.
+- **No incomplete-folder hint (D10):** omaseed never suggests one: it doubles the space a
+  torrent uses while downloading and adds a move step (#117).
+- **Stuck move (D13):** a finished torrent whose `content_path` is still under its
+  `download_path` gets a red problem with the log's reason, Show both folders and Set
+  location…. #121.
+- **Words (D11):** a timeout reads "home isn't answering" (yellow, waiting); refused or no route
+  "home is unreachable" (red). #122.
+- **Busy disk (D12):** later, its own issue: say "busy writing to its disk" only when the local
+  disk's activity shows it. #123.
+
 ## M8 — A click leaves the keyboard focus where it was
 
 Buttons and toggles do not take the focus when clicked. Otherwise an overlay gives the focus
@@ -828,6 +867,9 @@ The details pane's Files tab does what qBittorrent's Web UI allows on a torrent'
 filter by name, sort by any column the API gives (name, size, progress, priority, remaining,
 availability, pieces), progress on every row, priority changes, copy path, rename files and
 folders.
+
+Changed by C17 D5: a priority change that adds more than 1 GiB (or the whole torrent) still
+changes the rows at once, but waits 3 s before it is sent, with Undo.
 
 ## S1 — The status keys are `0`–`8`
 
