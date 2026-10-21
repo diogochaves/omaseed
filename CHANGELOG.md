@@ -190,6 +190,9 @@ before it will tag a release.
 
 ### Fixed
 
+- The Files tab: unticking a folder and ticking it again gives back what was there. Files that
+  were never wanted, like a pack's other discs, stay skipped instead of being wanted with the
+  rest (#129). A tick on never-wanted files alone still wants them.
 - The bar widget on Omarchy 4.5: the mark is as big as the bar's other icons (12 px at the
   default size, was 13), and the speeds' digits sit on the same line as the bar's other labels
   (they could sit 1 px high, in Liberation Mono for one) (#111). On 4.0.x nothing changes.

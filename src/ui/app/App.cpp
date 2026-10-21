@@ -4569,13 +4569,24 @@ void App::setFilesWanted(const QString &hash, const QVariantList &fileIndexes, b
     const QHash<int, int> current =
         m_details->hash() == hash ? m_details->files()->priorityByFileIndex() : QHash<int, int>();
     QHash<int, int> &before = m_beforeSkip[hash];
-    QMap<int, QVariantList> groups;
+    QList<int> skipped;
+    bool remembered = false;
     for (const QVariant &value : fileIndexes) {
         const int id = value.toInt();
         if (current.value(id, int(FilePriority::Skip)) != int(FilePriority::Skip))
             continue;
-        const int was = before.contains(id) ? before.take(id) : int(FilePriority::Normal);
-        groups[was].append(id);
+        skipped.append(id);
+        remembered = remembered || before.contains(id);
+    }
+    // #129: untick then tick gives back what was there. When some of these files were skipped
+    // here, only those come back, and files that were skipped already (a pack's never-wanted
+    // ones) stay skipped; a tick on files none of which omaseed skipped wants them all.
+    QMap<int, QVariantList> groups;
+    for (const int id : std::as_const(skipped)) {
+        if (before.contains(id))
+            groups[before.take(id)].append(id);
+        else if (!remembered)
+            groups[int(FilePriority::Normal)].append(id);
     }
     for (auto group = groups.cbegin(); group != groups.cend(); ++group)
         setFilePriority(hash, group.value(), group.key());

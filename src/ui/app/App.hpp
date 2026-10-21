@@ -268,7 +268,9 @@ public:
     setFilePriority(const QString &hash, const QVariantList &fileIndexes, int priority);
     /// The Files tab's tick column, its head and `x` (#42): `wanted` false skips the files;
     /// true brings each skipped one back at the priority it had before it was skipped while
-    /// omaseed has been running (normal when there is none), and leaves the others alone.
+    /// omaseed has been running, and leaves the others alone. When none of them was skipped
+    /// here, every one comes back at normal; when some were, only those do (#129: untick then
+    /// tick gives back what was there, never-wanted files included).
     Q_INVOKABLE void
     setFilesWanted(const QString &hash, const QVariantList &fileIndexes, bool wanted);
 

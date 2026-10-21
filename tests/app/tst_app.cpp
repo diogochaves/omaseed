@@ -514,9 +514,10 @@ void TestApp::renamesRefuseANameAlreadyOnDisk()
     QCOMPARE(failed.count(), 3);
 }
 
-// #42 (docs/27 D3): the Files tab's ticks. Skipping remembers each file's priority for the
-// session, ticking brings it back; a file skipped from the start comes back at normal, and a
-// file already wanted is left alone.
+// #42 (docs/27 D3) and #129: the Files tab's ticks. Skipping remembers each file's priority for
+// the session, ticking brings it back; a file already wanted is left alone. A tick that brings
+// some remembered files back leaves the never-wanted ones skipped (untick then tick gives back
+// what was there); a tick on never-wanted files alone wants them at normal.
 void TestApp::filesWantedRemembersThePriority()
 {
     App app;
@@ -531,15 +532,36 @@ void TestApp::filesWantedRemembersThePriority()
     app.selectTorrent(hash);
     TorrentFilesModel *files = app.details()->files();
 
+    // Files 2 and 3 (the subtitles) are skipped from the start: nothing to remember.
     app.setFilePriority(hash, {0}, int(FilePriority::Maximal));
     app.setFilePriority(hash, {2, 3}, int(FilePriority::Skip));
-    app.setFilesWanted(hash, {0, 1}, false);
+    app.setFilesWanted(hash, files->headFileIndexes(), false);
     QCOMPARE(files->filePriority(0), int(FilePriority::Skip));
     QCOMPARE(files->filePriority(1), int(FilePriority::Skip));
+    QCOMPARE(files->headWanted(), 0);
 
+    // The whole torrent unticked and ticked again: what was wanted comes back, at its own
+    // priority, and the never-wanted subtitles stay skipped (#129).
     app.setFilesWanted(hash, files->headFileIndexes(), true);
     QCOMPARE(files->filePriority(0), int(FilePriority::Maximal));
+    QCOMPARE(files->filePriority(1), int(FilePriority::Normal));
+    QCOMPARE(files->filePriority(2), int(FilePriority::Skip));
+    QCOMPARE(files->filePriority(3), int(FilePriority::Skip));
+    QCOMPARE(files->filePriority(4), int(FilePriority::Normal));
+    QCOMPARE(files->headWanted(), 1);
+
+    // A selection, the same: two wanted and one never-wanted file, unticked and ticked.
+    app.setFilesWanted(hash, {1, 2, 4}, false);
+    app.setFilesWanted(hash, {1, 2, 4}, true);
+    QCOMPARE(files->filePriority(1), int(FilePriority::Normal));
+    QCOMPARE(files->filePriority(2), int(FilePriority::Skip));
+    QCOMPARE(files->filePriority(4), int(FilePriority::Normal));
+
+    // Ticked again with nothing remembered (the head is partial, so the head tick wants): the
+    // never-wanted files come in, at normal.
+    app.setFilesWanted(hash, files->headFileIndexes(), true);
     QCOMPARE(files->filePriority(2), int(FilePriority::Normal));
+    QCOMPARE(files->filePriority(3), int(FilePriority::Normal));
     QCOMPARE(files->headWanted(), 2);
 
     // Once restored, the memory is spent: a menu "normal" then a skip and a tick is normal.
