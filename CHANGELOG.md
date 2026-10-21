@@ -145,7 +145,8 @@ before it will tag a release.
 - Reduced motion also follows Hyprland's animations: with them off (Omarchy's "no
   animations", which 4.5 turns on by itself in a VM), the rows' pulse and the tide's halo hold
   still, as the shell's own motion does, and they move again when the animations come back
-  (#111).
+  (#111). The bar widget's speeds stop fading too, where the shell says so (4.5's
+  `Style.reduceMotion`).
 - Notices on Omarchy 4.5, which draws their actions as buttons: the labels are sentence case
   ("Open folder", "Show", "Settings"), and the main action is the click only, not a second
   button doing the same (#111). Omarchy 4.0.x draws no buttons and behaves as before.

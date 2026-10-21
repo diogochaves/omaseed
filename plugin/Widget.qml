@@ -185,7 +185,9 @@ BarWidget {
   // 4.5's bar labels centre their figures, not their line box (WidgetButton's
   // `centerFigures`), so the speeds do the same where the kit does; 4.0.x's centre the line.
   readonly property bool centerFigures: "centerFigures" in button
-  readonly property bool animate: !root.bar || root.bar.foregroundAnimationEnabled
+  // 4.5 stills the shell's motion with Hyprland's animations off (Style.reduceMotion); 4.0.x
+  // has no such switch, and the speeds' fade follows only the bar's.
+  readonly property bool animate: (!root.bar || root.bar.foregroundAnimationEnabled) && Style.reduceMotion !== true
 
   WidgetButton {
     id: button
