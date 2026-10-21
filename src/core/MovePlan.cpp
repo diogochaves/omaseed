@@ -104,6 +104,33 @@ MoveDisk::Access canWriteAs(const QString &localTarget, const QString &ownerOf)
                                                             : MoveDisk::Access::No;
 }
 
+/// #131: what the writing check of `folder` (a server path) looked at: the folder, or the
+/// nearest existing folder above it, found through `local` and `exists`.
+MovePlan::WriteCheck writeCheckOf(const QString &folder,
+                                  MoveDisk::Access access,
+                                  const std::function<QString(const QString &)> &local,
+                                  const MoveDisk &disk)
+{
+    MovePlan::WriteCheck check{folder, QString(), access};
+    if (!disk.exists)
+        return check;
+    QString at = folder;
+    while (!at.isEmpty()) {
+        const QString here = local(at);
+        if (here.isEmpty())
+            return check;
+        if (disk.exists(here))
+            break;
+        const QString up = FolderTree::parentOf(at);
+        if (up == at)
+            return check;
+        at = up;
+    }
+    if (!at.isEmpty() && at != folder)
+        check.madeIn = at;
+    return check;
+}
+
 } // namespace
 
 MoveDisk MoveDisk::real()
@@ -490,7 +517,9 @@ MovePlan MovePlan::make(const Input &input)
         const QString target = local(to);
         const QString source = local(root);
         if (!target.isEmpty() && !source.isEmpty()) {
-            switch (input.disk.canWrite(target, source)) {
+            const MoveDisk::Access access = input.disk.canWrite(target, source);
+            plan.m_writeChecks << writeCheckOf(to, access, local, input.disk);
+            switch (access) {
             case MoveDisk::Access::Yes:
                 plan.m_writable = Check::Ok;
                 break;
@@ -599,7 +628,9 @@ void MovePlan::roomForEach(const Input &input)
             notKnown = true;
             continue;
         }
-        switch (input.disk.canWrite(target, source)) {
+        const MoveDisk::Access access = input.disk.canWrite(target, source);
+        m_writeChecks << writeCheckOf(it.key(), access, local, input.disk);
+        switch (access) {
         case MoveDisk::Access::Yes:
             break;
         case MoveDisk::Access::No:

@@ -217,6 +217,16 @@ public:
 
     // ---- the rest of the checks ------------------------------------------------------------
     Check writable() const { return m_writable; }
+    /// M6, #131: what the writing check looked at, by the server's paths: the destination
+    /// folder itself and, when it doesn't exist yet, the existing folder it will be made in.
+    struct WriteCheck
+    {
+        QString folder;
+        QString madeIn; ///< "" when the folder exists
+        MoveDisk::Access access = MoveDisk::Access::Unknown;
+    };
+    /// Every destination checked, in order; writable() is their sum.
+    QList<WriteCheck> writeChecks() const { return m_writeChecks; }
     bool seesDisks() const { return m_seesDisks; } ///< loose files and collisions can be checked
     /// Groups of moving torrents that share data among themselves (they move together).
     QList<QStringList> sharedInside() const { return m_sharedInside; }
@@ -258,6 +268,7 @@ private:
     QList<DriveRoom> m_drives;
     bool m_freeReadHere = false;
     Check m_writable = Check::Unknown;
+    QList<WriteCheck> m_writeChecks;
     bool m_seesDisks = false;
     QList<QStringList> m_sharedInside;
 };

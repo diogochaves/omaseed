@@ -388,6 +388,30 @@ private slots:
             m_fast, QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner);
         QCOMPARE(plan.writable(), MovePlan::Check::Warn);
         QVERIFY(plan.canMove()); // the first torrent, alone, has the last word (M6)
+        // #131: the check names the destination, and the folder it would be made in.
+        QCOMPARE(plan.writeChecks().size(), 1);
+        QCOMPARE(plan.writeChecks().constFirst().folder, m_fast + QStringLiteral("/games"));
+        QCOMPARE(plan.writeChecks().constFirst().madeIn, m_fast);
+        QCOMPARE(plan.writeChecks().constFirst().access, MoveDisk::Access::No);
+    }
+
+    // #131: a destination that exists and can't be written, under a parent that can: the check
+    // looks at the destination itself and names it, with nothing to be made.
+    void unwritableNamesTheDestination()
+    {
+        if (::geteuid() == 0)
+            QSKIP("root writes everywhere");
+        const QString games = m_archive + QStringLiteral("/games");
+        const QString dest = m_fast + QStringLiteral("/locked/dest");
+        QVERIFY(QDir().mkpath(dest));
+        QFile::setPermissions(dest, QFileDevice::ReadOwner | QFileDevice::ExeOwner);
+        const MovePlan plan = MovePlan::make(input({torrent(QStringLiteral("a"), games, 1)}, dest));
+        QFile::setPermissions(
+            dest, QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner);
+        QCOMPARE(plan.writable(), MovePlan::Check::Warn);
+        QCOMPARE(plan.writeChecks().size(), 1);
+        QCOMPARE(plan.writeChecks().constFirst().folder, dest);
+        QVERIFY(plan.writeChecks().constFirst().madeIn.isEmpty());
     }
 
     void diskCheckAsAnotherOwner()

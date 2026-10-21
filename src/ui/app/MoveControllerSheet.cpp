@@ -25,6 +25,7 @@
 namespace omaseed::app {
 
 using core::FolderTree;
+using core::MoveDisk;
 using core::MoveJob;
 using core::MovePlan;
 using core::SharedData;
@@ -66,6 +67,27 @@ QString driveNames(const MovePlan &plan)
     return names.isEmpty()
                ? last
                : MoveController::tr("%1 and %2").arg(names.join(QStringLiteral(", ")), last);
+}
+
+/// #131: the writing check's subject, the destination folders the check looked at (only those
+/// answering No when `failed`): "/a", "/a and 2 more". `madeIn` gets the folder a missing one
+/// will be made in, when there is exactly one; "" otherwise. Empty when nothing was checked.
+QString writeFolders(const MovePlan &plan, bool failed, QString *madeIn)
+{
+    QList<MovePlan::WriteCheck> checks;
+    for (const MovePlan::WriteCheck &check : plan.writeChecks()) {
+        if (!failed || check.access == MoveDisk::Access::No)
+            checks << check;
+    }
+    *madeIn = QString();
+    if (checks.isEmpty())
+        return {};
+    if (checks.size() == 1) {
+        *madeIn = checks.constFirst().madeIn;
+        return checks.constFirst().folder;
+    }
+    return MoveController::tr("%1 and %n more", nullptr, int(checks.size() - 1))
+        .arg(checks.constFirst().folder);
 }
 
 /// The drive plan.drive() names: what goes there, -1 when it is the only one.
@@ -358,29 +380,50 @@ MoveController::checkLines(const MovePlan &plan, const QString &newPath, const Q
                     break;
                 }
             }
-            // M6: writable.
+            // M6: writable. #131: it names the destination folder (as boards 42 and 43 draw
+            // it), and the folder a missing one will be made in; the drive only when there
+            // is no folder to name.
+            QString madeIn;
             switch (plan.writable()) {
-            case MovePlan::Check::Ok:
-                checks << check(
-                    QStringLiteral("ok"),
-                    tr("Writable. %1 is writable by the owner of these files.")
-                        .arg(plan.drives().isEmpty() ? drive : driveNames(plan)),
-                    tr("checked here; qBittorrent's own answer comes from the first torrent, "
-                       "which goes alone"));
+            case MovePlan::Check::Ok: {
+                const QString folders = writeFolders(plan, false, &madeIn);
+                const QString line =
+                    folders.isEmpty() ? tr("Writable. %1 is writable by the owner of these files.")
+                                            .arg(plan.drives().isEmpty() ? drive : driveNames(plan))
+                    : madeIn.isEmpty()
+                        ? tr("Writable. %1 is writable by the owner of these files.").arg(folders)
+                        : tr("Writable. %1 will be made in %2, which the owner of these files "
+                             "can write to.")
+                              .arg(folders, madeIn);
+                checks << check(QStringLiteral("ok"),
+                                line,
+                                tr("checked here; qBittorrent's own answer comes from the first "
+                                   "torrent, which goes alone"));
                 break;
+            }
             case MovePlan::Check::Unknown:
                 checks << check(
                     QStringLiteral("unknown"),
                     tr("Writable: can't tell here. The first torrent goes alone and answers it."));
                 break;
-            default:
-                checks << check(
-                    QStringLiteral("warn"),
-                    tr("Not writable here: the owner of these files can't write to %1.")
-                        .arg(plan.drives().isEmpty() ? drive : driveNames(plan)),
-                    tr("the check can be wrong for a container's user; the first torrent "
-                       "goes alone and answers it"));
+            default: {
+                const QString folders = writeFolders(plan, true, &madeIn);
+                const QString line =
+                    folders.isEmpty()
+                        ? tr("Not writable here: the owner of these files can't write to %1.")
+                              .arg(plan.drives().isEmpty() ? drive : driveNames(plan))
+                    : madeIn.isEmpty()
+                        ? tr("Not writable here: the owner of these files can't write to %1.")
+                              .arg(folders)
+                        : tr("Not writable here: %1 would be made in %2, and the owner of these "
+                             "files can't write there.")
+                              .arg(folders, madeIn);
+                checks << check(QStringLiteral("warn"),
+                                line,
+                                tr("the check can be wrong for a container's user; the first "
+                                   "torrent goes alone and answers it"));
                 break;
+            }
             }
         }
         // Shared data, pulled in, spans.

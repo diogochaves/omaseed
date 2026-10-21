@@ -190,6 +190,10 @@ before it will tag a release.
 
 ### Fixed
 
+- The Move sheet's writing check names the folder the torrents go to, as boards 42 and 43
+  draw it, not the drive it is on: "the owner of these files can't write to
+  /tmp/locked/dest", not "… to /tmp". A folder that doesn't exist yet is named with the one
+  it will be made in (#131).
 - The Files tab: unticking a folder and ticking it again gives back what was there. Files that
   were never wanted, like a pack's other discs, stay skipped instead of being wanted with the
   rest (#129). A tick on never-wanted files alone still wants them.
