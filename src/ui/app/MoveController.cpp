@@ -1326,6 +1326,22 @@ QVariantMap MoveController::band() const
     return band;
 }
 
+namespace {
+
+/// #174: what became of a moved torrent later (MoveJob::Entry::later, M15), in the word the
+/// table's status cell uses (Torrent::stateText) and what fixes it (docs/28's actions for
+/// each), never qBittorrent's own state name.
+QString laterText(const QString &later)
+{
+    if (later == QLatin1String("missingFiles"))
+        return MoveController::tr("later: missing files · set location… or recheck it");
+    if (later == QLatin1String("error"))
+        return MoveController::tr("later: error · its details say why");
+    return MoveController::tr("later: %1").arg(later);
+}
+
+} // namespace
+
 QString MoveController::detailsText() const
 {
     if (holding())
@@ -1334,9 +1350,7 @@ QString MoveController::detailsText() const
         return {};
     const MoveJob &job = *m_job;
     QStringList lines;
-    const QVariantMap words = band();
-    lines << words.value(QStringLiteral("headline")).toString()
-          << words.value(QStringLiteral("line")).toString() << QString();
+    // #174: the band above already says its headline and line; the record starts after them.
     if (job.startedAt().isValid())
         lines << tr("started %1").arg(core::Format::relativeTime(job.startedAt()));
     if (job.kind() == QLatin1String("folder")) {
@@ -1370,7 +1384,7 @@ QString MoveController::detailsText() const
         if (!entry.line.isEmpty())
             lines << QStringLiteral("    ") + entry.line;
         if (!entry.later.isEmpty())
-            lines << QStringLiteral("    ") + tr("later: %1").arg(entry.later);
+            lines << QStringLiteral("    ") + laterText(entry.later);
     }
     return lines.join(QLatin1Char('\n'));
 }
