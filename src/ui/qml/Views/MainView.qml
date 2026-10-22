@@ -504,6 +504,16 @@ Item {
                                    : qsTr("%1 selected").arg(table.selectedCount),
                 "spoken": qsTr("%1 selected").arg(table.selectedCount)
             });
+        // C17 D1: what the skipped files still hold, while the Files tab shows them.
+        const held = App.details.files.holdingOnDisk;
+        if (held > 0 && details.currentTab === 1 && !details.collapsed && step < 3) {
+            const heldWords = qsTr("%n skipped hold %1", "", held).arg(App.sizeText(App.details.files.heldOnDisk));
+            parts.push({
+                "value": "",
+                "label": heldWords,
+                "spoken": heldWords
+            });
+        }
         // docs/12 F3: the Files tab's own selection (`space`, `v`, `ctrl+a`), while it shows.
         const files = App.details.files.selectedCount;
         if (files > 0 && details.currentTab === 1 && !details.collapsed) {
@@ -2281,7 +2291,13 @@ Item {
                     App.retryTorrents(hashes);
                 else if (action === "recheck")
                     App.recheck(hashes);
+                else if (action === "addAgain") // board 44 §2: libtorrent's hybrid error
+                    addAgainConfirm.openFor(hashes[0], App.torrentRow(hashes[0]).name || "", 0);
             }
+            // Board 44 F1 (C17 D3): the Files tab's band, or shift+f there.
+            onFreeSpaceRequested: freeSpaceSheet.openFor(App.details.hash)
+            // C17 D4: Settings › Servers, on this server, where its path maps are.
+            onPathMapsRequested: settingsModal.showServer(App.serverId)
             // docs/32 F1–F3: the failure block, on the torrent it is about. `m` tries the
             // move again with the destination already in the sheet.
             onFailureActionRequested: action => {
@@ -2921,6 +2937,43 @@ Item {
         }
 
         target: App.move
+    }
+
+    FreeSpaceSheet {
+        id: freeSpaceSheet
+
+        anchors.fill: parent
+        z: 9
+
+        onAddAgainRequested: (hash, name, files) => addAgainConfirm.openFor(hash, name, files)
+        onShowFolderRequested: hash => App.openFolder(hash)
+    }
+
+    AddAgainConfirm {
+        id: addAgainConfirm
+
+        anchors.fill: parent
+        z: 9
+    }
+
+    // Board 44 §2: what the free and the add-again did, in the footer's note.
+    Connections {
+        function onSkippedSpaceFreed(outcome: var): void {
+            if (!outcome.ok) {
+                root.flashFooterNote(qsTr("free the space failed: %1").arg(outcome.error));
+                return;
+            }
+            const kept = outcome.kept > 0 ? " · " + qsTr("%n stay", "", outcome.kept) : "";
+            root.flashFooterNote(qsTr("freed %1 · %n skipped files deleted", "", outcome.deleted).arg(
+                                     outcome.freedText) + kept + (outcome.rechecked ? " · " + qsTr("rechecking") : ""));
+        }
+
+        function onTorrentAddedAgain(outcome: var): void {
+            root.flashFooterNote(outcome.ok ? qsTr("%1 added again").arg(outcome.name)
+                                            : qsTr("adding %1 again failed: %2").arg(outcome.name).arg(outcome.error));
+        }
+
+        target: App
     }
 
     MoveRecheckSheet {

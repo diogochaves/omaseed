@@ -113,8 +113,8 @@ SkippedReading SkippedOnDisk::read(const QString &hash,
         file.pieceLast = range.size() == 2 ? range.at(1).toInt(-1) : -1;
         // docs/44 §2: progress 0 is the quick check; a piece shared with a wanted neighbour
         // counts as downloaded, so such a file is treated as holding pieces.
-        file.holdsPieces = file.progress > 0 ||
-                           holdsDownloadedPiece(pieceStates, file.pieceFirst, file.pieceLast);
+        file.holdsPieces =
+            file.progress > 0 || holdsDownloadedPiece(pieceStates, file.pieceFirst, file.pieceLast);
         if (file.progress > 0)
             ++reading.partlyWritten;
         if (localPathOf) {
@@ -182,13 +182,14 @@ FreePlan SkippedOnDisk::plan(const SkippedReading &reading,
         plan.items.append(item);
     }
     // Deletes first, the biggest first; then what stays, the biggest first.
-    std::stable_sort(plan.items.begin(), plan.items.end(), [](const FreeItem &a, const FreeItem &b) {
-        const bool aDeletes = a.verdict == FreeItem::Verdict::Delete;
-        const bool bDeletes = b.verdict == FreeItem::Verdict::Delete;
-        if (aDeletes != bDeletes)
-            return aDeletes;
-        return a.file.allocated > b.file.allocated;
-    });
+    std::stable_sort(
+        plan.items.begin(), plan.items.end(), [](const FreeItem &a, const FreeItem &b) {
+            const bool aDeletes = a.verdict == FreeItem::Verdict::Delete;
+            const bool bDeletes = b.verdict == FreeItem::Verdict::Delete;
+            if (aDeletes != bDeletes)
+                return aDeletes;
+            return a.file.allocated > b.file.allocated;
+        });
     return plan;
 }
 
@@ -206,7 +207,8 @@ QHash<QString, QString> SkippedOnDisk::openFileHolders(const QSet<QString> &path
         if (!numeric)
             continue;
         const QDir fds(proc.filePath(pid + QStringLiteral("/fd")));
-        const QStringList entries = fds.entryList(QDir::Files | QDir::System | QDir::NoDotAndDotDot);
+        const QStringList entries =
+            fds.entryList(QDir::Files | QDir::System | QDir::NoDotAndDotDot);
         for (const QString &fd : entries) {
             const QString target = QFileInfo(fds.filePath(fd)).symLinkTarget();
             if (target.isEmpty() || !paths.contains(target) || holders.contains(target))

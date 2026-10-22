@@ -229,6 +229,20 @@ TestCase {
         verify(!findChild(notice, "noticeCopy").visible);
     }
 
+    // Board 44 F1: "Why?" unfolds a short note, which has nothing to copy.
+    function test_a_note_takes_its_own_link_and_no_copy() {
+        const notice = createTemporaryObject(noticeComponent, testCase, {
+                                                 "copyable": false,
+                                                 "detailsLabel": "Why?"
+                                             });
+        const toggle = findChild(notice, "noticeDetailsToggle");
+        verify(toggle.text.startsWith("Why?"));
+        compare(toggle.Accessible.name, "Why?");
+        notice.toggleDetails();
+        verify(findChild(notice, "noticeDetailsText").visible);
+        verify(!findChild(notice, "noticeCopy").visible);
+    }
+
     function test_no_details_no_toggle() {
         const notice = createTemporaryObject(noticeComponent, testCase, {
                                                  "details": ""

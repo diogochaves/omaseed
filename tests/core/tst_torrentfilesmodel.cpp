@@ -1075,7 +1075,8 @@ void TestTorrentFilesModel::on_disk_shows_what_skipped_files_hold()
     QCOMPARE(model.holdingOnDisk(), 1);
     QCOMPARE(at(model, 0, TorrentFilesModel::OnDiskRole).toLongLong(), qint64(4096 * 1024));
     QCOMPARE(at(model, 1, TorrentFilesModel::OnDiskTextRole).toString(), QStringLiteral("—"));
-    QVERIFY(at(model, 2, TorrentFilesModel::OnDiskTextRole).toString().contains(QStringLiteral("MB")));
+    QVERIFY(
+        at(model, 2, TorrentFilesModel::OnDiskTextRole).toString().contains(QStringLiteral("MB")));
     // Read, and holding nothing (sparse): a size, not the wanted file's "—".
     const QString none = at(model, 3, TorrentFilesModel::OnDiskTextRole).toString();
     QVERIFY(!none.isEmpty() && none != QStringLiteral("—"));

@@ -46,6 +46,8 @@
 #include "core/ServerListModel.hpp"
 #include "core/ServerPreferences.hpp"
 #include "core/ServerStore.hpp"
+#include "core/SkippedJobs.hpp"
+#include "core/SkippedOnDisk.hpp"
 #include "core/SyncEngine.hpp"
 #include "core/TagModel.hpp"
 #include "core/TorrentDetails.hpp"
@@ -1971,6 +1973,58 @@ private:
     void updateMoveServer();
     MoveController *m_move = nullptr;
     // --- end #97 ------------------------------------------------------------------------------
+
+    // --- #118: skipped files that still take space --------------------------------------------
+    // Board 44 §2 (DECISIONS C17 D1–D4). The Files tab reads what the details torrent's skipped
+    // files hold on this machine's disk when it opens and after a priority change, never on a
+    // poll; "Free the space…" plans and runs the deletes, and a hybrid's leftovers (or a hybrid
+    // in libtorrent's torrent_inconsistent_hashes) are freed by adding it again. AppSkipped.cpp.
+public:
+    /// The details torrent's reading: `{hash, seen, held, heldText, holding, band, where,
+    /// fileSystem, partlyWritten, busy, step}`. `seen` false is D4 (a server whose disks this
+    /// machine can't see); `band` is D2; `busy` while a free or an add-again runs.
+    Q_PROPERTY(QVariantMap skippedOnDisk READ skippedOnDiskMap NOTIFY skippedOnDiskChanged)
+    QVariantMap skippedOnDiskMap() const;
+    /// The Files tab is the one on show: its skipped files are read now, and after every
+    /// priority change while it shows.
+    Q_INVOKABLE void setFilesTabActive(bool active);
+    /// Reads the details torrent's skipped files again (after a free, or on demand).
+    Q_INVOKABLE void refreshSkippedOnDisk();
+    /// F2's sheet: reads the files, pieces and open files now and answers with
+    /// `freeSkippedPlanned(plan)`: `{hash, name, folder, hybrid, running, freed, freedText,
+    /// deletes, recheck, leftWithPieces, leftText, kept, items: [{name, holdsText, verdict,
+    /// openBy}], more, error}`. `verdict` is "delete", "open", "pieces", "shared" or "outside".
+    Q_INVOKABLE void planFreeSkipped(const QString &hash);
+    /// D3: stop, delete, start (and a recheck on a v1-only or v2-only torrent whose files with
+    /// pieces went). Answers with `skippedSpaceFreed({hash, ok, error, deleted, freedText,
+    /// kept, rechecked})`.
+    Q_INVOKABLE void freeSkippedSpace(const QString &hash);
+    /// D3's "add it again": remove `hash` keeping its files, add it back stopped with the same
+    /// selection, names, category, tags and limits, start it if it was started. With
+    /// `freeLeftovers`, the files the last plan would delete and the hybrid's leftovers with
+    /// pieces go while it is away. Answers with `torrentAddedAgain({hash, ok, error, name,
+    /// deleted})`.
+    Q_INVOKABLE void addTorrentAgain(const QString &hash, bool freeLeftovers);
+
+Q_SIGNALS:
+    void skippedOnDiskChanged();
+    void freeSkippedPlanned(QVariantMap plan);
+    void skippedSpaceFreed(QVariantMap outcome);
+    void torrentAddedAgain(QVariantMap outcome);
+
+private:
+    void setUpSkipped();
+    /// What the free and the plan need about `torrent` on this machine.
+    core::FreeSkippedJob::Input freeInputFor(const core::Torrent &torrent) const;
+    core::SkippedOnDisk::LocalPathOf localPathOfFiles(const core::Torrent &torrent) const;
+    core::SkippedOnDisk *m_skipped = nullptr;
+    bool m_filesTabActive = false;
+    /// Read again once the next file list has come in (a priority change, a new torrent).
+    bool m_skippedAfterRefresh = false;
+    QString m_skippedStep; ///< the running free's or add-again's step, "" when none
+    core::FreePlan m_lastFreePlan;
+    QString m_lastFreePlanHash;
+    // --- end #118 -----------------------------------------------------------------------------
 };
 
 } // namespace omaseed::app

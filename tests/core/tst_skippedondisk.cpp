@@ -24,8 +24,8 @@ namespace {
 constexpr qint64 kMiB = 1024LL * 1024;
 constexpr qint64 kGiB = 1024 * kMiB;
 
-QJsonObject file(int index, const QString &name, qint64 size, int priority, double progress,
-                 int first, int last)
+QJsonObject file(
+    int index, const QString &name, qint64 size, int priority, double progress, int first, int last)
 {
     return QJsonObject{{QStringLiteral("index"), index},
                        {QStringLiteral("name"), name},
@@ -179,8 +179,7 @@ void TestSkippedOnDisk::planDeletesFilesWithoutPieces()
                                                        under(QStringLiteral("/m")),
                                                        disk.reader());
     // v1-only: Encore holds pieces, so it goes too, with a recheck after the start.
-    const FreePlan plan =
-        SkippedOnDisk::plan(reading, false, QStringLiteral("/m/Archive"), {}, {});
+    const FreePlan plan = SkippedOnDisk::plan(reading, false, QStringLiteral("/m/Archive"), {}, {});
     QCOMPARE(plan.deletes, 3);
     QCOMPARE(plan.freed, 2 * kGiB + 750 * kMiB + 400 * kMiB);
     QVERIFY(plan.recheck);
@@ -279,9 +278,8 @@ void TestSkippedOnDisk::openFileHoldersReadsProcFds()
     comm.write("mpv\n");
     comm.close();
 
-    const auto holders =
-        SkippedOnDisk::openFileHolders({movie, other, data.filePath(QStringLiteral("x"))},
-                                       proc.path());
+    const auto holders = SkippedOnDisk::openFileHolders(
+        {movie, other, data.filePath(QStringLiteral("x"))}, proc.path());
     QCOMPARE(holders.size(), 1); // "self" is not a process id
     QCOMPARE(holders.value(movie), QStringLiteral("mpv"));
     QVERIFY(SkippedOnDisk::openFileHolders({}, proc.path()).isEmpty());

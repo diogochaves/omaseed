@@ -122,6 +122,10 @@ Item {
     signal moveShowRequested(var hashes)
     /// A few words for the window's footer note ("one file, nothing to filter").
     signal noteRequested(string text)
+    /// Board 44 F1 (C17 D3): the Files tab's "Free the space…", or shift+f there.
+    signal freeSpaceRequested
+    /// C17 D4: the hint's "Path maps…".
+    signal pathMapsRequested
 
     /// `y` or a click on a General row (docs/12 G5): the whole value, and the row's name for
     /// the footer's "copied hash v1".
@@ -707,6 +711,10 @@ Item {
         case "hideSkipped":
             root.toggleHideSkipped();
             break;
+        case "freeSpace":
+            if (filesTab.bandShown)
+                root.freeSpaceRequested();
+            break;
         }
     }
 
@@ -768,6 +776,12 @@ Item {
             if (!shift)
                 return false;
             root.toggleHideSkipped();
+            return true;
+        case Qt.Key_F:
+            // Board 44 F1: shift+f frees what skipped files hold, while the band shows.
+            if (!shift || !filesTab.bandShown)
+                return false;
+            root.freeSpaceRequested();
             return true;
         case Qt.Key_Escape:
             if (root.details.files.selectedCount > 0) {
@@ -1283,7 +1297,13 @@ Item {
             anchors.fill: parent
             cursorIndex: root.filesCursor
             model: root.details.files
+            serverName: App.serverName
+            // C17 D1–D4: the reading, while it is this torrent's.
+            skipped: App.skippedOnDisk.hash === root.details.hash ? App.skippedOnDisk : ({})
             visible: root.currentTab === 1
+
+            onFreeSpaceRequested: root.freeSpaceRequested()
+            onPathMapsRequested: root.pathMapsRequested()
 
             onFilterDone: root.forceActiveFocus()
             onHeaderClicked: key => {
@@ -1941,11 +1961,13 @@ Item {
         App.setPeersTabActive(!root.collapsed && root.currentTab === 3);
         App.setGeneralTabActive(!root.collapsed && root.currentTab === 0); // G3's pieces bar
         App.setWebSeedsTabActive(!root.collapsed && root.currentTab === 4); // #10
+        App.setFilesTabActive(!root.collapsed && root.currentTab === 1); // C17 D1
     }
     onCollapsedChanged: {
         App.setPeersTabActive(!root.collapsed && root.currentTab === 3);
         App.setGeneralTabActive(!root.collapsed && root.currentTab === 0);
         App.setWebSeedsTabActive(!root.collapsed && root.currentTab === 4);
+        App.setFilesTabActive(!root.collapsed && root.currentTab === 1);
     }
     // #10: the torrent has no web seeds (another torrent, or the last one removed) while
     // their tab is on show: Trackers, its neighbour, takes over.

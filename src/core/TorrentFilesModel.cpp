@@ -410,9 +410,8 @@ void TorrentFilesModel::aggregate(int at)
         // DECISIONS C17 D1: what a skipped file holds on disk; a wanted one's space is
         // expected, so it shows none.
         Node &leaf = m_nodes[at];
-        leaf.onDisk = leaf.priority == int(FilePriority::Skip)
-                          ? m_onDisk.value(leaf.fileIndex, -1)
-                          : -1;
+        leaf.onDisk =
+            leaf.priority == int(FilePriority::Skip) ? m_onDisk.value(leaf.fileIndex, -1) : -1;
         return;
     }
 

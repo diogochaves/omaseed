@@ -212,7 +212,7 @@ private:
     quint64 m_issued = 0;     ///< reads asked for (or fed in), numbered from 1
     quint64 m_generation = 0; ///< reset() count: a read from before one is dropped
 
-    QSet<QString> m_errored;      ///< hashes in error or missingFiles
+    QSet<QString> m_errored; ///< hashes in error or missingFiles
     /// C17 D3 (board 28's hybrid error): when each torrent was last seen checking, or asked
     /// to recheck (noteRechecked), and the errored ones that went into error soon after.
     QHash<QString, QDateTime> m_checkedAt;

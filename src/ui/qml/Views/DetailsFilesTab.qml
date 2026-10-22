@@ -18,6 +18,12 @@ import Omaseed.Kit
 // #42 (docs/27): a tick column comes first, the add sheet's (FileTick), and the header's tick
 // stands for every file the filter shows. A click asks the pane, which sends the priority.
 //
+// Board 44 §2 (DECISIONS C17 D1–D4, #118): an "On disk" column, after Size, with what each
+// skipped file still holds on this machine's disk, shown only while some skipped file holds
+// any; the yellow band above the header when they hold more than 1 GiB or 5 % of the torrent,
+// with "Free the space…" (shift+f) and "Why?"; and on a server whose disks can't be seen, the
+// accent "at least" hint from skipped files already written to, pointing to path maps.
+//
 // The columns fit the room (docs/11 J1). Docked on the right the pane shows the figure's
 // four — Name, Size, Done (a progress line and its percent), Priority — and at the bottom,
 // or dragged wider, it adds Remaining, Availability and the piece range, in that order.
@@ -35,6 +41,10 @@ Item {
     property int renameCaret: 0
     /// `/` was pressed: show the filter field even while it is still empty.
     property bool filterOpen: false
+    /// App.skippedOnDisk for this torrent (C17 D1–D4), or `{}`.
+    property var skipped: ({})
+    /// The server's name, for D4's hint.
+    property string serverName: ""
 
     /// `modifiers`: ctrl and shift select (the pane's click rules). A plain click on a folder
     /// moves the cursor, as on a file; its arrow, or a double click, folds it (#51 D5).
@@ -61,6 +71,10 @@ Item {
     signal tickClicked(int row, int wanted)
     /// A click on the header's tick, for every file the filter shows (docs/27 D1/D4).
     signal headTickClicked
+    /// C17 D3: the band's "Free the space…".
+    signal freeSpaceRequested
+    /// C17 D4: the hint's "Path maps…".
+    signal pathMapsRequested
     /// A click on a column's caption: the pane sorts by `key` (TorrentFilesModel::cycleSort:
     /// one way, the other, then torrent order), and takes the keyboard as a click on a row
     /// does.
@@ -113,6 +127,13 @@ Item {
     readonly property int availabilityWidth: Theme.space(50)
     readonly property int piecesWidth: Math.max(Theme.space(78), root._measured(piecesMetrics))
     readonly property int tickWidth: Theme.space(14)
+    /// C17 D1: only while some skipped file holds space.
+    readonly property bool showOnDisk: root.model !== null && root.model.showOnDisk
+    /// C17 D2: the yellow band, over the threshold.
+    readonly property bool bandShown: root.skipped.band === true
+    /// C17 D4: no view of the disks, and some skipped file already written to.
+    readonly property bool hintShown: root.skipped.hash !== undefined && root.skipped.seen === false
+                                      && (root.skipped.partlyWritten || 0) > 0
 
     function _measured(metrics: TextMetrics): int {
         return Math.ceil(metrics.advanceWidth) + 1;
@@ -478,6 +499,98 @@ Item {
         }
     }
 
+    // C17 D2 and D4, between the summary and the header.
+    Column {
+        id: bands
+
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: filterBar.bottom
+
+        Notice {
+            id: heldBand
+
+            animated: false
+            body: root.skipped.busy === true ? root._stepText(root.skipped.step || "")
+                                             : qsTr("They were written while wanted. qBittorrent keeps them; it never deletes a skipped file.")
+            copyable: false
+            details: {
+                const fs = root.skipped.fileSystem || "";
+                const sparse = ["ext4", "btrfs", "ntfs", "xfs"].indexOf(fs) >= 0;
+                const lead = qsTr("Wanting a file makes qBittorrent create it at its full size, even on a stopped torrent, before anything downloads.");
+                if (fs.length === 0)
+                    return lead + " " + qsTr("Skipping it later stops the download, but the file stays.");
+                if (sparse)
+                    return lead + " " + qsTr("On %1 that costs only what was written; these were written to.").arg(fs);
+                return lead + " " + qsTr("On %1 that takes the whole size at once, and skipping the file later keeps it.").arg(fs);
+            }
+            detailsLabel: qsTr("Why?")
+            edge: "bottom"
+            kind: "warning"
+            objectName: "filesHeldBand"
+            shown: root.bandShown
+            title: {
+                const count = root.skipped.holding || 0;
+                const where = (root.skipped.where || "").length > 0 ? root.skipped.where : qsTr("this disk");
+                return count === 1 ? qsTr("1 skipped file holds %1 on %2").arg(root.skipped.heldText).arg(where)
+                                   : qsTr("%1 skipped files hold %2 on %3").arg(count).arg(
+                                         root.skipped.heldText).arg(where);
+            }
+            width: parent.width
+            actions: root.skipped.busy === true ? [] : [
+                                                      {
+                                                          "label": qsTr("Free the space…"),
+                                                          "key": "free"
+                                                      }
+                                                  ]
+
+            onActionTriggered: key => {
+                if (key === "free")
+                    root.freeSpaceRequested();
+            }
+        }
+
+        Notice {
+            animated: false
+            body: qsTr("omaseed can't see %1's disks, so it can't tell how much space they hold or delete them. Mount its download folder here and add a path map to see and free that space.").arg(
+                      root.serverName)
+            edge: "bottom"
+            glyph: "◇"
+            kind: "info"
+            objectName: "filesPartlyWritten"
+            shown: root.hintShown
+            title: {
+                const count = root.skipped.partlyWritten || 0;
+                return count === 1 ? qsTr("At least 1 skipped file was partly written")
+                                   : qsTr("At least %1 skipped files were partly written").arg(count);
+            }
+            width: parent.width
+            actions: [
+                {
+                    "label": qsTr("Path maps…"),
+                    "key": "pathMaps"
+                }
+            ]
+
+            onActionTriggered: root.pathMapsRequested()
+        }
+    }
+
+    /// The free's step, for the band's line while it runs.
+    function _stepText(step: string): string {
+        if (step === "stopping")
+            return qsTr("Freeing the space: stopping the torrent…");
+        if (step === "deleting")
+            return qsTr("Freeing the space: deleting the skipped files…");
+        if (step === "starting")
+            return qsTr("Freeing the space: starting it again…");
+        if (step === "rechecking")
+            return qsTr("Freeing the space: rechecking…");
+        if (step === "removing" || step === "adding" || step === "restoring")
+            return qsTr("Adding it again…");
+        return qsTr("Freeing the space…");
+    }
+
     RowLayout {
         id: header
 
@@ -485,7 +598,7 @@ Item {
         anchors.leftMargin: Theme.space(8)
         anchors.right: parent.right
         anchors.rightMargin: Theme.space(8)
-        anchors.top: filterBar.bottom
+        anchors.top: bands.bottom
         anchors.topMargin: Theme.space(2)
         spacing: Theme.space(8)
 
@@ -528,6 +641,16 @@ Item {
             text: qsTr("Size")
 
             onClicked: root.headerClicked("size")
+        }
+
+        // C17 D1: not a sort key; what skipped files hold, read when the tab opens.
+        DetailsHeader {
+            Layout.preferredWidth: root.sizeWidth
+            alignRight: true
+            clickable: false
+            objectName: "fileHeader_onDisk"
+            text: qsTr("On disk")
+            visible: root.showOnDisk
         }
 
         DetailsHeader {
@@ -609,6 +732,7 @@ Item {
             required property string name
             required property string path
             required property string sizeText
+            required property string onDiskText
             required property real progress
             required property string progressText
             required property string remainingText
@@ -773,6 +897,15 @@ Item {
                     color: row.textColor
                     horizontalAlignment: Text.AlignRight
                     text: row.sizeText
+                }
+
+                DetailsCell {
+                    Layout.preferredWidth: root.sizeWidth
+                    color: row.onDiskText === "—" ? Theme.dimForeground : row.textColor
+                    horizontalAlignment: Text.AlignRight
+                    objectName: "fileOnDisk_" + row.index
+                    text: row.onDiskText
+                    visible: root.showOnDisk
                 }
 
                 Item {

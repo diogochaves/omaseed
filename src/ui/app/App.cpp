@@ -267,6 +267,7 @@ App::App(QObject *parent)
     // docs/33 §11 (#73): the one menu of the tray and the bar widget.
     setUpBarMenu();
     setUpMove();
+    setUpSkipped();
 }
 
 App::~App()
@@ -3027,6 +3028,8 @@ void App::recheck(const QStringList &hashes)
 {
     if (hashes.isEmpty() || demoGuard(QStringLiteral("recheck"), hashes.size()) || !m_hasServer)
         return;
+    // Board 44 §2: a hybrid that errors after this is libtorrent's hybrid error (C17 D3).
+    m_engine->problems()->noteRechecked(hashes);
     m_client->torrentsRecheck(hashes)->then(this, [this](const QbtResult<QByteArray> &result) {
         reportActionResult(QStringLiteral("recheck"), result);
     });

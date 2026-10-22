@@ -36,6 +36,8 @@ Rectangle {
             "recheck": ["c", qsTr("recheck")],
             "rename": ["2", qsTr("rename in Files")],
             "folder": ["o", qsTr("open folder")],
+            // Board 44 §2 (C17 D3): libtorrent's hybrid error; only adding it again clears it.
+            "addAgain": ["", qsTr("add it again…")],
             // #108: advice, not an action: the app can't check a disk, so no key, no click.
             "checkDisk": ["", qsTr("check the disk first")]
         };

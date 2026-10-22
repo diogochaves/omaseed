@@ -51,6 +51,10 @@ Item {
     property var actions: []
     /// The technical text; "" leaves out "details".
     property string details: ""
+    /// The link that unfolds `details` (board 44 F1: "Why?" over a short note).
+    property string detailsLabel: qsTr("details")
+    /// `copy` under the details; a note that is not technical text has none.
+    property bool copyable: true
     property bool detailsOpen: false
     /// Rows above the details' text, each with its own link: `[{text, link}]` (board 43 J3:
     /// the moves waiting behind this one, each with "cancel"). A link says `detailRowTriggered`.
@@ -363,7 +367,7 @@ Item {
                     font.pixelSize: Theme.font.caption
                     objectName: "noticeCopy"
                     text: qsTr("copy")
-                    visible: root.details.length > 0
+                    visible: root.details.length > 0 && root.copyable
 
                     MouseArea {
                         id: copyMouse
@@ -431,7 +435,7 @@ Item {
             // "details", never its chevron; whether it is open is the description, as a rail
             // group's (#78).
             Accessible.description: root.detailsOpen ? qsTr("unfolded") : qsTr("folded")
-            Accessible.name: qsTr("details")
+            Accessible.name: root.detailsLabel
             Accessible.role: Accessible.Link
             // As an action's (#75).
             Accessible.onPressAction: if (detailsLink.enabled)
@@ -440,8 +444,8 @@ Item {
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.small
             objectName: "noticeDetailsToggle"
-            text: qsTr("details") + " " + (root.detailsOpen ? Glyphs.chevronDown :
-                                                              Glyphs.chevronRight)
+            text: root.detailsLabel + " " + (root.detailsOpen ? Glyphs.chevronDown :
+                                                                Glyphs.chevronRight)
             visible: root.details.length > 0 || root.detailRows.length > 0
 
             MouseArea {

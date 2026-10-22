@@ -62,8 +62,8 @@ public:
         QString error;
         int deleted = 0;
         qint64 freed = 0;
-        int kept = 0;        ///< files that held space and stayed
-        QStringList failed;  ///< deletes the disk refused
+        int kept = 0;       ///< files that held space and stayed
+        QStringList failed; ///< deletes the disk refused
         bool started = false;
         bool rechecked = false;
     };

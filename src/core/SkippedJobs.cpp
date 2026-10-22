@@ -63,9 +63,8 @@ void FreeSkippedJob::waitStopped(int waited)
     TorrentsInfoQuery query;
     query.hashes = {m_input.hash};
     m_client->torrentsInfo(query)->then(this, [this, waited](const QbtResult<QJsonArray> &r) {
-        const QJsonObject info = r.isError() || r.value().isEmpty()
-                                     ? QJsonObject()
-                                     : r.value().first().toObject();
+        const QJsonObject info =
+            r.isError() || r.value().isEmpty() ? QJsonObject() : r.value().first().toObject();
         if (!r.isError() && r.value().isEmpty()) {
             finish(tr("the torrent is gone"));
             return;
@@ -78,9 +77,8 @@ void FreeSkippedJob::waitStopped(int waited)
             finish(tr("it didn't stop within %1 s").arg(m_input.stopTimeoutMs / 1000));
             return;
         }
-        QTimer::singleShot(m_input.pollMs, this, [this, waited]() {
-            waitStopped(waited + m_input.pollMs);
-        });
+        QTimer::singleShot(
+            m_input.pollMs, this, [this, waited]() { waitStopped(waited + m_input.pollMs); });
     });
 }
 
@@ -112,12 +110,12 @@ void FreeSkippedJob::readAndDelete()
                     if (file.holdsSpace())
                         paths.insert(file.localPath);
                 }
-                m_plan = SkippedOnDisk::plan(reading,
-                                             m_input.hybrid,
-                                             m_input.contentLocal,
-                                             m_input.sharedRoots,
-                                             SkippedOnDisk::openFileHolders(paths,
-                                                                            m_input.procRoot));
+                m_plan =
+                    SkippedOnDisk::plan(reading,
+                                        m_input.hybrid,
+                                        m_input.contentLocal,
+                                        m_input.sharedRoots,
+                                        SkippedOnDisk::openFileHolders(paths, m_input.procRoot));
                 Q_EMIT step(QStringLiteral("deleting"));
                 bool piecesWent = false;
                 for (const FreeItem &item : std::as_const(m_plan.items)) {
@@ -210,11 +208,10 @@ QbtClient::AddOptions AddAgainJob::addOptions(const TorrentRecord &record)
     // Stopped, so nothing is written before its names and priorities are put back.
     o.stopped = true;
     o.autoTMM = false;
-    o.contentLayout = record.layout == QLatin1String("Subfolder")
-                          ? QbtClient::ContentLayout::Subfolder
-                      : record.layout == QLatin1String("NoSubfolder")
-                          ? QbtClient::ContentLayout::NoSubfolder
-                          : QbtClient::ContentLayout::Original;
+    o.contentLayout =
+        record.layout == QLatin1String("Subfolder")     ? QbtClient::ContentLayout::Subfolder
+        : record.layout == QLatin1String("NoSubfolder") ? QbtClient::ContentLayout::NoSubfolder
+                                                        : QbtClient::ContentLayout::Original;
     if (record.upLimit > 0)
         o.upLimit = record.upLimit;
     if (record.dlLimit > 0)
@@ -270,39 +267,36 @@ void AddAgainJob::readRecord()
                 }
                 const QJsonArray fileList = files.value();
                 m_client->torrentsTrackers(m_input.hash)
-                    ->then(this,
-                           [this, object, fileList](const QbtResult<QJsonArray> &trackers) {
-                               const QJsonArray trackerList =
-                                   trackers.isError() ? QJsonArray() : trackers.value();
-                               QUrlQuery query;
-                               query.addQueryItem(QStringLiteral("hash"), m_input.hash);
-                               m_client->get(QStringLiteral("torrents/export"), query)
-                                   ->then(this,
-                                          [this, object, fileList, trackerList](
-                                              const QbtResult<QByteArray> &exported) {
-                                              if (exported.isError() ||
-                                                  exported.value().isEmpty()) {
-                                                  finish(tr("couldn't export its .torrent"));
-                                                  return;
-                                              }
-                                              m_torrent = exported.value();
-                                              m_record = TorrentsBackup::recordFrom(
-                                                  object, fileList, trackerList, m_torrent);
-                                              Q_EMIT step(QStringLiteral("removing"));
-                                              log(QStringLiteral("adding %1 again: removing it, "
-                                                                 "keeping its files")
-                                                      .arg(m_record.name));
-                                              m_client->torrentsDelete({m_input.hash}, false)
-                                                  ->then(this,
-                                                         [this](const QbtResult<QByteArray> &r) {
-                                                             if (r.isError()) {
-                                                                 finish(r.error().toString());
-                                                                 return;
-                                                             }
-                                                             waitGone(0);
-                                                         });
-                                          });
-                           });
+                    ->then(this, [this, object, fileList](const QbtResult<QJsonArray> &trackers) {
+                        const QJsonArray trackerList =
+                            trackers.isError() ? QJsonArray() : trackers.value();
+                        QUrlQuery query;
+                        query.addQueryItem(QStringLiteral("hash"), m_input.hash);
+                        m_client->get(QStringLiteral("torrents/export"), query)
+                            ->then(this,
+                                   [this, object, fileList, trackerList](
+                                       const QbtResult<QByteArray> &exported) {
+                                       if (exported.isError() || exported.value().isEmpty()) {
+                                           finish(tr("couldn't export its .torrent"));
+                                           return;
+                                       }
+                                       m_torrent = exported.value();
+                                       m_record = TorrentsBackup::recordFrom(
+                                           object, fileList, trackerList, m_torrent);
+                                       Q_EMIT step(QStringLiteral("removing"));
+                                       log(QStringLiteral("adding %1 again: removing it, "
+                                                          "keeping its files")
+                                               .arg(m_record.name));
+                                       m_client->torrentsDelete({m_input.hash}, false)
+                                           ->then(this, [this](const QbtResult<QByteArray> &r) {
+                                               if (r.isError()) {
+                                                   finish(r.error().toString());
+                                                   return;
+                                               }
+                                               waitGone(0);
+                                           });
+                                   });
+                    });
             });
     });
 }
@@ -326,9 +320,8 @@ void AddAgainJob::waitGone(int waited)
             finish(tr("qBittorrent didn't remove it"));
             return;
         }
-        QTimer::singleShot(m_input.pollMs, this, [this, waited]() {
-            waitGone(waited + m_input.pollMs);
-        });
+        QTimer::singleShot(
+            m_input.pollMs, this, [this, waited]() { waitGone(waited + m_input.pollMs); });
     });
 }
 
@@ -361,9 +354,8 @@ void AddAgainJob::waitAdded(int waited)
             finish(tr("the torrent didn't come back"));
             return;
         }
-        QTimer::singleShot(m_input.pollMs, this, [this, waited]() {
-            waitAdded(waited + m_input.pollMs);
-        });
+        QTimer::singleShot(
+            m_input.pollMs, this, [this, waited]() { waitAdded(waited + m_input.pollMs); });
     });
 }
 

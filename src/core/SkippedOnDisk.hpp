@@ -133,9 +133,8 @@ public:
 
     /// Which of `paths` a running program holds open, and its name: every /proc/<pid>/fd link
     /// that can be read (another user's are not, and are skipped). `procRoot` is for tests.
-    static QHash<QString, QString> openFileHolders(const QSet<QString> &paths,
-                                                   const QString &procRoot = QStringLiteral(
-                                                       "/proc"));
+    static QHash<QString, QString>
+    openFileHolders(const QSet<QString> &paths, const QString &procRoot = QStringLiteral("/proc"));
 
     /// lstat: st_blocks × 512 for a regular file, -1 for anything else or nothing there.
     static qint64 readAllocated(const QString &localPath);
