@@ -57,6 +57,9 @@ struct MoveDisk
 
     /// Whether something (a file, a folder, a link) is at `localPath`.
     std::function<bool(const QString &localPath)> exists;
+    /// #161: what is at `localPath`, for M8's line: its size (a folder's, its files'), -1 when
+    /// it can't be read; `folder` says whether it is one.
+    std::function<qint64(const QString &localPath, bool *folder)> sizeOf;
     /// Whether the owner of `ownerOf`'s files could create `localTarget` (or write in it):
     /// tested on its nearest existing parent, by that owner's permissions, and No on a
     /// read-only mount.
@@ -118,6 +121,14 @@ public:
         qint64 bytes = 0;
         Kind kind = Kind::Move;
         QString why; ///< for LeftOut and Spans: the path that decided it
+        /// LeftOut (#161 a): what is at `why`. Its size, -1 unknown (the disks unseen).
+        qint64 thereBytes = -1;
+        bool thereIsFolder = false;
+        /// Whose it is: a torrent of the library's name, or empty.
+        QString thereOwner;
+        /// False: can't tell whether a torrent owns it (a torrent without a subfolder whose
+        /// files aren't known saves around it). True and no owner: no torrent owns it.
+        bool thereOwnerKnown = false;
         bool autoTmm = false;
         QString category;
     };

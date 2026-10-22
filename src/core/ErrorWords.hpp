@@ -125,8 +125,13 @@ public:
                          const QDateTime &lastLanded,
                          std::chrono::seconds expected);
     /// M8: `count` torrents left out because `folder` already has a file with their file's
-    /// name.
-    static Text forLeftOut(int count, const QString &folder);
+    /// name. `there`, when given, says what that is (whatIsThere()), in brackets.
+    static Text forLeftOut(int count, const QString &folder, const QString &there = QString());
+    /// #161 (a): what is at a left-out torrent's target, "an empty file no torrent owns", "a
+    /// folder of 1.2 GB that NAME owns". `bytes` -1 is unknown, `folder` whether it is one;
+    /// `ownerKnown` false says nothing of whose it is, else `owner` names it (empty: none).
+    /// Empty when there is nothing to say.
+    static QString whatIsThere(qint64 bytes, bool folder, bool ownerKnown, const QString &owner);
 };
 
 } // namespace omaseed::core

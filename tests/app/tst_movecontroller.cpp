@@ -382,8 +382,8 @@ private slots:
         const QStringList texts = checkTexts(plan);
         QVERIFY(texts.constFirst().startsWith(QStringLiteral("omaseed can't see home's disks.")));
         QVERIFY(texts.contains(QStringLiteral(
-            "1 left out: /volume2/games already has a file with their file's name. qBittorrent "
-            "would keep that file and report the move as done.")));
+            "1 left out: /volume2/games already has a file with their file's name (no torrent "
+            "owns it). qBittorrent would keep that file and report the move as done.")));
         QCOMPARE(plan.value(QStringLiteral("moveHashes")).toStringList(),
                  QStringList({QStringLiteral("c3"), QStringLiteral("b2")}));
         QVERIFY(server.asked.contains(QStringLiteral("/volume2/games/handheld")));

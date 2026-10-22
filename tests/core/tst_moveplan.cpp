@@ -289,6 +289,53 @@ private slots:
         QCOMPARE(plan.torrentBytes(), qint64(6));
     }
 
+    void whatIsAtTheTargetIsSaid()
+    {
+        // #161 (a): the size of what is there, and whether a torrent owns it.
+        const QString games = m_archive + QStringLiteral("/games");
+        const QString to = m_fast + QStringLiteral("/movies");
+        const Torrent film = torrent(QStringLiteral("Feature.mkv"), games, 5);
+        const Torrent pack = torrent(QStringLiteral("Pack"), games, 6);
+        touch(to + QStringLiteral("/Feature.mkv")); // empty: an earlier copy's leftover
+        {
+            QFile big(to + QStringLiteral("/Pack/disc.iso"));
+            QDir().mkpath(to + QStringLiteral("/Pack"));
+            QVERIFY(big.open(QIODevice::WriteOnly));
+            big.write(QByteArray(3000, 'x'));
+        }
+        MovePlan plan = MovePlan::make(input({film, pack}, to));
+        QCOMPARE(plan.leftOut(), QStringList({film.hash, pack.hash}));
+        const MovePlan::Item *empty = plan.item(film.hash);
+        QCOMPARE(empty->thereBytes, qint64(0));
+        QVERIFY(!empty->thereIsFolder);
+        QVERIFY(empty->thereOwnerKnown);
+        QVERIFY(empty->thereOwner.isEmpty());
+        const MovePlan::Item *folder = plan.item(pack.hash);
+        QCOMPARE(folder->thereBytes, qint64(3000));
+        QVERIFY(folder->thereIsFolder);
+
+        // A torrent already saved there owns its file.
+        const Torrent owner = torrent(QStringLiteral("Feature.mkv"), to, 7);
+        plan = MovePlan::make(input({film, owner}, to));
+        QCOMPARE(plan.leftOut(), QStringList({film.hash}));
+        QCOMPARE(plan.item(film.hash)->thereOwner, QStringLiteral("Feature.mkv"));
+        QVERIFY(plan.item(film.hash)->thereOwnerKnown);
+
+        // One added without a subfolder saved there might: its files are asked for first.
+        const Torrent loose = torrent(QStringLiteral("Extras"), to, 8, to);
+        MovePlan::Input in = input({film, loose}, to);
+        plan = MovePlan::make(in);
+        QVERIFY(!plan.item(film.hash)->thereOwnerKnown);
+        QVERIFY(plan.needFiles().contains(loose.hash));
+        in.files.insert(loose.hash, {QStringLiteral("Feature.mkv")});
+        plan = MovePlan::make(in);
+        QCOMPARE(plan.item(film.hash)->thereOwner, QStringLiteral("Extras"));
+        in.files.insert(loose.hash, {QStringLiteral("trailer.mkv")});
+        plan = MovePlan::make(in);
+        QVERIFY(plan.item(film.hash)->thereOwnerKnown);
+        QVERIFY(plan.item(film.hash)->thereOwner.isEmpty());
+    }
+
     void aNoSubfolderTorrentIsCheckedFileByFile()
     {
         const QString games = m_archive + QStringLiteral("/games");

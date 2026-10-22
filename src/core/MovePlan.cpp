@@ -5,6 +5,7 @@
 
 #include <QCollator>
 #include <QDir>
+#include <QDirIterator>
 #include <QFileInfo>
 #include <QMap>
 #include <QSet>
@@ -51,6 +52,67 @@ bool lexists(const QString &path)
 {
     struct stat st{};
     return ::lstat(QFile::encodeName(path).constData(), &st) == 0;
+}
+
+/// #161: a file's size, or the total of a folder's files (links not followed); -1 when it
+/// can't be read, or is a link.
+qint64 sizeOfLocal(const QString &path, bool *folder)
+{
+    const QFileInfo info(path);
+    const bool link = info.isSymLink();
+    if (folder != nullptr)
+        *folder = !link && info.isDir();
+    if (link || !info.exists())
+        return -1;
+    if (!info.isDir())
+        return info.size();
+    qint64 bytes = 0;
+    QDirIterator it(
+        path, QDir::Files | QDir::Hidden | QDir::NoSymLinks, QDirIterator::Subdirectories);
+    while (it.hasNext()) {
+        it.next();
+        bytes += it.fileInfo().size();
+    }
+    return bytes;
+}
+
+/// #161 (a): whose `target` (a server path) is: the torrent of `torrents` whose content is at
+/// it, inside it or around it. `known` turns false when a torrent without a subfolder, whose
+/// files `files` doesn't have, saves where it could be one of them; its hash goes in `need`.
+QString ownerOf(const QString &target,
+                const QList<Torrent> &torrents,
+                const QHash<QString, QStringList> &files,
+                bool *known,
+                QSet<QString> *need)
+{
+    *known = true;
+    const auto related = [&target](const QString &path) {
+        return path == target || SharedData::isUnder(path, target) ||
+               SharedData::isUnder(target, path);
+    };
+    for (const Torrent &torrent : torrents) {
+        const QString save = SharedData::normalize(torrent.savePath);
+        const QString content = SharedData::normalize(torrent.contentPath);
+        if (!content.isEmpty() && content != save) {
+            if (related(content))
+                return torrent.name;
+            continue;
+        }
+        // Added without a subfolder: its files lie loose in its save path.
+        if (save.isEmpty() || !related(save))
+            continue;
+        const auto listed = files.constFind(torrent.hash);
+        if (listed == files.cend()) {
+            *known = false;
+            need->insert(torrent.hash);
+            continue;
+        }
+        for (const QString &file : *listed) {
+            if (related(FolderTree::join(save, SharedData::normalize(file))))
+                return torrent.name;
+        }
+    }
+    return {};
 }
 
 MoveDisk::Access canWriteAs(const QString &localTarget, const QString &ownerOf)
@@ -137,6 +199,7 @@ MoveDisk MoveDisk::real()
 {
     MoveDisk disk;
     disk.exists = lexists;
+    disk.sizeOf = sizeOfLocal;
     disk.canWrite = canWriteAs;
     return disk;
 }
@@ -415,6 +478,14 @@ MovePlan MovePlan::make(const Input &input)
                 if (there) {
                     item.kind = Item::Kind::LeftOut;
                     item.why = target;
+                    // #161 (a): the line says what is there and whose it is, so a leftover
+                    // (an empty file of an earlier failed copy) reads as one.
+                    if (plan.m_seesDisks && input.disk.sizeOf)
+                        item.thereBytes = input.disk.sizeOf(local(target), &item.thereIsFolder);
+                    item.thereOwner = ownerOf(
+                        target, input.torrents, input.files, &item.thereOwnerKnown, &needFiles);
+                    if (!item.thereOwner.isEmpty())
+                        item.thereOwnerKnown = true;
                     break;
                 }
             }
