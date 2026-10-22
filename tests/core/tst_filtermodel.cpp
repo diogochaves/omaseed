@@ -194,6 +194,7 @@ private slots:
     void tiesFollowRenamesAndNewRows();
     void heldOrderKeepsRowsWhileValuesMove();
     void heldOrderStillFiltersAndTakesNewRows();
+    void heldOrderPlacesAddsAtOnce();
     void explicitChangesApplyWhileHeld();
     void heldOrderOutlastsAPollBracket();
 
@@ -780,7 +781,8 @@ void TestFilterModel::heldOrderKeepsRowsWhileValuesMove()
 void TestFilterModel::heldOrderStillFiltersAndTakesNewRows()
 {
     // Held under "active": a torrent that stops leaves, one that starts comes in below the
-    // held rows (nothing above it moves), and a new torrent appears; on release all sort.
+    // held rows (nothing above it moves), and a new torrent takes its sorted place at once
+    // (DECISIONS C20); on release all sort.
     TorrentModel source;
     source.applyFullUpdate(seedLibrary(40, 10)); // torrent-000 idle, the rest busy
     TorrentFilterModel proxy;
@@ -814,15 +816,83 @@ void TestFilterModel::heldOrderStillFiltersAndTakesNewRows()
     before.removeOne(stopping);
     const QStringList held = visibleHashes(proxy);
     QCOMPARE(held.size(), 40);
-    QCOMPARE(held.mid(0, 38), before);
-    QCOMPARE(QSet<QString>(held.cbegin() + 38, held.cend()),
-             (QSet<QString>{starting, QStringLiteral("fresh")}));
+    // The fastest of all, so above every held row; the starting one below them.
+    QCOMPARE(held.first(), QStringLiteral("fresh"));
+    QCOMPARE(held.mid(1, 38), before);
+    QCOMPARE(held.last(), starting);
 
     proxy.setHoldOrder(false);
     QVERIFY(sortedBySpeedDescending(proxy));
     QCOMPARE(proxy.hashAt(0), starting);
     QCOMPARE(proxy.hashAt(1), QStringLiteral("fresh"));
     QCOMPARE(proxy.rowOfHash(stopping), -1);
+}
+
+void TestFilterModel::heldOrderPlacesAddsAtOnce()
+{
+    // #124 (DECISIONS C20): sorted by date added, newest first, with the pointer over the
+    // rows. Adds one after another each land where the sort puts them on the poll that brings
+    // them, never at the end first; the held rows keep their order around them.
+    const auto torrent = [](const QString &name, qint64 added, qint64 upspeed = 0) {
+        return QJsonObject{{QStringLiteral("name"), name},
+                           {QStringLiteral("state"), QStringLiteral("stalledUP")},
+                           {QStringLiteral("progress"), 1.0},
+                           {QStringLiteral("added_on"), added},
+                           {QStringLiteral("upspeed"), upspeed}};
+    };
+    TorrentModel source;
+    QJsonObject library;
+    for (int i = 0; i < 20; ++i)
+        library.insert(QStringLiteral("h%1").arg(i, 2, 10, QLatin1Char('0')),
+                       torrent(QStringLiteral("old-%1").arg(i), 1000 + 10 * i));
+    source.applyFullUpdate(library);
+    TorrentFilterModel proxy;
+    proxy.setSourceModel(&source);
+    proxy.setSortRole(TorrentModel::AddedOnRole);
+    proxy.setSortOrder(Qt::DescendingOrder);
+    const QStringList before = visibleHashes(proxy);
+    QCOMPARE(before.first(), QStringLiteral("h19"));
+    proxy.setHoldOrder(true);
+
+    // Three adds, one poll each: every one is the newest, so each goes to the top.
+    for (int n = 1; n <= 3; ++n) {
+        const QString hash = QStringLiteral("new%1").arg(n);
+        source.applyPartial(QJsonObject{{hash, torrent(hash, 2000 + n)}}, QJsonArray());
+        QCOMPARE(proxy.hashAt(0), hash);
+        QCOMPARE(proxy.rowCount(), 20 + n);
+    }
+    QCOMPARE(visibleHashes(proxy).mid(3), before);
+
+    // One added between two held rows (an older date) goes between them.
+    source.applyPartial(QJsonObject{{QStringLiteral("mid"), torrent(QStringLiteral("mid"), 1055)}},
+                        QJsonArray());
+    const int at = proxy.rowOfHash(QStringLiteral("mid"));
+    QCOMPARE(proxy.hashAt(at - 1), QStringLiteral("h06"));
+    QCOMPARE(proxy.hashAt(at + 1), QStringLiteral("h05"));
+    // Two in one poll, the same slot: by their own order.
+    source.applyPartial(QJsonObject{{QStringLiteral("a"), torrent(QStringLiteral("a"), 3001)},
+                                    {QStringLiteral("b"), torrent(QStringLiteral("b"), 3002)}},
+                        QJsonArray());
+    QCOMPARE(proxy.hashAt(0), QStringLiteral("b"));
+    QCOMPARE(proxy.hashAt(1), QStringLiteral("a"));
+
+    // The held rows still hold while their values move (sorted by speed now, ascending).
+    proxy.setSortRole(TorrentModel::UpspeedRole);
+    proxy.setSortOrder(Qt::AscendingOrder);
+    const QStringList bySpeed = visibleHashes(proxy);
+    QJsonObject faster;
+    for (int i = 0; i < 20; ++i)
+        faster.insert(QStringLiteral("h%1").arg(i, 2, 10, QLatin1Char('0')),
+                      QJsonObject{{QStringLiteral("upspeed"), 100 - i}});
+    faster.insert(QStringLiteral("quick"), torrent(QStringLiteral("quick"), 4000, 1000000));
+    source.applyPartial(faster, QJsonArray());
+    QStringList held = visibleHashes(proxy);
+    QCOMPARE(held.last(), QStringLiteral("quick")); // the fastest: last, ascending
+    held.removeLast();
+    QCOMPARE(held, bySpeed);
+
+    proxy.setHoldOrder(false);
+    QCOMPARE(proxy.hashAt(proxy.rowCount() - 1), QStringLiteral("quick"));
 }
 
 void TestFilterModel::explicitChangesApplyWhileHeld()

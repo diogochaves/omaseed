@@ -2073,10 +2073,6 @@ void App::addTorrent(const QVariantMap &request)
         if (!token.isEmpty())
             forgetTorrentFile(token);
         watchForAddedHash(torrentId);
-        if (!withPriorities && !withRenames) {
-            Q_EMIT addFinished(true, QString(), torrentId);
-            return;
-        }
         // 5.x answers with the ids it added; an older server says "Ok." and the metainfo's
         // own id stands in.
         const QJsonArray added = QJsonDocument::fromJson(result.value())
@@ -2084,6 +2080,12 @@ void App::addTorrent(const QVariantMap &request)
                                      .value(QStringLiteral("added_torrent_ids"))
                                      .toArray();
         const QString id = added.isEmpty() ? torrentId : added.first().toString();
+        // DECISIONS C20 (#124): qBittorrent took it, so the sheet closes now; the names, file
+        // choices and start below go on without it, and say in the footer if one fails.
+        Q_EMIT addFinished(true, QString(), id);
+        if (!withPriorities && !withRenames)
+            return;
+        m_addsInFollowUp.insert(id, request.value(QStringLiteral("name")).toString());
         if (withRenames)
             applyAddRenames(id, renames, renameAnchor, filePriorities, keepStopped);
         else
@@ -2172,7 +2174,7 @@ void App::applyAddRenames(const QString &id,
                           int attempt)
 {
     if (id.isEmpty()) {
-        Q_EMIT addFinished(false, tr("added stopped, but the new names were not applied"), id);
+        failAfterAdd(id, AddStep::Names, tr("The server did not say which torrent it added."));
         return;
     }
     const auto retry = [=, this]() {
@@ -2188,10 +2190,7 @@ void App::applyAddRenames(const QString &id,
                 retry();
                 return;
             }
-            Q_EMIT addFinished(false,
-                               tr("added stopped, but the new names were not applied: %1")
-                                   .arg(result.error().message()),
-                               id);
+            failAfterAdd(id, AddStep::Names, QString(), result.error());
             return;
         }
         // No files yet: the server has not loaded the metadata. Same wait as a 409.
@@ -2216,11 +2215,8 @@ void App::applyAddRenames(const QString &id,
             !(root.isEmpty() || root.endsWith(QLatin1Char('/')))) {
             qWarning().noquote()
                 << QStringLiteral("add: renames: file %1 is %2 on the server").arg(path, served);
-            Q_EMIT addFinished(
-                false,
-                tr("added stopped, but the new names were not applied: the server's file list "
-                   "did not match the .torrent"),
-                id);
+            failAfterAdd(
+                id, AddStep::Names, tr("The server's file list did not match the .torrent."));
             return;
         }
         sendAddRename(id, renames, 0, root, priorities, keepStopped);
@@ -2249,10 +2245,7 @@ void App::sendAddRename(const QString &id,
         if (result.isError()) {
             qWarning().noquote() << QStringLiteral("add: rename %1 -> %2 failed: %3")
                                         .arg(from, to, result.error().toString());
-            Q_EMIT addFinished(false,
-                               tr("added stopped, but the new names were not applied: %1")
-                                   .arg(result.error().message()),
-                               id);
+            failAfterAdd(id, AddStep::Names, QString(), result.error());
             return;
         }
         sendAddRename(id, renames, at + 1, root, priorities, keepStopped);
@@ -2265,7 +2258,7 @@ void App::applyAddFilePriorities(const QString &id,
                                  int attempt)
 {
     if (id.isEmpty()) {
-        Q_EMIT addFinished(false, tr("added stopped, but the file choices were not applied"), id);
+        failAfterAdd(id, AddStep::Choices, tr("The server did not say which torrent it added."));
         return;
     }
 
@@ -2273,19 +2266,16 @@ void App::applyAddFilePriorities(const QString &id,
     if (groups.isEmpty()) {
         // Every choice is on the server: start it, unless the user asked for it stopped.
         if (keepStopped) {
-            Q_EMIT addFinished(true, QString(), id);
+            m_addsInFollowUp.remove(id);
             return;
         }
         m_client->torrentsStart(QStringList{id})
             ->then(this, [this, id](const QbtResult<QByteArray> &started) {
                 if (started.isError()) {
-                    Q_EMIT addFinished(false,
-                                       tr("added with your file choices, but it did not start: %1")
-                                           .arg(started.error().message()),
-                                       id);
+                    failAfterAdd(id, AddStep::Start, QString(), started.error());
                     return;
                 }
-                Q_EMIT addFinished(true, QString(), id);
+                m_addsInFollowUp.remove(id);
             });
         return;
     }
@@ -2315,11 +2305,43 @@ void App::applyAddFilePriorities(const QString &id,
             }
             qWarning().noquote()
                 << QStringLiteral("add: file priorities failed: %1").arg(result.error().toString());
-            Q_EMIT addFinished(false,
-                               tr("added stopped, but the file choices were not applied: %1")
-                                   .arg(result.error().message()),
-                               id);
+            failAfterAdd(id, AddStep::Choices, QString(), result.error());
         });
+}
+
+void App::failAfterAdd(const QString &id, AddStep step, const QString &line, const ApiError &error)
+{
+    // The torrent's name as the sheet had it, else as the library has it by now.
+    QString name = m_addsInFollowUp.take(id);
+    if (name.isEmpty() && !id.isEmpty() && torrents()->indexOfHash(id) >= 0)
+        name = torrents()->torrent(id).name;
+    if (name.isEmpty())
+        name = tr("The torrent");
+    ErrorWords::Text words;
+    if (error.isError()) {
+        ErrorWords::Subject subject = errorSubject();
+        subject.torrent = name;
+        words = ErrorWords::forRequest(error, subject);
+    }
+    switch (step) {
+    case AddStep::Names:
+        words.headline = tr("%1 was added stopped, but the new names were not applied").arg(name);
+        break;
+    case AddStep::Choices:
+        words.headline =
+            tr("%1 was added stopped, but the file choices were not applied").arg(name);
+        break;
+    case AddStep::Start:
+        words.headline = tr("%1 was added with your file choices, but did not start").arg(name);
+        break;
+    }
+    if (!line.isEmpty())
+        words.line = line;
+    if (words.kind.isEmpty())
+        words.kind = QStringLiteral("request");
+    m_actionFailure = words.toMap();
+    Q_EMIT actionFailureChanged();
+    Q_EMIT actionFailed(QString(), words.sentence());
 }
 
 void App::loadAddFiles(const QString &token)
@@ -2664,6 +2686,11 @@ void App::afterUrlAdd(const QByteArray &body,
     const bool keepStopped = request.value(QStringLiteral("stopped")).toBool();
     const QVariantList renames =
         token.isEmpty() ? QVariantList() : request.value(QStringLiteral("fileRenames")).toList();
+    // DECISIONS C20 (#124): taken, so the sheet closes; what follows says in the footer if it
+    // fails.
+    Q_EMIT addFinished(true, QString(), id);
+    if (!renames.isEmpty() || !AddFilesModel::priorityGroups(laterPriorities).isEmpty())
+        m_addsInFollowUp.insert(id, request.value(QStringLiteral("name")).toString());
     if (!renames.isEmpty()) {
         applyAddRenames(id,
                         renames,
@@ -2672,11 +2699,8 @@ void App::afterUrlAdd(const QByteArray &body,
                         keepStopped);
         return;
     }
-    if (!AddFilesModel::priorityGroups(laterPriorities).isEmpty()) {
+    if (!AddFilesModel::priorityGroups(laterPriorities).isEmpty())
         applyAddFilePriorities(id, laterPriorities, keepStopped);
-        return;
-    }
-    Q_EMIT addFinished(true, QString(), id);
 }
 
 void App::retryUrlAdd(const QVariantMap &request,

@@ -32,11 +32,14 @@
 // `holdOrder` (#51 D9) holds the row order while the pointer is over the table's rows, so a
 // live re-sort never moves a row between a look and a click. The sort stays dynamic (rows
 // still enter and leave the filter, and values still change): lessThan() reads each row's
-// place when the hold began, by hash, so Qt's own re-sort finds nothing out of place, and a
-// row new to the view (added, or newly matching the filter) goes below the held ones. A
-// poll's bracket above composes with it: its one sort reads the held places too. Letting go
-// sorts once, like the bracket. An explicit change (sort role or order, filter text, a rail
-// scope) applies at once: the rows sort afresh and the hold starts again from there.
+// place when the hold began, by hash, so Qt's own re-sort finds nothing out of place. A
+// torrent new to the library (an add) takes its sorted place among the held rows at once,
+// right after the last held row the live order puts before it (DECISIONS C20, #124: never at
+// the end first); one already in the library that newly matches the filter goes below the
+// held ones. A poll's bracket above composes with it: its one sort reads the held places
+// too. Letting go sorts once, like the bracket. An explicit change (sort role or order,
+// filter text, a rail scope) applies at once: the rows sort afresh and the hold starts again
+// from there.
 
 #include "core/Torrent.hpp"
 
@@ -176,8 +179,17 @@ private:
     void applyFilterChange();
     /// Every row sorted once, now: one layoutChanged.
     void sortNow();
-    /// Notes every shown row's place, by hash, for the held order.
+    /// Notes every shown row's place, by hash, for the held order, and every torrent the
+    /// library holds, so a later one is known as new.
     void freezeOrder();
+    /// Lets go of the held order (the places, the new rows' slots, the library then).
+    void dropHeldOrder();
+    /// Source row `sourceRow`'s place in the held order: its own when it was shown at the
+    /// hold, a slot after the held row it follows in the live order when it is new to the
+    /// library (C20), and below every held row when it only newly matches the filter.
+    double heldPlace(int sourceRow) const;
+    /// The live order, as lessThan() reads it without a hold (ascending).
+    bool liveLessThan(const QModelIndex &left, const QModelIndex &right) const;
     /// Reloads m_trackerHashes for the current tracker filter; true when it changed.
     bool reloadTrackerHashes();
     /// Whether the tracker filter goes by TrackerModel membership rather than the host of
@@ -214,6 +226,8 @@ private:
     mutable QList<int> m_nameRanks; ///< by source row; empty until a tie-break needs it
     QList<QMetaObject::Connection> m_sourceConnections;
     QHash<QString, int> m_heldPlaces; ///< the held order: proxy row by hash, while holdOrder
+    QSet<QString> m_heldLibrary;      ///< every torrent in the library when the hold began
+    mutable QHash<QString, double> m_heldSlots; ///< new torrents' places, found on first use
     bool m_holdOrder = false;
     bool m_sortHeld = false;
     bool m_refilterAfterHold = false;

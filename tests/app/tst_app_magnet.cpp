@@ -345,7 +345,8 @@ void TestAppMagnet::anUntouchedListIsAPlainAdd()
 }
 
 // D9 a (M18): a magnet's renames go on after the add, as a .torrent's do: added stopped with
-// its choices, renamed under its root, then started.
+// its choices, renamed under its root, then started. The sheet hears of the add first
+// (DECISIONS C20, #124); the rest follows.
 void TestAppMagnet::renamesAreReplayedAfterTheAdd()
 {
     MagnetServer server;
@@ -368,6 +369,7 @@ void TestAppMagnet::renamesAreReplayedAfterTheAdd()
     QCOMPARE(add.form.queryItemValue(QStringLiteral("stopped")), QStringLiteral("true"));
     QCOMPARE(add.form.queryItemValue(QStringLiteral("filePriorities"), QUrl::FullyDecoded),
              QStringLiteral("1,0,1"));
+    QTRY_COMPARE_WITH_TIMEOUT(server.count("torrents/start"), 1, 5000);
     const Request rename = server.last("torrents/renameFile");
     QCOMPARE(rename.form.queryItemValue(QStringLiteral("oldPath"), QUrl::FullyDecoded),
              QStringLiteral("Public Domain Sampler/README.txt"));

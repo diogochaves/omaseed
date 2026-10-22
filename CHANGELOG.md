@@ -232,6 +232,13 @@ before it will tag a release.
   CON or NUL, a part over 255 bytes). Otherwise the block reads "The disk refused to open a
   file", says the file or the disk may be damaged, and offers "check the disk first" before
   retry: renaming can't help there, and each retry writes to a disk that may be failing.
+- Adding torrents one after another: each new row shows in its sorted place as soon as it
+  arrives, also while the pointer rests on the table, instead of at the bottom until the
+  pointer left. The add sheet closes on qBittorrent's OK; the file names, file choices and
+  start that follow it say in the footer if they fail. A second press while an add is out
+  sends nothing (it went to qBittorrent again, which refused it), the button says "adding…"
+  when the answer takes a moment, and a torrent handed over meanwhile waits its turn instead
+  of joining the one leaving (#124).
 - The log keeps omaseed's own lines ("omaseed moved …") in time order: the log read whole (on
   opening it, or after qBittorrent's log started over) put them after qBittorrent's newer
   lines until some later change re-sorted them (#137).

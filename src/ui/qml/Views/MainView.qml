@@ -1626,6 +1626,21 @@ Item {
                 settingsModal.reviewServer(id);
         }
 
+        /// #124 (DECISIONS C20): an add the sheet no longer waits for (cancelled while it was
+        /// out) and the server refused: the footer says so, as an action's refusal.
+        function onAddFinished(ok: bool, message: string, hash: string): void {
+            if (ok || addSheet.opened)
+                return;
+            root.flashFooterNote(message);
+            const failure = App.addFailure;
+            if (failure.sentence === message) {
+                root.footerFailure = failure;
+                root.footerNoteMark = "✕";
+                footerNoteTimer.stop();
+                root.footerNoteSticky = true;
+            }
+        }
+
         /// T4.3's seam: an action the server refused, on the footer for a few seconds.
         function onActionFailed(action: string, message: string): void {
             // docs/33 D23: a refusal comes worded already (ErrorWords), the subject named; it

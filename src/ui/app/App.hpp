@@ -1867,6 +1867,18 @@ Q_SIGNALS:
 private:
     /// An add the API refused: `addFailure` in words, then `addFinished(false, sentence)`.
     void failAdd(const omaseed::core::ApiError &error, const QString &torrent);
+    /// What a step after the add was doing (DECISIONS C20, #124).
+    enum class AddStep { Names, Choices, Start };
+    /// A step after qBittorrent took the add (its file names, file choices or start) failed.
+    /// The sheet closed on the add's OK, so the footer says it, as other actions' failures:
+    /// `actionFailure` in words naming the torrent, then `actionFailed`. `line` overrides the
+    /// line ErrorWords gives `error`.
+    void failAfterAdd(const QString &id,
+                      AddStep step,
+                      const QString &line,
+                      const omaseed::core::ApiError &error = {});
+    /// The adds whose names, file choices or start are still being sent: their names, by id.
+    QHash<QString, QString> m_addsInFollowUp;
     QVariantMap m_addFailure;
     /// Reads state.json's `servers` section into the list (D5).
     void loadLastSeen();

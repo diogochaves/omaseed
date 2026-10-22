@@ -6,7 +6,9 @@
 # added in one request (#40). Then, on a second box with its own qBittorrent, a magnet's file
 # list before the add (docs/29, #44): the Sampler's magnet from the tray shows its tree, one file
 # unticked is never written, and a private magnet goes through "fetching", "still looking" and
-# "may never come" on a faster clock and is still added.
+# "may never come" on a faster clock and is still added. Last, three .torrent files added one
+# after another, "add stopped" double-clicked each time, the table sorted by date added and the
+# pointer over its rows (#124): one add each, and each row on top as soon as it shows.
 #
 #   scripts/dev/magnet-walk.sh [OUT_DIR]        # agents: a headless box, a screenshot per step,
 #                                               # OUT_DIR/index.md says what to look for in each
@@ -461,6 +463,97 @@ keys Return
 PRIVATE_HASH="$(seeder_field "$PRIVATE_NAME" hash)"
 check "enter added it, still fetching its metadata" box_appears "$PRIVATE_HASH"
 step "The private magnet added" "The sheet is gone; $PRIVATE_NAME is a row at \"metadata\", beside the Sampler."
+
+# 8. Adding in a row (#124, DECISIONS C20): three .torrent files opened one after another, the
+# table sorted by date added, newest first, and the pointer over its rows (which holds the row
+# order, #51 D9). Each "add stopped" is double-clicked: the sheet closes on qBittorrent's OK, the
+# second click sends nothing (or lands on the table, the sheet already gone), and each new row
+# shows at the top on the sync that brings it, never at the end first.
+# rows_in_order: the table's rows on screen, top to bottom, one name a line.
+rows_in_order() {
+    omabox tree -b "$BOX" 2>/dev/null | python3 -c '
+import re, sys
+rows, depth = [], None
+for line in sys.stdin:
+    indent = len(line) - len(line.lstrip())
+    if depth is None:
+        if re.match(r"\s*list \"torrents\"", line):
+            depth = indent
+        continue
+    if indent <= depth:
+        break
+    m = re.match(r"\s*list item \"(.*)\" @\d+,(\d+)", line)
+    if m:
+        rows.append((int(m.group(2)), m.group(1)))
+print("\n".join(name for _, name in sorted(rows)))'
+}
+sheet_up() { omabox tree -b "$BOX" --find "Add torrent" 2>/dev/null | grep -q 'dialog "Add torrent"'; }
+# sheet_for NAME: until the add sheet is up with NAME in it.
+sheet_for() {
+    for _ in $(seq 1 40); do
+        omabox tree -b "$BOX" --find "$1" 2>/dev/null | grep -q '^dialog "Add torrent"' && return 0
+        sleep 0.25
+    done
+    return 1
+}
+sheet_gone() {
+    for _ in $(seq 1 20); do
+        sheet_up || return 0
+        sleep 0.25
+    done
+    return 1
+}
+# lands_on_top NAME: watch the table until NAME shows; true when it first shows on top.
+lands_on_top() {
+    local rows
+    for _ in $(seq 1 40); do
+        rows="$(rows_in_order)"
+        if grep -qxF "$1" <<<"$rows"; then
+            [ "$(head -n1 <<<"$rows")" = "$1" ] && return 0
+            echo "    $1 first showed at row $(grep -nxF "$1" <<<"$rows" | cut -d: -f1)" >&2
+            return 1
+        fi
+        sleep 0.2
+    done
+    return 1
+}
+# box_count NAME: how many torrents the box's qBittorrent has called NAME.
+box_count() {
+    omabox run -b "$BOX" -- curl -fs "http://127.0.0.1:8090/api/v2/torrents/info" |
+        python3 -c 'import json, sys; print(sum(1 for t in json.load(sys.stdin) if t["name"] == sys.argv[1]))' "$1"
+}
+# double_click_add_stopped: two clicks, as quick as omabox sends them, on the sheet's "add
+# stopped" (the tree's places are the window's).
+double_click_add_stopped() {
+    local x y w h
+    read -r x y w h < <(omabox tree -b "$BOX" --find "add stopped" 2>/dev/null |
+        sed -n 's/.*button "add stopped" @\([0-9]*\),\([0-9]*\) \([0-9]*\)x\([0-9]*\).*/\1 \2 \3 \4/p' |
+        head -n1)
+    [ -n "${h:-}" ] || return 1
+    omabox click -b "$BOX" --window omaseed $((x + w / 2)) $((y + h / 2)) >/dev/null
+    omabox click -b "$BOX" --window omaseed $((x + w / 2)) $((y + h / 2)) >/dev/null
+}
+# no_refused_add: no "add failed" in the box's run logs (the app's among them: `omabox log
+# run` reads only the latest run, an xdg-open here).
+no_refused_add() { ! cat "$(omabox path -b "$BOX")"/home/run-*.log 2>/dev/null | grep -q 'add failed'; }
+
+keys s
+sleep 0.5
+keys -t added
+keys Return
+sleep 0.5
+# The pointer over the table's first row: the row order is held while it stays there.
+omabox pointer -b "$BOX" --window omaseed -- move 700 115 >/dev/null
+for name in "distro-2026.09-x86_64.iso" "photo-archive-2019-2025" "tiny-notes.txt"; do
+    open_in_box "$HOME_IN_BOX/Downloads/$name.torrent"
+    check "the sheet came up for $name" sheet_for "$name"
+    check "add stopped, double-clicked" double_click_add_stopped
+    check "it closed on qBittorrent's OK" sheet_gone
+    check "$name took its sorted place at once: the top" lands_on_top "$name"
+    check "and was added once" test "$(box_count "$name")" = 1
+done
+check "the second presses sent nothing (no refused add in the log)" no_refused_add
+step "Three added in a row" "Sorted by added, newest first: tiny-notes.txt, photo-archive-2019-2025 and distro-2026.09-x86_64.iso on top, in that order, all stopped; the sheet is gone."
 
 if [ "$INTERACTIVE" = 0 ]; then
     printf '\n## Checks\n\n%s' "$CHECKS" >>"$OUT/index.md"
