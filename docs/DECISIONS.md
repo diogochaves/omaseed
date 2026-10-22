@@ -920,7 +920,7 @@ again" (to the move's target) and "move back", which bring its files together; t
 rechecked as before. A torrent is hybrid when qBittorrent gives it both a v1 and a v2 hash.
 v0.3.1. #144.
 
-## C23 — Three move fixes before the post (v0.3.3, ruled 2026-10-22)
+## C23 — The move fixes before the post (v0.3.3, ruled 2026-10-22)
 
 From Diogo's own moves on qBittorrent 5.3, each issue's recommended option. They ship in a
 patch, v0.3.3, cut from v0.3.2 on `release/0.3`, so the version people install for the post
@@ -938,6 +938,17 @@ about moves has none of these bugs; main keeps them for v0.4.0.
   destination and whose it is: "(an empty file no torrent owns)", "(a file of SIZE that NAME
   owns)"; on a server omaseed can't see, only whose. *Adds to C15 M8.* Offering to replace an
   empty file no torrent owns (#161 b) waits for its own ruling.
+
+Two more from the same day's big folder move, added to the patch:
+
+- **Long details (#173):** a notice's unfolded details (docs/35 N4) stop at a third of the
+  window, never under a few lines, and scroll inside their block, clipped; the band stays a
+  band and what is below it moves down. The keys scroll the block while it has them (Tab
+  reaches it when there is something to scroll); esc folds it. Every notice, not only moves.
+- **The record's words (#174):** the move record's "later" line uses the status cell's word
+  and what fixes it ("later: missing files · set location… or recheck it"), never
+  qBittorrent's state name; the record starts at "started …", since the band above already
+  says its headline and line.
 
 ## M8 — A click leaves the keyboard focus where it was
 
