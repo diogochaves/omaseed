@@ -49,6 +49,11 @@ Item {
     /// What the row shows instead of the query while nothing is typed — Fig. 13's
     /// "category for 2 torrents". Empty means the row is only ever the query.
     property string title: ""
+    /// #91: what a screen reader calls the query field and the list when `title` is no name
+    /// for them, or there is none (the jump palette's: "jump to a torrent"). "" names them by
+    /// `title`.
+    property string accessibleName: ""
+    readonly property string spokenName: root.accessibleName.length > 0 ? root.accessibleName : root.title
     /// The dim caption at the right of the query row (`.q .c`), e.g. "2 of 142".
     property string counter: ""
     property alias query: input.text
@@ -633,8 +638,9 @@ Item {
                         TextInput {
                             id: input
 
-                            Accessible.name: root.title
+                            Accessible.name: root.spokenName
                             Accessible.role: Accessible.EditableText
+                            objectName: "paletteInput"
                             anchors.left: parent.left
                             anchors.right: parent.right
                             anchors.verticalCenter: parent.verticalCenter
@@ -716,6 +722,7 @@ Item {
             ListView {
                 id: list
 
+                Accessible.name: root.spokenName
                 Accessible.role: Accessible.List
                 Layout.fillWidth: true
                 Layout.preferredHeight: Math.min(contentHeight, Theme.space(360))

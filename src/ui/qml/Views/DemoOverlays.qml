@@ -104,6 +104,7 @@ Window {
 
     // Fig. 12 — jump to torrent.
     Palette {
+        accessibleName: qsTr("jump to a torrent") // as JumpPalette's (#91)
         anchors.fill: parent
         counter: qsTr("2 of 142")
         footerRight: qsTr("also matches hash and tracker")

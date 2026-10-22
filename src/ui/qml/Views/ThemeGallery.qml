@@ -641,6 +641,7 @@ Window {
                             caption: qsTr("with text")
 
                             Field {
+                                accessibleName: qsTr("filter torrents")
                                 hint: Glyphs.search
                                 text: qsTr("fedora 45")
                             }
@@ -650,6 +651,7 @@ Window {
                             caption: qsTr("with count")
 
                             Field {
+                                accessibleName: qsTr("filter torrents")
                                 hint: Glyphs.search
                                 text: qsTr("fedora 45")
                                 trailing: qsTr("0 of 142")
@@ -692,6 +694,7 @@ Window {
                             caption: qsTr("selected")
 
                             Chip {
+                                checkable: true
                                 selected: true
                                 text: qsTr("linux")
                             }
@@ -1438,6 +1441,7 @@ Window {
                         caption: qsTr("Palette \u00b7 Fig. 12")
 
                         Palette {
+                            accessibleName: qsTr("jump to a torrent")
                             counter: qsTr("2 of 142")
                             footerRight: qsTr("also matches hash and tracker")
                             glyph: Glyphs.search

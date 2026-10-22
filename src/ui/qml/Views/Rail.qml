@@ -421,6 +421,8 @@ Item {
             flick.contentY = bottom - flick.height;
     }
 
+    // #91: the rail's rows, by what they do.
+    Accessible.name: qsTr("filters")
     Accessible.role: Accessible.List
 
     activeFocusOnTab: true

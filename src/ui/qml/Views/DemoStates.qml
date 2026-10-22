@@ -326,6 +326,7 @@ Window {
 
                     Field {
                         Layout.preferredWidth: Theme.space(220)
+                        accessibleName: qsTr("filter torrents")
                         hint: Glyphs.search
                         text: qsTr("fedora 45")
                         trailing: qsTr("0 of 142")

@@ -2162,6 +2162,10 @@ Item {
                 readonly property color accent: Theme.accent
                 readonly property color highlight: Qt.rgba(editor.accent.r, editor.accent.g, editor.accent.b, 0.35)
 
+                // #91: the inline rename's field, by what it edits.
+                Accessible.name: qsTr("torrent name")
+                Accessible.role: Accessible.EditableText
+
                 anchors.fill: parent
                 anchors.leftMargin: Theme.space(6)
                 anchors.rightMargin: Theme.space(6)

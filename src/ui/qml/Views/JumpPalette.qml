@@ -19,6 +19,8 @@ Palette {
     /// a filter is hiding the row.
     required property TorrentTable table
 
+    // #91: the query field and the list, by what they search.
+    accessibleName: qsTr("jump to a torrent")
     counter: qsTr("%1 of %2").arg(App.jumpMatchCount(root.query)).arg(App.torrents.count)
     footerRight: qsTr("also matches hash and tracker")
     glyph: Glyphs.jump

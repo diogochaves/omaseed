@@ -514,6 +514,9 @@ Rectangle {
                         TextInput {
                             id: renameInput
 
+                            // #91: the inline rename's field, by what it edits.
+                            Accessible.name: row.isFolder ? qsTr("folder name") : qsTr("file name")
+                            Accessible.role: Accessible.EditableText
                             anchors.left: parent.left
                             anchors.leftMargin: Theme.space(6)
                             anchors.right: renameErrorText.visible ? renameErrorText.left

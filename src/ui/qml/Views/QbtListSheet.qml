@@ -131,6 +131,9 @@ Sheet {
             TextEdit {
                 id: editor
 
+                // #91: the box by the lines it holds ("tracker URLs").
+                Accessible.name: root.what.length > 0 ? root.what : root.title
+                Accessible.role: Accessible.EditableText
                 color: Theme.foreground
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.font.body
