@@ -79,9 +79,58 @@ PathMapping PathMapping::fromJson(const QJsonObject &object)
     return mapping;
 }
 
+namespace {
+
+/// The keys toJson() writes: anything else in an entry is a newer build's, kept in `extra`.
+bool isKnownKey(const QString &key)
+{
+    static const QStringList keys{
+        QStringLiteral("id"),
+        QStringLiteral("name"),
+        QStringLiteral("url"),
+        QStringLiteral("authMode"),
+        QStringLiteral("username"),
+        QStringLiteral("pathMap"),
+        QStringLiteral("isDefault"),
+        QStringLiteral("addedAt"),
+        QStringLiteral("certificateSha256"),
+    };
+    return keys.contains(key);
+}
+
+} // namespace
+
 QString Server::newId()
 {
     return QUuid::createUuid().toString(QUuid::WithoutBraces);
+}
+
+QString Server::engine() const
+{
+    return extra.value(QStringLiteral("engine")).toString();
+}
+
+bool Server::isQbittorrent() const
+{
+    // The engines build's spelling (#84, engineKindToString). Any other value, an empty or
+    // a non-string one included, is not taken for a qBittorrent.
+    const QJsonValue value = extra.value(QStringLiteral("engine"));
+    return value.isUndefined() || value == QJsonValue(QStringLiteral("qbittorrent"));
+}
+
+QString Server::engineName() const
+{
+    if (isQbittorrent())
+        return {};
+    const QString stored = engine();
+    // "qBittorrent" isn't the engines build's spelling, and naming it would read as nonsense.
+    if (stored.compare(QStringLiteral("qbittorrent"), Qt::CaseInsensitive) == 0)
+        return {};
+    if (stored == QStringLiteral("transmission"))
+        return QStringLiteral("Transmission");
+    if (stored == QStringLiteral("deluge"))
+        return QStringLiteral("Deluge");
+    return stored;
 }
 
 QJsonObject Server::toJson() const
@@ -103,6 +152,17 @@ QJsonObject Server::toJson() const
         object[QStringLiteral("addedAt")] = addedAt.toUTC().toString(Qt::ISODate);
     if (!certificateSha256.isEmpty())
         object[QStringLiteral("certificateSha256")] = certificateSha256;
+
+    // A newer build's keys, as they were read (C28). An authMode this build couldn't read
+    // goes back as it was, unless a mode was picked here since.
+    for (auto it = extra.constBegin(); it != extra.constEnd(); ++it) {
+        if (it.key() == QStringLiteral("authMode")) {
+            if (authMode == AuthMode::None)
+                object.insert(it.key(), it.value());
+        } else if (!object.contains(it.key())) {
+            object.insert(it.key(), it.value());
+        }
+    }
     return object;
 }
 
@@ -112,7 +172,9 @@ Server Server::fromJson(const QJsonObject &object, bool *ok)
     server.id = object.value(QStringLiteral("id")).toString();
     server.name = object.value(QStringLiteral("name")).toString();
     server.url = QUrl(object.value(QStringLiteral("url")).toString());
-    server.authMode = authModeFromString(object.value(QStringLiteral("authMode")).toString());
+    bool authModeRead = false;
+    server.authMode =
+        authModeFromString(object.value(QStringLiteral("authMode")).toString(), &authModeRead);
     server.username = object.value(QStringLiteral("username")).toString();
 
     for (const QJsonValue &value : object.value(QStringLiteral("pathMap")).toArray()) {
@@ -130,6 +192,15 @@ Server Server::fromJson(const QJsonObject &object, bool *ok)
     // into "accept whatever certificate".
     server.certificateSha256 =
         CertificatePin::normalized(object.value(QStringLiteral("certificateSha256")).toString());
+
+    for (auto it = object.constBegin(); it != object.constEnd(); ++it) {
+        if (!isKnownKey(it.key()))
+            server.extra.insert(it.key(), it.value());
+    }
+    // A newer build's mode (the engines build's "password", Deluge's) reads as None here and
+    // is written back as it was.
+    if (!authModeRead && object.contains(QStringLiteral("authMode")))
+        server.extra.insert(QStringLiteral("authMode"), object.value(QStringLiteral("authMode")));
 
     if (ok)
         *ok = !server.id.isEmpty();

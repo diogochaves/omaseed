@@ -18,6 +18,10 @@ private slots:
     void newIdIsStableAndUnique();
     void roundTripsThroughJson();
     void ignoresUnknownKeys();
+    void keepsTheKeysANewerBuildWrote(); // C28, #84
+    void anAuthModeItCantReadGoesBackAsItWas();
+    void tellsAQbittorrentFromAnotherEngine_data();
+    void tellsAQbittorrentFromAnotherEngine();
     void defaultsWhenFieldsAreMissing();
     void missingIdFailsToParse();
     void comparesByValue();
@@ -83,6 +87,96 @@ void TestServer::ignoresUnknownKeys()
     QCOMPARE(server.id, QStringLiteral("abc-123"));
     QCOMPARE(server.name, QStringLiteral("Strict"));
     QCOMPARE(server.authMode, AuthMode::Cookie);
+}
+
+void TestServer::keepsTheKeysANewerBuildWrote()
+{
+    // An entry as the engines build (servers.json v2, #84) writes it, with one more key of a
+    // later shape: everything this build doesn't read comes back out as it went in.
+    QJsonObject json;
+    json[QStringLiteral("id")] = QStringLiteral("abc-123");
+    json[QStringLiteral("name")] = QStringLiteral("seedbox");
+    json[QStringLiteral("url")] = QStringLiteral("http://127.0.0.1:9091");
+    json[QStringLiteral("authMode")] = QStringLiteral("cookie");
+    json[QStringLiteral("username")] = QStringLiteral("user");
+    json[QStringLiteral("pathMap")] = QJsonArray();
+    json[QStringLiteral("isDefault")] = false;
+    json[QStringLiteral("addedAt")] = QStringLiteral("2026-10-22T09:00:00Z");
+    json[QStringLiteral("engine")] = QStringLiteral("transmission");
+    json[QStringLiteral("engineVersion")] = QStringLiteral("4.1.0");
+    json[QStringLiteral("later")] = QJsonObject{{QStringLiteral("nested"), QJsonArray{1, 2}}};
+
+    bool ok = false;
+    const Server server = Server::fromJson(json, &ok);
+    QVERIFY(ok);
+    QCOMPARE(server.extra.keys(),
+             (QStringList{QStringLiteral("engine"),
+                          QStringLiteral("engineVersion"),
+                          QStringLiteral("later")}));
+    QCOMPARE(server.engine(), QStringLiteral("transmission"));
+    QCOMPARE(server.toJson(), json);
+
+    // A change made here keeps them too.
+    Server edited = server;
+    edited.name = QStringLiteral("renamed");
+    QJsonObject expected = json;
+    expected[QStringLiteral("name")] = QStringLiteral("renamed");
+    QCOMPARE(edited.toJson(), expected);
+}
+
+void TestServer::anAuthModeItCantReadGoesBackAsItWas()
+{
+    // The engines build's Deluge "password" reads as None here and is written back as it
+    // was, unless someone picks a mode this build knows.
+    QJsonObject json;
+    json[QStringLiteral("id")] = QStringLiteral("d-1");
+    json[QStringLiteral("url")] = QStringLiteral("http://127.0.0.1:8112");
+    json[QStringLiteral("authMode")] = QStringLiteral("password");
+    json[QStringLiteral("engine")] = QStringLiteral("deluge");
+
+    const Server server = Server::fromJson(json);
+    QCOMPARE(server.authMode, AuthMode::None);
+    QCOMPARE(server.toJson().value(QStringLiteral("authMode")).toString(),
+             QStringLiteral("password"));
+
+    Server picked = server;
+    picked.authMode = AuthMode::Cookie;
+    QCOMPARE(picked.toJson().value(QStringLiteral("authMode")).toString(),
+             QStringLiteral("cookie"));
+}
+
+void TestServer::tellsAQbittorrentFromAnotherEngine_data()
+{
+    QTest::addColumn<QJsonValue>("engine"); // undefined: no key
+    QTest::addColumn<bool>("qbittorrent");
+    QTest::addColumn<QString>("name");
+    QTest::newRow("none (v1)") << QJsonValue(QJsonValue::Undefined) << true << QString();
+    QTest::newRow("qbittorrent") << QJsonValue(QStringLiteral("qbittorrent")) << true << QString();
+    QTest::newRow("transmission") << QJsonValue(QStringLiteral("transmission")) << false
+                                  << QStringLiteral("Transmission");
+    QTest::newRow("deluge") << QJsonValue(QStringLiteral("deluge")) << false
+                            << QStringLiteral("Deluge");
+    QTest::newRow("unknown") << QJsonValue(QStringLiteral("rtorrent")) << false
+                             << QStringLiteral("rtorrent");
+    QTest::newRow("other spelling")
+        << QJsonValue(QStringLiteral("qBittorrent")) << false << QString();
+    QTest::newRow("empty") << QJsonValue(QString()) << false << QString();
+    QTest::newRow("not text") << QJsonValue(7) << false << QString();
+}
+
+void TestServer::tellsAQbittorrentFromAnotherEngine()
+{
+    QFETCH(QJsonValue, engine);
+    QFETCH(bool, qbittorrent);
+    QFETCH(QString, name);
+    QJsonObject json{{QStringLiteral("id"), QStringLiteral("x")}};
+    if (!engine.isUndefined())
+        json[QStringLiteral("engine")] = engine;
+    const Server server = Server::fromJson(json);
+    QCOMPARE(server.isQbittorrent(), qbittorrent);
+    QCOMPARE(server.engineName(), name);
+    // Never rewritten as qBittorrent, nor given an engine it didn't have.
+    QCOMPARE(server.toJson().value(QStringLiteral("engine")), engine);
 }
 
 void TestServer::defaultsWhenFieldsAreMissing()

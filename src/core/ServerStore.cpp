@@ -13,13 +13,19 @@
 #include <QLoggingCategory>
 #include <QSaveFile>
 
+#include <algorithm>
+
 namespace omaseed::core {
 
 namespace {
 
 Q_LOGGING_CATEGORY(lcServers, "omaseed.servers")
 
+/// The version a file this build starts is written with.
 constexpr int kFileVersion = 1;
+/// The newest version this build reads: 2 is the engines build's (#84), whose new keys it
+/// keeps as they are (Server::extra) and writes back as version 2 (DECISIONS C28).
+constexpr int kNewestReadable = 2;
 
 QFileDevice::Permissions ownerReadWrite()
 {
@@ -113,11 +119,11 @@ bool ServerStore::load()
 
     const QJsonObject root = doc.object();
     const int version = root.value(QStringLiteral("version")).toInt(kFileVersion);
-    if (version > kFileVersion) {
+    if (version > kNewestReadable) {
         failLoad(QStringLiteral("%1 has version %2, this build understands up to %3")
                      .arg(file.fileName())
                      .arg(version)
-                     .arg(kFileVersion));
+                     .arg(kNewestReadable));
         return false;
     }
     m_loadError.clear();
@@ -136,6 +142,11 @@ bool ServerStore::load()
 
     m_servers = loaded;
     m_defaultId = root.value(QStringLiteral("defaultId")).toString();
+    m_fileVersion = std::max(version, kFileVersion);
+    m_rootExtra = root;
+    for (const QString &known :
+         {QStringLiteral("version"), QStringLiteral("servers"), QStringLiteral("defaultId")})
+        m_rootExtra.remove(known);
 
     // The default flag on each server mirrors the store's defaultId; keep them consistent
     // regardless of what an older or hand-edited file happened to record per-server.
@@ -172,8 +183,8 @@ bool ServerStore::save() const
         array.append(toWrite.toJson());
     }
 
-    QJsonObject root;
-    root[QStringLiteral("version")] = kFileVersion;
+    QJsonObject root = m_rootExtra;
+    root[QStringLiteral("version")] = m_fileVersion;
     root[QStringLiteral("servers")] = array;
     root[QStringLiteral("defaultId")] = m_defaultId;
 

@@ -14,8 +14,13 @@ namespace omaseed::core {
 /// `paths::configHome()`). File shape:
 /// `{ "version": 1, "servers": [ Server::toJson()... ], "defaultId": "<id or empty>" }`.
 ///
+/// Version 2 is the engines build's (#84): each server's `engine` and `engineVersion`. This
+/// build reads it and keeps it (DECISIONS C28): the keys it doesn't know stay in each
+/// `Server::extra` and on the file's root, and a save writes the highest version it read, so
+/// a v2 file stays v2. A file this build starts writes version 1.
+///
 /// `load()` tolerates a missing file (nothing to load, not an error). A file whose
-/// `version` is newer than this build understands, or whose JSON does not parse, is never
+/// `version` is newer than this build understands (3 on), or whose JSON does not parse, is never
 /// overwritten: load() renames it to `servers.json.unreadable-<timestamp>` (with a `-N`
 /// suffix if taken) straight away, `keptPath()` says where, and `loadFailed()` is emitted;
 /// nothing already in memory is discarded. If that rename fails, the file stays in place,
@@ -77,6 +82,10 @@ Q_SIGNALS:
 private:
     QList<Server> m_servers;
     QString m_defaultId;
+    /// The version save() writes: 1, or the version of the file load() read (2, #84).
+    int m_fileVersion = 1;
+    /// The root keys of the file load() read that this build doesn't know, written back.
+    QJsonObject m_rootExtra;
     bool m_persistent = true;
     QString m_loadError;
     // Where the unreadable file is kept; see keptPath().

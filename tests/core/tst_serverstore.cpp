@@ -3,6 +3,9 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
@@ -37,6 +40,8 @@ private slots:
     void startsEmptyWithNoFile();
     void addUpdateRemoveAndDefault();
     void savesAndReloads();
+    void aFileThisBuildStartsIsVersion1();
+    void anEnginesBuildFileIsReadAndKept(); // C28, #84
     void aStoreThatIsNotPersistentWritesNothing();
     void filePermissionsAreOwnerOnly();
     void corruptJsonFailsWithoutLosingTheFile();
@@ -145,6 +150,125 @@ void TestServerStore::savesAndReloads()
     QVERIFY(reloaded.defaultServer().has_value());
 }
 
+namespace {
+
+QByteArray readAll(const QString &path)
+{
+    QFile file(path);
+    return file.open(QIODevice::ReadOnly) ? file.readAll() : QByteArray();
+}
+
+/// servers.json as the engines build (#84) writes it: version 2, each server's engine and
+/// last-contact version, a qBittorrent and a Transmission. Generic test data only.
+QJsonObject engineBuildFile()
+{
+    const auto entry = [](const QString &id,
+                          const QString &name,
+                          const QString &url,
+                          const QString &engine,
+                          const QString &version) {
+        return QJsonObject{
+            {QStringLiteral("id"), id},
+            {QStringLiteral("name"), name},
+            {QStringLiteral("url"), url},
+            {QStringLiteral("authMode"), QStringLiteral("none")},
+            {QStringLiteral("username"), QString()},
+            {QStringLiteral("pathMap"), QJsonArray()},
+            {QStringLiteral("isDefault"), id == QStringLiteral("q-1")},
+            {QStringLiteral("addedAt"), QStringLiteral("2026-10-22T09:00:00Z")},
+            {QStringLiteral("engine"), engine},
+            {QStringLiteral("engineVersion"), version},
+        };
+    };
+    return QJsonObject{
+        {QStringLiteral("version"), 2},
+        {QStringLiteral("servers"),
+         QJsonArray{entry(QStringLiteral("q-1"),
+                          QStringLiteral("public"),
+                          QStringLiteral("http://127.0.0.1:8081"),
+                          QStringLiteral("qbittorrent"),
+                          QStringLiteral("5.1.2")),
+                    entry(QStringLiteral("t-1"),
+                          QStringLiteral("seedbox"),
+                          QStringLiteral("http://127.0.0.1:9091"),
+                          QStringLiteral("transmission"),
+                          QStringLiteral("4.1.0"))}},
+        {QStringLiteral("defaultId"), QStringLiteral("q-1")},
+    };
+}
+
+} // namespace
+
+void TestServerStore::aFileThisBuildStartsIsVersion1()
+{
+    const QString filePath = m_dir.path() + QStringLiteral("/omaseed/servers.json");
+    QFile::remove(filePath);
+    ServerStore store;
+    QVERIFY(store.load());
+    QVERIFY(store.add(makeServer(QStringLiteral("one"), QUrl(QStringLiteral("http://nas:8080")))));
+    const QJsonObject root = QJsonDocument::fromJson(readAll(filePath)).object();
+    QCOMPARE(root.value(QStringLiteral("version")).toInt(), 1);
+    // No engine where none was recorded: every server of a v1 file is a qBittorrent.
+    QVERIFY(!root.value(QStringLiteral("servers"))
+                 .toArray()
+                 .at(0)
+                 .toObject()
+                 .contains(QStringLiteral("engine")));
+}
+
+void TestServerStore::anEnginesBuildFileIsReadAndKept()
+{
+    const QString configDir = m_dir.path() + QStringLiteral("/omaseed");
+    QVERIFY(QDir().mkpath(configDir));
+    const QString filePath = configDir + QStringLiteral("/servers.json");
+    const QByteArray written = QJsonDocument(engineBuildFile()).toJson(QJsonDocument::Indented);
+    {
+        QFile file(filePath);
+        QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+        file.write(written);
+    }
+
+    ServerStore store;
+    QVERIFY(store.load());
+    QVERIFY(store.loadError().isEmpty());
+    QCOMPARE(store.count(), 2);
+    QVERIFY(store.byId(QStringLiteral("q-1"))->isQbittorrent());
+    QVERIFY(!store.byId(QStringLiteral("t-1"))->isQbittorrent());
+    QCOMPARE(store.byId(QStringLiteral("t-1"))->engineName(), QStringLiteral("Transmission"));
+    QCOMPARE(store.defaultId(), QStringLiteral("q-1"));
+
+    // A save writes back exactly what the engines build wrote: version 2, every key.
+    QVERIFY(store.save());
+    QCOMPARE(readAll(filePath), written);
+
+    // A change keeps them too: the Transmission server stays one, and the file stays v2.
+    Server renamed = *store.byId(QStringLiteral("t-1"));
+    renamed.name = QStringLiteral("renamed");
+    QVERIFY(store.update(renamed));
+    QVERIFY(store.setDefault(QStringLiteral("t-1")));
+    const QJsonObject root = QJsonDocument::fromJson(readAll(filePath)).object();
+    QCOMPARE(root.value(QStringLiteral("version")).toInt(), 2);
+    const QJsonArray servers = root.value(QStringLiteral("servers")).toArray();
+    QCOMPARE(servers.size(), 2);
+    QCOMPARE(servers.at(0).toObject().value(QStringLiteral("engine")).toString(),
+             QStringLiteral("qbittorrent"));
+    QCOMPARE(servers.at(0).toObject().value(QStringLiteral("engineVersion")).toString(),
+             QStringLiteral("5.1.2"));
+    const QJsonObject seedbox = servers.at(1).toObject();
+    QCOMPARE(seedbox.value(QStringLiteral("name")).toString(), QStringLiteral("renamed"));
+    QCOMPARE(seedbox.value(QStringLiteral("engine")).toString(), QStringLiteral("transmission"));
+    QCOMPARE(seedbox.value(QStringLiteral("engineVersion")).toString(), QStringLiteral("4.1.0"));
+    QVERIFY(seedbox.value(QStringLiteral("isDefault")).toBool());
+
+    // A new server added to a v2 file is written without an engine (read as qBittorrent).
+    QVERIFY(store.add(makeServer(QStringLiteral("new"), QUrl(QStringLiteral("http://nas:8080")))));
+    ServerStore reread;
+    QVERIFY(reread.load());
+    QCOMPARE(reread.count(), 3);
+    QVERIFY(reread.servers().at(2).isQbittorrent());
+    QFile::remove(filePath);
+}
+
 // A --demo run keeps its servers in memory (batch-2 P5).
 void TestServerStore::aStoreThatIsNotPersistentWritesNothing()
 {
@@ -251,7 +375,8 @@ void TestServerStore::anAddAfterAFailedLoadKeepsTheUnreadableFile_data()
 {
     QTest::addColumn<QByteArray>("unreadable");
     QTest::newRow("corrupt") << QByteArray("{ \"version\": 1, \"servers\": [ oops");
-    QTest::newRow("newer version") << QByteArray(R"({"version":2,"servers":[{"id":"x"}]})");
+    // 2 is the engines build's (#84), read since C28; 3 is beyond it.
+    QTest::newRow("newer version") << QByteArray(R"({"version":3,"servers":[{"id":"x"}]})");
 }
 
 void TestServerStore::anAddAfterAFailedLoadKeepsTheUnreadableFile()
