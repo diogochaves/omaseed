@@ -1078,6 +1078,63 @@ the call says so.
   displays) → details → sheets and menus (move, add, the app menu, the action bar) → the console
   skin. Boards 47, 48 and 49 are drawn in this frame meanwhile.
 
+## C25 — Engines in the window, v2 (board 47, ruled 2026-10-22)
+
+Board [47](47-engines-in-the-window-v2.html) K1–K34, all as recommended. It replaces board 37
+(#83) inside board 46's frame (C24), with what each engine can do per feature from the engines
+matrix (#153). It builds on C14 (board 36), which lives on the `engines` branch until that work
+lands; this entry reaches `engines` with the next merge of main. K1–K13 and K29–K32 replace 37's
+W1–W16. Built in E3–E6 (#84–#87).
+
+**This entry changes** Q26 (K2), docs/14's welcome and step 1 (K3), C10's "save anyway" for
+refused versions (K8), C12's server line (K11), N1's priorities (K17), C4 on Deluge (K20), C16
+L10 for Deluge (K21), C12's "didn't answer" on Transmission during a move if verified (K22),
+C16 L13 in part and C21's reach (K23), docs/28's and C2 D1's log line, C20's retry first and
+C17 D13 on Transmission and Deluge (K24), C5 D11 for Transmission (K26), and M16's note (K30).
+
+- **Finding a server (K1–K3):** first run probes ports 8080, 9091 and 8112 and the engines'
+  processes and config files, no HTTP until a row is picked; one row per engine found
+  (qBittorrent, Transmission, Deluge), Q26 within one engine; the welcome names the engines this
+  build drives, step 1 asks "Which server should omaseed talk to?", install stays
+  qbittorrent-nox.
+- **Adding a server (K4–K10):** the engine is recognised on test (chips: recognise ·
+  qBittorrent · Transmission · Deluge); the address picks which engine is tried first (9091 or
+  `/transmission` → Transmission, 8112 or `/json` → Deluge, else qBittorrent); one URL field takes
+  Transmission's web UI or RPC address, a proxy's path included; sign-in chips follow the engine
+  (Deluge one password); a refused version says why, in red, with no "save anyway", an
+  unrecognised answer keeps it; an engine not driven yet is named and refused, keeping what was
+  typed; Deluge gets a daemon step when deluge-web knows several or none, stored with the server.
+- **Naming the engine (K11–K12):** "NAME · ENGINE VERSION" in the status line's server lane, C12's
+  state words in its place while the server is down; also the rail tooltip, ctrl+s, Settings ›
+  Servers, the server sheet and the app menu's head; the rail block, tray and widget keep names.
+- **Groups (K13–K16):** each section keeps its place, glyphs and keys under the engine's word
+  (Transmission's labels where tags are, Deluge's where categories are); Transmission: "new
+  label…" only while applying, commas refused; Deluge: lower case shown before apply, Label
+  plugin off removes the section with one line in Settings; Transmission's bandwidth groups left
+  out.
+- **Priorities and limits (K17–K20):** each engine's own priority words; the limits sheet shows
+  only what the engine keeps (Transmission ratio and idle; Deluge ratio, then stop or remove);
+  qBittorrent 5.3's share-limits mode hidden, sent as Default; no turtle on Deluge.
+- **Moves (K21–K23):** Deluge's own %; Transmission counts landed torrents, uses the growth probe
+  where it sees the disks, otherwise says it doesn't report how far; if verified, "busy moving,
+  answers when done" on Transmission; the Move sheet runs each engine's checks (room on the
+  server for all three, Transmission can't list the destination, said once); C21's hybrid line
+  only on libtorrent engines.
+- **Errors (K24):** docs/28's block in the engine's own words, copyable, no log link;
+  Transmission's errored torrent reads stopped and offers "start it here"; Deluge's failed move
+  offers recheck first; #121's case is this block on both.
+- **Adding torrents (K25–K28):** a v2-only hash refused on Transmission and Deluge; a magnet's
+  files before the add as C5 on Deluge, a dim line on Transmission; add options per engine,
+  absent when not possible; renaming on Transmission says it renames the folder on disk.
+- **Details and what goes (K29–K30):** tabs keep their places; a part filled in part says the
+  rest in one dim line; unreported facts are left out, impossible actions absent; what an engine
+  lacks is gone from rail, menus, palette and `?`, and its key says so once in the status line.
+- **Settings (K31–K33):** a group per engine (TRANSMISSION, DELUGE) with C11's server select and a
+  Basics page (port and test, global limits, turtle where there is one, default save path, DHT;
+  Deluge adds Plugins), present while a server of that engine is saved; backups and settings
+  export stay qBittorrent's, its Backup scope line naming servers that have none (#88 later).
+- **Seed console on Deluge (K34):** all time counts from when omaseed began watching, said once.
+
 ## M8 — A click leaves the keyboard focus where it was
 
 Buttons and toggles do not take the focus when clicked. Otherwise an overlay gives the focus
