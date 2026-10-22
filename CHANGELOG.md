@@ -7,6 +7,18 @@ before it will tag a release.
 
 ## Unreleased
 
+## v0.3.2 — 2026-10-22
+
+### Added
+
+- **A bare info hash works like a magnet.** Paste one into the add sheet or the bar widget's
+  popup (ctrl+v), drop it on the window, or run `omaseed <hash>`: a v1 hash (40 hex digits, or
+  32 upper-case base32) or a v2 one (64 hex digits), standing alone, is added as the magnet it
+  stands for, and the sheet says "from an info hash". It is never taken from the clipboard when
+  the sheet opens, since a commit id copied for something else looks the same.
+- **A warning when the server has DHT off.** A bare hash names no tracker, so it finds peers
+  only through DHT; on a server with DHT off the add sheet says it may never find one.
+
 ## v0.3.1 — 2026-10-22
 
 ### Fixed
