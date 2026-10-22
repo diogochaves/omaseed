@@ -597,6 +597,7 @@ Sheet {
                         required property var modelData
 
                         focusable: true
+                        checkable: true
                         selected: root.editAuthMode === authChip.modelData.mode
                         text: authChip.modelData.text
 

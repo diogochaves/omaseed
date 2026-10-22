@@ -372,6 +372,7 @@ FocusScope {
                     count: String(root.log.levelCounts[levelChip.index] ?? 0)
                     keyText: String(levelChip.index + 1)
                     objectName: "levelChip" + (levelChip.index + 1)
+                    checkable: true
                     selected: (root.lines.levels & levelChip.modelData.level) !== 0
                     text: levelChip.modelData.word
                     toggle: true

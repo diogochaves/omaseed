@@ -466,6 +466,7 @@ SettingsRow {
 
                 required property var modelData
 
+                checkable: true
                 selected: row.values[row.spec.choice.key] === choiceChip.modelData[0]
                 text: choiceChip.modelData[1]
 

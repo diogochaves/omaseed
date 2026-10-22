@@ -19,6 +19,9 @@ Rectangle {
     /// D5); "" draws none.
     property string suffix: ""
     property bool selected: false
+    /// #91: the chip is a choice (an option of a few, a switch), so a screen reader hears
+    /// `selected` as checked or not. A chip that only acts or shows leaves it off.
+    property bool checkable: false
     property bool hasCursor: false
     /// A switch rather than a label (docs/32 L1's level chips): off, its text reads dim.
     property bool toggle: false
@@ -48,6 +51,8 @@ Rectangle {
     // #79: the count it shows ("19") and its key are the description, as a rail row's count.
     Accessible.description: [root.count, root.keyText.length > 0 ? qsTr("shortcut %1").arg(root.keyText) : ""].filter(
                                 part => part.length > 0).join(" · ")
+    Accessible.checkable: root.checkable
+    Accessible.checked: root.checkable && root.selected
     Accessible.name: root.suffix.length > 0 ? root.text + " " + root.suffix : root.text
     Accessible.role: Accessible.Button
 

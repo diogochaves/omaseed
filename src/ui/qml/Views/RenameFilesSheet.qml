@@ -199,6 +199,7 @@ Sheet {
             Chip {
                 focusable: true
                 objectName: "textChip"
+                checkable: true
                 selected: !root.regex
                 text: qsTr("text")
 
@@ -208,6 +209,7 @@ Sheet {
             Chip {
                 focusable: true
                 objectName: "regexChip"
+                checkable: true
                 selected: root.regex
                 text: qsTr("regex")
 
@@ -222,6 +224,7 @@ Sheet {
             Chip {
                 focusable: true
                 objectName: "nameChip"
+                checkable: true
                 selected: !root.includeExtension
                 text: qsTr("name")
 
@@ -234,6 +237,7 @@ Sheet {
             Chip {
                 focusable: true
                 objectName: "extensionChip"
+                checkable: true
                 selected: root.includeExtension
                 text: qsTr("name and extension")
 

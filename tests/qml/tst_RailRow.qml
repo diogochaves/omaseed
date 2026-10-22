@@ -191,6 +191,17 @@ TestCase {
         compare(row.Accessible.description, "");
     }
 
+    // #91: the row the rail is on is selected for a screen reader too.
+    function test_the_selected_row_is_selected_in_the_tree() {
+        const row = createTemporaryObject(railRowComponent, testCase, {
+                                              "text": "seeding"
+                                          });
+        verify(row.Accessible.selectable);
+        verify(!row.Accessible.selected);
+        row.selected = true;
+        verify(row.Accessible.selected);
+    }
+
     // #75: disabled, the row ignores a screen reader's press, as it ignores the pointer.
     function test_a_disabled_row_ignores_the_accessible_press() {
         const row = createTemporaryObject(railRowComponent, testCase, {
