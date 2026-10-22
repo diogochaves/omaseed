@@ -123,6 +123,7 @@ NOTES_PATH="$DIST_DIR/RELEASE_NOTES.md"
 ARCHIVE_PREFIX="omaseed-${VERSION}/"
 PKGBUILD_PATH="packaging/arch/PKGBUILD"
 PKGBUILD_LOCAL_PATH="packaging/arch/PKGBUILD.local"
+MANIFEST_PATH="plugin/manifest.json"
 MAKEPKG="${OMASEED_RELEASE_MAKEPKG:-makepkg}"
 PKG_BUILD_DIR="$DIST_DIR/pkgbuild"
 PKG_LATEST_NAME="omaseed-x86_64.pkg.tar.zst"
@@ -160,7 +161,8 @@ pkgbuild_field() {
     sed -n -E "s/^$2=//p" "$1" | head -n1
 }
 
-# bump_files: the version edits --bump makes (CMakeLists.txt and both PKGBUILDs).
+# bump_files: the version edits --bump makes (CMakeLists.txt, both PKGBUILDs and the bar
+# widget's manifest, which RELEASING step 8 keeps at the app's version).
 bump_files() {
     sed -i -E "0,/^([[:space:]]*VERSION[[:space:]]+)[0-9]+\.[0-9]+\.[0-9]+/s//\1${VERSION}/" CMakeLists.txt
     local f
@@ -169,6 +171,9 @@ bump_files() {
         sed -i -E "s/^pkgver=.*/pkgver=${VERSION}/; s/^pkgrel=.*/pkgrel=1/" "$f"
     done
     sed -i -E "s/^sha256sums=\([^)]*\)/sha256sums=('SKIP')/" "$PKGBUILD_PATH"
+    [[ -f "$MANIFEST_PATH" ]] &&
+        sed -i -E "0,/(\"version\"[[:space:]]*:[[:space:]]*\")[^\"]*\"/s//\1${VERSION}\"/" "$MANIFEST_PATH"
+    return 0
 }
 
 # unwrap_markdown: join each paragraph's and list item's wrapped lines into one. CHANGELOG.md
@@ -314,7 +319,7 @@ if [[ $DO_PUBLISH -eq 1 ]]; then
     if [[ $NEEDS_BUMP -eq 1 ]]; then
         log "Bumping CMakeLists.txt ${CMAKE_VERSION} and PKGBUILD ${PKGBUILD_VERSION} -> ${VERSION}"
         bump_files
-        git add CMakeLists.txt "$PKGBUILD_PATH" "$PKGBUILD_LOCAL_PATH"
+        git add CMakeLists.txt "$PKGBUILD_PATH" "$PKGBUILD_LOCAL_PATH" "$MANIFEST_PATH"
         git commit -q -m "Release v${VERSION}" -m "Bump the project and package version for the v${VERSION} release."
     fi
     log "Tagging ${TAG}"

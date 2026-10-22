@@ -149,6 +149,8 @@ grep -qx "pkgrel=1" <<<"$TAGGED_PKGBUILD" || fail "the tagged PKGBUILD is not at
 grep -qx "sha256sums=('SKIP')" <<<"$TAGGED_PKGBUILD" || fail "the tagged PKGBUILD carries a checksum"
 git -C "$ORIGIN" show "$TAG:packaging/arch/PKGBUILD.local" | grep -qx "pkgver=$VERSION" ||
     fail "the tagged PKGBUILD.local is not at pkgver=$VERSION"
+git -C "$ORIGIN" show "$TAG:plugin/manifest.json" | grep -qE "\"version\": \"$VERSION\"" ||
+    fail "the tagged plugin manifest is not at $VERSION"
 
 echo "==> main, on origin, has GitHub's archive checksum in the PKGBUILD, after the tag"
 ARCHIVE_SHA="$(sha256sum "$WORK/github-archive.tar.gz" | cut -d' ' -f1)"

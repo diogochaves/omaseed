@@ -20,8 +20,8 @@ this file is the order to run them in and what to check by hand around them.
    leave the desktop changed.
 3. **Bump the version, if the release differs from `CMakeLists.txt`'s `project(VERSION …)`.**
    Either let the release script do it (step 6, `--bump`: `CMakeLists.txt`, and `pkgver`
-   with `pkgrel=1` and `sha256sums=('SKIP')` in both PKGBUILDs), or edit all three by hand
-   and commit.
+   with `pkgrel=1` and `sha256sums=('SKIP')` in both PKGBUILDs, and the bar widget's
+   `plugin/manifest.json` version), or edit all four by hand and commit.
 4. **CHANGELOG.md.** Add or check a `## vX.Y.Z` section that summarises what shipped in
    terms a user cares about (features), not the task IDs that built them. Fold anything
    sitting under `## Unreleased` into it.
