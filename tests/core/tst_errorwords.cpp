@@ -352,6 +352,33 @@ private slots:
                                 "the move as done."));
     }
 
+    void leftOutSaysWhatIsThere()
+    {
+        // #161 (a): the size of the file there and whether a torrent owns it.
+        QCOMPARE(ErrorWords::whatIsThere(0, false, true, QString()),
+                 QStringLiteral("an empty file no torrent owns"));
+        QCOMPARE(ErrorWords::whatIsThere(0, true, false, QString()),
+                 QStringLiteral("an empty folder"));
+        QCOMPARE(ErrorWords::whatIsThere(-1, false, true, QStringLiteral("Feature")),
+                 QStringLiteral("Feature owns it"));
+        QCOMPARE(ErrorWords::whatIsThere(-1, true, true, QString()),
+                 QStringLiteral("no torrent owns it"));
+        QCOMPARE(ErrorWords::whatIsThere(5, false, true, QStringLiteral("Feature")),
+                 QStringLiteral("a file of 5 B that Feature owns"));
+        QVERIFY(ErrorWords::whatIsThere(-1, false, false, QString()).isEmpty());
+        const QString sized = ErrorWords::whatIsThere(3000, true, true, QString());
+        QVERIFY2(sized.startsWith(QStringLiteral("a folder of ")) &&
+                     sized.endsWith(QStringLiteral(" no torrent owns")),
+                 qPrintable(sized));
+        const ErrorWords::Text text = ErrorWords::forLeftOut(
+            1, QStringLiteral("/mnt/slow/movies"), QStringLiteral("an empty file no torrent owns"));
+        QCOMPARE(text.headline, QStringLiteral("1 left out"));
+        QCOMPARE(text.line,
+                 QStringLiteral("/mnt/slow/movies already has a file with their file's name (an "
+                                "empty file no torrent owns). qBittorrent would keep that file "
+                                "and report the move as done."));
+    }
+
     void addUnsupportedMediaType()
     {
         const ApiError error = ApiError::fromHttpStatus(

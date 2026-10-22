@@ -512,15 +512,38 @@ ErrorWords::Text ErrorWords::forStuck(const QString &torrent,
     return text;
 }
 
-ErrorWords::Text ErrorWords::forLeftOut(int count, const QString &folder)
+ErrorWords::Text ErrorWords::forLeftOut(int count, const QString &folder, const QString &there)
 {
     Text text;
     text.kind = QStringLiteral("request");
     text.headline = tr("%1 left out").arg(count);
-    text.line = tr("%1 already has a file with their file's name. qBittorrent would keep that "
-                   "file and report the move as done.")
-                    .arg(folder.isEmpty() ? tr("The new folder") : folder);
+    const QString where = folder.isEmpty() ? tr("The new folder") : folder;
+    text.line = there.isEmpty()
+                    ? tr("%1 already has a file with their file's name. qBittorrent would keep "
+                         "that file and report the move as done.")
+                          .arg(where)
+                    : tr("%1 already has a file with their file's name (%2). qBittorrent would "
+                         "keep that file and report the move as done.")
+                          .arg(where, there);
     return text;
+}
+
+QString ErrorWords::whatIsThere(qint64 bytes, bool folder, bool ownerKnown, const QString &owner)
+{
+    // #161 (a): a leftover of an earlier failed copy, owned by no torrent, reads as one.
+    if (bytes < 0) {
+        // Not seen here (a server's listing names it, no more): only whose it is.
+        if (!ownerKnown)
+            return {};
+        return owner.isEmpty() ? tr("no torrent owns it") : tr("%1 owns it").arg(owner);
+    }
+    const QString thing =
+        bytes == 0 ? (folder ? tr("an empty folder") : tr("an empty file"))
+                   : (folder ? tr("a folder of %1") : tr("a file of %1")).arg(Format::size(bytes));
+    if (!ownerKnown)
+        return thing;
+    return owner.isEmpty() ? tr("%1 no torrent owns").arg(thing)
+                           : tr("%1 that %2 owns").arg(thing, owner);
 }
 
 } // namespace omaseed::core
