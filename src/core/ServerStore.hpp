@@ -12,7 +12,9 @@ namespace omaseed::core {
 /// Holds the configured server list and persists it to
 /// `<configHome>/omaseed/servers.json` (`configHome` follows `XDG_CONFIG_HOME`, see
 /// `paths::configHome()`). File shape:
-/// `{ "version": 1, "servers": [ Server::toJson()... ], "defaultId": "<id or empty>" }`.
+/// `{ "version": 2, "servers": [ Server::toJson()... ], "defaultId": "<id or empty>" }`.
+/// Version 2 (#84) adds each server's `engine` and `engineVersion`; a version 1 file reads
+/// as it is, every server a qBittorrent, and is written as version 2 on the next save only.
 ///
 /// `load()` tolerates a missing file (nothing to load, not an error). A file whose
 /// `version` is newer than this build understands, or whose JSON does not parse, is never

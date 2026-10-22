@@ -28,6 +28,8 @@ qt_add_library(omaseed-core STATIC
     engines/DetailsData.hpp
     engines/EngineClient.cpp
     engines/EngineClient.hpp
+    engines/EngineKind.cpp
+    engines/EngineKind.hpp
     engines/EngineFeatures.hpp
     engines/LogEntry.hpp
     engines/ServerInfo.hpp

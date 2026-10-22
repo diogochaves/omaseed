@@ -88,6 +88,20 @@ QVariant ServerListModel::data(const QModelIndex &index, int role) const
         return probe.version.isEmpty() ? QString() : QStringLiteral("v%1").arg(probe.version);
     case CertificateRole:
         return server.certificateSha256;
+    case EngineRole:
+        return engineKindToString(server.engine);
+    case EngineNameRole:
+        return engineDisplayName(server.engine);
+    case EngineVersionRole:
+        return probe.version.isEmpty() ? bareVersion(server.engineVersion) : probe.version;
+    case EngineTextRole: {
+        // C25 K12: "qBittorrent 5.2.3", the version from the last contact; the name alone
+        // before one.
+        const QString version =
+            probe.version.isEmpty() ? bareVersion(server.engineVersion) : probe.version;
+        const QString name = engineDisplayName(server.engine);
+        return version.isEmpty() ? name : QStringLiteral("%1 %2").arg(name, version);
+    }
     case IsCurrentRole:
         return !server.id.isEmpty() && server.id == m_currentId;
     case StateRole: {
@@ -163,6 +177,10 @@ QHash<int, QByteArray> ServerListModel::roleNames() const
         {LastDetailRole, "lastDetail"},
         {CountTextRole, "countLabel"},
         {LastSeenAtRole, "lastSeenAt"},
+        {EngineRole, "engine"},
+        {EngineNameRole, "engineName"},
+        {EngineVersionRole, "engineVersion"},
+        {EngineTextRole, "engineText"},
     };
 }
 
@@ -390,15 +408,25 @@ bool ServerListModel::update(const QVariantMap &fields, const QString &secretIn)
     server.isDefault = existing->isDefault;
     if (!fields.contains(QStringLiteral("certificateSha256")))
         server.certificateSha256 = existing->certificateSha256;
+    // The engine a test recognised comes in `engine`; left out, the stored one stays. Its
+    // version is the last contact's, kept unless the engine changed.
+    if (!fields.contains(QStringLiteral("engine")))
+        server.engine = existing->engine;
+    if (!fields.contains(QStringLiteral("engineVersion")))
+        server.engineVersion =
+            server.engine == existing->engine ? existing->engineVersion : QString();
     const QString secret = secretIn.isEmpty() ? urlPassword : secretIn;
 
     if (!m_store->update(server))
         return false;
     if (m_secrets != nullptr && existing->authMode != server.authMode) {
         // The kind the old mode used is dead now; for "none" neither kind is.
-        if (existing->authMode == AuthMode::Cookie || server.authMode == AuthMode::None)
+        const bool wasPassword = usesPassword(existing->authMode);
+        // Between username and password and Deluge's lone password the kind stays; the
+        // password typed for the other one is no use here.
+        if (wasPassword || server.authMode == AuthMode::None)
             m_secrets->removeSecret(server.id, SecretStore::Kind::Password);
-        if (existing->authMode != AuthMode::Cookie || server.authMode == AuthMode::None)
+        if (!wasPassword || server.authMode == AuthMode::None)
             m_secrets->removeSecret(server.id, SecretStore::Kind::ApiKey);
     }
     writeSecret(server, secret);
@@ -430,7 +458,8 @@ void ServerListModel::setProbeResult(const QString &id,
                                      const QString &apiVersion,
                                      int torrentCount,
                                      int latencyMs,
-                                     const QString &error)
+                                     const QString &error,
+                                     const QString &engine)
 {
     if (id.isEmpty())
         return; // a server that is not saved yet has no row to write into
@@ -461,7 +490,26 @@ void ServerListModel::setProbeResult(const QString &id,
                         LastErrorRole,
                         VersionRole,
                         ApiVersionRole,
-                        VersionTextRole});
+                        VersionTextRole,
+                        EngineVersionRole,
+                        EngineTextRole});
+    // C25 K12: what answered is kept with the server, for the next start.
+    if (reachable && !version.isEmpty())
+        rememberContact(
+            id, engine.isEmpty() ? m_rows.at(row).engine : engineKindFromString(engine), version);
+}
+
+void ServerListModel::rememberContact(const QString &id, EngineKind engine, const QString &version)
+{
+    if (m_store == nullptr || id.isEmpty() || version.isEmpty() || engine == EngineKind::Unknown)
+        return;
+    const QString bare = bareVersion(version);
+    std::optional<Server> server = m_store->byId(id);
+    if (!server || (server->engine == engine && server->engineVersion == bare))
+        return;
+    server->engine = engine;
+    server->engineVersion = bare;
+    m_store->update(*server);
 }
 
 Server ServerListModel::serverFromMap(const QVariantMap &fields, QString *urlPassword)
@@ -499,7 +547,18 @@ Server ServerListModel::serverFromMap(const QVariantMap &fields, QString *urlPas
         server.pathMap.append(PathMapping{remote, local});
 
     server.certificateSha256 = CertificatePin::normalized(stringField(fields, "certificateSha256"));
+
+    // C25 K4: the engine the test recognised (or the one picked); none said is qBittorrent,
+    // as every server was before #84.
+    const QString engine = stringField(fields, "engine");
+    server.engine = engine.isEmpty() ? EngineKind::Qbittorrent : engineKindFromString(engine);
+    server.engineVersion = stringField(fields, "engineVersion");
     return server;
+}
+
+QString ServerListModel::bareVersion(const QString &version)
+{
+    return version.startsWith(QLatin1Char('v')) ? version.mid(1) : version;
 }
 
 QString ServerListModel::authModeText(AuthMode mode)
@@ -509,6 +568,8 @@ QString ServerListModel::authModeText(AuthMode mode)
         return QCoreApplication::translate("ServerListModel", "API key");
     case AuthMode::Cookie:
         return QCoreApplication::translate("ServerListModel", "cookie");
+    case AuthMode::Password:
+        return QCoreApplication::translate("ServerListModel", "password");
     case AuthMode::None:
         break;
     }
@@ -545,8 +606,8 @@ void ServerListModel::writeSecret(const Server &server, const QString &secret)
 {
     if (m_secrets == nullptr || secret.isEmpty())
         return;
-    const SecretStore::Kind kind = server.authMode == AuthMode::Cookie ? SecretStore::Kind::Password
-                                                                       : SecretStore::Kind::ApiKey;
+    const SecretStore::Kind kind =
+        usesPassword(server.authMode) ? SecretStore::Kind::Password : SecretStore::Kind::ApiKey;
     m_secrets->setSecret(server.id, kind, secret);
 }
 

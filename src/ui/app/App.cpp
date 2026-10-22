@@ -471,6 +471,18 @@ void App::applyServer(const Server &server)
     m_prefs->reset();
     m_engine->globalState()->setServerName(server.name);
 
+    // C25 K9: a server of an engine this build can't drive (written by a newer build, or by
+    // hand) is never polled as a qBittorrent: it stays down until E4/E6 bring its engine.
+    // TODO(E4): pick the EngineClient for server.engine here.
+    if (!isEngineDriven(server.engine)) {
+        qWarning().noquote() << QStringLiteral("server %1 runs %2, which this build can't drive")
+                                    .arg(server.name,
+                                         server.engine == EngineKind::Unknown
+                                             ? QStringLiteral("an unknown engine")
+                                             : engineDisplayName(server.engine));
+        return;
+    }
+
     // The secret is a keychain round trip, so the engine starts in the callback: polling
     // before the key is set would spend one request on a guaranteed 403.
     switch (server.authMode) {
@@ -510,6 +522,7 @@ void App::applyServer(const Server &server)
         break;
     }
     case AuthMode::None:
+    case AuthMode::Password: // Deluge's: not driven, so not reached (see above)
         startEngine();
         break;
     }
@@ -4027,8 +4040,8 @@ void App::testServer(const QVariantMap &fields, const QString &secret)
     }
 
     // An existing server tested without retyping its key: read the stored one first.
-    const SecretStore::Kind kind = server.authMode == AuthMode::Cookie ? SecretStore::Kind::Password
-                                                                       : SecretStore::Kind::ApiKey;
+    const SecretStore::Kind kind =
+        usesPassword(server.authMode) ? SecretStore::Kind::Password : SecretStore::Kind::ApiKey;
     auto *job = m_secrets->secret(server.id, kind, this);
     connect(job,
             &SecretStoreJob::finished,
@@ -4055,6 +4068,7 @@ void App::runServerTest(const Server &server, const QString &secret, bool announ
         client->setCredentials(server.username, secret);
         break;
     case AuthMode::None:
+    case AuthMode::Password:
         break;
     }
 
@@ -5893,8 +5907,8 @@ void App::withStoredSecret(const Server &server, std::function<void(const QStrin
         run(QString());
         return;
     }
-    const SecretStore::Kind kind = server.authMode == AuthMode::Cookie ? SecretStore::Kind::Password
-                                                                       : SecretStore::Kind::ApiKey;
+    const SecretStore::Kind kind =
+        usesPassword(server.authMode) ? SecretStore::Kind::Password : SecretStore::Kind::ApiKey;
     auto *job = m_secrets->secret(server.id, kind, this);
     connect(job,
             &SecretStoreJob::finished,

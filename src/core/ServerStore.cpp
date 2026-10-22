@@ -19,7 +19,8 @@ namespace {
 
 Q_LOGGING_CATEGORY(lcServers, "omaseed.servers")
 
-constexpr int kFileVersion = 1;
+/// 2 since #84: the engine of each server (Server::engine). 1 had none: all qBittorrent.
+constexpr int kFileVersion = 2;
 
 QFileDevice::Permissions ownerReadWrite()
 {

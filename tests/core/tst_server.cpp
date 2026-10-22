@@ -7,6 +7,7 @@
 
 using omaseed::core::ApiError;
 using omaseed::core::AuthMode;
+using omaseed::core::EngineKind;
 using omaseed::core::PathMapping;
 using omaseed::core::Server;
 
@@ -25,6 +26,10 @@ private slots:
     void credentialRefusedSaysWhichCredential();
     void trustedCertificateRoundTrips();
     void certificateRefusedSaysWhetherItChanged();
+    void engineRoundTrips(); // #84
+    void aVersionOneEntryIsAQbittorrent();
+    void anEngineThisBuildDoesNotKnowIsUnknown();
+    void signInModesFollowTheEngine(); // C25 K7
 };
 
 void TestServer::newIdIsStableAndUnique()
@@ -126,7 +131,7 @@ void TestServer::comparesByValue()
 
 void TestServer::authModeRoundTrips()
 {
-    for (AuthMode mode : {AuthMode::ApiKey, AuthMode::Cookie, AuthMode::None}) {
+    for (AuthMode mode : {AuthMode::ApiKey, AuthMode::Cookie, AuthMode::None, AuthMode::Password}) {
         bool ok = false;
         const QString text = omaseed::core::authModeToString(mode);
         QCOMPARE(omaseed::core::authModeFromString(text, &ok), mode);
@@ -206,6 +211,65 @@ void TestServer::certificateRefusedSaysWhetherItChanged()
     QCOMPARE(certificateRefusedText(QStringLiteral(
                  "9ce0618d3dba07b6abce06a4c4db2222f6929605a344b4f8ec21789f2761a2a2")),
              QStringLiteral("the certificate changed"));
+}
+
+void TestServer::engineRoundTrips()
+{
+    Server server;
+    server.id = Server::newId();
+    server.url = QUrl(QStringLiteral("http://nas:8112"));
+    server.engine = EngineKind::Deluge;
+    server.engineVersion = QStringLiteral("2.2.0");
+    server.authMode = AuthMode::Password;
+    const QJsonObject json = server.toJson();
+    QCOMPARE(json.value(QStringLiteral("engine")).toString(), QStringLiteral("deluge"));
+    QCOMPARE(json.value(QStringLiteral("engineVersion")).toString(), QStringLiteral("2.2.0"));
+    QCOMPARE(json.value(QStringLiteral("authMode")).toString(), QStringLiteral("password"));
+    bool ok = false;
+    const Server parsed = Server::fromJson(json, &ok);
+    QVERIFY(ok);
+    QCOMPARE(parsed, server);
+}
+
+void TestServer::aVersionOneEntryIsAQbittorrent()
+{
+    bool ok = false;
+    const Server server = Server::fromJson(
+        QJsonObject{{QStringLiteral("id"), QStringLiteral("x")},
+                    {QStringLiteral("url"), QStringLiteral("http://127.0.0.1:8080")}},
+        &ok);
+    QVERIFY(ok);
+    QCOMPARE(server.engine, EngineKind::Qbittorrent);
+    QVERIFY(server.engineVersion.isEmpty());
+    // Written again, it names its engine.
+    QCOMPARE(server.toJson().value(QStringLiteral("engine")).toString(),
+             QStringLiteral("qbittorrent"));
+}
+
+void TestServer::anEngineThisBuildDoesNotKnowIsUnknown()
+{
+    const Server server =
+        Server::fromJson(QJsonObject{{QStringLiteral("id"), QStringLiteral("x")},
+                                     {QStringLiteral("engine"), QStringLiteral("rtorrent")}});
+    QCOMPARE(server.engine, EngineKind::Unknown);
+}
+
+void TestServer::signInModesFollowTheEngine()
+{
+    using Modes = QList<AuthMode>;
+    QCOMPARE(omaseed::core::authModesFor(EngineKind::Qbittorrent),
+             (Modes{AuthMode::ApiKey, AuthMode::Cookie, AuthMode::None}));
+    QCOMPARE(omaseed::core::authModesFor(EngineKind::Unknown),
+             (Modes{AuthMode::ApiKey, AuthMode::Cookie, AuthMode::None}));
+    QCOMPARE(omaseed::core::authModesFor(EngineKind::Transmission),
+             (Modes{AuthMode::Cookie, AuthMode::None}));
+    QCOMPARE(omaseed::core::authModesFor(EngineKind::Deluge), Modes{AuthMode::Password});
+    QVERIFY(omaseed::core::usesPassword(AuthMode::Password));
+    QVERIFY(omaseed::core::usesPassword(AuthMode::Cookie));
+    QVERIFY(!omaseed::core::usesPassword(AuthMode::ApiKey));
+    QCOMPARE(omaseed::core::credentialRefusedText(ApiError(ApiError::Kind::Unauthorized, {}),
+                                                  AuthMode::Password),
+             QStringLiteral("wrong password"));
 }
 
 QTEST_APPLESS_MAIN(TestServer)

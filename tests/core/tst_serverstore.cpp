@@ -3,11 +3,15 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
 
 using omaseed::core::AuthMode;
+using omaseed::core::EngineKind;
 using omaseed::core::Server;
 using omaseed::core::ServerStore;
 
@@ -44,6 +48,8 @@ private slots:
     void anAddAfterAFailedLoadKeepsTheUnreadableFile_data();
     void anAddAfterAFailedLoadKeepsTheUnreadableFile();
     void anUnmovableFileIsKeptInPlaceUntilASaveCanMoveIt();
+    void aVersionOneFileOpensUnchanged(); // #84
+    void aSaveWritesVersionTwoWithEachEngine();
 
 private:
     QTemporaryDir m_dir;
@@ -251,7 +257,7 @@ void TestServerStore::anAddAfterAFailedLoadKeepsTheUnreadableFile_data()
 {
     QTest::addColumn<QByteArray>("unreadable");
     QTest::newRow("corrupt") << QByteArray("{ \"version\": 1, \"servers\": [ oops");
-    QTest::newRow("newer version") << QByteArray(R"({"version":2,"servers":[{"id":"x"}]})");
+    QTest::newRow("newer version") << QByteArray(R"({"version":3,"servers":[{"id":"x"}]})");
 }
 
 void TestServerStore::anAddAfterAFailedLoadKeepsTheUnreadableFile()
@@ -317,6 +323,74 @@ void TestServerStore::anUnmovableFileIsKeptInPlaceUntilASaveCanMoveIt()
     QFile kept(store.keptPath());
     QVERIFY(kept.open(QIODevice::ReadOnly));
     QCOMPARE(kept.readAll(), corrupt);
+}
+
+// #84's "done when": an old servers.json opens unchanged. Every server in it is a
+// qBittorrent, and nothing is written back until the user changes something.
+void TestServerStore::aVersionOneFileOpensUnchanged()
+{
+    const QString configDir = m_dir.path() + QStringLiteral("/omaseed");
+    QVERIFY(QDir().mkpath(configDir));
+    const QString filePath = configDir + QStringLiteral("/servers.json");
+    const QByteArray v1 = R"({
+    "defaultId": "a",
+    "servers": [
+        {"id": "a", "name": "home", "url": "http://127.0.0.1:8080", "authMode": "cookie",
+         "username": "admin", "pathMap": [], "isDefault": true},
+        {"id": "b", "name": "box", "url": "https://box.example:8443", "authMode": "apiKey",
+         "username": "", "pathMap": [{"remote": "/downloads", "local": "/data"}],
+         "isDefault": false}
+    ],
+    "version": 1
+})";
+    {
+        QFile file(filePath);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write(v1);
+    }
+
+    ServerStore store;
+    QVERIFY(store.load());
+    QCOMPARE(store.count(), 2);
+    for (const Server &server : store.servers()) {
+        QCOMPARE(server.engine, EngineKind::Qbittorrent);
+        QVERIFY(server.engineVersion.isEmpty());
+    }
+    QCOMPARE(store.byId(QStringLiteral("a"))->authMode, AuthMode::Cookie);
+    QCOMPARE(store.byId(QStringLiteral("b"))->pathMap.size(), 1);
+    QCOMPARE(store.defaultId(), QStringLiteral("a"));
+
+    QFile file(filePath);
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    QCOMPARE(file.readAll(), v1);
+}
+
+void TestServerStore::aSaveWritesVersionTwoWithEachEngine()
+{
+    {
+        ServerStore store;
+        Server plain = makeServer(QStringLiteral("home"), QUrl(QStringLiteral("http://h:8080")));
+        Server seen = makeServer(QStringLiteral("box"), QUrl(QStringLiteral("http://b:8080")));
+        seen.engineVersion = QStringLiteral("5.3.0");
+        QVERIFY(store.add(plain));
+        QVERIFY(store.add(seen));
+    }
+    QFile file(m_dir.path() + QStringLiteral("/omaseed/servers.json"));
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    const QJsonObject root = QJsonDocument::fromJson(file.readAll()).object();
+    QCOMPARE(root.value(QStringLiteral("version")).toInt(), 2);
+    const QJsonArray servers = root.value(QStringLiteral("servers")).toArray();
+    QCOMPARE(servers.size(), 2);
+    for (const QJsonValue &value : servers)
+        QCOMPARE(value.toObject().value(QStringLiteral("engine")).toString(),
+                 QStringLiteral("qbittorrent"));
+    QVERIFY(!servers.at(0).toObject().contains(QStringLiteral("engineVersion")));
+    QCOMPARE(servers.at(1).toObject().value(QStringLiteral("engineVersion")).toString(),
+             QStringLiteral("5.3.0"));
+
+    ServerStore reloaded;
+    QVERIFY(reloaded.load());
+    QCOMPARE(reloaded.servers().at(1).engineVersion, QStringLiteral("5.3.0"));
 }
 
 QTEST_APPLESS_MAIN(TestServerStore)

@@ -15,6 +15,8 @@ QString authModeToString(AuthMode mode)
         return QStringLiteral("apiKey");
     case AuthMode::Cookie:
         return QStringLiteral("cookie");
+    case AuthMode::Password:
+        return QStringLiteral("password");
     case AuthMode::None:
         break;
     }
@@ -29,12 +31,28 @@ AuthMode authModeFromString(const QString &text, bool *ok)
         return AuthMode::ApiKey;
     if (text == QStringLiteral("cookie"))
         return AuthMode::Cookie;
+    if (text == QStringLiteral("password"))
+        return AuthMode::Password;
     if (text == QStringLiteral("none")) {
         return AuthMode::None;
     }
     if (ok)
         *ok = false;
     return AuthMode::None;
+}
+
+QList<AuthMode> authModesFor(EngineKind engine)
+{
+    switch (engine) {
+    case EngineKind::Transmission:
+        return {AuthMode::Cookie, AuthMode::None};
+    case EngineKind::Deluge:
+        return {AuthMode::Password};
+    case EngineKind::Qbittorrent:
+    case EngineKind::Unknown:
+        break;
+    }
+    return {AuthMode::ApiKey, AuthMode::Cookie, AuthMode::None};
 }
 
 QString credentialRefusedText(const ApiError &error, AuthMode mode)
@@ -50,6 +68,8 @@ QString credentialRefusedText(const ApiError &error, AuthMode mode)
         return QStringLiteral("wrong username or password");
     case AuthMode::ApiKey:
         return QStringLiteral("the server refused this API key");
+    case AuthMode::Password:
+        return QStringLiteral("wrong password");
     case AuthMode::None:
         // No credential went out, and the server wants one.
         return QStringLiteral("this server asks for a login");
@@ -103,6 +123,11 @@ QJsonObject Server::toJson() const
         object[QStringLiteral("addedAt")] = addedAt.toUTC().toString(Qt::ISODate);
     if (!certificateSha256.isEmpty())
         object[QStringLiteral("certificateSha256")] = certificateSha256;
+    // servers.json v2 (#84): the engine always, its last version once one was seen.
+    object[QStringLiteral("engine")] =
+        engineKindToString(engine == EngineKind::Unknown ? EngineKind::Qbittorrent : engine);
+    if (!engineVersion.isEmpty())
+        object[QStringLiteral("engineVersion")] = engineVersion;
     return object;
 }
 
@@ -130,6 +155,13 @@ Server Server::fromJson(const QJsonObject &object, bool *ok)
     // into "accept whatever certificate".
     server.certificateSha256 =
         CertificatePin::normalized(object.value(QStringLiteral("certificateSha256")).toString());
+
+    // A v1 entry has no engine: every server was a qBittorrent then. An engine this build
+    // doesn't know (a newer one's) reads as Unknown and is refused on use, never guessed.
+    const QJsonValue engine = object.value(QStringLiteral("engine"));
+    server.engine =
+        engine.isUndefined() ? EngineKind::Qbittorrent : engineKindFromString(engine.toString());
+    server.engineVersion = object.value(QStringLiteral("engineVersion")).toString();
 
     if (ok)
         *ok = !server.id.isEmpty();

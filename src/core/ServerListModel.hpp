@@ -56,7 +56,7 @@ public:
         NameRole,
         UrlRole,          ///< the full URL, "http://127.0.0.1:8080"
         UrlTextRole,      ///< "127.0.0.1:8080" — host:port, for the dim line
-        AuthModeRole,     ///< "apiKey" | "cookie" | "none"
+        AuthModeRole,     ///< "apiKey" | "cookie" | "none" | "password"
         AuthModeTextRole, ///< "API key" | "cookie" | "none"
         UsernameRole,
         IsDefaultRole,
@@ -85,6 +85,10 @@ public:
         /// When it was last seen or tried, as a QDateTime (invalid when never): the status
         /// file's `servers[].seen` (docs/33 §11).
         LastSeenAtRole,
+        EngineRole,        ///< "qbittorrent" | "transmission" | "deluge" (servers.json v2)
+        EngineNameRole,    ///< "qBittorrent": what the engine calls itself
+        EngineVersionRole, ///< the last contact's version, "5.2.3"; empty before one
+        EngineTextRole,    ///< C25 K12: "qBittorrent 5.2.3", the name alone before a contact
     };
     Q_ENUM(Role)
 
@@ -150,22 +154,31 @@ public:
     /// its id. `torrentCount` < 0 leaves the count alone; empty versions leave the last known
     /// ones alone (a failed probe has none, and the server did not change version by being
     /// unreachable).
+    /// `engine` ("qbittorrent", …) is the one that answered; empty keeps the stored one. A
+    /// reachable answer with a version is written to the server (rememberContact()).
     Q_INVOKABLE void setProbeResult(const QString &id,
                                     bool reachable,
                                     const QString &version,
                                     const QString &apiVersion,
                                     int torrentCount,
                                     int latencyMs,
-                                    const QString &error);
+                                    const QString &error,
+                                    const QString &engine = QString());
+    /// C25 K12: `id` answered as `engine` at `version`; servers.json keeps it (only when it
+    /// differs from what it held).
+    void rememberContact(const QString &id, EngineKind engine, const QString &version);
 
     // ---- the pure parts, so a test needs no store -------------------------------------
 
     /// Builds a `Server` from the QML field map: `id`, `name`, `url`, `authMode`
-    /// ("apiKey" | "cookie" | "none"), `username`, `pathMapRemote`, `pathMapLocal`,
-    /// `certificateSha256` (anything but a SHA-256 reads as none). User info
+    /// ("apiKey" | "cookie" | "none" | "password"), `username`, `pathMapRemote`,
+    /// `pathMapLocal`, `certificateSha256` (anything but a SHA-256 reads as none), `engine`
+    /// ("qbittorrent" when absent) and `engineVersion`. User info
     /// typed into the URL never stays there: the user name fills an empty `username`, and for
     /// a cookie server the password comes back through `urlPassword` (dropped otherwise).
     static Server serverFromMap(const QVariantMap &fields, QString *urlPassword = nullptr);
+    /// "v5.2.3" → "5.2.3"; anything else as it is.
+    static QString bareVersion(const QString &version);
     /// "API key" / "cookie" / "none" — what Fig. 9 and Fig. 16 print.
     static QString authModeText(AuthMode mode);
     /// "127.0.0.1:8080", the host:port half of the dim line.

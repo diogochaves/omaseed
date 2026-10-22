@@ -298,6 +298,11 @@ ErrorWords::Text ErrorWords::forServer(const ApiError &error, const Subject &sub
                 text.line = tr("The API key omaseed has for it is wrong. It won't try again "
                                "until you change it.");
                 break;
+            case AuthMode::Password:
+                text.headline = tr("%1 refused the sign-in").arg(name);
+                text.line = tr("The password omaseed has for it is wrong. It won't try again "
+                               "until you change it.");
+                break;
             case AuthMode::None:
                 text.headline = tr("%1 asks for a login").arg(name);
                 text.line = tr("omaseed has none for it. Add one in Settings › Servers.");

@@ -43,6 +43,7 @@ void QbtSettingsFetch::fetch(const Server &server, const QString &secret, const 
         client->setCredentials(server.username, secret);
         break;
     case AuthMode::None:
+    case AuthMode::Password: // Deluge's; a qBittorrent never has it
         break;
     }
     m_client = client;

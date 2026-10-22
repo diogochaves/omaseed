@@ -130,6 +130,11 @@ omaseed_add_test(tst_serverstore
     LIBRARIES omaseed::core
 )
 
+omaseed_add_test(tst_enginekind
+    SOURCES tst_enginekind.cpp
+    LIBRARIES omaseed::core
+)
+
 omaseed_add_test(tst_serverdetector
     SOURCES tst_serverdetector.cpp
     LIBRARIES omaseed::core Qt6::Network

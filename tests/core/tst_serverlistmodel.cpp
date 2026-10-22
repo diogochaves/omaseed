@@ -59,6 +59,7 @@ private Q_SLOTS:
     void lastSeenPerServer();                     // docs/33 D5
     void currentServerState();                    // docs/33 D5, D8, D9
     void whenText();
+    void theEngineIsKeptWithTheServer(); // #84, C25 K12
 
 private:
     QTemporaryDir m_config;
@@ -561,6 +562,58 @@ void TestServerListModel::whenText()
     QCOMPARE(ServerListModel::whenText(QDateTime(QDate(2026, 10, 2), QTime(8, 0)), now),
              QStringLiteral("2 Oct 08:00"));
     QCOMPARE(ServerListModel::whenText(QDateTime(), now), QString());
+}
+
+void TestServerListModel::theEngineIsKeptWithTheServer()
+{
+    ServerStore store;
+    ServerListModel model(&store);
+    // A field map without an engine is a qBittorrent, as every server before #84.
+    const QString id = model.add(homeFields());
+    QCOMPARE(roleOf(model, 0, ServerListModel::EngineRole).toString(),
+             QStringLiteral("qbittorrent"));
+    QCOMPARE(roleOf(model, 0, ServerListModel::EngineNameRole).toString(),
+             QStringLiteral("qBittorrent"));
+    QCOMPARE(roleOf(model, 0, ServerListModel::EngineTextRole).toString(),
+             QStringLiteral("qBittorrent"));
+    QVERIFY(roleOf(model, 0, ServerListModel::EngineVersionRole).toString().isEmpty());
+
+    // A reachable answer with a version is the last contact: kept in servers.json.
+    model.setProbeResult(id,
+                         true,
+                         QStringLiteral("v5.3.0"),
+                         QStringLiteral("2.16.2"),
+                         3,
+                         2,
+                         QString(),
+                         QStringLiteral("qbittorrent"));
+    QCOMPARE(store.byId(id)->engineVersion, QStringLiteral("5.3.0"));
+    QCOMPARE(roleOf(model, 0, ServerListModel::EngineTextRole).toString(),
+             QStringLiteral("qBittorrent 5.3.0"));
+    ServerStore reloaded;
+    QVERIFY(reloaded.load());
+    QCOMPARE(reloaded.byId(id)->engineVersion, QStringLiteral("5.3.0"));
+    // A model over it (a new start) names it before any probe.
+    ServerListModel again(&reloaded);
+    QCOMPARE(roleOf(again, 0, ServerListModel::EngineTextRole).toString(),
+             QStringLiteral("qBittorrent 5.3.0"));
+
+    // A failed probe changes nothing kept.
+    model.setProbeResult(id, false, QString(), QString(), -1, 5, QStringLiteral("refused"));
+    QCOMPARE(store.byId(id)->engineVersion, QStringLiteral("5.3.0"));
+
+    // An edit without an engine keeps it; one with another engine drops the old version.
+    QVariantMap edit = model.serverMap(id);
+    edit.remove(QStringLiteral("engine"));
+    edit.remove(QStringLiteral("engineVersion"));
+    QVERIFY(model.update(edit));
+    QCOMPARE(store.byId(id)->engineVersion, QStringLiteral("5.3.0"));
+    edit.insert(QStringLiteral("engine"), QStringLiteral("deluge"));
+    edit.insert(QStringLiteral("authMode"), QStringLiteral("password"));
+    QVERIFY(model.update(edit));
+    QCOMPARE(store.byId(id)->engine, EngineKind::Deluge);
+    QVERIFY(store.byId(id)->engineVersion.isEmpty());
+    QCOMPARE(store.byId(id)->authMode, AuthMode::Password);
 }
 
 QTEST_MAIN(TestServerListModel)
