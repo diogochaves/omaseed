@@ -80,7 +80,7 @@ scripts/dev/backup-walk.sh [OUT] | --interactive  # a qBittorrent's torrents exp
 scripts/dev/error-walk.sh [OUT] | --interactive   # a torrent goes into error: the row's cause, the error block, one notice
 scripts/dev/menu-walk.sh [OUT] | --interactive    # the one menu: tray and bar widget ⋯, server switches, quit
 scripts/dev/stuck-walk.sh [OUT] | --interactive   # finished into a full disk (a udisks loop image): the stuck move's red block, then a recheck moves it
-scripts/dev/move-walk.sh [OUT] | --interactive    # folder and selection moves, queue, places, partial pack, move back, recheck (~11 min; OMASEED_MOVE_WALK_FROM=selection|sheet|history|music|remote)
+scripts/dev/move-walk.sh [OUT] | --interactive    # folder and selection moves, queue, places, partial pack, move back, recheck (~12 min; OMASEED_MOVE_WALK_FROM=selection|sheet|history|big|music|remote)
 omabox check run [--approve] --base .local/visual --plugin plugin -- scripts/dev/visual-check.sh  # the walks' screens against a baseline: same, or what changed
 scripts/dev/manual-box.sh [--headless] | down          # throwaway desktop for manual tests: omaseed installed, two qBittorrents (public :8090, private :8091)
 scripts/dev/move-library.sh [-b BOX] [--server S]  # the move test library in a box's qBittorrent: 109 torrents (4 partial packs), /tmp/fast, a clash, a read-only dest

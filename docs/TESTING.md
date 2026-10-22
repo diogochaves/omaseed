@@ -38,8 +38,10 @@ follows. The commands themselves are listed in `CLAUDE.md`; `README.md` says how
    (a tick that allocates in full) needs a loop image udisks mounts on this machine, which a box
    can't write to: `ctest -R tst_skipped_ntfs3_live` runs it against the playground.
 
-   `move-walk.sh` takes about 11 minutes; `OMASEED_MOVE_WALK_FROM` set to `selection`, `sheet`,
-   `history`, `music` or `remote` starts it later.
+   `move-walk.sh` takes about 12 minutes; `OMASEED_MOVE_WALK_FROM` set to `selection`, `sheet`,
+   `history`, `big`, `music` or `remote` starts it later. Its `big` step reads a sheet's line
+   with `tesseract` where the accessibility tree cuts it at 80 characters (without it, only the
+   line's start is checked).
 
 4. **Visual check** (`omabox check run … -- scripts/dev/visual-check.sh`). The screens the walks
    reach (library, details, menus, palette, help, the add sheet, every Settings page, the bar

@@ -12,6 +12,7 @@ issue, with a README saying what it reproduces, how to run it and what it printe
 | [121-stuck-move](121-stuck-move/) | Once a finished torrent's move into a full disk failed, what makes qBittorrent try it again? | #121 |
 | [107-errored-stopped](107-errored-stopped/) | Does the Web API tell a stopped errored torrent from a running one? | #107 |
 | [146-torrent-creator](146-torrent-creator/) | What does qBittorrent's torrent creator do through the API, and does a tracker's copy seed from the original folder? | #146 |
+| [162-preallocated-move](162-preallocated-move/) | How big is a torrent's file at its new place while qBittorrent moves it? | #162 |
 
 They talk only to throwaway qBittorrents (the playground on `:8081`, or a profile made with
 `scripts/dev/test-server.sh`) and the offline swarm (`scripts/dev/swarm.sh`), never to a real
